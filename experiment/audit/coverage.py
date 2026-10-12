@@ -10,6 +10,7 @@ from typing import Any
 
 from experiment.audit.environment import (
     CaseAudit,
+    admission_status,
     identity_from_row,
 )
 from nika.workflows.benchmark.release import load_release
@@ -31,35 +32,39 @@ def release_cases(version: str = "0.2.0") -> list[dict[str, Any]]:
 def cover_release(
     rows: list[dict[str, Any]], audits: list[CaseAudit]
 ) -> list[dict[str, Any]]:
-    """Match live audits to release rows. Unmatched rows stay ``not_run``."""
-    by_key = {audit.identity.key(): audit for audit in audits}
+    """Match live audits to release rows. Unmatched rows stay ``not_run``.
+
+    A case audited on several fresh labs passes only when every repeat passes.
+    """
+    by_key: dict[str, list[CaseAudit]] = {}
+    for audit in audits:
+        if provenance_complete(audit.provenance):
+            by_key.setdefault(audit.identity.key(), []).append(audit)
     covered: list[dict[str, Any]] = []
     for row in rows:
         identity = identity_from_row(row)
-        audit = by_key.get(identity.key())
-        if audit is not None and not provenance_complete(audit.provenance):
-            audit = None
         declared_probe = str(row.get("symptom_probe") or "")
-        if (
-            audit is not None
-            and declared_probe
-            and audit.symptom_probe != declared_probe
-        ):
-            audit = None
-        if audit is None:
+        runs = [
+            audit
+            for audit in by_key.get(identity.key(), [])
+            if not declared_probe or audit.symptom_probe == declared_probe
+        ]
+        if not runs:
             status = "not_run"
             stages: list[dict[str, Any]] = []
-            probe = str(row.get("symptom_probe") or "")
+            probe = declared_probe
         else:
-            status = audit.admission()
-            stages = [stage.model_dump() for stage in audit.stages]
-            probe = audit.symptom_probe or str(row.get("symptom_probe") or "")
+            status = admission_status([audit.admission() for audit in runs])
+            stages = [stage.model_dump() for stage in runs[0].stages]
+            probe = runs[0].symptom_probe or declared_probe
         covered.append(
             {
                 "split": row.get("split") or "",
                 "identity": identity,
                 "symptom_probe": probe,
                 "admission": status,
+                "repeats": len(runs),
+                "repeats_passed": sum(audit.admission() == "pass" for audit in runs),
                 "stages": stages,
             }
         )

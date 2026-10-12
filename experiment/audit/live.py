@@ -1,16 +1,25 @@
 """Full environment audit for one concrete case.
 
-Benchmark runs do not call this module. It deploys a lab, measures the healthy
-baseline, injects the fault, and repeats artifact and symptom reads across a
-short window. It closes only the session it started.
+Benchmark runs do not call this module. It deploys a lab and measures, on the
+same lab:
+
+1. the healthy lab and a same-metric healthy reading of the symptom signal;
+2. a negative control: the symptom predicate evaluated on the healthy lab;
+3. the injected artifact and the symptom after inject, with a control path;
+4. the artifact and the symptom again after ``PERSISTENCE_WAIT_SEC`` and after
+   a further ``FINAL_WAIT_SEC``.
+
+It closes only the session it started.
 """
 
 from __future__ import annotations
 
 import ipaddress
 import time
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
+from urllib.parse import urlparse
 
 from experiment.audit.environment import (
     CaseAudit,
@@ -19,50 +28,38 @@ from experiment.audit.environment import (
     identity_from_row,
 )
 from experiment.audit.provenance import capture_provenance
-from nika.net_env.verify import (
-    http_download_stats,
-    http_ok,
-    iperf_tcp_metrics,
-    ping_ok,
-    ping_stats,
-)
+from nika.net_env.verify import http_ok, ping_ok
 from nika.problems.rca.inventory import (
     canonical_link_name,
     iter_link_termination_points,
     parse_endpoint,
 )
 from nika.problems.registry import get_problem_class
+from nika.runtime.shared.execution import collect_exec_failures
 from nika.validation.presence import recheck_artifact_with_retry
+from nika.validation.symptom.contracts import get_symptom_contract
+from nika.validation.symptom.custom import evaluate_custom_baseline
+from nika.validation.symptom.evaluate import evaluate_symptom
+from nika.validation.symptom.probe import _resolve_path, run_probe_snapshot
 from nika.workflows.benchmark.healthy import is_healthy_case
-from tests.support.failure_e2e_hooks import HOOKS, FailureE2EContext
-from tests.support.scenario_evaluate import evaluate_scenario
-from tests.support.symptom.contracts import get_symptom_contract, list_symptom_contracts
-from tests.support.symptom.custom import evaluate_custom_baseline
-from tests.support.symptom.evaluate import evaluate_symptom
-from tests.support.symptom.probe import _resolve_path, run_probe_snapshot
 
-# Seconds to leave a dynamic fault in place before the persistence read.
-_DYNAMIC_WINDOW_SEC = {
-    "link_flap": 5.0,
-    "tcp_syn_flood_attack": 3.0,
-    "web_dos_attack": 3.0,
-    "load_balancer_overload": 3.0,
-    "incast_traffic_network_limitation": 3.0,
-    "sender_resource_contention": 3.0,
-    "receiver_resource_contention": 3.0,
-    "arp_cache_poisoning": 3.0,
-}
-
-
-def window_for(fault: str) -> float:
-    """Return the persistence window for ``fault``."""
-    return _DYNAMIC_WINDOW_SEC.get(fault, 2.0)
+# The persistence read comes after the OSPF dead interval (40 s) and BGP hold
+# timers used in the labs, so a fault that only perturbs a protocol briefly does
+# not persist. The final read comes one more window later.
+PERSISTENCE_WAIT_SEC = 60.0
+FINAL_WAIT_SEC = 60.0
+# Lab checks that may retry before the first healthy reading.
+LAB_ATTEMPTS = 3
+LAB_RETRY_DELAY_SEC = 5.0
+# Stages whose pass means "the symptom is present". A probe command that timed
+# out or raised there reads as a broken path, so it fails the stage instead.
+_SYMPTOM_STAGES = frozenset({"symptom", "persistence_symptom", "final_symptom"})
 
 
 def declared_probe(fault: str) -> str:
-    """Return the symptom-contract probe, or ``undeclared``."""
-    declared = {item.failure: item.probe for item in list_symptom_contracts()}
-    return str(declared.get(fault, "undeclared"))
+    """Return the symptom probe the fault class declares, or ``undeclared``."""
+    contract = get_symptom_contract(fault)
+    return contract.probe if contract is not None else "undeclared"
 
 
 def _stage(
@@ -74,6 +71,25 @@ def _stage(
         reason=reason,
         evidence=evidence or {},
     )
+
+
+def _timed(name: str, measure: Callable[[], StageResult]) -> StageResult:
+    """Run one stage, stamp its time, and fail a symptom read on command errors."""
+    started = datetime.now(UTC).isoformat()
+    clock = time.monotonic()
+    with collect_exec_failures() as failures:
+        try:
+            stage = measure()
+        except Exception as exc:  # noqa: BLE001 - one stage records its own error
+            stage = _stage(name, "fail", f"{type(exc).__name__}: {exc}"[:500])
+    stage.started_at = started
+    stage.duration_sec = round(time.monotonic() - clock, 1)
+    if failures:
+        stage.evidence["exec_failures"] = failures[:20]
+        if name in _SYMPTOM_STAGES and stage.status == "pass":
+            stage.status = "fail"
+            stage.reason = "a probe command timed out or raised"
+    return stage
 
 
 def _from_observation(
@@ -315,27 +331,31 @@ def _note_sibling_control(
         return {**payload, "control_ok": True}
     path = _resolve_path(scenario, parsed, topo_size=topo_size)
     if path is None or not path.peer_host or path.peer_host == path.src_host:
-        return payload
+        return {**payload, "control_unavailable": "scenario declares no peer host"}
     ok: bool | None = None
     source = path.peer_host
     dst_ip = path.dst_ip
     if dst_ip:
         control = _independent_control_ip(problem, parsed, runtime, source, dst_ip)
         if control is None:
-            return payload
+            return {
+                **payload,
+                "control_unavailable": "every peer path crosses the root cause",
+            }
         source, dst_ip = control
     url = None
-    # The gateway VIP answers TCP/80 and does not answer ICMP.
-    if dst_ip == "20.0.0.1" and path.http_url:
+    # A destination the scenario serves over HTTP (a load-balancer VIP) need
+    # not answer ICMP, so probe the service itself.
+    if dst_ip and path.http_url and urlparse(path.http_url).hostname == dst_ip:
         url = path.http_url
         ok = http_ok(runtime, source, url)
     elif dst_ip:
-        ok = ping_ok(runtime, source, dst_ip)
+        ok = ping_ok(runtime, source, dst_ip, count=3)
     elif path.http_url:
         url = path.http_url
         ok = http_ok(runtime, source, url)
     if ok is None:
-        return payload
+        return {**payload, "control_unavailable": "no destination to probe"}
     noted = dict(payload)
     noted["control_ok"] = ok
     noted["control_path"] = {
@@ -344,79 +364,6 @@ def _note_sibling_control(
         "http_url": url,
     }
     return noted
-
-
-def _healthy_custom_baseline(
-    runtime: Any, scenario: str, parsed: Any, topo_size: str
-) -> StageResult | None:
-    """Return a passing baseline when the scenario path is healthy."""
-    path = _resolve_path(scenario, parsed, topo_size=topo_size)
-    if path is None:
-        return None
-    if path.http_url:
-        kind = "path_http"
-    elif path.dst_ip:
-        kind = "path_ping"
-    else:
-        return None
-    snapshot = run_probe_snapshot(runtime, kind, path, params=parsed)
-    stage = _baseline_path(kind, snapshot)
-    if stage.status != "pass":
-        return None
-    return stage
-
-
-def _corruption_baseline(
-    problem: Any, parsed: Any, scenario: str, size: str
-) -> dict[str, Any]:
-    """Capture the same TCP path used by the corruption symptom probe."""
-    from tests.support.symptom.corruption_probes import (
-        IPERF_DURATION_SEC,
-        _resolve_iperf_dst_ip,
-        _service_peer_host,
-    )
-
-    path = _resolve_path(scenario, parsed, topo_size=size)
-    if path is None or not path.dst_ip:
-        return {"tcp_baseline_error": "no_probe_path"}
-    peer = (
-        _service_peer_host(problem, path, scenario)
-        if problem.root_cause_name == "device_forwarding_packet_corruption"
-        else path.peer_host or path.src_host
-    )
-    peer_ip = _resolve_iperf_dst_ip(problem.runtime, peer, path.dst_ip)
-    bps, retrans = iperf_tcp_metrics(
-        problem.runtime,
-        path.src_host,
-        peer,
-        peer_ip,
-        duration_sec=IPERF_DURATION_SEC,
-        port=15221,
-    )
-    problem._baseline_iperf_bps = bps
-    problem._baseline_iperf_retrans = retrans
-    ping = ping_stats(
-        problem.runtime, path.src_host, path.dst_ip, count=20, interval_sec=0.05
-    )
-    problem._baseline_rtt_ms = ping.rtt_avg_ms
-    evidence: dict[str, Any] = {
-        "baseline_iperf_bps": bps,
-        "baseline_iperf_retrans": retrans,
-        "baseline_ping_rtt_ms": ping.rtt_avg_ms,
-        "baseline_ping_loss_percent": ping.loss_percent,
-        "tcp_peer": peer,
-    }
-    if path.http_url:
-        http = http_download_stats(
-            problem.runtime,
-            path.src_host,
-            path.http_url,
-            max_time_sec=30,
-            connect_timeout_sec=5,
-        )
-        problem._baseline_http_time_s = http.time_total_s if http.ok else None
-        evidence["baseline_http_time_s"] = problem._baseline_http_time_s
-    return evidence
 
 
 def _control_stage(fault: str, payload: dict[str, Any] | None) -> StageResult:
@@ -428,20 +375,28 @@ def _control_stage(fault: str, payload: dict[str, Any] | None) -> StageResult:
         after.get("control_ok"),
         details.get("control_ok"),
     )
-    evidence = {"fault": fault}
+    evidence: dict[str, Any] = {"fault": fault}
     if isinstance(body.get("control_path"), dict):
         evidence["path"] = body["control_path"]
     if any(value is False for value in controls):
         return _stage("control_path", "fail", "control path failed", evidence)
     if any(value is True for value in controls):
         return _stage("control_path", "pass", evidence=evidence)
-    # Probe snapshots always include the key. None means this fault has
-    # no separate control path, which is different from a failed probe.
+    unavailable = body.get("control_unavailable")
+    if unavailable:
+        # The lab has no path that avoids the root cause. That is a property of
+        # the topology, recorded and reported, and it does not block admission.
+        return _stage(
+            "control_path",
+            "unsupported",
+            "no_control_path",
+            {**evidence, "why": unavailable},
+        )
     return _stage(
         "control_path",
         "unsupported",
-        "no_control_path",
-        {"fault": fault, "scope": fault},
+        "control path was not measured",
+        evidence,
     )
 
 
@@ -455,30 +410,74 @@ def _artifact_stage(stage: str, raw: dict[str, Any]) -> StageResult:
     )
 
 
-def _lab(net_env: Any) -> tuple[bool, dict[str, Any]]:
-    ok, result = evaluate_scenario(net_env)
-    if not isinstance(result, dict):
-        return ok, {}
-    return ok, result
+def _lab_stage(name: str, net_env: Any) -> StageResult:
+    """Run the scenario's full ``verify_lab``, retrying a few times after deploy."""
+    attempts: list[dict[str, Any]] = []
+    for attempt in range(LAB_ATTEMPTS):
+        result = net_env.verify_lab()
+        if result is None:
+            return _stage(name, "unsupported", "no_verify_lab")
+        checks = result.get("checks") or {}
+        ok = bool(result.get("verified")) and bool(checks) and all(checks.values())
+        attempts.append(
+            {"verified": ok, "failed": sorted(k for k, v in checks.items() if not v)}
+        )
+        if ok or attempt + 1 == LAB_ATTEMPTS:
+            stage = _from_observation(name, result, ok=ok)
+            stage.evidence = {**stage.evidence, "attempts": attempts}
+            return stage
+        time.sleep(LAB_RETRY_DELAY_SEC)
+    raise AssertionError("unreachable")
 
 
-def audit_open_session(
-    session_id: str,
-    row: dict[str, Any],
-    *,
-    window_sec: float | None = None,
-) -> CaseAudit:
+def _sham_stage(observe: Callable[[], tuple[bool, dict[str, Any]]]) -> StageResult:
+    """Evaluate the symptom predicate on the healthy lab. It must not hold."""
+    ok, payload = observe()
+    payload = payload if isinstance(payload, dict) else {}
+    status, reason = classify_observation(payload, ok=None)
+    if status in {"fail", "no_evidence", "unsupported", "skipped"} and payload.get(
+        "error"
+    ):
+        return _stage("sham_symptom", status, reason, payload)
+    if ok:
+        return _stage(
+            "sham_symptom",
+            "fail",
+            "the symptom predicate holds on the healthy lab",
+            payload,
+        )
+    return _stage("sham_symptom", "pass", None, payload)
+
+
+def _custom_baseline_stage(fault: str, problem: Any, parsed: Any) -> StageResult:
+    own = evaluate_custom_baseline(fault, problem, parsed)
+    if own is None:
+        return _stage(
+            "baseline_path",
+            "unsupported",
+            "the fault declares no same-metric healthy baseline",
+            {"scope": fault},
+        )
+    ok, evidence = own
+    return _stage(
+        "baseline_path",
+        "pass" if ok else "fail",
+        None if ok else "the symptom signal was not healthy before inject",
+        evidence,
+    )
+
+
+def audit_open_session(session_id: str, row: dict[str, Any]) -> CaseAudit:
     """Audit a case whose lab is already deployed. Does not close the session."""
+    from nika.net_env.isp.identity import is_isp_scenario
     from nika.net_env.net_env_pool import get_net_env_instance
     from nika.utils.session import Session
 
     identity = identity_from_row(row)
     fault = identity.fault
-    probe = declared_probe(fault) if not is_healthy_case(fault) else ""
+    probe = "" if is_healthy_case(fault) else declared_probe(fault)
     session = Session().load_running_session(session_id=session_id)
     kwargs = dict(getattr(session, "scenario_params", None) or {})
-    from nika.net_env.isp.identity import is_isp_scenario
-
     # Session metadata records the fixed ISP scale for benchmark sampling.
     # The scenario id owns the topology, and the lab constructor rejects topo_size.
     if is_isp_scenario(session.scenario_name):
@@ -487,185 +486,108 @@ def audit_open_session(
     net_env = get_net_env_instance(session.scenario_name, **kwargs)
     provenance = capture_provenance(session_id, net_env._build_runtime())
     stages: list[StageResult] = []
-    pause = window_for(fault) if window_sec is None else window_sec
 
-    ok, lab = _lab(net_env)
-    stages.append(_from_observation("baseline_lab", lab, ok=ok))
-
-    if is_healthy_case(fault):
-        time.sleep(pause)
-        ok, lab = _lab(net_env)
-        stages.append(_from_observation("final_lab", lab, ok=ok))
+    def done() -> CaseAudit:
         return CaseAudit(
             identity=identity,
             stages=stages,
             symptom_probe=probe,
             provenance=provenance,
         )
+
+    stages.append(_timed("baseline_lab", lambda: _lab_stage("baseline_lab", net_env)))
+    if is_healthy_case(fault):
+        time.sleep(PERSISTENCE_WAIT_SEC + FINAL_WAIT_SEC)
+        stages.append(_timed("final_lab", lambda: _lab_stage("final_lab", net_env)))
+        return done()
 
     cls = get_problem_class(fault)
-    if cls is None:
-        stages.append(_stage("inject_artifact", "fail", f"unknown fault {fault}"))
-        return CaseAudit(
-            identity=identity,
-            stages=stages,
-            symptom_probe=probe,
-            provenance=provenance,
-        )
+    if cls is None or probe == "undeclared":
+        stages.append(_stage("baseline_path", "unsupported", f"no symptom for {fault}"))
+        return done()
 
     problem = cls(scenario_name=session.scenario_name, **kwargs)
     parsed = problem.parse_params(
         {key: str(value) for key, value in identity.inject.items()}
     )
     runtime = problem.runtime
-    contract = get_symptom_contract(fault) if probe not in {"", "undeclared"} else None
-    hooks = HOOKS.get(fault, {})
-    ctx = FailureE2EContext(
-        problem_name=fault,
-        scenario=identity.scenario,
-        topo_size=identity.topo_size or "s",
-        problem=problem,
-        parsed=parsed,
-        runtime=runtime,
-    )
-    if "pre_inject" in hooks:
-        hooks["pre_inject"](ctx)
+    size = identity.topo_size or "s"
+    before: Any = None
 
-    if probe in {"custom", "undeclared"}:
-        own = evaluate_custom_baseline(fault, problem, parsed)
-        healthy = (
-            _healthy_custom_baseline(
-                runtime,
-                identity.scenario,
-                parsed,
-                identity.topo_size or "s",
-            )
-            if own is None
-            else None
-        )
-        if own is not None:
-            stages.append(
-                _stage(
-                    "baseline_path",
-                    "pass" if own[0] else "fail",
-                    None if own[0] else "target path was not healthy before inject",
-                    own[1],
-                )
-            )
-        elif healthy is not None:
-            stages.append(healthy)
-        else:
-            stages.append(
-                _stage(
-                    "baseline_path",
-                    "unsupported",
-                    f"{probe} probe has no shared healthy baseline",
-                    {"scope": fault},
-                )
-            )
-    else:
-        path = _resolve_path(
-            identity.scenario, parsed, topo_size=identity.topo_size or "s"
-        )
+    def baseline() -> StageResult:
+        nonlocal before
+        if probe == "custom":
+            return _custom_baseline_stage(fault, problem, parsed)
+        path = _resolve_path(identity.scenario, parsed, topo_size=size)
         if path is None:
-            stages.append(_stage("baseline_path", "no_evidence", "no_probe_path"))
-        else:
-            kind = contract.probe if contract is not None else probe
-            snapshot = run_probe_snapshot(runtime, kind, path, params=parsed)
-            stages.append(_baseline_path(probe, snapshot))
-            if ctx.before is None:
-                ctx.before = snapshot
+            return _stage("baseline_path", "no_evidence", "no_probe_path")
+        before = run_probe_snapshot(runtime, probe, path, params=parsed)
+        return _baseline_path(probe, before)
 
-    if fault in {"link_packet_corruption", "device_forwarding_packet_corruption"}:
-        stages[-1].evidence.update(
-            _corruption_baseline(
-                problem, parsed, identity.scenario, identity.topo_size or "s"
-            )
+    def observe() -> tuple[bool, dict[str, Any]]:
+        ok, payload = evaluate_symptom(
+            runtime,
+            fault,
+            parsed,
+            scenario=identity.scenario,
+            topo_size=size,
+            before=before,
+            problem=problem,
         )
+        return ok, payload if isinstance(payload, dict) else {}
 
-    problem.inject_fault(parsed)
-    verify = problem.verify_fault(parsed)
-    verify_ok = bool(isinstance(verify, dict) and verify.get("verified"))
-    details = verify.get("details") if isinstance(verify, dict) else {}
-    if not isinstance(details, dict):
-        details = {"details": details}
-    stages.append(
-        _stage(
+    stages.append(_timed("baseline_path", baseline))
+    stages.append(_timed("sham_symptom", lambda: _sham_stage(observe)))
+
+    def inject() -> StageResult:
+        problem.inject_fault(parsed)
+        verify = problem.verify_fault(parsed)
+        verified = bool(isinstance(verify, dict) and verify.get("verified"))
+        details = verify.get("details") if isinstance(verify, dict) else {}
+        return _stage(
             "inject_artifact",
-            "pass" if verify_ok else "fail",
-            None if verify_ok else "verify_fault reported the artifact absent",
-            details,
+            "pass" if verified else "fail",
+            None if verified else "verify_fault reported the artifact absent",
+            details if isinstance(details, dict) else {"details": details},
         )
-    )
 
-    symptom_ok, symptom = evaluate_symptom(
-        runtime,
-        fault,
-        parsed,
-        scenario=identity.scenario,
-        topo_size=identity.topo_size or "s",
-        before=ctx.before,
-        problem=problem,
-    )
-    symptom_payload = symptom if isinstance(symptom, dict) else {}
-    symptom_payload = _note_sibling_control(
-        runtime,
-        identity.scenario,
-        parsed,
-        identity.topo_size or "s",
-        symptom_payload,
-        problem,
-    )
-    stages.append(_from_observation("symptom", symptom_payload, ok=symptom_ok))
+    stages.append(_timed("inject_artifact", inject))
+    symptom_payload: dict[str, Any] = {}
+
+    def symptom() -> StageResult:
+        nonlocal symptom_payload
+        ok, payload = observe()
+        symptom_payload = _note_sibling_control(
+            runtime, identity.scenario, parsed, size, payload, problem
+        )
+        return _from_observation("symptom", symptom_payload, ok=ok)
+
+    stages.append(_timed("symptom", symptom))
     stages.append(_control_stage(fault, symptom_payload))
 
-    time.sleep(pause)
-    stages.append(
-        _artifact_stage(
-            "persistence_artifact", recheck_artifact_with_retry(problem, parsed)
+    for label, wait in (
+        ("persistence", PERSISTENCE_WAIT_SEC),
+        ("final", FINAL_WAIT_SEC),
+    ):
+        time.sleep(wait)
+        stages.append(
+            _timed(
+                f"{label}_artifact",
+                lambda label=label: _artifact_stage(
+                    f"{label}_artifact", recheck_artifact_with_retry(problem, parsed)
+                ),
+            )
         )
-    )
-    held_ok, held = evaluate_symptom(
-        runtime,
-        fault,
-        parsed,
-        scenario=identity.scenario,
-        topo_size=identity.topo_size or "s",
-        before=ctx.before,
-        problem=problem,
-    )
-    stages.append(
-        _from_observation(
-            "persistence_symptom", held if isinstance(held, dict) else {}, ok=held_ok
-        )
-    )
 
-    stages.append(
-        _artifact_stage("final_artifact", recheck_artifact_with_retry(problem, parsed))
-    )
-    final_ok, final = evaluate_symptom(
-        runtime,
-        fault,
-        parsed,
-        scenario=identity.scenario,
-        topo_size=identity.topo_size or "s",
-        before=ctx.before,
-        problem=problem,
-    )
-    stages.append(
-        _from_observation(
-            "final_symptom", final if isinstance(final, dict) else {}, ok=final_ok
-        )
-    )
-    return CaseAudit(
-        identity=identity,
-        stages=stages,
-        symptom_probe=probe,
-        provenance=provenance,
-    )
+        def again(label: str = label) -> StageResult:
+            ok, payload = observe()
+            return _from_observation(f"{label}_symptom", payload, ok=ok)
+
+        stages.append(_timed(f"{label}_symptom", again))
+    return done()
 
 
-def audit_case(row: dict[str, Any], *, window_sec: float | None = None) -> CaseAudit:
+def audit_case(row: dict[str, Any]) -> CaseAudit:
     """Deploy ``row``, audit it, and undeploy that session."""
     from nika.net_env.net_env_pool import scenario_requires_topo_size
     from nika.utils.session_id import resolve_session_tag
@@ -687,7 +609,7 @@ def audit_case(row: dict[str, Any], *, window_sec: float | None = None) -> CaseA
         **kwargs,
     )
     try:
-        audit = audit_open_session(session_id, row, window_sec=window_sec)
+        audit = audit_open_session(session_id, row)
         if audit.provenance is not None:
             audit.provenance.completed_at = datetime.now(UTC).isoformat()
         return audit

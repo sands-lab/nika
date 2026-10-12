@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+import threading
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from typing import Any
 
 from func_timeout import FunctionTimedOut, func_timeout
@@ -17,6 +19,35 @@ def without_shell_history(cmd: str) -> str:
     return f"export VTYSH_HISTFILE=/dev/null; {cmd}"
 
 
+_FAILURE_LOGS: list[list[dict[str, Any]]] = []
+_FAILURE_LOCK = threading.Lock()
+
+
+def note_exec_failure(node: str, cmd: str, error: str) -> None:
+    """Record a command that timed out or raised for every open collector."""
+    with _FAILURE_LOCK:
+        for log in _FAILURE_LOGS:
+            log.append({"node": node, "cmd": cmd[:300], "error": error[:300]})
+
+
+@contextmanager
+def collect_exec_failures() -> Iterator[list[dict[str, Any]]]:
+    """Collect lab commands that timed out or raised while the block runs.
+
+    Probes reduce command output to booleans, so a timed-out ``ping`` reads the
+    same as an unreachable host. Callers that must tell them apart inspect the
+    collected failures.
+    """
+    log: list[dict[str, Any]] = []
+    with _FAILURE_LOCK:
+        _FAILURE_LOGS.append(log)
+    try:
+        yield log
+    finally:
+        with _FAILURE_LOCK:
+            _FAILURE_LOGS.remove(log)
+
+
 def exec_with_timeout(
     run: Callable[[], str],
     *,
@@ -27,6 +58,7 @@ def exec_with_timeout(
     try:
         return func_timeout(timeout, run)
     except FunctionTimedOut:
+        note_exec_failure(node, cmd, f"timeout after {timeout}s")
         return f"[TIMEOUT] Command '{cmd}' on '{node}' exceeded {timeout}s."
 
 
