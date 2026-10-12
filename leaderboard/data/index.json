@@ -961,7 +961,10 @@
       "official": true,
       "nika_git_commit": "63912570d6fd1b0bc9647d6e299d68e642a36210",
       "name": "gemma-4-31B-it · Claude Code",
-      "rca_f1_ci": null,
+      "rca_f1_ci": [
+        0.238039,
+        0.398567
+      ],
       "beaten_by": [
         "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
         "0.2.0/20261011_react_qwen3_8_27b_fp8"

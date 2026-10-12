@@ -6857,5 +6857,18 @@
     "web_dos_attack": "security",
     "wireguard_allowed_ips_misconfiguration": "forwarding_encapsulation_policy",
     "wireguard_peer_key_misconfiguration": "forwarding_encapsulation_policy"
-  }
+  },
+  "rca_f1_ci": [
+    0.016994,
+    0.061438
+  ],
+  "beaten_by": [
+    "0.2.0/20261007_qwen3_6_35b_a3b_claudecode",
+    "0.2.0/20261007_qwen3_6_35b_a3b_langgraph",
+    "0.2.0/20261008_qwen3_6_35b_a3b_codex",
+    "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
+    "0.2.0/20261011_react_qwen3_8_27b_fp8",
+    "0.2.0/20261012_claude_code_gemma_4_31b_it"
+  ],
+  "rank": 7
 }

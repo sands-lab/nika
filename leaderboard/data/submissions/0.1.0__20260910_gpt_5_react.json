@@ -150,5 +150,8 @@
     "web_dos_attack": "security",
     "wireguard_allowed_ips_misconfiguration": "forwarding_encapsulation_policy",
     "wireguard_peer_key_misconfiguration": "forwarding_encapsulation_policy"
-  }
+  },
+  "rca_f1_ci": null,
+  "beaten_by": [],
+  "rank": 1
 }
