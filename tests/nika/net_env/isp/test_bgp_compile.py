@@ -268,6 +268,23 @@ def test_ebgp_as_regions_are_connected_and_boundaries_are_igp_passive() -> None:
     assert attachment.plan.inventory["igp_passive_boundary_links"]
 
 
+def test_isis_ebgp_boundaries_render_isis_passive() -> None:
+    """isisd drops ``passive-interface``; boundaries need ``isis passive``."""
+    isp_plan = compile_isp_plan(IspConfig(topology="abilene", igp="isis"))
+    scoped = scope_igp_to_bgp_as(isp_plan, compile_bgp_plan(isp_plan, "ebgp"))
+    boundary = [
+        (node, iface)
+        for node in scoped.nodes
+        for iface in node.interfaces
+        if iface.passive
+    ]
+    assert boundary
+    for node, iface in boundary:
+        assert "passive-interface" not in node.frr_conf
+        stanza = node.frr_conf.split(f"interface {iface.name}\n", 1)[1]
+        assert " isis passive\n" in stanza.split("!", 1)[0]
+
+
 @pytest.mark.parametrize("topology", sorted(SNDLIB_TOPOLOGY_NAMES))
 def test_catalog_ebgp_has_connected_as_scoped_igp_and_linear_sessions(
     topology: str,
