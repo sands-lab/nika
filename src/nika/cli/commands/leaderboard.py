@@ -83,7 +83,7 @@ def leaderboard_submit(
         "--out",
         help="Output scores package directory "
         "(default: {result_dir}/{YYYYMMDD}_{slug}/). "
-        "Directory name must match YYYYMMDD_<slug> for the entry name. "
+        "Directory name must match YYYYMMDD_<framework>_<model>. "
         "Trajectories land in a sibling {name}_trajectories/ directory.",
     ),
     repo: str = typer.Option(

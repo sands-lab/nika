@@ -31,7 +31,7 @@ from nika.workflows.leaderboard.hf_remote import remote_trajectories_relpath
 from nika.workflows.leaderboard.meta_input import (
     MetaInputError,
     load_submission_dir,
-    slugify_name,
+    submission_slug,
 )
 from nika.workflows.leaderboard.schema import (
     IDENTITY_FILENAME,
@@ -219,7 +219,7 @@ def _resolve_metadata(
 
 
 def _package_folder_name(metadata: SubmissionMetadata, *, when: datetime) -> str:
-    slug = slugify_name(metadata.info.name)
+    slug = submission_slug(metadata)
     return f"{when.strftime('%Y%m%d')}_{slug}"
 
 
@@ -357,11 +357,11 @@ def pack_leaderboard_submission(
         else _package_folder_name(meta_model, when=created)
     )
     if out_dir is not None and not re.fullmatch(
-        rf"\d{{8}}_{re.escape(slugify_name(meta_model.info.name))}",
+        rf"\d{{8}}_{re.escape(submission_slug(meta_model))}",
         package_name,
     ):
         raise LeaderboardPackError(
-            "--out directory name must be YYYYMMDD_<slug> matching info.name"
+            "--out directory name must be YYYYMMDD_<slug> matching agent.framework and agent.model"
         )
     try:
         traj_relpath = remote_trajectories_relpath(release.version, package_name)
