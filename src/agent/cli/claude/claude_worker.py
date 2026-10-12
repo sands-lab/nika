@@ -16,7 +16,7 @@ isolated, per-session workspace.  It handles:
 * **Output capture** – the final assistant message is extracted from the
   ``{"type":"result"}`` stream-json event; all events are logged to the host
   ``messages.jsonl`` (``trace_dir``, outside the sandbox workspace) and
-  pretty-printed via :func:`~agent.cli.claude.claude_display.format_claude_event`.
+  pretty-printed via :func:`~agent.utils.display.display_agent_event`.
 * **Execution** – ``claude`` always runs inside the sbx sandbox
   (:func:`~agent.sandbox.sbx.exec.exec_in_sandbox`); the worker stays on the host.
 """
@@ -31,7 +31,6 @@ from pathlib import Path
 from typing import Iterator
 
 from agent.cli.claude.claude_display import (
-    format_claude_event,
     should_log_claude_event,
 )
 from agent.cli.claude.config import (
@@ -354,13 +353,6 @@ class ClaudeWorker:
                 event.get("type", "claude_event"),
                 {"claude_event": event},
             )
-        if self._stream_output:
-            try:
-                display = format_claude_event(event)
-            except Exception:
-                display = None
-            if display:
-                print(display, flush=True)
 
         if event.get("type") == "assistant":
             content = event.get("message", {}).get("content") or []

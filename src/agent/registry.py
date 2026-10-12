@@ -107,6 +107,7 @@ def create_agent(
                 session_id=session_id,
                 model=model,
                 max_steps=max_steps,
+                stream_output=stream_output,
             )
         case "sdk.claude_sdk":
             from agent.sdk.claude_sdk.agent import ClaudeSdkAgent

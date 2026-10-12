@@ -44,6 +44,7 @@ from langchain_core.callbacks.base import BaseCallbackHandler
 from langchain_core.messages import BaseMessage, ToolMessage
 from langchain_core.outputs.generation import Generation
 
+from agent.utils.display import display_agent_event
 from agent.utils.reasoning_capture import reasoning_fields_for_log
 from agent.utils.usage import normalize_usage
 
@@ -221,6 +222,7 @@ class MessageLogger:
         }
         with open(self._path, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False, default=str) + "\n")
+        display_agent_event(event_type, payload)
 
     def log_agent_start(self, **fields: Any) -> None:
         """Phase bookend: phase work is beginning."""

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from agent.utils.display import display_agent_event
 from agent.utils.loggers import MessageLogger, tool_event_payload
 from agent.utils.two_phase import ERROR_PREFIX, max_steps_report
 from agent.utils.usage import normalize_usage
@@ -85,8 +86,12 @@ class ClaudeSdkTranscript:
             for block in message.content:
                 if isinstance(block, ThinkingBlock):
                     self._thinking.append(block.thinking)
+                    display_agent_event(
+                        "model_reasoning", {"reasoning_content": block.thinking}
+                    )
                 elif isinstance(block, TextBlock):
                     self._text.append(block.text)
+                    display_agent_event("model_text", {"text": block.text})
                     if block.text.strip():
                         self.last_text = block.text
                 elif isinstance(block, ToolUseBlock):
