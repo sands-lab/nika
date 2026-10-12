@@ -1,4 +1,4 @@
-"""Kathara ISP scenario compiled from SNDlib topologies."""
+"""Kathara ISP scenario compiled from SNDlib and Topology Zoo topologies."""
 
 from __future__ import annotations
 
@@ -41,6 +41,7 @@ from nika.net_env.isp.contract import (
 )
 from nika.runtime.spec import NodeRole
 from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
+from nika.topology.catalog import is_zoo_topology
 
 IgpLiteral = Literal["isis", "ospf"]
 MetricLiteral = Literal["constant", "routing_cost", "inv_capacity"]
@@ -193,8 +194,9 @@ class Isp(NetworkEnvBase):
             if self.bgp_plan is not None
             else "Infrastructure loopbacks only; BGP disabled."
         )
+        source = "Topology Zoo" if is_zoo_topology(self.topo) else "SNDlib"
         self.desc = (
-            f"ISP from SNDlib topology '{self.plan.topology_name}' "
+            f"ISP from {source} topology '{self.plan.topology_name}' "
             f"({len(self.plan.nodes)} routers, {len(self.plan.links)} links, "
             f"{host_n} edge stubs, IGP={self.plan.igp}, "
             f"metric={self.plan.metric_strategy}). {bgp_desc}"

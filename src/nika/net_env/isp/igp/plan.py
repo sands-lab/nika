@@ -15,7 +15,7 @@ from nika.topology import (
     NetworkTopology,
     TopoLink,
     link_preinstalled_capacity,
-    load_sndlib_topology,
+    load_topology,
 )
 
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
@@ -150,7 +150,7 @@ def compile_isp_plan(
 ) -> IspPlan:
     """Compile an ISP plan from config and/or an explicit NetworkTopology."""
     cfg = (config or IspConfig()).validated()
-    topo = topology if topology is not None else load_sndlib_topology(cfg.topology)
+    topo = topology if topology is not None else load_topology(cfg.topology)
 
     nodes_sorted = tuple(sorted(topo.nodes, key=lambda n: n.id))
     links_sorted = tuple(sorted(topo.links, key=lambda link: link.id))

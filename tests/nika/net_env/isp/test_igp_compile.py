@@ -53,7 +53,7 @@ def test_config_rejects_unsupported_metric_strategy() -> None:
 
 
 def test_config_rejects_unknown_topology() -> None:
-    with pytest.raises(IspConfigError, match="Unknown SNDlib topology"):
+    with pytest.raises(IspConfigError, match="Unknown ISP topology"):
         IspConfig(topology="not-a-real-topo").validated()
 
 

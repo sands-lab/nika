@@ -23,7 +23,7 @@ from nika.net_env.isp.traffic import (
     TrafficMatrixSeries,
     attach_traffic_stubs,
 )
-from nika.topology import list_sndlib_topologies
+from nika.topology.catalog import SNDLIB_TOPOLOGY_NAMES
 from nika.topology.models import NetworkTopology, TopoLink, TopoNode
 
 pytestmark = pytest.mark.unit
@@ -268,7 +268,7 @@ def test_ebgp_as_regions_are_connected_and_boundaries_are_igp_passive() -> None:
     assert attachment.plan.inventory["igp_passive_boundary_links"]
 
 
-@pytest.mark.parametrize("topology", list_sndlib_topologies())
+@pytest.mark.parametrize("topology", sorted(SNDLIB_TOPOLOGY_NAMES))
 def test_catalog_ebgp_has_connected_as_scoped_igp_and_linear_sessions(
     topology: str,
 ) -> None:
