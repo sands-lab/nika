@@ -80,11 +80,18 @@ class LbConnectionStateExhaustionParams(BaseModel):
 
 class LbConnectionStateExhaustion(ProblemBase):
     failure_domain = FailureDomain.SERVICE_NETWORKING
+    symptom_probe = "custom"
+    symptom_class = "gray"
     root_cause_name = "lb_connection_state_exhaustion"
     description = "Load-balancer connection-state table is exhausted."
     symptom_desc = "SYN-only state exhausts the gateway ConnTable; pool churn then breaks evicted legitimate connections."
     TAGS = ["p4", "p4_runtime", "http", "l4_load_balancer"]
     Params = LbConnectionStateExhaustionParams
+    INCOMPATIBLE_SCENARIOS = {
+        "p4_dc_gateway": "Each client reaches only its own gateway, so the frozen "
+        "attacker cannot fill gateway_1's lb_conn_table; the injector itself "
+        "writes the symptom."
+    }
 
     BENCHMARK_TARGETS = "canonical"
 
@@ -203,15 +210,20 @@ class LbConnectionStateExhaustion(ProblemBase):
 
 class LbPendingConnectionUpdateRaceParams(BaseModel):
     host_name: str = Field(default="gateway_1")
-    learning_delay_ms: int = Field(default=5, ge=1, le=100)
+    learning_delay_ms: int = Field(default=8000, ge=1, le=60000)
     seed: int = Field(default=1)
 
 
 class LbPendingConnectionUpdateRace(ProblemBase):
     failure_domain = FailureDomain.SERVICE_NETWORKING
+    symptom_probe = "custom"
+    symptom_class = "gray"
     root_cause_name = "lb_pending_connection_update_race"
     description = "Pending connection races an unsafe load-balancer pool update."
-    symptom_desc = "An unsafe DIP pool update changes the selected backend before a pending connection reaches ConnTable."
+    symptom_desc = (
+        "Connection learning lags, so connections opened shortly before a routine "
+        "DIP pool update are still pending in ConnTable and move to the new pool."
+    )
     TAGS = ["p4", "p4_runtime", "http", "l4_load_balancer"]
     Params = LbPendingConnectionUpdateRaceParams
 
@@ -223,7 +235,7 @@ class LbPendingConnectionUpdateRace(ProblemBase):
             return {"host_name": ctx.host0}
         return {
             "host_name": "gateway_1",
-            "learning_delay_ms": "5",
+            "learning_delay_ms": "8000",
             "seed": str(ctx.seed),
         }
 
@@ -231,15 +243,35 @@ class LbPendingConnectionUpdateRace(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: LbPendingConnectionUpdateRaceParams):
-        self._state = unsafe_lb_pool_update(self.runtime, params.host_name)
+        from nika.net_env.p4_dc_gateway.l4_lb import set_learning_delay
+
+        set_learning_delay(self.runtime, params.host_name, params.learning_delay_ms)
+        # The agent rereads its configuration once a second.
+        deadline = time.time() + 10
+        while time.time() < deadline:
+            if self.verify_fault(params)["verified"]:
+                return
+            time.sleep(0.5)
 
     def verify_fault(self, params: LbPendingConnectionUpdateRaceParams) -> dict:
-        state = lb_state(self.runtime, params.host_name)
-        tables = state.get("tables", {})
+        from nika.net_env.p4_dc_gateway.l4_lb import learner_status
+        from nika.net_env.p4_dc_gateway.topology_model import (
+            CONNECTION_LEARNING_DELAY_MS,
+        )
+
+        status = learner_status(self.runtime, params.host_name)
+        delay = status.get("learning_delay_ms")
         return build_verify_result(
             self.root_cause_name,
-            tables.get("lb_vip") == 1 and tables.get("lb_pool", 0) >= 128,
-            {"gateway": params.host_name, "tables": tables},
+            isinstance(delay, int)
+            and delay == params.learning_delay_ms
+            and delay > CONNECTION_LEARNING_DELAY_MS
+            and status.get("age_sec", 99) < 5,
+            {
+                "gateway": params.host_name,
+                "healthy_learning_delay_ms": CONNECTION_LEARNING_DELAY_MS,
+                "learner": status,
+            },
         )
 
 
@@ -253,6 +285,8 @@ class SnatPortPoolExhaustionParams(BaseModel):
 
 class SnatPortPoolExhaustion(ProblemBase):
     failure_domain = FailureDomain.SERVICE_NETWORKING
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name = "snat_port_pool_exhaustion"
     description = "SNAT source-port pool is exhausted."
     symptom_desc = "The available SNAT source-port pool is exhausted for concurrent outbound connections."
@@ -314,6 +348,8 @@ class NatMappingRemovedWithoutDrainParams(BaseModel):
 
 class NatMappingRemovedWithoutDrain(ProblemBase):
     failure_domain = FailureDomain.SERVICE_NETWORKING
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name = "nat_mapping_removed_without_drain"
     description = "NAT mapping is removed before active flows drain."
     symptom_desc = (

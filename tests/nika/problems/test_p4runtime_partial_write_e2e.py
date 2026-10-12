@@ -16,18 +16,18 @@ from nika.problems.registry import get_problem_class, list_avail_problem_names
 from nika.net_env.net_env_pool import get_probe_path
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import docker_available
-from tests.support.symptom import evaluate_symptom, get_symptom_contract
+from nika.validation.symptom import evaluate_symptom, get_symptom_contract
 
 TOPO_SIZES = ("s", "m")
 SCENARIOS = ("p4_dc_fabric", "p4_dc_gateway")
 
 
 @pytest.mark.contract
-def test_failure_registers_with_path_http_contract() -> None:
+def test_failure_registers_with_custom_contract() -> None:
     assert "p4runtime_partial_write" in list_avail_problem_names()
     contract = get_symptom_contract("p4runtime_partial_write")
     assert contract.symptom_class == "unreachable"
-    assert contract.probe == "path_http"
+    assert contract.probe == "custom"
 
 
 @pytest.mark.e2e
@@ -69,8 +69,8 @@ class P4RuntimePartialWriteE2ETest(IntegrationTestCase):
 
             verify = instance.verify_fault(parsed)
             assert verify["verified"] is True, verify
-            assert verify["details"]["artifact"]["verified"] is True, verify
-            assert verify["details"]["symptom"]["verified"] is True, verify
+            assert verify["details"]["groups_rewritten"] is True, verify
+            assert verify["details"]["routes_unchanged"] is True, verify
 
             ok, symptom = evaluate_symptom(
                 runtime,
@@ -78,9 +78,12 @@ class P4RuntimePartialWriteE2ETest(IntegrationTestCase):
                 parsed,
                 scenario=scenario,
                 topo_size=topo_size,
+                problem=instance,
             )
             assert ok is True, symptom
-            assert symptom.get("after", {}).get("http_ok") is False, symptom
+            details = symptom["details"]
+            assert details["misdelivered"] and details["host_lost"], symptom
+            assert details["control_ok"] is True, symptom
 
             if scenario == "p4_dc_fabric":
                 reconcile_fabric(runtime, build_clos_fabric_model(topo_size))  # type: ignore[arg-type]
