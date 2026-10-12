@@ -11,7 +11,6 @@ import yaml
 from nika.workflows.benchmark.run import run_benchmark_from_release
 from nika.workflows.benchmark.trials import expand_trials, is_valid_trial, trial_dir
 from nika.workflows.leaderboard.meta_input import (
-    slugify_name,
     write_submission_templates,
 )
 from nika.workflows.leaderboard.pack import pack_leaderboard_submission
@@ -116,7 +115,7 @@ def test_curated_freeze_pack_validate(tmp_path: Path) -> None:
             result_dir, submission_dir=staging
         ).scores_dir
 
-    assert package.name.endswith(f"_{slugify_name('Curated Mock Agent')}")
+    assert package.name.endswith("_mock_mock_v1")
     assert (package / METADATA_FILENAME).is_file()
     assert (package / README_FILENAME).is_file()
     assert (package / RESULTS_DIRNAME / IDENTITY_FILENAME).is_file()

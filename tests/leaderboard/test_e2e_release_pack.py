@@ -24,7 +24,6 @@ from nika.workflows.benchmark.release import (
 from nika.workflows.benchmark.run import run_benchmark_from_release
 from nika.workflows.benchmark.trials import expand_trials, is_valid_trial, trial_dir
 from nika.workflows.leaderboard.meta_input import (
-    slugify_name,
     write_submission_templates,
 )
 from nika.workflows.leaderboard.pack import pack_leaderboard_submission
@@ -279,7 +278,7 @@ class TestReleaseRunToLeaderboardPackE2E:
                 submission_dir=staging,
             ).scores_dir
 
-        slug = slugify_name("E2E Mock Agent")
+        slug = "mock_mock_v1"
         assert package.name.endswith(f"_{slug}")
         assert package.parent == result_dir.resolve()
         assert (package / METADATA_FILENAME).is_file()
@@ -516,7 +515,7 @@ class TestReleaseRunToLeaderboardPackE2E:
         assert "Opened GitHub pull request:" in submit_result.output
         assert "Opened HF trajectories PR:" in submit_result.output
 
-        slug = slugify_name("CLI E2E Agent")
+        slug = "mock_mock_v1"
         packages = [
             p
             for p in result_dir.iterdir()

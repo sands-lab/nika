@@ -58,7 +58,7 @@ nika leaderboard submit --result_dir results/my-run \
 
 `submit` packs scores into `{result_dir}/{YYYYMMDD}_{slug}/` and trajectories into a sibling `{YYYYMMDD}_{slug}_trajectories/`, validates both (unless `--skip-validate`), then opens a GitHub PR under `submissions/<release_version>/{YYYYMMDD}_{slug}/` and a Hugging Face dataset PR under `trajectories/<release_version>/{YYYYMMDD}_{slug}/`. Pack or validate failures print an error and stop before any remote submit.
 
-Authentication failures also stop before creating either PR. An upload can still fail after the GitHub PR opens, for example because of a network error or Hub upload permissions. The error prints the existing GitHub PR URL. Retry the same command with `--skip-github --out <original-scores-package-directory>` as printed in the error. This uploads trajectories under the original package name even when retrying on another date. The `--out` directory name must be `YYYYMMDD_<slug>` with the slug derived from the entry name.
+Authentication failures also stop before creating either PR. An upload can still fail after the GitHub PR opens, for example because of a network error or Hub upload permissions. The error prints the existing GitHub PR URL. Retry the same command with `--skip-github --out <original-scores-package-directory>` as printed in the error. This uploads trajectories under the original package name even when retrying on another date. The `--out` directory name must be `YYYYMMDD_<framework>_<model>`, using lowercase ASCII words separated by underscores. The framework is the public harness name: `cli.claude` becomes `claude_code`, and LangGraph becomes `react`.
 
 `--skip-validate` skips local checks only. GitHub CI still validates scores. A run containing only selected tasks or a single trial per case cannot satisfy the full release coverage unless the result directory already contains all required trials. For release 0.2.0, the test split requires 85 cases × 3 trials = 255 finished slots; the dev split requires 84 × 3 = 252. Agent failures and timeouts can count as finished slots with zero primary score. Infrastructure or grading errors need repair and rerun before submission.
 
@@ -129,7 +129,7 @@ hf discussions merge Zhihao98/nika-trajectories <N> --yes --type dataset
 
 ```yaml
 info:
-  name: ""            # required; display name + folder slug
+  name: ""            # required; display name
   authors: ""         # required
   org: null
   site: null
@@ -169,8 +169,8 @@ For a model's first submission, include these sources in your README:
 
 | Information | What to supply | Maintainer location |
 | --- | --- | --- |
-| Model page | Official model card, including the quantized checkpoint when used | `web/src/lib/modelMeta.ts`, `MODEL_LINKS` |
-| Released date | Public release date and announcement or first weight-upload link | `web/src/lib/modelMeta.ts`, `MODEL_RELEASE_DATES` |
+| Model page | Official model card, including the quantized checkpoint when used | `catalog/models.json`, `model_page` |
+| Released date | Public release date and announcement or first weight-upload link | `catalog/models.json`, `released` and `release_source` |
 | Reference price | Provider, USD per million input/output tokens, source URL, retrieval date, and precision differences | `catalog/pricing.json`, keyed by the submitted `agent.model` |
 
 Reuse an existing reviewed model entry when the identity matches. Maintainers
@@ -178,12 +178,22 @@ should verify the public release evidence; a model repository's creation date
 can precede its weight release. Keep network lookups out of benchmark packing
 and validation so submissions remain reproducible when providers change pages.
 
+Before merging, the leaderboard's required `model-metadata` check verifies that
+`catalog/models.json` and `catalog/pricing.json` contain entries under the exact
+submitted `agent.model` string. Register a new model in the scores PR or in an
+earlier catalog PR. A model entry needs `released` (YYYY-MM-DD), an HTTPS
+`release_source`, and an HTTPS `model_page`. A price entry needs positive finite
+input/output rates, a provider, `basis` (`api` or `hosted_open_weight`), an HTTPS
+source, and a `retrieved` date. Missing fields and future/invalid dates fail CI.
+Run `uv run python scripts/validate_model_metadata.py` from the leaderboard
+checkout to check the catalog before uploading. Maintainers still review sources.
+
 The leaderboard uses vendor API list prices for proprietary models and public
 hosted-inference quotes for open weights. For open weights, this is a reference
 estimate for hosted inference, not the submitter's self-hosted GPU bill. Record
 any precision differences between the quote and the run. If no supported quote
-exists, leave the price unknown and explain why; another model's price or a zero
-does not represent a missing quote.
+exists, the submission cannot pass the required model-metadata check. Another
+model's price or a zero does not represent a missing quote.
 
 The website computes the token-priced total as
 `(input_tokens × input_rate + output_tokens × output_rate) / 1,000,000`.
@@ -195,8 +205,9 @@ emulation and GPU allocation costs.
 Chart names use the model, normalized harness name, optimization methods, and
 skills. An optimization's `agent.extra.<method>_variant` field adds its variant,
 such as `gepa_variant: d+s`. Repeated configurations include the split and run
-identity to distinguish them. The submission detail page retains your original `info.name`; that name
-also determines the package slug.
+identity to distinguish them. The submission detail page retains your original
+`info.name`. Packages use `YYYYMMDD_<framework>_<model>`; for example,
+`20261012_claude_code_gemma_4_31b_it`.
 
 ## `README.md`
 
@@ -219,7 +230,7 @@ See also [root-cause ground truth and scoring](root-cause-evaluation.md#score-a-
 - [ ] Official release run; local pack/validate during `nika leaderboard submit` passed
 - [ ] Required metadata fields filled; README describes the system
 - [ ] Code, project/report links, public harness name, and tools reviewed against the run
-- [ ] Model page, released date, and reference price registered in the leaderboard, or missing information explained with sources in the README
+- [ ] Model page, sourced released date, and sourced reference price registered in the leaderboard; required `model-metadata` check passes
 - [ ] Path is `submissions/<version>/{YYYYMMDD}_{slug}/`
 - [ ] CI validate workflow is green
 
