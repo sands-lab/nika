@@ -7,8 +7,11 @@ import os
 import shlex
 from pathlib import Path
 
-from agent.sandbox.config import ENV_SESSION_DIR
-from agent.sandbox.sbx.agents import ENV_SBX_SANDBOX_NAME
+from agent.sandbox.config import (
+    ENV_SANDBOX_NAME,
+    ENV_SESSION_DIR,
+    sandbox_name_from_env,
+)
 from agent.sandbox.sbx.auth import PROXY_MANAGED_SENTINEL
 from agent.utils.provider_env import CUSTOM_UNAUTHENTICATED_API_KEY
 
@@ -38,11 +41,6 @@ _SECRET_ENV_KEYS = frozenset(
         "ANTHROPIC_AUTH_TOKEN",
     }
 )
-
-
-def sandbox_name_from_env() -> str | None:
-    name = os.environ.get(ENV_SBX_SANDBOX_NAME, "").strip()
-    return name or None
 
 
 def _sandbox_root() -> Path | None:
@@ -145,7 +143,7 @@ async def exec_in_sandbox(
     """Start *command* inside the active sandbox and return the process handle."""
     name = sandbox_name or sandbox_name_from_env()
     if not name:
-        raise RuntimeError(f"{ENV_SBX_SANDBOX_NAME} is not set for sandbox execution")
+        raise RuntimeError(f"{ENV_SANDBOX_NAME} is not set for sandbox execution")
 
     from agent.sandbox.sbx.proxy import sbx_process_env
 

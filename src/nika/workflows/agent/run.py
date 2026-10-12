@@ -4,7 +4,7 @@ import logging
 import time
 
 from agent.registry import create_agent, get_agent_spec, run_agent
-from agent.sandbox import SANDBOX_SUPPORTED_AGENTS, SbxSandboxManager, sbx_available
+from agent.sandbox import SANDBOX_SUPPORTED_AGENTS, SandboxManager
 from agent.sandbox.config import resolve_sandbox_config, sandbox_gateway_agent_host
 from agent.utils.provider_env import provider_env_context
 from nika.mcp.gateway.lifecycle import mcp_gateway_for_session
@@ -69,7 +69,7 @@ def start_agent(
             "sandbox backends support them.",
             agent_type,
         )
-    if use_sandbox:
+    if use_sandbox and sandbox_config.backend == "sbx":
         from agent.sandbox.sbx.images import ensure_sbx_template_images
 
         # Idempotent: skips pull when the template is already local (e.g. lab
@@ -83,6 +83,8 @@ def start_agent(
     if llm_provider is not None:
         session.update_session("llm_provider", llm_provider)
     session.update_session("model", model)
+    if use_sandbox:
+        session.update_session("sandbox_backend", sandbox_config.backend)
     if reasoning_effort is not None:
         session.update_session("reasoning_effort", reasoning_effort)
     if max_tokens is not None:
@@ -143,12 +145,7 @@ def start_agent(
                 session.session_id,
             ) as (gateway_base_url, gateway_port):
                 if use_sandbox:
-                    if not sbx_available():
-                        raise RuntimeError(
-                            "Docker Sandboxes CLI (sbx) is not available. "
-                            "Install docker-sbx and run `sbx login`."
-                        )
-                    SbxSandboxManager(sandbox_config).run(
+                    SandboxManager(sandbox_config).run(
                         session=session,
                         agent_type=agent_type,
                         model=model,
@@ -192,17 +189,12 @@ def start_agent(
                 backend=getattr(session, "backend", None),
             ) as gateway_manager:
                 if use_sandbox:
-                    if not sbx_available():
-                        raise RuntimeError(
-                            "Docker Sandboxes CLI (sbx) is not available. "
-                            "Install docker-sbx and run `sbx login`."
-                        )
                     gateway_agent_url = gateway_manager.agent_url
                     if not gateway_agent_url:
                         raise RuntimeError(
                             "MCP gateway agent URL was not set for sandbox execution"
                         )
-                    SbxSandboxManager(sandbox_config).run(
+                    SandboxManager(sandbox_config).run(
                         session=session,
                         agent_type=agent_type,
                         model=model,

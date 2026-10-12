@@ -1,11 +1,10 @@
-"""Docker sandbox execution for NIKA troubleshooting agents."""
+"""Sandboxed execution for NIKA troubleshooting agents."""
 
 __all__ = [
     "SANDBOX_SUPPORTED_AGENTS",
     "SandboxConfig",
-    "SbxSandboxManager",
+    "SandboxManager",
     "resolve_sandbox_config",
-    "sbx_available",
 ]
 
 
@@ -23,12 +22,8 @@ def __getattr__(name: str):
         from agent.sandbox.config import resolve_sandbox_config
 
         return resolve_sandbox_config
-    if name == "SbxSandboxManager":
-        from agent.sandbox.sbx.manager import SbxSandboxManager
+    if name == "SandboxManager":
+        from agent.sandbox.manager import SandboxManager
 
-        return SbxSandboxManager
-    if name == "sbx_available":
-        from agent.sandbox.sbx.client import sbx_available
-
-        return sbx_available
+        return SandboxManager
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

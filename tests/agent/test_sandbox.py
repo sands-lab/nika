@@ -106,9 +106,62 @@ def test_resolve_agent_session_dir_uses_sandbox_run_for_cli_exec() -> None:
     with patch.dict(
         os.environ,
         {
-            "NIKA_SBX_SANDBOX_NAME": "nika-test",
+            "NIKA_SANDBOX_NAME": "nika-test",
             "NIKA_SESSION_DIR": "/tmp/.sandbox_run",
         },
         clear=True,
     ):
         assert resolve_agent_session_dir("/tmp/results/session") == "/tmp/.sandbox_run"
+
+
+def test_host_reads_refuse_symlinks_planted_in_workspace(tmp_path) -> None:
+    """A sandbox cannot point host reads of its workspace at host files."""
+    from agent.sandbox.workspace import (
+        SandboxWorkspace,
+        TraceMirror,
+        collect_artifacts,
+        read_workspace_text,
+    )
+
+    host_secret = tmp_path / "ground_truth.json"
+    host_secret.write_text(
+        json.dumps({"phase": "diagnosis", "event": "llm_end", "report": "secret"})
+        + "\n",
+        encoding="utf-8",
+    )
+    workspace_dir = tmp_path / "workspace"
+    workspace_dir.mkdir()
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    for name in ("diagnosis_report.json", "messages.jsonl", "sandbox_manifest.json"):
+        (workspace_dir / name).symlink_to(host_secret)
+
+    with pytest.raises(OSError):
+        read_workspace_text(workspace_dir / "diagnosis_report.json")
+
+    mirror = TraceMirror(
+        workspace_dir / "messages.jsonl", session_dir / "messages.jsonl"
+    )
+    mirror.sync()
+    assert not (session_dir / "messages.jsonl").exists()
+
+    collect_artifacts(
+        SandboxWorkspace(session_dir=session_dir, workspace_dir=workspace_dir)
+    )
+    assert not (session_dir / "sandbox_manifest.json").exists()
+
+
+def test_host_writes_replace_symlinks_planted_in_workspace(tmp_path) -> None:
+    """Writing a hand-off file never follows a symlink to a host file."""
+    from agent.sandbox.workspace import write_workspace_text
+
+    host_file = tmp_path / "host.txt"
+    host_file.write_text("untouched", encoding="utf-8")
+    target = tmp_path / "submission_context.json"
+    target.symlink_to(host_file)
+
+    write_workspace_text(target, '{"phase": "submission"}')
+
+    assert host_file.read_text(encoding="utf-8") == "untouched"
+    assert not target.is_symlink()
+    assert json.loads(target.read_text(encoding="utf-8")) == {"phase": "submission"}

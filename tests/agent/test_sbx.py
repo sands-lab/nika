@@ -28,7 +28,8 @@ from agent.sandbox.sbx.credentials import (
     required_services_for_agent,
 )
 from agent.sandbox.sbx.exec import build_sbx_exec_command, exec_in_sandbox
-from agent.sandbox.sbx.manager import SbxSandboxManager
+from agent.sandbox.manager import SandboxManager
+from agent.sandbox.sbx.backend import SbxBackend
 from agent.sandbox.sbx.policy import _LLM_NETWORK_HOSTS
 from agent.sandbox.sbx.proxy import (
     ensure_sbx_proxy_config,
@@ -36,7 +37,7 @@ from agent.sandbox.sbx.proxy import (
     sbx_daemon_running,
     sbx_process_env,
 )
-from agent.sandbox.sbx.workspace import collect_artifacts, prepare_workspace
+from agent.sandbox.workspace import collect_artifacts, prepare_workspace
 from nika.run_config import default_run_config, reset_run_config, set_run_config
 
 pytestmark = pytest.mark.unit
@@ -72,12 +73,12 @@ def test_required_sbx_template_images(agent_type: str, image: str) -> None:
 def test_agent_mapping_and_create_command(agent_type: str, sbx_agent: str) -> None:
     set_run_config(default_run_config())
     try:
-        manager = SbxSandboxManager(resolve_sandbox_config())
+        backend = SbxBackend(resolve_sandbox_config())
     finally:
         reset_run_config()
 
     assert native_sbx_agent(agent_type) == sbx_agent
-    assert manager.build_create_command(
+    assert backend.build_create_command(
         sandbox_name="nika-test",
         sbx_agent=sbx_agent,
         workspace_dir=Path("/tmp/ws"),
@@ -195,9 +196,9 @@ def test_prepare_claude_preserves_deepseek_placeholder_for_sbx_exec(
 ) -> None:
     """DeepSeek remap must not overwrite sbx-cs placeholders before sbx exec."""
     from agent.cli.claude.config import prepare_claude_subprocess_env
-    from agent.sandbox.sbx.agents import ENV_SBX_SANDBOX_NAME
+    from agent.sandbox.config import ENV_SANDBOX_NAME
 
-    monkeypatch.setenv(ENV_SBX_SANDBOX_NAME, "nika-test-sbx")
+    monkeypatch.setenv(ENV_SANDBOX_NAME, "nika-test-sbx")
     monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-real-deepseek")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sbx-cs-placeholder")
     monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "sbx-cs-placeholder")
@@ -224,8 +225,9 @@ def test_prepare_claude_preserves_deepseek_placeholder_for_sbx_exec(
 
 
 def test_sdk_source_bundle_does_not_copy_nika(tmp_path) -> None:
-    manager = SbxSandboxManager(
+    manager = SandboxManager(
         SandboxConfig(
+            backend="sbx",
             env_file=tmp_path / ".env",
             keep_container=False,
             cpus=None,
@@ -247,8 +249,9 @@ def test_sdk_bundle_imports_without_nika_package(tmp_path, monkeypatch) -> None:
     import subprocess
     import sys
 
-    manager = SbxSandboxManager(
+    manager = SandboxManager(
         SandboxConfig(
+            backend="sbx",
             env_file=tmp_path / ".env",
             keep_container=False,
             cpus=None,
@@ -308,7 +311,7 @@ def test_sdk_bundle_imports_without_nika_package(tmp_path, monkeypatch) -> None:
 
 
 def test_workspace_roundtrip_keeps_only_standard_artifacts(tmp_path) -> None:
-    from agent.sandbox.sbx.workspace import cleanup_workspace
+    from agent.sandbox.workspace import cleanup_workspace
 
     session_dir = tmp_path / "session"
     session_dir.mkdir()
@@ -368,7 +371,7 @@ def test_workspace_roundtrip_keeps_only_standard_artifacts(tmp_path) -> None:
 
 def test_trace_mirror_keeps_host_freeze_authoritative(tmp_path) -> None:
     """In-VM SDK traces reach the host live, minus planted freezes and other phases."""
-    from agent.sandbox.sbx.workspace import TraceMirror
+    from agent.sandbox.workspace import TraceMirror
 
     source = tmp_path / "workspace" / "messages.jsonl"
     source.parent.mkdir()
@@ -407,7 +410,7 @@ def test_trace_mirror_keeps_host_freeze_authoritative(tmp_path) -> None:
 
 def test_collect_artifacts_preserves_host_mcp_submission(tmp_path) -> None:
     """Host MCP submit() wins over a sandbox workspace submission.json on collect."""
-    from agent.sandbox.sbx.workspace import cleanup_workspace
+    from agent.sandbox.workspace import cleanup_workspace
 
     session_dir = tmp_path / "session"
     session_dir.mkdir()
@@ -464,13 +467,13 @@ def test_opaque_workspace_hides_case_key_from_agent_surfaces(
 ) -> None:
     """Readable trial ids must not appear in agent cwd / run.json / hostname."""
     from agent.sandbox.sbx.policy import sanitize_sandbox_name
-    from agent.sandbox.sbx.workspace import (
+    from agent.sandbox.workspace import (
         cleanup_workspace,
         opaque_agent_workspace_dir,
     )
 
     monkeypatch.setattr(
-        "agent.sandbox.sbx.workspace.RUNTIME_DIR",
+        "agent.sandbox.workspace.RUNTIME_DIR",
         tmp_path / "runtime",
     )
     case_key = (
@@ -528,7 +531,7 @@ def test_write_manifest_uses_opaque_session_id(tmp_path) -> None:
         scenario_name="campus_lan",
         backend="kathara",
     )
-    manager = SbxSandboxManager(resolve_sandbox_config())
+    manager = SandboxManager(resolve_sandbox_config())
     manifest = manager.write_manifest(
         session=session,
         agent_type="sdk.codex_sdk",
@@ -562,25 +565,26 @@ def test_open_session_collects_artifacts_when_policy_cleanup_fails(tmp_path) -> 
         openai_base_url="",
         anthropic_base_url="",
     )
-    manager = SbxSandboxManager(resolve_sandbox_config(keep_container=False))
+    manager = SandboxManager(resolve_sandbox_config(keep_container=False))
 
     with (
-        patch("agent.sandbox.sbx.manager.ensure_sbx_proxy_config"),
-        patch("agent.sandbox.sbx.manager.ensure_sbx_ready"),
-        patch("agent.sandbox.sbx.manager.require_sbx_authenticated"),
-        patch("agent.sandbox.sbx.manager.ensure_llm_network_policy"),
+        patch("agent.sandbox.sbx.backend.sbx_available", return_value=True),
+        patch("agent.sandbox.sbx.backend.ensure_sbx_proxy_config"),
+        patch("agent.sandbox.sbx.backend.ensure_sbx_ready"),
+        patch("agent.sandbox.sbx.backend.require_sbx_authenticated"),
+        patch("agent.sandbox.sbx.backend.ensure_llm_network_policy"),
         patch(
-            "agent.sandbox.sbx.manager.ensure_sbx_credentials",
+            "agent.sandbox.sbx.backend.ensure_sbx_credentials",
             return_value=credentials,
         ),
-        patch("agent.sandbox.sbx.manager.run_sbx_checked"),
-        patch("agent.sandbox.sbx.manager.run_sbx_optional"),
-        patch("agent.sandbox.sbx.manager.allow_mcp_gateway"),
+        patch("agent.sandbox.sbx.backend.run_sbx_checked"),
+        patch("agent.sandbox.sbx.backend.run_sbx_optional"),
+        patch("agent.sandbox.sbx.backend.allow_mcp_gateway"),
         patch(
-            "agent.sandbox.sbx.manager.deny_mcp_gateway",
+            "agent.sandbox.sbx.backend.deny_mcp_gateway",
             side_effect=OSError("policy cleanup failed"),
         ),
-        patch("agent.sandbox.sbx.manager.log_event"),
+        patch("agent.sandbox.manager.log_event"),
     ):
         with pytest.raises(OSError, match="policy cleanup failed"):
             with manager.open_session(
@@ -642,22 +646,23 @@ def test_open_session_preserves_host_submission_on_collect(tmp_path) -> None:
         openai_base_url="",
         anthropic_base_url="",
     )
-    manager = SbxSandboxManager(resolve_sandbox_config(keep_container=False))
+    manager = SandboxManager(resolve_sandbox_config(keep_container=False))
 
     with (
-        patch("agent.sandbox.sbx.manager.ensure_sbx_proxy_config"),
-        patch("agent.sandbox.sbx.manager.ensure_sbx_ready"),
-        patch("agent.sandbox.sbx.manager.require_sbx_authenticated"),
-        patch("agent.sandbox.sbx.manager.ensure_llm_network_policy"),
+        patch("agent.sandbox.sbx.backend.sbx_available", return_value=True),
+        patch("agent.sandbox.sbx.backend.ensure_sbx_proxy_config"),
+        patch("agent.sandbox.sbx.backend.ensure_sbx_ready"),
+        patch("agent.sandbox.sbx.backend.require_sbx_authenticated"),
+        patch("agent.sandbox.sbx.backend.ensure_llm_network_policy"),
         patch(
-            "agent.sandbox.sbx.manager.ensure_sbx_credentials",
+            "agent.sandbox.sbx.backend.ensure_sbx_credentials",
             return_value=credentials,
         ),
-        patch("agent.sandbox.sbx.manager.run_sbx_checked"),
-        patch("agent.sandbox.sbx.manager.run_sbx_optional"),
-        patch("agent.sandbox.sbx.manager.allow_mcp_gateway"),
-        patch("agent.sandbox.sbx.manager.deny_mcp_gateway"),
-        patch("agent.sandbox.sbx.manager.log_event"),
+        patch("agent.sandbox.sbx.backend.run_sbx_checked"),
+        patch("agent.sandbox.sbx.backend.run_sbx_optional"),
+        patch("agent.sandbox.sbx.backend.allow_mcp_gateway"),
+        patch("agent.sandbox.sbx.backend.deny_mcp_gateway"),
+        patch("agent.sandbox.manager.log_event"),
         manager.open_session(
             session=session,
             agent_type="cli.codex",
@@ -711,11 +716,11 @@ def test_sandbox_manifest_omits_host_session_dir(tmp_path) -> None:
         scenario_name="simple_bgp",
         backend="kathara",
     )
-    manager = SbxSandboxManager(resolve_sandbox_config(keep_container=False))
+    manager = SandboxManager(resolve_sandbox_config(keep_container=False))
     try:
         with (
             patch(
-                "agent.sandbox.sbx.manager.build_sandbox_mcp_servers",
+                "agent.sandbox.manager.build_sandbox_mcp_servers",
                 return_value={"task_mcp_server": {"transport": "http", "url": "u"}},
             ),
         ):
@@ -747,7 +752,7 @@ def test_sandbox_manifest_omits_host_session_dir(tmp_path) -> None:
             assert "fault_ontology" not in content
             assert "resources" not in json.loads(content)
         finally:
-            from agent.sandbox.sbx.workspace import cleanup_workspace
+            from agent.sandbox.workspace import cleanup_workspace
 
             cleanup_workspace(workspace)
     finally:
@@ -1191,7 +1196,7 @@ def test_exec_in_sandbox_passes_host_proxy_env() -> None:
             patch.dict(
                 os.environ,
                 {
-                    "NIKA_SBX_SANDBOX_NAME": "nika-test",
+                    "NIKA_SANDBOX_NAME": "nika-test",
                 },
                 clear=True,
             ),

@@ -23,8 +23,8 @@ from agent.sandbox.sbx.policy import (
     deny_mcp_gateway,
     sanitize_sandbox_name,
 )
-from agent.sandbox.sbx.manager import SbxSandboxManager
-from agent.sandbox.sbx.workspace import prepare_workspace
+from agent.sandbox.sbx.backend import SbxBackend
+from agent.sandbox.workspace import prepare_workspace
 from nika.mcp.gateway.lifecycle import (
     ENV_GATEWAY_AGENT_URL,
     mcp_gateway_for_session,
@@ -143,7 +143,7 @@ def run_security_probe_with_gateway(session_id: str = "sandbox-security-test") -
 
                 run_sbx_optional(["rm", "--force", sandbox_name])
                 try:
-                    create_cmd = SbxSandboxManager(
+                    create_cmd = SbxBackend(
                         resolve_sandbox_config()
                     ).build_create_command(
                         sandbox_name=sandbox_name,
@@ -250,7 +250,7 @@ def run_cross_sandbox_isolation_probe() -> None:
             run_sbx_optional(["rm", "--force", sandbox_name])
             try:
                 run_sbx_checked(
-                    SbxSandboxManager(resolve_sandbox_config()).build_create_command(
+                    SbxBackend(resolve_sandbox_config()).build_create_command(
                         sandbox_name=sandbox_name,
                         sbx_agent="shell",
                         workspace_dir=workspace.workspace_dir,

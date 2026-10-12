@@ -38,8 +38,8 @@ from agent.cli.claude.config import (
 )
 from agent.cli.claude.vllm_shim import new_shim_token, vllm_messages_shim
 from agent.protocols import PHASES
-from agent.sandbox.config import SANDBOX_GATEWAY_HOST_BRIDGE
-from agent.sandbox.sbx.exec import exec_in_sandbox, sandbox_name_from_env
+from agent.sandbox.config import SANDBOX_GATEWAY_HOST_BRIDGE, sandbox_name_from_env
+from agent.sandbox.sbx.exec import exec_in_sandbox
 from agent.sandbox.sbx.policy import allow_mcp_gateway, deny_mcp_gateway
 from agent.utils.loggers import MessageLogger
 from agent.utils.mcp_client import load_session_mcp_config

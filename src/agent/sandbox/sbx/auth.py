@@ -6,7 +6,7 @@ import json
 import os
 from pathlib import Path
 
-from agent.sandbox.sbx.agents import ENV_SBX_SANDBOX_NAME
+from agent.sandbox.config import ENV_SANDBOX_NAME
 
 PROXY_MANAGED_SENTINEL = "proxy-managed"
 
@@ -14,7 +14,7 @@ PROXY_MANAGED_SENTINEL = "proxy-managed"
 def in_sandbox() -> bool:
     return (
         os.environ.get("NIKA_SANDBOX_EXECUTION", "").strip() == "1"
-        or os.environ.get(ENV_SBX_SANDBOX_NAME, "").strip() != ""
+        or os.environ.get(ENV_SANDBOX_NAME, "").strip() != ""
     )
 
 
