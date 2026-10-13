@@ -28,7 +28,12 @@ class RemoteSettings(BaseModel):
 class SandboxSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    backend: Literal["sbx"] = "sbx"
+    # Sandbox runtime for sandbox-supported agents:
+    # Docker Sandboxes ("sbx") or an E2B-compatible service ("e2b").
+    backend: Literal["sbx", "e2b"] = "sbx"
+    # e2b: API URL of a self-hosted E2B-compatible service such as AgentENV,
+    # also used as its sandbox URL. Null keeps the E2B SDK defaults (E2B cloud).
+    url: str | None = None
     keep: bool = False
     # Explicit null hands sizing to sbx: every host vCPU and half of host memory.
     cpus: StrictInt | None = 2

@@ -50,6 +50,10 @@ class SandboxBackend(ABC):
     """
 
     name: ClassVar[str]
+    # How sandboxes reach the session's MCP gateway: the host they address,
+    # and the host interface the gateway binds (None: all interfaces).
+    gateway_agent_host: ClassVar[str]
+    gateway_bind_host: ClassVar[str | None] = None
 
     def __init__(self, config: SandboxConfig) -> None:
         self.config = config
@@ -57,6 +61,15 @@ class SandboxBackend(ABC):
     @abstractmethod
     def ensure_available(self) -> None:
         """Raise ``RuntimeError`` when this runtime cannot be used on the host."""
+
+    @abstractmethod
+    def prepare_templates(self, agent_types: Sequence[str]) -> list[str]:
+        """Make the sandbox templates of *agent_types* ready (idempotent).
+
+        Called when a job, environment, or setup starts, so the first session
+        does not pay for image pulls or template builds. Returns the images the
+        host Docker must hold; the caller pulls them with the lab images.
+        """
 
     @abstractmethod
     def prepare_host(
@@ -113,6 +126,12 @@ class SandboxBackend(ABC):
     def remove(self, sandbox_id: str) -> None:
         """Delete the sandbox."""
 
+    def release_host(self) -> None:
+        """Stop host-side helpers started by :meth:`prepare_host`.
+
+        Always called once the session ends, also when setup failed.
+        """
+
     def start_log_fields(self) -> dict[str, Any]:
         """Extra ``sandbox_start`` event fields describing the runtime."""
         return {}
@@ -135,12 +154,39 @@ def backend_class(name: str) -> type[SandboxBackend]:
         from agent.sandbox.sbx.backend import SbxBackend
 
         return SbxBackend
+    if name == "e2b":
+        from agent.sandbox.e2b.backend import E2bBackend
+
+        return E2bBackend
     raise ValueError(f"Unknown sandbox backend: {name!r}")
 
 
 def get_backend(config: SandboxConfig) -> SandboxBackend:
     """Instantiate the backend selected by *config*."""
     return backend_class(config.backend)(config)
+
+
+def prepare_sandbox_templates(agent_types: Iterable[str]) -> list[str]:
+    """Prepare the configured backend's templates for the sandboxed *agent_types*.
+
+    Returns the images the host Docker must hold (see ``prepare_templates``).
+    """
+    from agent.sandbox.config import resolve_sandbox_config
+    from agent.sandbox.templates import AGENT_TEMPLATES
+
+    sandboxed = [
+        agent for agent in dict.fromkeys(agent_types) if agent in AGENT_TEMPLATES
+    ]
+    if not sandboxed:
+        return []
+    return get_backend(resolve_sandbox_config()).prepare_templates(sandboxed)
+
+
+def prepare_configured_sandbox_templates() -> list[str]:
+    """Prepare sandbox templates for the agent selected in the run config."""
+    from nika.run_config.loader import get_run_config
+
+    return prepare_sandbox_templates([get_run_config().agent.type])
 
 
 def cleanup_sandbox_for_session(

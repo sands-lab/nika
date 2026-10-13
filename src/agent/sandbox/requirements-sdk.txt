@@ -1,5 +1,5 @@
 # Frozen SDK deps for sbx shell sandboxes (sdk.* / SADE).
-# Used by agent.sandbox.sbx.wheels for offline wheel staging and in-sandbox
+# Used by agent.sandbox.wheels for offline wheel staging and in-sandbox
 # installs. Bump intentionally; changing this file invalidates .nika_cache/sbx-sdk-wheels.
 #
 # Top-level packages: pydantic, python-dotenv, langchain-core, openai-codex,

@@ -55,6 +55,10 @@ nika:
     # Reserved for remote artifact storage. Keep null.
     artifact_root: null
   sandbox:
+    # Sandbox runtime: sbx (Docker Sandboxes) or e2b (E2B-compatible service).
+    backend: sbx
+    # e2b: API URL of a self-hosted service. Null uses E2B cloud.
+    url: null
     # Keep the sandbox after a run for debugging.
     keep: false
     # vCPUs per sandbox. Null lets sbx use every host vCPU.

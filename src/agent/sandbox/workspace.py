@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import shutil
 import stat
 import threading
 from dataclasses import dataclass
 from pathlib import Path
+from collections.abc import Callable
 from typing import BinaryIO
 
 from agent.sandbox.constants import (
@@ -20,6 +22,8 @@ from agent.protocols import DIAGNOSIS, PHASES
 from agent.utils.loggers import MESSAGES_FILENAME
 from agent.utils.skills import resolve_skills_root, skills_enabled
 from nika.config import RUNTIME_DIR
+
+logger = logging.getLogger(__name__)
 
 AGENT_WORKSPACES_DIRNAME = "agent_workspaces"
 SKILLS_DIRNAME = "skills"
@@ -60,7 +64,7 @@ def read_workspace_text(path: Path) -> str:
         return handle.read().decode("utf-8")
 
 
-def write_workspace_text(path: Path, text: str) -> None:
+def write_workspace_bytes(path: Path, data: bytes) -> None:
     """Write a host file into the workspace without following a planted symlink.
 
     Removes whatever the agent left at *path* (unlinking a symlink, not its
@@ -72,8 +76,13 @@ def write_workspace_text(path: Path, text: str) -> None:
     except FileNotFoundError:
         pass
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
-    with os.fdopen(fd, "w", encoding="utf-8") as handle:
-        handle.write(text)
+    with os.fdopen(fd, "wb") as handle:
+        handle.write(data)
+
+
+def write_workspace_text(path: Path, text: str) -> None:
+    """UTF-8 variant of :func:`write_workspace_bytes`."""
+    write_workspace_bytes(path, text.encode("utf-8"))
 
 
 @dataclass
@@ -125,6 +134,7 @@ class TraceMirror:
     def __init__(self, source: Path, dest: Path) -> None:
         self._source = source
         self._dest = dest
+        self.refresh: Callable[[], None] | None = None
         self._offset = 0
         self._phase = DIAGNOSIS
         self._lock = threading.Lock()
@@ -145,6 +155,11 @@ class TraceMirror:
     def sync(self) -> None:
         """Append complete new workspace lines to the host trace."""
         with self._lock:
+            if self.refresh is not None:
+                try:
+                    self.refresh()
+                except Exception as exc:  # noqa: BLE001 - retried on the next poll
+                    logger.debug("Trace refresh failed: %s", exc)
             try:
                 handle = open_workspace_file(self._source)
             except OSError:
