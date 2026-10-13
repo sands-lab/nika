@@ -233,3 +233,66 @@
 
   sections.forEach(s => observer.observe(s));
 })();
+
+/* ── DEMO VIDEO: lazy-load, reveal, autoplay muted while in view ────────── */
+(function () {
+  const video = document.querySelector('.demo-video');
+  if (!video) return;
+  const frame = video.closest('.demo-video-frame');
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  function loadSources() {
+    if (video.dataset.loaded) return;
+    video.dataset.loaded = '1';
+    video.querySelectorAll('source[data-src]').forEach((s) => {
+      s.src = s.dataset.src;
+    });
+    video.load();
+  }
+
+  // Without IntersectionObserver: just make the video playable on demand.
+  if (!('IntersectionObserver' in window)) {
+    loadSources();
+    return;
+  }
+
+  // Fetch the video only once it starts scrolling into view. It sits just
+  // below the hero, so a pre-load margin would fetch it on every page load.
+  new IntersectionObserver((entries, obs) => {
+    if (entries.some((e) => e.isIntersecting)) {
+      loadSources();
+      obs.disconnect();
+    }
+  }).observe(video);
+
+  // Fade the frame in the first time it appears.
+  if (frame && !reduceMotion) {
+    frame.classList.add('reveal-pending');
+    new IntersectionObserver(
+      (entries, obs) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          frame.classList.remove('reveal-pending');
+          obs.disconnect();
+        }
+      },
+      { threshold: 0.15 }
+    ).observe(frame);
+  }
+
+  // Autoplay muted (browsers only allow muted autoplay) while at least a
+  // third is visible; pause when scrolled away.
+  video.muted = true;
+  new IntersectionObserver(
+    (entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          loadSources();
+          if (video.paused && !video.ended) video.play().catch(() => {});
+        } else if (!video.paused) {
+          video.pause();
+        }
+      }
+    },
+    { threshold: 0.35 }
+  ).observe(video);
+})();

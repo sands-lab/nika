@@ -1117,3 +1117,44 @@ code {
   .footer-top { grid-template-columns: 1fr; }
   .issues-total-inner { flex-direction: column; align-items: flex-start; }
 }
+
+/* ── DEMO VIDEO ──────────────────────────────────────────────────────────── */
+/* Inside the quick start section, between its subtitle and the steps. */
+.demo-video-frame {
+  max-width: 960px;
+  margin: 0 auto 64px;
+  scroll-margin-top: 96px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--border-hover);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-lg), 0 0 80px rgba(0, 212, 255, 0.06);
+  transition: opacity 0.8s ease, transform 0.8s ease;
+}
+/* Fade/slide in on first view; only when JS is running (class set by main.js). */
+.demo-video-frame.reveal-pending { opacity: 0; transform: translateY(32px); }
+.demo-video {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
+  background: var(--bg);
+}
+@media (prefers-reduced-motion: reduce) {
+  .demo-video-frame { transition: none; }
+}
+
+/* ── HERO DEMO LINK ──────────────────────────────────────────────────────── */
+.hero-demo-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: -28px;
+  margin-bottom: 40px;
+  font-size: 0.9375rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  transition: var(--transition);
+}
+.hero-demo-link svg { width: 14px; height: 14px; color: var(--cyan); }
+.hero-demo-link:hover { color: var(--cyan); }

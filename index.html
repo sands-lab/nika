@@ -295,6 +295,12 @@ A unified platform for benchmarking AI agents on realistic network troubleshooti
             Join Slack
           </a>
         </div>
+        <a class="hero-demo-link" href="#demo">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M8 5.14v13.72a1 1 0 001.5.86l11-6.86a1 1 0 000-1.72l-11-6.86A1 1 0 008 5.14z" />
+          </svg>
+          Watch the 20-second demo
+        </a>
       </div>
       <div class="hero-scroll-hint">
         <span>Scroll to explore</span>
@@ -997,6 +1003,24 @@ nika eval judge</code></pre>
           <p class="section-desc">See the <a href="https://github.com/sands-lab/nika/blob/main/README.md#basic-setup" target="_blank" rel="noopener">setup guide</a> for installation requirements and configuration details.</p>
         </div>
 
+        <div class="demo-video-frame" id="demo">
+          <!-- Sources are attached by js/main.js when the video scrolls into view;
+               it then autoplays muted, and pauses when scrolled away. -->
+          <video
+            class="demo-video"
+            autoplay
+            muted
+            playsinline
+            controls
+            preload="none"
+            poster="assets/video/nika-demo-poster.webp"
+            aria-label="NIKA demo: launching the interactive shell and browsing benchmark tasks"
+          >
+            <source data-src="assets/video/nika-demo.mp4" type="video/mp4" />
+            <source data-src="assets/video/nika-demo.webm" type="video/webm" />
+          </video>
+        </div>
+
         <div class="qs-steps">
           <div class="qs-step">
             <div class="qs-step-num">1</div>
@@ -1326,24 +1350,10 @@ uv run nika env run dc_clos -s s</code></pre>
           <span
             >Built by
             <a
-              href="https://github.com/zhihao1998"
-              target="_blank"
-              rel="noopener"
-              >Zhihao Wang</a
-            >
-            &amp;
-            <a
-              href="https://github.com/alessandrocornacchia"
-              target="_blank"
-              rel="noopener"
-              >Alessandro Cornacchia</a
-            >
-            ·
-            <a
               href="https://sands.kaust.edu.sa/"
               target="_blank"
               rel="noopener"
-              >SANDS Lab</a
+              >SANDS Lab @ KAUST</a
             ></span
           >
         </div>
