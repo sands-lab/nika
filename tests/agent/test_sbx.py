@@ -224,6 +224,30 @@ def test_prepare_claude_preserves_deepseek_placeholder_for_sbx_exec(
     assert "sk-real-deepseek" not in inner
 
 
+@pytest.mark.parametrize(
+    ("provider", "real_key_env"),
+    [("deepseek", "DEEPSEEK_API_KEY"), ("custom", "NIKA_CUSTOM_API_KEY")],
+)
+def test_sandbox_codex_env_keeps_placeholder_over_real_key(
+    monkeypatch, tmp_path, provider: str, real_key_env: str
+) -> None:
+    """Codex must send the sbx placeholder, which the proxy swaps for its host."""
+    from agent.cli.codex.codex_worker import prepare_codex_subprocess_env
+    from agent.sandbox.config import ENV_SANDBOX_NAME
+
+    monkeypatch.setenv(ENV_SANDBOX_NAME, "nika-test-sbx")
+    monkeypatch.setenv(real_key_env, "sk-real")
+    monkeypatch.setenv("NIKA_CUSTOM_BASE_URL", "http://llm.example/v1")
+    monkeypatch.setenv("OPENAI_API_KEY", "sbx-cs-placeholder")
+
+    env = prepare_codex_subprocess_env(codex_home=tmp_path, provider=provider)
+    assert env["OPENAI_API_KEY"] == "sbx-cs-placeholder"
+
+    inner = build_sbx_exec_command("nika-test", ["codex", "exec"], env=env)[-1]
+    assert "OPENAI_API_KEY=sbx-cs-placeholder" in inner
+    assert "sk-real" not in inner
+
+
 def test_sdk_source_bundle_does_not_copy_nika(tmp_path) -> None:
     manager = SandboxManager(
         SandboxConfig(

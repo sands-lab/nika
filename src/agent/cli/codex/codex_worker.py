@@ -36,9 +36,9 @@ from typing import Any
 
 from agent.protocols import PHASES
 from agent.sandbox.config import sandbox_name_from_env
-from agent.sandbox.sbx.auth import apply_codex_auth
+from agent.sandbox.sbx.auth import apply_codex_auth, in_sandbox
 from agent.sandbox.sbx.client import run_sbx_checked
-from agent.sandbox.sbx.exec import exec_in_sandbox
+from agent.sandbox.sbx.exec import exec_in_sandbox, is_credential_placeholder
 from agent.utils.loggers import (
     MessageLogger,
     PendingToolCallTracker,
@@ -66,6 +66,9 @@ def prepare_codex_subprocess_env(
     env = build_agent_subprocess_env(
         agent_type=agent_type, provider=require_provider(provider), base=base
     )
+    placeholder = os.environ.get("OPENAI_API_KEY", "").strip()
+    if in_sandbox() and is_credential_placeholder(placeholder):
+        env["OPENAI_API_KEY"] = placeholder
     env["CODEX_HOME"] = str(codex_home)
     return env
 

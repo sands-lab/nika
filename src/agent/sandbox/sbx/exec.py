@@ -70,7 +70,8 @@ def _inner_path(
     return str(resolved)
 
 
-def _looks_like_placeholder(value: str) -> bool:
+def is_credential_placeholder(value: str) -> bool:
+    """True for sandbox credential stand-ins, never a real provider key."""
     # A vLLM shim token only authorizes the host-side shim for one phase.
     return (
         value == PROXY_MANAGED_SENTINEL
@@ -84,7 +85,7 @@ def _sandbox_env_value(key: str, value: str, *, full_env: dict[str, str]) -> str
     """Never forward real credentials into the microVM for proxy-managed services."""
     if key not in _SECRET_ENV_KEYS:
         return value
-    if _looks_like_placeholder(value):
+    if is_credential_placeholder(value):
         return value
     # Third-party Anthropic-compatible APIs: omit real host keys.
     if key.startswith("ANTHROPIC"):
