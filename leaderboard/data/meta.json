@@ -11,6 +11,7 @@
     ],
     "llm_provider": [
       "att",
+      "custom",
       "google",
       "openai",
       "qwen"
@@ -24,6 +25,7 @@
       "Qwen3.6-27B",
       "Qwen3.6-35B-A3B-FP8",
       "Qwen3.8-27B-FP8",
+      "TelecomGPT-R1",
       "gemma-4-31B-it"
     ],
     "optimization_methods": [
@@ -46,5 +48,5 @@
     "seed": 0,
     "confidence": 0.95
   },
-  "generated_at": "2026-10-12T19:22:31+00:00"
+  "generated_at": "2026-10-13T06:23:02+00:00"
 }

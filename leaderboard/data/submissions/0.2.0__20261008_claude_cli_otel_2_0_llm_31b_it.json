@@ -6869,7 +6869,8 @@
     "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
     "0.2.0/20261011_react_qwen3_8_27b_fp8",
     "0.2.0/20261012_claude_code_gemma_4_31b_it",
-    "0.2.0/20261012_react_gemma_4_31b_it"
+    "0.2.0/20261012_react_gemma_4_31b_it",
+    "0.2.0/20261013_claude_code_telecomgpt_r1"
   ],
-  "rank": 8
+  "rank": 9
 }
