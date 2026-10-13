@@ -10,7 +10,8 @@ per-session token.
 
 The workspace is uploaded to the same absolute path it has on the host, as
 Docker Sandboxes mounts it, so commands and generated agent configs need no
-path translation.
+path translation. Sandboxes run as the template image's user, in its working
+directory and with its environment (see :mod:`agent.sandbox.e2b.image_config`).
 """
 
 from __future__ import annotations
@@ -45,6 +46,7 @@ from agent.sandbox.config import (
     load_sandbox_env_values,
 )
 from agent.sandbox.constants import SDK_AGENT_TYPES
+from agent.sandbox.e2b.image_config import image_config
 from agent.sandbox.locks import host_file_lock
 from agent.sandbox.templates import AGENT_TEMPLATES, TEMPLATE_IMAGES
 from agent.sandbox.tunnel import RELAY_SCRIPT, TunnelBridge
@@ -381,6 +383,7 @@ class E2bBackend(SandboxBackend):
             if entry is not None and entry.get("buildStatus") == "error":
                 # A failed build keeps the name, which a new build cannot take.
                 api.delete(f"/templates/{entry['templateID']}").raise_for_status()
+            config = image_config(image)
             started = time.perf_counter()
             log_event(
                 "sandbox_template_build",
@@ -390,7 +393,10 @@ class E2bBackend(SandboxBackend):
             )
             try:
                 Template.build(
-                    Template().from_image(image),
+                    Template()
+                    .from_image(image)
+                    .set_user(config.user)
+                    .set_workdir(config.workdir),
                     name,
                     cpu_count=cpus,
                     memory_mb=memory,
@@ -508,6 +514,7 @@ class E2bBackend(SandboxBackend):
             timeout=self._lifetime_sec(),
             metadata={_METADATA_SESSION_KEY: agent_session_id},
             allow_internet_access=False,
+            envs=image_config(TEMPLATE_IMAGES[AGENT_TEMPLATES[agent_type]]).env,
             **_connection_opts(self.config),
         )
         self._workspace = str(workspace_dir)
