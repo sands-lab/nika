@@ -20,7 +20,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from agent.protocols import DIAGNOSIS, SUBMISSION
-from agent.sandbox.backend import SandboxBackend, get_backend
+from agent.sandbox.backend import (
+    SandboxBackend,
+    get_backend,
+    register_active_sandbox,
+    release_active_sandbox,
+)
 from agent.sandbox.config import ENV_SANDBOX_NAME, ENV_SESSION_DIR, SandboxConfig
 from agent.sandbox.constants import (
     CREDENTIAL_ENV_KEYS,
@@ -234,6 +239,7 @@ class SandboxManager:
                     agent_type=agent_type,
                     workspace_dir=workspace.workspace_dir,
                 )
+                register_active_sandbox(sandbox_id, backend)
                 backend.allow_gateway(
                     sandbox_id, port=gateway_port, gateway_url=mcp_gateway_agent_url
                 )
@@ -278,6 +284,8 @@ class SandboxManager:
                 try:
                     if mirror is not None:
                         mirror.stop()
+                    if sandbox_id is not None:
+                        release_active_sandbox(sandbox_id)
                     if prior_sandbox_name is None:
                         os.environ.pop(ENV_SANDBOX_NAME, None)
                     else:

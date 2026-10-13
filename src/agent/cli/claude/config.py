@@ -130,7 +130,7 @@ def prepare_claude_subprocess_env(
     host environment (judge / Langfuse / remote / unused provider keys stay out).
     """
     from agent.sandbox.config import sandbox_name_from_env
-    from agent.sandbox.sbx.exec import is_credential_placeholder as _is_placeholder
+    from agent.sandbox.exec import is_credential_placeholder as _is_placeholder
 
     prov = require_provider(provider)
     host = dict(base if base is not None else os.environ)

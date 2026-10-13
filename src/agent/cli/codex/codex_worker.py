@@ -35,10 +35,16 @@ from pathlib import Path
 from typing import Any
 
 from agent.protocols import PHASES
+from agent.sandbox.backend import active_sandbox_backend
 from agent.sandbox.config import sandbox_name_from_env
+from agent.sandbox.exec import (
+    exec_in_sandbox,
+    is_credential_placeholder,
+    pull_from_sandbox,
+    push_to_sandbox,
+)
 from agent.sandbox.sbx.auth import apply_codex_auth, in_sandbox
 from agent.sandbox.sbx.client import run_sbx_checked
-from agent.sandbox.sbx.exec import exec_in_sandbox, is_credential_placeholder
 from agent.utils.loggers import (
     MessageLogger,
     PendingToolCallTracker,
@@ -439,13 +445,19 @@ class CodexWorker:
             "mcp_config",
             {"phase": self.phase, "servers": list(servers.keys())},
         )
+        # Host-only: agent.sandbox.workspace needs nika, which SDK sandboxes lack.
+        from agent.sandbox.workspace import write_workspace_text
+
         config_path = self._codex_home / "config.toml"
-        config_path.write_text(
-            _build_mcp_toml(servers, provider=self.llm_provider),
-            encoding="utf-8",
+        write_workspace_text(
+            config_path, _build_mcp_toml(servers, provider=self.llm_provider)
         )
         sandbox_name = sandbox_name_from_env()
-        if sandbox_name and self.llm_provider == "openai":
+        if (
+            sandbox_name
+            and self.llm_provider == "openai"
+            and active_sandbox_backend(sandbox_name).name == "sbx"
+        ):
             # sbx supplies the subscription route and proxy bearer in its native
             # provider config. Merge those inside the VM when isolating CODEX_HOME;
             # no host OAuth file or token is read or passed to the sandbox.
@@ -489,6 +501,7 @@ class CodexWorker:
         ``ERROR:`` results as hard failures and skips submission.
         """
         self._setup_workspace()
+        push_to_sandbox([self.workspace])
 
         output_file = self.workspace / f"{self.phase}_output.txt"
         output_file.unlink(missing_ok=True)
@@ -568,6 +581,7 @@ class CodexWorker:
             return "ERROR: 'sbx' not found in PATH — is Docker Sandboxes installed?"
         # A response still open (e.g. no turn.completed on failure) keeps its step.
         self._flush_response()
+        pull_from_sandbox([output_file])
 
         if returncode != 0:
             recovered = self._resolved_phase_output(output_file)
@@ -607,10 +621,14 @@ class CodexWorker:
 
     def _resolved_phase_output(self, output_file: Path) -> str:
         """Prefer Codex ``--output-last-message``, else last streamed agent_message."""
-        if output_file.exists():
-            text = output_file.read_text(encoding="utf-8").strip()
-            if text:
-                return text
+        from agent.sandbox.workspace import read_workspace_text
+
+        try:
+            text = read_workspace_text(output_file).strip()
+        except OSError:
+            text = ""
+        if text:
+            return text
         for text in reversed(self._agent_message_texts):
             if text.strip():
                 return text.strip()

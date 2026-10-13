@@ -27,7 +27,8 @@ from agent.sandbox.sbx.credentials import (
     require_anthropic_messages_route,
     required_services_for_agent,
 )
-from agent.sandbox.sbx.exec import build_sbx_exec_command, exec_in_sandbox
+from agent.sandbox.exec import sandbox_shell_command
+from agent.sandbox.sbx.exec import start_sbx_exec
 from agent.sandbox.manager import SandboxManager
 from agent.sandbox.sbx.backend import SbxBackend
 from agent.sandbox.sbx.policy import _LLM_NETWORK_HOSTS
@@ -99,16 +100,14 @@ def test_agent_mapping_and_create_command(agent_type: str, sbx_agent: str) -> No
 
 def test_exec_command_uses_sandbox_relative_paths() -> None:
     with patch.dict(os.environ, {"NIKA_SESSION_DIR": "/tmp/sandbox"}, clear=False):
-        command = build_sbx_exec_command(
-            "nika-test",
+        command = sandbox_shell_command(
             ["codex", "exec", "-m", "gpt-5.4-mini"],
             cwd="/tmp/sandbox/codex_workspace",
             env={"CODEX_HOME": "/tmp/sandbox/codex_workspace/.codex_home"},
         )
 
-    assert command[:3] == ["sbx", "exec", "nika-test"]
-    assert "CODEX_HOME=.codex_home" in command[-1]
-    assert "cd codex_workspace" in command[-1]
+    assert "CODEX_HOME=.codex_home" in command
+    assert "cd codex_workspace" in command
 
 
 def test_llm_policy_allows_supported_provider_endpoints() -> None:
@@ -130,45 +129,42 @@ def test_llm_network_resources_for_host_bridge_uses_localhost_port() -> None:
 
 
 def test_exec_command_rewrites_secret_env_to_sentinel() -> None:
-    command = build_sbx_exec_command(
-        "nika-test",
+    command = sandbox_shell_command(
         ["claude", "-p", "hi"],
         env={
             "ANTHROPIC_API_KEY": "sk-real-secret",
             "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
         },
     )
-    inner = command[-1]
+    inner = command
     assert "sk-real-secret" not in inner
     assert f"ANTHROPIC_API_KEY={PROXY_MANAGED_SENTINEL}" in inner
     assert "ANTHROPIC_BASE_URL=https://api.anthropic.com" in inner
 
 
 def test_exec_command_omits_third_party_anthropic_secrets() -> None:
-    command = build_sbx_exec_command(
-        "nika-test",
+    command = sandbox_shell_command(
         ["claude", "-p", "hi"],
         env={
             "ANTHROPIC_API_KEY": "sk-real-secret",
             "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
         },
     )
-    inner = command[-1]
+    inner = command
     assert "sk-real-secret" not in inner
     assert "ANTHROPIC_API_KEY=" not in inner
     assert "ANTHROPIC_BASE_URL=https://api.deepseek.com/anthropic" in inner
 
 
 def test_exec_command_forwards_custom_placeholder() -> None:
-    command = build_sbx_exec_command(
-        "nika-test",
+    command = sandbox_shell_command(
         ["claude", "-p", "hi"],
         env={
             "ANTHROPIC_API_KEY": "sbx-cs-placeholder",
             "ANTHROPIC_BASE_URL": "https://api.deepseek.com/anthropic",
         },
     )
-    inner = command[-1]
+    inner = command
     assert "ANTHROPIC_API_KEY=sbx-cs-placeholder" in inner
 
 
@@ -176,8 +172,7 @@ def test_exec_command_forwards_unauthenticated_custom_key() -> None:
     """Keyless custom gateways use the no-key sentinel; must reach the microVM."""
     from agent.utils.provider_env import CUSTOM_UNAUTHENTICATED_API_KEY
 
-    command = build_sbx_exec_command(
-        "nika-test",
+    command = sandbox_shell_command(
         ["claude", "-p", "hi"],
         env={
             "ANTHROPIC_API_KEY": CUSTOM_UNAUTHENTICATED_API_KEY,
@@ -185,7 +180,7 @@ def test_exec_command_forwards_unauthenticated_custom_key() -> None:
             "ANTHROPIC_BASE_URL": "http://gateway.example:8000",
         },
     )
-    inner = command[-1]
+    inner = command
     assert f"ANTHROPIC_API_KEY={CUSTOM_UNAUTHENTICATED_API_KEY}" in inner
     assert f"ANTHROPIC_AUTH_TOKEN={CUSTOM_UNAUTHENTICATED_API_KEY}" in inner
     assert "ANTHROPIC_BASE_URL=http://gateway.example:8000" in inner
@@ -213,12 +208,11 @@ def test_prepare_claude_preserves_deepseek_placeholder_for_sbx_exec(
         or env.get("DEEPSEEK_API_KEY") != "sk-real-deepseek"
     )
 
-    command = build_sbx_exec_command(
-        "nika-test",
+    command = sandbox_shell_command(
         ["claude", "-p", "hi"],
         env=env,
     )
-    inner = command[-1]
+    inner = command
     assert "ANTHROPIC_API_KEY=sbx-cs-placeholder" in inner
     assert "ANTHROPIC_AUTH_TOKEN=sbx-cs-placeholder" in inner
     assert "sk-real-deepseek" not in inner
@@ -243,7 +237,7 @@ def test_prepare_claude_keeps_model_proxy_token_for_custom(monkeypatch) -> None:
     assert env["ANTHROPIC_API_KEY"] == token
     assert env["ANTHROPIC_BASE_URL"] == proxy_url
 
-    inner = build_sbx_exec_command("nika-test", ["claude", "-p", "hi"], env=env)[-1]
+    inner = sandbox_shell_command(["claude", "-p", "hi"], env=env)
     assert f"ANTHROPIC_API_KEY={token}" in inner
     assert "sk-real" not in inner
 
@@ -267,7 +261,7 @@ def test_sandbox_codex_env_keeps_placeholder_over_real_key(
     env = prepare_codex_subprocess_env(codex_home=tmp_path, provider=provider)
     assert env["OPENAI_API_KEY"] == "sbx-cs-placeholder"
 
-    inner = build_sbx_exec_command("nika-test", ["codex", "exec"], env=env)[-1]
+    inner = sandbox_shell_command(["codex", "exec"], env=env)
     assert "OPENAI_API_KEY=sbx-cs-placeholder" in inner
     assert "sk-real" not in inner
 
@@ -1253,7 +1247,15 @@ def test_exec_in_sandbox_passes_host_proxy_env() -> None:
             patch("agent.sandbox.sbx.exec.asyncio.create_subprocess_exec") as create,
         ):
             create.return_value = SimpleNamespace()
-            await exec_in_sandbox(["claude", "-p", "hi"], sandbox_name="nika-test")
+            await start_sbx_exec("nika-test", "claude -p hi")
+        assert create.call_args.args == (
+            "sbx",
+            "exec",
+            "nika-test",
+            "bash",
+            "-lc",
+            "claude -p hi",
+        )
         return create.call_args.kwargs["env"]
 
     try:
