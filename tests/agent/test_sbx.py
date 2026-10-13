@@ -28,7 +28,6 @@ from agent.sandbox.sbx.credentials import (
     required_services_for_agent,
 )
 from agent.sandbox.exec import sandbox_shell_command
-from agent.sandbox.sbx.exec import start_sbx_exec
 from agent.sandbox.manager import SandboxManager
 from agent.sandbox.sbx.backend import SbxBackend
 from agent.sandbox.sbx.policy import _LLM_NETWORK_HOSTS
@@ -1244,10 +1243,12 @@ def test_exec_in_sandbox_passes_host_proxy_env() -> None:
                 },
                 clear=True,
             ),
-            patch("agent.sandbox.sbx.exec.asyncio.create_subprocess_exec") as create,
+            patch("agent.sandbox.sbx.backend.asyncio.create_subprocess_exec") as create,
         ):
             create.return_value = SimpleNamespace()
-            await start_sbx_exec("nika-test", "claude -p hi")
+            await SbxBackend(resolve_sandbox_config()).exec_async(
+                "nika-test", "claude -p hi"
+            )
         assert create.call_args.args == (
             "sbx",
             "exec",

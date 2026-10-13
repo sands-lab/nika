@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Mapping, Sequence
 from contextlib import ExitStack
 from pathlib import Path
@@ -31,7 +32,6 @@ from agent.sandbox.sbx.client import (
     sbx_host_lock,
     stream_sbx,
 )
-from agent.sandbox.sbx.exec import start_sbx_exec
 from agent.sandbox.sbx.credentials import (
     ensure_sbx_credentials,
     required_services_for_agent,
@@ -44,7 +44,11 @@ from agent.sandbox.sbx.policy import (
     llm_network_resources_for_url,
     sanitize_sandbox_name,
 )
-from agent.sandbox.sbx.proxy import ensure_sbx_proxy_config, resolve_sbx_upstream_proxy
+from agent.sandbox.sbx.proxy import (
+    ensure_sbx_proxy_config,
+    resolve_sbx_upstream_proxy,
+    sbx_process_env,
+)
 from agent.sandbox.sbx.wheels import install_sdk_packages_in_sandbox
 from agent.sandbox.wheels import stage_sdk_wheels
 
@@ -188,7 +192,19 @@ class SbxBackend(SandboxBackend):
         return stream_sbx(["exec", sandbox_id, "bash", "-lc", command])
 
     async def exec_async(self, sandbox_id: str, command: str) -> AsyncProcess:
-        return await start_sbx_exec(sandbox_id, command)
+        return await asyncio.create_subprocess_exec(
+            "sbx",
+            "exec",
+            sandbox_id,
+            "bash",
+            "-lc",
+            command,
+            env=sbx_process_env(),
+            stdin=asyncio.subprocess.DEVNULL,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            limit=8 * 1024 * 1024,
+        )
 
     def remove(self, sandbox_id: str) -> None:
         run_sbx_optional(["rm", "--force", sandbox_id])
