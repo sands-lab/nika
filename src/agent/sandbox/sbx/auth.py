@@ -28,7 +28,8 @@ def apply_codex_auth(codex_home: Path) -> None:
     """
     codex_home.mkdir(parents=True, exist_ok=True)
     dest = codex_home / "auth.json"
-    if dest.exists():
+    # A dangling symlink planted by the sandbox must not redirect the write.
+    if dest.exists() or dest.is_symlink():
         return
 
     if in_sandbox():

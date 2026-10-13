@@ -9,6 +9,7 @@ workspace files between the host and the sandbox.
 
 from __future__ import annotations
 
+import asyncio
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -26,6 +27,18 @@ class StreamedProcess(Protocol):
     stdout: Iterable[str] | None
 
     def wait(self) -> int: ...
+
+    def kill(self) -> None: ...
+
+
+class AsyncProcess(Protocol):
+    """Command running in a sandbox for a host-side worker (asyncio streams)."""
+
+    stdout: asyncio.StreamReader | None
+    stderr: asyncio.StreamReader | None
+    returncode: int | None
+
+    async def wait(self) -> int: ...
 
     def kill(self) -> None: ...
 
@@ -112,10 +125,18 @@ class SandboxBackend(ABC):
     def exec_stream(self, sandbox_id: str, command: str) -> StreamedProcess:
         """Start ``bash -lc command`` inside the sandbox."""
 
+    @abstractmethod
+    async def exec_async(self, sandbox_id: str, command: str) -> AsyncProcess:
+        """Start ``bash -lc command`` in the sandbox workspace for a host worker.
+
+        The command starts in the workspace root, and stdout and stderr stay
+        separate.
+        """
+
     def push_files(
         self, sandbox_id: str, workspace_dir: Path, names: Sequence[str]
     ) -> None:
-        """Copy workspace files from the host into the sandbox."""
+        """Copy workspace files or directories from the host into the sandbox."""
 
     def pull_files(
         self, sandbox_id: str, workspace_dir: Path, names: Sequence[str]
@@ -146,6 +167,29 @@ class SandboxBackend(ABC):
         Used by ``session close`` when the agent worker was hard-killed before
         the manager's own teardown ran. Must only touch this session's sandbox.
         """
+
+
+# Sandboxes created in this process, so host-side agent workers can run
+# commands in them (see ``agent.sandbox.exec``).
+_active_sandboxes: dict[str, SandboxBackend] = {}
+
+
+def register_active_sandbox(sandbox_id: str, backend: SandboxBackend) -> None:
+    _active_sandboxes[sandbox_id] = backend
+
+
+def release_active_sandbox(sandbox_id: str) -> None:
+    _active_sandboxes.pop(sandbox_id, None)
+
+
+def active_sandbox_backend(sandbox_id: str) -> SandboxBackend:
+    """Return the backend that created the active sandbox *sandbox_id*."""
+    try:
+        return _active_sandboxes[sandbox_id]
+    except KeyError:
+        raise RuntimeError(
+            f"Sandbox {sandbox_id!r} was not created in this process"
+        ) from None
 
 
 def backend_class(name: str) -> type[SandboxBackend]:

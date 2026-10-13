@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from agent.sandbox.backend import (
+    AsyncProcess,
     SandboxBackend,
     SandboxCleanupResult,
     StreamedProcess,
@@ -30,6 +31,7 @@ from agent.sandbox.sbx.client import (
     sbx_host_lock,
     stream_sbx,
 )
+from agent.sandbox.sbx.exec import start_sbx_exec
 from agent.sandbox.sbx.credentials import (
     ensure_sbx_credentials,
     required_services_for_agent,
@@ -184,6 +186,9 @@ class SbxBackend(SandboxBackend):
 
     def exec_stream(self, sandbox_id: str, command: str) -> StreamedProcess:
         return stream_sbx(["exec", sandbox_id, "bash", "-lc", command])
+
+    async def exec_async(self, sandbox_id: str, command: str) -> AsyncProcess:
+        return await start_sbx_exec(sandbox_id, command)
 
     def remove(self, sandbox_id: str) -> None:
         run_sbx_optional(["rm", "--force", sandbox_id])

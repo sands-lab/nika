@@ -7,20 +7,27 @@ host model proxy through the tunnel in :mod:`agent.sandbox.tunnel`, which runs
 over the same command channel NIKA uses to drive the sandbox. The model proxy
 adds the real provider key on the host, so the sandbox only holds a
 per-session token.
+
+The workspace is uploaded to the same absolute path it has on the host, as
+Docker Sandboxes mounts it, so commands and generated agent configs need no
+path translation.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import platform
 import queue
 import re
+import shlex
 import shutil
 import tarfile
 import tempfile
 import threading
 import time
+import uuid
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from contextlib import ExitStack
 from dataclasses import replace
@@ -28,6 +35,7 @@ from pathlib import Path
 from typing import Any
 
 from agent.sandbox.backend import (
+    AsyncProcess,
     SandboxBackend,
     SandboxCleanupResult,
     StreamedProcess,
@@ -51,19 +59,16 @@ from nika.utils.logger import elapsed_ms, log_event
 logger = logging.getLogger(__name__)
 
 ENV_E2B_API_KEY = "E2B_API_KEY"
-# Where the host workspace is uploaded inside the sandbox.
-REMOTE_WORKSPACE = "/tmp/nika-workspace"
 _RELAY_NAME = "nika_tunnel_relay.py"
 _METADATA_SESSION_KEY = "nika_agent_session_id"
-# Agents this backend runs today. CLI agents need host-side exec through the
-# backend.
-_SUPPORTED_AGENTS = frozenset({"sdk.claude_sdk", "sdk.codex_sdk", "community.sade"})
 _TUNNEL_READY_TIMEOUT_SEC = 30
 # Sandbox lifetime beyond the agent budget, covering setup and teardown.
 _LIFETIME_MARGIN_SEC = 1800
 _UNBOUNDED_AGENT_LIFETIME_SEC = 6 * 3600
 _SETUP_COMMAND_TIMEOUT_SEC = 900
 _UPLOAD_TIMEOUT_SEC = 900
+# Line-buffer limit of host worker streams (agent CLIs print long JSON lines).
+_STREAM_LIMIT = 8 * 1024 * 1024
 
 
 def _api_key(env_file: Path) -> str:
@@ -117,12 +122,18 @@ def e2b_template_name(
     return f"nika-{template}-{digest}-c{cpus or 'auto'}-m{memory or 'auto'}"
 
 
-def _require_supported(agent_type: str) -> None:
-    if agent_type not in _SUPPORTED_AGENTS:
-        raise RuntimeError(
-            f"The e2b sandbox backend does not run {agent_type} yet "
-            f"(supported: {', '.join(sorted(_SUPPORTED_AGENTS))})."
-        )
+def _template_entry(api: Any, name: str) -> dict[str, Any] | None:
+    """The service's entry for the template named *name*, if any.
+
+    Read as plain JSON: the SDK's typed model rejects entries that
+    self-hosted services shorten.
+    """
+    response = api.get("/templates")
+    response.raise_for_status()
+    for entry in response.json():
+        if name in [*(entry.get("names") or []), *(entry.get("aliases") or [])]:
+            return entry
+    return None
 
 
 def _normalized_machine(machine: str) -> str:
@@ -195,14 +206,79 @@ class _CommandProcess:
             logger.debug("Sandbox command kill failed: %s", exc)
 
 
+class _AsyncCommandProcess:
+    """:class:`AsyncProcess` over a background sandbox command."""
+
+    def __init__(self, handle: Any) -> None:
+        self._handle = handle
+        self._loop = asyncio.get_running_loop()
+        self.stdout = asyncio.StreamReader(limit=_STREAM_LIMIT)
+        self.stderr = asyncio.StreamReader(limit=_STREAM_LIMIT)
+        self.returncode: int | None = None
+        self._done: asyncio.Future[int] = self._loop.create_future()
+        threading.Thread(
+            target=self._consume, name="nika-e2b-exec", daemon=True
+        ).start()
+
+    @classmethod
+    async def start(cls, sandbox: Any, command: str, *, cwd: str) -> AsyncProcess:
+        handle = await asyncio.to_thread(
+            sandbox.commands.run, command, background=True, cwd=cwd, timeout=0
+        )
+        return cls(handle)
+
+    def _call(self, callback: Callable[..., Any], *args: Any) -> None:
+        try:
+            self._loop.call_soon_threadsafe(callback, *args)
+        except RuntimeError:
+            pass  # The worker's event loop is gone; nobody reads the output.
+
+    def _feeder(self, reader: asyncio.StreamReader) -> Callable[[str], None]:
+        return lambda chunk: self._call(reader.feed_data, chunk.encode())
+
+    def _consume(self) -> None:
+        from e2b.sandbox.commands.command_handle import CommandExitException
+
+        try:
+            result = self._handle.wait(
+                on_stdout=self._feeder(self.stdout),
+                on_stderr=self._feeder(self.stderr),
+            )
+            code = result.exit_code
+        except CommandExitException as exc:
+            code = exc.exit_code
+        except Exception as exc:  # noqa: BLE001 - surfaced on stderr
+            self._feeder(self.stderr)(f"Sandbox command stream failed: {exc}\n")
+            code = 1
+        self._call(self._finish, code)
+
+    def _finish(self, code: int) -> None:
+        self.stdout.feed_eof()
+        self.stderr.feed_eof()
+        self.returncode = code
+        if not self._done.done():
+            self._done.set_result(code)
+
+    async def wait(self) -> int:
+        return await asyncio.shield(self._done)
+
+    def kill(self) -> None:
+        try:
+            self._handle.kill()
+        except Exception as exc:  # noqa: BLE001 - already gone is fine
+            logger.debug("Sandbox command kill failed: %s", exc)
+
+
 class _CommandTunnel:
     """Run the tunnel relay in the sandbox and bridge it to host services."""
 
-    def __init__(self, sandbox: Any, targets: Mapping[int, tuple[str, int]]) -> None:
+    def __init__(
+        self, sandbox: Any, relay: str, targets: Mapping[int, tuple[str, int]]
+    ) -> None:
         self._stopping = False
         ports = " ".join(str(port) for port in targets)
         self._handle = sandbox.commands.run(
-            f"python3 -u {REMOTE_WORKSPACE}/{_RELAY_NAME} {ports}",
+            f"python3 -u {shlex.quote(relay)} {ports}",
             background=True,
             stdin=True,
             timeout=0,
@@ -255,6 +331,7 @@ class E2bBackend(SandboxBackend):
         self._tunnel: _CommandTunnel | None = None
         self._model_proxy_port: int | None = None
         self._template = ""
+        self._workspace = ""
 
     def ensure_available(self) -> None:
         try:
@@ -272,8 +349,6 @@ class E2bBackend(SandboxBackend):
     def prepare_templates(self, agent_types: Sequence[str]) -> list[str]:
         # Templates are built by the service, which pulls the images itself.
         self.ensure_available()
-        for agent_type in agent_types:
-            _require_supported(agent_type)
         for template in dict.fromkeys(AGENT_TEMPLATES[a] for a in agent_types):
             self.ensure_template(template)
         return []
@@ -284,16 +359,23 @@ class E2bBackend(SandboxBackend):
         Requires a service that implements the E2B template build API.
         """
         from e2b import Template
+        from e2b.api.client_sync import get_api_client
+        from e2b.connection_config import ConnectionConfig
 
         image = TEMPLATE_IMAGES[template]
         cpus = self.config.cpus
         memory = memory_mb(self.config.memory)
         name = e2b_template_name(template, image, cpus=cpus, memory=memory)
         opts = _connection_opts(self.config)
+        api = get_api_client(ConnectionConfig(**opts)).get_httpx_client()
         lock = Path.home() / ".local/state/nika/locks" / f"e2b-template-{name}.lock"
         with host_file_lock(lock):
-            if Template.exists(name, **opts):
+            entry = _template_entry(api, name)
+            if entry is not None and entry.get("buildStatus") == "ready":
                 return name
+            if entry is not None and entry.get("buildStatus") == "error":
+                # A failed build keeps the name, which a new build cannot take.
+                api.delete(f"/templates/{entry['templateID']}").raise_for_status()
             started = time.perf_counter()
             log_event(
                 "sandbox_template_build",
@@ -329,7 +411,6 @@ class E2bBackend(SandboxBackend):
     ) -> dict[str, str]:
         from agent.sandbox.model_proxy import start_model_proxy
 
-        _require_supported(agent_type)
         if not llm_provider:
             raise RuntimeError("Set agent.provider for sandboxed agents.")
         self._template = self.ensure_template(AGENT_TEMPLATES[agent_type])
@@ -344,9 +425,6 @@ class E2bBackend(SandboxBackend):
             agent_host="127.0.0.1",
         )
         return env
-
-    def workspace_path(self, workspace_dir: Path) -> str:
-        return REMOTE_WORKSPACE
 
     def stage_workspace(self, workspace_dir: Path, *, agent_type: str) -> None:
         shutil.copyfile(RELAY_SCRIPT, workspace_dir / _RELAY_NAME)
@@ -363,11 +441,13 @@ class E2bBackend(SandboxBackend):
             budget = _UNBOUNDED_AGENT_LIFETIME_SEC
         return budget + _LIFETIME_MARGIN_SEC
 
-    def _run_checked(self, command: str, *, timeout: int) -> str:
+    def _run_checked(
+        self, command: str, *, timeout: int, user: str | None = None
+    ) -> str:
         from e2b.sandbox.commands.command_handle import CommandExitException
 
         try:
-            result = self._sandbox.commands.run(command, timeout=timeout)
+            result = self._sandbox.commands.run(command, timeout=timeout, user=user)
         except CommandExitException as exc:
             detail = (getattr(exc, "stdout", "") or "") + (exc.stderr or "")
             raise RuntimeError(
@@ -376,18 +456,30 @@ class E2bBackend(SandboxBackend):
             ) from exc
         return result.stdout
 
-    def _upload_workspace(self, workspace_dir: Path) -> None:
-        archive_path = f"{REMOTE_WORKSPACE}.tar"
+    def _create_workspace_dir(self, workspace: str) -> None:
+        """Create the host workspace path in the sandbox, owned by its user."""
+        owner = self._run_checked("id -un", timeout=60).strip()
+        self._run_checked(
+            f"mkdir -p {shlex.quote(workspace)} && "
+            f"chown {shlex.quote(owner)}: {shlex.quote(workspace)}",
+            timeout=60,
+            user="root",
+        )
+
+    def _upload(self, workspace_dir: Path, names: Sequence[str]) -> None:
+        """Copy files or directories under *workspace_dir* to the same path."""
+        archive_path = f"/tmp/nika-upload-{uuid.uuid4().hex}.tar"
         with tempfile.TemporaryFile() as archive:
             with tarfile.open(fileobj=archive, mode="w") as tar:
-                tar.add(workspace_dir, arcname=".")
+                for name in names:
+                    tar.add(workspace_dir / name, arcname=name)
             archive.seek(0)
             self._sandbox.files.write(
                 archive_path, archive, request_timeout=_UPLOAD_TIMEOUT_SEC
             )
         self._run_checked(
-            f"mkdir -p {REMOTE_WORKSPACE} && "
-            f"tar -xf {archive_path} -C {REMOTE_WORKSPACE} && rm -f {archive_path}",
+            f"tar -xf {archive_path} -C {shlex.quote(str(workspace_dir))} "
+            f"&& rm -f {archive_path}",
             timeout=_SETUP_COMMAND_TIMEOUT_SEC,
         )
 
@@ -413,13 +505,15 @@ class E2bBackend(SandboxBackend):
             allow_internet_access=False,
             **_connection_opts(self.config),
         )
+        self._workspace = str(workspace_dir)
         try:
             if agent_type in SDK_AGENT_TYPES:
                 self._check_architecture()
-            self._upload_workspace(workspace_dir)
+            self._create_workspace_dir(self._workspace)
+            self._upload(workspace_dir, ["."])
             if agent_type in SDK_AGENT_TYPES:
                 self._run_checked(
-                    sdk_pip_install_command(REMOTE_WORKSPACE, offline=True),
+                    sdk_pip_install_command(self._workspace, offline=True),
                     timeout=_SETUP_COMMAND_TIMEOUT_SEC,
                 )
         except BaseException:
@@ -432,7 +526,8 @@ class E2bBackend(SandboxBackend):
         targets = {port: ("127.0.0.1", port)}
         if self._model_proxy_port is not None:
             targets[self._model_proxy_port] = ("127.0.0.1", self._model_proxy_port)
-        self._tunnel = _CommandTunnel(self._sandbox, targets)
+        relay = f"{self._workspace}/{_RELAY_NAME}"
+        self._tunnel = _CommandTunnel(self._sandbox, relay, targets)
 
     def revoke_gateway(self, sandbox_id: str, *, port: int, gateway_url: str) -> None:
         self._stop_tunnel()
@@ -440,13 +535,15 @@ class E2bBackend(SandboxBackend):
     def exec_stream(self, sandbox_id: str, command: str) -> StreamedProcess:
         return _CommandProcess(self._sandbox, command)
 
+    async def exec_async(self, sandbox_id: str, command: str) -> AsyncProcess:
+        return await _AsyncCommandProcess.start(
+            self._sandbox, command, cwd=self._workspace
+        )
+
     def push_files(
         self, sandbox_id: str, workspace_dir: Path, names: Sequence[str]
     ) -> None:
-        for name in names:
-            self._sandbox.files.write(
-                f"{REMOTE_WORKSPACE}/{name}", (workspace_dir / name).read_bytes()
-            )
+        self._upload(workspace_dir, names)
 
     def pull_files(
         self, sandbox_id: str, workspace_dir: Path, names: Sequence[str]
@@ -456,7 +553,7 @@ class E2bBackend(SandboxBackend):
         for name in names:
             try:
                 data = self._sandbox.files.read(
-                    f"{REMOTE_WORKSPACE}/{name}", format="bytes"
+                    f"{workspace_dir}/{name}", format="bytes"
                 )
             except NotFoundException:
                 continue

@@ -179,3 +179,41 @@ def test_e2b_template_name_tracks_pin_and_sizing() -> None:
     assert e2b_template_name("shell", repinned, cpus=2, memory=4096) != name
     assert e2b_template_name("shell", pinned, cpus=4, memory=4096) != name
     assert e2b_template_name("shell", pinned, cpus=2, memory=memory_mb("512m")) != name
+
+
+def test_e2b_async_process_keeps_streams_separate_and_reports_exit() -> None:
+    """Host CLI workers read stdout lines and stderr separately, then the code."""
+    import asyncio
+    from types import SimpleNamespace
+
+    pytest.importorskip("e2b")
+    from agent.sandbox.e2b.backend import _AsyncCommandProcess
+
+    class Handle:
+        def __init__(self, fail: bool) -> None:
+            self.fail = fail
+
+        def wait(self, on_stdout, on_stderr):
+            on_stdout('{"type": "a"}\n{"ty')
+            on_stderr("warning\n")
+            on_stdout('pe": "b"}\n')
+            if self.fail:
+                raise ConnectionError("stream reset")
+            return SimpleNamespace(exit_code=0)
+
+        def kill(self) -> None:
+            return None
+
+    async def run(fail: bool) -> tuple[list[bytes], bytes, int]:
+        proc = _AsyncCommandProcess(Handle(fail))
+        lines = [line async for line in proc.stdout]
+        return lines, await proc.stderr.read(), await proc.wait()
+
+    lines, stderr, code = asyncio.run(run(fail=False))
+    assert lines == [b'{"type": "a"}\n', b'{"type": "b"}\n']
+    assert stderr == b"warning\n"
+    assert code == 0
+
+    _, stderr, code = asyncio.run(run(fail=True))
+    assert code == 1
+    assert b"stream reset" in stderr

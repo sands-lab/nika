@@ -57,7 +57,7 @@ nika:
   sandbox:
     # Sandbox runtime: sbx (Docker Sandboxes) or e2b (E2B-compatible service).
     backend: sbx
-    # e2b: API URL of a self-hosted service. Null uses E2B cloud.
+    # e2b: API URL of an E2B-compatible service. Null uses E2B cloud.
     url: null
     # Keep the sandbox after a run for debugging.
     keep: false

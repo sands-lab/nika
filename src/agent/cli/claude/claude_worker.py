@@ -17,8 +17,8 @@ isolated, per-session workspace.  It handles:
   ``{"type":"result"}`` stream-json event; all events are logged to the host
   ``messages.jsonl`` (``trace_dir``, outside the sandbox workspace) and
   pretty-printed via :func:`~agent.utils.display.display_agent_event`.
-* **Execution** – ``claude`` always runs inside the sbx sandbox
-  (:func:`~agent.sandbox.sbx.exec.exec_in_sandbox`); the worker stays on the host.
+* **Execution** – ``claude`` always runs inside the session sandbox
+  (:func:`~agent.sandbox.exec.exec_in_sandbox`); the worker stays on the host.
 """
 
 from __future__ import annotations
@@ -35,11 +35,18 @@ from agent.cli.claude.config import (
     use_bare_claude_mode,
 )
 from agent.protocols import PHASES
-from agent.sandbox.sbx.exec import exec_in_sandbox
+from agent.sandbox.exec import exec_in_sandbox, push_to_sandbox
+from agent.sandbox.workspace import write_workspace_text
 from agent.utils.loggers import MessageLogger
 from agent.utils.mcp_client import load_session_mcp_config
 from agent.utils.skills import prepare_claude_workspace, skills_enabled
 from agent.utils.two_phase import max_steps_report
+
+
+# Claude Code connects MCP servers in the background and gives up on one after
+# 30 s; the first turn then runs without its tools. A slow sandbox, or the e2b
+# tunnel, can miss that window, so wait longer for them.
+_MCP_CONNECT_WAIT_MS = 120_000
 
 
 def _build_mcp_json(servers: dict) -> str:
@@ -152,7 +159,7 @@ class ClaudeWorker:
             {"phase": self.phase, "servers": list(servers.keys())},
         )
         config_path = self.workspace / f"{self.phase}_mcp_config.json"
-        config_path.write_text(_build_mcp_json(servers), encoding="utf-8")
+        write_workspace_text(config_path, _build_mcp_json(servers))
         self._mcp_config_path = config_path
 
     # ------------------------------------------------------------------
@@ -167,8 +174,11 @@ class ClaudeWorker:
         failures and skips submission.
         """
         self._setup_workspace()
+        push_to_sandbox([self.workspace])
 
         env = prepare_claude_subprocess_env(provider=self.llm_provider)
+        env["MCP_TIMEOUT"] = str(_MCP_CONNECT_WAIT_MS)
+        env["CLAUDE_CODE_MCP_STARTUP_WAIT_MS"] = str(_MCP_CONNECT_WAIT_MS)
         if self.llm_provider == "custom":
             env.update(custom_model_claude_env(self.model))
         if self.max_tokens is not None:
