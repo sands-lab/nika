@@ -1,0 +1,27 @@
+name: Letta Code
+
+on:
+  issues:
+    types: [opened, labeled]
+  issue_comment:
+    types: [created]
+  pull_request:
+    types: [opened, labeled]
+  pull_request_review_comment:
+    types: [created]
+
+jobs:
+  letta:
+    name: Letta Code
+    runs-on: [self-hosted, Linux, X64, cornaca-copilot]
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: letta-ai/letta-code-action@v0
+        with:
+          letta_api_key: ${{ secrets.LETTA_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          agent_id: agent-94fc2af6-52c5-4ec5-b0c1-758a3e09541a
