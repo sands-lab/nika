@@ -157,7 +157,7 @@ uv run nika agent run -a sdk.claude_sdk --no-sandbox-offline-sdk-wheels \
   --problem dc_clos_s_link_down
 ```
 
-Package versions are pinned in [`src/agent/sandbox/sbx/requirements-sdk.txt`](../../src/agent/sandbox/sbx/requirements-sdk.txt). Changing that file invalidates the wheel cache.
+Package versions are pinned in [`src/agent/sandbox/requirements-sdk.txt`](../../src/agent/sandbox/requirements-sdk.txt). Changing that file invalidates the wheel cache.
 
 ## Claude Code with custom providers
 

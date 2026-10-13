@@ -233,6 +233,7 @@ def test_sdk_source_bundle_does_not_copy_nika(tmp_path) -> None:
             cpus=None,
             memory=None,
             offline_sdk_wheels=False,
+            url=None,
         )
     )
 
@@ -252,6 +253,7 @@ def test_sdk_bundle_imports_without_nika_package(tmp_path, monkeypatch) -> None:
     manager = SandboxManager(
         SandboxConfig(
             backend="sbx",
+            url=None,
             env_file=tmp_path / ".env",
             keep_container=False,
             cpus=None,

@@ -51,6 +51,7 @@ def _activate_run_config(
     reasoning_effort: str | None,
     access_role: str | None,
     base_url: str | None,
+    sandbox_backend: str | None,
     sandbox_keep_container: bool,
     sandbox_cpus: int | None,
     sandbox_memory: str | None,
@@ -68,6 +69,7 @@ def _activate_run_config(
         reasoning_effort=reasoning_effort,
         access_role=access_role,
         base_url=base_url,
+        sandbox_backend=sandbox_backend,
         sandbox_keep=sandbox_keep_container or None,
         sandbox_cpus=sandbox_cpus,
         sandbox_memory=sandbox_memory,
@@ -323,6 +325,11 @@ def agent_run(
     session_id: str | None = typer.Option(
         None, "--session_id", help="Target session id (session mode only)."
     ),
+    sandbox_backend: str | None = typer.Option(
+        None,
+        "--sandbox-backend",
+        help="Sandbox runtime: sbx or e2b (default: nika.sandbox.backend).",
+    ),
     sandbox_keep_container: bool = typer.Option(
         False,
         "--sandbox-keep-container",
@@ -368,6 +375,7 @@ def agent_run(
         reasoning_effort=reasoning_effort,
         access_role=access_role,
         base_url=base_url,
+        sandbox_backend=sandbox_backend,
         sandbox_keep_container=sandbox_keep_container,
         sandbox_cpus=sandbox_cpus,
         sandbox_memory=sandbox_memory,

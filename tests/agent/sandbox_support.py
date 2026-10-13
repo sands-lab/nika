@@ -10,7 +10,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from agent.sandbox.config import resolve_sandbox_config, sandbox_gateway_agent_host
+from agent.sandbox.config import resolve_sandbox_config
 from agent.sandbox.sbx.client import (
     ensure_sbx_ready,
     run_sbx_checked,
@@ -67,7 +67,7 @@ def run_security_probe_with_gateway(session_id: str = "sandbox-security-test") -
     ensure_sbx_ready()
 
     sandbox_name = sanitize_sandbox_name(session_id)
-    agent_host = sandbox_gateway_agent_host()
+    agent_host = SbxBackend.gateway_agent_host
     agent_type = "cli.codex"
     sbx_agent = "shell"
 
@@ -200,7 +200,7 @@ def run_cross_sandbox_isolation_probe() -> None:
         raise RuntimeError("sbx is required for cross-sandbox isolation probe")
 
     ensure_sbx_ready()
-    agent_host = sandbox_gateway_agent_host()
+    agent_host = SbxBackend.gateway_agent_host
     session_id = "sandbox-iso-probe"
     sandbox_name = sanitize_sandbox_name(session_id)
 

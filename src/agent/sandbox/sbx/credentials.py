@@ -18,7 +18,7 @@ from urllib.parse import urlparse
 import httpx
 
 from agent.registry import BUILTIN_AGENTS
-from agent.sandbox.config import load_sandbox_env_values
+from agent.sandbox.config import load_credential_sources
 from agent.sandbox.sbx.auth import PROXY_MANAGED_SENTINEL
 from agent.sandbox.sbx.client import (
     list_sbx_custom_secrets,
@@ -35,10 +35,8 @@ from agent.utils.provider_env import (
     ENV_ANTHROPIC_AUTH_TOKEN,
     ENV_ANTHROPIC_BASE_URL,
     ENV_CUSTOM_API_KEY,
-    ENV_CUSTOM_BASE_URL,
     ENV_DEEPSEEK_API_KEY,
     ENV_OPENAI_API_KEY,
-    map_provider_credentials,
     resolve_custom_api_key,
     resolve_custom_base_url,
 )
@@ -126,44 +124,6 @@ def _require_provider(provider: str | None) -> str:
             "in config/nika.yaml or pass -p/--provider."
         )
     return str(provider).strip().lower()
-
-
-def _credential_sources(
-    env_file: Path, *, provider: str, agent_type: str
-) -> dict[str, str]:
-    """Load .env then keep only keys needed for the active provider mapping."""
-    file_vals = load_sandbox_env_values(env_file)
-    # Overlay live process env for the known credential keys
-    merged = dict(file_vals)
-    for key in (
-        ENV_DEEPSEEK_API_KEY,
-        ENV_OPENAI_API_KEY,
-        ENV_ANTHROPIC_API_KEY,
-        ENV_ANTHROPIC_AUTH_TOKEN,
-        ENV_ANTHROPIC_BASE_URL,
-        ENV_CUSTOM_BASE_URL,
-        ENV_CUSTOM_API_KEY,
-        "CUSTOM_API_BASE",
-        "CUSTOM_API_KEY",
-        "NIKA_CUSTOM_MODEL",
-    ):
-        value = os.environ.get(key, "").strip()
-        if value:
-            merged[key] = value
-
-    if not provider:
-        return merged
-
-    mapped = map_provider_credentials(
-        agent_type=agent_type, provider=provider, sources=merged
-    )
-    # Keep mapped credentials and non-secret custom endpoint fields.
-    allowed = set(mapped) | {
-        ENV_CUSTOM_BASE_URL,
-        ENV_CUSTOM_API_KEY,
-        "NIKA_CUSTOM_MODEL",
-    }
-    return {k: v for k, v in {**merged, **mapped}.items() if k in allowed and v}
 
 
 def is_official_anthropic_base_url(base_url: str) -> bool:
@@ -286,7 +246,11 @@ def _host_covered(targets: str, host: str) -> bool:
         token = item.strip().lower()
         if not token:
             continue
-        if token == wanted or token == f"*.{wanted}" or wanted.endswith("." + token.lstrip("*.")):
+        if (
+            token == wanted
+            or token == f"*.{wanted}"
+            or wanted.endswith("." + token.lstrip("*."))
+        ):
             return True
         # Exact wildcard forms from sbx docs: *.example.com / **.example.com
         if token.startswith("*.") and (
@@ -315,9 +279,7 @@ def _ensure_custom_secret(
     if entry and _host_covered(entry.get("hosts", ""), host):
         return entry["placeholder"]
     if entry:
-        run_sbx_checked(
-            ["secret", "rm", "--placeholder", entry["placeholder"], "-f"]
-        )
+        run_sbx_checked(["secret", "rm", "--placeholder", entry["placeholder"], "-f"])
     run_sbx_checked(
         [
             "secret",
@@ -356,7 +318,7 @@ def ensure_sbx_credentials(
 
     required = frozenset(required_services or ())
     prov = _require_provider(provider)
-    sources = _credential_sources(env_file, provider=prov, agent_type=agent_type)
+    sources = load_credential_sources(env_file, provider=prov, agent_type=agent_type)
     base_url = _anthropic_base_url(sources, prov)
     openai_base = _openai_base_url(sources, prov)
     third_party_anth = bool(base_url) and not is_official_anthropic_base_url(base_url)
@@ -463,7 +425,7 @@ def sbx_openai_credential_available(*, env_file: Path | None = None) -> bool:
     if resolve_custom_api_key():
         return True
     if env_file is not None:
-        sources = _credential_sources(
+        sources = load_credential_sources(
             env_file, provider="openai", agent_type="cli.codex"
         )
         if _openai_secret_value(sources):
@@ -487,7 +449,7 @@ def sbx_anthropic_credential_available(*, env_file: Path | None = None) -> bool:
     ):
         return True
     if env_file is not None:
-        sources = _credential_sources(
+        sources = load_credential_sources(
             env_file,
             provider="anthropic",
             agent_type="cli.claude",
@@ -514,7 +476,7 @@ def anthropic_subscription_mode(*, env_file: Path | None = None) -> bool:
     ):
         return False
     if env_file is not None:
-        sources = _credential_sources(
+        sources = load_credential_sources(
             env_file, provider="anthropic", agent_type="cli.claude"
         )
         if _anthropic_secret_value(sources):

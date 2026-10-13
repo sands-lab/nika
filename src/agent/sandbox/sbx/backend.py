@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -11,9 +11,14 @@ from agent.sandbox.backend import (
     SandboxCleanupResult,
     StreamedProcess,
 )
+from agent.sandbox.config import SANDBOX_GATEWAY_HOST_BRIDGE
 from agent.sandbox.constants import SDK_AGENT_TYPES
 from agent.sandbox.redact import redact_text
-from agent.sandbox.sbx.agents import native_sbx_agent, sbx_template_image
+from agent.sandbox.sbx.agents import (
+    native_sbx_agent,
+    required_sbx_template_images,
+    sbx_template_image,
+)
 from agent.sandbox.sbx.client import (
     ensure_sbx_ready,
     require_sbx_authenticated,
@@ -36,10 +41,8 @@ from agent.sandbox.sbx.policy import (
     sanitize_sandbox_name,
 )
 from agent.sandbox.sbx.proxy import ensure_sbx_proxy_config, resolve_sbx_upstream_proxy
-from agent.sandbox.sbx.wheels import (
-    install_sdk_packages_in_sandbox,
-    stage_sdk_wheels,
-)
+from agent.sandbox.sbx.wheels import install_sdk_packages_in_sandbox
+from agent.sandbox.wheels import stage_sdk_wheels
 
 # Covers a first-run template image pull; a normal create takes under a minute.
 _SBX_CREATE_TIMEOUT_SEC = 600
@@ -49,6 +52,7 @@ class SbxBackend(SandboxBackend):
     """Docker Sandboxes microVMs that bind-mount the workspace at its host path."""
 
     name = "sbx"
+    gateway_agent_host = SANDBOX_GATEWAY_HOST_BRIDGE
 
     def __init__(self, config) -> None:
         super().__init__(config)
@@ -62,6 +66,10 @@ class SbxBackend(SandboxBackend):
                 "Docker Sandboxes CLI (sbx) is not available. "
                 "Install docker-sbx and run `sbx login`."
             )
+
+    def prepare_templates(self, agent_types: Sequence[str]) -> list[str]:
+        """Return the sbx template images for *agent_types* to pull on the host."""
+        return required_sbx_template_images(*agent_types)
 
     def prepare_host(
         self, *, agent_type: str, llm_provider: str | None

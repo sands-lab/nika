@@ -392,13 +392,17 @@ def start_net_env(
         if canonical in K8S_SCENARIOS:
             cache_scenario(canonical)
         if redeploy or not lab_exists:
-            # When run config selects a sandbox agent, preload its sbx
+            # When run config selects a sandbox agent, prepare its sandbox
             # template alongside lab images (not at per-case agent start).
-            from agent.sandbox.sbx.images import (
-                ensure_configured_sbx_template_images,
+            from agent.sandbox.backend import prepare_configured_sandbox_templates
+
+            images = prepare_configured_sandbox_templates()
+            from nika.net_env.utils.kathara.docker_files.docker_images import (
+                ensure_nika_docker_images,
             )
 
-            ensure_configured_sbx_template_images()
+            ensure_nika_docker_images(images)
+
             if lab_exists:
                 net_env.undeploy()
             net_env.deploy()

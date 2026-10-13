@@ -41,6 +41,7 @@ from agent.sandbox.workspace import (
     trace_mirror,
     write_workspace_text,
 )
+from agent.utils.loggers import MESSAGES_FILENAME
 from agent.utils.skills import ENV_ENABLE_SKILLS, skills_enabled
 from nika.utils.agent_session_id import resolve_agent_session_id
 from nika.utils.logger import elapsed_ms, log_event
@@ -166,160 +167,170 @@ class SandboxManager:
         agent_sid = resolve_agent_session_id(session)
         session_dir = Path(session.session_dir).resolve()
 
-        credential_env = backend.prepare_host(
-            agent_type=agent_type, llm_provider=llm_provider
-        )
-        manifest = self.write_manifest(
-            session=session,
-            agent_type=agent_type,
-            model=model,
-            max_steps=max_steps,
-            reasoning_effort=reasoning_effort,
-            max_tokens=max_tokens,
-            llm_provider=llm_provider,
-            mcp_gateway_agent_url=mcp_gateway_agent_url,
-            stream_output=stream_output,
-        )
-
-        # Workspace path is chosen before prepare so PYTHONPATH matches the
-        # path the sandbox sees.
-        workspace_path = opaque_agent_workspace_dir(agent_sid)
-        sandbox_workspace = backend.workspace_path(workspace_path)
-
-        runtime_env = {
-            "NIKA_SANDBOX_EXECUTION": "1",
-            "NIKA_SESSION_ID": agent_sid,
-            "NIKA_MCP_GATEWAY_AGENT_URL": mcp_gateway_agent_url.rstrip("/"),
-            "PYTHONPATH": f"{sandbox_workspace}/agent",
-            ENV_ENABLE_SKILLS: "1" if skills_enabled() else "0",
-        }
-        lab_backend = getattr(session, "backend", "").strip()
-        if lab_backend:
-            runtime_env["NIKA_SESSION_BACKEND"] = lab_backend
-        if agent_type in _CLAUDE_SDK_AGENT_TYPES:
-            runtime_env["CLAUDE_CODE_STREAM_CLOSE_TIMEOUT"] = str(
-                _CLAUDE_SDK_INIT_TIMEOUT_MS
-            )
-        runtime_env.update(credential_env)
-
-        workspace = prepare_workspace(
-            session_dir=session_dir,
-            manifest=manifest,
-            runtime_env=runtime_env,
-            agent_session_id=agent_sid,
-            workspace_dir=workspace_path,
-        )
-        mirror: TraceMirror | None = None
-        if agent_type in SDK_AGENT_TYPES:
-            self._bundle_agent_sources(workspace.workspace_dir)
-            mirror = trace_mirror(workspace)
-        backend.stage_workspace(workspace.workspace_dir, agent_type=agent_type)
-
-        # Lifetime covers create → agent run → teardown; setup span is logged
-        # on sandbox_start once the sandbox is ready (env_start-style).
-        lifetime_started = time.perf_counter()
-
-        # Serialize host env mutation for the lifetime of this sandbox session so
-        # a sibling session cannot restore/clobber our NIKA_SANDBOX_* values.
-        _sandbox_env_lock.acquire()
-        prior_session_dir = os.environ.get(ENV_SESSION_DIR)
-        prior_sandbox_name = os.environ.get(ENV_SANDBOX_NAME)
-        prior_runtime_env = {key: os.environ.get(key) for key in runtime_env}
-        sandbox_id: str | None = None
         try:
-            sandbox_id = backend.create(
-                agent_session_id=agent_sid,
+            credential_env = backend.prepare_host(
+                agent_type=agent_type, llm_provider=llm_provider
+            )
+            manifest = self.write_manifest(
+                session=session,
                 agent_type=agent_type,
-                workspace_dir=workspace.workspace_dir,
+                model=model,
+                max_steps=max_steps,
+                reasoning_effort=reasoning_effort,
+                max_tokens=max_tokens,
+                llm_provider=llm_provider,
+                mcp_gateway_agent_url=mcp_gateway_agent_url,
+                stream_output=stream_output,
             )
-            backend.allow_gateway(
-                sandbox_id, port=gateway_port, gateway_url=mcp_gateway_agent_url
-            )
-            log_event(
-                "sandbox_start",
-                f"Created {backend.name} sandbox {sandbox_id} "
-                f"for session {session.session_id}",
-                session_id=session.session_id,
-                agent_session_id=agent_sid,
-                agent_type=agent_type,
-                sandbox_backend=backend.name,
-                sandbox_name=sandbox_id,
-                mcp_gateway=mcp_gateway_agent_url,
-                env=format_env_for_log(runtime_env),
-                duration_ms=elapsed_ms(lifetime_started),
-                **backend.start_log_fields(),
-            )
-            os.environ[ENV_SANDBOX_NAME] = sandbox_id
-            os.environ[ENV_SESSION_DIR] = str(workspace.workspace_dir)
-            # Force credential placeholders over host .env API keys so the
-            # sandbox never receives real secrets (and DeepSeek set-custom
-            # placeholders are not shadowed by host dotenv values).
-            for key, value in runtime_env.items():
-                if key in CREDENTIAL_ENV_KEYS:
-                    os.environ[key] = value
-                else:
-                    os.environ.setdefault(key, value)
-            if mirror is not None:
-                mirror.start()
-            yield SandboxSession(
-                sandbox_name=sandbox_id,
-                workspace_dir=workspace.workspace_dir,
-                gateway_port=gateway_port,
-                agent_session_id=agent_sid,
-                trace_mirror=mirror,
-            )
-        finally:
-            try:
-                if mirror is not None:
-                    mirror.stop()
-                if prior_sandbox_name is None:
-                    os.environ.pop(ENV_SANDBOX_NAME, None)
-                else:
-                    os.environ[ENV_SANDBOX_NAME] = prior_sandbox_name
-                if prior_session_dir is None:
-                    os.environ.pop(ENV_SESSION_DIR, None)
-                else:
-                    os.environ[ENV_SESSION_DIR] = prior_session_dir
-                for key, prior_value in prior_runtime_env.items():
-                    if prior_value is None:
-                        os.environ.pop(key, None)
-                    else:
-                        os.environ[key] = prior_value
 
+            # Workspace path is chosen before prepare so PYTHONPATH matches the
+            # path the sandbox sees.
+            workspace_path = opaque_agent_workspace_dir(agent_sid)
+            sandbox_workspace = backend.workspace_path(workspace_path)
+
+            runtime_env = {
+                "NIKA_SANDBOX_EXECUTION": "1",
+                "NIKA_SESSION_ID": agent_sid,
+                "NIKA_MCP_GATEWAY_AGENT_URL": mcp_gateway_agent_url.rstrip("/"),
+                "PYTHONPATH": f"{sandbox_workspace}/agent",
+                ENV_ENABLE_SKILLS: "1" if skills_enabled() else "0",
+            }
+            lab_backend = getattr(session, "backend", "").strip()
+            if lab_backend:
+                runtime_env["NIKA_SESSION_BACKEND"] = lab_backend
+            if agent_type in _CLAUDE_SDK_AGENT_TYPES:
+                runtime_env["CLAUDE_CODE_STREAM_CLOSE_TIMEOUT"] = str(
+                    _CLAUDE_SDK_INIT_TIMEOUT_MS
+                )
+            runtime_env.update(credential_env)
+
+            workspace = prepare_workspace(
+                session_dir=session_dir,
+                manifest=manifest,
+                runtime_env=runtime_env,
+                agent_session_id=agent_sid,
+                workspace_dir=workspace_path,
+            )
+            mirror: TraceMirror | None = None
+            if agent_type in SDK_AGENT_TYPES:
+                self._bundle_agent_sources(workspace.workspace_dir)
+                mirror = trace_mirror(workspace)
+            backend.stage_workspace(workspace.workspace_dir, agent_type=agent_type)
+
+            # Lifetime covers create → agent run → teardown; setup span is logged
+            # on sandbox_start once the sandbox is ready (env_start-style).
+            lifetime_started = time.perf_counter()
+
+            # Serialize host env mutation for the lifetime of this sandbox session so
+            # a sibling session cannot restore/clobber our NIKA_SANDBOX_* values.
+            _sandbox_env_lock.acquire()
+            prior_session_dir = os.environ.get(ENV_SESSION_DIR)
+            prior_sandbox_name = os.environ.get(ENV_SANDBOX_NAME)
+            prior_runtime_env = {key: os.environ.get(key) for key in runtime_env}
+            sandbox_id: str | None = None
+            try:
+                sandbox_id = backend.create(
+                    agent_session_id=agent_sid,
+                    agent_type=agent_type,
+                    workspace_dir=workspace.workspace_dir,
+                )
+                backend.allow_gateway(
+                    sandbox_id, port=gateway_port, gateway_url=mcp_gateway_agent_url
+                )
+                log_event(
+                    "sandbox_start",
+                    f"Created {backend.name} sandbox {sandbox_id} "
+                    f"for session {session.session_id}",
+                    session_id=session.session_id,
+                    agent_session_id=agent_sid,
+                    agent_type=agent_type,
+                    sandbox_backend=backend.name,
+                    sandbox_name=sandbox_id,
+                    mcp_gateway=mcp_gateway_agent_url,
+                    env=format_env_for_log(runtime_env),
+                    duration_ms=elapsed_ms(lifetime_started),
+                    **backend.start_log_fields(),
+                )
+                os.environ[ENV_SANDBOX_NAME] = sandbox_id
+                os.environ[ENV_SESSION_DIR] = str(workspace.workspace_dir)
+                # Force credential placeholders over host .env API keys so the
+                # sandbox never receives real secrets (and DeepSeek set-custom
+                # placeholders are not shadowed by host dotenv values).
+                for key, value in runtime_env.items():
+                    if key in CREDENTIAL_ENV_KEYS:
+                        os.environ[key] = value
+                    else:
+                        os.environ.setdefault(key, value)
+                if mirror is not None:
+                    # Runtimes without a shared workspace fetch the trace first.
+                    mirror.refresh = lambda sid=sandbox_id: backend.pull_files(
+                        sid, workspace.workspace_dir, [MESSAGES_FILENAME]
+                    )
+                    mirror.start()
+                yield SandboxSession(
+                    sandbox_name=sandbox_id,
+                    workspace_dir=workspace.workspace_dir,
+                    gateway_port=gateway_port,
+                    agent_session_id=agent_sid,
+                    trace_mirror=mirror,
+                )
+            finally:
                 try:
-                    if sandbox_id is not None:
-                        backend.revoke_gateway(
-                            sandbox_id,
-                            port=gateway_port,
-                            gateway_url=mcp_gateway_agent_url,
-                        )
-                finally:
+                    if mirror is not None:
+                        mirror.stop()
+                    if prior_sandbox_name is None:
+                        os.environ.pop(ENV_SANDBOX_NAME, None)
+                    else:
+                        os.environ[ENV_SANDBOX_NAME] = prior_sandbox_name
+                    if prior_session_dir is None:
+                        os.environ.pop(ENV_SESSION_DIR, None)
+                    else:
+                        os.environ[ENV_SESSION_DIR] = prior_session_dir
+                    for key, prior_value in prior_runtime_env.items():
+                        if prior_value is None:
+                            os.environ.pop(key, None)
+                        else:
+                            os.environ[key] = prior_value
+
                     try:
-                        if sandbox_id is not None and not self.config.keep_container:
-                            backend.remove(sandbox_id)
+                        if sandbox_id is not None:
+                            backend.revoke_gateway(
+                                sandbox_id,
+                                port=gateway_port,
+                                gateway_url=mcp_gateway_agent_url,
+                            )
                     finally:
                         try:
-                            collect_artifacts(workspace)
+                            if (
+                                sandbox_id is not None
+                                and not self.config.keep_container
+                            ):
+                                backend.remove(sandbox_id)
                         finally:
-                            # Keep the manifest even when artifact collection or
-                            # earlier sandbox cleanup fails.
-                            (session_dir / MANIFEST_FILENAME).write_text(
-                                json.dumps(manifest, indent=2),
-                                encoding="utf-8",
-                            )
-                            cleanup_workspace(workspace)
-                            log_event(
-                                "sandbox_end",
-                                f"{backend.name} sandbox finished "
-                                f"for session {session.session_id}",
-                                session_id=session.session_id,
-                                agent_type=agent_type,
-                                sandbox_backend=backend.name,
-                                sandbox_name=sandbox_id or "",
-                                duration_ms=elapsed_ms(lifetime_started),
-                            )
-            finally:
-                _sandbox_env_lock.release()
+                            try:
+                                collect_artifacts(workspace)
+                            finally:
+                                # Keep the manifest even when artifact collection or
+                                # earlier sandbox cleanup fails.
+                                (session_dir / MANIFEST_FILENAME).write_text(
+                                    json.dumps(manifest, indent=2),
+                                    encoding="utf-8",
+                                )
+                                cleanup_workspace(workspace)
+                                log_event(
+                                    "sandbox_end",
+                                    f"{backend.name} sandbox finished "
+                                    f"for session {session.session_id}",
+                                    session_id=session.session_id,
+                                    agent_type=agent_type,
+                                    sandbox_backend=backend.name,
+                                    sandbox_name=sandbox_id or "",
+                                    duration_ms=elapsed_ms(lifetime_started),
+                                )
+                finally:
+                    _sandbox_env_lock.release()
+        finally:
+            backend.release_host()
 
     def _run_sdk_step(
         self,

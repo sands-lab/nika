@@ -118,6 +118,7 @@ def merge_cli(
     result_dir: str | None = None,
     judge_provider: str | None = None,
     judge_model: str | None = None,
+    sandbox_backend: str | None = None,
     sandbox_keep: bool | None = None,
     sandbox_cpus: int | None = None,
     sandbox_memory: str | None = None,
@@ -169,6 +170,8 @@ def merge_cli(
     if judge_overlay:
         nika_overlay["judge"] = judge_overlay
     sandbox_overlay: dict[str, Any] = {}
+    if sandbox_backend is not None:
+        sandbox_overlay["backend"] = sandbox_backend
     if sandbox_keep is not None:
         sandbox_overlay["keep"] = sandbox_keep
     if sandbox_cpus is not None:
