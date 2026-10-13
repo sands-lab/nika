@@ -69,6 +69,11 @@ _SETUP_COMMAND_TIMEOUT_SEC = 900
 _UPLOAD_TIMEOUT_SEC = 900
 # Line-buffer limit of host worker streams (agent CLIs print long JSON lines).
 _STREAM_LIMIT = 8 * 1024 * 1024
+# Disable page reclaim in microVMs that have it enabled
+_DISABLE_PAGE_RECLAIM = (
+    "f=/sys/module/damon_reclaim/parameters/enabled; "
+    'if [ -w "$f" ]; then echo N > "$f"; fi'
+)
 
 
 def _api_key(env_file: Path) -> str:
@@ -507,6 +512,7 @@ class E2bBackend(SandboxBackend):
         )
         self._workspace = str(workspace_dir)
         try:
+            self._run_checked(_DISABLE_PAGE_RECLAIM, timeout=60, user="root")
             if agent_type in SDK_AGENT_TYPES:
                 self._check_architecture()
             self._create_workspace_dir(self._workspace)
