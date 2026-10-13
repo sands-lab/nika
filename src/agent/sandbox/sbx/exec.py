@@ -12,12 +12,9 @@ from agent.sandbox.config import (
     ENV_SESSION_DIR,
     sandbox_name_from_env,
 )
+from agent.sandbox.constants import PROXY_TOKEN_PREFIX
 from agent.sandbox.sbx.auth import PROXY_MANAGED_SENTINEL
 from agent.utils.provider_env import CUSTOM_UNAUTHENTICATED_API_KEY
-
-# Prefix of the per-phase vLLM shim token (``agent.cli.claude.vllm_shim``).
-SHIM_TOKEN_PREFIX = "nika-shim-"
-
 
 _INNER_ENV_ALLOWLIST = frozenset(
     {
@@ -72,12 +69,12 @@ def _inner_path(
 
 def is_credential_placeholder(value: str) -> bool:
     """True for sandbox credential stand-ins, never a real provider key."""
-    # A vLLM shim token only authorizes the host-side shim for one phase.
+    # A model proxy token only authorizes the host-side proxy of one session.
     return (
         value == PROXY_MANAGED_SENTINEL
         or value == CUSTOM_UNAUTHENTICATED_API_KEY
         or value.startswith("sbx-cs-")
-        or value.startswith(SHIM_TOKEN_PREFIX)
+        or value.startswith(PROXY_TOKEN_PREFIX)
     )
 
 

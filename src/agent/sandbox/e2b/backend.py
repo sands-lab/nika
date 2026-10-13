@@ -34,7 +34,6 @@ from agent.sandbox.backend import (
 )
 from agent.sandbox.config import (
     SandboxConfig,
-    load_credential_sources,
     load_sandbox_env_values,
 )
 from agent.sandbox.constants import SDK_AGENT_TYPES
@@ -56,10 +55,9 @@ ENV_E2B_API_KEY = "E2B_API_KEY"
 REMOTE_WORKSPACE = "/tmp/nika-workspace"
 _RELAY_NAME = "nika_tunnel_relay.py"
 _METADATA_SESSION_KEY = "nika_agent_session_id"
-_ANTHROPIC_API_URL = "https://api.anthropic.com"
 # Agents this backend runs today. CLI agents need host-side exec through the
-# backend, and Codex needs an OpenAI-protocol model proxy.
-_SUPPORTED_AGENTS = frozenset({"sdk.claude_sdk", "community.sade"})
+# backend.
+_SUPPORTED_AGENTS = frozenset({"sdk.claude_sdk", "sdk.codex_sdk", "community.sade"})
 _TUNNEL_READY_TIMEOUT_SEC = 30
 # Sandbox lifetime beyond the agent budget, covering setup and teardown.
 _LIFETIME_MARGIN_SEC = 1800
@@ -329,47 +327,23 @@ class E2bBackend(SandboxBackend):
     def prepare_host(
         self, *, agent_type: str, llm_provider: str | None
     ) -> dict[str, str]:
-        from agent.cli.claude.vllm_shim import new_shim_token, vllm_messages_shim
-        from agent.utils.provider_env import (
-            CUSTOM_UNAUTHENTICATED_API_KEY,
-            ENV_ANTHROPIC_API_KEY,
-            ENV_ANTHROPIC_AUTH_TOKEN,
-            ENV_ANTHROPIC_BASE_URL,
-        )
+        from agent.sandbox.model_proxy import start_model_proxy
 
         _require_supported(agent_type)
         if not llm_provider:
             raise RuntimeError("Set agent.provider for sandboxed agents.")
         self._template = self.ensure_template(AGENT_TEMPLATES[agent_type])
-
-        sources = load_credential_sources(
-            self.config.env_file, provider=llm_provider, agent_type=agent_type
-        )
-        upstream = sources.get(ENV_ANTHROPIC_BASE_URL) or _ANTHROPIC_API_URL
-        api_key = sources.get(ENV_ANTHROPIC_API_KEY) or sources.get(
-            ENV_ANTHROPIC_AUTH_TOKEN, ""
-        )
-        if api_key == CUSTOM_UNAUTHENTICATED_API_KEY:
-            api_key = ""
-        if not api_key and llm_provider != "custom":
-            raise RuntimeError(
-                f"No API key found for provider {llm_provider!r} in "
-                f"{self.config.env_file}."
-            )
         # Model proxy on host loopback: the tunnel is its only client. It
         # checks the per-session token and sends the real key upstream.
-        token = new_shim_token()
-        self._model_proxy_port = self._host_stack.enter_context(
-            vllm_messages_shim(
-                upstream, bind_host="127.0.0.1", token=token, api_key=api_key
-            )
+        self._model_proxy_port, env = start_model_proxy(
+            self._host_stack,
+            env_file=self.config.env_file,
+            agent_type=agent_type,
+            provider=llm_provider,
+            bind_host="127.0.0.1",
+            agent_host="127.0.0.1",
         )
-        proxy_url = f"http://127.0.0.1:{self._model_proxy_port}"
-        return {
-            ENV_ANTHROPIC_BASE_URL: proxy_url,
-            ENV_ANTHROPIC_API_KEY: token,
-            ENV_ANTHROPIC_AUTH_TOKEN: token,
-        }
+        return env
 
     def workspace_path(self, workspace_dir: Path) -> str:
         return REMOTE_WORKSPACE

@@ -129,20 +129,11 @@ def prepare_claude_subprocess_env(
     Uses provider-aware credential mapping and does **not** forward the full
     host environment (judge / Langfuse / remote / unused provider keys stay out).
     """
-    from agent.sandbox.sbx.auth import PROXY_MANAGED_SENTINEL
     from agent.sandbox.config import sandbox_name_from_env
-    from agent.utils.provider_env import CUSTOM_UNAUTHENTICATED_API_KEY
+    from agent.sandbox.sbx.exec import is_credential_placeholder as _is_placeholder
 
     prov = require_provider(provider)
     host = dict(base if base is not None else os.environ)
-
-    def _is_placeholder(value: str) -> bool:
-        text = value.strip()
-        return (
-            text == PROXY_MANAGED_SENTINEL
-            or text == CUSTOM_UNAUTHENTICATED_API_KEY
-            or text.startswith("sbx-cs-")
-        )
 
     # Support a legacy manual token and base URL long enough to emit a migration warning.
     if (
@@ -173,8 +164,8 @@ def prepare_claude_subprocess_env(
         if mapped.get(ENV_ANTHROPIC_API_KEY) and not env.get(ENV_ANTHROPIC_API_KEY):
             env.update(mapped)
 
-    # Sandbox sessions already injected sbx-cs-* / proxy-managed placeholders on
-    # the host env. Never remap real DEEPSEEK/custom keys over them — sbx exec
+    # Sandbox sessions already injected placeholders (sbx-cs-*, proxy-managed,
+    # model proxy tokens) on the host env. Never remap real DEEPSEEK/custom keys over them — sbx exec
     # would then omit the real secrets and leave the microVM without credentials.
     in_sbx_session = bool(sandbox_name_from_env())
     for key in (ENV_ANTHROPIC_API_KEY, ENV_ANTHROPIC_AUTH_TOKEN):
@@ -184,7 +175,7 @@ def prepare_claude_subprocess_env(
         elif in_sbx_session and _is_placeholder(os.environ.get(key, "").strip()):
             env[key] = os.environ[key].strip()
     if in_sbx_session or any(
-        _is_placeholder(host.get(k, ""))
+        _is_placeholder(host.get(k, "").strip())
         for k in (ENV_ANTHROPIC_API_KEY, ENV_ANTHROPIC_AUTH_TOKEN)
     ):
         base_url = (
