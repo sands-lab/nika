@@ -224,6 +224,30 @@ def test_prepare_claude_preserves_deepseek_placeholder_for_sbx_exec(
     assert "sk-real-deepseek" not in inner
 
 
+def test_prepare_claude_keeps_model_proxy_token_for_custom(monkeypatch) -> None:
+    """Custom endpoints are reached through the session's model proxy."""
+    from agent.cli.claude.config import prepare_claude_subprocess_env
+    from agent.sandbox.config import ENV_SANDBOX_NAME
+    from agent.sandbox.model_proxy import new_proxy_token
+
+    token = new_proxy_token()
+    proxy_url = "http://host.docker.internal:41234"
+    monkeypatch.setenv(ENV_SANDBOX_NAME, "nika-test-sbx")
+    monkeypatch.setenv("NIKA_CUSTOM_BASE_URL", "http://llm.example/v1")
+    monkeypatch.setenv("NIKA_CUSTOM_API_KEY", "sk-real")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", token)
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", token)
+    monkeypatch.setenv("ANTHROPIC_BASE_URL", proxy_url)
+
+    env = prepare_claude_subprocess_env(provider="custom")
+    assert env["ANTHROPIC_API_KEY"] == token
+    assert env["ANTHROPIC_BASE_URL"] == proxy_url
+
+    inner = build_sbx_exec_command("nika-test", ["claude", "-p", "hi"], env=env)[-1]
+    assert f"ANTHROPIC_API_KEY={token}" in inner
+    assert "sk-real" not in inner
+
+
 @pytest.mark.parametrize(
     ("provider", "real_key_env"),
     [("deepseek", "DEEPSEEK_API_KEY"), ("custom", "NIKA_CUSTOM_API_KEY")],

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from contextlib import ExitStack
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,7 @@ from agent.sandbox.backend import (
 )
 from agent.sandbox.config import SANDBOX_GATEWAY_HOST_BRIDGE
 from agent.sandbox.constants import SDK_AGENT_TYPES
+from agent.sandbox.model_proxy import start_model_proxy
 from agent.sandbox.redact import redact_text
 from agent.sandbox.sbx.agents import (
     native_sbx_agent,
@@ -59,6 +61,8 @@ class SbxBackend(SandboxBackend):
         self._upstream_proxy: str | None = None
         self._native_agent = ""
         self._create_command: list[str] = []
+        self._host_stack = ExitStack()
+        self._model_proxy_port: int | None = None
 
     def ensure_available(self) -> None:
         if not sbx_available():
@@ -90,7 +94,22 @@ class SbxBackend(SandboxBackend):
         for url in (cred_plan.openai_base_url, cred_plan.anthropic_base_url):
             extra_hosts.extend(llm_network_resources_for_url(url))
         ensure_llm_network_policy(*extra_hosts)
-        return cred_plan.sentinel_runtime_env()
+        env = cred_plan.sentinel_runtime_env()
+        if llm_provider == "custom":
+            # Custom endpoints go through the model proxy, which adapts
+            # requests for them (see agent.sandbox.model_proxy) and holds the
+            # key. The microVM reaches the host bridge, and the token keeps
+            # other clients on that interface out.
+            self._model_proxy_port, proxy_env = start_model_proxy(
+                self._host_stack,
+                env_file=self.config.env_file,
+                agent_type=agent_type,
+                provider=llm_provider,
+                bind_host="0.0.0.0",
+                agent_host=SANDBOX_GATEWAY_HOST_BRIDGE,
+            )
+            env.update(proxy_env)
+        return env
 
     def stage_workspace(self, workspace_dir: Path, *, agent_type: str) -> None:
         if agent_type in SDK_AGENT_TYPES and self.config.offline_sdk_wheels:
@@ -155,15 +174,23 @@ class SbxBackend(SandboxBackend):
 
     def allow_gateway(self, sandbox_id: str, *, port: int, gateway_url: str) -> None:
         allow_mcp_gateway(sandbox_name=sandbox_id, port=port, gateway_url=gateway_url)
+        if self._model_proxy_port is not None:
+            allow_mcp_gateway(sandbox_name=sandbox_id, port=self._model_proxy_port)
 
     def revoke_gateway(self, sandbox_id: str, *, port: int, gateway_url: str) -> None:
         deny_mcp_gateway(sandbox_name=sandbox_id, port=port, gateway_url=gateway_url)
+        if self._model_proxy_port is not None:
+            deny_mcp_gateway(sandbox_name=sandbox_id, port=self._model_proxy_port)
 
     def exec_stream(self, sandbox_id: str, command: str) -> StreamedProcess:
         return stream_sbx(["exec", sandbox_id, "bash", "-lc", command])
 
     def remove(self, sandbox_id: str) -> None:
         run_sbx_optional(["rm", "--force", sandbox_id])
+
+    def release_host(self) -> None:
+        self._host_stack.close()
+        self._model_proxy_port = None
 
     def start_log_fields(self) -> dict[str, Any]:
         return {

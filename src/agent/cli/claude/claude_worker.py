@@ -26,9 +26,7 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
-from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator
 
 from agent.cli.claude.config import (
     custom_model_claude_env,
@@ -36,14 +34,10 @@ from agent.cli.claude.config import (
     resolve_claude_model,
     use_bare_claude_mode,
 )
-from agent.cli.claude.vllm_shim import new_shim_token, vllm_messages_shim
 from agent.protocols import PHASES
-from agent.sandbox.config import SANDBOX_GATEWAY_HOST_BRIDGE, sandbox_name_from_env
 from agent.sandbox.sbx.exec import exec_in_sandbox
-from agent.sandbox.sbx.policy import allow_mcp_gateway, deny_mcp_gateway
 from agent.utils.loggers import MessageLogger
 from agent.utils.mcp_client import load_session_mcp_config
-from agent.utils.provider_env import resolve_custom_api_key
 from agent.utils.skills import prepare_claude_workspace, skills_enabled
 from agent.utils.two_phase import max_steps_report
 
@@ -165,36 +159,6 @@ class ClaudeWorker:
     # Subprocess invocation
     # ------------------------------------------------------------------
 
-    @contextmanager
-    def _custom_endpoint_shim(self, env: dict[str, str]) -> Iterator[None]:
-        """Route a custom endpoint through the host-side vLLM compatibility shim.
-
-        The sandbox gets a per-phase shim token as its API key; the shim checks
-        it and sends the real ``NIKA_CUSTOM_API_KEY`` (if any) upstream.
-        """
-        upstream = env.get("ANTHROPIC_BASE_URL", "").strip()
-        if self.llm_provider != "custom" or not upstream:
-            yield
-            return
-        sandbox = sandbox_name_from_env()
-        token = new_shim_token()
-        # The microVM reaches the host bridge, not host loopback; the token
-        # keeps other clients on that interface out.
-        with vllm_messages_shim(
-            upstream,
-            bind_host="0.0.0.0",
-            token=token,
-            api_key=resolve_custom_api_key(),
-        ) as port:
-            env["ANTHROPIC_BASE_URL"] = f"http://{SANDBOX_GATEWAY_HOST_BRIDGE}:{port}"
-            env["ANTHROPIC_API_KEY"] = token
-            env["ANTHROPIC_AUTH_TOKEN"] = token
-            allow_mcp_gateway(sandbox_name=sandbox, port=port)
-            try:
-                yield
-            finally:
-                deny_mcp_gateway(sandbox_name=sandbox, port=port)
-
     async def run(self, prompt: str) -> str:
         """Execute ``claude -p`` and return the final assistant message.
 
@@ -243,17 +207,14 @@ class ClaudeWorker:
             {"command": " ".join(cmd[:6] + ["..."]), "phase": self.phase},
         )
 
-        with self._custom_endpoint_shim(env):
-            try:
-                proc = await exec_in_sandbox(cmd, env=env, cwd=str(self.workspace))
-                returncode, final_result, stderr_text = await self._stream_subprocess(
-                    proc
-                )
-            except FileNotFoundError:
-                self._logger.log(
-                    "subprocess_error", {"error": "sbx binary not found in PATH"}
-                )
-                return "ERROR: 'sbx' not found in PATH — is Docker Sandboxes installed?"
+        try:
+            proc = await exec_in_sandbox(cmd, env=env, cwd=str(self.workspace))
+            returncode, final_result, stderr_text = await self._stream_subprocess(proc)
+        except FileNotFoundError:
+            self._logger.log(
+                "subprocess_error", {"error": "sbx binary not found in PATH"}
+            )
+            return "ERROR: 'sbx' not found in PATH — is Docker Sandboxes installed?"
 
         if self._max_turns_reached:
             return max_steps_report(
