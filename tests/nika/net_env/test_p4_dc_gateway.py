@@ -6,7 +6,7 @@ import pytest
 from types import SimpleNamespace
 
 from nika.workflows.benchmark.inject_resolve import resolve_inject_params
-from traffic.burst import build_burst_flows, flow_id_for_five_tuple
+from nika.traffic.burst import build_burst_flows, flow_id_for_five_tuple
 from nika.net_env.p4_dc_gateway.control import build_gateway_intent
 from nika.net_env.p4_dc_gateway.topology_model import (
     CONN_TABLE_CAPACITY,
@@ -23,6 +23,8 @@ from nika.net_env.p4_dc_gateway.verify import (
 from nika.net_env.net_env_pool import list_all_net_envs
 from nika.service.kathara.bmv2_api import KatharaBMv2API
 from nika.service.kathara.telemetry_api import KatharaTelemetryAPI
+
+pytestmark = pytest.mark.unit
 
 
 @pytest.mark.parametrize("size", ["s", "m", "l"])

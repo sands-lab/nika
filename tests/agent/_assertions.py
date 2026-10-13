@@ -45,6 +45,25 @@ def assert_submission_fields(session_dir: Path) -> None:
         assert item.get("fault_type")
 
 
+def assert_no_codex_tool_item_mirrors(messages: list[dict]) -> None:
+    """Codex tools must be tool_* only — not also item.started/completed rows."""
+    has_tool_start = any(e.get("event") == "tool_start" for e in messages)
+    if not has_tool_start:
+        return
+    tool_item_types = {"mcp_tool_call", "command_execution"}
+    mirrors = [
+        e
+        for e in messages
+        if e.get("event") in {"item.started", "item.completed"}
+        and isinstance((e.get("codex_event") or {}).get("item"), dict)
+        and (e.get("codex_event") or {}).get("item", {}).get("type") in tool_item_types
+    ]
+    assert not mirrors, (
+        f"found {len(mirrors)} Codex tool item.* mirrors alongside tool_*; "
+        "workers should emit canonical tool_start/tool_end only"
+    )
+
+
 def _extract_tool_names(entry: dict) -> list[str]:
     names: list[str] = []
     if entry.get("event") == "tool_start" and "tool" in entry:

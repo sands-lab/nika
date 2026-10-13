@@ -6,25 +6,21 @@ import json
 
 from mcp.server.fastmcp import FastMCP
 
-from nika.mcp.session_context import get_session_meta
-from nika.runtime.factory import runtime_for_session
+from nika.mcp.session_context import get_lab_runtime
 from nika.service.packet_capture.limits import (
     HARD_INSPECT_PAGE_SIZE,
     HARD_MAX_DURATION_SEC,
     HARD_MAX_PACKETS,
 )
 from nika.service.packet_capture.manager import CaptureManager
-from nika.utils.errors import safe_tool
 
 mcp = FastMCP("packet_capture_mcp_server")
 
 
 def _manager() -> CaptureManager:
-    runtime = runtime_for_session(get_session_meta())
-    return CaptureManager(runtime=runtime)
+    return CaptureManager(runtime=get_lab_runtime())
 
 
-@safe_tool
 @mcp.tool()
 def packet_capture_start(
     device: str,
@@ -51,7 +47,6 @@ def packet_capture_start(
     return json.dumps(result, indent=2)
 
 
-@safe_tool
 @mcp.tool()
 def packet_capture_stop(capture_id: str) -> str:
     """Stop a running capture; pcap and metadata remain on the lab node."""
@@ -59,7 +54,6 @@ def packet_capture_stop(capture_id: str) -> str:
     return json.dumps(result, indent=2)
 
 
-@safe_tool
 @mcp.tool()
 def packet_capture_inspect(
     capture_id: str,

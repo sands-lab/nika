@@ -1,0 +1,19 @@
+scenario:
+  name: routeros_simple_bgp
+failure:
+  fault_type: arp_cache_poisoning
+  cases:
+  - inject:
+      host_name: pc1
+    root_causes:
+    - resource:
+        kind: node
+        node: pc1
+      fault_type: arp_cache_poisoning
+  - inject:
+      host_name: pc2
+    root_causes:
+    - resource:
+        kind: node
+        node: pc2
+      fault_type: arp_cache_poisoning

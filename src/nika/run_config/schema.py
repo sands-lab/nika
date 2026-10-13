@@ -1,12 +1,20 @@
-"""Pydantic schema for versioned NIKA run configuration (``config/nika.yaml``)."""
+"""Pydantic schema for NIKA run configuration (``config/nika.yaml``)."""
 
 from __future__ import annotations
 
+import warnings
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictInt,
+    field_validator,
+    model_validator,
+)
 
-from agent.utils.provider_env import AGENT_PROVIDERS, validate_provider_for_agent
+from agent.utils.provider_env import validate_provider_for_agent
 
 
 class RemoteSettings(BaseModel):
@@ -21,9 +29,10 @@ class SandboxSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     keep: bool = False
-    cpus: str | None = None
-    memory: str | None = None
-    offline_sdk_wheels: bool = False
+    # Explicit null hands sizing to sbx: every host vCPU and half of host memory.
+    cpus: StrictInt | None = 2
+    memory: str | None = "4g"
+    offline_sdk_wheels: bool = True
     upstream_proxy: str | None = None
 
 
@@ -74,10 +83,13 @@ class LabSettings(BaseModel):
     ready_retry_delay_sec: float = 5.0
     failure_verify_max_attempts: int = 3
     failure_verify_retry_delay_sec: float = 5.0
+    # Passed to ``clab deploy --max-workers`` to limit concurrent create/wire.
+    containerlab_max_workers: int = 2
 
     @field_validator(
         "deploy_attempts",
         "failure_verify_max_attempts",
+        "containerlab_max_workers",
     )
     @classmethod
     def _positive_int(cls, value: int) -> int:
@@ -108,12 +120,22 @@ class McpSettings(BaseModel):
     read_timeout_sec: float = 120.0
     gateway_host: str = "127.0.0.1"
     gateway_port: int = 0
+    # Observation budget for MCP tool text (mini-swe-agent head/tail style).
+    # Over budget: keep first/last halves and elide the middle. 0 disables.
+    tool_output_max_chars: int = 10000
 
     @field_validator("gateway_port")
     @classmethod
     def _gateway_port_non_negative(cls, value: int) -> int:
         if value < 0:
             raise ValueError("nika.mcp.gateway_port must be >= 0")
+        return value
+
+    @field_validator("tool_output_max_chars")
+    @classmethod
+    def _tool_output_chars_non_negative(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("nika.mcp.tool_output_max_chars must be >= 0")
         return value
 
 
@@ -138,7 +160,6 @@ class NikaSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     result_dir: str = "results"
-    enable_skills: bool = True
     remote: RemoteSettings = Field(default_factory=RemoteSettings)
     sandbox: SandboxSettings = Field(default_factory=SandboxSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
@@ -154,33 +175,14 @@ class NikaSettings(BaseModel):
     )
 
 
-class AgentModels(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    langgraph: str | None = None
-    mcp_agent: str | None = None
-    autogen: str | None = None
-    codex: str | None = None
-    codex_sdk: str | None = None
-    claude: str | None = None
-    claude_sdk: str | None = None
-    sade: str | None = None
-
-
-class CustomModelSettings(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    base_url: str | None = None
-    model: str | None = None
-
-
 class AgentLlmSettings(BaseModel):
-    """Control request timeout and retries for the LangGraph model factory."""
+    """Control request timeout, retries and streaming for the LangGraph model factory."""
 
     model_config = ConfigDict(extra="forbid")
 
-    timeout_sec: float = 300.0
+    timeout_sec: float = 480.0
     max_retries: int = 2
+    stream: bool = True
 
     @field_validator("timeout_sec")
     @classmethod
@@ -230,18 +232,72 @@ class AgentSettings(BaseModel):
     type: str = "byo.langgraph"
     provider: str = "openai"
     model: str | None = None
+    # Inference endpoint for provider=custom; other providers ignore it.
+    # OpenAI-style API root, usually ending in /v1 (http://host:8000/v1).
+    base_url: str | None = None
     max_steps: int = 20
+    # Wall-clock budget for one agent run (diagnosis + submission), all agent types.
+    # 0 disables it. Keep it below benchmark.case_timeout_sec so the agent stops
+    # and cleans up before the case worker is killed.
+    timeout_sec: int = 1800
+    # Load shared troubleshooting skills for Claude and Codex agents.
+    enable_skills: bool = True
+    # Consecutive submit() validation failures before a final rejection (0 = unlimited).
+    submit_reject_limit: int = 5
     reasoning_effort: str | None = None
-    models: AgentModels = Field(default_factory=AgentModels)
-    custom: CustomModelSettings = Field(default_factory=CustomModelSettings)
+    # Output-token cap per model response. Not applied by Codex agents or SADE.
+    max_tokens: int = 8192
     llm: AgentLlmSettings = Field(default_factory=AgentLlmSettings)
     access: AgentAccessSettings = Field(default_factory=AgentAccessSettings)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _lift_legacy_custom(cls, data: Any) -> Any:
+        """Accept the old ``agent.custom.base_url`` layout used by saved configs."""
+        if not isinstance(data, dict) or "custom" not in data:
+            return data
+        data = dict(data)
+        legacy = data.pop("custom") or {}
+        if not isinstance(legacy, dict):
+            raise ValueError("agent.custom must be a mapping")
+        unknown = set(legacy) - {"base_url"}
+        if unknown:
+            raise ValueError(f"unknown agent.custom keys: {sorted(unknown)}")
+        if legacy.get("base_url") is not None:
+            warnings.warn(
+                "agent.custom.base_url is deprecated; use agent.base_url instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            data.setdefault("base_url", legacy["base_url"])
+        return data
 
     @field_validator("max_steps")
     @classmethod
     def _max_steps_positive(cls, value: int) -> int:
         if value < 1:
             raise ValueError("agent.max_steps must be >= 1")
+        return value
+
+    @field_validator("max_tokens")
+    @classmethod
+    def _max_tokens_positive(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("agent.max_tokens must be >= 1")
+        return value
+
+    @field_validator("timeout_sec")
+    @classmethod
+    def _timeout_sec_non_negative(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("agent.timeout_sec must be >= 0")
+        return value
+
+    @field_validator("submit_reject_limit")
+    @classmethod
+    def _submit_reject_limit_non_negative(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("agent.submit_reject_limit must be >= 0")
         return value
 
 
@@ -251,17 +307,18 @@ class BenchmarkSettings(BaseModel):
     release: str | None = None
     split: str | None = None
     batch_size: int = 1
+    heavy_batch_size: int = 1
     case_timeout_sec: int = 2400
     continue_on_error: bool = False
     retry_passes: int = 0
     resume: bool = True
     session_tag: str | None = None
 
-    @field_validator("batch_size")
+    @field_validator("batch_size", "heavy_batch_size")
     @classmethod
     def _batch_size_positive(cls, value: int) -> int:
         if value < 1:
-            raise ValueError("benchmark.batch_size must be >= 1")
+            raise ValueError("must be >= 1")
         return value
 
     @field_validator("case_timeout_sec", "retry_passes")
@@ -273,13 +330,13 @@ class BenchmarkSettings(BaseModel):
 
 
 class RunConfig(BaseModel):
-    """Top-level versioned run configuration."""
+    """Top-level run configuration."""
 
     model_config = ConfigDict(extra="forbid")
 
-    version: int = 1
-    nika: NikaSettings = Field(default_factory=NikaSettings)
+    # agent first: most user-edited knobs; dump order follows field order.
     agent: AgentSettings = Field(default_factory=AgentSettings)
+    nika: NikaSettings = Field(default_factory=NikaSettings)
     benchmark: BenchmarkSettings = Field(default_factory=BenchmarkSettings)
 
     @model_validator(mode="after")
@@ -287,50 +344,8 @@ class RunConfig(BaseModel):
         agent_type = self.agent.type.strip()
         if agent_type.lower() != "mock":
             validate_provider_for_agent(agent_type, self.agent.provider)
-        if (
-            self.agent.provider == "custom"
-            and not (self.agent.custom.base_url or "").strip()
-        ):
-            # Allow incomplete configs at load time for templates; resolve later.
-            pass
         return self
-
-    def model_for_agent(self, agent_type: str | None = None) -> str | None:
-        """Return the best model id for *agent_type* from YAML (no CLI)."""
-        at = (agent_type or self.agent.type).lower()
-        if self.agent.model:
-            return self.agent.model
-        models = self.agent.models
-        match at:
-            case "byo.langgraph":
-                return models.langgraph
-            case "byo.mcp_agent":
-                return models.mcp_agent
-            case "byo.autogen":
-                return models.autogen
-            case "cli.codex":
-                return models.codex
-            case "sdk.codex_sdk":
-                return models.codex_sdk or models.codex
-            case "cli.claude":
-                return models.claude
-            case "sdk.claude_sdk":
-                return models.claude_sdk or models.claude
-            case "community.sade":
-                return models.sade or models.claude
-            case _:
-                return None
-
-    def to_display_dict(self) -> dict[str, Any]:
-        return self.model_dump(mode="python")
 
 
 def default_run_config() -> RunConfig:
     return RunConfig()
-
-
-def allowed_providers_hint(agent_type: str) -> str:
-    allowed = AGENT_PROVIDERS.get(agent_type.lower())
-    if not allowed:
-        return "openai, anthropic, deepseek, custom"
-    return ", ".join(sorted(allowed))

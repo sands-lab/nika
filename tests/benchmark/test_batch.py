@@ -1,23 +1,24 @@
 from __future__ import annotations
 
-import pytest
 import json
-import re
 import subprocess
 import tempfile
 from pathlib import Path
 from typing import NamedTuple
+
+import pytest
 import yaml
+
 from agent.protocols import DIAGNOSIS, SUBMISSION
 from nika.utils.session_id import resolve_session_tag
 from nika.utils.session_store import SESSIONS_DIR, SessionStore
-from tests.benchmark.helpers import inject_params_from_benchmark_yaml
+from nika.workflows.benchmark.run import store_session_id_for_trial
 from tests.support.integration_base import IntegrationTestCase
+from tests.support.integration_pipeline import DEFAULT_INJECT_PARAMS
+
+pytestmark = pytest.mark.e2e
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_BENCHMARK_DONE_RE = re.compile(
-    "benchmark_done session_id=(\\S+) scenario=(\\S+) problem=(\\S+) session_dir=(\\S+)"
-)
 
 
 class ScenarioCase(NamedTuple):
@@ -41,6 +42,35 @@ def _case_key(case: ScenarioCase) -> str:
     return f"{case.scenario}:{case.problem}"
 
 
+def _discover_trial(
+    result_root: Path, case: ScenarioCase
+) -> tuple[str, Path] | RuntimeError:
+    """Locate a finished trial under ``result_dir/trials/`` (quiet CLI has no done line)."""
+    trials_root = result_root / "trials"
+    if not trials_root.is_dir():
+        return RuntimeError(f"trials/ missing under {result_root}")
+    for path in sorted(trials_root.iterdir()):
+        if not path.is_dir():
+            continue
+        run_path = path / "run.json"
+        if not run_path.is_file():
+            continue
+        try:
+            run = json.loads(run_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if run.get("scenario_name") != case.scenario:
+            continue
+        problems = run.get("problem_names") or []
+        if case.problem not in problems and case.problem not in path.name:
+            continue
+        session_id = str(run.get("session_id") or path.name)
+        return session_id, path
+    return RuntimeError(
+        f"No finished trial for {case.scenario}:{case.problem} under {trials_root}"
+    )
+
+
 class ParallelBenchmarkIntegrationTest(IntegrationTestCase):
     """Run all benchmark YAML rows as one parallel batch, then verify per-session results."""
 
@@ -57,14 +87,11 @@ class ParallelBenchmarkIntegrationTest(IntegrationTestCase):
         ) as handle:
             cases = []
             for case in SCENARIO_CASES:
-                inject = inject_params_from_benchmark_yaml(
-                    case.scenario, case.problem, case.size or ""
-                )
                 row = {
                     "scenario": case.scenario,
                     "problem": case.problem,
                     "topo_size": case.size,
-                    "inject": inject,
+                    "inject": DEFAULT_INJECT_PARAMS,
                 }
                 cases.append(row)
             yaml.dump({"cases": cases}, handle, sort_keys=False, allow_unicode=True)
@@ -74,7 +101,9 @@ class ParallelBenchmarkIntegrationTest(IntegrationTestCase):
                 [
                     "uv",
                     "run",
-                    "nika",
+                    "python",
+                    "-m",
+                    "tests.support.nika_cli",
                     "benchmark",
                     "run",
                     "--config",
@@ -87,6 +116,7 @@ class ParallelBenchmarkIntegrationTest(IntegrationTestCase):
                     "mock-v1",
                     "-n",
                     "5",
+                    "-y",
                     "--result_dir",
                     str(result_root),
                     "--session-tag",
@@ -95,6 +125,7 @@ class ParallelBenchmarkIntegrationTest(IntegrationTestCase):
                 cwd=_REPO_ROOT,
                 capture_output=True,
                 text=True,
+                check=False,
             )
             output = proc.stdout
             if proc.stderr:
@@ -103,19 +134,10 @@ class ParallelBenchmarkIntegrationTest(IntegrationTestCase):
                 raise RuntimeError(
                     f"`nika benchmark run --batch-size 3` exited {proc.returncode}:\n{output}"
                 )
-            parsed: dict[str, tuple[str, Path]] = {}
-            for match in _BENCHMARK_DONE_RE.finditer(output):
-                session_id, scenario, problem, session_dir = match.groups()
-                parsed[f"{scenario}:{problem}"] = (session_id, Path(session_dir))
             results: dict[str, tuple[str, Path] | BaseException] = {}
             for case in SCENARIO_CASES:
                 key = _case_key(case)
-                if key not in parsed:
-                    results[key] = RuntimeError(
-                        f"benchmark_done line missing for {key} in output:\n{output}"
-                    )
-                else:
-                    results[key] = parsed[key]
+                results[key] = _discover_trial(result_root, case)
             type(self)._pipeline_results = results
         finally:
             Path(yaml_path).unlink(missing_ok=True)
@@ -142,9 +164,12 @@ class ParallelBenchmarkIntegrationTest(IntegrationTestCase):
         ]
 
         assert len(ids) == len(set(ids)), f"Duplicate session IDs: {ids}"
-        for session_id in ids:
-            # Batch --config uses trial ids: {case_key}__t01
-            assert session_id.endswith("__t01"), session_id
+        for case in SCENARIO_CASES:
+            session_id, session_dir = self._result(case)
+            # Store key = trial slot name + result-root hash (parallel-run isolation).
+            assert session_id == store_session_id_for_trial(
+                session_dir.name, type(self)._result_root
+            ), session_id
 
     def test_session_dirs_are_isolated(self) -> None:
         dirs = [
@@ -186,7 +211,7 @@ class ParallelBenchmarkIntegrationTest(IntegrationTestCase):
         for case in SCENARIO_CASES:
             session_id, session_dir = self._result(case)
 
-            assert session_id in str(session_dir)
+            assert session_id.startswith(f"{session_dir.name}__r"), session_id
 
     def test_submission_fields_and_isolation(self) -> None:
         for case in SCENARIO_CASES:
@@ -195,7 +220,9 @@ class ParallelBenchmarkIntegrationTest(IntegrationTestCase):
             for field in ("is_anomaly", "root_causes"):
                 assert field in sub, f"Missing field '{field}' in submission.json"
 
-            assert session_id in str(session_dir)
+            # Parallel sessions must not see each other's fault.
+            fault_types = {rc.get("fault_type") for rc in sub["root_causes"]}
+            assert fault_types == {case.problem}, (session_id, fault_types)
 
     def test_eval_metrics_fields_and_scores(self) -> None:
         required_fields = (

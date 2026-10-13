@@ -6,6 +6,8 @@ import pytest
 
 from nika.workflows.env.start import _resolve_isp_kwargs
 
+pytestmark = pytest.mark.unit
+
 
 def _kwargs(**overrides):
     base = {
@@ -45,6 +47,14 @@ def test_isp_rejects_kathara_nokia() -> None:
             "isp_abilene",
             **_kwargs(backend="kathara", device_profile="nokia_srlinux"),
         )
+
+
+def test_isp_resolves_kathara_iosxr_profile() -> None:
+    kwargs = _resolve_isp_kwargs(
+        "isp_abilene", **_kwargs(backend="kathara", device_profile="iosxr")
+    )
+    assert kwargs["device_profile"] == "iosxr"
+    assert "topo" not in kwargs
 
 
 def test_isp_rejects_containerlab_frr() -> None:

@@ -16,6 +16,7 @@ from tests.agent.sandbox_support import (
 )
 
 
+@pytest.mark.unit
 def test_sandbox_names_are_unique_per_session() -> None:
     a = sanitize_sandbox_name("20260724-120000-test-aaaaaa")
     b = sanitize_sandbox_name("20260724-120000-test-bbbbbb")
@@ -24,6 +25,21 @@ def test_sandbox_names_are_unique_per_session() -> None:
     assert b.startswith("nika-")
 
 
+@pytest.mark.unit
+def test_sandbox_names_fit_linux_hostname_limit() -> None:
+    long_id = (
+        "isp_nobel-eu__bgp_acl_block__m__isis__ibgp_rr__kathara__frr__"
+        "host_name-amsterdam__t01"
+    )
+    name = sanitize_sandbox_name(long_id)
+    assert len(name) <= 63
+    assert name.startswith("nika-")
+    other = sanitize_sandbox_name(long_id.replace("amsterdam", "brussels"))
+    assert name != other
+    assert len(other) <= 63
+
+
+@pytest.mark.integration
 def test_concurrent_gateways_bind_distinct_ephemeral_ports() -> None:
     """Host gateways for parallel agent runs must not share a listen port."""
     port_a = pick_free_port("127.0.0.1")
@@ -55,11 +71,13 @@ def test_concurrent_gateways_bind_distinct_ephemeral_ports() -> None:
         )
 
 
+@pytest.mark.integration
+@pytest.mark.sandbox
 @pytest.mark.skipif(
     not sandbox_runtime_available(),
     reason="Docker Sandboxes runtime not available",
 )
 class SandboxCrossIsolationTest:
     def test_unallowed_mcp_gateway_port_is_blocked(self) -> None:
-        """Sandbox may reach its allowed gateway port, not a peer session port."""
+        """Sandbox reaches only its allowed gateway port, until access is revoked."""
         run_cross_sandbox_isolation_probe()

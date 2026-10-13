@@ -8,7 +8,18 @@ import pytest
 
 from nika.utils.session_store import SessionStore
 from nika.workflows.benchmark.resume import cleanup_benchmark_session
-from nika.workflows.session.close import close_session
+from nika.workflows.session.close import (
+    _resolve_runtime_workdir,
+    close_session,
+    remove_session_runtime_workdir,
+)
+
+
+@pytest.fixture(autouse=True)
+def _no_host_sbx_side_effects():
+    """Unit tests must not invoke the real ``sbx`` CLI (live benchmarks)."""
+    with patch("agent.sandbox.sbx.client.sbx_available", return_value=False):
+        yield
 
 
 def _write_run_json(session_dir: Path, *, session_id: str, lab_name: str) -> None:
@@ -27,6 +38,70 @@ def _write_run_json(session_dir: Path, *, session_id: str, lab_name: str) -> Non
         ),
         encoding="utf-8",
     )
+
+
+@pytest.mark.unit
+def test_close_session_cleans_owned_sbx_before_undeploy(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Hard-killed workers never reach sbx finally; close_session must rm by id."""
+    sessions_dir = tmp_path / "sessions"
+    sessions_dir.mkdir()
+    db_path = tmp_path / "sessions.db"
+    monkeypatch.setattr("nika.utils.session_store.SESSIONS_DIR", sessions_dir)
+    monkeypatch.setattr("nika.utils.session_store.SESSIONS_DB", db_path)
+
+    session_id = "simple_bgp__link_flap__t01"
+    agent_sid = "20260926-190000-a-123456"
+    session_dir = tmp_path / "results" / "trials" / session_id
+    lab_name = "simple_bgp__sbx_cleanup"
+    session_dir.mkdir(parents=True)
+    meta = {
+        "session_id": session_id,
+        "agent_session_id": agent_sid,
+        "scenario_name": "simple_bgp",
+        "lab_name": lab_name,
+        "session_dir": str(session_dir),
+        "status": "running",
+        "backend": "kathara",
+        "scenario_params": {"lab_name": lab_name, "backend": "kathara"},
+    }
+    (session_dir / "run.json").write_text(json.dumps(meta), encoding="utf-8")
+    store = SessionStore(sessions_dir, db_path)
+    store.create_session(meta)
+
+    env = MagicMock()
+    env.lab_exists.return_value = True
+    env.backend = "kathara"
+    order: list[str] = []
+
+    def _cleanup(meta_arg):
+        order.append("sbx")
+        assert meta_arg.get("agent_session_id") == agent_sid
+        return MagicMock(did_work=True, sandbox_name=f"nika-{agent_sid}")
+
+    def _undeploy():
+        order.append("undeploy")
+
+    env.undeploy.side_effect = _undeploy
+
+    with (
+        patch("nika.remote.config.is_remote_enabled", return_value=False),
+        patch("nika.workflows.session.close.get_net_env_instance", return_value=env),
+        patch(
+            "agent.sandbox.sbx.cleanup.cleanup_sbx_for_session",
+            side_effect=_cleanup,
+        ) as cleanup_mock,
+    ):
+        close_session(session_id=session_id, session_dir=session_dir)
+
+    cleanup_mock.assert_called()
+    assert order[0] == "sbx"
+    assert "undeploy" in order
+    # Must never target a sibling trial's opaque id.
+    called_meta = cleanup_mock.call_args.args[0]
+    assert called_meta["agent_session_id"] == agent_sid
+    assert called_meta["session_id"] == session_id
 
 
 @pytest.mark.unit
@@ -162,6 +237,74 @@ def test_cleanup_undeploys_before_deleting_run_json(
 
 
 @pytest.mark.unit
+def test_cleanup_survives_undeploy_failure(tmp_path: Path, monkeypatch) -> None:
+    sessions_dir = tmp_path / "sessions"
+    sessions_dir.mkdir()
+    db_path = tmp_path / "sessions.db"
+    monkeypatch.setattr("nika.utils.session_store.SESSIONS_DIR", sessions_dir)
+    monkeypatch.setattr("nika.utils.session_store.SESSIONS_DB", db_path)
+    monkeypatch.setattr("nika.workflows.benchmark.resume.SESSIONS_DIR", sessions_dir)
+
+    session_id = "simple_bgp__link_flap__cafebabe__t01"
+    session_dir = tmp_path / "results" / "trials" / session_id
+    _write_run_json(session_dir, session_id=session_id, lab_name="simple_bgp__stale")
+
+    env = MagicMock()
+    env.lab_exists.return_value = True
+    env.backend = "kathara"
+    env.undeploy.side_effect = RuntimeError("docker daemon unavailable")
+    with (
+        patch("nika.remote.config.is_remote_enabled", return_value=False),
+        patch("nika.workflows.session.close.get_net_env_instance", return_value=env),
+    ):
+        cleanup_benchmark_session(session_id, session_dir)
+
+    env.undeploy.assert_called()
+    assert not session_dir.exists()
+
+
+@pytest.mark.unit
+def test_clear_session_can_stamp_error_status(tmp_path: Path, monkeypatch) -> None:
+    sessions_dir = tmp_path / "sessions"
+    sessions_dir.mkdir()
+    db_path = tmp_path / "sessions.db"
+    monkeypatch.setattr("nika.utils.session_store.SESSIONS_DIR", sessions_dir)
+    monkeypatch.setattr("nika.utils.session_store.SESSIONS_DB", db_path)
+
+    from nika.utils.session import Session
+
+    store = SessionStore(sessions_dir, db_path)
+    monkeypatch.setattr(
+        "nika.utils.session.SessionStore",
+        lambda *args, **kwargs: SessionStore(sessions_dir, db_path),
+    )
+    session_id = "llmd_lab__host_missing__t01"
+    session_dir = tmp_path / "results" / "trials" / session_id
+    session_dir.mkdir(parents=True)
+    store.create_session(
+        {
+            "session_id": session_id,
+            "scenario_name": "llmd_lab",
+            "lab_name": "llmd_lab__x",
+            "session_dir": str(session_dir),
+            "status": "running",
+            "backend": "kathara",
+        }
+    )
+    session = Session()
+    session.store = store
+    session.session_id = session_id
+    session.session_dir = str(session_dir)
+    session.scenario_name = "llmd_lab"
+    session.clear_session(status="error")
+
+    run_meta = json.loads((session_dir / "run.json").read_text(encoding="utf-8"))
+    assert run_meta["status"] == "error"
+    assert run_meta.get("end_time")
+    assert store.list_running_sessions() == []
+
+
+@pytest.mark.unit
 def test_close_does_not_delete_a_sibling_session_json(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -238,6 +381,60 @@ def test_update_session_keeps_document_on_lookup_path(tmp_path: Path) -> None:
     assert store.get_session("alpha")["lab_name"] == "lab-a-updated"
     assert store.get_session("alpha")["session_id"] == "alpha"
     assert store.get_session("beta")["lab_name"] == "lab-b"
+
+
+@pytest.mark.unit
+def test_resolve_runtime_workdir_uses_backend_root(tmp_path: Path, monkeypatch) -> None:
+    runtime_dir = tmp_path / "runtime"
+    monkeypatch.setattr("nika.workflows.session.close.RUNTIME_DIR", runtime_dir)
+
+    kathara_meta = {
+        "lab_name": "k8s_lab__abc",
+        "backend": "kathara",
+        "scenario_params": {"lab_name": "k8s_lab__abc", "backend": "kathara"},
+    }
+    clab_meta = {
+        "lab_name": "dc_clos__abc",
+        "backend": "containerlab",
+        "scenario_params": {"lab_name": "dc_clos__abc", "backend": "containerlab"},
+    }
+
+    assert (
+        _resolve_runtime_workdir(kathara_meta)
+        == runtime_dir / "kathara" / "k8s_lab__abc"
+    )
+    assert (
+        _resolve_runtime_workdir(clab_meta)
+        == runtime_dir / "containerlab" / "dc_clos__abc"
+    )
+
+
+@pytest.mark.unit
+def test_remove_session_runtime_workdir_cleans_kathara_fallback(
+    tmp_path: Path, monkeypatch
+) -> None:
+    runtime_dir = tmp_path / "runtime"
+    workdir = runtime_dir / "kathara" / "k8s_lab__leftover"
+    workdir.mkdir(parents=True)
+    (workdir / "kubeconfig.yaml").write_text("apiVersion: v1\n", encoding="utf-8")
+    monkeypatch.setattr("nika.workflows.session.close.RUNTIME_DIR", runtime_dir)
+    monkeypatch.setattr(
+        "nika.workflows.session.close.SESSIONS_DIR", runtime_dir / "sessions"
+    )
+    monkeypatch.setattr(
+        "nika.workflows.session.close.RESULTS_DIR", tmp_path / "results"
+    )
+
+    meta = {
+        "session_id": "k8s_lab__bgp_asn_misconfig__t01",
+        "lab_name": "k8s_lab__leftover",
+        "backend": "kathara",
+        "session_dir": str(tmp_path / "results" / "trial"),
+        "scenario_params": {"lab_name": "k8s_lab__leftover", "backend": "kathara"},
+    }
+
+    assert remove_session_runtime_workdir(meta) is True
+    assert not workdir.exists()
 
 
 @pytest.mark.unit

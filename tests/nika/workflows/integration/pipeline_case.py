@@ -198,22 +198,24 @@ class PipelineCaseBase(CliIntegrationTestCase, OrderedPipelineTestCase):
             async def _run() -> dict:
                 client = MultiServerMCPClient(connections=diagnosis_config)
                 tools = {t.name: t for t in await client.get_tools()}
-                ping = await tools["ping_pair"].ainvoke(
+                ping = await tools["exec_shell"].ainvoke(
                     {
-                        "host_a": self.EXEC_PROBE_HOST,
-                        "host_b": self.EXEC_PROBE_HOST,
-                        "count": 1,
+                        "host_name": self.EXEC_PROBE_HOST,
+                        "command": "ping -c 1 127.0.0.1",
                     }
                 )
-                host_cfg = await tools["get_host_net_config"].ainvoke(
-                    {"host_name": self.EXEC_PROBE_HOST}
+                host_cfg = await tools["exec_shell"].ainvoke(
+                    {
+                        "host_name": self.EXEC_PROBE_HOST,
+                        "command": "ip addr && ip route",
+                    }
                 )
                 exec_out = await tools["exec_shell"].ainvoke(
                     {"host_name": self.EXEC_PROBE_HOST, "command": self.EXEC_PROBE_CMD}
                 )
                 extra = await self._extra_diagnosis_mcp_checks(tools)
                 return {
-                    "ping_pair": str(ping),
+                    "ping": str(ping),
                     "host_net_config": str(host_cfg),
                     "exec_shell": str(exec_out),
                     **extra,

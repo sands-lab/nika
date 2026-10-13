@@ -3,30 +3,21 @@ import pytest
 import json
 import os
 import unittest.mock
-from agent.cli.claude.claude_display import (
-    format_claude_event,
-    should_log_claude_event,
-)
 from agent.cli.claude.claude_worker import ClaudeWorker, _build_mcp_json
 from agent.cli.claude.config import (
-    default_claude_model,
     has_env_claude_credentials,
     prepare_claude_subprocess_env,
     use_bare_claude_mode,
 )
 from tests.support.integration_pipeline import load_test_env
 
+pytestmark = pytest.mark.unit
+
 load_test_env()
 
 
 class ClaudeConfigTest:
     """Claude env model and auth helpers."""
-
-    def test_default_model_missing_raises(self) -> None:
-        """Sandbox Claude Code compat: env model chain is empty."""
-        with unittest.mock.patch.dict(os.environ, {}, clear=True):
-            with pytest.raises(ValueError):
-                default_claude_model()
 
     def test_prepare_env_maps_auth_token_to_api_key(self) -> None:
         env = prepare_claude_subprocess_env(
@@ -148,114 +139,11 @@ class ClaudeWorkerConfigTest:
         }
         with (
             unittest.mock.patch(
-                "agent.cli.claude.claude_worker.load_session_mcp_config",
+                "agent.utils.mcp_client._load_session_mcp_config",
                 return_value=servers,
-            ),
-            unittest.mock.patch(
-                "agent.cli.claude.claude_worker.begin_submission_mcp_phase"
             ),
         ):
             worker._write_mcp_config()
 
         config = json.loads(worker._mcp_config_path.read_text())
         assert set(config["mcpServers"]) == expected_servers
-
-
-class ClaudeDisplayTest:
-    """Claude Code stream-json event formatting."""
-
-    sample_model = "model-a"
-
-    def test_system_init_event_with_string_servers(self) -> None:
-        event = {
-            "type": "system",
-            "subtype": "init",
-            "model": self.sample_model,
-            "mcp_servers": ["kathara_base_mcp_server"],
-        }
-        rendered = format_claude_event(event)
-        assert self.sample_model in (rendered or "")
-        assert "kathara_base_mcp_server" in (rendered or "")
-
-    def test_system_init_event_with_dict_servers(self) -> None:
-        event = {
-            "type": "system",
-            "subtype": "init",
-            "model": self.sample_model,
-            "mcp_servers": [{"name": "kathara_base_mcp_server", "status": "connected"}],
-        }
-        rendered = format_claude_event(event)
-        assert "kathara_base_mcp_server" in (rendered or "")
-
-    def test_system_init_without_servers(self) -> None:
-        event = {
-            "type": "system",
-            "subtype": "init",
-            "model": self.sample_model,
-            "mcp_servers": [],
-        }
-        rendered = format_claude_event(event)
-        assert rendered is not None
-        assert "mcp:" not in (rendered or "")
-
-    def test_thinking_tokens_skipped(self) -> None:
-        event = {"type": "system", "subtype": "thinking_tokens", "estimated_tokens": 42}
-        assert format_claude_event(event) is None
-        assert not should_log_claude_event(event)
-
-    def test_should_log_keeps_meaningful_events(self) -> None:
-        assert should_log_claude_event(
-            {"type": "system", "subtype": "init", "model": "x"}
-        )
-        assert should_log_claude_event(
-            {"type": "assistant", "message": {"content": [{"type": "text"}]}}
-        )
-        assert should_log_claude_event(
-            {"type": "result", "is_error": False, "usage": {}}
-        )
-
-    def test_assistant_text_message(self) -> None:
-        event = {
-            "type": "assistant",
-            "message": {
-                "content": [{"type": "text", "text": "BGP peer is unreachable."}]
-            },
-        }
-        rendered = format_claude_event(event)
-        assert "BGP peer is unreachable." in (rendered or "")
-
-    def test_assistant_tool_use_block(self) -> None:
-        event = {
-            "type": "assistant",
-            "message": {
-                "content": [
-                    {
-                        "type": "tool_use",
-                        "name": "mcp__kathara_frr_mcp_server__frr_show_ip_route",
-                        "input": {"host_name": "r1"},
-                    }
-                ]
-            },
-        }
-        rendered = format_claude_event(event)
-        assert "mcp__kathara_frr_mcp_server__frr_show_ip_route" in (rendered or "")
-
-    def test_result_success(self) -> None:
-        event = {
-            "type": "result",
-            "subtype": "success",
-            "is_error": False,
-            "result": "Diagnosis complete.",
-            "usage": {"input_tokens": 500, "output_tokens": 80},
-        }
-        rendered = format_claude_event(event)
-        assert "in=500" in (rendered or "")
-        assert "out=80" in (rendered or "")
-
-    def test_result_error(self) -> None:
-        event = {"type": "result", "is_error": True, "result": "Not logged in"}
-        rendered = format_claude_event(event)
-        assert "Not logged in" in (rendered or "")
-
-    def test_unknown_type_returns_none(self) -> None:
-        assert format_claude_event({"type": "some_unknown"}) is None

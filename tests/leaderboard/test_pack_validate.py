@@ -40,6 +40,8 @@ from nika.workflows.leaderboard.schema import (
 )
 from nika.workflows.leaderboard.validate import validate_leaderboard_submission
 
+pytestmark = pytest.mark.contract
+
 
 def _mini_cases_yaml(path: Path) -> Path:
     payload = {
@@ -90,16 +92,20 @@ def _write_trial_artifacts(
     session_dir: Path,
     *,
     outcome: str = "success",
+    score_status: str | None = None,
     rca_f1: float = 1.0,
     predicted_fault_types: list[str] | None = None,
     write_submission: bool | None = None,
 ) -> None:
     session_dir.mkdir(parents=True, exist_ok=True)
+    if score_status is None:
+        score_status = "scored" if outcome == "success" else "no_submission"
     _write_json(
         session_dir / "run.json",
         {
             "status": "finished",
             "outcome": outcome,
+            "score_status": score_status,
             "session_id": session_dir.name,
             "scenario_name": "dc_clos",
             "problem_names": ["link_down"],
@@ -120,19 +126,45 @@ def _write_trial_artifacts(
     (session_dir / "messages.jsonl").write_text(
         '{"role":"assistant","content":"ok"}\n', encoding="utf-8"
     )
-    (session_dir / "nika.jsonl").write_text(
-        '{"event":"env_start"}\n', encoding="utf-8"
-    )
+    (session_dir / "nika.jsonl").write_text('{"event":"env_start"}\n', encoding="utf-8")
+    if score_status == "scored":
+        score_vals = {
+            "detection_score": 1.0,
+            "localization_accuracy": 1.0,
+            "localization_precision": 1.0,
+            "localization_recall": 1.0,
+            "localization_f1": 1.0,
+            "rca_accuracy": rca_f1,
+            "rca_precision": rca_f1,
+            "rca_recall": rca_f1,
+            "rca_f1": rca_f1,
+        }
+    elif score_status == "no_submission":
+        score_vals = {
+            "detection_score": 0.0,
+            "localization_accuracy": 0.0,
+            "localization_precision": 0.0,
+            "localization_recall": 0.0,
+            "localization_f1": 0.0,
+            "rca_accuracy": 0.0,
+            "rca_precision": 0.0,
+            "rca_recall": 0.0,
+            "rca_f1": 0.0,
+        }
+    else:
+        score_vals = {
+            "detection_score": None,
+            "localization_accuracy": None,
+            "localization_precision": None,
+            "localization_recall": None,
+            "localization_f1": None,
+            "rca_accuracy": None,
+            "rca_precision": None,
+            "rca_recall": None,
+            "rca_f1": None,
+        }
     metrics = {
-        "detection_score": 1.0 if outcome == "success" else -1.0,
-        "localization_accuracy": 1.0 if outcome == "success" else -1.0,
-        "localization_precision": 1.0 if outcome == "success" else -1.0,
-        "localization_recall": 1.0 if outcome == "success" else -1.0,
-        "localization_f1": 1.0 if outcome == "success" else -1.0,
-        "rca_accuracy": rca_f1 if outcome == "success" else -1.0,
-        "rca_precision": rca_f1 if outcome == "success" else -1.0,
-        "rca_recall": rca_f1 if outcome == "success" else -1.0,
-        "rca_f1": rca_f1 if outcome == "success" else -1.0,
+        **score_vals,
         "in_tokens": 10,
         "out_tokens": 5,
         "steps": 2,
@@ -141,7 +173,9 @@ def _write_trial_artifacts(
     }
     _write_json(session_dir / "eval_metrics.json", metrics)
     should_write = (
-        write_submission if write_submission is not None else outcome == "success"
+        write_submission
+        if write_submission is not None
+        else score_status in ("scored", "grading_error")
     )
     if should_write:
         pred = (
@@ -262,6 +296,81 @@ def _identity_path(package: Path) -> Path:
     return package / RESULTS_DIRNAME / IDENTITY_FILENAME
 
 
+def test_cli_submit_generates_metadata_and_validates_offline(
+    mini_release_env, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from typer.testing import CliRunner
+    from nika.cli.main import app
+    from nika.workflows.leaderboard.validate_trajectories import (
+        validate_trajectory_package,
+    )
+
+    release, result_dir = mini_release_env
+
+    def remote_auth(*_a, **_kw):
+        pytest.fail("--dry-run must not authenticate or write to remote services")
+
+    monkeypatch.setattr(
+        "nika.workflows.leaderboard.submit.gh.ensure_gh_auth", remote_auth
+    )
+    monkeypatch.setattr(
+        "nika.workflows.leaderboard.submit.hf.ensure_hf_auth", remote_auth
+    )
+    args = [
+        "leaderboard",
+        "submit",
+        "--result_dir",
+        str(result_dir),
+        "--name",
+        "Quick Agent",
+        "--authors",
+        "NIKA Test",
+        "--dry-run",
+    ]
+    runner = CliRunner()
+    result = runner.invoke(app, args)
+    assert result.exit_code == 0, result.output
+    assert "Local preflight complete" in result.output
+    package = next(p for p in result_dir.glob("*_mock_mock_v1") if p.is_dir())
+    metadata = load_metadata_file(package / METADATA_FILENAME)
+    assert metadata.info.authors == "NIKA Test"
+    assert metadata.agent.model == "mock-v1"
+    assert metadata.agent.framework == "mock"
+    assert "Model: mock-v1" in (package / README_FILENAME).read_text()
+    assert f"submissions/{release.version}/{package.name}" in result.output
+    assert f"trajectories/{release.version}/{package.name}" in result.output
+
+    # An explicit original output path keeps both identities paired on a later retry.
+    original = result_dir / "20260101_mock_mock_v1"
+    retry = runner.invoke(app, [*args, "--skip-github", "--out", str(original)])
+    assert retry.exit_code == 0, retry.output
+    identity = yaml.safe_load(_identity_path(original).read_text())
+    assert identity["trajectories_relpath"] == (
+        f"trajectories/{release.version}/{original.name}"
+    )
+    assert validate_trajectory_package(
+        original.parent / f"{original.name}_trajectories",
+        scores_dir=original,
+    ).ok
+
+    invalid_out = runner.invoke(app, [*args, "--out", str(result_dir / "trials")])
+    assert invalid_out.exit_code == 1
+    assert "YYYYMMDD_<slug>" in invalid_out.output
+    assert (result_dir / "run.json").is_file()
+    assert list((result_dir / "trials").iterdir())
+
+    # The archive workflow runs this exact public CLI on the scores package.
+    validated = runner.invoke(app, ["leaderboard", "validate", str(package)])
+    assert validated.exit_code == 0, validated.output
+    metrics_path = package / RESULTS_DIRNAME / METRICS_FILENAME
+    metrics = json.loads(metrics_path.read_text())
+    metrics["mean_rca_f1"] = 0.0
+    metrics_path.write_text(json.dumps(metrics), encoding="utf-8")
+    invalid = runner.invoke(app, ["leaderboard", "validate", str(package)])
+    assert invalid.exit_code == 1
+    assert "mean_rca_f1" in invalid.output
+
+
 class TestLeaderboardPackValidate:
     def test_pack_rejects_missing_metadata(self, mini_release_env) -> None:
         _release, result_dir = mini_release_env
@@ -279,7 +388,7 @@ class TestLeaderboardPackValidate:
         meta["agent"]["optimization_methods"] = ["reflection"]
         meta["agent"]["tags"] = ["research"]
         package = _pack(result_dir, metadata=meta)
-        assert package.name.endswith("_meta_agent")
+        assert package.name.endswith("_react_mock_v1")
         assert (package / METADATA_FILENAME).is_file()
         assert (package / README_FILENAME).is_file()
         assert _identity_path(package).is_file()
@@ -398,6 +507,50 @@ class TestLeaderboardPackValidate:
             {"gt": "link_down", "predicted": "host_missing_ip", "count": 1}
         ]
 
+    def test_validate_rejects_grading_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        release = _freeze_mini(tmp_path, n_trials=1)
+        monkeypatch.setattr(
+            "nika.workflows.benchmark.release.RELEASES_DIR",
+            tmp_path / "releases",
+        )
+        result_dir = _build_release_run(tmp_path, release)
+        trial = expand_trials(release.cases, release.n_trials)[0]
+        session = trial_dir(result_dir, trial.case_key, trial.trial_index)
+        _write_trial_artifacts(
+            session,
+            outcome="success",
+            score_status="grading_error",
+            write_submission=True,
+        )
+        package = _pack(result_dir)
+        report = validate_leaderboard_submission(package)
+        assert not report.ok
+        assert any("grading_error" in e for e in report.errors)
+
+    def test_validate_rejects_residual_infra_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        release = _freeze_mini(tmp_path, n_trials=1)
+        monkeypatch.setattr(
+            "nika.workflows.benchmark.release.RELEASES_DIR",
+            tmp_path / "releases",
+        )
+        result_dir = _build_release_run(tmp_path, release)
+        trial = expand_trials(release.cases, release.n_trials)[0]
+        session = trial_dir(result_dir, trial.case_key, trial.trial_index)
+        _write_trial_artifacts(
+            session,
+            outcome="agent_failed",
+            score_status="infra_error",
+            write_submission=False,
+        )
+        package = _pack(result_dir)
+        report = validate_leaderboard_submission(package)
+        assert not report.ok
+        assert any("infra_error" in e for e in report.errors)
+
     def test_identity_rejects_unknown_fields(self, mini_release_env) -> None:
         _release, result_dir = mini_release_env
         package = _pack(result_dir)
@@ -410,6 +563,123 @@ class TestLeaderboardPackValidate:
         report = validate_leaderboard_submission(package)
         assert not report.ok
         assert any("identity.yaml" in e for e in report.errors)
+
+    def test_pack_redacts_private_keys_in_trajectories(self, mini_release_env) -> None:
+        _release, result_dir = mini_release_env
+        session = next(p for p in (result_dir / "trials").iterdir() if p.is_dir())
+        key = "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBg+/kq=\n-----END PRIVATE KEY-----"
+        cut = "-----BEGIN RSA PRIVATE KEY-----\nMIIEpAIBAAKCAQEA"
+        records = [
+            {"event": "tool_end", "output": f"RSA key ok\n{key}\ndone"},
+            {"event": "tool_end", "output": f"{cut}"},
+        ]
+        original = "".join(json.dumps(r) + "\n" for r in records)
+        (session / "messages.jsonl").write_text(original, encoding="utf-8")
+
+        result = pack_leaderboard_submission(
+            result_dir, metadata=_FULL_METADATA, readme_text=_DEFAULT_README
+        )
+        packed = result.trajectories_dir / "trials" / session.name / "messages.jsonl"
+        lines = [json.loads(line) for line in packed.read_text().splitlines()]
+        assert lines[0]["output"] == "RSA key ok\n<REDACTED_PRIVATE_KEY>\ndone"
+        assert lines[1]["output"] == "<REDACTED_PRIVATE_KEY>"
+        assert "PRIVATE KEY-----" not in packed.read_text()
+        assert validate_leaderboard_submission(result.scores_dir).ok
+        assert (session / "messages.jsonl").read_text(encoding="utf-8") == original
+
+    def test_submit_preserves_jsonl_and_scans_decoded_records(
+        self, mini_release_env
+    ) -> None:
+        from nika.workflows.leaderboard.submit import submit_leaderboard_package
+
+        _release, result_dir = mini_release_env
+        session = next((result_dir / "trials").iterdir())
+        records = [
+            {
+                "role": "tool",
+                "content": 'cat /tmp/state; echo "done"\ncount D:\n0',
+                "output": {
+                    "path": r"C:\Users\operator\state.json",
+                    "result": ['read /etc/hosts; "next"', "bearer tokens"],
+                },
+            },
+            {"role": "assistant", "content": "Bearer authentication required."},
+        ]
+        original = "".join(json.dumps(record) + "\n" for record in records)
+        for name in ("messages.jsonl", "nika.jsonl"):
+            (session / name).write_text(original, encoding="utf-8")
+
+        result = submit_leaderboard_package(
+            result_dir, name="Test Agent", authors="NIKA Test", dry_run=True
+        )
+        for name in ("messages.jsonl", "nika.jsonl"):
+            packed = result.trajectories_dir / "trials" / session.name / name
+            lines = [json.loads(line) for line in packed.read_text().splitlines()]
+            assert lines == [
+                {
+                    "role": "tool",
+                    "content": 'cat <REDACTED_PATH> echo "done"\ncount D:\n0',
+                    "output": {
+                        "path": "<REDACTED_PATH>",
+                        "result": ['read <REDACTED_PATH> "next"', "bearer tokens"],
+                    },
+                },
+                records[1],
+            ]
+            assert (session / name).read_text() == original
+
+    @pytest.mark.parametrize("name", ["messages.jsonl", "nika.jsonl"])
+    def test_invalid_jsonl_stops_pack_and_validation(
+        self, mini_release_env, name
+    ) -> None:
+        from nika.workflows.leaderboard.validate_trajectories import (
+            validate_trajectory_package,
+        )
+
+        _release, result_dir = mini_release_env
+        package = _pack(result_dir)
+        trajectories = package.parent / f"{package.name}_trajectories"
+        session = next((result_dir / "trials").iterdir())
+        malformed = '{"event":"ok"}\n{"content":"broken"quote"}\n'
+        (trajectories / "trials" / session.name / name).write_text(malformed)
+        report = validate_trajectory_package(trajectories, scores_dir=package)
+        assert not report.ok
+        assert any(f"{name}:2: invalid JSONL" in e for e in report.errors)
+        (session / name).write_text(malformed)
+        with pytest.raises(LeaderboardPackError, match=f"{name}:2: invalid JSONL"):
+            _pack(result_dir)
+
+    @pytest.mark.parametrize(
+        "content, expected_issue",
+        [
+            ("Authorization: Bearer short", "bearer_token"),
+            ("Authorization: Bearer tokens", "bearer_token"),
+            ("Bearer eyJhbGciOiJIUzI1NiJ9.payload.signature", "bearer_token"),
+            ("Bearer token.secret", "bearer_token"),
+            ({"Authorization: Bearer short": "header"}, "bearer_token"),
+            ({"Authorization": "Bearer tokens"}, "bearer_token"),
+            ("sk-abcdefghijklmnopqrstuvwxyz0123456789", "openai_sk"),
+            ("hf_abcdefghijklmnopqrstuvwxyz0123456789", "hf_token"),
+            (r"C:\Users\operator\state.json", "absolute path"),
+        ],
+    )
+    def test_trajectory_validation_rejects_credentials_and_paths(
+        self, mini_release_env, content, expected_issue
+    ) -> None:
+        from nika.workflows.leaderboard.validate_trajectories import (
+            validate_trajectory_package,
+        )
+
+        _release, result_dir = mini_release_env
+        package = _pack(result_dir)
+        trajectories = package.parent / f"{package.name}_trajectories"
+        trial = next((trajectories / "trials").iterdir())
+        (trial / "messages.jsonl").write_text(
+            json.dumps({"role": "tool", "output": [content]}) + "\n"
+        )
+        report = validate_trajectory_package(trajectories, scores_dir=package)
+        assert not report.ok
+        assert any(expected_issue in e for e in report.errors)
 
     def test_pack_from_submission_dir(self, mini_release_env, tmp_path: Path) -> None:
         _release, result_dir = mini_release_env
@@ -438,9 +708,9 @@ class TestLeaderboardPackValidate:
         assert packed["agent"]["model"] == "gpt-4.1"
         assert packed["agent"]["framework"] == "autogen"
         assert packed["agent"]["extra"]["note"] == "from-dir"
-        assert "From staging dir" in (
-            package.scores_dir / README_FILENAME
-        ).read_text(encoding="utf-8")
+        assert "From staging dir" in (package.scores_dir / README_FILENAME).read_text(
+            encoding="utf-8"
+        )
         assert validate_leaderboard_submission(package.scores_dir).ok
         from nika.workflows.leaderboard.validate_trajectories import (
             validate_trajectory_package,

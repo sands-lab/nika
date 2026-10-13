@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import os
+import subprocess
+import tomllib
 
 import pytest
 
-from agent.cli.codex.codex_display import format_codex_event
 from agent.cli.codex.codex_worker import (
+    CodexMaxStepsReached,
     CodexSubprocessStallError,
     CodexWorker,
     RECONNECT_STALL_TIMEOUT_S,
@@ -16,6 +20,8 @@ from agent.cli.codex.codex_worker import (
 from agent.protocols import DIAGNOSIS
 from agent.protocols import SUBMISSION
 from tests.support.integration_pipeline import load_test_env
+
+pytestmark = pytest.mark.unit
 
 load_test_env()
 
@@ -64,6 +70,26 @@ class CodexMcpTomlTest:
             }
         )
         assert "required = true" in toml
+
+    def test_registers_custom_model_provider(self, monkeypatch) -> None:
+        monkeypatch.setenv("OPENAI_BASE_URL", "https://openrouter.ai/api/v1")
+        toml = _build_mcp_toml({}, provider="custom")
+        assert 'model_provider = "nika_custom"' in toml
+        assert "[model_providers.nika_custom]" in toml
+        assert 'base_url = "https://openrouter.ai/api/v1"' in toml
+        assert 'env_key = "OPENAI_API_KEY"' in toml
+        assert 'wire_api = "responses"' in toml
+
+    def test_registers_deepseek_model_provider(self) -> None:
+        toml = _build_mcp_toml({}, provider="deepseek")
+        assert 'model_provider = "nika_deepseek"' in toml
+        assert "[model_providers.nika_deepseek]" in toml
+        assert "api.deepseek.com" in toml
+
+    def test_openai_provider_skips_custom_block(self) -> None:
+        toml = _build_mcp_toml({}, provider="openai")
+        assert "model_provider" not in toml
+        assert "model_providers." not in toml
 
 
 class CodexProgressDetectionTest:
@@ -133,8 +159,9 @@ class CodexWorkerConfigTest:
             (SUBMISSION, {"task_mcp_server"}),
         ],
     )
+    @pytest.mark.parametrize("sandbox_provider", [False, True])
     def test_writes_only_phase_allowed_mcp_servers(
-        self, monkeypatch, tmp_path, phase, expected_servers
+        self, monkeypatch, tmp_path, phase, expected_servers, sandbox_provider
     ) -> None:
         monkeypatch.setattr(
             "agent.cli.codex.codex_worker.apply_codex_auth", lambda _path: None
@@ -143,15 +170,37 @@ class CodexWorkerConfigTest:
             "agent.cli.codex.codex_worker.prepare_codex_workspace", lambda _path: None
         )
         monkeypatch.setattr(
-            "agent.cli.codex.codex_worker.begin_submission_mcp_phase", lambda _sid: None
-        )
-        monkeypatch.setattr(
-            "agent.cli.codex.codex_worker.load_session_mcp_config",
+            "agent.utils.mcp_client._load_session_mcp_config",
             lambda *_args, **_kwargs: {
                 "kathara_base_mcp_server": {"transport": "http", "url": "http://base"},
                 "task_mcp_server": {"transport": "http", "url": "http://task"},
             },
         )
+        monkeypatch.setattr(
+            "agent.cli.codex.codex_worker.sandbox_name_from_env",
+            lambda: "codex-config-test" if sandbox_provider else None,
+        )
+        if sandbox_provider:
+            native_home = tmp_path / "native_codex_home"
+            native_home.mkdir()
+            (native_home / "config.toml").write_text(
+                'model_provider = "sandboxd"\n'
+                'forced_login_method = "api"\n'
+                "[model_providers.sandboxd]\n"
+                'name = "Sandbox Proxy"\n'
+                'base_url = "https://chatgpt.com/backend-api/codex"\n'
+                'experimental_bearer_token = "test-proxy-placeholder"\n'
+                "requires_openai_auth = false\n"
+                "[mcp_servers.native_server]\n"
+                'url = "http://native"\n'
+            )
+            monkeypatch.setenv("CODEX_HOME", str(native_home))
+            monkeypatch.setattr(
+                "agent.cli.codex.codex_worker.run_sbx_checked",
+                lambda args: subprocess.run(
+                    args[2:], env=dict(os.environ), check=True, capture_output=True
+                ),
+            )
         worker = CodexWorker(
             session_id="sess-123",
             session_dir=tmp_path,
@@ -159,64 +208,196 @@ class CodexWorkerConfigTest:
             llm_provider="openai",
         )
         worker._setup_workspace()
-        config = (worker._codex_home / "config.toml").read_text()
-        assert {
-            name
-            for name in ("kathara_base_mcp_server", "task_mcp_server")
-            if name in config
-        } == expected_servers
+        config = tomllib.loads((worker._codex_home / "config.toml").read_text())
+        assert set(config["mcp_servers"]) == expected_servers
+        if sandbox_provider:
+            assert config["model_provider"] == "sandboxd"
+            assert config["forced_login_method"] == "api"
+            assert config["model_providers"]["sandboxd"] == {
+                "name": "Sandbox Proxy",
+                "base_url": "https://chatgpt.com/backend-api/codex",
+                "experimental_bearer_token": "test-proxy-placeholder",
+                "requires_openai_auth": False,
+            }
 
 
-class CodexDisplayTest:
-    """Codex JSONL terminal event formatting."""
+class CodexToolLoggingTest:
+    """Canonical messages.jsonl rows for Codex MCP tool calls."""
 
-    def test_agent_message(self) -> None:
-        event = {
-            "type": "item.completed",
-            "item": {
-                "id": "item_1",
-                "type": "agent_message",
-                "text": "BGP session is down.",
-            },
+    def test_mcp_tool_call_emits_tool_events_not_item_mirrors(self, tmp_path) -> None:
+        worker = CodexWorker(
+            session_id="sess-log",
+            session_dir=str(tmp_path),
+            phase=DIAGNOSIS,
+            llm_provider="openai",
+            stream_output=False,
+        )
+        worker._log_codex_event(
+            {
+                "type": "item.started",
+                "item": {
+                    "type": "mcp_tool_call",
+                    "id": "call_1",
+                    "tool": "show_bgp_summary",
+                    "arguments": {"device": "router1"},
+                },
+            }
+        )
+        worker._log_codex_event(
+            {
+                "type": "item.completed",
+                "item": {
+                    "type": "mcp_tool_call",
+                    "id": "call_1",
+                    "tool": "show_bgp_summary",
+                    "arguments": {"device": "router1"},
+                    "status": "completed",
+                    "result": {"content": [{"type": "text", "text": "neighbor down"}]},
+                },
+            }
+        )
+        worker._log_codex_event(
+            {
+                "type": "item.completed",
+                "item": {"type": "agent_message", "text": "BGP is down."},
+            }
+        )
+
+        path = tmp_path / "messages.jsonl"
+        rows = [
+            json.loads(line)
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        rows = [r for r in rows if r["event"] not in {"llm_start", "llm_end"}]
+        assert [r["event"] for r in rows] == [
+            "tool_start",
+            "tool_end",
+            "item.completed",
+        ]
+        assert rows[0]["tool"]["name"] == "show_bgp_summary"
+        assert '"device": "router1"' in rows[0]["input"] or rows[0]["input"] == {
+            "device": "router1"
         }
-        assert "BGP session is down." in (format_codex_event(event) or "")
+        assert "neighbor down" in str(rows[1].get("output"))
+        assert rows[2]["codex_event"]["item"]["type"] == "agent_message"
+        # UTC-aware timestamps from MessageLogger
+        assert rows[0]["timestamp"].endswith("+00:00") or rows[0]["timestamp"].endswith(
+            "Z"
+        )
 
-    def test_mcp_tool_call_lifecycle(self) -> None:
-        started = {
-            "type": "item.started",
+    def test_command_execution_emits_bash_tool_events(self, tmp_path) -> None:
+        worker = CodexWorker(
+            session_id="sess-bash",
+            session_dir=str(tmp_path),
+            phase=DIAGNOSIS,
+            llm_provider="openai",
+            stream_output=False,
+        )
+        worker._log_codex_event(
+            {
+                "type": "item.started",
+                "item": {
+                    "type": "command_execution",
+                    "id": "item_2",
+                    "command": "/bin/bash -lc 'echo hi'",
+                    "status": "in_progress",
+                },
+            }
+        )
+        worker._log_codex_event(
+            {
+                "type": "item.completed",
+                "item": {
+                    "type": "command_execution",
+                    "id": "item_2",
+                    "command": "/bin/bash -lc 'echo hi'",
+                    "aggregated_output": "hi\n",
+                    "exit_code": 0,
+                    "status": "completed",
+                },
+            }
+        )
+        rows = [
+            json.loads(line)
+            for line in (tmp_path / "messages.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+        assert [r["event"] for r in rows] == ["llm_start", "tool_start", "tool_end"]
+        rows = rows[1:]
+        assert rows[0]["tool"]["name"] == "bash"
+        assert "echo hi" in str(rows[0]["input"])
+        assert rows[1]["output"] == "hi\n"
+
+
+class CodexStepBudgetTest:
+    """cli.codex counts model responses like the other agents' max_steps."""
+
+    @staticmethod
+    def _tool(event_type: str, item_id: str) -> dict:
+        return {
+            "type": event_type,
             "item": {
                 "type": "mcp_tool_call",
-                "server": "kathara_frr_mcp_server",
-                "tool": "show_bgp_summary",
-                "arguments": {"device": "router1"},
-                "status": "in_progress",
-            },
-        }
-        completed = {
-            "type": "item.completed",
-            "item": {
-                "type": "mcp_tool_call",
-                "server": "kathara_frr_mcp_server",
-                "tool": "show_bgp_summary",
+                "id": item_id,
+                "tool": "ping_pair",
+                "arguments": {},
                 "status": "completed",
-                "result": {"content": [{"type": "text", "text": "neighbor down"}]},
+                "result": {"content": []},
             },
         }
-        assert "show_bgp_summary" in (format_codex_event(started) or "")
-        assert "neighbor down" in (format_codex_event(completed) or "")
 
-    def test_turn_completed_with_usage(self) -> None:
-        event = {
-            "type": "turn.completed",
-            "usage": {"input_tokens": 100, "output_tokens": 20},
-        }
-        rendered = format_codex_event(event)
-        assert "in=100" in (rendered or "")
-        assert "out=20" in (rendered or "")
+    def test_one_llm_end_per_response_with_turn_usage(self, tmp_path) -> None:
+        worker = CodexWorker(
+            session_id="sess-steps",
+            session_dir=str(tmp_path),
+            phase=DIAGNOSIS,
+            llm_provider="openai",
+            max_steps=5,
+            stream_output=False,
+        )
+        # Response 1: two parallel calls; response 2: one call; response 3: text.
+        for event in (
+            {"type": "turn.started"},
+            self._tool("item.started", "a"),
+            self._tool("item.started", "b"),
+            self._tool("item.completed", "a"),
+            self._tool("item.completed", "b"),
+            self._tool("item.started", "c"),
+            self._tool("item.completed", "c"),
+            {
+                "type": "item.completed",
+                "item": {"type": "agent_message", "text": "done"},
+            },
+            {
+                "type": "turn.completed",
+                "usage": {"input_tokens": 90, "output_tokens": 9},
+            },
+        ):
+            worker._log_codex_event(event)
+        rows = [
+            json.loads(line)
+            for line in (tmp_path / "messages.jsonl").read_text().splitlines()
+        ]
+        ends = [r for r in rows if r["event"] == "llm_end"]
+        assert len(ends) == 3
+        assert [r["event"] for r in rows].count("llm_start") == 3
+        assert ends[-1]["text"] == "done"
+        assert ends[-1]["usage_metadata"]["input_tokens"] == 90
+        assert all(r["event"] != "turn.completed" for r in rows)
 
-    def test_reconnecting_error_is_non_fatal(self) -> None:
-        event = {"type": "error", "message": "Reconnecting... 1/5"}
-        assert "Reconnecting" in (format_codex_event(event) or "")
-
-    def test_unknown_event_returns_none(self) -> None:
-        assert format_codex_event({"type": "some_unknown_type"}) is None
+    def test_response_past_max_steps_stops_codex(self, tmp_path) -> None:
+        worker = CodexWorker(
+            session_id="sess-limit",
+            session_dir=str(tmp_path),
+            phase=DIAGNOSIS,
+            llm_provider="openai",
+            max_steps=1,
+            stream_output=False,
+        )
+        worker._log_codex_event(self._tool("item.started", "a"))
+        worker._log_codex_event(self._tool("item.completed", "a"))
+        with pytest.raises(CodexMaxStepsReached):
+            worker._log_codex_event(self._tool("item.started", "b"))

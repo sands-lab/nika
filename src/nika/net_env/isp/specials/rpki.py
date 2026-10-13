@@ -9,19 +9,6 @@ class IspAbileneEbgpRpki(Isp):
     """Abilene eBGP lab with offline RPKI/ROV (Routinator)."""
 
     LAB_NAME = "isp_abilene_ebgp_rpki"
-    TOPO_SIZE = "s"
-    TAGS = [
-        "isp",
-        "sndlib",
-        "frr",
-        "ospf",
-        "bgp",
-        "ebgp",
-        "rpki",
-        "igp",
-        "link",
-        "icmp",
-    ]
 
     def __init__(self, **kwargs) -> None:
         kwargs.pop("topo", None)
@@ -52,19 +39,6 @@ class IspGeantEbgpRpki(Isp):
     """GEANT eBGP lab with offline RPKI/ROV (Routinator)."""
 
     LAB_NAME = "isp_geant_ebgp_rpki"
-    TOPO_SIZE = "m"
-    TAGS = [
-        "isp",
-        "sndlib",
-        "frr",
-        "ospf",
-        "bgp",
-        "ebgp",
-        "rpki",
-        "igp",
-        "link",
-        "icmp",
-    ]
 
     def __init__(self, **kwargs) -> None:
         kwargs.pop("topo", None)

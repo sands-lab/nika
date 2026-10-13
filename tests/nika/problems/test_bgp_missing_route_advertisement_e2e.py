@@ -1,10 +1,9 @@
 """Docker e2e compatibility for ``bgp_missing_route_advertisement``.
 
 Covers matrix-compatible scenarios with two-tier checks:
-artifact ``verify_fault`` + ``evaluate_symptom`` (path_ping).
+artifact ``verify_fault`` + ``evaluate_symptom`` (remote BGP table withdrawal).
 
 Skipped by design (not practical here):
-- ``iosxr_simple_bgp`` — needs XRd images
 - ``k8s_lab`` — unrelated bring-up flakiness
 - ``geant`` / large SNDlib — wall-clock cost
 """
@@ -20,16 +19,18 @@ import pytest
 
 from nika.workflows.benchmark.inject_resolve import resolve_inject_params
 from nika.net_env.isp.bgp import compile_bgp_plan
+from nika.net_env.isp.identity import isp_topo_from_scenario
 from nika.net_env.isp.igp import IspConfig, compile_isp_plan
 from nika.net_env.isp.inject_targets import isp_default_probe_path
 from nika.net_env.isp.kathara.lab import _stub_series_all_routers
 from nika.net_env.isp.traffic.stubs import attach_traffic_stubs
 from nika.net_env.verify import ping_ok
 from nika.problems.registry import get_problem_class, list_avail_problem_names
-from nika.problems.support.probe_paths import get_probe_path
+from nika.net_env.net_env_pool import get_probe_path
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import docker_available
-from tests.support.symptom import evaluate_symptom, get_symptom_contract
+from nika.validation.symptom import evaluate_symptom, get_symptom_contract
+from nika.validation.symptom.custom import evaluate_custom_baseline
 
 PROBLEM = "bgp_missing_route_advertisement"
 SETTLE_S = 45.0
@@ -49,7 +50,7 @@ class CompatCase:
     # path_ping: dataplane unreachable (eBGP / Clos / enterprise).
     # bgp_rib: prefix absent from observer BGP RIB (iBGP+IGP still reaches lo).
     symptom_mode: str = "path_ping"
-    # Optional explicit probe override (scenario probe_paths may be stale).
+    # Optional explicit probe override (scenario default probe paths may be stale).
     probe_src: str | None = None
     probe_dst: str | None = None
 
@@ -87,7 +88,7 @@ COMPAT_CASES: tuple[CompatCase, ...] = (
         isp_options=None,
         expect_verify_mode="srl_prefix",
         require_clab=True,
-        # Actual min3clos names/IPs (probe_paths previously used fabric placeholders).
+        # Actual min3clos names/IPs (default probe paths previously used fabric placeholders).
         probe_src="client2",
         probe_dst="10.0.0.25",
         # Export-policy artifact verifies, but client2→client1 can stay up in this
@@ -139,13 +140,14 @@ COMPAT_CASES: tuple[CompatCase, ...] = (
 )
 
 
+@pytest.mark.contract
 def test_failure_registers_and_contracts() -> None:
     assert PROBLEM in list_avail_problem_names()
     cls = get_problem_class(PROBLEM)
     assert cls is not None
     contract = get_symptom_contract(PROBLEM)
-    assert contract.symptom_class == "unreachable"
-    assert contract.probe == "path_ping"
+    assert contract.symptom_class == "control_plane"
+    assert contract.probe == "custom"
 
 
 def _wait_ping(
@@ -165,9 +167,9 @@ def _wait_ping(
     return ping_ok(runtime, host, dst) == expect_ok
 
 
-def _isp_igp_path(isp_options: dict[str, Any]):
+def _isp_igp_path(scenario: str, isp_options: dict[str, Any]):
     plan = compile_isp_plan(
-        IspConfig(topology=isp_options["topo"], igp=isp_options["igp"])
+        IspConfig(topology=isp_topo_from_scenario(scenario), igp=isp_options["igp"])
     )
     attachment = attach_traffic_stubs(
         plan,
@@ -177,9 +179,11 @@ def _isp_igp_path(isp_options: dict[str, Any]):
     return isp_default_probe_path(attachment.plan.inventory)
 
 
-def _assert_isp_originator(params: dict[str, str], isp_options: dict[str, Any]) -> None:
+def _assert_isp_originator(
+    scenario: str, params: dict[str, str], isp_options: dict[str, Any]
+) -> None:
     plan = compile_isp_plan(
-        IspConfig(topology=isp_options["topo"], igp=isp_options["igp"])
+        IspConfig(topology=isp_topo_from_scenario(scenario), igp=isp_options["igp"])
     )
     bgp = compile_bgp_plan(
         plan,
@@ -237,6 +241,7 @@ def _probe_endpoints(
     return path.src_host, path.dst_ip
 
 
+@pytest.mark.e2e
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
 @pytest.mark.parametrize("case", COMPAT_CASES, ids=lambda c: c.id)
 class TestBGPMissingAdvertiseScenarioCompat(IntegrationTestCase):
@@ -257,7 +262,7 @@ class TestBGPMissingAdvertiseScenarioCompat(IntegrationTestCase):
             params.setdefault("symptom_host", case.probe_src)
             params.setdefault("probe_dst_ip", case.probe_dst)
         if case.isp_options is not None:
-            _assert_isp_originator(params, case.isp_options)
+            _assert_isp_originator(case.scenario, params, case.isp_options)
         if case.scenario == "enterprise_branch":
             assert params["host_name"].endswith("_edge")
         if case.scenario == "dc_clos":
@@ -269,7 +274,7 @@ class TestBGPMissingAdvertiseScenarioCompat(IntegrationTestCase):
 
         igp_path = None
         if case.check_igp_intact and case.isp_options is not None:
-            igp_path = _isp_igp_path(case.isp_options)
+            igp_path = _isp_igp_path(case.scenario, case.isp_options)
 
         session_id = None
         try:
@@ -303,6 +308,12 @@ class TestBGPMissingAdvertiseScenarioCompat(IntegrationTestCase):
                     f"{case.id}: IGP stub path should pass before inject"
                 )
 
+            if case.symptom_mode != "artifact":
+                baseline_ok, baseline = evaluate_custom_baseline(
+                    PROBLEM, problem, parsed
+                )
+                assert baseline_ok is True, (case.id, baseline)
+
             problem.inject_fault(parsed)
             verify = problem.verify_fault(parsed)
             assert verify["verified"] is True, (case.id, verify)
@@ -333,18 +344,17 @@ class TestBGPMissingAdvertiseScenarioCompat(IntegrationTestCase):
                     expect_ok=False,
                     timeout_s=WITHDRAW_TIMEOUT_S,
                 ), f"{case.id}: path should fail after inject ({src_host} -> {dst_ip})"
+
+            if case.symptom_mode != "artifact":
                 ok, symptom = evaluate_symptom(
                     runtime,
                     PROBLEM,
                     parsed,
                     scenario=case.scenario,
                     topo_size=case.topo_size or "s",
+                    problem=problem,
                 )
                 assert ok is True, (case.id, symptom)
-                assert symptom.get("after", {}).get("ping_ok") is False, (
-                    case.id,
-                    symptom,
-                )
 
             if igp_path is not None:
                 assert ping_ok(runtime, igp_path.src_host, igp_path.dst_ip), (

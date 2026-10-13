@@ -1,0 +1,5 @@
+scenario:
+  name: routeros_simple_bgp
+healthy:
+  variants:
+  - {}

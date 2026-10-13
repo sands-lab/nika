@@ -9,7 +9,7 @@ from Kathara.manager.Kathara import Kathara, Machine
 from Kathara.model.Lab import Lab
 
 from nika.config import pkg_path
-from nika.net_env.base import NetworkEnvBase
+from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.net_env.enterprise_branch.addressing import (
     VRF_TABLE,
     edge_name_for,
@@ -23,21 +23,27 @@ from nika.net_env.enterprise_branch.topology import (
     HTTP_SMALL_OBJECT_KB,
     LOCAL_ONLY_ROLES,
     OVERLAY_ROLES,
+    SCALE,
     UNDERLAY_ONE_WAY_DELAY_MS,
     BuiltTunnel,
+    DscpRemarkTarget,
     TunnelSpec,
     TopoSpec,
     TopoSize,
     build_topo_spec,
+    dscp_remark_inject_targets,
     hub_iface_for,
     overlay_qos_for,
     overlay_qos_startup_cmds,
+    primary_hq_peer_targets,
+    remote_advertised_prefixes_for_spoke,
 )
 from nika.net_env.enterprise_branch.wireguard import (
     load_key_pairs,
     render_wg_conf,
 )
 from nika.runtime.spec import NodeRole
+from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 
 PROVIDER_DAEMONS = """\
 zebra=yes
@@ -226,20 +232,6 @@ def _render_edge_frr(
 class EnterpriseBranch(NetworkEnvBase):
     LAB_NAME = "enterprise_branch"
     TOPO_LEVEL = "medium"
-    TOPO_SIZE = ["s", "m", "l"]
-    TAGS = [
-        "arp",
-        "link",
-        "mac",
-        "icmp",
-        "frr",
-        "bgp",
-        "pc",
-        "http",
-        "vpn",
-        "nat",
-        "forwarding_device",
-    ]
     VERIFY_MAX_WAIT_SEC = 240
 
     def __init__(self, topo_size: TopoSize = "s", **kwargs):
@@ -275,6 +267,13 @@ class EnterpriseBranch(NetworkEnvBase):
             "forward tunnel endpoint reachability."
         )
 
+    def overlay_interfaces(self) -> list[tuple[str, str]]:
+        pairs: list[tuple[str, str]] = []
+        for bt in self.built_tunnels:
+            pairs.append((edge_name_for(bt.spoke), bt.spoke_iface))
+            pairs.append((edge_name_for(bt.hub), bt.hub_iface))
+        return pairs
+
     def _next_wan(self) -> IPv4Network:
         return self._wan_pool.pop(0)
 
@@ -292,7 +291,7 @@ class EnterpriseBranch(NetworkEnvBase):
         for site_name in self.spec.sites:
             ename = edge_name_for(site_name)
             machine = self.lab.new_machine(
-                ename, **{"image": "nika/frr", "cpus": 0.5, "mem": "256m"}
+                ename, **{"image": nika_image("frr"), "cpus": 0.5, "mem": "256m"}
             )
             self.declare_machine(
                 ename,
@@ -307,7 +306,7 @@ class EnterpriseBranch(NetworkEnvBase):
         for provider in self.spec.providers:
             iname = isp_name_for(provider)
             machine = self.lab.new_machine(
-                iname, **{"image": "nika/frr", "cpus": 0.5, "mem": "256m"}
+                iname, **{"image": nika_image("frr"), "cpus": 0.5, "mem": "256m"}
             )
             self.declare_machine(
                 iname,
@@ -324,7 +323,7 @@ class EnterpriseBranch(NetworkEnvBase):
                     machine = self.lab.new_machine(
                         host_name,
                         **{
-                            "image": "nika/base",
+                            "image": nika_image("base"),
                             "cpus": 0.5,
                             "mem": "256m",
                         },
@@ -354,6 +353,8 @@ class EnterpriseBranch(NetworkEnvBase):
         for site in self.spec.sites.values():
             edge = self._edges[site.name]
             # Create Linux VRFs before enslaving LAN interfaces.
+            # Host kernel must provide the vrf module (CI loads it explicitly).
+            edge.cmd_list.append("modprobe vrf 2>/dev/null || true")
             for lan in site.lans:
                 table = VRF_TABLE[lan.role]
                 edge.cmd_list.append(f"ip link add {lan.vrf} type vrf table {table}")
@@ -628,6 +629,59 @@ class EnterpriseBranch(NetworkEnvBase):
     def _write_host_configs(self) -> None:
         for host in self._hosts.values():
             self.lab.create_file_from_list(host.cmd_list, f"{host.name}.startup")
+
+    def target_roles(self) -> dict[str, list[str]]:
+        """CORP/SERVER hosts on the overlay business path; edges as routers."""
+        hosts = list(self.hosts or [])
+        routers = list(self.routers or [])
+        corp = [
+            h
+            for h in hosts
+            if "_corp_pc" in h or h.endswith("_srv") or h.endswith("_srv2")
+        ] or [h for h in hosts if "_guest_pc" not in h and "_iot_pc" not in h]
+        edges = [r for r in routers if r.endswith("_edge")] or routers
+        return {
+            **super().target_roles(),
+            "hosts": corp,
+            "host1_pool": corp,
+            "routers": edges,
+            "edges": edges,
+            "web": [h for h in corp if h.startswith("hq_")] or corp,
+            "attacker_pool": [h for h in corp if h.startswith("br1_")] or corp,
+            "access_routers": edges,
+            "bgp_originators": edges,
+            "l2_endpoints": sorted(corp, key=lambda h: h != "br1_corp_pc"),
+        }
+
+    def _target_size(self) -> TopoSize:
+        return self.topo_size if self.topo_size in SCALE else "s"
+
+    def wireguard_hq_peer_targets(self) -> list[tuple[str, str]]:
+        """(Branch edge, WireGuard iface) pairs with a primary HQ peer."""
+        return primary_hq_peer_targets(self._target_size())
+
+    def remote_prefixes_for_spoke(self, spoke: str) -> list[str]:
+        """Advertised CORP/SERVER prefixes not owned by ``spoke``."""
+        return remote_advertised_prefixes_for_spoke(self._target_size(), spoke)
+
+    def dscp_remark_targets(self) -> list[DscpRemarkTarget]:
+        """Eligible LAN→overlay DSCP remark targets with EF path endpoints."""
+        return dscp_remark_inject_targets(self._target_size())
+
+    def primary_wan_interface(self) -> str:
+        """Primary ISP WAN on ``br1_edge`` (hosts GUEST NAT /32 aliases)."""
+        # LANs occupy eth0..ethN-1; first WAN is ethN.
+        return f"eth{len(SCALE[self._target_size()].branch_roles)}"
+
+    @classmethod
+    def default_probe_path(cls, *, topo_size: str = "s", **deploy_kwargs) -> ProbePath:
+        return ProbePath(
+            src_host="br1_corp_pc",
+            dst_ip="10.0.20.2",
+            http_url="http://10.0.20.2/small.bin",
+            control_plane_host="br1_edge",
+            peer_host="hq_corp_pc",
+        )
 
     def startup_verify_lab(self) -> dict:
         from nika.net_env.enterprise_branch.verify import (

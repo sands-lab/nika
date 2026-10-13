@@ -20,6 +20,7 @@ from nika.net_env.isp.bgp import (
     render_bgp_frr_fragment,
     scope_igp_to_bgp_as,
 )
+from nika.net_env.isp.brief import format_isp_network_info
 from nika.net_env.isp.igp import (
     DEFAULT_CONSTANT_METRIC,
     DEFAULT_IGP,
@@ -39,6 +40,7 @@ from nika.net_env.isp.contract import (
     build_isp_validation_contract,
 )
 from nika.runtime.spec import NodeRole
+from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 
 IgpLiteral = Literal["isis", "ospf"]
 MetricLiteral = Literal["constant", "routing_cost", "inv_capacity"]
@@ -59,18 +61,6 @@ def _stub_series_all_routers(plan: IspPlan) -> TrafficMatrixSeries:
 class Isp(NetworkEnvBase):
     LAB_NAME = "isp"
     TOPO_LEVEL = "medium"
-    TOPO_SIZE = None
-    TAGS = [
-        "isp",
-        "sndlib",
-        "frr",
-        "isis",
-        "ospf",
-        "bgp",
-        "igp",
-        "link",
-        "icmp",
-    ]
 
     def __init__(
         self,
@@ -90,6 +80,8 @@ class Isp(NetworkEnvBase):
         kwargs.pop("traffic_mode", None)
         kwargs.pop("traffic_scale", None)
         super().__init__(**kwargs)
+        # Routers whose dead watchfrr startup verification re-spawned (once each).
+        self._frr_healed: set[str] = set()
 
         if topo_size is not None:
             raise ValueError(
@@ -138,6 +130,13 @@ class Isp(NetworkEnvBase):
         profile_raw = device_profile or default_device_profile("kathara")
         self.device_profile = normalize_device_profile(profile_raw)
         validate_backend_profile("kathara", self.device_profile)
+        if self.device_profile == "iosxr":
+            raise ValueError(
+                "device_profile='iosxr' is not implemented for SNDlib ISP labs "
+                "(no XR config renderer). Use scenario 'iosxr_simple_bgp' for "
+                "XRd Control Plane. Multi-router ISP on XR is also "
+                "resource-gated (~2 GiB RAM per XR node)."
+            )
 
         config = IspConfig(
             topology=self.topo,
@@ -179,7 +178,8 @@ class Isp(NetworkEnvBase):
         cap = 2400 if self.plan.igp == "ospf" else 1200
         wait = max(180, min(cap, 60 + node_n * per_node + link_n + host_n * 5))
         if self.bgp_plan is not None:
-            wait = max(wait, min(2400, 120 + node_n * 12 + link_n))
+            # eBGP prefix fan-out needs a longer settle on shared CI runners.
+            wait = max(wait, min(2400, 300 + node_n * 20 + link_n * 2))
         if self.bgp_plan is not None and self.bgp_plan.inventory.get("rpki"):
             wait = max(wait, 900)
         self.VERIFY_MAX_WAIT_SEC = wait
@@ -229,7 +229,7 @@ class Isp(NetworkEnvBase):
 
         large = len(self.plan.nodes) >= 40 or self.bgp_plan is not None
         machine_opts = {
-            "image": "nika/frr",
+            "image": nika_image("frr"),
             "cpus": 1.0 if large else 0.5,
             "mem": "512m" if large else "256m",
         }
@@ -257,7 +257,7 @@ class Isp(NetworkEnvBase):
             self.lab.connect_machine_to_link(link.endpoint_a, link.collision_domain)
             self.lab.connect_machine_to_link(link.endpoint_b, link.collision_domain)
 
-        host_opts = {"image": "nika/base", "cpus": 0.5, "mem": "256m"}
+        host_opts = {"image": nika_image("base"), "cpus": 0.5, "mem": "256m"}
         for host in self.traffic.hosts:
             self.lab.new_machine(host.host_name, **host_opts)
             self.declare_machine(
@@ -304,22 +304,44 @@ class Isp(NetworkEnvBase):
                     self._rpki_attachment is not None
                     and node.device_name == self._rpki_attachment["router"]
                 ):
+                    iface = self._rpki_attachment["router_iface"]
+                    address = self._rpki_attachment["router_address"]
+                    prefixlen = self._rpki_attachment["prefixlen"]
+                    # The RTR link comes up after Kathara has created every
+                    # node. Retry until the address is configured.
                     extras.append(
-                        "ip addr add "
-                        f"{self._rpki_attachment['router_address']}/"
-                        f"{self._rpki_attachment['prefixlen']} "
-                        f"dev {self._rpki_attachment['router_iface']}"
+                        'i=0; while [ "$i" -lt 20 ]; do '
+                        f"ip link set {iface} up && "
+                        f"ip addr replace {address}/{prefixlen} dev {iface} "
+                        "&& break; i=$((i+1)); sleep 1; done"
                     )
-                if startup and startup[-1] == "service frr start":
+                if "service frr start" in startup:
+                    idx = startup.index("service frr start")
                     post_frr: list[str] = []
                     if bgp_node is not None and bgp_node.rpki_cache is not None:
-                        # RPKI module must be started after bgpd is up.
-                        post_frr.append("vtysh -c 'rpki start'")
-                    startup = startup[:-1] + extras + [startup[-1]] + post_frr
+                        # bgpd and Routinator are not ready on the first try
+                        # on large topologies. Keep starting the RPKI module
+                        # until the cache connection is up.
+                        post_frr.append(
+                            'i=0; while [ "$i" -lt 30 ]; do '
+                            "vtysh -c 'rpki start' >/dev/null 2>&1 || true; "
+                            "vtysh -c 'show rpki cache-connection' 2>/dev/null "
+                            "| tr '[:upper:]' '[:lower:]' | grep -v 'not connected' "
+                            "| grep -Eq 'connected|established' && break; "
+                            "i=$((i+1)); sleep 2; done"
+                        )
+                    startup = startup[:idx] + extras + startup[idx:] + post_frr
                 else:
                     startup = startup + extras
                     if bgp_node is not None and bgp_node.rpki_cache is not None:
-                        startup.append("vtysh -c 'rpki start'")
+                        startup.append(
+                            'i=0; while [ "$i" -lt 30 ]; do '
+                            "vtysh -c 'rpki start' >/dev/null 2>&1 || true; "
+                            "vtysh -c 'show rpki cache-connection' 2>/dev/null "
+                            "| tr '[:upper:]' '[:lower:]' | grep -v 'not connected' "
+                            "| grep -Eq 'connected|established' && break; "
+                            "i=$((i+1)); sleep 2; done"
+                        )
             machine.create_file_from_string(frr_conf, "/etc/frr/frr.conf")
             self.deployment_configs[node.device_name] = frr_conf
             self.lab.create_file_from_list(
@@ -328,16 +350,6 @@ class Isp(NetworkEnvBase):
             )
 
         self.load_machines()
-
-    def _ensure_routinator_image(self) -> str:
-        """Ensure the root-USER Routinator wrapper for Kathara startup."""
-        from nika.net_env.utils.kathara.docker_files.docker_images import (
-            ensure_nika_docker_images,
-        )
-
-        image = "nika/routinator:v0.14.2"
-        ensure_nika_docker_images([image])
-        return image
 
     def _attach_routinator(self) -> dict:
         """Attach an offline Routinator RTR next to the ROV observer."""
@@ -366,12 +378,12 @@ class Isp(NetworkEnvBase):
         prefixlen = int(rtr.get("prefixlen") or RPKI_PREFIXLEN)
         port = int(rtr.get("port") or RPKI_RTR_PORT)
         machine_name = str(rtr.get("machine") or ROUTINATOR_MACHINE)
-        image = self._ensure_routinator_image()
-
+        # Root-USER Routinator wrapper for Kathara startup; built at deploy by
+        # the lab image ensure.
         routinator = self.lab.new_machine(
             machine_name,
             **{
-                "image": image,
+                "image": nika_image("routinator"),
                 "shell": "/bin/sh",
                 "entrypoint": "/bin/sh",
                 "args": ["-c", "while true; do sleep 3600; done"],
@@ -410,19 +422,20 @@ class Isp(NetworkEnvBase):
         }
 
     def get_info(self) -> str:
-        base = super().get_info()
-        inv = self.inventory
-        lines = [
-            base,
-            f"SNDlib topology: {inv['topology_name']}",
-            f"IGP: {inv['igp']}; metric_strategy: {inv['metric_strategy']}; "
-            f"constant_metric: {inv['constant_metric']}",
-            f"BGP mode: {self.bgp_mode}",
-            f"Edge stubs: {len(inv.get('hosts') or [])} "
-            f"(traffic matrix chosen at `nika traffic run sndlib`)",
-            f"Inventory nodes: {inv['node_count']}; links: {inv['link_count']}",
-        ]
-        return "\n".join(lines)
+        return format_isp_network_info(
+            super().get_info(),
+            inventory=self.inventory,
+            bgp_mode=self.bgp_mode,
+            device_profile=self.device_profile,
+        )
+
+    @classmethod
+    def default_probe_path(cls, *, topo_size: str = "s", topo=None, **deploy_kwargs):
+        if not isinstance(topo, str):
+            return None
+        from nika.net_env.isp.inject_targets import isp_topology_probe_path
+
+        return isp_topology_probe_path(topo)
 
     def startup_verify_lab(self) -> dict:
         from nika.net_env.isp.kathara.verify import verify_isp_lab_startup
@@ -433,6 +446,7 @@ class Isp(NetworkEnvBase):
             bgp_plan=self.bgp_plan,
             traffic=self.traffic,
             scenario_name=self.LAB_NAME,
+            frr_healed=self._frr_healed,
         )
 
     def verify_lab(self) -> dict:
@@ -445,4 +459,5 @@ class Isp(NetworkEnvBase):
             traffic=self.traffic,
             contract=self.validation_contract,
             scenario_name=self.LAB_NAME,
+            frr_healed=self._frr_healed,
         )

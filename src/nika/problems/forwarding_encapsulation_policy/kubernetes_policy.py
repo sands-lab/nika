@@ -7,6 +7,7 @@ from pydantic import Field
 
 from nika.problems.rca import k8s_resource
 from nika.net_env.verify import http_ok
+from nika.problems.support.benchmark_targets import first, k8s_control_node
 from nika.problems.support.kubernetes.base import K8sParams, K8sProblemBase
 from nika.problems.base import (
     FailureDomain,
@@ -15,7 +16,8 @@ from nika.utils.logger import system_logger
 
 logger = system_logger
 
-DEFAULT_POLICY_NAME = "nika-deny-ingress"
+# Standard Kubernetes docs name for a namespace-wide ingress deny.
+DEFAULT_POLICY_NAME = "default-deny-ingress"
 
 
 def _match_labels(selector: str) -> dict[str, str]:
@@ -69,6 +71,8 @@ class NetworkPolicyDenyParams(K8sParams):
 
 class NetworkPolicyDeny(K8sProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "isolation_http"
+    symptom_class = "isolation"
     root_cause_name: str = "k8s_networkpolicy_deny"
     description = "Kubernetes NetworkPolicy denies ingress to selected pods."
     symptom_desc = (
@@ -81,6 +85,28 @@ class NetworkPolicyDeny(K8sProblemBase):
     TAGS: ClassVar[list[str]] = ["kubernetes", "k3s", "network_policy"]
 
     Params = NetworkPolicyDenyParams
+
+    BENCHMARK_TARGETS = "canonical"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        params = {
+            "control_node": k8s_control_node(ctx),
+            "symptom_host": first(ctx.roles.get("hosts")) or ctx.host0,
+        }
+        if ctx.scenario == "llmd_lab":
+            params["namespace"] = "llm-d"
+            params["pod_selector"] = (
+                "gateway.networking.k8s.io/gateway-name=llm-d-gateway"
+            )
+            params["symptom_url"] = "http://llmd/v1/models"
+            params["control_url"] = "http://200.0.0.8/"
+        else:
+            params["namespace"] = "word-ns"
+            params["pod_selector"] = "app=word"
+            params["symptom_url"] = "http://datacenter.com/word"
+            params["control_url"] = "http://datacenter.com/weather?location=London"
+        return params
 
     def root_cause_resources(self, params: NetworkPolicyDenyParams):
         name = params.policy_name or DEFAULT_POLICY_NAME
@@ -161,6 +187,30 @@ class NetworkPolicyDeny(K8sProblemBase):
             return verified, details
 
         return self.poll_verify(evaluate)
+
+    def recheck_artifact(self, params: NetworkPolicyDenyParams) -> dict:
+        """Re-read the NetworkPolicy object. Does not request the symptom URL."""
+        k8s = self.runtime.lab_api
+        control = self.control_node(params)
+        policy_exists = bool(
+            k8s.k8s_object_exists(
+                control,
+                "networkpolicy",
+                params.policy_name,
+                namespace=params.namespace,
+            )
+        )
+        return {
+            "present": policy_exists,
+            "fault": self.root_cause_name,
+            "scope": "artifact",
+            "evidence": {
+                "namespace": params.namespace,
+                "policy_name": params.policy_name,
+                "policy_exists": policy_exists,
+            },
+            "error": None if policy_exists else "fault artifact absent",
+        }
 
     def recover_fault(self, params: NetworkPolicyDenyParams) -> dict:
         k8s = self.runtime.lab_api

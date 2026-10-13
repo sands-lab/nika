@@ -17,6 +17,16 @@ static __always_inline __u32 mix(__u32 value, __u32 byte) {
     return (value ^ byte) * 16777619u;
 }
 
+/* FNV low bits depend only on the low bits of the inputs, and Linux picks even
+ * ephemeral ports, so select on a fully mixed hash (murmur3 finalizer). */
+static __always_inline __u32 avalanche(__u32 value) {
+    value ^= value >> 16;
+    value *= 0x85ebca6bu;
+    value ^= value >> 13;
+    value *= 0xc2b2ae35u;
+    return value ^ (value >> 16);
+}
+
 SEC("classifier")
 int switch_bitflip(struct __sk_buff *skb) {
     __u8 ip[20], tcp[20], byte;
@@ -47,8 +57,9 @@ int switch_bitflip(struct __sk_buff *skb) {
     flow = mix(mix(flow, src_port), dst_port);
     seq = ((__u32)tcp[4] << 24) | ((__u32)tcp[5] << 16) |
           ((__u32)tcp[6] << 8) | tcp[7];
-    /* Affect three quarters of stable five-tuples and one eighth of their packets. */
-    if (flow & 3 || (mix(flow, seq >> 8) & 7))
+    /* Affect one quarter of stable five-tuples and one eighth of their packets. */
+    flow = avalanche(flow);
+    if (flow & 3 || (avalanche(mix(flow, seq >> 8)) & 7))
         return TC_ACT_OK;
     if (bpf_skb_load_bytes(skb, payload_off + 32, &byte, 1))
         return TC_ACT_OK;

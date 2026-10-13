@@ -11,6 +11,7 @@ from nika.problems.rca import (
     node_resource,
 )
 
+from nika.problems.support.benchmark_targets import choice, k8s_control_node
 from nika.problems.support.kubernetes.base import K8sParams, K8sProblemBase
 
 from nika.problems.support.kubernetes.node_filter import NodeFilter, NodeFilterError
@@ -65,6 +66,8 @@ def _as_port(value: Any) -> int | None:
 
 class ClusterIPRoutingBroken(K8sProblemBase):
     failure_domain = FailureDomain.SERVICE_NETWORKING
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name: str = "k8s_clusterip_routing_broken"
     description = "Kubernetes ClusterIP forwarding is broken on a node."
     symptom_desc = (
@@ -76,6 +79,13 @@ class ClusterIPRoutingBroken(K8sProblemBase):
     TAGS: ClassVar[list[str]] = ["kubernetes", "k3s", "kube_proxy"]
 
     Params = ClusterIPRoutingBrokenParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        k8s_nodes = ctx.roles.get("k8s_nodes") or []
+        control = k8s_control_node(ctx)
+        workers = sorted(node for node in k8s_nodes if node != control)
+        return {"control_node": control, "node_name": choice(ctx.rng, workers, control)}
 
     def __init__(self, scenario_name: str | None = None, **kwargs: Any) -> None:
         super().__init__(scenario_name, **kwargs)
@@ -257,3 +267,23 @@ class ClusterIPRoutingBroken(K8sProblemBase):
                 }
 
         return self.poll_verify(check)
+
+    def recheck_artifact(self, params: ClusterIPRoutingBrokenParams) -> dict:
+        """Re-read the raw-table drops. Does not open a TCP connection."""
+        k8s = self.runtime.lab_api
+        device = self._target_device(params)
+        target = self.blocked_target or self._block_target(params, k8s)
+        blocked = NodeFilter(self.runtime, device).blocked(target)
+        present = bool(blocked.get("prerouting")) and bool(blocked.get("output"))
+        return {
+            "present": present,
+            "fault": self.root_cause_name,
+            "scope": "artifact",
+            "evidence": {
+                "target_device": device,
+                "blocked_target": target,
+                "raw_prerouting_blocked": bool(blocked.get("prerouting")),
+                "raw_output_blocked": bool(blocked.get("output")),
+            },
+            "error": None if present else "fault artifact absent",
+        }

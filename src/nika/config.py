@@ -1,3 +1,5 @@
+import os
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -5,10 +7,17 @@ from dotenv import load_dotenv
 # config.py lives at <repo>/src/nika/config.py
 _PKG_DIR = Path(__file__).resolve().parent
 REPO_ROOT = _PKG_DIR.parent.parent
-_REPO_ROOT = REPO_ROOT  # backward-compatible alias
 
 # MCP servers are spawned as subprocesses with an unrelated cwd; load .env from repo root.
 load_dotenv(REPO_ROOT / ".env")
+
+# install.sh puts clab and gnmic next to this interpreter. Find them there,
+# ahead of older host copies, even when the venv is not activated.
+_ENV_BIN = Path(sys.prefix) / "bin"
+if sys.prefix != sys.base_prefix and str(_ENV_BIN) not in os.environ.get(
+    "PATH", ""
+).split(os.pathsep):
+    os.environ["PATH"] = os.pathsep.join([str(_ENV_BIN), os.environ.get("PATH", "")])
 
 RUNTIME_DIR = REPO_ROOT / "runtime"
 SESSIONS_DIR = RUNTIME_DIR / "sessions"
@@ -16,7 +25,8 @@ SESSIONS_DB = RUNTIME_DIR / "sessions.db"
 BENCHMARK_RUNS_DIR = RUNTIME_DIR / "benchmark_runs"
 RESULTS_DIR = REPO_ROOT / "results"
 BENCHMARK_DIR = REPO_ROOT / "benchmark"
-MCP_SERVER_DIR = _PKG_DIR / "mcp" / "servers"
+# Current nika-bench release. Locally built nika/* images are tagged with it.
+BENCHMARK_VERSION = "0.2.0"
 
 # Migration recognizes this legacy name. Runtime result paths come from YAML or CLI.
 ENV_RESULT_DIR = "NIKA_RESULT_DIR"

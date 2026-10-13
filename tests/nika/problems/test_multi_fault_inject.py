@@ -12,6 +12,8 @@ from nika.utils.session_store import SessionStore
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import docker_available
 
+pytestmark = pytest.mark.e2e
+
 MULTI_CASES = [
     (
         "dc_clos",
@@ -22,7 +24,7 @@ MULTI_CASES = [
     ("dc_clos", "s", ["link_down", "host_missing_ip"], None),
     (
         "isp_abilene",
-        "s",
+        "",
         ["bgp_acl_block", "bgp_asn_misconfig"],
         {"igp": "ospf", "bgp_mode": "ebgp"},
     ),
@@ -79,7 +81,8 @@ class TestMultiFaultInjectWorkflow(IntegrationTestCase):
             gt = json.loads(
                 (Path(row["session_dir"]) / "ground_truth.json").read_text()
             )
-            assert len(gt["root_causes"]) == len(problems)
+            # A failure may label several resources (mtu_mismatch lowers both link ends).
+            assert {rc["fault_type"] for rc in gt["root_causes"]} == set(problems)
         finally:
             if session_id is not None:
                 self._close_session(session_id)

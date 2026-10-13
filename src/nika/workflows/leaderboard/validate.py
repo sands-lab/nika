@@ -212,6 +212,18 @@ def validate_leaderboard_submission(
                 trial_results, n_trials_expected=len(expected_trials)
             )
             errors.extend(metrics_nearly_equal(recomputed, metrics))
+            status_counts = recomputed.status_counts or {}
+            n_grading = int(status_counts.get("grading_error") or 0)
+            n_infra = int(status_counts.get("infra_error") or 0)
+            if n_grading:
+                errors.append(
+                    f"grading_error trials forbidden in submission (found {n_grading})"
+                )
+            if n_infra:
+                errors.append(
+                    f"residual infra_error trials forbidden in submission "
+                    f"(found {n_infra}; re-run until none remain)"
+                )
 
         if confusion is not None and not missing and not extra:
             recomputed_confusion = build_rca_confusion(trial_results)

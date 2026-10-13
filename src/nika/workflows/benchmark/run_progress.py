@@ -104,30 +104,6 @@ def update_progress(
     return path
 
 
-def update_progress_from_scan(
-    run_id: str,
-    *,
-    result_dir: str | Path,
-    total_trials: int,
-    pending: list[int],
-    status: str = "running",
-    release_meta: dict[str, Any] | None = None,
-    runs_dir: Path | None = None,
-) -> Path:
-    pending_trials = len(pending)
-    completed_trials = max(0, int(total_trials) - pending_trials)
-    return update_progress(
-        run_id,
-        result_dir=result_dir,
-        total_trials=total_trials,
-        completed_trials=completed_trials,
-        pending_trials=pending_trials,
-        status=status,
-        release_meta=release_meta,
-        runs_dir=runs_dir,
-    )
-
-
 def mark_finished(
     run_id: str,
     *,

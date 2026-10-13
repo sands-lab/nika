@@ -3,16 +3,15 @@
 from __future__ import annotations
 
 import asyncio
-import json
-import random
 import re
 from typing import Literal
 
 from nika.runtime.base import LabRuntime
-from nika.service.shell import ShellResolver
+from nika.service.lab.reachability import PingReachabilityMixin
+from nika.service.shell import ShellResolver, iperf_server_commands, ping_exec_timeout
 
 
-class ContainerlabBaseAPI:
+class ContainerlabBaseAPI(PingReachabilityMixin):
     """Host exec API compatible with KatharaBaseAPI callers for Containerlab labs."""
 
     backend = "containerlab"
@@ -30,12 +29,21 @@ class ContainerlabBaseAPI:
             timeout=timeout,
         )
 
-    async def exec_cmd_async(self, host_name: str, command: str) -> str:
+    async def exec_cmd_async(
+        self, host_name: str, command: str, timeout: float = 10
+    ) -> str:
         loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(None, self.exec_cmd, host_name, command)
+        return await loop.run_in_executor(
+            None, lambda: self.exec_cmd(host_name, command, timeout=timeout)
+        )
 
     def get_host_ip(self, host_name: str, iface: str = "eth0") -> str | None:
         return self.runtime.get_host_ip(host_name, iface, with_prefix=False)
+
+    def _data_plane_ip(self, host_name: str) -> str | None:
+        # eth0 on Containerlab nodes is the management network; probes must
+        # target the lab data plane.
+        return self.runtime.get_data_plane_host_ip(host_name, with_prefix=False)
 
     def get_host_net_config(self, host_name: str) -> dict:
         return {
@@ -50,59 +58,14 @@ class ContainerlabBaseAPI:
     ) -> str:
         ip_re = r"\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b"
         if not re.match(ip_re, host_b):
-            host_b_ip = self.get_host_ip(host_b)
+            host_b_ip = self._data_plane_ip(host_b)
             if host_b_ip is None:
                 return f"Cannot get IP address of host {host_b}."
             host_b = host_b_ip
         command = f"ping -c {count} {host_b} {args}"
-        return self.exec_cmd(host_a, command)
-
-    async def _check_ping_success_async(self, host: str, dst_ip: str) -> dict:
-        ping_stats_re = re.compile(
-            r"(?P<tx>\d+)\s+packets transmitted,\s+"
-            r"(?P<rx>\d+)\s+(?:packets\s+)?received,\s+"
-            r"(?P<loss>\d+(?:\.\d+)?)%\s+packet loss"
-            r"(?:,\s*time\s*(?P<time>\d+)ms)?",
-            re.MULTILINE,
-        )
-        rtt_re = re.compile(
-            r"(?:rtt|round-trip)\s+min/avg/max/(?:mdev|stddev)\s*=\s*"
-            r"([\d\.]+)/([\d\.]+)/([\d\.]+)/([\d\.]+)\s*ms",
-            re.MULTILINE,
-        )
-        result = await self.exec_cmd_async(host, f"ping -c 2 -n -q {dst_ip}")
-        stats_match = ping_stats_re.search(result)
-        tx = rx = loss = time_ms = None
-        rtt_min = rtt_avg = rtt_max = rtt_mdev = None
-        if stats_match:
-            tx = int(stats_match.group("tx"))
-            rx = int(stats_match.group("rx"))
-            loss = float(stats_match.group("loss"))
-            if stats_match.group("time") is not None:
-                time_ms = float(stats_match.group("time"))
-        rtt_match = rtt_re.search(result)
-        if rtt_match:
-            rtt_min, rtt_avg, rtt_max, rtt_mdev = map(float, rtt_match.groups())
-        if tx is not None and rx is not None and loss is not None:
-            if rx > 0 and loss < 100:
-                status = "ok"
-            elif rx == 0 and loss == 100:
-                status = "down"
-            else:
-                status = "unstable"
-        else:
-            status = "unknown"
-        return {
-            "tx": tx,
-            "rx": rx,
-            "loss_percent": loss,
-            "time_ms": time_ms,
-            "rtt_min_ms": rtt_min,
-            "rtt_avg_ms": rtt_avg,
-            "rtt_max_ms": rtt_max,
-            "rtt_mdev_ms": rtt_mdev,
-            "status": status,
-        }
+        # Unanswered pings linger ~10s after the last probe; budget for it so a
+        # black-holed path reports 100% loss instead of a timeout.
+        return self.exec_cmd(host_a, command, timeout=ping_exec_timeout(count))
 
     def _probe_hosts(self) -> list[str]:
         nodes = self.runtime.list_nodes()
@@ -114,45 +77,11 @@ class ContainerlabBaseAPI:
         return hosts or nodes
 
     async def get_reachability(self) -> str:
-        host_names = self._probe_hosts()
-        host_ips = {host_name: self.get_host_ip(host_name) for host_name in host_names}
-        host_list = sorted(host_ips.items())
-        if len(host_list) > 2:
-            dst_list = host_list.copy()
-            random.shuffle(dst_list)
-            dst_list = dst_list[:2]
-        else:
-            dst_list = host_list
-        coroutines = []
-        pairs = []
-        for src_name, _ in host_list:
-            for dst_name, dst_ip in dst_list:
-                if src_name == dst_name or not dst_ip:
-                    continue
-                pairs.append((src_name, dst_name))
-                coroutines.append(self._check_ping_success_async(src_name, dst_ip))
-        responses = await asyncio.gather(*coroutines)
-        results = []
-        for (src, dst), stats in zip(pairs, responses):
-            results.append(
-                {
-                    "src": src,
-                    "dst": dst,
-                    "dst_ip": host_ips.get(dst),
-                    "tx": stats.get("tx"),
-                    "rx": stats.get("rx"),
-                    "loss_percent": stats.get("loss_percent"),
-                    "time_ms": stats.get("time_ms"),
-                    "rtt_avg_ms": stats.get("rtt_avg_ms"),
-                    "rtt_min_ms": stats.get("rtt_min_ms"),
-                    "rtt_max_ms": stats.get("rtt_max_ms"),
-                    "rtt_mdev_ms": stats.get("rtt_mdev_ms"),
-                    "status": stats.get("status"),
-                }
-            )
-        return json.dumps(
-            {"hosts": host_ips, "results": results}, separators=(",", ":")
-        )
+        host_ips = {
+            host_name: self._data_plane_ip(host_name)
+            for host_name in self._probe_hosts()
+        }
+        return await self._sampled_reachability(host_ips)
 
     def systemctl_ops(
         self,
@@ -198,13 +127,15 @@ class ContainerlabBaseAPI:
         client_args: str = "",
         server_args: str = "",
     ) -> str:
-        self.exec_cmd(server_host_name, f"iperf3 -s -D {server_args}")
-        server_ip = self.get_host_ip(server_host_name)
+        start, stop = iperf_server_commands(server_args)
+        self.exec_cmd(server_host_name, start)
+        server_ip = self._data_plane_ip(server_host_name)
         result = self.exec_cmd(
             client_host_name,
             f"iperf3 -c {server_ip} -t {duration} {client_args}",
+            timeout=duration + 15,
         )
-        self.exec_cmd(server_host_name, "pkill iperf3 2>/dev/null || true")
+        self.exec_cmd(server_host_name, stop)
         return result
 
     def intf_on_off(

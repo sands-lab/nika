@@ -15,9 +15,14 @@ spec:
     spec:
       containers:
       - name: worddb-container
-        image: postgres:16
+        image: postgres:16@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54
+        imagePullPolicy: Never
         ports:
         - containerPort: 5432
+        readinessProbe:
+          exec:
+            command: [pg_isready, -h, 127.0.0.1, -U, root, -d, worddb]
+          periodSeconds: 2
         env:
         - name: POSTGRES_DB
           value: worddb
@@ -50,9 +55,14 @@ spec:
     spec:
       containers:
       - name: weatherdb-container
-        image: postgres:16
+        image: postgres:16@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54
+        imagePullPolicy: Never
         ports:
         - containerPort: 5432
+        readinessProbe:
+          exec:
+            command: [pg_isready, -h, 127.0.0.1, -U, root, -d, weatherdb]
+          periodSeconds: 2
         env:
         - name: POSTGRES_DB
           value: weatherdb

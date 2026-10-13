@@ -6,7 +6,6 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
-from nika.problems.link_interface.link import _resolve_link_intf
 from nika.net_env.verify import ping_ok
 from nika.runtime.kathara.vde_proxy import KatharaVdeFaultProxy
 
@@ -31,11 +30,12 @@ _IPERF_DURATION_SEC = 5
 
 
 def _ctx_intf(ctx: FailureE2EContext) -> str:
-    return _resolve_link_intf(ctx.parsed.intf_name, "kathara")
+    # Kathara keeps the parsed interface name as-is (``resolve_default_intf``).
+    return ctx.parsed.intf_name
 
 
 def _require_probe_path(ctx: FailureE2EContext):
-    from tests.support.symptom.probe import _resolve_path
+    from nika.validation.symptom.probe import _resolve_path
 
     path = _resolve_path(ctx.scenario, ctx.parsed, topo_size=ctx.topo_size or "s")
     assert path is not None and path.dst_ip
@@ -66,53 +66,11 @@ def _qdisc(runtime, node: str, intf: str) -> str:
     return runtime.exec(node, f"tc qdisc show dev {intf} 2>/dev/null || true").lower()
 
 
-def assert_link_down(ctx: FailureE2EContext) -> None:
-    assert ctx.verify is not None
-    assert ctx.verify["details"]["operstate"] == "down", ctx.verify
-    host_qdisc = _qdisc(ctx.runtime, ctx.parsed.host_name, _ctx_intf(ctx))
-    assert "netem" not in host_qdisc, host_qdisc
-    assert ctx.symptom is not None
-    assert ctx.symptom["comparison"]["operstate"] == "down", ctx.symptom
-    from nika.workflows.benchmark.isp_options import is_isp_scenario
-
-    # Meshed ISP IGP keeps an alternate path; evaluate_symptom already treats
-    # operstate as the authoritative link_down signal there.
-    if not is_isp_scenario(ctx.scenario):
-        assert ctx.symptom.get("after", {}).get("ping_ok") is False, ctx.symptom
-
-
 def assert_link_down_recover(ctx: FailureE2EContext) -> None:
     assert (
         ctx.runtime.get_interface_operstate(ctx.parsed.host_name, _ctx_intf(ctx))
         == "up"
     )
-
-
-def assert_mtu_mismatch(ctx: FailureE2EContext) -> None:
-    from nika.net_env.verify import ping_df_probe, ping_mtu_frag_needed
-
-    path = _require_probe_path(ctx)
-    src, dst = path.src_host, path.dst_ip
-    small_ok, _, small_raw = ping_df_probe(ctx.runtime, src, dst, packet_size=64)
-    large_ok, _, large_raw = ping_df_probe(ctx.runtime, src, dst, packet_size=1400)
-    assert small_ok is True, {
-        "src": src,
-        "dst": dst,
-        "packet_size": 64,
-        "raw": small_raw,
-    }
-    assert large_ok is False, {
-        "src": src,
-        "dst": dst,
-        "packet_size": 1400,
-        "raw": large_raw,
-    }
-    assert ping_mtu_frag_needed(ctx.runtime, src, dst) is True, {
-        "src": src,
-        "dst": dst,
-        "host": getattr(ctx.parsed, "host_name", None),
-        "intf": getattr(ctx.parsed, "intf_name", None),
-    }
 
 
 def assert_link_detach_pre(ctx: FailureE2EContext) -> None:
@@ -121,22 +79,13 @@ def assert_link_detach_pre(ctx: FailureE2EContext) -> None:
     _wait_for_ping(ctx.runtime, path.src_host, path.dst_ip)
 
 
-def assert_link_detach(ctx: FailureE2EContext) -> None:
-    assert ctx.verify is not None
-    assert ctx.verify["details"]["artifact"]["verified"] is True, ctx.verify
-    assert ctx.verify["details"]["symptom"]["verified"] is True, ctx.verify
-    assert ctx.symptom is not None
-    assert ctx.symptom.get("after", {}).get("ping_ok") is False, ctx.symptom
-    assert ctx.symptom["comparison"]["interface_gone"] is True, ctx.symptom
-
-
 def assert_link_detach_recover(ctx: FailureE2EContext) -> None:
     assert ctx.runtime.interface_exists(ctx.parsed.host_name, _ctx_intf(ctx))
 
 
 def assert_link_flap_pre(ctx: FailureE2EContext) -> None:
-    from tests.support.symptom.flap_probes import assert_baseline_healthy
-    from tests.support.symptom.probe import _resolve_path
+    from nika.validation.symptom.flap_probes import assert_baseline_healthy
+    from nika.validation.symptom.probe import _resolve_path
 
     path = _resolve_path(ctx.scenario, ctx.parsed, topo_size=ctx.topo_size or "s")
     assert path is not None and path.dst_ip
@@ -146,7 +95,8 @@ def assert_link_flap_pre(ctx: FailureE2EContext) -> None:
 
 def assert_link_flap(ctx: FailureE2EContext) -> None:
     assert ctx.symptom is not None
-    assert ctx.symptom.get("comparison", {}).get("periodic_loss") is True, ctx.symptom
+    comparison = ctx.symptom["details"]["comparison"]
+    assert comparison["periodic_loss"] is True, ctx.symptom
 
 
 def _link_peer(runtime, host: str, intf: str) -> tuple[str, str] | None:
@@ -162,7 +112,7 @@ def _link_peer(runtime, host: str, intf: str) -> tuple[str, str] | None:
 def assert_link_capacity_bottleneck_pre(ctx: FailureE2EContext) -> None:
     from nika.net_env.verify import iperf_throughput_bps
 
-    from tests.support.symptom.probe import _resolve_path
+    from nika.validation.symptom.probe import _resolve_path
 
     path = _resolve_path(ctx.scenario, ctx.parsed, topo_size=ctx.topo_size or "s")
     assert path is not None and path.peer_host and path.dst_ip
@@ -220,7 +170,7 @@ def assert_link_capacity_bottleneck(ctx: FailureE2EContext) -> None:
 def assert_link_capacity_bottleneck_recover(ctx: FailureE2EContext) -> None:
     from nika.net_env.verify import iperf_throughput_bps
 
-    from tests.support.symptom.probe import _resolve_path
+    from nika.validation.symptom.probe import _resolve_path
 
     path = _resolve_path(ctx.scenario, ctx.parsed, topo_size=ctx.topo_size or "s")
     assert path is not None and path.peer_host and path.dst_ip
@@ -242,11 +192,8 @@ def assert_load_balancer_overload(ctx: FailureE2EContext) -> None:
     assert artifact["capacity_ok"] is True
     assert artifact["nginx_running"] is True
     details = ctx.symptom["details"]
-    assert details["nginx_saturated"] is True
-    assert details["vip_degraded"] is True
+    assert details["degraded"] is True
     assert details["control_ok"] is True
-    assert details["backend_ok_gate"] is True
-    assert details["path_ok"] is True
 
 
 def assert_load_balancer_overload_recover(ctx: FailureE2EContext) -> None:
@@ -292,13 +239,9 @@ def assert_sender_resource_contention(ctx: FailureE2EContext) -> None:
     assert artifact["quota_ok"] is True
     assert artifact.get("cpu_http_running", True) is True
     details = ctx.symptom["details"]
-    assert details["path_ok"] is True
-    assert details["perf_ok"] is True
-    assert details["throughput_ratio"] is not None or details["time_ratio"] is not None
-    if details["throughput_ratio"] is not None:
-        assert (
-            details["throughput_ratio"] <= 0.20 or (details["time_ratio"] or 0) >= 5.0
-        )
+    assert details["control_ok"] is True
+    assert details["small_http_ok"] is True
+    assert details["throughput_ratio"] is not None
     fault_rtt = ping_stats(
         ctx.runtime,
         ctx.parsed.client_host,
@@ -364,21 +307,34 @@ def assert_bmv2_switch_down(ctx: FailureE2EContext) -> None:
 
 
 def assert_incast_pre(ctx: FailureE2EContext) -> None:
-    from tests.support.symptom import get_symptom_contract
-    from tests.support.symptom.probe import _resolve_path, run_probe_snapshot
+    from nika.validation.symptom.probe import _resolve_path, run_probe_snapshot
 
     path = _resolve_path(ctx.scenario, ctx.parsed, topo_size=ctx.topo_size)
     assert path is not None and path.dst_ip
-    contract = get_symptom_contract(ctx.problem_name)
-    before = run_probe_snapshot(ctx.runtime, contract.probe, path, params=ctx.parsed)
+    # Healthy baseline: the receiver answers pings before the bursts start.
+    before = run_probe_snapshot(ctx.runtime, "path_ping_loss", path, params=ctx.parsed)
     assert before.ping_ok is True, before.as_dict()
     assert before.rtt_avg_ms is not None and before.rtt_avg_ms > 0
     ctx.before = before
 
 
+def resolve_bgp_hijack_target(ctx: FailureE2EContext) -> None:
+    """Pin the default hijacked prefix so the probe can watch it before inject."""
+    if ctx.parsed.target_network is None:
+        ctx.parsed.target_network = ctx.problem._default_target_network()
+
+
 def assert_receiver_resource_contention_pre(ctx: FailureE2EContext) -> None:
     """Ensure the receiver can fetch a large object before contention."""
     from nika.net_env.verify import http_download_stats
+
+    if ctx.scenario == "campus_lan":
+        url = ctx.problem._ensure_peer_large_object(ctx.parsed)
+        bps, seconds = ctx.problem._median_large_stats(
+            ctx.parsed, url, max_time_sec=120
+        )
+        assert bps and seconds, ctx.problem._last_downloads
+        return
 
     ensure = getattr(ctx.problem, "_ensure_peer_large_object", None)
     url = ensure(ctx.parsed) if callable(ensure) else None
@@ -393,8 +349,8 @@ def assert_receiver_resource_contention_pre(ctx: FailureE2EContext) -> None:
 
 def assert_isolation_http_pre(ctx: FailureE2EContext) -> None:
     """Capture healthy isolation probe (symptom up, control up when probed)."""
-    from tests.support.symptom import get_symptom_contract
-    from tests.support.symptom.probe import _resolve_path, run_probe_snapshot
+    from nika.validation.symptom import get_symptom_contract
+    from nika.validation.symptom.probe import _resolve_path, run_probe_snapshot
 
     if ctx.problem_name == "k8s_coredns_isolated":
         k8s = ctx.problem.runtime.lab_api
@@ -559,14 +515,9 @@ def assert_tcp_rwnd_recover(ctx: FailureE2EContext) -> None:
 
 
 HOOKS: dict[str, dict[str, Any]] = {
-    "link_down": {
-        "post_inject": assert_link_down,
-        "post_recover": assert_link_down_recover,
-    },
-    "mtu_mismatch": {"post_inject": assert_mtu_mismatch},
+    "link_down": {"post_recover": assert_link_down_recover},
     "link_detach": {
         "pre_inject": assert_link_detach_pre,
-        "post_inject": assert_link_detach,
         "post_recover": assert_link_detach_recover,
     },
     "link_flap": {
@@ -597,6 +548,9 @@ HOOKS: dict[str, dict[str, Any]] = {
     },
     "receiver_resource_contention": {
         "pre_inject": assert_receiver_resource_contention_pre,
+    },
+    "bgp_hijacking": {
+        "pre_inject": resolve_bgp_hijack_target,
     },
     "k8s_networkpolicy_deny": {
         "pre_inject": assert_isolation_http_pre,

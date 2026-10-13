@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+import pytest
 
 from agent.mock.mock_agent import (
     _mock_diagnosis_tool_calls,
     _pick_pair,
     _pick_router,
 )
+
+pytestmark = pytest.mark.unit
 
 
 def test_pick_pair_prefers_ground_truth_devices() -> None:
@@ -36,17 +38,8 @@ def test_diagnosis_calls_use_lab_hosts_not_hardcoded_pc() -> None:
         preferred=["pc_2_1_1_1"],
     )
     by_name = {name: args for name, args in calls}
-    assert by_name["ping_pair"]["host_a"] == "pc_2_1_1_1"
-    assert by_name["ping_pair"]["host_b"] == "pc_2_1_1_1"
-    assert by_name["frr_exec"]["router_name"] == "router_dist_2_1"
-    assert by_name["frr_show_ip_route"]["router_name"] == "router_dist_2_1"
+    assert ("exec_shell", {"host_name": "pc_2_1_1_1", "command": "hostname"}) in calls
+    assert by_name["exec_shell"]["host_name"] == "router_dist_2_1"
+    assert by_name["exec_shell"]["command"] == "vtysh -c 'show ip route'"
     assert "pc1" not in str(calls)
     assert "pc2" not in str(calls)
-
-
-def test_mock_agent_handles_healthy_ground_truth() -> None:
-    """Mock agent submits is_anomaly=false when GT is healthy."""
-    source = Path("src/agent/mock/mock_agent.py").read_text(encoding="utf-8")
-    assert 'gt.get("is_anomaly") is False' in source
-    assert '"is_anomaly": False' in source
-    assert '"root_causes": []' in source

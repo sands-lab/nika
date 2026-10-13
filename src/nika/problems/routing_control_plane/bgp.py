@@ -1,18 +1,70 @@
 import ipaddress
+import json
 import re
 import time
 
 from pydantic import BaseModel, Field
 
+from nika.net_env.isp.bgp.frr import EXPORT_DENY_PREFIX_LIST
 from nika.problems.support.inject_resolve import resolve_victim_host_ip
+from nika.problems.support.polling import wait_until
 from nika.problems.rca import node_resource
 from nika.problems.base import (
     FailureDomain,
     build_verify_result,
     ProblemBase,
 )
+from nika.problems.support.benchmark_targets import (
+    choice,
+    first,
+    isp_protocol_for,
+    loaded_inventory,
+    replace,
+    require_role_member,
+    role_subset,
+)
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
+
+
+def _compile_isp_bgp_inventory(
+    scenario: str, *, igp: str, bgp_mode: str, rpki: bool = False, rtbh: bool = False
+):
+    """Compile the ISP plan for ``scenario`` and return it with its BGP inventory."""
+    from nika.net_env.isp.bgp import compile_bgp_plan
+    from nika.net_env.isp.identity import isp_topo_from_scenario
+    from nika.net_env.isp.igp import IspConfig, compile_isp_plan
+
+    isp_plan = compile_isp_plan(
+        IspConfig(topology=isp_topo_from_scenario(scenario), igp=igp)  # type: ignore[arg-type]
+    )
+    bgp = compile_bgp_plan(isp_plan, bgp_mode, rpki=rpki, rtbh=rtbh)
+    assert bgp is not None
+    return isp_plan, bgp.inventory
+
+
+def _ensure_bgp_inventory(problem_cls, ctx) -> tuple[dict, dict]:
+    """Return ``(inventory, bgp_inventory)`` with BGP originators for an ISP scenario.
+
+    Uses the loaded scenario inventory when it has originated prefixes, else
+    compiles the ISP plan from ``ctx.isp_options`` (or the failure's protocol needs).
+    """
+    inventory = loaded_inventory(ctx.net_env)
+    bgp_inv = inventory.get("bgp")
+    if not isinstance(bgp_inv, dict) or not bgp_inv.get("originated"):
+        isp_opts = ctx.isp_options or isp_protocol_for(problem_cls, {"bgp"})
+        rtbh = ctx.scenario.endswith("_ebgp_rtbh") or bool(isp_opts.get("rtbh"))
+        isp_plan, bgp_inv = _compile_isp_bgp_inventory(
+            ctx.scenario,
+            igp=str(isp_opts.get("igp") or "ospf"),
+            bgp_mode=str(isp_opts.get("bgp_mode") or "ebgp"),
+            rpki=bool(isp_opts.get("rpki")),
+            rtbh=rtbh,
+        )
+        inventory = dict(isp_plan.inventory)
+        inventory["bgp"] = bgp_inv
+    return inventory, bgp_inv
+
 
 # ==================================================================
 """ Problem: BGP ASN misconfiguration. """
@@ -27,6 +79,8 @@ class BGPAsnMisconfigParams(BaseModel):
 
 class BGPAsnMisconfig(ProblemBase):
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
+    symptom_probe = "custom"
+    symptom_class = "control_plane"
     root_cause_name: str = "bgp_asn_misconfig"
     description = "BGP local ASN is misconfigured relative to peer expectation."
     effect_protocol = "bgp"
@@ -34,6 +88,24 @@ class BGPAsnMisconfig(ProblemBase):
     supported_backends = ("kathara", "containerlab")
 
     Params = BGPAsnMisconfigParams
+    BENCHMARK_COORDINATES = frozenset({"bgp_acl_block"})
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": ctx.router0}
+
+    @classmethod
+    def coordinate_benchmark_inject(cls, ctx, params_by_problem):
+        # Misconfigure a router other than the ACL-blocked one.
+        acl = dict(params_by_problem["bgp_acl_block"])
+        asn = dict(params_by_problem["bgp_asn_misconfig"])
+        routers = list(ctx.net_env.routers or [])
+        if acl.get("host_name") == asn.get("host_name") and len(routers) >= 2:
+            asn["host_name"] = (
+                routers[1] if routers[0] == acl.get("host_name") else routers[0]
+            )
+        params_by_problem["bgp_asn_misconfig"] = asn
+        return params_by_problem
 
     symptom_desc = "Some hosts are experiencing connectivity issues."
 
@@ -61,16 +133,15 @@ class BGPAsnMisconfig(ProblemBase):
         self.runtime.srl_set_bgp_as(params.host_name, wrong_asn)
         self._orig_asn = as_number
         self._wrong_asn = wrong_asn
-        self.runtime.exec(
-            params.host_name,
-            f"printf '%s\\n' '{as_number}' > /tmp/nika_orig_bgp_asn",
-        )
         self.logger.info(
             f"Injected BGP ASN misconfiguration on {params.host_name} "
             f"from ASN {as_number} to {wrong_asn} (SRL)."
         )
 
     def _inject_asn_misconfig_kathara(self, params: BGPAsnMisconfigParams) -> None:
+        if self.runtime.uses_iosxr_router(params.host_name):
+            self._inject_asn_misconfig_iosxr(params)
+            return
         as_number = self.runtime.frr_get_bgp_asn_number(params.host_name)
         wrong_asn = as_number + 600
         # k8s_lab uses split FRR configs (/etc/frr/bgpd.conf); campus etc. use frr.conf.
@@ -85,11 +156,6 @@ class BGPAsnMisconfig(ProblemBase):
             ).strip()
             if exists != "yes":
                 continue
-            self.runtime.exec(
-                params.host_name,
-                f"cp -a {conf} {conf}.bak",
-                timeout=10,
-            )
             self.runtime.exec(
                 params.host_name,
                 f"sed -i -E 's/^router bgp [0-9]+/router bgp {wrong_asn}/' {conf}",
@@ -122,8 +188,8 @@ class BGPAsnMisconfig(ProblemBase):
             ),
             timeout=90,
         )
-        time.sleep(12)
-        running = self.runtime.frr_get_bgp_asn_number(params.host_name)
+        wait_until(lambda: self._running_asn(params.host_name) == wrong_asn, 30)
+        running = self._running_asn(params.host_name)
         if running != wrong_asn:
             raise RuntimeCapabilityError(
                 f"{type(self).__name__}: FRR on {params.host_name!r} "
@@ -134,6 +200,30 @@ class BGPAsnMisconfig(ProblemBase):
         self._wrong_asn = wrong_asn
         self.logger.info(
             f"Injected BGP ASN misconfiguration on {params.host_name} from ASN {as_number} to {wrong_asn}."
+        )
+
+    def _inject_asn_misconfig_iosxr(self, params: BGPAsnMisconfigParams) -> None:
+        as_number = self.runtime.iosxr_get_bgp_asn_number(params.host_name)
+        wrong_asn = as_number + 600
+        self.runtime.iosxr_set_bgp_asn(params.host_name, wrong_asn)
+        wait_until(
+            lambda: (
+                self.runtime.iosxr_get_bgp_asn_number(params.host_name) == wrong_asn
+            ),
+            8,
+        )
+        running = self.runtime.iosxr_get_bgp_asn_number(params.host_name)
+        if running != wrong_asn:
+            raise RuntimeCapabilityError(
+                f"{type(self).__name__}: IOS-XR on {params.host_name!r} "
+                f"did not apply ASN change ({as_number} -> {wrong_asn}); "
+                f"running={running}."
+            )
+        self._orig_asn = as_number
+        self._wrong_asn = wrong_asn
+        self.logger.info(
+            f"Injected BGP ASN misconfiguration on {params.host_name} "
+            f"from ASN {as_number} to {wrong_asn} (IOS-XR)."
         )
 
     def verify_fault(self, params: BGPAsnMisconfigParams) -> dict:
@@ -152,14 +242,6 @@ class BGPAsnMisconfig(ProblemBase):
         running_asn = self.runtime.srl_get_bgp_as(params.host_name)
         orig_asn = getattr(self, "_orig_asn", None)
         wrong_asn = getattr(self, "_wrong_asn", None)
-        if orig_asn is None:
-            stored = self.runtime.exec(
-                params.host_name,
-                "cat /tmp/nika_orig_bgp_asn 2>/dev/null || true",
-            ).strip()
-            if stored.isdigit():
-                orig_asn = int(stored)
-                wrong_asn = orig_asn + 600
         verified = (wrong_asn is not None and running_asn == wrong_asn) or (
             orig_asn is not None and running_asn != orig_asn
         )
@@ -174,41 +256,51 @@ class BGPAsnMisconfig(ProblemBase):
             },
         )
 
+    def _running_asn(self, host: str) -> int | None:
+        """Local AS of the running bgpd, or ``None`` while it does not answer."""
+        summary = self.runtime.exec(
+            host, "vtysh -c 'show bgp summary json' 2>/dev/null"
+        )
+        match = re.search(r'"as"\s*:\s*(\d+)', summary)
+        return int(match.group(1)) if match else None
+
     def _verify_asn_misconfig_kathara(self, params: BGPAsnMisconfigParams) -> dict:
+        if self.runtime.uses_iosxr_router(params.host_name):
+            return self._verify_asn_misconfig_iosxr(params)
         orig_asn = getattr(self, "_orig_asn", None)
         expected_wrong = getattr(self, "_wrong_asn", None)
-        file_asn_raw = self.runtime.exec(
-            params.host_name,
-            (
-                "grep -E '^router bgp' /etc/frr/frr.conf /etc/frr/bgpd.conf "
-                "2>/dev/null | awk '{print $NF}' | head -1"
-            ),
-        ).strip()
-        orig_asn_raw = self.runtime.exec(
-            params.host_name,
-            (
-                "grep -E '^router bgp' /etc/frr/frr.conf.bak /etc/frr/bgpd.conf.bak "
-                "2>/dev/null | awk '{print $NF}' | head -1"
-            ),
-        ).strip()
-        if not orig_asn_raw and orig_asn is not None:
-            orig_asn_raw = str(orig_asn)
-        try:
-            running_asn = self.runtime.frr_get_bgp_asn_number(params.host_name)
-            running_asn_raw = str(running_asn)
-        except Exception:
-            running_asn = None
-            running_asn_raw = ""
+        # Only the running bgpd counts: the on-disk file is what inject wrote.
+        running_asn = self._running_asn(params.host_name)
         verified = expected_wrong is not None and running_asn == expected_wrong
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=verified,
             details={
                 "host": params.host_name,
-                "file_asn": file_asn_raw,
-                "orig_asn": orig_asn_raw,
-                "running_asn": running_asn_raw,
+                "orig_asn": orig_asn,
+                "running_asn": running_asn,
                 "wrong_asn": expected_wrong,
+            },
+        )
+
+    def _verify_asn_misconfig_iosxr(self, params: BGPAsnMisconfigParams) -> dict:
+        orig_asn = getattr(self, "_orig_asn", None)
+        wrong_asn = getattr(self, "_wrong_asn", None)
+        try:
+            running_asn = self.runtime.iosxr_get_bgp_asn_number(params.host_name)
+        except Exception:
+            running_asn = None
+        verified = (wrong_asn is not None and running_asn == wrong_asn) or (
+            orig_asn is not None and running_asn is not None and running_asn != orig_asn
+        )
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=verified,
+            details={
+                "host": params.host_name,
+                "orig_asn": orig_asn,
+                "running_asn": running_asn,
+                "wrong_asn": wrong_asn,
             },
         )
 
@@ -242,13 +334,100 @@ class BGPMissingAdvertiseParams(BaseModel):
 
 class BGPMissingAdvertise(ProblemBase):
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
+    # Remote speakers lose the route. Reachability can survive when the IGP
+    # also carries the prefix (IS-IS advertises every loopback address).
+    symptom_probe = "custom"
+    symptom_class = "control_plane"
     root_cause_name: str = "bgp_missing_route_advertisement"
     description = "An expected BGP route advertisement is missing."
     effect_property = "reachability"
     TAGS: str = ["bgp"]
+    INCOMPATIBLE_SCENARIOS = {
+        "min3clos": "The IGP also carries the host subnets, so peers keep a route "
+        "after BGP stops advertising it."
+    }
     supported_backends = ("kathara", "containerlab")
 
     Params = BGPMissingAdvertiseParams
+
+    BENCHMARK_TARGET_ROLE = "bgp_originators"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        from nika.net_env.isp.identity import is_isp_scenario
+
+        if is_isp_scenario(ctx.scenario):
+            from nika.net_env.isp.inject_targets import isp_inject_params
+
+            inventory, bgp_inv = _ensure_bgp_inventory(cls, ctx)
+            return dict(isp_inject_params(ctx.problem, inventory, bgp_inv))
+        advertise_pool = role_subset(ctx.router_pool, ctx.roles, "bgp_originators")
+        return {
+            "host_name": choice(
+                ctx.rng, advertise_pool, first(advertise_pool) or ctx.router0
+            )
+        }
+
+    @classmethod
+    def benchmark_inject_options(cls, ctx, base):
+        from nika.net_env.isp.identity import is_isp_scenario
+
+        if not is_isp_scenario(ctx.scenario):
+            return super().benchmark_inject_options(ctx, base)
+        from nika.net_env.isp.inject_targets import enrich_isp_symptom_params
+
+        inventory, bgp = _ensure_bgp_inventory(cls, ctx)
+        rows = []
+        for item in sorted(
+            bgp.get("originated") or [],
+            key=lambda row: (
+                str(row.get("device") or ""),
+                str(row.get("prefix") or ""),
+            ),
+        ):
+            host = str(item.get("device") or "")
+            prefix = str(item.get("prefix") or "")
+            if not host:
+                continue
+            row = replace(base, host_name=host)
+            if prefix:
+                row["prefix"] = prefix
+            for key in ("symptom_host", "probe_dst_ip", "peer_host"):
+                row.pop(key, None)
+            enrich_isp_symptom_params(row, ctx.problem, inventory, bgp)
+            rows.append(row)
+        return rows
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        from nika.net_env.isp.identity import is_isp_scenario
+
+        host_name = inject.get("host_name")
+        if not host_name:
+            return
+        if not is_isp_scenario(ctx.scenario):
+            require_role_member(
+                ctx,
+                cls.root_cause_name,
+                host_name,
+                "bgp_originators",
+                reason="has no BGP network statement",
+            )
+            return
+        bgp_inv = loaded_inventory(ctx.net_env).get("bgp")
+        if isinstance(bgp_inv, dict) and bgp_inv.get("originated"):
+            originators = sorted(
+                {
+                    str(item["device"])
+                    for item in bgp_inv["originated"]
+                    if item.get("device")
+                }
+            )
+            if originators and host_name not in originators:
+                raise ValueError(
+                    f"{cls.root_cause_name} host_name={host_name!r} is "
+                    f"not a BGP originator on {ctx.scenario}; use one of: {originators}"
+                )
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
@@ -297,6 +476,9 @@ class BGPMissingAdvertise(ProblemBase):
         )
 
     def _inject_missing_adv_kathara(self, params: BGPMissingAdvertiseParams) -> None:
+        if self.runtime.uses_iosxr_router(params.host_name):
+            self._inject_missing_adv_iosxr(params)
+            return
         if self._is_enterprise_branch():
             self._inject_missing_adv_enterprise_redistribute(params)
             return
@@ -304,6 +486,33 @@ class BGPMissingAdvertise(ProblemBase):
             self._inject_missing_adv_prefix(params, params.prefix)
             return
         self._inject_missing_adv_bgp_networks(params)
+
+    def _inject_missing_adv_iosxr(self, params: BGPMissingAdvertiseParams) -> None:
+        if params.prefix:
+            prefix = str(ipaddress.ip_network(params.prefix, strict=False))
+            self.runtime.iosxr_withdraw_bgp_prefix(params.host_name, prefix)
+            self._withdrawn_prefix = prefix
+            self._inject_mode = "iosxr_prefix"
+            self.logger.info(
+                f"Injected BGP missing route on {params.host_name} "
+                f"(IOS-XR withdrew network {prefix})."
+            )
+            return
+        prefixes = self.runtime.iosxr_list_bgp_networks(params.host_name)
+        if not prefixes:
+            raise RuntimeCapabilityError(
+                f"{type(self).__name__}: no BGP network statements on "
+                f"{params.host_name!r} to withdraw (IOS-XR)."
+            )
+        for prefix in prefixes:
+            self.runtime.iosxr_withdraw_bgp_prefix(params.host_name, prefix)
+        self._inject_mode = "iosxr_bgp_network"
+        if len(prefixes) == 1:
+            self._withdrawn_prefix = prefixes[0]
+        self.logger.info(
+            f"Injected BGP missing route on {params.host_name} "
+            f"(IOS-XR withdrew BGP networks {prefixes})."
+        )
 
     def _inject_missing_adv_prefix(
         self, params: BGPMissingAdvertiseParams, prefix: str
@@ -474,6 +683,8 @@ class BGPMissingAdvertise(ProblemBase):
             return -1
 
     def _verify_missing_adv_kathara(self, params: BGPMissingAdvertiseParams) -> dict:
+        if self.runtime.uses_iosxr_router(params.host_name):
+            return self._verify_missing_adv_iosxr(params)
         mode = self._inject_mode
         if mode is None:
             if self._is_enterprise_branch():
@@ -551,15 +762,55 @@ class BGPMissingAdvertise(ProblemBase):
             },
         )
 
-
-# ==================================================================
-""" Problem: BGP static blackhole route misconfiguration problem. """
-# ==================================================================
+    def _verify_missing_adv_iosxr(self, params: BGPMissingAdvertiseParams) -> dict:
+        mode = self._inject_mode or (
+            "iosxr_prefix" if params.prefix else "iosxr_bgp_network"
+        )
+        prefix = params.prefix or self._withdrawn_prefix
+        if mode == "iosxr_prefix" and prefix:
+            prefix = str(ipaddress.ip_network(prefix, strict=False))
+            verified = self.runtime.iosxr_bgp_prefix_withdrawn(params.host_name, prefix)
+            return build_verify_result(
+                fault_type=self.root_cause_name,
+                verified=verified,
+                details={
+                    "host": params.host_name,
+                    "mode": mode,
+                    "prefix": prefix,
+                },
+            )
+        networks = self.runtime.iosxr_list_bgp_networks(params.host_name)
+        verified = len(networks) == 0
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=verified,
+            details={
+                "host": params.host_name,
+                "mode": mode,
+                "bgp_network_count": len(networks),
+                "networks": networks,
+            },
+        )
 
 
 # ==================================================================
 """ Problem: BGP blackhole community leak (remote-triggered blackholing). """
 # ==================================================================
+
+
+# Operator-style name for the customer prefix the misapplied policy matches.
+_RTBH_PREFIX_LIST = "CUSTOMER-PREFIXES"
+
+
+def _profile_leaker(problem: ProblemBase, bgp: dict, host_name: str) -> str:
+    """Return the profile leaker; ``host_name`` must name it so GT matches inject."""
+    leaker = str(bgp.get("leaker_device") or host_name)
+    if host_name != leaker:
+        raise RuntimeCapabilityError(
+            f"{type(problem).__name__}: host_name={host_name!r} must be the "
+            f"profile leaker_device {leaker!r}."
+        )
+    return leaker
 
 
 class BGPBlackholeCommunityLeakParams(BaseModel):
@@ -584,12 +835,28 @@ class BGPBlackholeCommunityLeakParams(BaseModel):
 
 class BGPBlackholeCommunityLeak(ProblemBase):
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
+    symptom_probe = "path_ping"
+    symptom_class = "unreachable"
     root_cause_name: str = "bgp_blackhole_community_leak"
     description = "A provider blackhole BGP community is leaked on export."
     TAGS: str = ["bgp", "isp", "ebgp", "rtbh"]
     COMPATIBLE_COLUMNS = frozenset({"isp_abilene_ebgp_rtbh", "isp_dfn-bwin_ebgp_rtbh"})
 
     Params = BGPBlackholeCommunityLeakParams
+
+    BENCHMARK_TARGETS = "canonical"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        from nika.net_env.isp.inject_targets import isp_inject_params
+
+        inventory = loaded_inventory(ctx.net_env)
+        bgp_inv = inventory.get("bgp")
+        if not isinstance(bgp_inv, dict) or not bgp_inv.get("rtbh"):
+            _plan, bgp_inv = _compile_isp_bgp_inventory(
+                ctx.scenario, igp="ospf", bgp_mode="ebgp", rtbh=True
+            )
+        return dict(isp_inject_params(ctx.problem, inventory, bgp_inv))
 
     symptom_desc = (
         "Reachability to a legitimately originated business prefix is lost while "
@@ -601,7 +868,8 @@ class BGPBlackholeCommunityLeak(ProblemBase):
         self.logger = system_logger
 
     def root_cause_resources(self, params: BGPBlackholeCommunityLeakParams):
-        return [node_resource(params.host_name)]
+        bgp = self._rtbh_bgp_inventory()
+        return [node_resource(_profile_leaker(self, bgp, params.host_name))]
 
     def _rtbh_bgp_inventory(self) -> dict:
         inventory = getattr(self.net_env, "inventory", None) or {}
@@ -619,12 +887,7 @@ class BGPBlackholeCommunityLeak(ProblemBase):
                 f"{self.lab_backend!r} (Kathara + FRR only)."
             )
         bgp = self._rtbh_bgp_inventory()
-        leaker = str(bgp.get("leaker_device") or params.host_name)
-        if params.host_name != leaker:
-            self.logger.warning(
-                f"Inject host_name={params.host_name!r} differs from profile "
-                f"leaker_device={leaker!r}; applying export policy on leaker."
-            )
+        leaker = _profile_leaker(self, bgp, params.host_name)
         target_prefix = str(bgp.get("target_prefix") or "")
         community = str(bgp.get("blackhole_community") or "")
         route_map = str(bgp.get("leaker_outbound_route_map") or "")
@@ -635,9 +898,9 @@ class BGPBlackholeCommunityLeak(ProblemBase):
             )
         cmd = (
             "vtysh -c 'configure terminal' "
-            f"-c 'ip prefix-list TARGET-PREFIX seq 5 permit {target_prefix} le 24' "
+            f"-c 'ip prefix-list {_RTBH_PREFIX_LIST} seq 5 permit {target_prefix} le 24' "
             f"-c 'route-map {route_map} permit 5' "
-            "-c 'match ip address prefix-list TARGET-PREFIX' "
+            f"-c 'match ip address prefix-list {_RTBH_PREFIX_LIST}' "
             f"-c 'set community {community} additive' "
             "-c 'end' "
             "-c 'write memory'"
@@ -647,7 +910,12 @@ class BGPBlackholeCommunityLeak(ProblemBase):
             leaker,
             f"vtysh -c 'clear ip bgp {neighbor_ip} soft out' 2>/dev/null || true",
         )
-        time.sleep(20)
+        provider = str(bgp.get("rtbh_provider_device") or "")
+        if provider:
+            wait_until(
+                lambda: self._community_present(provider, target_prefix, community),
+                20,
+            )
         self.logger.info(
             f"Injected BGP blackhole community leak on {leaker} toward "
             f"{neighbor_ip} for {target_prefix} (community {community})."
@@ -730,9 +998,6 @@ class BGPBlackholeCommunityLeak(ProblemBase):
             return True
         return "blackhole" in fib.lower() and network in fib
 
-    def _dataplane_unreachable(self, observer: str, ping_addr: str) -> bool:
-        return not self.runtime.ping_ok(observer, ping_addr, count=3)
-
     def verify_fault(self, params: BGPBlackholeCommunityLeakParams) -> dict:
         if self.lab_backend != "kathara":
             raise RuntimeCapabilityError(
@@ -740,7 +1005,7 @@ class BGPBlackholeCommunityLeak(ProblemBase):
                 f"{self.lab_backend!r}."
             )
         bgp = self._rtbh_bgp_inventory()
-        leaker = str(bgp.get("leaker_device") or params.host_name)
+        leaker = _profile_leaker(self, bgp, params.host_name)
         origin_device = str(bgp.get("legitimate_origin_device") or "")
         provider = str(bgp.get("rtbh_provider_device") or "")
         target_prefix = str(bgp.get("target_prefix") or "")
@@ -758,14 +1023,12 @@ class BGPBlackholeCommunityLeak(ProblemBase):
         )
         community_ok = self._community_present(provider, target_prefix, community)
         rtbh_ok = self._rtbh_forwarding_active(provider, target_prefix, discard_nh)
-        dataplane_ok = self._dataplane_unreachable(observer, ping_addr)
+        # Data-plane impact is a symptom; src/nika/validation/symptom probes it.
         sessions_ok = self._bgp_sessions_established(
             [d for d in (leaker, origin_device, provider) if d]
         )
 
-        verified = (
-            origin_ok and community_ok and rtbh_ok and dataplane_ok and sessions_ok
-        )
+        verified = origin_ok and community_ok and rtbh_ok and sessions_ok
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=verified,
@@ -781,7 +1044,6 @@ class BGPBlackholeCommunityLeak(ProblemBase):
                 "origin_preserved": origin_ok,
                 "community_present": community_ok,
                 "rtbh_forwarding_active": rtbh_ok,
-                "dataplane_unreachable": dataplane_ok,
                 "sessions_ok": sessions_ok,
             },
         )
@@ -793,7 +1055,7 @@ class BGPBlackholeCommunityLeak(ProblemBase):
                 f"{self.lab_backend!r}."
             )
         bgp = self._rtbh_bgp_inventory()
-        leaker = str(bgp.get("leaker_device") or params.host_name)
+        leaker = _profile_leaker(self, bgp, params.host_name)
         route_map = str(bgp.get("leaker_outbound_route_map") or "")
         neighbor_ip = str(bgp.get("leaker_to_rtbh_neighbor_ip") or "")
         target_prefix = str(bgp.get("target_prefix") or "")
@@ -806,7 +1068,7 @@ class BGPBlackholeCommunityLeak(ProblemBase):
         cmd = (
             "vtysh -c 'configure terminal' "
             f"-c 'no route-map {route_map} permit 5' "
-            "-c 'no ip prefix-list TARGET-PREFIX seq 5' "
+            f"-c 'no ip prefix-list {_RTBH_PREFIX_LIST} seq 5' "
             "-c 'end' "
             "-c 'write memory'"
         )
@@ -815,7 +1077,15 @@ class BGPBlackholeCommunityLeak(ProblemBase):
             leaker,
             f"vtysh -c 'clear ip bgp {neighbor_ip} soft out' 2>/dev/null || true",
         )
-        time.sleep(20)
+        wait_until(
+            lambda: (
+                not self._community_present(provider, target_prefix, community)
+                and not self._rtbh_forwarding_active(
+                    provider, target_prefix, discard_nh
+                )
+            ),
+            20,
+        )
 
         community_gone = not self._community_present(provider, target_prefix, community)
         rtbh_cleared = not self._rtbh_forwarding_active(
@@ -856,11 +1126,32 @@ class BGPRPKIInvalidRouteLeakParams(BaseModel):
 
 class BGPRPKIInvalidRouteLeak(ProblemBase):
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
+    symptom_probe = "custom"
+    symptom_class = "control_plane"
     root_cause_name: str = "bgp_rpki_invalid_route_leak"
     description = "RPKI-invalid prefixes are leaked into BGP."
     TAGS: str = ["rpki"]
+    isp_protocol = {"igp": "ospf", "bgp_mode": "ebgp", "rpki": True}
 
     Params = BGPRPKIInvalidRouteLeakParams
+
+    BENCHMARK_TARGETS = "canonical"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        from nika.net_env.isp.inject_targets import isp_inject_params
+
+        inventory = loaded_inventory(ctx.net_env)
+        bgp_inv = inventory.get("bgp")
+        if not isinstance(bgp_inv, dict) or not bgp_inv.get("rpki"):
+            isp_opts = ctx.isp_options or isp_protocol_for(cls, {"rpki"})
+            _plan, bgp_inv = _compile_isp_bgp_inventory(
+                ctx.scenario,
+                igp=str(isp_opts.get("igp") or "ospf"),
+                bgp_mode=str(isp_opts.get("bgp_mode") or "ebgp"),
+                rpki=True,
+            )
+        return dict(isp_inject_params(ctx.problem, inventory, bgp_inv))
 
     symptom_desc = (
         "Some BGP speakers learn RPKI-invalid routes from a leaked origin while "
@@ -872,7 +1163,27 @@ class BGPRPKIInvalidRouteLeak(ProblemBase):
         self.logger = system_logger
 
     def root_cause_resources(self, params: BGPRPKIInvalidRouteLeakParams):
-        return [node_resource(params.host_name)]
+        return [
+            node_resource(device)
+            for device in self._leaker_devices(self._rpki_bgp_inventory(), params)
+        ]
+
+    def _leaker_devices(
+        self, bgp: dict, params: BGPRPKIInvalidRouteLeakParams
+    ) -> list[str]:
+        """Every leaker-AS router whose export policy inject rewrites."""
+        leaker = _profile_leaker(self, bgp, params.host_name)
+        return sorted({str(d) for d in (bgp.get("leaker_as_devices") or [leaker])})
+
+    def _prefix_learned(self, device: str, prefix: str, origin_asn: int) -> bool:
+        out = self.runtime.exec(
+            device, f"vtysh -c 'show bgp ipv4 unicast {prefix}' 2>/dev/null || true"
+        )
+        if "Network not in table" in out:
+            return False
+        if prefix.split("/")[0] not in out and prefix not in out:
+            return False
+        return not origin_asn or str(origin_asn) in out
 
     def _rpki_bgp_inventory(self) -> dict:
         inventory = getattr(self.net_env, "inventory", None) or {}
@@ -891,19 +1202,14 @@ class BGPRPKIInvalidRouteLeak(ProblemBase):
                 f"{self.lab_backend!r} (Kathara + FRR only)."
             )
         bgp = self._rpki_bgp_inventory()
-        leaker = str(bgp.get("leaker_device") or params.host_name)
-        if params.host_name != leaker:
-            self.logger.warning(
-                f"Inject host_name={params.host_name!r} differs from profile "
-                f"leaker_device={leaker!r}; applying export permit on leaker AS."
-            )
-        devices = [str(d) for d in (bgp.get("leaker_as_devices") or [leaker])]
-        # Permit LEAK prefixes on eBGP export (replaces healthy deny seq 5).
+        leaker = _profile_leaker(self, bgp, params.host_name)
+        devices = self._leaker_devices(bgp, params)
+        # Permit the export-deny prefixes on eBGP export (replaces healthy deny seq 5).
         for device in devices:
             cmd = (
                 "vtysh -c 'configure terminal' "
                 "-c 'route-map BGP-OUT permit 5' "
-                "-c 'match ip address prefix-list LEAK' "
+                f"-c 'match ip address prefix-list {EXPORT_DENY_PREFIX_LIST}' "
                 "-c 'end' "
                 "-c 'write memory'"
             )
@@ -911,85 +1217,66 @@ class BGPRPKIInvalidRouteLeak(ProblemBase):
             self.runtime.exec(
                 device, "vtysh -c 'clear ip bgp * soft out' 2>/dev/null || true"
             )
-        # Allow eBGP export + ROV evaluation to settle before verify_fault.
-        time.sleep(25)
+        # Wait for eBGP export to reach the non-ROV observer before verify_fault.
+        prefixes = [str(p) for p in (bgp.get("leak_prefixes") or [])]
+        non_rov = str(bgp.get("non_rov_observer") or "")
+        leaker_asn = int(bgp.get("leaker_asn") or 0)
+        if non_rov and prefixes:
+            wait_until(
+                lambda: all(
+                    self._prefix_learned(non_rov, p, leaker_asn) for p in prefixes
+                ),
+                25,
+            )
         self.logger.info(
             f"Injected RPKI-invalid route leak via incorrect BGP export policy "
             f"on leaker AS devices {devices} (primary={leaker})."
         )
 
     def verify_fault(self, params: BGPRPKIInvalidRouteLeakParams) -> dict:
+        """Verify the leaker AS's live export policy now sends the leak prefixes.
+
+        Reads only the leaker side: the running ``BGP-OUT`` permit on every
+        leaker-AS router and the eBGP peers the leaker advertises each prefix
+        to. Which remote ASes accept or reject the leak is the symptom.
+        """
         if self.lab_backend != "kathara":
             raise RuntimeCapabilityError(
                 f"{type(self).__name__} cannot verify_fault: unsupported backend "
                 f"{self.lab_backend!r}."
             )
         bgp = self._rpki_bgp_inventory()
-        leaker = str(bgp.get("leaker_device") or params.host_name)
+        leaker = _profile_leaker(self, bgp, params.host_name)
+        devices = self._leaker_devices(bgp, params)
         prefixes = [str(p) for p in (bgp.get("leak_prefixes") or [])]
-        rov = str(bgp.get("rov_observer") or "")
-        non_rov = str(bgp.get("non_rov_observer") or "")
-        leaker_asn = int(bgp.get("leaker_asn") or 0)
-
-        advertised = True
+        ebgp_peers = {
+            str(s.get("remote_ip"))
+            for s in bgp.get("sessions") or []
+            if s.get("local_device") == leaker and s.get("session_type") == "ebgp"
+        }
+        export_permit = {
+            device: "route-map BGP-OUT permit 5"
+            in self.runtime.exec(
+                device, "vtysh -c 'show running-config' 2>/dev/null || true"
+            )
+            for device in devices
+        }
+        advertised_to: dict[str, list[str]] = {}
         for prefix in prefixes:
             out = self.runtime.exec(
-                leaker, f"vtysh -c 'show bgp ipv4 unicast {prefix}' 2>/dev/null || true"
+                leaker,
+                f"vtysh -c 'show bgp ipv4 unicast {prefix} json' 2>/dev/null || true",
             )
-            if prefix.split("/")[0] not in out and prefix not in out:
-                advertised = False
-                break
-
-        non_rov_learned = True
-        for prefix in prefixes:
-            out = self.runtime.exec(
-                non_rov,
-                f"vtysh -c 'show bgp ipv4 unicast {prefix}' 2>/dev/null || true",
-            )
-            if "Network not in table" in out:
-                non_rov_learned = False
-                break
-            if prefix.split("/")[0] not in out and prefix not in out:
-                non_rov_learned = False
-                break
-            if leaker_asn and str(leaker_asn) not in out:
-                non_rov_learned = False
-                break
-
-        rov_rejected = True
-        for prefix in prefixes:
-            out = self.runtime.exec(
-                rov, f"vtysh -c 'show bgp ipv4 unicast {prefix}' 2>/dev/null || true"
-            )
-            if "Network not in table" in out:
-                continue
-            network = prefix.split("/")[0]
-            if network in out or prefix in out:
-                if "Invalid" in out and (
-                    "not located" in out.lower() or "*" not in out
-                ):
-                    continue
-                if "*" in out or "bestpath" in out.lower():
-                    rov_rejected = False
-                    break
-
-        sessions_ok = True
-        for device in (leaker, rov, non_rov):
-            summary = self.runtime.exec(
-                device, "vtysh -c 'show bgp summary' 2>/dev/null || true"
-            )
-            peers_up = False
-            for line in summary.splitlines():
-                fields = line.split()
-                if len(fields) >= 10 and fields[0].count(".") == 3:
-                    if fields[9].isdigit() or fields[9] == "Established":
-                        peers_up = True
-                        break
-            if not peers_up:
-                sessions_ok = False
-                break
-
-        verified = advertised and non_rov_learned and rov_rejected and sessions_ok
+            try:
+                targets = set((json.loads(out) or {}).get("advertisedTo") or {})
+            except ValueError:
+                targets = set()
+            advertised_to[prefix] = sorted(targets & ebgp_peers)
+        verified = (
+            bool(prefixes)
+            and all(export_permit.values())
+            and all(advertised_to.values())
+        )
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=verified,
@@ -997,47 +1284,12 @@ class BGPRPKIInvalidRouteLeak(ProblemBase):
                 "host": params.host_name,
                 "leaker_device": leaker,
                 "leak_prefixes": prefixes,
-                "advertised": advertised,
-                "non_rov_learned": non_rov_learned,
-                "rov_rejected": rov_rejected,
-                "sessions_ok": sessions_ok,
-                "rov_observer": rov,
-                "non_rov_observer": non_rov,
+                "export_permit": export_permit,
+                "advertised_to_ebgp_peers": advertised_to,
             },
         )
 
-    def recover_fault(self, params: BGPRPKIInvalidRouteLeakParams) -> dict:
-        """Restore healthy BGP-OUT deny for leak prefixes on the leaker AS."""
-        if self.lab_backend != "kathara":
-            raise RuntimeCapabilityError(
-                f"{type(self).__name__} cannot recover_fault: unsupported backend "
-                f"{self.lab_backend!r}."
-            )
-        bgp = self._rpki_bgp_inventory()
-        leaker = str(bgp.get("leaker_device") or params.host_name)
-        devices = [str(d) for d in (bgp.get("leaker_as_devices") or [leaker])]
-        prefixes = [str(p) for p in (bgp.get("leak_prefixes") or [])]
-        observers = [
-            str(bgp.get("rov_observer") or ""),
-            str(bgp.get("non_rov_observer") or ""),
-        ]
-        observers = [o for o in observers if o]
-
-        for device in devices:
-            cmd = (
-                "vtysh -c 'configure terminal' "
-                "-c 'route-map BGP-OUT deny 5' "
-                "-c 'match ip address prefix-list LEAK' "
-                "-c 'end' "
-                "-c 'write memory'"
-            )
-            self.runtime.exec(device, cmd)
-            self.runtime.exec(
-                device, "vtysh -c 'clear ip bgp * soft out' 2>/dev/null || true"
-            )
-        time.sleep(25)
-
-        leak_absent = True
+    def _leak_absent(self, observers: list[str], prefixes: list[str]) -> bool:
         for observer in observers:
             for prefix in prefixes:
                 out = self.runtime.exec(
@@ -1049,10 +1301,40 @@ class BGPRPKIInvalidRouteLeak(ProblemBase):
                 network = prefix.split("/")[0]
                 if network in out or prefix in out:
                     if "from" in out.lower() or "Path" in out or "*" in out:
-                        leak_absent = False
-                        break
-            if not leak_absent:
-                break
+                        return False
+        return True
+
+    def recover_fault(self, params: BGPRPKIInvalidRouteLeakParams) -> dict:
+        """Restore healthy BGP-OUT deny for leak prefixes on the leaker AS."""
+        if self.lab_backend != "kathara":
+            raise RuntimeCapabilityError(
+                f"{type(self).__name__} cannot recover_fault: unsupported backend "
+                f"{self.lab_backend!r}."
+            )
+        bgp = self._rpki_bgp_inventory()
+        leaker = _profile_leaker(self, bgp, params.host_name)
+        devices = self._leaker_devices(bgp, params)
+        prefixes = [str(p) for p in (bgp.get("leak_prefixes") or [])]
+        observers = [
+            str(bgp.get("rov_observer") or ""),
+            str(bgp.get("non_rov_observer") or ""),
+        ]
+        observers = [o for o in observers if o]
+
+        for device in devices:
+            cmd = (
+                "vtysh -c 'configure terminal' "
+                "-c 'route-map BGP-OUT deny 5' "
+                f"-c 'match ip address prefix-list {EXPORT_DENY_PREFIX_LIST}' "
+                "-c 'end' "
+                "-c 'write memory'"
+            )
+            self.runtime.exec(device, cmd)
+            self.runtime.exec(
+                device, "vtysh -c 'clear ip bgp * soft out' 2>/dev/null || true"
+            )
+        wait_until(lambda: self._leak_absent(observers, prefixes), 25)
+        leak_absent = self._leak_absent(observers, prefixes)
 
         ok = leak_absent
         details = {
@@ -1074,13 +1356,8 @@ class BGPRPKIInvalidRouteLeak(ProblemBase):
 # ==================================================================
 
 _FLOOD_PREFIX_BASE = "198.19"
-_MAX_PREFIX_EVIDENCE = (
-    "maximum-prefix",
-    "maximum prefix",
-    "maxpfx",
-    "prefix count exceeded",
-    "prefix limit",
-)
+# Operator-style name for the de-aggregated more-specifics the peer advertises.
+_FLOOD_PREFIX_LIST = "TE-MORE-SPECIFICS"
 
 
 class BGPMaxPrefixExceededParams(BaseModel):
@@ -1109,12 +1386,33 @@ class BGPMaxPrefixExceededParams(BaseModel):
 
 class BGPMaxPrefixExceeded(ProblemBase):
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
+    symptom_probe = "custom"
+    symptom_class = "control_plane"
     root_cause_name: str = "bgp_max_prefix_exceeded"
     description = "BGP maximum-prefix limit is exceeded on a session."
     TAGS: str = ["bgp", "isp"]
     COMPATIBLE_COLUMNS = frozenset({"isp_abilene/ebgp", "isp_geant/ebgp"})
+    isp_protocol = {"igp": "ospf", "bgp_mode": "ebgp", "rpki": False}
 
     Params = BGPMaxPrefixExceededParams
+
+    BENCHMARK_TARGETS = "canonical"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        from nika.net_env.isp.inject_targets import first_ebgp_session
+
+        bgp_inv = loaded_inventory(ctx.net_env).get("bgp")
+        if not isinstance(bgp_inv, dict):
+            isp_opts = ctx.isp_options or isp_protocol_for(cls, {"bgp"})
+            _plan, bgp_inv = _compile_isp_bgp_inventory(
+                ctx.scenario,
+                igp=str(isp_opts.get("igp") or "ospf"),
+                bgp_mode=str(isp_opts.get("bgp_mode") or "ebgp"),
+            )
+        params = dict(first_ebgp_session(bgp_inv))
+        params["flood_count"] = "120"
+        return params
 
     symptom_desc = (
         "An eBGP peer advertises more prefixes than the receiver's configured "
@@ -1174,7 +1472,7 @@ class BGPMaxPrefixExceeded(ProblemBase):
         raise RuntimeCapabilityError(
             f"{type(self).__name__} could not resolve eBGP neighbor IP for "
             f"receiver={receiver!r} peer={peer!r}; pass neighbor_ip or deploy "
-            "isp with --bgp-mode ebgp."
+            "isp with bgp_mode=ebgp."
         )
 
     def _neighbor_output(self, router: str, neighbor_ip: str) -> str:
@@ -1212,22 +1510,6 @@ class BGPMaxPrefixExceeded(ProblemBase):
                 return int(fields[-1])
         return 0
 
-    def _max_prefix_evidence(self, router: str, neighbor_ip: str) -> bool:
-        neighbor = self._neighbor_output(router, neighbor_ip)
-        blob = neighbor.lower()
-        if any(token in blob for token in _MAX_PREFIX_EVIDENCE):
-            return True
-        if "last reset" in blob and "prefix" in blob:
-            return True
-        logs = self.runtime.exec(
-            router,
-            "grep -Ei 'maximum.?prefix|maxpfx|prefix.?limit|prefix count exceeded' "
-            "/var/log/frr/*.log /var/log/syslog 2>/dev/null | tail -n 40 || true",
-        )
-        return bool(logs.strip()) and any(
-            token in logs.lower() for token in _MAX_PREFIX_EVIDENCE
-        )
-
     def _business_prefix_missing(self, receiver: str, peer: str) -> bool:
         bgp = self._bgp_inventory()
         peer_prefixes = [
@@ -1261,11 +1543,11 @@ class BGPMaxPrefixExceeded(ProblemBase):
     def _install_flood_policy(self, device: str) -> None:
         cmd = (
             "vtysh -c 'configure terminal' "
-            "-c 'ip prefix-list FLOOD seq 5 permit 198.19.0.0/16 le 24' "
+            f"-c 'ip prefix-list {_FLOOD_PREFIX_LIST} seq 5 permit 198.19.0.0/16 le 24' "
             "-c 'route-map BGP-OUT permit 1' "
-            "-c 'match ip address prefix-list FLOOD' "
+            f"-c 'match ip address prefix-list {_FLOOD_PREFIX_LIST}' "
             "-c 'route-map BGP-IN permit 1' "
-            "-c 'match ip address prefix-list FLOOD' "
+            f"-c 'match ip address prefix-list {_FLOOD_PREFIX_LIST}' "
             "-c 'end'"
         )
         self.runtime.exec(device, cmd)
@@ -1275,7 +1557,7 @@ class BGPMaxPrefixExceeded(ProblemBase):
             "vtysh -c 'configure terminal' "
             "-c 'no route-map BGP-OUT permit 1' "
             "-c 'no route-map BGP-IN permit 1' "
-            "-c 'no ip prefix-list FLOOD' "
+            f"-c 'no ip prefix-list {_FLOOD_PREFIX_LIST}' "
             "-c 'end'"
         )
         self.runtime.exec(device, cmd)
@@ -1427,19 +1709,34 @@ class BGPMaxPrefixExceeded(ProblemBase):
         )
 
     def verify_fault(self, params: BGPMaxPrefixExceededParams) -> dict:
+        """Verify the live limit, the peer's larger prefix set, and the torn-down session.
+
+        The limit and the flood are read from both routers' running configs;
+        the receiver must hold the session down for the exceeded limit.
+        """
         if self.lab_backend != "kathara":
             raise RuntimeCapabilityError(
                 f"{type(self).__name__} cannot verify_fault: unsupported backend "
                 f"{self.lab_backend!r}."
             )
         receiver, peer, neighbor_ip = self._resolve_session(params)
+        receiver_cfg = self.runtime.exec(
+            receiver, "vtysh -c 'show running-config' 2>/dev/null || true"
+        )
+        match = re.search(
+            rf"neighbor {re.escape(neighbor_ip)} maximum-prefix (\d+)", receiver_cfg
+        )
+        limit = int(match.group(1)) if match else None
+        flood = len(self._discover_flood_prefixes(peer))
+        neighbor = self._neighbor_output(receiver, neighbor_ip)
         session_down = not self._session_established(receiver, neighbor_ip)
-        evidence = self._max_prefix_evidence(receiver, neighbor_ip)
-        routes_missing = self._business_prefix_missing(receiver, peer)
-        exceeded_seen = bool((self._max_prefix_state or {}).get("exceeded_seen"))
-        # FRR often tears the session down during UPDATE processing, so a
-        # stable Established sample with received > limit may never appear.
-        verified = session_down and evidence
+        # FRR prints this only for a session it shut for an exceeded limit.
+        held_for_limit = (
+            "peer had exceeded the max. no. of prefixes" in neighbor.lower()
+        )
+        verified = (
+            limit is not None and flood > limit and session_down and held_for_limit
+        )
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=verified,
@@ -1447,11 +1744,10 @@ class BGPMaxPrefixExceeded(ProblemBase):
                 "receiver": receiver,
                 "peer": peer,
                 "neighbor_ip": neighbor_ip,
+                "maximum_prefix": limit,
+                "peer_flood_prefixes": flood,
                 "session_down": session_down,
-                "max_prefix_evidence": evidence,
-                "business_routes_missing": routes_missing,
-                "exceeded_seen_during_inject": exceeded_seen,
-                "limit": (self._max_prefix_state or {}).get("limit"),
+                "held_down_for_limit": held_for_limit,
             },
         )
 
@@ -1508,8 +1804,9 @@ class BGPMaxPrefixExceeded(ProblemBase):
         routes_ok = not self._business_prefix_missing(receiver, peer)
         # Business routes may need a short extra settle after session up.
         if session_up and not routes_ok:
-            time.sleep(15)
-            routes_ok = not self._business_prefix_missing(receiver, peer)
+            routes_ok = wait_until(
+                lambda: not self._business_prefix_missing(receiver, peer), 15
+            )
         ok = session_up and routes_ok
         details = {
             "receiver": receiver,

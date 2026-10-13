@@ -8,9 +8,10 @@ from typing import Any
 import yaml
 
 from nika.net_env.net_env_pool import resolve_scenario_id, scenario_fixed_topo_size
-from nika.problems.registry import list_avail_problem_instances, resolve_problem_name
+from nika.problems.registry import get_problem_class, resolve_problem_name
 from nika.workflows.benchmark.healthy import HEALTHY_PROBLEM, is_healthy_case
 from nika.workflows.benchmark.isp_options import (
+    ISP_OPTION_KEYS,
     is_isp_base_topology,
     is_isp_scenario,
     validate_and_resolve_isp_options,
@@ -18,16 +19,20 @@ from nika.workflows.benchmark.isp_options import (
 from nika.workflows.benchmark.multi_fault import join_problem_label
 from nika.workflows.benchmark.resume import benchmark_option_id
 
+# The working pool contains many YAML files. LibYAML preserves safe-loader
+# semantics while keeping interactive catalog discovery responsive.
+_SAFE_LOADER = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
 
-def _row_problem_fields(row: dict[str, Any]) -> tuple[list[str], str]:
+
+def _row_problem_fields(row: dict[str, Any], scenario: str) -> tuple[list[str], str]:
     raw_problems = row.get("problems")
     if raw_problems is not None:
         if not isinstance(raw_problems, list) or not raw_problems:
             raise ValueError("'problems' must be a non-empty list")
-        problems = [resolve_problem_name(str(item)) for item in raw_problems]
+        problems = [resolve_problem_name(str(item), scenario) for item in raw_problems]
         return problems, join_problem_label(problems)
     raw_problem = str(row["problem"])
-    problem = resolve_problem_name(raw_problem)
+    problem = resolve_problem_name(raw_problem, scenario)
     return [problem], problem
 
 
@@ -43,7 +48,7 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
         topo = ""
     topo_size = "" if topo in ("-", "", None) else str(topo)
 
-    problems, problem_label = _row_problem_fields(row)
+    problems, problem_label = _row_problem_fields(row, canonical)
     raw_problem = str(row.get("problem") or join_problem_label(problems))
     inject = row.get("inject") or {}
     if not isinstance(inject, dict):
@@ -68,15 +73,7 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
             )
         if is_isp_base_topology(canonical):
             missing = [
-                key
-                for key, value in (
-                    ("igp", isp_igp),
-                    ("bgp_mode", isp_bgp),
-                    ("rpki", isp_rpki),
-                    ("backend", isp_backend),
-                    ("device_profile", isp_device_profile),
-                )
-                if value in (None, "", "-")
+                key for key in ISP_OPTION_KEYS if row.get(key) in (None, "", "-")
             ]
             if missing:
                 raise ValueError(
@@ -119,7 +116,7 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
     problem = problem_label
     problem_tags: set[str] = set()
     for item in problems:
-        problem_cls = list_avail_problem_instances().get(item)
+        problem_cls = get_problem_class(item, canonical)
         if problem_cls is not None:
             problem_tags.update(problem_cls.TAGS)
     isp_options = validate_and_resolve_isp_options(
@@ -154,9 +151,7 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
         for item in problems:
             piece = inject.get(item)
             if not isinstance(piece, dict) or not piece:
-                raise ValueError(
-                    f"Multi-fault case must provide inject.{item} mapping"
-                )
+                raise ValueError(f"Multi-fault case must provide inject.{item} mapping")
             nested[item] = {str(k): str(v) for k, v in piece.items()}
         inject = nested
     else:
@@ -207,7 +202,7 @@ def load_benchmark_yaml(path: str | Path) -> list[dict[str, Any]]:
     is baked into the scenario ID). Named ISP specials omit protocol fields.
     Healthy (no-fault) cases use ``problem: healthy`` with an empty ``inject`` map.
     """
-    data = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    data = yaml.load(Path(path).read_text(encoding="utf-8"), Loader=_SAFE_LOADER)
     if not isinstance(data, dict) or "cases" not in data:
         raise ValueError(f"Invalid benchmark YAML (missing top-level 'cases'): {path}")
     cases = data["cases"]
@@ -232,14 +227,7 @@ def load_benchmark_yaml(path: str | Path) -> list[dict[str, Any]]:
     return normalized
 
 
-_DEPLOY_FIELDS = _PROFILE_FIELDS = (
-    "topo_size",
-    "igp",
-    "bgp_mode",
-    "rpki",
-    "backend",
-    "device_profile",
-)
+_DEPLOY_FIELDS = _PROFILE_FIELDS = ("topo_size", *ISP_OPTION_KEYS)
 _VARIANT_META = frozenset(_PROFILE_FIELDS)
 _CASE_META = frozenset(_PROFILE_FIELDS) | {"inject", "root_causes"}
 
@@ -354,10 +342,10 @@ def load_candidate_catalog(path: str | Path) -> list[dict[str, Any]]:
     for candidate_path in files:
         resolved = candidate_path.resolve()
         if not resolved.is_relative_to(root):
-            raise ValueError(
-                f"Candidate file escapes pool directory: {candidate_path}"
-            )
-        candidate_data = yaml.safe_load(resolved.read_text(encoding="utf-8"))
+            raise ValueError(f"Candidate file escapes pool directory: {candidate_path}")
+        candidate_data = yaml.load(
+            resolved.read_text(encoding="utf-8"), Loader=_SAFE_LOADER
+        )
         for row in _load_candidate_file(candidate_data, resolved):
             option_id = row["candidate_option_id"]
             if option_id in seen_ids:
@@ -372,7 +360,7 @@ def load_benchmark_input(path: str | Path) -> list[dict[str, Any]]:
     target = Path(path)
     if target.is_dir():
         return load_candidate_catalog(target)
-    data = yaml.safe_load(target.read_text(encoding="utf-8"))
+    data = yaml.load(target.read_text(encoding="utf-8"), Loader=_SAFE_LOADER)
     if not isinstance(data, dict):
         raise ValueError(f"Invalid benchmark YAML (expected a mapping): {path}")
     if "candidate_files" in data:

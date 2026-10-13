@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
+import pytest
+
 from unittest.mock import patch
 
 from agent.sandbox.config import resolve_sandbox_config
 from agent.sandbox.sbx.wheels import (
     SDK_WHEEL_DIRNAME,
-    install_sdk_wheels_in_sandbox,
+    install_sdk_packages_in_sandbox,
     sdk_wheel_dir,
     stage_sdk_wheels,
 )
+
+pytestmark = pytest.mark.unit
 
 
 def test_sdk_wheels_are_staged_and_installed_offline(tmp_path) -> None:
@@ -29,13 +33,14 @@ def test_sdk_wheels_are_staged_and_installed_offline(tmp_path) -> None:
 
     wheels = sdk_wheel_dir(workspace)
     with patch("agent.sandbox.sbx.wheels.run_sbx_checked") as run:
-        install_sdk_wheels_in_sandbox(
+        install_sdk_packages_in_sandbox(
             sandbox_name="nika-test",
             workspace_dir=workspace,
+            offline=True,
         )
 
     command = run.call_args.args[0]
-    assert command[:3] == ["exec", "-d", "nika-test"]
+    assert command[:2] == ["exec", "nika-test"]
     assert "--no-index" in command[-1]
     assert str(wheels) in command[-1]
     assert "-r '" in command[-1]
@@ -55,7 +60,7 @@ def test_sdk_packages_install_from_pypi_when_offline_disabled(tmp_path) -> None:
         )
 
     command = run.call_args.args[0]
-    assert command[:3] == ["exec", "-d", "nika-test"]
+    assert command[:2] == ["exec", "nika-test"]
     assert "--no-index" not in command[-1]
     assert "pip3 install" in command[-1]
     assert "-r '" in command[-1]
@@ -73,17 +78,17 @@ def test_sdk_requirements_are_exact_pins() -> None:
     assert any(req.startswith("openai-codex==") for req in SDK_PIP_PACKAGES)
 
 
-def test_resolve_sandbox_config_offline_sdk_wheels_default_off() -> None:
+def test_resolve_sandbox_config_offline_sdk_wheels_default_on() -> None:
     from nika.run_config.loader import reset_run_config, set_run_config
     from nika.run_config.schema import RunConfig
 
     reset_run_config()
     set_run_config(RunConfig())
-    assert resolve_sandbox_config().offline_sdk_wheels is False
+    assert resolve_sandbox_config().offline_sdk_wheels is True
 
     set_run_config(
-        RunConfig.model_validate({"nika": {"sandbox": {"offline_sdk_wheels": True}}})
+        RunConfig.model_validate({"nika": {"sandbox": {"offline_sdk_wheels": False}}})
     )
-    assert resolve_sandbox_config().offline_sdk_wheels is True
-    assert resolve_sandbox_config(offline_sdk_wheels=False).offline_sdk_wheels is False
+    assert resolve_sandbox_config().offline_sdk_wheels is False
+    assert resolve_sandbox_config(offline_sdk_wheels=True).offline_sdk_wheels is True
     reset_run_config()

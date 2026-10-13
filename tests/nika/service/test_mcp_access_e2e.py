@@ -20,6 +20,8 @@ from nika.mcp.registry import (
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import docker_available
 
+pytestmark = pytest.mark.e2e
+
 
 @pytest.mark.skipif(not docker_available(), reason="Requires Docker/Kathara")
 class McpAccessE2ETest(IntegrationTestCase):

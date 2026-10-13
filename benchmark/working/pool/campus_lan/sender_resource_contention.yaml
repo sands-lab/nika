@@ -8,10 +8,10 @@ failure:
       client_host: pc_1_1_1_1
       cpu_quota: '0.05'
       dst_ip: 10.200.0.3
-      duration: '600'
+      duration: '3600'
       host_name: web_server_0
-      large_url: http://10.200.0.3/large.bin
-      small_url: http://10.200.0.3/small.bin
+      large_url: http://10.200.0.3:8080/large.bin
+      small_url: http://10.200.0.3:8080/small.bin
       stress_cpus: '16'
     root_causes:
     - resource:
@@ -23,10 +23,10 @@ failure:
       client_host: pc_1_1_1_1
       cpu_quota: '0.05'
       dst_ip: 10.200.0.3
-      duration: '600'
+      duration: '3600'
       host_name: web_server_0
-      large_url: http://10.200.0.3/large.bin
-      small_url: http://10.200.0.3/small.bin
+      large_url: http://10.200.0.3:8080/large.bin
+      small_url: http://10.200.0.3:8080/small.bin
       stress_cpus: '16'
     root_causes:
     - resource:
@@ -38,10 +38,10 @@ failure:
       client_host: pc_1_1_1_1
       cpu_quota: '0.05'
       dst_ip: 10.200.0.3
-      duration: '600'
+      duration: '3600'
       host_name: web_server_0
-      large_url: http://10.200.0.3/large.bin
-      small_url: http://10.200.0.3/small.bin
+      large_url: http://10.200.0.3:8080/large.bin
+      small_url: http://10.200.0.3:8080/small.bin
       stress_cpus: '16'
     root_causes:
     - resource:

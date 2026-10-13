@@ -44,6 +44,7 @@ def _traffic(plan):
     )
 
 
+@pytest.mark.contract
 def test_ospf_contract_covers_v1_properties_and_is_deterministic() -> None:
     original = _plan()
     traffic = _traffic(original)
@@ -74,6 +75,7 @@ def test_ospf_contract_covers_v1_properties_and_is_deterministic() -> None:
     assert first.design_source["denied_external_prefixes"] == ["192.0.2.0/24"]
 
 
+@pytest.mark.contract
 def test_bgp_contract_uses_bgp_plan_sessions_and_prefix_expectations() -> None:
     original = _plan()
     traffic = _traffic(original)
@@ -105,6 +107,7 @@ class _ContractRuntime:
         return self.outputs.get((host, command), "")
 
 
+@pytest.mark.contract
 def test_runtime_verifier_reports_per_intent_evidence() -> None:
     original = _plan()
     traffic = _traffic(original)
@@ -164,9 +167,10 @@ def test_runtime_verifier_reports_per_intent_evidence() -> None:
 def test_isp_backend_resolution() -> None:
     assert scenario_supported_backends("isp_abilene") == ["kathara", "containerlab"]
     assert (
-        resolve_scenario_backend("isp_abilene", default_when_ambiguous="kathara") == "kathara"
+        resolve_scenario_backend("isp_abilene", default_when_ambiguous="kathara")
+        == "kathara"
     )
-    with pytest.raises(ValueError, match="pass --backend"):
+    with pytest.raises(ValueError, match="--backend"):
         resolve_scenario_backend("isp_abilene")
 
 
@@ -210,5 +214,38 @@ def test_verify_success_isis() -> None:
     )
     plan = compile_isp_plan(IspConfig(topology="polska", igp="isis"), topology=topo)
     devices = {n.device_name for n in plan.nodes}
-    result = verify_isp_lab(_FakeRuntime(nodes=devices), plan=plan, scenario_name="isp_abilene")
-    assert result["verified"]
+    healthy: dict[tuple[str, str], str] = {}
+    for node in plan.nodes:
+        device = node.device_name
+        healthy[(device, "systemctl is-active frr")] = "active\n"
+        healthy[(device, "ip -4 -o addr show dev lo")] = (
+            f"1: lo    inet {node.loopback} scope global lo"
+        )
+        neighbors = ["Area 1:", " System Id  Interface  L  State  Holdtime  SNPA"]
+        for iface in node.interfaces:
+            healthy[(device, f"ip -4 -o addr show dev {iface.name}")] = (
+                f"2: {iface.name}    inet {iface.address} scope global {iface.name}"
+            )
+            neighbors.append(
+                f" {iface.peer_device}  {iface.name}  2  Up  28  2020.2020.2020"
+            )
+        healthy[(device, "vtysh -c 'show isis neighbor'")] = "\n".join(neighbors)
+
+    result = verify_isp_lab(
+        _FakeRuntime(nodes=devices, overrides=healthy),
+        plan=plan,
+        scenario_name="isp_abilene",
+    )
+    assert result["verified"], result["checks"]
+
+    down = dict(healthy)
+    down[("a", "vtysh -c 'show isis neighbor'")] = healthy[
+        ("a", "vtysh -c 'show isis neighbor'")
+    ].replace(" Up ", " Initializing ")
+    result = verify_isp_lab(
+        _FakeRuntime(nodes=devices, overrides=down),
+        plan=plan,
+        scenario_name="isp_abilene",
+    )
+    assert not result["verified"]
+    assert result["checks"]["igp_adjacencies"] is False

@@ -11,12 +11,35 @@ Implementation: [`workflows/leaderboard/`](../../src/nika/workflows/leaderboard/
 
 - A finished official `nika benchmark run --release …` against a current (non-deprecated) frozen release
 - Authenticated [`gh`](https://cli.github.com/) access (`gh auth login` or `GH_TOKEN` with `repo` scope)
-- A Hugging Face write token in the repo-root `.env` as `HF_TOKEN`. `uv sync` installs `huggingface_hub`. Optional: install the [`hf`](https://huggingface.co/docs/huggingface_hub/guides/cli) CLI for admin merge commands.
+- Hugging Face authentication through `hf auth login`, or `HF_TOKEN` in the environment / repo-root `.env`. Use a token that permits proposing dataset changes. You do not need collaborator access to the public dataset to open a PR. `uv sync` installs `huggingface_hub` and `hf`.
 
-## Submit a release run
+## Submit with one command
+
+After completing the official release run and logging in to both platforms:
 
 ```shell
-# Use a current frozen release when published. 0.1.0 is deprecated; use 0.2.0.
+uv run nika leaderboard submit --result_dir results/my-run \
+  --name "My Agent" --authors "Your Name"
+```
+
+The command generates `metadata.yaml` and a short README using your name and authors, plus the model and agent framework recorded in the run. It packs and validates both packages, checks both accounts, then opens the GitHub scores PR and Hugging Face trajectories PR. Users without GitHub push access submit through a fork. With HTTPS, git uses the `gh` credentials; with SSH, you need a working GitHub SSH key. If you have no git author configured, the command uses your GitHub login for the submission commit.
+
+To inspect packages before uploading, add `--dry-run` to the same command. This packs and validates locally, prints both destination paths, and requires no remote authentication.
+
+Success prints both PR URLs. Maintainers still review and merge the two PRs before publishing the entry. The command does not merge PRs.
+
+The one-command form creates minimal metadata. Before publishing, review the
+entry's code link, project links, harness display name, model page, release date,
+and reference price. Use custom metadata below when you need to supply these
+details. A successful pack and validation check verifies the benchmark package;
+it does not verify that the leaderboard's model catalog covers your model.
+
+## Submit with custom metadata
+
+Use a template when you want to supply a longer README, code links, tools, skills, or other metadata. Pass `--submission` instead of `--name` and `--authors`.
+
+```shell
+# Use the current frozen release.
 nika benchmark run --release 0.2.0 --split test --result_dir results/my-run -a <agent> -m <model>
 
 nika leaderboard template -o results/my-run/submission
@@ -25,6 +48,7 @@ nika leaderboard template -o results/my-run/submission
 nika leaderboard submit --result_dir results/my-run \
   --submission results/my-run/submission
 # optional:
+#   --dry-run
 #   --draft
 #   --skip-github / --skip-trajectories
 #   --traj-repo Zhihao98/nika-trajectories
@@ -33,6 +57,10 @@ nika leaderboard submit --result_dir results/my-run \
 ```
 
 `submit` packs scores into `{result_dir}/{YYYYMMDD}_{slug}/` and trajectories into a sibling `{YYYYMMDD}_{slug}_trajectories/`, validates both (unless `--skip-validate`), then opens a GitHub PR under `submissions/<release_version>/{YYYYMMDD}_{slug}/` and a Hugging Face dataset PR under `trajectories/<release_version>/{YYYYMMDD}_{slug}/`. Pack or validate failures print an error and stop before any remote submit.
+
+Authentication failures also stop before creating either PR. An upload can still fail after the GitHub PR opens, for example because of a network error or Hub upload permissions. The error prints the existing GitHub PR URL. Retry the same command with `--skip-github --out <original-scores-package-directory>` as printed in the error. This uploads trajectories under the original package name even when retrying on another date. The `--out` directory name must be `YYYYMMDD_<framework>_<model>`, using lowercase ASCII words separated by underscores. The framework is the public harness name: `cli.claude` becomes `claude_code`, and LangGraph becomes `react`.
+
+`--skip-validate` skips local checks only. GitHub CI still validates scores. A run containing only selected tasks or a single trial per case cannot satisfy the full release coverage unless the result directory already contains all required trials. For release 0.2.0, the test split requires 85 cases × 3 trials = 255 finished slots; the dev split requires 84 × 3 = 252. Agent failures and timeouts can count as finished slots with zero primary score. Infrastructure or grading errors need repair and rerun before submission.
 
 Agents submit `(resource_id, fault_type)` pairs. Scoring uses set metrics on those pairs.
 
@@ -101,7 +129,7 @@ hf discussions merge Zhihao98/nika-trajectories <N> --yes --type dataset
 
 ```yaml
 info:
-  name: ""            # required; display name + folder slug
+  name: ""            # required; display name
   authors: ""         # required
   org: null
   site: null
@@ -122,7 +150,64 @@ agent:
 
 Field notes:
 
+- `info.github`: link to the agent implementation or library, rather than the submitter's profile. For NIKA's built-in agents, use `https://github.com/sands-lab/nika`.
+- `info.site` and `info.report`: supply the project site and relevant paper or report when available. Explain a benchmark-paper link in the README so readers can distinguish it from an agent report.
+- `agent.framework`: use the public harness name, such as `Claude Code`, `Codex`, or `LangGraph`. The run identity retains the NIKA agent ID, such as `cli.claude`.
+- `agent.tools` and `agent.skills`: describe what the agent used. Copy enabled MCP server names from the run's `tools.allowed_mcp_servers` when appropriate.
+- `agent.extra`: record the official model repository and the evaluated revision when available, along with serving precision or other configuration needed to reproduce the run. Do not guess a revision after the run.
 - `agent.optimization_methods`: free-form strings describing **harness optimizations** applied around the model (prompting, skills, multi-agent orchestration, GEPA-style search, etc.). Prefer short labels such as `GEPA`, `skills`, or `Multi-agent`. This is not limited to weight fine-tuning.
+
+## Model release dates, prices, and display names
+
+Submitters provide model identity, project links, and sources. Maintainers review
+shared model information in the
+[leaderboard repository](https://github.com/sands-lab/nika-leaderboard).
+The website derives costs and chart labels from those records and the submitted
+run. You do not need to calculate a total cost for the scores package.
+
+For a model's first submission, include these sources in your README:
+
+| Information | What to supply | Maintainer location |
+| --- | --- | --- |
+| Model page | Official model card, including the quantized checkpoint when used | `catalog/models.json`, `model_page` |
+| Released date | Public release date and announcement or first weight-upload link | `catalog/models.json`, `released` and `release_source` |
+| Reference price | Provider, USD per million input/output tokens, source URL, retrieval date, and precision differences | `catalog/pricing.json`, keyed by the submitted `agent.model` |
+
+Reuse an existing reviewed model entry when the identity matches. Maintainers
+should verify the public release evidence; a model repository's creation date
+can precede its weight release. Keep network lookups out of benchmark packing
+and validation so submissions remain reproducible when providers change pages.
+
+Before merging, the leaderboard's required `model-metadata` check verifies that
+`catalog/models.json` and `catalog/pricing.json` contain entries under the exact
+submitted `agent.model` string. Register a new model in the scores PR or in an
+earlier catalog PR. A model entry needs `released` (YYYY-MM-DD), an HTTPS
+`release_source`, and an HTTPS `model_page`. A price entry needs positive finite
+input/output rates, a provider, `basis` (`api` or `hosted_open_weight`), an HTTPS
+source, and a `retrieved` date. Missing fields and future/invalid dates fail CI.
+Run `uv run python scripts/validate_model_metadata.py` from the leaderboard
+checkout to check the catalog before uploading. Maintainers still review sources.
+
+The leaderboard uses vendor API list prices for proprietary models and public
+hosted-inference quotes for open weights. For open weights, this is a reference
+estimate for hosted inference, not the submitter's self-hosted GPU bill. Record
+any precision differences between the quote and the run. If no supported quote
+exists, the submission cannot pass the required model-metadata check. Another
+model's price or a zero does not represent a missing quote.
+
+The website computes the token-priced total as
+`(input_tokens × input_rate + output_tokens × output_rate) / 1,000,000`.
+Cost per run means one attempt at every case:
+`total_cost / reported_trials × case_count`. Token counts come from the packed
+run. The reference calculation does not apply cache discounts or add network
+emulation and GPU allocation costs.
+
+Chart names use the model, normalized harness name, optimization methods, and
+skills. An optimization's `agent.extra.<method>_variant` field adds its variant,
+such as `gepa_variant: d+s`. Repeated configurations include the split and run
+identity to distinguish them. The submission detail page retains your original
+`info.name`. Packages use `YYYYMMDD_<framework>_<model>`; for example,
+`20261012_claude_code_gemma_4_31b_it`.
 
 ## `README.md`
 
@@ -131,9 +216,12 @@ Short system description, authors, and links to code / report / site (if any).
 ## What submit validates
 
 - Identity matches the in-tree frozen release
-- Exact trial coverage (`case_count × n_trials`); metrics and `rca_confusion.json` match recomputed aggregates (failures count as 0 in means)
+- Exact trial coverage (`case_count × n_trials`); metrics and `rca_confusion.json` match recomputed aggregates (non-`scored` trials count as 0 in primary means)
+- No `grading_error` or residual `infra_error` trials (`infra_error` is auto-retried during the run; leftovers reject the pack)
 - Sibling trajectories package has the required per-trial files and matching trial set
 - No secrets or absolute paths in package text
+
+See also [root-cause ground truth and scoring](root-cause-evaluation.md#score-a-submission) for per-trial metrics, `score_status`, and aggregation.
 
 ## Check the pull requests
 
@@ -141,6 +229,8 @@ Short system description, authors, and links to code / report / site (if any).
 
 - [ ] Official release run; local pack/validate during `nika leaderboard submit` passed
 - [ ] Required metadata fields filled; README describes the system
+- [ ] Code, project/report links, public harness name, and tools reviewed against the run
+- [ ] Model page, sourced released date, and sourced reference price registered in the leaderboard; required `model-metadata` check passes
 - [ ] Path is `submissions/<version>/{YYYYMMDD}_{slug}/`
 - [ ] CI validate workflow is green
 

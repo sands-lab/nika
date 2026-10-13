@@ -22,6 +22,8 @@ from nika.remote.protocol import EnvStartRequest, EnvStartResponse
 from nika.run_config.loader import reset_run_config, set_run_config
 from nika.run_config.schema import RunConfig
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture(autouse=True)
 def _clear_run_config(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -104,7 +106,9 @@ def test_handle_env_start_forwards_static_validation() -> None:
             return_value={"session_id": "sess-static"},
         ),
     ):
-        handle_env_start(EnvStartRequest(scenario="isp_abilene", static_validation=True))
+        handle_env_start(
+            EnvStartRequest(scenario="isp_abilene", static_validation=True)
+        )
     assert start.call_args.kwargs["static_validation"] is True
 
 
@@ -122,6 +126,19 @@ def test_remote_app_health_no_auth() -> None:
         resp = client.post("/v1/env/start", json={"scenario": "x"})
     assert resp.status_code == 200
     assert resp.json()["session_id"] == "sess-1"
+
+
+def test_remote_fault_artifact_endpoint() -> None:
+    app = create_remote_app()
+    client = TestClient(app)
+    with patch(
+        "nika.remote.api.handle_fault_artifact",
+        return_value={"present": True, "fault": "link_down", "evidence": {}},
+    ) as recheck:
+        resp = client.get("/v1/sessions/sess-1/fault-artifact")
+    assert resp.status_code == 200
+    assert resp.json()["present"] is True
+    recheck.assert_called_once_with("sess-1")
 
 
 def test_remote_app_artifacts(tmp_path: Path) -> None:

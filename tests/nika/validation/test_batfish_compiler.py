@@ -10,6 +10,8 @@ from nika.net_env.contract import (
 )
 from nika.validation.batfish.compiler import UnsupportedIntentError, compile_intent
 
+pytestmark = pytest.mark.unit
+
 
 def _flow_intent(property_name: str = "reachability") -> ValidationIntent:
     kwargs = {}

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from nika.evaluator.scoring import score_rca_v2
 from nika.problems.rca import (
     healthy_ground_truth,
@@ -8,6 +10,8 @@ from nika.problems.rca import (
 )
 from nika.problems.rca import RootCause
 from nika.workflows.eval.session import generic_eval
+
+pytestmark = pytest.mark.unit
 
 _LINK = "pc1:eth0--router1:eth0"
 _LINK_OTHER = "pc2:eth0--router2:eth0"

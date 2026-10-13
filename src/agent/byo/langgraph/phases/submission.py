@@ -1,8 +1,10 @@
 from dotenv import load_dotenv
 from langchain.agents import create_agent
+from langchain.agents.middleware import ModelCallLimitMiddleware
 from langchain_core.tools.structured import StructuredTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
+from agent.byo.langgraph.middleware import TruncationRetryMiddleware
 from agent.utils.template import SUBMIT_PROMPT_TEMPLATE
 from agent.llm.model_factory import load_model
 from agent.utils.mcp_client import load_session_mcp_config
@@ -23,20 +25,23 @@ class SubmissionPhase:
         model: str = "gpt-5-mini",
         scenario_name: str = "",
         reasoning_effort: str | None = None,
+        max_tokens: int | None = None,
+        max_steps: int = 20,
     ):
         session = Session()
         session.load_running_session(session_id=session_id)
         mcp_server_config = load_session_mcp_config(
-            session_id,
-            scenario_name or session.scenario_name,
+            session_id, scenario_name or session.scenario_name, phase=SUBMISSION
         )
         self.client = MultiServerMCPClient(connections=mcp_server_config)
         self.tools = None
+        self.max_steps = max_steps
 
         self.llm = load_model(
             llm_provider=llm_provider,
             model=model,
             reasoning_effort=reasoning_effort,
+            max_tokens=max_tokens,
         )
 
     async def load_tools(self):
@@ -52,5 +57,14 @@ class SubmissionPhase:
             system_prompt=SUBMIT_PROMPT_TEMPLATE,
             tools=self.tools,
             name=SUBMISSION,
+            # after_model hooks run in reverse order: list the retry first so
+            # the call limit counts a truncated turn before it is re-prompted.
+            middleware=[
+                TruncationRetryMiddleware(),
+                ModelCallLimitMiddleware(
+                    run_limit=self.max_steps,
+                    exit_behavior="error",
+                ),
+            ],
         )
         return agent

@@ -1,21 +1,27 @@
 """Start a network lab for one scenario and persist a new session."""
 
+import time
 from datetime import datetime
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 from uuid import uuid4
 
-from nika.net_env.isp.bgp.config import (
-    DEFAULT_BGP_MODE,
-    ISP_BGP_MODES,
-    normalize_bgp_mode,
-)
 from nika.net_env.contract import (
     VALIDATION_CONTRACT_FILENAME,
     VALIDATION_RESULTS_FILENAME,
     ValidationReport,
 )
+from nika.net_env.isp.bgp.config import (
+    DEFAULT_BGP_MODE,
+    ISP_BGP_MODES,
+    normalize_bgp_mode,
+)
 from nika.net_env.isp.bgp.errors import BgpConfigError
+from nika.net_env.isp.identity import (
+    is_isp_base_topology,
+    is_isp_named_special,
+    is_isp_scenario,
+)
 from nika.net_env.isp.igp.config import (
     DEFAULT_CONSTANT_METRIC,
     DEFAULT_IGP,
@@ -36,20 +42,21 @@ from nika.net_env.net_env_pool import (
     scenario_fixed_topo_size,
     scenario_requires_topo_size,
 )
-from nika.net_env.verify import verify_lab_with_retry
+from nika.net_env.verify import LabVerifyTimeoutError, verify_lab_with_retry
 from nika.run_config.loader import get_run_config
 from nika.utils.logger import (
     bind_session_dir,
+    elapsed_ms,
     log_error_event,
     log_event,
+    log_warning_event,
     refresh_logger,
 )
 from nika.utils.session import Session
 from nika.utils.session_id import make_session_id
-from nika.net_env.isp.identity import (
-    is_isp_base_topology,
-    is_isp_named_special,
-    is_isp_scenario,
+from nika.utils.session_log_summaries import (
+    failed_checks_map,
+    summarize_lab_verify,
 )
 from nika.workflows.validation.static import (
     STATIC_VALIDATION_FILENAME,
@@ -129,8 +136,7 @@ def _resolve_isp_kwargs(
 
     if topo is not None:
         raise ValueError(
-            f"Scenario '{scenario}' bakes topology into the scenario name; "
-            "omit --topo."
+            f"Scenario '{scenario}' bakes topology into the scenario name; omit --topo."
         )
     if rpki:
         raise ValueError(
@@ -297,6 +303,11 @@ def start_net_env(
     )
     if resolved_backend == "kathara":
         net_env.load_machines()
+        # k8s_lab / llmd_lab create runtime/kathara/<lab>/ before deploy so the
+        # path is recorded in session metadata and cleaned up on close.
+        prepare_runtime = getattr(net_env, "_prepare_runtime_files", None)
+        if callable(prepare_runtime):
+            prepare_runtime()
     if resolved_backend == "containerlab":
         net_env._ensure_runtime_files()
 
@@ -310,6 +321,11 @@ def start_net_env(
     topology_file = getattr(net_env, "topology_file", None)
     runtime_workdir = getattr(net_env, "runtime_workdir", None)
     metadata = getattr(net_env, "metadata", None)
+    if resolved_backend == "kathara":
+        from nika.runtime.kathara.tap import tap_owner
+
+        net_env.metadata["tap_owner"] = tap_owner(net_env.name)
+        metadata = net_env.metadata
     session.init_session(
         session_id=resolved_session_id,
         scenario_name=canonical,
@@ -342,6 +358,7 @@ def start_net_env(
         )
 
     try:
+        env_started = time.perf_counter()
         if static_validation_enabled and contract is not None:
             static_reports = run_static_validation(
                 net_env=net_env,
@@ -369,16 +386,27 @@ def start_net_env(
                         f"{verifier} static validation {report.status}; see {filename}"
                     )
 
-        if net_env.lab_exists() and redeploy:
-            net_env.undeploy()
-            net_env.deploy()
-        elif not net_env.lab_exists():
+        lab_exists = net_env.lab_exists()
+        from nika.net_env.utils.k8s_workload_cache import K8S_SCENARIOS, cache_scenario
+
+        if canonical in K8S_SCENARIOS:
+            cache_scenario(canonical)
+        if redeploy or not lab_exists:
+            # When run config selects a sandbox agent, preload its sbx
+            # template alongside lab images (not at per-case agent start).
+            from agent.sandbox.sbx.images import (
+                ensure_configured_sbx_template_images,
+            )
+
+            ensure_configured_sbx_template_images()
+            if lab_exists:
+                net_env.undeploy()
             net_env.deploy()
 
         if hasattr(net_env, "preload_workload_images"):
             try:
                 net_env.preload_workload_images()
-            except Exception as preload_exc:  # noqa: BLE001 - fallback to network pulls
+            except Exception as preload_exc:  # noqa: BLE001 - surface then decide
                 log_error_event(
                     "env_preload_failed",
                     f"Workload image preload failed for {scenario} ({net_env.name}): {preload_exc}",
@@ -388,6 +416,13 @@ def start_net_env(
                     error=str(preload_exc),
                     error_type=type(preload_exc).__name__,
                 )
+                # Controller startup waits for the preload signal; continuing
+                # after a failed import would leave workload readiness uncertain.
+                from nika.net_env.utils.k8s_workload_cache import K8S_SCENARIOS
+
+                if canonical in K8S_SCENARIOS:
+                    raise
+                # Other scenarios may still pull from the network.
 
         if hasattr(net_env, "sync_client_hosts"):
             try:
@@ -403,7 +438,9 @@ def start_net_env(
                     error_type=type(sync_exc).__name__,
                 )
 
+        verify_started = time.perf_counter()
         verify_result = verify_lab_with_retry(net_env)
+        verify_duration_ms = elapsed_ms(verify_started)
         if verify_result is not None:
             validation_payload = (verify_result.get("details") or {}).get("validation")
             if validation_payload is not None:
@@ -422,12 +459,21 @@ def start_net_env(
                     validation=validation_payload,
                     path=str(result_path),
                 )
+            try:
+                depth = get_run_config().nika.runtime_validation.depth
+            except Exception:  # noqa: BLE001
+                depth = "light"
             log_event(
                 "env_verify",
-                f"Lab verification passed for {scenario} ({net_env.name})",
+                f"Lab verification passed for {scenario} ({net_env.name}): "
+                f"{summarize_lab_verify(verify_result)}",
                 scenario=scenario,
                 lab_name=net_env.name,
+                depth=depth,
                 checks=verify_result.get("checks"),
+                details=verify_result.get("details") or {},
+                failed_checks=[],
+                duration_ms=verify_duration_ms,
             )
 
         try:
@@ -450,17 +496,34 @@ def start_net_env(
             event_type = (
                 "env_verify_failed" if net_env.lab_exists() else "env_start_failed"
             )
-            log_error_event(
-                event_type,
-                f"Failed to start network environment: {scenario} ({resolved_session_id}): {exc}",
-                scenario=scenario,
-                backend=resolved_backend,
-                topo_size=recorded_size,
-                session_id=resolved_session_id,
-                lab_name=net_env.name,
-                error=str(exc),
-                error_type=type(exc).__name__,
-            )
+            error_payload: dict = {
+                "scenario": scenario,
+                "backend": resolved_backend,
+                "topo_size": recorded_size,
+                "session_id": resolved_session_id,
+                "lab_name": net_env.name,
+                "error": str(exc),
+                "error_type": type(exc).__name__,
+                "duration_ms": elapsed_ms(env_started),
+            }
+            if isinstance(exc, LabVerifyTimeoutError):
+                last = exc.last_result or {}
+                error_payload["checks"] = last.get("checks")
+                error_payload["details"] = last.get("details") or {}
+                error_payload["failed_checks"] = exc.failed_checks or failed_checks_map(
+                    last.get("checks")
+                )
+                error_payload["max_wait_sec"] = exc.max_wait_sec
+                message = (
+                    f"Lab verification failed for {scenario} ({resolved_session_id}): "
+                    f"{summarize_lab_verify(last)}"
+                )
+            else:
+                message = (
+                    f"Failed to start network environment: {scenario} "
+                    f"({resolved_session_id}): {exc}"
+                )
+            log_error_event(event_type, message, **error_payload)
         else:
             log_error_event(
                 "env_start_interrupted",
@@ -472,6 +535,7 @@ def start_net_env(
                 lab_name=net_env.name,
                 error=str(exc) or type(exc).__name__,
                 error_type=type(exc).__name__,
+                duration_ms=elapsed_ms(env_started),
             )
         try:
             from nika.workflows.session.close import (
@@ -479,22 +543,32 @@ def start_net_env(
                 remove_orphaned_containerlab_management_network,
             )
 
-            close_session(session_id=resolved_session_id, undeploy=True)
+            # KeyboardInterrupt/SystemExit are BaseException but not Exception.
+            close_status = "aborted" if not isinstance(exc, Exception) else "error"
+            close_session(
+                session_id=resolved_session_id,
+                undeploy=True,
+                status=close_status,
+            )
             remove_orphaned_containerlab_management_network(
                 getattr(net_env, "name", None)
             )
         except Exception as cleanup_exc:  # noqa: BLE001 - best effort
-            print(
-                f"WARNING: could not close session {resolved_session_id} after "
-                f"failed start: {cleanup_exc}"
+            log_warning_event(
+                "env_start_cleanup_failed",
+                f"Could not close session {resolved_session_id} after "
+                f"failed start: {cleanup_exc}",
+                session_id=resolved_session_id,
             )
             try:
                 if net_env.lab_exists():
                     net_env.undeploy()
             except Exception as undeploy_exc:  # noqa: BLE001 - best effort
-                print(
-                    f"WARNING: could not undeploy lab {net_env.name} after "
-                    f"failed start: {undeploy_exc}"
+                log_warning_event(
+                    "env_start_cleanup_failed",
+                    f"Could not undeploy lab {net_env.name} after "
+                    f"failed start: {undeploy_exc}",
+                    lab_name=net_env.name,
                 )
             try:
                 from nika.workflows.session.close import (
@@ -517,5 +591,18 @@ def start_net_env(
         session_id=resolved_session_id,
         lab_name=net_env.name,
         metadata=getattr(net_env, "metadata", None) or metadata,
+        link_count=_link_count(net_env),
+        duration_ms=elapsed_ms(env_started),
     )
     return resolved_session_id
+
+
+def _link_count(net_env: Any) -> int | None:
+    """Number of links; a Kathara collision domain with 2+ members is one link."""
+    try:
+        lab = getattr(net_env, "lab", None)
+        if lab is not None and getattr(lab, "links", None) is not None:
+            return sum(1 for link in lab.links.values() if len(link.machines) >= 2)
+        return len(net_env.get_topology())
+    except Exception:  # noqa: BLE001 - some labs have no static topology
+        return None

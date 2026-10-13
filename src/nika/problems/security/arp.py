@@ -8,6 +8,7 @@ from nika.problems.base import (
     build_verify_result,
     ProblemBase,
 )
+from nika.problems.support.benchmark_targets import endpoint_target
 from nika.utils.logger import system_logger
 
 # ==================================================================
@@ -33,11 +34,22 @@ class ArpCachePoisoningParams(BaseModel):
 
 class ArpCachePoisoning(ProblemBase):
     failure_domain = FailureDomain.SECURITY
+    symptom_probe = "path_ping"
+    symptom_class = "unreachable"
+    dynamic_artifact = True
     root_cause_name: str = "arp_cache_poisoning"
     description = "ARP cache is poisoned with a false MAC mapping."
     TAGS: str = ["arp"]
 
     Params = ArpCachePoisoningParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        params = endpoint_target(ctx, l2_endpoint=True)
+        if ctx.scenario == "llmd_lab":
+            # Star L2 lab has no default route; poison the HTTP peer.
+            params["target_ip"] = "200.0.0.8"
+        return params
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
@@ -101,18 +113,17 @@ class ArpCachePoisoning(ProblemBase):
         )
         self.runtime.exec(
             params.host_name,
-            "nft delete table netdev nika_arp_poison 2>/dev/null || true",
+            "nft delete table netdev filter 2>/dev/null || true",
         )
-        self.runtime.exec(params.host_name, "nft add table netdev nika_arp_poison")
+        self.runtime.exec(params.host_name, "nft add table netdev filter")
         self.runtime.exec(
             params.host_name,
-            "nft 'add chain netdev nika_arp_poison egress "
+            "nft 'add chain netdev filter egress "
             f"{{ type filter hook egress device {egress_dev} priority 0 ; }}'",
         )
         self.runtime.exec(
             params.host_name,
-            f"nft add rule netdev nika_arp_poison egress "
-            f"ether daddr {params.fake_mac} drop",
+            f"nft add rule netdev filter egress ether daddr {params.fake_mac} drop",
         )
 
     def verify_fault(self, params: ArpCachePoisoningParams) -> dict:

@@ -80,11 +80,36 @@ class LbConnectionStateExhaustionParams(BaseModel):
 
 class LbConnectionStateExhaustion(ProblemBase):
     failure_domain = FailureDomain.SERVICE_NETWORKING
+    symptom_probe = "custom"
+    symptom_class = "gray"
     root_cause_name = "lb_connection_state_exhaustion"
     description = "Load-balancer connection-state table is exhausted."
     symptom_desc = "SYN-only state exhausts the gateway ConnTable; pool churn then breaks evicted legitimate connections."
     TAGS = ["p4", "p4_runtime", "http", "l4_load_balancer"]
     Params = LbConnectionStateExhaustionParams
+    INCOMPATIBLE_SCENARIOS = {
+        "p4_dc_gateway": "Each client reaches only its own gateway, so the frozen "
+        "attacker cannot fill gateway_1's lb_conn_table; the injector itself "
+        "writes the symptom."
+    }
+
+    BENCHMARK_TARGETS = "canonical"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        if ctx.scenario != "p4_dc_gateway":
+            return {"host_name": ctx.host0}
+        model = ctx.net_env.model
+        return {
+            "host_name": "gateway_1",
+            "capacity": "256",
+            "syn_timeout_sec": "10",
+            "seed": str(ctx.seed),
+            "client_host": model.clients[0].name,
+            "vip_url": model.vip_url,
+            "backend_dip": model.backend_pool[0].ip,
+            "attacker_device": model.clients[-1].name,
+        }
 
     def root_cause_resources(self, params: LbConnectionStateExhaustionParams):
         return [node_resource(params.host_name)]
@@ -93,8 +118,8 @@ class LbConnectionStateExhaustion(ProblemBase):
         vip_ip, vip_port = _parse_vip(params.vip_url)
         client_ip = self.runtime.get_host_ip(params.client_host, with_prefix=False)
         src_port = 41000 + (params.seed % 900)
-        status_path = "/tmp/nika-lb-conn.status"
-        pid_path = "/tmp/nika-lb-conn.pid"
+        status_path = "/var/tmp/http-keepalive.status"
+        pid_path = "/var/tmp/http-keepalive.pid"
         self.runtime.exec(
             params.client_host,
             f"rm -f {status_path} {pid_path}",
@@ -110,7 +135,7 @@ class LbConnectionStateExhaustion(ProblemBase):
             dip=params.backend_dip,
         )
 
-        script_path = "/tmp/nika-lb-affinity.py"
+        script_path = "/var/tmp/http-keepalive.py"
         encoded = base64.b64encode(_AFFINITY_SCRIPT.encode()).decode()
         self.runtime.exec(
             params.client_host,
@@ -119,7 +144,7 @@ class LbConnectionStateExhaustion(ProblemBase):
         self.runtime.exec(
             params.client_host,
             f"python3 {script_path} {src_port} {vip_ip} {vip_port} {status_path} "
-            f">/tmp/nika-lb-conn.log 2>&1 & echo $! > {pid_path}",
+            f">/dev/null 2>&1 & echo $! > {pid_path}",
             timeout=10,
         )
         time.sleep(0.5)
@@ -185,31 +210,68 @@ class LbConnectionStateExhaustion(ProblemBase):
 
 class LbPendingConnectionUpdateRaceParams(BaseModel):
     host_name: str = Field(default="gateway_1")
-    learning_delay_ms: int = Field(default=5, ge=1, le=100)
+    learning_delay_ms: int = Field(default=8000, ge=1, le=60000)
     seed: int = Field(default=1)
 
 
 class LbPendingConnectionUpdateRace(ProblemBase):
     failure_domain = FailureDomain.SERVICE_NETWORKING
+    symptom_probe = "custom"
+    symptom_class = "gray"
     root_cause_name = "lb_pending_connection_update_race"
     description = "Pending connection races an unsafe load-balancer pool update."
-    symptom_desc = "An unsafe DIP pool update changes the selected backend before a pending connection reaches ConnTable."
+    symptom_desc = (
+        "Connection learning lags, so connections opened shortly before a routine "
+        "DIP pool update are still pending in ConnTable and move to the new pool."
+    )
     TAGS = ["p4", "p4_runtime", "http", "l4_load_balancer"]
     Params = LbPendingConnectionUpdateRaceParams
+
+    BENCHMARK_TARGETS = "canonical"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        if ctx.scenario != "p4_dc_gateway":
+            return {"host_name": ctx.host0}
+        return {
+            "host_name": "gateway_1",
+            "learning_delay_ms": "8000",
+            "seed": str(ctx.seed),
+        }
 
     def root_cause_resources(self, params: LbPendingConnectionUpdateRaceParams):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: LbPendingConnectionUpdateRaceParams):
-        self._state = unsafe_lb_pool_update(self.runtime, params.host_name)
+        from nika.net_env.p4_dc_gateway.l4_lb import set_learning_delay
+
+        set_learning_delay(self.runtime, params.host_name, params.learning_delay_ms)
+        # The agent rereads its configuration once a second.
+        deadline = time.time() + 10
+        while time.time() < deadline:
+            if self.verify_fault(params)["verified"]:
+                return
+            time.sleep(0.5)
 
     def verify_fault(self, params: LbPendingConnectionUpdateRaceParams) -> dict:
-        state = lb_state(self.runtime, params.host_name)
-        tables = state.get("tables", {})
+        from nika.net_env.p4_dc_gateway.l4_lb import learner_status
+        from nika.net_env.p4_dc_gateway.topology_model import (
+            CONNECTION_LEARNING_DELAY_MS,
+        )
+
+        status = learner_status(self.runtime, params.host_name)
+        delay = status.get("learning_delay_ms")
         return build_verify_result(
             self.root_cause_name,
-            tables.get("lb_vip") == 1 and tables.get("lb_pool", 0) >= 128,
-            {"gateway": params.host_name, "tables": tables},
+            isinstance(delay, int)
+            and delay == params.learning_delay_ms
+            and delay > CONNECTION_LEARNING_DELAY_MS
+            and status.get("age_sec", 99) < 5,
+            {
+                "gateway": params.host_name,
+                "healthy_learning_delay_ms": CONNECTION_LEARNING_DELAY_MS,
+                "learner": status,
+            },
         )
 
 
@@ -223,11 +285,27 @@ class SnatPortPoolExhaustionParams(BaseModel):
 
 class SnatPortPoolExhaustion(ProblemBase):
     failure_domain = FailureDomain.SERVICE_NETWORKING
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name = "snat_port_pool_exhaustion"
     description = "SNAT source-port pool is exhausted."
     symptom_desc = "The available SNAT source-port pool is exhausted for concurrent outbound connections."
     TAGS = ["vpn", "http", "nat"]
     Params = SnatPortPoolExhaustionParams
+
+    BENCHMARK_TARGETS = "canonical"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        if ctx.scenario != "enterprise_branch":
+            return {"host_name": ctx.host0}
+        return {
+            "host_name": "br1_edge",
+            "source_prefix": "10.1.40.0/24",
+            "public_ip": "198.18.1.10",
+            "port_start": "40000",
+            "port_end": "40063",
+        }
 
     def root_cause_resources(self, params: SnatPortPoolExhaustionParams):
         return [node_resource(params.host_name)]
@@ -237,16 +315,15 @@ class SnatPortPoolExhaustion(ProblemBase):
             raise ValueError("port_end must be greater than or equal to port_start")
         self.runtime.exec(
             params.host_name,
-            "nft add chain ip nat nika_snat_pool "
+            "nft add chain ip nat snat_outbound "
             "'{ type nat hook postrouting priority 99 ; policy accept; }' 2>/dev/null || true",
         )
-        self.runtime.exec(params.host_name, "nft flush chain ip nat nika_snat_pool")
+        self.runtime.exec(params.host_name, "nft flush chain ip nat snat_outbound")
         self.runtime.exec(
             params.host_name,
-            f"nft add rule ip nat nika_snat_pool ip protocol tcp "
+            f"nft add rule ip nat snat_outbound ip protocol tcp "
             f"ip saddr {params.source_prefix} "
-            f"snat to {params.public_ip}:{params.port_start}-{params.port_end} "
-            "comment 'nika-snat-pool'",
+            f"snat to {params.public_ip}:{params.port_start}-{params.port_end}",
         )
 
     def verify_fault(self, params: SnatPortPoolExhaustionParams) -> dict:
@@ -271,6 +348,8 @@ class NatMappingRemovedWithoutDrainParams(BaseModel):
 
 class NatMappingRemovedWithoutDrain(ProblemBase):
     failure_domain = FailureDomain.SERVICE_NETWORKING
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name = "nat_mapping_removed_without_drain"
     description = "NAT mapping is removed before active flows drain."
     symptom_desc = (
@@ -278,6 +357,20 @@ class NatMappingRemovedWithoutDrain(ProblemBase):
     )
     TAGS = ["vpn", "http", "nat"]
     Params = NatMappingRemovedWithoutDrainParams
+
+    BENCHMARK_TARGETS = "canonical"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        if ctx.scenario != "enterprise_branch":
+            return {"host_name": ctx.host0}
+        return {
+            "host_name": "br1_edge",
+            "source_prefix": "10.1.40.0/24",
+            "nat_ip_a": "198.18.1.10",
+            "nat_ip_b": "198.18.1.11",
+            "wan_interface": ctx.net_env.primary_wan_interface(),
+        }
 
     def root_cause_resources(self, params: NatMappingRemovedWithoutDrainParams):
         return [node_resource(params.host_name)]
@@ -290,11 +383,11 @@ class NatMappingRemovedWithoutDrain(ProblemBase):
         )
         self.runtime.exec(
             params.host_name,
-            "nft add chain ip nat nika_nat_failover "
+            "nft add chain ip nat snat_egress "
             "'{ type nat hook postrouting priority 98 ; policy accept; }' 2>/dev/null || true; "
-            "nft flush chain ip nat nika_nat_failover; "
-            f"nft add rule ip nat nika_nat_failover ip protocol tcp ip saddr {params.source_prefix} "
-            f"snat to {params.nat_ip_b} comment 'nika-nat-failover'; "
+            "nft flush chain ip nat snat_egress; "
+            f"nft add rule ip nat snat_egress ip protocol tcp ip saddr {params.source_prefix} "
+            f"snat to {params.nat_ip_b}; "
             f"ip addr del {params.nat_ip_a}/32 dev {params.wan_interface}",
         )
         self.runtime.exec(

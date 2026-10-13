@@ -18,6 +18,9 @@ from nika.problems.support.kubernetes.node_filter import (
 from nika.problems.base import (
     FailureDomain,
 )
+from nika.problems.support.benchmark_targets import (
+    k8s_control_node,
+)
 from nika.utils.logger import system_logger
 
 logger = system_logger
@@ -77,6 +80,8 @@ class CoreDNSIsolationParams(K8sParams):
 
 class CoreDNSIsolation(K8sProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
+    symptom_probe = "custom"
+    symptom_class = "isolation"
     root_cause_name: str = "k8s_coredns_isolated"
     description = "Path to cluster DNS (CoreDNS) is isolated/blocked."
     symptom_desc = (
@@ -88,6 +93,21 @@ class CoreDNSIsolation(K8sProblemBase):
     TAGS: ClassVar[list[str]] = ["kubernetes", "k3s", "coredns"]
 
     Params = CoreDNSIsolationParams
+
+    BENCHMARK_TARGETS = "canonical"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        k8s_nodes = ctx.roles.get("k8s_nodes") or []
+        control = k8s_control_node(ctx)
+        # node_name is intentionally left unset: the fault resolves the nodes
+        # actually hosting CoreDNS at inject time, which is where isolating it
+        # takes the whole cluster's name resolution down.
+        workers = sorted(node for node in k8s_nodes if node != control)
+        return {
+            "control_node": control,
+            "symptom_host": workers[0] if workers else control,
+        }
 
     def __init__(self, scenario_name: str | None = None, **kwargs: Any) -> None:
         super().__init__(scenario_name, **kwargs)
@@ -267,3 +287,30 @@ class CoreDNSIsolation(K8sProblemBase):
                 return False, {"target_devices": devices, "error": str(exc)}
 
         return self.poll_verify(check)
+
+    def recheck_artifact(self, params: CoreDNSIsolationParams) -> dict:
+        """Re-read the DNS drop rules. Does not query DNS or open a TCP port."""
+        k8s = self.runtime.lab_api
+        devices = self._target_devices(params, k8s)
+        destinations = self._dns_destinations(params, k8s)
+        specs = self._drop_specs(params, destinations)
+        unfiltered: list[str] = []
+        for device in devices:
+            node_filter = NodeFilter(self.runtime, device)
+            unfiltered.extend(
+                f"{device}:{spec.describe()}:{chain}"
+                for spec in specs
+                for chain, installed in node_filter.blocked_spec(spec).items()
+                if not installed
+            )
+        present = not unfiltered
+        return {
+            "present": present,
+            "fault": self.root_cause_name,
+            "scope": "artifact",
+            "evidence": {
+                "target_devices": devices,
+                "unfiltered": unfiltered,
+            },
+            "error": None if present else "fault artifact absent",
+        }

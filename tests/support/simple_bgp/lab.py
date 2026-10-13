@@ -4,8 +4,9 @@ from Kathara.manager.Kathara import Kathara
 from Kathara.model.Lab import Lab
 
 from nika.config import pkg_path
-from nika.net_env.base import NetworkEnvBase
+from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.runtime.spec import NodeRole
+from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
 
@@ -16,6 +17,19 @@ class SimpleBGP(NetworkEnvBase):
     TOPO_SIZE = None
     TAGS = ["arp", "link", "mac", "bgp", "icmp", "frr", "pc"]
 
+    def target_roles(self) -> dict[str, list[str]]:
+        # Link faults target the probe source host (see default_probe_path).
+        return {**super().target_roles(), "hosts": ["pc1"], "host1_pool": ["pc1"]}
+
+    @classmethod
+    def default_probe_path(cls, *, topo_size: str = "s", **deploy_kwargs) -> ProbePath:
+        return ProbePath(
+            src_host="pc1",
+            dst_ip="200.1.1.2",
+            control_plane_host="router1",
+            peer_host="pc2",
+        )
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.lab = Lab(self.LAB_NAME)
@@ -23,8 +37,12 @@ class SimpleBGP(NetworkEnvBase):
         self.instance = Kathara.get_instance()
         self.desc = "A simple BGP network with two routers and two pcs."
 
-        router1 = self.lab.new_machine("router1", **{"image": "nika/frr", "cpus": 1})
-        router2 = self.lab.new_machine("router2", **{"image": "nika/frr", "cpus": 1})
+        router1 = self.lab.new_machine(
+            "router1", **{"image": nika_image("frr"), "cpus": 1}
+        )
+        router2 = self.lab.new_machine(
+            "router2", **{"image": nika_image("frr"), "cpus": 1}
+        )
         for router in (router1, router2):
             self.declare_machine(
                 router.name,
@@ -32,8 +50,8 @@ class SimpleBGP(NetworkEnvBase):
                 capabilities=("linux", "frr", "bgp"),
             )
 
-        pc1 = self.lab.new_machine("pc1", **{"image": "nika/base"})
-        pc2 = self.lab.new_machine("pc2", **{"image": "nika/base"})
+        pc1 = self.lab.new_machine("pc1", **{"image": nika_image("base")})
+        pc2 = self.lab.new_machine("pc2", **{"image": nika_image("base")})
         for host in (pc1, pc2):
             self.declare_machine(
                 host.name,

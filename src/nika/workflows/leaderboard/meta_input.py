@@ -89,11 +89,6 @@ def write_submission_templates(path: str | Path) -> Path:
     return out.resolve()
 
 
-def write_meta_template(path: str | Path) -> Path:
-    """Compatibility alias: write submission templates under ``path`` (a directory)."""
-    return write_submission_templates(path)
-
-
 def _normalize_optional_str(value: Any) -> str | None:
     if value is None:
         return None
@@ -187,10 +182,23 @@ def load_submission_dir(path: str | Path) -> tuple[SubmissionMetadata, Path, Pat
 
 
 def slugify_name(name: str) -> str:
-    """Sanitize ``info.name`` into a folder slug (lowercase, ``_`` separators)."""
+    """Sanitize text into a folder slug (lowercase, ``_`` separators)."""
     text = name.strip().lower()
     text = re.sub(r"[^a-z0-9]+", "_", text)
     text = re.sub(r"_+", "_", text).strip("_")
     if not text:
         raise MetaInputError("info.name must yield a non-empty slug")
     return text
+
+
+def submission_slug(metadata: SubmissionMetadata) -> str:
+    """Stable package slug from the public harness and recorded model."""
+    framework = metadata.agent.framework.strip()
+    framework = {
+        "cli.claude": "Claude Code",
+        "claudecode": "Claude Code",
+        "cli.codex": "Codex",
+        "byo.langgraph": "ReAct",
+        "langgraph": "ReAct",
+    }.get(framework.lower(), framework)
+    return slugify_name(f"{framework} {metadata.agent.model}")

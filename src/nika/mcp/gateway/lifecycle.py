@@ -15,7 +15,6 @@ import uvicorn
 from nika.mcp.gateway.app import create_gateway_app, reset_gateway_mcp_state
 from nika.mcp.gateway.access import node_roles_for_session, policy_snapshot
 from nika.mcp.gateway.session_registry import (
-    PolicyMode,
     clear_sessions,
     register_session,
     unregister_session,
@@ -24,19 +23,28 @@ from nika.utils.net import pick_free_port
 
 ENV_GATEWAY_URL = "NIKA_MCP_GATEWAY_URL"
 ENV_GATEWAY_AGENT_URL = "NIKA_MCP_GATEWAY_AGENT_URL"
+# Host-only phase-advance secret for remote gateways; never exported to sandboxes.
+ENV_GATEWAY_PHASE_TOKEN = "NIKA_MCP_GATEWAY_PHASE_TOKEN"
 
 SANDBOX_GATEWAY_BIND_HOST = "0.0.0.0"
 SANDBOX_GATEWAY_AGENT_HOST = "host.docker.internal"
 
 _manager_lock = threading.Lock()
 _active_manager: "McpGatewayManager | None" = None
+# Concurrent ``mcp_gateway_for_session`` callers in one process each own a
+# manager. FastMCP server objects are process-global, so resetting them while
+# a sibling gateway is still live drops in-flight MCP sessions for every
+# gateway sharing this process.
+_live_managers: set["McpGatewayManager"] = set()
 
 
-@dataclass
+@dataclass(eq=False)
 class McpGatewayManager:
     host: str
     port: int
     backend: str | None = None
+    # Container-reachable URL for sandboxed agents; ``None`` means base_url.
+    agent_url: str | None = None
     _server: uvicorn.Server | None = None
     _thread: threading.Thread | None = None
 
@@ -45,8 +53,12 @@ class McpGatewayManager:
         return f"http://{self.host}:{self.port}"
 
     def start(self) -> None:
+        # FastMCP servers are process-global: building two gateway apps at
+        # once lets both share (and double-run) one session manager.
+        with _manager_lock:
+            app = create_gateway_app(backend=self.backend)
         config = uvicorn.Config(
-            create_gateway_app(backend=self.backend),
+            app,
             host=self.host,
             port=self.port,
             log_level="warning",
@@ -82,8 +94,15 @@ class McpGatewayManager:
 
 
 def set_gateway_agent_url(manager: McpGatewayManager, *, agent_host: str) -> str:
-    """Expose a container-reachable gateway URL via ``NIKA_MCP_GATEWAY_AGENT_URL``."""
+    """Record the container-reachable gateway URL on *manager*.
+
+    The URL is also exported as ``NIKA_MCP_GATEWAY_AGENT_URL`` because the
+    agent-side MCP client (``agent.utils.mcp_client``) reads it from the
+    environment. That variable is process global, so NIKA code must read
+    ``manager.agent_url`` instead.
+    """
     agent_url = f"http://{agent_host}:{manager.port}"
+    manager.agent_url = agent_url
     os.environ[ENV_GATEWAY_AGENT_URL] = agent_url
     return agent_url
 
@@ -117,6 +136,7 @@ def start_gateway(
     manager.start()
     with _manager_lock:
         _active_manager = manager
+        _live_managers.add(manager)
     os.environ[ENV_GATEWAY_URL] = manager.base_url
     return manager
 
@@ -138,22 +158,49 @@ def _shutdown_manager(
     """Stop *manager* without clobbering a sibling gateway in this process."""
     global _active_manager
     if manager is None:
-        if clear_registry:
-            reset_gateway_mcp_state()
+        with _manager_lock:
+            others_live = bool(_live_managers)
+        if clear_registry and not others_live:
+            with _manager_lock:
+                reset_gateway_mcp_state()
             os.environ.pop(ENV_GATEWAY_URL, None)
             os.environ.pop(ENV_GATEWAY_AGENT_URL, None)
             clear_sessions()
         return
+
     with _manager_lock:
+        _live_managers.discard(manager)
         if _active_manager is manager:
             _active_manager = None
+        others_live = bool(_live_managers)
+        # Prefer a still-live sibling as the process "active" gateway.
+        if _active_manager is None and _live_managers:
+            _active_manager = next(iter(_live_managers))
+
     manager.stop()
     if os.environ.get(ENV_GATEWAY_URL) == manager.base_url:
         os.environ.pop(ENV_GATEWAY_URL, None)
         os.environ.pop(ENV_GATEWAY_AGENT_URL, None)
-    reset_gateway_mcp_state(backend=manager.backend)
-    if clear_registry:
-        clear_sessions()
+        # Restore env to a sibling gateway URL when one remains.
+        with _manager_lock:
+            sibling = _active_manager
+        if sibling is not None:
+            os.environ[ENV_GATEWAY_URL] = sibling.base_url
+            prior_agent = os.environ.get(ENV_GATEWAY_AGENT_URL, "").strip()
+            # Keep a container-reachable agent URL when sandboxes are in use.
+            if sibling.agent_url:
+                os.environ[ENV_GATEWAY_AGENT_URL] = sibling.agent_url
+            elif prior_agent or sibling.host in {"0.0.0.0", "::"}:
+                os.environ[ENV_GATEWAY_AGENT_URL] = (
+                    f"http://{SANDBOX_GATEWAY_AGENT_HOST}:{sibling.port}"
+                )
+
+    # Shared FastMCP objects must stay intact while another gateway is live.
+    if not others_live:
+        with _manager_lock:
+            reset_gateway_mcp_state(backend=manager.backend)
+        if clear_registry:
+            clear_sessions()
 
 
 def _resolve_session_backend(scenario_name: str) -> str | None:
@@ -175,14 +222,19 @@ def mcp_gateway_for_session(
     session_id: str,
     *,
     scenario_name: str = "",
-    policy_mode: PolicyMode = "two_phase",
+    policy_mode: str = "two_phase",
     host: str | None = None,
     port: int | None = None,
     sandbox: bool = False,
     sandbox_agent_host: str = SANDBOX_GATEWAY_AGENT_HOST,
     backend: str | None = None,
 ) -> Iterator[McpGatewayManager]:
-    """Start gateway, register *session_id*, expose URL via env, then clean up."""
+    """Start gateway, register *session_id*, expose URL via env, then clean up.
+
+    Only the ``two_phase`` policy mode exists; other values are rejected.
+    """
+    if policy_mode != "two_phase":
+        raise ValueError(f"unsupported MCP gateway policy_mode: {policy_mode!r}")
     bind_host = host
     if sandbox and bind_host is None:
         bind_host = SANDBOX_GATEWAY_BIND_HOST
@@ -190,6 +242,7 @@ def mcp_gateway_for_session(
     manager = start_gateway(host=bind_host, port=port, backend=resolved_backend)
     if sandbox:
         set_gateway_agent_url(manager, agent_host=sandbox_agent_host)
+    from nika.mcp.registry import select_diagnosis_servers
     from nika.run_config.loader import get_run_config
     from nika.utils.session_store import SessionStore
 
@@ -200,13 +253,19 @@ def mcp_gateway_for_session(
     node_roles = node_roles_for_session(session_id)
     snapshot = policy_snapshot(role=role, policy=policy, node_roles=node_roles)
     session_dir = str(row["session_dir"])
+    agent_session_id = str(row.get("agent_session_id") or "").strip() or None
     register_session(
         session_id,
+        agent_session_id=agent_session_id,
         scenario_name=scenario_name,
-        policy_mode=policy_mode,
         session_dir=session_dir,
         access_policy=snapshot["diagnosis"],
         node_roles=node_roles,
+        diagnosis_servers=(
+            select_diagnosis_servers(scenario_name, backend=resolved_backend)
+            if scenario_name
+            else None
+        ),
     )
     try:
         yield manager

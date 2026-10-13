@@ -6,6 +6,8 @@ from tests.agent.sandbox_support import (
     sandbox_runtime_available,
 )
 
+pytestmark = [pytest.mark.integration, pytest.mark.sandbox]
+
 
 @pytest.mark.skipif(not sandbox_runtime_available(), reason="sbx not available")
 class SandboxSecurityIntegrationTest:

@@ -4,29 +4,37 @@
 
 <br />
 
-[🤖 Overview](#-overview) ·
 [✨ Features](#-features) ·
+[🤖 Overview](#-overview) ·
 [📦 Installation](#-installation) ·
 [🚀 Quick start](#-quick-start) ·
 [📖 Learn more](#-learn-more) ·
+[📄 Docs](docs/README.md) ·
 [🌐 Website](https://sands-lab.github.io/nika/) ·
 [📚 Cite](#-citation)
 
 [![ArXiv Link](https://img.shields.io/badge/arXiv-2512.16381-red?logo=arxiv)](https://arxiv.org/abs/2512.16381)
 [![Project Page](https://img.shields.io/badge/-Project%20Page-1E88E5?logo=googlechrome&logoColor=white&labelColor=24292f)](https://sands-lab.github.io/nika/)
+[![Slack](https://img.shields.io/badge/-Join%20Slack-4A154B?logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPHBhdGggZmlsbD0iI2ZmZiIgZD0iTTUuMDQyIDE1LjE2NWEyLjUyOCAyLjUyOCAwIDAgMS0yLjUyIDIuNTIzQTIuNTI4IDIuNTI4IDAgMCAxIDAgMTUuMTY1YTIuNTI3IDIuNTI3IDAgMCAxIDIuNTIyLTIuNTJoMi41MnYyLjUyek02LjMxMyAxNS4xNjVhMi41MjcgMi41MjcgMCAwIDEgMi41MjEtMi41MiAyLjUyNyAyLjUyNyAwIDAgMSAyLjUyMSAyLjUydjYuMzEzQTIuNTI4IDIuNTI4IDAgMCAxIDguODM0IDI0YTIuNTI4IDIuNTI4IDAgMCAxLTIuNTIxLTIuNTIydi02LjMxM3pNOC44MzQgNS4wNDJhMi41MjggMi41MjggMCAwIDEtMi41MjEtMi41MkEyLjUyOCAyLjUyOCAwIDAgMSA4LjgzNCAwYTIuNTI4IDIuNTI4IDAgMCAxIDIuNTIxIDIuNTIydjIuNTJIOC44MzR6TTguODM0IDYuMzEzYTIuNTI4IDIuNTI4IDAgMCAxIDIuNTIxIDIuNTIxIDIuNTI4IDIuNTI4IDAgMCAxLTIuNTIxIDIuNTIxSDIuNTIyQTIuNTI4IDIuNTI4IDAgMCAxIDAgOC44MzRhMi41MjggMi41MjggMCAwIDEgMi41MjItMi41MjFoNi4zMTJ6TTE4Ljk1NiA4LjgzNGEyLjUyOCAyLjUyOCAwIDAgMSAyLjUyMi0yLjUyMUEyLjUyOCAyLjUyOCAwIDAgMSAyNCA4LjgzNGEyLjUyOCAyLjUyOCAwIDAgMS0yLjUyMiAyLjUyMWgtMi41MjJWOC44MzR6TTE3LjY4OCA4LjgzNGEyLjUyOCAyLjUyOCAwIDAgMS0yLjUyMyAyLjUyMSAyLjUyNyAyLjUyNyAwIDAgMS0yLjUyLTIuNTIxVjIuNTIyQTIuNTI3IDIuNTI3IDAgMCAxIDE1LjE2NSAwYTIuNTI4IDIuNTI4IDAgMCAxIDIuNTIzIDIuNTIydjYuMzEyek0xNS4xNjUgMTguOTU2YTIuNTI4IDIuNTI4IDAgMCAxIDIuNTIzIDIuNTIyQTIuNTI4IDIuNTI4IDAgMCAxIDE1LjE2NSAyNGEyLjUyNyAyLjUyNyAwIDAgMS0yLjUyLTIuNTIydi0yLjUyMmgyLjUyek0xNS4xNjUgMTcuNjg4YTIuNTI3IDIuNTI3IDAgMCAxLTIuNTItMi41MjMgMi41MjYgMi41MjYgMCAwIDEgMi41Mi0yLjUyaDYuMzEzQTIuNTI3IDIuNTI3IDAgMCAxIDI0IDE1LjE2NWEyLjUyOCAyLjUyOCAwIDAgMS0yLjUyMiAyLjUyM2gtNi4zMTN6Ii8%2BPC9zdmc%2B&labelColor=24292f)](https://sands-lab.github.io/nika/community/)
 [![Open Telco AI](https://img.shields.io/badge/-Open%20Telco%20AI-00AEEF?logo=gsma&logoColor=white&labelColor=24292f)](https://www.open-telco.ai/resources/nika/)
 
 </div>
 
-## 📰 News
-
-- **2026-09-01:** Published [nika-bench 0.2.0](benchmark/releases/0.2.0/README.md). `nika leaderboard submit` now packs agent trajectories and opens a Hugging Face dataset PR; see [leaderboard submission](docs/benchmarks/leaderboard-submission.md).
-- **2026-08-15:** Operational settings moved fully to `config/nika.yaml`. New installations can copy `config/nika.example.yaml`; existing installations with operational `.env` keys can run [`nika config migrate`](docs/operations/cli-reference.md#nika-config).
-- **2026-08-13:** Updated benchmark labels and evaluation. Users with older custom benchmark YAML can [migrate their case matrices](docs/benchmarks/root-cause-evaluation.md#materialize-labels-on-a-case-matrix).
-
 ## ❓ What is NIKA?
 
-Think about [SWE-Bench](https://github.com/swe-bench/SWE-bench), but for network troubleshooting. [NIKA](https://sands-lab.github.io/nika/), **N**etwork **I**ncident Benchmar**k** for **A**I Agents, is an *open benchmark for agentic evals on network troubleshooting tasks*. NIKA reproduces hundreds of realistic faults covering data center networks, campus networks, ISP backbones, SDN fabrics, overlay networks, and Kubernetes CNIs. It connects any agent directly to a live network stack while the incident is ongoing, evaluating the ability of the AI agent to troubleshoot the network using network diagnostic tools, switch CLIs, and network telemetry data. You don't need physical hardware to run the benchmark, NIKA is powered by state-of-the-art network emulation backends like [Kathará](https://www.kathara.org/) and [Containerlab](https://containerlab.dev/), so you can run it on your laptop or in the cloud.
+Think about [SWE-Bench](https://github.com/swe-bench/SWE-bench), but for network troubleshooting. [NIKA](https://sands-lab.github.io/nika/), **N**etwork **I**ncident Benchmar**k** for **A**I Agents, is an *open benchmark for agentic evals on network troubleshooting tasks*. NIKA reproduces network incidents across data center and campus networks, enterprise WAN overlays, ISP backbones, SDN and P4 fabrics, Kubernetes clusters, and vendor routing environments. It connects any agent directly to a live network stack while the incident is ongoing, evaluating the ability of the AI agent to troubleshoot the network using network diagnostic tools, switch CLIs, and network telemetry data. You don't need physical hardware to run the benchmark, NIKA is powered by state-of-the-art network emulation backends like [Kathará](https://www.kathara.org/) and [Containerlab](https://containerlab.dev/), so you can run it on your laptop or in the cloud.
+
+## ✨ Features
+
+- **Network emulators:** Use NIKA with [Kathará](https://www.kathara.org/) or [Containerlab](https://containerlab.dev/) to run live networks without physical hardware.
+- **Pre-built tasks:** Troubleshoot network incidents without building the setup yourself. NIKA deploys the network and injects the faults.
+- **Bring your AI agent:** Use the included Claude Code, Codex, or LangGraph agents, or [connect your own harness](docs/agents/custom-agents.md).
+- **Agent sandboxing:** Run supported agents in [isolated sandboxes](docs/operations/agent-sandbox.md), with controlled access to the network, filesystem, and tools.
+- **Fair evaluation:** Evaluate incident detection, localization, and diagnosis under reproducible conditions, and [submit your results](docs/benchmarks/leaderboard-submission.md) to the leaderboard.
+- **MCP network telemetry:** Give agents access to [network diagnostic tools](#network-inspection-via-mcp), telemetry, and router and switch CLIs.
+- **Parallel and remote execution:** Run isolated sessions in parallel to speed up evaluations, or deploy the network on a [remote server](docs/operations/remote.md).
+- **Session inspection:** Review agent actions, logs, and scores in the browser with [`nika inspect`](docs/operations/session-inspect.md).
+- **NIKA SDK:** [Create benchmark tasks](docs/development/creating-benchmark-tasks.md) with new network environments, traffic patterns, and faults.
 
 ## 🙋 Why NIKA?
 
@@ -38,7 +46,7 @@ It helps different users answer questions like:
 - 💬 **Network SRE** "I respond to network incidents every day. I want an AI agent to help, but I'm not sure it will understand my topology or make things worse."
 - 💬 **AI Researcher** "I'm designing a new harness for long-horizon network tasks. I need a benchmark to ablate components, measure reproducibly, and compare against published baselines."
 - 💬 **Applied ML Engineer** "I want to fine-tune an open-source model on network troubleshooting and need a structured dataset paired with a rigorous evaluation framework."
-- 💬 **Contributor** "I want to contribute a new network scenario or fault type to the community and have it evaluated systematically."
+- 💬 **Contributor** "I want to contribute a new network environment or fault type to the community and have it evaluated systematically."
 
 ## 🤖 Overview
 
@@ -46,14 +54,32 @@ It helps different users answer questions like:
 
 NIKA combines two components:
 
-1. **NIKA Benchmark** — a suite of reproducible incidents defined by a network scenario and an injectable root cause.
-2. **NIKA Orchestrator** — a modular platform that deploys live labs, injects faults, connects agents to interactive MCP tools, and evaluates their submissions.
+1. **NIKA Benchmark** — a set of tasks, each combining a **network environment**, a **network incident**, and a **network traffic pattern**.
+2. **NIKA Orchestrator** — a modular platform that deploys network environments, injects faults, connects agents to MCP tools, and evaluates their submissions.
+
+### Network types
+
+Choose the network environment you want to troubleshoot. See the [environment reference](docs/operations/network-scenarios.md) for deployment details.
+
+![Representative NIKA network topology types: data center Clos, campus LAN, enterprise branch WAN, ISP backbone, SDN L3 Clos, and P4-programmable fabric](./assets/images/nika_net_scenarios.png)
+
+| Network type | Environments | Emulator | What they run |
+| --- | --- | --- | --- |
+| Data center Clos | [`dc_clos`](docs/operations/network-scenarios.md#data-center-clos-scenario), [`min3clos`](docs/operations/network-scenarios.md#min3clos) | Kathará (`dc_clos`), Containerlab (`min3clos`) | FRR or Nokia SR Linux routed fabrics |
+| Campus LAN | [`campus_lan`](docs/operations/network-scenarios.md#campus-lan-scenario) | Kathará | OSPF, DHCP, DNS, and web services |
+| Enterprise WAN | [`enterprise_branch`](docs/operations/network-scenarios.md#enterprise_branch) | Kathará | Provider underlay and WireGuard/eBGP overlay |
+| ISP backbone | [`isp_abilene`](docs/operations/network-scenarios.md#sndlib-isp-scenarios), [`isp_france`](docs/operations/network-scenarios.md#sndlib-isp-scenarios), and other SNDlib topologies | Kathará or Containerlab | SNDlib backbone graphs with configurable routing |
+| SDN fabric | [`sdn_l3_clos`](docs/operations/network-scenarios.md#sdn_l3_clos) | Kathará | ONOS and OVS Clos fabric |
+| P4 fabric | [`p4_dc_fabric`](docs/operations/network-scenarios.md#p4_dc_fabric), [`p4_dc_gateway`](docs/operations/network-scenarios.md#p4_dc_gateway) | Kathará | BMv2 switches and P4Runtime |
+| Kubernetes networking | [`k8s_lab`](docs/operations/network-scenarios.md#k8s_lab), [`llmd_lab`](docs/operations/network-scenarios.md#llmd_lab) | Kathará | k3s clusters in emulated networks |
+| Vendor routing | [`iosxr_simple_bgp`](docs/operations/network-scenarios.md#ios-xr-simple-bgp-scenario), [`routeros_simple_bgp`](docs/operations/network-scenarios.md#routeros-simple-bgp-scenario) | Kathará | Cisco XRd or MikroTik RouterOS eBGP router pair |
+
 
 ### Network incidents
 
-NIKA constructs benchmark incidents from recurring failure mechanisms. The [failure taxonomy](docs/operations/failures.md) uses a network-subsystem domain plus orthogonal cause, symptom, scope, temporal, and impact metadata. Failure IDs and injection behavior remain stable across taxonomy changes.
+Explore the [network incidents](docs/operations/failures.md) included in the working benchmark:
 
-| Failure domain | Registered failure types | Working-matrix cases |
+| Failure domain | Failure types | Tasks |
 | --- | ---: | ---: |
 | Link & Interface | 6 | 267 |
 | Routing & Control Plane | 8 | 196 |
@@ -66,115 +92,130 @@ NIKA constructs benchmark incidents from recurring failure mechanisms. The [fail
 | Security | 7 | 88 |
 | **Total** | **75** | **1,098** |
 
-Run `uv run nika failure describe <failure_id>` to inspect the taxonomy metadata and injection parameter schema. The [failure reference](docs/operations/failures.md#registered-failures) lists all 75 IDs with their injection and verification contracts.
+See the [failure reference](docs/operations/failures.md#registered-failures) for individual faults and injection options.
 
+### Pluggable agents
 
-## ✨ Features
+NIKA includes agents built with [LangGraph](https://reference.langchain.com/python/langgraph/overview), [mcp-agent](https://github.com/lastmile-ai/mcp-agent), and [AutoGen](https://microsoft.github.io/autogen/stable/); sandboxed [Codex](https://github.com/openai/codex) and [Claude Code](https://github.com/anthropics/claude-code) agents; and community integrations such as [SADE](docs/agents/community/sade.md). [Choose an agent](docs/agents/agent-implementations.md) or [integrate your own](docs/agents/custom-agents.md).
 
-- **Network emulators**: NIKA attaches to state-of-the-art network emulators as backends. Are you a [Kathará](https://www.kathara.org) or [Containerlab](https://containerlab.dev) user? You can use NIKA with both.
-- **Pre-built incident scenarios**: Running your evals is quite simple: start any of the pre-built network scenarios in the NIKA benchmark, with automatic incident replay and evaluation mechanisms.
-- **Bring any AI agent**: You can use our default agents (Claude Code, Codex, LangGraph), or plug your custom AI agent harness, see [Agent integration workflow](docs/agents/custom-agents.md).
-- **Agent sandboxing**: Agents run in isolated environments, with controlled access to the network, filesystem and telemetry tools, see [Agent sandboxing](docs/operations/agent-sandbox.md).
-- **YAML-based fault injection**: Failures can be customized via a declarative interface: `nika failure describe`, and later `--set key=value`.
-- **MCP network telemetry**: Pingmesh server, InfluxDB network telemetry and CLI access to routers and switches.
-- **Multi-session**: Run isolated sessions in parallel to speed up your evaluations.
-- **Remote execution mode**: Run the emulated network and telemetry MCP gateways on any remote server, see [NIKA Remote](docs/operations/remote.md).
-- **Reproducibility and leaderboard**: Refer to the frozen `nika-bench` releases, and submit your results to our up-to-date leaderboard.
-- **NIKA SDK**: For users who wish to extend with new failure cases using NIKA's APIs for traffic generation and fault injection, see [Creating benchmark tasks](docs/development/creating-benchmark-tasks.md).
+### Network inspection via MCP
+
+Depending on the network environment, agents can use MCP tools to inspect hosts, routers, switches, and Kubernetes clusters, capture packets, and query Pingmesh and INT telemetry. See [MCP servers](docs/agents/mcp-servers.md) for available tools.
 
 
 ## 📦 Installation
 
-**Requirements**: Python 3.12+, and [uv](https://docs.astral.sh/uv/) for dependency management. Additionally, NIKA needs Docker and at least one network emulation backend. Currently supported backends are:
+### Prerequisites
 
-- **[Kathará](https://www.kathara.org/)** — install with `--extra kathara` option below.
-- **[Containerlab](https://containerlab.dev/)** — install with `--extra containerlab` option below.
-- **Both** — install with `--extra labs` option below.
+- Linux with Python 3.12+, `curl`, `git`, and `sudo`.
+- [Docker Engine](https://docs.docker.com/engine/install/).
+- The host `vrf` kernel module. On Ubuntu, install it with `sudo apt-get install linux-modules-extra-$(uname -r)`.
 
-`switch_internal_packet_corruption` also needs controller-host eBPF build
-tooling. On Debian or Ubuntu, install it with:
-
-```shell
-sudo apt-get update
-sudo apt-get install -y clang iproute2
-```
-
-This is a controller-host prerequisite. It is not installed in lab nodes or
-Agent sandboxes.
-
-### Basic setup
+### Install NIKA
 
 ```shell
-git clone https://github.com/sands-lab/nika
+git clone https://github.com/sands-lab/nika.git
 cd nika
-uv sync --extra labs   # or --extra kathara / --extra containerlab / (no extra)
-source .venv/bin/activate
-cp .env.example .env
+./scripts/install.sh
 ```
 
-### API keys and credentials
+The installer keeps NIKA's tools in `.venv/` and `.nika_cache/` and does not install system packages.
 
-Keys live in `.env`; agent/benchmark settings live in `config/nika.yaml` (CLI flags override YAML). Copy the templates, then edit:
+More install options: [Installation](docs/operations/installation.md).
+If containers lose network access or environments fail to start, see [Troubleshooting](docs/operations/troubleshooting.md).
+To run networks on another server, see [remote execution](docs/operations/remote.md).
+
+### Agent sandboxing
+
+Host agents such as LangGraph need no sandbox. For sandboxed agents (`cli.*`, `sdk.*`, `community.sade`), install `sbx` with KVM access and sign in:
 
 ```shell
-cp .env.example .env
-cp config/nika.example.yaml config/nika.yaml
-nika config show
+./scripts/install.sh --with-sbx
+sbx login
 ```
 
-If an existing `.env` contains operational settings, run `nika config migrate` instead. See the [run configuration reference](docs/operations/configuration.md) for precedence, defaults, and validation rules.
-
-**Provider** — use a built-in provider (`openai` / `anthropic` / `deepseek`). Put the matching API key in `.env`, and set `agent.provider` in YAML:
-
-```shell
-# .env
-OPENAI_API_KEY=...          # or ANTHROPIC_API_KEY / DEEPSEEK_API_KEY
-
-# config/nika.yaml
-agent:
-  provider: openai          # or anthropic / deepseek
-```
-
-**Custom** — use any OpenAI-compatible endpoint (OpenRouter / Ollama / vLLM / …). Put the key in `.env` (omit if unauthenticated), and set `base_url` (and optional `model`) under `agent.custom` in YAML:
-
-```shell
-# .env
-NIKA_CUSTOM_API_KEY=...     # optional if the endpoint needs no auth
-
-# config/nika.yaml
-agent:
-  provider: custom
-  custom:
-    base_url: https://openrouter.ai/api/v1
-    model: null
-```
-
-### Remote Deployments:
-
-- **Agent Sandboxing**: See the [agent sandbox guide](docs/operations/agent-sandbox.md) for sandboxed execution requirements.
-- **Remote Mode**: Use [remote lab execution](docs/operations/remote.md) to run the emulated network and telemetry MCP gateways on a separate server while the agent runs locally.
+If the installer adds you to the `kvm` group, open a new login shell and run `sbx daemon stop` before the first sandboxed run. More detail: [agent sandboxing](docs/operations/agent-sandbox.md).
 
 ## 🚀 Quick start
 
-Run one incident end-to-end with a task label (`{scenario}_{problem}`, or `{scenario}_{s|m|l}_{problem}` when the scenario is sized):
+### Choose and configure an agent
+
+NIKA ships preconfigured agents with templates in [`config/`](config/). The example below sets up the LangGraph agent with an OpenAI model.
+
+**Step 1. Pick an agent.** List the available agents:
 
 ```shell
-nika agent list
-nika agent run -a byo.langgraph -p openai -m gpt-5-mini \
-  --problem dc_clos_s_link_down
+uv run nika agent list
 ```
 
-That deploys the lab, injects the fault, runs the agent, closes the session, and writes evaluation results.
-
-To run a frozen benchmark release:
+**Step 2. Start from its template.** The installer creates `config/nika.yaml` for settings. Replace it with the LangGraph template:
 
 ```shell
-nika benchmark run --release 0.2.0 --split test --result_dir results/my-run --batch-size 4
-nika eval summary --result_dir results/my-run
+cp config/byo.langgraph.example.yaml config/nika.yaml
 ```
 
+**Step 3. Select the provider and model:**
 
-For lab control (`env` / `failure` / `session`), inject parameter overrides, and the full command tree, see the [CLI reference](docs/operations/cli-reference.md).
+```shell
+uv run nika config set agent.provider=openai agent.model=gpt-5-mini
+```
+
+**Step 4. Add your API key.** The installer also creates `.env` for credentials. Add your key to it:
+
+```ini
+OPENAI_API_KEY=<your key>
+```
+
+**Step 5. Check the active configuration:**
+
+```shell
+uv run nika config show
+```
+
+For other agents or a custom model endpoint, see [choose and run an agent](docs/agents/agent-implementations.md). For configuration options, see the [configuration reference](docs/operations/configuration.md).
+
+### Run a task
+
+Browse the available tasks (Ctrl+C to leave the browser), then try one with the agent you configured:
+
+```shell
+uv run nika case browse
+uv run nika agent run --problem dc_clos_s_link_down
+```
+
+NIKA deploys the environment, injects the fault, runs the agent, closes the session, and saves the results.
+
+Review the run in the NIKA Inspect dashboard:
+
+```shell
+uv run nika inspect
+```
+
+![NIKA Inspect timeline: model reasoning, MCP tool calls, and a selected router command with its output](./assets/images/nika-inspect-timeline.png)
+
+To evaluate the same agent on a benchmark release:
+
+```shell
+uv run nika benchmark run --release 0.2.0 --split test --result_dir results/my-run
+uv run nika eval summary --result_dir results/my-run
+```
+
+### Interactive shell
+
+NIKA also provides a terminal UI for browsing tasks and running agents:
+
+```shell
+uv run nika
+```
+
+![NIKA interactive shell: home screen with the active agent profile and the command menu](./assets/images/nika-tui-home.png)
+
+- `/tasks` — browse and search benchmark tasks.
+- `/run` — choose a task and an agent, then start a run.
+
+Type `/` to see all commands. See the [interactive shell guide](docs/operations/tui.md) for more.
+
+For environment and session management, see the [CLI reference](docs/operations/cli-reference.md).
 
 ## 📖 Learn more
 
@@ -182,24 +223,30 @@ Pick the path that matches what you're trying to do:
 
 **🏁 I want to run the benchmark, any agent**
 
-1. [Quick start](#-quick-start) — end-to-end task run or frozen release.
+1. [Quick start](#-quick-start) — run a task or a benchmark release.
 2. [Run configuration](docs/operations/configuration.md): YAML settings, credentials, defaults, and migration.
 3. [CLI reference](docs/operations/cli-reference.md): `nika` commands, sessions, and result paths.
-4. [Leaderboard submission](docs/benchmarks/leaderboard-submission.md) (GitHub scores + Hugging Face trajectories)
+4. [Browse sessions with `nika inspect`](docs/operations/session-inspect.md): local UI over result directories for agent timelines and scores.
+5. [Leaderboard submission](docs/benchmarks/leaderboard-submission.md) (GitHub scores + Hugging Face trajectories)
 
 **🔌 I want to connect my own agent**
 
-1. [Built-in agents](docs/agents/agent-implementations.md): built-in agents and configuration.
+1. [Choose and run an agent](docs/agents/agent-implementations.md): agent choices and hosted/self-hosted walkthroughs; [agent reference](docs/agents/agent-reference.md) for configuration and limits.
 2. [Agent integration workflow](docs/agents/custom-agents.md): agent contract and integration workflow.
 3. [Agent skills](docs/agents/agent-skills.md): reusable troubleshooting knowledge you can attach to an agent.
 4. [Agent sandboxing](docs/operations/agent-sandbox.md): isolated microVM execution.
 
-**🌐 I want to create a new network scenario**
+**🌐 I want to create a new network environment**
 
 1. [Creating benchmark tasks](docs/development/creating-benchmark-tasks.md)
-2. [Network scenario reference](docs/operations/network-scenarios.md)
+2. [Network environment reference](docs/operations/network-scenarios.md)
 3. [Failure reference](docs/operations/failures.md)
 4. [Testing guide](docs/development/testing.md)
+
+**💬 I want to ask a question or contribute**
+
+1. [NIKA Slack community](https://sands-lab.github.io/nika/community/)
+2. [GitHub issues](https://github.com/sands-lab/nika/issues)
 
 
 ## Network management benchmarks
@@ -208,7 +255,7 @@ NIKA is part of a growing ecosystem. The table below compares NIKA with other be
 
 | Benchmark | Description | Variety | Scale | Environment Realism | Type | Best for |
 |---|---|:---:|:---:|:---:|:---:|---|
-| **[NIKA](https://sands-lab.github.io/nika)** | Live network troubleshooting | ⭐️⭐️⭐️ <br> 75 registered fault types <br> 40 scenario IDs | ⭐️⭐️ <br> 1,098 incident variants | ⭐️⭐️⭐️ <br> ✔ Kathará/Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
+| **[NIKA](https://sands-lab.github.io/nika)** | Live network troubleshooting | ⭐️⭐️⭐️ <br> 75 registered fault types <br> 40 network environments | ⭐️⭐️ <br> 1,098 tasks | ⭐️⭐️⭐️ <br> ✔ Kathará/Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
 | [NetOpsBench](https://github.com/NetX-lab/NetOpsBench) | Live network troubleshooting | ⭐️ <br> 13 fault types <br> 1 network type | ⭐️⭐️ <br>~600 incident variants | ⭐️⭐️⭐️ <br> ✔ Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
 | [NetArena](https://github.com/Froot-NetSys/NetArena) | Network operations | ⭐️ <br> 3 setups, 5 fault types | ⭐️⭐️⭐️ <br> ~9,000 variants | ⭐️⭐️ <br>Mininet <br> Basic netutils (e.g., ping) | 🟢 Online | Large-scale synthetic variants for ML |
 | [NetConfEval](https://github.com/RedHatResearch/conext24-NetConfEval) | Basic network configuration | ⭐️ <br> Reachability, waypoint, load balancing on 8x topologies | ⭐️⭐️⭐️ <br> ~3,000 variants | ⭐️ <br> Simple offline validator | 🔴 Offline / Static | Basic LLM config-generation capability |

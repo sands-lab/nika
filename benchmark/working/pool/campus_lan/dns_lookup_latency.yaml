@@ -10,9 +10,8 @@ failure:
       intf_name: eth0
     root_causes:
     - resource:
-        kind: interface
+        kind: node
         node: dns_server
-        name: eth0
       fault_type: dns_lookup_latency
   - topo_size: m
     inject:
@@ -21,9 +20,8 @@ failure:
       intf_name: eth0
     root_causes:
     - resource:
-        kind: interface
+        kind: node
         node: dns_server
-        name: eth0
       fault_type: dns_lookup_latency
   - topo_size: l
     inject:
@@ -32,7 +30,6 @@ failure:
       intf_name: eth0
     root_causes:
     - resource:
-        kind: interface
+        kind: node
         node: dns_server
-        name: eth0
       fault_type: dns_lookup_latency

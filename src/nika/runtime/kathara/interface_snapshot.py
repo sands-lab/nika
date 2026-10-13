@@ -26,13 +26,16 @@ class LinkAttachmentState:
     addresses: tuple[str, ...]
     routes: tuple[dict, ...] = ()
     neighbors: tuple[dict, ...] = ()
+    # OpenFlow port number of an Open vSwitch port. Controller flows name it, so
+    # the re-created NIC must get the same number back.
+    ofport: int | None = None
 
 
 def capture_link_state(
     runtime: LabRuntime, node: str, intf: str, number: int
 ) -> LinkAttachmentState:
     """Snapshot interface identity, master, addresses, and routes from the kernel."""
-    info = _link_info(runtime, node, intf)
+    info = link_info(runtime, node, intf)
     master = info.get("master")
     return LinkAttachmentState(
         node=node,
@@ -44,6 +47,7 @@ def capture_link_state(
         addresses=_addresses(runtime, node, intf),
         routes=_routes(runtime, node, intf),
         neighbors=_neighbors(runtime, node, intf),
+        ofport=_ofport(runtime, node, intf) if master == "ovs-system" else None,
     )
 
 
@@ -68,12 +72,22 @@ def restore_link_state(runtime: LabRuntime, state: LinkAttachmentState) -> None:
             continue
         current = matching["ifname"]
         if current != state.intf:
+            # Renaming an up interface trips a zebra assertion; watchfrr then
+            # restarts every FRR daemon and resets all BGP sessions.
             runtime.exec(
                 state.node,
+                f"ip link set dev {current} down && "
                 f"ip link set dev {current} name {state.intf}",
             )
         runtime.exec(state.node, f"ip link set dev {state.intf} mtu {state.mtu}")
-        if state.master:
+        if state.ofport is not None:
+            # Open vSwitch re-adds the port by name but assigns the next free
+            # OpenFlow number, which the controller's flows do not match.
+            runtime.exec(
+                state.node,
+                f"ovs-vsctl set Interface {state.intf} ofport_request={state.ofport}",
+            )
+        elif state.master:
             runtime.exec(
                 state.node,
                 f"ip link set dev {state.intf} master {state.master}",
@@ -95,9 +109,7 @@ def restore_link_state(runtime: LabRuntime, state: LinkAttachmentState) -> None:
         for row in ordered_routes:
             runtime.exec(state.node, _route_replace_cmd(row, state.intf))
         return
-    raise RuntimeCapabilityError(
-        f"VDE proxy did not attach {state.node}:{state.intf}"
-    )
+    raise RuntimeCapabilityError(f"VDE proxy did not attach {state.node}:{state.intf}")
 
 
 def wait_for_bmv2_dataplane(
@@ -116,9 +128,7 @@ def wait_for_bmv2_dataplane(
         if pending:
             time.sleep(2)
     if pending:
-        raise RuntimeCapabilityError(
-            f"simple_switch_grpc not ready on {pending}"
-        )
+        raise RuntimeCapabilityError(f"simple_switch_grpc not ready on {pending}")
 
 
 def wait_for_bmv2_grpc_listen(
@@ -171,10 +181,23 @@ def restart_bmv2_dataplane(runtime: LabRuntime, node: str) -> None:
         line = line.split(">>", 1)[0].strip()
 
     runtime.exec(node, "pkill -f '[s]imple_switch_grpc' || true", timeout=10)
-    time.sleep(1)
+    # Wait for the old process to exit (it holds the gRPC port and the
+    # veths); poll instead of a fixed 1 s sleep.
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        if not runtime.exec(
+            node, "pgrep -f '[s]imple_switch_grpc' || true", timeout=10
+        ).strip():
+            break
+        time.sleep(0.1)
     runtime.exec(node, f"nohup {line} >> sw.log 2>&1 &", timeout=10)
     wait_for_bmv2_dataplane(runtime, [node])
     wait_for_bmv2_grpc_listen(runtime, [node])
+
+
+def _ofport(runtime: LabRuntime, node: str, intf: str) -> int | None:
+    output = runtime.exec(node, f"ovs-vsctl get Interface {intf} ofport").strip()
+    return int(output) if output.isdigit() else None
 
 
 def _neighbors(runtime: LabRuntime, node: str, intf: str) -> tuple[dict, ...]:
@@ -229,7 +252,8 @@ def _addresses(runtime: LabRuntime, node: str, intf: str) -> tuple[str, ...]:
     )
 
 
-def _link_info(runtime: LabRuntime, node: str, intf: str) -> dict:
+def link_info(runtime: LabRuntime, node: str, intf: str) -> dict:
+    """Return ``ip -j link`` for ``node:intf``, retrying while the NIC settles."""
     for _ in range(10):
         output = runtime.exec(node, f"ip -j link show dev {intf}")
         try:

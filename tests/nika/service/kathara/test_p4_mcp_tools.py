@@ -10,6 +10,8 @@ from nika.mcp.servers.kathara import bmv2_server, telemetry_server
 from nika.service.kathara.bmv2_api import KatharaBMv2API, _sanitize_p4rt_payload
 from nika.mcp.servers.common import host_server
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.mark.asyncio
 async def test_p4_mcp_tool_schemas() -> None:
@@ -139,7 +141,7 @@ def test_sanitize_p4rt_payload_drops_internal_fault_keys() -> None:
     assert cleaned == {"ok": True, "nested": {"z": 3}}
 
 
-def test_get_tc_statistics_works_with_kathara_base_api(monkeypatch) -> None:
+def test_exec_shell_reads_tc_statistics(monkeypatch) -> None:
     api = KatharaBMv2API.__new__(KatharaBMv2API)
     calls: list[tuple[str, str]] = []
 
@@ -150,5 +152,7 @@ def test_get_tc_statistics_works_with_kathara_base_api(monkeypatch) -> None:
     monkeypatch.setattr(api, "exec_cmd", _exec)
     monkeypatch.setattr(host_server, "get_lab_api", lambda: api)
 
-    assert host_server.get_tc_statistics("gateway_1", "eth2").startswith("qdisc")
+    assert host_server.exec_shell("gateway_1", "tc -s qdisc show dev eth2").startswith(
+        "qdisc"
+    )
     assert calls == [("gateway_1", "tc -s qdisc show dev eth2")]

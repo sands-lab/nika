@@ -8,11 +8,9 @@ from unittest.mock import patch
 import pytest
 import yaml
 
-from nika.workflows.benchmark.release import ReleaseError, load_release
 from nika.workflows.benchmark.run import run_benchmark_from_release
 from nika.workflows.benchmark.trials import expand_trials, is_valid_trial, trial_dir
 from nika.workflows.leaderboard.meta_input import (
-    slugify_name,
     write_submission_templates,
 )
 from nika.workflows.leaderboard.pack import pack_leaderboard_submission
@@ -33,6 +31,8 @@ from tests.benchmark.curated import (
 )
 from tests.leaderboard.test_e2e_release_pack import _fill_staging, _write_mocked_trial
 
+pytestmark = pytest.mark.contract
+
 
 @pytest.mark.contract
 def test_curated_rows_are_subset_of_0_2_0_test_split() -> None:
@@ -47,12 +47,6 @@ def test_curated_rows_are_subset_of_0_2_0_test_split() -> None:
             f"curated row not in 0.2.0 test.yaml: "
             f"{row.get('scenario')} / {row.get('problem')} / {row.get('topo_size')}"
         )
-
-
-@pytest.mark.contract
-def test_deprecated_0_1_0_message_points_to_0_2_0() -> None:
-    with pytest.raises(ReleaseError, match=r"0\.2\.0"):
-        load_release("0.1.0", split="test")
 
 
 @pytest.mark.contract
@@ -111,13 +105,17 @@ def test_curated_freeze_pack_validate(tmp_path: Path) -> None:
         expected = expand_trials(release.cases, release.n_trials)
         assert len(expected) == 3
         for trial in expected:
-            assert is_valid_trial(trial_dir(result_dir, trial.case_key, trial.trial_index))
+            assert is_valid_trial(
+                trial_dir(result_dir, trial.case_key, trial.trial_index)
+            )
 
         staging = write_submission_templates(result_dir / "submission")
         _fill_staging(staging, name="Curated Mock Agent")
-        package = pack_leaderboard_submission(result_dir, submission_dir=staging).scores_dir
+        package = pack_leaderboard_submission(
+            result_dir, submission_dir=staging
+        ).scores_dir
 
-    assert package.name.endswith(f"_{slugify_name('Curated Mock Agent')}")
+    assert package.name.endswith("_mock_mock_v1")
     assert (package / METADATA_FILENAME).is_file()
     assert (package / README_FILENAME).is_file()
     assert (package / RESULTS_DIRNAME / IDENTITY_FILENAME).is_file()
@@ -156,13 +154,24 @@ def test_curated_timeout_continues_remaining(tmp_path: Path) -> None:
                 f"[{trial.trial_id}] case exceeded --case-timeout (1s) and was killed."
             )
             # Seed a partial session so finalize can count the trial.
-            path = trial_dir(Path(kwargs["result_dir"]), trial.case_key, trial.trial_index)
+            path = trial_dir(
+                Path(kwargs["result_dir"]), trial.case_key, trial.trial_index
+            )
             path.mkdir(parents=True, exist_ok=True)
             (path / "run.json").write_text(
                 '{"session_id":"%s","status":"running"}' % trial.trial_id,
                 encoding="utf-8",
             )
             (path / "ground_truth.json").write_text("{}", encoding="utf-8")
+            # The agent got turns before the kill, so the timeout is counted.
+            (path / "nika.jsonl").write_text(
+                '{"event":"agent_start","timestamp":"2026-09-26T00:00:00+00:00"}\n',
+                encoding="utf-8",
+            )
+            (path / "messages.jsonl").write_text(
+                '{"event":"tool_start","timestamp":"2026-09-26T00:00:01+00:00"}\n',
+                encoding="utf-8",
+            )
             with (
                 patch("nika.workflows.benchmark.run.close_session"),
                 patch(

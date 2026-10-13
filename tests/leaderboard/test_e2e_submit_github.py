@@ -22,6 +22,8 @@ _LIVE = os.environ.get("NIKA_LEADERBOARD_E2E", "").strip() in {"1", "true", "yes
 _gh_ok = shutil.which("gh") is not None
 
 pytestmark = [
+    pytest.mark.e2e,
+    pytest.mark.live,
     pytest.mark.skipif(not _LIVE, reason="set NIKA_LEADERBOARD_E2E=1 to run"),
     pytest.mark.skipif(not _gh_ok, reason="gh CLI not on PATH"),
 ]

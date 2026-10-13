@@ -11,11 +11,6 @@ from nika.utils.logger import system_logger
 logger = system_logger
 
 # ==================================================================
-# Problem: P4 switch device failure (bmv2 switch down)
-# ==================================================================
-
-
-# ==================================================================
 # Problem: FRR service down on a router device
 # ==================================================================
 
@@ -31,11 +26,17 @@ class FrrDown(ProblemBase):
     """FRR device down problem."""
 
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
+    symptom_probe = "custom"
+    symptom_class = "control_plane"
     root_cause_name: str = "frr_service_down"
     description = "FRR routing daemon is unavailable."
     TAGS: str = ["frr"]
 
     Params = FrrDownParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": ctx.router0}
 
     symptom_desc = "Users report connectivity issues to other hosts in the network."
 
@@ -57,6 +58,16 @@ class FrrDown(ProblemBase):
             "staticd",
             "ospf6d",
             "ripd",
+            "ripngd",
+            "isisd",
+            "fabricd",
+            "ldpd",
+            "eigrpd",
+            "bfdd",
+            "pathd",
+            "vrrpd",
+            "pimd",
+            "pim6d",
         ):
             self.runtime.kill_process(params.host_name, daemon)
 

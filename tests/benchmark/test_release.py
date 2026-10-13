@@ -13,14 +13,13 @@ from nika.workflows.benchmark.release import (
     JOB_FILENAME,
     ReleaseError,
     freeze_release,
-    is_deprecated_release,
     load_release,
-    parse_release_ref,
     preflight_release,
-    resolve_cases,
     verify_dev_test_isolation,
 )
 from nika.workflows.benchmark.run import run_benchmark_from_release
+
+pytestmark = pytest.mark.contract
 
 
 def _mini_cases_yaml(path: Path) -> Path:
@@ -39,29 +38,42 @@ def _mini_cases_yaml(path: Path) -> Path:
     return path
 
 
-class TestDeprecatedRelease010:
-    def test_is_marked_deprecated(self) -> None:
-        assert is_deprecated_release("0.1.0")
-        assert is_deprecated_release(" 0.1.0 ")
-        assert not is_deprecated_release("mini")
-
-    def test_load_raises_deprecated(self) -> None:
-        with pytest.raises(ReleaseError, match=r"deprecated.*0\.2\.0"):
-            load_release("0.1.0", split="dev")
-        with pytest.raises(ReleaseError, match=r"deprecated.*0\.2\.0"):
-            resolve_cases("0.1.0", split="test")
-
-    def test_nika_alias_still_parses_but_load_rejects(self) -> None:
-        assert parse_release_ref("nika@0.1") == ("nika-bench", "0.1.0")
-        with pytest.raises(ReleaseError, match=r"deprecated.*0\.2\.0"):
-            load_release("nika@0.1", split="test")
-
+class TestReleaseRefs:
     def test_sha256_ref_rejected(self) -> None:
         with pytest.raises(ReleaseError, match="Digest-based"):
             load_release(
                 "nika-bench@sha256:226d3209e3c3c46aade8c37ecd989642ae73692f0d9f149995954553e41474d1",
                 split="dev",
             )
+
+
+def test_published_0_2_0_release_preflight() -> None:
+    """The documented release must load and pass its complete contract gate."""
+    release = load_release("0.2.0", split="test")
+
+    assert release.case_count == 85
+    assert release.n_trials == 3
+    preflight_release(release, check_images=False)
+
+
+def test_timed_release_faults_cover_the_default_trial_budget() -> None:
+    """Worker expiry must not invalidate a legitimate long benchmark trial."""
+    from nika.problems.registry import get_problem_class
+    from nika.run_config.schema import BenchmarkSettings
+
+    timed_faults = {
+        "sender_resource_contention",
+        "receiver_resource_contention",
+        "tcp_syn_flood_attack",
+        "incast_traffic_network_limitation",
+    }
+    timeout = BenchmarkSettings.model_fields["case_timeout_sec"].default
+    for split in ("dev", "test"):
+        for row in load_release("0.2.0", split=split).cases:
+            if row["problem"] in timed_faults:
+                cls = get_problem_class(row["problem"])
+                params = cls.Params.model_validate(row["inject"])
+                assert params.duration > timeout, (split, row)
 
 
 class TestFreezeRelease:
@@ -164,6 +176,14 @@ class TestReleaseRunMetadata:
         )
         result_dir = tmp_path / "results"
         runs_dir = tmp_path / "benchmark_runs"
+        written: dict[str, dict] = {}
+
+        def _capture_written(*_args, **_kwargs) -> list[str]:
+            # Run config and progress exist (post-confirm) before trials start.
+            job_doc = json.loads((result_dir / JOB_FILENAME).read_text("utf-8"))
+            progress_doc = runs_dir / f"{job_doc['run_id']}.json"
+            written["progress"] = json.loads(progress_doc.read_text("utf-8"))
+            return []
 
         with (
             patch(
@@ -171,8 +191,8 @@ class TestReleaseRunMetadata:
                 return_value=None,
             ),
             patch(
-                "nika.workflows.benchmark.run.run_benchmark_trials",
-                return_value=None,
+                "nika.workflows.benchmark.run._run_trials_batch",
+                side_effect=_capture_written,
             ) as run_trials,
             patch(
                 "nika.workflows.benchmark.run_progress.BENCHMARK_RUNS_DIR",
@@ -210,9 +230,7 @@ class TestReleaseRunMetadata:
         assert (result_dir / "RELEASE.lock.json").is_file()
         assert run_trials.called
 
-        progress_path = runs_dir / f"{job['run_id']}.json"
-        assert progress_path.is_file()
-        progress = json.loads(progress_path.read_text(encoding="utf-8"))
+        progress = written["progress"]
         assert progress["status"] == "running"
         assert progress["total_trials"] == 3
         assert progress["pending_trials"] == 3
@@ -230,7 +248,9 @@ class TestReleaseRunMetadata:
         result_dir = tmp_path / "results"
         with (
             patch("nika.workflows.benchmark.run.preflight_release"),
-            patch("nika.workflows.benchmark.run.run_benchmark_trials") as run_trials,
+            patch(
+                "nika.workflows.benchmark.run._run_trials_batch", return_value=[]
+            ) as run_trials,
             patch(
                 "nika.workflows.benchmark.run_progress.BENCHMARK_RUNS_DIR",
                 tmp_path / "benchmark_runs",
@@ -254,16 +274,3 @@ class TestReleaseRunMetadata:
         assert run_trials.called
         assert run_trials.call_args.kwargs["case_timeout"] == 60
         assert "run_judge" not in run_trials.call_args.kwargs
-
-    def test_run_deprecated_release_rejected(self, tmp_path: Path) -> None:
-        with pytest.raises(ReleaseError, match="deprecated"):
-            run_benchmark_from_release(
-                release_ref="0.1.0",
-                split="test",
-                agent_type="mock",
-                llm_provider=None,
-                model="mock-v1",
-                max_steps=None,
-                result_dir=str(tmp_path / "results"),
-                check_images=False,
-            )

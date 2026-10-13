@@ -1,0 +1,29 @@
+scenario:
+  name: routeros_simple_bgp
+failure:
+  fault_type: link_down
+  cases:
+  - inject:
+      host_name: pc1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: pc1:eth0--router1:eth2
+      fault_type: link_down
+  - inject:
+      host_name: pc2
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: pc2:eth0--router2:eth2
+      fault_type: link_down
+  - inject:
+      host_name: router1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: link
+        name: router1:eth1--router2:eth1
+      fault_type: link_down

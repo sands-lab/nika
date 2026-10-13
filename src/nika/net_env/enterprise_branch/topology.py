@@ -35,10 +35,6 @@ BRANCH_ROLES_S = ("corp", "guest")
 HUB_ROLES_ML = ("corp", "server", "iot", "guest")
 BRANCH_ROLES_ML = ("corp", "iot", "guest")
 
-# Backward-compatible aliases (size ``s`` role sets).
-HUB_ROLES = HUB_ROLES_S
-BRANCH_ROLES = BRANCH_ROLES_S
-
 
 @dataclass(frozen=True)
 class ScaleSpec:

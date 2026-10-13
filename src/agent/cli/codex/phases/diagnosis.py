@@ -26,8 +26,8 @@ class CodexCliDiagnosisPhase:
         Active LLM provider forwarded to the Codex worker.
     reasoning_effort:
         Optional Codex ``model_reasoning_effort`` override.
-    timeout:
-        Hard timeout in seconds for the subprocess.
+    max_steps:
+        LLM-turn budget for the phase (enforced by the worker).
     scenario_name:
         Scenario identifier used to select relevant Kathara MCP servers.
     """
@@ -38,11 +38,12 @@ class CodexCliDiagnosisPhase:
         session_dir: str,
         model: str = "gpt-5.4-mini",
         reasoning_effort: str | None = None,
-        timeout: int = 600,
+        max_steps: int = 20,
         scenario_name: str = "",
         *,
         llm_provider: str,
         stream_output: bool = True,
+        trace_dir: str | None = None,
     ) -> None:
         self._worker = CodexWorker(
             session_id=session_id,
@@ -50,10 +51,11 @@ class CodexCliDiagnosisPhase:
             phase=DIAGNOSIS,
             model=model,
             reasoning_effort=reasoning_effort,
-            timeout=timeout,
+            max_steps=max_steps,
             scenario_name=scenario_name,
             llm_provider=llm_provider,
             stream_output=stream_output,
+            trace_dir=trace_dir,
         )
         self._diagnosis_prompt = diagnosis_prompt_with_skills(OVERALL_DIAGNOSIS_PROMPT)
 

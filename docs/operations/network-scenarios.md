@@ -10,11 +10,30 @@ uv run nika env list
 
 ## Backend requirements
 
-Kathará scenarios need Docker and the Kathará dependency group. Containerlab scenarios need Docker, `clab`, and the Containerlab dependency group.
+| Backend | Needs |
+| --- | --- |
+| Kathará | Docker, Kathará Python package (`uv sync`) |
+| Containerlab | Docker, `clab`, `gnmic` |
 
-Install both backends with `uv sync --extra labs`. Use `--extra kathara` or `--extra containerlab` for one backend. The root [README](../../README.md#-installation) covers the full installation flow.
+Install with [`./scripts/install.sh`](../../scripts/install.sh). Installer options: [Installation](installation.md). Overview: root [README](../../README.md#-installation).
 
-`min3clos` also calls `gnmic` and uses Nokia SR Linux and network-multitool images. The Kubernetes scenarios download k3s and workload images during deployment. `iosxr_simple_bgp` needs a manually loaded Cisco XRd Control Plane image; see [IOS-XR simple BGP](#ios-xr-simple-bgp-scenario).
+Every Containerlab scenario runs Nokia SR Linux, which NIKA configures over gNMI, so `gnmic` is required for all of them. `min3clos` is Containerlab-only. `isp_<topology>` scenarios use Containerlab when you pass `--backend containerlab`.
+
+Containerlab scenarios pull the Nokia SR Linux and multi-arch `wbitt/network-multitool` images. Kubernetes scenarios download k3s and workload images during deployment. `iosxr_simple_bgp` needs a Cisco XRd Control Plane image that you load manually (or via `./scripts/install.sh --with-vendor-images --xrd-tarball …`). See [IOS-XR simple BGP](#ios-xr-simple-bgp-scenario). `routeros_simple_bgp` needs a MikroTik RouterOS `vrnetlab` image (build with `./scripts/install.sh --with-vendor-images`; clone lands under `.nika_cache/vendor/vrnetlab`); see [RouterOS simple BGP](#routeros-simple-bgp-scenario).
+
+### Concurrency and `--batch-size`
+
+Benchmark runs use two concurrency limits (see [`benchmark` settings](configuration.md#benchmark-settings)), both sliding windows that default to `1`:
+
+- `--batch-size` caps light trials: ``s``/``m`` Kathara cases.
+- `--heavy-batch-size` caps heavy trials: Containerlab, `k8s_lab` / `llmd_lab` / `iosxr_simple_bgp`, and any topo_size ``l`` case.
+
+Heavy and light trials never run at the same time. With the default `--heavy-batch-size 1`, each heavy session runs alone on the host. Raise it only when the host has capacity for several heavy labs at once, for example `--batch-size 8 --heavy-batch-size 4`.
+
+Why heavy labs need a separate cap:
+
+- `k8s_lab` and `llmd_lab` each run six privileged k3s nodes. Concurrent labs exhaust host inotify capacity and the k3s server exits. `iosxr_simple_bgp` needs the same raised limits. See [Host inotify limits too low](troubleshooting.md#host-inotify-limits-too-low-k3s--xrd).
+- Containerlab scenarios apply their post-deploy SR Linux configuration over gRPC. Under concurrent load the SR Linux management server rejects the keepalives with `ENHANCE_YOUR_CALM` and `too_many_pings`, and `clab deploy` fails. NIKA destroys the partial lab and retries the deploy once. Within one lab, NIKA also passes `clab deploy --max-workers` from `nika.lab.containerlab_max_workers` (default `2`). Lower it if deploy OOMs; see [Containerlab deploy OOM](troubleshooting.md#containerlab-deploy-oom-on-memory-tight-hosts).
 
 ## Scenario catalog
 
@@ -27,6 +46,7 @@ Install both backends with `uv sync --extra labs`. Use `--extra kathara` or `--e
 | `p4_dc_fabric` | Kathara | `-s s\|m\|l` |  | BMv2 `simple_switch_grpc` L3 Clos under P4Runtime; ActionSelector ECMP |
 | `p4_dc_gateway` | Kathara | `-s s\|m\|l` |  | Gateway-spine-leaf BMv2 fabric with ECMP, INT-MX, ECN, queues, and flow tracking |
 | `iosxr_simple_bgp` | Kathara | Fixed |  | Two Cisco XRd routers with eBGP and two PCs |
+| `routeros_simple_bgp` | Kathara | Fixed |  | Two MikroTik RouterOS routers with eBGP and two PCs |
 | `isp_<topology>` | Kathara or Containerlab | Fixed metadata `s`/`m`/`l` | Protocol options | One SNDlib graph per scenario ID, compiled to FRR or SR Linux |
 | `isp_abilene_ebgp_rpki` / `isp_geant_ebgp_rpki` | Kathara | Fixed | — | Named eBGP + offline RPKI overlays |
 | `isp_abilene_ebgp_rtbh` / `isp_dfn-bwin_ebgp_rtbh` | Kathara | Fixed | — | Named eBGP + RTBH blackhole overlays |
@@ -90,7 +110,7 @@ user PCs -- access switches -- distribution routers
 | `m` | 4 | 8 | 16 |
 | `l` | 8 | 32 | 128 |
 
-Hosts acquire addresses from `dhcp_server`; distribution routers relay DHCP. Dist/access names stay `router_dist_*` / `server_access_router`. The farm adds an NGINX load balancer at `web99.local` and three backend webs on `20.200.0.0/24`. It verifies OSPF adjacency, cross-branch reachability, DNS, and HTTP.
+Hosts acquire addresses from `dhcp_server`; distribution routers relay DHCP. Dist/access names stay `router_dist_*` / `server_access_router`. The farm adds an NGINX load balancer at `web99.local` and three backend webs on `20.200.0.0/24`. Each `webN.local` server runs NGINX, which serves the campus software repository over HTTP and HTTPS and proxies other paths to the mock page service. Lab PCs refresh their software catalog by downloading the gzip-encoded `https://web0.local/packages/catalog.txt` (64 MiB decoded), trusting the repository through the campus CA. Each PC also has a local archive job configured with one worker in `/etc/archive-job.json`. It verifies OSPF adjacency, cross-branch reachability, DNS, and HTTP.
 
 ```shell
 uv run nika env run campus_lan -s s
@@ -102,7 +122,7 @@ uv run nika env run campus_lan -s s
 
 NIKA builds a multi-site enterprise WAN from one production template: HQ and a secondary DC hub, branch sites, and dual provider underlays. Every size keeps the same dual providers, dual hubs, WAN redundancy, and WireGuard+eBGP overlay. Size scales branch count and hosts per LAN. The `m` and `l` sizes add an IOT VRF, which increases the number of business domains alongside the replicated VLANs.
 
-Each site has business LANs bound into Linux VRFs on the Site Edge (`vrf_corp`, `vrf_server`, `vrf_guest`, and on `m`/`l` `vrf_iot`). Sites do not mesh over physical links. Edges attach to both providers for IP underlay reachability between tunnel endpoints only. WAN PE links, WireGuard tunnels, and eBGP sessions stay in the default VRF.
+Each site has business LANs bound into Linux VRFs on the Site Edge (`vrf_corp`, `vrf_server`, `vrf_guest`, and on `m`/`l` `vrf_iot`), so the Docker host needs the `vrf` kernel module (see [Host kernel lacks the vrf module](troubleshooting.md#host-kernel-lacks-the-vrf-module-enterprise_branch)). Sites do not mesh over physical links. Edges attach to both providers for IP underlay reachability between tunnel endpoints only. WAN PE links, WireGuard tunnels, and eBGP sessions stay in the default VRF.
 
 Site Edge routers terminate WireGuard site-to-site tunnels and run eBGP over those tunnels to exchange authorized business prefixes (CORP, SERVER). FRR imports those overlay prefixes into the matching business VRFs. SERVER is a shared-services domain: CORP and SERVER exchange prefixes through explicit route leaking only. GUEST and IOT stay local (default route via the provider with NAT) and are not advertised in overlay BGP. Cross-site traffic follows `LAN VRF → Site Edge → VPN tunnel → Provider underlay → Remote Edge → Remote LAN VRF`. Branch-to-branch traffic hairpins a hub. HQ and DC2 also peer directly over dual-provider WireGuard+eBGP.
 
@@ -142,7 +162,7 @@ SERVER-role hosts serve static HTTP objects at `http://<server>/small.bin` (16 K
 
 Use this scenario for underlay vs overlay diagnosis, VRF business isolation, hub-and-spoke VPN reachability, eBGP path preference with backup sessions at every scale, overlay-egress DSCP/QoS faults, and receiver-side TCP receive-window bottlenecks on branch–HQ paths. Verification covers VRF devices on every edge, every designed tunnel (underlay reachability, WireGuard, BGP both sides), per-VRF RIB contents (CORP sees CORP+SERVER leak; GUEST/IOT do not), hub interconnect, every branch CORP↔HQ CORP plus HTTP to HQ SERVER, every branch pair via the corp VRF overlay path, every provider without enterprise prefixes, GUEST/IOT isolation from CORP, every backup BGP session with primary-path preference, and HTB EF/BE classes on every WireGuard overlay egress.
 
-Legacy id `rip_small_internet_vpn` (and the short-lived `enterprise_branch_vpn`) resolve to this scenario. They are not listed by `nika env list`. Frozen release `0.1.0` still records the old RIP mini-Internet lab hash and host-VPN selected case; regenerate a release when you publish the new lab.
+The ID `rip_small_internet_vpn` names the original 0.1.0 RIP mini-Internet lab, a separate lab that only release 0.1.0 uses. See [Run release 0.1.0](../compat/release-0.1.0.md).
 
 Boundary: `campus_lan` is a single-campus L3 network; `dc_clos` is a data-center fabric; `isp_*` scenarios are carrier IGP/BGP itself. This scenario is enterprise multi-site WAN with encrypted overlay and per-role VRFs.
 
@@ -154,7 +174,7 @@ uv run nika env run enterprise_branch -s s
 
 ### `sdn_l3_clos`
 
-Symmetric leaf-spine L3 Clos under centralized ONOS control. Switches are Open vSwitch (`fail-mode=secure`, OpenFlow 1.3). The out-of-band control network is `172.31.0.0/16` with ONOS at `172.31.0.100:6653`. On deploy, `ensure_nika_docker_images` builds `nika/onos` (pinned `onosproject/onos:2.7-latest` plus iproute2) when missing and pulls `kathara/sdn` when missing. Each leaf owns rack prefix `10.0.<leaf>.0/24` with gateway `.1` and a shared virtual router MAC. Endpoints start at `.11` (one `web_*` nginx endpoint plus `client_*` workers per leaf). A host-side fabric manager installs proactive IPv4 forwarding and OpenFlow `SELECT` ECMP groups (stable five-tuple hash). No STP and no `NORMAL` learning fallback.
+Symmetric leaf-spine L3 Clos under centralized ONOS control. Switches are Open vSwitch (`fail-mode=secure`, OpenFlow 1.3). The out-of-band control network is `172.31.0.0/16` with ONOS at `172.31.0.100:6653`. On deploy, `ensure_nika_docker_images` builds `nika/onos` when missing or outdated and pulls `kathara/sdn` when missing. `nika/onos` is a multi-arch image: `kathara/base` plus a host-arch Temurin 11 JRE, with the ONOS Java tree copied from pinned `onosproject/onos:2.7-latest` (amd64-only upstream). That keeps Kathara's architecture check happy on Linux arm64 and amd64 without qemu. Each leaf owns rack prefix `10.0.<leaf>.0/24` with gateway `.1` and a shared virtual router MAC. Endpoints start at `.11` (one `web_*` nginx endpoint plus `client_*` workers per leaf). A host-side fabric manager installs proactive IPv4 forwarding and OpenFlow `SELECT` ECMP groups (stable five-tuple hash). No STP and no `NORMAL` learning fallback.
 
 ```text
                     ONOS
@@ -187,7 +207,7 @@ The two Kathara P4 scenarios start BMv2 `simple_switch_grpc` with no local table
 
 ### `p4_dc_fabric`
 
-Symmetric leaf-spine L3 Clos of BMv2 `simple_switch_grpc` switches under a NIKA P4Runtime fabric manager. The out-of-band control network is `172.31.0.0/16` with `fabric_mgr` at `172.31.0.101`. Switches start with `--no-p4` and listen on `:9559`. Deploy compiles the v1model IPv4 fabric program once on a leaf, then `SetForwardingPipelineConfig` plus table/group writes program every switch. Role is table state: same-rack `/32` to the host port, remote `/24` via ActionSelector ECMP over all spines. Endpoints use `/32` addresses on rack `10.0.<leaf>.0/24`, send all IPv4 via gateway `.1`, and keep a permanent neighbor for the shared virtual router MAC. Build `nika/fabric-controller` on deploy when missing (the image name must not contain `p4`; NIKA classifies `"p4" in image` as BMv2).
+Symmetric leaf-spine L3 Clos of BMv2 `simple_switch_grpc` switches under a NIKA P4Runtime fabric manager. The out-of-band control network is `172.31.0.0/16` with `fabric_mgr` at `172.31.0.101`. Switches start with `--no-p4` and listen on `:9559`. Deploy compiles the v1model IPv4 fabric program once on a leaf, then `SetForwardingPipelineConfig` plus table/group writes program every switch. Role is table state: same-rack `/32` to the host port, remote `/24` via ActionSelector ECMP over all spines. Endpoints use `/32` addresses on rack `10.0.<leaf>.0/24`, send all IPv4 via gateway `.1`, and keep a permanent neighbor for the shared virtual router MAC. Build `nika/fabric-controller` on deploy when missing or outdated (the image name must not contain `p4`; NIKA classifies `"p4" in image` as BMv2).
 
 ```text
                  fabric_mgr
@@ -214,7 +234,7 @@ Verification checks `simple_switch_grpc`, OOB reachability, P4Runtime Read vs in
 uv run nika env run p4_dc_fabric -s s
 ```
 
-Legacy id `p4_counter` resolves to this scenario. It is not listed by `nika env list`. Frozen release `0.1.0` still records the old L2 counter lab hash; regenerate a release when you publish the new lab.
+The ID `p4_counter` names the original 0.1.0 L2 counter lab, a separate lab that only release 0.1.0 uses. See [Run release 0.1.0](../compat/release-0.1.0.md).
 
 ### `p4_dc_gateway`
 
@@ -226,7 +246,7 @@ This benchmark scenario connects one external client to each gateway, fully mesh
 | `m` | 4 | 4 | 4 | 4 | 8 |
 | `l` | 8 | 8 | 8 | 8 | 16 |
 
-The shared v1model pipeline provides IPv4 LPM, five-tuple ActionSelector ECMP, packet and byte counters, fixed INT-MX source and sink processing, four-position SYN and non-SYN counting Bloom filters, per-port ECN thresholds, queue occupancy, and private post-counter failure hooks. BMv2 and INT MCP tools for this lab are documented under [MCP servers](../agents/mcp-servers.md#p4--bmv2-kathara_bmv2_mcp_server) and [Telemetry](../agents/mcp-servers.md#telemetry-kathara_telemetry_mcp_server).
+The shared v1model pipeline provides IPv4 LPM, five-tuple ActionSelector ECMP, packet and byte counters, fixed INT-MX source and sink processing, four-position SYN and non-SYN counting Bloom filters, per-port ECN thresholds, queue occupancy, and private post-counter failure hooks. BMv2 sends packets as fast as its CPU allows, so its egress queue stays empty. Each egress port therefore keeps a virtual queue that drains one packet per 16384 µs (about 61 packets per second) and holds at most 64 packets. The `queue_occupancy` register reports that depth, and ECN marks ECT packets when the depth reaches the port threshold. The virtual queue never drops packets. Each gateway also serves the TCP VIP `20.0.0.1:80` as a SilkRoad-style stateful L4 load balancer: a versioned 64-bucket DIP pool picks a backend for a new connection, and a gateway-local agent (`lb_agent.py`) learns the connection about 5 ms after its SYN by pinning the five-tuple to that DIP in the 256-entry `lb_conn_table` (RST, FIN and idleness remove it). The agent also performs routine pool updates (a VIP version flip); learned connections keep their DIP across them. BMv2 and INT MCP tools for this lab are documented under [MCP servers](../agents/mcp-servers.md#p4--bmv2-kathara_bmv2_mcp_server) and [Telemetry](../agents/mcp-servers.md#telemetry-kathara_telemetry_mcp_server).
 
 ```shell
 uv run nika env run p4_dc_gateway -s s
@@ -239,24 +259,29 @@ uv run nika traffic run burst --sources client_1,client_2 --destination service_
 
 Two Cisco XRd Control Plane routers peer over eBGP, each with one Linux PC. Cisco licensing blocks redistributing or auto-building the image like `nika/*`, so you load and tag it before deploy.
 
-1. Download the XRd Control Plane container tarball from Cisco (CCO account with an XRd Control Plane entitlement, for example through Cisco Software Download or Cisco Modeling Labs). The file looks like `xrd-control-plane-container-x86_64-<version>.tgz`.
-
-2. Load and tag it to the image reference in [`lab.py`](../../src/nika/net_env/kathara/interdomain_routing/iosxr_simple_bgp/lab.py) (`IMAGE`, currently `ios-xr/xrd-control-plane:26.2.1`). For a different XRd version, retag as `26.2.1` or change that constant:
+One-shot from a local Cisco tarball (no public download URL):
 
 ```shell
-docker load -i xrd-control-plane-container-x86_64-<version>.tgz
+./scripts/install.sh --with-vendor-images \
+  --xrd-tarball /path/to/xrd-control-plane-container-x86_64-<version>.tgz
+```
+
+Or place the file at `.nika_cache/vendor/xrd-*.tgz` and run `./scripts/install.sh --with-vendor-images`. Manual steps:
+
+1. Download the XRd Control Plane container tarball from Cisco (CCO account with an XRd Control Plane entitlement, for example through Cisco Software Download or Cisco Modeling Labs). The file looks like `xrd-control-plane-container-x86_64-<version>.tgz`.
+
+2. Load and tag it to the image reference in [`common.py`](../../src/nika/net_env/utils/iosxr/common.py) (`IMAGE`, currently `ios-xr/xrd-control-plane:26.2.1`). The CCO download wraps the image with signing files, so extract the inner `*.dockerv1.tgz` first. For a different XRd version, retag as `26.2.1` or change that constant:
+
+```shell
+tar -xzf xrd-control-plane-container-x86_64-<version>.tgz --wildcards '*.dockerv1.tgz'
+docker load -i xrd-control-plane-container-x64.dockerv1.tgz
 docker tag <loaded-repo>:<loaded-tag> ios-xr/xrd-control-plane:26.2.1
 docker images | grep xrd-control-plane
 ```
 
 If the tag is missing, `nika env run iosxr_simple_bgp` raises a `RuntimeError` with the same `docker load` / `docker tag` steps instead of deploying a broken lab.
 
-3. Raise host inotify limits (XRd Control Plane, IOS XR >= 7.9.2). See the [XRd host setup tutorial](https://xrdocs.io/virtual-routing/tutorials/2022-08-22-setting-up-host-environment-to-run-xrd):
-
-```shell
-sysctl -w fs.inotify.max_user_instances=64000
-sysctl -w fs.inotify.max_user_watches=64000
-```
+3. Raise host inotify limits for XRd (IOS XR >= 7.9.2). Follow [Host inotify limits too low](troubleshooting.md#host-inotify-limits-too-low-k3s--xrd).
 
 4. Deploy:
 
@@ -264,7 +289,56 @@ sysctl -w fs.inotify.max_user_watches=64000
 uv run nika env run iosxr_simple_bgp
 ```
 
+Give the host at least 8 vCPUs and 16 GB of RAM. On a 4 vCPU / 8 GB host, one of the two routers crashes during boot (`Bus error` in `/var/log/startup.log` inside the container) and the lab never passes startup verification.
+
 Each router runs privileged with IPv6 enabled (Kathara device metadata in `lab.py`). XRd ZTP can briefly race the container network namespace at first boot; the router startup scripts retry config apply until that clears, so a slow first boot is expected.
+
+## RouterOS simple BGP scenario
+
+### `routeros_simple_bgp`
+
+Two MikroTik RouterOS Cloud Hosted Router (CHR) routers peer over eBGP, each with one Linux PC. RouterOS via `vrnetlab` boots a full QEMU VM inside the container (unlike XRd's native container process), and MikroTik's licensing blocks redistributing or auto-building the image like `nika/*`, so you build and tag it before deploy.
+
+Preferred path (downloads CHR from MikroTik, clones `hellt/vrnetlab` into `.nika_cache/vendor/vrnetlab`, and builds the image). Needs `/dev/kvm`:
+
+```shell
+./scripts/install.sh --with-vendor-images
+```
+
+Override the cache root with `NIKA_VENDOR_CACHE` if needed. If `vrnetlab/mikrotik_routeros:7.21.5` already exists locally, the installer skips the download and build.
+
+Manual fallback (same cache layout as the installer):
+
+1. Download a CHR image from [mikrotik.com/download](https://mikrotik.com/download) (the `.vmdk` variant for x86, or `.vdi` for arm64). Match the image architecture to the Docker host. Direct links for 7.21.5: `https://download.mikrotik.com/routeros/7.21.5/chr-7.21.5.vmdk.zip` (amd64) and `https://download.mikrotik.com/routeros/7.21.5/chr-7.21.5-arm64.vdi.zip` (arm64).
+
+2. Clone `hellt/vrnetlab` into the vendor cache and build from `mikrotik/routeros` (its base image already ships `sshpass`, which NIKA execs alongside `ssh` to reach RouterOS's internal management API — see [`routeros_api.py`](../../src/nika/service/lab/routeros_api.py)). Do not change the image's `ENTRYPOINT`/`--connection-mode`: the scenario passes `--connection-mode macvtap` as a Kathara machine argument at deploy time instead, because Kathara attaches interfaces before the container starts and vrnetlab's default `vrxcon`/`tc` datapaths expect a data interface to appear only after boot.
+
+```shell
+mkdir -p .nika_cache/vendor
+git clone --depth 1 https://github.com/hellt/vrnetlab .nika_cache/vendor/vrnetlab
+# copy the downloaded CHR .vmdk/.vdi into .nika_cache/vendor/vrnetlab/mikrotik/routeros
+cd .nika_cache/vendor/vrnetlab/mikrotik/routeros
+make docker-image
+```
+
+3. Tag the built image to match the image reference in [`lab.py`](../../src/nika/net_env/routeros_simple_bgp/lab.py) (`IMAGE`, currently `vrnetlab/mikrotik_routeros:7.21.5`). For a different RouterOS version, retag as `7.21.5` or change that constant:
+
+```shell
+docker tag <built-tag> vrnetlab/mikrotik_routeros:7.21.5
+docker images | grep routeros
+```
+
+If the tag is missing, `nika env run routeros_simple_bgp` raises a `RuntimeError` that points at `./scripts/install.sh --with-vendor-images` instead of deploying a broken lab.
+
+4. RouterOS/vrnetlab boots a full QEMU VM per router, so the host needs KVM / nested virtualization available (`/dev/kvm` present; nested virtualization enabled at the hypervisor level if the host itself is a VM). Without KVM, boot is dramatically slower or may not complete.
+
+5. Deploy:
+
+```shell
+uv run nika env run routeros_simple_bgp
+```
+
+Boot is slower than the FRR and XRd scenarios because each router boots a nested VM; the scenario's verification window accounts for this, so a slow first boot is expected and not a failure.
 
 ## SNDlib ISP scenarios
 
@@ -274,15 +348,11 @@ NIKA imports SNDlib XML through a backend-neutral topology model. It converts ea
 
 Each vendored SNDlib graph is a separate scenario ID (`isp_abilene`, `isp_france`, …). Topology identity is the scenario name. Relative size `s` / `m` / `l` is fixed metadata for benchmark sampling (by node-count tier), not a CLI flag.
 
-```text
-pc_A -- router_A ===== router_B -- pc_B
-           \            /
-            === router_C === router_D -- pc_D
-                  |
-                 pc_C
+Abilene is one example. The map shows its 12 routers and 15 links; NIKA also attaches a `pc_<router>` traffic host to each router.
 
-Each ===== link comes from the selected SNDlib graph.
-```
+<img src="../../assets/images/abilene-sndlib-topology.svg" alt="Abilene SNDlib backbone with 12 routers and 15 links across the United States" width="800">
+
+Map: [TopoHub's Abilene topology](https://www.topohub.org/?topology=sndlib%2Fabilene), based on [SNDlib](https://sndlib.put.poznan.pl/networks.overview.action). © Piotr Jurkiewicz; [MIT license](../../assets/images/abilene-sndlib-topology.LICENSE). The topology matches the vendored [`abilene/network.xml`](../../src/nika/net_env/isp/sndlib/abilene/network.xml).
 
 ```shell
 # Default: Kathara, IS-IS, constant metric 10, no BGP
@@ -298,7 +368,7 @@ uv run nika env run isp_france --backend containerlab \
 | Control | Accepted values | Default | Effect |
 | --- | --- | --- | --- |
 | `--backend` | `kathara`, `containerlab` | `kathara` | Selects FRR or SR Linux rendering |
-| `--device-profile` | `frr`, `nokia_srlinux` | Derived from backend | Validates the router profile |
+| `--device-profile` | `frr`, `nokia_srlinux`, `iosxr` | Derived from backend | Router profile; `iosxr` is accepted then rejected for SNDlib ISP (use `iosxr_simple_bgp`) |
 | `--igp` | `isis`, `ospf` | `isis` | Selects the IGP compiler |
 | `--metric-strategy` | `constant`, `routing_cost`, `inv_capacity` | `constant` | Maps SNDlib link data to IGP metrics |
 | `--constant-metric` | Positive integer | `10` | Sets constant and fallback metrics |
@@ -366,21 +436,29 @@ The fabric uses eBGP (leaf AS 65001 and 65002, spine AS 65056). Its SR Linux con
 
 Both fixed Kathara scenarios run one k3s server and five workers on the pinned image `rancher/k3s:v1.34.1-k3s1`. Each k3s device starts with a shell entrypoint that waits for `/var/run/nika-net-ready`, which device startup creates after interfaces and default routes are configured; the entrypoint then `exec`s k3s as PID1 so the control plane does not race Kathara bridge attachment. NIKA exports a session-specific kubeconfig after verification. Kubernetes MCP tools are documented under [MCP servers](../agents/mcp-servers.md#kubernetes-k8s_mcp_server).
 
-First deployment pulls k3s and in-cluster workload images from the network. Host Docker images are reused automatically when already present. To warm workload image tars and llmd Helm charts before starting a lab:
+If startup reports an exited k3s node, inspect the reported container state and log tail. For inotify exhaustion, follow [Host inotify limits too low](troubleshooting.md#host-inotify-limits-too-low-k3s--xrd).
 
-```shell
-uv run nika env cache llmd_lab
-uv run nika env cache k8s_lab
-uv run nika env cache --all
-```
+NIKA prepares every required in-cluster image with `skopeo`, run from the `nika/skopeo` image, before creating the lab, then imports the archives into all six k3s nodes. Image references are fixed by SHA256 digest, including the sample apps and inference simulator. Preparation fetches the original manifest/index and the Linux host platform's complete layers directly from the registry, validates their hashes, and caches them by digest and architecture under `.nika_cache/`. It does not depend on Docker's local image store or `docker save`.
 
-Cached artifacts live under `.nika_cache/` (gitignored). On redeploy, NIKA sideloads cached workload images into k3s nodes instead of pulling from the internet again. During iterative work, `nika env run <scenario> --no-redeploy` skips tearing down an existing lab instance when you only need a new session.
+When upgrading from tag-only caches such as `postgres__16.tar`, NIKA removes the old archives for a scenario after validating that scenario's replacement archives. If preparation fails, NIKA keeps the old archives. Other cache files remain available.
+
+A fresh host needs registry access for this preparation and must support the images' platform. A warm, intact cache can prepare workloads without registry access. Missing/corrupt images, unsupported platforms, and unavailable Helm charts fail deployment explicitly. Workloads use `imagePullPolicy: Never`; k3s nodes also disable upstream registry fallback so system pods use the pinned preloaded images. AgentGateway charts and the Helm download are checksum-verified. Locally built `nika/base` and `nika/frr` remain governed by their Dockerfiles and host build prerequisites.
+
+Controller bootstrap has bounded API/component waits. Failed manifest applies, Helm installs, exited k3s containers, and terminal Pod configuration/process errors report the failed stage and abort startup; the session lifecycle removes that deployment's resources. Ordinary Pending/ContainerCreating transitions are allowed until their stage deadline. Watch progress with:
+
+- stderr: `[k8s-cache]` (host preparation + node import) and, for interactive commands, `[env_verify_progress]` / `[env_verify]` (readiness checks)
+- session `nika.jsonl` (`env_preload_progress`, `env_verify_progress`)
+- controller bootstrap: `docker exec <controller> tail -f /var/log/startup.log` (`[nika-startup]` stages)
+
+During iterative work, `nika env run <scenario> --no-redeploy` skips tearing down an existing lab instance when you only need a new session.
 
 ### `k8s_lab`
 
 ![k8s_lab topology: two core routers connect the k3s worker pod and an exit pod that leads through two external autonomous systems to the client.](../../assets/images/kathara_k3s_lab_topo.png)
 
 NIKA defines a two-pod FRR fat-tree around the cluster. Pod 1 hosts the k3s nodes; pod 2 provides an exit path to external ASes and a client. BGP unnumbered connects the fabric. MetalLB advertises LoadBalancer addresses through BGP, NGINX provides ingress, and sample `word` and `weather` applications use PostgreSQL and persistent volumes.
+
+The k3s workers connect to `https://201.1.1.2:6443`, matching the controller's advertised API address. This avoids closing bootstrap connections when agents discover the server endpoint. The ingress service uses `externalTrafficPolicy: Local`; its controller pod must run on `worker1` through `worker5`, which have configured MetalLB BGP peers. Required node affinity enforces that placement so MetalLB can advertise the ingress VIP.
 
 Use this scenario for faults that combine Kubernetes state with routed underlay behavior. Verification checks the BGP fabric, six Ready nodes, cross-leaf reachability, ingress addressing, and both applications.
 

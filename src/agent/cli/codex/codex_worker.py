@@ -17,28 +17,37 @@ isolated, per-session workspace.  It handles:
   does for the LangChain path.
 * **Output capture** – the final assistant message is written by
   ``--output-last-message``; JSONL events emitted via ``--json`` are streamed
-  line-by-line, logged to ``messages.jsonl`` in real time, and pretty-printed to
-  the terminal via :func:`~agent.cli.codex.codex_display.format_codex_event`.
+  line-by-line, logged to the host ``messages.jsonl`` (``trace_dir``) in real
+  time, and pretty-printed to the terminal via
+  :func:`~agent.utils.display.display_agent_event`.
+* **Step budget** – ``codex exec`` has no turn limit and reports usage only
+  once per ``codex exec`` turn, so the worker infers model responses from item
+  boundaries (:class:`_ResponseCounter`), logs one ``llm_end`` per response,
+  and stops Codex when a response past ``max_steps`` begins.
 """
 
 import asyncio
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
-from agent.cli.codex.codex_display import format_codex_event
+from agent.protocols import PHASES
+from agent.sandbox.sbx.auth import apply_codex_auth
+from agent.sandbox.sbx.client import run_sbx_checked
+from agent.sandbox.sbx.exec import exec_in_sandbox, sandbox_name_from_env
 from agent.utils.loggers import (
     MessageLogger,
     PendingToolCallTracker,
     tool_event_payload,
 )
-from agent.sandbox.sbx.auth import apply_codex_auth
-from agent.sandbox.sbx.exec import exec_in_sandbox, sandbox_name_from_env
-from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
-from agent.protocols import PHASES, SUBMISSION
+from agent.utils.mcp_client import load_session_mcp_config
+from agent.utils.provider_env import build_agent_subprocess_env, require_provider
 from agent.utils.skills import prepare_codex_workspace
-from agent.utils.provider_env import build_agent_subprocess_env
+from agent.utils.two_phase import max_steps_report
+from agent.utils.usage import normalize_usage
 
 REASONING_EFFORT_LEVELS = ("none", "minimal", "low", "medium", "high", "xhigh")
 DEFAULT_STALL_TIMEOUT_S = 300
@@ -53,13 +62,9 @@ def prepare_codex_subprocess_env(
     base: dict[str, str] | None = None,
 ) -> dict[str, str]:
     """Minimal env for ``codex exec`` with provider-mapped credentials only."""
-    if not provider or not str(provider).strip():
-        raise ValueError(
-            "Missing LLM provider: set agent.provider in config/nika.yaml "
-            "or pass -p/--provider."
-        )
-    prov = str(provider).strip().lower()
-    env = build_agent_subprocess_env(agent_type=agent_type, provider=prov, base=base)
+    env = build_agent_subprocess_env(
+        agent_type=agent_type, provider=require_provider(provider), base=base
+    )
     env["CODEX_HOME"] = str(codex_home)
     return env
 
@@ -76,6 +81,94 @@ class CodexSubprocessStallError(Exception):
             else "no Codex progress"
         )
         super().__init__(f"stalled after {stall_s}s without {reason}")
+
+
+class CodexFatalError(Exception):
+    """Raised when Codex reports a non-retryable API/config failure."""
+
+
+class CodexMaxStepsReached(Exception):
+    """Raised when Codex starts a model response past ``max_steps``."""
+
+
+# Items that run a tool; their results go back to the model in a new response.
+_TOOL_ITEM_TYPES = frozenset(
+    {"mcp_tool_call", "command_execution", "file_change", "web_search"}
+)
+
+
+class _ResponseCounter:
+    """Infer model responses (LLM turns) from ``codex exec --json`` items.
+
+    A response starts with the first item after all tool calls of the previous
+    response finished. Tool calls that one response issues and Codex runs one
+    after another therefore count as separate responses; parallel calls count
+    once. This matches the other agents' unit (one model response per step)
+    as closely as the ``codex exec`` event stream allows.
+    """
+
+    def __init__(self) -> None:
+        self.responses = 0
+        self._pending_tools = 0
+        self._awaiting_response = True
+
+    def observe(self, event: dict) -> bool:
+        """Update state for *event*; return True when it starts a new response."""
+        event_type = event.get("type", "")
+        if event_type not in {"item.started", "item.completed"}:
+            return False
+        item_type = (event.get("item") or {}).get("type")
+        if item_type in {None, "error"}:
+            return False
+        started = False
+        if self._awaiting_response:
+            self._awaiting_response = False
+            self.responses += 1
+            started = True
+        if item_type in _TOOL_ITEM_TYPES:
+            if event_type == "item.started":
+                self._pending_tools += 1
+            else:
+                self._pending_tools = max(self._pending_tools - 1, 0)
+                if self._pending_tools == 0:
+                    self._awaiting_response = True
+        return started
+
+
+def _fatal_codex_error_message(event: dict) -> str | None:
+    """Return the message when the event is a permanent API/config failure.
+
+    Transient reconnect/timeout noise is ignored so the existing stall timer
+    can still handle transport flakes.  Model-metadata fallback warnings are
+    also ignored — they are not fatal by themselves.
+    """
+    event_type = event.get("type", "")
+    if event_type == "error":
+        message = str(event.get("message") or "")
+    elif event_type == "turn.failed":
+        error = event.get("error") or {}
+        message = str(error.get("message") or event.get("message") or "")
+    elif event_type == "item.completed":
+        item = event.get("item") or {}
+        message = str(item.get("message") or "") if item.get("type") == "error" else ""
+    else:
+        message = ""
+    if not message:
+        return None
+    lower = message.lower()
+    if "defaulting to fallback metadata" in lower:
+        return None
+    if "does not exist or you do not have access" in lower:
+        return message
+    if "404" in lower and "not found" in lower and "model" in lower:
+        return message
+    if "invalid api key" in lower or "incorrect api key" in lower:
+        return message
+    if "401" in lower or "unauthorized" in lower:
+        return message
+    if "403" in lower and ("forbidden" in lower or "access" in lower):
+        return message
+    return None
 
 
 def _is_productive_codex_event(event: dict) -> bool:
@@ -111,16 +204,88 @@ def _reconnect_transport_failed(event: dict) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _build_mcp_toml(servers: dict) -> str:
-    """Serialise an MCP server dict (from MCPServerConfig) as TOML."""
+def _codex_model_provider_id(provider: str | None) -> str | None:
+    """Return a non-reserved Codex provider id for custom/DeepSeek endpoints.
+
+    Built-in ids ``openai`` / ``ollama`` / ``lmstudio`` are reserved; Codex also
+    ignores ``OPENAI_BASE_URL`` for third-party hosts, so NIKA must register a
+    ``model_providers.*`` block and set ``model_provider`` to this id.
+    """
+    if not provider or not str(provider).strip():
+        return None
+    match str(provider).strip().lower():
+        case "custom":
+            return "nika_custom"
+        case "deepseek":
+            return "nika_deepseek"
+        case _:
+            return None
+
+
+def _codex_provider_base_url(provider: str | None) -> str:
+    """Resolve the Responses API base URL for a Codex custom/DeepSeek provider."""
+    from agent.utils.provider_env import (
+        DEEPSEEK_OPENAI_BASE_URL,
+        ENV_OPENAI_BASE_URL,
+        resolve_custom_base_url,
+    )
+
+    prov = (provider or "").strip().lower()
+    env_base = os.environ.get(ENV_OPENAI_BASE_URL, "").strip()
+    if prov == "deepseek":
+        return env_base or DEEPSEEK_OPENAI_BASE_URL
+    if prov == "custom":
+        return env_base or resolve_custom_base_url()
+    return env_base
+
+
+def _build_mcp_toml(
+    servers: dict,
+    *,
+    provider: str | None = None,
+    base_url: str | None = None,
+) -> str:
+    """Serialise Codex ``config.toml``: approvals, optional provider, MCP servers."""
     lines: list[str] = [
         'approval_policy = "never"',
         'sandbox_mode = "workspace-write"',
-        "",
-        "[sandbox_workspace_write]",
-        "network_access = true",
-        "",
     ]
+    provider_id = _codex_model_provider_id(provider)
+    resolved_base = (base_url or "").strip() or _codex_provider_base_url(provider)
+    if provider_id and resolved_base:
+        lines.append(f'model_provider = "{provider_id}"')
+    lines.extend(
+        [
+            "",
+            "[sandbox_workspace_write]",
+            "network_access = true",
+            "",
+        ]
+    )
+    # Custom / local models often ignore Responses ``namespace`` tools and emit
+    # bare nested names (``exec_shell``). Without this feature Codex
+    # returns ``unsupported call: <short name>`` and never hits MCP.
+    # Keep this off for OpenAI-hosted models that already emit namespace calls.
+    if (provider or "").strip().lower() == "custom":
+        lines.extend(
+            [
+                "[features]",
+                "non_prefixed_mcp_tool_names = true",
+                "",
+            ]
+        )
+    if provider_id and resolved_base:
+        # Codex requires Responses wire_api; chat is rejected on current builds.
+        lines.extend(
+            [
+                f"[model_providers.{provider_id}]",
+                f'name = "{provider_id}"',
+                f'base_url = "{resolved_base}"',
+                'env_key = "OPENAI_API_KEY"',
+                'wire_api = "responses"',
+                "",
+            ]
+        )
     for name, srv in servers.items():
         lines.append(f"[mcp_servers.{name}]")
         if srv.get("transport") == "http":
@@ -171,17 +336,21 @@ class CodexWorker:
     reasoning_effort:
         Optional Codex ``model_reasoning_effort`` override forwarded via
         ``codex exec -c model_reasoning_effort=...``.
-    timeout:
-        Hard timeout in seconds for the subprocess (default 600 s).
     stall_timeout:
         Kill the subprocess when no productive Codex events arrive for this
         many seconds (default 300 s).  After reconnect exhaustion the limit
-        drops to :data:`RECONNECT_STALL_TIMEOUT_S`.
+        drops to :data:`RECONNECT_STALL_TIMEOUT_S`.  The wall-clock budget is
+        ``agent.timeout_sec``, applied to the whole agent run by
+        :func:`~agent.registry.run_agent`.
     llm_provider:
         Active LLM provider for credential mapping.
     scenario_name:
         Used by :func:`~agent.utils.mcp_servers.select_diagnosis_servers` to pick relevant servers.
         Ignored for the submission phase (which always uses the task server).
+    max_steps:
+        LLM-turn budget for this phase (see :class:`_ResponseCounter`).
+    trace_dir:
+        Host directory for ``messages.jsonl`` (default: *session_dir*).
     """
 
     def __init__(
@@ -191,12 +360,13 @@ class CodexWorker:
         phase: str,
         model: str = "gpt-5.4-mini",
         reasoning_effort: str | None = None,
-        timeout: int = 600,
         stall_timeout: int = DEFAULT_STALL_TIMEOUT_S,
         scenario_name: str = "",
+        max_steps: int = 20,
         *,
         llm_provider: str,
         stream_output: bool = True,
+        trace_dir: str | None = None,
     ) -> None:
         if phase not in PHASES:
             raise ValueError(f"phase must be one of {PHASES}, got {phase!r}")
@@ -213,18 +383,23 @@ class CodexWorker:
         self.model = model
         self.llm_provider = llm_provider
         self.reasoning_effort = reasoning_effort
-        self.timeout = timeout
         self.stall_timeout = stall_timeout
         self.scenario_name = scenario_name
+        self.max_steps = max_steps
         self._reconnect_failure_at: float | None = None
         self._last_progress_at: float | None = None
 
         self.session_dir = Path(session_dir)
         self.workspace = self.session_dir / "codex_workspace"
         self._codex_home = self.workspace / ".codex_home"
-        self._logger = MessageLogger(phase=phase, session_dir=session_dir)
+        self._logger = MessageLogger(phase=phase, session_dir=trace_dir or session_dir)
         self._stream_output = stream_output
+        self._agent_message_texts: list[str] = []
         self._pending_tool_calls = PendingToolCallTracker()
+        self._responses = _ResponseCounter()
+        self._response_open = False
+        self._response_text: list[str] = []
+        self._response_reasoning: list[str] = []
 
     # ------------------------------------------------------------------
     # Workspace + isolated CODEX_HOME setup
@@ -250,38 +425,53 @@ class CodexWorker:
         self._write_mcp_config()
 
     def _write_mcp_config(self) -> None:
-        if self.phase == SUBMISSION:
-            begin_submission_mcp_phase(self.session_id)
         servers = load_session_mcp_config(
             self.session_id,
             self.scenario_name,
             session_dir=self.session_dir,
+            phase=self.phase,
         )
-        # Give each Codex subprocess only the servers it can use in its
-        # current phase.  The gateway enforces this too, but excluding the
-        # task server here keeps the diagnosis prompt and tool inventory free
-        # of submission-only fault catalog metadata.
-        from nika.mcp.registry import SUBMISSION_SERVER
-
-        if self.phase == SUBMISSION:
-            servers = {
-                name: config
-                for name, config in servers.items()
-                if name == SUBMISSION_SERVER
-            }
-        else:
-            servers = {
-                name: config
-                for name, config in servers.items()
-                if name != SUBMISSION_SERVER
-            }
-
         self._logger.log(
             "mcp_config",
             {"phase": self.phase, "servers": list(servers.keys())},
         )
         config_path = self._codex_home / "config.toml"
-        config_path.write_text(_build_mcp_toml(servers), encoding="utf-8")
+        config_path.write_text(
+            _build_mcp_toml(servers, provider=self.llm_provider),
+            encoding="utf-8",
+        )
+        sandbox_name = sandbox_name_from_env()
+        if sandbox_name and self.llm_provider == "openai":
+            # sbx supplies the subscription route and proxy bearer in its native
+            # provider config. Merge those inside the VM when isolating CODEX_HOME;
+            # no host OAuth file or token is read or passed to the sandbox.
+            run_sbx_checked(
+                [
+                    "exec",
+                    sandbox_name,
+                    "python3",
+                    "-c",
+                    "import os, pathlib, sys\n"
+                    "native = pathlib.Path(os.environ.get('CODEX_HOME', "
+                    "str(pathlib.Path.home() / '.codex'))) / 'config.toml'\n"
+                    "target = pathlib.Path(sys.argv[1])\n"
+                    "if native.is_file() and native != target:\n"
+                    "    roots, providers, section = [], [], ''\n"
+                    "    for line in native.read_text().splitlines(keepends=True):\n"
+                    "        text = line.strip()\n"
+                    "        if text.startswith('['):\n"
+                    "            section = text\n"
+                    "        if not section and text.split('=', 1)[0].strip() "
+                    "in {'model_provider', 'forced_login_method'}:\n"
+                    "            roots.append(line)\n"
+                    "        elif section.startswith('[model_providers.'):\n"
+                    "            providers.append(line)\n"
+                    "    if providers:\n"
+                    "        target.write_text(''.join(roots) + target.read_text() "
+                    "+ '\\n' + ''.join(providers))\n",
+                    str(config_path),
+                ]
+            )
 
     # ------------------------------------------------------------------
     # Subprocess invocation
@@ -290,14 +480,19 @@ class CodexWorker:
     async def run(self, prompt: str) -> str:
         """Execute ``codex exec`` and return the final assistant message.
 
-        Returns an ``"ERROR: ..."`` string on subprocess failure or timeout
-        rather than raising, so the two-phase pipeline can continue to the
-        submission phase with a degraded report.
+        Returns an ``"ERROR: ..."`` string on subprocess failure, fatal API
+        error, stall, or timeout.  The two-phase agent treats diagnosis
+        ``ERROR:`` results as hard failures and skips submission.
         """
         self._setup_workspace()
 
         output_file = self.workspace / f"{self.phase}_output.txt"
         output_file.unlink(missing_ok=True)
+        self._agent_message_texts = []
+        self._responses = _ResponseCounter()
+        self._response_open = False
+        self._response_text = []
+        self._response_reasoning = []
 
         # Provider-mapped credentials only; override CODEX_HOME for isolation.
         env = prepare_codex_subprocess_env(
@@ -306,6 +501,9 @@ class CodexWorker:
         )
 
         cmd = ["codex", "exec"]
+        provider_id = _codex_model_provider_id(self.llm_provider)
+        if provider_id and _codex_provider_base_url(self.llm_provider):
+            cmd += ["-c", f"model_provider={provider_id}"]
         if self.reasoning_effort is not None:
             cmd += ["-c", f"model_reasoning_effort={self.reasoning_effort}"]
         cmd += [
@@ -322,6 +520,7 @@ class CodexWorker:
             prompt,
         ]
 
+        self._logger.log("prompt", {"text": prompt})
         self._logger.log(
             "subprocess_start",
             {"command": " ".join(cmd[:6] + ["..."]), "phase": self.phase},
@@ -331,22 +530,23 @@ class CodexWorker:
         self._last_progress_at = None
 
         try:
-            if sandbox_name_from_env():
-                proc = await exec_in_sandbox(
-                    cmd,
-                    env=env,
-                    cwd=str(self.workspace),
-                )
-            else:
-                proc = await asyncio.create_subprocess_exec(
-                    *cmd,
-                    env=env,
-                    stdin=asyncio.subprocess.DEVNULL,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    cwd=str(self.workspace),
-                )
+            proc = await exec_in_sandbox(cmd, env=env, cwd=str(self.workspace))
             returncode, stderr_text = await self._stream_subprocess(proc)
+        except CodexMaxStepsReached:
+            self._flush_response()
+            return max_steps_report(
+                self._logger,
+                max_steps=self.max_steps,
+                latest_text=next(
+                    (t for t in reversed(self._agent_message_texts) if t.strip()), ""
+                ),
+            )
+        except CodexFatalError as exc:
+            self._logger.log(
+                "subprocess_fatal",
+                {"phase": self.phase, "error": str(exc)},
+            )
+            return f"ERROR: {self.phase} phase {exc}"
         except CodexSubprocessStallError as exc:
             self._logger.log(
                 "subprocess_stall",
@@ -357,18 +557,29 @@ class CodexWorker:
                 },
             )
             return f"ERROR: {self.phase} phase {exc}"
-        except asyncio.TimeoutError:
-            self._logger.log(
-                "subprocess_timeout", {"phase": self.phase, "timeout_s": self.timeout}
-            )
-            return f"ERROR: {self.phase} phase timed out after {self.timeout}s"
         except FileNotFoundError:
             self._logger.log(
-                "subprocess_error", {"error": "codex binary not found in PATH"}
+                "subprocess_error", {"error": "sbx binary not found in PATH"}
             )
-            return "ERROR: 'codex' not found in PATH — is Codex CLI installed?"
+            return "ERROR: 'sbx' not found in PATH — is Docker Sandboxes installed?"
+        # A response still open (e.g. no turn.completed on failure) keeps its step.
+        self._flush_response()
 
         if returncode != 0:
+            recovered = self._resolved_phase_output(output_file)
+            if recovered:
+                self._logger.log(
+                    "subprocess_nonzero_recovered",
+                    {
+                        "phase": self.phase,
+                        "returncode": returncode,
+                        "output_length": len(recovered),
+                        "stderr": stderr_text[:500],
+                    },
+                )
+                if self._stream_output and stderr_text.strip():
+                    print(stderr_text, file=sys.stderr, flush=True)
+                return recovered
             self._logger.log(
                 "subprocess_error",
                 {"returncode": returncode, "stderr": stderr_text[:2000]},
@@ -380,8 +591,8 @@ class CodexWorker:
                 f"stderr: {stderr_text[:400]}"
             )
 
-        if output_file.exists():
-            result = output_file.read_text(encoding="utf-8").strip()
+        result = self._resolved_phase_output(output_file)
+        if result:
             self._logger.log(
                 "subprocess_done", {"phase": self.phase, "output_length": len(result)}
             )
@@ -389,6 +600,17 @@ class CodexWorker:
 
         self._logger.log("subprocess_error", {"error": "output file not created"})
         return f"ERROR: {self.phase} phase produced no output"
+
+    def _resolved_phase_output(self, output_file: Path) -> str:
+        """Prefer Codex ``--output-last-message``, else last streamed agent_message."""
+        if output_file.exists():
+            text = output_file.read_text(encoding="utf-8").strip()
+            if text:
+                return text
+        for text in reversed(self._agent_message_texts):
+            if text.strip():
+                return text.strip()
+        return ""
 
     def _remaining_before_stall(self, loop: asyncio.AbstractEventLoop) -> float:
         now = loop.time()
@@ -425,6 +647,9 @@ class CodexWorker:
     def _track_codex_progress(
         self, event: dict, loop: asyncio.AbstractEventLoop
     ) -> None:
+        fatal = _fatal_codex_error_message(event)
+        if fatal is not None:
+            raise CodexFatalError(fatal)
         if _reconnect_transport_failed(event):
             if self._reconnect_failure_at is None:
                 self._reconnect_failure_at = loop.time()
@@ -438,7 +663,6 @@ class CodexWorker:
         """Read Codex stdout line-by-line until the process exits."""
         stderr_chunks: list[bytes] = []
         loop = asyncio.get_running_loop()
-        deadline = loop.time() + self.timeout
         self._last_progress_at = loop.time()
 
         async def _read_stderr() -> None:
@@ -456,40 +680,37 @@ class CodexWorker:
             while True:
                 self._raise_if_stalled(loop)
 
-                hard_remaining = deadline - loop.time()
-                if hard_remaining <= 0:
-                    proc.kill()
-                    await proc.wait()
-                    raise asyncio.TimeoutError
-
-                stall_remaining = self._remaining_before_stall(loop)
-                remaining = min(hard_remaining, stall_remaining)
-                if remaining <= 0:
+                remaining = self._remaining_before_stall(loop)
+                read_timeout = None if remaining == float("inf") else max(remaining, 0)
+                try:
+                    line_bytes = await asyncio.wait_for(
+                        proc.stdout.readline(), timeout=read_timeout
+                    )
+                except TimeoutError:
                     proc.kill()
                     await proc.wait()
                     self._raise_if_stalled(loop)
-                    raise asyncio.TimeoutError
-
-                try:
-                    line_bytes = await asyncio.wait_for(
-                        proc.stdout.readline(), timeout=remaining
-                    )
-                except asyncio.TimeoutError:
+                    raise CodexSubprocessStallError(
+                        stall_s=self.stall_timeout, reconnect_failure=False
+                    ) from None
+                except asyncio.CancelledError:
+                    # agent.timeout_sec expired: stop codex before unwinding.
                     proc.kill()
                     await proc.wait()
-                    try:
-                        self._raise_if_stalled(loop)
-                    except CodexSubprocessStallError:
-                        raise
                     raise
 
                 if not line_bytes:
                     break
 
-                self._handle_stdout_line(
-                    line_bytes.decode("utf-8", errors="replace").rstrip("\n"),
-                    loop=loop,
-                )
+                try:
+                    self._handle_stdout_line(
+                        line_bytes.decode("utf-8", errors="replace").rstrip("\n"),
+                        loop=loop,
+                    )
+                except (CodexFatalError, CodexMaxStepsReached):
+                    proc.kill()
+                    await proc.wait()
+                    raise
         finally:
             await stderr_task
 
@@ -518,77 +739,158 @@ class CodexWorker:
             self._track_codex_progress(event, loop)
         self._log_codex_event(event)
 
+    def _flush_response(self, usage: Any | None = None) -> None:
+        """Write the open model response as one ``llm_end``."""
+        if not self._response_open:
+            return
+        payload: dict[str, Any] = {
+            "text": "\n".join(self._response_text),
+            "usage_metadata": normalize_usage(usage) if usage is not None else {},
+        }
+        if self._response_reasoning:
+            payload["reasoning_content"] = "\n\n".join(self._response_reasoning)
+        self._logger.log("llm_end", payload)
+        self._response_open = False
+        self._response_text = []
+        self._response_reasoning = []
+
     def _log_codex_event(self, event: dict) -> None:
         event_type = event.get("type", "codex_event")
-        self._logger.log(event_type, {"codex_event": event})
-
         item = event.get("item") or {}
-        if item.get("type") == "mcp_tool_call":
-            tool = str(item.get("tool", ""))
-            item_id = item.get("id")
-            if event_type == "item.started":
-                arguments = item.get("arguments")
-                self._logger.log(
-                    "tool_start",
-                    self._pending_tool_calls.register(
-                        name=tool,
-                        input=arguments,
-                        tool_call_id=item_id,
-                    ),
+        item_type = item.get("type")
+
+        if self._responses.observe(event):
+            self._flush_response()
+            if self._responses.responses > self.max_steps:
+                raise CodexMaxStepsReached()
+            self._response_open = True
+            self._logger.log(
+                "llm_start",
+                {"model": {"name": self.model}, "response": self._responses.responses},
+            )
+
+        # Canonical tool_* for MCP and shell — avoid raw item.* tool mirrors.
+        if item_type == "mcp_tool_call":
+            self._log_mcp_tool_item(event_type, item)
+        elif item_type == "command_execution":
+            self._log_command_execution_item(event_type, item)
+        elif event_type == "turn.completed":
+            # The turn's usage covers every response of this ``codex exec`` run;
+            # the last response carries it so steps and tokens both add up.
+            self._flush_response(event.get("usage") or {})
+        elif event_type == "turn.started":
+            pass  # Each response gets its own llm_start / llm_end pair.
+        else:
+            self._logger.log(event_type, {"codex_event": event})
+            if event_type == "item.completed" and item_type == "agent_message":
+                text = str(item.get("text") or "").strip()
+                if text:
+                    self._agent_message_texts.append(text)
+                    self._response_text.append(text)
+            elif event_type == "item.completed" and item_type == "reasoning":
+                text = str(item.get("text") or "").strip()
+                if text:
+                    self._response_reasoning.append(text)
+
+    def _log_mcp_tool_item(self, event_type: str, item: dict) -> None:
+        tool = str(item.get("tool", ""))
+        item_id = item.get("id")
+        if event_type == "item.started":
+            self._logger.log(
+                "tool_start",
+                self._pending_tool_calls.register(
+                    name=tool,
+                    input=item.get("arguments"),
+                    tool_call_id=item_id,
+                ),
+            )
+            return
+        if event_type != "item.completed":
+            return
+        if item.get("error") is not None:
+            resolved = self._pending_tool_calls.resolve(
+                name=tool,
+                tool_call_id=item_id,
+                input=item.get("arguments"),
+            )
+            self._logger.log(
+                "tool_error",
+                tool_event_payload(
+                    name=tool or resolved.get("name") or None,
+                    input=resolved.get("input") or item.get("arguments"),
+                    tool_call_id=item_id,
+                    output=str(item.get("error")),
+                ),
+            )
+            return
+        result = item.get("result")
+        if isinstance(result, dict):
+            content = result.get("content")
+            if isinstance(content, list):
+                output = "\n".join(
+                    str(block.get("text", ""))
+                    for block in content
+                    if isinstance(block, dict) and block.get("type") == "text"
                 )
-            elif event_type == "item.completed":
-                if item.get("error") is not None:
-                    resolved = self._pending_tool_calls.resolve(
-                        name=tool,
-                        tool_call_id=item_id,
-                        input=item.get("arguments"),
-                    )
-                    self._logger.log(
-                        "tool_error",
-                        tool_event_payload(
-                            name=tool or resolved.get("name") or None,
-                            input=resolved.get("input") or item.get("arguments"),
-                            tool_call_id=item_id,
-                            output=str(item.get("error")),
-                        ),
-                    )
-                else:
-                    result = item.get("result")
-                    if isinstance(result, dict):
-                        content = result.get("content")
-                        if isinstance(content, list):
-                            output = "\n".join(
-                                str(block.get("text", ""))
-                                for block in content
-                                if isinstance(block, dict)
-                                and block.get("type") == "text"
-                            )
-                        else:
-                            output = json.dumps(result, ensure_ascii=False)
-                    else:
-                        output = str(result or "")
-                    resolved = self._pending_tool_calls.resolve(
-                        name=tool,
-                        tool_call_id=item_id,
-                        input=item.get("arguments"),
-                    )
-                    self._logger.log(
-                        "tool_end",
-                        tool_event_payload(
-                            name=tool or resolved.get("name") or None,
-                            input=resolved.get("input") or item.get("arguments"),
-                            tool_call_id=item_id,
-                            output=output,
-                            output_type="tool_result",
-                        ),
-                    )
+            else:
+                output = json.dumps(result, ensure_ascii=False)
+        else:
+            output = str(result or "")
+        resolved = self._pending_tool_calls.resolve(
+            name=tool,
+            tool_call_id=item_id,
+            input=item.get("arguments"),
+        )
+        self._logger.log(
+            "tool_end",
+            tool_event_payload(
+                name=tool or resolved.get("name") or None,
+                input=resolved.get("input") or item.get("arguments"),
+                tool_call_id=item_id,
+                output=output,
+                output_type="tool_result",
+            ),
+        )
 
-        if self._stream_output:
-            display = format_codex_event(event)
-            if display:
-                print(display, flush=True)
-
-    def _forward_jsonl_events(self, text: str) -> None:
-        """Parse ``codex --json`` JSONL lines and forward them to messages.jsonl."""
-        for raw in text.splitlines():
-            self._handle_stdout_line(raw)
+    def _log_command_execution_item(self, event_type: str, item: dict) -> None:
+        item_id = item.get("id")
+        command = item.get("command")
+        tool_input = {"command": command} if command is not None else None
+        if event_type == "item.started":
+            self._logger.log(
+                "tool_start",
+                self._pending_tool_calls.register(
+                    name="bash",
+                    input=tool_input,
+                    tool_call_id=item_id,
+                ),
+            )
+            return
+        if event_type != "item.completed":
+            return
+        resolved = self._pending_tool_calls.resolve(
+            name="bash",
+            tool_call_id=item_id,
+            input=tool_input,
+        )
+        output = item.get("aggregated_output")
+        if output is None:
+            output = ""
+        exit_code = item.get("exit_code")
+        failed = item.get("status") == "failed" or (
+            exit_code is not None and exit_code != 0
+        )
+        payload = tool_event_payload(
+            name=resolved.get("name") or "bash",
+            input=resolved.get("input") or tool_input,
+            tool_call_id=item_id,
+            output=str(output),
+            output_type="tool_result",
+        )
+        if failed:
+            self._logger.log(
+                "tool_error",
+                {**payload, "error": f"exit_code={exit_code}"},
+            )
+        else:
+            self._logger.log("tool_end", payload)

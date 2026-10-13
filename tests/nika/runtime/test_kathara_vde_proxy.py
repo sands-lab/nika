@@ -12,6 +12,8 @@ from nika.runtime.kathara.vde_proxy import KatharaVdeFaultProxy
 from tests.support.prerequisites import docker_available
 from tests.support.simple_bgp.lab import SimpleBGP
 
+pytestmark = pytest.mark.integration
+
 
 def _peer_on_link(runtime: KatharaRuntime, host: str, intf: str) -> tuple[str, str]:
     """Return the peer node and interface for a point-to-point link."""
@@ -49,6 +51,7 @@ def test_vde_proxy_preserves_point_to_point_link_identity_and_connectivity() -> 
         assert after["ifname"] == "eth0"
         assert after["address"] == before["address"]
         assert after["mtu"] == before["mtu"]
+        assert after["ifalias"] == before["ifalias"]
         assert "0% packet loss" in runtime.exec("router1", "ping -c 2 -W 2 193.10.11.2")
         assert "lladdr" in runtime.exec("router1", "ip neigh show 193.10.11.2")
 

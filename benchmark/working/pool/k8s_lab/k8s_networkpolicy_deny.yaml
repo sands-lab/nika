@@ -13,7 +13,7 @@ failure:
     root_causes:
     - resource:
         kind: k8s
-        name: nika-deny-ingress
+        name: default-deny-ingress
         namespace: word-ns
         k8s_kind: NetworkPolicy
       fault_type: k8s_networkpolicy_deny

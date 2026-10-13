@@ -8,12 +8,13 @@ import inspect
 from pathlib import Path
 from typing import Any, Mapping
 
-from nika.net_env.base import NetworkEnvBase
+from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.topology.sndlib.catalog import (
     SNDLIB_TOPOLOGY_NAMES,
     topology_size_for_name,
 )
 from nika.utils.dependencies import raise_missing_extra, require_backend_extra
+from nika.utils.logger import system_logger
 
 
 @dataclass(frozen=True)
@@ -39,6 +40,18 @@ class NetEnvSpec:
     backend_bindings: Mapping[str, BackendEnvBinding] | None = None
     # Merged into ``get_net_env_instance`` kwargs (caller values win).
     deploy_defaults: Mapping[str, Any] | None = None
+    # Release split-coverage family; ``None`` means the scenario is its own family.
+    family: str | None = None
+    # Host-shared heavy lab: benchmark admission runs it alone (``k8s`` class).
+    heavy_lab: bool = False
+    # Kept out of the generated benchmark candidate pool (E2E/unit tests only).
+    benchmark_excluded: bool = False
+    # Reported as a major scenario in pool audits and coverage reports.
+    coverage_major: bool = False
+    # Images need a licensed vendor download (``install.sh --with-vendor-images``).
+    licensed_images: bool = False
+    # Kubernetes lab whose workload images are host-cached and sideloaded into k3s.
+    k8s_image_cache: bool = False
 
     @property
     def LAB_NAME(self) -> str:
@@ -93,18 +106,14 @@ _ISP_BACKEND_BINDINGS: dict[str, BackendEnvBinding] = {
 }
 
 
-DC_CLOS_SCENARIO = "dc_clos"
-CAMPUS_LAN_SCENARIO = "campus_lan"
 ENTERPRISE_BRANCH_SCENARIO = "enterprise_branch"
-SDN_L3_CLOS_SCENARIO = "sdn_l3_clos"
-P4_DC_FABRIC_SCENARIO = "p4_dc_fabric"
-P4_DC_GATEWAY_SCENARIO = "p4_dc_gateway"
 
 _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
     "dc_clos": NetEnvSpec(
         lab_name="dc_clos",
         module="nika.net_env.dc_clos.lab",
         class_name="DCClos",
+        coverage_major=True,
         tags=(
             "arp",
             "link",
@@ -125,6 +134,8 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         lab_name="campus_lan",
         module="nika.net_env.campus_lan.lab",
         class_name="CampusLan",
+        family="campus",
+        coverage_major=True,
         tags=(
             "arp",
             "link",
@@ -147,6 +158,7 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         lab_name="enterprise_branch",
         module="nika.net_env.enterprise_branch.lab",
         class_name="EnterpriseBranch",
+        coverage_major=True,
         tags=(
             "arp",
             "link",
@@ -167,6 +179,8 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         lab_name="sdn_l3_clos",
         module="nika.net_env.sdn_l3_clos.l3_clos_topo",
         class_name="SDNL3Clos",
+        family="sdn",
+        coverage_major=True,
         tags=("link", "sdn", "pc", "mac", "arp", "icmp", "http", "forwarding_device"),
         supported_backends=("kathara",),
         topo_size=["s", "m", "l"],
@@ -175,6 +189,8 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         lab_name="p4_dc_fabric",
         module="nika.net_env.p4_dc_fabric.lab",
         class_name="P4DcFabric",
+        family="p4",
+        coverage_major=True,
         tags=("link", "pc", "p4", "p4_runtime", "mac", "arp", "icmp", "http"),
         supported_backends=("kathara",),
         topo_size=["s", "m", "l"],
@@ -183,6 +199,8 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         lab_name="p4_dc_gateway",
         module="nika.net_env.p4_dc_gateway.lab",
         class_name="P4DcGateway",
+        family="p4",
+        coverage_major=True,
         tags=(
             "link",
             "pc",
@@ -204,15 +222,28 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
     ),
     "iosxr_simple_bgp": NetEnvSpec(
         lab_name="iosxr_simple_bgp",
-        module="nika.net_env.kathara.interdomain_routing.iosxr_simple_bgp.lab",
+        module="nika.net_env.iosxr_simple_bgp.lab",
         class_name="IosXrSimpleBGP",
+        heavy_lab=True,
+        benchmark_excluded=True,
+        licensed_images=True,
         tags=("arp", "link", "bgp", "icmp", "iosxr", "pc"),
+        supported_backends=("kathara",),
+    ),
+    "routeros_simple_bgp": NetEnvSpec(
+        lab_name="routeros_simple_bgp",
+        module="nika.net_env.routeros_simple_bgp.lab",
+        class_name="RouterOsSimpleBGP",
+        licensed_images=True,
+        tags=("arp", "link", "bgp", "icmp", "routeros", "pc"),
         supported_backends=("kathara",),
     ),
     "isp_abilene_ebgp_rtbh": NetEnvSpec(
         lab_name="isp_abilene_ebgp_rtbh",
         module="nika.net_env.isp.specials.rtbh",
         class_name="IspAbileneEbgpRtbh",
+        family="isp",
+        coverage_major=True,
         tags=(
             "isp",
             "sndlib",
@@ -233,6 +264,7 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         lab_name="isp_dfn-bwin_ebgp_rtbh",
         module="nika.net_env.isp.specials.rtbh",
         class_name="IspDfnBwinEbgpRtbh",
+        family="isp",
         tags=(
             "isp",
             "sndlib",
@@ -256,6 +288,8 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         lab_name="isp_abilene_ebgp_rpki",
         module="nika.net_env.isp.specials.rpki",
         class_name="IspAbileneEbgpRpki",
+        family="isp",
+        coverage_major=True,
         tags=(
             "isp",
             "sndlib",
@@ -276,6 +310,7 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         lab_name="isp_geant_ebgp_rpki",
         module="nika.net_env.isp.specials.rpki",
         class_name="IspGeantEbgpRpki",
+        family="isp",
         tags=(
             "isp",
             "sndlib",
@@ -296,6 +331,8 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         lab_name="min3clos",
         module="nika.net_env.min3clos.lab",
         class_name="ContainerlabMin3Clos",
+        family="srl_clos",
+        coverage_major=True,
         tags=("clos", "srl", "bgp", "link", "containerlab", "fabric"),
         supported_backends=("containerlab",),
         topo_size=5,
@@ -304,6 +341,10 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         lab_name="k8s_lab",
         module="nika.net_env.k8s_lab.lab",
         class_name="K8sFatTreeBGP",
+        family="kubernetes",
+        heavy_lab=True,
+        coverage_major=True,
+        k8s_image_cache=True,
         tags=(
             "kubernetes",
             "k3s",
@@ -330,6 +371,10 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         lab_name="llmd_lab",
         module="nika.net_env.llmd_lab.lab",
         class_name="LLMDInferenceCluster",
+        family="llm_serving",
+        heavy_lab=True,
+        coverage_major=True,
+        k8s_image_cache=True,
         tags=(
             "kubernetes",
             "k3s",
@@ -351,6 +396,16 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
     ),
 }
 
+# Representative base topologies used for protocol-variant coverage columns.
+# Other SNDlib ``isp_<topo>`` IDs are omitted from the matrix (same capability
+# surface); named specials still appear as their own columns. The
+# representative topologies are also the major ISP scenarios.
+_ISP_COVERAGE_SCENARIOS: tuple[str, ...] = (
+    "isp_abilene",
+    "isp_france",
+    "isp_pioro40",
+)
+
 # Flattened SNDlib ISP topologies: one scenario ID per graph (shared Isp class).
 for _topo_name in SNDLIB_TOPOLOGY_NAMES:
     _scenario_id = f"isp_{_topo_name}"
@@ -363,25 +418,32 @@ for _topo_name in SNDLIB_TOPOLOGY_NAMES:
         topo_size=topology_size_for_name(_topo_name),
         backend_bindings=_ISP_BACKEND_BINDINGS,
         deploy_defaults={"topo": _topo_name, "scenario_id": _scenario_id},
+        family="isp",
+        coverage_major=_scenario_id in _ISP_COVERAGE_SCENARIOS,
     )
 del _topo_name, _scenario_id
 
 _CLASS_CACHE: dict[tuple[str, str], type[NetworkEnvBase]] = {}
 
 
+_LEGACY_010_SPECS: dict[str, NetEnvSpec] | None = None
+
+
+def legacy_010_specs() -> dict[str, NetEnvSpec]:
+    """Original 0.1.0 labs; resolvable by ID but never listed."""
+    global _LEGACY_010_SPECS
+    if _LEGACY_010_SPECS is None:
+        from nika.net_env.compat.v010 import scenario_specs
+
+        _LEGACY_010_SPECS = scenario_specs()
+    return _LEGACY_010_SPECS
+
+
 def resolve_scenario_id(scenario_name: str) -> str:
     """Validate and return a registered canonical scenario ID."""
-    if scenario_name in _NET_ENV_SPECS:
+    if scenario_name in _NET_ENV_SPECS or scenario_name in legacy_010_specs():
         return scenario_name
     raise ValueError(f"Network environment '{scenario_name}' not found in the pool.")
-
-
-def is_dc_clos_scenario(scenario_name: str) -> bool:
-    return resolve_scenario_id(scenario_name) == DC_CLOS_SCENARIO
-
-
-def is_campus_lan_scenario(scenario_name: str) -> bool:
-    return resolve_scenario_id(scenario_name) == CAMPUS_LAN_SCENARIO
 
 
 def is_enterprise_branch_scenario(scenario_name: str) -> bool:
@@ -389,7 +451,8 @@ def is_enterprise_branch_scenario(scenario_name: str) -> bool:
 
 
 def _require_scenario(scenario_name: str) -> NetEnvSpec:
-    return _NET_ENV_SPECS[resolve_scenario_id(scenario_name)]
+    canonical = resolve_scenario_id(scenario_name)
+    return _NET_ENV_SPECS.get(canonical) or legacy_010_specs()[canonical]
 
 
 def _load_net_env_class(scenario_name: str, *, backend: str) -> type[NetworkEnvBase]:
@@ -414,6 +477,18 @@ def scenario_tags(scenario_name: str) -> list[str]:
     return list(_require_scenario(scenario_name).tags)
 
 
+def scenario_family(scenario_name: str) -> str:
+    """Return the release split-coverage family of ``scenario_name``.
+
+    Unregistered scenario IDs (e.g. rows of an older release) are their own family.
+    """
+    try:
+        spec = _require_scenario(scenario_name)
+    except (KeyError, ValueError):
+        return scenario_name
+    return spec.family or spec.lab_name
+
+
 # Deploy variants shown as coverage-matrix columns for representative ISP configs.
 ISP_COVERAGE_CONFIGS: tuple[str, ...] = (
     "isis",
@@ -424,15 +499,6 @@ ISP_COVERAGE_CONFIGS: tuple[str, ...] = (
 
 _ISP_COVERAGE_BASE_TAGS: frozenset[str] = frozenset(
     {"isp", "sndlib", "frr", "igp", "link", "icmp"}
-)
-
-# Representative base topologies used for protocol-variant coverage columns.
-# Other SNDlib ``isp_<topo>`` IDs are omitted from the matrix (same capability
-# surface); named specials still appear as their own columns.
-_ISP_COVERAGE_SCENARIOS: tuple[str, ...] = (
-    "isp_abilene",
-    "isp_france",
-    "isp_pioro40",
 )
 
 
@@ -507,17 +573,8 @@ def resolve_scenario_backend(
         return default_when_ambiguous
     raise ValueError(
         f"Scenario '{scenario_name}' supports multiple backends "
-        f"({', '.join(supported)}); pass --backend."
+        f"({', '.join(supported)}); pass --backend (CLI) or set backend in case YAML / API."
     )
-
-
-def scenario_backend(scenario_name: str) -> str:
-    """Return the sole backend for a single-backend scenario.
-
-    Multi-backend scenarios must use :func:`resolve_scenario_backend` with an
-    explicit ``backend`` (or ``default_when_ambiguous``).
-    """
-    return resolve_scenario_backend(scenario_name)
 
 
 def get_net_env_instance(
@@ -594,14 +651,20 @@ def scenario_fixed_topo_size(scenario_name: str) -> str | None:
     return None
 
 
-def scenario_source_path(scenario_name: str) -> Path:
-    """Return the scenario module file path without importing lab backends."""
-    import importlib.util
-
-    spec = _require_scenario(scenario_name)
-    module_spec = importlib.util.find_spec(spec.module)
-    if module_spec is None or module_spec.origin is None:
-        raise ValueError(
-            f"Cannot resolve source path for network environment '{scenario_name}'."
+def get_probe_path(scenario_name: str, *, topo_size: str = "s") -> ProbePath | None:
+    """Default probe path declared by the scenario's lab class, if any."""
+    try:
+        spec = _require_scenario(scenario_name)
+    except (KeyError, ValueError):
+        return None
+    try:
+        backend = resolve_scenario_backend(
+            scenario_name, default_when_ambiguous="kathara"
         )
-    return Path(module_spec.origin).resolve()
+        cls = _load_net_env_class(scenario_name, backend=backend)
+        return cls.default_probe_path(
+            topo_size=topo_size, **(spec.deploy_defaults or {})
+        )
+    except Exception as exc:  # noqa: BLE001
+        system_logger.warning(f"No default probe path for {scenario_name!r}: {exc}")
+        return None

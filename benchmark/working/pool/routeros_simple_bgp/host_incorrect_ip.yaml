@@ -1,0 +1,13 @@
+scenario:
+  name: routeros_simple_bgp
+failure:
+  fault_type: host_incorrect_ip
+  cases:
+  - inject:
+      host_name: pc1
+    root_causes:
+    - resource:
+        kind: interface
+        node: pc1
+        name: eth0
+      fault_type: host_incorrect_ip

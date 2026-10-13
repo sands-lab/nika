@@ -51,6 +51,12 @@ class K8sProblemBase(ProblemBase):
     supported_backends: ClassVar[tuple[str, ...]] = ("kathara",)
     required_capabilities: ClassVar[tuple[str, ...]] = ("exec", "k8s")
     TAGS: ClassVar[list[str]] = ["kubernetes", "k3s"]
+    RECORDED_ATTRS: ClassVar[tuple[str, ...]] = (
+        "k8s_control_node",
+        "k8s_objects",
+        "k8s_namespace",
+        "k8s_workload",
+    )
 
     def __init__(self, scenario_name: str | None = None, **kwargs: Any) -> None:
         super().__init__(scenario_name, **kwargs)

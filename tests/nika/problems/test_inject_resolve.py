@@ -11,6 +11,8 @@ from nika.workflows.benchmark.inject_resolve import (
     validate_benchmark_case,
 )
 
+pytestmark = pytest.mark.contract
+
 
 @pytest.mark.parametrize(
     ("scenario", "target", "attacker", "observer", "url"),
@@ -59,7 +61,7 @@ def test_web_dos_resolves_one_independently_observed_http_path(
     if scenario == "p4_dc_gateway":
         expected["attack_url"] = url
     elif scenario == "enterprise_branch":
-        expected["attack_url"] = "http://10.0.20.2/nika-dos-dir/"
+        expected["attack_url"] = "http://10.0.20.2/archive/"
     assert inject == expected
     assert len({target, attacker, observer}) == 3
 
@@ -327,7 +329,7 @@ def test_legacy_scenario_benchmark_row_is_rejected() -> None:
     with pytest.raises(ValueError, match="not found in the pool"):
         normalize_benchmark_row(
             {
-                "scenario": "rip_small_internet_vpn",
+                "scenario": "ospf_enterprise_dhcp",
                 "topo_size": "s",
                 "problem": "host_vpn_membership_missing",
                 "inject": {
@@ -649,9 +651,12 @@ def test_link_flap_fabric_inject_aligns_probe_path(scenario: str, seed: int) -> 
     params = resolve_inject_params("link_flap", scenario, TOPO_SIZE, seed=seed)
     assert params["down_time"] == "1"
     assert params["up_time"] == "1"
-    assert params["host_name"].startswith("leaf_")
     assert params.get("probe_dst_ip")
-    assert params.get("observer_device", "").startswith("client_")
+    observer = params.get("observer_device", "")
+    assert observer.startswith("client_")
+    # Inject target is on the observer's attachment or leaf uplink toward the probe.
+    host = params["host_name"]
+    assert host.startswith("client_") or host.startswith("leaf_")
 
 
 @pytest.mark.parametrize("seed", (0, 1, 4, 7))
@@ -729,7 +734,7 @@ def test_link_detach_inject_params_pin_probe_path(
     ],
 )
 def test_incast_inject_params_align_probe_with_host(scenario: str, seed: int) -> None:
-    from nika.problems.support.probe_paths import get_probe_path
+    from nika.net_env.net_env_pool import get_probe_path
 
     params = resolve_inject_params(
         "incast_traffic_network_limitation", scenario, TOPO_SIZE, seed=seed

@@ -30,7 +30,13 @@ _SECRET_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ),
     (
         "bearer_token",
-        re.compile(r"(?i)\bbearer\s+[A-Za-z0-9\-._~+/]+=*"),
+        # Prose about the scheme is not a credential. An Authorization header
+        # still counts even when its value is one of these ordinary words.
+        re.compile(
+            r"(?i)\b(?:authorization\s*:\s*bearer\s+|"
+            r"bearer\s+(?!(?:tokens?|authentication|scheme)(?![A-Za-z0-9\-._~+/=])))"
+            r"[A-Za-z0-9\-._~+/]+=*"
+        ),
     ),
     (
         "pem_private_key",
@@ -53,6 +59,7 @@ def _walk_strings(value: Any, *, path: str = "") -> list[tuple[str, str]]:
         found.append((path or "$", value))
     elif isinstance(value, dict):
         for key, item in value.items():
+            found.append((path or "$", str(key)))
             child = f"{path}.{key}" if path else str(key)
             found.extend(_walk_strings(item, path=child))
     elif isinstance(value, list):
@@ -66,6 +73,8 @@ def scan_value_for_issues(value: Any, *, label: str) -> list[str]:
     """Return human-readable findings for secrets or absolute paths in *value*."""
     issues: list[str] = []
     for field_path, text in _walk_strings(value):
+        if field_path.rsplit(".", 1)[-1].lower() == "authorization":
+            text = f"Authorization: {text}"
         for name, pattern in _SECRET_PATTERNS:
             if pattern.search(text):
                 issues.append(f"{label}:{field_path}: possible secret ({name})")
@@ -159,6 +168,16 @@ def scan_trajectory_package_dir(trajectories_dir: Path) -> list[str]:
             else:
                 issues.extend(scan_value_for_issues(data, label=rel))
             continue
-        # JSONL / plain text (messages.jsonl, nika.jsonl)
+        if path.suffix == ".jsonl":
+            for line_number, line in enumerate(raw.splitlines(), start=1):
+                label = f"{rel}:{line_number}"
+                try:
+                    data = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    issues.append(f"{label}: invalid JSONL: {exc}")
+                else:
+                    issues.extend(scan_value_for_issues(data, label=label))
+            continue
+        # Plain text
         issues.extend(scan_value_for_issues(raw, label=rel))
     return issues

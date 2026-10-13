@@ -1,4 +1,5 @@
 import ipaddress
+import json
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -8,6 +9,10 @@ from nika.problems.base import (
     FailureDomain,
     build_verify_result,
     ProblemBase,
+)
+from nika.problems.support.benchmark_targets import (
+    access_router_victim,
+    require_role_member,
 )
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
@@ -25,16 +30,59 @@ class BGPHijackingParams(BaseModel):
         default=None,
         description="Network prefix to advertise. Defaults to runtime selection.",
     )
+    symptom_host: Optional[str] = Field(
+        default=None,
+        description="Optional remote router that should learn the hijacked prefix.",
+    )
+    probe_dst_ip: Optional[str] = Field(
+        default=None,
+        description="Optional address inside the hijacked prefix for symptom probes.",
+    )
+    peer_host: Optional[str] = Field(
+        default=None,
+        description="Optional stub host attached to the hijacking router.",
+    )
+    observer_host: Optional[str] = Field(
+        default=None,
+        description=(
+            "Optional end host routed through symptom_host whose traffic should "
+            "follow the hijack. Defaults to the ISP stub host of symptom_host."
+        ),
+    )
+    export_prefix_list: Optional[str] = Field(
+        default=None,
+        description=(
+            "Optional prefix-list of the hijacker's outbound BGP policy that the "
+            "misconfiguration also extends with the target, letting it out."
+        ),
+    )
 
 
 class BGPHijacking(ProblemBase):
     failure_domain = FailureDomain.SECURITY
+    symptom_probe = "custom"
+    symptom_class = "control_plane"
     root_cause_name: str = "bgp_hijacking"
     description = "An unauthorized BGP prefix is advertised (hijack)."
     TAGS: str = ["bgp"]
     supported_backends = ("kathara",)
+    BENCHMARK_TARGET_ROLE = "access_routers"
 
     Params = BGPHijackingParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return access_router_victim(ctx, prefer_site_edge=False)
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        require_role_member(
+            ctx,
+            cls.root_cause_name,
+            inject.get("host_name"),
+            "access_routers",
+            reason="has no attached end host",
+        )
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
@@ -94,11 +142,17 @@ class BGPHijacking(ProblemBase):
                     params.host_name,
                     f"vtysh -c 'configure terminal' -c 'interface lo' -c 'ip address {target_network}' ",
                 )
+                # Behind a prefix-list export policy the operator error includes
+                # admitting the prefix there, or the hijack never leaves the router.
+                export = (
+                    f"-c 'ip prefix-list {params.export_prefix_list} seq 1 permit {target_network}' "
+                    if params.export_prefix_list
+                    else ""
+                )
                 self.runtime.exec(
                     params.host_name,
-                    f"vtysh -c 'configure terminal' -c 'router bgp {asn_number}' -c 'network {target_network}' -c 'end' -c 'write memory' ",
+                    f"vtysh -c 'configure terminal' {export}-c 'router bgp {asn_number}' -c 'network {target_network}' -c 'end' -c 'write memory' ",
                 )
-                self.runtime.exec(params.host_name, "systemctl restart frr")
                 self.logger.info(
                     f"Injected BGP hijacking on {params.host_name}: {target_network}."
                 )
@@ -130,26 +184,35 @@ class BGPHijacking(ProblemBase):
                     },
                 )
             case "kathara":
-                running_config = self.runtime.exec(
-                    params.host_name, "vtysh -c 'show running-config' 2>/dev/null"
-                ).strip()
-                network_prefix = target_network.split("/")[0]
-                has_advertisement = (
-                    f"network {target_network}" in running_config
-                    or f"network {network_prefix}" in running_config
+                # The hijacker's BGP table must source the prefix as its best
+                # path and send it to a peer; whether peers accept it is the symptom.
+                table = self.runtime.exec(
+                    params.host_name,
+                    f"vtysh -c 'show bgp ipv4 unicast {target_network} json' 2>/dev/null",
                 )
+                try:
+                    entry = json.loads(table) or {}
+                except ValueError:
+                    entry = {}
+                originated = any(
+                    path.get("sourced") and (path.get("bestpath") or {}).get("overall")
+                    for path in entry.get("paths") or []
+                )
+                network_prefix = target_network.split("/")[0]
                 lo_output = self.runtime.exec(
                     params.host_name, "ip addr show lo 2>/dev/null"
                 ).strip()
                 has_lo_ip = network_prefix in lo_output
-                verified = has_advertisement and has_lo_ip
+                advertised_to = sorted(entry.get("advertisedTo") or {})
+                verified = originated and has_lo_ip and bool(advertised_to)
                 return build_verify_result(
                     fault_type=self.root_cause_name,
                     verified=verified,
                     details={
                         "host": params.host_name,
                         "target_network": target_network,
-                        "has_advertisement": has_advertisement,
+                        "originated_best": originated,
+                        "advertised_to": advertised_to,
                         "has_lo_ip": has_lo_ip,
                     },
                 )

@@ -6,6 +6,8 @@ from pathlib import Path
 from nika.net_env.net_env_pool import get_net_env_instance
 from nika.runtime.containerlab import parse_clab_topology
 
+pytestmark = pytest.mark.unit
+
 
 class ClabParseTest:
     def test_parse_binds_and_exec(self) -> None:

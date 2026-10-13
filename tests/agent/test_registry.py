@@ -7,6 +7,8 @@ import pytest
 
 from agent.registry import create_agent
 
+pytestmark = pytest.mark.unit
+
 
 def test_non_byo_agent_cannot_run_on_host() -> None:
     with patch.dict(os.environ, {}, clear=True):

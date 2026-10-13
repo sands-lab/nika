@@ -13,6 +13,7 @@ from typer.testing import CliRunner
 
 from nika.cli.main import app
 from nika.mcp.session_context import SESSION_ID_ENV, get_lab_name
+from nika.net_env.isp.identity import is_isp_scenario
 from nika.utils.session_id import (
     TEST_SESSION_TAG,
     resolve_session_tag,
@@ -205,7 +206,9 @@ class IntegrationMixin:
         kwargs = dict(row.get("scenario_params") or {})
         if row.get("lab_name"):
             kwargs["lab_name"] = row["lab_name"]
-        if row.get("scenario_topo_size") is not None:
+        if is_isp_scenario(str(row.get("scenario_name") or "")):
+            kwargs.pop("topo_size", None)
+        elif row.get("scenario_topo_size") is not None:
             kwargs["topo_size"] = row["scenario_topo_size"]
         return kwargs
 

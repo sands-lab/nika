@@ -1,27 +1,25 @@
 """Commands for running diagnosis agents."""
 
+import subprocess
+import sys
+from pathlib import Path
+
 import typer
 
 from agent.cli.codex.codex_worker import REASONING_EFFORT_LEVELS
+from agent.registry import BUILTIN_AGENTS, AgentSpec
 from nika.run_config.loader import (
     ENV_RUN_CONFIG,
     export_run_config_env,
     load_run_config,
     merge_cli,
+    persist_effective_run_config,
     set_run_config,
 )
-from nika.run_config.legacy import warn_legacy_operational_env
 from nika.utils.agent_config import apply_custom_provider_env
 
-SUPPORTED_AGENT_TYPES = (
-    "byo.langgraph",
-    "byo.mcp_agent",
-    "byo.autogen",
-    "cli.codex",
-    "cli.claude",
-    "community.sade",
-    "sdk.claude_sdk",
-    "sdk.codex_sdk",
+SUPPORTED_AGENT_TYPES = tuple(
+    sorted(spec.id for spec in BUILTIN_AGENTS if spec.id != "mock")
 )
 SUPPORTED_LLM_PROVIDERS = ("openai", "anthropic", "deepseek", "custom")
 
@@ -52,13 +50,13 @@ def _activate_run_config(
     max_steps: int | None,
     reasoning_effort: str | None,
     access_role: str | None,
+    base_url: str | None,
     sandbox_keep_container: bool,
-    sandbox_cpus: str | None,
+    sandbox_cpus: int | None,
     sandbox_memory: str | None,
-    sandbox_offline_sdk_wheels: bool,
+    sandbox_offline_sdk_wheels: bool | None,
     sandbox_upstream_proxy: str | None,
 ) -> None:
-    warn_legacy_operational_env()
     cfg_path = export_run_config_env(run_config)
     cfg = load_run_config(cfg_path)
     cfg = merge_cli(
@@ -69,22 +67,42 @@ def _activate_run_config(
         max_steps=max_steps,
         reasoning_effort=reasoning_effort,
         access_role=access_role,
+        base_url=base_url,
         sandbox_keep=sandbox_keep_container or None,
         sandbox_cpus=sandbox_cpus,
         sandbox_memory=sandbox_memory,
-        sandbox_offline_sdk_wheels=sandbox_offline_sdk_wheels or None,
+        sandbox_offline_sdk_wheels=sandbox_offline_sdk_wheels,
         sandbox_upstream_proxy=sandbox_upstream_proxy,
     )
     set_run_config(cfg)
+    persist_effective_run_config(cfg)
     apply_custom_provider_env(cfg)
+
+
+def _agent_row(agent_id: str, spec: AgentSpec | None, problem: str = "") -> str:
+    if spec is None:
+        return f"  {agent_id:<20} {'user':<12} unavailable: {problem}"
+    notes = []
+    if spec.sbx is not None:
+        notes.append("sandbox")
+    elif spec.sandbox_definition is not None:
+        notes.append("sandbox declared (runs on host for now)")
+    providers = ",".join(sorted(spec.providers))
+    line = f"  {spec.id:<20} {spec.source:<12} {providers}"
+    return f"{line}  [{'; '.join(notes)}]" if notes else line
 
 
 @agent_app.command("list")
 def agent_list() -> None:
-    """Print supported agent types and LLM providers."""
+    """Print available agents (built-in and added), LLM providers, and effort levels."""
+    from agent.plugins import list_external_agents
+
     typer.echo("agent_types:")
-    for agent_type in SUPPORTED_AGENT_TYPES:
-        typer.echo(f"  {agent_type}")
+    for spec in BUILTIN_AGENTS:
+        if spec.id in SUPPORTED_AGENT_TYPES:
+            typer.echo(_agent_row(spec.id, spec))
+    for agent_id, spec, problem in list_external_agents():
+        typer.echo(_agent_row(agent_id, spec, problem))
     typer.echo("llm_providers:")
     for provider in SUPPORTED_LLM_PROVIDERS:
         typer.echo(f"  {provider}")
@@ -96,13 +114,146 @@ def agent_list() -> None:
         typer.echo(f"  {level}")
 
 
+def _check_class(class_path: str, root: Path) -> None:
+    """Import *class_path* from *root* in a fresh interpreter, as `agent run` would."""
+    module_name, _, attr = class_path.partition(":")
+    code = (
+        "import importlib, sys\n"
+        f"sys.path.append({str(root)!r})\n"
+        f"target = getattr(importlib.import_module({module_name!r}), {attr!r})\n"
+        "if not callable(target):\n"
+        "    sys.exit(f'{target!r} is not callable')\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True
+    )
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout).strip().splitlines()
+        raise typer.BadParameter(
+            f"Cannot load {class_path!r}: {detail[-1] if detail else 'import failed'}"
+        )
+
+
+@agent_app.command("add")
+def agent_add(
+    path: Path = typer.Argument(
+        ..., help="Agent project directory that contains nika-agent.yaml."
+    ),
+) -> None:
+    """Register an agent developed outside NIKA so `-a <id>` can run it."""
+    from agent.plugins import (
+        import_root,
+        load_manifest,
+        missing_dependencies,
+        read_registered_agents,
+        write_registered_agents,
+    )
+
+    project = path.expanduser().resolve()
+    try:
+        manifest = load_manifest(project)
+        if project.is_file():
+            project = project.parent
+        root = import_root(project, manifest.class_path)
+    except (FileNotFoundError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+
+    if missing := missing_dependencies(project):
+        quoted = " ".join(f"'{req}'" for req in missing)
+        raise typer.BadParameter(
+            f"{project.name} depends on packages missing from NIKA's environment: "
+            f"{', '.join(missing)}. Install them with `uv pip install {quoted}` "
+            "and run `nika agent add` again."
+        )
+    _check_class(manifest.class_path, root)
+
+    agents = read_registered_agents()
+    agents[manifest.id] = {"path": str(project)}
+    write_registered_agents(agents)
+    typer.echo(f"Added agent {manifest.id!r} ({manifest.class_path}).")
+    if manifest.sandbox is not None:
+        typer.echo(
+            "Its sandbox definition is valid; NIKA runs external agents on the "
+            "host until sandbox backends support them."
+        )
+    typer.echo(f"Run it with: nika agent run -a {manifest.id} --problem <task>")
+
+
+@agent_app.command("remove")
+def agent_remove(
+    agent_id: str = typer.Argument(..., help="Agent id shown by `nika agent list`."),
+) -> None:
+    """Unregister an agent added with `nika agent add`; its project is untouched."""
+    from agent.plugins import read_registered_agents, write_registered_agents
+
+    agents = read_registered_agents()
+    if agents.pop(agent_id, None) is None:
+        raise typer.BadParameter(f"No added agent named {agent_id!r}.")
+    write_registered_agents(agents)
+    typer.echo(f"Removed agent {agent_id!r}.")
+
+
+@agent_app.command("check")
+def agent_check(
+    llm_provider: str | None = typer.Option(
+        None, "-p", "--provider", help="LLM provider (default: agent.provider)."
+    ),
+    model: str | None = typer.Option(
+        None, "-m", "--model", help="Model id (default: agent.model)."
+    ),
+    base_url: str | None = typer.Option(
+        None, "--base-url", help="Endpoint URL for provider=custom."
+    ),
+    run_config: str | None = typer.Option(
+        None,
+        "--run-config",
+        envvar=ENV_RUN_CONFIG,
+        help="Path to config/nika.yaml (default: config/nika.yaml).",
+    ),
+    as_json: bool = typer.Option(False, "--json", help="Print the result as JSON."),
+) -> None:
+    """Check that the configured LLM endpoint is up and serves the model."""
+    from dataclasses import asdict
+
+    from agent.utils.endpoint_probe import probe_endpoint
+
+    cfg = merge_cli(
+        load_run_config(run_config),
+        llm_provider=llm_provider,
+        model=model,
+        base_url=base_url,
+    )
+    result = probe_endpoint(
+        cfg.agent.provider, cfg.agent.model, base_url=cfg.agent.base_url
+    )
+    if as_json:
+        import json
+
+        typer.echo(json.dumps(asdict(result), indent=2))
+    else:
+        latency = f" ({result.latency_ms:.0f} ms)" if result.latency_ms else ""
+        typer.echo(f"agent:    {cfg.agent.type}")
+        typer.echo(f"provider: {result.provider}")
+        typer.echo(f"model:    {result.model}")
+        typer.echo(f"endpoint: {result.endpoint}")
+        typer.secho(
+            f"status:   {result.status}{latency}  {result.detail}",
+            fg=typer.colors.GREEN if result.ok else typer.colors.RED,
+        )
+    if not result.ok:
+        raise typer.Exit(code=1)
+
+
 @agent_app.command("run")
 def agent_run(
     agent_type: str | None = typer.Option(
         None,
         "-a",
         "--agent",
-        help="Agent implementation (default: agent.type in run config).",
+        help=(
+            "Agent: built-in id, id added with `nika agent add`, or "
+            "module.path:ClassName (default: agent.type in run config)."
+        ),
     ),
     llm_provider: str | None = typer.Option(
         None,
@@ -114,7 +265,7 @@ def agent_run(
         None,
         "-m",
         "--model",
-        help="Model id (default: agent.model / agent.models.* in run config).",
+        help="Model id (default: agent.model in run config).",
     ),
     max_steps: int | None = typer.Option(
         None,
@@ -134,6 +285,15 @@ def agent_run(
     ),
     access_role: str | None = typer.Option(
         None, "--role", help="Diagnosis access role (default: agent.access.role)."
+    ),
+    base_url: str | None = typer.Option(
+        None,
+        "--base-url",
+        help=(
+            "Inference endpoint URL (default: agent.base_url). "
+            "OpenAI-style API root, usually ending in /v1. "
+            "Used only with provider=custom, where it is required."
+        ),
     ),
     run_config: str | None = typer.Option(
         None,
@@ -168,7 +328,7 @@ def agent_run(
         "--sandbox-keep-container",
         help="Do not remove the sbx sandbox after the agent exits (debug).",
     ),
-    sandbox_cpus: str | None = typer.Option(
+    sandbox_cpus: int | None = typer.Option(
         None,
         "--sandbox-cpus",
         help="CPU limit for the sandbox.",
@@ -178,12 +338,13 @@ def agent_run(
         "--sandbox-memory",
         help="Memory limit for the sandbox (e.g. 8g).",
     ),
-    sandbox_offline_sdk_wheels: bool = typer.Option(
-        False,
-        "--sandbox-offline-sdk-wheels",
+    sandbox_offline_sdk_wheels: bool | None = typer.Option(
+        None,
+        "--sandbox-offline-sdk-wheels/--no-sandbox-offline-sdk-wheels",
         help=(
             "Stage host-cached SDK wheels into the sandbox (faster SDK/SADE "
-            "deploys; avoids re-downloading deps on every sbx start)."
+            "deploys; avoids re-downloading deps on every sbx start). "
+            "Defaults to nika.sandbox.offline_sdk_wheels."
         ),
     ),
     sandbox_upstream_proxy: str | None = typer.Option(
@@ -206,6 +367,7 @@ def agent_run(
         max_steps=max_steps,
         reasoning_effort=reasoning_effort,
         access_role=access_role,
+        base_url=base_url,
         sandbox_keep_container=sandbox_keep_container,
         sandbox_cpus=sandbox_cpus,
         sandbox_memory=sandbox_memory,
@@ -269,9 +431,9 @@ def _run_one_shot(
     result_dir: str | None,
     reasoning_effort: str | None,
     sandbox_keep_container: bool,
-    sandbox_cpus: str | None,
+    sandbox_cpus: int | None,
     sandbox_memory: str | None,
-    sandbox_offline_sdk_wheels: bool,
+    sandbox_offline_sdk_wheels: bool | None,
 ) -> None:
     from nika.workflows.benchmark.run import run_single_case, validate_inject_params
     from nika.workflows.benchmark.task_label import (

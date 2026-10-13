@@ -10,7 +10,28 @@ cp .env.example .env
 uv run nika config show
 ```
 
+To compare agents, copy a per-agent template and pass `--run-config`:
+
+```shell
+cp config/cli.codex.example.yaml config/cli.codex.yaml
+# edit provider / model in that file if needed
+uv run nika agent run --run-config config/cli.codex.yaml --problem dc_clos_s_link_down
+```
+
+Tracked per-agent templates live next to `nika.example.yaml`: `byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `cli.codex`, `cli.claude`, `sdk.codex_sdk`, and `sdk.claude_sdk` (each as `config/<agent>.example.yaml`).
+
 `nika config show` validates the selected YAML file and prints the effective configuration without credentials. Use `--run-config PATH` or `NIKA_RUN_CONFIG` to select a different operations file.
+
+Persist important agent settings without hand-editing YAML:
+
+```shell
+uv run nika config set agent.provider=custom agent.model=qwen2.5:7b \
+  agent.base_url=http://localhost:11434/v1
+```
+
+`nika config set` accepts any scalar key that `nika config show` prints, such as `benchmark.batch_size` or `nika.lab.deploy_attempts`. It overwrites the value on the existing line, or adds the key under its section, and leaves comments and other lines unchanged. It rejects unknown keys and validates the file before it writes. Edit the YAML file for lists and maps.
+
+For a single run, override the same fields on `nika agent run` / `nika benchmark run` with `-p`, `-m`, and `--base-url` (CLI wins over YAML).
 
 ## Configuration precedence
 
@@ -20,23 +41,61 @@ NIKA resolves values in this order:
 2. The selected YAML file
 3. Defaults in [`run_config/schema.py`](../../src/nika/run_config/schema.py)
 
-The tracked [`config/nika.example.yaml`](../../config/nika.example.yaml) supplies usable model choices. The schema leaves `agent.model` and every `agent.models.*` field unset, so a run without the template must pass `-m/--model` or define a model in another YAML file.
+The tracked [`config/nika.example.yaml`](../../config/nika.example.yaml) is the full platform reference (`agent:` / `nika:` / `benchmark:`) with a default `byo.langgraph` profile. Prefer the per-agent `config/<agent>.example.yaml` files when you want one ready profile per harness; missing keys fall back to schema defaults. A run must set `agent.model` (or pass `-m/--model`).
 
 Relative result paths resolve from the repository root. NIKA rejects unknown YAML keys and values outside the validation constraints below.
+
+## `agent` settings
+
+| Key | Schema default | Meaning and constraints |
+| --- | --- | --- |
+| `agent.type` | `byo.langgraph` | Agent registry name. Run `uv run nika agent list` for available names. |
+| `agent.provider` | `openai` | Provider name. The selected agent must support it. |
+| `agent.model` | `null` | Canonical model id for the active agent type. |
+| `agent.base_url` | `null` | Required for `provider: custom`. Use the OpenAI-style API root, usually ending in `/v1` (for example `http://localhost:8000/v1`), not the bare host and port. Other providers ignore it; set `OPENAI_BASE_URL` or `ANTHROPIC_BASE_URL` in `.env` to route them through a gateway. Set via YAML, `nika config set agent.base_url=...`, or `--base-url` on `agent run` / `benchmark run`. |
+| `agent.max_steps` | `20` | Max LLM turns per phase for agents that support it (same unit as eval `steps` / `llm_end`). `byo.langgraph` enforces it with model-call limits and `cli.claude` with `claude --max-turns`. `cli.codex` and `sdk.codex_sdk` have no turn limit. Must be at least `1`. |
+| `agent.timeout_sec` | `1800` | Wall-clock budget in seconds for one agent run (diagnosis plus submission). Applies to every agent type. When it expires, NIKA stops the agent and cleans up its sandbox. Benchmark batch runs record the trial as counted `agent_failed`, or as `success` when the agent already wrote a valid `submission.json`. Keep it below `benchmark.case_timeout_sec`. Set `0` to disable it. |
+| `agent.enable_skills` | `true` | Load the shared skill library for Claude and Codex agents. |
+| `agent.submit_reject_limit` | `5` | Max consecutive `submit()` validation failures. After the last one, `submit()` refuses every later call for the session, including valid ones. Set `0` to disable the cap. |
+| `agent.reasoning_effort` | `null` | Optional reasoning effort. Accepted levels depend on the agent. |
+| `agent.max_tokens` | `8192` | Output-token cap per model response. BYO agents pass it to the model client; `cli.claude` and `sdk.claude_sdk` set `CLAUDE_CODE_MAX_OUTPUT_TOKENS`. `cli.codex`, `sdk.codex_sdk`, and `community.sade` do not apply it and record `null`. Benchmark runs record it in the run identity. Must be at least `1`. |
+| `agent.llm.timeout_sec` | `480` | LLM request timeout used by the `byo.langgraph` model factory. Must be non-negative. With streaming it bounds the wait between chunks, not the whole response. |
+| `agent.llm.max_retries` | `2` | LLM retries used by the `byo.langgraph` model factory. Must be non-negative. |
+| `agent.llm.stream` | `true` | Stream LLM responses in the `byo.langgraph` model factory. Set `false` for OpenAI-compatible servers that do not support streaming or `stream_options`. |
+| `agent.access.role` | `default` | Diagnosis access role for the run. `--role` on `agent run` / `benchmark run` overrides it. The role must exist in `agent.access.roles`. Benchmark runs record it in the run identity. |
+| `agent.access.roles.<role>.tools` | `["*"]` | MCP tools the agent may call during diagnosis. `*` allows every tool. Submission always allows only `submit`. |
+| `agent.access.roles.<role>.node_roles` | `["*"]` | Scenario node roles that node-targeted tools may address. `*` allows every role. |
+| `agent.access.roles.<role>.node_ids` | `[]` | Extra node names allowed regardless of `node_roles`. |
+
+Model resolution order: `-m/--model`, then `agent.model`.
+
+| Agent | Providers |
+| --- | --- |
+| `byo.langgraph` | `openai`, `anthropic`, `deepseek`, `custom` |
+| `byo.mcp_agent` | `openai`, `anthropic`, `deepseek`, `custom` |
+| `byo.autogen` | `openai`, `anthropic`, `deepseek`, `custom` |
+| `cli.codex` | `openai`, `deepseek`, `custom` |
+| `sdk.codex_sdk` | `openai`, `deepseek`, `custom` |
+| `cli.claude` | `anthropic`, `deepseek`, `custom` |
+| `sdk.claude_sdk` | `anthropic`, `deepseek`, `custom` |
+| `community.sade` | `anthropic`, `deepseek`, `custom` |
+
+Provider credentials belong in `.env`: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`, or optional `NIKA_CUSTOM_API_KEY`. NIKA maps credentials for the selected provider into the agent process or sandbox.
+
+Leaderboard trajectory submit reads `HF_TOKEN` from `.env` / the environment. See [leaderboard submission](../benchmarks/leaderboard-submission.md).
 
 ## `nika` settings
 
 | Key | Default | Meaning and constraints |
 | --- | --- | --- |
 | `nika.result_dir` | `results` | Parent directory for session and benchmark artifacts. |
-| `nika.enable_skills` | `true` | Load the shared skill library for Claude and Codex agents. |
 | `nika.remote.enabled` | `false` | Route lab lifecycle calls to the remote control plane. |
 | `nika.remote.url` | `null` | Remote control-plane base URL. Required when remote mode is enabled. |
 | `nika.remote.artifact_root` | `null` | Reserved path carried in the remote client configuration. Current workflows do not consume it. |
 | `nika.sandbox.keep` | `false` | Keep the Docker Sandbox after the agent exits. |
-| `nika.sandbox.cpus` | `null` | Optional `sbx` CPU limit. |
-| `nika.sandbox.memory` | `null` | Optional `sbx` memory limit, such as `8g`. |
-| `nika.sandbox.offline_sdk_wheels` | `false` | Stage cached SDK wheels for SDK and SADE sandboxes. |
+| `nika.sandbox.cpus` | `2` | `sbx` vCPU count per sandbox. `null` lets sbx give each sandbox every host vCPU. |
+| `nika.sandbox.memory` | `4g` | `sbx` memory limit per sandbox. `null` lets sbx use half of host memory. |
+| `nika.sandbox.offline_sdk_wheels` | `true` | Stage cached SDK wheels for SDK and SADE sandboxes. Set `false` to install packages from PyPI inside the sandbox. |
 | `nika.sandbox.upstream_proxy` | `null` | Proxy used by the shared `sandboxd` process and host `sbx` commands. |
 | `nika.observability.langfuse_enabled` | `false` | Enable Langfuse callbacks for `byo.langgraph`. |
 | `nika.observability.langfuse_host` | `https://cloud.langfuse.com` | Langfuse endpoint. Credentials remain in `.env`. |
@@ -51,12 +110,13 @@ Relative result paths resolve from the repository root. NIKA rejects unknown YAM
 | --- | ---: | --- |
 | `nika.lab.deploy_attempts` | `3` | Kathara deployment attempts. Must be at least `1`. |
 | `nika.lab.deploy_ready_timeout_sec` | `90` | Time allowed for all Kathara machines to enter the running state. Must be non-negative. |
-| `nika.lab.deploy_settle_sec` | `5` | Delay after Kathara reports all machines running. Must be non-negative. |
+| `nika.lab.deploy_settle_sec` | `5` | Delay after deploy on Kathara and Containerlab. NIKA applies it only to scenarios without a readiness verifier. Must be non-negative. |
 | `nika.lab.undeploy_verify_timeout_sec` | `30` | Time allowed for Kathara containers to disappear after undeploy. Must be non-negative. |
 | `nika.lab.ready_max_wait_sec` | `180` | Default startup-verification polling window for scenarios that implement `verify_lab()`. A scenario-level `VERIFY_MAX_WAIT_SEC` overrides it. Must be non-negative. |
 | `nika.lab.ready_retry_delay_sec` | `5` | Default delay between startup-verification attempts. A scenario-level `VERIFY_RETRY_DELAY_SEC` overrides it. Must be non-negative. |
 | `nika.lab.failure_verify_max_attempts` | `3` | Calls to `verify_fault()` before injection fails. Must be at least `1`. |
 | `nika.lab.failure_verify_retry_delay_sec` | `5` | Delay between fault-verification attempts. Must be non-negative. |
+| `nika.lab.containerlab_max_workers` | `2` | Passed to `clab deploy --max-workers`. Limits concurrent node create and virtual-wire workers. Must be at least `1`. Lower this on memory-tight hosts when Containerlab labs OOM during deploy. |
 
 ### MCP settings
 
@@ -65,6 +125,7 @@ Relative result paths resolve from the repository root. NIKA rejects unknown YAM
 | `nika.mcp.read_timeout_sec` | `120` | MCP request timeout used by the shared LangGraph, AutoGen, and mcp-agent clients. Non-positive values disable it. |
 | `nika.mcp.gateway_host` | `127.0.0.1` | Host address for the session MCP gateway. |
 | `nika.mcp.gateway_port` | `0` | Gateway port. `0` selects a free port; negative values are invalid. |
+| `nika.mcp.tool_output_max_chars` | `10000` | Characters of MCP tool text returned to the agent. Longer output keeps the first and last halves and marks how many characters were elided (mini-swe-agent style), with a warning to use `head`/`tail`/`grep` or redirect to a file. `0` disables truncation. Negative values are invalid. |
 
 ### Static validation
 
@@ -83,44 +144,14 @@ The CLI flag `--static-validation` overrides this setting for one run. Use `--no
 
 Default production and benchmark paths use light runtime checks without Batfish or failure-effect validation. For the deep maintainer path, set `depth: full`, `failure_effect: true`, and optionally `static_validation.enabled: true`.
 
-## `agent` settings
-
-| Key | Schema default | Meaning and constraints |
-| --- | --- | --- |
-| `agent.type` | `byo.langgraph` | Agent registry name. Run `uv run nika agent list` for available names. |
-| `agent.provider` | `openai` | Provider name. The selected agent must support it. |
-| `agent.model` | `null` | Model override shared by all agent types. Takes precedence over `agent.models.*`. |
-| `agent.max_steps` | `20` | Step or turn limit passed to agents that support it. Must be at least `1`. |
-| `agent.reasoning_effort` | `null` | Optional reasoning effort. Accepted levels depend on the agent. |
-| `agent.custom.base_url` | `null` | Required for `provider: custom`. Also overrides the endpoint for `openai` or `anthropic`. |
-| `agent.custom.model` | `null` | Final model fallback when `provider: custom`. |
-| `agent.llm.timeout_sec` | `300` | LLM request timeout used by the `byo.langgraph` model factory. Must be non-negative. |
-| `agent.llm.max_retries` | `2` | LLM retries used by the `byo.langgraph` model factory. Must be non-negative. |
-
-`agent.models` stores one model per implementation. Model resolution uses `-m/--model`, then `agent.model`, then the implementation-specific field, then `agent.custom.model` for the custom provider.
-
-| Agent | Model field | Providers |
-| --- | --- | --- |
-| `byo.langgraph` | `agent.models.langgraph` | `openai`, `anthropic`, `deepseek`, `custom` |
-| `byo.mcp_agent` | `agent.models.mcp_agent` | `openai`, `anthropic`, `deepseek`, `custom` |
-| `byo.autogen` | `agent.models.autogen` | `openai`, `anthropic`, `deepseek`, `custom` |
-| `cli.codex` | `agent.models.codex` | `openai`, `deepseek`, `custom` |
-| `sdk.codex_sdk` | `agent.models.codex_sdk`, then `agent.models.codex` | `openai`, `deepseek`, `custom` |
-| `cli.claude` | `agent.models.claude` | `anthropic`, `deepseek`, `custom` |
-| `sdk.claude_sdk` | `agent.models.claude_sdk`, then `agent.models.claude` | `anthropic`, `deepseek`, `custom` |
-| `community.sade` | `agent.models.sade`, then `agent.models.claude` | `anthropic`, `deepseek`, `custom` |
-
-Provider credentials belong in `.env`: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`, or optional `NIKA_CUSTOM_API_KEY`. NIKA maps credentials for the selected provider into the agent process or sandbox.
-
-Leaderboard trajectory submit reads `HF_TOKEN` from `.env` / the environment. See [leaderboard submission](../benchmarks/leaderboard-submission.md).
-
 ## `benchmark` settings
 
 | Key | Default | Meaning and constraints |
 | --- | --- | --- |
 | `benchmark.release` | `null` | Frozen release selected when `--release` is absent. |
 | `benchmark.split` | `null` | Release split selected when `--split` is absent. |
-| `benchmark.batch_size` | `1` | Concurrent trials. Must be at least `1`. |
+| `benchmark.batch_size` | `1` | Max concurrent light trials (sliding window). Must be at least `1`. |
+| `benchmark.heavy_batch_size` | `1` | Max concurrent heavy trials: Containerlab, k8s/llmd/XRd, and topo_size `l` cases. Must be at least `1`. Heavy and light trials never overlap; with `1`, each heavy trial runs alone on the host. When a heavy trial is next in the queue, NIKA stops starting light trials, waits for running trials to finish, then starts heavy trials. |
 | `benchmark.case_timeout_sec` | `2400` | Hard wall-clock limit per trial. Set `0` to disable it. |
 | `benchmark.continue_on_error` | `false` | Continue the batch after a failed trial. |
 | `benchmark.retry_passes` | `0` | Additional passes over failed or incomplete trials. Must be non-negative. |
@@ -129,15 +160,4 @@ Leaderboard trajectory submit reads `HF_TOKEN` from `.env` / the environment. Se
 
 Benchmark case lists and injection parameters remain in `--release` data or a `--config` case matrix. See the [benchmark configuration reference](../benchmarks/benchmark-configuration.md).
 
-## Migrate operational `.env` keys
-
-Existing installations can convert legacy operational environment variables:
-
-```shell
-uv run nika config migrate
-uv run nika config migrate --write-env
-```
-
-The command prints the proposed YAML and asks before writing. `--write-env` also backs up `.env` to `.env.bak`, then keeps recognized credentials in `.env`. Pass `-y` to skip both confirmations.
-
-NIKA ignores legacy operational variables during normal runs and prints one warning listing the detected keys. `NIKA_RUN_CONFIG` remains supported because it selects the YAML file rather than configuring a run value.
+NIKA ignores old operational variables in `.env`; move any needed values to `config/nika.yaml`. `NIKA_RUN_CONFIG` selects the YAML file rather than configuring a run value.

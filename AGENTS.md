@@ -5,10 +5,40 @@ NIKA is a platform for generating and running executable benchmarks for network 
 ## Development rules
 
 * Read relevant code before modifying behavior and make the smallest change needed.
+* For human-facing documentation, use the [NIKA documentation skill](.agents/skills/nika-docs/SKILL.md): establish purpose before instructions, keep essential contracts visible, and lead with the shortest useful path.
 * Reuse existing NIKA abstractions instead of creating parallel implementations.
 * Preserve benchmark reproducibility, ground truth, telemetry semantics, and backend neutrality.
 * Do not weaken tests to make changes pass.
 * Avoid introducing feature-specific helpers, wrappers, mocks, or abstractions unless they have clear reuse value.
+* When the user repeatedly emphasizes a reusable coding or workflow preference, add it to the matching section of this file. Do not record task-specific or one-off decisions.
+
+## Git and pull requests
+
+1. Before starting new work, run `git fetch origin dev` and create the branch from the freshly fetched `origin/dev`, not a potentially stale local `dev`. Preserve uncommitted work and do not reset or overwrite diverged local branches. If fetching fails, report it rather than silently proceeding from a stale base.
+2. Name the branch `feat/<slug>` or `fix/<slug>`. When tracking a GitHub issue, prefer `feat/<issue>-<slug>` / `fix/<issue>-<slug>` (e.g. `fix/54-onos-rest-group-install`). Do not invent placeholders such as `noissue`.
+3. Develop on that branch. Before starting each task on an existing branch, sync it with its upstream to catch conflicts early: on a `feat/` or `fix/` branch, fetch and merge `origin/dev`; on `dev`, fetch and merge `origin/main`. Merge rather than rebase once the branch is pushed: squash merge flattens the history anyway, and rebasing a shared branch requires a force-push.
+4. Before merging or resolving conflicts, run `git status`. If the worktree is clean, merge in place and use `git merge --abort` to back out; use a scratch worktree only when uncommitted work must be protected.
+5. PR into `dev`, **squash merge only** (no merge commit, no rebase-merge). Delete the branch after.
+
+`dev` -> `main` (opening/merging that PR, testing off `dev` meanwhile) is human-only — the agent never touches it.
+
+### Leaderboard submissions
+
+* Use `YYYYMMDD_<framework>_<model>` package directories, with normalized public harness names, for scores and Hugging Face trajectories.
+* Before merging a leaderboard entry, register sourced model release dates and reference prices in the leaderboard catalogs and confirm both required checks (`model-metadata` and `validate`) pass. Existing reviewed model entries may be reused.
+
+### Commit message
+
+Conventional Commits + GitHub auto-close, e.g.:
+`fix(benchmark): resolve serial batching race in run scheduler`
+
+- `type(scope): imperative summary` — type: `feat/fix/docs/refactor/perf/test/chore/ci/build/revert`.
+- Keep the PR title as the Conventional Commit line without a PR number. The squash commit subject should end with `(#<PR number>)`. In the GitHub UI, check the proposed subject and add the suffix if missing. With `gh pr merge --squash --subject`, include the suffix explicitly; the supplied subject is used as written. Verify the merged commit on `dev`.
+- Body: short summary plus `Fixes #<issue>` (or `Closes`/`Resolves`) so merging auto-closes it. Skip the keyword if there is no issue. Multiple issues: one keyword each.
+
+`gh pr merge --squash` must pass both `--subject` and `--body`. Subject is the Conventional Commit line followed by `(#<PR number>)`. Body is the summary above, not the PR's commit list. `--subject` alone still uses GitHub's default squash body, which concatenates every PR commit and repeats `Co-authored-by: Cursor` once per commit. Do not amend+force-push `dev` to clean that up.
+
+Never merge into `dev` via manual local `git merge --squash` + push — bypasses review and the required PR number in the squash subject.
 
 ## Scenarios and failures
 
@@ -36,7 +66,7 @@ For changes involving scenarios, failures, traffic, telemetry, runtime, or backe
 * Validate observable behavior such as connectivity, routes, protocol sessions, counters, traffic, telemetry, failure symptoms, and recovery.
 * Prefer real protocol and runtime behavior over mocks or synthetic substitutes.
 
-Run independent E2E tests in parallel when safe to reduce test time, but run resource-intensive Kubernetes, LLMd, and containerlab scenarios sequentially to avoid resource contention and instability.
+Run independent E2E tests in parallel when safe to reduce test time. The benchmark runner defaults to `heavy_batch_size: 1` so Containerlab, k8s/llmd/XRd, and topo_size `l` run exclusively (no peer sessions); still avoid stacking multiple heavy labs manually in ad-hoc scripts.
 
 Use unit tests mainly for stable isolated logic such as parsing, schemas, deterministic transformations, compatibility rules, and pure algorithms.
 

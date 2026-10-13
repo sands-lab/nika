@@ -10,6 +10,11 @@ from pathlib import Path
 from agent.sandbox.config import ENV_SESSION_DIR
 from agent.sandbox.sbx.agents import ENV_SBX_SANDBOX_NAME
 from agent.sandbox.sbx.auth import PROXY_MANAGED_SENTINEL
+from agent.utils.provider_env import CUSTOM_UNAUTHENTICATED_API_KEY
+
+# Prefix of the per-phase vLLM shim token (``agent.cli.claude.vllm_shim``).
+SHIM_TOKEN_PREFIX = "nika-shim-"
+
 
 _INNER_ENV_ALLOWLIST = frozenset(
     {
@@ -20,6 +25,9 @@ _INNER_ENV_ALLOWLIST = frozenset(
         "ANTHROPIC_API_KEY",
         "ANTHROPIC_AUTH_TOKEN",
         "ANTHROPIC_BASE_URL",
+        "DISABLE_AUTOUPDATER",
+        "CLAUDE_CODE_MAX_CONTEXT_TOKENS",
+        "CLAUDE_CODE_MAX_OUTPUT_TOKENS",
     }
 )
 _PATH_ENV_KEYS = frozenset({"CODEX_HOME", "CLAUDE_CONFIG_DIR"})
@@ -65,7 +73,13 @@ def _inner_path(
 
 
 def _looks_like_placeholder(value: str) -> bool:
-    return value == PROXY_MANAGED_SENTINEL or value.startswith("sbx-cs-")
+    # A vLLM shim token only authorizes the host-side shim for one phase.
+    return (
+        value == PROXY_MANAGED_SENTINEL
+        or value == CUSTOM_UNAUTHENTICATED_API_KEY
+        or value.startswith("sbx-cs-")
+        or value.startswith(SHIM_TOKEN_PREFIX)
+    )
 
 
 def _sandbox_env_value(key: str, value: str, *, full_env: dict[str, str]) -> str:
@@ -92,7 +106,7 @@ def build_sbx_exec_command(
     cwd: str | None = None,
     env: dict[str, str] | None = None,
 ) -> list[str]:
-    """Build ``sbx exec -d`` argv for *command*."""
+    """Build ``sbx exec`` argv for *command*."""
     sandbox_root = _sandbox_root()
     cwd_path = Path(cwd).resolve() if cwd else None
     inner_cwd = _inner_path(cwd, sandbox_root=sandbox_root, cwd=None) if cwd else None
@@ -118,7 +132,7 @@ def build_sbx_exec_command(
         inner_cmd = " ".join(exports + [inner_cmd])
     if inner_cwd:
         inner_cmd = f"cd {shlex.quote(inner_cwd)} && {inner_cmd}"
-    return ["sbx", "exec", "-d", sandbox_name, "bash", "-lc", inner_cmd]
+    return ["sbx", "exec", sandbox_name, "bash", "-lc", inner_cmd]
 
 
 async def exec_in_sandbox(

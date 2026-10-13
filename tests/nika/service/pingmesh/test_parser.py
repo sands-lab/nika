@@ -3,6 +3,8 @@ from __future__ import annotations
 import pytest
 from nika.service.pingmesh.parser import parse_ping_output
 
+pytestmark = pytest.mark.unit
+
 OK_OUTPUT = "\nPING 10.0.0.2 (10.0.0.2) 56(84) bytes of data.\n\n--- 10.0.0.2 ping statistics ---\n4 packets transmitted, 4 received, 0% packet loss, time 3005ms\nrtt min/avg/max/mdev = 0.045/0.062/0.089/0.018 ms\n"
 LOSS_OUTPUT = "\n--- 10.0.0.2 ping statistics ---\n4 packets transmitted, 2 received, 50% packet loss, time 3005ms\nrtt min/avg/max/mdev = 0.045/0.062/0.089/0.018 ms\n"
 DOWN_OUTPUT = "\n--- 10.0.0.2 ping statistics ---\n4 packets transmitted, 0 received, +1 errors, 100% packet loss, time 3050ms\n"

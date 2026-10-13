@@ -7,15 +7,17 @@ import subprocess
 import time
 from typing import ClassVar
 
+from nika.config import RUNTIME_DIR
+from nika.net_env.base import ProbePath
 from nika.net_env.utils.containerlab.base import ContainerlabNetworkEnv
 from nika.runtime.containerlab import render_topology
-from nika.config import RUNTIME_DIR
+from nika.utils.dependencies import require_gnmic
+
+
 class ContainerlabMin3Clos(ContainerlabNetworkEnv):
     # ref: https://containerlab.dev/lab-examples/min-clos/
     LAB_NAME = "min3clos"
     TOPO_LEVEL = "easy"
-    TOPO_SIZE = 5
-    TAGS = ["clos", "srl", "bgp", "link", "containerlab", "fabric"]
     DESC = "3-node CLOS fabric with Nokia SR Linux (Containerlab min-clos / clos01)."
     GNMI_WAIT_TIMEOUT_SEC: ClassVar[int] = 300
 
@@ -38,6 +40,7 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
             )
 
     def topology_replacements(self, lab_name: str) -> dict[str, str]:
+        from nika.net_env.isp.containerlab.lab import LINUX_IMAGE, SRL_IMAGE
         from nika.net_env.utils.containerlab.mgmt_subnet import (
             mgmt_ipv4_address,
             mgmt_ipv4_subnet,
@@ -55,6 +58,8 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
         replacements = {
             "__MGMT_IPV4_SUBNET__": mgmt_ipv4_subnet(lab_name),
             "__MGMT_IPV6_SUBNET__": mgmt_ipv6_subnet(lab_name),
+            "__SRL_IMAGE__": SRL_IMAGE,
+            "__LINUX_IMAGE__": LINUX_IMAGE,
         }
         for name, index in hosts:
             replacements[f"__MGMT_IP_{name.upper()}__"] = mgmt_ipv4_address(
@@ -106,6 +111,7 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
         setup_dst.chmod(0o755)
 
     def deploy(self) -> None:
+        require_gnmic()
         already_existed = self.lab_exists()
         super().deploy()
         if already_existed:
@@ -170,6 +176,29 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
             raise RuntimeError(
                 f"min3clos setup.sh failed: {result.stderr or result.stdout}"
             )
+
+    def target_roles(self) -> dict[str, list[str]]:
+        roles = super().target_roles()
+        clients = [h for h in roles["hosts"] if "client" in h] or roles["hosts"]
+        return {
+            **roles,
+            "hosts": clients,
+            "host1_pool": clients,
+            "attacker_pool": clients,
+            "routers": [r for r in roles["routers"] if "leaf" in r] or roles["routers"],
+            "web": clients,
+            "l2_endpoints": clients,
+        }
+
+    @classmethod
+    def default_probe_path(cls, *, topo_size: str = "s", **deploy_kwargs) -> ProbePath:
+        return ProbePath(
+            src_host="client1",
+            dst_ip="10.0.0.27",
+            http_url=None,
+            control_plane_host="leaf1",
+            peer_host="client2",
+        )
 
     def startup_verify_lab(self) -> dict:
         from nika.net_env.min3clos.verify import verify_min3clos_lab_startup

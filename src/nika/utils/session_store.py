@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from nika.config import SESSIONS_DB, SESSIONS_DIR
+from nika.utils.session_artifacts import write_json_atomic
 from nika.utils.session_index import SessionIndex
 
 
@@ -41,11 +42,7 @@ class SessionStore:
         return json.loads(path.read_text(encoding="utf-8"))
 
     def _write(self, data: dict[str, Any]) -> None:
-        path = self._path(data["session_id"])
-        path.write_text(
-            json.dumps(data, ensure_ascii=False, indent=2, default=str),
-            encoding="utf-8",
-        )
+        write_json_atomic(self._path(data["session_id"]), data, ensure_ascii=False)
 
     # ------------------------------------------------------------------
     # Session CRUD
@@ -75,18 +72,46 @@ class SessionStore:
     def get_session(self, session_id: str) -> dict[str, Any]:
         return self._read(session_id)
 
-    def delete_session(self, session_id: str) -> None:
+    def find_by_agent_session_id(self, agent_session_id: str) -> dict[str, Any] | None:
+        """Return the session document keyed by opaque agent handle, if any.
+
+        Used when MCP tools see ``NIKA_SESSION_ID`` / header values that are the
+        agent-facing id, but SessionStore files are named by the canonical trial
+        id. Prefer the gateway registry; this is a durable disk fallback so
+        concurrent sessions do not fail with a false ``Session not found``.
+        """
+        needle = (agent_session_id or "").strip()
+        if not needle:
+            return None
+        # Fast path: opaque id already matches the document name (legacy).
+        path = self._path(needle)
+        if path.is_file():
+            return json.loads(path.read_text(encoding="utf-8"))
+        for candidate in self.sessions_dir.glob("*.json"):
+            try:
+                data = json.loads(candidate.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if str(data.get("agent_session_id") or "").strip() == needle:
+                return data
+        return None
+
+    def delete_session(
+        self, session_id: str, *, status: str = "finished"
+    ) -> None:
         """Remove the runtime session document after results have been persisted."""
+        if status not in {"finished", "aborted", "error"}:
+            status = "finished"
         doc: dict[str, Any] | None = None
         path = self._path(session_id)
         if path.exists():
             doc = json.loads(path.read_text(encoding="utf-8"))
             path.unlink()
         if doc is not None:
-            doc["status"] = "finished"
-            self.index.mark_finished(session_id, doc=doc)
+            doc["status"] = status
+            self.index.mark_finished(session_id, doc=doc, status=status)
         else:
-            self.index.mark_finished(session_id)
+            self.index.mark_finished(session_id, status=status)
 
     def list_running_sessions(self) -> list[dict[str, Any]]:
         return self.index.list_sessions(running_only=True)

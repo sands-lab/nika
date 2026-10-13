@@ -14,6 +14,8 @@ from nika.service.kathara.base_api import KatharaBaseAPI
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import docker_available
 
+pytestmark = pytest.mark.e2e
+
 PROBLEM = "bgp_blackhole_community_leak"
 ENV_ARGS: list[str] = []
 

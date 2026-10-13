@@ -1,3 +1,4 @@
+import os
 import random
 import string
 import time
@@ -5,14 +6,17 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import parse_qs, urlparse
 
 
-def random_paragraph(min_len=80, max_len=200):
-    length = random.randint(min_len, max_len)
+def random_paragraph(rng, min_len=80, max_len=200):
+    length = rng.randint(min_len, max_len)
     chars = string.ascii_letters + string.digits + "     "
-    text = "".join(random.choice(chars) for _ in range(length))
+    text = "".join(rng.choice(chars) for _ in range(length))
     return f"<p>{text}</p>\n"
 
 
 def generate_html_body(target_kb=256):
+    # Seeded by size so the same request always returns the same bytes;
+    # benchmark runs must not depend on per-request randomness.
+    rng = random.Random(target_kb)
     target_bytes = target_kb * 1024
     parts = []
     current_size = 0
@@ -26,7 +30,7 @@ def generate_html_body(target_kb=256):
     current_size += len(header.encode("utf-8"))
 
     while current_size < target_bytes:
-        p = random_paragraph()
+        p = random_paragraph(rng)
         parts.append(p)
         current_size += len(p.encode("utf-8"))
 
@@ -94,8 +98,8 @@ class SimpleHandler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    host = "0.0.0.0"
-    port = 80
+    host = os.environ.get("WEB_HOST", "0.0.0.0")
+    port = int(os.environ.get("WEB_PORT", "80"))
 
     httpd = HTTPServer((host, port), SimpleHandler)
     print(f"Serving on http://{host}:{port}")

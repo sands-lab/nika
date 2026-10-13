@@ -85,8 +85,8 @@ def env_run(
         None,
         "--device-profile",
         help=(
-            "ISP device profile: frr (kathara) or nokia_srlinux (containerlab). "
-            "Defaults from --backend."
+            "ISP device profile: frr or iosxr (kathara), nokia_srlinux (containerlab). "
+            "Defaults from --backend. ISP+iosxr is rejected at lab construct; use iosxr_simple_bgp."
         ),
     ),
     no_redeploy: bool = typer.Option(
@@ -133,43 +133,6 @@ def env_run(
         static_validation=static_validation,
     )
     typer.echo(f"session_id={session_id}")
-
-
-@env_app.command("cache")
-def env_cache(
-    name: str | None = typer.Argument(
-        None,
-        metavar="NAME",
-        help="Scenario id (k8s_lab or llmd_lab). Omit when using --all.",
-    ),
-    all_scenarios: bool = typer.Option(
-        False,
-        "--all",
-        help="Pre-cache images for all Kubernetes scenarios.",
-    ),
-) -> None:
-    """Pre-pull host Docker images and workload image tars for Kubernetes labs."""
-    from nika.net_env.utils.k8s_workload_cache import (
-        K8S_SCENARIOS,
-        cache_scenario,
-    )
-
-    if all_scenarios:
-        targets = sorted(K8S_SCENARIOS)
-    elif name is None:
-        raise typer.BadParameter("Provide NAME or use --all.")
-    elif name not in K8S_SCENARIOS:
-        raise typer.BadParameter(
-            f"Scenario {name!r} does not support env cache. "
-            f"Supported: {', '.join(sorted(K8S_SCENARIOS))}."
-        )
-    else:
-        targets = [name]
-
-    for scenario in targets:
-        typer.echo(f"Caching images for {scenario}...")
-        cache_scenario(scenario)
-    typer.echo("Done.")
 
 
 @env_app.command("ps")

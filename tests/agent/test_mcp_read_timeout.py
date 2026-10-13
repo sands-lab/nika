@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import pytest
+
 from agent.byo.autogen.config import to_mcp_params
 from agent.byo.mcp_agent.config import _to_server_settings
 from agent.utils.mcp_servers import mcp_read_timeout_seconds
 from nika.run_config.loader import reset_run_config, set_run_config
 from nika.run_config.schema import RunConfig
+
+pytestmark = pytest.mark.unit
 
 
 def _set_mcp_timeout(seconds: float) -> None:
@@ -58,23 +62,16 @@ def test_autogen_http_params_include_timeout() -> None:
 def test_mcp_agent_settings_include_read_timeout() -> None:
     try:
         _set_mcp_timeout(75)
-        settings = _to_server_settings(
+        http = _to_server_settings(
             {
                 "transport": "http",
                 "url": "http://127.0.0.1:9/mcp",
                 "headers": {},
             }
         )
-        assert settings.read_timeout_seconds == 75
-        assert settings.http_timeout_seconds == 75
-    finally:
-        reset_run_config()
-
-
-def test_mcp_agent_stdio_settings_include_read_timeout() -> None:
-    try:
-        _set_mcp_timeout(60)
-        settings = _to_server_settings(
+        assert http.read_timeout_seconds == 75
+        assert http.http_timeout_seconds == 75
+        stdio = _to_server_settings(
             {
                 "transport": "stdio",
                 "command": "python",
@@ -82,6 +79,6 @@ def test_mcp_agent_stdio_settings_include_read_timeout() -> None:
                 "env": {},
             }
         )
-        assert settings.read_timeout_seconds == 60
+        assert stdio.read_timeout_seconds == 75
     finally:
         reset_run_config()

@@ -2,12 +2,10 @@ from mcp.server.fastmcp import FastMCP
 
 from nika.mcp.session_context import get_lab_name
 from nika.service.kathara import KatharaTelemetryAPI
-from nika.utils.errors import safe_tool
 
 mcp = FastMCP("kathara_telemetry_mcp_server")
 
 
-@safe_tool
 @mcp.tool()
 def int_query_telemetry(
     start_time: str,

@@ -1,0 +1,14 @@
+#!/bin/sh
+# Copy the main checkout's untracked config/custom/ files into a new worktree.
+# Enable once per clone: git config core.hooksPath scripts/git-hooks
+[ "$1" = "0000000000000000000000000000000000000000" ] || exit 0  # only on `git worktree add`
+main="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")"
+here="$(git rev-parse --show-toplevel)"
+[ "$main" = "$here" ] && exit 0
+[ -d "$main/config/custom" ] || exit 0
+cd "$main/config/custom" || exit 0
+find . -type f | while IFS= read -r f; do
+  dest="$here/config/custom/$f"
+  [ -e "$dest" ] && continue  # never overwrite tracked or existing files
+  mkdir -p "$(dirname "$dest")" && cp -p "$f" "$dest"
+done

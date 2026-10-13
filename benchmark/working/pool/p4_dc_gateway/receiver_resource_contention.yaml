@@ -5,7 +5,7 @@ failure:
   cases:
   - topo_size: s
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: client_1
     root_causes:
     - resource:
@@ -14,7 +14,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: s
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: client_2
     root_causes:
     - resource:
@@ -23,7 +23,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: client_1
     root_causes:
     - resource:
@@ -32,7 +32,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: client_2
     root_causes:
     - resource:
@@ -41,7 +41,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: client_3
     root_causes:
     - resource:
@@ -50,7 +50,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: client_4
     root_causes:
     - resource:
@@ -59,7 +59,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: client_1
     root_causes:
     - resource:
@@ -68,7 +68,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: client_2
     root_causes:
     - resource:
@@ -77,7 +77,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: client_3
     root_causes:
     - resource:
@@ -86,7 +86,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: client_4
     root_causes:
     - resource:
@@ -95,7 +95,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: client_5
     root_causes:
     - resource:
@@ -104,7 +104,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: client_6
     root_causes:
     - resource:
@@ -113,7 +113,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: client_7
     root_causes:
     - resource:
@@ -122,7 +122,7 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: client_8
     root_causes:
     - resource:

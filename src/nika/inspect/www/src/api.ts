@@ -1,0 +1,379 @@
+export type EventSource = "agent" | "nika";
+export type EventKind =
+  | "lifecycle"
+  | "llm"
+  | "tool_call"
+  | "tool_result"
+  | "tool_error"
+  | "phase"
+  | "score"
+  | "submission"
+  | "system"
+  | "other";
+
+export interface ToolPayload {
+  name?: string | null;
+  input?: unknown;
+  output?: unknown;
+  tool_call_id?: string | null;
+  error?: string | null;
+}
+
+export interface CanonicalTraceEvent {
+  id: string;
+  timestamp?: string | null;
+  source: EventSource;
+  kind: EventKind;
+  title: string;
+  summary: string;
+  phase?: string | null;
+  event?: string | null;
+  tool?: ToolPayload | null;
+  duration_ms?: number | null;
+  start_timestamp?: string | null;
+  raw: Record<string, unknown>;
+  /** ``raw`` had long strings/lists cut; ``fetchEvent`` returns it in full. */
+  truncated?: boolean;
+}
+
+export interface ArtifactFlags {
+  run: boolean;
+  messages: boolean;
+  nika: boolean;
+  ground_truth: boolean;
+  submission: boolean;
+  eval_metrics: boolean;
+  llm_judge: boolean;
+  annotations?: boolean;
+}
+
+export interface Annotations {
+  tags: string[];
+}
+
+export interface SessionSummary {
+  session_id: string;
+  session_key?: string | null;
+  session_dir: string;
+  status: "running" | "finished" | "aborted" | "error";
+  /** Pipeline stage of a running session (``deploy``, ``agent: diagnosis``, …). */
+  stage?: string | null;
+  lab_name?: string | null;
+  backend?: string | null;
+  scenario_name?: string | null;
+  scenario_topo_size?: string | null;
+  agent_type?: string | null;
+  model?: string | null;
+  llm_provider?: string | null;
+  problem_names: string[];
+  failure_domain?: string | null;
+  inject_params?: Record<string, string>;
+  start_time?: string | null;
+  end_time?: string | null;
+  outcome?: string | null;
+  detection_score?: number | null;
+  rca_f1?: number | null;
+  localization_f1?: number | null;
+  in_tokens?: number | null;
+  out_tokens?: number | null;
+  steps?: number | null;
+  tool_calls?: number | null;
+  tags?: string[];
+  artifacts: ArtifactFlags;
+  is_benchmark?: boolean;
+  case_key?: string | null;
+  trial_id?: string | null;
+  trial_index?: number | null;
+  benchmark_id?: string | null;
+  benchmark_version?: string | null;
+  benchmark_split?: string | null;
+  benchmark_run_id?: string | null;
+  benchmark_official?: boolean | null;
+  benchmark_n_trials?: number | null;
+  scoring_id?: string | null;
+  benchmark_label?: string | null;
+}
+
+export interface BenchmarkRunSummary {
+  run_key: string;
+  label: string;
+  benchmark_id?: string | null;
+  benchmark_version?: string | null;
+  benchmark_split?: string | null;
+  benchmark_run_id?: string | null;
+  benchmark_official?: boolean | null;
+  agent_type?: string | null;
+  model?: string | null;
+  scoring_id?: string | null;
+  expected_trials?: number | null;
+  session_count: number;
+  finished_count: number;
+  mean_rca_f1?: number | null;
+}
+
+export interface BenchmarkProgressDoc {
+  run_id: string;
+  result_dir: string;
+  status: string;
+  total_trials: number;
+  completed_trials: number;
+  pending_trials: number;
+  updated_at?: string | null;
+  benchmark_id?: string | null;
+  version?: string | null;
+  agent_type?: string | null;
+  model?: string | null;
+}
+
+export interface BenchmarkProgressResponse {
+  runs: BenchmarkProgressDoc[];
+  total: number;
+}
+
+/** Completed LLM request wall times of one session (server-side ledger port). */
+export interface LlmRequestStats {
+  n: number;
+  sum_ms: number;
+  min_ms?: number | null;
+  max_ms?: number | null;
+}
+
+export interface LlmStatsResponse {
+  stats: Record<string, LlmRequestStats>;
+}
+
+export interface SessionDetail extends SessionSummary {
+  run: Record<string, unknown>;
+  task_description?: string | null;
+}
+
+export interface SessionFacets {
+  statuses: string[];
+  scenarios: string[];
+  agents: string[];
+  models: string[];
+  problems: string[];
+  failure_domains: string[];
+  topo_sizes: string[];
+  trial_indices?: number[];
+  tags?: string[];
+}
+
+export interface SessionListResponse {
+  sessions: SessionSummary[];
+  benchmarks: BenchmarkRunSummary[];
+  facets?: SessionFacets;
+  results_root: string;
+  selected_root?: string;
+  total: number;
+}
+
+export interface ResultsRootOption {
+  id: string;
+  label: string;
+  path: string;
+}
+
+export interface ResultsRootsResponse {
+  base_root: string;
+  selected_root: string;
+  results_root: string;
+  roots: ResultsRootOption[];
+}
+
+export interface BrowseEntry {
+  name: string;
+  path: string;
+  has_sessions: boolean;
+}
+
+export interface BrowseResponse {
+  path: string;
+  parent?: string | null;
+  base_root: string;
+  entries: BrowseEntry[];
+}
+
+export interface TimelineResponse {
+  session_id: string;
+  events: CanonicalTraceEvent[];
+  total: number;
+}
+
+export interface ScoresResponse {
+  session_id: string;
+  eval_metrics?: Record<string, unknown> | null;
+  ground_truth?: Record<string, unknown> | null;
+  submission?: Record<string, unknown> | null;
+  llm_judge?: Record<string, unknown> | null;
+}
+
+/** ``fetch`` + JSON, surfacing the server's ``error`` message on failure. */
+async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(url, init);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || `HTTP ${res.status}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+function getJson<T>(url: string): Promise<T> {
+  return requestJson<T>(url);
+}
+
+function withRoot(params: URLSearchParams, root?: string | null) {
+  const out = new URLSearchParams(params);
+  if (root && root !== ".") out.set("root", root);
+  else out.delete("root");
+  return out;
+}
+
+function rootQuery(root?: string | null): string {
+  if (!root || root === ".") return "";
+  return `?root=${encodeURIComponent(root)}`;
+}
+
+export function fetchRoots(root?: string | null) {
+  const q = rootQuery(root);
+  return getJson<ResultsRootsResponse>(`/api/roots${q}`);
+}
+
+export function fetchBrowse(path?: string | null) {
+  const params = new URLSearchParams();
+  if (path) params.set("path", path);
+  const q = params.toString();
+  return getJson<BrowseResponse>(`/api/browse${q ? `?${q}` : ""}`);
+}
+
+export function fetchSessions(params: URLSearchParams, root?: string | null) {
+  return getJson<SessionListResponse>(`/api/sessions?${withRoot(params, root)}`);
+}
+
+export function fetchBenchmarkProgress(opts?: {
+  root?: string | null;
+  under?: string | null;
+  status?: string | null;
+}) {
+  const params = new URLSearchParams();
+  if (opts?.status) params.set("status", opts.status);
+  if (opts?.under) params.set("under", opts.under);
+  const q = withRoot(params, opts?.root).toString();
+  return getJson<BenchmarkProgressResponse>(
+    `/api/benchmark-progress${q ? `?${q}` : ""}`,
+  );
+}
+
+/** One round trip for the run monitor instead of every session's timeline. */
+export function fetchLlmStats(
+  keys: string[],
+  root?: string | null,
+  signal?: AbortSignal,
+) {
+  return requestJson<LlmStatsResponse>(`/api/llm-stats${rootQuery(root)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ keys }),
+    signal,
+  });
+}
+
+export function fetchSession(id: string, root?: string | null) {
+  return getJson<SessionDetail>(
+    `/api/sessions/${encodeURIComponent(id)}${rootQuery(root)}`,
+  );
+}
+
+export function deleteSession(id: string, root?: string | null) {
+  return requestJson<{
+    deleted: boolean;
+    session_id: string;
+    session_dir: string;
+  }>(`/api/sessions/${encodeURIComponent(id)}${rootQuery(root)}`, {
+    method: "DELETE",
+  });
+}
+
+export function fetchTimeline(id: string, source?: string, root?: string | null) {
+  const params = new URLSearchParams();
+  if (source) params.set("source", source);
+  const q = withRoot(params, root).toString();
+  return getJson<TimelineResponse>(
+    `/api/sessions/${encodeURIComponent(id)}/timeline${q ? `?${q}` : ""}`,
+  );
+}
+
+export function fetchScores(id: string, root?: string | null) {
+  return getJson<ScoresResponse>(
+    `/api/sessions/${encodeURIComponent(id)}/scores${rootQuery(root)}`,
+  );
+}
+
+export function fetchSessionSearch(id: string, q: string, root?: string | null) {
+  const params = withRoot(new URLSearchParams({ q }), root);
+  return getJson<{ session_id: string; query: string; event_ids: string[] }>(
+    `/api/sessions/${encodeURIComponent(id)}/search?${params}`,
+  );
+}
+
+export function fetchAnnotations(id: string, root?: string | null) {
+  return getJson<Annotations>(
+    `/api/sessions/${encodeURIComponent(id)}/annotations${rootQuery(root)}`,
+  );
+}
+
+export function saveAnnotations(
+  id: string,
+  annotations: Annotations,
+  root?: string | null,
+) {
+  return requestJson<Annotations>(
+    `/api/sessions/${encodeURIComponent(id)}/annotations${rootQuery(root)}`,
+    {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(annotations),
+    },
+  );
+}
+
+export function fetchEvent(id: string, eventId: string, root?: string | null) {
+  return getJson<CanonicalTraceEvent>(
+    `/api/sessions/${encodeURIComponent(id)}/events/${encodeURIComponent(eventId)}${rootQuery(root)}`,
+  );
+}
+
+export interface RawArtifact {
+  name: string;
+  size: number;
+}
+
+/** Text artifacts in the session directory, known files first. */
+export function fetchRawFiles(id: string, root?: string | null) {
+  return getJson<{ files: RawArtifact[] }>(
+    `/api/sessions/${encodeURIComponent(id)}/files${rootQuery(root)}`,
+  );
+}
+
+export function fetchRaw(id: string, filename: string, root?: string | null) {
+  return getJson<{ filename: string; data: unknown; size: number; truncated: boolean }>(
+    `/api/sessions/${encodeURIComponent(id)}/raw/${encodeURIComponent(filename)}${rootQuery(root)}`,
+  );
+}
+
+export function formatTs(value?: string | null): string {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value.slice(11, 19) || value;
+  return d.toLocaleTimeString(undefined, {
+    hour12: false,
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+export function formatScore(value?: number | null): string {
+  if (value === null || value === undefined) return "—";
+  return Number.isInteger(value) ? String(value) : value.toFixed(3);
+}

@@ -1,32 +1,32 @@
-import hashlib
+import re
+import time
 
 from pydantic import BaseModel, Field
 
 from nika.problems.base import (
     FailureDomain,
-    build_verify_result,
     ProblemBase,
+    build_verify_result,
 )
 from nika.problems.rca.inventory import (
     interface_on,
     iter_link_termination_points,
     link_containing_endpoint,
     parse_endpoint,
+    resolve_default_intf,
+)
+from nika.problems.support.benchmark_targets import (
+    endpoint_target,
+    isp_link_target,
+    resolve_link_flap_params,
 )
 from nika.runtime.base import RuntimeCapabilityError
-from nika.service.containerlab.host_tc import HostTcController
 from nika.runtime.kathara.vde_proxy import KatharaVdeFaultProxy
+from nika.service.containerlab.host_tc import HostTcController
 from nika.utils.logger import system_logger
 
 
-def _default_link_intf(backend: str) -> str:
-    return "e1-1" if backend == "containerlab" else "eth0"
-
-
-def _resolve_link_intf(params_intf: str, backend: str) -> str:
-    if params_intf != "eth0":
-        return params_intf
-    return _default_link_intf(backend)
+_DAEMON_ROUTE_RE = re.compile(r"\bproto (kernel|bgp|ospf|isis|rip|zebra|dhcp)\b")
 
 
 # ==================================================================
@@ -43,12 +43,25 @@ class LinkFailureParams(BaseModel):
 
 class LinkFailure(ProblemBase):
     failure_domain = FailureDomain.LINK_INTERFACE
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name: str = "link_down"
     description = "Carrier or operational link is down on the selected attachment."
     TAGS: str = ["link"]
     supported_backends = ("kathara", "containerlab")
+    RECORDED_ATTRS = ("faulty_intf",)
 
     Params = LinkFailureParams
+
+    BENCHMARK_TARGETS = "link"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        from nika.net_env.isp.identity import is_isp_scenario
+
+        if is_isp_scenario(ctx.scenario):
+            return isp_link_target(ctx)
+        return endpoint_target(ctx, link=True)
 
     symptom_desc = "Users report connectivity issues to other hosts."
 
@@ -91,7 +104,7 @@ class LinkFailure(ProblemBase):
                 )
 
     def _inject_link_down_kathara(self, params: LinkFailureParams) -> None:
-        intf = _resolve_link_intf(params.intf_name, "kathara")
+        intf = resolve_default_intf(params.intf_name, self.net_env)
         self.faulty_intf = intf
         self._set_link_operational_down(params.host_name, intf)
         self._link_down_peer = self._peer_endpoint(params.host_name, intf)
@@ -100,7 +113,7 @@ class LinkFailure(ProblemBase):
             self._set_link_operational_down(peer_host, peer_intf)
 
     def _inject_link_down_containerlab(self, params: LinkFailureParams) -> None:
-        intf = _resolve_link_intf(params.intf_name, "containerlab")
+        intf = resolve_default_intf(params.intf_name, self.net_env)
         self.faulty_intf = intf
         controller = HostTcController(self.runtime)
         self._link_down_mode, self._link_down_target = controller.set_link_down(
@@ -120,7 +133,7 @@ class LinkFailure(ProblemBase):
                 )
 
     def _verify_link_down_kathara(self, params: LinkFailureParams) -> dict:
-        intf = _resolve_link_intf(params.intf_name, "kathara")
+        intf = resolve_default_intf(params.intf_name, self.net_env)
         operstate = self.runtime.get_interface_operstate(params.host_name, intf)
         peer = getattr(self, "_link_down_peer", None) or self._peer_endpoint(
             params.host_name, intf
@@ -133,7 +146,7 @@ class LinkFailure(ProblemBase):
         )
 
     def _verify_link_down_containerlab(self, params: LinkFailureParams) -> dict:
-        intf = _resolve_link_intf(params.intf_name, "containerlab")
+        intf = resolve_default_intf(params.intf_name, self.net_env)
         controller = HostTcController(self.runtime)
         operstate = self.runtime.get_interface_operstate(params.host_name, intf)
         mode = getattr(self, "_link_down_mode", None)
@@ -170,7 +183,7 @@ class LinkFailure(ProblemBase):
 
     def recover_fault(self, params: LinkFailureParams) -> dict:
         """Restore carrier on the selected attachment."""
-        intf = _resolve_link_intf(params.intf_name, self.lab_backend)
+        intf = resolve_default_intf(params.intf_name, self.net_env)
         if self.lab_backend == "kathara":
             self._set_link_operational_up(params.host_name, intf)
             peer = getattr(self, "_link_down_peer", None) or self._peer_endpoint(
@@ -235,12 +248,37 @@ class LinkFlapParams(BaseModel):
 
 class LinkFlap(ProblemBase):
     failure_domain = FailureDomain.LINK_INTERFACE
+    symptom_probe = "custom"
+    symptom_class = "loss"
+    dynamic_artifact = True
     root_cause_name: str = "link_flap"
     description = "Logical link flaps between up and down."
     TAGS: str = ["link"]
     supported_backends = ("kathara", "containerlab")
+    RECORDED_ATTRS = ("faulty_intf",)
 
     Params = LinkFlapParams
+
+    BENCHMARK_TARGETS = "link"
+    BENCHMARK_POINT_TO_POINT = True
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        from nika.net_env.isp.identity import is_isp_scenario
+
+        if is_isp_scenario(ctx.scenario):
+            params = isp_link_target(ctx)
+            params["down_time"] = "1"
+            params["up_time"] = "1"
+            return params
+        return resolve_link_flap_params(
+            ctx.scenario,
+            ctx.net_env,
+            ctx.rng,
+            ctx.backend,
+            host_pool=ctx.host_pool,
+            host0=ctx.host0,
+        )
 
     symptom_desc = "Users report connectivity issues to other hosts."
 
@@ -265,11 +303,11 @@ class LinkFlap(ProblemBase):
                 )
 
     def _inject_link_flap_kathara(self, params: LinkFlapParams) -> None:
-        intf = _resolve_link_intf(params.intf_name, "kathara")
+        intf = resolve_default_intf(params.intf_name, self.net_env)
         self._inject_link_flap(params, intf, backend="kathara")
 
     def _inject_link_flap_containerlab(self, params: LinkFlapParams) -> None:
-        intf = _resolve_link_intf(params.intf_name, "containerlab")
+        intf = resolve_default_intf(params.intf_name, self.net_env)
         self._inject_link_flap(params, intf, backend="containerlab")
 
     def _inject_link_flap(
@@ -305,11 +343,11 @@ class LinkFlap(ProblemBase):
                 )
 
     def _verify_link_flap_kathara(self, params: LinkFlapParams) -> dict:
-        intf = _resolve_link_intf(params.intf_name, "kathara")
+        intf = resolve_default_intf(params.intf_name, self.net_env)
         return self._verify_link_flap(params, intf)
 
     def _verify_link_flap_containerlab(self, params: LinkFlapParams) -> dict:
-        intf = _resolve_link_intf(params.intf_name, "containerlab")
+        intf = resolve_default_intf(params.intf_name, self.net_env)
         return self._verify_link_flap(params, intf)
 
     def _verify_link_flap(self, params: LinkFlapParams, intf_name: str) -> dict:
@@ -336,7 +374,7 @@ class LinkFlap(ProblemBase):
 
     def recover_fault(self, params: LinkFlapParams) -> dict:
         """Stop controller-side flapping and restore the logical link."""
-        intf = _resolve_link_intf(params.intf_name, self.lab_backend)
+        intf = resolve_default_intf(params.intf_name, self.net_env)
         if self.lab_backend == "kathara":
             controller = KatharaVdeFaultProxy(self.runtime)
             proxy = getattr(self, "_proxy", None) or controller.discover(
@@ -393,12 +431,38 @@ class LinkCapacityBottleneckParams(BaseModel):
 
 class LinkCapacityBottleneck(ProblemBase):
     failure_domain = FailureDomain.LINK_INTERFACE
+    symptom_probe = "custom"
+    symptom_class = "degradation"
+    dynamic_artifact = True
     root_cause_name: str = "link_capacity_bottleneck"
     description = "Logical link capacity is bottlenecked below demand."
     TAGS: str = ["link"]
     supported_backends = ("kathara", "containerlab")
+    RECORDED_ATTRS = ("faulty_intf",)
 
     Params = LinkCapacityBottleneckParams
+
+    BENCHMARK_TARGETS = "link"
+    BENCHMARK_POINT_TO_POINT = True
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        from nika.net_env.isp.identity import is_isp_scenario
+
+        if is_isp_scenario(ctx.scenario):
+            params = isp_link_target(ctx)
+            rate = "30kbit"
+        else:
+            params = endpoint_target(ctx, link=True)
+            rate = (
+                "10kbit"
+                if ctx.scenario in {"enterprise_branch", "sdn_l3_clos", "p4_dc_fabric"}
+                else "30kbit"
+            )
+        params["rate"] = rate
+        params["burst"] = "64kb"
+        params["limit"] = "500kb"
+        return params
 
     symptom_desc = "Users report slow throughput across a link."
 
@@ -423,7 +487,7 @@ class LinkCapacityBottleneck(ProblemBase):
                 )
 
     def _inject_capacity_kathara(self, params: LinkCapacityBottleneckParams) -> None:
-        intf = _resolve_link_intf(params.intf_name, "kathara")
+        intf = resolve_default_intf(params.intf_name, self.net_env)
         self.faulty_intf = intf
         controller = KatharaVdeFaultProxy(self.runtime)
         self._proxy = controller.insert(params.host_name, intf)
@@ -434,7 +498,7 @@ class LinkCapacityBottleneck(ProblemBase):
     def _inject_capacity_containerlab(
         self, params: LinkCapacityBottleneckParams
     ) -> None:
-        intf = _resolve_link_intf(params.intf_name, "containerlab")
+        intf = resolve_default_intf(params.intf_name, self.net_env)
         self.faulty_intf = intf
         controller = HostTcController(self.runtime)
         peer = controller.set_tbf(
@@ -464,7 +528,7 @@ class LinkCapacityBottleneck(ProblemBase):
                 )
 
     def _verify_capacity_kathara(self, params: LinkCapacityBottleneckParams) -> dict:
-        intf = _resolve_link_intf(params.intf_name, "kathara")
+        intf = resolve_default_intf(params.intf_name, self.net_env)
         controller = KatharaVdeFaultProxy(self.runtime)
         proxy = getattr(self, "_proxy", None) or controller.discover(
             params.host_name, intf
@@ -479,7 +543,7 @@ class LinkCapacityBottleneck(ProblemBase):
     def _verify_capacity_containerlab(
         self, params: LinkCapacityBottleneckParams
     ) -> dict:
-        intf = _resolve_link_intf(params.intf_name, "containerlab")
+        intf = resolve_default_intf(params.intf_name, self.net_env)
         mode = getattr(self, "_capacity_mode", None)
         if mode == "node_intf":
             verified = self.runtime.tc_qdisc_contains(params.host_name, intf, "tbf")
@@ -497,9 +561,7 @@ class LinkCapacityBottleneck(ProblemBase):
                 controller = HostTcController(self.runtime)
                 controller.peer_name(params.host_name, intf)
             except RuntimeCapabilityError:
-                verified = self.runtime.tc_qdisc_contains(
-                    params.host_name, intf, "tbf"
-                )
+                verified = self.runtime.tc_qdisc_contains(params.host_name, intf, "tbf")
                 return build_verify_result(
                     fault_type=self.root_cause_name,
                     verified=verified,
@@ -522,7 +584,7 @@ class LinkCapacityBottleneck(ProblemBase):
 
     def recover_fault(self, params: LinkCapacityBottleneckParams) -> dict:
         """Remove controller-side capacity limiting and restore the logical link."""
-        intf = _resolve_link_intf(params.intf_name, self.lab_backend)
+        intf = resolve_default_intf(params.intf_name, self.net_env)
         if self.lab_backend == "kathara":
             controller = KatharaVdeFaultProxy(self.runtime)
             proxy = getattr(self, "_proxy", None) or controller.discover(
@@ -589,30 +651,86 @@ class LinkDetachParams(BaseModel):
 
 class LinkDetach(ProblemBase):
     failure_domain = FailureDomain.LINK_INTERFACE
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name: str = "link_detach"
     description = "Network attachment is detached; the interface is gone from the node."
     TAGS: str = ["link"]
     supported_backends = ("kathara", "containerlab")
+    RECORDED_ATTRS = ("faulty_intf",)
 
     Params = LinkDetachParams
+
+    BENCHMARK_TARGETS = "link"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        from nika.net_env.isp.identity import is_isp_scenario
+
+        if is_isp_scenario(ctx.scenario):
+            return isp_link_target(ctx)
+        return endpoint_target(ctx, link=True, detach=True)
+
+    @classmethod
+    def benchmark_inject_options(cls, ctx, base):
+        rows = super().benchmark_inject_options(ctx, base)
+        if ctx.scenario == "campus_lan":
+            # LB backends are off the default pc→web0 ICMP probe path.
+            rows = [
+                row
+                for row in rows
+                if not str(row.get("host_name", "")).startswith("backend_web_")
+            ]
+        return rows
 
     symptom_desc = "Users report connectivity issues to other hosts."
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
         self.faulty_intf = "eth0"
-        self._detach_netns: str | None = None
+        self._detach_pid: str | None = None
+        self._saved_addrs: list[str] = []
+        self._saved_routes: list[str] = []
 
     def root_cause_resources(self, params: LinkDetachParams):
         return [interface_on(self.net_env, params.host_name, params.intf_name)]
 
-    @staticmethod
-    def _detach_netns_name(lab_name: str, host: str, intf: str) -> str:
-        key = hashlib.blake2s(
-            f"{lab_name}:{host}:{intf}".encode(),
-            digest_size=8,
-        ).hexdigest()
-        return f"nika-detach-{key}"
+    def _save_l3_state(self, host: str, intf: str) -> None:
+        """Remember addresses and static routes; the netns move drops them.
+
+        Routing-daemon routes are skipped because the daemons reinstall them.
+        """
+        addr_out = self.runtime.exec(
+            host, f"ip -o addr show dev {intf} 2>/dev/null || true"
+        )
+        self._saved_addrs = []
+        for line in addr_out.splitlines():
+            fields = line.split()
+            if len(fields) < 4 or fields[2] not in ("inet", "inet6"):
+                continue
+            if fields[3].lower().startswith("fe80:"):
+                continue
+            self._saved_addrs.append(fields[3])
+        route_out = self.runtime.exec(
+            host, f"ip -4 route show dev {intf} 2>/dev/null || true"
+        )
+        self._saved_routes = [
+            line.strip()
+            for line in route_out.splitlines()
+            if line.strip() and not _DAEMON_ROUTE_RE.search(line)
+        ]
+
+    def _restore_l3_state(self, host: str, intf: str) -> None:
+        for cidr in self._saved_addrs:
+            self.runtime.exec(
+                host, f"ip addr replace {cidr} dev {intf} 2>/dev/null || true"
+            )
+        for route in self._saved_routes:
+            self.runtime.exec(
+                host, f"ip route replace {route} dev {intf} 2>/dev/null || true"
+            )
+        self._saved_addrs = []
+        self._saved_routes = []
 
     def inject_fault(self, params: LinkDetachParams):
         match self.lab_backend:
@@ -626,30 +744,60 @@ class LinkDetach(ProblemBase):
                 )
 
     def _inject_link_detach_kathara(self, params: LinkDetachParams) -> None:
-        intf = _resolve_link_intf(params.intf_name, "kathara")
+        intf = resolve_default_intf(params.intf_name, self.net_env)
         self._inject_link_detach(params, intf)
 
     def _inject_link_detach_containerlab(self, params: LinkDetachParams) -> None:
-        intf = _resolve_link_intf(params.intf_name, "containerlab")
+        intf = resolve_default_intf(params.intf_name, self.net_env)
         self._inject_link_detach(params, intf)
 
     def _inject_link_detach(self, params: LinkDetachParams, intf_name: str) -> None:
-        """Move the attachment into a private netns so it disappears from inventory."""
+        """Move the attachment into a private netns so it disappears from inventory.
+
+        The netns is held by a background process instead of `ip netns add`,
+        whose bind mount is denied by Docker's default AppArmor profile.
+        """
         self.faulty_intf = intf_name
-        netns = self._detach_netns_name(
-            self.runtime.lab_name, params.host_name, intf_name
-        )
-        self._detach_netns = netns
         host = params.host_name
-        self.runtime.exec(host, f"ip netns del {netns} 2>/dev/null || true")
-        self.runtime.exec(host, f"ip netns add {netns}")
-        self.runtime.exec(host, f"ip link set dev {intf_name} netns {netns}")
+        self._save_l3_state(host, intf_name)
+        start_out = self.runtime.exec(
+            host,
+            "nohup unshare -n sleep infinity </dev/null >/dev/null 2>&1 & echo PID:$!",
+        )
+        match = re.search(r"PID:(\d+)", start_out)
+        pid = match.group(1) if match else ""
+        self._detach_pid = pid or None
+        # The holder enters its netns only once `unshare` runs; moving the
+        # interface before that is a silent no-op.
+        move_out = self.runtime.exec(
+            host,
+            f'i=0; while [ $i -lt 50 ] && [ "$(readlink /proc/{pid}/ns/net)" = '
+            f'"$(readlink /proc/self/ns/net)" ]; do sleep 0.1; i=$((i+1)); done; '
+            f"ip link set dev {intf_name} netns {pid} 2>&1",
+            timeout=15,
+        )
+        # Brief settle: some runners still list the iface until the move commits.
+        deadline = time.time() + 5.0
+        while time.time() < deadline:
+            if not self.runtime.interface_exists(host, intf_name):
+                break
+            time.sleep(0.2)
+        else:
+            if pid:
+                self.runtime.exec(host, f"kill {pid} 2>/dev/null || true")
+            self._detach_pid = None
+            raise RuntimeError(
+                f"link_detach failed: {host}:{intf_name} still present after "
+                f"moving to the netns of pid {pid or '?'}. start output={start_out!r}; "
+                f"move output={move_out!r}. Containers need NET_ADMIN/SYS_ADMIN "
+                "(or privileged) for `unshare -n` and `ip link set … netns`."
+            )
         system_logger.info(
-            f"Injected link detach on {host}:{intf_name} (moved to netns {netns})"
+            f"Injected link detach on {host}:{intf_name} (moved to netns of pid {pid})"
         )
 
     def verify_fault(self, params: LinkDetachParams) -> dict:
-        """Verify the interface is gone and the default probe path is unreachable."""
+        """Verify the interface is gone from the node namespace."""
         match self.lab_backend:
             case "kathara":
                 return self._verify_link_detach_kathara(params)
@@ -661,76 +809,39 @@ class LinkDetach(ProblemBase):
                 )
 
     def _verify_link_detach_kathara(self, params: LinkDetachParams) -> dict:
-        intf = _resolve_link_intf(params.intf_name, "kathara")
+        intf = resolve_default_intf(params.intf_name, self.net_env)
         return self._verify_link_detach(params, intf)
 
     def _verify_link_detach_containerlab(self, params: LinkDetachParams) -> dict:
-        intf = _resolve_link_intf(params.intf_name, "containerlab")
+        intf = resolve_default_intf(params.intf_name, self.net_env)
         return self._verify_link_detach(params, intf)
-
-    def _probe_observer(
-        self, params: LinkDetachParams
-    ) -> tuple[str | None, str | None]:
-        from nika.problems.support.probe_paths import get_probe_path
-
-        topo_size = getattr(self.net_env, "topo_size", None) or "s"
-        path = get_probe_path(self.scenario_name or "", topo_size=str(topo_size))
-        observer = (
-            params.observer_device
-            or params.symptom_host
-            or (path.src_host if path is not None else None)
-        )
-        dst_ip = params.probe_dst_ip or (path.dst_ip if path is not None else None)
-        if not observer or not dst_ip:
-            return None, None
-        return observer, dst_ip
-
-    def _light_symptom_unreachable(self, params: LinkDetachParams) -> tuple[bool, dict]:
-        observer, dst_ip = self._probe_observer(params)
-        if observer is None or dst_ip is None:
-            return True, {"skipped": True, "reason": "no_probe_path"}
-        ping_ok = self.runtime.ping_ok(observer, dst_ip, count=3)
-        return not ping_ok, {
-            "observer": observer,
-            "dst_ip": dst_ip,
-            "ping_ok": ping_ok,
-        }
 
     def _verify_link_detach(self, params: LinkDetachParams, intf_name: str) -> dict:
         interface_gone = not self.runtime.interface_exists(params.host_name, intf_name)
-        symptom_ok, symptom_details = self._light_symptom_unreachable(params)
-        verified = interface_gone and symptom_ok
         return build_verify_result(
             fault_type=self.root_cause_name,
-            verified=verified,
+            verified=interface_gone,
             details={
-                "artifact": {
-                    "verified": interface_gone,
-                    "host": params.host_name,
-                    "intf": intf_name,
-                    "interface_exists": not interface_gone,
-                },
-                "symptom": {
-                    "verified": symptom_ok,
-                    **symptom_details,
-                },
+                "host": params.host_name,
+                "intf": intf_name,
+                "interface_exists": not interface_gone,
             },
         )
 
     def recover_fault(self, params: LinkDetachParams) -> dict:
         """Move the detached interface back into the node namespace."""
-        intf = _resolve_link_intf(params.intf_name, self.lab_backend)
-        netns = self._detach_netns or self._detach_netns_name(
-            self.runtime.lab_name, params.host_name, intf
-        )
+        intf = resolve_default_intf(params.intf_name, self.net_env)
         host = params.host_name
-        self.runtime.exec(
-            host,
-            f"ip netns exec {netns} ip link set dev {intf} netns 1 2>/dev/null || true",
-        )
+        pid = self._detach_pid
+        if pid:
+            self.runtime.exec(
+                host,
+                f"nsenter -t {pid} -n ip link set dev {intf} netns 1 2>/dev/null || true",
+            )
+            self.runtime.exec(host, f"kill {pid} 2>/dev/null || true")
         self.runtime.exec(host, f"ip link set dev {intf} up 2>/dev/null || true")
-        self.runtime.exec(host, f"ip netns del {netns} 2>/dev/null || true")
-        self._detach_netns = None
+        self._restore_l3_state(host, intf)
+        self._detach_pid = None
         restored = self.runtime.interface_exists(host, intf)
         return {
             "verified": restored,

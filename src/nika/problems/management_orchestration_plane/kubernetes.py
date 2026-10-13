@@ -5,7 +5,12 @@ from typing import Any, ClassVar
 from pydantic import Field
 
 from nika.problems.rca import UnresolvedRootCauseError, node_resource
-from nika.problems.support.kubernetes.base import K8sParams, K8sProblemBase
+from nika.problems.support.benchmark_targets import k8s_control_node
+from nika.problems.support.kubernetes.base import (
+    K8sParams,
+    K8sProblemBase,
+    control_node_from_net_env,
+)
 from nika.problems.support.kubernetes.node_filter import (
     DropSpec,
     NodeFilter,
@@ -56,17 +61,54 @@ class WorkerApiServerPartitionParams(K8sParams):
 
 class WorkerApiServerPartition(K8sProblemBase):
     failure_domain = FailureDomain.MANAGEMENT_ORCHESTRATION_PLANE
+    symptom_probe = "custom"
+    symptom_class = "control_plane"
     root_cause_name: str = "k8s_worker_apiserver_partition"
     description = "Worker is partitioned from the Kubernetes API server."
     symptom_desc = (
         "One Kubernetes worker node reports NotReady and stops receiving new pods, "
-        "and `kubectl exec` / `kubectl logs` time out for the pods it hosts, while "
-        "those pods keep serving traffic and the node itself is still reachable over "
-        "the network."
+        "and `kubectl exec` / `kubectl logs` fail for the pods it hosts. Those pods "
+        "keep running and answer on their pod IPs, but they are marked not ready and "
+        "removed from Service endpoints, so services that depend only on them fail; "
+        "after the eviction timeout they stay Terminating. The node itself is still "
+        "reachable over the network."
     )
     TAGS: ClassVar[list[str]] = ["kubernetes", "k3s", "k8s_control_plane"]
 
     Params = WorkerApiServerPartitionParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        k8s_nodes = ctx.roles.get("k8s_nodes") or []
+        control = k8s_control_node(ctx)
+        workers = sorted(node for node in k8s_nodes if node != control)
+        # Never fall back to the control plane: that inject is rejected at runtime.
+        if not workers:
+            raise ValueError(
+                "k8s_worker_apiserver_partition requires a worker node; "
+                f"{ctx.scenario} has only control-plane device {control!r}"
+            )
+        return {"control_node": control, "node_name": ctx.rng.choice(workers)}
+
+    @classmethod
+    def benchmark_node_targets(cls, ctx, targets):
+        # Partitioning the control plane from itself is unverifiable.
+        control = control_node_from_net_env(ctx.net_env)
+        if control:
+            targets = [target for target in targets if target != control]
+        return targets
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        node_name = inject.get("node_name") or ""
+        control = (
+            inject.get("control_node") or control_node_from_net_env(ctx.net_env) or ""
+        )
+        if node_name and control and node_name == control:
+            raise ValueError(
+                "k8s_worker_apiserver_partition node_name must be a worker device, "
+                f"not the control-plane device {control!r}"
+            )
 
     def __init__(self, scenario_name: str | None = None, **kwargs: Any) -> None:
         super().__init__(scenario_name, **kwargs)
@@ -255,3 +297,27 @@ class WorkerApiServerPartition(K8sProblemBase):
                 return False, {"target_device": device, "error": str(exc)}
 
         return self.poll_verify(check, timeout=NODE_NOTREADY_TIMEOUT_SEC)
+
+    def recheck_artifact(self, params: WorkerApiServerPartitionParams) -> dict:
+        """Re-read the worker iptables drops. Does not ping or open kubectl logs."""
+        k8s = self.runtime.lab_api
+        device = self._target_device(params)
+        specs = self._drop_specs(params, k8s)
+        node_filter = NodeFilter(self.runtime, device)
+        unfiltered = [
+            f"{spec.describe()}:{chain}"
+            for spec in specs
+            for chain, installed in node_filter.blocked_spec(spec).items()
+            if not installed
+        ]
+        present = not unfiltered
+        return {
+            "present": present,
+            "fault": self.root_cause_name,
+            "scope": "artifact",
+            "evidence": {
+                "target_device": device,
+                "unfiltered": unfiltered,
+            },
+            "error": None if present else "fault artifact absent",
+        }

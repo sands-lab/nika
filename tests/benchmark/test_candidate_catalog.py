@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from pathlib import Path
 
 import yaml
@@ -17,6 +19,8 @@ from nika.workflows.benchmark.load_config import (
 from nika.workflows.benchmark.candidate_context import deployment_environment_key
 from nika.workflows.benchmark.healthy import HEALTHY_PROBLEM
 from nika.workflows.benchmark.resume import benchmark_option_id
+
+pytestmark = pytest.mark.contract
 
 
 def _write_catalog(tmp_path: Path, *, cases: list[dict]) -> Path:

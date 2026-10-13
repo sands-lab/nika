@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import atexit
 import copy
 import logging
 import os
+import shutil
+import tempfile
 from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
@@ -63,8 +66,7 @@ def load_run_config(path: str | Path | None = None) -> RunConfig:
             _warned_missing = True
             logger.warning(
                 "Run config not found at %s; using built-in defaults. "
-                "Copy config/nika.example.yaml to config/nika.yaml "
-                "(use `nika config migrate` only to convert legacy .env ops).",
+                "Copy config/nika.example.yaml to config/nika.yaml.",
                 cfg_path,
             )
         return default_run_config()
@@ -112,15 +114,17 @@ def merge_cli(
     max_steps: int | None = None,
     reasoning_effort: str | None = None,
     access_role: str | None = None,
+    base_url: str | None = None,
     result_dir: str | None = None,
     judge_provider: str | None = None,
     judge_model: str | None = None,
     sandbox_keep: bool | None = None,
-    sandbox_cpus: str | None = None,
+    sandbox_cpus: int | None = None,
     sandbox_memory: str | None = None,
     sandbox_offline_sdk_wheels: bool | None = None,
     sandbox_upstream_proxy: str | None = None,
     batch_size: int | None = None,
+    heavy_batch_size: int | None = None,
     case_timeout_sec: int | None = None,
     continue_on_error: bool | None = None,
     retry_passes: int | None = None,
@@ -147,14 +151,16 @@ def merge_cli(
         agent_overlay["reasoning_effort"] = reasoning_effort
     if access_role is not None:
         agent_overlay["access"] = {"role": access_role}
+    if base_url is not None:
+        agent_overlay["base_url"] = base_url
+    if enable_skills is not None:
+        agent_overlay["enable_skills"] = enable_skills
     if agent_overlay:
         overlay["agent"] = agent_overlay
 
     nika_overlay: dict[str, Any] = {}
     if result_dir is not None:
         nika_overlay["result_dir"] = result_dir
-    if enable_skills is not None:
-        nika_overlay["enable_skills"] = enable_skills
     judge_overlay: dict[str, Any] = {}
     if judge_provider is not None:
         judge_overlay["provider"] = judge_provider
@@ -181,6 +187,8 @@ def merge_cli(
     bench_overlay: dict[str, Any] = {}
     if batch_size is not None:
         bench_overlay["batch_size"] = batch_size
+    if heavy_batch_size is not None:
+        bench_overlay["heavy_batch_size"] = heavy_batch_size
     if case_timeout_sec is not None:
         bench_overlay["case_timeout_sec"] = case_timeout_sec
     if continue_on_error is not None:
@@ -209,11 +217,9 @@ def merge_cli(
         agent = merged.get("agent") or {}
         agent_type = str(agent.get("type") or "byo.langgraph")
         provider = str(agent.get("provider") or "openai")
-        from agent.utils.provider_env import AGENT_PROVIDERS, SUPPORTED_PROVIDERS
+        from agent.utils.provider_env import SUPPORTED_PROVIDERS, agent_providers
 
-        allowed = AGENT_PROVIDERS.get(
-            agent_type.lower(), frozenset(SUPPORTED_PROVIDERS)
-        )
+        allowed = agent_providers(agent_type) or frozenset(SUPPORTED_PROVIDERS)
         if provider not in allowed and allowed:
             agent["provider"] = sorted(allowed)[0]
             merged["agent"] = agent
@@ -229,3 +235,23 @@ def dump_run_config(config: RunConfig, path: Path) -> None:
         allow_unicode=True,
     )
     path.write_text(text, encoding="utf-8")
+
+
+_effective_config_dir: Path | None = None
+
+
+def persist_effective_run_config(config: RunConfig) -> Path:
+    """Write the effective run config and export ``NIKA_RUN_CONFIG``.
+
+    Benchmark trial workers spawn a new process and reload YAML from
+    ``NIKA_RUN_CONFIG`` (they do not inherit the parent ContextVar). Persist the
+    post-``merge_cli`` config so CLI overlays such as ``--base-url`` survive.
+    """
+    global _effective_config_dir
+    if _effective_config_dir is None or not _effective_config_dir.is_dir():
+        # One directory per process, removed at exit (after spawn workers end).
+        _effective_config_dir = Path(tempfile.mkdtemp(prefix="nika-run-config-"))
+        atexit.register(shutil.rmtree, _effective_config_dir, True)
+    path = _effective_config_dir / "nika.yaml"
+    dump_run_config(config, path)
+    return export_run_config_env(path)

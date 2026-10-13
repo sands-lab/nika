@@ -20,8 +20,10 @@ with warnings.catch_warnings():
     )
 
 from agent.utils.mcp_client import load_session_mcp_config
-from agent.utils.mcp_servers import mcp_read_timeout_seconds, select_diagnosis_servers
+from agent.utils.mcp_servers import mcp_read_timeout_seconds
 from agent.utils.provider_env import (
+    require_provider,
+    CUSTOM_UNAUTHENTICATED_API_KEY,
     DEEPSEEK_OPENAI_BASE_URL,
     ENV_ANTHROPIC_API_KEY,
     ENV_ANTHROPIC_BASE_URL,
@@ -71,22 +73,13 @@ def _mcp_reasoning_effort(reasoning_effort: str | None) -> str | None:
     return reasoning_effort
 
 
-def _resolve_provider(provider: str | None) -> str:
-    if not provider or not str(provider).strip():
-        raise ValueError(
-            "Missing LLM provider: set agent.provider in config/nika.yaml "
-            "or pass -p/--provider."
-        )
-    return str(provider).strip().lower()
-
-
 def _openai_settings_for_provider(
     model: str,
     provider: str,
     *,
     reasoning_effort: str | None = None,
 ) -> OpenAISettings:
-    prov = _resolve_provider(provider)
+    prov = require_provider(provider)
     effort = _mcp_reasoning_effort(reasoning_effort)
     # DeepSeek OpenAI-compat does not take reasoning_effort.
     apply_effort = effort is not None and prov != "deepseek"
@@ -101,7 +94,13 @@ def _openai_settings_for_provider(
         )
     if prov == "custom":
         base = resolve_custom_base_url() or os.environ.get(ENV_OPENAI_BASE_URL) or None
-        key = resolve_custom_api_key() or os.environ.get(ENV_OPENAI_API_KEY) or None
+        # Match langgraph/autogen: unauthenticated OpenAI-compat servers need a
+        # non-empty key string for the client library.
+        key = (
+            resolve_custom_api_key()
+            or os.environ.get(ENV_OPENAI_API_KEY)
+            or CUSTOM_UNAUTHENTICATED_API_KEY
+        )
         kwargs: dict = {
             "default_model": model,
             "api_key": key,
@@ -122,7 +121,7 @@ def _openai_settings_for_provider(
 
 def _anthropic_settings_for_provider(model: str) -> AnthropicSettings:
     """Build Anthropic settings with an optional compatible gateway URL."""
-    base = os.environ.get(ENV_ANTHROPIC_BASE_URL) or resolve_custom_base_url() or None
+    base = os.environ.get(ENV_ANTHROPIC_BASE_URL) or None
     return AnthropicSettings(
         default_model=model,
         api_key=os.environ.get(ENV_ANTHROPIC_API_KEY) or None,
@@ -135,6 +134,7 @@ def build_mcp_request_params(
     model: str,
     max_steps: int,
     reasoning_effort: str | None = None,
+    max_tokens: int | None = None,
     provider: str,
 ):
     """Build mcp-agent ``RequestParams`` with provider-appropriate effort wiring.
@@ -152,7 +152,9 @@ def build_mcp_request_params(
         "temperature": 0,
         "use_history": False,
     }
-    prov = _resolve_provider(provider)
+    if max_tokens is not None:
+        kwargs["maxTokens"] = max_tokens
+    prov = require_provider(provider)
     if effort is not None and prov == "anthropic":
         # Anthropic rejects "none"; omit output_config in that case.
         meta = anthropic_output_config(effort)
@@ -173,7 +175,7 @@ def build_mcp_agent_settings(
 ) -> Settings:
     """Build mcp-agent Settings for a NIKA troubleshooting session."""
     servers = load_session_mcp_config(session_id, scenario_name)
-    prov = _resolve_provider(provider)
+    prov = require_provider(provider)
     common = dict(
         execution_engine="asyncio",
         mcp=MCPSettings(
@@ -197,7 +199,3 @@ def session_server_names(scenario_name: str) -> list[str]:
     from agent.utils.mcp_servers import select_session_servers
 
     return select_session_servers(scenario_name)
-
-
-def diagnosis_server_names(scenario_name: str) -> list[str]:
-    return select_diagnosis_servers(scenario_name)

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from types import SimpleNamespace
 
 from nika.net_env.contract import (
@@ -16,6 +18,8 @@ from nika.validation.effect import (
     build_failure_effect_contract,
     compare_failure_effect,
 )
+
+pytestmark = pytest.mark.unit
 
 
 def _contract() -> ValidationContract:

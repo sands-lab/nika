@@ -1,13 +1,18 @@
 from __future__ import annotations
 
-import pytest
 import json
+
+import pytest
 from agent.protocols import DIAGNOSIS
+from nika.run_config.loader import reset_run_config, set_run_config
+from nika.run_config.schema import RunConfig
 from nika.utils.session_store import SessionStore
-from tests.agent._assertions import assert_phase_messages
+from tests.agent._assertions import (
+    assert_phase_messages,
+    assert_no_codex_tool_item_mirrors,
+)
 from tests.agent.sandbox_support import (
-    sandbox_anthropic_credential_available,
-    sandbox_openai_credential_available,
+    sandbox_provider_credential_available,
     sandbox_runtime_available,
 )
 from tests.support.integration_base import OrderedPipelineTestCase
@@ -17,22 +22,62 @@ from tests.support.integration_pipeline import (
     claude_sdk_available,
     codex_cli_available,
     codex_sdk_available,
+    live_anthropic_test_config,
+    live_codex_test_model,
     load_test_env,
     sade_available,
 )
 
+pytestmark = [pytest.mark.e2e, pytest.mark.sandbox, pytest.mark.live]
+
 load_test_env()
-CODEX_MODEL = "gpt-5-mini"
-CLAUDE_MODEL = "deepseek-v4-flash"
+CLAUDE_PROVIDER, CLAUDE_MODEL = live_anthropic_test_config()
+# Codex CLI/SDK use OpenAI API keys or a ChatGPT login stored in sbx.
+CODEX_MODEL = live_codex_test_model()
 MAX_STEPS = 20
 _SANDBOX_SKIP = not sandbox_runtime_available()
 _SENSITIVE_NAMES = ("auth.json", ".credentials.json", ".host_auth")
 
 
+def _isolate_agent_run_config(*, agent_type: str, provider: str, model: str) -> None:
+    """Avoid host config/nika.yaml base_url leaking into provider env."""
+    reset_run_config()
+    set_run_config(
+        RunConfig.model_validate(
+            {
+                "nika": {
+                    "result_dir": "results/test",
+                    "sandbox": {
+                        "offline_sdk_wheels": True,
+                    },
+                },
+                "agent": {
+                    "type": agent_type,
+                    "provider": provider,
+                    "model": model,
+                    "max_steps": MAX_STEPS,
+                    "base_url": None,
+                },
+            }
+        )
+    )
+
+
 class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
     agent_type: str = ""
-    model: str = ""
+    llm_provider: str = CLAUDE_PROVIDER
+    model: str = CLAUDE_MODEL
     _agent_run_failed: bool = False
+
+    def setup_method(self) -> None:
+        _isolate_agent_run_config(
+            agent_type=self.agent_type,
+            provider=self.llm_provider,
+            model=self.model,
+        )
+
+    def teardown_method(self) -> None:
+        reset_run_config()
 
     def test_step_01_start_env(self) -> None:
         self._step_start_env()
@@ -46,6 +91,7 @@ class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
         try:
             self._run_agent(
                 agent_type=self.agent_type,
+                llm_provider=self.llm_provider,
                 model=self.model,
                 max_steps=MAX_STEPS,
                 reasoning_effort="low" if "codex" in self.agent_type else None,
@@ -87,6 +133,7 @@ class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
             require_diagnosis_tools=True,
             require_submission_tools=False,
         )
+        assert_no_codex_tool_item_mirrors(messages)
         phases = {e["phase"] for e in messages}
         assert DIAGNOSIS in phases
 
@@ -98,18 +145,22 @@ class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
 
 @pytest.mark.skipif(_SANDBOX_SKIP, reason="Docker Sandboxes runtime not available")
 @pytest.mark.skipif(
-    not (codex_cli_available() and sandbox_openai_credential_available()),
-    reason="Codex CLI + openai sbx/.env credentials required",
+    not (codex_cli_available() and sandbox_provider_credential_available("openai")),
+    reason="Codex CLI + OPENAI_API_KEY or sbx openai secret required",
 )
 class SandboxCodexCliPipelineTest(SandboxAgentPipelineBase):
     agent_type = "cli.codex"
+    llm_provider = "openai"
     model = CODEX_MODEL
 
 
 @pytest.mark.skipif(_SANDBOX_SKIP, reason="Docker Sandboxes runtime not available")
 @pytest.mark.skipif(
-    not (claude_cli_available() and sandbox_anthropic_credential_available()),
-    reason="Claude CLI + anthropic sbx/.env credentials required",
+    not (
+        claude_cli_available()
+        and sandbox_provider_credential_available(CLAUDE_PROVIDER)
+    ),
+    reason=f"Claude CLI + {CLAUDE_PROVIDER} credentials required (DeepSeek: DEEPSEEK_API_KEY; Anthropic: API key or sbx anthropic secret)",
 )
 class SandboxClaudeCliPipelineTest(SandboxAgentPipelineBase):
     agent_type = "cli.claude"
@@ -118,18 +169,22 @@ class SandboxClaudeCliPipelineTest(SandboxAgentPipelineBase):
 
 @pytest.mark.skipif(_SANDBOX_SKIP, reason="Docker Sandboxes runtime not available")
 @pytest.mark.skipif(
-    not (codex_sdk_available() and sandbox_openai_credential_available()),
-    reason="Codex SDK + openai sbx/.env credentials required",
+    not (codex_sdk_available() and sandbox_provider_credential_available("openai")),
+    reason="Codex SDK + OPENAI_API_KEY or sbx openai secret required",
 )
 class SandboxCodexSdkPipelineTest(SandboxAgentPipelineBase):
     agent_type = "sdk.codex_sdk"
+    llm_provider = "openai"
     model = CODEX_MODEL
 
 
 @pytest.mark.skipif(_SANDBOX_SKIP, reason="Docker Sandboxes runtime not available")
 @pytest.mark.skipif(
-    not (claude_sdk_available() and sandbox_anthropic_credential_available()),
-    reason="Claude SDK + anthropic sbx/.env credentials required",
+    not (
+        claude_sdk_available()
+        and sandbox_provider_credential_available(CLAUDE_PROVIDER)
+    ),
+    reason=f"Claude SDK + {CLAUDE_PROVIDER} credentials required (DeepSeek: DEEPSEEK_API_KEY; Anthropic: API key or sbx anthropic secret)",
 )
 class SandboxClaudeSdkPipelineTest(SandboxAgentPipelineBase):
     agent_type = "sdk.claude_sdk"
@@ -138,8 +193,8 @@ class SandboxClaudeSdkPipelineTest(SandboxAgentPipelineBase):
 
 @pytest.mark.skipif(_SANDBOX_SKIP, reason="Docker Sandboxes runtime not available")
 @pytest.mark.skipif(
-    not (sade_available() and sandbox_anthropic_credential_available()),
-    reason="SADE + anthropic sbx/.env credentials required",
+    not (sade_available() and sandbox_provider_credential_available(CLAUDE_PROVIDER)),
+    reason=f"SADE + {CLAUDE_PROVIDER} credentials required (DeepSeek: DEEPSEEK_API_KEY; Anthropic: API key or sbx anthropic secret)",
 )
 class SandboxSadePipelineTest(SandboxAgentPipelineBase):
     agent_type = "community.sade"

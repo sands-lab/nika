@@ -8,6 +8,8 @@ import yaml
 from nika.problems.rca import UnresolvedRootCauseError
 from nika.workflows.benchmark.migrate import migrate_benchmark_yaml
 
+pytestmark = pytest.mark.contract
+
 
 def _write_yaml(path: Path, payload: dict) -> None:
     path.write_text(yaml.dump(payload, sort_keys=False), encoding="utf-8")

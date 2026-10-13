@@ -12,6 +12,11 @@ NIKA_BGP_WITHDRAW = "nika_bgp_withdraw"
 NIKA_BGP_WITHDRAW_PFX = "nika_bgp_withdraw_pfx"
 NIKA_BGP_EXPORT_GROUP = "clos01"
 NIKA_BLACKHOLE_NHG = "nika_blackhole"
+# Transport port fields matched against TCP/179, in drop-entry order.
+_NIKA_BGP_ACL_PORTS = ("destination-port", "source-port")
+_CPM_IPV4_ENTRY_RE = re.compile(
+    r"^set / acl acl-filter cpm type ipv4 entry (\d+) (.+)$", re.MULTILINE
+)
 
 # Containerlab maps SRL YANG interfaces to Linux veth names in the netns.
 _SRL_SUBIF_TO_LINUX: dict[str, str] = {
@@ -92,14 +97,100 @@ class SRLAPIMixin:
             f"/network-instance default protocols bgp autonomous-system {asn}",
         )
 
-    def srl_add_bgp_acl_drop_179(self: SupportsSRL, device_name: str) -> None:
-        """Block BGP TCP/179 in the SRL Linux netns."""
-        self.exec_cmd(device_name, "iptables -A INPUT -p tcp --dport 179 -j DROP")
-        self.exec_cmd(device_name, "iptables -A INPUT -p tcp --sport 179 -j DROP")
+    def _srl_cpm_ipv4_entries(
+        self: SupportsSRL, device_name: str
+    ) -> dict[int, list[str]]:
+        output = self.srl_exec_cli(
+            device_name, "info flat from running acl acl-filter cpm type ipv4"
+        )
+        entries: dict[int, list[str]] = {}
+        for seq, rest in _CPM_IPV4_ENTRY_RE.findall(output):
+            entries.setdefault(int(seq), []).append(rest)
+        return entries
 
-    def srl_bgp_acl_drop_179_present(self: SupportsSRL, device_name: str) -> bool:
-        output = self.exec_cmd(device_name, "iptables -L INPUT -n 2>/dev/null || true")
-        return "dpt:179" in output and "DROP" in output
+    def srl_bgp_acl_drop_179_entries(
+        self: SupportsSRL, device_name: str
+    ) -> dict[int, str]:
+        """Choose free CPM filter sequence IDs for the TCP/179 drop entries.
+
+        The drops must precede the lowest entry accepting TCP/179 (the first
+        entry when none does); they take the middle of the nearest gap with
+        two free IDs below it. Returns sequence ID -> transport port field.
+        """
+        entries = self._srl_cpm_ipv4_entries(device_name)
+        if not entries:
+            raise ValueError(f"SRL node {device_name!r} has no CPM IPv4 filter entries")
+        bgp_matches = {
+            f"match transport {port} value 179" for port in _NIKA_BGP_ACL_PORTS
+        }
+        bgp_accepts = [
+            seq
+            for seq, lines in entries.items()
+            if not bgp_matches.isdisjoint(lines)
+            and any(line.startswith("action accept") for line in lines)
+        ]
+        anchor = min(bgp_accepts or entries)
+        hi = anchor
+        for lo in [*sorted((seq for seq in entries if seq < anchor), reverse=True), 0]:
+            if hi - lo > 2:
+                first = min((lo + hi) // 2, hi - 2)
+                return dict(zip((first, first + 1), _NIKA_BGP_ACL_PORTS))
+            hi = lo
+        raise ValueError(
+            f"No two adjacent free CPM IPv4 filter sequence IDs before entry "
+            f"{anchor} on SRL node {device_name!r}"
+        )
+
+    def srl_add_bgp_acl_drop_179(self: SupportsSRL, device_name: str) -> dict[int, str]:
+        """Drop BGP TCP/179 in the CPM filter, then reset established peers.
+
+        BGP runs in the ``srbase-default`` netns, so root-netns iptables rules
+        never see it. Returns the drop entries (sequence ID -> transport port
+        field), placed by ``srl_bgp_acl_drop_179_entries``.
+        """
+        drop_entries = self.srl_bgp_acl_drop_179_entries(device_name)
+        commands: list[str] = []
+        for seq, port in drop_entries.items():
+            entry = f"/acl acl-filter cpm type ipv4 entry {seq}"
+            commands += [
+                f"{entry} description {NIKA_BGP_ACL}",
+                f"{entry} match ipv4 protocol tcp",
+                f"{entry} match transport {port} operator eq",
+                f"{entry} match transport {port} value 179",
+                f"{entry} action drop",
+            ]
+        self._srl_candidate(device_name, *commands)
+        # Reset sessions so the drop takes effect now instead of at hold-timer
+        # expiry. ``tools`` rejects wildcards, so reset each configured peer.
+        neighbors = re.findall(
+            r"bgp neighbor (\S+) peer-group",
+            self.srl_exec_cli(
+                device_name,
+                "info flat from running network-instance default protocols bgp "
+                "neighbor * peer-group",
+            ),
+        )
+        if neighbors:
+            self._srl_run_script(
+                device_name,
+                [
+                    "tools network-instance default protocols bgp "
+                    f"neighbor {peer} reset-peer"
+                    for peer in neighbors
+                ],
+            )
+        return drop_entries
+
+    def srl_bgp_acl_drop_179_present(
+        self: SupportsSRL, device_name: str, drop_entries: dict[int, str]
+    ) -> bool:
+        """Return True when every ``drop_entries`` entry drops TCP/179."""
+        entries = self._srl_cpm_ipv4_entries(device_name)
+        return bool(drop_entries) and all(
+            f"match transport {port} value 179" in entries.get(seq, [])
+            and "action drop" in entries.get(seq, [])
+            for seq, port in drop_entries.items()
+        )
 
     def srl_withdraw_client_prefix(
         self: SupportsSRL,

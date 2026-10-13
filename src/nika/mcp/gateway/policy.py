@@ -23,7 +23,9 @@ def is_server_allowed(session_id: str, server_name: str) -> bool:
 
     role = server_phase_role(server_name)
     if entry.phase == DIAGNOSIS:
-        return role == "diagnosis"
+        if role != "diagnosis":
+            return False
+        return entry.diagnosis_servers is None or server_name in entry.diagnosis_servers
     if entry.phase == SUBMISSION:
         return server_name == SUBMISSION_SERVER
     return False
