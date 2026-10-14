@@ -62,9 +62,11 @@ def sandbox_backend_available(backend: str) -> bool:
 def sandbox_provider_credential_available(
     provider: str, *, backend: str = "sbx"
 ) -> bool:
-    """Require the selected provider's key, or on sbx a global native sbx secret.
+    """Require the selected provider's key, or a subscription login.
 
-    The ``custom`` test provider needs its endpoint (``NIKA_TEST_CUSTOM_BASE_URL``).
+    On sbx that is a global native sbx secret; on e2b, NIKA's own login (see
+    ``agent.sandbox.subscription``). The ``custom`` test provider needs its
+    endpoint (``NIKA_TEST_CUSTOM_BASE_URL``).
     """
     from agent.utils.provider_env import has_provider_credentials
     from agent.sandbox.sbx.client import list_sbx_secret_services
@@ -74,6 +76,14 @@ def sandbox_provider_credential_available(
         return bool(live_custom_base_url())
     if has_provider_credentials(provider):
         return True
+    if backend == "e2b":
+        from agent.sandbox.config import load_sandbox_env_values
+        from agent.sandbox.subscription import CodexLogin, claude_oauth_token
+
+        if provider == "anthropic":
+            env_file = resolve_sandbox_config().env_file
+            return bool(claude_oauth_token(load_sandbox_env_values(env_file)))
+        return provider == "openai" and CodexLogin.load() is not None
     if (
         backend != "sbx"
         or provider not in {"openai", "anthropic"}

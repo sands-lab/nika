@@ -134,7 +134,7 @@ Host agents such as LangGraph need no sandbox. For sandboxed agents (`cli.*`, `s
 sbx login
 ```
 
-If the installer adds you to the `kvm` group, open a new login shell and run `sbx daemon stop` before the first sandboxed run. More detail: [agent sandboxing](docs/operations/agent-sandbox.md).
+If the installer adds you to the `kvm` group, open a new login shell and run `sbx daemon stop` before the first sandboxed run. Without KVM, run these agents on [E2B](docs/operations/agent-sandbox.md#connect-to-e2b) or an E2B-compatible service (like AgentENV) instead. More detail: [agent sandboxing](docs/operations/agent-sandbox.md).
 
 ## 🚀 Quick start
 

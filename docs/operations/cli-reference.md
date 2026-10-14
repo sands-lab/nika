@@ -281,10 +281,11 @@ Lab deployment and verification timings live under `nika.lab`. MCP client and ga
   | `--base-url` | both | Inference endpoint (`agent.base_url`) |
   | `--role` | both | Diagnosis access role (default `agent.access.role`) |
   | `--run-config PATH` | both | Run config file (default `config/nika.yaml`; also `NIKA_RUN_CONFIG`) |
-  | `--sandbox-keep-container` | both | Keep the `sbx` sandbox after the agent exits (debugging) |
+  | `--sandbox-backend sbx\|e2b` | both | Sandbox runtime for this run (`nika.sandbox.backend`) |
+  | `--sandbox-keep-container` | both | Keep the sandbox after the agent exits (debugging) |
   | `--sandbox-cpus N` | both | CPU limit for the sandbox (`nika.sandbox.cpus`) |
   | `--sandbox-memory SIZE` | both | Memory limit for the sandbox, such as `8g` (`nika.sandbox.memory`) |
-  | `--sandbox-offline-sdk-wheels` / `--no-sandbox-offline-sdk-wheels` | both | Stage host-cached SDK wheels into the sandbox so SDK and SADE agents skip re-downloading dependencies. Defaults to `nika.sandbox.offline_sdk_wheels` (`true`) |
+  | `--sandbox-offline-sdk-wheels` / `--no-sandbox-offline-sdk-wheels` | both | sbx: stage host-cached SDK wheels into the sandbox so SDK and SADE agents skip re-downloading dependencies. Defaults to `nika.sandbox.offline_sdk_wheels` (`true`) |
   | `--sandbox-proxy URL` | both | Upstream proxy for the `sbx` daemon (`nika.sandbox.upstream_proxy`) |
   | `--problem` | task | task label (see above) |
   | `--set key=value` | task | override inject parameters (repeatable) |

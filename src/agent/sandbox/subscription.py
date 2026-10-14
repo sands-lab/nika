@@ -31,7 +31,7 @@ from agent.utils.provider_env import ENV_CLAUDE_CODE_OAUTH_TOKEN
 CODEX_LOGIN_HOME = Path.home() / ".local" / "state" / "nika" / "codex"
 # Where Codex sends model calls for ChatGPT logins.
 CHATGPT_CODEX_URL = "https://chatgpt.com/backend-api/codex"
-SUBSCRIPTION_DOCS = "docs/operations/agent-sandbox.md#e2b-backend"
+SUBSCRIPTION_DOCS = "docs/operations/agent-sandbox.md#subscriptions-with-e2b"
 # Refresh this long before the access token expires.
 _REFRESH_MARGIN_SEC = 300
 

@@ -29,9 +29,9 @@ Each harness name links to its example configuration.
 - [mcp-agent](../../config/byo.mcp_agent.example.yaml) (`byo.mcp_agent`)
 - [AutoGen](../../config/byo.autogen.example.yaml) (`byo.autogen`)
 
-### In Docker Sandbox
+### In a sandbox
 
-Complete [Docker Sandbox setup](../operations/agent-sandbox.md#prerequisites), then choose a CLI or SDK harness. For a Claude or ChatGPT subscription, complete [sbx subscription login](../operations/agent-sandbox.md#subscription--oauth-interactive-once) first; NIKA does not import your local CLI login:
+[Set up a sandbox runtime](../operations/agent-sandbox.md#set-up-the-runtime) first: Docker Sandboxes runs microVMs on the NIKA host and needs KVM, while E2B runs sandboxes on E2B cloud or an E2B-compatible service (like AgentENV). Then choose a CLI or SDK harness. For a Claude or ChatGPT subscription, complete the [subscription login](../operations/agent-sandbox.md#subscription--oauth-interactive-once) for your runtime first; NIKA does not import your local CLI login:
 
 - [Codex CLI](../../config/cli.codex.example.yaml) (`cli.codex`)
 - [Claude Code](../../config/cli.claude.example.yaml) (`cli.claude`)
@@ -90,7 +90,7 @@ Other models may need different [vLLM tool-calling settings](https://docs.vllm.a
 
 To save these flags, use `agent.type`, `agent.provider`, `agent.model`, `agent.max_steps`, and `agent.base_url` in [`config/nika.yaml`](../operations/configuration.md).
 
-For sandboxed agents, the endpoint must be reachable from the sandbox; its `localhost` is separate from the host's. Claude-family agents also require an Anthropic-compatible API. See [endpoint compatibility](agent-reference.md#custom-endpoint-compatibility) before adapting these examples.
+For sandboxed agents, NIKA forwards model requests to the endpoint from the NIKA host, so the endpoint must be reachable from the host; an endpoint on the host's `localhost` works. Claude-family agents also require an Anthropic-compatible API. See [endpoint compatibility](agent-reference.md#custom-endpoint-compatibility) before adapting these examples.
 
 ## Inspect results
 
