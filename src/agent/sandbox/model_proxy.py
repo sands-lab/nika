@@ -3,7 +3,8 @@
 The proxy owns authentication. The agent only knows a random token
 (:func:`new_proxy_token`); requests without it are rejected. The proxy replaces
 it with the real upstream key on the host, so the key never enters the
-sandbox.
+sandbox. Without an API key it uses a subscription login instead (see
+:mod:`agent.sandbox.subscription`).
 
 It also adapts requests for self-hosted endpoints such as vLLM or Ollama, and
 streams every request and response through unchanged otherwise:
@@ -25,12 +26,14 @@ streams every request and response through unchanged otherwise:
 
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
 import secrets
 import socket
 import threading
 import time
-from collections.abc import AsyncIterator, Iterator, Mapping
+from collections.abc import AsyncIterator, Callable, Iterator, Mapping
 from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from typing import Any
@@ -45,6 +48,8 @@ from starlette.routing import Route
 
 from agent.sandbox.constants import PROXY_TOKEN_PREFIX
 from nika.utils.net import pick_free_port
+
+logger = logging.getLogger(__name__)
 
 _ANTHROPIC_API_URL = "https://api.anthropic.com"
 _OPENAI_API_URL = "https://api.openai.com/v1"
@@ -227,7 +232,9 @@ def _presented_token(request: Request) -> str:
     return auth.removeprefix("Bearer ").strip() if auth.startswith("Bearer ") else ""
 
 
-def _upstream_headers(request: Request, api_key: str) -> dict[str, str]:
+def _upstream_headers(
+    request: Request, api_key: str, extra_headers: Mapping[str, str]
+) -> dict[str, str]:
     headers = {
         k: v
         for k, v in request.headers.items()
@@ -240,14 +247,22 @@ def _upstream_headers(request: Request, api_key: str) -> dict[str, str]:
             headers["x-api-key"] = api_key
         if request.headers.get("authorization"):
             headers["authorization"] = f"Bearer {api_key}"
+    headers.update(extra_headers)
     return headers
 
 
 def create_model_proxy_app(
-    upstream: str, *, token: str, api_key: str = "", flatten_tools: bool = False
+    upstream: str,
+    *,
+    token: str,
+    api_key: str | Callable[[], str] = "",
+    extra_headers: Mapping[str, str] | None = None,
+    flatten_tools: bool = False,
 ) -> Starlette:
     """Proxy to *upstream*; require *token* and send *api_key* upstream.
 
+    *api_key* may be a function, called per request, for credentials that
+    expire (subscription logins); *extra_headers* go with every request.
     *flatten_tools* applies :func:`flatten_namespace_tools` to Responses
     requests and :func:`restore_tool_namespaces` to their responses.
     """
@@ -260,6 +275,13 @@ def create_model_proxy_app(
             return JSONResponse({"error": "invalid proxy token"}, status_code=401)
         if client is None:
             client = httpx.AsyncClient(timeout=httpx.Timeout(None, connect=30.0))
+        key = api_key
+        if callable(key):
+            try:
+                key = await asyncio.to_thread(key)
+            except Exception as exc:  # noqa: BLE001 - reported to the agent
+                logger.warning("Model proxy credential unavailable: %s", exc)
+                return JSONResponse({"error": str(exc)}, status_code=502)
         body = await request.body()
         path = request.url.path
         namespaces: dict[str, str] = {}
@@ -276,7 +298,7 @@ def create_model_proxy_app(
             request.method,
             upstream + request.url.path,
             params=request.query_params,
-            headers=_upstream_headers(request, api_key),
+            headers=_upstream_headers(request, key, extra_headers or {}),
             content=body,
         )
         response = await client.send(upstream_request, stream=True)
@@ -312,7 +334,8 @@ def model_proxy(
     *,
     bind_host: str,
     token: str,
-    api_key: str = "",
+    api_key: str | Callable[[], str] = "",
+    extra_headers: Mapping[str, str] | None = None,
     flatten_tools: bool = False,
 ) -> Iterator[int]:
     """Serve the proxy for *upstream* on *bind_host*; yield the listening port."""
@@ -320,7 +343,11 @@ def model_proxy(
     server = uvicorn.Server(
         uvicorn.Config(
             create_model_proxy_app(
-                upstream, token=token, api_key=api_key, flatten_tools=flatten_tools
+                upstream,
+                token=token,
+                api_key=api_key,
+                extra_headers=extra_headers,
+                flatten_tools=flatten_tools,
             ),
             host=bind_host,
             port=port,
@@ -359,10 +386,13 @@ def start_model_proxy(
     """Start the model proxy for one sandbox session until *stack* closes.
 
     Returns the proxy port and the credential env that points the agent's
-    client (Anthropic or OpenAI) at ``http://{agent_host}:{port}``.
+    client (Anthropic or OpenAI) at ``http://{agent_host}:{port}``. Without an
+    API key for ``anthropic`` or ``openai``, the host's subscription login is
+    used (see :func:`_subscription_upstream`).
     """
     from agent.registry import get_agent_spec
     from agent.sandbox.config import load_credential_sources
+    from agent.sandbox.subscription import ENV_CLAUDE_CODE_OAUTH_TOKEN
     from agent.utils.provider_env import (
         CUSTOM_UNAUTHENTICATED_API_KEY,
         ENV_ANTHROPIC_API_KEY,
@@ -386,7 +416,14 @@ def start_model_proxy(
         api_key = sources.get(ENV_OPENAI_API_KEY, "")
     if api_key == CUSTOM_UNAUTHENTICATED_API_KEY:
         api_key = ""
-    if not api_key and provider != "custom":
+    credential: str | Callable[[], str] = api_key
+    extra_headers: dict[str, str] = {}
+    subscription = not api_key and provider in ("anthropic", "openai")
+    if subscription:
+        upstream, credential, extra_headers = _subscription_upstream(
+            anthropic=anthropic, provider=provider, env_file=env_file
+        )
+    elif not api_key and provider != "custom":
         raise RuntimeError(f"No API key found for provider {provider!r} in {env_file}.")
     token = new_proxy_token()
     port = stack.enter_context(
@@ -394,13 +431,17 @@ def start_model_proxy(
             upstream,
             bind_host=bind_host,
             token=token,
-            api_key=api_key,
+            api_key=credential,
+            extra_headers=extra_headers,
             # Codex enables bare MCP tool names only for custom providers.
             flatten_tools=provider == "custom",
         )
     )
     url = f"http://{agent_host}:{port}"
-    if anthropic:
+    if anthropic and subscription:
+        # Claude Code runs in subscription mode and sends it as its bearer.
+        env = {ENV_ANTHROPIC_BASE_URL: url, ENV_CLAUDE_CODE_OAUTH_TOKEN: token}
+    elif anthropic:
         env = {
             ENV_ANTHROPIC_BASE_URL: url,
             ENV_ANTHROPIC_API_KEY: token,
@@ -409,3 +450,39 @@ def start_model_proxy(
     else:
         env = {ENV_OPENAI_BASE_URL: url, ENV_OPENAI_API_KEY: token}
     return port, env
+
+
+def _subscription_upstream(
+    *, anthropic: bool, provider: str, env_file: Path
+) -> tuple[str, str | Callable[[], str], dict[str, str]]:
+    """Upstream, credential and extra headers of the host's subscription login."""
+    from agent.sandbox.config import load_sandbox_env_values
+    from agent.sandbox.subscription import (
+        CHATGPT_CODEX_URL,
+        CODEX_LOGIN_HOME,
+        ENV_CLAUDE_CODE_OAUTH_TOKEN,
+        SUBSCRIPTION_DOCS,
+        CodexLogin,
+        claude_oauth_token,
+    )
+
+    if anthropic:
+        oauth = claude_oauth_token(load_sandbox_env_values(env_file))
+        if oauth:
+            return _ANTHROPIC_API_URL, oauth, {}
+        login = (
+            f"run `claude setup-token` and set {ENV_CLAUDE_CODE_OAUTH_TOKEN} "
+            f"in {env_file}"
+        )
+    else:
+        codex = CodexLogin.load()
+        if codex is not None:
+            # Codex's ChatGPT backend also needs the login's account.
+            headers = {"chatgpt-account-id": codex.account_id}
+            return CHATGPT_CODEX_URL, codex.access_token, headers
+        login = f"run `CODEX_HOME={CODEX_LOGIN_HOME} codex login`"
+    raise RuntimeError(
+        f"No API key or subscription login for provider {provider!r}. Set the "
+        f"provider's API key in {env_file}, or {login} "
+        f"(see {SUBSCRIPTION_DOCS})."
+    )

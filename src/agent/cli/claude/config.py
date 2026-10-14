@@ -28,6 +28,7 @@ from agent.utils.provider_env import (
     ENV_ANTHROPIC_API_KEY,
     ENV_ANTHROPIC_AUTH_TOKEN,
     ENV_ANTHROPIC_BASE_URL,
+    ENV_CLAUDE_CODE_OAUTH_TOKEN,
     ENV_DEEPSEEK_API_KEY,
     build_agent_subprocess_env,
     has_provider_credentials,
@@ -114,6 +115,18 @@ def claude_credentials_available(*, check_cli_login: bool = True) -> bool:
     return claude_cli_logged_in()
 
 
+def proxy_oauth_token() -> str:
+    """The model proxy token that stands in for a Claude subscription (e2b).
+
+    Claude Code sends it as its OAuth bearer; the host's model proxy swaps in
+    the real token (see :mod:`agent.sandbox.subscription`).
+    """
+    from agent.sandbox.constants import PROXY_TOKEN_PREFIX
+
+    value = os.environ.get(ENV_CLAUDE_CODE_OAUTH_TOKEN, "").strip()
+    return value if value.startswith(PROXY_TOKEN_PREFIX) else ""
+
+
 def use_bare_claude_mode(*, provider: str | None = None) -> bool:
     """Whether to pass ``--bare`` to the Claude subprocess.
 
@@ -121,7 +134,7 @@ def use_bare_claude_mode(*, provider: str | None = None) -> bool:
     keychain / OAuth reads.  Use it for env API-key mode only — never for
     Claude subscription / OAuth (``/login``) which needs non-bare mode.
     """
-    if claude_subscription_mode():
+    if claude_subscription_mode() or proxy_oauth_token():
         return False
     return has_env_claude_credentials(provider=provider)
 
@@ -200,6 +213,11 @@ def prepare_claude_subprocess_env(
             and not env.get(ENV_ANTHROPIC_AUTH_TOKEN, "").strip()
         ):
             env[ENV_ANTHROPIC_AUTH_TOKEN] = api_key
+    if oauth := proxy_oauth_token():
+        env[ENV_CLAUDE_CODE_OAUTH_TOKEN] = oauth
+        base_url = os.environ.get(ENV_ANTHROPIC_BASE_URL, "").strip()
+        if base_url:
+            env[ENV_ANTHROPIC_BASE_URL] = base_url
     if in_sbx_session:
         # Keep the sandbox's installed Claude Code version for the whole run.
         env["DISABLE_AUTOUPDATER"] = "1"

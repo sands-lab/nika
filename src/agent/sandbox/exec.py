@@ -33,6 +33,7 @@ _INNER_ENV_ALLOWLIST = frozenset(
         "ANTHROPIC_API_KEY",
         "ANTHROPIC_AUTH_TOKEN",
         "ANTHROPIC_BASE_URL",
+        "CLAUDE_CODE_OAUTH_TOKEN",
         "DISABLE_AUTOUPDATER",
         "CLAUDE_CODE_MAX_CONTEXT_TOKENS",
         "CLAUDE_CODE_MAX_OUTPUT_TOKENS",
@@ -90,6 +91,8 @@ def is_credential_placeholder(value: str) -> bool:
 
 def _sandbox_env_value(key: str, value: str, *, full_env: dict[str, str]) -> str:
     """Never forward real credentials into the sandbox."""
+    if key == "CLAUDE_CODE_OAUTH_TOKEN":
+        return value if value.startswith(PROXY_TOKEN_PREFIX) else ""
     if key not in _SECRET_ENV_KEYS:
         return value
     if is_credential_placeholder(value):

@@ -171,3 +171,58 @@ def test_restore_stream_rewrites_events_split_across_chunks() -> None:
     assert events[0] == b'event: response.output_text.delta\ndata: {"delta": "hi"}'
     data = json.loads(events[1].split(b"data: ", 1)[1])
     assert data["item"]["namespace"] == "k"
+
+
+def test_proxy_swaps_the_agent_token_for_the_upstream_credential() -> None:
+    """API keys keep their header; subscription logins add their own headers."""
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    from starlette.testclient import TestClient
+
+    from agent.sandbox.model_proxy import create_model_proxy_app
+
+    seen: list[dict[str, str]] = []
+
+    class Upstream(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:  # noqa: N802
+            self.rfile.read(int(self.headers.get("content-length") or 0))
+            seen.append({k.lower(): v for k, v in self.headers.items()})
+            self.send_response(200)
+            self.send_header("content-length", "2")
+            self.end_headers()
+            self.wfile.write(b"{}")
+
+        def log_message(self, format: str, *args) -> None:  # noqa: A003
+            return
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Upstream)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    upstream = f"http://127.0.0.1:{server.server_address[1]}"
+    try:
+        api_key = TestClient(create_model_proxy_app(upstream, token="t", api_key="k"))
+        assert (
+            api_key.post("/v1/messages", headers={"x-api-key": "bad"}).status_code
+            == 401
+        )
+        assert (
+            api_key.post("/v1/messages", headers={"x-api-key": "t"}).status_code == 200
+        )
+        assert seen[-1]["x-api-key"] == "k"
+        assert "authorization" not in seen[-1]
+
+        login = TestClient(
+            create_model_proxy_app(
+                upstream,
+                token="t",
+                api_key=lambda: "access",
+                extra_headers={"chatgpt-account-id": "account"},
+            )
+        )
+        response = login.post("/responses", headers={"authorization": "Bearer t"})
+        assert response.status_code == 200
+        assert seen[-1]["authorization"] == "Bearer access"
+        assert seen[-1]["chatgpt-account-id"] == "account"
+    finally:
+        server.shutdown()
+        server.server_close()

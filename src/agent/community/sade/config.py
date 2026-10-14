@@ -8,12 +8,17 @@ from agent.cli.claude.config import (
     claude_sbx_secret_available,
     has_env_claude_credentials,
     prepare_claude_subprocess_env,
+    proxy_oauth_token,
 )
 
 
 def sade_credentials_available() -> bool:
     """Return whether Claude-compatible credentials or an sbx secret exist."""
-    return has_env_claude_credentials() or claude_sbx_secret_available()
+    return (
+        has_env_claude_credentials()
+        or claude_sbx_secret_available()
+        or bool(proxy_oauth_token())
+    )
 
 
 def prepare_sade_sdk_env(*, session_id: str, provider: str) -> dict[str, str]:
@@ -33,7 +38,10 @@ def prepare_sade_sdk_env(*, session_id: str, provider: str) -> dict[str, str]:
 
     env = prepare_claude_subprocess_env(provider=provider, agent_type="community.sade")
     env["NIKA_SESSION_ID"] = session_id
-    if in_sandbox():
+    if proxy_oauth_token():
+        env.pop("ANTHROPIC_API_KEY", None)
+        env.pop("ANTHROPIC_AUTH_TOKEN", None)
+    elif in_sandbox():
         api_key = (
             os.environ.get("ANTHROPIC_API_KEY", "").strip() or PROXY_MANAGED_SENTINEL
         )

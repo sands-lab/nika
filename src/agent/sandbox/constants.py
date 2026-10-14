@@ -16,6 +16,7 @@ CREDENTIAL_ENV_KEYS = frozenset(
         "ANTHROPIC_API_KEY",
         "ANTHROPIC_AUTH_TOKEN",
         "ANTHROPIC_BASE_URL",
+        "CLAUDE_CODE_OAUTH_TOKEN",
     }
 )
 # Prefix of model proxy tokens (``agent.sandbox.model_proxy``).
