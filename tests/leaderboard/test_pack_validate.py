@@ -625,6 +625,7 @@ class TestLeaderboardPackValidate:
                 },
             },
             {"role": "assistant", "content": "Bearer authentication required."},
+            {"role": "assistant", "content": "OAuth/Bearer headers carry tokens."},
         ]
         original = "".join(json.dumps(record) + "\n" for record in records)
         for name in ("messages.jsonl", "nika.jsonl"):
@@ -646,6 +647,7 @@ class TestLeaderboardPackValidate:
                     },
                 },
                 records[1],
+                records[2],
             ]
             assert (session / name).read_text() == original
 
@@ -675,6 +677,7 @@ class TestLeaderboardPackValidate:
         [
             ("Authorization: Bearer short", "bearer_token"),
             ("Authorization: Bearer tokens", "bearer_token"),
+            ("Authorization: Bearer headers", "bearer_token"),
             ("Bearer eyJhbGciOiJIUzI1NiJ9.payload.signature", "bearer_token"),
             ("Bearer token.secret", "bearer_token"),
             ({"Authorization: Bearer short": "header"}, "bearer_token"),

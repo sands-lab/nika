@@ -34,7 +34,7 @@ _SECRET_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         # still counts even when its value is one of these ordinary words.
         re.compile(
             r"(?i)\b(?:authorization\s*:\s*bearer\s+|"
-            r"bearer\s+(?!(?:tokens?|authentication|scheme)(?![A-Za-z0-9\-._~+/=])))"
+            r"bearer\s+(?!(?:tokens?|authentication|scheme|headers?)(?![A-Za-z0-9\-._~+/=])))"
             r"[A-Za-z0-9\-._~+/]+=*"
         ),
     ),
