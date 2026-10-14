@@ -8,13 +8,18 @@ from agent.cli.claude.config import (
     claude_sbx_secret_available,
     has_env_claude_credentials,
     prepare_claude_subprocess_env,
+    proxy_oauth_token,
     resolve_claude_model,
 )
 
 
 def claude_sdk_credentials_available() -> bool:
     """Return whether Claude-compatible credentials or an sbx secret exist."""
-    return has_env_claude_credentials() or claude_sbx_secret_available()
+    return (
+        has_env_claude_credentials()
+        or claude_sbx_secret_available()
+        or bool(proxy_oauth_token())
+    )
 
 
 def prepare_claude_sdk_env(*, session_id: str, provider: str) -> dict[str, str]:
@@ -42,7 +47,10 @@ def prepare_claude_sdk_env(*, session_id: str, provider: str) -> dict[str, str]:
 
     env = prepare_claude_subprocess_env(provider=provider, agent_type="sdk.claude_sdk")
     env["NIKA_SESSION_ID"] = session_id
-    if in_sandbox():
+    if proxy_oauth_token():
+        env.pop("ANTHROPIC_API_KEY", None)
+        env.pop("ANTHROPIC_AUTH_TOKEN", None)
+    elif in_sandbox():
         # Inside the microVM only placeholders/sentinels are valid. Never remap
         # host DeepSeek/Anthropic secrets over a set-custom placeholder already
         # applied from runtime env.

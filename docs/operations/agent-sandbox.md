@@ -91,6 +91,29 @@ sbx rm nika-claude-login
 
 Subsequent agent and benchmark runs reuse the sbx login. If the login expires or is revoked, sign in through sbx again. This setup also applies to the corresponding SDK/SADE agents; host-side `byo.*` agents use provider API credentials.
 
+#### E2B backend
+
+With `nika.sandbox.backend: e2b`, the sbx login does not apply. Instead, NIKA keeps a subscription login on the host where it runs, and its model proxy adds the login to the agent's model requests. The sandbox receives only a token for that proxy. Sign in once on that host:
+
+- **Claude subscription:** create a long-lived token and add it to the repository-root `.env`:
+
+  ```bash
+  claude setup-token
+  ```
+
+  ```dotenv
+  CLAUDE_CODE_OAUTH_TOKEN=YOUR_TOKEN
+  ```
+
+- **ChatGPT / Codex subscription:** sign in to Codex with a Codex home reserved for NIKA. NIKA refreshes this login when it expires, so keeping it separate from `~/.codex` means a refresh never signs out your own Codex:
+
+  ```bash
+  mkdir -p ~/.local/state/nika/codex
+  CODEX_HOME=~/.local/state/nika/codex codex login
+  ```
+
+Use provider `anthropic` or `openai` with a model available to your subscription. If `.env` also holds an API key for that provider, NIKA uses the API key. If a login stops working, sign in again with the same command.
+
 ## Quick start
 
 Set `agent.type`, `agent.provider`, and `agent.model` in `config/nika.yaml`. For a Claude subscription, replace `YOUR_CLAUDE_MODEL` with a model available to your account:

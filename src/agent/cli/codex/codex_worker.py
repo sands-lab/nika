@@ -219,7 +219,8 @@ def _codex_model_provider_id(provider: str | None) -> str | None:
 
     Built-in ids ``openai`` / ``ollama`` / ``lmstudio`` are reserved; Codex also
     ignores ``OPENAI_BASE_URL`` for third-party hosts, so NIKA must register a
-    ``model_providers.*`` block and set ``model_provider`` to this id.
+    ``model_providers.*`` block and set ``model_provider`` to this id. OpenAI
+    gets one only behind NIKA's model proxy (see :func:`_codex_provider_base_url`).
     """
     if not provider or not str(provider).strip():
         return None
@@ -228,14 +229,18 @@ def _codex_model_provider_id(provider: str | None) -> str | None:
             return "nika_custom"
         case "deepseek":
             return "nika_deepseek"
+        case "openai":
+            return "nika_openai"
         case _:
             return None
 
 
 def _codex_provider_base_url(provider: str | None) -> str:
     """Resolve the Responses API base URL for a Codex custom/DeepSeek provider."""
+    from agent.sandbox.constants import PROXY_TOKEN_PREFIX
     from agent.utils.provider_env import (
         DEEPSEEK_OPENAI_BASE_URL,
+        ENV_OPENAI_API_KEY,
         ENV_OPENAI_BASE_URL,
         resolve_custom_base_url,
     )
@@ -246,6 +251,9 @@ def _codex_provider_base_url(provider: str | None) -> str:
         return env_base or DEEPSEEK_OPENAI_BASE_URL
     if prov == "custom":
         return env_base or resolve_custom_base_url()
+    if prov == "openai":
+        key = os.environ.get(ENV_OPENAI_API_KEY, "").strip()
+        return env_base if key.startswith(PROXY_TOKEN_PREFIX) else ""
     return env_base
 
 
