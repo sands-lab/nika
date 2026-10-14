@@ -20,9 +20,7 @@ from tests.support.integration_base import OrderedPipelineTestCase
 from tests.support.integration_pipeline import (
     CommonPipelineSteps,
     claude_cli_available,
-    claude_sdk_available,
     codex_cli_available,
-    codex_sdk_available,
     live_anthropic_test_config,
     live_codex_test_model,
     live_custom_base_url,
@@ -172,14 +170,12 @@ class SandboxClaudeCliPipelineTest(SandboxAgentPipelineBase):
     model = CLAUDE_MODEL
 
 
-@pytest.mark.skipif(not codex_sdk_available(), reason="Codex SDK not available")
 class SandboxCodexSdkPipelineTest(SandboxAgentPipelineBase):
     agent_type = "sdk.codex_sdk"
     llm_provider = "openai"
     model = CODEX_MODEL
 
 
-@pytest.mark.skipif(not claude_sdk_available(), reason="Claude SDK not available")
 class SandboxClaudeSdkPipelineTest(SandboxAgentPipelineBase):
     agent_type = "sdk.claude_sdk"
     model = CLAUDE_MODEL
