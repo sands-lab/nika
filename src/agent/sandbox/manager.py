@@ -176,6 +176,9 @@ class SandboxManager:
             credential_env = backend.prepare_host(
                 agent_type=agent_type, llm_provider=llm_provider
             )
+            sandbox_gateway_url = backend.sandbox_gateway_url(
+                port=gateway_port, gateway_url=mcp_gateway_agent_url
+            )
             manifest = self.write_manifest(
                 session=session,
                 agent_type=agent_type,
@@ -184,7 +187,7 @@ class SandboxManager:
                 reasoning_effort=reasoning_effort,
                 max_tokens=max_tokens,
                 llm_provider=llm_provider,
-                mcp_gateway_agent_url=mcp_gateway_agent_url,
+                mcp_gateway_agent_url=sandbox_gateway_url,
                 stream_output=stream_output,
             )
 
@@ -196,7 +199,7 @@ class SandboxManager:
             runtime_env = {
                 "NIKA_SANDBOX_EXECUTION": "1",
                 "NIKA_SESSION_ID": agent_sid,
-                "NIKA_MCP_GATEWAY_AGENT_URL": mcp_gateway_agent_url.rstrip("/"),
+                "NIKA_MCP_GATEWAY_AGENT_URL": sandbox_gateway_url.rstrip("/"),
                 "PYTHONPATH": f"{sandbox_workspace}/agent",
                 ENV_ENABLE_SKILLS: "1" if skills_enabled() else "0",
             }

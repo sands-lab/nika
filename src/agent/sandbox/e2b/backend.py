@@ -4,8 +4,9 @@ These sandboxes have no route to the NIKA host (AgentENV denies private
 ranges at node level) and no internet access (created with
 ``allow_internet_access=False``). The agent reaches its MCP gateway and the
 host model proxy through the tunnel in :mod:`agent.sandbox.tunnel`, which runs
-over the same command channel NIKA uses to drive the sandbox. The model proxy
-adds the real provider key on the host, so the sandbox only holds a
+over the same command channel NIKA uses to drive the sandbox. With a remote
+lab, the host end of the tunnel connects to the lab host's gateway. The model
+proxy adds the real provider key on the host, so the sandbox only holds a
 per-session token.
 
 The workspace is uploaded to the same absolute path it has on the host, as
@@ -34,6 +35,7 @@ from contextlib import ExitStack
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from agent.sandbox.backend import (
     AsyncProcess,
@@ -572,12 +574,28 @@ class E2bBackend(SandboxBackend):
             raise
         return self._sandbox.sandbox_id
 
+    def sandbox_gateway_url(self, *, port: int, gateway_url: str) -> str:
+        # The tunnel relay on the sandbox's loopback forwards to the gateway.
+        return f"http://127.0.0.1:{self._relay_gateway_port(port)}"
+
     def allow_gateway(self, sandbox_id: str, *, port: int, gateway_url: str) -> None:
-        targets = {port: ("127.0.0.1", port)}
+        # The tunnel connects from this host, to a local gateway on loopback or
+        # to a remote lab host's gateway, so the sandbox still has no network.
+        host = urlparse(gateway_url).hostname or "127.0.0.1"
+        targets = {self._relay_gateway_port(port): (host, port)}
         if self._model_proxy_port is not None:
             targets[self._model_proxy_port] = ("127.0.0.1", self._model_proxy_port)
         relay = f"{self._workspace}/{_RELAY_NAME}"
         self._tunnel = _CommandTunnel(self._sandbox, relay, targets)
+
+    def _relay_gateway_port(self, port: int) -> int:
+        """Sandbox port that the relay forwards to a gateway on *port*.
+
+        The relay also listens on the model proxy's port, which a remote lab
+        host's gateway can share. Both are ephemeral ports, so the port below
+        is unprivileged and free.
+        """
+        return port - 1 if port == self._model_proxy_port else port
 
     def revoke_gateway(self, sandbox_id: str, *, port: int, gateway_url: str) -> None:
         self._stop_tunnel()

@@ -113,6 +113,14 @@ class SandboxBackend(ABC):
         received.
         """
 
+    def sandbox_gateway_url(self, *, port: int, gateway_url: str) -> str:
+        """Return the URL the sandbox uses for the gateway at *gateway_url*.
+
+        *gateway_url* is where the gateway listens for sandboxes: on this host,
+        or on a remote lab host. Called after :meth:`prepare_host`.
+        """
+        return gateway_url
+
     @abstractmethod
     def allow_gateway(self, sandbox_id: str, *, port: int, gateway_url: str) -> None:
         """Let the sandbox reach the session's MCP gateway."""
