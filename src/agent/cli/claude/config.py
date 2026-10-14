@@ -36,6 +36,14 @@ from agent.utils.provider_env import (
     resolve_custom_base_url,
 )
 
+# Claude Code connects MCP servers in the background and gives up on one after
+# 30 s; the first turn then runs without its tools. A slow sandbox, or the e2b
+# tunnel, can miss that window, so wait longer for them.
+MCP_CONNECT_WAIT_ENV = {
+    "MCP_TIMEOUT": "120000",
+    "CLAUDE_CODE_MCP_STARTUP_WAIT_MS": "120000",
+}
+
 
 def resolve_claude_model(model: str | None) -> str:
     """Use *model* when set; otherwise raise (YAML / ``-m`` required)."""

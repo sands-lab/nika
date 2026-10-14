@@ -17,9 +17,9 @@ directory and with its environment (see :mod:`agent.sandbox.e2b.image_config`).
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 import os
-import platform
 import queue
 import re
 import shlex
@@ -50,11 +50,7 @@ from agent.sandbox.e2b.image_config import image_config
 from agent.sandbox.locks import host_file_lock
 from agent.sandbox.templates import AGENT_TEMPLATES, TEMPLATE_IMAGES
 from agent.sandbox.tunnel import RELAY_SCRIPT, TunnelBridge
-from agent.sandbox.wheels import (
-    sdk_pip_install_command,
-    stage_sdk_requirements,
-    stage_sdk_wheels,
-)
+from agent.sandbox.wheels import SDK_PIP_PACKAGES
 from agent.sandbox.workspace import write_workspace_bytes
 from nika.utils.logger import elapsed_ms, log_event
 
@@ -76,6 +72,8 @@ _DISABLE_PAGE_RECLAIM = (
     "f=/sys/module/damon_reclaim/parameters/enabled; "
     'if [ -w "$f" ]; then echo N > "$f"; fi'
 )
+# Templates of SDK agents, which carry the SDK Python packages.
+_SDK_TEMPLATES = frozenset(AGENT_TEMPLATES[agent] for agent in SDK_AGENT_TYPES)
 
 
 def _api_key(env_file: Path) -> str:
@@ -117,16 +115,25 @@ def memory_mb(value: str | None) -> int | None:
 
 
 def e2b_template_name(
-    template: str, image: str, *, cpus: int | None, memory: int | None
+    template: str,
+    image: str,
+    *,
+    cpus: int | None,
+    memory: int | None,
+    packages: Sequence[str] = (),
 ) -> str:
-    """Template name for *image* at this sizing.
+    """Template name for *image* at this sizing, with these Python *packages*.
 
-    The name changes with the pinned digest and the sizing, which E2B fixes
-    when it builds a template, so a template built for another pin or size is
-    never reused.
+    The name changes with the pinned digest, the sizing and the package pins,
+    which E2B fixes when it builds a template, so a template built for other
+    pins or another size is never reused.
     """
     digest = image.rsplit("@sha256:", 1)[-1][:12]
-    return f"nika-{template}-{digest}-c{cpus or 'auto'}-m{memory or 'auto'}"
+    name = f"nika-{template}-{digest}"
+    if packages:
+        pins = hashlib.sha256("\n".join(packages).encode()).hexdigest()[:8]
+        name = f"{name}-py{pins}"
+    return f"{name}-c{cpus or 'auto'}-m{memory or 'auto'}"
 
 
 def _template_entry(api: Any, name: str) -> dict[str, Any] | None:
@@ -141,11 +148,6 @@ def _template_entry(api: Any, name: str) -> dict[str, Any] | None:
         if name in [*(entry.get("names") or []), *(entry.get("aliases") or [])]:
             return entry
     return None
-
-
-def _normalized_machine(machine: str) -> str:
-    machine = machine.strip().lower()
-    return {"amd64": "x86_64", "arm64": "aarch64"}.get(machine, machine)
 
 
 class _LineSplitter:
@@ -372,7 +374,10 @@ class E2bBackend(SandboxBackend):
         image = TEMPLATE_IMAGES[template]
         cpus = self.config.cpus
         memory = memory_mb(self.config.memory)
-        name = e2b_template_name(template, image, cpus=cpus, memory=memory)
+        packages = SDK_PIP_PACKAGES if template in _SDK_TEMPLATES else ()
+        name = e2b_template_name(
+            template, image, cpus=cpus, memory=memory, packages=packages
+        )
         opts = _connection_opts(self.config)
         api = get_api_client(ConnectionConfig(**opts)).get_httpx_client()
         lock = Path.home() / ".local/state/nika/locks" / f"e2b-template-{name}.lock"
@@ -384,6 +389,18 @@ class E2bBackend(SandboxBackend):
                 # A failed build keeps the name, which a new build cannot take.
                 api.delete(f"/templates/{entry['templateID']}").raise_for_status()
             config = image_config(image)
+            builder = Template().from_image(image)
+            if packages:
+                # The service downloads the packages while it builds, so
+                # sandboxes start ready and this host uploads nothing large.
+                # As the image user, as on sbx: root cannot replace packages
+                # the distribution installed.
+                builder = builder.run_cmd(
+                    "pip3 install --break-system-packages --no-cache-dir "
+                    "--retries 10 --timeout 120 "
+                    + " ".join(shlex.quote(pin) for pin in packages),
+                    user=config.user,
+                )
             started = time.perf_counter()
             log_event(
                 "sandbox_template_build",
@@ -393,10 +410,7 @@ class E2bBackend(SandboxBackend):
             )
             try:
                 Template.build(
-                    Template()
-                    .from_image(image)
-                    .set_user(config.user)
-                    .set_workdir(config.workdir),
+                    builder.set_user(config.user).set_workdir(config.workdir),
                     name,
                     cpu_count=cpus,
                     memory_mb=memory,
@@ -438,11 +452,8 @@ class E2bBackend(SandboxBackend):
         return env
 
     def stage_workspace(self, workspace_dir: Path, *, agent_type: str) -> None:
+        # SDK packages come with the template (see ensure_template).
         shutil.copyfile(RELAY_SCRIPT, workspace_dir / _RELAY_NAME)
-        if agent_type in SDK_AGENT_TYPES:
-            # Always offline: the sandbox has no internet access.
-            stage_sdk_wheels(workspace_dir)
-            stage_sdk_requirements(workspace_dir)
 
     def _lifetime_sec(self) -> int:
         from nika.utils.agent_config import resolve_agent_timeout
@@ -494,16 +505,6 @@ class E2bBackend(SandboxBackend):
             timeout=_SETUP_COMMAND_TIMEOUT_SEC,
         )
 
-    def _check_architecture(self) -> None:
-        """Offline wheels are built for the host; the sandbox must match."""
-        remote = _normalized_machine(self._run_checked("uname -m", timeout=60))
-        host = _normalized_machine(platform.machine())
-        if remote != host:
-            raise RuntimeError(
-                f"Template {self._template!r} runs on {remote}, but the SDK wheels "
-                f"are staged for this {host} host."
-            )
-
     def create(
         self, *, agent_session_id: str, agent_type: str, workspace_dir: Path
     ) -> str:
@@ -520,15 +521,8 @@ class E2bBackend(SandboxBackend):
         self._workspace = str(workspace_dir)
         try:
             self._run_checked(_DISABLE_PAGE_RECLAIM, timeout=60, user="root")
-            if agent_type in SDK_AGENT_TYPES:
-                self._check_architecture()
             self._create_workspace_dir(self._workspace)
             self._upload(workspace_dir, ["."])
-            if agent_type in SDK_AGENT_TYPES:
-                self._run_checked(
-                    sdk_pip_install_command(self._workspace, offline=True),
-                    timeout=_SETUP_COMMAND_TIMEOUT_SEC,
-                )
         except BaseException:
             if not self.config.keep_container:
                 self._kill_sandbox()
