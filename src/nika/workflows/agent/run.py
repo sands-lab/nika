@@ -89,8 +89,9 @@ def start_agent(
     session.update_session("model", model)
     if use_sandbox:
         session.update_session("sandbox_backend", sandbox_config.backend)
-        if sandbox_config.url:
-            session.update_session("sandbox_url", sandbox_config.url)
+        fields = backend_class(sandbox_config.backend).session_fields(sandbox_config)
+        for key, value in fields.items():
+            session.update_session(key, value)
     if reasoning_effort is not None:
         session.update_session("reasoning_effort", reasoning_effort)
     if max_tokens is not None:

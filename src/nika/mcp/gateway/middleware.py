@@ -13,6 +13,7 @@ from nika.mcp.gateway.access import decide_diagnosis_access
 from nika.mcp.gateway.context import bind_session, reset_session
 from nika.mcp.gateway.policy import is_server_allowed
 from nika.mcp.gateway.session_registry import (
+    access_token_matches,
     bind_transport_session,
     get_session,
     transport_session_matches,
@@ -24,6 +25,7 @@ from nika.mcp.tool_output import (
 )
 
 SESSION_HEADER = "NIKA-Session-Id"
+SESSION_TOKEN_HEADER = "NIKA-Session-Token"
 _MCP_JSON = "application/json"
 
 ensure_fastmcp_settings_ready()
@@ -55,6 +57,22 @@ class PhaseGateMiddleware:
                     "error": {
                         "code": -32000,
                         "message": f"Missing {SESSION_HEADER} header.",
+                    },
+                    "id": None,
+                },
+            )
+            return
+
+        presented = headers.get(b"nika-session-token", b"").decode().strip()
+        if not access_token_matches(session_id, presented):
+            await _send_json(
+                send,
+                status=401,
+                payload={
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32001,
+                        "message": f"Missing or invalid {SESSION_TOKEN_HEADER} header.",
                     },
                     "id": None,
                 },

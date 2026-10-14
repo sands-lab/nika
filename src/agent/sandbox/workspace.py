@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import shutil
 import stat
 import threading
@@ -20,6 +21,7 @@ from agent.sandbox.constants import (
 )
 from agent.protocols import DIAGNOSIS, PHASES
 from agent.utils.loggers import MESSAGES_FILENAME
+from agent.utils.mcp_servers import SESSION_TOKEN_HEADER
 from agent.utils.skills import resolve_skills_root, skills_enabled
 from nika.config import RUNTIME_DIR
 
@@ -30,6 +32,9 @@ SKILLS_DIRNAME = "skills"
 # Freeze events are host-written; a sandbox copy could replace the report that
 # ``submit()`` and the evaluator read.
 _HOST_ONLY_EVENTS = frozenset({"diagnosis_frozen"})
+# The manifest's MCP gateway token. It is dead once the session ends, but
+# results are shared, so collected manifests carry a placeholder.
+_SESSION_TOKEN_RE = re.compile(rf'("{SESSION_TOKEN_HEADER}":\s*")[^"]*"')
 # Host run.json keeps eval fields (problem_names, failure_domain). The sandbox
 # copy is an isolation boundary: only Session metadata agents need in-VM.
 SANDBOX_RUN_JSON_ALLOWLIST = frozenset(
@@ -287,7 +292,13 @@ def collect_artifacts(workspace: SandboxWorkspace) -> None:
         manifest = read_workspace_text(workspace.manifest_path)
     except OSError:
         return
-    (workspace.session_dir / MANIFEST_FILENAME).write_text(manifest, encoding="utf-8")
+    write_results_manifest(workspace.session_dir, manifest)
+
+
+def write_results_manifest(session_dir: Path, manifest: str) -> None:
+    """Write the sandbox *manifest* text to *session_dir* without its MCP token."""
+    manifest = _SESSION_TOKEN_RE.sub(r'\1***REDACTED***"', manifest)
+    (session_dir / MANIFEST_FILENAME).write_text(manifest, encoding="utf-8")
 
 
 def cleanup_workspace(workspace: SandboxWorkspace) -> None:

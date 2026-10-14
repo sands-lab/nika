@@ -15,6 +15,8 @@ ENV_SANDBOX_EXECUTION = "NIKA_SANDBOX_EXECUTION"
 ENV_SESSION_DIR = "NIKA_SESSION_DIR"
 ENV_GATEWAY_URL = "NIKA_MCP_GATEWAY_URL"
 ENV_GATEWAY_AGENT_URL = "NIKA_MCP_GATEWAY_AGENT_URL"
+# Access token of a remote gateway's session (a local gateway keeps its own).
+ENV_GATEWAY_SESSION_TOKEN = "NIKA_MCP_GATEWAY_SESSION_TOKEN"
 # Host-side CLI workers find the active sandbox of their session here.
 ENV_SANDBOX_NAME = "NIKA_SANDBOX_NAME"
 

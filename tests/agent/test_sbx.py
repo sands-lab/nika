@@ -593,7 +593,11 @@ def test_write_manifest_uses_opaque_session_id(tmp_path) -> None:
     assert headers["NIKA-Session-Id"] == "20260101-120000-a-ccddee"
 
 
-def test_open_session_collects_artifacts_when_policy_cleanup_fails(tmp_path) -> None:
+def test_open_session_collects_artifacts_when_policy_cleanup_fails(
+    tmp_path, monkeypatch
+) -> None:
+    # Stands in for the gateway token that the manifest's MCP headers carry.
+    monkeypatch.setenv("NIKA_MCP_GATEWAY_SESSION_TOKEN", "gateway-token-secret")
     session_dir = tmp_path / "session"
     session_dir.mkdir()
     session = SimpleNamespace(
@@ -660,6 +664,7 @@ def test_open_session_collects_artifacts_when_policy_cleanup_fails(tmp_path) -> 
     )
     assert "session_dir" not in collected
     assert str(session_dir) not in json.dumps(collected)
+    assert "gateway-token-secret" not in json.dumps(collected)
 
 
 def test_open_session_preserves_host_submission_on_collect(tmp_path) -> None:

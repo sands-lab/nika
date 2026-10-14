@@ -30,7 +30,6 @@ from agent.sandbox.config import ENV_SANDBOX_NAME, ENV_SESSION_DIR, SandboxConfi
 from agent.sandbox.constants import (
     CREDENTIAL_ENV_KEYS,
     DIAGNOSIS_REPORT_FILENAME,
-    MANIFEST_FILENAME,
     SDK_AGENT_TYPES,
     SUBMISSION_CONTEXT_FILENAME,
 )
@@ -44,6 +43,7 @@ from agent.sandbox.workspace import (
     prepare_workspace,
     read_workspace_text,
     trace_mirror,
+    write_results_manifest,
     write_workspace_text,
 )
 from agent.utils.loggers import MESSAGES_FILENAME
@@ -320,9 +320,8 @@ class SandboxManager:
                             finally:
                                 # Keep the manifest even when artifact collection or
                                 # earlier sandbox cleanup fails.
-                                (session_dir / MANIFEST_FILENAME).write_text(
-                                    json.dumps(manifest, indent=2),
-                                    encoding="utf-8",
+                                write_results_manifest(
+                                    session_dir, json.dumps(manifest, indent=2)
                                 )
                                 cleanup_workspace(workspace)
                                 log_event(

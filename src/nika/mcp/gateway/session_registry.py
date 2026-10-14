@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import secrets
 from dataclasses import dataclass, field
 from threading import Lock
 from typing import Any, Literal
@@ -37,6 +38,9 @@ class GatewaySession:
     # Diagnosis servers selected for the scenario; ``None`` allows every
     # mounted diagnosis server.
     diagnosis_servers: frozenset[str] | None = None
+    # Secret that MCP clients send in ``NIKA-Session-Token``. The session id
+    # alone is guessable, and the gateway may be reachable from other hosts.
+    access_token: str = field(default_factory=lambda: secrets.token_urlsafe(32))
 
     @property
     def session_id(self) -> str:
@@ -119,6 +123,16 @@ def transport_session_matches(transport_id: str, session_id: str) -> bool:
 def get_session(session_id: str) -> GatewaySession | None:
     with _lock:
         return _sessions.get(session_id)
+
+
+def access_token_matches(session_id: str, token: str) -> bool:
+    """True when *token* is the access token of registered *session_id*."""
+    entry = get_session(session_id)
+    return (
+        entry is not None
+        and bool(token)
+        and secrets.compare_digest(entry.access_token, token)
+    )
 
 
 def resolve_canonical_session_id(session_id: str) -> str:

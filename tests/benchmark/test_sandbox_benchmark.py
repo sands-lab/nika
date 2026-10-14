@@ -11,8 +11,8 @@ import yaml
 
 from nika.utils.session_id import resolve_session_tag
 from tests.agent.sandbox_support import (
+    sandbox_backend_available,
     sandbox_provider_credential_available,
-    sandbox_runtime_available,
 )
 from tests.support.integration_pipeline import (
     DEFAULT_INJECT_PARAMS,
@@ -20,6 +20,7 @@ from tests.support.integration_pipeline import (
     codex_cli_available,
     live_anthropic_test_config,
     live_codex_test_model,
+    live_custom_base_url,
     load_test_env,
 )
 
@@ -82,8 +83,68 @@ def _assert_sandbox_session(session_path: Path, *, agent_type: str) -> None:
         assert field in metrics
 
 
+def _backend_run_config(backend: str) -> Path:
+    """Copy the host run config with *backend* as the sandbox backend."""
+    from nika.run_config.loader import resolve_run_config_path
+
+    source = resolve_run_config_path()
+    data = (
+        yaml.safe_load(source.read_text(encoding="utf-8")) if source.is_file() else {}
+    )
+    data = data or {}
+    data.setdefault("nika", {}).setdefault("sandbox", {})["backend"] = backend
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".yaml", delete=False, encoding="utf-8"
+    ) as handle:
+        yaml.safe_dump(data, handle, sort_keys=False, allow_unicode=True)
+    return Path(handle.name)
+
+
+def _run_benchmark(
+    args: list[str], *, backend: str, agent_type: str, provider: str, model: str
+) -> str:
+    """Run ``nika benchmark run`` *args* on the *backend* sandbox; return its output."""
+    run_config = _backend_run_config(backend)
+    agent_args = ["-a", agent_type, "-p", provider, "-m", model]
+    if provider == "custom":
+        agent_args += ["--base-url", live_custom_base_url()]
+    try:
+        proc = subprocess.run(
+            [
+                "uv",
+                "run",
+                "python",
+                "-m",
+                "tests.support.nika_cli",
+                "benchmark",
+                "run",
+                *args,
+                *agent_args,
+                "-n",
+                "10",
+                "-y",
+                "-v",
+                "--run-config",
+                str(run_config),
+                "--session-tag",
+                resolve_session_tag(context="test"),
+            ],
+            cwd=_REPO_ROOT,
+            capture_output=True,
+            text=True,
+        )
+    finally:
+        run_config.unlink(missing_ok=True)
+    output = proc.stdout
+    if proc.stderr:
+        output += proc.stderr
+    assert proc.returncode == 0, output
+    return output
+
+
 def _run_parallel_sandbox_benchmark(
     *,
+    backend: str,
     agent_type: str,
     provider: str,
     model: str,
@@ -108,42 +169,20 @@ def _run_parallel_sandbox_benchmark(
         yaml_path = handle.name
 
     try:
-        proc = subprocess.run(
+        output = _run_benchmark(
             [
-                "uv",
-                "run",
-                "python",
-                "-m",
-                "tests.support.nika_cli",
-                "benchmark",
-                "run",
                 "--config",
                 yaml_path,
                 "--batch-size",
                 "2",
-                "-a",
-                agent_type,
-                "-p",
-                provider,
-                "-m",
-                model,
-                "-n",
-                "10",
-                "-y",
-                "-v",
                 "--result_dir",
                 str(result_root),
-                "--session-tag",
-                resolve_session_tag(context="test"),
             ],
-            cwd=_REPO_ROOT,
-            capture_output=True,
-            text=True,
+            backend=backend,
+            agent_type=agent_type,
+            provider=provider,
+            model=model,
         )
-        output = proc.stdout
-        if proc.stderr:
-            output += proc.stderr
-        assert proc.returncode == 0, output
 
         parsed: dict[str, Path] = {}
         for match in _BENCHMARK_DONE_RE.finditer(output):
@@ -165,30 +204,29 @@ def _run_parallel_sandbox_benchmark(
         Path(yaml_path).unlink(missing_ok=True)
 
 
-@pytest.mark.skipif(
-    not sandbox_runtime_available(),
-    reason="Docker Sandboxes runtime not available",
-)
-@pytest.mark.skipif(
-    not (
-        claude_cli_available()
-        and sandbox_provider_credential_available(CLAUDE_PROVIDER)
-    ),
-    reason=f"Claude CLI + {CLAUDE_PROVIDER} credentials required (DeepSeek: DEEPSEEK_API_KEY; Anthropic: API key or sbx anthropic secret)",
-)
-class SandboxBenchmarkClaudeTest:
+class _SandboxBenchmark:
+    sandbox_backend = "sbx"
+    llm_provider = ""
+
+    def setup_method(self) -> None:
+        backend = self.sandbox_backend
+        if not sandbox_backend_available(backend):
+            pytest.skip(f"{backend} sandbox runtime not available")
+        if not sandbox_provider_credential_available(
+            self.llm_provider, backend=backend
+        ):
+            pytest.skip(f"{self.llm_provider} credentials for {backend} not available")
+
+
+@pytest.mark.skipif(not claude_cli_available(), reason="Claude CLI not available")
+class SandboxBenchmarkClaudeTest(_SandboxBenchmark):
     """Claude sandbox path for ``nika benchmark run`` with the selected provider."""
 
+    llm_provider = CLAUDE_PROVIDER
+
     def test_single_case_produces_sandbox_artifacts(self) -> None:
-        proc = subprocess.run(
+        output = _run_benchmark(
             [
-                "uv",
-                "run",
-                "python",
-                "-m",
-                "tests.support.nika_cli",
-                "benchmark",
-                "run",
                 "simple_bgp",
                 "--problem",
                 "link_down",
@@ -196,27 +234,12 @@ class SandboxBenchmarkClaudeTest:
                 "host_name=pc1",
                 "--set",
                 "intf_name=eth0",
-                "-a",
-                "cli.claude",
-                "-p",
-                CLAUDE_PROVIDER,
-                "-m",
-                CLAUDE_MODEL,
-                "-n",
-                "10",
-                "-y",
-                "-v",
-                "--session-tag",
-                resolve_session_tag(context="test"),
             ],
-            cwd=_REPO_ROOT,
-            capture_output=True,
-            text=True,
+            backend=self.sandbox_backend,
+            agent_type="cli.claude",
+            provider=CLAUDE_PROVIDER,
+            model=CLAUDE_MODEL,
         )
-        output = proc.stdout
-        if proc.stderr:
-            output += proc.stderr
-        assert proc.returncode == 0, output
 
         match = _BENCHMARK_DONE_RE.search(output)
         assert match is not None, f"benchmark_done line missing in output:\n{output}"
@@ -227,26 +250,31 @@ class SandboxBenchmarkClaudeTest:
 
     def test_parallel_batch_produces_sandbox_artifacts(self) -> None:
         _run_parallel_sandbox_benchmark(
+            backend=self.sandbox_backend,
             agent_type="cli.claude",
             provider=CLAUDE_PROVIDER,
             model=CLAUDE_MODEL,
         )
 
 
-@pytest.mark.skipif(
-    not sandbox_runtime_available(),
-    reason="Docker Sandboxes runtime not available",
-)
-@pytest.mark.skipif(
-    not (codex_cli_available() and sandbox_provider_credential_available("openai")),
-    reason="Codex CLI + OPENAI_API_KEY / openai sbx credentials required",
-)
-class SandboxBenchmarkCodexTest:
+@pytest.mark.skipif(not codex_cli_available(), reason="Codex CLI not available")
+class SandboxBenchmarkCodexTest(_SandboxBenchmark):
     """Codex sandbox path for ``nika benchmark run`` (OpenAI API)."""
+
+    llm_provider = "openai"
 
     def test_parallel_batch_produces_sandbox_artifacts(self) -> None:
         _run_parallel_sandbox_benchmark(
+            backend=self.sandbox_backend,
             agent_type="cli.codex",
             provider="openai",
             model=CODEX_MODEL,
         )
+
+
+class E2bBenchmarkClaudeTest(SandboxBenchmarkClaudeTest):
+    sandbox_backend = "e2b"
+
+
+class E2bBenchmarkCodexTest(SandboxBenchmarkCodexTest):
+    sandbox_backend = "e2b"

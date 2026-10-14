@@ -13,22 +13,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
-from agent.sandbox.config import SandboxConfig, resolve_sandbox_config
+from agent.sandbox.config import resolve_sandbox_config
+from tests.agent.sandbox_support import e2b_runtime_available
 
 pytestmark = [pytest.mark.integration, pytest.mark.sandbox]
-
-
-def _e2b_config() -> SandboxConfig | None:
-    try:
-        import e2b  # noqa: F401
-    except ImportError:
-        return None
-    from agent.sandbox.e2b.backend import _api_key
-
-    config = replace(resolve_sandbox_config(), backend="e2b", keep_container=False)
-    if not _api_key(config.env_file):
-        return None
-    return config
 
 
 class _Ok(BaseHTTPRequestHandler):
@@ -42,14 +30,15 @@ class _Ok(BaseHTTPRequestHandler):
 
 
 @pytest.mark.skipif(
-    _e2b_config() is None,
+    not e2b_runtime_available(),
     reason="e2b service not configured (E2B_API_KEY)",
 )
 def test_e2b_sandbox_reaches_only_its_tunnel(tmp_path) -> None:
     """The sandbox reaches its mapped host service, no other host port, no internet."""
     from agent.sandbox.e2b.backend import E2bBackend
 
-    backend = E2bBackend(_e2b_config())
+    config = replace(resolve_sandbox_config(), backend="e2b", keep_container=False)
+    backend = E2bBackend(config)
     backend._template = backend.ensure_template("shell")
     servers = [ThreadingHTTPServer(("127.0.0.1", 0), _Ok) for _ in range(2)]
     for server in servers:

@@ -12,7 +12,13 @@ from agent.sandbox.redact import redact_text
 from agent.sandbox.sdk_context import resolve_sdk_session_fields
 from agent.sandbox.session_dir import resolve_agent_session_dir
 from agent.sandbox.sbx.policy import mcp_policy_resource_from_url
+from agent.sandbox.workspace import collect_artifacts, prepare_workspace
 from agent.utils.mcp_client import load_session_mcp_config
+from nika.mcp.gateway.session_registry import (
+    get_session,
+    register_session,
+    unregister_session,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -31,13 +37,18 @@ def test_sandbox_logs_and_commands_redact_secrets() -> None:
     assert "sk-abcdefghijklmnopqrstuvwxyz" not in command
 
 
-def test_sandbox_mcp_servers_use_gateway_and_session_header() -> None:
-    servers = build_sandbox_mcp_servers(
-        session_id="sess-1",
-        scenario_name="simple_bgp",
-        backend="kathara",
-        gateway_agent_url="http://host.docker.internal:40207",
-    )
+def test_sandbox_mcp_servers_use_gateway_and_session_header(tmp_path) -> None:
+    register_session("sess-1", scenario_name="simple_bgp")
+    try:
+        token = get_session("sess-1").access_token
+        servers = build_sandbox_mcp_servers(
+            session_id="sess-1",
+            scenario_name="simple_bgp",
+            backend="kathara",
+            gateway_agent_url="http://host.docker.internal:40207",
+        )
+    finally:
+        unregister_session("sess-1")
 
     assert servers
     assert all(server["transport"] == "http" for server in servers.values())
@@ -47,6 +58,27 @@ def test_sandbox_mcp_servers_use_gateway_and_session_header() -> None:
     )
     assert all(
         server["headers"]["NIKA-Session-Id"] == "sess-1" for server in servers.values()
+    )
+    assert all(
+        server["headers"]["NIKA-Session-Token"] == token for server in servers.values()
+    )
+
+    # The manifest copied into results carries no gateway token.
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    workspace = prepare_workspace(
+        session_dir=session_dir,
+        manifest={"mcp_servers": servers},
+        runtime_env={},
+        agent_session_id="sess-1",
+        workspace_dir=tmp_path / "workspace",
+    )
+    collect_artifacts(workspace)
+    collected = json.loads((session_dir / "sandbox_manifest.json").read_text())
+    assert token not in json.dumps(collected)
+    assert all(
+        server["headers"]["NIKA-Session-Token"] == "***REDACTED***"
+        for server in collected["mcp_servers"].values()
     )
 
 
@@ -193,7 +225,7 @@ def test_e2b_connection_uses_url_then_domain_then_cloud(tmp_path, monkeypatch) -
     from dataclasses import replace
 
     from agent.sandbox.config import SandboxConfig
-    from agent.sandbox.e2b.backend import _connection_opts
+    from agent.sandbox.e2b.backend import E2bBackend, _connection_opts
 
     for name in ("E2B_API_KEY", "E2B_DOMAIN"):
         monkeypatch.delenv(name, raising=False)
@@ -215,8 +247,16 @@ def test_e2b_connection_uses_url_then_domain_then_cloud(tmp_path, monkeypatch) -
         "api_url": url,
         "sandbox_url": url,
     }
+    # Sessions record where they ran, so cleanup reaches that service later.
+    assert E2bBackend.session_fields(config) == {"sandbox_domain": "e2b.example.org"}
+    assert E2bBackend.session_fields(replace(config, url=url)) == {"sandbox_url": url}
     env_file.write_text("E2B_API_KEY=key\n")
     assert _connection_opts(config) == {"api_key": "key"}
+    assert E2bBackend.session_fields(config) == {}
+    assert _connection_opts(config, domain="e2b.example.org") == {
+        "api_key": "key",
+        "domain": "e2b.example.org",
+    }
 
 
 def test_e2b_async_process_keeps_streams_separate_and_reports_exit() -> None:

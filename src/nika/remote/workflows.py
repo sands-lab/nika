@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Iterator
 from uuid import uuid4
 
+from agent.sandbox.config import ENV_GATEWAY_SESSION_TOKEN
 from nika.config import resolve_results_root
 from nika.remote.client import RemoteClient
 from nika.remote.config import load_remote_config
@@ -242,6 +243,7 @@ def remote_mcp_gateway(
         ENV_GATEWAY_AGENT_URL: attach.gateway_base_url,
         # Host orchestration advances the phase; sandbox env filters NIKA_*TOKEN.
         ENV_GATEWAY_PHASE_TOKEN: attach.phase_token,
+        ENV_GATEWAY_SESSION_TOKEN: attach.session_token,
     }
     prior = {key: os.environ.get(key) for key in exported}
     os.environ.update(exported)
