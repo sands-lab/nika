@@ -5,8 +5,14 @@ for each port and forwards every accepted connection to the host over this
 process's stdin/stdout, one JSON frame per line:
 
 * stdout (to host): ``{"t": "ready"}``, ``{"t": "open", "id": N, "port": P}``,
-  ``{"t": "data", "id": N, "b": "<base64>"}``, ``{"t": "close", "id": N}``
-* stdin (from host): ``{"t": "data", ...}`` and ``{"t": "close", ...}``
+  ``{"t": "data", "id": N, "b": "<base64>"}``, ``{"t": "eof", "id": N}``,
+  ``{"t": "close", "id": N}``
+* stdin (from host): ``{"t": "data", ...}``, ``{"t": "eof", ...}`` and
+  ``{"t": "close", ...}``
+
+``eof`` means one side finished sending but still reads, so a client can
+half-close a connection and wait for the reply. The host closes a connection
+once both sides sent ``eof``; either side sends ``close`` on errors.
 
 The host decides which service each port reaches (see
 :mod:`agent.sandbox.tunnel`); the sandbox needs no network route to the host.
@@ -43,26 +49,37 @@ class Relay:
                 self.emit(
                     {"t": "data", "id": conn_id, "b": base64.b64encode(chunk).decode()}
                 )
-        except ConnectionError:
-            pass
-        finally:
-            if self._writers.pop(conn_id, None) is not None:
-                self.emit({"t": "close", "id": conn_id})
-                writer.close()
+        except OSError:
+            self.drop(conn_id, notify=True)
+            return
+        # The client finished sending; it may still read the reply.
+        if conn_id in self._writers:
+            self.emit({"t": "eof", "id": conn_id})
 
-    async def from_host(self, frame: dict) -> None:
-        writer = self._writers.get(int(frame.get("id", 0)))
+    def drop(self, conn_id: int, *, notify: bool) -> None:
+        writer = self._writers.pop(conn_id, None)
         if writer is None:
             return
-        if frame.get("t") == "data":
-            writer.write(base64.b64decode(frame.get("b", "")))
-            try:
+        if notify:
+            self.emit({"t": "close", "id": conn_id})
+        writer.close()
+
+    async def from_host(self, frame: dict) -> None:
+        conn_id = int(frame.get("id", 0))
+        writer = self._writers.get(conn_id)
+        if writer is None:
+            return
+        kind = frame.get("t")
+        try:
+            if kind == "data":
+                writer.write(base64.b64decode(frame.get("b", "")))
                 await writer.drain()
-            except ConnectionError:
-                pass
-        elif frame.get("t") == "close":
-            self._writers.pop(int(frame["id"]), None)
-            writer.close()
+            elif kind == "eof":
+                writer.write_eof()
+        except OSError:
+            self.drop(conn_id, notify=True)
+        if kind == "close":
+            self.drop(conn_id, notify=False)
 
 
 async def main(ports: list[int]) -> None:

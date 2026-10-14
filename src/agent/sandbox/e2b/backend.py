@@ -150,6 +150,33 @@ def _template_entry(api: Any, name: str) -> dict[str, Any] | None:
     return None
 
 
+def _wait_streaming(
+    handle: Any,
+    on_stdout: Callable[[str], None],
+    on_stderr: Callable[[str], None],
+) -> Any:
+    """``handle.wait()`` that passes output on without keeping it.
+
+    The SDK also collects all output for the command result. The agent and
+    tunnel relay commands run for a whole session, so that copy would only
+    grow; NIKA never reads it.
+    """
+
+    def forward(callback: Callable[[str], None], kept: str) -> Callable[[str], None]:
+        def feed(data: str) -> None:
+            callback(data)
+            chunks = getattr(handle, kept, None)
+            if isinstance(chunks, list):
+                chunks.clear()
+
+        return feed
+
+    return handle.wait(
+        on_stdout=forward(on_stdout, "_stdout_chunks"),
+        on_stderr=forward(on_stderr, "_stderr_chunks"),
+    )
+
+
 class _LineSplitter:
     """Turn stream chunks into complete lines."""
 
@@ -188,7 +215,7 @@ class _CommandProcess:
         out = _LineSplitter(self._lines.put)
         err = _LineSplitter(self._lines.put)
         try:
-            result = self._handle.wait(on_stdout=out.feed, on_stderr=err.feed)
+            result = _wait_streaming(self._handle, out.feed, err.feed)
             code = result.exit_code
         except CommandExitException as exc:
             code = exc.exit_code
@@ -249,9 +276,8 @@ class _AsyncCommandProcess:
         from e2b.sandbox.commands.command_handle import CommandExitException
 
         try:
-            result = self._handle.wait(
-                on_stdout=self._feeder(self.stdout),
-                on_stderr=self._feeder(self.stderr),
+            result = _wait_streaming(
+                self._handle, self._feeder(self.stdout), self._feeder(self.stderr)
             )
             code = result.exit_code
         except CommandExitException as exc:
@@ -306,9 +332,10 @@ class _CommandTunnel:
 
     def _consume(self) -> None:
         try:
-            self._handle.wait(
-                on_stdout=self.bridge.feed,
-                on_stderr=lambda data: logger.debug("tunnel relay: %s", data.rstrip()),
+            _wait_streaming(
+                self._handle,
+                self.bridge.feed,
+                lambda data: logger.debug("tunnel relay: %s", data.rstrip()),
             )
         except Exception as exc:  # noqa: BLE001 - reported unless we stopped it
             if not self._stopping:
