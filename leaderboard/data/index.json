@@ -1596,6 +1596,96 @@
       "rank": 9
     },
     {
+      "id": "0.2.0/20261014_claude_code_glm_4_7_flash",
+      "dirname": "20261014_claude_code_glm_4_7_flash",
+      "submission_name": "Claude Code + GLM-4.7-Flash",
+      "authors": "NIKA Team",
+      "org": null,
+      "site": "https://sands-lab.github.io/nika/",
+      "report": "https://arxiv.org/abs/2512.16381",
+      "logo": null,
+      "github": "https://github.com/sands-lab/nika",
+      "email": null,
+      "trajectories_url": "https://huggingface.co/datasets/Zhihao98/nika-trajectories/tree/main/trajectories/0.2.0/20261014_claude_code_glm_4_7_flash",
+      "trajectories_relpath": "trajectories/0.2.0/20261014_claude_code_glm_4_7_flash",
+      "model": "GLM-4.7-Flash",
+      "framework": "Claude Code",
+      "agent_type": "cli.claude",
+      "llm_provider": "custom",
+      "tools": [
+        "containerlab_srl_mcp_server",
+        "k8s_mcp_server",
+        "kathara_base_mcp_server",
+        "pingmesh_mcp_server",
+        "packet_capture_mcp_server",
+        "kathara_frr_mcp_server",
+        "kathara_bmv2_mcp_server",
+        "kathara_sdn_mcp_server",
+        "kathara_telemetry_mcp_server",
+        "task_mcp_server"
+      ],
+      "skills": [],
+      "optimization_methods": [],
+      "tags": [],
+      "extra": {
+        "model_repository": "zai-org/GLM-4.7-Flash",
+        "max_steps": 100,
+        "max_tokens": 32768,
+        "agent_timeout_sec": 14400,
+        "case_timeout_sec": 15000
+      },
+      "benchmark_version": "0.2.0",
+      "split": "test",
+      "case_count": 85,
+      "n_trials": 3,
+      "primary_metric": "rca_f1",
+      "mean_rca_f1": 0.11173411764705882,
+      "mean_localization_f1": 0.2054305882352941,
+      "mean_detection_score": 0.792156862745098,
+      "n_trials_expected": 255,
+      "n_trials_present": 255,
+      "n_success": 242,
+      "n_agent_failed": 13,
+      "success_rate": 0.94902,
+      "token_totals": {
+        "in_tokens": 161772101,
+        "out_tokens": 2301705
+      },
+      "steps_totals": {
+        "steps": 17670,
+        "tool_calls": 17368,
+        "tool_errors": 0
+      },
+      "mean_tokens": 643426.69,
+      "mean_steps": 69.294,
+      "total_tokens": 164073806,
+      "max_steps": 100,
+      "case_timeout_sec": 15000,
+      "created_at": "2026-10-14T18:02:21+00:00",
+      "run_id": "4d9e98d77919538e",
+      "official": true,
+      "nika_git_commit": "ba4e78364b26b3a948c234e450c93df3e23090be",
+      "name": "GLM-4.7-Flash · Claude Code",
+      "rca_f1_ci": [
+        0.068393,
+        0.16016
+      ],
+      "beaten_by": [
+        "0.2.0/20261007_qwen3_6_35b_a3b_claudecode",
+        "0.2.0/20261007_qwen3_6_35b_a3b_langgraph",
+        "0.2.0/20261008_qwen3_6_35b_a3b_codex",
+        "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
+        "0.2.0/20261011_react_qwen3_8_27b_fp8",
+        "0.2.0/20261012_claude_code_gemma_4_31b_it",
+        "0.2.0/20261012_react_gemma_4_31b_it",
+        "0.2.0/20261013_claude_code_telecomgpt_r1",
+        "0.2.0/20261013_react_telecomgpt_r1",
+        "0.2.0/20261014_claude_code_qwen3_5_27b",
+        "0.2.0/20261014_react_qwen3_5_27b"
+      ],
+      "rank": 12
+    },
+    {
       "id": "0.2.0/20261008_claude_cli_otel_2_0_llm_31b_it",
       "dirname": "20261008_claude_cli_otel_2_0_llm_31b_it",
       "submission_name": "Claude CLI + OTel-2.0-LLM-31B-IT",
@@ -1687,10 +1777,11 @@
         "0.2.0/20261012_react_gemma_4_31b_it",
         "0.2.0/20261013_claude_code_telecomgpt_r1",
         "0.2.0/20261013_react_telecomgpt_r1",
+        "0.2.0/20261014_claude_code_glm_4_7_flash",
         "0.2.0/20261014_claude_code_qwen3_5_27b",
         "0.2.0/20261014_react_qwen3_5_27b"
       ],
-      "rank": 12
+      "rank": 13
     }
   ]
 }
