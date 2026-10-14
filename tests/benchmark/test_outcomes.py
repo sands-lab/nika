@@ -253,6 +253,25 @@ class TestClassifyTrialFailure:
         err = RuntimeError("agent boom")
         assert classify_trial_failure(err, session_dir=tmp_path) == "agent_failed"
 
+    def test_agent_turn_with_unicode_line_separator_is_agent_failed(
+        self, tmp_path: Path
+    ) -> None:
+        # Tool output decoded from binary can put NEL/LS inside a JSON string.
+        t0 = datetime(2026, 9, 23, 22, 0, 0, tzinfo=UTC)
+        _write_agent_start(tmp_path, t0)
+        _write_jsonl(
+            tmp_path / "messages.jsonl",
+            [
+                {
+                    "timestamp": t0.isoformat(),
+                    "event": "assistant",
+                    "text": "a\x85b\u2028c",
+                }
+            ],
+        )
+        err = RuntimeError("agent boom")
+        assert classify_trial_failure(err, session_dir=tmp_path) == "agent_failed"
+
     @pytest.mark.parametrize(
         "err",
         [

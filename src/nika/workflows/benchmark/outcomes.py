@@ -186,7 +186,8 @@ def _iter_jsonl_events(path: Path):
         text = path.read_text(encoding="utf-8")
     except OSError:
         return
-    for line in text.splitlines():
+    # Split on "\n" only: splitlines() also breaks on U+0085/U+2028 inside strings.
+    for line in text.split("\n"):
         line = line.strip()
         if not line:
             continue
