@@ -63,6 +63,8 @@ ENV_E2B_DOMAIN = "E2B_DOMAIN"
 _RELAY_NAME = "nika_tunnel_relay.py"
 _METADATA_SESSION_KEY = "nika_agent_session_id"
 _TUNNEL_READY_TIMEOUT_SEC = 30
+# Waits before each relay restart after the E2B channel drops; then give up.
+_TUNNEL_RESTART_DELAYS_SEC = (1, 2, 5, 10, 20, 30)
 # Sandbox lifetime beyond the agent budget, covering setup and teardown.
 _LIFETIME_MARGIN_SEC = 1800
 _UNBOUNDED_AGENT_LIFETIME_SEC = 6 * 3600
@@ -323,50 +325,146 @@ class _AsyncCommandProcess:
 
 
 class _CommandTunnel:
-    """Run the tunnel relay in the sandbox and bridge it to host services."""
+    """Run the tunnel relay in the sandbox and bridge it to host services.
+
+    The relay reaches the host over E2B API connections, which can drop. A
+    failed send or a lost output stream restarts the relay on the same ports:
+    open connections close, and clients reconnect. Resending lost frames
+    instead could deliver some twice.
+    """
 
     def __init__(
         self, sandbox: Any, relay: str, targets: Mapping[int, tuple[str, int]]
     ) -> None:
-        self._stopping = False
+        self._sandbox = sandbox
+        self._targets = dict(targets)
         ports = " ".join(str(port) for port in targets)
-        self._handle = sandbox.commands.run(
-            f"python3 -u {shlex.quote(relay)} {ports}",
-            background=True,
-            stdin=True,
-            timeout=0,
-        )
-        pid = self._handle.pid
-        self.bridge = TunnelBridge(
-            targets, send=lambda line: sandbox.commands.send_stdin(pid, line)
-        )
-        self._thread = threading.Thread(
-            target=self._consume, name="nika-e2b-tunnel", daemon=True
-        )
-        self._thread.start()
-        if not self.bridge.ready.wait(_TUNNEL_READY_TIMEOUT_SEC):
+        self._command = f"python3 -u {shlex.quote(relay)} {ports}"
+        self._stopping = threading.Event()
+        self._lost = threading.Event()
+        # Serializes starting and discarding relays (keeper versus stop()).
+        self._lock = threading.Lock()
+        self._handle: Any = None
+        # A relay to kill before the next start (a failed kill is retried).
+        self._stale: Any = None
+        self._reader: threading.Thread | None = None
+        self._keeper: threading.Thread | None = None
+        self.bridge: TunnelBridge | None = None
+        try:
+            self._start()
+        except Exception:
             self.stop()
-            raise RuntimeError("The sandbox tunnel relay did not start")
+            raise
+        self._keeper = threading.Thread(
+            target=self._keep_alive, name="nika-e2b-tunnel", daemon=True
+        )
+        self._keeper.start()
 
-    def _consume(self) -> None:
+    def _start(self) -> None:
+        """Start a relay and wait until it listens on its ports."""
+        with self._lock:
+            if self._stopping.is_set():
+                raise RuntimeError("The sandbox tunnel is stopping")
+            handle = self._sandbox.commands.run(
+                self._command, background=True, stdin=True, timeout=0
+            )
+            bridge = TunnelBridge(
+                self._targets, send=lambda line: self._send(handle, line)
+            )
+            self._handle, self.bridge = handle, bridge
+            self._reader = threading.Thread(
+                target=self._consume,
+                args=(handle, bridge),
+                name="nika-e2b-relay",
+                daemon=True,
+            )
+            self._reader.start()
+        deadline = time.monotonic() + _TUNNEL_READY_TIMEOUT_SEC
+        while not bridge.ready.wait(0.2):
+            if self._lost.is_set() or time.monotonic() > deadline:
+                raise RuntimeError("The sandbox tunnel relay did not start")
+
+    def _send(self, handle: Any, line: str) -> None:
+        try:
+            self._sandbox.commands.send_stdin(handle.pid, line)
+        except Exception:
+            self._channel_lost(handle)
+            raise
+
+    def _consume(self, handle: Any, bridge: TunnelBridge) -> None:
         try:
             _wait_streaming(
-                self._handle,
-                self.bridge.feed,
+                handle,
+                bridge.feed,
                 lambda data: logger.debug("tunnel relay: %s", data.rstrip()),
             )
-        except Exception as exc:  # noqa: BLE001 - reported unless we stopped it
-            if not self._stopping:
-                logger.warning("The sandbox tunnel relay exited: %s", exc)
+            reason = "the relay exited"
+        except Exception as exc:  # noqa: BLE001 - the keeper restarts the relay
+            reason = str(exc)
+        if handle is self._handle and not self._stopping.is_set():
+            logger.warning("Lost the sandbox tunnel relay: %s", reason)
+        self._channel_lost(handle)
+
+    def _channel_lost(self, handle: Any) -> None:
+        # Ignore relays already replaced or stopped on purpose.
+        if handle is self._handle and not self._stopping.is_set():
+            self._lost.set()
+
+    def _keep_alive(self) -> None:
+        while True:
+            self._lost.wait()
+            if self._stopping.is_set():
+                return
+            if not self._restart():
+                if not self._stopping.is_set():
+                    logger.error(
+                        "The sandbox tunnel stays down: its relay won't restart"
+                    )
+                return
+
+    def _restart(self) -> bool:
+        for delay in _TUNNEL_RESTART_DELAYS_SEC:
+            if self._stopping.wait(delay):
+                return False
+            if not self._discard():
+                continue
+            self._lost.clear()
+            try:
+                self._start()
+            except Exception as exc:  # noqa: BLE001 - retried after the next delay
+                logger.warning("Could not restart the sandbox tunnel relay: %s", exc)
+                continue
+            logger.warning(
+                "Restarted the sandbox tunnel relay; its open connections were closed"
+            )
+            return True
+        return False
+
+    def _discard(self) -> bool:
+        """Close the bridge and kill the relay; False when the kill failed."""
+        with self._lock:
+            if self.bridge is not None:
+                self.bridge.close()
+            handle, self._handle = self._handle, None
+            if handle is not None:
+                self._stale = handle
+            if self._stale is None:
+                return True
+            try:
+                self._stale.kill()
+            except Exception as exc:  # noqa: BLE001 - retried before the next start
+                logger.debug("Tunnel relay kill failed: %s", exc)
+                return False
+            self._stale = None
+            return True
 
     def stop(self) -> None:
-        self._stopping = True
-        self.bridge.close()
-        try:
-            self._handle.kill()
-        except Exception as exc:  # noqa: BLE001 - already gone is fine
-            logger.debug("Tunnel relay kill failed: %s", exc)
-        self._thread.join(timeout=5)
+        self._stopping.set()
+        self._lost.set()
+        self._discard()
+        for thread in (self._keeper, self._reader):
+            if thread is not None and thread is not threading.current_thread():
+                thread.join(timeout=5)
 
 
 class E2bBackend(SandboxBackend):
