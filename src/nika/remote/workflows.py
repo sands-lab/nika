@@ -119,6 +119,10 @@ def _sync_local_meta_from_remote(
         "llm_provider",
         "reasoning_effort",
         "max_tokens",
+        # The agent's sandbox runs on this host; session close removes it.
+        "sandbox_backend",
+        "sandbox_url",
+        "sandbox_domain",
     ):
         if key in local and key not in merged:
             merged[key] = local[key]
