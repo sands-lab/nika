@@ -24,11 +24,11 @@ from nika.mcp.gateway.lifecycle import (
     SANDBOX_GATEWAY_BIND_HOST,
     mcp_gateway_for_session,
 )
-from nika.utils.session import Session
+from nika.runtime.factory import resolve_backend
 from nika.utils.session_store import SessionStore
 from nika.workflows.env.start import start_net_env
 from nika.workflows.failure.inject import inject_failure
-from nika.workflows.session.close import close_session
+from nika.workflows.session.close import close_session, load_session_meta_for_close
 from nika.workflows.session.containers import list_session_containers
 from nika.workflows.session.list import list_sessions
 from nika.validation.presence import recheck_bound_artifact
@@ -57,6 +57,7 @@ class RemoteHandlerState:
         scenario_name: str,
         policy_mode: PolicyMode,
         public_host: str,
+        backend: str | None = None,
     ) -> McpAttachResponse:
         self.detach_gateway(session_id)
         stack = ExitStack()
@@ -68,6 +69,9 @@ class RemoteHandlerState:
                 host=SANDBOX_GATEWAY_BIND_HOST,
                 sandbox=True,
                 sandbox_agent_host=public_host,
+                # Multi-backend scenarios (e.g. ISP on Containerlab) serve
+                # backend-specific MCP servers; match the deployed lab.
+                backend=backend,
             )
         )
         self.gateways[session_id] = GatewayLease(stack=stack, manager=manager)
@@ -206,6 +210,7 @@ def handle_mcp_attach(session_id: str, request: McpAttachRequest) -> McpAttachRe
         return get_handler_state().attach_gateway(
             session_id,
             scenario_name=str(meta.get("scenario_name") or ""),
+            backend=resolve_backend(meta),
             policy_mode=request.policy_mode,
             public_host=public_host,
         )
@@ -282,12 +287,11 @@ def handle_session_containers(session_id: str) -> SessionContainersResponse:
 def handle_artifacts(session_id: str) -> bytes:
     logger.info("artifacts pack begin session_id=%s", session_id)
     try:
-        meta = SessionStore().get_session(session_id)
-        session_dir = meta.get("session_dir")
+        # Closed sessions stay readable: closing logs its own events
+        # (env_stop, session_cleared) that the agent host pulls afterwards.
+        session_dir = load_session_meta_for_close(session_id).get("session_dir")
         if not session_dir:
-            # Fall back to Session helper if store row is incomplete.
-            session = Session().load_running_session(session_id=session_id)
-            session_dir = session.session_dir
+            raise FileNotFoundError(f"Session '{session_id}' has no results directory.")
         payload = pack_session_dir(str(session_dir))
     except Exception:
         logger.exception("artifacts pack failed session_id=%s", session_id)

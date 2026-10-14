@@ -78,6 +78,45 @@ def test_pack_unpack_session_dir(tmp_path: Path) -> None:
     assert (dest / "nested" / "gt.json").is_file()
 
 
+def test_unpack_keeps_local_log_lines(tmp_path: Path) -> None:
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "nika.jsonl").write_text('{"e":"env_start"}\n{"e":"inject"}\n')
+    (src / "run.json").write_text('{"v":2}')
+    dest = tmp_path / "dest"
+    dest.mkdir()
+    # The agent host already pulled env_start and logged its own agent_start.
+    (dest / "nika.jsonl").write_text('{"e":"env_start"}\n{"e":"agent_start"}\n')
+    (dest / "run.json").write_text('{"v":1}')
+
+    unpack_session_dir(pack_session_dir(src), dest)
+
+    assert (dest / "nika.jsonl").read_text().splitlines() == [
+        '{"e":"env_start"}',
+        '{"e":"agent_start"}',
+        '{"e":"inject"}',
+    ]
+    assert (dest / "run.json").read_text() == '{"v":2}'
+
+
+def test_mcp_attach_serves_the_session_backend() -> None:
+    from nika.remote import handlers
+    from nika.remote.protocol import McpAttachRequest
+
+    meta = {"status": "running", "scenario_name": "isp_pdh", "backend": "containerlab"}
+    state = handlers.RemoteHandlerState()
+    with (
+        patch.object(handlers, "SessionStore") as store,
+        patch.object(handlers, "get_handler_state", return_value=state),
+        patch.object(state, "attach_gateway") as attach,
+    ):
+        store.return_value.get_session.return_value = meta
+        handlers.handle_mcp_attach("s1", McpAttachRequest())
+    # Without the backend, a multi-backend scenario falls back to Kathara's
+    # MCP servers and the agent's Containerlab tools are missing.
+    assert attach.call_args.kwargs["backend"] == "containerlab"
+
+
 def test_handle_env_start_logs(caplog: pytest.LogCaptureFixture) -> None:
     with (
         caplog.at_level(logging.INFO, logger="nika.remote"),
