@@ -284,6 +284,29 @@ def _cleanup_session_sandbox(session_meta: dict, *, session_id: str) -> None:
         )
 
 
+def _cleanup_local_sandboxes(session_id: str | None, *, stop_all: bool) -> None:
+    """Remove the sandboxes of remote-lab sessions from this host.
+
+    Resolution errors are left to the remote close, which reports them.
+    """
+    store = SessionStore()
+    try:
+        if stop_all:
+            sids = [row["session_id"] for row in store.list_running_sessions()]
+        else:
+            sids = [resolve_running_session_id(session_id, store=store)]
+    except (FileNotFoundError, ValueError):
+        return
+    for sid in sids:
+        try:
+            meta = store.get_session(sid)
+        except FileNotFoundError:
+            continue
+        if meta.get("session_dir"):
+            bind_session_dir(meta["session_dir"])
+        _cleanup_session_sandbox(meta, session_id=sid)
+
+
 def _clear_orphan_session_record(
     session_meta: dict,
     *,
@@ -556,6 +579,8 @@ def close_session(
     if is_remote_enabled():
         from nika.remote.workflows import remote_close_session
 
+        # The lab runs on the remote host, but the agent's sandbox runs here.
+        _cleanup_local_sandboxes(session_id, stop_all=stop_all)
         remote_close_session(
             session_id=session_id,
             undeploy=undeploy,
