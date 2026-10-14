@@ -594,7 +594,7 @@ class TestLeaderboardPackValidate:
         session = next(p for p in (result_dir / "trials").iterdir() if p.is_dir())
         # Binary tool output can decode to NEL/LS/PS inside a JSON string.
         records = [
-            {"event": "user", "output": "a\x85b c d\x1ce"},
+            {"event": "user", "output": "a\x85b\u2028c\u2029d\x1ce"},
             {"event": "tool_end", "output": "ok"},
         ]
         original = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records)
