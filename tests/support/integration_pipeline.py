@@ -41,16 +41,23 @@ def live_anthropic_test_config() -> tuple[str, str]:
     provider = (
         os.environ.get("NIKA_TEST_ANTHROPIC_PROVIDER", "deepseek").strip().lower()
     )
-    if provider not in {"deepseek", "anthropic"}:
-        raise ValueError("NIKA_TEST_ANTHROPIC_PROVIDER must be deepseek or anthropic")
+    if provider not in {"deepseek", "anthropic", "custom"}:
+        raise ValueError(
+            "NIKA_TEST_ANTHROPIC_PROVIDER must be deepseek, anthropic, or custom"
+        )
     model = os.environ.get("NIKA_TEST_ANTHROPIC_MODEL", "").strip()
     if not model:
-        if provider == "anthropic":
+        if provider != "deepseek":
             raise ValueError(
-                "Set NIKA_TEST_ANTHROPIC_MODEL to a Claude model available to your account"
+                "Set NIKA_TEST_ANTHROPIC_MODEL to a model available to your account"
             )
         model = "deepseek-v4-flash"
     return provider, model
+
+
+def live_custom_base_url() -> str:
+    """Endpoint (``agent.base_url``) of the ``custom`` test provider."""
+    return os.environ.get("NIKA_TEST_CUSTOM_BASE_URL", "").strip()
 
 
 def live_codex_test_model() -> str:

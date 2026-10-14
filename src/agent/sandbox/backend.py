@@ -158,6 +158,11 @@ class SandboxBackend(ABC):
         return {}
 
     @classmethod
+    def session_fields(cls, config: SandboxConfig) -> dict[str, str]:
+        """Session record fields :meth:`cleanup_session` needs under *config*."""
+        return {}
+
+    @classmethod
     @abstractmethod
     def cleanup_session(
         cls, session_meta: Mapping[str, Any]

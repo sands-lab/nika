@@ -60,6 +60,8 @@ class McpAttachResponse(BaseModel):
     gateway_base_url: str
     # Host-only secret for POST /gateway/sessions/{id}/phase.
     phase_token: str = ""
+    # Secret every MCP request of the session carries (NIKA-Session-Token).
+    session_token: str = ""
 
 
 class SessionCloseRequest(BaseModel):

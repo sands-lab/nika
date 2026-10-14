@@ -42,14 +42,43 @@ def sandbox_runtime_available() -> bool:
     return sbx_available() and sbx_authenticated()
 
 
-def sandbox_provider_credential_available(provider: str) -> bool:
-    """Require the selected provider's key or a global native sbx service secret."""
+def e2b_runtime_available() -> bool:
+    """True when the e2b backend has an SDK and an API key to reach a service."""
+    try:
+        import e2b  # noqa: F401
+    except ImportError:
+        return False
+    from agent.sandbox.e2b.backend import _api_key
+
+    return bool(_api_key(resolve_sandbox_config().env_file))
+
+
+def sandbox_backend_available(backend: str) -> bool:
+    if backend == "e2b":
+        return e2b_runtime_available()
+    return sandbox_runtime_available()
+
+
+def sandbox_provider_credential_available(
+    provider: str, *, backend: str = "sbx"
+) -> bool:
+    """Require the selected provider's key, or on sbx a global native sbx secret.
+
+    The ``custom`` test provider needs its endpoint (``NIKA_TEST_CUSTOM_BASE_URL``).
+    """
     from agent.utils.provider_env import has_provider_credentials
     from agent.sandbox.sbx.client import list_sbx_secret_services
+    from tests.support.integration_pipeline import live_custom_base_url
 
+    if provider == "custom":
+        return bool(live_custom_base_url())
     if has_provider_credentials(provider):
         return True
-    if provider not in {"openai", "anthropic"} or not sbx_available():
+    if (
+        backend != "sbx"
+        or provider not in {"openai", "anthropic"}
+        or not sbx_available()
+    ):
         return False
     try:
         return provider in list_sbx_secret_services(global_only=True)

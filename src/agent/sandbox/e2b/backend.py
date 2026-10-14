@@ -89,19 +89,24 @@ def _api_key(env_file: Path) -> str:
     return _env_setting(ENV_E2B_API_KEY, env_file)
 
 
-def _connection_opts(config: SandboxConfig) -> dict[str, str]:
+def _connection_opts(
+    config: SandboxConfig, *, domain: str | None = None
+) -> dict[str, str]:
     """E2B SDK connection parameters for *config*.
 
-    A service URL takes every request: serving API and all sandboxes at 
+    A service URL takes every request: serving API and all sandboxes at
     one address and route by request headers.
     Otherwise ``E2B_DOMAIN`` selects a self-hosted E2B, whose API and
     sandbox host names the SDK derives from it; without either, E2B cloud.
+    *domain* replaces ``E2B_DOMAIN`` ("" for E2B cloud).
     """
     opts = {"api_key": _api_key(config.env_file)}
+    if domain is None:
+        domain = _env_setting(ENV_E2B_DOMAIN, config.env_file)
     if config.url:
         opts["api_url"] = config.url
         opts["sandbox_url"] = config.url
-    elif domain := _env_setting(ENV_E2B_DOMAIN, config.env_file):
+    elif domain:
         opts["domain"] = domain
     return opts
 
@@ -630,6 +635,13 @@ class E2bBackend(SandboxBackend):
             logger.warning("Could not kill e2b sandbox: %s", exc)
 
     @classmethod
+    def session_fields(cls, config: SandboxConfig) -> dict[str, str]:
+        if config.url:
+            return {"sandbox_url": config.url}
+        domain = _env_setting(ENV_E2B_DOMAIN, config.env_file)
+        return {"sandbox_domain": domain} if domain else {}
+
+    @classmethod
     def cleanup_session(
         cls, session_meta: Mapping[str, Any]
     ) -> SandboxCleanupResult | None:
@@ -641,8 +653,9 @@ class E2bBackend(SandboxBackend):
         if not agent_sid:
             return None
         removed_sandbox = False
+        # Reach the service the session ran on (see session_fields).
         config = replace(resolve_sandbox_config(), url=session_meta.get("sandbox_url"))
-        opts = _connection_opts(config)
+        opts = _connection_opts(config, domain=session_meta.get("sandbox_domain") or "")
         if opts["api_key"]:
             try:
                 from e2b import Sandbox, SandboxQuery

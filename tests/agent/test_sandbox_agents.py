@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import json
 
 import pytest
@@ -12,8 +13,8 @@ from tests.agent._assertions import (
     assert_no_codex_tool_item_mirrors,
 )
 from tests.agent.sandbox_support import (
+    sandbox_backend_available,
     sandbox_provider_credential_available,
-    sandbox_runtime_available,
 )
 from tests.support.integration_base import OrderedPipelineTestCase
 from tests.support.integration_pipeline import (
@@ -24,6 +25,7 @@ from tests.support.integration_pipeline import (
     codex_sdk_available,
     live_anthropic_test_config,
     live_codex_test_model,
+    live_custom_base_url,
     load_test_env,
     sade_available,
 )
@@ -35,11 +37,13 @@ CLAUDE_PROVIDER, CLAUDE_MODEL = live_anthropic_test_config()
 # Codex CLI/SDK use OpenAI API keys or a ChatGPT login stored in sbx.
 CODEX_MODEL = live_codex_test_model()
 MAX_STEPS = 20
-_SANDBOX_SKIP = not sandbox_runtime_available()
+_backend_available = functools.cache(sandbox_backend_available)
 _SENSITIVE_NAMES = ("auth.json", ".credentials.json", ".host_auth")
 
 
-def _isolate_agent_run_config(*, agent_type: str, provider: str, model: str) -> None:
+def _isolate_agent_run_config(
+    *, agent_type: str, provider: str, model: str, backend: str
+) -> None:
     """Avoid host config/nika.yaml base_url leaking into provider env."""
     reset_run_config()
     set_run_config(
@@ -48,6 +52,7 @@ def _isolate_agent_run_config(*, agent_type: str, provider: str, model: str) -> 
                 "nika": {
                     "result_dir": "results/test",
                     "sandbox": {
+                        "backend": backend,
                         "offline_sdk_wheels": True,
                     },
                 },
@@ -56,7 +61,9 @@ def _isolate_agent_run_config(*, agent_type: str, provider: str, model: str) -> 
                     "provider": provider,
                     "model": model,
                     "max_steps": MAX_STEPS,
-                    "base_url": None,
+                    "base_url": live_custom_base_url()
+                    if provider == "custom"
+                    else None,
                 },
             }
         )
@@ -65,15 +72,24 @@ def _isolate_agent_run_config(*, agent_type: str, provider: str, model: str) -> 
 
 class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
     agent_type: str = ""
+    sandbox_backend: str = "sbx"
     llm_provider: str = CLAUDE_PROVIDER
     model: str = CLAUDE_MODEL
     _agent_run_failed: bool = False
 
     def setup_method(self) -> None:
+        backend = self.sandbox_backend
+        if not _backend_available(backend):
+            pytest.skip(f"{backend} sandbox runtime not available")
+        if not sandbox_provider_credential_available(
+            self.llm_provider, backend=backend
+        ):
+            pytest.skip(f"{self.llm_provider} credentials for {backend} not available")
         _isolate_agent_run_config(
             agent_type=self.agent_type,
             provider=self.llm_provider,
             model=self.model,
+            backend=backend,
         )
 
     def teardown_method(self) -> None:
@@ -143,59 +159,33 @@ class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
         self._step_close_and_verify(self.agent_type)
 
 
-@pytest.mark.skipif(_SANDBOX_SKIP, reason="Docker Sandboxes runtime not available")
-@pytest.mark.skipif(
-    not (codex_cli_available() and sandbox_provider_credential_available("openai")),
-    reason="Codex CLI + OPENAI_API_KEY or sbx openai secret required",
-)
+@pytest.mark.skipif(not codex_cli_available(), reason="Codex CLI not available")
 class SandboxCodexCliPipelineTest(SandboxAgentPipelineBase):
     agent_type = "cli.codex"
     llm_provider = "openai"
     model = CODEX_MODEL
 
 
-@pytest.mark.skipif(_SANDBOX_SKIP, reason="Docker Sandboxes runtime not available")
-@pytest.mark.skipif(
-    not (
-        claude_cli_available()
-        and sandbox_provider_credential_available(CLAUDE_PROVIDER)
-    ),
-    reason=f"Claude CLI + {CLAUDE_PROVIDER} credentials required (DeepSeek: DEEPSEEK_API_KEY; Anthropic: API key or sbx anthropic secret)",
-)
+@pytest.mark.skipif(not claude_cli_available(), reason="Claude CLI not available")
 class SandboxClaudeCliPipelineTest(SandboxAgentPipelineBase):
     agent_type = "cli.claude"
     model = CLAUDE_MODEL
 
 
-@pytest.mark.skipif(_SANDBOX_SKIP, reason="Docker Sandboxes runtime not available")
-@pytest.mark.skipif(
-    not (codex_sdk_available() and sandbox_provider_credential_available("openai")),
-    reason="Codex SDK + OPENAI_API_KEY or sbx openai secret required",
-)
+@pytest.mark.skipif(not codex_sdk_available(), reason="Codex SDK not available")
 class SandboxCodexSdkPipelineTest(SandboxAgentPipelineBase):
     agent_type = "sdk.codex_sdk"
     llm_provider = "openai"
     model = CODEX_MODEL
 
 
-@pytest.mark.skipif(_SANDBOX_SKIP, reason="Docker Sandboxes runtime not available")
-@pytest.mark.skipif(
-    not (
-        claude_sdk_available()
-        and sandbox_provider_credential_available(CLAUDE_PROVIDER)
-    ),
-    reason=f"Claude SDK + {CLAUDE_PROVIDER} credentials required (DeepSeek: DEEPSEEK_API_KEY; Anthropic: API key or sbx anthropic secret)",
-)
+@pytest.mark.skipif(not claude_sdk_available(), reason="Claude SDK not available")
 class SandboxClaudeSdkPipelineTest(SandboxAgentPipelineBase):
     agent_type = "sdk.claude_sdk"
     model = CLAUDE_MODEL
 
 
-@pytest.mark.skipif(_SANDBOX_SKIP, reason="Docker Sandboxes runtime not available")
-@pytest.mark.skipif(
-    not (sade_available() and sandbox_provider_credential_available(CLAUDE_PROVIDER)),
-    reason=f"SADE + {CLAUDE_PROVIDER} credentials required (DeepSeek: DEEPSEEK_API_KEY; Anthropic: API key or sbx anthropic secret)",
-)
+@pytest.mark.skipif(not sade_available(), reason="SADE not available")
 class SandboxSadePipelineTest(SandboxAgentPipelineBase):
     agent_type = "community.sade"
     model = CLAUDE_MODEL
@@ -208,3 +198,33 @@ class SandboxSadePipelineTest(SandboxAgentPipelineBase):
         assert messages, "SADE must emit messages.jsonl"
         tool_starts = [e for e in messages if e.get("event") == "tool_start"]
         assert tool_starts, "SADE must emit tool_start events"
+
+
+class _OnE2b:
+    """Run a pipeline class on the e2b backend, with its own session state."""
+
+    sandbox_backend = "e2b"
+    session_id = None
+    session_dir = None
+    env_destroyed = False
+    _agent_run_failed = False
+
+
+class E2bCodexCliPipelineTest(_OnE2b, SandboxCodexCliPipelineTest):
+    pass
+
+
+class E2bClaudeCliPipelineTest(_OnE2b, SandboxClaudeCliPipelineTest):
+    pass
+
+
+class E2bCodexSdkPipelineTest(_OnE2b, SandboxCodexSdkPipelineTest):
+    pass
+
+
+class E2bClaudeSdkPipelineTest(_OnE2b, SandboxClaudeSdkPipelineTest):
+    pass
+
+
+class E2bSadePipelineTest(_OnE2b, SandboxSadePipelineTest):
+    pass

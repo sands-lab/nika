@@ -11,7 +11,11 @@ from starlette.testclient import TestClient
 
 from nika.mcp.gateway.app import create_gateway_app
 from nika.mcp.gateway.context import get_bound_session_id
-from nika.mcp.gateway.session_registry import clear_sessions, register_session
+from nika.mcp.gateway.session_registry import (
+    clear_sessions,
+    get_session,
+    register_session,
+)
 from nika.mcp.servers.common.pingmesh_server import mcp as pingmesh_mcp
 
 pytestmark = pytest.mark.integration
@@ -45,8 +49,31 @@ def gateway() -> Iterator[TestClient]:
         clear_sessions()
 
 
+def _headers(session_id: str, **extra: str) -> dict:
+    token = get_session(session_id).access_token
+    return {
+        **_ACCEPT,
+        "NIKA-Session-Id": session_id,
+        "NIKA-Session-Token": token,
+        **extra,
+    }
+
+
 def _rpc(payload: dict) -> dict:
     return {"jsonrpc": "2.0", **payload}
+
+
+_INITIALIZE = _rpc(
+    {
+        "id": 1,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-06-18",
+            "capabilities": {},
+            "clientInfo": {"name": "test", "version": "0"},
+        },
+    }
+)
 
 
 def _result(response) -> dict:
@@ -60,30 +87,12 @@ def _result(response) -> dict:
 
 
 def _initialize(client: TestClient, session_id: str) -> str:
-    response = client.post(
-        _URL,
-        headers={**_ACCEPT, "NIKA-Session-Id": session_id},
-        json=_rpc(
-            {
-                "id": 1,
-                "method": "initialize",
-                "params": {
-                    "protocolVersion": "2025-06-18",
-                    "capabilities": {},
-                    "clientInfo": {"name": "test", "version": "0"},
-                },
-            }
-        ),
-    )
+    response = client.post(_URL, headers=_headers(session_id), json=_INITIALIZE)
     assert response.status_code == 200, response.text
     transport_id = response.headers["mcp-session-id"]
     client.post(
         _URL,
-        headers={
-            **_ACCEPT,
-            "NIKA-Session-Id": session_id,
-            "mcp-session-id": transport_id,
-        },
+        headers=_headers(session_id, **{"mcp-session-id": transport_id}),
         json=_rpc({"method": "notifications/initialized"}),
     )
     return transport_id
@@ -92,11 +101,7 @@ def _initialize(client: TestClient, session_id: str) -> str:
 def _call(client: TestClient, session_id: str, transport_id: str, name: str):
     return client.post(
         _URL,
-        headers={
-            **_ACCEPT,
-            "NIKA-Session-Id": session_id,
-            "mcp-session-id": transport_id,
-        },
+        headers=_headers(session_id, **{"mcp-session-id": transport_id}),
         json=_rpc(
             {"id": 2, "method": "tools/call", "params": {"name": name, "arguments": {}}}
         ),
@@ -109,6 +114,24 @@ def test_sync_tool_runs_off_loop_with_session_binding(gateway: TestClient) -> No
     response = _call(gateway, "sess-a", transport_id, "nika_test_probe_binding")
     payload = json.loads(_result(response)["result"]["content"][0]["text"])
     assert payload == {"session": "sess-a", "on_loop": False}
+
+
+def test_requests_need_their_session_token(gateway: TestClient) -> None:
+    register_session("sess-a", scenario_name="simple_bgp", access_policy=_OPEN)
+    register_session("sess-b", scenario_name="simple_bgp", access_policy=_OPEN)
+    other = get_session("sess-b").access_token
+    for token in ("", "guess", other):
+        response = gateway.post(
+            _URL,
+            headers={
+                **_ACCEPT,
+                "NIKA-Session-Id": "sess-a",
+                "NIKA-Session-Token": token,
+            },
+            json=_INITIALIZE,
+        )
+        assert response.status_code == 401, token
+        assert "NIKA-Session-Token" in response.text
 
 
 def test_transport_rejects_a_different_session_header(gateway: TestClient) -> None:

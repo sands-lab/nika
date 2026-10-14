@@ -18,6 +18,7 @@ from nika.remote.protocol import (
     SessionContainersResponse,
 )
 from nika.mcp.gateway.phase import phase_advance_token
+from nika.mcp.gateway.session_registry import get_session
 from nika.mcp.gateway.lifecycle import (
     McpGatewayManager,
     SANDBOX_GATEWAY_BIND_HOST,
@@ -86,6 +87,7 @@ class RemoteHandlerState:
             gateway_port=manager.port,
             gateway_base_url=base,
             phase_token=phase_advance_token(session_id),
+            session_token=get_session(session_id).access_token,
         )
 
     def detach_gateway(self, session_id: str) -> None:
