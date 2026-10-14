@@ -188,6 +188,37 @@ def test_e2b_template_name_tracks_pin_and_sizing() -> None:
     )
 
 
+def test_e2b_connection_uses_url_then_domain_then_cloud(tmp_path, monkeypatch) -> None:
+    """A service URL takes every request; otherwise E2B_DOMAIN; else E2B cloud."""
+    from dataclasses import replace
+
+    from agent.sandbox.config import SandboxConfig
+    from agent.sandbox.e2b.backend import _connection_opts
+
+    for name in ("E2B_API_KEY", "E2B_DOMAIN"):
+        monkeypatch.delenv(name, raising=False)
+    env_file = tmp_path / ".env"
+    env_file.write_text("E2B_API_KEY=key\nE2B_DOMAIN=e2b.example.org\n")
+    config = SandboxConfig(
+        backend="e2b",
+        env_file=env_file,
+        keep_container=False,
+        cpus=2,
+        memory="4g",
+        offline_sdk_wheels=True,
+    )
+
+    assert _connection_opts(config) == {"api_key": "key", "domain": "e2b.example.org"}
+    url = "http://localhost:8000"
+    assert _connection_opts(replace(config, url=url)) == {
+        "api_key": "key",
+        "api_url": url,
+        "sandbox_url": url,
+    }
+    env_file.write_text("E2B_API_KEY=key\n")
+    assert _connection_opts(config) == {"api_key": "key"}
+
+
 def test_e2b_async_process_keeps_streams_separate_and_reports_exit() -> None:
     """Host CLI workers read stdout lines and stderr separately, then the code."""
     import asyncio
