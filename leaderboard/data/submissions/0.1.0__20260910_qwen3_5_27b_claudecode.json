@@ -53,7 +53,7 @@
   "run_id": "preview-qwen3_5_27b_claudecode",
   "official": false,
   "nika_git_commit": null,
-  "name": "Qwen3.5-27B · Claude Code · test · preview-qwen3_5_27b_claudecode",
+  "name": "Qwen3.5-27B · Claude Code",
   "readme": "# Qwen3.5-27B ClaudeCode\n\nSlide-reported results on NIKA release 0.1.0. Aggregate metrics only; no per-trial results.",
   "trials": [],
   "rca_confusion": {

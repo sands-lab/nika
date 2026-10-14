@@ -304,7 +304,7 @@
       "run_id": "preview-qwen3_5_27b_claudecode",
       "official": false,
       "nika_git_commit": null,
-      "name": "Qwen3.5-27B · Claude Code · test · preview-qwen3_5_27b_claudecode",
+      "name": "Qwen3.5-27B · Claude Code",
       "rca_f1_ci": null,
       "beaten_by": [
         "0.1.0/20260910_gpt_5_mini_react",
@@ -369,7 +369,7 @@
       "run_id": "preview-qwen3_5_27b_react",
       "official": false,
       "nika_git_commit": null,
-      "name": "Qwen3.5-27B · ReAct · test · preview-qwen3_5_27b_react",
+      "name": "Qwen3.5-27B · ReAct",
       "rca_f1_ci": null,
       "beaten_by": [
         "0.1.0/20260910_gpt_5_mini_react",
@@ -576,7 +576,7 @@
       "run_id": "preview-gpt_oss_20b_react",
       "official": false,
       "nika_git_commit": null,
-      "name": "GPT-OSS-20B · ReAct · test · preview-gpt_oss_20b_react",
+      "name": "GPT-OSS-20B · ReAct",
       "rca_f1_ci": null,
       "beaten_by": [
         "0.1.0/20260910_gpt_5_mini_react",
@@ -645,7 +645,7 @@
       "run_id": "preview-gpt_oss_20b_react_replication",
       "official": false,
       "nika_git_commit": null,
-      "name": "GPT-OSS-20B · ReAct · test · preview-gpt_oss_20b_react_replication",
+      "name": "GPT-OSS-20B · ReAct · replication",
       "rca_f1_ci": null,
       "beaten_by": [
         "0.1.0/20260910_gpt_5_mini_react",
@@ -959,7 +959,7 @@
       "run_id": "d45f4be0c28acc57",
       "official": true,
       "nika_git_commit": "ba4e78364b26b3a948c234e450c93df3e23090be",
-      "name": "Qwen3.5-27B · ReAct · test · d45f4be0c28acc57",
+      "name": "Qwen3.5-27B · ReAct",
       "rca_f1_ci": [
         0.253727,
         0.418564
@@ -1040,7 +1040,7 @@
       "run_id": "6306186bfe22100a",
       "official": true,
       "nika_git_commit": "ba4e78364b26b3a948c234e450c93df3e23090be",
-      "name": "Qwen3.5-27B · Claude Code · test · 6306186bfe22100a",
+      "name": "Qwen3.5-27B · Claude Code",
       "rca_f1_ci": [
         0.237835,
         0.399448
