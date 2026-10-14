@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import logging
+import os
+import time
 from contextlib import ExitStack
+from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from nika.remote.artifacts import pack_session_dir
 from nika.remote.protocol import (
+    FOLLOWED_LOGS,
     EnvStartRequest,
     EnvStartResponse,
     FailureInjectRequest,
@@ -16,6 +21,9 @@ from nika.remote.protocol import (
     McpAttachResponse,
     PolicyMode,
     SessionContainersResponse,
+    SessionLogResponse,
+    SessionRebindRequest,
+    SessionRebindResponse,
 )
 from nika.mcp.gateway.phase import phase_advance_token
 from nika.mcp.gateway.session_registry import get_session
@@ -25,6 +33,9 @@ from nika.mcp.gateway.lifecycle import (
     mcp_gateway_for_session,
 )
 from nika.runtime.factory import resolve_backend
+from nika.utils.agent_session_id import make_agent_session_id
+from nika.utils.logger import bind_session_dir, log_event
+from nika.utils.session import Session
 from nika.utils.session_store import SessionStore
 from nika.workflows.env.start import start_net_env
 from nika.workflows.failure.inject import inject_failure
@@ -34,6 +45,8 @@ from nika.workflows.session.list import list_sessions
 from nika.validation.presence import recheck_bound_artifact
 
 logger = logging.getLogger("nika.remote")
+# Cap one log read so a large backlog streams in several polls.
+MAX_LOG_CHUNK = 4 << 20
 
 
 class GatewayLease:
@@ -287,14 +300,139 @@ def handle_session_containers(session_id: str) -> SessionContainersResponse:
 def handle_artifacts(session_id: str) -> bytes:
     logger.info("artifacts pack begin session_id=%s", session_id)
     try:
-        # Closed sessions stay readable: closing logs its own events
-        # (env_stop, session_cleared) that the agent host pulls afterwards.
-        session_dir = load_session_meta_for_close(session_id).get("session_dir")
-        if not session_dir:
-            raise FileNotFoundError(f"Session '{session_id}' has no results directory.")
-        payload = pack_session_dir(str(session_dir))
+        payload = pack_session_dir(_session_dir(session_id))
     except Exception:
         logger.exception("artifacts pack failed session_id=%s", session_id)
         raise
     logger.info("artifacts pack done session_id=%s bytes=%s", session_id, len(payload))
     return payload
+
+
+def _session_dir(session_id: str) -> str:
+    """Results directory of a running or closed session on this host.
+
+    Closed sessions stay readable so the agent host can pull the events that
+    closing writes (``env_stop``, ``session_cleared``).
+    """
+    session_dir = load_session_meta_for_close(session_id).get("session_dir")
+    if not session_dir:
+        raise FileNotFoundError(f"Session '{session_id}' has no results directory.")
+    return str(session_dir)
+
+
+def handle_session_log(session_id: str, name: str, offset: int) -> SessionLogResponse:
+    """Return complete lines of a followed session log from byte ``offset``."""
+    if name not in FOLLOWED_LOGS:
+        raise ValueError(
+            f"Log {name!r} cannot be followed; use one of {FOLLOWED_LOGS}."
+        )
+    path = Path(_session_dir(session_id)) / name
+    server_time = time.time()
+    if not path.is_file():
+        return SessionLogResponse(data="", offset=0, server_time=server_time)
+    with path.open("rb") as fh:
+        size = fh.seek(0, os.SEEK_END)
+        # A shorter file was replaced (e.g. by a rebind): read it from the start.
+        start = offset if 0 <= offset <= size else 0
+        fh.seek(start)
+        chunk = fh.read(MAX_LOG_CHUNK)
+        if b"\n" not in chunk:
+            chunk += fh.readline()  # a single line longer than one chunk
+    end = chunk.rfind(b"\n") + 1  # never hand out a partially written line
+    return SessionLogResponse(
+        data=chunk[:end].decode("utf-8"), offset=start + end, server_time=server_time
+    )
+
+
+def handle_session_rebind(
+    session_id: str, request: SessionRebindRequest
+) -> SessionRebindResponse:
+    """Move a running session to a new id, agent id and results directory.
+
+    A lab restored from a VM snapshot still carries the session it was built
+    with. Each trial needs its own identity, and the build-time events in the
+    session logs are kept as ``snapshot.<log>`` instead of opening the trial log.
+    """
+    new_id = request.session_id
+    if not new_id or Path(new_id).name != new_id or new_id in (".", ".."):
+        raise ValueError(f"Invalid session id {new_id!r}.")
+    store = SessionStore()
+    meta = store.get_session(session_id)
+    if meta.get("status") != "running":
+        raise ValueError(f"Session '{session_id}' is not running.")
+    if session_id in get_handler_state().gateways:
+        raise ValueError(f"Session '{session_id}' has an attached MCP gateway.")
+    try:
+        store.get_session(new_id)
+    except FileNotFoundError:
+        pass
+    else:
+        raise ValueError(f"Session '{new_id}' already exists.")
+    old_dir = Path(str(meta["session_dir"]))
+    new_dir = old_dir.parent / new_id
+    if new_dir.exists():
+        raise ValueError(f"Results directory {new_dir} already exists.")
+    old_dir.rename(new_dir)
+    for name in FOLLOWED_LOGS:
+        log = new_dir / name
+        if log.is_file():
+            log.rename(new_dir / f"snapshot.{name}")
+    now = datetime.now(timezone.utc).isoformat()
+    doc = dict(meta)
+    doc.update(
+        session_id=new_id,
+        agent_session_id=request.agent_session_id or make_agent_session_id(),
+        session_dir=str(new_dir),
+        created_at=now,
+        updated_at=now,
+        rebound_from=session_id,
+    )
+    store.create_session(doc)
+    store.delete_session(session_id, status="finished")
+    session = Session()
+    session.load_running_session(session_id=new_id)
+    session._write_run_json({k: v for k, v in session.__dict__.items() if k != "store"})
+    bind_session_dir(new_dir)
+    log_event(
+        "session_rebind",
+        f"Session {session_id} continues as {new_id}",
+        session_id=new_id,
+        rebound_from=session_id,
+        lab_name=meta.get("lab_name"),
+    )
+    logger.info("session rebind %s -> %s", session_id, new_id)
+    return SessionRebindResponse(session_id=new_id, session=session_public_dict(new_id))
+
+
+def handle_session_verify(session_id: str) -> dict[str, Any]:
+    """Run the startup lab verification of a running session again.
+
+    Uses the same check and retry budget as ``nika env run`` (``verify_lab_with_retry``),
+    e.g. to confirm a lab restored from a snapshot before injecting a fault.
+    """
+    from nika.net_env.verify import verify_lab_with_retry
+    from nika.workflows.session.close import session_net_env
+
+    meta = SessionStore().get_session(session_id)
+    if meta.get("status") != "running":
+        raise ValueError(f"Session '{session_id}' is not running.")
+    bind_session_dir(str(meta["session_dir"]))
+    net_env = session_net_env(meta)
+    started = time.monotonic()
+    result = verify_lab_with_retry(net_env)
+    verified = result is not None  # None: the scenario has no startup verification
+    outcome = "passed again" if verified else "skipped (no startup verification)"
+    log_event(
+        "env_reverify",
+        f"Lab verification {outcome} for {meta.get('scenario_name')} "
+        f"({meta.get('lab_name')})",
+        session_id=session_id,
+        verified=verified,
+        checks=(result or {}).get("checks"),
+        duration_ms=round((time.monotonic() - started) * 1000, 1),
+    )
+    return {
+        "session_id": session_id,
+        "verified": verified,
+        "checks": (result or {}).get("checks"),
+    }

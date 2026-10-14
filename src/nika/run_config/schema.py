@@ -25,6 +25,50 @@ class RemoteSettings(BaseModel):
     artifact_root: str | None = None
 
 
+def _gib(value: str) -> str:
+    if not value.endswith("GiB") or not value[:-3].isdigit():
+        raise ValueError(f"VM memory must look like '8GiB', got {value!r}")
+    return value
+
+
+class SnapshotSettings(BaseModel):
+    """Advanced: run benchmark trials from stateful Incus VM snapshots of labs.
+
+    Each environment variant is deployed and verified once in a VM built from
+    ``base``; trials restore a copy of that VM instead of deploying from scratch.
+    See docs/operations/vm-snapshots.md.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    # Incus ``<vm>/<snapshot>`` packaged by scripts/snapshot-base.sh.
+    base: str = "nika-base/installed"
+    vm_cpus: int = Field(default=16, ge=1)
+    vm_memory: str = "8GiB"
+    # Scenario id -> VM memory, for labs larger than ``vm_memory`` (e.g. SR Linux).
+    vm_memory_overrides: dict[str, str] = Field(default_factory=dict)
+    # Re-run the startup lab verification after each restore, as a cold deploy does.
+    verify_after_restore: bool = True
+
+    @field_validator("vm_memory")
+    @classmethod
+    def _memory_in_gib(cls, value: str) -> str:
+        return _gib(value)
+
+    @field_validator("vm_memory_overrides")
+    @classmethod
+    def _overrides_in_gib(cls, value: dict[str, str]) -> dict[str, str]:
+        return {scenario: _gib(memory) for scenario, memory in value.items()}
+
+    @field_validator("base")
+    @classmethod
+    def _base_names_snapshot(cls, value: str) -> str:
+        if value.count("/") != 1 or not all(value.split("/")):
+            raise ValueError("nika.snapshot.base must be '<vm>/<snapshot>'")
+        return value
+
+
 class SandboxSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -167,6 +211,7 @@ class NikaSettings(BaseModel):
 
     result_dir: str = "results"
     remote: RemoteSettings = Field(default_factory=RemoteSettings)
+    snapshot: SnapshotSettings = Field(default_factory=SnapshotSettings)
     sandbox: SandboxSettings = Field(default_factory=SandboxSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
     judge: JudgeSettings = Field(default_factory=JudgeSettings)

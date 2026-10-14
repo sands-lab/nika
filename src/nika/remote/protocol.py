@@ -8,6 +8,9 @@ from pydantic import BaseModel, Field
 
 PolicyMode = Literal["two_phase"]
 
+# Append-only session logs the agent host follows while a remote trial runs.
+FOLLOWED_LOGS = ("nika.jsonl", "messages.jsonl")
+
 
 class HealthResponse(BaseModel):
     status: str = "ok"
@@ -67,6 +70,28 @@ class McpAttachResponse(BaseModel):
 class SessionCloseRequest(BaseModel):
     undeploy: bool = True
     stop_all: bool = False
+
+
+class SessionRebindRequest(BaseModel):
+    """Give a running session a fresh identity (e.g. after a VM snapshot restore)."""
+
+    session_id: str
+    # Minted by the agent host: a restored lab host's clock is the snapshot's.
+    agent_session_id: str | None = None
+
+
+class SessionRebindResponse(BaseModel):
+    session_id: str
+    session: dict[str, Any] = Field(default_factory=dict)
+
+
+class SessionLogResponse(BaseModel):
+    """Complete lines appended to a session log since ``offset``."""
+
+    data: str
+    offset: int
+    # Daemon wall clock when the chunk was read; lets the client record its offset.
+    server_time: float
 
 
 class SessionContainersResponse(BaseModel):
