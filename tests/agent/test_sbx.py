@@ -878,7 +878,11 @@ def test_ensure_sbx_credentials_skips_existing_custom_secret(tmp_path) -> None:
 
 def test_ensure_sbx_credentials_accepts_existing_oauth_secret(tmp_path) -> None:
     env_file = tmp_path / ".env"
-    env_file.write_text("", encoding="utf-8")
+    # Other providers' keys are not OpenAI credentials.
+    env_file.write_text(
+        "NIKA_CUSTOM_API_KEY=custom-key\nDEEPSEEK_API_KEY=deepseek-key\n",
+        encoding="utf-8",
+    )
     with (
         patch("agent.sandbox.sbx.credentials.sbx_available", return_value=True),
         patch(
@@ -908,7 +912,11 @@ def test_ensure_sbx_credentials_accepts_existing_anthropic_oauth_secret(
     tmp_path,
 ) -> None:
     env_file = tmp_path / ".env"
-    env_file.write_text("", encoding="utf-8")
+    # Other providers' keys are not Anthropic credentials.
+    env_file.write_text(
+        "NIKA_CUSTOM_API_KEY=custom-key\nDEEPSEEK_API_KEY=deepseek-key\n",
+        encoding="utf-8",
+    )
     with (
         patch("agent.sandbox.sbx.credentials.sbx_available", return_value=True),
         patch(
@@ -957,26 +965,36 @@ def test_anthropic_subscription_mode_false_when_env_api_key_present() -> None:
 
 def test_ensure_sbx_credentials_missing_raises_guidance(tmp_path) -> None:
     env_file = tmp_path / ".env"
-    env_file.write_text("", encoding="utf-8")
-    with (
-        patch("agent.sandbox.sbx.credentials.sbx_available", return_value=True),
-        patch(
-            "agent.sandbox.sbx.credentials.list_sbx_secret_services",
-            return_value=set(),
-        ),
-        patch(
-            "agent.sandbox.sbx.credentials.list_sbx_custom_secrets",
-            return_value={},
-        ),
-        patch.dict(os.environ, {}, clear=True),
-        pytest.raises(RuntimeError, match="openai --oauth"),
+    # Other providers' keys never become the global openai/anthropic secret.
+    env_file.write_text(
+        "NIKA_CUSTOM_API_KEY=custom-key\nDEEPSEEK_API_KEY=deepseek-key\n",
+        encoding="utf-8",
+    )
+    for provider, agent_type, guidance in (
+        ("openai", "cli.codex", "openai --oauth"),
+        ("anthropic", "cli.claude", "/login"),
     ):
-        ensure_sbx_credentials(
-            env_file=env_file,
-            required_services={"openai"},
-            provider="openai",
-            agent_type="cli.codex",
-        )
+        with (
+            patch("agent.sandbox.sbx.credentials.sbx_available", return_value=True),
+            patch(
+                "agent.sandbox.sbx.credentials.list_sbx_secret_services",
+                return_value=set(),
+            ),
+            patch(
+                "agent.sandbox.sbx.credentials.list_sbx_custom_secrets",
+                return_value={},
+            ),
+            patch("agent.sandbox.sbx.credentials.run_sbx_checked") as run,
+            patch.dict(os.environ, {}, clear=True),
+            pytest.raises(RuntimeError, match=guidance),
+        ):
+            ensure_sbx_credentials(
+                env_file=env_file,
+                required_services={provider},
+                provider=provider,
+                agent_type=agent_type,
+            )
+        run.assert_not_called()
     assert "OPENAI_API_KEY" in missing_credential_message("openai")
     assert "/login" in missing_credential_message("anthropic")
 

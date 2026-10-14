@@ -334,6 +334,15 @@ def ensure_sbx_credentials(
     need_openai = not required or SERVICE_OPENAI in required
     need_anthropic = not required or SERVICE_ANTHROPIC in required
 
+    # The official endpoints take only their own provider's key: a DeepSeek or
+    # custom key in .env must never become the global sbx openai/anthropic
+    # secret, nor turn a subscription login into API-key mode.
+    official_openai_key = sources.get(ENV_OPENAI_API_KEY, "").strip()
+    official_anthropic_key = (
+        sources.get(ENV_ANTHROPIC_API_KEY, "").strip()
+        or sources.get(ENV_ANTHROPIC_AUTH_TOKEN, "").strip()
+    )
+
     openai_key = _openai_secret_value(sources) if need_openai else ""
     if need_openai:
         if third_party_oai and openai_base:
@@ -355,11 +364,11 @@ def ensure_sbx_credentials(
             third_party_oai_synced = True
             api_key_services.add(SERVICE_OPENAI)
             satisfied.add(SERVICE_OPENAI)
-        elif openai_key:
+        elif official_openai_key:
             if SERVICE_OPENAI not in existing_services:
                 run_sbx_checked(
                     ["secret", "set", "-g", SERVICE_OPENAI],
-                    input_text=openai_key,
+                    input_text=official_openai_key,
                 )
             api_key_services.add(SERVICE_OPENAI)
             satisfied.add(SERVICE_OPENAI)
@@ -386,11 +395,11 @@ def ensure_sbx_credentials(
             third_party_synced = True
             api_key_services.add(SERVICE_ANTHROPIC)
             satisfied.add(SERVICE_ANTHROPIC)
-        elif anthropic_key and not third_party_anth:
+        elif official_anthropic_key and not third_party_anth:
             if SERVICE_ANTHROPIC not in existing_services:
                 run_sbx_checked(
                     ["secret", "set", "-g", SERVICE_ANTHROPIC],
-                    input_text=anthropic_key,
+                    input_text=official_anthropic_key,
                 )
             api_key_services.add(SERVICE_ANTHROPIC)
             satisfied.add(SERVICE_ANTHROPIC)
