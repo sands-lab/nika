@@ -57,6 +57,7 @@ from nika.utils.logger import elapsed_ms, log_event
 logger = logging.getLogger(__name__)
 
 ENV_E2B_API_KEY = "E2B_API_KEY"
+ENV_E2B_DOMAIN = "E2B_DOMAIN"
 _RELAY_NAME = "nika_tunnel_relay.py"
 _METADATA_SESSION_KEY = "nika_agent_session_id"
 _TUNNEL_READY_TIMEOUT_SEC = 30
@@ -76,22 +77,32 @@ _DISABLE_PAGE_RECLAIM = (
 _SDK_TEMPLATES = frozenset(AGENT_TEMPLATES[agent] for agent in SDK_AGENT_TYPES)
 
 
-def _api_key(env_file: Path) -> str:
-    """``E2B_API_KEY`` from the process env, else from the repo ``.env``."""
-    value = os.environ.get(ENV_E2B_API_KEY, "").strip()
+def _env_setting(name: str, env_file: Path) -> str:
+    """*name* from the process env, else from the repo ``.env``."""
+    value = os.environ.get(name, "").strip()
     if value:
         return value
-    return (load_sandbox_env_values(env_file).get(ENV_E2B_API_KEY) or "").strip()
+    return (load_sandbox_env_values(env_file).get(name) or "").strip()
+
+
+def _api_key(env_file: Path) -> str:
+    return _env_setting(ENV_E2B_API_KEY, env_file)
 
 
 def _connection_opts(config: SandboxConfig) -> dict[str, str]:
-    """E2B SDK connection parameters for *config*."""
+    """E2B SDK connection parameters for *config*.
+
+    A service URL takes every request: serving API and all sandboxes at 
+    one address and route by request headers.
+    Otherwise ``E2B_DOMAIN`` selects a self-hosted E2B, whose API and
+    sandbox host names the SDK derives from it; without either, E2B cloud.
+    """
     opts = {"api_key": _api_key(config.env_file)}
     if config.url:
-        # Self-hosted services such as AgentENV serve the sandbox API at the
-        # same URL; E2B cloud derives per-sandbox URLs from its domain instead.
         opts["api_url"] = config.url
         opts["sandbox_url"] = config.url
+    elif domain := _env_setting(ENV_E2B_DOMAIN, config.env_file):
+        opts["domain"] = domain
     return opts
 
 
