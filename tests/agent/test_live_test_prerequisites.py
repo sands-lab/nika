@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -56,9 +58,10 @@ def test_live_credentials_match_provider_and_global_scope(
 
 
 def test_live_credentials_follow_the_sandbox_backend(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """sbx secrets count only on sbx; the custom provider needs its endpoint."""
+    """Each runtime counts its own logins; the custom provider needs its endpoint."""
+    monkeypatch.setattr("agent.sandbox.subscription.CODEX_LOGIN_HOME", tmp_path)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("NIKA_TEST_CUSTOM_BASE_URL", raising=False)
     monkeypatch.setattr("tests.agent.sandbox_support.sbx_available", lambda: True)
@@ -70,6 +73,14 @@ def test_live_credentials_follow_the_sandbox_backend(
     )
     assert sandbox_provider_credential_available("openai", backend="sbx")
     assert not sandbox_provider_credential_available("openai", backend="e2b")
+    tokens = {
+        "access_token": "a",
+        "refresh_token": "r",
+        "id_token": "i",
+        "account_id": "x",
+    }
+    (tmp_path / "auth.json").write_text(json.dumps({"tokens": tokens}))
+    assert sandbox_provider_credential_available("openai", backend="e2b")
     assert not sandbox_provider_credential_available("custom", backend="e2b")
     monkeypatch.setenv("NIKA_TEST_CUSTOM_BASE_URL", "http://model.example/v1")
     assert sandbox_provider_credential_available("custom", backend="e2b")

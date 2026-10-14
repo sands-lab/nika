@@ -103,7 +103,7 @@ The flag installs `docker-sbx` from Docker's apt repo, or runs `get.docker.com` 
 
 sbx runs each sandbox as a KVM microVM, so your user needs read/write on `/dev/kvm`. When it lacks access, the installer adds you to the group that owns the device (usually `kvm`). Open a new login shell (or run `newgrp kvm`), then run `sbx daemon stop` so the next NIKA run starts the daemon with the new group. Without this, `sbx create` fails with `KVM error: Permission denied`. If `/dev/kvm` is missing, enable hardware virtualization (or nested virtualization on a VM).
 
-See [Agent sandboxing](agent-sandbox.md) for credentials and runtime settings.
+Without KVM, skip sbx and [run sandboxed agents on E2B](agent-sandbox.md#connect-to-e2b) instead. See [Agent sandboxing](agent-sandbox.md) for credentials and runtime settings.
 
 ## Prepare vendor images
 

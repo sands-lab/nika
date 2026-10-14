@@ -62,13 +62,15 @@ nika:
     url: null
     # Keep the sandbox after a run for debugging.
     keep: false
-    # vCPUs per sandbox. Null lets sbx use every host vCPU.
+    # vCPUs per sandbox. Null lets sbx use every host vCPU (e2b: service default).
     cpus: 2
-    # Memory per sandbox. Null lets sbx use half of host memory.
+    # Memory per sandbox. Null lets sbx use half of host memory (e2b: service
+    # default).
     memory: 4g
-    # Install SDK agents from cached wheels instead of downloading packages.
+    # sbx: install SDK agents from cached wheels instead of downloading
+    # packages. e2b templates already contain them.
     offline_sdk_wheels: true
-    # Route sandboxd and sbx traffic through this proxy.
+    # sbx: route sandboxd and sbx traffic through this proxy.
     upstream_proxy: null
   observability:
     # Send byo.langgraph traces to Langfuse.
