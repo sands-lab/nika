@@ -169,7 +169,12 @@ def scan_trajectory_package_dir(trajectories_dir: Path) -> list[str]:
                 issues.extend(scan_value_for_issues(data, label=rel))
             continue
         if path.suffix == ".jsonl":
-            for line_number, line in enumerate(raw.splitlines(), start=1):
+            # JSONL records end at "\n" only; splitlines() also breaks on
+            # U+0085/U+2028 etc. that tool output can carry inside a string.
+            lines = raw.split("\n")
+            if lines and not lines[-1]:
+                lines.pop()
+            for line_number, line in enumerate(lines, start=1):
                 label = f"{rel}:{line_number}"
                 try:
                     data = json.loads(line)

@@ -587,6 +587,27 @@ class TestLeaderboardPackValidate:
         assert validate_leaderboard_submission(result.scores_dir).ok
         assert (session / "messages.jsonl").read_text(encoding="utf-8") == original
 
+    def test_pack_keeps_jsonl_records_with_unicode_line_separators(
+        self, mini_release_env
+    ) -> None:
+        _release, result_dir = mini_release_env
+        session = next(p for p in (result_dir / "trials").iterdir() if p.is_dir())
+        # Binary tool output can decode to NEL/LS/PS inside a JSON string.
+        records = [
+            {"event": "user", "output": "a\x85b c d\x1ce"},
+            {"event": "tool_end", "output": "ok"},
+        ]
+        original = "".join(json.dumps(r, ensure_ascii=False) + "\n" for r in records)
+        (session / "messages.jsonl").write_text(original, encoding="utf-8")
+
+        result = pack_leaderboard_submission(
+            result_dir, metadata=_FULL_METADATA, readme_text=_DEFAULT_README
+        )
+        packed = result.trajectories_dir / "trials" / session.name / "messages.jsonl"
+        raw = packed.read_text(encoding="utf-8")
+        assert [json.loads(line) for line in raw.split("\n")[:-1]] == records
+        assert validate_leaderboard_submission(result.scores_dir).ok
+
     def test_submit_preserves_jsonl_and_scans_decoded_records(
         self, mini_release_env
     ) -> None:

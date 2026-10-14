@@ -141,7 +141,12 @@ def _write_sanitized_trajectory_file(
         return
     if src.suffix == ".jsonl":
         with dest.open("w", encoding="utf-8") as output:
-            for line_number, line in enumerate(raw.splitlines(), start=1):
+            # JSONL records end at "\n" only; splitlines() also breaks on
+            # U+0085/U+2028 etc. that tool output can carry inside a string.
+            lines = raw.split("\n")
+            if lines and not lines[-1]:
+                lines.pop()
+            for line_number, line in enumerate(lines, start=1):
                 try:
                     data = json.loads(line)
                 except json.JSONDecodeError as exc:
