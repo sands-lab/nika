@@ -128,6 +128,15 @@ def _rewrite_gateway_base_for_client(base: str) -> str:
     return base
 
 
+def _phase_timeout_sec() -> float:
+    try:
+        from nika.run_config.loader import get_run_config
+
+        return float(get_run_config().nika.mcp.read_timeout_sec)
+    except Exception:  # noqa: BLE001 - fall back when no run config is loadable
+        return 120.0
+
+
 def _http_advance_submission_phase(
     session_id: str,
     base: str,
@@ -151,7 +160,9 @@ def _http_advance_submission_phase(
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=10) as response:
+        # The lab host freezes the report and builds the submission catalog; a
+        # busy lab host can take well over 10 s.
+        with urllib.request.urlopen(request, timeout=_phase_timeout_sec()) as response:
             if response.status != 200:
                 raise RuntimeError(
                     f"MCP phase advance failed with HTTP {response.status}"
