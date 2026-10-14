@@ -138,7 +138,7 @@ Choose the agent tests that match your available credentials. Set API keys and t
 
 | Live E2E coverage | Provider and model | Required credentials |
 |-------------------|--------------------|----------------------|
-| Codex CLI/SDK sandbox agents; Codex sandbox benchmark | `openai`, default `gpt-5-mini` | `OPENAI_API_KEY`; or a ChatGPT login with Codex access: a native `openai` sbx secret on sbx, or the [E2B Codex login](../operations/agent-sandbox.md#subscriptions-with-e2b) on E2B |
+| Codex CLI/SDK sandbox agents; Codex sandbox benchmark | `openai`, default `gpt-5-mini` | `OPENAI_API_KEY`; or a ChatGPT login with Codex access: a native `openai` sbx secret on sbx (CLI agent and benchmark only; the sbx Codex SDK test needs `OPENAI_API_KEY`), or the [E2B Codex login](../operations/agent-sandbox.md#subscriptions-with-e2b) on E2B |
 | Claude CLI/SDK and SADE sandbox agents; Claude sandbox benchmark; Kubernetes Claude agent E2E | Default `deepseek` / `deepseek-v4-flash` | `DEEPSEEK_API_KEY`; no Claude subscription required |
 | The same Claude-family tests with the Anthropic override below | `anthropic`, explicit account-accessible Claude model | `ANTHROPIC_API_KEY` (legacy `ANTHROPIC_AUTH_TOKEN` also works); or a Claude subscription with Claude Code access: a native `anthropic` sbx secret on sbx, or `CLAUDE_CODE_OAUTH_TOKEN` on E2B |
 | The same Claude-family tests with the custom override below | `custom`, explicit model served by your endpoint | `NIKA_TEST_CUSTOM_BASE_URL`, plus `NIKA_CUSTOM_API_KEY` if the endpoint requires one |

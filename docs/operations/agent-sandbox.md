@@ -130,7 +130,9 @@ After confirming the global Claude credential, remove the sandbox you created fo
 sbx rm nika-claude-login
 ```
 
-Subsequent agent and benchmark runs reuse the sbx login. If the login expires or is revoked, sign in through sbx again. This setup also applies to the corresponding SDK/SADE agents; host-side `byo.*` agents use provider API credentials.
+Subsequent agent and benchmark runs reuse the sbx login. If the login expires or is revoked, sign in through sbx again.
+
+sbx subscription logins work for the CLI agents only (`cli.claude`, `cli.codex`), because only sbx's agent templates can sign in. In other sandboxes, sbx can supply only an API key, so on sbx the SDK and SADE agents need an API key in `.env`. To run them with a subscription, use [E2B](#subscriptions-with-e2b), where NIKA adds the login on the host. Host-side `byo.*` agents use provider API credentials.
 
 #### Subscriptions with E2B
 

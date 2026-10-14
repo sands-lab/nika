@@ -94,7 +94,7 @@ CLI, SDK, and SADE agents run in sandboxes, on Docker Sandboxes or E2B. The lab 
 
 ## Sandbox credentials and dependencies
 
-Codex agents accept an OpenAI API key or a ChatGPT login; Claude agents accept an Anthropic API key or a Claude login. Complete the [subscription login](../operations/agent-sandbox.md#subscription--oauth-interactive-once) for your sandbox runtime before evaluating with a subscription. Both families also support DeepSeek and compatible custom endpoints. Claude uses `--bare` with environment credentials and its stored login in subscription mode.
+Codex agents accept an OpenAI API key or a ChatGPT login; Claude agents accept an Anthropic API key or a Claude login. On sbx, the SDK and SADE agents need the API key. Complete the [subscription login](../operations/agent-sandbox.md#subscription--oauth-interactive-once) for your sandbox runtime before evaluating with a subscription. Both families also support DeepSeek and compatible custom endpoints. Claude uses `--bare` with environment credentials and its stored login in subscription mode.
 
 Install SDK agents with `uv sync --extra sdk --prerelease=allow`. On sbx, their sandboxes install host-cached wheels by default; set `nika.sandbox.offline_sdk_wheels: false` to use PyPI. See [SDK offline wheels](../operations/agent-sandbox.md#sdk-agents-optional-offline-wheels). On E2B, the [template](../operations/agent-sandbox.md#e2b-templates) already contains them.
 
