@@ -1,6 +1,7 @@
 """Isolation of e2b-backend sandboxes against a real E2B-compatible service.
 
-Runs when ``nika.sandbox.url`` and ``E2B_API_KEY`` are configured.
+Runs when ``E2B_API_KEY`` is configured, against ``nika.sandbox.url`` or, when
+that is unset, E2B cloud.
 """
 
 from __future__ import annotations
@@ -25,7 +26,7 @@ def _e2b_config() -> SandboxConfig | None:
     from agent.sandbox.e2b.backend import _api_key
 
     config = replace(resolve_sandbox_config(), backend="e2b", keep_container=False)
-    if not config.url or not _api_key(config.env_file):
+    if not _api_key(config.env_file):
         return None
     return config
 
@@ -42,7 +43,7 @@ class _Ok(BaseHTTPRequestHandler):
 
 @pytest.mark.skipif(
     _e2b_config() is None,
-    reason="e2b service not configured (nika.sandbox.url, E2B_API_KEY)",
+    reason="e2b service not configured (E2B_API_KEY)",
 )
 def test_e2b_sandbox_reaches_only_its_tunnel(tmp_path) -> None:
     """The sandbox reaches its mapped host service, no other host port, no internet."""

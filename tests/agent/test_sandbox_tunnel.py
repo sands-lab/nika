@@ -29,12 +29,36 @@ class _Handler(BaseHTTPRequestHandler):
         return
 
 
+def _serve_byte_count() -> socket.socket:
+    """Reply with the number of bytes received once the client stops sending."""
+    listener = socket.create_server(("127.0.0.1", 0))
+
+    def serve() -> None:
+        conn, _ = listener.accept()
+        with conn:
+            received = 0
+            while chunk := conn.recv(65536):
+                received += len(chunk)
+            conn.sendall(str(received).encode())
+
+    threading.Thread(target=serve, daemon=True).start()
+    return listener
+
+
 def test_tunnel_reaches_only_mapped_host_services() -> None:
     server = ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    mapped, unmapped = pick_free_port("127.0.0.1"), pick_free_port("127.0.0.1")
+    counter = _serve_byte_count()
+    mapped, unmapped, counted = (pick_free_port("127.0.0.1") for _ in range(3))
     relay = subprocess.Popen(
-        [sys.executable, "-u", str(RELAY_SCRIPT), str(mapped), str(unmapped)],
+        [
+            sys.executable,
+            "-u",
+            str(RELAY_SCRIPT),
+            str(mapped),
+            str(unmapped),
+            str(counted),
+        ],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         text=True,
@@ -46,7 +70,9 @@ def test_tunnel_reaches_only_mapped_host_services() -> None:
         relay.stdin.write(line)
         relay.stdin.flush()
 
-    bridge = TunnelBridge({mapped: server.server_address}, send)
+    bridge = TunnelBridge(
+        {mapped: server.server_address, counted: counter.getsockname()}, send
+    )
 
     def pump() -> None:
         for line in relay.stdout:
@@ -60,6 +86,15 @@ def test_tunnel_reaches_only_mapped_host_services() -> None:
         ) as resp:
             assert resp.status == 200
             assert len(resp.read()) == 300_000
+
+        # A client that stops sending still gets the reply.
+        with socket.create_connection(("127.0.0.1", counted), timeout=10) as sock:
+            sock.sendall(b"x" * 200_000)
+            sock.shutdown(socket.SHUT_WR)
+            reply = b""
+            while chunk := sock.recv(1024):
+                reply += chunk
+            assert reply == b"200000"
 
         # A relay port without a host target is closed without data.
         with socket.create_connection(("127.0.0.1", unmapped), timeout=10) as sock:
@@ -75,3 +110,4 @@ def test_tunnel_reaches_only_mapped_host_services() -> None:
         relay.wait(10)
         server.shutdown()
         server.server_close()
+        counter.close()

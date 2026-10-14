@@ -13,6 +13,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import queue
 import socket
 import threading
 from collections.abc import Callable, Mapping
@@ -23,14 +24,20 @@ logger = logging.getLogger(__name__)
 RELAY_SCRIPT = Path(__file__).resolve().with_name("tunnel_relay.py")
 _CHUNK = 64 * 1024
 _CONNECT_TIMEOUT_SEC = 10
+# Frames waiting for the relay. While one send is in flight, the frames queued
+# behind it go together in the next, up to this many characters, so a slow
+# channel costs one round trip per batch rather than per frame.
+_QUEUE_FRAMES = 64
+_BATCH_CHARS = 1 << 20
+_POLL_SEC = 0.5
 
 
 class TunnelBridge:
     """Connect relay connections to host services.
 
     *targets* maps each relay port to the host ``(host, port)`` it reaches.
-    *send* delivers one frame line to the relay's stdin; pass the relay's
-    stdout to :meth:`feed` as it arrives.
+    *send* delivers frame lines to the relay's stdin; pass the relay's stdout
+    to :meth:`feed` as it arrives.
     """
 
     def __init__(
@@ -40,12 +47,17 @@ class TunnelBridge:
     ) -> None:
         self._targets = {int(port): target for port, target in targets.items()}
         self._send = send
-        self._send_lock = threading.Lock()
+        self._outbox: queue.Queue[str] = queue.Queue(maxsize=_QUEUE_FRAMES)
         self._conns: dict[int, socket.socket] = {}
+        # Side ("sandbox" or "service") that already finished sending.
+        self._ended: dict[int, str] = {}
         self._conns_lock = threading.Lock()
         self._pending = ""
         self._closed = False
         self.ready = threading.Event()
+        threading.Thread(
+            target=self._send_loop, name="nika-tunnel-send", daemon=True
+        ).start()
 
     def feed(self, chunk: str) -> None:
         """Handle relay stdout, which may split or join frame lines."""
@@ -61,6 +73,7 @@ class TunnelBridge:
         with self._conns_lock:
             conns = list(self._conns.values())
             self._conns.clear()
+            self._ended.clear()
         for sock in conns:
             _close_socket(sock)
 
@@ -90,6 +103,8 @@ class TunnelBridge:
                 sock.sendall(base64.b64decode(frame.get("b", "")))
             except (OSError, ValueError):
                 self._drop(conn_id, notify=True)
+        elif kind == "eof":
+            self._end(conn_id, "sandbox")
         elif kind == "close":
             self._drop(conn_id, notify=False)
 
@@ -124,12 +139,31 @@ class TunnelBridge:
                     {"t": "data", "id": conn_id, "b": base64.b64encode(chunk).decode()}
                 )
         except OSError:
-            pass
-        self._drop(conn_id, notify=True)
+            self._drop(conn_id, notify=True)
+            return
+        self._end(conn_id, "service")
+
+    def _end(self, conn_id: int, side: str) -> None:
+        """*side* finished sending; close the connection once both have."""
+        with self._conns_lock:
+            sock = self._conns.get(conn_id)
+            if sock is None:
+                return
+            both = self._ended.setdefault(conn_id, side) != side
+        if both:
+            self._drop(conn_id, notify=True)
+        elif side == "service":
+            self._send_frame({"t": "eof", "id": conn_id})
+        else:
+            try:
+                sock.shutdown(socket.SHUT_WR)
+            except OSError:
+                self._drop(conn_id, notify=True)
 
     def _drop(self, conn_id: int, *, notify: bool) -> None:
         with self._conns_lock:
             sock = self._conns.pop(conn_id, None)
+            self._ended.pop(conn_id, None)
         if sock is None:
             return
         _close_socket(sock)
@@ -137,12 +171,29 @@ class TunnelBridge:
             self._send_frame({"t": "close", "id": conn_id})
 
     def _send_frame(self, frame: dict) -> None:
-        if self._closed:
-            return
         line = json.dumps(frame, separators=(",", ":")) + "\n"
-        with self._send_lock:
+        while not self._closed:
             try:
-                self._send(line)
+                self._outbox.put(line, timeout=_POLL_SEC)
+                return
+            except queue.Full:
+                continue
+
+    def _send_loop(self) -> None:
+        while not self._closed:
+            try:
+                lines = [self._outbox.get(timeout=_POLL_SEC)]
+            except queue.Empty:
+                continue
+            size = len(lines[0])
+            while size < _BATCH_CHARS:
+                try:
+                    lines.append(self._outbox.get_nowait())
+                except queue.Empty:
+                    break
+                size += len(lines[-1])
+            try:
+                self._send("".join(lines))
             except Exception as exc:  # noqa: BLE001 - a dead channel ends the tunnel
                 logger.warning("Tunnel could not reach the sandbox relay: %s", exc)
 
