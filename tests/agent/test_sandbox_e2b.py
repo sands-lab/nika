@@ -34,7 +34,10 @@ class _Ok(BaseHTTPRequestHandler):
     reason="e2b service not configured (E2B_API_KEY)",
 )
 def test_e2b_sandbox_reaches_only_its_tunnel(tmp_path) -> None:
-    """The sandbox reaches its mapped host service, no other host port, no internet."""
+    """The sandbox reaches its mapped host service, no other host port, no internet.
+
+    Its tunnel recovers when the relay is lost.
+    """
     from agent.sandbox.e2b.backend import E2bBackend
 
     config = replace(resolve_sandbox_config(), backend="e2b", keep_container=False)
@@ -72,6 +75,25 @@ def test_e2b_sandbox_reaches_only_its_tunnel(tmp_path) -> None:
         assert own == "200", output
         assert peer == "000", output
         assert internet == "000", output
+
+        # A lost relay restarts on the same port: after a short outage the
+        # sandbox reaches its service again.
+        proc = backend.exec_stream(
+            sandbox_id, "pkill -f '[n]ika_tunnel_relay'; echo killed=$?"
+        )
+        killed = "".join(proc.stdout)
+        proc.wait()
+        assert "killed=0" in killed, killed
+        retry = (
+            "for i in $(seq 1 60); do "
+            "code=$(curl -s -o /dev/null -w '%{http_code}' -m 2 "
+            f"http://127.0.0.1:{own_port}/); "
+            '[ "$code" = 200 ] && break; sleep 1; done; echo "$code"'
+        )
+        proc = backend.exec_stream(sandbox_id, retry)
+        output = "".join(proc.stdout)
+        proc.wait()
+        assert output.split()[-1] == "200", output
     finally:
         backend.revoke_gateway(
             sandbox_id, port=own_port, gateway_url=f"http://127.0.0.1:{own_port}"
