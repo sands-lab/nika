@@ -369,7 +369,7 @@
       "run_id": "preview-qwen3_5_27b_react",
       "official": false,
       "nika_git_commit": null,
-      "name": "Qwen3.5-27B · ReAct",
+      "name": "Qwen3.5-27B · ReAct · test · preview-qwen3_5_27b_react",
       "rca_f1_ci": null,
       "beaten_by": [
         "0.1.0/20260910_gpt_5_mini_react",
@@ -890,6 +890,87 @@
       "rank": 2
     },
     {
+      "id": "0.2.0/20261014_react_qwen3_5_27b",
+      "dirname": "20261014_react_qwen3_5_27b",
+      "submission_name": "ReAct + Qwen3.5-27B",
+      "authors": "NIKA Team",
+      "org": null,
+      "site": "https://sands-lab.github.io/nika/",
+      "report": "https://arxiv.org/abs/2512.16381",
+      "logo": null,
+      "github": "https://github.com/sands-lab/nika",
+      "email": null,
+      "trajectories_url": "https://huggingface.co/datasets/Zhihao98/nika-trajectories/tree/main/trajectories/0.2.0/20261014_react_qwen3_5_27b",
+      "trajectories_relpath": "trajectories/0.2.0/20261014_react_qwen3_5_27b",
+      "model": "Qwen3.5-27B",
+      "framework": "ReAct",
+      "agent_type": "byo.langgraph",
+      "llm_provider": "custom",
+      "tools": [
+        "containerlab_srl_mcp_server",
+        "k8s_mcp_server",
+        "kathara_base_mcp_server",
+        "pingmesh_mcp_server",
+        "packet_capture_mcp_server",
+        "kathara_frr_mcp_server",
+        "kathara_bmv2_mcp_server",
+        "kathara_sdn_mcp_server",
+        "kathara_telemetry_mcp_server",
+        "task_mcp_server"
+      ],
+      "skills": [],
+      "optimization_methods": [],
+      "tags": [],
+      "extra": {
+        "model_repository": "Qwen/Qwen3.5-27B",
+        "max_steps": 100,
+        "max_tokens": 32768,
+        "agent_timeout_sec": 14400,
+        "case_timeout_sec": 15000
+      },
+      "benchmark_version": "0.2.0",
+      "split": "test",
+      "case_count": 85,
+      "n_trials": 3,
+      "primary_metric": "rca_f1",
+      "mean_rca_f1": 0.3343807843137256,
+      "mean_localization_f1": 0.4553901960784316,
+      "mean_detection_score": 0.8627450980392157,
+      "n_trials_expected": 255,
+      "n_trials_present": 255,
+      "n_success": 247,
+      "n_agent_failed": 8,
+      "success_rate": 0.968627,
+      "token_totals": {
+        "in_tokens": 210016204,
+        "out_tokens": 1865148
+      },
+      "steps_totals": {
+        "steps": 9964,
+        "tool_calls": 11017,
+        "tool_errors": 74
+      },
+      "mean_tokens": 830907.263,
+      "mean_steps": 39.075,
+      "total_tokens": 211881352,
+      "max_steps": 100,
+      "case_timeout_sec": 15000,
+      "created_at": "2026-10-14T06:36:19+00:00",
+      "run_id": "d45f4be0c28acc57",
+      "official": true,
+      "nika_git_commit": "ba4e78364b26b3a948c234e450c93df3e23090be",
+      "name": "Qwen3.5-27B · ReAct · test · d45f4be0c28acc57",
+      "rca_f1_ci": [
+        0.253727,
+        0.418564
+      ],
+      "beaten_by": [
+        "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
+        "0.2.0/20261011_react_qwen3_8_27b_fp8"
+      ],
+      "rank": 3
+    },
+    {
       "id": "0.2.0/20261014_claude_code_qwen3_5_27b",
       "dirname": "20261014_claude_code_qwen3_5_27b",
       "submission_name": "Claude Code + Qwen3.5-27B",
@@ -1131,9 +1212,10 @@
         "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
         "0.2.0/20261011_react_qwen3_8_27b_fp8",
         "0.2.0/20261012_claude_code_gemma_4_31b_it",
-        "0.2.0/20261014_claude_code_qwen3_5_27b"
+        "0.2.0/20261014_claude_code_qwen3_5_27b",
+        "0.2.0/20261014_react_qwen3_5_27b"
       ],
-      "rank": 5
+      "rank": 6
     },
     {
       "id": "0.2.0/20261013_react_telecomgpt_r1",
@@ -1214,9 +1296,10 @@
         "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
         "0.2.0/20261011_react_qwen3_8_27b_fp8",
         "0.2.0/20261012_claude_code_gemma_4_31b_it",
-        "0.2.0/20261014_claude_code_qwen3_5_27b"
+        "0.2.0/20261014_claude_code_qwen3_5_27b",
+        "0.2.0/20261014_react_qwen3_5_27b"
       ],
-      "rank": 5
+      "rank": 6
     },
     {
       "id": "0.2.0/20261012_react_gemma_4_31b_it",
@@ -1298,9 +1381,10 @@
         "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
         "0.2.0/20261011_react_qwen3_8_27b_fp8",
         "0.2.0/20261012_claude_code_gemma_4_31b_it",
-        "0.2.0/20261014_claude_code_qwen3_5_27b"
+        "0.2.0/20261014_claude_code_qwen3_5_27b",
+        "0.2.0/20261014_react_qwen3_5_27b"
       ],
-      "rank": 6
+      "rank": 7
     },
     {
       "id": "0.2.0/20261007_qwen3_6_35b_a3b_claudecode",
@@ -1366,9 +1450,10 @@
         "0.2.0/20261012_claude_code_gemma_4_31b_it",
         "0.2.0/20261013_claude_code_telecomgpt_r1",
         "0.2.0/20261013_react_telecomgpt_r1",
-        "0.2.0/20261014_claude_code_qwen3_5_27b"
+        "0.2.0/20261014_claude_code_qwen3_5_27b",
+        "0.2.0/20261014_react_qwen3_5_27b"
       ],
-      "rank": 7
+      "rank": 8
     },
     {
       "id": "0.2.0/20261008_qwen3_6_35b_a3b_codex",
@@ -1435,9 +1520,10 @@
         "0.2.0/20261012_react_gemma_4_31b_it",
         "0.2.0/20261013_claude_code_telecomgpt_r1",
         "0.2.0/20261013_react_telecomgpt_r1",
-        "0.2.0/20261014_claude_code_qwen3_5_27b"
+        "0.2.0/20261014_claude_code_qwen3_5_27b",
+        "0.2.0/20261014_react_qwen3_5_27b"
       ],
-      "rank": 8
+      "rank": 9
     },
     {
       "id": "0.2.0/20261007_qwen3_6_35b_a3b_langgraph",
@@ -1504,9 +1590,10 @@
         "0.2.0/20261012_react_gemma_4_31b_it",
         "0.2.0/20261013_claude_code_telecomgpt_r1",
         "0.2.0/20261013_react_telecomgpt_r1",
-        "0.2.0/20261014_claude_code_qwen3_5_27b"
+        "0.2.0/20261014_claude_code_qwen3_5_27b",
+        "0.2.0/20261014_react_qwen3_5_27b"
       ],
-      "rank": 8
+      "rank": 9
     },
     {
       "id": "0.2.0/20261008_claude_cli_otel_2_0_llm_31b_it",
@@ -1600,9 +1687,10 @@
         "0.2.0/20261012_react_gemma_4_31b_it",
         "0.2.0/20261013_claude_code_telecomgpt_r1",
         "0.2.0/20261013_react_telecomgpt_r1",
-        "0.2.0/20261014_claude_code_qwen3_5_27b"
+        "0.2.0/20261014_claude_code_qwen3_5_27b",
+        "0.2.0/20261014_react_qwen3_5_27b"
       ],
-      "rank": 11
+      "rank": 12
     }
   ]
 }
