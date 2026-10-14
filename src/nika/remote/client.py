@@ -145,6 +145,7 @@ class RemoteClient:
             session_id=resp.session_id,
             gateway_port=resp.gateway_port,
             gateway_base_url=self.config.gateway_url(resp.gateway_port),
+            phase_token=resp.phase_token,
         )
 
     def mcp_detach(self, session_id: str) -> None:

@@ -287,6 +287,11 @@ def remote_close_session(
     except Exception:  # noqa: BLE001 - still attempt remote close
         pass
     client.close_session(sid, undeploy=undeploy, stop_all=False)
+    # Closing logs its own events (env_stop, session_cleared) on the lab host.
+    try:
+        _pull_and_fix_local(client, sid, session.session_dir)
+    except Exception:  # noqa: BLE001 - the trial's results are already local
+        pass
     # Mark local run with the same terminal status as Session.clear_session.
     try:
         session.clear_session(status=status)  # type: ignore[arg-type]
