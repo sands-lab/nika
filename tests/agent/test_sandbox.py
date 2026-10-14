@@ -168,7 +168,7 @@ def test_host_writes_replace_symlinks_planted_in_workspace(tmp_path) -> None:
 
 
 def test_e2b_template_name_tracks_pin_and_sizing() -> None:
-    """A new image pin or sandbox size never reuses an existing e2b template."""
+    """A new image pin, package pin or sandbox size gets its own e2b template."""
     from agent.sandbox.e2b.backend import e2b_template_name, memory_mb
 
     pinned = "docker/sandbox-templates:shell-docker@sha256:" + "a" * 64
@@ -179,6 +179,13 @@ def test_e2b_template_name_tracks_pin_and_sizing() -> None:
     assert e2b_template_name("shell", repinned, cpus=2, memory=4096) != name
     assert e2b_template_name("shell", pinned, cpus=4, memory=4096) != name
     assert e2b_template_name("shell", pinned, cpus=2, memory=memory_mb("512m")) != name
+
+    sdk = e2b_template_name("shell", pinned, cpus=2, memory=4096, packages=["a==1"])
+    assert sdk != name
+    assert (
+        e2b_template_name("shell", pinned, cpus=2, memory=4096, packages=["a==2"])
+        != sdk
+    )
 
 
 def test_e2b_async_process_keeps_streams_separate_and_reports_exit() -> None:

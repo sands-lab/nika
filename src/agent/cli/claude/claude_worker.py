@@ -29,6 +29,7 @@ import sys
 from pathlib import Path
 
 from agent.cli.claude.config import (
+    MCP_CONNECT_WAIT_ENV,
     custom_model_claude_env,
     prepare_claude_subprocess_env,
     resolve_claude_model,
@@ -41,12 +42,6 @@ from agent.utils.loggers import MessageLogger
 from agent.utils.mcp_client import load_session_mcp_config
 from agent.utils.skills import prepare_claude_workspace, skills_enabled
 from agent.utils.two_phase import max_steps_report
-
-
-# Claude Code connects MCP servers in the background and gives up on one after
-# 30 s; the first turn then runs without its tools. A slow sandbox, or the e2b
-# tunnel, can miss that window, so wait longer for them.
-_MCP_CONNECT_WAIT_MS = 120_000
 
 
 def _build_mcp_json(servers: dict) -> str:
@@ -177,8 +172,7 @@ class ClaudeWorker:
         push_to_sandbox([self.workspace])
 
         env = prepare_claude_subprocess_env(provider=self.llm_provider)
-        env["MCP_TIMEOUT"] = str(_MCP_CONNECT_WAIT_MS)
-        env["CLAUDE_CODE_MCP_STARTUP_WAIT_MS"] = str(_MCP_CONNECT_WAIT_MS)
+        env.update(MCP_CONNECT_WAIT_ENV)
         if self.llm_provider == "custom":
             env.update(custom_model_claude_env(self.model))
         if self.max_tokens is not None:
