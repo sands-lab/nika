@@ -148,11 +148,6 @@ def start_agent(
         if is_remote_enabled():
             from nika.remote.workflows import pull_session_artifacts, remote_mcp_gateway
 
-            if use_sandbox and sandbox_config.backend != "sbx":
-                raise RuntimeError(
-                    f"The {sandbox_config.backend} sandbox backend does not "
-                    "support remote labs yet; use nika.sandbox.backend: sbx."
-                )
             with remote_mcp_gateway(
                 session.session_id,
             ) as (gateway_base_url, gateway_port):

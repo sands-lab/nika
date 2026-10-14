@@ -13,7 +13,7 @@ NIKA runs sandboxes on one of two runtimes. Both run the same agents and score t
 | Select with | `nika.sandbox.backend: sbx` (default) | `nika.sandbox.backend: e2b` |
 | Subscription logins | Stored by sbx | Kept by NIKA on the host |
 
-Choose E2B when the NIKA host has no KVM, such as a VM without nested virtualization.
+Choose E2B when the NIKA host has no KVM, such as a VM without nested virtualization. Both runtimes also work when the network environment runs on a [remote lab host](remote.md).
 
 ## Supported agents
 
@@ -283,7 +283,7 @@ Each agent run gets its own sandbox, workspace, and host MCP gateway on an ephem
 
 **Docker Sandboxes:** each run uses its own sbx microVM (`nika-{agent_session_id}`). The sandbox network policy allows that session's `localhost:{port}` and blocks peer gateway ports. Parallel benchmark runs (`--batch-size N`) keep up to N trials concurrent (sliding window) and use one subprocess per active trial, so gateways do not share a process. Those processes share one host `sandboxd`. NIKA starts that daemon with `upstream_proxy` when it is down, and does not restart it while it is up. If you change the proxy, stop the daemon when no sandboxes are running (`sbx daemon stop`) and start the next NIKA run.
 
-**E2B:** sandboxes have no internet access. NIKA connects each sandbox to the host through a tunnel over E2B's command channel, which reaches only that session's MCP gateway and model proxy; both listen on the host's loopback interface. An E2B sandbox expires `agent.timeout_sec` plus 30 minutes after it starts, or after 6.5 hours when `agent.timeout_sec` is `0`. NIKA removes it when the run ends, and `nika session close` removes it after an interrupted run.
+**E2B:** sandboxes have no internet access. NIKA connects each sandbox to the host through a tunnel over E2B's command channel, which reaches only that session's MCP gateway and model proxy. Both listen on the host's loopback interface, except that a [remote lab host](remote.md) serves the gateway. An E2B sandbox expires `agent.timeout_sec` plus 30 minutes after it starts, or after 6.5 hours when `agent.timeout_sec` is `0`. NIKA removes it when the run ends, and `nika session close` removes it after an interrupted run.
 
 **Sandbox boundary:** SDK sandboxes do **not** bundle `nika/` source. The host writes MCP HTTP endpoints into `sandbox_manifest.json` (`mcp_servers`); the in-sandbox runner loads agent code, prompts/skills, and (when enabled) SDK wheels only.
 

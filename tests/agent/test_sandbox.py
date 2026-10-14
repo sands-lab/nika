@@ -259,6 +259,46 @@ def test_e2b_connection_uses_url_then_domain_then_cloud(tmp_path, monkeypatch) -
     }
 
 
+def test_e2b_tunnel_reaches_a_local_or_remote_gateway(tmp_path, monkeypatch) -> None:
+    """The sandbox dials its loopback; the tunnel connects to where the gateway runs."""
+    from agent.sandbox.config import SandboxConfig
+    from agent.sandbox.e2b import backend as e2b_backend
+
+    targets: dict[int, tuple[str, int]] = {}
+    monkeypatch.setattr(
+        e2b_backend,
+        "_CommandTunnel",
+        lambda _sbx, _relay, mapped: targets.update(mapped),
+    )
+    backend = e2b_backend.E2bBackend(
+        SandboxConfig(
+            backend="e2b",
+            env_file=tmp_path / ".env",
+            keep_container=False,
+            cpus=2,
+            memory="4g",
+            offline_sdk_wheels=True,
+        )
+    )
+    backend._model_proxy_port = 41000
+    proxy = {41000: ("127.0.0.1", 41000)}
+
+    def connect(port: int, gateway_url: str) -> str:
+        targets.clear()
+        backend.allow_gateway("sbx-1", port=port, gateway_url=gateway_url)
+        return backend.sandbox_gateway_url(port=port, gateway_url=gateway_url)
+
+    # Local gateway on host loopback.
+    assert connect(40000, "http://127.0.0.1:40000") == "http://127.0.0.1:40000"
+    assert targets == {40000: ("127.0.0.1", 40000), **proxy}
+    # Remote lab host's gateway.
+    assert connect(40000, "http://lab.example:40000") == "http://127.0.0.1:40000"
+    assert targets == {40000: ("lab.example", 40000), **proxy}
+    # A remote gateway on the local model proxy's port gets another sandbox port.
+    assert connect(41000, "http://lab.example:41000") == "http://127.0.0.1:40999"
+    assert targets == {40999: ("lab.example", 41000), **proxy}
+
+
 def test_e2b_async_process_keeps_streams_separate_and_reports_exit() -> None:
     """Host CLI workers read stdout lines and stderr separately, then the code."""
     import asyncio
