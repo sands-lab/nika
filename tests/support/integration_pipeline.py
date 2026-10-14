@@ -102,22 +102,6 @@ def sade_available() -> bool:
     return sade_credentials_available()
 
 
-def claude_sdk_available() -> bool:
-    if importlib.util.find_spec("claude_agent_sdk") is None:
-        return False
-    from agent.sdk.claude_sdk.config import claude_sdk_credentials_available
-
-    return claude_sdk_credentials_available()
-
-
-def codex_sdk_available() -> bool:
-    if importlib.util.find_spec("openai_codex") is None:
-        return False
-    from agent.sdk.codex_sdk.config import codex_sdk_local_auth_available
-
-    return codex_sdk_local_auth_available()
-
-
 def tool_text_list(result: object) -> list[str]:
     if isinstance(result, str):
         try:
