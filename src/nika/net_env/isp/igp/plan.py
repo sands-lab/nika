@@ -15,7 +15,7 @@ from nika.topology import (
     NetworkTopology,
     TopoLink,
     link_preinstalled_capacity,
-    load_sndlib_topology,
+    load_topology,
 )
 
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
@@ -150,7 +150,7 @@ def compile_isp_plan(
 ) -> IspPlan:
     """Compile an ISP plan from config and/or an explicit NetworkTopology."""
     cfg = (config or IspConfig()).validated()
-    topo = topology if topology is not None else load_sndlib_topology(cfg.topology)
+    topo = topology if topology is not None else load_topology(cfg.topology)
 
     nodes_sorted = tuple(sorted(topo.nodes, key=lambda n: n.id))
     links_sorted = tuple(sorted(topo.links, key=lambda link: link.id))
@@ -173,8 +173,21 @@ def compile_isp_plan(
     }
     planned_links: list[PlannedLink] = []
 
+    metrics = {link.id: link_metric(link, cfg) for link in links_sorted}
+    if cfg.igp == "isis":
+        # FRR IS-IS costs a neighbor by its cheapest parallel adjacency but may
+        # forward over any of them, so parallel links must share one metric.
+        bundle_metric: dict[frozenset[str], int] = {}
+        for link in links_sorted:
+            pair = frozenset((link.source, link.target))
+            bundle_metric[pair] = min(
+                bundle_metric.get(pair, metrics[link.id]), metrics[link.id]
+            )
+        for link in links_sorted:
+            metrics[link.id] = bundle_metric[frozenset((link.source, link.target))]
+
     for link in links_sorted:
-        metric = link_metric(link, cfg)
+        metric = metrics[link.id]
         a_dev = device_by_node[link.source]
         b_dev = device_by_node[link.target]
         # Stable endpoint ordering by device name (not SNDlib source/target).

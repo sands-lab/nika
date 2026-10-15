@@ -68,7 +68,7 @@ The scenario registry in [`net_env_pool.py`](../../src/nika/net_env/net_env_pool
 | `sdn_l3_clos` | Kathara | ONOS-controlled OVS L3 Clos and ECMP |  | [`sdn_l3_clos/verify.py`](../../src/nika/net_env/sdn_l3_clos/verify.py) |
 | `p4_dc_fabric` | Kathara | P4Runtime-programmed Clos forwarding and ECMP |  | [`p4_dc_fabric/verify.py`](../../src/nika/net_env/p4_dc_fabric/verify.py) |
 | `p4_dc_gateway` | Kathara | P4 gateway-spine-leaf service path and complete INT-MX telemetry |  | [`p4_dc_gateway/verify.py`](../../src/nika/net_env/p4_dc_gateway/verify.py) |
-| `isp_<topology>` | Kathara or Containerlab | SNDlib IGP/BGP forwarding, adjacency, and policy | Kathara + FRR only | [`kathara/verify.py`](../../src/nika/net_env/isp/kathara/verify.py), [`containerlab/verify.py`](../../src/nika/net_env/isp/containerlab/verify.py) |
+| `isp_<topology>` | Kathara or Containerlab | SNDlib or Topology Zoo IGP/BGP forwarding, adjacency, and policy | Kathara + FRR only | [`kathara/verify.py`](../../src/nika/net_env/isp/kathara/verify.py), [`containerlab/verify.py`](../../src/nika/net_env/isp/containerlab/verify.py) |
 | `min3clos` | Containerlab | SR Linux eBGP Clos client connectivity |  | [`min3clos/verify.py`](../../src/nika/net_env/min3clos/verify.py) |
 | `k8s_lab` | Kathara | BGP fat-tree and k3s Word application |  | [`k8s_lab/verify.py`](../../src/nika/net_env/k8s_lab/verify.py) |
 | `llmd_lab` | Kathara | L2 k3s inference cluster and gateway API |  | [`llmd_lab/verify.py`](../../src/nika/net_env/llmd_lab/verify.py) |
@@ -173,11 +173,11 @@ Each row below corresponds to one runtime check or one generated family of check
 
 ### `isp_<topology>`
 
-Each `isp_<topology>` ID deploys one SNDlib graph with IS-IS or OSPF, optional BGP, deterministic edge traffic attachments, and the routing policy selected by its design options. Named specials (`isp_abilene_ebgp_rpki`, `isp_geant_ebgp_rpki`, `isp_abilene_ebgp_rtbh`, `isp_dfn-bwin_ebgp_rtbh`) add fixed RPKI or RTBH overlays. The Kathara FRR implementation adds a validation contract. Its contract can contain edge reachability, explicit external-prefix isolation, OSPF adjacency, BGP adjacency, BGP observer-prefix reachability, and an optional IGP metric waypoint constraint. It has no IS-IS adjacency intent type.
+Each `isp_<topology>` ID deploys one SNDlib or Topology Zoo graph with IS-IS or OSPF, optional BGP, deterministic edge traffic attachments, and the routing policy selected by its design options. Named specials (`isp_abilene_ebgp_rpki`, `isp_geant_ebgp_rpki`, `isp_abilene_ebgp_rtbh`, `isp_dfn-bwin_ebgp_rtbh`) add fixed RPKI or RTBH overlays. The Kathara FRR implementation adds a validation contract. Its contract can contain edge reachability, explicit external-prefix isolation, OSPF adjacency, BGP adjacency, BGP observer-prefix reachability, and an optional IGP metric waypoint constraint. It has no IS-IS adjacency intent type.
 
 | Target | Measurement | Purpose | Expected result |
 | --- | --- | --- | --- |
-| All planned routers and hosts | Compare planned names with deployed nodes | Confirm SNDlib topology deployment | Every planned node exists |
+| All planned routers and hosts | Compare planned names with deployed nodes | Confirm topology deployment | Every planned node exists |
 | Every active IGP link | Inspect IS-IS or OSPF neighbor state | Confirm selected IGP convergence | Each planned adjacency is Up or Full |
 | Planned loopbacks and inventory addresses | Ping every component loopback from its deterministic representative source; inspect configured addresses | Confirm packet delivery and addressing | Required pings reply; inventory addresses are present |
 | All ordered router-to-loopback pairs within each IGP component, full verification | Longest-prefix lookup and traversal of observed FIB branches | Detect missing routes, discard, loops, unknown exits, and partial ECMP failure | `fib_all_pairs_reachable` passes for every pair and installed branch |

@@ -39,7 +39,7 @@ class BgpSession:
 class BgpOriginatedPrefix:
     device: str
     prefix: str  # e.g. 203.0.113.0/24
-    ping_address: str  # host address installed on lo for reachability checks
+    ping_address: str  # host address on BGP_ORIGIN_IFACE for reachability checks
 
 
 @dataclass(frozen=True)
