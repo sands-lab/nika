@@ -6874,7 +6874,8 @@
     "0.2.0/20261013_react_telecomgpt_r1",
     "0.2.0/20261014_claude_code_glm_4_7_flash",
     "0.2.0/20261014_claude_code_qwen3_5_27b",
-    "0.2.0/20261014_react_qwen3_5_27b"
+    "0.2.0/20261014_react_qwen3_5_27b",
+    "0.2.0/20261015_react_glm_4_7_flash"
   ],
-  "rank": 13
+  "rank": 14
 }
