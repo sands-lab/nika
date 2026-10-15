@@ -348,6 +348,25 @@ def _stop_session_record(
     session_id: str | None = None,
     status: SessionStatus = "finished",
 ) -> None:
+    resource_metrics = bool(session_meta.get("resource_metrics"))
+    try:
+        _stop_session_lab(
+            session_meta, undeploy=undeploy, session_id=session_id, status=status
+        )
+    finally:
+        if resource_metrics:
+            from nika.metrics.stack import stop_exporter_if_idle
+
+            stop_exporter_if_idle()
+
+
+def _stop_session_lab(
+    session_meta: dict,
+    *,
+    undeploy: bool,
+    session_id: str | None,
+    status: SessionStatus,
+) -> None:
     session = Session()
     session._apply_session_meta(session_meta)
     if session_id:

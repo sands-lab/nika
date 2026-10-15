@@ -1,0 +1,27 @@
+# Attribute cAdvisor container usage to NIKA sessions. Recorded series keep
+# the session labels after the session ends, so past runs stay queryable.
+groups:
+  - name: nika
+    rules:
+      - record: nika:container_cpu_cores
+        expr: |
+          sum by (name) (rate(container_cpu_usage_seconds_total{name!=""}[1m]))
+          * on (name) group_left (session_id, lab_name, backend, scenario, node)
+          max by (name, session_id, lab_name, backend, scenario, node) (nika_container_info)
+      # Cumulative CPU time since the container started, deployment included.
+      - record: nika:container_cpu_seconds_total
+        expr: |
+          sum by (name) (container_cpu_usage_seconds_total{name!=""})
+          * on (name) group_left (session_id, lab_name, backend, scenario, node)
+          max by (name, session_id, lab_name, backend, scenario, node) (nika_container_info)
+      - record: nika:container_memory_working_set_bytes
+        expr: |
+          max by (name) (container_memory_working_set_bytes{name!=""})
+          * on (name) group_left (session_id, lab_name, backend, scenario, node)
+          max by (name, session_id, lab_name, backend, scenario, node) (nika_container_info)
+      - record: nika:session_cpu_cores
+        expr: sum by (session_id, lab_name, backend, scenario) (nika:container_cpu_cores)
+      - record: nika:session_memory_working_set_bytes
+        expr: sum by (session_id, lab_name, backend, scenario) (nika:container_memory_working_set_bytes)
+      - record: nika:session_containers
+        expr: count by (session_id, lab_name, backend, scenario) (nika_container_info)

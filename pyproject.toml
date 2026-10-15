@@ -41,6 +41,7 @@ dependencies = [
     "huggingface_hub>=1.29.0,<2",
     "starlette>=1.0.0,<2",
     "uvicorn>=0.47.0,<0.48",
+    "prometheus-client>=0.26.0,<1",
 ]
 
 [project.optional-dependencies]
@@ -68,6 +69,7 @@ include = ["nika*", "agent*"]
 [tool.setuptools.package-data]
 # Runtime data loaded from the installed package (lab files, images, prompts).
 "nika.inspect" = ["www/dist/**/*"]
+"nika.metrics" = ["stack/*.yml"]
 "nika.net_env.compat.v010.p4_bloom_filter" = ["*.p4", "cmds/*.txt"]
 "nika.net_env.compat.v010.p4_counter" = ["p4_src/*.p4", "cmds/*.txt"]
 "nika.net_env.compat.v010.p4_mpls" = ["*.p4", "cmds/*/*.txt", "cmds/*/*.py", "startups/*.startup"]
