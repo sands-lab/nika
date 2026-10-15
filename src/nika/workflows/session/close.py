@@ -341,32 +341,6 @@ def _destroy_kathara_lab(lab_name: str) -> None:
     KatharaRuntime(SimpleNamespace(instance=None, name=lab_name, lab=None)).destroy()
 
 
-def _write_resource_summary(session_meta: dict) -> None:
-    """Save the session's recorded resource usage before its lab goes away."""
-    from nika.metrics.summary import write_session_resources
-
-    session_id = session_meta.get("session_id")
-    if session_meta.get("session_dir"):
-        bind_session_dir(session_meta["session_dir"])
-    try:
-        path = write_session_resources(session_meta)
-    except Exception as exc:  # noqa: BLE001 - monitoring must not block teardown
-        log_error_event(
-            "resource_summary_failed",
-            f"Could not save resource usage of {session_id}: {exc}",
-            session_id=session_id,
-            error=str(exc),
-        )
-        return
-    if path is not None:
-        log_event(
-            "resource_summary",
-            f"Saved resource usage of {session_id} to {path.name}",
-            session_id=session_id,
-            path=str(path),
-        )
-
-
 def _stop_session_record(
     session_meta: dict,
     *,
@@ -375,8 +349,6 @@ def _stop_session_record(
     status: SessionStatus = "finished",
 ) -> None:
     resource_metrics = bool(session_meta.get("resource_metrics"))
-    if resource_metrics:
-        _write_resource_summary(session_meta)
     try:
         _stop_session_lab(
             session_meta, undeploy=undeploy, session_id=session_id, status=status

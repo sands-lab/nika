@@ -557,7 +557,7 @@ nika leaderboard submit --result_dir results/my-run \
 
 ## `nika observability`
 
-Record lab CPU and memory per session in Prometheus. While monitoring is on, every deployed environment is recorded and each closed session gets `resources.json`. How-to and queries: [Monitor lab resource usage](resource-monitoring.md).
+Record lab CPU and memory per session in Prometheus. While monitoring is on, every deployed environment is recorded. How-to and queries: [Monitor lab resource usage](resource-monitoring.md).
 
 ```shell
 nika observability on              # start cAdvisor + Prometheus (127.0.0.1:9090)
