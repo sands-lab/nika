@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Iterator
 from itertools import groupby
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -626,6 +626,44 @@ def iter_jsonl(path: Path) -> Iterator[dict[str, Any]]:
                 yield row
 
 
+def _remote_clock_offset(session_dir: Path) -> float:
+    try:
+        run = json.loads((session_dir / "run.json").read_text(encoding="utf-8"))
+        return float(run.get("remote_clock_offset_sec") or 0.0)
+    except (OSError, ValueError, TypeError, AttributeError):
+        return 0.0
+
+
+def host_clock_entries(session_dir: Path, name: str) -> list[dict[str, Any]]:
+    """Rows of a session log, all on the agent host's clock.
+
+    Rows a lab host wrote (``"origin": "remote"``) carry its clock, which lags
+    when the lab was restored from a VM snapshot. Shift them by the session's
+    ``remote_clock_offset_sec`` so the timeline orders events as they happened;
+    the lab host's own time stays in ``lab_timestamp``.
+    """
+    entries = list(iter_jsonl(session_dir / name))
+    offset = _remote_clock_offset(session_dir)
+    if not offset:
+        return entries
+    shifted = []
+    for entry in entries:
+        stamp = entry.get("timestamp")
+        if entry.get("origin") == "remote" and isinstance(stamp, str):
+            try:
+                moved = datetime.fromisoformat(stamp) + timedelta(seconds=offset)
+            except ValueError:
+                pass
+            else:
+                entry = {
+                    **entry,
+                    "lab_timestamp": stamp,
+                    "timestamp": moved.isoformat(),
+                }
+        shifted.append(entry)
+    return shifted
+
+
 def _annotate_claude_request_durations(
     entries: list[dict[str, Any]], events: list[CanonicalTraceEvent]
 ) -> None:
@@ -691,8 +729,7 @@ def _attach_phase_prompts(
 def load_agent_events(
     session_dir: Path, *, slim: bool = True
 ) -> list[CanonicalTraceEvent]:
-    path = session_dir / "messages.jsonl"
-    entries = list(iter_jsonl(path))
+    entries = host_clock_entries(session_dir, "messages.jsonl")
     events = [
         adapt_agent_event(entry, index=i, slim=slim) for i, entry in enumerate(entries)
     ]
@@ -846,7 +883,7 @@ def _fold_progress(entries: list[dict[str, Any]]) -> list[tuple[int, dict[str, A
 def load_nika_events(
     session_dir: Path, *, slim: bool = True
 ) -> list[CanonicalTraceEvent]:
-    entries = list(iter_jsonl(session_dir / "nika.jsonl"))
+    entries = host_clock_entries(session_dir, "nika.jsonl")
     return [
         adapt_nika_event(entry, index=i, slim=slim)
         for i, entry in _fold_progress(entries)

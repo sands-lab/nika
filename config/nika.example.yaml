@@ -54,6 +54,18 @@ nika:
     url: null
     # Reserved for remote artifact storage. Keep null.
     artifact_root: null
+  snapshot:
+    # Advanced: run benchmark trials from Incus VM snapshots of converged labs
+    # (docs/operations/vm-snapshots.md).
+    enabled: false
+    # Packaged VM and its stateless snapshot, as <vm>/<snapshot>.
+    base: nika-base/installed
+    vm_cpus: 16
+    vm_memory: 8GiB
+    # Scenario id -> VM memory for large labs, e.g. {isp_pdh: 20GiB}.
+    vm_memory_overrides: {}
+    # Verify the lab again after each restore, as a cold deploy does.
+    verify_after_restore: true
   sandbox:
     # Sandbox runtime: sbx (Docker Sandboxes) or e2b (E2B-compatible service).
     backend: sbx

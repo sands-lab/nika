@@ -257,3 +257,62 @@ def test_mcp_policy_resource_from_url() -> None:
     from agent.sandbox.sbx.policy import mcp_policy_resource_from_url
 
     assert mcp_policy_resource_from_url("http://10.1.2.3:9444/mcp") == "10.1.2.3:9444"
+
+
+def test_session_log_reads_complete_lines_from_offset(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from nika.remote import handlers
+
+    log = tmp_path / "nika.jsonl"
+    log.write_text('{"e":1}\n{"e":2}\n{"e":3', encoding="utf-8")
+
+    monkeypatch.setattr(handlers, "_session_dir", lambda session_id: str(tmp_path))
+    first = handlers.handle_session_log("s1", "nika.jsonl", 0)
+    # The partially written third line is held back.
+    assert first.data == '{"e":1}\n{"e":2}\n'
+    assert handlers.handle_session_log("s1", "nika.jsonl", first.offset).data == ""
+    with log.open("a", encoding="utf-8") as fh:
+        fh.write("}\n")
+    assert handlers.handle_session_log("s1", "nika.jsonl", first.offset).data == (
+        '{"e":3}\n'
+    )
+    # An offset past the end means the file was replaced: read it again.
+    assert (
+        handlers.handle_session_log("s1", "nika.jsonl", 10**6).offset
+        == log.stat().st_size
+    )
+    with pytest.raises(ValueError):
+        handlers.handle_session_log("s1", "../run.json", 0)
+
+
+def test_log_follower_appends_each_remote_line_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from nika.remote import workflows
+    from nika.remote.protocol import SessionLogResponse
+
+    remote = {"nika.jsonl": '{"e":"env_start"}\n{"e":"inject"}\n', "messages.jsonl": ""}
+
+    class Client:
+        def read_log(self, session_id, name, offset):
+            data = remote[name][offset:]
+            return SessionLogResponse(
+                data=data, offset=offset + len(data), server_time=0.0
+            )
+
+    # The local mirror already holds a pulled line and a local agent event.
+    (tmp_path / "nika.jsonl").write_text('{"e":"env_start"}\n{"e":"agent_start"}\n')
+    follower = workflows.RemoteLogFollower(Client(), "s1", tmp_path)
+    follower.poll()
+    follower.poll()
+    remote["messages.jsonl"] += '{"event":"diagnosis_frozen","origin":"remote"}\n'
+    follower.poll()
+
+    assert (tmp_path / "nika.jsonl").read_text().splitlines() == [
+        '{"e":"env_start"}',
+        '{"e":"agent_start"}',
+        '{"e":"inject"}',
+    ]
+    assert "diagnosis_frozen" in (tmp_path / "messages.jsonl").read_text()
+    assert follower.clock_offset_sec is not None
