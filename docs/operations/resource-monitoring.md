@@ -1,23 +1,41 @@
 # Monitor lab resource usage
 
-To size a lab host or estimate what a benchmark costs to run, you need to know how much CPU and memory each environment uses, and for how long. NIKA can record this in Prometheus. Every series carries the session, scenario, backend, and node that produced it, so you can compare environments, find the heaviest node, or look up a past run by its session id.
+To size a lab host or estimate what a benchmark costs to run, you need to know how much CPU and memory each environment uses, and for how long. NIKA can record this in Prometheus and save a summary next to each session's results. Every measurement carries the session, scenario, backend, and node that produced it, so you can compare environments, find the heaviest node, or look up a past run by its session id.
 
-Monitoring is opt-in and works for Kathara and Containerlab alike. It runs on the lab host, binds only to `127.0.0.1`, and is not exposed to agents through MCP tools or telemetry.
+Monitoring is off by default and works for Kathara and Containerlab alike. It runs on the lab host, binds only to `127.0.0.1`, and is not exposed to agents through MCP tools or telemetry.
 
-## Start monitoring
+## Turn monitoring on
 
 Prerequisites: Docker with the Compose plugin, on the host that runs the labs.
 
 ```shell
-uv run nika metrics up      # cAdvisor + Prometheus at http://127.0.0.1:9090
-uv run nika metrics serve   # session exporter; keep it running (for example in tmux)
+uv run nika observability on
 ```
 
-Then run sessions or benchmarks as usual. Prometheus records each lab container from deployment until the session closes.
+This starts cAdvisor and Prometheus at <http://127.0.0.1:9090>. They keep running, including across Docker restarts, until you turn monitoring off. While monitoring is on, every environment NIKA deploys is recorded automatically, whether it comes from `nika env run`, `nika benchmark run`, `nika case`, or the interactive shell. No other command or flag is needed.
 
-To stop the stack, run `uv run nika metrics down`. Add `--volumes` to also delete the stored history, which is otherwise kept for 30 days.
+When a session closes, NIKA writes `resources.json` to the session's results directory:
 
-## Query usage per session
+```json
+{
+  "session_id": "20261015-142642-55ba69",
+  "scenario": "min3clos",
+  "backend": "containerlab",
+  "duration_sec": 162.2,
+  "cpu_seconds": 314.03,
+  "cpu_cores_avg": 1.936,
+  "cpu_cores_peak": 3.213,
+  "memory_peak_bytes": 4426428416,
+  "nodes": {
+    "leaf1": {"cpu_seconds": 94.44, "memory_peak_bytes": 1473523712},
+    "...": {}
+  }
+}
+```
+
+`uv run nika observability status` shows whether monitoring is on. `uv run nika observability off` stops it and keeps the recorded history, 30 days by default, for the next time you turn it on. Add `--purge` to delete the history as well.
+
+## Query usage in Prometheus
 
 Prometheus keeps these series after a session closes:
 
@@ -26,6 +44,7 @@ Prometheus keeps these series after a session closes:
 | `nika:session_cpu_cores` | CPU cores used by all containers of a session |
 | `nika:session_memory_working_set_bytes` | Working-set memory of all containers of a session |
 | `nika:container_cpu_cores` | CPU cores used by one node (labels `node`, `name`) |
+| `nika:container_cpu_seconds_total` | CPU time one node has used since its container started |
 | `nika:container_memory_working_set_bytes` | Working-set memory of one node |
 | `nika:session_containers` | Number of lab containers in a session |
 
@@ -33,19 +52,16 @@ Each series has the labels `session_id`, `lab_name`, `backend`, and `scenario`. 
 
 ```promql
 # Peak memory of each session over the last day
-max_over_time(nika:session_memory_working_set_bytes[1d])
-
-# CPU core-seconds a session consumed over the last day (15 s rule interval)
-sum_over_time(nika:session_cpu_cores{session_id="20261015-095605-6e1eaf"}[1d]) * 15
+max by (session_id, scenario) (max_over_time(nika:session_memory_working_set_bytes[1d]))
 
 # Average CPU per scenario, to compare environments
 avg by (scenario) (avg_over_time(nika:session_cpu_cores[1d]))
 
-# The three nodes using the most CPU right now
-topk(3, nika:container_cpu_cores)
+# The three nodes that used the most CPU in the last hour
+topk(3, max by (session_id, node) (max_over_time(nika:container_cpu_cores[1h])))
 ```
 
-To read the session's agent and model, join on `nika_session_info`, which the exporter publishes while the session runs:
+While a session runs, `nika_session_info` also carries its `agent_type` and `model`:
 
 ```promql
 nika:session_cpu_cores * on (session_id) group_left (agent_type, model) nika_session_info
@@ -53,10 +69,12 @@ nika:session_cpu_cores * on (session_id) group_left (agent_type, model) nika_ses
 
 ## How it works
 
-[cAdvisor](https://github.com/google/cadvisor) measures every Docker container on the host, which covers both backends. The `nika metrics serve` exporter (port `9464`) reads the local session store and publishes `nika_container_info`, which maps each Docker container `name` to its session and node. Recording rules in [`rules.yml`](../../src/nika/metrics/stack/rules.yml) join the two and store the result under the session labels, so the attribution persists after the exporter stops listing the session.
+[cAdvisor](https://github.com/google/cadvisor) measures every Docker container on the host, which covers both backends. When NIKA deploys an environment while monitoring is on, it also starts a session exporter in the background. The exporter reads the checkout's session store and publishes `nika_container_info`, which maps each Docker container `name` to its session and node. It stops when the checkout's last session closes. Recording rules in [`rules.yml`](../../src/nika/metrics/stack/rules.yml) join the two sources and store the result under the session labels, so the attribution persists after the session ends.
 
-The measurements cover lab containers only. They exclude the agent process, model inference, and agent sandboxes. Containers that NIKA does not attribute to a session, such as the monitoring stack itself, remain visible in the raw cAdvisor series (`container_cpu_usage_seconds_total{name="..."}`).
+Several checkouts on one host share the same Prometheus. Each checkout runs its own exporter on a free port and registers it in `~/.cache/nika/metrics/targets/`. The exporter logs to `runtime/metrics/exporter.log`.
 
-The exporter must run on the lab host with the same checkout as the sessions you want to observe, because it reads that checkout's `runtime/` session store. With [remote lab execution](remote.md), run both commands on the lab host.
+The measurements cover lab containers only. They exclude the agent process, model inference, and agent sandboxes. Containers that NIKA does not attribute to a session remain visible in the raw cAdvisor series, for example `container_cpu_usage_seconds_total{name="..."}`.
 
-The stack uses ports `8098` (cAdvisor), `9090` (Prometheus), and `9464` (exporter), all on `127.0.0.1`. Change them in [`docker-compose.yml`](../../src/nika/metrics/stack/docker-compose.yml) and [`prometheus.yml`](../../src/nika/metrics/stack/prometheus.yml) if they are taken.
+With [remote lab execution](remote.md), run `nika observability on` on the lab host.
+
+The stack uses ports `8098` (cAdvisor) and `9090` (Prometheus) on `127.0.0.1`. Change them in [`docker-compose.yml`](../../src/nika/metrics/stack/docker-compose.yml) and [`prometheus.yml`](../../src/nika/metrics/stack/prometheus.yml) if they are taken.

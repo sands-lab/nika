@@ -8,6 +8,12 @@ groups:
           sum by (name) (rate(container_cpu_usage_seconds_total{name!=""}[1m]))
           * on (name) group_left (session_id, lab_name, backend, scenario, node)
           max by (name, session_id, lab_name, backend, scenario, node) (nika_container_info)
+      # Cumulative CPU time since the container started, deployment included.
+      - record: nika:container_cpu_seconds_total
+        expr: |
+          sum by (name) (container_cpu_usage_seconds_total{name!=""})
+          * on (name) group_left (session_id, lab_name, backend, scenario, node)
+          max by (name, session_id, lab_name, backend, scenario, node) (nika_container_info)
       - record: nika:container_memory_working_set_bytes
         expr: |
           max by (name) (container_memory_working_set_bytes{name!=""})

@@ -65,10 +65,10 @@ LAZY_COMMANDS.update(
             "inspect_app",
             "Browse session trajectories in a local web UI.",
         ),
-        "metrics": LazyCommandSpec(
-            "nika.cli.commands.metrics",
-            "metrics_app",
-            "Monitor lab resource usage with Prometheus.",
+        "observability": LazyCommandSpec(
+            "nika.cli.commands.observability",
+            "observability_app",
+            "Record lab resource usage per session in Prometheus.",
         ),
         "tui": LazyCommandSpec(
             "nika.cli.commands.tui",

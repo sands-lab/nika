@@ -5,12 +5,16 @@ every Docker container regardless of backend. This exporter publishes the
 missing link: which container belongs to which session, scenario, and node.
 Prometheus joins both on the Docker container ``name`` label.
 
-The exporter reads the local session store, so it must run on the lab host.
+The exporter reads the local session store, so it runs on the lab host, one
+per checkout. ``nika.metrics.stack`` starts and stops it.
 """
 
 from __future__ import annotations
 
+import json
 import logging
+import os
+import signal
 import threading
 import time
 from collections.abc import Iterator
@@ -21,6 +25,7 @@ from prometheus_client import REGISTRY, start_http_server
 from prometheus_client.core import GaugeMetricFamily
 from prometheus_client.registry import Collector
 
+from nika.config import REPO_ROOT
 from nika.utils.session_store import SessionStore
 
 logger = logging.getLogger(__name__)
@@ -145,15 +150,44 @@ class SessionCollector(Collector):
         yield from (sessions_info, start_time, containers_info, errors, running)
 
 
-def serve_metrics(*, host: str, port: int) -> None:
-    """Serve ``/metrics`` until interrupted."""
+def main() -> None:
+    """Run the exporter as a background process started by ``ensure_exporter``.
+
+    Binds a free localhost port and registers it for Prometheus file
+    discovery; the registration is removed on SIGTERM.
+    """
+    from nika.metrics.stack import pid_file, target_file
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
     REGISTRY.register(SessionCollector())
-    server, thread = start_http_server(port, addr=host)
-    logger.info("Serving NIKA metrics on http://%s:%d/metrics", host, port)
+    server, thread = start_http_server(0, addr="127.0.0.1")
+    port = server.server_address[1]
+    target = target_file()
+    tmp = target.with_suffix(".tmp")
+    tmp.write_text(
+        json.dumps(
+            [{"targets": [f"127.0.0.1:{port}"], "labels": {"checkout": str(REPO_ROOT)}}]
+        )
+    )
+    tmp.replace(target)
+    logger.info("Serving NIKA metrics on http://127.0.0.1:%d/metrics", port)
+
+    def _stop(*_: object) -> None:
+        raise SystemExit(0)
+
+    signal.signal(signal.SIGTERM, _stop)
     try:
         while thread.is_alive():
             thread.join(timeout=1.0)
-    except KeyboardInterrupt:
-        pass
     finally:
+        target.unlink(missing_ok=True)
+        try:
+            if pid_file().read_text().strip() == str(os.getpid()):
+                pid_file().unlink()
+        except OSError:
+            pass
         server.shutdown()
+
+
+if __name__ == "__main__":
+    main()

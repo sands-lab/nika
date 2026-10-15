@@ -23,7 +23,7 @@ Runtime paths (`runtime/`, `results/`, `benchmark/`) resolve from the repository
 | `nika eval` | Metrics, LLM judge, and offline summary CSV for closed sessions |
 | `nika leaderboard` | Write a submission template, then pack, validate, and submit scores (GitHub PR) and trajectories (HF PR) from an official release run |
 | `nika inspect` | Local web UI for session trajectories, merged timelines, and scores |
-| `nika metrics` | Opt-in Prometheus monitoring of lab CPU and memory per session (`up` / `serve` / `down`); see [monitor lab resource usage](resource-monitoring.md) |
+| `nika observability` | Turn Prometheus monitoring of lab CPU and memory per session `on` / `off`; see [monitor lab resource usage](resource-monitoring.md) |
 | `nika remote` | Optional lab-host control plane (`serve` / `health`); see [remote lab execution](remote.md) |
 | `nika traffic` | Synthetic traffic (`od`, `web`, `sndlib`, `burst`) against the running lab |
 | `nika tui` | Interactive shell with slash commands and guided forms over this CLI (bare `nika` in a terminal opens it too); see [interactive shell](tui.md) |
@@ -555,14 +555,14 @@ nika leaderboard submit --result_dir results/my-run \
 ---
 ---
 
-## `nika metrics`
+## `nika observability`
 
-Record lab CPU and memory per session in Prometheus. How-to and queries: [Monitor lab resource usage](resource-monitoring.md).
+Record lab CPU and memory per session in Prometheus. While monitoring is on, every deployed environment is recorded and each closed session gets `resources.json`. How-to and queries: [Monitor lab resource usage](resource-monitoring.md).
 
 ```shell
-nika metrics up                                  # start cAdvisor + Prometheus (127.0.0.1:9090)
-nika metrics serve [--host 127.0.0.1] [--port 9464]  # map containers to sessions
-nika metrics down [--volumes]                    # stop; --volumes deletes history
+nika observability on              # start cAdvisor + Prometheus (127.0.0.1:9090)
+nika observability status
+nika observability off [--purge]   # stop; --purge also deletes history
 ```
 
 ## `nika remote`
