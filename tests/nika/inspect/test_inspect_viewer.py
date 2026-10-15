@@ -840,7 +840,9 @@ class TestCatalog:
         assert summary.rca_match is None
 
     def test_steps_count_diagnosis_model_replies(self, tmp_path: Path) -> None:
-        def claude_reply(message_id: str, *blocks: dict, phase="diagnosis") -> dict:
+        def claude_reply(
+            message_id: str, *blocks: dict, phase="diagnosis", parent=None
+        ) -> dict:
             return {
                 "timestamp": "2026-01-01T12:00:00",
                 "phase": phase,
@@ -848,6 +850,7 @@ class TestCatalog:
                 "claude_event": {
                     "type": "assistant",
                     "message": {"id": message_id, "content": list(blocks)},
+                    "parent_tool_use_id": parent,
                 },
             }
 
@@ -863,6 +866,8 @@ class TestCatalog:
                 claude_reply("m1", text),
                 claude_reply("m1", ping, {**ping, "id": "t2"}),
                 claude_reply("m2", text),
+                # A sub-agent's reply is outside the agent's step budget.
+                claude_reply("s1", ping, parent="t1"),
                 {"phase": "diagnosis", "event": "result", "claude_event": {}},
                 claude_reply("m3", text, phase="submission"),
             ],

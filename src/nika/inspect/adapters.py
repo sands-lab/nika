@@ -815,10 +815,12 @@ def _claude_message_id(ev: CanonicalTraceEvent) -> str | None:
 
 
 def model_reply_count(events: list[CanonicalTraceEvent], *, phase: str) -> int:
-    """Model replies in ``phase``: the overview's dashed turn lines.
+    """Main-agent model replies in ``phase``: the unit of the step budget.
 
-    Mirrors ``startsTurn`` in roles.ts. A Claude reply counts once however many
-    thinking, text, and tool-call blocks it has (they share ``message.id``).
+    Turns as the overview's dashed lines mark them (``startsTurn`` in
+    roles.ts). A Claude reply counts once however many thinking, text, and
+    tool-call blocks it has (they share ``message.id``); sub-agent replies are
+    left out, as ``claude --max-turns`` leaves them out of the budget.
     Otherwise each request counts once: its start, or an end logged without
     one. HTTP retries stay inside their request.
     """
@@ -829,7 +831,8 @@ def model_reply_count(events: list[CanonicalTraceEvent], *, phase: str) -> int:
     for i, ev in enumerate(agent):
         message_id = _claude_message_id(ev)
         if message_id:
-            claude_replies.add(message_id)
+            if not (_claude_event(ev.raw) or {}).get("parent_tool_use_id"):
+                claude_replies.add(message_id)
         elif _is_llm_start(ev) or (_is_llm_end(ev) and i not in paired_ends):
             requests += 1
     return requests + len(claude_replies)
