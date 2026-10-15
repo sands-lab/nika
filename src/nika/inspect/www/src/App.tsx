@@ -357,12 +357,12 @@ const SESSION_COLUMNS: SessionColumn[] = [
   { id: "rca_f1", label: "RCA F1", numeric: (s) => s.rca_f1 },
   { id: "detection", label: "Detection", numeric: (s) => s.detection_score },
   { id: "localization_f1", label: "Loc F1", numeric: (s) => s.localization_f1 },
-  { id: "steps", label: "Steps", numeric: (s) => s.steps },
-  { id: "tool_calls", label: "Tool calls", numeric: (s) => s.tool_calls },
   { id: "in_tokens", label: "In tok", numeric: (s) => s.in_tokens },
   { id: "out_tokens", label: "Out tok", numeric: (s) => s.out_tokens },
   { id: "time", label: "Time" },
   { id: "duration", label: "Duration" },
+  { id: "steps", label: "Steps", numeric: (s) => s.steps },
+  { id: "tool_calls", label: "Tool calls", numeric: (s) => s.tool_calls },
 ];
 
 const DEFAULT_COLUMNS: SessionSortKey[] = [
@@ -376,9 +376,12 @@ const DEFAULT_COLUMNS: SessionSortKey[] = [
   "rca_f1",
   "time",
   "duration",
+  "steps",
+  "tool_calls",
 ];
 
-const COLUMNS_KEY = "nika-inspect-columns";
+// Bumped when defaults gain columns so saved layouts pick them up.
+const COLUMNS_KEY = "nika-inspect-columns-v2";
 
 function loadColumns(): SessionSortKey[] {
   try {
