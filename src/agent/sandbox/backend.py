@@ -18,8 +18,6 @@ from typing import Any, ClassVar, Protocol
 
 from agent.sandbox.config import SandboxConfig
 
-DEFAULT_SANDBOX_BACKEND = "sbx"
-
 
 class StreamedProcess(Protocol):
     """Command running in a sandbox, with stdout and stderr merged."""
@@ -249,8 +247,12 @@ def prepare_configured_sandbox_templates() -> list[str]:
 def cleanup_sandbox_for_session(
     session_meta: Mapping[str, Any] | None,
 ) -> SandboxCleanupResult | None:
-    """Remove a session's sandbox with the backend that created it."""
-    if not session_meta:
+    """Remove a session's sandbox with the backend that created it.
+
+    Sessions record ``sandbox_backend`` before a sandboxed agent creates its
+    sandbox, so a session without it has none to remove.
+    """
+    name = str((session_meta or {}).get("sandbox_backend") or "").strip()
+    if not name:
         return None
-    name = str(session_meta.get("sandbox_backend") or DEFAULT_SANDBOX_BACKEND)
     return backend_class(name).cleanup_session(session_meta)
