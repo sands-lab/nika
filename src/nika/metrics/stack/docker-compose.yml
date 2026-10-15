@@ -1,0 +1,46 @@
+# Resource monitoring stack for NIKA labs. Start with `nika metrics up`.
+# All ports bind to 127.0.0.1: these metrics name sessions and must stay
+# operator-side, out of reach of the agents under test.
+name: nika-metrics
+
+services:
+  cadvisor:
+    image: ghcr.io/google/cadvisor:v0.60.6
+    command:
+      - --docker_only=true
+      - --housekeeping_interval=10s
+      - --store_container_labels=false
+      - --disable_metrics=advtcp,cpu_topology,cpuset,disk,hugetlb,memory_numa,percpu,perf_event,process,referenced_memory,resctrl,sched,tcp,udp
+    privileged: true
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    ports:
+      - 127.0.0.1:8098:8080
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    # Host networking lets Prometheus reach `nika metrics serve`, which runs
+    # on the host and listens on 127.0.0.1 only.
+    network_mode: host
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --web.listen-address=127.0.0.1:9090
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./rules.yml:/etc/prometheus/rules.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      - cadvisor
+    restart: unless-stopped
+
+volumes:
+  prometheus-data:
