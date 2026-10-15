@@ -280,6 +280,13 @@ class LinkFlap(ProblemBase):
             host0=ctx.host0,
         )
 
+    @classmethod
+    def benchmark_inject_options(cls, ctx, base):
+        # Only the SR Linux client-facing port recovers between flap cycles.
+        if ctx.scenario == "min3clos":
+            return [base]
+        return super().benchmark_inject_options(ctx, base)
+
     symptom_desc = "Users report connectivity issues to other hosts."
 
     def __init__(self, scenario_name: str | None, **kwargs):

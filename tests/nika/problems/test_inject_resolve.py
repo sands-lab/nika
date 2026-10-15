@@ -667,7 +667,7 @@ def test_link_flap_core_inject_timing_and_probe_fields(
     topo = "" if scenario in {"simple_bgp", "min3clos"} else TOPO_SIZE
     params = resolve_inject_params("link_flap", scenario, topo, seed=seed)
     assert params["down_time"] == "1"
-    assert params["up_time"] == "1"
+    assert params["up_time"] == ("12" if scenario == "min3clos" else "1")
     assert params.get("host_name")
 
     if scenario == "p4_dc_gateway":
@@ -675,7 +675,7 @@ def test_link_flap_core_inject_timing_and_probe_fields(
         assert params["probe_dst_ip"] != "20.0.0.1"
     elif scenario == "min3clos":
         assert params["host_name"] == "leaf1"
-        assert params["intf_name"] == "e1-1"
+        assert params["intf_name"] == "e1-2"
         assert params["probe_dst_ip"] == "10.0.0.27"
         assert params["observer_device"] == "client1"
     elif scenario == "dc_clos":
@@ -685,6 +685,12 @@ def test_link_flap_core_inject_timing_and_probe_fields(
         assert params["probe_dst_ip"] == "10.0.20.2"
     elif scenario == "simple_bgp":
         assert params["host_name"] == "pc1"
+
+
+def test_min3clos_link_flap_pool_uses_recovering_access_port() -> None:
+    assert enumerate_inject_params("link_flap", "min3clos", "") == [
+        resolve_inject_params("link_flap", "min3clos", "", seed=42)
+    ]
 
 
 def test_link_flap_isp_inject_uses_one_second_flap() -> None:

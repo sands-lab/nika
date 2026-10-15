@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import heapq
 import re
 from dataclasses import dataclass
 from ipaddress import IPv4Address, IPv4Network
@@ -475,3 +476,20 @@ def _startup_commands(
         ]
     )
     return tuple(cmds)
+
+
+def shortest_distances(
+    graph: dict[str, list[tuple[str, int]]], source: str
+) -> dict[str, int]:
+    distances = {source: 0}
+    queue = [(0, source)]
+    while queue:
+        distance, node = heapq.heappop(queue)
+        if distance != distances[node]:
+            continue
+        for peer, metric in graph[node]:
+            candidate = distance + metric
+            if candidate < distances.get(peer, candidate + 1):
+                distances[peer] = candidate
+                heapq.heappush(queue, (candidate, peer))
+    return distances

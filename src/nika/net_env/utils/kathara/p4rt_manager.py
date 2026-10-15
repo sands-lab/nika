@@ -752,7 +752,9 @@ def cmd_read(args: argparse.Namespace) -> None:
     intent = load_json(args.intent)
     p4info = load_p4info(args.p4info)
     index = P4InfoIndex(p4info)
-    names = [args.switch] if args.switch else list(intent["switches"])
+    names = args.switches or (
+        [args.switch] if args.switch else list(intent["switches"])
+    )
     payload = {}
     for name in names:
         switch = intent["switches"][name]
@@ -1145,9 +1147,17 @@ def cmd_gateway_lb(args: argparse.Namespace) -> None:
             return
 
         updates: list[p4runtime_pb2.Update] = []
+        inserted = 0
         if args.kind == "exhaust":
+            occupied = _gateway_lb_entries(client, index)["lb_conn_table"]
+            if occupied > args.capacity:
+                raise ValueError(
+                    f"connection table already has {occupied} entries, "
+                    f"above requested capacity {args.capacity}"
+                )
+            inserted = args.capacity - occupied
             offset_start = int(args.offset_start)
-            for offset in range(offset_start, offset_start + args.capacity):
+            for offset in range(offset_start, offset_start + inserted):
                 updates.append(
                     exact_fields_entity(
                         index,
@@ -1239,17 +1249,17 @@ def cmd_gateway_lb(args: argparse.Namespace) -> None:
         else:
             raise ValueError(f"unsupported gateway L4 operation: {args.kind}")
 
-        client.write(updates, p4runtime_pb2.WriteRequest.CONTINUE_ON_ERROR)
-        print(
-            json.dumps(
-                {
-                    "ok": True,
-                    "switch": args.switch,
-                    "kind": args.kind,
-                    "tables": _gateway_lb_entries(client, index),
-                }
-            )
-        )
+        if updates:
+            client.write(updates, p4runtime_pb2.WriteRequest.CONTINUE_ON_ERROR)
+        result = {
+            "ok": True,
+            "switch": args.switch,
+            "kind": args.kind,
+            "tables": _gateway_lb_entries(client, index),
+        }
+        if args.kind == "exhaust":
+            result["inserted"] = inserted
+        print(json.dumps(result))
     finally:
         client.close()
 
@@ -1266,7 +1276,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_apply.set_defaults(func=cmd_apply)
 
     p_read = sub.add_parser("read")
-    p_read.add_argument("--switch")
+    selection = p_read.add_mutually_exclusive_group()
+    selection.add_argument("--switch")
+    selection.add_argument("--switches", nargs="+")
     p_read.set_defaults(func=cmd_read)
 
     p_table = sub.add_parser("read-table")

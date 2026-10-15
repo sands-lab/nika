@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from tests.support.net_env import stub_verify_collection  # noqa: F401
 from types import SimpleNamespace
 
 from nika.workflows.benchmark.inject_resolve import resolve_inject_params
@@ -17,14 +18,14 @@ from nika.net_env.p4_dc_gateway.topology_model import (
 )
 from nika.net_env.p4_dc_gateway.verify import (
     _collector_telemetry,
-    _emit_int_probe,
+    int_probe_command,
     _p4runtime_consistent,
 )
 from nika.net_env.net_env_pool import list_all_net_envs
 from nika.service.kathara.bmv2_api import KatharaBMv2API
 from nika.service.kathara.telemetry_api import KatharaTelemetryAPI
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.usefixtures("stub_verify_collection")]
 
 
 @pytest.mark.parametrize("size", ["s", "m", "l"])
@@ -220,18 +221,10 @@ def test_collector_verification_requires_complete_expected_trace() -> None:
 def test_int_probe_uses_service_address_instead_of_vip() -> None:
     model = build_gateway_fabric_model("s")
 
-    class Runtime:
-        def __init__(self) -> None:
-            self.command = ""
-
-        def exec(self, _host: str, command: str, timeout: float = 10.0) -> str:
-            self.command = command
-            return ""
-
-    runtime = Runtime()
-    _emit_int_probe(runtime, model)
-    assert model.services[0].ip in runtime.command
-    assert VIP_IP not in runtime.command
+    request = int_probe_command(model)
+    assert request.node == model.clients[0].name
+    assert model.services[0].ip in request.command
+    assert VIP_IP not in request.command
 
 
 def test_gateway_p4runtime_verification_checks_programmed_state() -> None:

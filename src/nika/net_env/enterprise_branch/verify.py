@@ -28,6 +28,12 @@ from nika.net_env.verify import (
 )
 from nika.utils.parallel import bounded_parallel_map
 from nika.runtime.base import LabRuntime
+from nika.net_env.verify_collection import (
+    VerifyCommand,
+    collect_verify_commands,
+    ping_command,
+    http_command,
+)
 
 
 def _bgp_neighbor_established(line: str) -> bool:
@@ -73,6 +79,84 @@ def _rib_has_prefix(rib: str, prefix: str) -> bool:
     return net in rib
 
 
+def _collect(runtime, spec, tunnels, *, full):
+    commands = []
+
+    def add(node, command, timeout=20):
+        commands.append(VerifyCommand(node, command, timeout))
+
+    def ping(node, target):
+        add(node, ping_command(target), 15)
+
+    hq_corp = _corp_lan(spec, "hq")
+    hq_srv = _server_lan(spec, "hq")
+    hq_ip, srv_ip = _lan_host_ip(hq_corp), _lan_host_ip(hq_srv)
+    if not full:
+        add(hq_corp.host_name, "ip -4 -o addr show dev eth0", 10)
+        add(edge_name_for("hq"), "pgrep -x bgpd", 10)
+        for spoke in spec.branch_names():
+            add(edge_name_for(spoke), "vtysh -c 'show ip bgp'")
+            ping(_corp_lan(spec, spoke).host_name, srv_ip)
+        return collect_verify_commands(runtime, commands)
+    for site in spec.sites.values():
+        add(edge_name_for(site.name), "ip -d link show type vrf", 15)
+        for lan in site.lans:
+            for host in lan.host_names:
+                add(host, "ip -4 -o addr show dev eth0", 10)
+            if lan.role in LOCAL_ONLY_ROLES:
+                remote = (
+                    _corp_lan(spec, spec.branch_names()[0])
+                    if site.name == "hq" and spec.branch_names()
+                    else hq_corp
+                )
+                for host in lan.host_names:
+                    ping(host, _lan_host_ip(remote))
+                    ping(host, _lan_host_ip(_corp_lan(spec, site.name)))
+    seen = set()
+    for tunnel in tunnels:
+        left, right = edge_name_for(tunnel.spoke), edge_name_for(tunnel.hub)
+        ping(left, tunnel.hub_wan_ip)
+        ping(right, tunnel.spoke_wan_ip)
+        for edge, interface in ((left, tunnel.spoke_iface), (right, tunnel.hub_iface)):
+            add(edge, f"wg show {interface}", 15)
+            add(edge, "vtysh -c 'show bgp summary'")
+            if (edge, interface) not in seen:
+                seen.add((edge, interface))
+                add(edge, f"tc qdisc show dev {interface}", 15)
+                add(edge, f"tc class show dev {interface}", 15)
+        if not tunnel.primary and tunnel.spoke in spec.branch_names():
+            add(left, f"vtysh -c 'show ip bgp {hq_corp.prefix}'")
+    for spoke in spec.branch_names():
+        edge, corp = edge_name_for(spoke), _corp_lan(spec, spoke)
+        add(edge, "vtysh -c 'show ip bgp'")
+        add(edge, f"vtysh -c 'show ip route vrf {vrf_name('corp')}'")
+        add(edge, f"ip route show vrf {vrf_name('corp')}", 15)
+        for lan in spec.sites[spoke].lans:
+            if lan.role in LOCAL_ONLY_ROLES:
+                add(edge, f"ip route show vrf {lan.vrf}", 15)
+        ping(corp.host_name, hq_ip)
+        ping(hq_corp.host_name, _lan_host_ip(corp))
+        add(corp.host_name, http_command(f"http://{srv_ip}/"))
+    dc2 = _corp_lan(spec, "dc2")
+    ping(hq_corp.host_name, _lan_host_ip(dc2))
+    ping(dc2.host_name, hq_ip)
+    add(dc2.host_name, http_command(f"http://{srv_ip}/"))
+    spokes = spec.branch_names()
+    for i, source in enumerate(spokes):
+        for destination in spokes[i + 1 :]:
+            target = _lan_host_ip(_corp_lan(spec, destination))
+            ping(_corp_lan(spec, source).host_name, target)
+            add(
+                edge_name_for(source),
+                f"ip route get {target} vrf {vrf_name('corp')}",
+                15,
+            )
+    for provider in spec.providers:
+        add(isp_name_for(provider), "ip route", 15)
+        add(isp_name_for(provider), "vtysh -c 'show ip route'", 15)
+    return collect_verify_commands(runtime, commands)
+
+
 def verify_enterprise_branch_lab_startup(
     runtime: LabRuntime,
     *,
@@ -84,6 +168,7 @@ def verify_enterprise_branch_lab_startup(
 ) -> dict[str, Any]:
     """Bounded readiness: nodes, HQ edge FRR, and every branch overlay to HQ."""
     spec = spec or build_topo_spec(topo_size)
+    runtime = _collect(runtime, spec, list(built_tunnels or []), full=False)
     hq_corp = _corp_lan(spec, "hq")
     hq_srv = _server_lan(spec, "hq")
     hq_srv_ip = _lan_host_ip(hq_srv)
@@ -110,11 +195,13 @@ def verify_enterprise_branch_lab_startup(
 
     for spoke_result in bounded_parallel_map(spoke_overlay_checks, spec.branch_names()):
         checks.update(spoke_result)
-    return build_lab_verify_result(
-        scenario_name=scenario_name,
-        verified=all(checks.values()),
-        checks=checks,
-        details={"startup_check": True, "topo_size": topo_size},
+    return runtime.finish(
+        build_lab_verify_result(
+            scenario_name=scenario_name,
+            verified=all(checks.values()),
+            checks=checks,
+            details={"startup_check": True, "topo_size": topo_size},
+        )
     )
 
 
@@ -128,6 +215,7 @@ def verify_enterprise_branch_lab(
     **_kwargs: Any,
 ) -> dict[str, Any]:
     spec = spec or build_topo_spec(topo_size)
+    runtime = _collect(runtime, spec, list(built_tunnels or []), full=True)
     checks: dict[str, bool] = {}
     details: dict[str, Any] = {"topo_size": topo_size}
     tunnels = list(built_tunnels or [])
@@ -427,9 +515,11 @@ def verify_enterprise_branch_lab(
 
     details["failed"] = [k for k, v in checks.items() if not v]
     details["check_count"] = len(checks)
-    return build_lab_verify_result(
-        scenario_name=scenario_name,
-        verified=all(checks.values()),
-        checks=checks,
-        details=details,
+    return runtime.finish(
+        build_lab_verify_result(
+            scenario_name=scenario_name,
+            verified=all(checks.values()),
+            checks=checks,
+            details=details,
+        )
     )

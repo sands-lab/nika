@@ -6,6 +6,12 @@ import re
 
 from nika.net_env.verify import build_lab_verify_result
 from nika.runtime.base import LabRuntime
+from nika.net_env.verify_collection import (
+    VerifyCommand,
+    collect_verify_commands,
+    ping_command,
+    http_command,
+)
 
 PROBE_HOST = "pc_1_1_1_1"
 PEER_HOST = "pc_2_1_1_1"
@@ -30,7 +36,7 @@ DHCP_HOST_RANGE = re.compile(r"10\.1\.1\.(?:[1-9]\d|100)")
 
 
 def _ping_ok(runtime: LabRuntime, host: str, target: str) -> bool:
-    output = runtime.exec(host, f"ping -c 1 -W 2 {target}", timeout=10)
+    output = runtime.exec(host, ping_command(target), timeout=10)
     return "1 received" in output
 
 
@@ -47,7 +53,7 @@ def _process_running(runtime: LabRuntime, host: str, process: str) -> bool:
 def _http_status(runtime: LabRuntime, host: str, url: str) -> str:
     return runtime.exec(
         host,
-        f"curl -s -o /dev/null -w '%{{http_code}}' --connect-timeout 5 {url}",
+        http_command(url),
         timeout=15,
     ).strip()
 
@@ -162,12 +168,61 @@ def _shared_checks(runtime: LabRuntime, dist_router: str) -> dict[str, bool]:
     return checks
 
 
+def _collect(runtime, *, full):
+    live_runtime = runtime
+    commands = [
+        VerifyCommand(node, command, 15 if command.startswith("vtysh ") else 10)
+        for node, command in (
+            (PROBE_HOST, "ip -4 -o addr show dev eth0"),
+            (PEER_HOST, "ip -4 -o addr show dev eth0"),
+            (PROBE_HOST, "ip route show default"),
+            (CORE_ROUTER, "vtysh -c 'show ip ospf'"),
+            (CORE_ROUTER, "vtysh -c 'show ip ospf neighbor'"),
+            (CORE_ROUTER, "cat /sys/class/net/eth0/operstate"),
+            (DIST_ROUTER_DHCP, "ip -4 -o addr show dev br0"),
+        )
+    ]
+    if full:
+        commands.extend(
+            VerifyCommand(node, command, 10)
+            for node, command in (
+                (DNS_SERVER, "pgrep -x named"),
+                ("dhcp_server", "systemctl is-active isc-dhcp-server"),
+                (DIST_ROUTER_DHCP, "pgrep -a dhcrelay"),
+                (WEB_SERVER, "pgrep -f '[w]eb_server.py'"),
+                (LOAD_BALANCER, "pgrep -x nginx"),
+            )
+        )
+    collected = collect_verify_commands(live_runtime, commands)
+    peer_ip = _peer_host_ip(collected)
+    commands = [VerifyCommand(PROBE_HOST, ping_command(HOST_GATEWAY), 10)]
+    if peer_ip:
+        commands.append(VerifyCommand(PROBE_HOST, ping_command(peer_ip), 10))
+    if full:
+        commands.extend(
+            [
+                VerifyCommand(PROBE_HOST, ping_command(DNS_SERVER_IP), 10),
+                VerifyCommand(PROBE_HOST, http_command(WEB0_URL), 15),
+                VerifyCommand(PROBE_HOST, http_command(WEB99_URL), 15),
+                VerifyCommand(PEER_HOST, http_command(WEB3_URL), 15),
+            ]
+        )
+        commands.extend(
+            VerifyCommand(PROBE_HOST, f"getent hosts {name}", 10)
+            for name in ("web0.local", "web99.local")
+        )
+    return collected.merged(
+        collect_verify_commands(live_runtime, commands, nodes=collected.nodes)
+    )
+
+
 def verify_campus_lan_lab_startup(
     runtime: LabRuntime,
     *,
     scenario_name: str,
 ) -> dict:
     """Bounded readiness: core OSPF and the probe-host to peer-host path."""
+    runtime = _collect(runtime, full=False)
     host_ready = _host_has_ipv4(runtime)
     checks = {
         "ospf_process": _ospf_process_running(runtime),
@@ -183,16 +238,18 @@ def verify_campus_lan_lab_startup(
         else False,
         "peer_host_reachable": _peer_host_reachable(runtime) if host_ready else False,
     }
-    return build_lab_verify_result(
-        scenario_name=scenario_name,
-        verified=all(checks.values()),
-        checks=checks,
-        details={
-            "probe_host": PROBE_HOST,
-            "peer_host": PEER_HOST,
-            "core_router": CORE_ROUTER,
-            "dist_router": DIST_ROUTER_DHCP,
-        },
+    return runtime.finish(
+        build_lab_verify_result(
+            scenario_name=scenario_name,
+            verified=all(checks.values()),
+            checks=checks,
+            details={
+                "probe_host": PROBE_HOST,
+                "peer_host": PEER_HOST,
+                "core_router": CORE_ROUTER,
+                "dist_router": DIST_ROUTER_DHCP,
+            },
+        )
     )
 
 
@@ -202,6 +259,7 @@ def verify_campus_lan_lab(
     scenario_name: str,
 ) -> dict:
     """Check routing convergence, L3 connectivity, and service accessibility after deploy."""
+    runtime = _collect(runtime, full=True)
     dist_router = DIST_ROUTER_DHCP
     checks = _shared_checks(runtime, dist_router)
 
@@ -220,16 +278,18 @@ def verify_campus_lan_lab(
     checks["load_balancer_http"] = _http_ok(runtime, PROBE_HOST, WEB99_URL)
 
     verified = all(checks.values())
-    return build_lab_verify_result(
-        scenario_name=scenario_name,
-        verified=verified,
-        checks=checks,
-        details={
-            "probe_host": PROBE_HOST,
-            "peer_host": PEER_HOST,
-            "core_router": CORE_ROUTER,
-            "dist_router": dist_router,
-        },
+    return runtime.finish(
+        build_lab_verify_result(
+            scenario_name=scenario_name,
+            verified=verified,
+            checks=checks,
+            details={
+                "probe_host": PROBE_HOST,
+                "peer_host": PEER_HOST,
+                "core_router": CORE_ROUTER,
+                "dist_router": dist_router,
+            },
+        )
     )
 
 

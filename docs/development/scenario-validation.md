@@ -36,6 +36,26 @@ design inputs -> configuration generation -> deployed network -> runtime verific
 
 For a scenario without a contract, `verify_lab()` returns `verified`, boolean `checks`, and optional diagnostic `details`. It remains a startup gate, but it does not create a `ValidationReport` artifact.
 
+## Runtime observation collection
+
+To keep verification bounded as a topology grows, declare independent observations with [`VerifyCommand`](../../src/nika/net_env/verify_collection.py), collect them once per node and phase, and let checks read the resulting `VerifyCollection`. Existing public scenario verification signatures remain unchanged.
+
+```python
+from nika.net_env.verify_collection import VerifyCommand, collect_verify_commands
+
+observations = collect_verify_commands(
+    runtime,
+    [VerifyCommand("client", "ip -4 -o addr show dev eth0", timeout=10)],
+)
+output = observations.exec("client", "ip -4 -o addr show dev eth0")
+```
+
+Collection deduplicates identical node/command requests within a phase, runs at most eight nodes concurrently, and bounds node-local command concurrency to eight. Each command retains its own timeout, output, exit status, and duration. An observation reader never executes missing commands. Call `observations.finish(result)` to attach collection evidence and make required collection errors fail verification; optional contract errors remain reported without gating required intents.
+
+Collect again after a state transition. Kubernetes VIP discovery precedes client hosts synchronization and service probes. P4 counter baselines precede traffic and counter increments; INT probes precede telemetry reads. FRR/RPKI recovery refreshes affected observations. Results are never cached between verification calls.
+
+Historical compatibility scenarios keep their existing verification paths.
+
 ## Scenario coverage
 
 The scenario registry in [`net_env_pool.py`](../../src/nika/net_env/net_env_pool.py) is the source of truth.
@@ -159,15 +179,21 @@ Each `isp_<topology>` ID deploys one SNDlib graph with IS-IS or OSPF, optional B
 | --- | --- | --- | --- |
 | All planned routers and hosts | Compare planned names with deployed nodes | Confirm SNDlib topology deployment | Every planned node exists |
 | Every active IGP link | Inspect IS-IS or OSPF neighbor state | Confirm selected IGP convergence | Each planned adjacency is Up or Full |
-| Planned loopbacks and inventory addresses | Router or host ping; inspect configured addresses | Confirm control-plane reachability and addressing | Required pings reply; inventory addresses are present |
-| Traffic stubs, when configured | Inspect host address; ping gateway and remote stub | Confirm edge attachment and forwarding | Address exists; both probes reply |
+| Planned loopbacks and inventory addresses | Ping every component loopback from its deterministic representative source; inspect configured addresses | Confirm packet delivery and addressing | Required pings reply; inventory addresses are present |
+| All ordered router-to-loopback pairs within each IGP component, full verification | Longest-prefix lookup and traversal of observed FIB branches | Detect missing routes, discard, loops, unknown exits, and partial ECMP failure | `fib_all_pairs_reachable` passes for every pair and installed branch |
+| Every installed branch for those pairs, full verification | Compare concrete outgoing link metric with design-time shortest distances, preserving parallel links | Detect forwarding through a costlier parallel link or path | `fib_shortest_paths` passes for every installed branch |
+| Selected traffic stubs, when configured | Inspect host address; ping gateway and remote stub | Confirm sampled edge attachment and forwarding | Address exists; both probes reply |
 | Planned BGP sessions and prefixes, when configured | Inspect BGP neighbor and route state | Confirm establishment, origin, and propagation | Peers establish; originated and observer prefixes appear |
 | Kathara FRR BGP | Inspect BGP table for denied infrastructure prefix | Prevent forbidden infrastructure distribution | Denied prefix is absent |
 | Kathara FRR RPKI named specials | Inspect RTR and RPKI route state | Confirm RPKI attachment and leak policy | RTR is connected; leak is absent |
 | Kathara contract reachability/isolation intent | ICMP or TCP/UDP probe between concrete entities | Confirm required reachability or denial | Reachability connects; isolation does not connect |
 | Kathara contract waypoint intent | Traceroute between concrete entities | Confirm required transit and avoidance | Trace contains required nodes and no forbidden node |
 | Kathara contract BGP/OSPF adjacency intent | Inspect FRR protocol state | Confirm concrete contract adjacency | BGP peer is established or OSPF peer is Full |
-| Kathara required contract report | Aggregate per-intent results | Gate startup on healthy contract | `ValidationReport.status` is `passed` |
+| Kathara required contract report | Aggregate per-intent results | Gate full verification on healthy contract | `ValidationReport.status` is `passed` |
+
+ISP FIB checks use installed Linux local/main routes on FRR and active, programmed routes with resolved next-hop groups in the SR Linux `default` network-instance. They validate router-to-loopback forwarding; they do not simulate arbitrary policy routing, ACLs, or NAT. Existing explicit contract and service probes remain responsible for their respective properties.
+
+ISP stub checks select the first and last host in each IGP component, plus contract-referenced endpoints and the RTBH observer. `details.host_coverage` lists the selected hosts and total count; deployment checks still cover every container. Other current scenarios retain their existing probe coverage.
 
 ### `min3clos`
 

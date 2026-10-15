@@ -58,7 +58,9 @@ def nodes_deployed(runtime: "LabRuntime", expected: Iterable[str]) -> bool:
 
 
 def ping_ok(runtime: "LabRuntime", host: str, target: str, *, count: int = 1) -> bool:
-    output = exec_or_empty(runtime, host, f"ping -c {count} -W 2 {target}", timeout=15)
+    from nika.net_env.verify_collection import ping_command
+
+    output = exec_or_empty(runtime, host, ping_command(target, count=count), timeout=15)
     return f"{count} received" in output or f"{count} packets received" in output
 
 
@@ -143,24 +145,33 @@ def ping_unreachable(
     Returns the targets that did not answer all ``count`` probes. ``netns``
     runs ping in that network namespace (e.g. the SR Linux data plane).
     """
+    from nika.net_env.verify_collection import (
+        VerifyCollection,
+        VerifyCommand,
+        collect_verify_commands,
+        mesh_ping_command,
+    )
+
     wanted = sorted(set(targets))
     if not wanted:
         return []
-    ping = f"ip netns exec {netns} ping" if netns else "ping"
-    script = " ".join(
-        f"(echo {target} $({ping} -c {count} -i 0.2 -W 2 -q {target}"
-        " | grep -o '[0-9]* received')) &"
+    requests = [
+        VerifyCommand(host, mesh_ping_command(target, count=count, netns=netns), 30)
         for target in wanted
+    ]
+    observations = (
+        runtime
+        if isinstance(runtime, VerifyCollection)
+        else collect_verify_commands(runtime, requests)
     )
-    output = exec_or_empty(
-        runtime, host, f"sh -c {shlex.quote(script + ' wait')}", timeout=30
-    )
-    answered = {
-        fields[0]
-        for fields in (line.split() for line in output.splitlines())
-        if fields[1:] == [str(count), "received"]
-    }
-    return [target for target in wanted if target not in answered]
+    return [
+        target
+        for target, request in zip(wanted, requests, strict=True)
+        if _parse_ping_stats(
+            exec_or_empty(observations, host, request.command), count=count
+        ).received
+        != count
+    ]
 
 
 def _frag_needed_in_output(output: str) -> bool:
@@ -724,10 +735,12 @@ def frr_active_or_heal(
 
 
 def http_ok(runtime: "LabRuntime", host: str, url: str) -> bool:
+    from nika.net_env.verify_collection import http_command
+
     output = exec_or_empty(
         runtime,
         host,
-        f"curl -s -o /dev/null -w '%{{http_code}}' --connect-timeout 5 {url}",
+        http_command(url),
         timeout=20,
     )
     return output.strip() == "200"
@@ -902,6 +915,8 @@ def verify_lab_with_retry(net_env: NetworkEnvBase) -> dict[str, Any] | None:
     result = verify()
     if result is None:
         return None
+    if result.get("verified", False) and not k3s_nodes:
+        return result
 
     default_wait, default_delay = _lab_ready_defaults()
     max_wait_sec = getattr(net_env, "VERIFY_MAX_WAIT_SEC", default_wait)

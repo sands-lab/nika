@@ -7,6 +7,7 @@ import pytest
 from nika.net_env.routeros_simple_bgp.lab import IMAGE as ROUTEROS_IMAGE
 from nika.net_env.utils.iosxr.common import IMAGE as XRD_IMAGE
 from nika.runtime.factory import resolve_backend
+from tests.support.ci_depth import artifact_verify_only
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import (
     containerlab_prerequisites,
@@ -26,7 +27,7 @@ _VENDOR_IMAGES = {
 
 
 _KATHARA_CASES = tuple(
-    ScenarioE2ECase(scenario, env_run_args=("-s", "s"))
+    ScenarioE2ECase(scenario, env_run_args=("-s", size), topo_size=size)
     for scenario in (
         "dc_clos",
         "campus_lan",
@@ -35,6 +36,7 @@ _KATHARA_CASES = tuple(
         "p4_dc_fabric",
         "p4_dc_gateway",
     )
+    for size in ("s", "m", "l")
 ) + (
     ScenarioE2ECase(
         "iosxr_simple_bgp",
@@ -70,8 +72,16 @@ _ISP_CASES = (
 
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
 class KatharaScenarioE2ETest(IntegrationTestCase):
-    @pytest.mark.parametrize("case", _KATHARA_CASES, ids=lambda c: c.scenario)
+    @pytest.mark.parametrize(
+        "case",
+        _KATHARA_CASES,
+        ids=lambda c: (
+            c.scenario if c.topo_size in (None, "s") else f"{c.scenario}-{c.topo_size}"
+        ),
+    )
     def test_evaluate_scenario(self, case: ScenarioE2ECase) -> None:
+        if case.topo_size in ("m", "l") and artifact_verify_only():
+            pytest.skip("Scale E2E requires full verification on a dedicated lab host")
         image = _VENDOR_IMAGES.get(case.scenario)
         if image and not docker_image_available(image):
             pytest.skip(f"Vendor image {image} not installed locally")
