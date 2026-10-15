@@ -334,26 +334,22 @@ function scoreChip(value: number | null | undefined): ReactNode {
   return value != null ? <span className="chip score">{formatScore(value)}</span> : "—";
 }
 
-/** ``found/total +wrong`` root-cause guesses; the pairs are in the tooltip. */
+/** ``found/expected +wrong`` root-cause guesses, explained in a quick tooltip. */
 function rootCausesCell(m: RcaMatch | null | undefined): ReactNode {
   if (!m) return "—";
-  const found = m.found.length;
-  const total = found + m.missed.length;
-  const wrong = m.wrong.length;
+  const { found, expected, wrong } = m;
   // Green for any hit, or for a healthy network the agent left blank.
-  const correct = found > 0 || (total === 0 && wrong === 0);
-  const title = [
-    total === 0 && wrong === 0
-      ? "No root causes expected, and the agent submitted none."
-      : `${found} of ${total} root causes found, ${wrong} wrong ${wrong === 1 ? "guess" : "guesses"}.`,
-    "A guess counts only when both resource and fault type match.",
-    ...m.found.map((p) => `✓ found: ${p}`),
-    ...m.missed.map((p) => `○ missed: ${p}`),
-    ...m.wrong.map((p) => `✗ wrong: ${p}`),
-  ].join("\n");
+  const correct = found > 0 || (expected === 0 && wrong === 0);
+  const guesses = `${wrong} wrong ${wrong === 1 ? "guess" : "guesses"}`;
+  const tip =
+    expected === 0
+      ? wrong === 0
+        ? "No root causes expected, none submitted"
+        : `No root causes expected, but ${guesses}`
+      : `Found ${found} of ${expected} root causes${wrong ? `, plus ${guesses}` : ""}`;
   return (
-    <span className="rca-match" title={title}>
-      <span className={correct ? "rca-found" : undefined}>{found}</span>/{total}
+    <span className="rca-match" data-tip={tip}>
+      <span className={correct ? "rca-found" : undefined}>{found}</span>/{expected}
       {wrong > 0 ? <span className="rca-wrong"> +{wrong}</span> : null}
     </span>
   );
@@ -385,7 +381,7 @@ const SESSION_COLUMNS: SessionColumn[] = [
   {
     id: "root_causes",
     label: "Root causes",
-    numeric: (s) => s.rca_match?.found.length,
+    numeric: (s) => s.rca_match?.found,
     placeholder: "<1",
   },
   { id: "detection", label: "Detection", numeric: (s) => s.detection_score },
@@ -455,7 +451,7 @@ function sessionSortValue(s: SessionSummary, key: SessionSortKey): string | numb
     case "model":
       return (s.model || "").toLowerCase();
     case "root_causes":
-      return s.rca_match?.found.length ?? null;
+      return s.rca_match?.found ?? null;
     case "detection":
       return s.detection_score ?? null;
     case "localization_f1":

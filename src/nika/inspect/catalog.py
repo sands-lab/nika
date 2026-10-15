@@ -94,7 +94,7 @@ def _metric(metrics: dict[str, Any] | None, key: str) -> Any:
 
 
 def _rca_match(session_dir: Path, metrics: dict[str, Any] | None) -> RcaMatch | None:
-    """Found / missed / wrong root causes of a scored session (RCA F1's pairs)."""
+    """Found / expected / wrong root causes of a scored session (RCA F1's pairs)."""
     rca_f1 = _metric(metrics, "rca_f1")
     # Unscored: null, or ``-1`` in sessions scored before nulls replaced it.
     if not isinstance(rca_f1, (int, float)) or rca_f1 < 0:
@@ -108,14 +108,10 @@ def _rca_match(session_dir: Path, metrics: dict[str, Any] | None) -> RcaMatch | 
     guesses = (parse_root_causes(submission) if submission is not None else None) or []
     truth_pairs = {rc.pair_key() for rc in truth}
     guess_pairs = {rc.pair_key() for rc in guesses}
-
-    def labels(pairs: set[tuple[str, str]]) -> list[str]:
-        return [f"{resource} · {fault}" for resource, fault in sorted(pairs)]
-
     return RcaMatch(
-        found=labels(truth_pairs & guess_pairs),
-        missed=labels(truth_pairs - guess_pairs),
-        wrong=labels(guess_pairs - truth_pairs),
+        found=len(truth_pairs & guess_pairs),
+        expected=len(truth_pairs),
+        wrong=len(guess_pairs - truth_pairs),
     )
 
 

@@ -50,11 +50,11 @@ class CanonicalTraceEvent(BaseModel):
 
 
 class RcaMatch(BaseModel):
-    """Submitted vs ground-truth ``resource · fault_type`` pairs, as RCA F1 matches them."""
+    """Submitted vs ground-truth ``(resource, fault_type)`` pairs, as RCA F1 matches them."""
 
-    found: list[str] = Field(default_factory=list)
-    missed: list[str] = Field(default_factory=list)
-    wrong: list[str] = Field(default_factory=list)
+    found: int
+    expected: int
+    wrong: int
 
 
 class ArtifactFlags(BaseModel):

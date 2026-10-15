@@ -36,11 +36,11 @@ export interface CanonicalTraceEvent {
   truncated?: boolean;
 }
 
-/** Submitted vs ground-truth ``resource · fault_type`` pairs (RCA F1's matching). */
+/** Submitted vs ground-truth ``(resource, fault_type)`` pairs (RCA F1's matching). */
 export interface RcaMatch {
-  found: string[];
-  missed: string[];
-  wrong: string[];
+  found: number;
+  expected: number;
+  wrong: number;
 }
 
 export interface ArtifactFlags {

@@ -839,7 +839,7 @@ class TestCatalog:
         assert summary.is_benchmark is False
         assert summary.rca_match is None
 
-    def test_rca_match_counts_found_missed_and_wrong_pairs(
+    def test_rca_match_counts_found_expected_and_wrong_pairs(
         self, tmp_path: Path
     ) -> None:
         def rc(resource_id: str, fault_type: str) -> dict:
@@ -870,9 +870,7 @@ class TestCatalog:
 
         match = summarize_session_dir(tmp_path).rca_match
 
-        assert match.found == ["link/s1/eth1 · link_down"]
-        assert match.missed == ["node/r1 · cpu_hog"]
-        assert match.wrong == ["node/r1 · mem_leak", "node/r2 · cpu_hog"]
+        assert (match.found, match.expected, match.wrong) == (1, 2, 2)
 
     def test_summarize_aborted_and_error_status(self, tmp_path: Path) -> None:
         aborted = tmp_path / "aborted"
