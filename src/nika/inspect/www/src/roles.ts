@@ -276,6 +276,8 @@ export function buildOverviewSpans(events: CanonicalTraceEvent[]): OverviewSpan[
   const pairedLlmEnds = new Set([...llmPairs.values()].map((p) => p.end.id));
   const seenClaudeMessages = new Set<string>();
   const startsTurn = (ev: CanonicalTraceEvent): boolean => {
+    // Phase summaries (Claude ``result``) close a phase; they are not replies.
+    if (ev.kind === "phase") return false;
     const id = claudeMessageId(ev);
     if (!id) return true;
     if (seenClaudeMessages.has(id)) return false;

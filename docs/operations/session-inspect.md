@@ -94,7 +94,13 @@ Below the bars, **Tools** lists calls, errors, and total / average / max time pe
 
 ### Choose columns
 
-Right-click the table header, or click **⋯** at the end of the header row, to choose columns, including detection, localization F1, steps, tool calls, token counts, backend, and tags. Score and count columns accept numeric filters such as `>=0.5`, `<10`, or `=0`. A bare number means `=`.
+By default the table shows, among others:
+
+- **Root causes**: `found/expected +wrong`. For example, `1/2 +1` means the agent found 1 of the 2 ground-truth root causes and made 1 wrong guess. A guess counts only when both the resource and the fault type match. The column sorts and filters on the number found.
+- **Steps**: model replies during diagnosis. One reply and the tool calls it requests make one step, as marked by the dashed lines on the Timeline overview. Submission replies are not counted.
+- **Tool calls**: tool calls during diagnosis.
+
+Right-click the table header, or click **⋯** at the end of the header row, to choose columns, including detection, localization F1, token counts, backend, and tags. Score and count columns accept numeric filters such as `>=0.5`, `<10`, or `=0`. A bare number means `=`.
 
 The browser keeps the column choice in `localStorage`, so it stays local to that browser.
 

@@ -11,9 +11,15 @@ from typing import Any, Literal
 
 from pydantic import ValidationError
 
+from agent.protocols import DIAGNOSIS
 from nika.config import resolve_results_root
 from nika.evaluator.scoring import parse_root_causes
-from nika.inspect.adapters import iter_jsonl, llm_request_durations, load_agent_events
+from nika.inspect.adapters import (
+    iter_jsonl,
+    llm_request_durations,
+    load_agent_events,
+    model_reply_count,
+)
 from nika.inspect.models import (
     Annotations,
     ArtifactFlags,
@@ -113,6 +119,13 @@ def _rca_match(session_dir: Path, metrics: dict[str, Any] | None) -> RcaMatch | 
         expected=len(truth_pairs),
         wrong=len(guess_pairs - truth_pairs),
     )
+
+
+def _diagnosis_steps(session_dir: Path) -> int | None:
+    """Model replies during diagnosis, as the timeline marks turns."""
+    if not (session_dir / ARTIFACT_FILES["messages"]).is_file():
+        return None
+    return model_reply_count(load_agent_events(session_dir), phase=DIAGNOSIS)
 
 
 def _as_int(value: Any) -> int | None:
@@ -473,7 +486,7 @@ def _build_session_summary(
         localization_f1=_metric(metrics, "localization_f1"),
         in_tokens=_metric(metrics, "in_tokens"),
         out_tokens=_metric(metrics, "out_tokens"),
-        steps=_metric(metrics, "steps"),
+        steps=_diagnosis_steps(session_dir),
         tool_calls=_metric(metrics, "tool_calls"),
         tags=load_annotations(session_dir).tags,
         artifacts=_artifact_flags(session_dir),

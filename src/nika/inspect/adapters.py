@@ -808,6 +808,33 @@ def llm_request_durations(events: list[CanonicalTraceEvent]) -> list[float]:
     return durations
 
 
+def _claude_message_id(ev: CanonicalTraceEvent) -> str | None:
+    message = (_claude_event(ev.raw) or {}).get("message")
+    message_id = message.get("id") if isinstance(message, dict) else None
+    return message_id if isinstance(message_id, str) and message_id else None
+
+
+def model_reply_count(events: list[CanonicalTraceEvent], *, phase: str) -> int:
+    """Model replies in ``phase``: the overview's dashed turn lines.
+
+    Mirrors ``startsTurn`` in roles.ts. A Claude reply counts once however many
+    thinking, text, and tool-call blocks it has (they share ``message.id``).
+    Otherwise each request counts once: its start, or an end logged without
+    one. HTTP retries stay inside their request.
+    """
+    agent = [ev for ev in events if ev.source == "agent" and ev.phase == phase]
+    paired_ends = set(_pair_llm_ends(agent).values())
+    claude_replies: set[str] = set()
+    requests = 0
+    for i, ev in enumerate(agent):
+        message_id = _claude_message_id(ev)
+        if message_id:
+            claude_replies.add(message_id)
+        elif _is_llm_start(ev) or (_is_llm_end(ev) and i not in paired_ends):
+            requests += 1
+    return requests + len(claude_replies)
+
+
 def _span_ms(start: Any, end: Any) -> float | None:
     try:
         first = datetime.fromisoformat(str(_timestamp(start)))

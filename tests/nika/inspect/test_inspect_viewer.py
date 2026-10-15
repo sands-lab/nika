@@ -839,6 +839,51 @@ class TestCatalog:
         assert summary.is_benchmark is False
         assert summary.rca_match is None
 
+    def test_steps_count_diagnosis_model_replies(self, tmp_path: Path) -> None:
+        def claude_reply(message_id: str, *blocks: dict, phase="diagnosis") -> dict:
+            return {
+                "timestamp": "2026-01-01T12:00:00",
+                "phase": phase,
+                "event": "assistant",
+                "claude_event": {
+                    "type": "assistant",
+                    "message": {"id": message_id, "content": list(blocks)},
+                },
+            }
+
+        thinking = {"type": "thinking", "thinking": ""}
+        text = {"type": "text", "text": "Checking r1."}
+        ping = {"type": "tool_use", "id": "t1", "name": "ping", "input": {}}
+        _write_json(tmp_path / "run.json", {"session_id": "s", "status": "finished"})
+        # Claude Code logs each block of a reply as its own row.
+        _write_jsonl(
+            tmp_path / "messages.jsonl",
+            [
+                claude_reply("m1", thinking),
+                claude_reply("m1", text),
+                claude_reply("m1", ping, {**ping, "id": "t2"}),
+                claude_reply("m2", text),
+                {"phase": "diagnosis", "event": "result", "claude_event": {}},
+                claude_reply("m3", text, phase="submission"),
+            ],
+        )
+        assert summarize_session_dir(tmp_path).steps == 2
+
+        # Other agents log a start and an end per model call.
+        _write_jsonl(
+            tmp_path / "messages.jsonl",
+            [
+                {"phase": "diagnosis", "event": "llm_start"},
+                {"phase": "diagnosis", "event": "llm_retry"},
+                {"phase": "diagnosis", "event": "llm_end"},
+                {"phase": "diagnosis", "event": "llm_start"},
+                {"phase": "diagnosis", "event": "llm_end"},
+                {"phase": "submission", "event": "llm_start"},
+                {"phase": "submission", "event": "llm_end"},
+            ],
+        )
+        assert summarize_session_dir(tmp_path).steps == 2
+
     def test_rca_match_counts_found_expected_and_wrong_pairs(
         self, tmp_path: Path
     ) -> None:
