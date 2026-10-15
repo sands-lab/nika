@@ -434,7 +434,7 @@ Zoo scenarios use the same compiler, IGP and BGP options, stub hosts and compati
   - It keeps only the largest connected component and drops self-loops, so every router can reach every other router.
   - Router names are ASCII slugs of the zoo labels, at most 19 characters, with `_2`, `_3` suffixes for duplicates.
   - Parallel zoo edges become parallel links. A link-level failure on one member of a parallel bundle can be masked by ECMP over the others.
-  - With `--metric-strategy inv_capacity`, 28 zoo graphs have parallel links with unequal metrics. FRR IS-IS computes the cost over the cheapest member but can install the next hop on a more expensive one, so forwarding may not follow the shortest path. OSPF selects the cheapest member. Use `--igp ospf` or the default constant metric when exact paths matter.
+  - With `--metric-strategy inv_capacity`, 28 zoo graphs have parallel links with unequal metrics. OSPF keeps each member's metric and forwards over the cheapest one. FRR IS-IS costs a neighbor by its cheapest adjacency but can forward over any of them, so with `--igp isis` every member of a parallel bundle gets the bundle's lowest metric and the bundle forwards as ECMP. Use `--igp ospf` when per-member capacity metrics matter.
   - `LinkSpeedRaw` becomes link capacity in Mbit/s, which `--metric-strategy inv_capacity` uses.
 
 ```shell
