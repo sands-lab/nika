@@ -27,6 +27,7 @@ import {
   ScoresResponse,
   SessionDetail,
   SessionFacets,
+  RcaMatch,
   SessionSummary,
 } from "./api";
 import {
@@ -305,7 +306,7 @@ type SessionSortKey =
   | "size"
   | "agent"
   | "model"
-  | "rca_f1"
+  | "root_causes"
   | "detection"
   | "localization_f1"
   | "steps"
@@ -318,7 +319,7 @@ type SessionSortKey =
   | "duration";
 
 const DESC_FIRST_SORT_KEYS = new Set<SessionSortKey>([
-  "rca_f1",
+  "root_causes",
   "detection",
   "localization_f1",
   "steps",
@@ -331,6 +332,27 @@ const DESC_FIRST_SORT_KEYS = new Set<SessionSortKey>([
 
 function scoreChip(value: number | null | undefined): ReactNode {
   return value != null ? <span className="chip score">{formatScore(value)}</span> : "—";
+}
+
+/** ``found/total +wrong`` root-cause guesses; the pairs are in the tooltip. */
+function rootCausesCell(m: RcaMatch | null | undefined): ReactNode {
+  if (!m) return "—";
+  const found = m.found.length;
+  const total = found + m.missed.length;
+  const wrong = m.wrong.length;
+  const title = [
+    `${found} of ${total} root causes found, ${wrong} wrong ${wrong === 1 ? "guess" : "guesses"}.`,
+    "A guess counts only when both resource and fault type match.",
+    ...m.found.map((p) => `✓ found: ${p}`),
+    ...m.missed.map((p) => `○ missed: ${p}`),
+    ...m.wrong.map((p) => `✗ wrong: ${p}`),
+  ].join("\n");
+  return (
+    <span className="rca-match" title={title}>
+      <span className={found > 0 ? "rca-found" : undefined}>{found}</span>/{total}
+      {wrong > 0 ? <span className="rca-wrong"> +{wrong}</span> : null}
+    </span>
+  );
 }
 
 function countCell(value: number | null | undefined): ReactNode {
@@ -354,7 +376,7 @@ const SESSION_COLUMNS: SessionColumn[] = [
   { id: "model", label: "Model" },
   { id: "backend", label: "Backend" },
   { id: "tags", label: "Tags" },
-  { id: "rca_f1", label: "RCA F1", numeric: (s) => s.rca_f1 },
+  { id: "root_causes", label: "Root causes", numeric: (s) => s.rca_match?.found.length },
   { id: "detection", label: "Detection", numeric: (s) => s.detection_score },
   { id: "localization_f1", label: "Loc F1", numeric: (s) => s.localization_f1 },
   { id: "in_tokens", label: "In tok", numeric: (s) => s.in_tokens },
@@ -373,15 +395,15 @@ const DEFAULT_COLUMNS: SessionSortKey[] = [
   "size",
   "agent",
   "model",
-  "rca_f1",
+  "root_causes",
   "time",
   "duration",
   "steps",
   "tool_calls",
 ];
 
-// Bumped when defaults gain columns so saved layouts pick them up.
-const COLUMNS_KEY = "nika-inspect-columns-v2";
+// Bumped when the default columns change so saved layouts pick them up.
+const COLUMNS_KEY = "nika-inspect-columns-v3";
 
 function loadColumns(): SessionSortKey[] {
   try {
@@ -421,8 +443,8 @@ function sessionSortValue(s: SessionSummary, key: SessionSortKey): string | numb
       return (s.agent_type || "").toLowerCase();
     case "model":
       return (s.model || "").toLowerCase();
-    case "rca_f1":
-      return s.rca_f1 ?? null;
+    case "root_causes":
+      return s.rca_match?.found.length ?? null;
     case "detection":
       return s.detection_score ?? null;
     case "localization_f1":
@@ -771,8 +793,8 @@ function SessionsTable({
               </span>
             ))
           : "—";
-      case "rca_f1":
-        return scoreChip(s.rca_f1);
+      case "root_causes":
+        return rootCausesCell(s.rca_match);
       case "detection":
         return scoreChip(s.detection_score);
       case "localization_f1":

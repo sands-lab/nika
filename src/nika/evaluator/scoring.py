@@ -59,7 +59,8 @@ def _prf(pred: set, truth: set) -> tuple[float, float, float, float]:
     )
 
 
-def _root_causes_from(payload: dict, *, field: str) -> list[RootCause] | None:
+def parse_root_causes(payload: dict) -> list[RootCause] | None:
+    """``payload['root_causes']`` as ``RootCause`` items, or ``None`` if missing/invalid."""
     raw = payload.get("root_causes")
     if raw is None:
         return None
@@ -77,8 +78,8 @@ def score_rca_v2(submission: dict, gt: dict) -> dict[str, float]:
     Unparseable GT → ``GradingError``.
     """
     zeros = {k: 0.0 for k in zero_scores()}
-    pred_list = _root_causes_from(submission, field="submission")
-    gt_list = _root_causes_from(gt, field="gt")
+    pred_list = parse_root_causes(submission)
+    gt_list = parse_root_causes(gt)
     if gt_list is None:
         raise GradingError("ground truth root_causes missing or invalid")
     if pred_list is None:

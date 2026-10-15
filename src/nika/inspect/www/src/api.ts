@@ -36,6 +36,13 @@ export interface CanonicalTraceEvent {
   truncated?: boolean;
 }
 
+/** Submitted vs ground-truth ``resource · fault_type`` pairs (RCA F1's matching). */
+export interface RcaMatch {
+  found: string[];
+  missed: string[];
+  wrong: string[];
+}
+
 export interface ArtifactFlags {
   run: boolean;
   messages: boolean;
@@ -73,6 +80,7 @@ export interface SessionSummary {
   outcome?: string | null;
   detection_score?: number | null;
   rca_f1?: number | null;
+  rca_match?: RcaMatch | null;
   localization_f1?: number | null;
   in_tokens?: number | null;
   out_tokens?: number | null;

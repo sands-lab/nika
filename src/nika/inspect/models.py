@@ -49,6 +49,14 @@ class CanonicalTraceEvent(BaseModel):
     truncated: bool = False
 
 
+class RcaMatch(BaseModel):
+    """Submitted vs ground-truth ``resource · fault_type`` pairs, as RCA F1 matches them."""
+
+    found: list[str] = Field(default_factory=list)
+    missed: list[str] = Field(default_factory=list)
+    wrong: list[str] = Field(default_factory=list)
+
+
 class ArtifactFlags(BaseModel):
     run: bool = False
     messages: bool = False
@@ -97,6 +105,7 @@ class SessionSummary(BaseModel):
     outcome: str | None = None
     detection_score: float | None = None
     rca_f1: float | None = None
+    rca_match: RcaMatch | None = None
     localization_f1: float | None = None
     in_tokens: int | None = None
     out_tokens: int | None = None

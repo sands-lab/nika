@@ -837,6 +837,42 @@ class TestCatalog:
         assert summary is not None
         assert summary.status == "running"
         assert summary.is_benchmark is False
+        assert summary.rca_match is None
+
+    def test_rca_match_counts_found_missed_and_wrong_pairs(
+        self, tmp_path: Path
+    ) -> None:
+        def rc(resource_id: str, fault_type: str) -> dict:
+            return {"resource_id": resource_id, "fault_type": fault_type}
+
+        _write_json(tmp_path / "run.json", {"session_id": "s", "status": "finished"})
+        _write_json(
+            tmp_path / "ground_truth.json",
+            {
+                "root_causes": [
+                    rc("link/s1/eth1", "link_down"),
+                    rc("node/r1", "cpu_hog"),
+                ]
+            },
+        )
+        # Right resource with the wrong fault type is a wrong guess, not a match.
+        _write_json(
+            tmp_path / "submission.json",
+            {
+                "root_causes": [
+                    rc("link/s1/eth1", "link_down"),
+                    rc("node/r1", "mem_leak"),
+                    rc("node/r2", "cpu_hog"),
+                ]
+            },
+        )
+        _write_json(tmp_path / "eval_metrics.json", {"rca_f1": 0.4})
+
+        match = summarize_session_dir(tmp_path).rca_match
+
+        assert match.found == ["link/s1/eth1 · link_down"]
+        assert match.missed == ["node/r1 · cpu_hog"]
+        assert match.wrong == ["node/r1 · mem_leak", "node/r2 · cpu_hog"]
 
     def test_summarize_aborted_and_error_status(self, tmp_path: Path) -> None:
         aborted = tmp_path / "aborted"

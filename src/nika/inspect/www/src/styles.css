@@ -837,6 +837,22 @@ body.is-resizing .sidebar-resizer::before {
   font-variant-numeric: tabular-nums;
 }
 
+.rca-match {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.rca-found {
+  color: var(--good);
+  font-weight: 600;
+}
+
+.rca-wrong {
+  color: var(--bad);
+  font-weight: 600;
+}
+
 .session-time {
   font-variant-numeric: tabular-nums;
   font-size: 12px;

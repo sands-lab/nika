@@ -12,6 +12,7 @@ from typing import Any, Literal
 from pydantic import ValidationError
 
 from nika.config import resolve_results_root
+from nika.evaluator.scoring import parse_root_causes
 from nika.inspect.adapters import iter_jsonl, llm_request_durations, load_agent_events
 from nika.inspect.models import (
     Annotations,
@@ -20,6 +21,7 @@ from nika.inspect.models import (
     LlmRequestStats,
     RawArtifact,
     RawArtifactData,
+    RcaMatch,
     ScoresResponse,
     SessionDetail,
     SessionFacets,
@@ -89,6 +91,32 @@ def _metric(metrics: dict[str, Any] | None, key: str) -> Any:
         return None
     value = metrics.get(key)
     return value if value is not None else None
+
+
+def _rca_match(session_dir: Path, metrics: dict[str, Any] | None) -> RcaMatch | None:
+    """Found / missed / wrong root causes of a scored session (RCA F1's pairs)."""
+    rca_f1 = _metric(metrics, "rca_f1")
+    # Unscored: null, or ``-1`` in sessions scored before nulls replaced it.
+    if not isinstance(rca_f1, (int, float)) or rca_f1 < 0:
+        return None
+    gt = _read_json(session_dir / ARTIFACT_FILES["ground_truth"])
+    truth = parse_root_causes(gt) if gt is not None else None
+    if truth is None:
+        return None
+    submission = _read_json(session_dir / ARTIFACT_FILES["submission"])
+    # An invalid submission scores as no guesses.
+    guesses = (parse_root_causes(submission) if submission is not None else None) or []
+    truth_pairs = {rc.pair_key() for rc in truth}
+    guess_pairs = {rc.pair_key() for rc in guesses}
+
+    def labels(pairs: set[tuple[str, str]]) -> list[str]:
+        return [f"{resource} · {fault}" for resource, fault in sorted(pairs)]
+
+    return RcaMatch(
+        found=labels(truth_pairs & guess_pairs),
+        missed=labels(truth_pairs - guess_pairs),
+        wrong=labels(guess_pairs - truth_pairs),
+    )
 
 
 def _as_int(value: Any) -> int | None:
@@ -445,6 +473,7 @@ def _build_session_summary(
         outcome=run.get("outcome"),
         detection_score=_metric(metrics, "detection_score"),
         rca_f1=_metric(metrics, "rca_f1"),
+        rca_match=_rca_match(session_dir, metrics),
         localization_f1=_metric(metrics, "localization_f1"),
         in_tokens=_metric(metrics, "in_tokens"),
         out_tokens=_metric(metrics, "out_tokens"),
