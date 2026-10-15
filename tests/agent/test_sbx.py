@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -41,6 +42,11 @@ from agent.sandbox.workspace import collect_artifacts, prepare_workspace
 from nika.run_config import default_run_config, reset_run_config, set_run_config
 
 pytestmark = pytest.mark.unit
+
+
+def _sbx_config(**overrides):
+    """Sandbox config for the sbx backend, whatever the host config selects."""
+    return replace(resolve_sandbox_config(**overrides), backend="sbx")
 
 
 @pytest.mark.parametrize(
@@ -574,7 +580,7 @@ def test_write_manifest_uses_opaque_session_id(tmp_path) -> None:
         scenario_name="campus_lan",
         backend="kathara",
     )
-    manager = SandboxManager(resolve_sandbox_config())
+    manager = SandboxManager(_sbx_config())
     manifest = manager.write_manifest(
         session=session,
         agent_type="sdk.codex_sdk",
@@ -612,7 +618,7 @@ def test_open_session_collects_artifacts_when_policy_cleanup_fails(
         openai_base_url="",
         anthropic_base_url="",
     )
-    manager = SandboxManager(resolve_sandbox_config(keep_container=False))
+    manager = SandboxManager(_sbx_config(keep_container=False))
 
     with (
         patch("agent.sandbox.sbx.backend.sbx_available", return_value=True),
@@ -694,7 +700,7 @@ def test_open_session_preserves_host_submission_on_collect(tmp_path) -> None:
         openai_base_url="",
         anthropic_base_url="",
     )
-    manager = SandboxManager(resolve_sandbox_config(keep_container=False))
+    manager = SandboxManager(_sbx_config(keep_container=False))
 
     with (
         patch("agent.sandbox.sbx.backend.sbx_available", return_value=True),
@@ -764,7 +770,7 @@ def test_sandbox_manifest_omits_host_session_dir(tmp_path) -> None:
         scenario_name="simple_bgp",
         backend="kathara",
     )
-    manager = SandboxManager(resolve_sandbox_config(keep_container=False))
+    manager = SandboxManager(_sbx_config(keep_container=False))
     try:
         with (
             patch(
