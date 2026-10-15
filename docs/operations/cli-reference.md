@@ -183,7 +183,7 @@ nika inspect [--result-dir PATH] [--host 127.0.0.1] [--port 7580] [--no-open]
 | --- | --- | --- |
 | `--result-dir` | `nika.result_dir` / `results/` | Results root to scan (session dirs with `run.json`) |
 | `--host` | `127.0.0.1` | `127.0.0.1`, `localhost`, `::1`, `0.0.0.0`, or `::` (not a specific NIC IP) |
-| `--port` | `7580` | If busy, NIKA picks a free port and prints it |
+| `--port` | `7580` | Port to serve on (`0` = OS-assigned). Only one dashboard may use `7580`; pass another port to run a second one alongside it. A busy port is an error |
 | `--no-open` | off | Skip opening a browser (always skipped under SSH or WSL) |
 
 ---

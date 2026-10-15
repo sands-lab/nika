@@ -27,6 +27,12 @@ uv run nika inspect --result-dir results
 
 Default URL: `http://127.0.0.1:7580/`. Override the results root with `--result-dir` or `nika.result_dir` in [`config/nika.yaml`](configuration.md).
 
+Only one dashboard runs on the default port. A second `nika inspect` errors out with the running dashboard's URL. To run another one alongside it, for example over a different results root, pass a port explicitly:
+
+```shell
+uv run nika inspect --result-dir results/other --port 7581
+```
+
 `nika benchmark run` on a TTY starts this viewer automatically for the run's `--result_dir` and shows a clickable URL on the dashboard. You can still run `nika inspect` yourself for finished results.
 
 To reach the UI from another machine (or Windows from WSL), bind all interfaces and open the host IP:

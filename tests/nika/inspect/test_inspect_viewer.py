@@ -1388,8 +1388,29 @@ class TestSingletonLock:
         )
 
         with pytest.raises(ValueError, match="Another nika inspect dashboard"):
-            serve.serve_inspect(result_dir=tmp_path, port=0, open_browser=False)
+            serve.serve_inspect(
+                result_dir=tmp_path, port=serve.DEFAULT_PORT, open_browser=False
+            )
 
+        serve._release_singleton_lock(held)
+
+    def test_explicit_port_skips_lock_and_never_falls_back(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import socket
+
+        import nika.inspect.serve as serve
+
+        monkeypatch.setattr(serve, "_SINGLETON_LOCK_PATH", tmp_path / "inspect.lock")
+        held = serve._acquire_singleton_lock()
+        with socket.socket() as busy:
+            busy.bind(("127.0.0.1", 0))
+            busy.listen()
+            port = busy.getsockname()[1]
+            # The default dashboard's lock does not block another port, and a
+            # busy explicit port errors instead of moving elsewhere.
+            with pytest.raises(ValueError, match=f"Port {port} is already in use"):
+                serve.serve_inspect(result_dir=tmp_path, port=port, open_browser=False)
         serve._release_singleton_lock(held)
 
 
