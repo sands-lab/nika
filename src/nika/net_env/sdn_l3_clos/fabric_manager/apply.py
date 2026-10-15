@@ -50,11 +50,15 @@ def _onos_url(path: str) -> str:
     return f"http://{ONOS_OOB_IP}:{ONOS_REST_PORT}{path}"
 
 
+def onos_get_command(path: str) -> str:
+    return f"curl -s -u {_ONOS_AUTH} --connect-timeout 3 '{_onos_url(path)}' || echo '{{}}'"
+
+
 def _onos_get(runtime: LabRuntime, path: str, *, timeout: float = 30.0) -> str:
     return _exec(
         runtime,
         "fabric_mgr",
-        f"curl -s -u {_ONOS_AUTH} --connect-timeout 3 '{_onos_url(path)}' || echo '{{}}'",
+        onos_get_command(path),
         timeout=timeout,
     )
 
@@ -924,23 +928,18 @@ def prune_groups_for_down_link(
     return rules
 
 
+def switch_observation_commands(switch: str) -> dict[str, str]:
+    return {
+        kind: f"ovs-ofctl -O OpenFlow13 dump-{kind} {switch} 2>/dev/null || true"
+        for kind in ("flows", "groups", "ports")
+    }
+
+
 def observed_switch_state(runtime: LabRuntime, switch: str) -> dict[str, str]:
-    flows = _exec(
-        runtime,
-        switch,
-        f"ovs-ofctl -O OpenFlow13 dump-flows {switch} 2>/dev/null || true",
-    )
-    groups = _exec(
-        runtime,
-        switch,
-        f"ovs-ofctl -O OpenFlow13 dump-groups {switch} 2>/dev/null || true",
-    )
-    ports = _exec(
-        runtime,
-        switch,
-        f"ovs-ofctl -O OpenFlow13 dump-ports {switch} 2>/dev/null || true",
-    )
-    return {"flows": flows, "groups": groups, "ports": ports}
+    return {
+        kind: _exec(runtime, switch, command)
+        for kind, command in switch_observation_commands(switch).items()
+    }
 
 
 __all__ = [

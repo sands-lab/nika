@@ -6,6 +6,8 @@ from typing import Any
 
 from nika.net_env.sdn_l3_clos.fabric_manager.apply import (
     observed_switch_state,
+    onos_get_command,
+    switch_observation_commands,
     onos_topology_snapshot,
 )
 from nika.net_env.sdn_l3_clos.fabric_manager.forwarding_rules import (
@@ -27,6 +29,12 @@ from nika.net_env.verify import (
     process_running,
 )
 from nika.runtime.base import LabRuntime
+from nika.net_env.verify_collection import (
+    VerifyCommand,
+    collect_verify_commands,
+    ping_command,
+    http_command,
+)
 
 
 def _ovs_ready(runtime: LabRuntime, switches: list[str]) -> bool:
@@ -130,12 +138,66 @@ def _sparse_cross_rack_http(runtime: LabRuntime, model: ClosFabricModel) -> bool
     return http_ok(runtime, src.name, f"http://{dst.ip}/")
 
 
+def _collect(runtime, model, *, full):
+    commands = [
+        VerifyCommand("onos", command)
+        for command in (
+            "cat /sys/class/net/eth0/operstate",
+            "pgrep -af java",
+            "pgrep -af onos",
+            "pgrep -x java",
+        )
+    ]
+    commands.extend(
+        VerifyCommand("fabric_mgr", onos_get_command(f"/onos/v1/{kind}"), 30)
+        for kind in ("devices", "links", "hosts")
+    )
+    sample = model.spines[:1] + model.leaves[:2]
+    commands.extend(VerifyCommand(switch, "ovs-vsctl show") for switch in sample)
+    if full:
+        commands.extend(
+            VerifyCommand(switch, command, 60)
+            for switch in sample
+            for command in switch_observation_commands(switch).values()
+        )
+        commands.extend(
+            VerifyCommand(ep.name, "ip -4 -o addr show dev eth0", 10)
+            for ep in model.endpoints[:2]
+        )
+    clients, webs = model.client_endpoints() or model.endpoints, model.web_endpoints()
+    if clients and webs:
+        web = webs[0]
+        same = next(
+            (client for client in clients if client.leaf_id == web.leaf_id), None
+        )
+        if same:
+            commands.append(VerifyCommand(same.name, ping_command(web.ip), 15))
+        source = clients[0]
+        destination = next(
+            (web for web in webs if web.leaf_id != source.leaf_id), webs[0]
+        )
+        ping_destination = (
+            webs[1]
+            if source.leaf_id == destination.leaf_id and len(webs) > 1
+            else destination
+        )
+        commands.append(
+            VerifyCommand(source.name, ping_command(ping_destination.ip), 15)
+        )
+        if full:
+            commands.append(
+                VerifyCommand(source.name, http_command(f"http://{destination.ip}/"))
+            )
+    return collect_verify_commands(runtime, commands)
+
+
 def verify_sdn_l3_clos_lab_startup(
     runtime: LabRuntime,
     *,
     scenario_name: str,
     model: ClosFabricModel,
 ) -> dict[str, Any]:
+    runtime = _collect(runtime, model, full=False)
     expected_nodes = (
         ["onos", "fabric_mgr"]
         + model.spines
@@ -156,10 +218,12 @@ def verify_sdn_l3_clos_lab_startup(
         "same_rack_ping": _same_rack_ping(runtime, model),
         "cross_rack_ping": _sparse_cross_rack_ping(runtime, model),
     }
-    return build_lab_verify_result(
-        scenario_name=scenario_name,
-        verified=all(checks.values()),
-        checks=checks,
+    return runtime.finish(
+        build_lab_verify_result(
+            scenario_name=scenario_name,
+            verified=all(checks.values()),
+            checks=checks,
+        )
     )
 
 
@@ -169,6 +233,8 @@ def verify_sdn_l3_clos_lab(
     scenario_name: str,
     model: ClosFabricModel,
 ) -> dict[str, Any]:
+    live_runtime = runtime
+    runtime = _collect(runtime, model, full=True)
     expected_nodes = (
         ["onos", "fabric_mgr"]
         + model.spines
@@ -196,6 +262,16 @@ def verify_sdn_l3_clos_lab(
         "cross_rack_ping": _sparse_cross_rack_ping(runtime, model),
         "cross_rack_http": _sparse_cross_rack_http(runtime, model),
     }
+    runtime = runtime.merged(
+        collect_verify_commands(
+            live_runtime,
+            [
+                VerifyCommand(ep.name, f"ip neigh show {gateway_ip(ep.leaf_id)}", 10)
+                for ep in sample_eps
+            ],
+            nodes=runtime.nodes,
+        )
+    )
     for ep in sample_eps:
         checks[f"{ep.name}_ipv4"] = host_has_ipv4(runtime, ep.name, ep.ip)
         checks[f"{ep.name}_gateway_neigh"] = (
@@ -205,8 +281,10 @@ def verify_sdn_l3_clos_lab(
             ).lower()
         )
 
-    return build_lab_verify_result(
-        scenario_name=scenario_name,
-        verified=all(checks.values()),
-        checks=checks,
+    return runtime.finish(
+        build_lab_verify_result(
+            scenario_name=scenario_name,
+            verified=all(checks.values()),
+            checks=checks,
+        )
     )

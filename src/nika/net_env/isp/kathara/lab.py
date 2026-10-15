@@ -230,6 +230,7 @@ class Isp(NetworkEnvBase):
         large = len(self.plan.nodes) >= 40 or self.bgp_plan is not None
         machine_opts = {
             "image": nika_image("frr"),
+            "shell": "/bin/sh",
             "cpus": 1.0 if large else 0.5,
             "mem": "512m" if large else "256m",
         }
@@ -257,7 +258,12 @@ class Isp(NetworkEnvBase):
             self.lab.connect_machine_to_link(link.endpoint_a, link.collision_domain)
             self.lab.connect_machine_to_link(link.endpoint_b, link.collision_domain)
 
-        host_opts = {"image": nika_image("base"), "cpus": 0.5, "mem": "256m"}
+        host_opts = {
+            "shell": "/bin/sh",
+            "image": nika_image("base"),
+            "cpus": 0.5,
+            "mem": "256m",
+        }
         for host in self.traffic.hosts:
             self.lab.new_machine(host.host_name, **host_opts)
             self.declare_machine(

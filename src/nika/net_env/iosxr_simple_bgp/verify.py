@@ -15,6 +15,11 @@ from nika.net_env.verify import (
     ping_ok,
 )
 from nika.runtime.base import LabRuntime
+from nika.net_env.verify_collection import (
+    VerifyCommand,
+    collect_verify_commands,
+    ping_command,
+)
 
 
 def _iosxr_interface_up(runtime: LabRuntime, router: str, interface: str) -> bool:
@@ -37,9 +42,29 @@ def _iosxr_bgp_established(
     return established >= min_neighbors
 
 
+def _collect(runtime, *, full):
+    commands = [
+        VerifyCommand("router1", "/pkg/bin/xr_cli 'show bgp summary'"),
+        VerifyCommand("pc1", ping_command("195.11.14.1"), 15),
+        VerifyCommand("pc1", ping_command("200.1.1.2"), 15),
+    ]
+    if full:
+        commands.extend(
+            VerifyCommand(router, "/pkg/bin/xr_cli 'show ip interface brief'", 10)
+            for router in ("router1", "router2")
+        )
+        commands.extend(
+            VerifyCommand(pc, "ip -4 -o addr show dev eth0", 10)
+            for pc in ("pc1", "pc2")
+        )
+        commands.append(VerifyCommand("pc1", "ip route show default", 10))
+    return collect_verify_commands(runtime, commands)
+
+
 def verify_iosxr_simple_bgp_lab_startup(
     runtime: LabRuntime, *, scenario_name: str
 ) -> dict[str, Any]:
+    runtime = _collect(runtime, full=False)
     expected = ("router1", "router2", "pc1", "pc2")
     checks = {
         "nodes_deployed": nodes_deployed(runtime, expected),
@@ -48,16 +73,19 @@ def verify_iosxr_simple_bgp_lab_startup(
         # Established precedes the first eBGP UPDATE by up to ~90s on XRd.
         "pc1_to_pc2_reachable": ping_ok(runtime, "pc1", "200.1.1.2"),
     }
-    return build_lab_verify_result(
-        scenario_name=scenario_name,
-        verified=all(checks.values()),
-        checks=checks,
+    return runtime.finish(
+        build_lab_verify_result(
+            scenario_name=scenario_name,
+            verified=all(checks.values()),
+            checks=checks,
+        )
     )
 
 
 def verify_iosxr_simple_bgp_lab(
     runtime: LabRuntime, *, scenario_name: str
 ) -> dict[str, Any]:
+    runtime = _collect(runtime, full=True)
     expected = ("router1", "router2", "pc1", "pc2")
     checks = {
         "nodes_deployed": nodes_deployed(runtime, expected),
@@ -70,8 +98,10 @@ def verify_iosxr_simple_bgp_lab(
         "pc1_gateway_reachable": ping_ok(runtime, "pc1", "195.11.14.1"),
         "pc1_to_pc2_reachable": ping_ok(runtime, "pc1", "200.1.1.2"),
     }
-    return build_lab_verify_result(
-        scenario_name=scenario_name,
-        verified=all(checks.values()),
-        checks=checks,
+    return runtime.finish(
+        build_lab_verify_result(
+            scenario_name=scenario_name,
+            verified=all(checks.values()),
+            checks=checks,
+        )
     )

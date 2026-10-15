@@ -149,10 +149,10 @@ class LbConnectionStateExhaustion(ProblemBase):
         )
         time.sleep(0.5)
 
-        fake_count = params.capacity - 1
-        exhaust_lb_conn_table(
-            self.runtime, params.host_name, fake_count, offset_start=0
+        filled = exhaust_lb_conn_table(
+            self.runtime, params.host_name, params.capacity, offset_start=0
         )
+        fake_count = filled["inserted"]
         delete_lb_conn(
             self.runtime,
             params.host_name,
@@ -162,7 +162,7 @@ class LbConnectionStateExhaustion(ProblemBase):
             dst_port=vip_port,
         )
         exhaust_lb_conn_table(
-            self.runtime, params.host_name, 1, offset_start=fake_count
+            self.runtime, params.host_name, params.capacity, offset_start=fake_count
         )
         self._update = unsafe_lb_pool_update(self.runtime, params.host_name)
 
