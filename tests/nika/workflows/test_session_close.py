@@ -65,6 +65,7 @@ def test_close_session_cleans_owned_sbx_before_undeploy(
         "status": "running",
         "backend": "kathara",
         "scenario_params": {"lab_name": lab_name, "backend": "kathara"},
+        "sandbox_backend": "sbx",
     }
     (session_dir / "run.json").write_text(json.dumps(meta), encoding="utf-8")
     store = SessionStore(sessions_dir, db_path)
@@ -102,6 +103,17 @@ def test_close_session_cleans_owned_sbx_before_undeploy(
     called_meta = cleanup_mock.call_args.args[0]
     assert called_meta["agent_session_id"] == agent_sid
     assert called_meta["session_id"] == session_id
+
+
+@pytest.mark.unit
+def test_sandbox_cleanup_skips_sessions_without_a_sandbox() -> None:
+    from agent.sandbox.backend import cleanup_sandbox_for_session
+
+    # No sandbox_backend: no sandboxed agent ran, so no backend is asked.
+    with patch("agent.sandbox.sbx.cleanup.cleanup_sbx_for_session") as sbx_cleanup:
+        meta = {"session_id": "s1", "agent_session_id": "a1"}
+        assert cleanup_sandbox_for_session(meta) is None
+    sbx_cleanup.assert_not_called()
 
 
 @pytest.mark.unit
