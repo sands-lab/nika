@@ -2,20 +2,20 @@
 
 from __future__ import annotations
 
+import json
 import re
+import shlex
 from typing import Any
 
-from nika.net_env.verify import ping_stats
+from nika.net_env.verify import exec_or_empty, ping_stats
 from nika.problems.base import build_verify_result
 from nika.problems.rca.inventory import iter_link_termination_points, parse_endpoint
 
 _SAMPLE_PINGS = 30
 _PING_INTERVAL_S = 0.2
-# The shallow egress queue delays a victim flow that shares it (queueing
-# latency) rather than dropping it. The victim must be this many times slower
-# than a control flow that avoids the queue, and slower by at least this share
-# of the queue's drain time (limit / rate), so the threshold scales with the
-# configured port.
+# A shallow egress queue delays and may drop packets on the victim path. The
+# victim must be this many times slower than its healthy reading. Relative
+# delay or measured egress drops then tie the change to the affected port.
 _RTT_FACTOR = 3.0
 _QUEUE_DELAY_SHARE = 0.5
 _RATE_RE = re.compile(r"^(\d+(?:\.\d+)?)([kmg]?)bit$", re.IGNORECASE)
@@ -51,7 +51,8 @@ def _control(problem: Any, params: Any, device: str) -> tuple[str, str] | None:
     )
     switches = observer_side - {params.observer_device}
     near = set().union(*(nodes for nodes in links if nodes & switches))
-    servers = (getattr(problem.net_env, "servers", None) or {}).get("web") or []
+    services = getattr(problem.net_env, "servers", None) or {}
+    servers = [*(services.get("web") or []), *(services.get("dns") or [])]
     hosts = getattr(problem.net_env, "hosts", None) or []
     skip = {params.host_name, params.observer_device, device}
     # Prefer a destination off the observer's own switch so the control crosses
@@ -125,6 +126,7 @@ def _delayed(sample: dict[str, Any]) -> bool:
 def incast_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     """Before the bursts both flows answer and the victim is not queue-delayed."""
     sample = _sample(problem, params)
+    problem._audit_incast = sample
     ok = (
         sample["victim_rtt_ms"] is not None
         and sample["control_rtt_ms"] is not None
@@ -138,7 +140,55 @@ def incast_queueing(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     """Synchronized bursts fill the shallow egress queue: a victim flow through it
     is delayed by a large share of the queue's drain time; a control flow is not."""
     sample = _sample(problem, params)
-    verified = _delayed(sample)
+    baseline = getattr(problem, "_audit_incast", None) or {}
+    victim = sample["victim_rtt_ms"]
+    control = sample["control_rtt_ms"]
+    healthy_victim = baseline.get("victim_rtt_ms")
+    healthy_control = baseline.get("control_rtt_ms")
+    queue = sample["queue_delay_ms"]
+    device, intf = problem._egress_port(params)
+    qdiscs = []
+    if device not in (problem.net_env.bmv2_switches or []):
+        raw_qdisc = exec_or_empty(
+            problem.runtime,
+            device,
+            f"tc -j -s qdisc show dev {shlex.quote(intf)}",
+        )
+        try:
+            qdiscs = json.loads(raw_qdisc)
+        except ValueError:
+            pass
+    drops = (
+        next(
+            (
+                row["drops"]
+                for row in qdiscs
+                if isinstance(row, dict)
+                and row.get("kind") == "tbf"
+                and row.get("root")
+                and isinstance(row.get("drops"), int)
+            ),
+            None,
+        )
+        if isinstance(qdiscs, list)
+        else None
+    )
+    excess_delay = (
+        (victim - control) - (healthy_victim - healthy_control)
+        if None not in (victim, control, healthy_victim, healthy_control)
+        else None
+    )
+    delayed = bool(
+        healthy_victim and victim is not None and victim >= healthy_victim * _RTT_FACTOR
+    )
+    relative_delay = bool(
+        queue
+        and excess_delay is not None
+        and excess_delay >= queue * _QUEUE_DELAY_SHARE
+    )
+    # TBF is installed fresh by the fault. Real drops on that egress port are
+    # stronger evidence than RTT subtraction when the control is also busy.
+    verified = delayed and (relative_delay or bool(drops and drops > 0))
     control_ok = (
         sample["control_rtt_ms"] is not None
         and not (sample["control_loss_percent"] or 0.0) > 20.0
@@ -146,5 +196,12 @@ def incast_queueing(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     return verified and control_ok, build_verify_result(
         fault_type=problem.root_cause_name,
         verified=verified and control_ok,
-        details={**sample, "victim_delayed": verified, "control_ok": control_ok},
+        details={
+            **sample,
+            "baseline": baseline,
+            "excess_delay_ms": excess_delay,
+            "queue_drops": drops,
+            "victim_delayed": verified,
+            "control_ok": control_ok,
+        },
     )
