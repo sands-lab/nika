@@ -340,8 +340,12 @@ function rootCausesCell(m: RcaMatch | null | undefined): ReactNode {
   const found = m.found.length;
   const total = found + m.missed.length;
   const wrong = m.wrong.length;
+  // Green for any hit, or for a healthy network the agent left blank.
+  const correct = found > 0 || (total === 0 && wrong === 0);
   const title = [
-    `${found} of ${total} root causes found, ${wrong} wrong ${wrong === 1 ? "guess" : "guesses"}.`,
+    total === 0 && wrong === 0
+      ? "No root causes expected, and the agent submitted none."
+      : `${found} of ${total} root causes found, ${wrong} wrong ${wrong === 1 ? "guess" : "guesses"}.`,
     "A guess counts only when both resource and fault type match.",
     ...m.found.map((p) => `✓ found: ${p}`),
     ...m.missed.map((p) => `○ missed: ${p}`),
@@ -349,7 +353,7 @@ function rootCausesCell(m: RcaMatch | null | undefined): ReactNode {
   ].join("\n");
   return (
     <span className="rca-match" title={title}>
-      <span className={found > 0 ? "rca-found" : undefined}>{found}</span>/{total}
+      <span className={correct ? "rca-found" : undefined}>{found}</span>/{total}
       {wrong > 0 ? <span className="rca-wrong"> +{wrong}</span> : null}
     </span>
   );
