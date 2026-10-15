@@ -368,6 +368,8 @@ type SessionColumn = {
   label: string;
   /** Numeric columns get a ``<0.5`` / ``>=30`` filter box. */
   numeric?: (s: SessionSummary) => number | null | undefined;
+  /** Example filter shown in the empty box (default suits 0–1 scores). */
+  placeholder?: string;
 };
 
 const SESSION_COLUMNS: SessionColumn[] = [
@@ -380,15 +382,20 @@ const SESSION_COLUMNS: SessionColumn[] = [
   { id: "model", label: "Model" },
   { id: "backend", label: "Backend" },
   { id: "tags", label: "Tags" },
-  { id: "root_causes", label: "Root causes", numeric: (s) => s.rca_match?.found.length },
+  {
+    id: "root_causes",
+    label: "Root causes",
+    numeric: (s) => s.rca_match?.found.length,
+    placeholder: "<1",
+  },
   { id: "detection", label: "Detection", numeric: (s) => s.detection_score },
   { id: "localization_f1", label: "Loc F1", numeric: (s) => s.localization_f1 },
-  { id: "in_tokens", label: "In tok", numeric: (s) => s.in_tokens },
-  { id: "out_tokens", label: "Out tok", numeric: (s) => s.out_tokens },
+  { id: "in_tokens", label: "In tok", numeric: (s) => s.in_tokens, placeholder: ">100000" },
+  { id: "out_tokens", label: "Out tok", numeric: (s) => s.out_tokens, placeholder: ">5000" },
   { id: "time", label: "Time" },
   { id: "duration", label: "Duration" },
-  { id: "steps", label: "Steps", numeric: (s) => s.steps },
-  { id: "tool_calls", label: "Tool calls", numeric: (s) => s.tool_calls },
+  { id: "steps", label: "Steps", numeric: (s) => s.steps, placeholder: ">20" },
+  { id: "tool_calls", label: "Tool calls", numeric: (s) => s.tool_calls, placeholder: ">20" },
 ];
 
 const DEFAULT_COLUMNS: SessionSortKey[] = [
@@ -732,7 +739,7 @@ function SessionsTable({
         <th key={col.id} className="th-filter-cell">
           <input
             className={`th-filter th-filter-num${invalid ? " invalid" : ""}`}
-            placeholder="<0.5"
+            placeholder={col.placeholder ?? "<0.5"}
             title="Numeric filter: <, <=, >, >=, =, != followed by a number"
             value={text}
             onClick={(e) => e.stopPropagation()}
