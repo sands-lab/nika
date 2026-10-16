@@ -7823,6 +7823,8 @@
     0.466328,
     0.635916
   ],
-  "beaten_by": [],
-  "rank": 1
+  "beaten_by": [
+    "0.2.0/20261016_claude_code_claude_sonnet_5_5"
+  ],
+  "rank": 2
 }

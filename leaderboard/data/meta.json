@@ -10,6 +10,7 @@
       "ReAct"
     ],
     "llm_provider": [
+      "anthropic",
       "att",
       "google",
       "ku-dfi",
@@ -28,6 +29,7 @@
       "Qwen3.6-35B-A3B-FP8",
       "Qwen3.8-27B-FP8",
       "TelecomGPT-R1",
+      "claude-sonnet-5-5",
       "gemma-4-31B-it"
     ],
     "optimization_methods": [
@@ -50,5 +52,5 @@
     "seed": 0,
     "confidence": 0.95
   },
-  "generated_at": "2026-10-15T08:15:21+00:00"
+  "generated_at": "2026-10-16T18:30:15+00:00"
 }

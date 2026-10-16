@@ -98,6 +98,15 @@
       "source": "https://openrouter.ai/z-ai/glm-4.7-flash",
       "retrieved": "2026-10-14",
       "note": "OpenRouter list price for z-ai/glm-4.7-flash from its public model API (https://openrouter.ai/api/v1/models); providers serve fp8, bf16, or unspecified precision. This is a hosted reference estimate, not the self-hosted GPU bill; cached-input discounts are not applied."
+    },
+    "claude-sonnet-5-5": {
+      "input": 2.0,
+      "output": 10.0,
+      "basis": "api",
+      "provider": "Anthropic",
+      "source": "https://www.anthropic.com/claude-sonnet-5-5",
+      "retrieved": "2026-10-16",
+      "note": "Anthropic standard API list prices in USD per million tokens, used as a reference estimate rather than the actual Claude subscription cost. Input usage includes cached tokens; cache discounts are not represented by this catalog's input/output-only rates."
     }
   }
 }

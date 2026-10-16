@@ -7447,7 +7447,8 @@
     "0.2.0/20261011_react_qwen3_8_27b_fp8",
     "0.2.0/20261012_claude_code_gemma_4_31b_it",
     "0.2.0/20261014_claude_code_qwen3_5_27b",
-    "0.2.0/20261014_react_qwen3_5_27b"
+    "0.2.0/20261014_react_qwen3_5_27b",
+    "0.2.0/20261016_claude_code_claude_sonnet_5_5"
   ],
-  "rank": 6
+  "rank": 7
 }
