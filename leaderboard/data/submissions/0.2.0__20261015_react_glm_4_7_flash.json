@@ -9,7 +9,7 @@
   "logo": null,
   "github": "https://github.com/sands-lab/nika",
   "email": null,
-  "trajectories_url": "https://huggingface.co/datasets/Zhihao98/nika-trajectories/tree/main/trajectories/0.2.0/20261015_react_glm_4_7_flash",
+  "trajectories_url": "https://huggingface.co/datasets/nika-bench/nika-trajectories/tree/main/trajectories/0.2.0/20261015_react_glm_4_7_flash",
   "trajectories_relpath": "trajectories/0.2.0/20261015_react_glm_4_7_flash",
   "model": "GLM-4.7-Flash",
   "framework": "ReAct",

@@ -9,7 +9,7 @@
   "logo": null,
   "github": "https://github.com/sands-lab/nika",
   "email": null,
-  "trajectories_url": "https://huggingface.co/datasets/Zhihao98/nika-trajectories/tree/main/trajectories/0.2.0/20261012_react_gemma_4_31b_it",
+  "trajectories_url": "https://huggingface.co/datasets/nika-bench/nika-trajectories/tree/main/trajectories/0.2.0/20261012_react_gemma_4_31b_it",
   "trajectories_relpath": "trajectories/0.2.0/20261012_react_gemma_4_31b_it",
   "model": "gemma-4-31B-it",
   "framework": "ReAct",
