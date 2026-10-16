@@ -19,6 +19,7 @@
       "zai"
     ],
     "model": [
+      "Claude Opus 5.5",
       "GLM-4.7-Flash",
       "GPT-5",
       "GPT-5-mini",
@@ -53,5 +54,5 @@
     "seed": 0,
     "confidence": 0.95
   },
-  "generated_at": "2026-10-16T19:06:14+00:00"
+  "generated_at": "2026-10-16T19:44:07+00:00"
 }

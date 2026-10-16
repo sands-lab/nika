@@ -116,6 +116,15 @@
       "source": "https://www.anthropic.com/claude-sonnet-5-5",
       "retrieved": "2026-10-16",
       "note": "Anthropic standard API list prices in USD per million tokens, used as a reference estimate rather than the actual Claude subscription cost. Input usage includes cached tokens; cache discounts are not represented by this catalog's input/output-only rates."
+    },
+    "Claude Opus 5.5": {
+      "input": 4.0,
+      "output": 20.0,
+      "basis": "api",
+      "provider": "Anthropic",
+      "source": "https://www.anthropic.com/claude-opus-5-5",
+      "retrieved": "2026-10-16",
+      "note": "Anthropic standard API list prices in USD per million tokens, used as a reference estimate rather than the actual Claude subscription cost. Input usage includes cached tokens; cache discounts are not represented by this catalog's input/output-only rates."
     }
   }
 }
