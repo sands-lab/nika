@@ -177,7 +177,7 @@ def test_submit_hf_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None
         return HfPullRequestResult(
             repo_id=kwargs["repo_id"],
             remote_path=kwargs["path_in_repo"],
-            pr_url="https://huggingface.co/datasets/Zhihao98/nika-trajectories/discussions/7",
+            pr_url="https://huggingface.co/datasets/nika-bench/nika-trajectories/discussions/7",
             pr_num=7,
         )
 

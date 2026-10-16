@@ -136,7 +136,7 @@ def test_release_submit_packs_validates_and_opens_prs(
             return HfPullRequestResult(
                 repo_id=kwargs["repo_id"],
                 remote_path=kwargs["path_in_repo"],
-                pr_url="https://huggingface.co/datasets/Zhihao98/nika-trajectories/discussions/1",
+                pr_url="https://huggingface.co/datasets/nika-bench/nika-trajectories/discussions/1",
                 pr_num=1,
             )
 
