@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-DEFAULT_TRAJECTORIES_REPO = "Zhihao98/nika-trajectories"
+DEFAULT_TRAJECTORIES_REPO = "nika-bench/nika-trajectories"
 DEFAULT_TRAJECTORIES_URL = (
     f"https://huggingface.co/datasets/{DEFAULT_TRAJECTORIES_REPO}"
 )

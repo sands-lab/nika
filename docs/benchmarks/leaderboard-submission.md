@@ -3,7 +3,7 @@
 This how-to is for benchmark operators who submit an official release run to:
 
 - **Scores:** [`sands-lab/nika-leaderboard`](https://github.com/sands-lab/nika-leaderboard) (GitHub PR)
-- **Trajectories:** [`Zhihao98/nika-trajectories`](https://huggingface.co/datasets/Zhihao98/nika-trajectories) (Hugging Face dataset PR)
+- **Trajectories:** [`nika-bench/nika-trajectories`](https://huggingface.co/datasets/nika-bench/nika-trajectories) (Hugging Face dataset PR)
 
 Implementation: [`workflows/leaderboard/`](../../src/nika/workflows/leaderboard/) packs, validates, and submits both packages.
 
@@ -51,7 +51,7 @@ nika leaderboard submit --result_dir results/my-run \
 #   --dry-run
 #   --draft
 #   --skip-github / --skip-trajectories
-#   --traj-repo Zhihao98/nika-trajectories
+#   --traj-repo nika-bench/nika-trajectories
 #   --title "..." --body "..."
 #   --repo sands-lab/nika-leaderboard
 ```
@@ -121,8 +121,8 @@ Remote path (same slug, no `_trajectories` suffix):
 After review, maintainers merge the Hub Discussion/PR. Optional Hub CLI:
 
 ```shell
-hf discussions list Zhihao98/nika-trajectories --type dataset
-hf discussions merge Zhihao98/nika-trajectories <N> --yes --type dataset
+hf discussions list nika-bench/nika-trajectories --type dataset
+hf discussions merge nika-bench/nika-trajectories <N> --yes --type dataset
 ```
 
 ## `metadata.yaml`
