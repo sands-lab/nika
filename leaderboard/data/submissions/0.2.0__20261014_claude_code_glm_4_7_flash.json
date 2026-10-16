@@ -8177,7 +8177,8 @@
     "0.2.0/20261013_react_telecomgpt_r1",
     "0.2.0/20261014_claude_code_qwen3_5_27b",
     "0.2.0/20261014_react_qwen3_5_27b",
-    "0.2.0/20261016_claude_code_claude_sonnet_5_5"
+    "0.2.0/20261016_claude_code_claude_sonnet_5_5",
+    "0.2.0/20261016_claude_code_gpt_oss_120b"
   ],
-  "rank": 13
+  "rank": 14
 }

@@ -1223,6 +1223,91 @@
       "rank": 4
     },
     {
+      "id": "0.2.0/20261016_claude_code_gpt_oss_120b",
+      "dirname": "20261016_claude_code_gpt_oss_120b",
+      "submission_name": "Claude Code + GPT-OSS-120B",
+      "authors": "NIKA Team",
+      "org": null,
+      "site": "https://sands-lab.github.io/nika/",
+      "report": "https://arxiv.org/abs/2512.16381",
+      "logo": null,
+      "github": "https://github.com/sands-lab/nika",
+      "email": null,
+      "trajectories_url": "https://huggingface.co/datasets/Zhihao98/nika-trajectories/tree/main/trajectories/0.2.0/20261016_claude_code_gpt_oss_120b",
+      "trajectories_relpath": "trajectories/0.2.0/20261016_claude_code_gpt_oss_120b",
+      "model": "GPT-OSS-120B",
+      "framework": "Claude Code",
+      "agent_type": "cli.claude",
+      "llm_provider": "custom",
+      "tools": [
+        "containerlab_srl_mcp_server",
+        "k8s_mcp_server",
+        "kathara_base_mcp_server",
+        "pingmesh_mcp_server",
+        "packet_capture_mcp_server",
+        "kathara_frr_mcp_server",
+        "kathara_bmv2_mcp_server",
+        "kathara_sdn_mcp_server",
+        "kathara_telemetry_mcp_server",
+        "task_mcp_server"
+      ],
+      "skills": [],
+      "optimization_methods": [],
+      "tags": [],
+      "extra": {
+        "model_repository": "openai/gpt-oss-120b",
+        "serving": "Ollama (gpt-oss:120b, default settings)",
+        "serving_precision": "MXFP4",
+        "max_steps": 100,
+        "max_tokens": 8192,
+        "agent_timeout_sec": 1800,
+        "case_timeout_sec": 2400
+      },
+      "benchmark_version": "0.2.0",
+      "split": "test",
+      "case_count": 85,
+      "n_trials": 3,
+      "primary_metric": "rca_f1",
+      "mean_rca_f1": 0.26838549019607844,
+      "mean_localization_f1": 0.36702588235294126,
+      "mean_detection_score": 0.7803921568627451,
+      "n_trials_expected": 255,
+      "n_trials_present": 255,
+      "n_success": 253,
+      "n_agent_failed": 2,
+      "success_rate": 0.992157,
+      "token_totals": {
+        "in_tokens": 166581091,
+        "out_tokens": 2635121
+      },
+      "steps_totals": {
+        "steps": 9444,
+        "tool_calls": 9189,
+        "tool_errors": 0
+      },
+      "mean_tokens": 663592.988,
+      "mean_steps": 37.035,
+      "total_tokens": 169216212,
+      "max_steps": 100,
+      "case_timeout_sec": 2400,
+      "created_at": "2026-10-16T09:05:59+00:00",
+      "run_id": "b169dba30aabb6bf",
+      "official": true,
+      "nika_git_commit": "5096d23a3b79cd0d425d65ef1ebcb647ac2e8918",
+      "name": "GPT-OSS-120B · Claude Code",
+      "rca_f1_ci": [
+        0.198956,
+        0.339574
+      ],
+      "beaten_by": [
+        "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
+        "0.2.0/20261011_react_qwen3_8_27b_fp8",
+        "0.2.0/20261014_react_qwen3_5_27b",
+        "0.2.0/20261016_claude_code_claude_sonnet_5_5"
+      ],
+      "rank": 5
+    },
+    {
       "id": "0.2.0/20261013_claude_code_telecomgpt_r1",
       "dirname": "20261013_claude_code_telecomgpt_r1",
       "submission_name": "Claude Code + TelecomGPT-R1",
@@ -1544,9 +1629,10 @@
         "0.2.0/20261013_react_telecomgpt_r1",
         "0.2.0/20261014_claude_code_qwen3_5_27b",
         "0.2.0/20261014_react_qwen3_5_27b",
-        "0.2.0/20261016_claude_code_claude_sonnet_5_5"
+        "0.2.0/20261016_claude_code_claude_sonnet_5_5",
+        "0.2.0/20261016_claude_code_gpt_oss_120b"
       ],
-      "rank": 9
+      "rank": 10
     },
     {
       "id": "0.2.0/20261008_qwen3_6_35b_a3b_codex",
@@ -1615,9 +1701,10 @@
         "0.2.0/20261013_react_telecomgpt_r1",
         "0.2.0/20261014_claude_code_qwen3_5_27b",
         "0.2.0/20261014_react_qwen3_5_27b",
-        "0.2.0/20261016_claude_code_claude_sonnet_5_5"
+        "0.2.0/20261016_claude_code_claude_sonnet_5_5",
+        "0.2.0/20261016_claude_code_gpt_oss_120b"
       ],
-      "rank": 10
+      "rank": 11
     },
     {
       "id": "0.2.0/20261007_qwen3_6_35b_a3b_langgraph",
@@ -1686,9 +1773,10 @@
         "0.2.0/20261013_react_telecomgpt_r1",
         "0.2.0/20261014_claude_code_qwen3_5_27b",
         "0.2.0/20261014_react_qwen3_5_27b",
-        "0.2.0/20261016_claude_code_claude_sonnet_5_5"
+        "0.2.0/20261016_claude_code_claude_sonnet_5_5",
+        "0.2.0/20261016_claude_code_gpt_oss_120b"
       ],
-      "rank": 10
+      "rank": 11
     },
     {
       "id": "0.2.0/20261014_claude_code_glm_4_7_flash",
@@ -1777,9 +1865,10 @@
         "0.2.0/20261013_react_telecomgpt_r1",
         "0.2.0/20261014_claude_code_qwen3_5_27b",
         "0.2.0/20261014_react_qwen3_5_27b",
-        "0.2.0/20261016_claude_code_claude_sonnet_5_5"
+        "0.2.0/20261016_claude_code_claude_sonnet_5_5",
+        "0.2.0/20261016_claude_code_gpt_oss_120b"
       ],
-      "rank": 13
+      "rank": 14
     },
     {
       "id": "0.2.0/20261015_react_glm_4_7_flash",
@@ -1868,9 +1957,10 @@
         "0.2.0/20261013_react_telecomgpt_r1",
         "0.2.0/20261014_claude_code_qwen3_5_27b",
         "0.2.0/20261014_react_qwen3_5_27b",
-        "0.2.0/20261016_claude_code_claude_sonnet_5_5"
+        "0.2.0/20261016_claude_code_claude_sonnet_5_5",
+        "0.2.0/20261016_claude_code_gpt_oss_120b"
       ],
-      "rank": 13
+      "rank": 14
     },
     {
       "id": "0.2.0/20261008_claude_cli_otel_2_0_llm_31b_it",
@@ -1968,9 +2058,10 @@
         "0.2.0/20261014_claude_code_qwen3_5_27b",
         "0.2.0/20261014_react_qwen3_5_27b",
         "0.2.0/20261015_react_glm_4_7_flash",
-        "0.2.0/20261016_claude_code_claude_sonnet_5_5"
+        "0.2.0/20261016_claude_code_claude_sonnet_5_5",
+        "0.2.0/20261016_claude_code_gpt_oss_120b"
       ],
-      "rank": 15
+      "rank": 16
     }
   ]
 }
