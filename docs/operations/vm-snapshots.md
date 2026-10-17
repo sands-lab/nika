@@ -100,8 +100,9 @@ reboots. Run them as a user with `sudo`.
    sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=userfaultfd
    ```
 
-6. **Runtime images and the Kathara network plugin** on the host. The base
-   image copies them into the VM, which has no network of its own:
+6. **Runtime images, k8s caches and the Kathara network plugin** on the host.
+   The base image copies the images, the plugin and `.nika_cache/k8s-images`
+   and `.nika_cache/helm` into the VM, which has no network of its own:
 
    ```shell
    nika images prepare

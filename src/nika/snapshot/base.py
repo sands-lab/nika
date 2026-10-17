@@ -21,6 +21,7 @@ import tempfile
 import time
 from pathlib import Path
 
+from nika.config import REPO_ROOT
 from nika.snapshot.config import snapshot_settings
 from nika.snapshot.golden import GUEST_REPO, PROXY_PORT
 from nika.snapshot.vmm import (
@@ -41,6 +42,8 @@ BOOT_ARGS = (
     "cloud-init=disabled systemd.mask=systemd-networkd-wait-online.service"
 )
 DOCKER_PROXY = "/etc/systemd/system/docker.service.d/nika-build-proxy.conf"
+# Caches under .nika_cache that k8s labs deploy from (filled by `nika images prepare`).
+CACHE_DIRS = ("k8s-images", "helm")
 
 
 def _log(message: str) -> None:
@@ -58,28 +61,55 @@ def _wait_exec(uds: Path, timeout: float = 300) -> None:
     raise TimeoutError("guest exec did not come up")
 
 
+def _stream_file(uds: Path, script: str, path: str) -> None:
+    """Run ``script`` in the guest with the contents of host file ``path`` as stdin."""
+    import base64
+
+    size = os.path.getsize(path)
+    sock = connect_vsock(uds, EXEC_PORT)
+    try:
+        sock.sendall(base64.b64encode(script.encode()) + f"\n{size}\n".encode())
+        with open(path, "rb") as fh:
+            while chunk := fh.read(1 << 20):
+                sock.sendall(chunk)
+        out = bytearray()
+        while chunk := sock.recv(1 << 16):
+            out += chunk
+    finally:
+        sock.close()
+    body, _, tail = bytes(out).rpartition(EXIT_MARK)
+    if tail.split(b"\n", 1)[0].strip() != b"0":
+        raise VmmError(f"{script} failed: {body.decode(errors='replace')[-500:]}")
+
+
 def _load_image(uds: Path, image: str) -> None:
     """Stream ``docker save image`` into the guest's ``docker load``."""
     with tempfile.NamedTemporaryFile(suffix=".tar") as tar:
         subprocess.run(["docker", "save", "-o", tar.name, image], check=True)
-        size = os.path.getsize(tar.name)
-        sock = connect_vsock(uds, EXEC_PORT)
-        try:
-            import base64
+        _stream_file(uds, "docker load -q", tar.name)
 
-            sock.sendall(base64.b64encode(b"docker load -q") + f"\n{size}\n".encode())
-            with open(tar.name, "rb") as fh:
-                while chunk := fh.read(1 << 20):
-                    sock.sendall(chunk)
-            out = bytearray()
-            while chunk := sock.recv(1 << 16):
-                out += chunk
-        finally:
-            sock.close()
-    body, _, status = bytes(out).rpartition(EXIT_MARK)
-    if status.strip() != b"0":
-        raise VmmError(
-            f"docker load {image} failed: {body.decode(errors='replace')[-500:]}"
+
+def _copy_caches(uds: Path) -> None:
+    """Copy this host's k8s image and Helm chart caches into the guest checkout.
+
+    k8s labs load their in-cluster images and charts from ``.nika_cache``;
+    ``nika images prepare`` fills it on this host.
+    """
+    caches = [
+        name for name in CACHE_DIRS if (REPO_ROOT / ".nika_cache" / name).is_dir()
+    ]
+    if not caches:
+        return
+    with tempfile.NamedTemporaryFile(suffix=".tar") as tar:
+        subprocess.run(
+            ["tar", "-cf", tar.name, "-C", str(REPO_ROOT / ".nika_cache"), *caches],
+            check=True,
+        )
+        _stream_file(
+            uds,
+            f"mkdir -p {GUEST_REPO}/.nika_cache && tar -xf - -C {GUEST_REPO}/.nika_cache "
+            f"&& chown -R ubuntu:ubuntu {GUEST_REPO}/.nika_cache",
+            tar.name,
         )
 
 
@@ -167,6 +197,8 @@ def build(build_dir: Path, kernel_version: str) -> None:
         for plugin in plugins:
             _log(f"  docker plugin install {plugin}")
             guest_exec(uds, f"docker plugin install --grant-all-permissions {plugin}")
+        _log("copying the k8s image and Helm chart caches from this host")
+        _copy_caches(uds)
         _log(f"copying {len(local)} locally built image(s) from this host")
         for ref in local:
             _log(f"  {ref}")
