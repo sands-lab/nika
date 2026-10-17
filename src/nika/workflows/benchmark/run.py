@@ -6,6 +6,7 @@ import json
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextlib import nullcontext
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -16,6 +17,14 @@ from nika.config import BENCHMARK_DIR, resolve_results_root
 from nika.evaluator.result_log import MESSAGES_FILENAME
 from nika.net_env.net_env_pool import scenario_requires_topo_size
 from nika.problems.registry import get_problem_class, get_problem_instance
+from nika.snapshot import snapshot_enabled
+from nika.snapshot.golden import variant_for_row
+from nika.snapshot.trial import (
+    TrialLab,
+    active_trial_lab,
+    reap_orphan_trials,
+    release_trial,
+)
 from nika.utils.session import Session
 from nika.utils.session_artifacts import (
     RUN_FILENAME,
@@ -885,21 +894,30 @@ def run_single_case(
     # Trial directory stays ``trials/{trial_id}``; SessionStore key must also
     # incorporate result_dir so parallel same-task runs do not share a lab.
     store_session_id = store_session_id_for_trial(trial_id, result_dir) or trial_id
-    session_id = start_net_env(
-        scenario,
-        size,
-        redeploy=True,
-        result_dir=result_dir,
-        session_tag=session_tag,
-        session_id=store_session_id,
-        session_dir=predetermined_dir,
-        topo=topo,
-        igp=igp,
-        bgp_mode=bgp_mode,
-        rpki=rpki,
-        backend=backend,
-        device_profile=device_profile,
-    )
+    snapshot_lab = active_trial_lab()
+    if snapshot_lab is not None:
+        # nika.snapshot: the lab was restored from a golden VM; adopt it.
+        session_id = snapshot_lab.attach(
+            session_id=store_session_id,
+            result_dir=result_dir,
+            session_dir=predetermined_dir,
+        )
+    else:
+        session_id = start_net_env(
+            scenario,
+            size,
+            redeploy=True,
+            result_dir=result_dir,
+            session_tag=session_tag,
+            session_id=store_session_id,
+            session_dir=predetermined_dir,
+            topo=topo,
+            igp=igp,
+            bgp_mode=bgp_mode,
+            rpki=rpki,
+            backend=backend,
+            device_profile=device_profile,
+        )
     session_dir = Path(predetermined_dir) if predetermined_dir else None
     gt_written = False
 
@@ -1099,6 +1117,54 @@ def _run_trial(
 ) -> None:
     # Runs in-process or as a spawn worker; silence before FastMCP re-import noise.
     quiet_third_party_logging()
+    with _snapshot_trial_scope(trial, agent_type=agent_type, result_dir=result_dir):
+        _run_trial_case(
+            trial,
+            agent_type=agent_type,
+            llm_provider=llm_provider,
+            model=model,
+            max_steps=max_steps,
+            result_dir=result_dir,
+            session_tag=session_tag,
+            release_meta=release_meta,
+            verbose=verbose,
+            progress=progress,
+        )
+
+
+def _snapshot_trial_scope(trial: Trial, *, agent_type: str, result_dir: str | None):
+    """Restore the trial's lab from a golden VM when ``nika.snapshot`` is enabled."""
+    if not snapshot_enabled():
+        return nullcontext()
+    from agent.sandbox import SANDBOX_SUPPORTED_AGENTS
+    from agent.sandbox.config import resolve_sandbox_config
+
+    return TrialLab(
+        variant_for_row(trial.row),
+        trial_key=store_session_id_for_trial(trial.trial_id, result_dir)
+        or trial.trial_id,
+        owner=str(resolve_results_root(result_dir)),
+        sandbox_backend=(
+            resolve_sandbox_config().backend
+            if agent_type in SANDBOX_SUPPORTED_AGENTS
+            else None
+        ),
+    )
+
+
+def _run_trial_case(
+    trial: Trial,
+    *,
+    agent_type: str,
+    llm_provider: str | None,
+    model: str | None,
+    max_steps: int | None,
+    result_dir: str | None,
+    session_tag: str | None,
+    release_meta: dict | None,
+    verbose: bool = False,
+    progress: BenchmarkProgress | None = None,
+) -> None:
     row = trial.row
     run_single_case(
         problem=row["problem"],
@@ -1186,9 +1252,14 @@ def _run_trial_with_timeout(
         if case_timeout > 0 and proc.is_alive():
             # SIGTERM runs the worker's cleanup (sandbox, gateway, lab).
             _stop_worker(proc)
+            leak_hint = (
+                "Its VM copy is released when the worker exits."
+                if snapshot_enabled()
+                else "Its lab may be leaked — check `nika session ps`."
+            )
             timeout_error = RuntimeError(
                 f"[{trial.trial_id}] case exceeded --case-timeout ({case_timeout}s) "
-                "and was killed. Its lab may be leaked — check `nika session ps`."
+                f"and was killed. {leak_hint}"
             )
             _finalize_timed_out_trial(trial, result_dir=result_dir, error=timeout_error)
             raise timeout_error
@@ -1228,6 +1299,11 @@ def _run_trial_with_timeout(
             raise crash_error
     finally:
         _unregister_trial_proc(proc)
+        if snapshot_enabled():
+            # A killed worker cannot delete its VM copy; release it here.
+            release_trial(
+                store_session_id_for_trial(trial.trial_id, result_dir) or trial.trial_id
+            )
 
 
 def _run_trials_batch(
@@ -1715,6 +1791,11 @@ def run_benchmark_trials(
 
         ensure_nika_docker_images(images)
 
+    if snapshot_enabled():
+        # VM copies left by a crashed earlier launch on this result dir.
+        for orphan in reap_orphan_trials(str(results_root)):
+            print(f"[snapshot] released VM copy left by trial {orphan}")
+
     # Confirmed: mutate slots (clear --no-resume / clean incomplete) then run.
     _, initial_pending = scan_trials(
         trials=trials,
@@ -1881,7 +1962,8 @@ def run_benchmark_from_release(
     planned: list[Trial] | None = None
     if task_ids:
         planned = select_trials(expand_trials(resolved.cases, n_trials), task_ids)
-    preflight_release(resolved, check_images=check_images)
+    # With nika.snapshot, labs (and their images) live in the golden VMs.
+    preflight_release(resolved, check_images=check_images and not snapshot_enabled())
 
     # Timeout is operational (run config / CLI), not a release pin.
     if case_timeout is None:

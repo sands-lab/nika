@@ -25,6 +25,49 @@ class RemoteSettings(BaseModel):
     artifact_root: str | None = None
 
 
+def _gib(value: str) -> str:
+    if not value.endswith("GiB") or not value[:-3].isdigit():
+        raise ValueError(f"VM memory must look like '8GiB', got {value!r}")
+    return value
+
+
+class SnapshotSettings(BaseModel):
+    """Advanced: run benchmark trials from Firecracker snapshots of deployed labs.
+
+    Each environment variant is deployed and verified once in a microVM booted
+    from the base image in ``root``; trials restore a copy of its snapshot
+    instead of deploying from scratch. See docs/operations/vm-snapshots.md.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    # Directory on a reflink-capable filesystem (btrfs, XFS) holding base/,
+    # goldens/ and trials/.
+    root: str = "/var/lib/nika-snapshots"
+    # Firecracker binary (name on PATH or path).
+    firecracker: str = "firecracker"
+    vm_cpus: int = Field(default=16, ge=1)
+    vm_memory: str = "8GiB"
+    # Scenario id -> VM memory, for labs larger than ``vm_memory`` (e.g. SR Linux).
+    vm_memory_overrides: dict[str, str] = Field(default_factory=dict)
+    # Back VM memory with 2 MiB huge pages reserved on the host (vm.nr_hugepages):
+    # restored labs run at full speed at once, but copies do not share memory.
+    huge_pages: bool = False
+    # Re-run the startup lab verification after each restore, as a cold deploy does.
+    verify_after_restore: bool = True
+
+    @field_validator("vm_memory")
+    @classmethod
+    def _memory_in_gib(cls, value: str) -> str:
+        return _gib(value)
+
+    @field_validator("vm_memory_overrides")
+    @classmethod
+    def _overrides_in_gib(cls, value: dict[str, str]) -> dict[str, str]:
+        return {scenario: _gib(memory) for scenario, memory in value.items()}
+
+
 class SandboxSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -167,6 +210,7 @@ class NikaSettings(BaseModel):
 
     result_dir: str = "results"
     remote: RemoteSettings = Field(default_factory=RemoteSettings)
+    snapshot: SnapshotSettings = Field(default_factory=SnapshotSettings)
     sandbox: SandboxSettings = Field(default_factory=SandboxSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
     judge: JudgeSettings = Field(default_factory=JudgeSettings)

@@ -91,7 +91,8 @@ class AgentTraceParser:
                     continue
 
                 raw_ts = entry.get("timestamp")
-                if raw_ts:
+                # Lab-host rows (remote mode) use another clock; time the agent only.
+                if raw_ts and entry.get("origin") != "remote":
                     cur_time = datetime.fromisoformat(raw_ts)
                     if time_start is None or cur_time < time_start:
                         time_start = cur_time

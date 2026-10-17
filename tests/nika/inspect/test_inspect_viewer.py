@@ -1912,3 +1912,44 @@ class TestLlmRequestStats:
             }
         }
         assert client.post("/api/llm-stats", json={"keys": "s1"}).status_code == 400
+
+
+def test_timeline_places_lab_host_rows_on_the_host_clock(tmp_path: Path) -> None:
+    """A lab restored from a VM snapshot runs behind; its rows must not jump back."""
+    from nika.inspect.timeline import build_session_timeline
+
+    (tmp_path / "run.json").write_text(json.dumps({"remote_clock_offset_sec": 3600}))
+    nika = [
+        {
+            "timestamp": "2026-10-14T12:00:10+00:00",
+            "event": "failure_inject_complete",
+            "origin": "remote",
+        },
+        {"timestamp": "2026-10-14T13:00:20+00:00", "event": "agent_start"},
+    ]
+    messages = [
+        {
+            "timestamp": "2026-10-14T13:00:30+00:00",
+            "phase": "diagnosis",
+            "event": "agent_start",
+        },
+        {
+            "timestamp": "2026-10-14T12:01:00+00:00",
+            "phase": "diagnosis",
+            "event": "diagnosis_frozen",
+            "origin": "remote",
+            "report": "r",
+        },
+    ]
+    for name, rows in (("nika.jsonl", nika), ("messages.jsonl", messages)):
+        (tmp_path / name).write_text("".join(json.dumps(r) + "\n" for r in rows))
+
+    order = [(e.source, e.event) for e in build_session_timeline(tmp_path)]
+    assert order.index(("nika", "failure_inject_complete")) < order.index(
+        ("nika", "agent_start")
+    )
+    assert order[-1][1] == "diagnosis_frozen"  # 12:01 lab = 13:01 host
+    frozen = [
+        e for e in build_session_timeline(tmp_path) if e.event == "diagnosis_frozen"
+    ]
+    assert frozen[0].raw["lab_timestamp"] == "2026-10-14T12:01:00+00:00"
