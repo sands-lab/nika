@@ -4,8 +4,9 @@ import logging
 import time
 
 from agent.registry import create_agent, get_agent_spec, run_agent
-from agent.sandbox import SANDBOX_SUPPORTED_AGENTS, SbxSandboxManager, sbx_available
-from agent.sandbox.config import resolve_sandbox_config, sandbox_gateway_agent_host
+from agent.sandbox import SANDBOX_SUPPORTED_AGENTS, SandboxManager
+from agent.sandbox.backend import backend_class, get_backend
+from agent.sandbox.config import resolve_sandbox_config
 from agent.utils.provider_env import provider_env_context
 from nika.mcp.gateway.lifecycle import mcp_gateway_for_session
 from nika.utils.agent_config import (
@@ -70,12 +71,15 @@ def start_agent(
             agent_type,
         )
     if use_sandbox:
-        from agent.sandbox.sbx.images import ensure_sbx_template_images
+        # Idempotent: a no-op when the job or env start already prepared it.
+        # Covers ``nika agent run`` without a prior env start that knew the
+        # sandbox agent.
+        images = get_backend(sandbox_config).prepare_templates([agent_type])
+        from nika.net_env.utils.kathara.docker_files.docker_images import (
+            ensure_nika_docker_images,
+        )
 
-        # Idempotent: skips pull when the template is already local (e.g. lab
-        # deploy / benchmark job preload). Covers ``nika agent run`` without
-        # a prior env start that knew the sandbox agent.
-        ensure_sbx_template_images([agent_type])
+        ensure_nika_docker_images(images)
 
     session = Session()
     session.load_running_session(session_id=session_id)
@@ -83,6 +87,11 @@ def start_agent(
     if llm_provider is not None:
         session.update_session("llm_provider", llm_provider)
     session.update_session("model", model)
+    if use_sandbox:
+        session.update_session("sandbox_backend", sandbox_config.backend)
+        fields = backend_class(sandbox_config.backend).session_fields(sandbox_config)
+        for key, value in fields.items():
+            session.update_session(key, value)
     if reasoning_effort is not None:
         session.update_session("reasoning_effort", reasoning_effort)
     if max_tokens is not None:
@@ -143,12 +152,7 @@ def start_agent(
                 session.session_id,
             ) as (gateway_base_url, gateway_port):
                 if use_sandbox:
-                    if not sbx_available():
-                        raise RuntimeError(
-                            "Docker Sandboxes CLI (sbx) is not available. "
-                            "Install docker-sbx and run `sbx login`."
-                        )
-                    SbxSandboxManager(sandbox_config).run(
+                    SandboxManager(sandbox_config).run(
                         session=session,
                         agent_type=agent_type,
                         model=model,
@@ -184,25 +188,22 @@ def start_agent(
             # Pull remote-written artifacts (e.g. submission.json) after the agent.
             pull_session_artifacts(session.session_id, session.session_dir)
         else:
+            sandbox_backend = backend_class(sandbox_config.backend)
             with mcp_gateway_for_session(
                 session.session_id,
                 scenario_name=session.scenario_name,
+                host=sandbox_backend.gateway_bind_host if use_sandbox else None,
                 sandbox=use_sandbox,
-                sandbox_agent_host=sandbox_gateway_agent_host(),
+                sandbox_agent_host=sandbox_backend.gateway_agent_host,
                 backend=getattr(session, "backend", None),
             ) as gateway_manager:
                 if use_sandbox:
-                    if not sbx_available():
-                        raise RuntimeError(
-                            "Docker Sandboxes CLI (sbx) is not available. "
-                            "Install docker-sbx and run `sbx login`."
-                        )
                     gateway_agent_url = gateway_manager.agent_url
                     if not gateway_agent_url:
                         raise RuntimeError(
                             "MCP gateway agent URL was not set for sandbox execution"
                         )
-                    SbxSandboxManager(sandbox_config).run(
+                    SandboxManager(sandbox_config).run(
                         session=session,
                         agent_type=agent_type,
                         model=model,

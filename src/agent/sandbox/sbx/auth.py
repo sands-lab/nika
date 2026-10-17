@@ -6,7 +6,7 @@ import json
 import os
 from pathlib import Path
 
-from agent.sandbox.sbx.agents import ENV_SBX_SANDBOX_NAME
+from agent.sandbox.config import ENV_SANDBOX_NAME
 
 PROXY_MANAGED_SENTINEL = "proxy-managed"
 
@@ -14,7 +14,7 @@ PROXY_MANAGED_SENTINEL = "proxy-managed"
 def in_sandbox() -> bool:
     return (
         os.environ.get("NIKA_SANDBOX_EXECUTION", "").strip() == "1"
-        or os.environ.get(ENV_SBX_SANDBOX_NAME, "").strip() != ""
+        or os.environ.get(ENV_SANDBOX_NAME, "").strip() != ""
     )
 
 
@@ -28,7 +28,8 @@ def apply_codex_auth(codex_home: Path) -> None:
     """
     codex_home.mkdir(parents=True, exist_ok=True)
     dest = codex_home / "auth.json"
-    if dest.exists():
+    # A dangling symlink planted by the sandbox must not redirect the write.
+    if dest.exists() or dest.is_symlink():
         return
 
     if in_sandbox():

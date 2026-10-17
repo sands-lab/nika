@@ -3,10 +3,16 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
+import re
 import shutil
+import stat
 import threading
 from dataclasses import dataclass
 from pathlib import Path
+from collections.abc import Callable
+from typing import BinaryIO
 
 from agent.sandbox.constants import (
     MANIFEST_FILENAME,
@@ -15,14 +21,20 @@ from agent.sandbox.constants import (
 )
 from agent.protocols import DIAGNOSIS, PHASES
 from agent.utils.loggers import MESSAGES_FILENAME
+from agent.utils.mcp_servers import SESSION_TOKEN_HEADER
 from agent.utils.skills import resolve_skills_root, skills_enabled
 from nika.config import RUNTIME_DIR
+
+logger = logging.getLogger(__name__)
 
 AGENT_WORKSPACES_DIRNAME = "agent_workspaces"
 SKILLS_DIRNAME = "skills"
 # Freeze events are host-written; a sandbox copy could replace the report that
 # ``submit()`` and the evaluator read.
 _HOST_ONLY_EVENTS = frozenset({"diagnosis_frozen"})
+# The manifest's MCP gateway token. It is dead once the session ends, but
+# results are shared, so collected manifests carry a placeholder.
+_SESSION_TOKEN_RE = re.compile(rf'("{SESSION_TOKEN_HEADER}":\s*")[^"]*"')
 # Host run.json keeps eval fields (problem_names, failure_domain). The sandbox
 # copy is an isolation boundary: only Session metadata agents need in-VM.
 SANDBOX_RUN_JSON_ALLOWLIST = frozenset(
@@ -33,6 +45,49 @@ SANDBOX_RUN_JSON_ALLOWLIST = frozenset(
         "status",
     }
 )
+
+
+def open_workspace_file(path: Path) -> BinaryIO:
+    """Open an agent-writable workspace file for reading on the host.
+
+    The agent can replace any file in its workspace, including with a symlink
+    to a host path or a FIFO. Refuse both, so host reads only ever see a
+    regular file the sandbox wrote. *path* must sit directly in the workspace
+    root (the mount point), which the agent cannot replace.
+    """
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    handle = os.fdopen(fd, "rb")
+    if not stat.S_ISREG(os.fstat(handle.fileno()).st_mode):
+        handle.close()
+        raise OSError(f"Not a regular file: {path}")
+    return handle
+
+
+def read_workspace_text(path: Path) -> str:
+    """Read an agent-writable workspace file (see :func:`open_workspace_file`)."""
+    with open_workspace_file(path) as handle:
+        return handle.read().decode("utf-8")
+
+
+def write_workspace_bytes(path: Path, data: bytes) -> None:
+    """Write a host file into the workspace without following a planted symlink.
+
+    Removes whatever the agent left at *path* (unlinking a symlink, not its
+    target) and creates the file exclusively, so a symlink recreated in
+    between makes the write fail instead of redirecting it.
+    """
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        pass
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
+    with os.fdopen(fd, "wb") as handle:
+        handle.write(data)
+
+
+def write_workspace_text(path: Path, text: str) -> None:
+    """UTF-8 variant of :func:`write_workspace_bytes`."""
+    write_workspace_bytes(path, text.encode("utf-8"))
 
 
 @dataclass
@@ -84,6 +139,7 @@ class TraceMirror:
     def __init__(self, source: Path, dest: Path) -> None:
         self._source = source
         self._dest = dest
+        self.refresh: Callable[[], None] | None = None
         self._offset = 0
         self._phase = DIAGNOSIS
         self._lock = threading.Lock()
@@ -104,9 +160,17 @@ class TraceMirror:
     def sync(self) -> None:
         """Append complete new workspace lines to the host trace."""
         with self._lock:
-            if not self._source.is_file():
+            if self.refresh is not None:
+                try:
+                    self.refresh()
+                except Exception as exc:  # noqa: BLE001 - retried on the next poll
+                    logger.debug("Trace refresh failed: %s", exc)
+            try:
+                handle = open_workspace_file(self._source)
+            except OSError:
+                # Missing yet, or not a regular file the sandbox wrote.
                 return
-            with self._source.open("rb") as handle:
+            with handle:
                 handle.seek(0, 2)
                 size = handle.tell()
                 if size < self._offset:
@@ -224,9 +288,17 @@ def collect_artifacts(workspace: SandboxWorkspace) -> None:
     mirrored with :class:`TraceMirror`), and ``submission.json`` is written by
     MCP ``submit()`` on the host after validation.
     """
-    manifest_src = workspace.manifest_path
-    if manifest_src.is_file():
-        shutil.copy2(manifest_src, workspace.session_dir / MANIFEST_FILENAME)
+    try:
+        manifest = read_workspace_text(workspace.manifest_path)
+    except OSError:
+        return
+    write_results_manifest(workspace.session_dir, manifest)
+
+
+def write_results_manifest(session_dir: Path, manifest: str) -> None:
+    """Write the sandbox *manifest* text to *session_dir* without its MCP token."""
+    manifest = _SESSION_TOKEN_RE.sub(r'\1***REDACTED***"', manifest)
+    (session_dir / MANIFEST_FILENAME).write_text(manifest, encoding="utf-8")
 
 
 def cleanup_workspace(workspace: SandboxWorkspace) -> None:

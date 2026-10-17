@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from agent.cli.claude.config import MCP_CONNECT_WAIT_ENV
 from agent.protocols import PHASES, SUBMISSION
 from agent.sdk.claude_sdk.config import prepare_claude_sdk_env
 from agent.sdk.claude_sdk.transcript import ClaudeSdkTranscript, run_claude_sdk_query
@@ -59,6 +60,7 @@ class ClaudeSdkWorker:
         sdk_env = prepare_claude_sdk_env(
             session_id=self.session_id, provider=self.llm_provider
         )
+        sdk_env.update(MCP_CONNECT_WAIT_ENV)
         if self.max_tokens is not None:
             sdk_env["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] = str(self.max_tokens)
         self._logger.log(

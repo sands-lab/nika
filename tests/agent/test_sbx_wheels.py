@@ -7,12 +7,8 @@ import pytest
 from unittest.mock import patch
 
 from agent.sandbox.config import resolve_sandbox_config
-from agent.sandbox.sbx.wheels import (
-    SDK_WHEEL_DIRNAME,
-    install_sdk_packages_in_sandbox,
-    sdk_wheel_dir,
-    stage_sdk_wheels,
-)
+from agent.sandbox.sbx.wheels import install_sdk_packages_in_sandbox
+from agent.sandbox.wheels import SDK_WHEEL_DIRNAME, sdk_wheel_dir, stage_sdk_wheels
 
 pytestmark = pytest.mark.unit
 
@@ -25,8 +21,8 @@ def test_sdk_wheels_are_staged_and_installed_offline(tmp_path) -> None:
     workspace.mkdir()
 
     with (
-        patch("agent.sandbox.sbx.wheels._WHEEL_CACHE", cache),
-        patch("agent.sandbox.sbx.wheels._pip_download"),
+        patch("agent.sandbox.wheels._WHEEL_CACHE", cache),
+        patch("agent.sandbox.wheels._pip_download"),
     ):
         staged = stage_sdk_wheels(workspace)
     assert staged == workspace / SDK_WHEEL_DIRNAME
@@ -68,7 +64,7 @@ def test_sdk_packages_install_from_pypi_when_offline_disabled(tmp_path) -> None:
 
 
 def test_sdk_requirements_are_exact_pins() -> None:
-    from agent.sandbox.sbx.wheels import SDK_PIP_PACKAGES, SDK_REQUIREMENTS_FILE
+    from agent.sandbox.wheels import SDK_PIP_PACKAGES, SDK_REQUIREMENTS_FILE
 
     assert SDK_REQUIREMENTS_FILE.is_file()
     assert SDK_PIP_PACKAGES

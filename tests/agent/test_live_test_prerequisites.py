@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -55,6 +57,35 @@ def test_live_credentials_match_provider_and_global_scope(
     assert sandbox_provider_credential_available(provider) is available
 
 
+def test_live_credentials_follow_the_sandbox_backend(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Each runtime counts its own logins; the custom provider needs its endpoint."""
+    monkeypatch.setattr("agent.sandbox.subscription.CODEX_LOGIN_HOME", tmp_path)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("NIKA_TEST_CUSTOM_BASE_URL", raising=False)
+    monkeypatch.setattr("tests.agent.sandbox_support.sbx_available", lambda: True)
+    monkeypatch.setattr(
+        "agent.sandbox.sbx.client.run_sbx_optional",
+        lambda _args: SimpleNamespace(
+            returncode=0, stdout="(global) service openai ***", stderr=""
+        ),
+    )
+    assert sandbox_provider_credential_available("openai", backend="sbx")
+    assert not sandbox_provider_credential_available("openai", backend="e2b")
+    tokens = {
+        "access_token": "a",
+        "refresh_token": "r",
+        "id_token": "i",
+        "account_id": "x",
+    }
+    (tmp_path / "auth.json").write_text(json.dumps({"tokens": tokens}))
+    assert sandbox_provider_credential_available("openai", backend="e2b")
+    assert not sandbox_provider_credential_available("custom", backend="e2b")
+    monkeypatch.setenv("NIKA_TEST_CUSTOM_BASE_URL", "http://model.example/v1")
+    assert sandbox_provider_credential_available("custom", backend="e2b")
+
+
 def test_live_model_defaults_and_anthropic_override(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -78,7 +109,12 @@ def test_live_model_defaults_and_anthropic_override(
         "account-model",
     )
     monkeypatch.setenv("NIKA_TEST_ANTHROPIC_PROVIDER", "custom")
-    with pytest.raises(ValueError, match="must be deepseek or anthropic"):
+    assert integration_pipeline.live_anthropic_test_config() == (
+        "custom",
+        "account-model",
+    )
+    monkeypatch.setenv("NIKA_TEST_ANTHROPIC_PROVIDER", "openai")
+    with pytest.raises(ValueError, match="must be deepseek, anthropic, or custom"):
         integration_pipeline.live_anthropic_test_config()
 
 

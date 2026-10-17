@@ -28,6 +28,7 @@ from agent.utils.provider_env import (
     ENV_ANTHROPIC_API_KEY,
     ENV_ANTHROPIC_AUTH_TOKEN,
     ENV_ANTHROPIC_BASE_URL,
+    ENV_CLAUDE_CODE_OAUTH_TOKEN,
     ENV_DEEPSEEK_API_KEY,
     build_agent_subprocess_env,
     has_provider_credentials,
@@ -35,6 +36,14 @@ from agent.utils.provider_env import (
     resolve_custom_api_key,
     resolve_custom_base_url,
 )
+
+# Claude Code connects MCP servers in the background and gives up on one after
+# 30 s; the first turn then runs without its tools. A slow sandbox, or the e2b
+# tunnel, can miss that window, so wait longer for them.
+MCP_CONNECT_WAIT_ENV = {
+    "MCP_TIMEOUT": "120000",
+    "CLAUDE_CODE_MCP_STARTUP_WAIT_MS": "120000",
+}
 
 
 def resolve_claude_model(model: str | None) -> str:
@@ -106,6 +115,18 @@ def claude_credentials_available(*, check_cli_login: bool = True) -> bool:
     return claude_cli_logged_in()
 
 
+def proxy_oauth_token() -> str:
+    """The model proxy token that stands in for a Claude subscription (e2b).
+
+    Claude Code sends it as its OAuth bearer; the host's model proxy swaps in
+    the real token (see :mod:`agent.sandbox.subscription`).
+    """
+    from agent.sandbox.constants import PROXY_TOKEN_PREFIX
+
+    value = os.environ.get(ENV_CLAUDE_CODE_OAUTH_TOKEN, "").strip()
+    return value if value.startswith(PROXY_TOKEN_PREFIX) else ""
+
+
 def use_bare_claude_mode(*, provider: str | None = None) -> bool:
     """Whether to pass ``--bare`` to the Claude subprocess.
 
@@ -113,7 +134,7 @@ def use_bare_claude_mode(*, provider: str | None = None) -> bool:
     keychain / OAuth reads.  Use it for env API-key mode only — never for
     Claude subscription / OAuth (``/login``) which needs non-bare mode.
     """
-    if claude_subscription_mode():
+    if claude_subscription_mode() or proxy_oauth_token():
         return False
     return has_env_claude_credentials(provider=provider)
 
@@ -129,20 +150,11 @@ def prepare_claude_subprocess_env(
     Uses provider-aware credential mapping and does **not** forward the full
     host environment (judge / Langfuse / remote / unused provider keys stay out).
     """
-    from agent.sandbox.sbx.auth import PROXY_MANAGED_SENTINEL
-    from agent.sandbox.sbx.exec import sandbox_name_from_env
-    from agent.utils.provider_env import CUSTOM_UNAUTHENTICATED_API_KEY
+    from agent.sandbox.config import sandbox_name_from_env
+    from agent.sandbox.exec import is_credential_placeholder as _is_placeholder
 
     prov = require_provider(provider)
     host = dict(base if base is not None else os.environ)
-
-    def _is_placeholder(value: str) -> bool:
-        text = value.strip()
-        return (
-            text == PROXY_MANAGED_SENTINEL
-            or text == CUSTOM_UNAUTHENTICATED_API_KEY
-            or text.startswith("sbx-cs-")
-        )
 
     # Support a legacy manual token and base URL long enough to emit a migration warning.
     if (
@@ -173,8 +185,8 @@ def prepare_claude_subprocess_env(
         if mapped.get(ENV_ANTHROPIC_API_KEY) and not env.get(ENV_ANTHROPIC_API_KEY):
             env.update(mapped)
 
-    # Sandbox sessions already injected sbx-cs-* / proxy-managed placeholders on
-    # the host env. Never remap real DEEPSEEK/custom keys over them — sbx exec
+    # Sandbox sessions already injected placeholders (sbx-cs-*, proxy-managed,
+    # model proxy tokens) on the host env. Never remap real DEEPSEEK/custom keys over them — sbx exec
     # would then omit the real secrets and leave the microVM without credentials.
     in_sbx_session = bool(sandbox_name_from_env())
     for key in (ENV_ANTHROPIC_API_KEY, ENV_ANTHROPIC_AUTH_TOKEN):
@@ -184,7 +196,7 @@ def prepare_claude_subprocess_env(
         elif in_sbx_session and _is_placeholder(os.environ.get(key, "").strip()):
             env[key] = os.environ[key].strip()
     if in_sbx_session or any(
-        _is_placeholder(host.get(k, ""))
+        _is_placeholder(host.get(k, "").strip())
         for k in (ENV_ANTHROPIC_API_KEY, ENV_ANTHROPIC_AUTH_TOKEN)
     ):
         base_url = (
@@ -201,6 +213,11 @@ def prepare_claude_subprocess_env(
             and not env.get(ENV_ANTHROPIC_AUTH_TOKEN, "").strip()
         ):
             env[ENV_ANTHROPIC_AUTH_TOKEN] = api_key
+    if oauth := proxy_oauth_token():
+        env[ENV_CLAUDE_CODE_OAUTH_TOKEN] = oauth
+        base_url = os.environ.get(ENV_ANTHROPIC_BASE_URL, "").strip()
+        if base_url:
+            env[ENV_ANTHROPIC_BASE_URL] = base_url
     if in_sbx_session:
         # Keep the sandbox's installed Claude Code version for the whole run.
         env["DISABLE_AUTOUPDATER"] = "1"

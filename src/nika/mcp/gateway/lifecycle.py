@@ -62,6 +62,11 @@ class McpGatewayManager:
             host=self.host,
             port=self.port,
             log_level="warning",
+            # Agents may pause longer than uvicorn's default 5 s
+            # between MCP requests. A client that reuses a connection the
+            # gateway just closed loses the request (ECONNRESET), so let the
+            # client close idle connections instead.
+            timeout_keep_alive=300,
         )
         self._server = uvicorn.Server(config)
         self._thread = threading.Thread(

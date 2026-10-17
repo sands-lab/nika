@@ -1,20 +1,28 @@
-"""Run commands inside a native Docker Sandbox via ``sbx exec``."""
+"""Run commands in the session sandbox from host-side agent workers.
+
+CLI agents keep their worker on the host and run only the agent CLI inside the
+sandbox. :func:`exec_in_sandbox` starts a command through the backend that
+created the active sandbox. :func:`push_to_sandbox` and
+:func:`pull_from_sandbox` move the workspace files the command reads and
+writes; they do nothing on runtimes that share the workspace (sbx).
+"""
 
 from __future__ import annotations
 
-import asyncio
 import os
 import shlex
+from collections.abc import Iterable
 from pathlib import Path
 
-from agent.sandbox.config import ENV_SESSION_DIR
-from agent.sandbox.sbx.agents import ENV_SBX_SANDBOX_NAME
+from agent.sandbox.backend import AsyncProcess, active_sandbox_backend
+from agent.sandbox.config import (
+    ENV_SANDBOX_NAME,
+    ENV_SESSION_DIR,
+    sandbox_name_from_env,
+)
+from agent.sandbox.constants import PROXY_TOKEN_PREFIX
 from agent.sandbox.sbx.auth import PROXY_MANAGED_SENTINEL
 from agent.utils.provider_env import CUSTOM_UNAUTHENTICATED_API_KEY
-
-# Prefix of the per-phase vLLM shim token (``agent.cli.claude.vllm_shim``).
-SHIM_TOKEN_PREFIX = "nika-shim-"
-
 
 _INNER_ENV_ALLOWLIST = frozenset(
     {
@@ -25,9 +33,12 @@ _INNER_ENV_ALLOWLIST = frozenset(
         "ANTHROPIC_API_KEY",
         "ANTHROPIC_AUTH_TOKEN",
         "ANTHROPIC_BASE_URL",
+        "CLAUDE_CODE_OAUTH_TOKEN",
         "DISABLE_AUTOUPDATER",
         "CLAUDE_CODE_MAX_CONTEXT_TOKENS",
         "CLAUDE_CODE_MAX_OUTPUT_TOKENS",
+        "CLAUDE_CODE_MCP_STARTUP_WAIT_MS",
+        "MCP_TIMEOUT",
     }
 )
 _PATH_ENV_KEYS = frozenset({"CODEX_HOME", "CLAUDE_CONFIG_DIR"})
@@ -38,11 +49,6 @@ _SECRET_ENV_KEYS = frozenset(
         "ANTHROPIC_AUTH_TOKEN",
     }
 )
-
-
-def sandbox_name_from_env() -> str | None:
-    name = os.environ.get(ENV_SBX_SANDBOX_NAME, "").strip()
-    return name or None
 
 
 def _sandbox_root() -> Path | None:
@@ -72,21 +78,24 @@ def _inner_path(
     return str(resolved)
 
 
-def _looks_like_placeholder(value: str) -> bool:
-    # A vLLM shim token only authorizes the host-side shim for one phase.
+def is_credential_placeholder(value: str) -> bool:
+    """True for sandbox credential stand-ins, never a real provider key."""
+    # A model proxy token only authorizes the host-side proxy of one session.
     return (
         value == PROXY_MANAGED_SENTINEL
         or value == CUSTOM_UNAUTHENTICATED_API_KEY
         or value.startswith("sbx-cs-")
-        or value.startswith(SHIM_TOKEN_PREFIX)
+        or value.startswith(PROXY_TOKEN_PREFIX)
     )
 
 
 def _sandbox_env_value(key: str, value: str, *, full_env: dict[str, str]) -> str:
-    """Never forward real credentials into the microVM for proxy-managed services."""
+    """Never forward real credentials into the sandbox."""
+    if key == "CLAUDE_CODE_OAUTH_TOKEN":
+        return value if value.startswith(PROXY_TOKEN_PREFIX) else ""
     if key not in _SECRET_ENV_KEYS:
         return value
-    if _looks_like_placeholder(value):
+    if is_credential_placeholder(value):
         return value
     # Third-party Anthropic-compatible APIs: omit real host keys.
     if key.startswith("ANTHROPIC"):
@@ -99,14 +108,18 @@ def _sandbox_env_value(key: str, value: str, *, full_env: dict[str, str]) -> str
     return PROXY_MANAGED_SENTINEL
 
 
-def build_sbx_exec_command(
-    sandbox_name: str,
+def sandbox_shell_command(
     command: list[str],
     *,
     cwd: str | None = None,
     env: dict[str, str] | None = None,
-) -> list[str]:
-    """Build ``sbx exec`` argv for *command*."""
+) -> str:
+    """Return the ``bash -lc`` script that runs *command* in the sandbox.
+
+    The script starts in the workspace root, so *cwd* and path variables are
+    given relative to it. Only allowlisted variables are exported, with real
+    credentials replaced by placeholders.
+    """
     sandbox_root = _sandbox_root()
     cwd_path = Path(cwd).resolve() if cwd else None
     inner_cwd = _inner_path(cwd, sandbox_root=sandbox_root, cwd=None) if cwd else None
@@ -132,7 +145,14 @@ def build_sbx_exec_command(
         inner_cmd = " ".join(exports + [inner_cmd])
     if inner_cwd:
         inner_cmd = f"cd {shlex.quote(inner_cwd)} && {inner_cmd}"
-    return ["sbx", "exec", sandbox_name, "bash", "-lc", inner_cmd]
+    return inner_cmd
+
+
+def _active_sandbox(sandbox_name: str | None = None) -> str:
+    name = sandbox_name or sandbox_name_from_env()
+    if not name:
+        raise RuntimeError(f"{ENV_SANDBOX_NAME} is not set for sandbox execution")
+    return name
 
 
 async def exec_in_sandbox(
@@ -141,20 +161,29 @@ async def exec_in_sandbox(
     env: dict[str, str] | None = None,
     cwd: str | None = None,
     sandbox_name: str | None = None,
-) -> asyncio.subprocess.Process:
+) -> AsyncProcess:
     """Start *command* inside the active sandbox and return the process handle."""
-    name = sandbox_name or sandbox_name_from_env()
-    if not name:
-        raise RuntimeError(f"{ENV_SBX_SANDBOX_NAME} is not set for sandbox execution")
+    name = _active_sandbox(sandbox_name)
+    shell_command = sandbox_shell_command(command, cwd=cwd, env=env)
+    return await active_sandbox_backend(name).exec_async(name, shell_command)
 
-    from agent.sandbox.sbx.proxy import sbx_process_env
 
-    argv = build_sbx_exec_command(name, command, cwd=cwd, env=env)
-    return await asyncio.create_subprocess_exec(
-        *argv,
-        env=sbx_process_env(),
-        stdin=asyncio.subprocess.DEVNULL,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-        limit=8 * 1024 * 1024,
-    )
+def _workspace_names(paths: Iterable[Path]) -> tuple[Path, list[str]]:
+    root = _sandbox_root()
+    if root is None:
+        raise RuntimeError(f"{ENV_SESSION_DIR} is not set for sandbox execution")
+    return root, [str(Path(path).resolve().relative_to(root)) for path in paths]
+
+
+def push_to_sandbox(paths: Iterable[Path]) -> None:
+    """Copy workspace files or directories from the host into the sandbox."""
+    name = _active_sandbox()
+    root, names = _workspace_names(paths)
+    active_sandbox_backend(name).push_files(name, root, names)
+
+
+def pull_from_sandbox(paths: Iterable[Path]) -> None:
+    """Copy workspace files the sandbox wrote back to the host."""
+    name = _active_sandbox()
+    root, names = _workspace_names(paths)
+    active_sandbox_backend(name).pull_files(name, root, names)

@@ -8,7 +8,7 @@ Implementation: [`remote/server.py`](../../src/nika/remote/server.py) serves the
 
 | Side | Install | Responsibility |
 |------|---------|----------------|
-| **Local (agent host)** | `uv sync --no-group labs` (+ sdk/sade as needed); optional [`sbx`](agent-sandbox.md) | CLI entrypoint, agent process, canonical `results/` |
+| **Local (agent host)** | `uv sync --no-group labs` (+ sdk/sade as needed); optional [sandbox runtime](agent-sandbox.md) (sbx or E2B) | CLI entrypoint, agent process and its sandbox, canonical `results/` |
 | **Remote (lab host)** | `./scripts/install.sh` ([options](installation.md)) | `nika remote serve`, labs, MCP gateway, runtime state |
 
 ## Set up the remote lab host
@@ -36,7 +36,7 @@ uv sync --no-group labs
 
 The `labs` group holds the Kathará and Docker SDK packages, which only the lab host needs.
 
-For sandboxed agents, install [`sbx`](agent-sandbox.md). Not required for `byo.*`.
+For sandboxed agents, set up a [sandbox runtime](agent-sandbox.md#choose-a-sandbox-runtime), sbx or E2B, on this host. Not required for `byo.*`.
 
 In `config/nika.yaml`:
 
@@ -71,7 +71,7 @@ nika eval metrics
 
 Artifacts are copied to the local `{nika.result_dir}/{session_id}/` directory (default `results/{session_id}/`), and evaluation runs locally. Remote mode also applies to `nika benchmark run`.
 
-Confirm that `results/<session_id>/` on the agent host contains the synced session files after the workflow. `nika session close -y` must also remove the lab from the remote host.
+Confirm that `results/<session_id>/` on the agent host contains the synced session files after the workflow. `nika session close -y` must also remove the lab from the remote host, and the sandbox of an interrupted agent run from the agent host.
 
 ## Operational constraints
 

@@ -253,19 +253,19 @@ def remove_orphaned_containerlab_management_network(lab_name: str | None) -> Non
         )
 
 
-def _cleanup_session_sbx(session_meta: dict, *, session_id: str) -> None:
-    """Best-effort remove this session's Docker Sandbox after hard-kill/close.
+def _cleanup_session_sandbox(session_meta: dict, *, session_id: str) -> None:
+    """Best-effort remove this session's agent sandbox after hard-kill/close.
 
     Scoped to ``agent_session_id`` only — never wipes other concurrent sandboxes.
     """
     try:
-        from agent.sandbox.sbx.cleanup import cleanup_sbx_for_session
+        from agent.sandbox.backend import cleanup_sandbox_for_session
 
-        result = cleanup_sbx_for_session(session_meta)
+        result = cleanup_sandbox_for_session(session_meta)
     except Exception as exc:  # noqa: BLE001 - teardown must not block lab close
         log_error_event(
             "sandbox_cleanup_failed",
-            f"Failed to clean Docker Sandbox for session {session_id}: {exc}",
+            f"Failed to clean agent sandbox for session {session_id}: {exc}",
             session_id=session_id,
             scenario=session_meta.get("scenario_name"),
             error=str(exc),
@@ -275,13 +275,36 @@ def _cleanup_session_sbx(session_meta: dict, *, session_id: str) -> None:
     if result is not None and result.did_work:
         log_event(
             "sandbox_cleanup",
-            f"Removed Docker Sandbox {result.sandbox_name} for session {session_id}",
+            f"Removed agent sandbox {result.sandbox_name} for session {session_id}",
             session_id=session_id,
             sandbox_name=result.sandbox_name,
             removed_sandbox=result.removed_sandbox,
             removed_workspace=result.removed_workspace,
             scenario=session_meta.get("scenario_name"),
         )
+
+
+def _cleanup_local_sandboxes(session_id: str | None, *, stop_all: bool) -> None:
+    """Remove the sandboxes of remote-lab sessions from this host.
+
+    Resolution errors are left to the remote close, which reports them.
+    """
+    store = SessionStore()
+    try:
+        if stop_all:
+            sids = [row["session_id"] for row in store.list_running_sessions()]
+        else:
+            sids = [resolve_running_session_id(session_id, store=store)]
+    except (FileNotFoundError, ValueError):
+        return
+    for sid in sids:
+        try:
+            meta = store.get_session(sid)
+        except FileNotFoundError:
+            continue
+        if meta.get("session_dir"):
+            bind_session_dir(meta["session_dir"])
+        _cleanup_session_sandbox(meta, session_id=sid)
 
 
 def _clear_orphan_session_record(
@@ -346,10 +369,10 @@ def _stop_session_record(
     if session_meta.get("session_dir"):
         # Bind first so every event below lands in this session's nika.jsonl.
         bind_session_dir(session_meta["session_dir"])
-    # Drop this session's sbx before lab undeploy so a slow/failed undeploy
+    # Drop this session's sandbox before lab undeploy so a slow/failed undeploy
     # cannot leave a hard-killed worker's microVM behind. Scoped by
     # agent_session_id only (safe with concurrent benchmarks).
-    _cleanup_session_sbx(session_meta, session_id=session.session_id)
+    _cleanup_session_sandbox(session_meta, session_id=session.session_id)
     backend = resolve_backend(session_meta)
     lab_name = getattr(session, "lab_name", None)
     try:
@@ -496,8 +519,8 @@ def _clear_session_record(
         bind_session_dir(session_dir)
 
     # Covers stop_all forced cleanup when ``_stop_session_record`` failed
-    # before its early sbx pass. Idempotent when the early pass already ran.
-    _cleanup_session_sbx(session_meta, session_id=session_id)
+    # before its early sandbox pass. Idempotent when the early pass already ran.
+    _cleanup_session_sandbox(session_meta, session_id=session_id)
 
     try:
         ended_cnt = session.store.mark_session_failures_ended(
@@ -556,6 +579,8 @@ def close_session(
     if is_remote_enabled():
         from nika.remote.workflows import remote_close_session
 
+        # The lab runs on the remote host, but the agent's sandbox runs here.
+        _cleanup_local_sandboxes(session_id, stop_all=stop_all)
         remote_close_session(
             session_id=session_id,
             undeploy=undeploy,

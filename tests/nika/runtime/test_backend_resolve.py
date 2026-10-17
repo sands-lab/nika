@@ -14,11 +14,11 @@ pytestmark = pytest.mark.unit
 class BackendResolveTest:
     @pytest.fixture(autouse=True)
     def _no_sbx_image_pull(self, monkeypatch) -> None:
-        # start_net_env preloads sbx templates before deploy; these tests mock
-        # the net env, so keep them off Docker regardless of leaked run config.
+        # start_net_env prepares sandbox templates before deploy; these tests
+        # mock the net env, so keep them off Docker regardless of leaked config.
         monkeypatch.setattr(
-            "agent.sandbox.sbx.images.ensure_configured_sbx_template_images",
-            lambda: None,
+            "agent.sandbox.backend.prepare_configured_sandbox_templates",
+            lambda: [],
         )
 
     def test_legacy_session_defaults_to_kathara(self) -> None:

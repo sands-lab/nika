@@ -18,7 +18,7 @@ from agent.sandbox.config import (
 from agent.mcp_names import SUBMISSION_SERVER
 from agent.protocols import PHASES, SUBMISSION
 from agent.sandbox.manifest import manifest_mcp_servers
-from agent.sandbox.sbx.exec import sandbox_name_from_env
+from agent.sandbox.config import sandbox_name_from_env
 
 SESSION_HEADER = "NIKA-Session-Id"
 # Per-session secret for the gateway phase-advance endpoint (host-only).

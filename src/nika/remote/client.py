@@ -141,11 +141,8 @@ class RemoteClient:
             )
         )
         # Prefer a host the local agent can reach (from NIKA_REMOTE_URL).
-        return McpAttachResponse(
-            session_id=resp.session_id,
-            gateway_port=resp.gateway_port,
-            gateway_base_url=self.config.gateway_url(resp.gateway_port),
-            phase_token=resp.phase_token,
+        return resp.model_copy(
+            update={"gateway_base_url": self.config.gateway_url(resp.gateway_port)}
         )
 
     def mcp_detach(self, session_id: str) -> None:

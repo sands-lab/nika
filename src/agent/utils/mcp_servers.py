@@ -8,11 +8,16 @@ from datetime import timedelta
 
 from langchain_core.tools import ToolException
 
-from agent.sandbox.config import ENV_GATEWAY_AGENT_URL, ENV_GATEWAY_URL
+from agent.sandbox.config import (
+    ENV_GATEWAY_AGENT_URL,
+    ENV_GATEWAY_SESSION_TOKEN,
+    ENV_GATEWAY_URL,
+)
 
 __all__ = [
     "MCPServerConfig",
     "SESSION_HEADER",
+    "SESSION_TOKEN_HEADER",
     "agent_facing_mcp_session_id",
     "harden_mcp_tools",
     "select_diagnosis_servers",
@@ -21,6 +26,7 @@ __all__ = [
 ]
 
 SESSION_HEADER = "NIKA-Session-Id"
+SESSION_TOKEN_HEADER = "NIKA-Session-Token"
 
 
 def agent_facing_mcp_session_id(session_id: str) -> str:
@@ -56,7 +62,28 @@ def select_diagnosis_servers(
 
 
 def session_http_headers(session_id: str) -> dict[str, str]:
-    return {SESSION_HEADER: agent_facing_mcp_session_id(session_id)}
+    agent_sid = agent_facing_mcp_session_id(session_id)
+    return {
+        SESSION_HEADER: agent_sid,
+        SESSION_TOKEN_HEADER: gateway_session_token(agent_sid),
+    }
+
+
+def gateway_session_token(session_id: str) -> str:
+    """Return the token the MCP gateway requires from *session_id*'s clients.
+
+    A gateway in this process holds it in its session registry; a remote
+    gateway's token comes from the attach response through the environment.
+    """
+    try:
+        from nika.mcp.gateway.session_registry import get_session
+    except ImportError:  # SDK sandboxes run without ``nika``
+        entry = None
+    else:
+        entry = get_session(session_id)
+    if entry is not None:
+        return entry.access_token
+    return os.environ.get(ENV_GATEWAY_SESSION_TOKEN, "").strip()
 
 
 def _gateway_base_url() -> str:

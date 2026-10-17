@@ -11,11 +11,11 @@ Use [Choose and run an agent](agent-implementations.md) for setup walkthroughs a
 | `byo.langgraph` | LangGraph ReAct workers | Host | No |
 | `byo.mcp_agent` | mcp-agent `Agent` workers | Host | No |
 | `byo.autogen` | AutoGen `AssistantAgent` workers | Host | No |
-| `cli.codex` | Codex CLI, two phases | Docker Sandbox `codex` template | Shared Codex skills |
-| `cli.claude` | Claude Code CLI, two phases | Docker Sandbox `claude` template | Shared Claude skills |
-| `sdk.codex_sdk` | `openai-codex`, two threads | Docker Sandbox `shell` template | Shared Codex skills |
-| `sdk.claude_sdk` | `claude-agent-sdk`, two sessions | Docker Sandbox `shell` template | Shared Claude skills |
-| `community.sade` | Claude Agent SDK with a 15-skill library | Docker Sandbox `shell` template | SADE library |
+| `cli.codex` | Codex CLI, two phases | Sandbox, `codex` template | Shared Codex skills |
+| `cli.claude` | Claude Code CLI, two phases | Sandbox, `claude` template | Shared Claude skills |
+| `sdk.codex_sdk` | `openai-codex`, two threads | Sandbox, `shell` template | Shared Codex skills |
+| `sdk.claude_sdk` | `claude-agent-sdk`, two sessions | Sandbox, `shell` template | Shared Claude skills |
+| `community.sade` | Claude Agent SDK with a 15-skill library | Sandbox, `shell` template | SADE library |
 
 The deterministic `mock` agent supports tests and pipeline checks. Do not use it for benchmark comparisons.
 
@@ -86,7 +86,7 @@ Store provider keys in `.env`. Set custom endpoint URLs with `--base-url`, `nika
 
 Only `provider: custom` reads `agent.base_url`. Set it to the OpenAI-style API root, usually ending in `/v1`. OpenAI-family agents use chat completions; Claude-family agents require the Anthropic `/v1/messages` route. NIKA probes that route with an empty POST before creating a Claude-family sandbox; HTTP 404 fails the run with an endpoint error. The provider adapter strips the trailing `/v1` when configuring an Anthropic client, which appends `/v1/messages` itself.
 
-CLI, SDK, and SADE agents run in Docker Sandboxes. The lab and MCP gateway remain on the host. See [Docker Sandbox execution](../operations/agent-sandbox.md) for installation, credentials, isolation, proxy settings, and troubleshooting.
+CLI, SDK, and SADE agents run in sandboxes, on Docker Sandboxes or E2B. The lab and MCP gateway remain on the host. See [Run agents in sandboxes](../operations/agent-sandbox.md) for setup, credentials, isolation, proxy settings, and troubleshooting.
 
 ## Reasoning effort
 
@@ -94,9 +94,9 @@ CLI, SDK, and SADE agents run in Docker Sandboxes. The lab and MCP gateway remai
 
 ## Sandbox credentials and dependencies
 
-Codex agents accept an OpenAI API key or a Codex OAuth login stored in sbx; Claude agents accept an Anthropic API key or a Claude login stored in sbx. Complete [sbx subscription setup](../operations/agent-sandbox.md#subscription--oauth-interactive-once) before evaluating with a subscription. Both families also support DeepSeek and compatible custom endpoints. Claude uses `--bare` with environment credentials and its stored login in subscription mode.
+Codex agents accept an OpenAI API key or a ChatGPT login; Claude agents accept an Anthropic API key or a Claude login. On sbx, the SDK and SADE agents need the API key. Complete the [subscription login](../operations/agent-sandbox.md#subscription--oauth-interactive-once) for your sandbox runtime before evaluating with a subscription. Both families also support DeepSeek and compatible custom endpoints. Claude uses `--bare` with environment credentials and its stored login in subscription mode.
 
-Install SDK agents with `uv sync --extra sdk --prerelease=allow`. Their sandboxes install host-cached wheels by default; set `nika.sandbox.offline_sdk_wheels: false` to use PyPI. See [SDK offline wheels](../operations/agent-sandbox.md#sdk-agents-optional-offline-wheels).
+Install SDK agents with `uv sync --extra sdk --prerelease=allow`. On sbx, their sandboxes install host-cached wheels by default; set `nika.sandbox.offline_sdk_wheels: false` to use PyPI. See [SDK offline wheels](../operations/agent-sandbox.md#sdk-agents-optional-offline-wheels). On E2B, the [template](../operations/agent-sandbox.md#e2b-templates) already contains them.
 
 ## Community agents
 
@@ -178,7 +178,7 @@ sandbox:
   # entrypoint: optional; defaults to NIKA's in-sandbox runner, which imports class
 ```
 
-NIKA validates this definition but does not execute it yet: external agents run on the host, and `nika agent list` marks declared sandboxes. Built-in sandbox harnesses keep their [Docker Sandbox wiring](../operations/agent-sandbox.md#architecture) in their specs.
+NIKA validates this definition but does not execute it yet: external agents run on the host, and `nika agent list` marks declared sandboxes. Built-in sandbox harnesses keep their [sandbox wiring](../operations/agent-sandbox.md#architecture) in their specs.
 
 ## Python MCP client
 

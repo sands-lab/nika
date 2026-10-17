@@ -1706,9 +1706,14 @@ def run_benchmark_trials(
             model=job.get("model"),
         )
     if check_images:
-        from agent.sandbox.sbx.images import ensure_sbx_template_images
+        from agent.sandbox.backend import prepare_sandbox_templates
 
-        ensure_sbx_template_images([agent_type])
+        images = prepare_sandbox_templates([agent_type])
+        from nika.net_env.utils.kathara.docker_files.docker_images import (
+            ensure_nika_docker_images,
+        )
+
+        ensure_nika_docker_images(images)
 
     # Confirmed: mutate slots (clear --no-resume / clean incomplete) then run.
     _, initial_pending = scan_trials(

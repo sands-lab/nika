@@ -250,13 +250,13 @@ def test_ensure_raises_if_still_missing() -> None:
 
 def test_every_deployed_image_is_pinned() -> None:
     """Benchmark reproducibility: no floating upstream tag, nika/* on the release tag."""
-    from agent.sandbox.sbx.agents import NATIVE_SBX_TEMPLATE_IMAGES
+    from agent.sandbox.templates import TEMPLATE_IMAGES
     from nika.workflows.setup.images import build_parent_images, runtime_images
 
     images = {
         *runtime_images(),
         *build_parent_images(),
-        *NATIVE_SBX_TEMPLATE_IMAGES.values(),
+        *TEMPLATE_IMAGES.values(),
     }
     for image in sorted(images):
         if image.startswith(di.NIKA_IMAGE_PREFIX):

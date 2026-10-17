@@ -10,7 +10,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from agent.sandbox.config import resolve_sandbox_config, sandbox_gateway_agent_host
+from agent.sandbox.config import resolve_sandbox_config
 from agent.sandbox.sbx.client import (
     ensure_sbx_ready,
     run_sbx_checked,
@@ -23,8 +23,8 @@ from agent.sandbox.sbx.policy import (
     deny_mcp_gateway,
     sanitize_sandbox_name,
 )
-from agent.sandbox.sbx.manager import SbxSandboxManager
-from agent.sandbox.sbx.workspace import prepare_workspace
+from agent.sandbox.sbx.backend import SbxBackend
+from agent.sandbox.workspace import prepare_workspace
 from nika.mcp.gateway.lifecycle import (
     ENV_GATEWAY_AGENT_URL,
     mcp_gateway_for_session,
@@ -42,14 +42,53 @@ def sandbox_runtime_available() -> bool:
     return sbx_available() and sbx_authenticated()
 
 
-def sandbox_provider_credential_available(provider: str) -> bool:
-    """Require the selected provider's key or a global native sbx service secret."""
+def e2b_runtime_available() -> bool:
+    """True when the e2b backend has an SDK and an API key to reach a service."""
+    try:
+        import e2b  # noqa: F401
+    except ImportError:
+        return False
+    from agent.sandbox.e2b.backend import _api_key
+
+    return bool(_api_key(resolve_sandbox_config().env_file))
+
+
+def sandbox_backend_available(backend: str) -> bool:
+    if backend == "e2b":
+        return e2b_runtime_available()
+    return sandbox_runtime_available()
+
+
+def sandbox_provider_credential_available(
+    provider: str, *, backend: str = "sbx"
+) -> bool:
+    """Require the selected provider's key, or a subscription login.
+
+    On sbx that is a global native sbx secret; on e2b, NIKA's own login (see
+    ``agent.sandbox.subscription``). The ``custom`` test provider needs its
+    endpoint (``NIKA_TEST_CUSTOM_BASE_URL``).
+    """
     from agent.utils.provider_env import has_provider_credentials
     from agent.sandbox.sbx.client import list_sbx_secret_services
+    from tests.support.integration_pipeline import live_custom_base_url
 
+    if provider == "custom":
+        return bool(live_custom_base_url())
     if has_provider_credentials(provider):
         return True
-    if provider not in {"openai", "anthropic"} or not sbx_available():
+    if backend == "e2b":
+        from agent.sandbox.config import load_sandbox_env_values
+        from agent.sandbox.subscription import CodexLogin, claude_oauth_token
+
+        if provider == "anthropic":
+            env_file = resolve_sandbox_config().env_file
+            return bool(claude_oauth_token(load_sandbox_env_values(env_file)))
+        return provider == "openai" and CodexLogin.load() is not None
+    if (
+        backend != "sbx"
+        or provider not in {"openai", "anthropic"}
+        or not sbx_available()
+    ):
         return False
     try:
         return provider in list_sbx_secret_services(global_only=True)
@@ -67,7 +106,7 @@ def run_security_probe_with_gateway(session_id: str = "sandbox-security-test") -
     ensure_sbx_ready()
 
     sandbox_name = sanitize_sandbox_name(session_id)
-    agent_host = sandbox_gateway_agent_host()
+    agent_host = SbxBackend.gateway_agent_host
     agent_type = "cli.codex"
     sbx_agent = "shell"
 
@@ -143,7 +182,7 @@ def run_security_probe_with_gateway(session_id: str = "sandbox-security-test") -
 
                 run_sbx_optional(["rm", "--force", sandbox_name])
                 try:
-                    create_cmd = SbxSandboxManager(
+                    create_cmd = SbxBackend(
                         resolve_sandbox_config()
                     ).build_create_command(
                         sandbox_name=sandbox_name,
@@ -200,7 +239,7 @@ def run_cross_sandbox_isolation_probe() -> None:
         raise RuntimeError("sbx is required for cross-sandbox isolation probe")
 
     ensure_sbx_ready()
-    agent_host = sandbox_gateway_agent_host()
+    agent_host = SbxBackend.gateway_agent_host
     session_id = "sandbox-iso-probe"
     sandbox_name = sanitize_sandbox_name(session_id)
 
@@ -250,7 +289,7 @@ def run_cross_sandbox_isolation_probe() -> None:
             run_sbx_optional(["rm", "--force", sandbox_name])
             try:
                 run_sbx_checked(
-                    SbxSandboxManager(resolve_sandbox_config()).build_create_command(
+                    SbxBackend(resolve_sandbox_config()).build_create_command(
                         sandbox_name=sandbox_name,
                         sbx_agent="shell",
                         workspace_dir=workspace.workspace_dir,

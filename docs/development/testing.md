@@ -43,7 +43,7 @@ Markers are registered in `pyproject.toml`. Each test declares exactly one execu
 | `contract` | Offline registry, benchmark YAML, schema, and artifact contracts |
 | `integration` | Real backend or service interaction without a complete workflow |
 | `e2e` | Complete user, benchmark, scenario, or failure workflow |
-| `sandbox` | Docker Sandbox isolation and security |
+| `sandbox` | Agent sandbox (sbx or E2B) isolation and security |
 | `live` | Real LLM, GitHub, or Batfish service |
 | `ci_smoke` | Curated dual-arch GitHub Actions smoke (`tests/ci/`) |
 | `nightly` | Heavy suites for scheduled runners |
@@ -61,7 +61,7 @@ uv run pytest -m integration -q
 # Complete workflows that do not need live credentials
 uv run pytest -m "e2e and not live" -q
 
-# Sandbox isolation (serial; sbx + Docker)
+# Sandbox isolation (serial; sbx or an E2B service, plus Docker)
 uv run pytest -m sandbox -q
 
 # Real LLM / live services (credentials required)
@@ -109,7 +109,7 @@ NIKA_CI_VERIFY_DEPTH=artifact NIKA_CI_ISP_TOPOS=pdh,abilene,janos-us NIKA_CI_ISP
 
 ## Agent tests (`tests/agent/`)
 
-Run agent unit tests to check configuration, authentication mapping, and output parsing without LLM calls. Live agent E2E tests exercise the sandbox workflow on a test-only BGP environment with `link_down`.
+Run agent unit tests to check configuration, authentication mapping, and output parsing without LLM calls. Live agent E2E tests exercise the sandbox workflow on a test-only BGP environment with `link_down`, on each [sandbox runtime](../operations/agent-sandbox.md#choose-a-sandbox-runtime) you set up.
 
 | Module | Agent | Unit tests | External requirements |
 |--------|-------|------------|-------------------|
@@ -123,10 +123,14 @@ Run agent unit tests to check configuration, authentication mapping, and output 
 | `test_codex_sdk.py` | `sdk.codex_sdk` | auth/reasoning + MCP TOML | None (unit tests) |
 | `test_mcp_read_timeout.py` | shared MCP | client read-timeout configuration | None |
 | `test_sbx.py` | sandbox | sbx manager, credentials, proxy | None |
-| `test_sandbox.py` | sandbox | manifest, redaction, SDK context | None |
+| `test_sandbox.py` | sandbox | manifest, redaction, SDK context, E2B connection settings | None |
+| `test_model_proxy.py` | sandbox | model proxy request adaptation and credential swap | None |
+| `test_subscription.py` | sandbox | E2B subscription logins, Codex login refresh, sandbox placeholders | None |
+| `test_sandbox_tunnel.py` | sandbox | host tunnel for E2B sandboxes | None |
 | `test_sandbox_security.py` | sandbox | microVM security probe | sbx + Docker |
 | `test_sandbox_isolation.py` | sandbox | distinct gateway ports + cross-sandbox MCP policy isolation | unit; sbx for peer-gateway probe |
-| `test_sandbox_agents.py` | sandbox | five-agent E2E (test BGP fixture / `link_down`) | See [Live agent credentials](#live-agent-credentials) |
+| `test_sandbox_e2b.py` | sandbox | an E2B sandbox reaches only its tunnel, no other host port and no internet | E2B service (`E2B_API_KEY`) |
+| `test_sandbox_agents.py` | sandbox | five-agent E2E (test BGP fixture / `link_down`); `Sandbox*` classes on sbx, `E2b*` classes on E2B | See [Live agent credentials](#live-agent-credentials) |
 
 ### Live agent credentials
 
@@ -134,24 +138,26 @@ Choose the agent tests that match your available credentials. Set API keys and t
 
 | Live E2E coverage | Provider and model | Required credentials |
 |-------------------|--------------------|----------------------|
-| Codex CLI/SDK sandbox agents; Codex sandbox benchmark | `openai`, default `gpt-5-mini` | `OPENAI_API_KEY`, or a native `openai` sbx secret containing an API key or ChatGPT OAuth login with Codex access |
+| Codex CLI/SDK sandbox agents; Codex sandbox benchmark | `openai`, default `gpt-5-mini` | `OPENAI_API_KEY`; or a ChatGPT login with Codex access: a native `openai` sbx secret on sbx (CLI agent and benchmark only; the sbx Codex SDK test needs `OPENAI_API_KEY`), or the [E2B Codex login](../operations/agent-sandbox.md#subscriptions-with-e2b) on E2B |
 | Claude CLI/SDK and SADE sandbox agents; Claude sandbox benchmark; Kubernetes Claude agent E2E | Default `deepseek` / `deepseek-v4-flash` | `DEEPSEEK_API_KEY`; no Claude subscription required |
-| The same Claude-family tests with the Anthropic override below | `anthropic`, explicit account-accessible Claude model | `ANTHROPIC_API_KEY` (legacy `ANTHROPIC_AUTH_TOKEN` also works), or a native `anthropic` sbx secret containing an API key or Claude subscription login with Claude Code access |
+| The same Claude-family tests with the Anthropic override below | `anthropic`, explicit account-accessible Claude model | `ANTHROPIC_API_KEY` (legacy `ANTHROPIC_AUTH_TOKEN` also works); or a Claude subscription with Claude Code access: a native `anthropic` sbx secret on sbx, or `CLAUDE_CODE_OAUTH_TOKEN` on E2B |
+| The same Claude-family tests with the custom override below | `custom`, explicit model served by your endpoint | `NIKA_TEST_CUSTOM_BASE_URL`, plus `NIKA_CUSTOM_API_KEY` if the endpoint requires one |
 | BYO LangGraph/MCP Agent/AutoGen pipelines in `test_agent_pipeline_contract.py`; curated release live E2E | Fixed DeepSeek configuration | `DEEPSEEK_API_KEY`; the Claude/Codex overrides below do not apply |
-| Sandbox security and isolation probes | No LLM calls | No LLM key or subscription; authenticated sbx runtime required |
+| Sandbox security and isolation probes | No LLM calls | No LLM key or subscription; authenticated sbx runtime, or an E2B service for `test_sandbox_e2b.py` |
 
-Sandbox tests require a working Docker engine and an authenticated Docker Sandboxes runtime (`sbx login`), plus the templates described in [Agent sandbox prerequisites](../operations/agent-sandbox.md#prerequisites). Docker login is separate from LLM authentication. Install the host agent CLI for CLI tests; install SDK dependencies with `uv sync --extra sdk --extra sade` for SDK and SADE tests. Kubernetes agent E2E also needs privileged Kathara/k3s support; the BYO Containerlab pipeline needs `clab` and `gnmic`.
+Sandbox tests require a working Docker engine and a [sandbox runtime](../operations/agent-sandbox.md#set-up-the-runtime). Each sandbox pipeline and benchmark test class has an sbx variant (`Sandbox*`), which runs after `sbx login`, and an E2B variant (`E2b*`), which runs when `E2B_API_KEY` is set. Docker login is separate from LLM authentication. Install the host agent CLI for CLI tests. SDK tests need no SDK packages on the host, because the sandbox provides them; SADE tests need `uv sync --extra sade`. Kubernetes agent E2E also needs privileged Kathara/k3s support; the BYO Containerlab pipeline needs `clab` and `gnmic`.
 
-For **API-key mode**, NIKA syncs the selected provider's key into sbx before creating the sandbox. An API key uses the provider's API account; a ChatGPT or Claude subscription is an alternative authentication path for the corresponding sandbox agents, not an API key for BYO frameworks. See [OpenAI authentication](https://learn.chatgpt.com/docs/auth) and [Docker's Claude authentication](https://docs.docker.com/ai/sandboxes/agents/claude-code/#authentication).
+For **API-key mode**, NIKA keeps the selected provider's key on the host (see [API keys](../operations/agent-sandbox.md#api-keys-automatic)). An API key uses the provider's API account; a ChatGPT or Claude subscription is an alternative authentication path for the corresponding sandbox agents, not an API key for BYO frameworks. See [OpenAI authentication](https://learn.chatgpt.com/docs/auth) and [Docker's Claude authentication](https://docs.docker.com/ai/sandboxes/agents/claude-code/#authentication).
 
-For subscription mode, complete [sbx subscription login](../operations/agent-sandbox.md#subscription--oauth-interactive-once) and confirm a global service entry with `sbx secret ls`. Local CLI login and sandbox-scoped credentials do not cover newly created test sandboxes.
+For subscription mode, complete the [subscription login](../operations/agent-sandbox.md#subscription--oauth-interactive-once) for each runtime you test. On sbx, confirm a global service entry with `sbx secret ls`; local CLI login and sandbox-scoped credentials do not cover newly created test sandboxes.
 
-Use these test-only overrides to select a model your account can access. Selecting Anthropic without a model, or an unsupported provider, stops collection with a configuration error:
+Use these test-only overrides to select a model your account can access. Selecting Anthropic or custom without a model, or an unsupported provider, stops collection with a configuration error:
 
 | Variable | Default | Applies to |
 |----------|---------|------------|
-| `NIKA_TEST_ANTHROPIC_PROVIDER` | `deepseek` | Claude CLI/SDK, SADE, Claude sandbox benchmark, Kubernetes Claude E2E; accepts `deepseek` or `anthropic` |
-| `NIKA_TEST_ANTHROPIC_MODEL` | `deepseek-v4-flash` for DeepSeek; required for Anthropic | The same Claude-family tests |
+| `NIKA_TEST_ANTHROPIC_PROVIDER` | `deepseek` | Claude CLI/SDK, SADE, Claude sandbox benchmark, Kubernetes Claude E2E; accepts `deepseek`, `anthropic`, or `custom` |
+| `NIKA_TEST_ANTHROPIC_MODEL` | `deepseek-v4-flash` for DeepSeek; required for Anthropic and custom | The same Claude-family tests |
+| `NIKA_TEST_CUSTOM_BASE_URL` | None | Endpoint (`agent.base_url`) for the custom override; the endpoint must serve the Anthropic `/v1/messages` route |
 | `NIKA_TEST_CODEX_MODEL` | `gpt-5-mini` | Codex CLI/SDK sandbox agents and sandbox benchmark; provider stays `openai` |
 
 For example, with an Anthropic API key or sbx subscription login configured, replace `YOUR_CLAUDE_MODEL` with a model available to that account:
@@ -169,7 +175,16 @@ NIKA_TEST_CODEX_MODEL=YOUR_CODEX_MODEL \
 uv run pytest tests/agent/test_sandbox_agents.py -k Codex -v
 ```
 
-These tests choose provider/model pairs independently of `config/nika.yaml`. DeepSeek or custom endpoint keys do not satisfy the OpenAI check; Anthropic or custom keys do not satisfy the DeepSeek check. The test overrides support the providers listed above. To exercise a custom endpoint, use the normal [agent workflow](../operations/agent-sandbox.md) with a compatible provider and model.
+With a self-hosted endpoint that serves the Anthropic `/v1/messages` route, replace the model and URL with yours:
+
+```bash
+NIKA_TEST_ANTHROPIC_PROVIDER=custom \
+NIKA_TEST_ANTHROPIC_MODEL=YOUR_MODEL \
+NIKA_TEST_CUSTOM_BASE_URL=http://YOUR_HOST:8000/v1 \
+uv run pytest tests/agent/test_sandbox_agents.py -k 'ClaudeCli' -v
+```
+
+These tests choose provider/model pairs independently of `config/nika.yaml`. DeepSeek or custom endpoint keys do not satisfy the OpenAI check; Anthropic or custom keys do not satisfy the DeepSeek check.
 
 ### Agent test commands
 
@@ -186,6 +201,9 @@ uv run pytest tests/agent/test_sandbox_security.py -v
 # Cross-sandbox isolation (unit + sbx peer-gateway probe)
 uv run pytest tests/agent/test_sandbox_isolation.py -v
 
+# E2B sandbox isolation (E2B_API_KEY)
+uv run pytest tests/agent/test_sandbox_e2b.py -v
+
 # Sandbox E2E (credentials and model overrides above).
 # Template images preload when a sandbox agent is configured; manual pull if needed:
 #   docker pull docker/sandbox-templates:codex-docker
@@ -193,6 +211,9 @@ uv run pytest tests/agent/test_sandbox_isolation.py -v
 #   docker pull docker/sandbox-templates:shell-docker
 # Missing images skip CLI cases.
 uv run pytest tests/agent/test_sandbox_agents.py -v
+
+# Only the E2B variants
+uv run pytest tests/agent/test_sandbox_agents.py -k E2b -v
 ```
 ## Benchmark tests (`tests/benchmark/`)
 
@@ -203,7 +224,7 @@ Covers `nika benchmark run` / resume / release orchestration and runner YAML loa
 | `test_release.py` | Freeze/preflight/job metadata on mini releases |
 | `test_trials.py` | Trial / release runs: cases×K trials, resume, agent_failed retain, isolation, `runtime/benchmark_runs` progress; Docker E2E mini-release run |
 | `test_batch.py` | Parallel mock batch under shared `trials/` layout (`--config`, `n_trials=1`) |
-| `test_sandbox_benchmark.py` | Claude + Codex sandbox single/parallel (`--batch-size 2`) |
+| `test_sandbox_benchmark.py` | Claude + Codex sandbox single/parallel (`--batch-size 2`), on sbx and E2B |
 | `test_curated_release_contract.py` | Test-only curated rows from `0.2.0` `test` split: subset contract, mock pack/validate, timeout+continue |
 | `test_curated_release_e2e.py` | Live Docker + `byo.langgraph` / DeepSeek on the curated subset (batch, resume, summary, pack/validate) |
 | `test_alias_load.py` | Reject legacy scenario aliases / invalid workload columns |
@@ -227,7 +248,7 @@ uv run pytest tests/benchmark/test_release.py -v -k DockerSmoke   # requires Doc
 uv run pytest tests/benchmark/test_trials.py -v
 uv run pytest tests/benchmark/test_trials.py -v -k ReleaseRunE2E  # requires Docker
 uv run pytest tests/benchmark/test_batch.py -v                 # requires Docker
-uv run pytest tests/benchmark/test_sandbox_benchmark.py -v    # sbx + live agent credentials
+uv run pytest tests/benchmark/test_sandbox_benchmark.py -v    # sbx or E2B + live agent credentials
 uv run pytest tests/benchmark/test_curated_release_contract.py -v
 # Live curated path (serial; needs Docker + DEEPSEEK_API_KEY; avoid parallel k8s/llmd suites)
 uv run pytest tests/benchmark/test_curated_release_e2e.py -m live -v

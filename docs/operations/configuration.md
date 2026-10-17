@@ -80,7 +80,7 @@ Model resolution order: `-m/--model`, then `agent.model`.
 | `sdk.claude_sdk` | `anthropic`, `deepseek`, `custom` |
 | `community.sade` | `anthropic`, `deepseek`, `custom` |
 
-Provider credentials belong in `.env`: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`, or optional `NIKA_CUSTOM_API_KEY`. NIKA maps credentials for the selected provider into the agent process or sandbox.
+Provider credentials belong in `.env`: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`, or optional `NIKA_CUSTOM_API_KEY`. NIKA maps credentials for the selected provider into the agent process or sandbox. The E2B sandbox runtime also reads `E2B_API_KEY`, optional `E2B_DOMAIN`, and an optional Claude subscription token, `CLAUDE_CODE_OAUTH_TOKEN`, from `.env`; see [Connect to E2B](agent-sandbox.md#connect-to-e2b).
 
 Leaderboard trajectory submit reads `HF_TOKEN` from `.env` / the environment. See [leaderboard submission](../benchmarks/leaderboard-submission.md).
 
@@ -92,11 +92,13 @@ Leaderboard trajectory submit reads `HF_TOKEN` from `.env` / the environment. Se
 | `nika.remote.enabled` | `false` | Route lab lifecycle calls to the remote control plane. |
 | `nika.remote.url` | `null` | Remote control-plane base URL. Required when remote mode is enabled. |
 | `nika.remote.artifact_root` | `null` | Reserved path carried in the remote client configuration. Current workflows do not consume it. |
-| `nika.sandbox.keep` | `false` | Keep the Docker Sandbox after the agent exits. |
-| `nika.sandbox.cpus` | `2` | `sbx` vCPU count per sandbox. `null` lets sbx give each sandbox every host vCPU. |
-| `nika.sandbox.memory` | `4g` | `sbx` memory limit per sandbox. `null` lets sbx use half of host memory. |
-| `nika.sandbox.offline_sdk_wheels` | `true` | Stage cached SDK wheels for SDK and SADE sandboxes. Set `false` to install packages from PyPI inside the sandbox. |
-| `nika.sandbox.upstream_proxy` | `null` | Proxy used by the shared `sandboxd` process and host `sbx` commands. |
+| `nika.sandbox.backend` | `sbx` | Sandbox runtime: `sbx` (Docker Sandboxes on the host) or `e2b` (E2B or an E2B-compatible service). See [Choose a sandbox runtime](agent-sandbox.md#choose-a-sandbox-runtime). |
+| `nika.sandbox.url` | `null` | `e2b` only: address of an E2B-compatible service that serves its API and sandboxes at one address, such as AgentENV. `null` uses `E2B_DOMAIN` from `.env`, else E2B cloud. |
+| `nika.sandbox.keep` | `false` | Keep the sandbox after the agent exits. An E2B sandbox stays until `nika session close` or the end of its lifetime. |
+| `nika.sandbox.cpus` | `2` | vCPU count per sandbox. `null` lets sbx give each sandbox every host vCPU, or E2B use the service default. |
+| `nika.sandbox.memory` | `4g` | Memory limit per sandbox. `null` lets sbx use half of host memory, or E2B use the service default. |
+| `nika.sandbox.offline_sdk_wheels` | `true` | `sbx` only: stage cached SDK wheels for SDK and SADE sandboxes. Set `false` to install packages from PyPI inside the sandbox. |
+| `nika.sandbox.upstream_proxy` | `null` | `sbx` only: proxy used by the shared `sandboxd` process and host `sbx` commands. |
 | `nika.observability.langfuse_enabled` | `false` | Enable Langfuse callbacks for `byo.langgraph`. |
 | `nika.observability.langfuse_host` | `https://cloud.langfuse.com` | Langfuse endpoint. Credentials remain in `.env`. |
 | `nika.judge.provider` | `openai` | Provider used by `nika eval judge` when the CLI does not override it. |

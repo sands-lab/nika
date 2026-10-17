@@ -215,15 +215,29 @@ def test_remote_client_rewrites_gateway_host(
             "session_id": "s1",
             "gateway_port": 9555,
             "gateway_base_url": "http://0.0.0.0:9555",
-            "phase_token": "tok",
+            "phase_token": "phase-secret",
+            "session_token": "session-secret",
         }
 
     monkeypatch.setattr(client, "_request", fake_request)
     attach = client.mcp_attach("s1", public_host="lab.example")
     assert attach.gateway_base_url == "http://lab.example:9555"
     assert attach.gateway_port == 9555
-    # The agent host advances the submission phase with this token.
-    assert attach.phase_token == "tok"
+    # The remote gateway rejects phase advances and MCP calls without these.
+    assert attach.phase_token == "phase-secret"
+    assert attach.session_token == "session-secret"
+
+
+def test_remote_gateway_token_reaches_mcp_headers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from agent.utils.mcp_servers import session_http_headers
+
+    # The remote server's gateway holds the session; its attach response
+    # token is exported for local MCP clients.
+    monkeypatch.setenv("NIKA_MCP_GATEWAY_SESSION_TOKEN", "remote-token")
+    headers = session_http_headers("remote-sess")
+    assert headers["NIKA-Session-Token"] == "remote-token"
 
 
 def test_start_net_env_remote_branch() -> None:

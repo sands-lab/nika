@@ -261,7 +261,7 @@ def prune_stale_caches() -> list[str]:
 def prepare_all_images(*, force_rebuild: bool = False) -> None:
     """Reconcile, then build, pull, and cache everything benchmarks deploy."""
     from nika.net_env.utils.k8s_workload_cache import K8S_SCENARIOS, cache_scenario
-    from agent.sandbox.sbx.images import ensure_configured_sbx_template_images
+    from agent.sandbox.backend import prepare_configured_sandbox_templates
 
     # Images are pruned only after ensure: it retags identical builds from
     # other NIKA versions (e.g. nika/base:latest) instead of rebuilding them.
@@ -270,7 +270,8 @@ def prepare_all_images(*, force_rebuild: bool = False) -> None:
     ensure_nika_docker_images(runtime_images(), force_rebuild=force_rebuild)
     for scenario in sorted(K8S_SCENARIOS):
         cache_scenario(scenario)
-    ensure_configured_sbx_template_images()
+    images = prepare_configured_sandbox_templates()
+    ensure_nika_docker_images(images)
     actions = prune_stale_images()
     for action in actions:
         print(action)

@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
-import fcntl
 import logging
 import shutil
 import subprocess
 import time
-from collections.abc import Iterator, Sequence
-from contextlib import contextmanager
+from collections.abc import Sequence
+from contextlib import AbstractContextManager
 from pathlib import Path
+
+from agent.sandbox.locks import host_file_lock
 
 logger = logging.getLogger(__name__)
 
@@ -18,17 +19,9 @@ _HUB_TOKEN_MARKERS = ("token is unverifiable", "jwks.json")
 _HUB_RETRY_DELAYS_S = (2.0, 4.0)
 
 
-@contextmanager
-def sbx_host_lock(name: str) -> Iterator[None]:
+def sbx_host_lock(name: str) -> AbstractContextManager[None]:
     """Exclusive host-wide lock shared by every NIKA process and thread."""
-    path = Path.home() / f".local/state/sandboxes/nika-sbx-{name}.lock"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as fh:
-        fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+    return host_file_lock(Path.home() / f".local/state/sandboxes/nika-sbx-{name}.lock")
 
 
 def _sbx_env(env: dict[str, str] | None = None) -> dict[str, str]:

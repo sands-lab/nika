@@ -35,6 +35,8 @@ _DEPRECATED_CUSTOM_KEY = "CUSTOM_API_KEY"
 ENV_ANTHROPIC_AUTH_TOKEN = "ANTHROPIC_AUTH_TOKEN"
 ENV_ANTHROPIC_BASE_URL = "ANTHROPIC_BASE_URL"
 ENV_OPENAI_BASE_URL = "OPENAI_BASE_URL"
+# Claude subscription token (``claude setup-token``); see agent.sandbox.subscription.
+ENV_CLAUDE_CODE_OAUTH_TOKEN = "CLAUDE_CODE_OAUTH_TOKEN"
 
 DEEPSEEK_OPENAI_BASE_URL = "https://api.deepseek.com"
 DEEPSEEK_ANTHROPIC_BASE_URL = "https://api.deepseek.com/anthropic"
@@ -108,7 +110,7 @@ _BASE_SUBPROCESS_KEYS = frozenset(
         "CODEX_HOME",
         "CLAUDE_CONFIG_DIR",
         # Sandbox markers
-        "NIKA_SBX_SANDBOX_NAME",
+        "NIKA_SANDBOX_NAME",
     }
 )
 

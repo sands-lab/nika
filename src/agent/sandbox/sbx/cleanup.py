@@ -1,8 +1,8 @@
 """Best-effort Docker Sandbox cleanup for session teardown.
 
 Used when the agent worker was hard-killed (case timeout, Ctrl+C SIGKILL)
-and never reached ``SbxSandboxManager.open_session``'s ``finally`` block.
-Parent-side ``close_session`` owns this path.
+and never reached ``SandboxManager.open_session``'s ``finally`` block.
+Parent-side ``close_session`` owns this path (via ``SbxBackend.cleanup_session``).
 """
 
 from __future__ import annotations
@@ -10,26 +10,16 @@ from __future__ import annotations
 import logging
 import shutil
 from collections.abc import Mapping
-from dataclasses import dataclass
 from typing import Any
+
+from agent.sandbox.backend import SandboxCleanupResult
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass(frozen=True)
-class SbxCleanupResult:
-    sandbox_name: str
-    removed_sandbox: bool
-    removed_workspace: bool
-
-    @property
-    def did_work(self) -> bool:
-        return self.removed_sandbox or self.removed_workspace
-
-
 def cleanup_sbx_for_session(
     session_meta: Mapping[str, Any] | None,
-) -> SbxCleanupResult | None:
+) -> SandboxCleanupResult | None:
     """Remove the sbx sandbox (and opaque workspace) owned by *session_meta*.
 
     Only targets ``sanitize_sandbox_name(agent_session_id)`` for this session.
@@ -43,7 +33,7 @@ def cleanup_sbx_for_session(
 
     from agent.sandbox.sbx.client import run_sbx_optional, sbx_available
     from agent.sandbox.sbx.policy import sanitize_sandbox_name
-    from agent.sandbox.sbx.workspace import opaque_agent_workspace_dir
+    from agent.sandbox.workspace import opaque_agent_workspace_dir
     from nika.utils.agent_session_id import resolve_agent_session_id
 
     agent_sid = resolve_agent_session_id(session_meta)
@@ -82,7 +72,7 @@ def cleanup_sbx_for_session(
         shutil.rmtree(workspace, ignore_errors=True)
         removed_workspace = not workspace.exists()
 
-    return SbxCleanupResult(
+    return SandboxCleanupResult(
         sandbox_name=sandbox_name,
         removed_sandbox=removed_sandbox,
         removed_workspace=removed_workspace,

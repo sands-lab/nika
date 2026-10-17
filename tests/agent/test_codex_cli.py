@@ -5,6 +5,7 @@ import json
 import os
 import subprocess
 import tomllib
+from types import SimpleNamespace
 
 import pytest
 
@@ -196,6 +197,10 @@ class CodexWorkerConfigTest:
             )
             monkeypatch.setenv("CODEX_HOME", str(native_home))
             monkeypatch.setattr(
+                "agent.cli.codex.codex_worker.active_sandbox_backend",
+                lambda _name: SimpleNamespace(name="sbx"),
+            )
+            monkeypatch.setattr(
                 "agent.cli.codex.codex_worker.run_sbx_checked",
                 lambda args: subprocess.run(
                     args[2:], env=dict(os.environ), check=True, capture_output=True
@@ -219,6 +224,37 @@ class CodexWorkerConfigTest:
                 "experimental_bearer_token": "test-proxy-placeholder",
                 "requires_openai_auth": False,
             }
+
+    def test_e2b_sandbox_skips_sbx_provider_merge(self, monkeypatch, tmp_path) -> None:
+        """The sbx subscription route only exists in Docker Sandboxes."""
+        monkeypatch.setattr(
+            "agent.cli.codex.codex_worker.apply_codex_auth", lambda _path: None
+        )
+        monkeypatch.setattr(
+            "agent.cli.codex.codex_worker.prepare_codex_workspace", lambda _path: None
+        )
+        monkeypatch.setattr(
+            "agent.utils.mcp_client._load_session_mcp_config",
+            lambda *_args, **_kwargs: {},
+        )
+        monkeypatch.setattr(
+            "agent.cli.codex.codex_worker.sandbox_name_from_env", lambda: "e2b-id"
+        )
+        monkeypatch.setattr(
+            "agent.cli.codex.codex_worker.active_sandbox_backend",
+            lambda _name: SimpleNamespace(name="e2b"),
+        )
+
+        def _no_sbx(_args):
+            raise AssertionError("sbx exec on an e2b sandbox")
+
+        monkeypatch.setattr("agent.cli.codex.codex_worker.run_sbx_checked", _no_sbx)
+        CodexWorker(
+            session_id="sess-123",
+            session_dir=tmp_path,
+            phase=DIAGNOSIS,
+            llm_provider="openai",
+        )._setup_workspace()
 
 
 class CodexToolLoggingTest:
