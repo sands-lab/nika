@@ -27,18 +27,21 @@ is the time until the restored lab passed NIKA's startup verification again:
 | Environment | Cold deploy | From snapshot, 4 KiB pages | From snapshot, huge pages |
 |---|---:|---:|---:|
 | `dc_clos -s s` (Kathara) | 17–19 s | 25–44 s | 4 s |
-| `isp_nobel-germany` (Kathara, FRR routers) | not measured | 75 s | 8 s |
-| `min3clos` (Containerlab, SR Linux) | 108 s | 40–100 s | about 12 s |
+| `isp_nobel-germany` (Kathara, FRR) | not measured | 75 s | 8 s |
+| `min3clos` (Containerlab, SR Linux) | 108 s | 40–100 s | 19 s |
+| `k8s_lab` | 301 s | 159 s | 29 s |
+| `llmd_lab` | 190 s | 231 s | 26 s |
 
 Without huge pages, a restored copy loads memory on first access, which is slow
 on nested hosts and can stall the lab's daemons. Use huge pages wherever the
 host can reserve them; the default mode suits hosts that cannot, or runs that
 keep many copies of one golden VM at once (they share memory).
 
-A golden snapshot costs one cold deploy plus a VM boot and the snapshot write:
-1–2 minutes for small labs with huge pages, 15–18 minutes for k8s, llm-d and
-SR Linux ISP labs without. All 29 environments of release 0.2.0 ran from
-snapshots with identical scores to cold runs (mock agent).
+A golden snapshot costs one cold deploy plus a VM boot and the snapshot write.
+With huge pages that is 1.5–3 minutes for Kathara labs, 3–6.5 minutes for
+SR Linux labs and up to 8.5 minutes for `k8s_lab`. All 29 environments of
+release 0.2.0 ran from snapshots with the same scores as cold runs (mock agent),
+and three copies of one golden VM ran at once as fast as one.
 
 ## Set up the host (once)
 
