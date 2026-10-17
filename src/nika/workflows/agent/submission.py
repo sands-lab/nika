@@ -20,6 +20,7 @@ from nika.problems.rca.inventory import (
     load_session_offline_net_env,
 )
 from nika.mcp.gateway.session_registry import get_session
+from nika.remote.config import event_origin
 from nika.utils.session_store import SessionStore
 from nika.workflows.benchmark.healthy import is_healthy_case
 
@@ -74,6 +75,7 @@ def freeze_diagnosis(session_id: str, report: str) -> dict[str, str]:
                     "phase": DIAGNOSIS,
                     "event": "diagnosis_frozen",
                     "report": report,
+                    **event_origin(),
                 },
                 ensure_ascii=False,
             )
