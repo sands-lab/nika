@@ -6883,7 +6883,8 @@
     "0.2.0/20261014_react_qwen3_5_27b",
     "0.2.0/20261016_claude_code_claude_opus_5_5",
     "0.2.0/20261016_claude_code_claude_sonnet_5_5",
-    "0.2.0/20261016_claude_code_gpt_oss_120b"
+    "0.2.0/20261016_claude_code_gpt_oss_120b",
+    "0.2.0/20261017_claude_code_claude_haiku_5_5"
   ],
-  "rank": 12
+  "rank": 13
 }

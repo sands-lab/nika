@@ -125,6 +125,15 @@
       "source": "https://www.anthropic.com/claude-opus-5-5",
       "retrieved": "2026-10-16",
       "note": "Anthropic standard API list prices in USD per million tokens, used as a reference estimate rather than the actual Claude subscription cost. Input usage includes cached tokens; cache discounts are not represented by this catalog's input/output-only rates."
+    },
+    "Claude Haiku 5.5": {
+      "input": 0.1,
+      "output": 0.5,
+      "basis": "api",
+      "provider": "Anthropic",
+      "source": "https://www.anthropic.com/claude-haiku-5-5",
+      "retrieved": "2026-10-17",
+      "note": "Anthropic standard API list prices in USD per million tokens for prompts up to 100,000 tokens. For longer prompts, input/output rates are $0.50/$2.50 per million tokens. This flat reference estimate does not model per-request pricing tiers or cached-input discounts and is not the actual Claude subscription cost."
     }
   }
 }

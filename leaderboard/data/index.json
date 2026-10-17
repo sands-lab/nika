@@ -1062,6 +1062,95 @@
       "rank": 4
     },
     {
+      "id": "0.2.0/20261017_claude_code_claude_haiku_5_5",
+      "dirname": "20261017_claude_code_claude_haiku_5_5",
+      "submission_name": "Claude Haiku 5.5",
+      "authors": "Alessandro Cornacchia",
+      "org": null,
+      "site": null,
+      "report": null,
+      "logo": null,
+      "github": "https://github.com/sands-lab/nika",
+      "email": null,
+      "trajectories_url": "https://huggingface.co/datasets/nika-bench/nika-trajectories/tree/main/trajectories/0.2.0/20261017_claude_code_claude_haiku_5_5",
+      "trajectories_relpath": "trajectories/0.2.0/20261017_claude_code_claude_haiku_5_5",
+      "model": "Claude Haiku 5.5",
+      "framework": "Claude Code",
+      "agent_type": "cli.claude",
+      "llm_provider": "anthropic",
+      "tools": [
+        "containerlab_srl_mcp_server",
+        "k8s_mcp_server",
+        "kathara_base_mcp_server",
+        "pingmesh_mcp_server",
+        "packet_capture_mcp_server",
+        "kathara_frr_mcp_server",
+        "kathara_bmv2_mcp_server",
+        "kathara_sdn_mcp_server",
+        "kathara_telemetry_mcp_server",
+        "task_mcp_server"
+      ],
+      "skills": [],
+      "optimization_methods": [],
+      "tags": [],
+      "extra": {
+        "nika_agent": "cli.claude",
+        "runtime_model_id": "claude-haiku-5-5",
+        "claude_code_version": "2.1.280",
+        "provider": "anthropic (hosted, Claude subscription authentication)",
+        "max_steps_per_phase": 100,
+        "max_output_tokens": 8192,
+        "agent_timeout_sec": 1800,
+        "case_timeout_sec": 2400,
+        "batch_size": 16,
+        "heavy_batch_size": 1,
+        "nika_git_commit": "dba357b3c0c6585f68d059a531c12619f8e9b3b3"
+      },
+      "benchmark_version": "0.2.0",
+      "split": "test",
+      "case_count": 85,
+      "n_trials": 3,
+      "primary_metric": "rca_f1",
+      "mean_rca_f1": 0.49105686274509813,
+      "mean_localization_f1": 0.5790964705882355,
+      "mean_detection_score": 0.8392156862745098,
+      "n_trials_expected": 255,
+      "n_trials_present": 255,
+      "n_success": 253,
+      "n_agent_failed": 2,
+      "success_rate": 0.992157,
+      "token_totals": {
+        "in_tokens": 271353973,
+        "out_tokens": 6304087
+      },
+      "steps_totals": {
+        "steps": 7810,
+        "tool_calls": 7516,
+        "tool_errors": 0
+      },
+      "mean_tokens": 1088855.137,
+      "mean_steps": 30.627,
+      "total_tokens": 277658060,
+      "max_steps": 100,
+      "case_timeout_sec": 2400,
+      "created_at": "2026-10-17T06:08:36+00:00",
+      "run_id": "86100c2240e99740",
+      "official": true,
+      "nika_git_commit": "dba357b3c0c6585f68d059a531c12619f8e9b3b3",
+      "name": "Claude Haiku 5.5 · Claude Code",
+      "rca_f1_ci": [
+        0.403388,
+        0.574512
+      ],
+      "beaten_by": [
+        "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
+        "0.2.0/20261011_react_qwen3_8_27b_fp8",
+        "0.2.0/20261016_claude_code_claude_opus_5_5",
+        "0.2.0/20261016_claude_code_claude_sonnet_5_5"
+      ],
+      "rank": 5
+    },
+    {
       "id": "0.2.0/20261014_react_qwen3_5_27b",
       "dirname": "20261014_react_qwen3_5_27b",
       "submission_name": "ReAct + Qwen3.5-27B",
@@ -1140,9 +1229,10 @@
         "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
         "0.2.0/20261011_react_qwen3_8_27b_fp8",
         "0.2.0/20261016_claude_code_claude_opus_5_5",
-        "0.2.0/20261016_claude_code_claude_sonnet_5_5"
+        "0.2.0/20261016_claude_code_claude_sonnet_5_5",
+        "0.2.0/20261017_claude_code_claude_haiku_5_5"
       ],
-      "rank": 5
+      "rank": 6
     },
     {
       "id": "0.2.0/20261014_claude_code_qwen3_5_27b",
@@ -1223,9 +1313,10 @@
         "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
         "0.2.0/20261011_react_qwen3_8_27b_fp8",
         "0.2.0/20261016_claude_code_claude_opus_5_5",
-        "0.2.0/20261016_claude_code_claude_sonnet_5_5"
+        "0.2.0/20261016_claude_code_claude_sonnet_5_5",
+        "0.2.0/20261017_claude_code_claude_haiku_5_5"
       ],
-      "rank": 5
+      "rank": 6
     },
     {
       "id": "0.2.0/20261012_claude_code_gemma_4_31b_it",
@@ -1307,9 +1398,10 @@
         "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
         "0.2.0/20261011_react_qwen3_8_27b_fp8",
         "0.2.0/20261016_claude_code_claude_opus_5_5",
-        "0.2.0/20261016_claude_code_claude_sonnet_5_5"
+        "0.2.0/20261016_claude_code_claude_sonnet_5_5",
+        "0.2.0/20261017_claude_code_claude_haiku_5_5"
       ],
-      "rank": 5
+      "rank": 6
     },
     {
       "id": "0.2.0/20261016_claude_code_gpt_oss_120b",
@@ -1393,9 +1485,10 @@
         "0.2.0/20261011_react_qwen3_8_27b_fp8",
         "0.2.0/20261014_react_qwen3_5_27b",
         "0.2.0/20261016_claude_code_claude_opus_5_5",
-        "0.2.0/20261016_claude_code_claude_sonnet_5_5"
+        "0.2.0/20261016_claude_code_claude_sonnet_5_5",
+        "0.2.0/20261017_claude_code_claude_haiku_5_5"
       ],
-      "rank": 6
+      "rank": 7
     },
     {
       "id": "0.2.0/20261013_claude_code_telecomgpt_r1",
@@ -1479,9 +1572,10 @@
         "0.2.0/20261014_claude_code_qwen3_5_27b",
         "0.2.0/20261014_react_qwen3_5_27b",
         "0.2.0/20261016_claude_code_claude_opus_5_5",
-        "0.2.0/20261016_claude_code_claude_sonnet_5_5"
+        "0.2.0/20261016_claude_code_claude_sonnet_5_5",
+        "0.2.0/20261017_claude_code_claude_haiku_5_5"
       ],
-      "rank": 8
+      "rank": 9
     },
     {
       "id": "0.2.0/20261013_react_telecomgpt_r1",
@@ -1565,9 +1659,10 @@
         "0.2.0/20261014_claude_code_qwen3_5_27b",
         "0.2.0/20261014_react_qwen3_5_27b",
         "0.2.0/20261016_claude_code_claude_opus_5_5",
-        "0.2.0/20261016_claude_code_claude_sonnet_5_5"
+        "0.2.0/20261016_claude_code_claude_sonnet_5_5",
+        "0.2.0/20261017_claude_code_claude_haiku_5_5"
       ],
-      "rank": 8
+      "rank": 9
     },
     {
       "id": "0.2.0/20261012_react_gemma_4_31b_it",
@@ -1652,9 +1747,10 @@
         "0.2.0/20261014_claude_code_qwen3_5_27b",
         "0.2.0/20261014_react_qwen3_5_27b",
         "0.2.0/20261016_claude_code_claude_opus_5_5",
-        "0.2.0/20261016_claude_code_claude_sonnet_5_5"
+        "0.2.0/20261016_claude_code_claude_sonnet_5_5",
+        "0.2.0/20261017_claude_code_claude_haiku_5_5"
       ],
-      "rank": 9
+      "rank": 10
     },
     {
       "id": "0.2.0/20261007_qwen3_6_35b_a3b_claudecode",
@@ -1724,9 +1820,10 @@
         "0.2.0/20261014_react_qwen3_5_27b",
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
-        "0.2.0/20261016_claude_code_gpt_oss_120b"
+        "0.2.0/20261016_claude_code_gpt_oss_120b",
+        "0.2.0/20261017_claude_code_claude_haiku_5_5"
       ],
-      "rank": 11
+      "rank": 12
     },
     {
       "id": "0.2.0/20261008_qwen3_6_35b_a3b_codex",
@@ -1797,9 +1894,10 @@
         "0.2.0/20261014_react_qwen3_5_27b",
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
-        "0.2.0/20261016_claude_code_gpt_oss_120b"
+        "0.2.0/20261016_claude_code_gpt_oss_120b",
+        "0.2.0/20261017_claude_code_claude_haiku_5_5"
       ],
-      "rank": 12
+      "rank": 13
     },
     {
       "id": "0.2.0/20261007_qwen3_6_35b_a3b_langgraph",
@@ -1870,9 +1968,10 @@
         "0.2.0/20261014_react_qwen3_5_27b",
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
-        "0.2.0/20261016_claude_code_gpt_oss_120b"
+        "0.2.0/20261016_claude_code_gpt_oss_120b",
+        "0.2.0/20261017_claude_code_claude_haiku_5_5"
       ],
-      "rank": 12
+      "rank": 13
     },
     {
       "id": "0.2.0/20261014_claude_code_glm_4_7_flash",
@@ -1963,9 +2062,10 @@
         "0.2.0/20261014_react_qwen3_5_27b",
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
-        "0.2.0/20261016_claude_code_gpt_oss_120b"
+        "0.2.0/20261016_claude_code_gpt_oss_120b",
+        "0.2.0/20261017_claude_code_claude_haiku_5_5"
       ],
-      "rank": 15
+      "rank": 16
     },
     {
       "id": "0.2.0/20261015_react_glm_4_7_flash",
@@ -2056,9 +2156,10 @@
         "0.2.0/20261014_react_qwen3_5_27b",
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
-        "0.2.0/20261016_claude_code_gpt_oss_120b"
+        "0.2.0/20261016_claude_code_gpt_oss_120b",
+        "0.2.0/20261017_claude_code_claude_haiku_5_5"
       ],
-      "rank": 15
+      "rank": 16
     },
     {
       "id": "0.2.0/20261008_claude_cli_otel_2_0_llm_31b_it",
@@ -2158,9 +2259,10 @@
         "0.2.0/20261015_react_glm_4_7_flash",
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
-        "0.2.0/20261016_claude_code_gpt_oss_120b"
+        "0.2.0/20261016_claude_code_gpt_oss_120b",
+        "0.2.0/20261017_claude_code_claude_haiku_5_5"
       ],
-      "rank": 17
+      "rank": 18
     }
   ]
 }

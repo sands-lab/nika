@@ -6878,7 +6878,8 @@
     "0.2.0/20261015_react_glm_4_7_flash",
     "0.2.0/20261016_claude_code_claude_opus_5_5",
     "0.2.0/20261016_claude_code_claude_sonnet_5_5",
-    "0.2.0/20261016_claude_code_gpt_oss_120b"
+    "0.2.0/20261016_claude_code_gpt_oss_120b",
+    "0.2.0/20261017_claude_code_claude_haiku_5_5"
   ],
-  "rank": 17
+  "rank": 18
 }
