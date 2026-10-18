@@ -82,17 +82,32 @@ def _build_startup_config(name: str, router: dict) -> str:
 
 
 class IosXrSimpleBGP(NetworkEnvBase):
+    ROUTING_PARAMETER_KINDS = frozenset({"bgp_exports"})
+    ROUTING_MODELS = frozenset({"iosxr-bgp"})
+    BGP_ROUTERS = ROUTERS
+    BGP_INTERFACE_MAP = {"eth0": LINK_IFACE, "eth1": PC_IFACE}
+    BGP_PEERING_INTERFACE = LINK_IFACE
+    BGP_CONFIG_PATH = CONFIG_FILE_PATH
     LAB_NAME = "iosxr_simple_bgp"
     VERIFY_MAX_WAIT_SEC = 480
     VERIFY_RETRY_DELAY_SEC = 10
     TOPO_LEVEL = "easy"
 
-    def __init__(self, **kwargs):
-        super().__init__()
+    def __init__(self, *, routing_parameters=None, **kwargs):
+        super().__init__(**kwargs)
         self.lab = Lab(self.LAB_NAME)
         self.name = self.LAB_NAME
         self.instance = Kathara.get_instance()
         self.desc = "A simple BGP network with two IOS-XR (XRd) routers and two pcs."
+
+        from nika.net_env.synthesis.vendor_bgp import render_iosxr_bgp_exports
+
+        if routing_parameters is not None:
+            from nika.net_env.synthesis.parameters import RoutingParameters
+
+            solved = RoutingParameters.model_validate(routing_parameters)
+            if any(policy.node not in ROUTERS for policy in solved.bgp_exports):
+                raise ValueError("Unknown solved IOS-XR node")
 
         for router_name, router in ROUTERS.items():
             machine = self.lab.new_machine(router_name, **{"image": IMAGE})
@@ -111,9 +126,12 @@ class IosXrSimpleBGP(NetworkEnvBase):
                 ),
             )
             machine.add_meta("env", XR_ZTP_DISABLE_ENV)
-            machine.create_file_from_string(
-                _build_startup_config(router_name, router), CONFIG_FILE_PATH
-            )
+            config = _build_startup_config(router_name, router)
+            if routing_parameters is not None:
+                config = render_iosxr_bgp_exports(
+                    config, router_name, routing_parameters
+                )
+            machine.create_file_from_string(config, CONFIG_FILE_PATH)
             self.lab.create_file_from_list(
                 build_xr_startup_script(CONFIG_FILE_PATH, wait_iface=LINK_IFACE),
                 f"{router_name}.startup",
@@ -155,6 +173,9 @@ class IosXrSimpleBGP(NetworkEnvBase):
         )
 
         self.load_machines()
+
+    def bgp_origin_prefixes(self):
+        return {str(router["network"]): name for name, router in ROUTERS.items()}
 
     def deploy(self):
         require_xrd_image(IMAGE)

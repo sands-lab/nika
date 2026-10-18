@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-18",
+  "scope": "Recorded executions before source cleanup; use the experiment commands and retained regressions to reproduce on the current revision. Counts cover declared requirements and incidents, not all network behavior.",
+  "isp": {
+    "registered_default_profiles_static": 289,
+    "benchmark_deployment_profiles_native": 39,
+    "benchmark_profiles_with_joint_igp_and_as_import_completion": 9,
+    "additional_srl_isis_ebgp_variants": [
+      "isp_dfn-bwin",
+      "isp_di-yuan",
+      "isp_pdh"
+    ],
+    "static_reproduction": "experiment/routing_validation/benchmark_isp.py --catalog --run",
+    "native_regression": "tests/nika/validation/test_benchmark_routing.py"
+  },
+  "cross_domain": {
+    "native_specimens": [
+      "clos",
+      "clos-m",
+      "campus",
+      "enterprise",
+      "min3clos"
+    ],
+    "regression": "tests/nika/validation/test_routing_completion.py::test_completion_configuration_execution_and_registered_failures"
+  },
+  "vendors": {
+    "FRR": "ISP graphs, Clos, campus and enterprise within their declared model scopes.",
+    "Nokia SR Linux": "ISP graphs and min3clos; restricted concrete-configuration projection plus native checks.",
+    "Cisco IOS XR": "iosxr_simple_bgp: two-router direct eBGP; native Batfish parser and XRd execution.",
+    "MikroTik RouterOS": "routeros_simple_bgp: two-router direct eBGP; restricted concrete-configuration projection plus native checks.",
+    "regression": "tests/nika/validation/test_vendor_routing.py"
+  },
+  "limitations": [
+    "The 289 default profiles were not all executed natively; native ISP coverage is the 39 benchmark deployment profiles.",
+    "Cisco XRd and RouterOS do not have the general ISP coverage of FRR and SR Linux.",
+    "IS-IS uses a scoped single-level shortest-path reduction. FRR IS-IS with eBGP remains unsupported by the configuration projection.",
+    "Static-only acceptance carries no native execution claim. No universal analyzer/router equivalence or global convergence proof is claimed."
+  ]
+}

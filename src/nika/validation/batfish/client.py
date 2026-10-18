@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import math
 import time
 from collections.abc import Callable
@@ -45,7 +46,7 @@ class BatfishClient:
         snapshot = self._require_snapshot()
         if question.kind in self._question_cache:
             return self._question_cache[question.kind]
-        if question.kind == "reachability":
+        if question.kind in {"reachability", "bidirectional_reachability"}:
             from pybatfish.datamodel import HeaderConstraints, PathConstraints
 
             parameters = question.parameters
@@ -57,16 +58,21 @@ class BatfishClient:
                 }
             )
             headers = HeaderConstraints(**parameters["headers"])
-            frame = (
-                self._session.q.reachability(
+            query = (
+                self._session.q.bidirectionalReachability(
+                    headers=headers,
+                    pathConstraints=path,
+                    returnFlowType=parameters["return_flow_type"],
+                )
+                if question.kind == "bidirectional_reachability"
+                else self._session.q.reachability(
                     actions=parameters["actions"],
                     headers=headers,
                     pathConstraints=path,
                     maxTraces=parameters["max_traces"],
                 )
-                .answer(snapshot)
-                .frame()
             )
+            frame = query.answer(snapshot).frame()
         elif question.kind == "bgp_adjacency":
             compatibility = (
                 self._session.q.bgpSessionCompatibility().answer(snapshot).frame()
@@ -75,14 +81,73 @@ class BatfishClient:
             rows = [
                 {"analysis": "compatibility", **row} for row in _records(compatibility)
             ] + [{"analysis": "establishment", **row} for row in _records(status)]
+            configured = self._session.q.bgpPeerConfiguration().answer(snapshot).frame()
+            rows += [
+                {"analysis": "configuration", **row} for row in _records(configured)
+            ]
             self._question_cache[question.kind] = rows
             return rows
         elif question.kind == "ospf_adjacency":
             frame = self._session.q.ospfSessionCompatibility().answer(snapshot).frame()
+        elif question.kind == "route_next_hops":
+            rows = _records(self._session.q.routes().answer(snapshot).frame())
+            self._question_cache[question.kind] = rows
+            return rows
+        elif question.kind == "bgp_route":
+            rows = _records(self._session.q.bgpRib().answer(snapshot).frame())
+            self._question_cache[question.kind] = rows
+            return rows
+        elif question.kind == "route_policy":
+            from pybatfish.datamodel.route import BgpRoute
+
+            parameters = question.parameters
+            if "peer_configuration" not in self._question_cache:
+                self._question_cache["peer_configuration"] = _records(
+                    self._session.q.bgpPeerConfiguration().answer(snapshot).frame()
+                )
+            configured = [
+                row
+                for row in self._question_cache["peer_configuration"]
+                if row.get("Node") == parameters["node"]
+                and str(row.get("Remote_IP")) == parameters["remote_address"]
+            ]
+            if len(configured) != 1:
+                raise ValueError("Expected exactly one configured external BGP peer.")
+            policies = configured[0].get("Export_Policy")
+            policies = [policies] if isinstance(policies, str) else policies
+            if not policies or len(policies) != 1:
+                raise ValueError(
+                    "External export checking requires one configured export policy."
+                )
+            frame = (
+                self._session.q.testRoutePolicies(
+                    nodes=json.dumps(parameters["node"]),
+                    policies=json.dumps(policies[0]),
+                    direction="out",
+                    inputRoutes=[
+                        BgpRoute(
+                            network=parameters["prefix"],
+                            originatorIp="0.0.0.0",
+                            originType="igp",
+                            protocol="bgp",
+                            sourceProtocol="bgp",
+                            nextHopIp="0.0.0.1",
+                        )
+                    ],
+                )
+                .answer(snapshot)
+                .frame()
+            )
+        elif question.kind == "isis_adjacency":
+            frame = self._session.q.edges(edgeType="isis").answer(snapshot).frame()
         else:  # pragma: no cover - compiler constrains this field
             raise ValueError(f"unknown Batfish question kind {question.kind!r}")
         rows = _records(frame)
-        if question.kind == "ospf_adjacency":
+        if question.kind == "isis_adjacency":
+            rows = _normalize_isis_interfaces(
+                rows, self._snapshot_metadata.get("interface_aliases", {})
+            )
+        if question.kind in {"ospf_adjacency", "isis_adjacency"}:
             self._question_cache[question.kind] = rows
         return rows
 
@@ -209,3 +274,22 @@ def _json_value(value: Any) -> Any:
     if isinstance(value, (list, tuple, set)):
         return [_json_value(item) for item in value]
     return str(value)
+
+
+def _normalize_isis_interfaces(
+    rows: list[dict[str, Any]], aliases: dict[str, dict[str, str]]
+) -> list[dict[str, Any]]:
+    """Map Batfish interface names back to the topology's original names."""
+    normalized = []
+    for row in rows:
+        item = dict(row)
+        for field in ("Interface", "Remote_Interface"):
+            value = str(item.get(field) or "")
+            if "[" not in value or not value.endswith("]"):
+                continue
+            node, interface = value[:-1].split("[", 1)
+            original = aliases.get(node, {}).get(interface)
+            if original:
+                item[field] = f"{node}[{original}]"
+        normalized.append(item)
+    return normalized

@@ -5,7 +5,7 @@ import pytest
 import json
 
 from nika.net_env.isp.kathara.lab import Isp
-from nika.topology import list_sndlib_topologies
+from nika.topology.catalog import SNDLIB_TOPOLOGY_NAMES
 from nika.validation.batfish.snapshot import build_isp_snapshot
 
 pytestmark = pytest.mark.unit
@@ -79,7 +79,7 @@ def test_snapshot_is_deterministic_and_changes_with_topology(tmp_path) -> None:
 
 
 def test_all_isp_catalog_topologies_have_unique_deterministic_intents() -> None:
-    for topology in list_sndlib_topologies():
+    for topology in sorted(SNDLIB_TOPOLOGY_NAMES):
         first = _environment(topology).validation_contract
         second = _environment(topology).validation_contract
         assert first.to_json() == second.to_json()

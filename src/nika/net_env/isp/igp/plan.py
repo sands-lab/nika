@@ -15,7 +15,7 @@ from nika.topology import (
     NetworkTopology,
     TopoLink,
     link_preinstalled_capacity,
-    load_sndlib_topology,
+    load_topology,
 )
 
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
@@ -150,7 +150,7 @@ def compile_isp_plan(
 ) -> IspPlan:
     """Compile an ISP plan from config and/or an explicit NetworkTopology."""
     cfg = (config or IspConfig()).validated()
-    topo = topology if topology is not None else load_sndlib_topology(cfg.topology)
+    topo = topology if topology is not None else load_topology(cfg.topology)
 
     nodes_sorted = tuple(sorted(topo.nodes, key=lambda n: n.id))
     links_sorted = tuple(sorted(topo.links, key=lambda link: link.id))
@@ -173,8 +173,35 @@ def compile_isp_plan(
     }
     planned_links: list[PlannedLink] = []
 
+    metrics = {link.id: link_metric(link, cfg) for link in links_sorted}
+    if cfg.link_metrics is not None:
+        if set(cfg.link_metrics) != set(metrics):
+            raise IspConfigError(
+                "Explicit metrics must cover exactly the topology links."
+            )
+        maximum = 65535 if cfg.igp == "ospf" else 16777215
+        if any(
+            type(cost) is not int or not 1 <= cost <= maximum
+            for cost in cfg.link_metrics.values()
+        ):
+            raise IspConfigError(
+                f"Explicit {cfg.igp} metrics must be integers in 1..{maximum}."
+            )
+        metrics = dict(cfg.link_metrics)
+    if cfg.igp == "isis":
+        # FRR IS-IS costs a neighbor by its cheapest parallel adjacency but may
+        # forward over any of them, so parallel links must share one metric.
+        bundle_metric: dict[frozenset[str], int] = {}
+        for link in links_sorted:
+            pair = frozenset((link.source, link.target))
+            bundle_metric[pair] = min(
+                bundle_metric.get(pair, metrics[link.id]), metrics[link.id]
+            )
+        for link in links_sorted:
+            metrics[link.id] = bundle_metric[frozenset((link.source, link.target))]
+
     for link in links_sorted:
-        metric = link_metric(link, cfg)
+        metric = metrics[link.id]
         a_dev = device_by_node[link.source]
         b_dev = device_by_node[link.target]
         # Stable endpoint ordering by device name (not SNDlib source/target).
@@ -493,3 +520,29 @@ def shortest_distances(
                 distances[peer] = candidate
                 heapq.heappush(queue, (candidate, peer))
     return distances
+
+
+def shortest_paths(
+    graph: dict[str, list[tuple[str, int]]], source: str, target: str
+) -> tuple[tuple[str, ...], ...]:
+    """Enumerate exact equal-cost shortest router paths with positive metrics."""
+    distances = shortest_distances(graph, source)
+    if target not in distances:
+        return ()
+    predecessors: dict[str, set[str]] = {node: set() for node in graph}
+    for node, neighbors in graph.items():
+        for peer, metric in neighbors:
+            if metric <= 0:
+                raise ValueError("Shortest routing paths require positive metrics")
+            if node in distances and distances[node] + metric == distances.get(peer):
+                predecessors[peer].add(node)
+
+    def paths(node):
+        if node == source:
+            yield (source,)
+        else:
+            for previous in sorted(predecessors[node]):
+                for path in paths(previous):
+                    yield (*path, node)
+
+    return tuple(sorted(paths(target)))

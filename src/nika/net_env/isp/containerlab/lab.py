@@ -74,6 +74,9 @@ def _stub_series_all_routers(plan: IspPlan) -> TrafficMatrixSeries:
 class Isp(ContainerlabNetworkEnv):
     """SNDlib ISP on Containerlab with nokia_srlinux routers + linux stubs."""
 
+    ROUTING_PARAMETER_KINDS = frozenset({"ospf_costs", "isis_metrics", "bgp_imports"})
+    ROUTING_MODELS = frozenset({"srl-isp"})
+
     LAB_NAME = "isp"
     TOPO_LEVEL = "medium"
     DESC = "ISP from SNDlib on Containerlab (Nokia SR Linux)."
@@ -90,6 +93,7 @@ class Isp(ContainerlabNetworkEnv):
         device_profile: str | None = None,
         topo_size: str | None = None,
         scenario_id: str | None = None,
+        routing_parameters: dict | None = None,
         **kwargs,
     ):
         kwargs.pop("traffic_mode", None)
@@ -142,6 +146,18 @@ class Isp(ContainerlabNetworkEnv):
         base_plan = compile_isp_plan(config)
         self.bgp_plan: BgpPlan | None = compile_bgp_plan(base_plan, self.bgp_mode)
         base_plan = scope_igp_to_bgp_as(base_plan, self.bgp_plan)
+        from nika.net_env.synthesis.parameters import bind_isp_metrics, bind_isp_imports
+
+        self.completed_metrics = routing_parameters is not None
+        base_plan = bind_isp_metrics(
+            config,
+            base_plan,
+            self.bgp_plan,
+            routing_parameters,
+            parameter_kinds=self.ROUTING_PARAMETER_KINDS,
+        )
+        if routing_parameters is not None:
+            self.bgp_plan = bind_isp_imports(self.bgp_plan, routing_parameters)
         stub_series = _stub_series_all_routers(base_plan)
         attachment = attach_traffic_stubs(
             base_plan,
@@ -312,6 +328,22 @@ class Isp(ContainerlabNetworkEnv):
         configs = self.runtime_workdir / "configs"
         configs.mkdir(parents=True, exist_ok=True)
 
+        for node, document in self.routing_documents.items():
+            (configs / f"{node}.yaml").write_text(
+                yaml.safe_dump(document, sort_keys=False)
+            )
+
+        for host in self.traffic.hosts:
+            script = "\n".join(
+                ["#!/bin/bash", "set -euo pipefail", *host.startup_commands, ""]
+            )
+            path = configs / f"{host.host_name}.sh"
+            path.write_text(script, encoding="utf-8")
+            path.chmod(0o755)
+
+    @property
+    def routing_documents(self):
+        documents = {}
         bgp_by_device = {}
         if self.bgp_plan is not None:
             bgp_by_device = {n.device_name: n for n in self.bgp_plan.nodes}
@@ -335,17 +367,27 @@ class Isp(ContainerlabNetworkEnv):
                 extra_loopback_addrs=tuple(extras),
                 include_routing_policy=include_policy,
             )
-            (configs / f"{node.device_name}.yaml").write_text(
-                yaml_text, encoding="utf-8"
-            )
+            document = yaml.safe_load(yaml_text)
+            if bgp_node and bgp_node.import_policies:
+                from nika.net_env.isp.bgp.srl import routing_policy_document
 
-        for host in self.traffic.hosts:
-            script = "\n".join(
-                ["#!/bin/bash", "set -euo pipefail", *host.startup_commands, ""]
-            )
-            path = configs / f"{host.host_name}.sh"
-            path.write_text(script, encoding="utf-8")
-            path.chmod(0o755)
+                document.update(routing_policy_document(bgp_node))
+            if self.completed_metrics:
+                # The declared all-shortest-path sketch requires all equal next hops.
+                protocols = document["srl_nokia-network-instance:network-instance"][0][
+                    "protocols"
+                ]
+                igp_key = (
+                    "srl_nokia-isis:isis"
+                    if self.plan.igp == "isis"
+                    else "srl_nokia-ospf:ospf"
+                )
+                protocols[igp_key]["instance"][0]["max-ecmp-paths"] = max(
+                    len(n.interfaces) for n in self.plan.nodes
+                )
+            documents[node.device_name] = document
+
+        return documents
 
     def _write_setup_script(self, *, lab_name: str) -> None:
         assert self.runtime_workdir is not None

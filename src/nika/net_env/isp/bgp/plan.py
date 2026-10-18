@@ -15,6 +15,7 @@ from nika.net_env.isp.bgp.config import (
     normalize_bgp_mode,
 )
 from nika.net_env.isp.bgp.errors import BgpCompileError, BgpConfigError
+from nika.net_env.isp.bgp.policy import BgpPolicyTerm
 from nika.net_env.isp.igp.frr import render_frr_conf
 from nika.net_env.isp.igp.plan import IspPlan, PlannedNode, build_inventory
 
@@ -39,7 +40,7 @@ class BgpSession:
 class BgpOriginatedPrefix:
     device: str
     prefix: str  # e.g. 203.0.113.0/24
-    ping_address: str  # host address installed on lo for reachability checks
+    ping_address: str  # host address on BGP_ORIGIN_IFACE for reachability checks
 
 
 @dataclass(frozen=True)
@@ -56,6 +57,7 @@ class BgpNodePlan:
     export_deny_prefixes: tuple[str, ...] = ()
     rtbh_import_policy: bool = False
     ebgp_outbound_route_maps: tuple[tuple[str, str], ...] = ()  # (neighbor_ip, map)
+    import_policies: tuple[tuple[str, tuple[BgpPolicyTerm, ...]], ...] = ()
 
 
 @dataclass(frozen=True)
