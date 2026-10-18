@@ -17,6 +17,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Iterable
 
+from nika.firecracker.base import ensure_base
 from nika.firecracker.config import firecracker_settings
 from nika.firecracker.image import (
     MEMORY,
@@ -59,6 +60,7 @@ def build_parallelism(max_parallel: int) -> int:
 
 def prebuild_images(trials: Iterable[Any], *, max_parallel: int) -> list[str]:
     """Build the missing lab images of ``trials``; return failure messages."""
+    ensure_base()  # build or refresh it before keys (which include its id)
     variants: dict[str, dict[str, Any]] = {}
     for trial in trials:
         params = variant_for_row(trial.row)

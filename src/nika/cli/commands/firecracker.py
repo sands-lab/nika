@@ -52,36 +52,6 @@ def snapshot_list(
         )
 
 
-@firecracker_app.command("build")
-def snapshot_build(
-    release: str = typer.Option(..., "--release", "-d", help="Release version."),
-    split: str = typer.Option("dev", "--split", help="Release split: dev or test."),
-    scenario: list[str] | None = typer.Option(
-        None, "--scenario", help="Only these scenario ids (repeatable)."
-    ),
-    run_config: str | None = typer.Option(
-        None, "--run-config", envvar=ENV_RUN_CONFIG, help="Path to config/nika.yaml."
-    ),
-) -> None:
-    """Build the lab images a release split needs, before running it."""
-    _load_run_config(run_config)
-    from nika.firecracker.image import ensure_image, variant_for_row
-    from nika.workflows.benchmark.release import load_release
-
-    rows = load_release(release, split=split).cases
-    variants: list[dict] = []
-    for row in rows:
-        if scenario and row["scenario"] not in scenario:
-            continue
-        params = variant_for_row(row)
-        if params not in variants:
-            variants.append(params)
-    typer.echo(f"{len(variants)} environment variant(s) for {release}/{split}.")
-    for params in variants:
-        image = ensure_image(params)
-        typer.echo(f"{image.key}  {params}")
-
-
 @firecracker_app.command("clean")
 def snapshot_clean(
     all_images: bool = typer.Option(

@@ -30,13 +30,19 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from nika.config import REPO_ROOT
+from nika.firecracker.base import (
+    GUEST_REPO,
+    PROXY_PORT,
+    SYNCED_FILES,
+    _repo_files,
+    ensure_base,
+)
 from nika.firecracker.config import firecracker_settings
 from nika.firecracker.vmm import (
     DISK,
     VSOCK,
     Firecracker,
     HostProxy,
-    VmmError,
     VsockForwarder,
     firecracker_binary,
     guest_exec,
@@ -47,9 +53,6 @@ from nika.firecracker.vmm import (
 
 DAEMON_PORT = 8700
 GATEWAY_PORT = 8800
-PROXY_PORT = 3128  # host CONNECT proxy, reached over vsock while building
-GUEST_REPO = "/home/ubuntu/nika"
-SYNCED_FILES = ".nika-files"  # files of the last code sync, NUL-separated
 STATE = "vm.state"
 MEMORY = "mem"
 META = "meta.json"
@@ -126,16 +129,6 @@ def variant_for_row(row: dict[str, Any]) -> dict[str, Any]:
     )
 
 
-def _repo_files(repo: Path) -> list[str]:
-    out = subprocess.run(
-        ["git", "ls-files", "-co", "--exclude-standard", "-z"],
-        cwd=repo,
-        capture_output=True,
-        check=True,
-    ).stdout
-    return sorted(p for p in out.decode().split("\0") if p and (repo / p).is_file())
-
-
 @functools.cache
 def code_fingerprint() -> str:
     """Hash of the code a lab image runs (``FINGERPRINT_PATHS`` of this checkout)."""
@@ -165,14 +158,11 @@ def vm_memory_mib(scenario: str) -> int:
 
 
 def base_manifest() -> dict[str, Any]:
-    path = root() / "base" / "base.json"
+    """The current base image's manifest, or ``{}`` before the first build."""
     try:
-        return json.loads(path.read_text())
-    except FileNotFoundError:
-        raise VmmError(
-            f"No base image at {path.parent}; build it with scripts/firecracker-base.sh "
-            "(docs/operations/firecracker.md)."
-        ) from None
+        return json.loads((root() / "base" / "base.json").read_text())
+    except (OSError, ValueError):
+        return {}
 
 
 def image_key(params: dict[str, Any]) -> str:
@@ -181,7 +171,7 @@ def image_key(params: dict[str, Any]) -> str:
         "variant": params,
         "lab_settings": lab_settings(),
         "code": code_fingerprint(),
-        "base": base_manifest()["id"],
+        "base": base_manifest().get("id"),
         "cpus": settings.vm_cpus,
         "memory_mib": vm_memory_mib(str(params.get("scenario"))),
         "huge_pages": settings.huge_pages,
@@ -217,6 +207,10 @@ def _log(message: str) -> None:
 
 def ensure_image(params: dict[str, Any]) -> LabImage:
     """Return the lab image for ``params``, building it first if needed."""
+    image = _ready(image_key(params))
+    if image is not None:
+        return image
+    ensure_base()  # first run, or the runtime images changed: (re)build the base
     key = image_key(params)
     image = _ready(key)
     if image is not None:

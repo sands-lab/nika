@@ -125,21 +125,16 @@ reboots. Run them as a user with `sudo`.
    firecracker --version
    ```
 
-## Package the base image
+## Base image
 
-Build the base image once (about 15 minutes; needs `sudo` for the chroot):
+Every lab image starts from a base image (Ubuntu with Docker, NIKA and this
+host's runtime images). The first Firecracker run builds it, which takes about
+20 minutes, and later runs rebuild it when this host's runtime images or Kathara
+plugins change. Code changes do not: lab images receive the current checkout.
 
-```shell
-scripts/firecracker-base.sh
-```
-
-It unpacks Ubuntu 24.04 into an ext4 image, installs the kernel, Docker and the
-guest services, then boots it in Firecracker to run `scripts/install.sh` and
-load this host's runtime images. The VM has no network of its own: while it is
-built, it reaches the network through a proxy on the host, over vsock.
-
-Rebuild the base when NIKA's Python dependencies or the runtime images change.
-Code changes do not need a rebuild: lab images receive the current checkout.
+The base is assembled in Docker containers, so it needs no `sudo`. The VM has no
+network of its own: while it is built, it reaches the network through a proxy on
+the host, over vsock.
 
 ## Enable Firecracker runs
 
@@ -170,12 +165,6 @@ the runner schedules for that:
    pages, a trial also waits until the pool can hold its copy (the data in its
    lab image's memory file plus 25%). Heavy labs (k8s, Containerlab, size `l`) no
    longer run alone: a restore costs them no more than a light lab.
-
-To build all lab images ahead of a run, for example on another day:
-
-```shell
-nika firecracker build --release 0.2.0 --split test
-```
 
 ### Huge pages
 
