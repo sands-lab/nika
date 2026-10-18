@@ -55,9 +55,9 @@ jobs:
 
             If there are findings, or a previous run of this review flagged issues on this PR,
             post a single PR comment: overall verdict (PASS or FAIL), then concrete, file- and
-            line-referenced findings grouped by file, marked [blocking] or [optional]. On
-            re-runs, state which earlier blocking findings are now resolved. Keep it concise
-            and skip praise or nitpicks the guidelines do not cover.
+            line-referenced findings grouped by file, marked [blocking] or [optional]. 
+            Your comment must be actionable, which means you should state which style guidelines and 
+            principles the documentation is violating, based on your memory and knowledge of user taste. 
 
             Finally, you MUST write the verdict to the file `${{ github.workspace }}/.letta-docs-verdict`
             containing exactly one word: `FAIL` if any blocking finding remains, otherwise `PASS`.
