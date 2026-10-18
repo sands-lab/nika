@@ -50,6 +50,7 @@ from nika.agents.sandbox.workspace import (
     write_results_manifest,
     write_workspace_text,
 )
+from nika.telemetry import telemetry_for_session
 from nika.utils.agent_session_id import resolve_agent_session_id
 from nika.utils.logger import elapsed_ms, log_event
 from nika.utils.session import Session
@@ -175,6 +176,7 @@ class SandboxManager:
                 scenario_name=scenario_name,
                 backend=backend,
                 gateway_agent_url=mcp_gateway_agent_url.rstrip("/"),
+                telemetry=telemetry_for_session(session),
             ),
             model=model,
             llm_provider=llm_provider,

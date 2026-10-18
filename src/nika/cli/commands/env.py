@@ -103,6 +103,14 @@ def env_run(
             "Defaults to nika.static_validation.enabled."
         ),
     ),
+    telemetry: list[str] | None = typer.Option(
+        None,
+        "--telemetry",
+        help=(
+            "Telemetry to attach, repeatable (supported: netflow). Fails when no "
+            "scenario image declares support for it."
+        ),
+    ),
     instance_tag: str | None = typer.Option(
         None,
         "--instance-tag",
@@ -132,6 +140,7 @@ def env_run(
         backend=backend,
         device_profile=device_profile,
         static_validation=static_validation,
+        telemetry=telemetry,
     )
     typer.echo(f"session_id={session_id}")
 

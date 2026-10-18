@@ -1,0 +1,6 @@
+ARG NIKA_IMAGE_TAG
+FROM nika/base:${NIKA_IMAGE_TAG}
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends nfdump && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*

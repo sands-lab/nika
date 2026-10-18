@@ -9,6 +9,7 @@ import yaml
 
 from nika.net_env.net_env_pool import resolve_scenario_id, scenario_fixed_topo_size
 from nika.problems.registry import get_problem_class, resolve_problem_name
+from nika.telemetry import telemetry_field
 from nika.workflows.benchmark.healthy import HEALTHY_PROBLEM, is_healthy_case
 from nika.workflows.benchmark.isp_options import (
     ISP_OPTION_KEYS,
@@ -60,6 +61,7 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
     isp_rpki = row.get("rpki")
     isp_backend = row.get("backend")
     isp_device_profile = row.get("device_profile")
+    telemetry_option = telemetry_field(row.get("telemetry"))
 
     if is_healthy_case(raw_problem):
         if inject:
@@ -111,6 +113,7 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
         }
         if isp_options is not None:
             normalized.update(isp_options)
+        normalized.update(telemetry_option)
         return normalized
 
     problem = problem_label
@@ -178,6 +181,7 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
     }
     if isp_options is not None:
         normalized.update(isp_options)
+    normalized.update(telemetry_option)
     if root_causes:
         normalized["root_causes"] = root_causes
     if row.get("root_causes_status"):
@@ -227,9 +231,10 @@ def load_benchmark_yaml(path: str | Path) -> list[dict[str, Any]]:
     return normalized
 
 
-_DEPLOY_FIELDS = _PROFILE_FIELDS = ("topo_size", *ISP_OPTION_KEYS)
-_VARIANT_META = frozenset(_PROFILE_FIELDS)
-_CASE_META = frozenset(_PROFILE_FIELDS) | {"inject", "root_causes"}
+# Deploy fields a candidate case or healthy variant may set.
+CASE_PROFILE_FIELDS = ("topo_size", *ISP_OPTION_KEYS, "telemetry")
+_VARIANT_META = frozenset(CASE_PROFILE_FIELDS)
+_CASE_META = frozenset(CASE_PROFILE_FIELDS) | {"inject", "root_causes"}
 
 
 def _variant_common(scenario_name: str, variant: dict[str, Any]) -> dict[str, Any]:
@@ -238,7 +243,7 @@ def _variant_common(scenario_name: str, variant: dict[str, Any]) -> dict[str, An
         raise ValueError(f"Unknown variant fields: {sorted(unknown)}")
     return {
         "scenario": scenario_name,
-        **{key: variant[key] for key in _PROFILE_FIELDS if key in variant},
+        **{key: variant[key] for key in CASE_PROFILE_FIELDS if key in variant},
     }
 
 
@@ -248,7 +253,7 @@ def _case_common(scenario_name: str, case: dict[str, Any]) -> dict[str, Any]:
         raise ValueError(f"Unknown case fields: {sorted(unknown)}")
     return {
         "scenario": scenario_name,
-        **{key: case[key] for key in _PROFILE_FIELDS if key in case},
+        **{key: case[key] for key in CASE_PROFILE_FIELDS if key in case},
     }
 
 
