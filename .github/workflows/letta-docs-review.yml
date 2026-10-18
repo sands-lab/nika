@@ -1,0 +1,67 @@
+name: Letta Docs Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main, dev]
+
+jobs:
+  docs-review:
+    name: Letta Docs Review
+    if: github.event.pull_request.draft == false
+    concurrency:
+      group: letta-docs-review-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: letta-ai/letta-code-action@v0
+        with:
+          letta_api_key: ${{ secrets.LETTA_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          agent_id: agent-94fc2af6-52c5-4ec5-b0c1-758a3e09541a
+          prompt: |
+            Review pull request #${{ github.event.pull_request.number }} for documentation quality only.
+
+            1. List the Markdown files changed in this PR, e.g. with
+               `gh pr diff ${{ github.event.pull_request.number }} --name-only | grep -Ei '\.(md|mdx)$'`.
+               If no Markdown file changed, write the verdict PASS (see below), post nothing and stop.
+            2. Review each changed Markdown file (README files first) against the
+               human-facing documentation guidelines stored in your memory. Recall
+               those guidelines before reviewing and apply them as the checklist.
+            3. Focus on clarity and quality for a human reader: purpose stated up front,
+               structure and headings, accuracy of commands/paths against the repository,
+               broken or stale links, unexplained jargon, duplication with other docs,
+               and missing prerequisites or examples.
+            4. Do not review code changes, and do not push commits.
+
+            This review is a required merge check. Classify each finding as blocking
+            (violates the guidelines or would mislead/confuse a human reader) or
+            optional (minor style suggestion).
+
+            If there are findings, or a previous run of this review flagged issues on this PR,
+            post a single PR comment: overall verdict (PASS or FAIL), then concrete, file- and
+            line-referenced findings grouped by file, marked [blocking] or [optional]. On
+            re-runs, state which earlier blocking findings are now resolved. Keep it concise
+            and skip praise or nitpicks the guidelines do not cover.
+
+            Finally, you MUST write the verdict to the file `${{ github.workspace }}/.letta-docs-verdict`
+            containing exactly one word: `FAIL` if any blocking finding remains, otherwise `PASS`.
+            Do not commit this file.
+      - name: Enforce docs verdict
+        if: always()
+        run: |
+          verdict=$(tr -d '[:space:]' < .letta-docs-verdict 2>/dev/null || true)
+          echo "Docs review verdict: ${verdict:-missing}"
+          if [ "$verdict" != "PASS" ]; then
+            echo "::error::Documentation review did not pass. See the Letta review comment on this PR."
+            exit 1
+          fi

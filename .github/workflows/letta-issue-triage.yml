@@ -1,0 +1,74 @@
+name: Letta Issue Triage
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  triage:
+    name: Letta Issue Triage
+    runs-on: [self-hosted, Linux, X64, cornaca-copilot]
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Locate preinstalled Letta CLI
+        id: letta
+        run: echo "path=$(command -v letta)" >> "$GITHUB_OUTPUT"
+      - name: Ensure triage labels exist
+        run: |
+          gh label create agent-ready --color 0E8A16 --description "Well-scoped; an agent can implement it" --force
+          gh label create needs-human --color D93F0B --description "Needs human design or architectural decisions" --force
+      - uses: letta-ai/letta-code-action@v0
+        with:
+          letta_api_key: ${{ secrets.LETTA_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          agent_id: agent-94fc2af6-52c5-4ec5-b0c1-758a3e09541a
+          path_to_letta_executable: ${{ steps.letta.outputs.path }}
+          prompt: |
+            Triage issue #${{ github.event.issue.number }}. Read it with
+            `gh issue view ${{ github.event.issue.number }} --comments`.
+
+            Delegate the heavy lifting (code exploration, reproducing behavior,
+            searching issues and PRs) to Claude Code, which is installed on this
+            machine. Use it first; fall back to doing the work
+            yourself only if it is unavailable. You run in a checkout of the
+            repository and may inspect and execute code, but do not push commits,
+            open PRs, or leave runtime resources (containers, sessions) behind.
+
+            1. Labels: list existing labels (`gh label list --limit 200`) and apply the
+               fitting ones (type, area, priority if evident) with
+               `gh issue edit ${{ github.event.issue.number }} --add-label ...`.
+               Do not create labels.
+
+            2. Duplicates and related work: search open AND closed issues and pull
+               requests as a maintainer would (`gh search issues`, `gh search prs`,
+               `gh issue list --state all --search ...`, `gh pr list --state all --search ...`)
+               using several phrasings of the problem, affected components, and error
+               messages. Distinguish duplicates (same request) from related items.
+               Do not close the issue yourself.
+
+            3. Agent-readiness judgment: inspect the relevant code (and test if useful)
+               to judge the scope. Be conservative.
+               - Add `agent-ready` only if it is a well-scoped implementation or quick
+                 fix with clear acceptance criteria, no open design questions, and no
+                 change to benchmark contracts (taxonomy, ground truth, registries,
+                 published benchmark data).
+               - Otherwise add `needs-human`: open design or architectural choices,
+                 ambiguous requirements, benchmark contract changes, or anything you
+                 are unsure about.
+
+            4. Post ONE triage comment with these sections, omitting empty ones:
+               - `### TL;DR`: only if the issue is long or highly technical (typical of
+                 AI-written issues). 2-4 short sentences explaining, without
+                 implementation details, what is wrong or wanted and why it matters.
+               - `### Possible duplicates` / `### Related`: links with one line each on
+                 how they relate.
+               - `### Triage`: `agent-ready` or `needs-human`, with a brief rationale
+                 and, for needs-human, the specific questions a human must decide.
