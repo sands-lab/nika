@@ -12,6 +12,8 @@
   "trajectories_url": "https://huggingface.co/datasets/nika-bench/nika-trajectories/tree/main/trajectories/0.2.0/20261008_claude_code_otel_2_0_llm_31b_it",
   "trajectories_relpath": "trajectories/0.2.0/20261008_claude_code_otel_2_0_llm_31b_it",
   "model": "OTel-2.0-LLM-31B-IT",
+  "model_id": "otel-2.0-llm-31b-it",
+  "submitted_model": "OTel-2.0-LLM-31B-IT",
   "framework": "Claude Code",
   "agent_type": "cli.claude",
   "llm_provider": "custom",

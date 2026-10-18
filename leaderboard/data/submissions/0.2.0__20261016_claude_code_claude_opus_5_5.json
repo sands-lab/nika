@@ -12,6 +12,8 @@
   "trajectories_url": "https://huggingface.co/datasets/nika-bench/nika-trajectories/tree/main/trajectories/0.2.0/20261016_claude_code_claude_opus_5_5",
   "trajectories_relpath": "trajectories/0.2.0/20261016_claude_code_claude_opus_5_5",
   "model": "Claude Opus 5.5",
+  "model_id": "claude-opus-5-5",
+  "submitted_model": "Claude Opus 5.5",
   "framework": "Claude Code",
   "agent_type": "cli.claude",
   "llm_provider": "anthropic",

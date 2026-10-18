@@ -12,6 +12,8 @@
   "trajectories_url": "https://huggingface.co/datasets/nika-bench/nika-trajectories/tree/main/trajectories/0.2.0/20261017_claude_code_claude_haiku_5_5",
   "trajectories_relpath": "trajectories/0.2.0/20261017_claude_code_claude_haiku_5_5",
   "model": "Claude Haiku 5.5",
+  "model_id": "claude-haiku-5-5",
+  "submitted_model": "Claude Haiku 5.5",
   "framework": "Claude Code",
   "agent_type": "cli.claude",
   "llm_provider": "anthropic",

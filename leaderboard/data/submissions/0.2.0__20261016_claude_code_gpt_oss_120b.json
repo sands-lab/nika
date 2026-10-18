@@ -11,7 +11,9 @@
   "email": null,
   "trajectories_url": "https://huggingface.co/datasets/nika-bench/nika-trajectories/tree/main/trajectories/0.2.0/20261016_claude_code_gpt_oss_120b",
   "trajectories_relpath": "trajectories/0.2.0/20261016_claude_code_gpt_oss_120b",
-  "model": "GPT-OSS-120B",
+  "model": "GPT OSS 120B",
+  "model_id": "gpt-oss-120b",
+  "submitted_model": "GPT-OSS-120B",
   "framework": "Claude Code",
   "agent_type": "cli.claude",
   "llm_provider": "custom",
@@ -70,7 +72,7 @@
   "run_id": "b169dba30aabb6bf",
   "official": true,
   "nika_git_commit": "5096d23a3b79cd0d425d65ef1ebcb647ac2e8918",
-  "name": "GPT-OSS-120B · Claude Code",
+  "name": "GPT OSS 120B · Claude Code",
   "readme": "# Claude Code + GPT-OSS-120B\n\nAuthors: NIKA Team\n\nThis entry uses NIKA's `cli.claude` integration with self-hosted\n`openai/gpt-oss-120b`, served with Ollama (`ollama run gpt-oss:120b`), and the\nstandard NIKA MCP tools.\n\n## Evaluation\n\n- Benchmark release: nika-bench 0.2.0, test split, 85 tasks with 3 trials each.\n- All 255 slots finished: 253 scored submissions and 2 agent failures without\n  submissions. Both failures hit the 100-step limit without an assistant report\n  (`dc_clos__arp_acl_block__m__heebcdfb08b4d__t01`,\n  `campus_lan__dhcp_spoofed_dns__h4ee0ce80b947__t01`); they count as zero in\n  primary means.\n- Mean RCA F1: 0.2683854902 (26.84%).\n- Mean localization F1: 0.3670258824 (36.70%).\n- Mean detection score: 0.7803921569 (78.04%).\n- Budgets: 100 steps, 8192 maximum output tokens, 1800-second agent timeout and\n  2400-second task timeout.\n- No residual infrastructure or grading errors.\n\n## Run provenance\n\nThe run started at NIKA commit `ca0d5b9a15936aab8ae8a48d6e51af136c83a2a4` and\nwas resumed at `384907e6e025b0068973a9b2161b8b7f75734145` and\n`5096d23a3b79cd0d425d65ef1ebcb647ac2e8918`, the latter two with local changes\npresent.\n\nThe model was served with `ollama run gpt-oss:120b` using Ollama's default\nsettings, with the checkpoint's native MXFP4 weights. The Ollama tag digest was\nnot recorded.\n\n## Links and model information\n\n- [Agent and benchmark](https://github.com/sands-lab/nika)\n- [Project site](https://sands-lab.github.io/nika/)\n- [Benchmark paper](https://arxiv.org/abs/2512.16381), which describes NIKA.\n- [Model checkpoint](https://huggingface.co/openai/gpt-oss-120b)\n- [Trajectories](https://huggingface.co/datasets/Zhihao98/nika-trajectories/tree/main/trajectories/0.2.0/20261016_claude_code_gpt_oss_120b)\n\nModel weights release date: 2025-08-05\n([announcement](https://openai.com/index/introducing-gpt-oss/)).\n\nReference quote retrieved 2026-10-16: OpenRouter, USD 0.15 per million input\ntokens and USD 0.60 per million output tokens. Sources:\n[model page](https://openrouter.ai/openai/gpt-oss-120b) and\n[public model API](https://openrouter.ai/api/v1/models). This is a hosted\nreference estimate, not the self-hosted GPU bill; cached-input discounts are\nnot applied.",
   "trials": [
     {

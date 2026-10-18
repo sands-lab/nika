@@ -12,6 +12,8 @@
   "trajectories_url": "https://huggingface.co/datasets/nika-bench/nika-trajectories/tree/main/trajectories/0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
   "trajectories_relpath": "trajectories/0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
   "model": "Qwen3.8-27B-FP8",
+  "model_id": "qwen3.8-27b-fp8",
+  "submitted_model": "Qwen3.8-27B-FP8",
   "framework": "Claude Code",
   "agent_type": "cli.claude",
   "llm_provider": "custom",

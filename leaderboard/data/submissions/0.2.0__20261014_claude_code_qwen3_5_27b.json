@@ -11,7 +11,9 @@
   "email": null,
   "trajectories_url": "https://huggingface.co/datasets/nika-bench/nika-trajectories/tree/main/trajectories/0.2.0/20261014_claude_code_qwen3_5_27b",
   "trajectories_relpath": "trajectories/0.2.0/20261014_claude_code_qwen3_5_27b",
-  "model": "Qwen3.5-27B",
+  "model": "Qwen3.5 27B",
+  "model_id": "qwen3.5-27b",
+  "submitted_model": "Qwen3.5-27B",
   "framework": "Claude Code",
   "agent_type": "cli.claude",
   "llm_provider": "custom",
@@ -68,7 +70,7 @@
   "run_id": "6306186bfe22100a",
   "official": true,
   "nika_git_commit": "ba4e78364b26b3a948c234e450c93df3e23090be",
-  "name": "Qwen3.5-27B · Claude Code",
+  "name": "Qwen3.5 27B · Claude Code",
   "readme": "# Claude Code + Qwen3.5-27B\n\nAuthors: NIKA Team\n\nThis entry uses NIKA's `cli.claude` integration with self-hosted\n`Qwen/Qwen3.5-27B` and the standard NIKA MCP tools.\n\n## Evaluation\n\n- Benchmark release: nika-bench 0.2.0, test split, 85 tasks with 3 trials each.\n- All 255 slots finished: 254 scored submissions and 1 agent failure without submissions. The agent failure finished diagnosis but did not call the submission tool, so it produced no submission; it counts as zero in primary means.\n- Mean RCA F1: 0.3181474510 (31.81%).\n- Mean localization F1: 0.4487803922 (44.88%).\n- Mean detection score: 0.8666666667 (86.67%).\n- Budgets: 100 steps, 32768 maximum output tokens, 14400-second agent timeout and 15000-second task timeout.\n- No residual infrastructure or grading errors.\n\n## Run provenance\n\nAll 255 trials ran at NIKA commit `ba4e78364b26b3a948c234e450c93df3e23090be`.\nThe model was served with vLLM 0.24 from revision\n`fc05daec18b0a78c049392ed2e771dde82bdf654` in bf16 with a 262144-token context\nwindow. The run metadata does not record the serving context or precision.\n\n## Links and model information\n\n- [Agent and benchmark](https://github.com/sands-lab/nika)\n- [Project site](https://sands-lab.github.io/nika/)\n- [Benchmark paper](https://arxiv.org/abs/2512.16381), which describes NIKA.\n- [Model checkpoint](https://huggingface.co/Qwen/Qwen3.5-27B)\n- [Trajectories](https://huggingface.co/datasets/Zhihao98/nika-trajectories/tree/main/trajectories/0.2.0/20261014_claude_code_qwen3_5_27b)\n\nThis submission reuses the leaderboard's reviewed `Qwen3.5-27B` catalog\nentries: release date 2026-02-24, sourced from the\n[Qwen3.5 release](https://github.com/QwenLM/Qwen3.5), and the\n[OpenRouter reference quote](https://openrouter.ai/qwen/qwen3.5-27b) retrieved\non 2026-10-08 (USD 0.26 per million input tokens and USD 2.60 per million\noutput tokens). The hosted quote estimates token costs; it does not measure\nthis run's GPU bill.",
   "trials": [
     {

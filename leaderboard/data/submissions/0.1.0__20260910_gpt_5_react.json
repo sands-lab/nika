@@ -12,6 +12,8 @@
   "trajectories_url": null,
   "trajectories_relpath": null,
   "model": "GPT-5",
+  "model_id": "gpt-5",
+  "submitted_model": "GPT-5",
   "framework": "ReAct",
   "agent_type": "ReACT",
   "llm_provider": "openai",

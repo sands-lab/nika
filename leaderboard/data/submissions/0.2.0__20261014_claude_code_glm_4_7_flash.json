@@ -12,6 +12,8 @@
   "trajectories_url": "https://huggingface.co/datasets/nika-bench/nika-trajectories/tree/main/trajectories/0.2.0/20261014_claude_code_glm_4_7_flash",
   "trajectories_relpath": "trajectories/0.2.0/20261014_claude_code_glm_4_7_flash",
   "model": "GLM-4.7-Flash",
+  "model_id": "glm-4.7-flash",
+  "submitted_model": "GLM-4.7-Flash",
   "framework": "Claude Code",
   "agent_type": "cli.claude",
   "llm_provider": "custom",

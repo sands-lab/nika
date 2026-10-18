@@ -12,6 +12,8 @@
   "trajectories_url": "https://huggingface.co/datasets/nika-bench/nika-trajectories/tree/main/trajectories/0.2.0/20261013_react_telecomgpt_r1",
   "trajectories_relpath": "trajectories/0.2.0/20261013_react_telecomgpt_r1",
   "model": "TelecomGPT-R1",
+  "model_id": "telecomgpt-r1",
+  "submitted_model": "TelecomGPT-R1",
   "framework": "ReAct",
   "agent_type": "byo.langgraph",
   "llm_provider": "custom",

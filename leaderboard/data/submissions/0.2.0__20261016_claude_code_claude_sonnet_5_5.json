@@ -11,7 +11,9 @@
   "email": null,
   "trajectories_url": "https://huggingface.co/datasets/nika-bench/nika-trajectories/tree/main/trajectories/0.2.0/20261016_claude_code_claude_sonnet_5_5",
   "trajectories_relpath": "trajectories/0.2.0/20261016_claude_code_claude_sonnet_5_5",
-  "model": "claude-sonnet-5-5",
+  "model": "Claude Sonnet 5.5",
+  "model_id": "claude-sonnet-5-5",
+  "submitted_model": "claude-sonnet-5-5",
   "framework": "Claude Code",
   "agent_type": "cli.claude",
   "llm_provider": "anthropic",
@@ -73,7 +75,7 @@
   "run_id": "19bb905ec42d84b5",
   "official": true,
   "nika_git_commit": "dba357b3c0c6585f68d059a531c12619f8e9b3b3",
-  "name": "claude-sonnet-5-5 · Claude Code",
+  "name": "Claude Sonnet 5.5 · Claude Code",
   "readme": "# Claude Code + Claude Sonnet 5.5\n\nNIKA's built-in `cli.claude` agent: Claude Code CLI (2.1.280) running in a Docker Sandbox, in two\nphases (diagnosis, then submission), with the release's allowed MCP servers. The model is the\nAnthropic-hosted `claude-sonnet-5-5`, accessed with Claude subscription authentication.\n\nRun: nika-bench 0.2.0, `test` split, 85 cases x 3 trials (255 trials), official release run.\nSettings: `--max-steps 100` (Claude Code `--max-turns 100` per phase), max output tokens 8192,\nagent timeout 1800 s, case timeout 2400 s, `--batch-size 16 --heavy-batch-size 1`,\nNIKA commit `dba357b3c0c6585f68d059a531c12619f8e9b3b3`.\n\nThree trials hit infrastructure failures before the agent ran (two lab-startup failures and one\nsandbox-start failure); they were retried once with NIKA's `--resume`, which skips every scored\ntrial. No scored trial was re-run.\n\n## Known caveat\n\nIn all three trials of `p4_dc_gateway / tcp_syn_flood`, a container-limited Python process was\nOOM-killed about 70 s after injection, and INT telemetry stopped updating. Code, memory limits,\nand timing strongly indicate the INT collector (`collector.py`, 256 MiB container), which retains\nreports in an unbounded in-memory dictionary. Direct PID-to-container attribution was unavailable\nafter teardown. The same pattern was observed in the earlier Opus run.\n\nFault-presence checks confirmed that flood-generator processes remained alive; they did not\nmeasure the actual traffic rate. Interpret results for this task with the stale-telemetry caveat.\n\n## Links\n\n- Code / library: https://github.com/sands-lab/nika\n\n## Authors\n\n- Alessandro Cornacchia\n\n## Results and reference pricing\n\nAll 255 trials contain scored submissions, with no residual infrastructure or\ngrading errors. Mean RCA F1 is 73.43%, localization F1 is 76.94%, and detection\nscore is 85.10%.\n\nAnthropic released Claude Sonnet 5.5 on 2026-09-28. Its standard API list price\nis USD 2 per million input tokens and USD 10 per million output tokens, retrieved\n2026-10-16 from the [official release page](https://www.anthropic.com/claude-sonnet-5-5).\nThe leaderboard uses these rates as a token-price reference for this subscription-\nauthenticated run. It does not measure the subscription bill or apply cache discounts.\n\n[Paired trajectories](https://huggingface.co/datasets/Zhihao98/nika-trajectories/tree/main/trajectories/0.2.0/20261016_claude_code_claude_sonnet_5_5).",
   "trials": [
     {

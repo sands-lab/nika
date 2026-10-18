@@ -11,7 +11,9 @@
   "email": null,
   "trajectories_url": "https://huggingface.co/datasets/nika-bench/nika-trajectories/tree/main/trajectories/0.2.0/20261007_claude_code_qwen3_6_35b_a3b_fp8",
   "trajectories_relpath": "trajectories/0.2.0/20261007_claude_code_qwen3_6_35b_a3b_fp8",
-  "model": "Qwen3.6-35B-A3B-FP8",
+  "model": "Qwen3.6 35B A3B FP8",
+  "model_id": "qwen3.6-35b-a3b-fp8",
+  "submitted_model": "Qwen3.6-35B-A3B-FP8",
   "framework": "Claude Code",
   "agent_type": "cli.claude",
   "llm_provider": "custom",
@@ -51,7 +53,7 @@
   "run_id": "7ff2f0b4fe0f4e9b",
   "official": true,
   "nika_git_commit": "5ab69e6bef637d51d4c04c5c05eca5f4a1bfb37e",
-  "name": "Qwen3.6-35B-A3B-FP8 · Claude Code",
+  "name": "Qwen3.6 35B A3B FP8 · Claude Code",
   "readme": "# Qwen3.6-35B-A3B ClaudeCode\n\nClaude Code CLI agent (NIKA `cli.claude` harness, MCP tools) driven by Qwen3.6-35B-A3B (FP8 weights, served through an OpenAI-compatible endpoint).\n\n- Benchmark: nika-bench 0.2.0, test split, 85 cases × 3 trials\n- Limits: max 100 steps, 8192 max output tokens, 7200 s agent timeout per trial\n- Harness: stock NIKA agent `cli.claude`, no prompt optimization, skills, or fine-tuning\n\nAuthors: NIKA Team. Code: https://github.com/sands-lab/nika",
   "trials": [
     {
