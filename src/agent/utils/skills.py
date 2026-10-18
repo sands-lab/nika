@@ -68,19 +68,35 @@ def resolve_skills_root() -> Path:
     return _DEFAULT_SKILLS_ROOT
 
 
+ENV_ENABLE_SKILLS = "NIKA_ENABLE_SKILLS"
+
+
 def skills_enabled() -> bool:
-    """Whether agents should load the shared skill library."""
+    """Whether agents should load the shared skill library.
+
+    Sandboxed SDK agents cannot import the run config, so the host passes the
+    resolved setting as ``NIKA_ENABLE_SKILLS``.
+    """
+    override = os.environ.get(ENV_ENABLE_SKILLS, "").strip()
+    if override:
+        return override == "1"
     try:
         from nika.run_config.loader import get_run_config
 
-        return bool(get_run_config().nika.enable_skills)
+        return bool(get_run_config().agent.enable_skills)
     except Exception:
         return True
 
 
 def resolve_test_skill_dir() -> Path | None:
-    """Return the test-skill source directory when present."""
-    path = resolve_skills_root() / "test_skills" / TEST_SKILL_NAME
+    """Return the integration-test skill fixture when present.
+
+    Lives under ``tests/agent/fixtures/skills/`` — never under the production
+    skill package, so sandbox ``copytree`` of the skills root cannot ship it.
+    """
+    from nika.config import REPO_ROOT
+
+    path = REPO_ROOT / "tests" / "agent" / "fixtures" / "skills" / TEST_SKILL_NAME
     return path if path.is_dir() else None
 
 

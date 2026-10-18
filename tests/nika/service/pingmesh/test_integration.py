@@ -5,11 +5,14 @@ import asyncio
 import json
 import time
 from typing import Any, ClassVar
+from unittest.mock import patch
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from agent.utils.mcp_servers import MCPServerConfig
 from tests.support.integration_base import PerTestEnvTestCase
 from tests.support.integration_pipeline import tool_text_list
 from tests.support.prerequisites import docker_available, min3clos_prerequisites
+
+pytestmark = pytest.mark.integration
 
 
 def _invoke_pingmesh(
@@ -20,7 +23,12 @@ def _invoke_pingmesh(
 ) -> dict:
     from nika.mcp.gateway.lifecycle import mcp_gateway_for_session
 
-    with mcp_gateway_for_session(session_id, scenario_name=scenario_name):
+    # The assertions parse the full snapshot JSON; agent-facing output bounding
+    # would elide the middle of large meshes.
+    with (
+        patch("nika.mcp.gateway.middleware.tool_output_max_chars", return_value=0),
+        mcp_gateway_for_session(session_id, scenario_name=scenario_name),
+    ):
         config = MCPServerConfig(session_id=session_id).load_http_config(
             ["pingmesh_mcp_server"]
         )

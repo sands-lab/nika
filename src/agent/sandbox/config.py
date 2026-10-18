@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-ENV_SANDBOX_KEEP = "NIKA_SANDBOX_KEEP"  # legacy name (ignored for ops; use YAML)
 ENV_SANDBOX_CPUS = "NIKA_SANDBOX_CPUS"
 ENV_SANDBOX_MEMORY = "NIKA_SANDBOX_MEMORY"
 ENV_SANDBOX_OFFLINE_SDK_WHEELS = "NIKA_SANDBOX_OFFLINE_SDK_WHEELS"
@@ -34,14 +33,13 @@ def project_credentials_env_file() -> Path:
 class SandboxConfig:
     env_file: Path
     keep_container: bool
-    cpus: str | None
+    cpus: int | None
     memory: str | None
     offline_sdk_wheels: bool
 
 
-def sandbox_gateway_agent_host(network: str | None = None) -> str:
+def sandbox_gateway_agent_host() -> str:
     """Return the MCP gateway hostname reachable from a Docker Sandbox."""
-    _ = network
     return SANDBOX_GATEWAY_HOST_BRIDGE
 
 
@@ -60,7 +58,7 @@ def load_sandbox_env_values(*paths: Path) -> dict[str, str]:
 def resolve_sandbox_config(
     *,
     keep_container: bool | None = None,
-    cpus: str | None = None,
+    cpus: int | None = None,
     memory: str | None = None,
     offline_sdk_wheels: bool | None = None,
 ) -> SandboxConfig:

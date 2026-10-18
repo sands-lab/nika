@@ -15,15 +15,20 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlparse
 
+import httpx
+
+from agent.registry import BUILTIN_AGENTS
 from agent.sandbox.config import load_sandbox_env_values
 from agent.sandbox.sbx.auth import PROXY_MANAGED_SENTINEL
 from agent.sandbox.sbx.client import (
     list_sbx_custom_secrets,
+    list_sbx_custom_secret_entries,
     list_sbx_secret_services,
     run_sbx_checked,
     sbx_available,
 )
 from agent.utils.provider_env import (
+    CUSTOM_UNAUTHENTICATED_API_KEY,
     DEEPSEEK_ANTHROPIC_BASE_URL,
     DEEPSEEK_OPENAI_BASE_URL,
     ENV_ANTHROPIC_API_KEY,
@@ -45,12 +50,11 @@ SERVICE_ANTHROPIC = "anthropic"
 
 DEEPSEEK_HOST = "api.deepseek.com"
 
+# Sandbox agents need the credential service of their client family.
 _AGENT_REQUIRED_SERVICES: dict[str, frozenset[str]] = {
-    "cli.codex": frozenset({SERVICE_OPENAI}),
-    "sdk.codex_sdk": frozenset({SERVICE_OPENAI}),
-    "cli.claude": frozenset({SERVICE_ANTHROPIC}),
-    "sdk.claude_sdk": frozenset({SERVICE_ANTHROPIC}),
-    "community.sade": frozenset({SERVICE_ANTHROPIC}),
+    spec.id: frozenset({spec.credential_family})
+    for spec in BUILTIN_AGENTS
+    if spec.sbx is not None
 }
 
 _OFFICIAL_ANTHROPIC_HOST_SUFFIXES = (
@@ -176,13 +180,16 @@ def is_official_anthropic_base_url(base_url: str) -> bool:
 
 
 def _anthropic_base_url(sources: dict[str, str], provider: str) -> str:
+    from agent.utils.provider_env import openai_compat_to_anthropic_base_url
+
     raw = sources.get(ENV_ANTHROPIC_BASE_URL, "").strip()
     if raw:
         return raw
     if provider == "deepseek" or sources.get(ENV_DEEPSEEK_API_KEY, "").strip():
         return DEEPSEEK_ANTHROPIC_BASE_URL
     if provider == "custom":
-        return resolve_custom_base_url(sources)
+        custom = resolve_custom_base_url(sources)
+        return openai_compat_to_anthropic_base_url(custom) if custom else ""
     return ""
 
 
@@ -214,12 +221,40 @@ def _openai_secret_value(sources: dict[str, str]) -> str:
     )
 
 
+def require_anthropic_messages_route(base_url: str, *, api_key: str = "") -> None:
+    """Fail fast when a custom endpoint has no Anthropic ``/v1/messages`` route.
+
+    Claude-family agents only speak the Anthropic Messages API. The probe sends
+    an empty body, so a server with the route rejects it (4xx) without running
+    the model; only HTTP 404 means the route is missing. Network errors are
+    left to the agent run.
+    """
+    url = base_url.rstrip("/") + "/v1/messages"
+    headers = {"anthropic-version": "2023-06-01"}
+    if api_key and api_key != CUSTOM_UNAUTHENTICATED_API_KEY:
+        headers["x-api-key"] = api_key
+        headers["authorization"] = f"Bearer {api_key}"
+    try:
+        status = httpx.post(url, json={}, headers=headers, timeout=10.0).status_code
+    except httpx.HTTPError:
+        return
+    if status == 404:
+        raise RuntimeError(
+            f"Custom endpoint {base_url} has no Anthropic Messages route "
+            f"(POST {url} returned 404).\n"
+            "Claude-family agents (cli.claude, sdk.claude_sdk, community.sade) "
+            "need /v1/messages: upgrade Ollama to 0.14 or later, use vLLM, or "
+            "run an OpenAI-family agent (byo.*, cli.codex, sdk.codex_sdk) "
+            "against this endpoint."
+        )
+
+
 def missing_credential_message(service: str, *, provider: str = "") -> str:
     if service == SERVICE_OPENAI:
         return (
             "Missing Docker Sandboxes credential for Codex.\n"
             "API key: set OPENAI_API_KEY or DEEPSEEK_API_KEY in the repository-root "
-            ".env. For a custom endpoint, set agent.custom.base_url and optional "
+            ".env. For a custom endpoint, set agent.base_url and optional "
             "NIKA_CUSTOM_API_KEY. Set agent.provider to "
             f"{provider or 'openai|deepseek|custom'} in config/nika.yaml.\n"
             "ChatGPT / Codex subscription: run "
@@ -233,13 +268,32 @@ def missing_credential_message(service: str, *, provider: str = "") -> str:
             "Native Anthropic: set ANTHROPIC_API_KEY and agent.provider: anthropic.\n"
             "DeepSeek: set DEEPSEEK_API_KEY and agent.provider: deepseek.\n"
             "Custom proxy: set NIKA_CUSTOM_API_KEY (optional) with "
-            "agent.custom.base_url and agent.provider: custom in config/nika.yaml.\n"
+            "agent.base_url and agent.provider: custom in config/nika.yaml.\n"
             "Claude subscription: authenticate with `/login` inside Claude Code "
             "so the anthropic secret is stored on the host "
             "(see https://docs.docker.com/ai/sandboxes/agents/claude-code/).\n"
             "See docs/operations/agent-sandbox.md"
         )
     return f"Missing Docker Sandboxes credential for {service}."
+
+
+def _host_covered(targets: str, host: str) -> bool:
+    """True when *host* is already listed in a custom-secret TARGETS cell."""
+    wanted = host.strip().lower()
+    if not wanted:
+        return False
+    for item in targets.replace(",", " ").split():
+        token = item.strip().lower()
+        if not token:
+            continue
+        if token == wanted or token == f"*.{wanted}" or wanted.endswith("." + token.lstrip("*.")):
+            return True
+        # Exact wildcard forms from sbx docs: *.example.com / **.example.com
+        if token.startswith("*.") and (
+            wanted == token[2:] or wanted.endswith("." + token[2:])
+        ):
+            return True
+    return False
 
 
 def _ensure_custom_secret(
@@ -249,14 +303,25 @@ def _ensure_custom_secret(
     value: str,
     existing: dict[str, str],
 ) -> str:
-    """Create or reuse a set-custom secret; return its placeholder."""
-    if env_name in existing:
-        return existing[env_name]
+    """Create or replace a set-custom secret; return its placeholder.
+
+    ``sbx secret set-custom`` refuses to overwrite an existing env binding, and
+    the proxy only injects the secret for the registered target host. When the
+    same env (e.g. ``OPENAI_API_KEY``) was previously bound to another host
+    (DeepSeek vs OpenRouter), remove the stale placeholder and recreate.
+    """
+    entries = list_sbx_custom_secret_entries()
+    entry = entries.get(env_name)
+    if entry and _host_covered(entry.get("hosts", ""), host):
+        return entry["placeholder"]
+    if entry:
+        run_sbx_checked(
+            ["secret", "rm", "--placeholder", entry["placeholder"], "-f"]
+        )
     run_sbx_checked(
         [
             "secret",
             "set-custom",
-            "-g",
             "--host",
             host,
             "--env",
@@ -309,14 +374,22 @@ def ensure_sbx_credentials(
 
     openai_key = _openai_secret_value(sources) if need_openai else ""
     if need_openai:
-        if openai_key and third_party_oai:
-            host = urlparse(openai_base).hostname or DEEPSEEK_HOST
-            placeholders["OPENAI_API_KEY"] = _ensure_custom_secret(
-                host=host,
-                env_name="OPENAI_API_KEY",
-                value=openai_key,
-                existing=custom,
-            )
+        if third_party_oai and openai_base:
+            # Custom / third-party OpenAI-compat endpoint: always forward
+            # OPENAI_BASE_URL into the sandbox. Unauthenticated endpoints use
+            # a sentinel key without registering an sbx secret.
+            if openai_key and openai_key != CUSTOM_UNAUTHENTICATED_API_KEY:
+                host = urlparse(openai_base).hostname or DEEPSEEK_HOST
+                placeholders["OPENAI_API_KEY"] = _ensure_custom_secret(
+                    host=host,
+                    env_name="OPENAI_API_KEY",
+                    value=openai_key,
+                    existing=custom,
+                )
+            else:
+                placeholders["OPENAI_API_KEY"] = (
+                    openai_key or CUSTOM_UNAUTHENTICATED_API_KEY
+                )
             third_party_oai_synced = True
             api_key_services.add(SERVICE_OPENAI)
             satisfied.add(SERVICE_OPENAI)
@@ -333,14 +406,21 @@ def ensure_sbx_credentials(
 
     anthropic_key = _anthropic_secret_value(sources) if need_anthropic else ""
     if need_anthropic:
-        if anthropic_key and third_party_anth:
-            host = urlparse(base_url).hostname or DEEPSEEK_HOST
-            placeholders["ANTHROPIC_API_KEY"] = _ensure_custom_secret(
-                host=host,
-                env_name="ANTHROPIC_API_KEY",
-                value=anthropic_key,
-                existing=custom,
-            )
+        if third_party_anth and base_url:
+            if prov == "custom" and SERVICE_ANTHROPIC in required:
+                require_anthropic_messages_route(base_url, api_key=anthropic_key)
+            if anthropic_key and anthropic_key != CUSTOM_UNAUTHENTICATED_API_KEY:
+                host = urlparse(base_url).hostname or DEEPSEEK_HOST
+                placeholders["ANTHROPIC_API_KEY"] = _ensure_custom_secret(
+                    host=host,
+                    env_name="ANTHROPIC_API_KEY",
+                    value=anthropic_key,
+                    existing=custom,
+                )
+            else:
+                placeholders["ANTHROPIC_API_KEY"] = (
+                    anthropic_key or CUSTOM_UNAUTHENTICATED_API_KEY
+                )
             third_party_synced = True
             api_key_services.add(SERVICE_ANTHROPIC)
             satisfied.add(SERVICE_ANTHROPIC)

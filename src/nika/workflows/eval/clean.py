@@ -6,7 +6,7 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
-from nika.config import RESULTS_DIR, resolve_results_root, SESSIONS_DIR
+from nika.config import resolve_results_root, SESSIONS_DIR
 from nika.utils.session_index import SessionIndex
 from nika.utils.session_store import SessionStore
 
@@ -15,59 +15,6 @@ from nika.utils.session_store import SessionStore
 class EvalCleanReport:
     session_files_removed: int
     results_entries_removed: int
-
-
-def _session_result_dir_candidates(
-    session_id: str,
-    *,
-    results_dir: str | Path | None = None,
-    session_dir: str | Path | None = None,
-    db_path: str | Path | None = None,
-) -> list[Path]:
-    """Return unique session result directories to remove, most specific first."""
-    candidates: list[Path] = []
-    seen: set[Path] = set()
-
-    def add(raw: str | Path | None) -> None:
-        if raw is None or raw == "":
-            return
-        path = Path(raw)
-        key = path.resolve()
-        if key in seen:
-            return
-        seen.add(key)
-        candidates.append(path)
-
-    add(session_dir)
-    row = SessionIndex(db_path).get_row(session_id)
-    if row:
-        add(row.get("session_dir"))
-    add(Path(results_dir or resolve_results_root()) / session_id)
-    add(Path(RESULTS_DIR) / session_id)
-    return candidates
-
-
-def remove_session_results(
-    session_id: str,
-    *,
-    results_dir: str | Path | None = None,
-    session_dir: str | Path | None = None,
-    db_path: str | Path | None = None,
-) -> bool:
-    """Remove the session results directory and the session index row if present."""
-    removed = False
-    for path in _session_result_dir_candidates(
-        session_id,
-        results_dir=results_dir,
-        session_dir=session_dir,
-        db_path=db_path,
-    ):
-        if not path.exists():
-            continue
-        shutil.rmtree(path)
-        removed = True
-    SessionIndex(db_path).purge(session_id)
-    return removed
 
 
 def run_eval_clean(

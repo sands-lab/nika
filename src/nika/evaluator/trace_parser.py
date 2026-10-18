@@ -18,6 +18,7 @@ class AgentTraceParser:
         self.phase_filter = phase_filter
         self.in_tokens = 0
         self.out_tokens = 0
+        self.reasoning_tokens = 0
         self.steps = 0
         self.tool_calls = 0
         self.tool_errors = 0
@@ -27,6 +28,7 @@ class AgentTraceParser:
         tokens = normalize_usage(usage)
         self.in_tokens += tokens["input_tokens"]
         self.out_tokens += tokens["output_tokens"]
+        self.reasoning_tokens += tokens["reasoning_tokens"]
 
     def _record_event(self, entry: dict) -> None:
         event = entry.get("event")
@@ -64,8 +66,13 @@ class AgentTraceParser:
         elif event == "result":
             # Claude Code stream-json: one result event per phase. ``num_turns``
             # is the agent loop count (same unit as ``max_steps`` / ``llm_end``).
+            # ``error_max_turns`` means the phase used its whole max_steps budget;
+            # its turns and usage still count.
             claude_event = entry.get("claude_event") or {}
-            if not claude_event.get("is_error"):
+            if (
+                not claude_event.get("is_error")
+                or claude_event.get("subtype") == "error_max_turns"
+            ):
                 num_turns = claude_event.get("num_turns")
                 self.steps += int(num_turns) if num_turns is not None else 1
                 self._add_usage(claude_event.get("usage"))
@@ -99,6 +106,7 @@ class AgentTraceParser:
         return {
             "in_tokens": self.in_tokens,
             "out_tokens": self.out_tokens,
+            "reasoning_tokens": self.reasoning_tokens,
             "steps": self.steps,
             "tool_calls": self.tool_calls,
             "tool_errors": self.tool_errors,

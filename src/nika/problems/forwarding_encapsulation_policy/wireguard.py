@@ -14,9 +14,11 @@ from nika.problems.base import (
     ProblemBase,
 )
 from nika.problems.rca import interface_resource
+from nika.problems.support.benchmark_targets import replace
+from nika.problems.support.polling import wait_until
 from nika.utils.logger import system_logger
 
-# Settle after peer-key change + BGP neighbor clear so handshake/BGP state stabilize.
+# Upper bound for overlay BGP to drop after peer-key change + neighbor clear.
 _SETTLE_SEC = 25
 # AllowedIPs rewrite keeps BGP up; brief pause for syncconf to apply.
 _ALLOWED_IPS_SETTLE_SEC = 5
@@ -55,12 +57,65 @@ def allowed_ips_for_spoke_hub_peer(
     return ", ".join(entries)
 
 
+def _wg_syncconf(runtime: Any, edge: str, iface: str) -> None:
+    """Apply the edited conf live; the stripped temp file does not outlive the call."""
+    strip = f"/tmp/{iface}.strip"
+    runtime.exec(
+        edge,
+        f"wg-quick strip {iface} > {strip} && wg syncconf {iface} {strip}; "
+        f"rm -f {strip}",
+    )
+
+
 def _bgp_neighbor_established(summary: str, peer_ip: str) -> bool:
     for line in summary.splitlines():
         fields = line.split()
         if peer_ip in line and len(fields) >= 10 and fields[9].isdigit():
             return True
     return False
+
+
+def _hq_peer_targets(net_env: Any, scenario: str) -> list[tuple[str, str]]:
+    """(Branch edge, WireGuard iface) pairs with a primary HQ peer."""
+    targets = getattr(net_env, "wireguard_hq_peer_targets", None)
+    if targets is None:
+        raise ValueError(f"Scenario {scenario!r} has no Site Edge WireGuard peers")
+    return targets()
+
+
+def _prefer_hq_server_prefix(prefixes: list[str]) -> str | None:
+    """Prefer HQ SERVER (10.0.20.0/24), then HQ CORP, else first remote prefix."""
+    if not prefixes:
+        return None
+    for preferred in ("10.0.20.0/24", "10.0.10.0/24"):
+        if preferred in prefixes:
+            return preferred
+    return prefixes[0]
+
+
+def _draw_hq_peer_target(ctx) -> tuple[str, str]:
+    targets = _hq_peer_targets(ctx.net_env, ctx.scenario)
+    if not targets:
+        raise ValueError(
+            f"No primary HQ WireGuard peers for enterprise_branch topo_size={ctx.topo_size!r}"
+        )
+    return ctx.rng.choice(targets)
+
+
+def _validate_hq_peer_target(ctx, problem: str, inject: dict[str, str]) -> None:
+    from nika.net_env.net_env_pool import is_enterprise_branch_scenario
+
+    scenario, topo_size = ctx.scenario, ctx.topo_size
+    if not is_enterprise_branch_scenario(scenario):
+        raise ValueError(f"{problem} requires enterprise_branch (got {scenario!r})")
+    eligible = _hq_peer_targets(ctx.net_env, ctx.scenario)
+    pair = (inject.get("host_name") or "", inject.get("intf_name") or "")
+    if pair not in eligible:
+        raise ValueError(
+            f"{problem} target {pair!r} is not a "
+            f"primary HQ tunnel on {scenario} (topo_size={topo_size!r}); "
+            f"eligible: {eligible}"
+        )
 
 
 class WireGuardPeerKeyMisconfigParams(BaseModel):
@@ -76,16 +131,22 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
     """Wrong WireGuard peer PublicKey on every tunnel of a Branch Edge.
 
     Under full WAN/hub redundancy, a single-tunnel peer-key fault would fail
-    over. Inject corrupts every WireGuard peer on the selected Branch Edge so
-    cross-site business for that branch fails while underlay and other branches
-    stay healthy. ``intf_name`` names the primary HQ peer for root-cause scoring.
+    over with no user-visible impact. Inject models one bad key rollout on the
+    Branch Edge (every Hub peer entry gets the same wrong key), so cross-site
+    business for that branch fails while underlay and other branches stay
+    healthy. Ground truth labels every WireGuard interface the inject rewrites;
+    ``intf_name`` must be one of them.
     """
 
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "path_ping"
+    symptom_class = "unreachable"
     root_cause_name: str = "wireguard_peer_key_misconfiguration"
+    root_cause_owner = "interface"
     description = "WireGuard peer public key is incorrect."
     TAGS: str = ["vpn"]
     Params = WireGuardPeerKeyMisconfigParams
+    BENCHMARK_TUNNEL_IFACE = True
     symptom_desc = (
         "A Branch Site Edge has incorrect Hub WireGuard peer public keys on all "
         "of its overlay tunnels. Provider underlay and Hub WAN endpoints remain "
@@ -100,8 +161,26 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
         self.logger = system_logger
         self._hub_tunnel_ips: list[str] = []
 
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        edge, iface = _draw_hq_peer_target(ctx)
+        return {"host_name": edge, "intf_name": iface}
+
+    @classmethod
+    def benchmark_inject_options(cls, ctx, base):
+        return [
+            replace(base, host_name=node, intf_name=intf)
+            for node, intf in _hq_peer_targets(ctx.net_env, ctx.scenario)
+        ]
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        _validate_hq_peer_target(ctx, cls.root_cause_name, inject)
+
     def root_cause_resources(self, params: WireGuardPeerKeyMisconfigParams):
-        return [interface_resource(params.host_name, params.intf_name)]
+        tunnels = self._spoke_tunnels(params.host_name)
+        ifaces = sorted({t.spoke_iface for t in tunnels}) or [params.intf_name]
+        return [interface_resource(params.host_name, iface) for iface in ifaces]
 
     def _spoke_site(self, edge_name: str) -> str:
         return _spoke_site_from_edge(edge_name)
@@ -159,16 +238,11 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
         for iface in ifaces:
             hub_tun_ip = self._resolve_hub_tunnel_ip(edge, iface)
             conf_path = f"/etc/wireguard/{iface}.conf"
-            self.runtime.exec(edge, f"cp {conf_path} {conf_path}.bak")
             self.runtime.exec(
                 edge,
                 f"sed -i 's|^PublicKey = .*|PublicKey = {wrong_key}|' {conf_path}",
             )
-            self.runtime.exec(
-                edge,
-                f"wg-quick strip {iface} > /tmp/{iface}.strip "
-                f"&& wg syncconf {iface} /tmp/{iface}.strip",
-            )
+            _wg_syncconf(self.runtime, edge, iface)
             self.runtime.exec(
                 edge,
                 f"vtysh -c 'clear ip bgp {hub_tun_ip}' 2>/dev/null || true",
@@ -180,7 +254,20 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
             f"Injected wrong WireGuard Hub peer PublicKey on all WG ifaces of "
             f"{edge} ({', '.join(ifaces)}); cleared BGP neighbors {cleared}."
         )
-        time.sleep(_SETTLE_SEC)
+        wait_until(
+            lambda: (
+                not any(
+                    _bgp_neighbor_established(
+                        self.runtime.exec(
+                            edge, "vtysh -c 'show bgp summary' 2>/dev/null || true"
+                        ),
+                        ip,
+                    )
+                    for ip in cleared
+                )
+            ),
+            _SETTLE_SEC,
+        )
 
     def verify_fault(self, params: WireGuardPeerKeyMisconfigParams) -> dict:
         edge = params.host_name
@@ -267,10 +354,14 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
     """
 
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "path_ping"
+    symptom_class = "unreachable"
     root_cause_name: str = "wireguard_allowed_ips_misconfiguration"
+    root_cause_owner = "interface"
     description = "WireGuard AllowedIPs omits a required remote prefix."
     TAGS: str = ["vpn"]
     Params = WireGuardAllowedIpsMisconfigParams
+    BENCHMARK_TUNNEL_IFACE = True
     symptom_desc = (
         "A Branch Site Edge omits one remote enterprise business prefix from its "
         "Hub WireGuard peer AllowedIPs while keeping the Hub tunnel address. "
@@ -285,6 +376,47 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
         super().__init__(scenario_name, **kwargs)
         self.logger = system_logger
         self._hub_tunnel_ip: str | None = None
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        edge, iface = _draw_hq_peer_target(ctx)
+        spoke = _spoke_site_from_edge(edge)
+        target_prefix = _prefer_hq_server_prefix(
+            ctx.net_env.remote_prefixes_for_spoke(spoke)
+        )
+        if not target_prefix:
+            raise ValueError(
+                f"No remote advertised prefixes for spoke {spoke!r} "
+                f"(topo_size={ctx.topo_size!r})"
+            )
+        return {"host_name": edge, "intf_name": iface, "target_prefix": target_prefix}
+
+    @classmethod
+    def benchmark_inject_options(cls, ctx, base):
+        rows = []
+        for node, intf in _hq_peer_targets(ctx.net_env, ctx.scenario):
+            prefix = _prefer_hq_server_prefix(
+                ctx.net_env.remote_prefixes_for_spoke(_spoke_site_from_edge(node))
+            )
+            if prefix:
+                rows.append(
+                    replace(base, host_name=node, intf_name=intf, target_prefix=prefix)
+                )
+        return rows
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        _validate_hq_peer_target(ctx, cls.root_cause_name, inject)
+        target_prefix = inject.get("target_prefix")
+        if target_prefix:
+            spoke = _spoke_site_from_edge(inject.get("host_name") or "")
+            remotes = ctx.net_env.remote_prefixes_for_spoke(spoke)
+            if target_prefix not in remotes:
+                raise ValueError(
+                    f"{cls.root_cause_name} target_prefix="
+                    f"{target_prefix!r} is not a remote advertised prefix for "
+                    f"{spoke!r} (topo_size={ctx.topo_size!r}); remotes: {remotes}"
+                )
 
     def root_cause_resources(self, params: WireGuardAllowedIpsMisconfigParams):
         return [interface_resource(params.host_name, params.intf_name)]
@@ -344,16 +476,11 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
             )
 
         conf_path = f"/etc/wireguard/{iface}.conf"
-        self.runtime.exec(edge, f"cp {conf_path} {conf_path}.bak")
         self.runtime.exec(
             edge,
             f"sed -i 's|^AllowedIPs = .*|AllowedIPs = {allowlist}|' {conf_path}",
         )
-        self.runtime.exec(
-            edge,
-            f"wg-quick strip {iface} > /tmp/{iface}.strip "
-            f"&& wg syncconf {iface} /tmp/{iface}.strip",
-        )
+        _wg_syncconf(self.runtime, edge, iface)
         self.logger.info(
             f"Injected WireGuard AllowedIPs omit of {params.target_prefix} "
             f"on {edge}/{iface} (hub tunnel {hub_tun_ip} retained; BGP untouched)."

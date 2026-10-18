@@ -1,6 +1,6 @@
-"""Mock LLM agent that simulates BasicReActAgent behaviour without a real LLM.
+"""Mock LLM agent that simulates a troubleshooting agent without a real LLM.
 
-The agent mirrors the two-phase architecture of BasicReActAgent:
+The agent follows the shared two-phase pipeline (``TwoPhaseAgent``):
   1. diagnosis phase  – calls lab MCP tools and emits a deterministic report
   2. submission phase – calls submit via task MCP server using frozen context
 
@@ -19,10 +19,11 @@ from typing import Any
 
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
-from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
+from agent.utils.mcp_client import load_session_mcp_config
 from agent.utils.loggers import tool_event_payload
 from agent.utils.mcp_servers import select_diagnosis_servers
 from agent.protocols import DIAGNOSIS, SUBMISSION
+from agent.utils.two_phase import TwoPhaseAgent
 from nika.problems.rca import RootCause
 from nika.runtime.factory import resolve_backend
 from nika.utils.session import Session
@@ -163,27 +164,40 @@ def _mock_diagnosis_tool_calls(
 
     pair = _pick_pair(devices, preferred)
     if pair is not None:
-        host_a, host_b = pair
-        calls.append(("ping_pair", {"host_a": host_a, "host_b": host_b}))
+        host_a, _host_b = pair
         calls.append(("exec_shell", {"host_name": host_a, "command": "hostname"}))
     elif devices:
-        calls.append(
-            ("ping_pair", {"host_a": devices[0], "host_b": devices[0], "count": 1})
-        )
+        calls.append(("exec_shell", {"host_name": devices[0], "command": "hostname"}))
 
     if backend == "containerlab":
         router = _pick_router(devices) or (preferred[0] if preferred else None)
         if router and "containerlab_srl_mcp_server" in server_names:
-            calls.append(("srl_show_ip_route", {"device_name": router}))
+            calls.append(
+                (
+                    "srl_exec_cli",
+                    {
+                        "device_name": router,
+                        "command": "show network-instance default route-table ipv4-unicast summary",
+                    },
+                )
+            )
     else:
         router = _pick_router(devices) or (preferred[0] if preferred else None)
-        if router and "kathara_frr_mcp_server" in server_names:
+        if router and "kathara_iosxr_mcp_server" in server_names:
             calls.append(
-                ("frr_exec", {"router_name": router, "command": "show ip bgp summary"})
+                ("iosxr_exec", {"router_name": router, "command": "show route"})
             )
-            calls.append(("frr_show_ip_route", {"router_name": router}))
-        elif router and "kathara_iosxr_mcp_server" in server_names:
-            calls.append(("iosxr_show_route", {"router_name": router}))
+        elif router and "kathara_routeros_mcp_server" in server_names:
+            calls.append(
+                ("routeros_exec", {"router_name": router, "command": "/ip route print"})
+            )
+        elif router:
+            calls.append(
+                (
+                    "exec_shell",
+                    {"host_name": router, "command": "vtysh -c 'show ip route'"},
+                )
+            )
     return calls
 
 
@@ -195,31 +209,26 @@ def _mock_diagnosis_report(*, devices: list[str], preferred: list[str]) -> str:
     )
 
 
-class MockAgent:
-    """Deterministic mock agent that mirrors the BasicReActAgent interface."""
+class MockAgent(TwoPhaseAgent):
+    """Deterministic mock agent on the shared two-phase pipeline."""
 
     def __init__(
         self,
         session_id: str,
         model: str = "mock-v1",
         max_steps: int = 20,
+        stream_output: bool = True,
     ) -> None:
         self.session_id = session_id
         self.model = model
         self.max_steps = max_steps
+        self.stream_output = stream_output
         self.session = Session()
         self.session.load_running_session(session_id=session_id)
+        self.trace_dir = self.session.session_dir
 
-    def load_session(self) -> None:
+    async def diagnose(self, task_description: str) -> str:
         self.session.load_running_session(session_id=self.session_id)
-
-    async def run(self, task_description: str) -> dict[str, Any]:
-        self.load_session()
-        diagnosis_report = await self._run_diagnosis(task_description)
-        await self._run_submission(diagnosis_report)
-        return {"diagnosis_report": diagnosis_report}
-
-    async def _run_diagnosis(self, task_description: str) -> str:
         logger = self._make_logger(DIAGNOSIS)
         logger.log(
             "llm_start",
@@ -236,7 +245,9 @@ class MockAgent:
         preferred = _preferred_devices_from_gt(gt)
         devices = _session_device_names(self.session_id) or list(preferred)
 
-        config = load_session_mcp_config(self.session_id, scenario, backend=backend)
+        config = load_session_mcp_config(
+            self.session_id, scenario, backend=backend, phase=DIAGNOSIS
+        )
         client = MultiServerMCPClient(connections=config)
         tools = {tool.name: tool for tool in await client.get_tools()}
 
@@ -280,7 +291,7 @@ class MockAgent:
         logger.log("llm_end", {"text": diagnosis_report})
         return diagnosis_report
 
-    async def _run_submission(self, diagnosis_report: str) -> None:
+    async def submit(self, diagnosis_report: str, context: dict[str, Any]) -> str:
         logger = self._make_logger(SUBMISSION)
         backend = resolve_backend(self.session)
         scenario = str(getattr(self.session, "scenario_name", "") or "")
@@ -301,14 +312,12 @@ class MockAgent:
             },
         )
 
-        begin_submission_mcp_phase(self.session_id, diagnosis_report)
-        config = load_session_mcp_config(self.session_id, scenario, backend=backend)
+        config = load_session_mcp_config(
+            self.session_id, scenario, backend=backend, phase=SUBMISSION
+        )
         client = MultiServerMCPClient(connections=config)
         tools = {tool.name: tool for tool in await client.get_tools()}
 
-        from nika.workflows.agent.submission import load_submission_context
-
-        context = load_submission_context(self.session_id)
         catalog_ids = [str(item["id"]) for item in context["resources"]]
         catalog_set = set(catalog_ids)
         avail = [
@@ -371,10 +380,9 @@ class MockAgent:
             ),
         )
 
-        logger.log(
-            "llm_end",
-            {"text": (f"Submitted: root_causes = {chosen}")},
-        )
+        result = f"Submitted: root_causes = {chosen}"
+        logger.log("llm_end", {"text": result})
+        return result
 
     def _make_logger(self, agent_name: str):
         """Return a MessageLogger for *agent_name*."""

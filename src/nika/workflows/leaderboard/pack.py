@@ -26,14 +26,13 @@ from nika.workflows.benchmark.trials import (
 from nika.workflows.leaderboard.aggregate import (
     aggregate_trial_results,
     build_rca_confusion,
-    extract_trial_metrics,
 )
+from nika.workflows.leaderboard.hf_remote import remote_trajectories_relpath
 from nika.workflows.leaderboard.meta_input import (
     MetaInputError,
     load_submission_dir,
-    slugify_name,
+    submission_slug,
 )
-from nika.workflows.leaderboard.hf_remote import remote_trajectories_relpath
 from nika.workflows.leaderboard.schema import (
     IDENTITY_FILENAME,
     METADATA_FILENAME,
@@ -54,6 +53,10 @@ from nika.workflows.leaderboard.schema import (
     TrialResult,
 )
 from nika.workflows.leaderboard.secrets import scan_value_for_issues
+from nika.workflows.leaderboard.trial_results import (
+    TrialResultError,
+    trial_result_from_dir,
+)
 
 
 class LeaderboardPackError(ValueError):
@@ -74,13 +77,34 @@ _ABS_PATH_REDACT = re.compile(
 )
 
 
+# Agents can print private keys found on lab devices (e.g. a lab's TLS key).
+# A JSONL record keeps the key's line breaks as literal ``\n`` escapes.
+_PEM_KIND = r"(?:RSA |EC |OPENSSH |DSA |ENCRYPTED )?PRIVATE KEY"
+_PEM_BLOCK_REDACT = re.compile(
+    rf"-----BEGIN ({_PEM_KIND})-----.*?-----END \1-----", re.DOTALL
+)
+# A key cut off before its END line: drop the base64 that follows BEGIN.
+_PEM_HEAD_REDACT = re.compile(
+    rf"-----BEGIN {_PEM_KIND}-----(?:\\[nr]|\s|[A-Za-z0-9+/=])*"
+)
+
+
 def _redact_absolute_paths(text: str) -> str:
     return _ABS_PATH_REDACT.sub("<REDACTED_PATH>", text)
 
 
+def _redact_private_keys(text: str) -> str:
+    text = _PEM_BLOCK_REDACT.sub("<REDACTED_PRIVATE_KEY>", text)
+    return _PEM_HEAD_REDACT.sub("<REDACTED_PRIVATE_KEY>", text)
+
+
+def _redact_text(text: str) -> str:
+    return _redact_absolute_paths(_redact_private_keys(text))
+
+
 def _sanitize_json_value(value: Any) -> Any:
     if isinstance(value, str):
-        return _redact_absolute_paths(value)
+        return _redact_text(value)
     if isinstance(value, dict):
         return {k: _sanitize_json_value(v) for k, v in value.items()}
     if isinstance(value, list):
@@ -115,8 +139,21 @@ def _write_sanitized_trajectory_file(
             encoding="utf-8",
         )
         return
-    # JSONL / plain text
-    dest.write_text(_redact_absolute_paths(raw), encoding="utf-8")
+    if src.suffix == ".jsonl":
+        with dest.open("w", encoding="utf-8") as output:
+            for line_number, line in enumerate(raw.splitlines(), start=1):
+                try:
+                    data = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    raise LeaderboardPackError(
+                        f"{trial_id}/{src.name}:{line_number}: invalid JSONL: {exc}"
+                    ) from exc
+                output.write(
+                    json.dumps(_sanitize_json_value(data), ensure_ascii=False) + "\n"
+                )
+        return
+    # Plain text
+    dest.write_text(_redact_text(raw), encoding="utf-8")
 
 
 def _utc_now() -> datetime:
@@ -128,13 +165,6 @@ def _relative_result_hint(result_dir: Path) -> str:
         return result_dir.resolve().relative_to(REPO_ROOT.resolve()).as_posix()
     except ValueError:
         return result_dir.name
-
-
-def _read_json(path: Path) -> dict[str, Any]:
-    data = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(data, dict):
-        raise LeaderboardPackError(f"Expected JSON object at {path}")
-    return data
 
 
 def _write_json(path: Path, payload: Any) -> None:
@@ -163,107 +193,34 @@ def _resolve_metadata(
     *,
     submission_dir: str | Path | None,
     metadata: SubmissionMetadata | dict[str, Any] | None,
-) -> tuple[SubmissionMetadata, str | None, str | None]:
-    """Return metadata plus optional source paths for metadata.yaml / README.md."""
+) -> tuple[SubmissionMetadata, str | None]:
+    """Return metadata plus an optional source path for README.md."""
     if submission_dir is not None:
         try:
-            meta, meta_path, readme_path = load_submission_dir(submission_dir)
+            meta, _meta_path, readme_path = load_submission_dir(submission_dir)
         except MetaInputError as exc:
             raise LeaderboardPackError(str(exc)) from exc
-        return meta, str(meta_path), str(readme_path)
+        return meta, str(readme_path)
 
     if metadata is None:
         raise LeaderboardPackError(
             "submission metadata is required (pass --submission DIR, or metadata=...)"
         )
     if isinstance(metadata, SubmissionMetadata):
-        return metadata, None, None
+        return metadata, None
     if isinstance(metadata, dict):
         try:
             from nika.workflows.leaderboard.meta_input import parse_metadata_payload
 
-            return parse_metadata_payload(metadata), None, None
+            return parse_metadata_payload(metadata), None
         except MetaInputError as exc:
             raise LeaderboardPackError(str(exc)) from exc
     raise LeaderboardPackError("metadata must be SubmissionMetadata or a dict")
 
 
 def _package_folder_name(metadata: SubmissionMetadata, *, when: datetime) -> str:
-    slug = slugify_name(metadata.info.name)
+    slug = submission_slug(metadata)
     return f"{when.strftime('%Y%m%d')}_{slug}"
-
-
-def _fault_types_from_root_causes(raw: Any) -> list[str] | None:
-    """Unique fault_type values from a root_causes list, preserving order."""
-    if not isinstance(raw, list):
-        return None
-    names: list[str] = []
-    for item in raw:
-        if not isinstance(item, dict):
-            continue
-        fault_type = str(item.get("fault_type") or "").strip()
-        if fault_type and fault_type not in names:
-            names.append(fault_type)
-    return names or None
-
-
-def _gt_fault_types(session_dir: Path, *, problem: str) -> list[str]:
-    gt_path = session_dir / "ground_truth.json"
-    if gt_path.is_file():
-        try:
-            gt = _read_json(gt_path)
-            names = _fault_types_from_root_causes(gt.get("root_causes"))
-            if names:
-                return names
-        except (LeaderboardPackError, json.JSONDecodeError, OSError):
-            pass
-    return [problem]
-
-
-def _predicted_fault_types(session_dir: Path) -> list[str] | None:
-    sub_path = session_dir / "submission.json"
-    if not sub_path.is_file():
-        return None
-    try:
-        submission = _read_json(sub_path)
-    except (LeaderboardPackError, json.JSONDecodeError, OSError):
-        return None
-    return _fault_types_from_root_causes(submission.get("root_causes"))
-
-
-def _trial_result_from_dir(
-    *,
-    trial_id: str,
-    case_key: str,
-    trial_index: int,
-    scenario: str,
-    problem: str,
-    session_dir: Path,
-) -> TrialResult:
-    run_meta = _read_json(session_dir / "run.json")
-    outcome = str(run_meta.get("outcome") or "")
-    if outcome not in {"success", "agent_failed"}:
-        raise LeaderboardPackError(
-            f"Trial {trial_id} has invalid outcome {outcome!r} under {session_dir}"
-        )
-    metrics_path = session_dir / "eval_metrics.json"
-    metrics = (
-        extract_trial_metrics(_read_json(metrics_path))
-        if metrics_path.is_file()
-        else {}
-    )
-
-    return TrialResult(
-        trial_id=trial_id,
-        case_key=case_key,
-        trial_index=trial_index,
-        scenario=scenario,
-        problem=problem,
-        outcome=outcome,  # type: ignore[arg-type]
-        metrics=metrics,
-        gt_fault_types=_gt_fault_types(session_dir, problem=problem),
-        predicted_fault_types=_predicted_fault_types(session_dir),
-    )
 
 
 def _copy_trajectory_trial_files(
@@ -363,25 +320,21 @@ def pack_leaderboard_submission(
             raise LeaderboardPackError(
                 f"Incomplete or missing trial {trial.trial_id} under {session_dir}"
             )
-        result = _trial_result_from_dir(
-            trial_id=trial.trial_id,
-            case_key=trial.case_key,
-            trial_index=trial.trial_index,
-            scenario=str(trial.row["scenario"]),
-            problem=str(trial.row["problem"]),
-            session_dir=session_dir,
-        )
+        try:
+            result = trial_result_from_dir(
+                trial_id=trial.trial_id,
+                case_key=trial.case_key,
+                trial_index=trial.trial_index,
+                scenario=str(trial.row["scenario"]),
+                problem=str(trial.row["problem"]),
+                session_dir=session_dir,
+            )
+        except TrialResultError as exc:
+            raise LeaderboardPackError(str(exc)) from exc
         trial_results.append(result)
         session_by_trial_id[trial.trial_id] = session_dir
 
-    run_json_path = results_root / "run.json"
-    if not run_json_path.is_file():
-        legacy = results_root / "benchmark_job.json"
-        if not legacy.is_file():
-            raise LeaderboardPackError(f"missing run.json under {results_root}")
-        run_json_path = legacy
-
-    meta_model, _meta_src, readme_src = _resolve_metadata(
+    meta_model, readme_src = _resolve_metadata(
         submission_dir=submission_dir,
         metadata=metadata,
     )
@@ -398,7 +351,18 @@ def pack_leaderboard_submission(
 
     scoring = release.scoring if isinstance(release.scoring, dict) else {}
     created = _utc_now()
-    package_name = _package_folder_name(meta_model, when=created)
+    package_name = (
+        Path(out_dir).name
+        if out_dir is not None
+        else _package_folder_name(meta_model, when=created)
+    )
+    if out_dir is not None and not re.fullmatch(
+        rf"\d{{8}}_{re.escape(submission_slug(meta_model))}",
+        package_name,
+    ):
+        raise LeaderboardPackError(
+            "--out directory name must be YYYYMMDD_<slug> matching agent.framework and agent.model"
+        )
     try:
         traj_relpath = remote_trajectories_relpath(release.version, package_name)
     except ValueError as exc:

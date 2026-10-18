@@ -5,14 +5,12 @@ Operational settings no longer come from ``.env``. Credentials remain in ``.env`
 
 from __future__ import annotations
 
-import logging
 import os
 
 from nika.run_config.loader import get_run_config
 from nika.run_config.schema import RunConfig
+from agent.registry import find_agent_spec, get_agent_spec
 from agent.utils.provider_env import validate_provider_for_agent
-
-logger = logging.getLogger(__name__)
 
 
 def _cfg(config: RunConfig | None) -> RunConfig:
@@ -34,17 +32,17 @@ def resolve_llm_provider(
     config: RunConfig | None = None,
 ) -> str | None:
     cfg = _cfg(config)
-    normalized = agent_type.lower()
-    if normalized == "mock":
+    spec = find_agent_spec(agent_type)
+    if spec is not None and not spec.requires_provider:
         if value:
-            return validate_provider_for_agent(normalized, value)
+            return validate_provider_for_agent(agent_type, value)
         return None
     raw = value or cfg.agent.provider
     if not raw:
         raise ValueError(
             "Missing agent.provider: set it in config/nika.yaml or pass -p/--provider."
         )
-    return validate_provider_for_agent(normalized, raw)
+    return validate_provider_for_agent(agent_type, raw)
 
 
 def resolve_max_steps(
@@ -55,6 +53,10 @@ def resolve_max_steps(
     return _cfg(config).agent.max_steps
 
 
+def resolve_agent_timeout(*, config: RunConfig | None = None) -> int:
+    return _cfg(config).agent.timeout_sec
+
+
 def resolve_reasoning_effort(
     value: str | None = None, *, config: RunConfig | None = None
 ) -> str | None:
@@ -63,58 +65,35 @@ def resolve_reasoning_effort(
     return _cfg(config).agent.reasoning_effort
 
 
+def resolve_max_tokens(
+    agent_type: str, *, config: RunConfig | None = None
+) -> int | None:
+    """Effective ``agent.max_tokens`` for *agent_type* (None when not applied)."""
+    spec = find_agent_spec(agent_type)
+    if spec is not None and not spec.supports_max_tokens:
+        return None
+    return _cfg(config).agent.max_tokens
+
+
 def resolve_agent_model(
     agent_type: str,
     model: str | None = None,
     *,
-    llm_provider: str | None = None,
     config: RunConfig | None = None,
 ) -> str:
-    """Resolve model id: CLI ``-m`` → YAML agent.model / models.* / custom.model."""
+    """Resolve model id from CLI or ``agent.model``."""
     if model:
         return model
 
     cfg = _cfg(config)
-    provider = (llm_provider or cfg.agent.provider or "").strip().lower()
-
-    if yaml_model := cfg.model_for_agent(agent_type):
+    if yaml_model := (cfg.agent.model or "").strip():
         return yaml_model
 
-    if provider == "custom" and (custom := (cfg.agent.custom.model or "").strip()):
-        return custom
-
-    match agent_type.lower():
-        case "cli.claude" | "sdk.claude_sdk" | "community.sade":
-            raise ValueError(
-                "Missing model: set agent.models.claude (or agent.model) in "
-                "config/nika.yaml or pass -m/--model."
-            )
-        case "mock":
-            return "mock"
-        case "cli.codex" | "sdk.codex_sdk":
-            raise ValueError(
-                "Missing model: set agent.models.codex in config/nika.yaml "
-                "or pass -m/--model."
-            )
-        case "byo.langgraph":
-            raise ValueError(
-                "Missing model: set agent.models.langgraph in config/nika.yaml "
-                "or pass -m/--model."
-            )
-        case "byo.mcp_agent":
-            raise ValueError(
-                "Missing model: set agent.models.mcp_agent in config/nika.yaml "
-                "or pass -m/--model."
-            )
-        case "byo.autogen":
-            raise ValueError(
-                "Missing model: set agent.models.autogen in config/nika.yaml "
-                "or pass -m/--model."
-            )
-        case _:
-            raise ValueError(
-                f"Unsupported agent type for model resolution: {agent_type!r}"
-            )
+    if default_model := get_agent_spec(agent_type).default_model:
+        return default_model
+    raise ValueError(
+        "Missing model: set agent.model in config/nika.yaml or pass -m/--model."
+    )
 
 
 def resolve_judge_provider(
@@ -134,18 +113,18 @@ def resolve_judge_model(
 
 
 def apply_custom_provider_env(config: RunConfig | None = None) -> None:
-    """Export YAML ``agent.custom.base_url`` / ``model`` into ``NIKA_CUSTOM_*``.
+    """Export YAML ``agent.base_url`` / ``model`` into ``NIKA_CUSTOM_*``.
 
-    Used when ``provider: custom``, and as an optional Anthropic/OpenAI-compatible
-    endpoint override when those providers are selected. Codex/Claude
-    ``prepare_*_env`` helpers still read ``NIKA_CUSTOM_*`` from the process
-    environment when mapping credentials. BYO factories prefer
-    ``RunConfig.agent.custom`` or the mapped ``*_BASE_URL``. API keys stay in
-    ``.env``. Empty YAML values clear leftover process env so ops env cannot win.
+    Only ``provider: custom`` uses ``agent.base_url``; other providers have
+    built-in endpoints, so the value is cleared for them. Codex/Claude
+    ``prepare_*_env`` helpers read ``NIKA_CUSTOM_*`` from the process
+    environment when mapping credentials. API keys stay in ``.env``. Empty
+    YAML values clear leftover process env so ops env cannot win.
     """
     cfg = _cfg(config)
-    base = (cfg.agent.custom.base_url or "").strip()
-    model = (cfg.agent.custom.model or "").strip()
+    is_custom = cfg.agent.provider.strip().lower() == "custom"
+    base = (cfg.agent.base_url or "").strip() if is_custom else ""
+    model = (cfg.agent.model or "").strip()
     if base:
         os.environ["NIKA_CUSTOM_BASE_URL"] = base
         os.environ["CUSTOM_API_BASE"] = base

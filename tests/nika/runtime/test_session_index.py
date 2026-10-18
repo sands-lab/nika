@@ -7,6 +7,8 @@ from pathlib import Path
 from nika.utils.session_index import SessionIndex
 from nika.utils.session_store import SessionStore
 
+pytestmark = pytest.mark.unit
+
 RUN_FILENAME = "run.json"
 GROUND_TRUTH_FILENAME = "ground_truth.json"
 EVAL_METRICS_FILENAME = "eval_metrics.json"
@@ -103,3 +105,41 @@ class SessionIndexTestCase:
         assert row["failure_domain"] == "link_interface"
         assert row["detection_score"] == 1.0
         assert row["failure_count"] == 1
+
+    def test_rebuild_preserves_aborted_status(self) -> None:
+        session_id = "20260103-130000-aborted"
+        session_dir = self.results_dir / session_id
+        session_dir.mkdir()
+        (session_dir / RUN_FILENAME).write_text(
+            json.dumps(
+                {
+                    "session_id": session_id,
+                    "status": "aborted",
+                    "outcome": "aborted",
+                    "scenario_name": "llmd_lab",
+                    "end_time": "2026-09-26T14:16:58",
+                }
+            ),
+            encoding="utf-8",
+        )
+        assert self.index.rebuild_from_results(self.results_dir) == 1
+        row = self.index.get_row(session_id)
+        assert row is not None
+        assert row["status"] == "aborted"
+
+    def test_rebuild_skips_job_result_root(self) -> None:
+        job_dir = self.results_dir / "claude"
+        (job_dir / "trials").mkdir(parents=True)
+        (job_dir / "run.json").write_text(
+            json.dumps(
+                {
+                    "job_id": "abc123",
+                    "agent_type": "cli.claude",
+                    "benchmark_ref": "nika-bench@0.2.0",
+                }
+            ),
+            encoding="utf-8",
+        )
+        (job_dir / "benchmark_job.json").write_text("{}", encoding="utf-8")
+        assert self.index.rebuild_from_results(self.results_dir) == 0
+        assert self.index.get_row("claude") is None

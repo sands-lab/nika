@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from unittest.mock import MagicMock, patch
 
 from nika.net_env.utils.k8s_client_hosts import (
@@ -10,6 +12,8 @@ from nika.net_env.utils.k8s_client_hosts import (
     sync_llmd_client_hosts,
     word_app_http_url,
 )
+
+pytestmark = pytest.mark.unit
 
 
 def test_models_http_url_uses_gateway_vip_when_present() -> None:

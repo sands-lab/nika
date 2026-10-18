@@ -1,5 +1,8 @@
+import pytest
 from nika.evaluator.result_log import resolve_failure_metadata
 from nika.problems.registry import get_problem_class
+
+pytestmark = pytest.mark.unit
 
 
 def test_failure_metadata_uses_one_domain_field() -> None:

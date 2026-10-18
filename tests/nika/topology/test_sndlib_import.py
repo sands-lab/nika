@@ -15,6 +15,8 @@ from nika.topology import (
 from nika.topology.sndlib.catalog import SNDLIB_TOPOLOGY_NAMES
 from nika.topology.sndlib.parse import parse_sndlib_xml
 
+pytestmark = pytest.mark.unit
+
 GOLDEN_COUNTS: dict[str, tuple[int, int, int]] = {
     "abilene": (12, 15, 132),
     "atlanta": (15, 22, 210),

@@ -11,16 +11,19 @@ import yaml
 
 from nika.utils.session_id import resolve_session_tag
 from tests.agent.sandbox_support import (
-    sandbox_anthropic_credential_available,
-    sandbox_openai_credential_available,
+    sandbox_provider_credential_available,
     sandbox_runtime_available,
 )
-from tests.benchmark.helpers import inject_params_from_benchmark_yaml
 from tests.support.integration_pipeline import (
+    DEFAULT_INJECT_PARAMS,
     claude_cli_available,
     codex_cli_available,
+    live_anthropic_test_config,
+    live_codex_test_model,
     load_test_env,
 )
+
+pytestmark = [pytest.mark.e2e, pytest.mark.sandbox, pytest.mark.live]
 
 load_test_env()
 
@@ -35,8 +38,8 @@ _PARALLEL_CASES = (
     ("simple_bgp", "link_flap"),
 )
 
-CLAUDE_MODEL = "deepseek-v4-flash"
-CODEX_MODEL = "gpt-5-mini"
+CLAUDE_PROVIDER, CLAUDE_MODEL = live_anthropic_test_config()
+CODEX_MODEL = live_codex_test_model()
 
 
 def _assert_sandbox_session(session_path: Path, *, agent_type: str) -> None:
@@ -82,6 +85,7 @@ def _assert_sandbox_session(session_path: Path, *, agent_type: str) -> None:
 def _run_parallel_sandbox_benchmark(
     *,
     agent_type: str,
+    provider: str,
     model: str,
 ) -> None:
     """Two concurrent sandbox sessions must stay isolated and produce artifacts."""
@@ -92,7 +96,7 @@ def _run_parallel_sandbox_benchmark(
                 "scenario": scenario,
                 "problem": problem,
                 "topo_size": "",
-                "inject": inject_params_from_benchmark_yaml(scenario, problem, ""),
+                "inject": DEFAULT_INJECT_PARAMS,
             }
         )
 
@@ -108,7 +112,9 @@ def _run_parallel_sandbox_benchmark(
             [
                 "uv",
                 "run",
-                "nika",
+                "python",
+                "-m",
+                "tests.support.nika_cli",
                 "benchmark",
                 "run",
                 "--config",
@@ -117,10 +123,14 @@ def _run_parallel_sandbox_benchmark(
                 "2",
                 "-a",
                 agent_type,
+                "-p",
+                provider,
                 "-m",
                 model,
                 "-n",
                 "10",
+                "-y",
+                "-v",
                 "--result_dir",
                 str(result_root),
                 "--session-tag",
@@ -160,18 +170,23 @@ def _run_parallel_sandbox_benchmark(
     reason="Docker Sandboxes runtime not available",
 )
 @pytest.mark.skipif(
-    not (claude_cli_available() and sandbox_anthropic_credential_available()),
-    reason="Claude CLI + DeepSeek/anthropic sbx credentials required",
+    not (
+        claude_cli_available()
+        and sandbox_provider_credential_available(CLAUDE_PROVIDER)
+    ),
+    reason=f"Claude CLI + {CLAUDE_PROVIDER} credentials required (DeepSeek: DEEPSEEK_API_KEY; Anthropic: API key or sbx anthropic secret)",
 )
 class SandboxBenchmarkClaudeTest:
-    """Claude sandbox path for ``nika benchmark run`` (DeepSeek API)."""
+    """Claude sandbox path for ``nika benchmark run`` with the selected provider."""
 
     def test_single_case_produces_sandbox_artifacts(self) -> None:
         proc = subprocess.run(
             [
                 "uv",
                 "run",
-                "nika",
+                "python",
+                "-m",
+                "tests.support.nika_cli",
                 "benchmark",
                 "run",
                 "simple_bgp",
@@ -183,10 +198,14 @@ class SandboxBenchmarkClaudeTest:
                 "intf_name=eth0",
                 "-a",
                 "cli.claude",
+                "-p",
+                CLAUDE_PROVIDER,
                 "-m",
                 CLAUDE_MODEL,
                 "-n",
                 "10",
+                "-y",
+                "-v",
                 "--session-tag",
                 resolve_session_tag(context="test"),
             ],
@@ -209,6 +228,7 @@ class SandboxBenchmarkClaudeTest:
     def test_parallel_batch_produces_sandbox_artifacts(self) -> None:
         _run_parallel_sandbox_benchmark(
             agent_type="cli.claude",
+            provider=CLAUDE_PROVIDER,
             model=CLAUDE_MODEL,
         )
 
@@ -218,7 +238,7 @@ class SandboxBenchmarkClaudeTest:
     reason="Docker Sandboxes runtime not available",
 )
 @pytest.mark.skipif(
-    not (codex_cli_available() and sandbox_openai_credential_available()),
+    not (codex_cli_available() and sandbox_provider_credential_available("openai")),
     reason="Codex CLI + OPENAI_API_KEY / openai sbx credentials required",
 )
 class SandboxBenchmarkCodexTest:
@@ -227,5 +247,6 @@ class SandboxBenchmarkCodexTest:
     def test_parallel_batch_produces_sandbox_artifacts(self) -> None:
         _run_parallel_sandbox_benchmark(
             agent_type="cli.codex",
+            provider="openai",
             model=CODEX_MODEL,
         )

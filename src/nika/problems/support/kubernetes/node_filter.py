@@ -5,7 +5,6 @@ import shlex
 from dataclasses import dataclass
 from typing import Any
 
-FILTER_COMMENT = "nika-k8s-svc-block"
 # raw PREROUTING/OUTPUT catch locally generated ClusterIP traffic before kube-proxy
 # DNAT. filter FORWARD/INPUT catch overlay-decapped packets to pod IPs that skip
 # the host's raw PREROUTING (flannel VXLAN on k3s).
@@ -13,9 +12,8 @@ IPTABLES_CHAINS = ("PREROUTING", "OUTPUT")
 IPTABLES_FILTER_CHAINS = ("INPUT", "FORWARD", "OUTPUT")
 IPTABLES_BINARY = "iptables"
 FILTER_TIMEOUT_SEC: float = 30.0
-WGET_BINARY = "wget"
 PROBE_TIMEOUT_SEC: float = 3.0
-_RC_MARK = "__NIKA_FILTER_RC="
+_RC_MARK = "__rc="
 _TIMEOUT_SENTINEL = "[TIMEOUT]"
 
 
@@ -67,14 +65,12 @@ class DropSpec:
     def forms(self) -> tuple[str, ...]:
         return destination_forms(self.destination)
 
-    def iptables_args(self, *, comment: str | None = None) -> str:
+    def iptables_args(self) -> str:
         args = f"-d {shlex.quote(self.destination)}"
         if self.protocol:
             args += f" -p {self.protocol}"
             if self.port is not None:
                 args += f" --dport {self.port}"
-        if comment:
-            args += f" -m comment --comment {comment}"
         return f"{args} -j DROP"
 
     def matches_iptables_line(self, line: str) -> bool:
@@ -137,16 +133,9 @@ class NodeFilter:
             )
 
     def _install_rule(self, table: str, chain: str, spec: DropSpec) -> None:
+        # No rule comment: agents can read `iptables -S`, and verification
+        # matches the rule itself rather than a marker.
         binary = IPTABLES_BINARY
-        commented = spec.iptables_args(comment=FILTER_COMMENT)
-        # The comment module is optional in stripped images: fall back to a
-        # plain rule when it is unavailable.
-        _, returncode = self._exec(
-            f"{binary} -t {table} -C {chain} {commented} 2>/dev/null || "
-            f"{binary} -t {table} -I {chain} 1 {commented}"
-        )
-        if returncode == 0:
-            return
         rule = spec.iptables_args()
         self._exec(
             f"{binary} -t {table} -C {chain} {rule} 2>/dev/null || "
@@ -190,6 +179,10 @@ class NodeFilter:
 
     def tcp_reachable(self, address: str, port: int) -> bool | None:
         timeout = int(PROBE_TIMEOUT_SEC)
-        command = f"{WGET_BINARY} -q -T {timeout} -O /dev/null http://{address}:{port}/ >/dev/null 2>&1"
-        _, returncode = self._exec(command)
-        return returncode == 0
+        # Service and backend ports can speak different application protocols
+        # (the Kubernetes API uses TLS). Probe the TCP handshake itself.
+        output, _ = self._exec(
+            f"timeout {timeout} busybox telnet {shlex.quote(address)} {int(port)} "
+            "</dev/null 2>&1"
+        )
+        return "Connected to" in output

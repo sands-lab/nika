@@ -11,5 +11,21 @@ failure:
     root_causes:
     - resource:
         kind: node
+        node: dnvrng
+      fault_type: bgp_rpki_invalid_route_leak
+    - resource:
+        kind: node
         node: kscyng
+      fault_type: bgp_rpki_invalid_route_leak
+    - resource:
+        kind: node
+        node: losang
+      fault_type: bgp_rpki_invalid_route_leak
+    - resource:
+        kind: node
+        node: snvang
+      fault_type: bgp_rpki_invalid_route_leak
+    - resource:
+        kind: node
+        node: sttlng
       fault_type: bgp_rpki_invalid_route_leak

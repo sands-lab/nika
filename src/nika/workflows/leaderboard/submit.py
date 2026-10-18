@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shlex
 import shutil
 import tempfile
 from dataclasses import dataclass
@@ -9,14 +10,19 @@ from pathlib import Path
 
 import yaml
 
-from nika.config import REPO_ROOT
+from nika.config import REPO_ROOT, resolve_results_root
+from nika.workflows.benchmark.release import load_run_config
 from nika.workflows.leaderboard import github_cli as gh
 from nika.workflows.leaderboard import hf_cli as hf
 from nika.workflows.leaderboard.hf_remote import (
     DEFAULT_TRAJECTORIES_REPO,
     remote_trajectories_relpath,
 )
-from nika.workflows.leaderboard.meta_input import MetaInputError
+from nika.workflows.leaderboard.meta_input import (
+    MetaInputError,
+    default_meta_template,
+    parse_metadata_payload,
+)
 from nika.workflows.leaderboard.pack import (
     LeaderboardPackError,
     PackResult,
@@ -77,9 +83,7 @@ def _load_release_version(package_dir: Path) -> str:
         # Trajectory package keeps identity.yaml at the root.
         identity_path = package_dir / IDENTITY_FILENAME
     if not identity_path.is_file():
-        raise LeaderboardSubmitError(
-            f"missing identity.yaml in {package_dir}"
-        )
+        raise LeaderboardSubmitError(f"missing identity.yaml in {package_dir}")
     try:
         payload = yaml.safe_load(identity_path.read_text(encoding="utf-8"))
     except yaml.YAMLError as exc:
@@ -177,11 +181,6 @@ def _submit_github(
     work_dir: Path | str | None,
     trajectories_remote_path: str | None,
 ) -> SubmitResult:
-    try:
-        gh.ensure_gh_auth()
-    except gh.GitHubCliError as exc:
-        raise LeaderboardSubmitError(str(exc)) from exc
-
     release_version = _load_release_version(root)
     package_name = root.name
     try:
@@ -213,7 +212,8 @@ def _submit_github(
     clone_dest = parent / "repo" if tmp_owned else parent
 
     try:
-        url = gh.clone_url_for_repo(push_repo)
+        # Start from upstream so an existing contributor fork can be stale.
+        url = gh.clone_url_for_repo(repo)
         gh.git_clone(url, clone_dest, depth=1)
         gh.git_checkout_new_branch(clone_dest, branch)
 
@@ -231,7 +231,11 @@ def _submit_github(
                 "nothing to commit after copying package "
                 "(identical content already present?)"
             )
-        gh.git_push(clone_dest, branch=branch)
+        gh.git_push(
+            clone_dest,
+            branch=branch,
+            remote="origin" if push_repo == repo else gh.clone_url_for_repo(push_repo),
+        )
 
         login = gh.current_login()
         head = branch if push_repo == repo else f"{login}:{branch}"
@@ -272,11 +276,6 @@ def _submit_trajectories(
     scores_root: Path,
     traj_repo: str,
 ) -> tuple[str, str, int | None]:
-    try:
-        hf.ensure_hf_token()
-    except hf.HuggingFaceCliError as exc:
-        raise LeaderboardSubmitError(str(exc)) from exc
-
     release_version = _load_release_version(scores_root)
     package_name = scores_root.name
     try:
@@ -322,9 +321,10 @@ def _submit_packed_package(
     skip_trajectories: bool = False,
     traj_repo: str = DEFAULT_TRAJECTORIES_REPO,
     trajectories_dir: str | Path | None = None,
+    dry_run: bool = False,
 ) -> SubmitResult:
     """Validate (optional) a packed package, then open GitHub and/or HF PRs."""
-    if skip_github and skip_trajectories:
+    if skip_github and skip_trajectories and not dry_run:
         raise LeaderboardSubmitError(
             "nothing to submit: both --skip-github and --skip-trajectories set"
         )
@@ -366,6 +366,33 @@ def _submit_packed_package(
         except ValueError as exc:
             raise LeaderboardSubmitError(str(exc)) from exc
 
+    if dry_run:
+        return SubmitResult(
+            repo=repo,
+            package_dir=root,
+            remote_path=(
+                remote_submission_relpath(_load_release_version(root), root.name)
+                if not skip_github
+                else None
+            ),
+            branch=None,
+            head=None,
+            pr_url=None,
+            used_fork=False,
+            trajectories_repo=traj_repo if traj_root is not None else None,
+            trajectories_dir=traj_root,
+            trajectories_remote_path=traj_remote,
+        )
+
+    # Check both accounts before opening the first PR.
+    try:
+        if not skip_github:
+            gh.ensure_gh_auth()
+        if traj_root is not None:
+            hf.ensure_hf_auth(traj_repo)
+    except (gh.GitHubCliError, hf.HuggingFaceCliError) as exc:
+        raise LeaderboardSubmitError(str(exc)) from exc
+
     gh_result: SubmitResult | None = None
     if not skip_github:
         gh_result = _submit_github(
@@ -380,11 +407,21 @@ def _submit_packed_package(
         )
 
     if traj_root is not None:
-        traj_remote, traj_pr_url, traj_pr_num = _submit_trajectories(
-            traj_root,
-            scores_root=root,
-            traj_repo=traj_repo,
-        )
+        try:
+            traj_remote, traj_pr_url, traj_pr_num = _submit_trajectories(
+                traj_root,
+                scores_root=root,
+                traj_repo=traj_repo,
+            )
+        except LeaderboardSubmitError as exc:
+            if gh_result is not None:
+                raise LeaderboardSubmitError(
+                    f"GitHub scores PR already opened: {gh_result.pr_url}\n"
+                    f"{exc}\nRetry the same submit command with --skip-github "
+                    f"--out {shlex.quote(str(root))} to upload trajectories only "
+                    "under the original package name."
+                ) from exc
+            raise
 
     if gh_result is not None:
         return SubmitResult(
@@ -421,7 +458,9 @@ def _submit_packed_package(
 def submit_leaderboard_package(
     result_dir: str | Path,
     *,
-    submission_dir: str | Path,
+    submission_dir: str | Path | None = None,
+    name: str | None = None,
+    authors: str | None = None,
     out_dir: str | Path | None = None,
     repo: str = DEFAULT_LEADERBOARD_REPO,
     draft: bool = False,
@@ -433,6 +472,7 @@ def submit_leaderboard_package(
     skip_github: bool = False,
     skip_trajectories: bool = False,
     traj_repo: str = DEFAULT_TRAJECTORIES_REPO,
+    dry_run: bool = False,
 ) -> SubmitResult:
     """Pack a release run, validate packages, then open GitHub and/or HF PRs.
 
@@ -441,9 +481,35 @@ def submit_leaderboard_package(
     ``skip_trajectories`` to disable one side.
     """
     try:
+        metadata = None
+        readme_text = None
+        if submission_dir is not None and (name is not None or authors is not None):
+            raise MetaInputError("Use either --submission DIR or --name/--authors.")
+        if submission_dir is None:
+            if not name or not name.strip() or not authors or not authors.strip():
+                raise MetaInputError(
+                    "Pass --name and --authors, or --submission DIR with "
+                    "metadata.yaml + README.md."
+                )
+            run_cfg = load_run_config(resolve_results_root(result_dir)) or {}
+            payload = default_meta_template()
+            payload["info"].update(name=name, authors=authors)
+            payload["agent"].update(
+                model=run_cfg.get("model") or "none",
+                framework=run_cfg.get("agent_type") or "",
+            )
+            metadata = parse_metadata_payload(payload)
+            readme_text = (
+                f"# {metadata.info.name}\n\n"
+                f"Authors: {metadata.info.authors}\n\n"
+                f"Framework: {metadata.agent.framework}\n\n"
+                f"Model: {metadata.agent.model}\n"
+            )
         packed: PackResult = pack_leaderboard_submission(
             result_dir,
             submission_dir=submission_dir,
+            metadata=metadata,
+            readme_text=readme_text,
             out_dir=out_dir,
         )
     except (LeaderboardPackError, MetaInputError) as exc:
@@ -462,4 +528,5 @@ def submit_leaderboard_package(
         skip_trajectories=skip_trajectories,
         traj_repo=traj_repo,
         trajectories_dir=packed.trajectories_dir,
+        dry_run=dry_run,
     )

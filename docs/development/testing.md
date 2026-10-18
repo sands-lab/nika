@@ -8,6 +8,7 @@ Source: [`tests/`](../../tests/) contains the suites, and [`tests/support/`](../
 - `tests/nika/` → `src/nika/`
 - `tests/benchmark/` → `nika benchmark` (YAML cases + `src/nika/workflows/benchmark/`)
 - `tests/leaderboard/` → `nika leaderboard` (submit packs/validates + release→submit E2E)
+- `tests/ci/` → curated dual-arch GitHub Actions smoke
 - `tests/support/` → shared helpers
 
 ## Layout
@@ -16,7 +17,9 @@ Source: [`tests/`](../../tests/) contains the suites, and [`tests/support/`](../
 |-----------|---------|---------|
 | `tests/agent/` | `src/agent/` | Per-agent unit tests and sandbox E2E |
 | `tests/benchmark/` | `benchmark/` + workflow run/resume | Batch, release, trials, sandbox benchmark runs; runner YAML load contracts |
+| `tests/compat/` | `src/nika/net_env/compat/` + `src/nika/problems/compat/` + `benchmark/releases/0.1.0/` | 0.1.0 release contracts and isolation of the restored labs and failures |
 | `tests/leaderboard/` | `src/nika/workflows/leaderboard/` + CLI | Pack/validate/submit unit tests; mocked release→submit E2E; opt-in live GitHub PR (`NIKA_LEADERBOARD_E2E=1`) |
+| `tests/ci/` | GitHub Actions smoke | Dual-arch image build, light startup, failure/pipeline/clab curated jobs |
 | `tests/nika/cli/` | `src/nika/cli/` | CLI smoke and import wiring |
 | `tests/nika/workflows/integration/` | end-to-end session pipeline | env → inject → mock agent → close → metrics → summary |
 | `tests/nika/problems/` | `src/nika/problems/` | Failure injection smoke tests (Kathara + Containerlab) |
@@ -26,31 +29,36 @@ Source: [`tests/`](../../tests/) contains the suites, and [`tests/support/`](../
 | `tests/nika/evaluator/` | `src/nika/evaluator/` | Rule-based scoring unit tests |
 | `tests/support/` | Not applicable | Shared bases, prerequisites, and pipeline helpers |
 
-Local lab integration tests expect lab extras installed (`uv sync --extra labs --group dev`). Core/agent unit tests should run without Kathara/Containerlab packages.
+Local lab integration tests need the `labs` dependency group, which `uv sync` installs by default.
 
 Packet capture inspect tests and live inspect operations require `tshark` on lab nodes (`nika/base` and `nika/frr` images). Rebuild those images after Dockerfile changes. Capture uses `tcpdump` or `dumpcap` when present on the node.
 
 ## Pytest markers
 
-Markers are registered in `pyproject.toml` and auto-applied from path conventions in `tests/conftest.py`:
+Markers are registered in `pyproject.toml`. Each test declares exactly one execution tier: `unit`, `contract`, `integration`, or `e2e`. Collection fails when a test has no tier or multiple tiers. `sandbox`, `live`, `ci_smoke`, and `nightly` add run requirements or scheduling information.
 
 | Marker | Purpose |
 |--------|---------|
-| `unit` | Fast tests without Docker |
-| `contract` | Registry, benchmark YAML, schema, artifact contracts |
-| `integration` | Env deploy, failure inject, traffic, MCP smoke |
-| `sandbox` | Sandbox isolation and security |
-| `e2e` | Full mock-agent pipeline and benchmark flows |
-| `live` | Real LLM / GitHub / Batfish (credentials required) |
+| `unit` | Isolated logic without Docker or external services |
+| `contract` | Offline registry, benchmark YAML, schema, and artifact contracts |
+| `integration` | Real backend or service interaction without a complete workflow |
+| `e2e` | Complete user, benchmark, scenario, or failure workflow |
+| `sandbox` | Docker Sandbox isolation and security |
+| `live` | Real LLM, GitHub, or Batfish service |
+| `ci_smoke` | Curated dual-arch GitHub Actions smoke (`tests/ci/`) |
+| `nightly` | Heavy suites for scheduled runners |
 
 ```shell
 # Fast local smoke (no Docker)
-uv run pytest -m "unit or contract" -q
+uv run pytest -m "(unit or contract) and not live" -q
+
+# Curated CI smoke (Docker; same set as Actions)
+uv run pytest -m ci_smoke -q
 
 # Emulator / lab integration (Docker / containerlab)
 uv run pytest -m integration -q
 
-# Full mock-agent flows
+# Complete workflows that do not need live credentials
 uv run pytest -m "e2e and not live" -q
 
 # Sandbox isolation (serial; sbx + Docker)
@@ -60,7 +68,33 @@ uv run pytest -m sandbox -q
 uv run pytest -m live -q
 ```
 
-Run these tiers locally; there is no GitHub Actions workflow for them yet (lab backends and credentials are not available on shared CI runners).
+## GitHub Actions
+
+Workflows live under [`.github/workflows/`](../../.github/workflows/):
+
+| Workflow | When | Runners | What |
+|----------|------|---------|------|
+| [`ci.yml`](../../.github/workflows/ci.yml) | PR / push (code and benchmark paths) | `ubuntu-24.04` and `ubuntu-24.04-arm` | `unit`+`contract` (including the published release preflight); dual-arch `nika/*` images; Kathara light startups; one-shot install through user CLI benchmark completion; `dc_clos` and Containerlab `min3clos` mock-agent pipelines |
+| [`nightly.yml`](../../.github/workflows/nightly.yml) | schedule + manual | same dual-arch (k8s/llmd amd64 serial) | Artifact/boot checks (`NIKA_CI_VERIFY_DEPTH=artifact`): light scenario startup, inject contract + artifact `verify_fault`, ISP light matrix, k8s/llmd startup. Deep `evaluate_scenario` / symptom / recover stay local. |
+
+PR jobs shard one lab or image per runner (containerlab-style). amd64 and arm64 use the **same** scenario and image lists. There is **no** per-job path filtering: any change under the workflow `paths` runs the full PR job set; docs-only changes skip CI. Light startup uses default `nika.runtime_validation.depth: light` inside `nika env run`. Curated cases use published net-env pool scenarios (not test-only fixtures).
+
+Shard locally the same way Actions does:
+
+```shell
+# One image on the host arch
+NIKA_CI_IMAGE=nika/onos uv run pytest tests/ci/test_images.py -q
+
+# One scenario light startup
+NIKA_CI_SCENARIO=dc_clos uv run pytest tests/ci/test_scenario_startup.py -q
+
+# One failure-inject case (PR curated)
+NIKA_CI_FAILURE_CASE=dc_clos-link_down uv run pytest tests/ci/test_failure_inject_smoke.py -q
+
+# Optional ISP nightly subset (default is every ISP variant used by a runnable release)
+NIKA_CI_VERIFY_DEPTH=artifact NIKA_CI_ISP_TOPOS=pdh,abilene,janos-us NIKA_CI_ISP_BGP_MODES=ibgp_rr \
+  uv run pytest tests/nika/net_env/isp/test_isp_integration.py -q
+```
 
 ## Shared support (`tests/support/`)
 
@@ -75,30 +109,72 @@ Run these tiers locally; there is no GitHub Actions workflow for them yet (lab b
 
 ## Agent tests (`tests/agent/`)
 
-Each module contains **unit tests** (no Docker) and, for LLM-backed agents, an **integration pipeline** on a test-only BGP fixture with `link_down`:
+Run agent unit tests to check configuration, authentication mapping, and output parsing without LLM calls. Live agent E2E tests exercise the sandbox workflow on a test-only BGP environment with `link_down`.
 
-| Module | Agent | Unit tests | Pipeline requires |
+| Module | Agent | Unit tests | External requirements |
 |--------|-------|------------|-------------------|
 | `test_agent_config.py` | shared config | agent model/env resolution, judge env | None |
-| `test_codex_cli.py` | `cli.codex` | Codex TOML/display/worker config | Docker + Codex + OpenAI |
-| `test_claude_cli.py` | `cli.claude` | Claude JSON/display/auth helpers | Docker + Claude CLI |
-| `test_langgraph.py` | `byo.langgraph` | None | Docker + `DEEPSEEK_API_KEY` |
-| `test_mcp_agent.py` | `byo.mcp_agent` | None | Docker + `OPENAI_API_KEY` |
-| `test_autogen.py` | `byo.autogen` | None | Docker + `DEEPSEEK_API_KEY` |
-| `test_sade.py` | `community.sade` | SDK env + MCP adapter | Docker + `claude-agent-sdk` + Anthropic creds |
-| `test_claude_sdk.py` | `sdk.claude_sdk` | SDK env + MCP adapter | Docker + `claude-agent-sdk` + Anthropic creds |
-| `test_codex_sdk.py` | `sdk.codex_sdk` | auth/reasoning + MCP TOML | sbx + `openai-codex` + `OPENAI_API_KEY` |
+| `test_codex_cli.py` | `cli.codex` | Codex TOML/display/worker config | None (unit tests) |
+| `test_claude_cli.py` | `cli.claude` | Claude JSON/display/auth helpers | None (unit tests) |
+| `test_langgraph_max_steps.py` | `byo.langgraph` | `max_steps` counts LLM turns | None |
+| `test_mcp_agent_bootstrap.py` | `byo.mcp_agent` | import hygiene regression | None |
+| `test_sade.py` | `community.sade` | SDK env + MCP adapter | None (unit tests) |
+| `test_claude_sdk.py` | `sdk.claude_sdk` | SDK env + MCP adapter | None (unit tests) |
+| `test_codex_sdk.py` | `sdk.codex_sdk` | auth/reasoning + MCP TOML | None (unit tests) |
 | `test_mcp_read_timeout.py` | shared MCP | client read-timeout configuration | None |
 | `test_sbx.py` | sandbox | sbx manager, credentials, proxy | None |
 | `test_sandbox.py` | sandbox | manifest, redaction, SDK context | None |
 | `test_sandbox_security.py` | sandbox | microVM security probe | sbx + Docker |
 | `test_sandbox_isolation.py` | sandbox | distinct gateway ports + cross-sandbox MCP policy isolation | unit; sbx for peer-gateway probe |
-| `test_sandbox_agents.py` | sandbox | five-agent E2E (test BGP fixture / `link_down`) | sbx + Docker; Codex=`OPENAI_API_KEY`+`gpt-5-mini`, Claude/SADE=`DEEPSEEK_API_KEY`+`deepseek-v4-flash` |
+| `test_sandbox_agents.py` | sandbox | five-agent E2E (test BGP fixture / `link_down`) | See [Live agent credentials](#live-agent-credentials) |
 
-Host-side pipeline classes in `test_*_cli.py`, `test_*_sdk.py`, and `test_sade.py` are skipped for live agent E2E; sandbox coverage lives in `test_sandbox_agents.py`.
+### Live agent credentials
+
+Choose the agent tests that match your available credentials. Set API keys and test overrides in the repository-root `.env` or process environment. Missing credentials skip the corresponding tests; you can still run unit tests and mock-agent E2E with no LLM account. Live calls use your provider's API billing or subscription quota. A present credential does not guarantee access to the selected model or available quota.
+
+| Live E2E coverage | Provider and model | Required credentials |
+|-------------------|--------------------|----------------------|
+| Codex CLI/SDK sandbox agents; Codex sandbox benchmark | `openai`, default `gpt-5-mini` | `OPENAI_API_KEY`, or a native `openai` sbx secret containing an API key or ChatGPT OAuth login with Codex access |
+| Claude CLI/SDK and SADE sandbox agents; Claude sandbox benchmark; Kubernetes Claude agent E2E | Default `deepseek` / `deepseek-v4-flash` | `DEEPSEEK_API_KEY`; no Claude subscription required |
+| The same Claude-family tests with the Anthropic override below | `anthropic`, explicit account-accessible Claude model | `ANTHROPIC_API_KEY` (legacy `ANTHROPIC_AUTH_TOKEN` also works), or a native `anthropic` sbx secret containing an API key or Claude subscription login with Claude Code access |
+| BYO LangGraph/MCP Agent/AutoGen pipelines in `test_agent_pipeline_contract.py`; curated release live E2E | Fixed DeepSeek configuration | `DEEPSEEK_API_KEY`; the Claude/Codex overrides below do not apply |
+| Sandbox security and isolation probes | No LLM calls | No LLM key or subscription; authenticated sbx runtime required |
+
+Sandbox tests require a working Docker engine and an authenticated Docker Sandboxes runtime (`sbx login`), plus the templates described in [Agent sandbox prerequisites](../operations/agent-sandbox.md#prerequisites). Docker login is separate from LLM authentication. Install the host agent CLI for CLI tests; install SDK dependencies with `uv sync --extra sdk --extra sade` for SDK and SADE tests. Kubernetes agent E2E also needs privileged Kathara/k3s support; the BYO Containerlab pipeline needs `clab` and `gnmic`.
+
+For **API-key mode**, NIKA syncs the selected provider's key into sbx before creating the sandbox. An API key uses the provider's API account; a ChatGPT or Claude subscription is an alternative authentication path for the corresponding sandbox agents, not an API key for BYO frameworks. See [OpenAI authentication](https://learn.chatgpt.com/docs/auth) and [Docker's Claude authentication](https://docs.docker.com/ai/sandboxes/agents/claude-code/#authentication).
+
+For subscription mode, complete [sbx subscription login](../operations/agent-sandbox.md#subscription--oauth-interactive-once) and confirm a global service entry with `sbx secret ls`. Local CLI login and sandbox-scoped credentials do not cover newly created test sandboxes.
+
+Use these test-only overrides to select a model your account can access. Selecting Anthropic without a model, or an unsupported provider, stops collection with a configuration error:
+
+| Variable | Default | Applies to |
+|----------|---------|------------|
+| `NIKA_TEST_ANTHROPIC_PROVIDER` | `deepseek` | Claude CLI/SDK, SADE, Claude sandbox benchmark, Kubernetes Claude E2E; accepts `deepseek` or `anthropic` |
+| `NIKA_TEST_ANTHROPIC_MODEL` | `deepseek-v4-flash` for DeepSeek; required for Anthropic | The same Claude-family tests |
+| `NIKA_TEST_CODEX_MODEL` | `gpt-5-mini` | Codex CLI/SDK sandbox agents and sandbox benchmark; provider stays `openai` |
+
+For example, with an Anthropic API key or sbx subscription login configured, replace `YOUR_CLAUDE_MODEL` with a model available to that account:
+
+```bash
+NIKA_TEST_ANTHROPIC_PROVIDER=anthropic \
+NIKA_TEST_ANTHROPIC_MODEL=YOUR_CLAUDE_MODEL \
+uv run pytest tests/agent/test_sandbox_agents.py -k 'Claude or Sade' -v
+```
+
+With an OpenAI API key or sbx ChatGPT login configured, replace `YOUR_CODEX_MODEL` with an accessible model:
+
+```bash
+NIKA_TEST_CODEX_MODEL=YOUR_CODEX_MODEL \
+uv run pytest tests/agent/test_sandbox_agents.py -k Codex -v
+```
+
+These tests choose provider/model pairs independently of `config/nika.yaml`. DeepSeek or custom endpoint keys do not satisfy the OpenAI check; Anthropic or custom keys do not satisfy the DeepSeek check. The test overrides support the providers listed above. To exercise a custom endpoint, use the normal [agent workflow](../operations/agent-sandbox.md) with a compatible provider and model.
+
+### Agent test commands
 
 ```shell
-# All agent tests (unit + pipeline; missing credentials skip pipeline only)
+# All agent tests (missing prerequisites skip live tests)
 uv run pytest tests/agent/ -v
 
 # Sandbox unit tests only (no sbx/lab)
@@ -110,17 +186,21 @@ uv run pytest tests/agent/test_sandbox_security.py -v
 # Cross-sandbox isolation (unit + sbx peer-gateway probe)
 uv run pytest tests/agent/test_sandbox_isolation.py -v
 
-# Sandbox E2E (Codex needs OpenAI; Claude/SADE need DeepSeek)
+# Sandbox E2E (credentials and model overrides above).
+# Template images preload when a sandbox agent is configured; manual pull if needed:
+#   docker pull docker/sandbox-templates:codex-docker
+#   docker pull docker/sandbox-templates:claude-code-docker
+#   docker pull docker/sandbox-templates:shell-docker
+# Missing images skip CLI cases.
 uv run pytest tests/agent/test_sandbox_agents.py -v
 ```
-
 ## Benchmark tests (`tests/benchmark/`)
 
-Covers `nika benchmark run` / resume / release orchestration and runner YAML load contracts (`alias`, `migrate`). Offline inject-param generation, ISP option/symptom targeting, healthy-case rules, and task-label contracts live next to their packages (`tests/nika/problems/`, `tests/nika/net_env/isp/`, `tests/nika/workflows/`). Batch mode requires explicit `--config` or `--release` (no bare default suite).
+Covers `nika benchmark run` / resume / release orchestration and runner YAML load contracts (`alias`, `migrate`). Offline inject-param generation, ISP option/symptom targeting, healthy-case rules, and task-label contracts live next to their packages (`tests/nika/problems/`, `tests/nika/net_env/isp/`, `tests/nika/workflows/`). Bare `nika benchmark run` (no `SCENARIO`, `--config`, `--release`, or `benchmark.release`) runs the candidate pool at `benchmark/working/pool`.
 
 | Module | Purpose |
 |--------|---------|
-| `test_release.py` | Deprecated `0.1.0` rejection; freeze/preflight/job metadata on mini releases |
+| `test_release.py` | Freeze/preflight/job metadata on mini releases |
 | `test_trials.py` | Trial / release runs: cases×K trials, resume, agent_failed retain, isolation, `runtime/benchmark_runs` progress; Docker E2E mini-release run |
 | `test_batch.py` | Parallel mock batch under shared `trials/` layout (`--config`, `n_trials=1`) |
 | `test_sandbox_benchmark.py` | Claude + Codex sandbox single/parallel (`--batch-size 2`) |
@@ -147,7 +227,7 @@ uv run pytest tests/benchmark/test_release.py -v -k DockerSmoke   # requires Doc
 uv run pytest tests/benchmark/test_trials.py -v
 uv run pytest tests/benchmark/test_trials.py -v -k ReleaseRunE2E  # requires Docker
 uv run pytest tests/benchmark/test_batch.py -v                 # requires Docker
-uv run pytest tests/benchmark/test_sandbox_benchmark.py -v    # sbx + API key
+uv run pytest tests/benchmark/test_sandbox_benchmark.py -v    # sbx + live agent credentials
 uv run pytest tests/benchmark/test_curated_release_contract.py -v
 # Live curated path (serial; needs Docker + DEEPSEEK_API_KEY; avoid parallel k8s/llmd suites)
 uv run pytest tests/benchmark/test_curated_release_e2e.py -m live -v
@@ -209,13 +289,8 @@ uv run pytest tests/nika/service/pingmesh/test_integration.py::KatharaPingMeshIn
 |--------|---------|---------|
 | `test_failure_inject_contract.py` | Kathara + Containerlab | **Verify-only**: parametrized inject + ground-truth via `verify_fault` |
 | `test_symptom_contracts.py` | none | Symptom contract registry + gray probe unit coverage |
-| `test_sdn_l3_clos_failure_compat.py` | Kathara | TAGS-compatible failures + `evaluate_symptom` |
-| `test_p4_dc_fabric_failure_compat.py` | Kathara | P4 fabric inject/verify samples |
-| `test_p4_dc_gateway_p4runtime_failure_compat.py` | Kathara | Shared P4Runtime failure suite |
-| `test_link_capacity_bottleneck.py` | Kathara | VDE proxy TBF + iperf symptom on `dc_clos` |
-| `test_mtu_mismatch.py` | Kathara | Path MTU / Frag Needed probes on `dc_clos` |
+| `test_scenario_failure_compat.py` | Kathara | Parametrized scenario and failure compatibility sweeps (inject + verify) |
 | `test_pmtu_blackhole_combo.py` | Kathara | MTU + Frag Needed filter black-hole combo |
-| `test_load_balancer_overload.py` | Kathara | VIP overload: verify_fault + `evaluate_symptom` |
 | `test_failure_e2e.py` | Kathara + Containerlab | Parametrized inject, artifact verification, symptom evaluation, and recovery; core cases include sender resource contention |
 | `test_web_dos_attack.py` | Kathara | Web DoS: separate verify-only and symptom suites |
 
@@ -224,7 +299,7 @@ uv run pytest tests/nika/problems/test_symptom_contracts.py -v
 uv run pytest tests/nika/problems/test_failure_inject_contract.py -v
 ```
 
-Artifact `verify_fault` gates `nika failure inject`. Symptom checks use the unified test API `tests.support.symptom.evaluate_symptom` (per-failure contracts + custom handlers). User workflows must not import that package. Gray/statistical failures use heavier probes inside `evaluate_symptom`; `probe="artifact_only"` skips network probes when impact is nondeterministic (BGP ACL).
+Artifact `verify_fault` gates `nika failure inject`. Symptom checks use the unified test API `nika.validation.symptom.evaluate_symptom` (per-failure contracts + custom handlers). User workflows must not import that package. Gray/statistical failures use heavier probes inside `evaluate_symptom`. Every failure declares a probe that measures its effect.
 
 ## Network environment (`tests/nika/net_env/`)
 
@@ -232,9 +307,9 @@ Startup uses fast `startup_verify_lab()`; full healthy baseline checks run in te
 
 | Module | Backend | Purpose |
 | --- | --- | --- |
-| `test_kathara_verify.py` | FakeRuntime + Kathara | Unit tests for startup/full verify; integration deploy + `evaluate_scenario` |
-| `test_scenario_e2e.py` | Kathara, Containerlab, k8s | Parametrized Docker E2E for all registered scenarios |
-| `test_clab_min3clos_verify.py` | Containerlab | min3clos deploy + full verify |
+| `test_kathara_verify.py` | FakeRuntime + Kathara | Unit tests for startup/full verify; test-only `simple_bgp` deploy and full verify |
+| `test_scenario_e2e.py` | Kathara, Containerlab, k8s | Parametrized Docker E2E for representative scenarios |
+| `test_clab_min3clos_verify.py` | Containerlab | min3clos backend, node inventory, and cross-leaf ping |
 | `isp/test_isp_integration.py` | Kathara + Containerlab | ISP matrix; includes full `verify_lab` |
 
 ```shell

@@ -34,6 +34,7 @@ def write_healthy_session_artifacts(session_id: str) -> None:
     from nika.problems.rca import healthy_ground_truth
     from nika.problems.rca.inventory import load_offline_net_env
     from nika.utils.session import Session
+    from nika.workflows.benchmark.isp_options import ISP_DEPLOY_KEYS
 
     session = Session().load_running_session(session_id=session_id)
     params = dict(getattr(session, "scenario_params", None) or {})
@@ -41,7 +42,7 @@ def write_healthy_session_artifacts(session_id: str) -> None:
         getattr(session, "scenario_topo_size", None) or params.get("topo_size") or ""
     )
     isp_kwargs: dict[str, Any] = {}
-    for key in ("topo", "igp", "bgp_mode", "rpki", "backend", "device_profile"):
+    for key in ISP_DEPLOY_KEYS:
         if key in params and params[key] is not None:
             isp_kwargs[key] = params[key]
     net_env = load_offline_net_env(
@@ -51,4 +52,4 @@ def write_healthy_session_artifacts(session_id: str) -> None:
     )
     session.write_gt(healthy_ground_truth().model_dump(mode="json", exclude_none=True))
     session.update_session("task_description", healthy_task_description(net_env))
-    session.update_session("problem_names", [])
+    session.update_session("problem_names", [HEALTHY_PROBLEM])

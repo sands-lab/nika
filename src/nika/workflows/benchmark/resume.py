@@ -13,6 +13,7 @@ from nika.utils.session_index import SessionIndex
 from nika.workflows.session.close import close_session
 
 
+from nika.workflows.benchmark.isp_options import ISP_DEPLOY_KEYS
 from nika.workflows.benchmark.multi_fault import row_problems
 
 
@@ -40,12 +41,10 @@ def benchmark_row_identity(row: dict[str, Any]) -> dict[str, Any]:
         "problem": row["problem"],
         "problems": row_problems(row),
         "topo_size": row.get("topo_size") or "",
-        "topo": row.get("topo") or "",
-        "igp": row.get("igp") or "",
-        "bgp_mode": row.get("bgp_mode") or "",
-        "rpki": bool(row.get("rpki", False)),
-        "backend": row.get("backend") or "",
-        "device_profile": row.get("device_profile") or "",
+        **{
+            key: bool(row.get(key, False)) if key == "rpki" else row.get(key) or ""
+            for key in ISP_DEPLOY_KEYS
+        },
         "inject": _fingerprint_inject(row),
     }
 
@@ -66,11 +65,7 @@ def benchmark_option_id(row: dict[str, Any]) -> str:
         ("scenario", row["scenario"]),
         ("topo_size", row.get("topo_size") or ""),
     ]
-    identity.extend(
-        (key, row[key])
-        for key in ("topo", "igp", "bgp_mode", "rpki", "backend", "device_profile")
-        if key in row
-    )
+    identity.extend((key, row[key]) for key in ISP_DEPLOY_KEYS if key in row)
     identity.append(("problem", row["problem"]))
     identity.extend(
         (f"inject.{key}", value)
@@ -127,7 +122,11 @@ def cleanup_benchmark_session(
     session_id: str | None,
     session_dir: str | Path | None,
 ) -> None:
-    """Remove a partial or failed benchmark session and any runtime state."""
+    """Remove a partial or failed benchmark session and any runtime state.
+
+    Best effort: resume scans and retry passes call this for every stale slot,
+    so a single undeploy or filesystem error must not abort the whole run.
+    """
     if session_id:
         try:
             close_session(
@@ -137,12 +136,26 @@ def cleanup_benchmark_session(
             )
         except (FileNotFoundError, ValueError):
             pass
-        SessionIndex().purge(session_id)
-        runtime_path = Path(SESSIONS_DIR) / f"{session_id}.json"
-        if runtime_path.exists():
-            runtime_path.unlink()
+        except Exception as close_error:  # noqa: BLE001 - keep the run going
+            print(
+                f"WARNING: could not undeploy stale session {session_id}; "
+                f"its lab may be leaked: {close_error}"
+            )
+        try:
+            SessionIndex().purge(session_id)
+            runtime_path = Path(SESSIONS_DIR) / f"{session_id}.json"
+            if runtime_path.exists():
+                runtime_path.unlink()
+        except Exception as purge_error:  # noqa: BLE001 - keep the run going
+            print(
+                f"WARNING: could not purge runtime state for session "
+                f"{session_id}: {purge_error}"
+            )
 
     if session_dir:
         path = Path(session_dir)
         if path.exists():
-            shutil.rmtree(path)
+            try:
+                shutil.rmtree(path)
+            except OSError as rmtree_error:
+                print(f"WARNING: could not remove trial slot {path}: {rmtree_error}")

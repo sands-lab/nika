@@ -4,23 +4,29 @@ from __future__ import annotations
 
 import json
 import textwrap
-import time
 from pathlib import Path
 from typing import Literal
 
 from Kathara.manager.Kathara import Kathara
 from Kathara.model.Lab import Lab
 
-from nika.net_env.base import NetworkEnvBase
+from nika.net_env.base import NetworkEnvBase, ProbePath
+from nika.runtime.base import LabRuntime
 from nika.net_env.p4_dc_fabric.lab import _switch_startup
 from nika.net_env.p4_dc_gateway.topology_model import (
     BASE_IMAGE,
     COLLECTOR_IMAGE,
     COLLECTOR_TELEMETRY_IP,
     CONTROLLER_IMAGE,
+    CONNECTION_LEARNING_DELAY_MS,
     CONTROLLER_OOB_IP,
+    LB_AGENT,
+    LB_AGENT_CONFIG,
+    LB_AGENT_STATUS,
     NGINX_IMAGE,
     SWITCH_IMAGE,
+    VIP_IP,
+    VIP_PORT,
     VIRTUAL_ROUTER_MAC,
     GatewayFabricModel,
     TopoSize,
@@ -36,23 +42,6 @@ _MANAGER = Path(__file__).resolve().parents[1] / "utils" / "kathara" / "p4rt_man
 class P4DcGateway(NetworkEnvBase):
     LAB_NAME = "p4_dc_gateway"
     TOPO_LEVEL = "medium"
-    TOPO_SIZE = ["s", "m", "l"]
-    TAGS = [
-        "link",
-        "pc",
-        "p4",
-        "p4_runtime",
-        "mac",
-        "arp",
-        "icmp",
-        "http",
-        "int",
-        "telemetry",
-        "flow_tracking",
-        "ecn",
-        "queue",
-        "l4_load_balancer",
-    ]
     VERIFY_MAX_WAIT_SEC = 600
 
     def __init__(self, topo_size: Literal["s", "m", "l"] = "s", **kwargs):
@@ -155,6 +144,16 @@ class P4DcGateway(NetworkEnvBase):
                 f"--ports '{json.dumps(port_map)}' "
                 ">/tmp/hop-exporter.log 2>&1 &"
             )
+            if info.role == "gateway":
+                machine.create_file_from_path(str(_PKG / "lb_agent.py"), "lb_agent.py")
+                cmds.append(
+                    f"python3 {LB_AGENT} serve --device-id {info.device_id} "
+                    f"--vip {VIP_IP} --vip-port {VIP_PORT} "
+                    f"--learning-delay-ms {CONNECTION_LEARNING_DELAY_MS} "
+                    f"--config {LB_AGENT_CONFIG} --status {LB_AGENT_STATUS} "
+                    f"--ports '{json.dumps(sorted(port_map))}' "
+                    ">/tmp/lb-agent.log 2>&1 &"
+                )
             self.lab.create_file_from_list(cmds, f"{name}.startup")
 
         for item in self.model.endpoints:
@@ -209,6 +208,33 @@ class P4DcGateway(NetworkEnvBase):
         from .apply import reconcile_gateway
 
         reconcile_gateway(self._build_runtime(), self.model)
+
+    def target_roles(self) -> dict[str, list[str]]:
+        roles = super().target_roles()
+        clients = [h for h in roles["hosts"] if "client" in h] or roles["hosts"]
+        return {
+            **roles,
+            "hosts": clients,
+            "host1_pool": clients,
+            "attacker_pool": clients,
+            "web": roles["web"] or clients,
+            "l2_endpoints": sorted(clients, key=lambda h: h != "client_1"),
+        }
+
+    @classmethod
+    def default_probe_path(cls, *, topo_size: str = "s", **deploy_kwargs) -> ProbePath:
+        model = build_gateway_fabric_model(
+            topo_size if topo_size in {"s", "m", "l"} else "s"
+        )
+        return ProbePath(
+            src_host=model.clients[0].name,
+            dst_ip=VIP_IP,
+            http_url=f"http://{VIP_IP}/",
+            control_plane_host=model.clients[0].attached_switch,
+            peer_host=model.clients[1].name,
+            # The VIP answers TCP only; its first backend answers ICMP.
+            icmp_ip=model.backend_pool[0].ip,
+        )
 
     def startup_verify_lab(self) -> dict:
         from .verify import verify_p4_dc_gateway_lab_startup

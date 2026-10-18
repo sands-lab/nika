@@ -32,8 +32,30 @@ def load_test_env() -> None:
     """Load ``.env`` from the repository root (idempotent)."""
     from dotenv import load_dotenv
 
-    repo_root = Path(__file__).resolve().parents[1]
+    repo_root = Path(__file__).resolve().parents[2]
     load_dotenv(repo_root / ".env")
+
+
+def live_anthropic_test_config() -> tuple[str, str]:
+    """Select one provider/model pair for Claude CLI, SDK, and SADE E2E."""
+    provider = (
+        os.environ.get("NIKA_TEST_ANTHROPIC_PROVIDER", "deepseek").strip().lower()
+    )
+    if provider not in {"deepseek", "anthropic"}:
+        raise ValueError("NIKA_TEST_ANTHROPIC_PROVIDER must be deepseek or anthropic")
+    model = os.environ.get("NIKA_TEST_ANTHROPIC_MODEL", "").strip()
+    if not model:
+        if provider == "anthropic":
+            raise ValueError(
+                "Set NIKA_TEST_ANTHROPIC_MODEL to a Claude model available to your account"
+            )
+        model = "deepseek-v4-flash"
+    return provider, model
+
+
+def live_codex_test_model() -> str:
+    """Keep Codex E2E on OpenAI, with an account-specific model override."""
+    return os.environ.get("NIKA_TEST_CODEX_MODEL", "").strip() or "gpt-5-mini"
 
 
 def openai_api_key_available() -> bool:
@@ -58,7 +80,7 @@ def claude_cli_available() -> bool:
 
 
 def deepseek_api_key_available() -> bool:
-    return bool(os.environ.get("DEEPSEEK_API_KEY"))
+    return bool(os.environ.get("DEEPSEEK_API_KEY", "").strip())
 
 
 def anthropic_api_key_available() -> bool:

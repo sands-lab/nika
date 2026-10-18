@@ -18,6 +18,8 @@ from tests.support.api_smoke import ApiSmokeMixin, assert_json_payload
 from tests.support.prerequisites import min3clos_prerequisites
 from tests.support.integration_base import SharedSessionTestCase
 
+pytestmark = pytest.mark.integration
+
 CLIENT_INTF = "eth1"
 LEAF_INTF = "e1-1"
 
@@ -111,10 +113,13 @@ class ContainerlabApiSmokeTest(SharedSessionTestCase, ApiSmokeMixin):
             lambda: runtime.tc_show_intf(CLIENT1, CLIENT_INTF),
             min_len=1,
         )
+        # A clean host carries no firewall rules, and the containerlab client
+        # image ships no nft binary; the read alias then returns an empty
+        # ruleset. Assert it returns a string rather than assuming rules exist.
         self.smoke(
             "runtime.list_nft_ruleset",
             lambda: runtime.list_nft_ruleset(CLIENT1),
-            min_len=1,
+            expect_type=str,
         )
         peers = self.smoke(
             "runtime.get_connected_devices",
@@ -252,13 +257,15 @@ class ContainerlabApiSmokeTest(SharedSessionTestCase, ApiSmokeMixin):
         self.smoke(
             "ContainerlabSRLAPI.srl_exec_cli(ip-route)",
             lambda: api.srl_exec_cli(
-                LEAF1, "show network-instance default route-table ipv4"
+                LEAF1, "show network-instance default route-table ipv4-unicast summary"
             ),
             min_len=1,
         )
         self.smoke(
             "ContainerlabSRLAPI.srl_bgp_acl_drop_179_present",
-            lambda: api.srl_bgp_acl_drop_179_present(LEAF1),
+            lambda: api.srl_bgp_acl_drop_179_present(
+                LEAF1, api.srl_bgp_acl_drop_179_entries(LEAF1)
+            ),
             expect_type=bool,
         )
         assert (

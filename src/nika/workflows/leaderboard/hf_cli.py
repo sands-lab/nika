@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -21,31 +20,43 @@ class HfPullRequestResult:
     commit_oid: str | None = None
 
 
-def resolve_hf_token() -> str | None:
-    """Return a Hub write token from ``HF_TOKEN``."""
-    value = os.environ.get("HF_TOKEN", "").strip()
-    return value or None
-
-
 def ensure_hf_token() -> str:
-    token = resolve_hf_token()
+    """Resolve Hub credentials from the environment or saved ``hf auth login``."""
+    try:
+        from huggingface_hub import get_token
+    except ImportError as exc:
+        raise HuggingFaceCliError(
+            "huggingface_hub is required (install via `uv sync`)."
+        ) from exc
+    token = get_token()
     if not token:
         raise HuggingFaceCliError(
-            "No Hugging Face token found. Set HF_TOKEN in the environment / "
-            "repo-root .env (write access to the trajectories dataset required)."
+            "No Hugging Face token found. Run `hf auth login` or set HF_TOKEN "
+            "in the environment / repo-root .env."
         )
     return token
 
 
-def _api(token: str | None = None) -> Any:
+def _api() -> Any:
     try:
         from huggingface_hub import HfApi
     except ImportError as exc:
         raise HuggingFaceCliError(
-            "huggingface_hub is required for trajectory submit "
-            "(install via `uv sync`)."
+            "huggingface_hub is required for trajectory submit (install via `uv sync`)."
         ) from exc
-    return HfApi(token=token or ensure_hf_token())
+    return HfApi(token=ensure_hf_token())
+
+
+def ensure_hf_auth(repo_id: str) -> None:
+    """Check the token and dataset access before creating either remote PR."""
+    api = _api()
+    try:
+        api.whoami()
+        api.repo_info(repo_id=repo_id, repo_type="dataset")
+    except Exception as exc:  # noqa: BLE001 — Hub raises many types
+        raise HuggingFaceCliError(
+            f"HF authentication/dataset check failed: {exc}"
+        ) from exc
 
 
 def upload_folder_create_pr(
@@ -74,11 +85,23 @@ def upload_folder_create_pr(
 
     pr_url = getattr(info, "pr_url", None) or ""
     pr_num = getattr(info, "pr_num", None)
+    if pr_num is not None:
+        # Hub PRs created through the API start as drafts; open it for review.
+        try:
+            api.change_discussion_status(
+                repo_id=repo_id,
+                discussion_num=int(pr_num),
+                new_status="open",
+                repo_type=repo_type,
+            )
+        except Exception as exc:  # noqa: BLE001 — Hub raises many types
+            raise HuggingFaceCliError(
+                f"HF PR {pr_url or pr_num} was created but is still a draft; "
+                f"open it for review on the Hub ({exc})"
+            ) from exc
     oid = getattr(info, "oid", None) or getattr(info, "commit_oid", None)
     if not pr_url and pr_num is not None:
-        pr_url = (
-            f"https://huggingface.co/datasets/{repo_id}/discussions/{pr_num}"
-        )
+        pr_url = f"https://huggingface.co/datasets/{repo_id}/discussions/{pr_num}"
     if not pr_url:
         raise HuggingFaceCliError(
             "HF upload succeeded but no PR URL was returned "

@@ -43,6 +43,8 @@ TRAJECTORY_FORBIDDEN_NAME_FRAGMENTS = (
 
 PRIMARY_METRIC = "rca_f1"
 
+ScoreStatus = Literal["scored", "no_submission", "infra_error", "grading_error"]
+
 SCORE_METRIC_KEYS = (
     "detection_score",
     "localization_accuracy",
@@ -165,6 +167,7 @@ class TrialResult(BaseModel):
     scenario: str
     problem: str
     outcome: Literal["success", "agent_failed"]
+    score_status: ScoreStatus
     metrics: dict[str, float | int | None] = Field(default_factory=dict)
     gt_fault_types: list[str] = Field(default_factory=list)
     predicted_fault_types: list[str] | None = None
@@ -222,5 +225,13 @@ class AggregatedMetrics(BaseModel):
     n_trials_present: int
     n_success: int
     n_agent_failed: int
+    status_counts: dict[str, int] = Field(default_factory=dict)
+    submission_rate: float = 0.0
+    conditional_mean_rca_f1: float | None = None
+    conditional_mean_localization_f1: float | None = None
+    conditional_mean_detection_score: float | None = None
+    fault_mean_rca_f1: float = 0.0
+    fault_mean_localization_f1: float = 0.0
+    healthy_mean_detection_score: float = 0.0
     token_totals: dict[str, int] = Field(default_factory=dict)
     steps_totals: dict[str, int] = Field(default_factory=dict)

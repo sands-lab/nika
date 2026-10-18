@@ -2,24 +2,29 @@
 
 from __future__ import annotations
 
-import json
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
 from agent.sandbox.sbx.auth import apply_codex_auth
-from agent.cli.codex.codex_display import format_codex_event
-from agent.cli.codex.codex_worker import _build_mcp_toml, prepare_codex_subprocess_env
+from agent.cli.codex.codex_worker import (
+    _build_mcp_toml,
+    _codex_model_provider_id,
+    _codex_provider_base_url,
+    prepare_codex_subprocess_env,
+)
 from agent.sdk.codex_sdk.config import validate_reasoning_effort
 from agent.utils.loggers import (
     MessageLogger,
     PendingToolCallTracker,
+    render_prompt,
     tool_event_payload,
 )
-from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
-from agent.protocols import PHASES, SUBMISSION
+from agent.utils.mcp_client import load_session_mcp_config
+from agent.protocols import PHASES
 from agent.utils.skills import prepare_codex_workspace
+from agent.utils.two_phase import max_steps_report
 from agent.utils.usage import normalize_usage
 
 
@@ -57,6 +62,7 @@ class CodexSdkWorker:
         model: str = "gpt-5.4-mini",
         reasoning_effort: str | None = None,
         scenario_name: str = "",
+        max_steps: int = 20,
         *,
         llm_provider: str,
         system_prompt: str,
@@ -72,6 +78,7 @@ class CodexSdkWorker:
         self.llm_provider = llm_provider
         self.reasoning_effort = validate_reasoning_effort(reasoning_effort)
         self.scenario_name = scenario_name
+        self.max_steps = max_steps
         self.system_prompt = system_prompt
         self._stream_output = stream_output
         self.workspace = Path(session_dir) / "codex_sdk_workspace"
@@ -95,11 +102,8 @@ class CodexSdkWorker:
 
         prepare_codex_workspace(self.workspace)
 
-        if self.phase == SUBMISSION:
-            begin_submission_mcp_phase(self.session_id)
         servers = load_session_mcp_config(
-            self.session_id,
-            self.scenario_name,
+            self.session_id, self.scenario_name, phase=self.phase
         )
 
         self._logger.log(
@@ -107,19 +111,25 @@ class CodexSdkWorker:
             {"phase": self.phase, "servers": list(servers.keys())},
         )
         config_path = self._codex_home / "config.toml"
-        config_path.write_text(_build_mcp_toml(servers), encoding="utf-8")
+        config_path.write_text(
+            _build_mcp_toml(servers, provider=self.llm_provider),
+            encoding="utf-8",
+        )
 
     def _log_codex_event(self, event: dict[str, Any]) -> None:
         event_type = event.get("type", "codex_event")
         self._logger.log(event_type, {"codex_event": event})
-        if self._stream_output:
-            display = format_codex_event(event)
-            if display:
-                print(display, flush=True)
 
-    async def _collect_turn_with_logging(self, stream: Any, *, turn_id: str) -> Any:
+    async def _collect_turn_with_logging(self, turn: Any, stream: Any) -> str:
+        """Log the turn and return its final text under the shared step contract.
+
+        Codex sends ``thread/tokenUsage/updated`` after every model response,
+        so each change of ``total`` is one LLM turn: it becomes one ``llm_end``
+        carrying the ``total`` delta. After ``max_steps`` responses, the next
+        item that starts belongs to a response past the budget, and the turn is
+        interrupted.
+        """
         from openai_codex._run import (
-            TurnResult,
             _final_assistant_response_from_items,
             _raise_for_failed_turn,
         )
@@ -128,14 +138,22 @@ class CodexSdkWorker:
             ItemCompletedNotification,
             ItemStartedNotification,
             McpToolCallThreadItem,
+            ReasoningThreadItem,
             ThreadTokenUsageUpdatedNotification,
             TurnCompletedNotification,
         )
 
+        turn_id = turn.id
         completed = None
         items = []
-        usage = None
-        agent_text: list[str] = []
+        responses = 0
+        interrupted = False
+        last_total: dict[str, int] = {}
+        pending_text: list[str] = []
+        pending_reasoning: list[str] = []
+        last_text = ""
+        # ``run`` logged the first response's llm_start with the prompt.
+        awaiting_start = False
 
         async for event in stream:
             payload = event.payload
@@ -143,6 +161,13 @@ class CodexSdkWorker:
                 isinstance(payload, ItemStartedNotification)
                 and payload.turn_id == turn_id
             ):
+                if responses >= self.max_steps and not interrupted:
+                    interrupted = True
+                    await turn.interrupt()
+                    continue
+                if awaiting_start:
+                    awaiting_start = False
+                    self._logger.log("llm_start", {"model": {"name": self.model}})
                 item = _unwrap_thread_item(payload.item)
                 if isinstance(item, McpToolCallThreadItem):
                     item_id = getattr(item, "id", None)
@@ -154,17 +179,6 @@ class CodexSdkWorker:
                             tool_call_id=item_id,
                         ),
                     )
-                    self._log_codex_event(
-                        {
-                            "type": "item.started",
-                            "item": {
-                                "type": "mcp_tool_call",
-                                "server": item.server,
-                                "tool": item.tool,
-                                "arguments": item.arguments,
-                            },
-                        }
-                    )
             elif (
                 isinstance(payload, ItemCompletedNotification)
                 and payload.turn_id == turn_id
@@ -172,59 +186,38 @@ class CodexSdkWorker:
                 item = _unwrap_thread_item(payload.item)
                 items.append(payload.item)
                 if isinstance(item, McpToolCallThreadItem):
-                    output = _mcp_result_text(item.result)
-                    item_id = getattr(item, "id", None)
-                    resolved = self._pending_tool_calls.resolve(
-                        name=item.tool,
-                        tool_call_id=item_id,
-                        input=item.arguments,
-                    )
-                    correlation = tool_event_payload(
-                        name=item.tool or resolved.get("name") or None,
-                        input=resolved.get("input") or item.arguments,
-                        tool_call_id=item_id,
-                    )
-                    if item.error is not None:
-                        self._logger.log(
-                            "tool_error",
-                            {**correlation, "output": str(item.error)},
-                        )
-                    else:
-                        self._logger.log(
-                            "tool_end",
-                            {
-                                **correlation,
-                                "output": output,
-                                "output_type": "tool_result",
-                            },
-                        )
-                    self._log_codex_event(
-                        {
-                            "type": "item.completed",
-                            "item": {
-                                "type": "mcp_tool_call",
-                                "server": item.server,
-                                "tool": item.tool,
-                                "status": getattr(
-                                    item.status, "value", str(item.status)
-                                ),
-                                "result": output,
-                            },
-                        }
-                    )
+                    self._log_mcp_tool_completed(item)
                 elif isinstance(item, AgentMessageThreadItem) and item.text:
-                    agent_text.append(item.text)
+                    pending_text.append(item.text)
+                    last_text = item.text
                     self._log_codex_event(
                         {
                             "type": "item.completed",
                             "item": {"type": "agent_message", "text": item.text},
                         }
                     )
+                elif isinstance(item, ReasoningThreadItem):
+                    pending_reasoning.extend(item.summary or [])
             elif (
                 isinstance(payload, ThreadTokenUsageUpdatedNotification)
                 and payload.turn_id == turn_id
             ):
-                usage = payload.token_usage
+                total = normalize_usage(payload.token_usage.total)
+                if total == last_total:
+                    continue
+                delta = {k: v - last_total.get(k, 0) for k, v in total.items()}
+                last_total = total
+                responses += 1
+                llm_end: dict[str, Any] = {
+                    "text": "\n".join(pending_text),
+                    "usage_metadata": delta,
+                }
+                if pending_reasoning:
+                    llm_end["reasoning_content"] = "\n\n".join(pending_reasoning)
+                self._logger.log("llm_end", llm_end)
+                pending_text = []
+                pending_reasoning = []
+                awaiting_start = True
             elif (
                 isinstance(payload, TurnCompletedNotification)
                 and payload.turn.id == turn_id
@@ -233,29 +226,33 @@ class CodexSdkWorker:
 
         if completed is None:
             raise RuntimeError("turn completed event not received")
-
-        _raise_for_failed_turn(completed.turn)
-        turn = completed.turn
-        final_response = _final_assistant_response_from_items(items) or "\n".join(
-            agent_text
-        )
-        if final_response:
-            usage_md = normalize_usage(usage) if usage is not None else {}
-            self._logger.log(
-                "llm_end", {"text": final_response, "usage_metadata": usage_md}
+        if interrupted:
+            return max_steps_report(
+                self._logger, max_steps=self.max_steps, latest_text=last_text
             )
+        _raise_for_failed_turn(completed.turn)
+        return _final_assistant_response_from_items(items) or last_text
 
-        return TurnResult(
-            id=turn.id,
-            status=turn.status,
-            error=turn.error,
-            started_at=turn.started_at,
-            completed_at=turn.completed_at,
-            duration_ms=turn.duration_ms,
-            final_response=final_response,
-            items=items,
-            usage=usage,
+    def _log_mcp_tool_completed(self, item: Any) -> None:
+        output = _mcp_result_text(item.result)
+        item_id = getattr(item, "id", None)
+        resolved = self._pending_tool_calls.resolve(
+            name=item.tool,
+            tool_call_id=item_id,
+            input=item.arguments,
         )
+        correlation = tool_event_payload(
+            name=item.tool or resolved.get("name") or None,
+            input=resolved.get("input") or item.arguments,
+            tool_call_id=item_id,
+        )
+        if item.error is not None:
+            self._logger.log("tool_error", {**correlation, "output": str(item.error)})
+        else:
+            self._logger.log(
+                "tool_end",
+                {**correlation, "output": output, "output_type": "tool_result"},
+            )
 
     async def run(self, prompt: str) -> str:
         try:
@@ -268,6 +265,14 @@ class CodexSdkWorker:
         self._setup_workspace()
 
         self._logger.log(
+            "prompt",
+            {
+                "text": render_prompt(
+                    [("developer", self.system_prompt), ("human", prompt)]
+                )
+            },
+        )
+        self._logger.log(
             "llm_start",
             {
                 "messages": {"role": "user", "content": prompt[:500]},
@@ -276,6 +281,9 @@ class CodexSdkWorker:
         )
 
         thread_config: dict[str, str] = {}
+        provider_id = _codex_model_provider_id(self.llm_provider)
+        if provider_id and _codex_provider_base_url(self.llm_provider):
+            thread_config["model_provider"] = provider_id
         if self.reasoning_effort is not None:
             thread_config["model_reasoning_effort"] = self.reasoning_effort
 
@@ -301,19 +309,10 @@ class CodexSdkWorker:
                 turn = await thread.turn(prompt)
                 stream = turn.stream()
                 try:
-                    result = await self._collect_turn_with_logging(
-                        stream, turn_id=turn.id
-                    )
+                    return await self._collect_turn_with_logging(turn, stream)
                 finally:
                     await stream.aclose()
         except Exception as exc:
-            self._logger.log("agent_error", {"phase": self.phase, "error": str(exc)})
             if self._stream_output:
                 print(f"ERROR: {exc}", file=sys.stderr, flush=True)
             return f"ERROR: {exc}"
-
-        final = result.final_response or ""
-        self._logger.log(
-            "agent_done", {"phase": self.phase, "report_length": len(final)}
-        )
-        return final

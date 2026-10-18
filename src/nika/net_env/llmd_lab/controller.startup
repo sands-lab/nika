@@ -1,78 +1,33 @@
+. /nika-bootstrap.sh
+
 ip address add 200.0.0.1/24 dev eth0
-
-# Wait for a default route (bridged iface may still be attaching).
-for _ in $(seq 1 60); do
-  ip route show default 2>/dev/null | grep -q . && break
-  sleep 1
-done
-
-# Signal the container entrypoint to exec k3s as PID1 (see issue #38).
+nika_wait "default route" 60 sh -c 'ip route show default | grep -q .'
 mkdir -p /var/run
 touch /var/run/nika-net-ready
+nika_wait "k3s API" 600 kubectl --request-timeout=5s get --raw=/readyz
+nika_wait "host image preload" 900 test -f /var/run/nika-images-preloaded
 
-kubectl api-versions &> /dev/null
-while [[ $? != 0 ]]; do sleep 1; kubectl api-versions &> /dev/null; done
-
-# Wait for the host-side preload orchestrator to finish all k3s nodes.
-for _ in $(seq 1 900); do
-  [ -f /var/run/nika-images-preloaded ] && break
-  sleep 1
-done
-
-# Helm is staged onto the controller by lab.py (k3s busybox wget has no HTTPS).
-chmod +x /usr/local/bin/helm 2>/dev/null || true
-if [ ! -x /usr/local/bin/helm ]; then
-  echo "helm binary missing at /usr/local/bin/helm" >&2
-  exit 1
-fi
-
-kubectl apply -f /k8s/metallb.yaml
-
-kubectl wait -n metallb-system --for condition=ready pod --selector component=controller --timeout 24h &> /dev/null
-while [[ $? != 0 ]]; do sleep 1; kubectl wait -n metallb-system --for condition=ready pod --selector component=controller --timeout 24h &> /dev/null; done
-
-kubectl apply -f /k8s/metallb-l2.yaml
-
-kubectl apply -f /k8s/gateway-api-base.yaml
-kubectl apply -f /k8s/gateway-api-inference.yaml
+chmod +x /usr/local/bin/helm
+nika_run "apply MetalLB" kubectl --request-timeout=30s apply -f /k8s/metallb.yaml
+nika_ready "MetalLB controller" -n metallb-system --selector component=controller
+nika_ready "MetalLB speakers" -n metallb-system --selector component=speaker
+nika_run "apply MetalLB addresses" kubectl --request-timeout=30s apply -f /k8s/metallb-l2.yaml
+nika_run "apply Gateway API" kubectl --request-timeout=30s apply -f /k8s/gateway-api-base.yaml
+nika_run "apply Inference API" kubectl --request-timeout=30s apply -f /k8s/gateway-api-inference.yaml
 
 AGENTGATEWAY_VERSION=v1.1.0
+nika_run "install AgentGateway CRDs" helm upgrade --install agentgateway-crds \
+  "/helm-charts/agentgateway-crds-${AGENTGATEWAY_VERSION}.tgz" \
+  --namespace agentgateway-system --create-namespace --timeout 120s
+nika_run "install AgentGateway" helm upgrade --install agentgateway \
+  "/helm-charts/agentgateway-${AGENTGATEWAY_VERSION}.tgz" \
+  --namespace agentgateway-system --create-namespace --timeout 120s \
+  --values /helm-charts/values.yaml
+nika_ready "AgentGateway controller" -n agentgateway-system --all
 
-if [ -f "/helm-charts/agentgateway-crds-${AGENTGATEWAY_VERSION}.tgz" ]; then
-  helm upgrade --install agentgateway-crds \
-    "/helm-charts/agentgateway-crds-${AGENTGATEWAY_VERSION}.tgz" \
-    --namespace agentgateway-system \
-    --create-namespace \
-    --version ${AGENTGATEWAY_VERSION}
-else
-  helm upgrade --install agentgateway-crds \
-    oci://cr.agentgateway.dev/charts/agentgateway-crds \
-    --namespace agentgateway-system \
-    --create-namespace \
-    --version ${AGENTGATEWAY_VERSION}
-fi
-
-if [ -f "/helm-charts/agentgateway-${AGENTGATEWAY_VERSION}.tgz" ]; then
-  helm upgrade --install agentgateway \
-    "/helm-charts/agentgateway-${AGENTGATEWAY_VERSION}.tgz" \
-    --namespace agentgateway-system \
-    --create-namespace \
-    --version ${AGENTGATEWAY_VERSION} \
-    --set inferenceExtension.enabled=true
-else
-  helm upgrade --install agentgateway \
-    oci://cr.agentgateway.dev/charts/agentgateway \
-    --namespace agentgateway-system \
-    --create-namespace \
-    --version ${AGENTGATEWAY_VERSION} \
-    --set inferenceExtension.enabled=true
-fi
-
-kubectl wait -n agentgateway-system --for=condition=ready pod --all --timeout 24h
-
-for f in $(ls /k8s/pd-*.yaml | sort); do
-  kubectl apply -f "$f"
+for f in /k8s/pd-*.yaml; do
+  nika_run "apply $f" kubectl --request-timeout=30s apply -f "$f"
 done
-
-kubectl wait -n llm-d --for=condition=ready pod -l app=llm-d-epp --timeout 24h
-kubectl wait -n llm-d --for=condition=ready pod -l app=llm-d-pd --timeout 24h
+nika_ready "endpoint picker" -n llm-d -l app=llm-d-epp
+nika_ready "inference workloads" -n llm-d -l app=llm-d-pd
+touch /var/run/nika-startup-complete

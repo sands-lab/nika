@@ -7,7 +7,6 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from nika.runtime.base import LabRuntime
 
-ORIGINAL_NANO_CPUS_PATH = "/tmp/nika_cpu_quota_original"
 NANOCPUS_PER_CPU = 1_000_000_000
 DEFAULT_CPU_PERIOD_US = 100_000
 
@@ -45,6 +44,17 @@ def read_nano_cpus(runtime: "LabRuntime", host: str) -> int:
     if period > 0 and quota > 0:
         return int(round(quota / period * NANOCPUS_PER_CPU))
     return 0
+
+
+def container_commands(runtime: "LabRuntime", host: str) -> list[str]:
+    """Return the container's process command lines as seen from the host.
+
+    ``docker top`` needs no CPU inside the container, so it stays reliable
+    while a tight quota starves ``docker exec`` there.
+    """
+    top = runtime.get_container(host).top()
+    column = top["Titles"].index("CMD")
+    return [row[column] for row in top.get("Processes") or []]
 
 
 def _update_container_resources(container: Any, data: dict[str, Any]) -> None:
@@ -94,31 +104,3 @@ def set_nano_cpus(runtime: "LabRuntime", host: str, nano_cpus: int) -> None:
 
     period, quota = nano_cpus_to_cfs(nano_cpus)
     container.update(cpu_period=period, cpu_quota=quota)
-
-
-def persist_original_nano_cpus(
-    runtime: "LabRuntime", host: str, nano_cpus: int
-) -> None:
-    runtime.write_file(host, ORIGINAL_NANO_CPUS_PATH, f"{int(nano_cpus)}\n")
-
-
-def load_original_nano_cpus(runtime: "LabRuntime", host: str) -> int | None:
-    raw = runtime.exec(
-        host,
-        f"cat {ORIGINAL_NANO_CPUS_PATH} 2>/dev/null || true",
-        timeout=10,
-    ).strip()
-    if not raw:
-        return None
-    try:
-        return int(raw.splitlines()[0].strip())
-    except ValueError:
-        return None
-
-
-def clear_original_nano_cpus(runtime: "LabRuntime", host: str) -> None:
-    runtime.exec(
-        host,
-        f"rm -f {ORIGINAL_NANO_CPUS_PATH} 2>/dev/null || true",
-        timeout=5,
-    )

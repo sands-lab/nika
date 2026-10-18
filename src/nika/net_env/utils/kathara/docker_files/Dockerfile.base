@@ -1,4 +1,4 @@
-FROM kathara/base:latest
+FROM kathara/base:latest@sha256:8a2e70ac8f51bb283b8549fd686f65f9a1ef4487fe2c81849cb74d301e61970b
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends stress-ng isc-dhcp-server isc-dhcp-relay nftables tcpdump tshark python3-scapy conntrack && \

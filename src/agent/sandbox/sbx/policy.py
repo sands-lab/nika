@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
 import subprocess
@@ -9,8 +10,8 @@ from urllib.parse import urlparse
 
 from agent.sandbox.config import SANDBOX_GATEWAY_HOST_BRIDGE
 from agent.sandbox.sbx.client import (
-    SBX_BIN,
     ensure_sbx_ready,
+    run_sbx,
     run_sbx_checked,
     run_sbx_optional,
 )
@@ -60,10 +61,44 @@ def mcp_policy_resource_from_url(url: str, *, fallback_port: int | None = None) 
     return mcp_policy_resource(port, host=host)
 
 
-def ensure_llm_network_policy() -> None:
-    """Allow outbound LLM API hosts needed for NIKA sandbox agents."""
+def llm_network_resources_for_url(url: str) -> list[str]:
+    """Return sbx ``policy allow network`` resources for an LLM base URL.
+
+    Remote hosts are allowed by hostname. Host-bridge URLs
+    (``host.docker.internal`` / localhost) are reached as ``localhost:port``
+    inside the microVM and need an explicit host:port allow rule.
+    """
+    parsed = urlparse((url or "").strip())
+    host = (parsed.hostname or "").strip().lower()
+    if not host:
+        return []
+    if host in {SANDBOX_GATEWAY_HOST_BRIDGE, "localhost", "127.0.0.1"}:
+        if parsed.port is not None:
+            port = parsed.port
+        elif parsed.scheme == "https":
+            port = 443
+        else:
+            port = 80
+        return [mcp_policy_resource(port, host="localhost")]
+    return [host]
+
+
+def ensure_llm_network_policy(*extra_hosts: str) -> None:
+    """Allow outbound LLM API hosts needed for NIKA sandbox agents.
+
+    *extra_hosts* covers custom / self-hosted endpoints (hostnames or
+    ``host:port`` resources from :func:`llm_network_resources_for_url`).
+    """
     ensure_sbx_ready()
-    for host in _LLM_NETWORK_HOSTS:
+    seen: set[str] = set()
+    hosts: list[str] = []
+    for host in (*_LLM_NETWORK_HOSTS, *extra_hosts):
+        cleaned = (host or "").strip().lower()
+        if not cleaned or cleaned in seen:
+            continue
+        seen.add(cleaned)
+        hosts.append(cleaned)
+    for host in hosts:
         proc = run_sbx_optional(["policy", "allow", "network", host])
         if proc.returncode != 0:
             combined = f"{proc.stdout}\n{proc.stderr}".lower()
@@ -133,33 +168,57 @@ def deny_mcp_gateway(
         resource = mcp_policy_resource_from_url(gateway_url, fallback_port=port)
     else:
         resource = mcp_policy_resource(port, host=host)
-    # ``sbx policy deny`` can hang against a stopped/missing sandbox; bound it.
+    # Remove the allow rule: sbx rejects a deny rule that conflicts with it.
+    # ``sbx policy`` can hang against a stopped/missing sandbox; bound it.
     try:
-        subprocess.run(
+        proc = run_sbx(
             [
-                SBX_BIN,
                 "policy",
-                "deny",
+                "rm",
                 "network",
+                "--force",
                 "--sandbox",
                 sandbox_name,
+                "--resource",
                 resource,
             ],
-            capture_output=True,
-            text=True,
             check=False,
+            capture_output=True,
             timeout=20,
         )
     except subprocess.TimeoutExpired:
         logger.warning(
-            "Timed out denying MCP gateway policy for %s (%s)",
+            "Timed out revoking MCP gateway policy for %s (%s)",
             sandbox_name,
             resource,
         )
+        return
+    if proc.returncode != 0:
+        logger.warning(
+            "Failed to revoke MCP gateway policy for %s (%s): %s",
+            sandbox_name,
+            resource,
+            (proc.stderr or proc.stdout).strip(),
+        )
+
+
+# Linux HOST_NAME_MAX is typically 64 (including NUL); sethostname rejects longer.
+_SBX_HOSTNAME_MAX = 63
 
 
 def sanitize_sandbox_name(session_id: str) -> str:
-    """Return an sbx-compatible sandbox name for *session_id*."""
+    """Return an sbx-compatible sandbox name for *session_id*.
+
+    Names must fit the Linux hostname limit used by Docker Sandboxes
+    (``sethostname``), while remaining unique for long benchmark trial IDs.
+    """
     cleaned = re.sub(r"[^a-zA-Z0-9.\-+]", "-", session_id.strip())
     cleaned = cleaned.strip(".-+") or "session"
-    return f"nika-{cleaned}"[:128]
+    prefix = "nika-"
+    if len(prefix) + len(cleaned) <= _SBX_HOSTNAME_MAX:
+        return f"{prefix}{cleaned}"
+    digest = hashlib.sha1(cleaned.encode()).hexdigest()[:8]
+    # nika-{head}-{digest}
+    keep = _SBX_HOSTNAME_MAX - len(prefix) - 1 - len(digest)
+    head = cleaned[: max(keep, 1)].rstrip(".-+")
+    return f"{prefix}{head}-{digest}"

@@ -18,6 +18,11 @@ from nika.runtime.base import RuntimeCapabilityError
 
 if TYPE_CHECKING:
     from nika.net_env.base import NetworkEnvBase
+    from nika.problems.support.benchmark_targets import (
+        InjectTargetContext,
+        InjectValidationContext,
+        MultiInjectContext,
+    )
     from nika.runtime.base import LabRuntime
 
 
@@ -77,6 +82,9 @@ class ProblemBase:
 
     failure_domain: ClassVar[FailureDomain | str | None] = None
     root_cause_name: ClassVar[str] = ""
+    # Submission owner kind ("interface" / "link" / "node_or_k8s") when it
+    # differs from the failure-domain default; must match root_cause_resources().
+    root_cause_owner: ClassVar[str | None] = None
     # Short meaning of the failure ID for agent ontology / registry.
     # Must not leak injection method, artifacts, or differential probe shortcuts.
     description: ClassVar[str] = ""
@@ -88,26 +96,121 @@ class ProblemBase:
     # ``None`` means TAGS subset matching only. Values are column ids as in
     # ``coverage_columns`` (scenario name, or ``isp_<topo>/<config>``).
     COMPATIBLE_COLUMNS: ClassVar[frozenset[str] | None] = None
+    # Scenarios whose TAGS match but whose design hides the failure effect,
+    # mapped to the reason.
+    INCOMPATIBLE_SCENARIOS: ClassVar[dict[str, str]] = {}
+    # ISP protocol stack (``igp`` / ``bgp_mode`` / ``rpki``) this failure needs on
+    # a base ``isp_<topo>`` scenario. ``None`` derives it from TAGS (``ospf`` ->
+    # OSPF only, ``bgp`` -> iBGP route reflection, else the default stack). An
+    # ``rpki`` profile is only deployable on named RPKI scenarios.
+    isp_protocol: ClassVar[dict[str, Any] | None] = None
     required_capabilities: ClassVar[tuple[str, ...] | list[str]] = ()
     supported_backends: ClassVar[tuple[str, ...] | list[str] | None] = None
     # Optional protocol whose adjacency effect this failure declares.
     effect_protocol: ClassVar[str | None] = None
     effect_property: ClassVar[str | None] = None
+    # Network symptom the benchmark audit measures (``nika.validation.symptom``):
+    # the probe kind and the symptom class it expects. ``None`` means undeclared.
+    symptom_probe: ClassVar[str | None] = None
+    symptom_class: ClassVar[str | None] = None
+    # The fault lives as a running worker, flap, or quota rather than static state.
+    dynamic_artifact: ClassVar[bool] = False
+    # Instance attributes recorded in session injection metadata when present.
+    RECORDED_ATTRS: ClassVar[tuple[str, ...]] = ()
+    # Benchmark target enumeration: swap the root-cause node within its role
+    # ("node"), one row per topology link ("link"), or the canonical row only.
+    BENCHMARK_TARGETS: ClassVar[Literal["node", "link", "canonical"]] = "node"
+    # Target role ("bgp_originators" / "access_routers") narrowing node targets.
+    BENCHMARK_TARGET_ROLE: ClassVar[str | None] = None
+    # Inject needs a 2-endpoint link (Kathara VDE proxy faults).
+    BENCHMARK_POINT_TO_POINT: ClassVar[bool] = False
+    # ``intf_name`` is a tunnel iface, not a topology link endpoint.
+    BENCHMARK_TUNNEL_IFACE: ClassVar[bool] = False
+    # Co-injected failures whose params ``coordinate_benchmark_inject`` adjusts
+    # when a multi-fault case is exactly this failure plus these.
+    BENCHMARK_COORDINATES: ClassVar[frozenset[str]] = frozenset()
 
     @classmethod
-    def matches_column(cls, column: str, column_tags: frozenset[str]) -> bool:
-        """Return whether this failure can inject usefully on ``column``."""
+    def is_compatible(cls, target: str) -> bool:
+        """Return whether this failure can inject usefully on ``target``.
+
+        Single failure/scenario compatibility predicate. ``target`` is a scenario
+        id or a coverage column id (``isp_<topo>/<config>``). TAGS must be a
+        subset of the target's effective tags, and when ``COMPATIBLE_COLUMNS`` is
+        set the target must be listed; a bare scenario id matches when any of
+        its columns is listed.
+        """
+        from nika.net_env.net_env_pool import effective_tags, parse_column
+
         allowed = cls.COMPATIBLE_COLUMNS
-        if allowed is not None and column not in allowed:
+        if (
+            allowed is not None
+            and target not in allowed
+            and target not in {parse_column(column)[0] for column in allowed}
+        ):
             return False
-        return frozenset(cls.TAGS).issubset(column_tags)
+        if target.partition("/")[0] in cls.INCOMPATIBLE_SCENARIOS:
+            return False
+        return frozenset(cls.TAGS).issubset(effective_tags(target))
 
     @classmethod
-    def compatible_scenarios(cls) -> frozenset[str] | None:
-        """Scenario names implied by ``COMPATIBLE_COLUMNS``, or ``None`` if open."""
-        if cls.COMPATIBLE_COLUMNS is None:
-            return None
-        return frozenset(column.partition("/")[0] for column in cls.COMPATIBLE_COLUMNS)
+    def benchmark_inject_params(cls, ctx: InjectTargetContext) -> dict[str, str]:
+        """Return the canonical benchmark inject params on ``ctx.scenario``.
+
+        Draw only from ``ctx.rng``, in a fixed order, so cases stay reproducible.
+        """
+        return {"host_name": ctx.host0}
+
+    @classmethod
+    def benchmark_inject_options(
+        cls, ctx: InjectTargetContext, base: dict[str, str]
+    ) -> list[dict[str, str]]:
+        """Return legal target variants of the canonical row ``base``."""
+        from nika.problems.support.benchmark_targets import (
+            link_target_options,
+            node_target_options,
+        )
+
+        if cls.BENCHMARK_TARGETS == "canonical":
+            return [base]
+        if cls.BENCHMARK_TARGETS == "link":
+            return link_target_options(
+                ctx, base, point_to_point=cls.BENCHMARK_POINT_TO_POINT
+            )
+        return node_target_options(cls, ctx, base)
+
+    @classmethod
+    def benchmark_node_targets(
+        cls, ctx: InjectTargetContext, targets: list[str]
+    ) -> list[str]:
+        """Narrow same-role node targets (default: ``BENCHMARK_TARGET_ROLE``)."""
+        if cls.BENCHMARK_TARGET_ROLE is None:
+            return targets
+        from nika.problems.support.benchmark_targets import role_subset
+
+        return role_subset(
+            targets, ctx.net_env.target_roles(), cls.BENCHMARK_TARGET_ROLE
+        )
+
+    @classmethod
+    def benchmark_align_option(
+        cls, ctx: InjectTargetContext, row: dict[str, str], field: str
+    ) -> dict[str, str]:
+        """Adjust a node-target row after ``field`` was swapped."""
+        return row
+
+    @classmethod
+    def validate_benchmark_inject(
+        cls, ctx: InjectValidationContext, inject: dict[str, str]
+    ) -> None:
+        """Raise ``ValueError`` when ``inject`` is not a legal target."""
+
+    @classmethod
+    def coordinate_benchmark_inject(
+        cls, ctx: MultiInjectContext, params_by_problem: dict[str, dict[str, str]]
+    ) -> dict[str, dict[str, str]]:
+        """Adjust co-injected params (keyed by failure) so the faults compose."""
+        return params_by_problem
 
     net_env: NetworkEnvBase
     runtime: LabRuntime
@@ -302,6 +405,39 @@ class ProblemBase:
                     f"{type(self).__name__} cannot {operation}: runtime for backend {backend!r} "
                     f"lacks required capabilities: {missing_text}."
                 )
+
+    def recheck_artifact(self, params: Any = None) -> dict[str, Any]:
+        """Read this instance's fault artifacts.
+
+        Call this on the instance that ran ``inject_fault``. A new instance
+        does not have inject-time state, and this method does not create one.
+        The result reports artifact presence. It does not report a network effect.
+        """
+        if params is not None:
+            result = self.verify_fault(params=params)
+        else:
+            result = self.verify_fault()
+        if not isinstance(result, dict):
+            return {
+                "present": False,
+                "fault": str(
+                    getattr(self, "root_cause_name", "") or type(self).__name__
+                ),
+                "scope": "artifact",
+                "evidence": {},
+                "error": "verify_fault did not return a dict",
+            }
+        present = bool(result.get("verified"))
+        details = result.get("details")
+        evidence = details if isinstance(details, dict) else {"details": details}
+        fault = result.get("fault_type") or getattr(self, "root_cause_name", "")
+        return {
+            "present": present,
+            "fault": fault if isinstance(fault, str) else str(fault),
+            "scope": "artifact",
+            "evidence": evidence,
+            "error": None if present else "fault artifact absent",
+        }
 
 
 def build_verify_result(

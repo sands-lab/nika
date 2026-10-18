@@ -5,6 +5,8 @@ from typing import ClassVar
 from tests.nika.workflows.integration import pipeline_case
 from tests.support.integration_pipeline import _min3clos_prerequisites
 
+pytestmark = pytest.mark.e2e
+
 MIN3CLOS_NODES = frozenset({"leaf1", "leaf2", "spine", "client1", "client2"})
 
 
@@ -24,9 +26,19 @@ class ClabPipelineIntegrationTest(pipeline_case.PipelineCaseBase):
     DIAGNOSIS_MCP_SERVERS = ["kathara_base_mcp_server", "containerlab_srl_mcp_server"]
 
     async def _extra_diagnosis_mcp_checks(self, tools: dict) -> dict[str, str]:
-        bgp_as = await tools["srl_get_bgp_as"].ainvoke({"device_name": "leaf1"})
-        routes = await tools["srl_show_ip_route"].ainvoke({"device_name": "leaf1"})
+        bgp_as = await tools["srl_exec_cli"].ainvoke(
+            {
+                "device_name": "leaf1",
+                "command": "show network-instance default protocols bgp summary",
+            }
+        )
+        routes = await tools["srl_exec_cli"].ainvoke(
+            {
+                "device_name": "leaf1",
+                "command": "show network-instance default route-table ipv4-unicast summary",
+            }
+        )
         return {
-            "srl_get_bgp_as": str(bgp_as),
-            "srl_show_ip_route": str(routes),
+            "srl_bgp_summary": str(bgp_as),
+            "srl_routes": str(routes),
         }

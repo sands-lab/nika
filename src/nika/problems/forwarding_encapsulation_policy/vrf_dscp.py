@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from traffic import corp_qos_compete as qos_traffic
+from nika.traffic import corp_qos_compete as qos_traffic
 from nika.net_env.enterprise_branch.topology import (
     DSCP_CS0,
     DSCP_EF,
@@ -15,20 +15,31 @@ from nika.net_env.enterprise_branch.topology import (
     TopoSize,
     dscp_remark_inject_targets,
 )
-from nika.net_env.verify import http_ok, ping_ok
+from nika.net_env.verify import http_ok, ping_stats
 from nika.problems.base import (
     FailureDomain,
     build_verify_result,
     ProblemBase,
 )
 from nika.problems.rca import interface_resource
+from nika.problems.support.benchmark_targets import replace
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
 
-_NFT_TABLE = "nika_dscp"
+# iptables-nft naming, as an operator QoS policy would use.
+_NFT_TABLE = "mangle"
 _NFT_CHAIN = "POSTROUTING"
 _SETTLE_SEC = 4
 _PROBE_PORT = 5198
+# The remark only degrades EF under contention, so bulk must outlive a trial.
+_WORKLOAD_SEC = 3600
+
+
+def _remark_targets(net_env: Any, scenario: str) -> list[Any]:
+    targets = getattr(net_env, "dscp_remark_targets", None)
+    if targets is None:
+        raise ValueError(f"Scenario {scenario!r} has no Site Edge DSCP remark targets")
+    return targets()
 
 
 class VrfDscpRemarkingParams(BaseModel):
@@ -59,10 +70,14 @@ class VrfDscpRemarking(ProblemBase):
     """
 
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "custom"
+    symptom_class = "degradation"
     root_cause_name: str = "vrf_dscp_remarking"
+    root_cause_owner = "interface"
     description = "VRF edge incorrectly remarks high-priority DSCP."
     TAGS: list[str] = ["vpn"]
     Params = VrfDscpRemarkingParams
+    BENCHMARK_TUNNEL_IFACE = True
     symptom_desc = (
         "High-priority CORP realtime traffic that should keep DSCP EF is "
         "incorrectly remarked to CS0/BE at a Site Edge LAN→overlay boundary. "
@@ -78,6 +93,64 @@ class VrfDscpRemarking(ProblemBase):
         self._workload: qos_traffic.CompeteHandle | None = None
         self._baseline: qos_traffic.FlowMetrics | None = None
         self._corp_prefix: str | None = None
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        targets = _remark_targets(ctx.net_env, ctx.scenario)
+        if not targets:
+            raise ValueError(
+                "No DSCP remark inject targets for enterprise_branch "
+                f"topo_size={ctx.topo_size!r}"
+            )
+        target = ctx.rng.choice(targets)
+        return {
+            "host_name": target.edge,
+            "intf_name": target.intf_name,
+            "src_host": target.src_host,
+            "dst_host": target.dst_host,
+            "direction": "lan_to_overlay",
+            "corp_prefix": target.corp_prefix,
+        }
+
+    @classmethod
+    def benchmark_inject_options(cls, ctx, base):
+        return [
+            replace(
+                base,
+                host_name=target.edge,
+                intf_name=target.intf_name,
+                src_host=target.src_host,
+                dst_host=target.dst_host,
+                corp_prefix=target.corp_prefix,
+            )
+            for target in _remark_targets(ctx.net_env, ctx.scenario)
+        ]
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        from nika.net_env.net_env_pool import is_enterprise_branch_scenario
+
+        scenario, topo_size = ctx.scenario, ctx.topo_size
+        if not is_enterprise_branch_scenario(scenario):
+            raise ValueError(
+                f"vrf_dscp_remarking requires enterprise_branch (got {scenario!r})"
+            )
+        eligible_keys = {
+            (t.edge, t.intf_name, t.src_host, t.dst_host)
+            for t in _remark_targets(ctx.net_env, ctx.scenario)
+        }
+        key = (
+            inject.get("host_name") or "",
+            inject.get("intf_name") or "",
+            inject.get("src_host") or "",
+            inject.get("dst_host") or "",
+        )
+        if key not in eligible_keys:
+            raise ValueError(
+                f"vrf_dscp_remarking target {key!r} is not an eligible "
+                f"LAN→overlay CORP path on {scenario} (topo_size={topo_size!r}); "
+                f"eligible count={len(eligible_keys)}"
+            )
 
     def root_cause_resources(self, params: VrfDscpRemarkingParams):
         return [interface_resource(params.host_name, params.intf_name)]
@@ -143,7 +216,9 @@ class VrfDscpRemarking(ProblemBase):
             src_host=params.src_host,
             dst_host=params.dst_host,
         )
-        self._workload = qos_traffic.start(self.runtime, matrix, duration_sec=600)
+        self._workload = qos_traffic.start(
+            self.runtime, matrix, duration_sec=_WORKLOAD_SEC
+        )
         time.sleep(_SETTLE_SEC)
         self._baseline = qos_traffic.measure(self._workload)
         self.logger.info(
@@ -198,10 +273,15 @@ class VrfDscpRemarking(ProblemBase):
             params.host_name, f"ip -o link show {params.intf_name}"
         ).strip()
         checks["wg_iface_up"] = bool(link) and "state DOWN" not in link
-        checks["ef_path_ping"] = ping_ok(
-            self.runtime,
-            params.src_host,
-            qos_traffic.host_ip(self.runtime, params.dst_host),
+        # The fault itself drops much of the EF traffic; any reply shows the path is up.
+        checks["ef_path_ping"] = (
+            ping_stats(
+                self.runtime,
+                params.src_host,
+                qos_traffic.host_ip(self.runtime, params.dst_host),
+                count=5,
+            ).received
+            > 0
         )
         checks["hq_server_http"] = http_ok(
             self.runtime, params.src_host, "http://10.0.20.2/"
@@ -275,7 +355,7 @@ class VrfDscpRemarking(ProblemBase):
         )
 
         if self._workload is not None:
-            qos_traffic.resume_bulk(self._workload)
+            qos_traffic.resume_bulk(self._workload, duration_sec=_WORKLOAD_SEC)
             time.sleep(2.0)
 
         details: dict[str, Any] = {
@@ -308,6 +388,17 @@ class VrfDscpRemarking(ProblemBase):
             verified=bool(remark_ok),
             details=details,
         )
+
+    def recheck_artifact(self, params: VrfDscpRemarkingParams) -> dict[str, Any]:
+        """Re-read the nft remark rule. Does not sample DSCP or send bulk traffic."""
+        remark_ok = bool(self._remark_present(params))
+        return {
+            "present": remark_ok,
+            "fault": self.root_cause_name,
+            "scope": "artifact",
+            "evidence": {"remark_present": remark_ok, "intf": params.intf_name},
+            "error": None if remark_ok else "fault artifact absent",
+        }
 
     def recover_fault(self, params: VrfDscpRemarkingParams) -> dict[str, Any]:
         """Remove remarking, confirm DSCP/performance recovery, then stop workload."""

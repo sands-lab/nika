@@ -1,216 +1,143 @@
 # Integrate a custom agent
 
-This guide is for agent developers who want an implementation to run through `nika agent run` and participate in benchmark runs.
+Bring your own agent, written with any framework, and NIKA tests it on real network incidents: it provides the lab, the tools your agent uses to inspect it, and the scoring.
 
-Core contracts: [`protocols.py`](../../src/agent/protocols.py) defines the interface, and [`registry.py`](../../src/agent/registry.py) registers CLI names.
+This guide builds an agent with [NOOA](https://github.com/NVIDIA-NeMo/labs-OO-Agents), NVIDIA's object-oriented agent framework, in its own project outside NIKA. Other frameworks follow the same steps.
 
-## Implement the agent contract
+## How a run works
 
-Every agent must satisfy `agent.protocols.TroubleshootingAgent`:
+Every run of `nika agent run` goes through the same steps:
 
-```python
-class TroubleshootingAgent(Protocol):
-    session_id: str
-
-    async def run(self, task_description: str) -> dict[str, Any]: ...
+```mermaid
+flowchart LR
+    A[Start lab] --> B[Inject fault] --> C[Diagnose] --> D[Submit] --> E[Score]
+    classDef nika fill:#dbeafe,stroke:#1d4ed8,color:#1e3a8a
+    classDef agent fill:#fef3c7,stroke:#b45309,color:#78350f
+    class A,B,D,E nika
+    class C agent
 ```
 
-The CLI creates the agent in `agent.registry.create_agent()`, then calls:
+Blue steps are run by NIKA; the orange step is run by your agent.
+
+1. **Start lab** and **inject fault**: NIKA deploys the network and breaks it, for example by taking a link down.
+2. **Diagnose**: your agent gets a description of the symptoms and investigates the live network through NIKA's [MCP tools](mcp-servers.md), such as running commands on devices or measuring reachability. It returns a written diagnosis report.
+3. **Submit**: NIKA freezes the report, and the agent converts it into a structured answer: which component failed, and how.
+4. **Score**: NIKA compares that answer with the fault it injected, then closes the lab.
+
+Your agent implements **Diagnose**. NIKA handles the other steps, and an existing NIKA agent supplies **Submit**.
+
+## 1. Write your agent
+
+Your agent is a Python class. Inherit NIKA's LangGraph agent, which already implements submission, and override `diagnose`: it receives the incident description and returns the diagnosis report.
+
+The example has two classes. `NetworkInvestigator` is the NOOA agent that reasons about the network. `NooaAgent` is the class NIKA runs: it connects the investigator to the lab's MCP tools and returns its report.
 
 ```python
-await agent.run(task_description=session.task_description)
+from nooa import Agent
+from nooa.mcp import MCPManager, MCPTool
+from nooa.unifiedllm.registry import get_llm_client
+
+from agent.byo.langgraph.react_agent import BasicReActAgent
+from agent.protocols import DIAGNOSIS
+from agent.utils.mcp_client import load_session_mcp_config
+
+
+class NetworkInvestigator(Agent):
+    """You are a network operations engineer troubleshooting a live network lab."""
+
+    def __init__(self, servers: dict[str, MCPTool], **kwargs):
+        super().__init__(**kwargs)
+        self.servers: dict[str, MCPTool] = servers
+
+    async def investigate(self, task: str) -> str:
+        """Find the root cause of the incident, using the MCP tools in `self.servers`.
+
+        Return a report that names the faulty devices, interfaces or links,
+        the root cause, and the evidence for it.
+        """
+        ...  # NOOA's model writes and runs Python here
+
+
+class NooaAgent(BasicReActAgent):
+    async def diagnose(self, task_description: str) -> str:
+        mcp = load_session_mcp_config(
+            self.session_id, self.session.scenario_name, phase=DIAGNOSIS
+        )
+        servers = {
+            name: await MCPManager.create_url_server(
+                name, cfg["url"], headers=cfg["headers"]
+            )
+            for name, cfg in mcp.items()
+        }
+        llm = get_llm_client(f"openai/{self.model}")
+        investigator = NetworkInvestigator(servers, llm=llm)
+        return await investigator.investigate(task_description)
 ```
 
-Expected behavior:
+## 2. Run it
 
-- run diagnosis using the session MCP tools
-- advance to the submission phase, then call `submit` with `resource_id` and `fault_type` pairs from the frozen submission context
-- write useful trace events to `results/{session_id}/messages.jsonl`
-- leave `submission.json` in the session directory through the task MCP `submit` tool
+Install your framework into NIKA's environment, then run the agent by its import path:
 
-## Use the recommended structure
+```shell
+uv pip install 'nooa[mcp]==0.0.10' 'litellm<1.106'
+PYTHONPATH=../nika-nooa-agent uv run nika agent run -a nooa_nika.agent:NooaAgent --problem dc_clos_s_link_down
+```
 
-Place new implementations under `src/agent/community/<name>/` unless they are project-maintained backends.
+NIKA runs every step above and prints the score. The provider, model, and limits come from `config/nika.yaml`, as in the [LangGraph example configuration](../../config/byo.langgraph.example.yaml).
+
+## 3. Register it
+
+Running by import path is fine for a quick test, but every run needs the module path, and `PYTHONPATH` set to your project. NIKA also cannot check your configuration: it does not know which LLM providers the agent supports, so a wrong provider fails only mid-run.
+
+Registering gives the agent a short name, such as `nooa`, that works like a built-in one: with `-a nooa`, as `agent.type: nooa` in a run configuration, and in `nika agent list`. NIKA remembers where the project lives and which providers the agent supports.
+
+Describe the agent in a `nika-agent.yaml` next to its `pyproject.toml`:
 
 ```text
-src/agent/community/my_agent/
-|-- __init__.py
-|-- agent.py
-|-- config.py
-`-- prompts.py
+nika-nooa-agent/
+├── pyproject.toml        # dependencies = ["nooa[mcp]==0.0.10"]
+├── nika-agent.yaml
+└── nooa_nika/
+    └── agent.py
 ```
 
-Minimal implementation (same MCP helpers as `mock`; run via `nika agent run`):
-
-```python
-from typing import Any
-
-from langchain_mcp_adapters.client import MultiServerMCPClient
-
-from agent.utils.loggers import MessageLogger
-from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
-from agent.protocols import DIAGNOSIS, SUBMISSION
-from nika.utils.session import Session
-from nika.workflows.agent.submission import load_submission_context
-
-
-class MyAgent:
-    def __init__(
-        self,
-        session_id: str,
-        model: str,
-        max_steps: int = 20,
-        stream_output: bool = True,
-    ) -> None:
-        self.session_id = session_id
-        self.model = model
-        self.max_steps = max_steps
-        self.stream_output = stream_output
-        self.session = Session()
-        self.session.load_running_session(session_id=session_id)
-
-    async def run(self, task_description: str) -> dict[str, Any]:
-        diagnosis = await self._diagnose(task_description)
-        await self._submit(diagnosis)
-        return {"diagnosis_report": diagnosis}
-
-    async def _diagnose(self, task_description: str) -> str:
-        logger = MessageLogger(phase=DIAGNOSIS, session_dir=self.session.session_dir)
-        logger.log("llm_start", {"messages": {"role": "user", "content": task_description}})
-
-        config = load_session_mcp_config(self.session_id, self.session.scenario_name)
-        client = MultiServerMCPClient(connections=config)
-        tools = {tool.name: tool for tool in await client.get_tools()}
-
-        # Replace this block with your framework or model loop.
-        result = await tools["ping_pair"].ainvoke(
-            {"host_a": "pc1", "host_b": "pc2", "count": 2}
-        )
-        diagnosis = f"Observed ping_pair output: {result}"
-
-        logger.log("llm_end", {"text": diagnosis, "model": self.model})
-        return diagnosis
-
-    async def _submit(self, diagnosis: str) -> None:
-        logger = MessageLogger(phase=SUBMISSION, session_dir=self.session.session_dir)
-        begin_submission_mcp_phase(self.session_id, diagnosis)
-
-        config = load_session_mcp_config(self.session_id, self.session.scenario_name)
-        client = MultiServerMCPClient(connections=config)
-        tools = {tool.name: tool for tool in await client.get_tools()}
-
-        context = load_submission_context(self.session_id)
-        # Select resource_id and fault_type from context["resources"] and
-        # context["fault_ontology"] entries are {id, description, owner_kind}
-        # from ownership_entries; usually via your model or framework.
-        submission = {
-            "is_anomaly": True,
-            "root_causes": [
-                {
-                    "resource_id": context["resources"][0]["id"],
-                    "fault_type": context["fault_ontology"][0]["id"],
-                }
-            ],
-        }
-        logger.log("tool_start", {"tool": {"name": "submit"}, "input": submission})
-        output = await tools["submit"].ainvoke(submission)
-        logger.log("tool_end", {"output": str(output)})
+```yaml
+id: nooa                              # the name you run it by
+class: nooa_nika.agent:NooaAgent      # the class from step 1
+providers: [openai, custom]           # providers your model client supports
 ```
 
-Use `src/agent/mock/mock_agent.py` as a deterministic reference and existing `src/agent/byo/`, `src/agent/cli/`, or `src/agent/sdk/` packages as framework-specific references.
-
-## Register the agent
-
-Add the agent id to `src/agent/registry.py`:
-
-```python
-case "community.my_agent":
-    from agent.community.my_agent.agent import MyAgent
-
-    return MyAgent(
-        session_id=session_id,
-        model=model,
-        max_steps=max_steps,
-        stream_output=stream_output,
-    )
-```
-
-If the agent needs custom environment variables, resolve them in `config.py` and keep registry construction small.
-
-## Configure MCP access
-
-NIKA exposes tools through the session MCP gateway (HTTP). Prefer the shared helpers:
-
-```python
-from agent.utils.mcp_client import begin_submission_mcp_phase, load_session_mcp_config
-
-# Diagnosis (and submission after phase advance): all session servers
-config = load_session_mcp_config(session_id, scenario_name)
-
-# Before submission tools: freeze diagnosis and advance gateway phase
-begin_submission_mcp_phase(session_id, diagnosis_report)
-```
-
-Common submission flow:
-
-1. Call `begin_submission_mcp_phase(session_id, diagnosis_report)`.
-2. Read the frozen resource inventory and fault ontology from the submission context in the prompt (or `load_submission_context`).
-3. Call `submit` with `is_anomaly` and `root_causes: [{resource_id, fault_type}, ...]`.
-
-The task server rejects IDs outside those catalogs. See [MCP servers](mcp-servers.md) for the server catalog and packet capture workflow, and [root-cause ground truth and scoring](../benchmarks/root-cause-evaluation.md) for the submit contract.
-
-## Write trace logs
-
-Use `MessageLogger` for JSONL traces:
-
-```python
-from agent.utils.loggers import MessageLogger
-from agent.protocols import DIAGNOSIS
-
-logger = MessageLogger(phase=DIAGNOSIS, session_dir=session.session_dir)
-logger.log("tool_start", {"tool": {"name": "ping_pair"}, "input": {"host_a": "pc1", "host_b": "pc2"}})
-logger.log("tool_end", {"output": "success"})
-```
-
-For LangChain-based agents, use `AgentCallbackLogger` instead of manual event logging.
-
-## Run locally
-
-Use the mock agent first to validate the lab and task:
+Then register it once:
 
 ```shell
-uv run nika env run dc_clos -s s
-uv run nika failure inject link_down --set host_name=pc_0_0 --set intf_name=eth0
-uv run nika agent run -a mock -m mock-v1
-uv run nika session close -y
-uv run nika eval metrics
+uv run nika agent add ../nika-nooa-agent
+uv run nika agent run -a nooa --problem dc_clos_s_link_down
 ```
 
-Then run your agent:
+NIKA records the project directory in `config/agents.yaml` and imports the agent from there on every run, so your edits apply immediately. `nika agent remove nooa` unregisters it.
 
-```shell
-uv run nika env run dc_clos -s s
-uv run nika failure inject link_down --set host_name=pc_0_0 --set intf_name=eth0
-uv run nika agent run -a community.my_agent -m <model> -n 20
+`nika agent add` names any dependency from `pyproject.toml` that is not installed. A plain `uv sync` uninstalls packages NIKA does not declare, so use `uv sync --inexact` to keep them.
+
+Other manifest fields, such as a default model, are listed in the [registration reference](agent-reference.md#custom-agent-registration).
+
+<details>
+<summary>Example investigation from a real run</summary>
+
+*The NOOA agent on `dc_clos_s_link_down` with `nvidia/Qwen3.6-35B-A3B-NVFP4`; shortened from the recorded trace and report.*
+
+```text
+Tool: run_pingmesh_snapshot(count=3)
+Result: client_0 → dns_pod0, webserver0_pod0: 100% loss; server-to-server paths healthy
+
+Tool: exec_shell(host_name="client_0", command="ip addr show; ip route show …")
+Tool: exec_shell(host_name="super_spine_router_0", command="ip addr show …")
+Tool: exec_shell(host_name=…, command='vtysh -c "show bgp summary"') on each router
+
+Report: The physical link between client_0:eth0 and super_spine_router_0:eth2 is
+        DOWN, isolating client_0 from the fabric. BGP sessions are up, but
+        192.168.0.0/24 is not advertised because eth2 is down.
+
+Score: detection, root cause, and localization 1.0 (17 steps, 20 tool calls)
 ```
 
-For benchmark mode:
-
-```shell
-uv run nika benchmark run dc_clos -s s --problem link_down \
-  --set host_name=pc_0_0 --set intf_name=eth0 \
-  -a community.my_agent -m <model> -n 20
-```
-
-## Validate the integration
-
-- Agent class has `session_id` and `async run(task_description)`.
-- Registry maps a stable CLI id to the class.
-- Diagnosis uses MCP tools instead of direct Docker/Kathara duplication.
-- Submission selects IDs from the frozen submission context, then uses the task MCP `submit` tool.
-- `messages.jsonl` and `submission.json` appear in the session result directory.
-- `uv run nika benchmark run ... -a community.my_agent` completes for a small case.
-
-## Add agent skills
-
-Claude Code and Codex agents can load reusable instructions during diagnosis. [Configure agent skills](agent-skills.md) covers the library layout, `SKILL.md` format, registration, and tests. SADE keeps its separate library under `src/agent/community/sade/.claude/`.
+</details>

@@ -14,6 +14,12 @@ from nika.problems.base import (
     build_verify_result,
     ProblemBase,
 )
+from nika.problems.support.benchmark_targets import (
+    choice_distinct,
+    device_interfaces,
+    endpoint_target,
+    require_distinct_hosts,
+)
 from nika.utils.logger import system_logger
 
 
@@ -34,6 +40,10 @@ def _read_host_ipv4(
     return match.group(1) if match else None
 
 
+# Route state that ``ip route show`` prints but ``ip route replace`` rejects.
+_ROUTE_STATE_FLAGS = frozenset({"linkdown", "dead", "offload", "trap", "rt_offload"})
+
+
 def _inject_ip_change(
     runtime,
     *,
@@ -43,10 +53,47 @@ def _inject_ip_change(
     intf_name: str,
     new_gateway: str | None = None,
 ) -> None:
+    # Deleting the last IPv4 address also flushes the interface's static routes
+    # and permanent neighbours (the on-link gateway of a /32 host). Re-apply
+    # them, as a config-managed host would, so only the address changes.
+    routes = runtime.exec(host_name, f"ip -4 route show dev {intf_name}")
+    neighs = runtime.exec(host_name, f"ip -4 neigh show dev {intf_name} nud permanent")
     runtime.exec(host_name, f"ip addr del {old_ip} dev {intf_name}")
     runtime.exec(host_name, f"ip addr add {new_ip} dev {intf_name}")
+    for line in neighs.splitlines():
+        match = re.match(r"(\S+) lladdr (\S+)", line.strip())
+        if match:
+            runtime.exec(
+                host_name,
+                f"ip neigh replace {match[1]} lladdr {match[2]} "
+                f"dev {intf_name} nud permanent",
+            )
+    static: list[str] = []
+    for line in routes.splitlines():
+        line = line.strip()
+        if line.startswith("nexthop") and static:
+            static[-1] += f" {line}"  # a multipath route's next hops
+        elif line:
+            static.append(line)
+    old_addr, new_addr = old_ip.split("/")[0], new_ip.split("/")[0]
+    # On-link routes first, so the gateways of the ``via`` routes resolve.
+    for route in sorted(static, key=lambda r: " via " in r):
+        if "proto kernel" in route:
+            continue
+        words = [w for w in route.split() if w not in _ROUTE_STATE_FLAGS]
+        words = [
+            new_addr if w == old_addr and i and words[i - 1] == "src" else w
+            for i, w in enumerate(words)
+        ]
+        if "dev" not in words:
+            words += ["dev", intf_name]
+        runtime.exec(host_name, f"ip route replace {' '.join(words)}")
     if new_gateway:
-        runtime.exec(host_name, f"ip route add default via {new_gateway}")
+        onlink = " onlink" if new_ip.endswith("/32") else ""
+        runtime.exec(
+            host_name,
+            f"ip route replace default via {new_gateway} dev {intf_name}{onlink}",
+        )
 
 
 # ==========================================
@@ -63,11 +110,42 @@ class HostMissingIPParams(BaseModel):
 
 class HostMissingIP(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name: str = "host_missing_ip"
+    root_cause_owner = "interface"
     description = "Host interface has no IP address."
     TAGS: str = ["pc"]
+    RECORDED_ATTRS = ("intf_name",)
 
     Params = HostMissingIPParams
+    BENCHMARK_COORDINATES = frozenset({"link_down"})
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return endpoint_target(ctx, with_intf=True)
+
+    @classmethod
+    def coordinate_benchmark_inject(cls, ctx, params_by_problem):
+        # Keep the host fault off the downed link's endpoint so both are visible.
+        net_env = ctx.net_env
+        link = dict(params_by_problem["link_down"])
+        host = dict(params_by_problem["host_missing_ip"])
+        if link.get("host_name") == host.get("host_name"):
+            web_hosts = list((getattr(net_env, "servers", None) or {}).get("web") or [])
+            if web_hosts:
+                host["host_name"] = web_hosts[0]
+                ifaces = device_interfaces(net_env).get(web_hosts[0]) or ["eth0"]
+                host["intf_name"] = ifaces[0]
+            else:
+                hosts = list(net_env.hosts or [])
+                alt = next((h for h in hosts if h != link.get("host_name")), None)
+                if alt is not None:
+                    host["host_name"] = alt
+                    ifaces = device_interfaces(net_env).get(alt) or ["eth0"]
+                    host["intf_name"] = ifaces[0]
+        params_by_problem["host_missing_ip"] = host
+        return params_by_problem
 
     symptom_desc = (
         "Some hosts are unable to communicate with other devices in the network."
@@ -88,9 +166,6 @@ class HostMissingIP(ProblemBase):
         real_gateway = self.runtime.get_default_gateway(params.host_name)
         self.runtime.exec(
             params.host_name, f"ip addr del {real_ip} dev {params.intf_name}"
-        )
-        self.runtime.exec(
-            params.host_name, f"echo '{real_ip} {real_gateway}' > /tmp/removed_ip.txt"
         )
         self.logger.info(
             f"Injected missing IP on {params.host_name} from {real_ip} and gateway {real_gateway}."
@@ -126,11 +201,40 @@ class HostIPConflictParams(BaseModel):
 
 class HostIPConflict(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name: str = "host_ip_conflict"
+    root_cause_owner = "interface"
     description = "Two hosts are configured with the same IP address."
     TAGS: str = ["pc"]
 
     Params = HostIPConflictParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        servers = ctx.servers
+        conflict_pool = list(ctx.host_pool)
+        for bucket in (servers.get("web") or [], servers.get("dns") or []):
+            for name in bucket:
+                if name not in conflict_pool:
+                    conflict_pool.append(name)
+        if len(conflict_pool) < 2:
+            # Fall back to all declared hosts + web servers from inventory.
+            conflict_pool = list(
+                dict.fromkeys(
+                    list(ctx.hosts)
+                    + list(servers.get("web") or [])
+                    + list(servers.get("dns") or [])
+                )
+            )
+        pair = choice_distinct(ctx.rng, conflict_pool, ctx.host0)
+        if pair[0] == pair[1] and len(conflict_pool) >= 2:
+            pair = [conflict_pool[0], conflict_pool[1]]
+        return {"host_name": pair[0], "host_name_2": pair[1]}
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        require_distinct_hosts(ctx, cls.root_cause_name, inject)
 
     symptom_desc = "Some hosts experience intermittent connectivity issues."
 
@@ -186,17 +290,25 @@ class HostIncorrectIPParams(BaseModel):
 
 class HostIncorrectIP(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name: str = "host_incorrect_ip"
+    root_cause_owner = "interface"
     description = "Host IP address is incorrect."
     TAGS: str = ["pc"]
 
     Params = HostIncorrectIPParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return endpoint_target(ctx)
 
     symptom_desc = "Some hosts seem to be unreachable in the network."
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
         self._original_ip: str | None = None
+        self._injected_ip: str | None = None
 
     def root_cause_resources(self, params: HostIncorrectIPParams):
         return [interface_on(self.net_env, params.host_name, "eth0")]
@@ -204,14 +316,10 @@ class HostIncorrectIP(ProblemBase):
     def inject_fault(self, params: HostIncorrectIPParams):
         old_ip = _read_host_ipv4(self.runtime, params.host_name, "eth0")
         self._original_ip = old_ip
-        if old_ip:
-            self.runtime.exec(
-                params.host_name,
-                f"printf '%s\\n' '{old_ip.split('/')[0]}' > /tmp/nika_original_ip",
-            )
         incorrect_ip = params.incorrect_ip or derive_incorrect_ip(
             self.runtime, params.host_name
         )
+        self._injected_ip = incorrect_ip
         _inject_ip_change(
             self.runtime,
             host_name=params.host_name,
@@ -234,18 +342,16 @@ class HostIncorrectIP(ProblemBase):
                     current_ip = parts[i + 1]
                     break
         original = self._original_ip
-        if not original:
-            stored = self.runtime.exec(
-                params.host_name,
-                "cat /tmp/nika_original_ip 2>/dev/null || true",
-            ).strip()
-            if stored:
-                original = stored
+        injected = self._injected_ip or params.incorrect_ip
         current_addr = current_ip.split("/")[0] if current_ip else None
         original_addr = original.split("/")[0] if original else None
-        verified = (
-            bool(current_addr) and bool(original_addr) and current_addr != original_addr
-        )
+        injected_addr = injected.split("/")[0] if injected else None
+        if original_addr:
+            verified = bool(current_addr) and current_addr != original_addr
+        else:
+            # No in-memory original (fresh process): require the live address
+            # to be the configured incorrect one.
+            verified = bool(current_addr) and current_addr == injected_addr
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=verified,
@@ -253,6 +359,7 @@ class HostIncorrectIP(ProblemBase):
                 "host": params.host_name,
                 "ip_line": ip_line,
                 "original_ip": original,
+                "injected_ip": injected,
                 "current_ip": current_ip,
             },
         )
@@ -275,11 +382,39 @@ class HostIncorrectGatewayParams(BaseModel):
 
 class HostIncorrectGateway(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
+    symptom_probe = "path_ping"
+    symptom_class = "unreachable"
     root_cause_name: str = "host_incorrect_gateway"
     description = "Host default gateway is incorrect."
     TAGS: str = ["pc", "frr"]
 
     Params = HostIncorrectGatewayParams
+    BENCHMARK_COORDINATES = frozenset({"dns_record_error"})
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return endpoint_target(ctx)
+
+    @classmethod
+    def coordinate_benchmark_inject(cls, ctx, params_by_problem):
+        # Misroute a client other than the DNS server so both faults are visible.
+        net_env = ctx.net_env
+        dns = dict(params_by_problem["dns_record_error"])
+        gw = dict(params_by_problem["host_incorrect_gateway"])
+        if ctx.scenario == "campus_lan":
+            dns["host_name"] = "dns_server"
+            gw["host_name"] = "pc_1_1_1_1"
+        elif dns.get("host_name") == gw.get("host_name"):
+            hosts = list(net_env.hosts or [])
+            corp = [h for h in hosts if h.endswith("_corp_pc")]
+            alt = next((h for h in corp if h != dns.get("host_name")), None)
+            if alt is None:
+                alt = next((h for h in hosts if h != dns.get("host_name")), None)
+            if alt is not None:
+                gw["host_name"] = alt
+        params_by_problem["dns_record_error"] = dns
+        params_by_problem["host_incorrect_gateway"] = gw
+        return params_by_problem
 
     symptom_desc = "Some hosts seem to be unreachable in the network."
 
@@ -343,11 +478,20 @@ class HostIncorrectNetmaskParams(BaseModel):
 
 class HostIncorrectNetmask(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name: str = "host_incorrect_netmask"
+    root_cause_owner = "interface"
     description = "Host netmask/prefix length is incorrect."
     TAGS: str = ["pc", "frr"]
 
     Params = HostIncorrectNetmaskParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        params = endpoint_target(ctx)
+        params["netmask_prefix"] = "8"
+        return params
 
     symptom_desc = "Some hosts seem to be unreachable in the network."
 
@@ -372,7 +516,7 @@ class HostIncorrectNetmask(ProblemBase):
         )
 
     def verify_fault(self, params: HostIncorrectNetmaskParams) -> dict:
-        """Verify that eth0 has a non-/24 prefix (injected wrong netmask)."""
+        """Verify that eth0 carries the injected ``netmask_prefix``."""
         ip_line = self.runtime.exec(
             params.host_name, "ip -4 -o addr show dev eth0 scope global"
         ).strip()
@@ -385,7 +529,7 @@ class HostIncorrectNetmask(ProblemBase):
                     if "/" in cidr:
                         prefix = int(cidr.split("/")[1])
                     break
-        verified = prefix is not None and prefix != 24
+        verified = prefix == params.netmask_prefix
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=verified,
@@ -415,11 +559,17 @@ class HostIncorrectDNSParams(BaseModel):
 
 class HostIncorrectDNS(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
+    symptom_probe = "http_by_name"
+    symptom_class = "unreachable"
     root_cause_name: str = "host_incorrect_dns"
     description = "Host is configured with an incorrect DNS resolver."
     TAGS: str = ["dns"]
 
     Params = HostIncorrectDNSParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return endpoint_target(ctx)
 
     symptom_desc = "Some hosts are unable to access web services."
 
@@ -430,6 +580,12 @@ class HostIncorrectDNS(ProblemBase):
         self.runtime.exec(
             params.host_name,
             f"echo 'nameserver {params.fake_dns_ip}' > /etc/resolv.conf; "
+            # dhclient rewrites resolv.conf at lease renewal. Keep the same
+            # incorrect resolver in its renewal path on DHCP-backed hosts.
+            "if test -d /etc/dhcp/dhclient-enter-hooks.d; then "
+            "printf '%s\\n' 'new_domain_name_servers=\""
+            f"{params.fake_dns_ip}"
+            "\"' > /etc/dhcp/dhclient-enter-hooks.d/nika-incorrect-dns; fi; "
             # Drop static hosts overrides so name lookups must use DNS.
             "sed -i -E '/\\sweb0\\.(local|pod0)\\s*$/d' /etc/hosts 2>/dev/null || true; "
             "sed -i -E '/\\swebserver/d' /etc/hosts 2>/dev/null || true",

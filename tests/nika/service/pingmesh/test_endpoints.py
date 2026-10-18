@@ -1,4 +1,6 @@
 from __future__ import annotations
+
+import pytest
 from collections import defaultdict
 from unittest.mock import MagicMock
 from nika.service.pingmesh.endpoints import (
@@ -6,6 +8,8 @@ from nika.service.pingmesh.endpoints import (
     is_endpoint_node_name,
     is_excluded_node_name,
 )
+
+pytestmark = pytest.mark.unit
 
 
 class EndpointNameHeuristicsTest:

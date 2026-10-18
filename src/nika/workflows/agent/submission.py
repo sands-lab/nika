@@ -3,35 +3,45 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, UTC
 from pathlib import Path
 from typing import Any
 
 from agent.protocols import DIAGNOSIS
 from agent.utils.loggers import MESSAGES_FILENAME
+from nika.problems.compat.v010 import (
+    RELEASE_VERSION as RELEASE_010,
+    legacy_010_fault_types,
+)
 from nika.problems.ownership import ownership_entries
 from nika.problems.registry import list_avail_problem_names
-from nika.problems.rca.inventory import catalog_resources, load_offline_net_env
+from nika.problems.rca.inventory import (
+    catalog_resources,
+    load_session_offline_net_env,
+)
 from nika.mcp.gateway.session_registry import get_session
 from nika.utils.session_store import SessionStore
 from nika.workflows.benchmark.healthy import is_healthy_case
 
 
-def _case_ontology(row: dict[str, Any]) -> list[str]:
-    metadata = row.get("metadata") or {}
-    values = row.get("fault_ontology") or metadata.get("fault_ontology")
-    if isinstance(values, list) and all(isinstance(value, str) for value in values):
-        names = values
-    else:
-        names = list_avail_problem_names()
+def fault_candidates(benchmark_version: str | None = None) -> list[str]:
+    """Fixed fault-type candidates: every registered fault except ``healthy``.
+
+    The same list is offered in every launch mode (release, ``--config``,
+    single case) so the candidate set never depends on which cases were run.
+    Sessions of the 0.1.0 release also offer every 0.1.0-only fault type.
+    """
     # ``healthy`` is a benchmark sentinel, not a registered fault type.
-    return sorted({name for name in names if not is_healthy_case(name)})
+    names = {name for name in list_avail_problem_names() if not is_healthy_case(name)}
+    if benchmark_version == RELEASE_010:
+        names.update(legacy_010_fault_types())
+    return sorted(names)
 
 
 def _trajectory_path(session_id: str) -> Path:
     entry = get_session(session_id)
     if entry is None:
-        raise KeyError(f"MCP gateway session not registered: {session_id!r}")
+        raise KeyError("MCP gateway session not registered")
     return Path(entry.session_dir) / MESSAGES_FILENAME
 
 
@@ -60,7 +70,7 @@ def freeze_diagnosis(session_id: str, report: str) -> dict[str, str]:
         handle.write(
             json.dumps(
                 {
-                    "timestamp": datetime.now().isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                     "phase": DIAGNOSIS,
                     "event": "diagnosis_frozen",
                     "report": report,
@@ -72,24 +82,57 @@ def freeze_diagnosis(session_id: str, report: str) -> dict[str, str]:
     return {"report": report}
 
 
-def load_submission_context(session_id: str) -> dict[str, Any]:
-    """Build prompt-only context from immutable trajectory and scenario metadata."""
-    report = _frozen_report(_trajectory_path(session_id))
-    if report is None:
-        raise RuntimeError("Diagnosis must be frozen before submission.")
+def load_frozen_diagnosis_report(session_id: str) -> str | None:
+    """Return the frozen diagnosis report, or ``None`` if not yet frozen."""
+    return _frozen_report(_trajectory_path(session_id))
+
+
+def load_submission_catalog(session_id: str) -> dict[str, Any]:
+    """Fault ontology + resources for the submission prompt (no freeze required)."""
     row = SessionStore().get_session(session_id)
-    params = row.get("scenario_params") or {}
-    env = load_offline_net_env(
-        str(row.get("scenario_name") or ""),
-        str(row.get("scenario_topo_size") or params.get("topo_size") or ""),
-        topo=params.get("topo"),
-        igp=params.get("igp"),
-        bgp_mode=params.get("bgp_mode"),
+    env = load_session_offline_net_env(row)
+    k8s_services, k8s_network_policies = _live_k8s_objects(row)
+    resources = catalog_resources(
+        env,
+        k8s_services=k8s_services,
+        k8s_network_policies=k8s_network_policies,
     )
     return {
+        "fault_ontology": ownership_entries(
+            fault_candidates(row.get("benchmark_version")),
+            row.get("scenario_name"),
+        ),
+        "resources": [{"id": item.id, "kind": str(item.kind)} for item in resources],
+    }
+
+
+def _live_k8s_objects(row: dict[str, Any]) -> tuple[list[dict], list[dict]]:
+    """All Services and NetworkPolicies of a k8s session's cluster.
+
+    k8s ground truth names cluster objects, so they must be submittable; list
+    every object (not just GT ones) to keep the catalog answer-neutral.
+    """
+    from nika.mcp.k8s.client import K8sClient, resolve_kubeconfig_path
+
+    try:
+        kubeconfig = resolve_kubeconfig_path(row)
+    except FileNotFoundError:
+        return [], []  # Not a k8s session.
+    k8s = K8sClient(kubeconfig=kubeconfig)
+    return (
+        k8s.list_services(all_namespaces=True),
+        k8s.get_network_policies(all_namespaces=True),
+    )
+
+
+def load_submission_context(session_id: str) -> dict[str, Any]:
+    """Build prompt-only context from immutable trajectory and scenario metadata."""
+    report = load_frozen_diagnosis_report(session_id)
+    if report is None:
+        raise RuntimeError("Diagnosis must be frozen before submission.")
+    catalog = load_submission_catalog(session_id)
+    return {
         "diagnosis_report": report,
-        "fault_ontology": ownership_entries(_case_ontology(row)),
-        "resources": [
-            {"id": item.id, "kind": str(item.kind)} for item in catalog_resources(env)
-        ],
+        "fault_ontology": catalog["fault_ontology"],
+        "resources": catalog["resources"],
     }

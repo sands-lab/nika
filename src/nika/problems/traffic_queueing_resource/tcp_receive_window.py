@@ -10,6 +10,7 @@ from nika.problems.base import (
     build_verify_result,
 )
 from nika.problems.rca import node_resource
+from nika.problems.support.benchmark_targets import first
 from nika.problems.traffic_queueing_resource.tcp_rwnd_helpers import (
     DEFAULT_BDP_DIVISOR,
     DEFAULT_BUFFER_CEIL_BYTES,
@@ -26,8 +27,6 @@ from nika.problems.traffic_queueing_resource.tcp_rwnd_helpers import (
     write_sysctl_snapshot,
 )
 from nika.utils.logger import system_logger
-
-_ORIGINAL_SYSCTL_PATH = "/tmp/nika_tcp_rwnd_original"
 
 
 class TcpReceiveWindowLimitedParams(BaseModel):
@@ -76,12 +75,33 @@ class TcpReceiveWindowLimited(ProblemBase):
     """Receiver TCP receive buffer undersized relative to path BDP."""
 
     failure_domain = FailureDomain.TRAFFIC_QUEUEING_RESOURCE
+    symptom_probe = "custom"
+    symptom_class = "degradation"
     root_cause_name: str = "tcp_receive_window_limited"
     description = "Receiver TCP window/buffer is too small for the path."
     TAGS: list[str] = ["http"]
     # Temporary: needs privileged hosts + enough path BDP (WAN RTT).
     COMPATIBLE_COLUMNS = frozenset({"enterprise_branch"})
     Params = TcpReceiveWindowLimitedParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        # Fault the HTTP client (TCP receiver of server->client bulk download).
+        if ctx.scenario != "enterprise_branch":
+            return {"host_name": ctx.host0}
+        host_pool = ctx.host_pool
+        return {
+            "host_name": (
+                "br1_corp_pc"
+                if "br1_corp_pc" in host_pool
+                else (first(host_pool) or ctx.host0)
+            ),
+            "sender_host": "hq_srv",
+            "sender_ip": "10.0.20.2",
+            "small_url": "http://10.0.20.2/small.bin",
+            "large_url": "http://10.0.20.2/large.bin",
+        }
+
     symptom_desc = (
         "Receiver TCP receive-buffer configuration is undersized relative to "
         "path BDP, so advertised RWND limits sustained bulk TCP throughput. "
@@ -102,32 +122,6 @@ class TcpReceiveWindowLimited(ProblemBase):
     def root_cause_resources(self, params: TcpReceiveWindowLimitedParams):
         return [node_resource(params.host_name)]
 
-    def _persist_original(self, params: TcpReceiveWindowLimitedParams) -> None:
-        assert self._original is not None
-        payload = (
-            f"{self._original.moderate_rcvbuf}\n"
-            f"{self._original.tcp_rmem}\n"
-            f"{self._original.rmem_max}\n"
-        )
-        self.runtime.write_file(params.host_name, _ORIGINAL_SYSCTL_PATH, payload)
-
-    def _load_original_from_disk(
-        self, params: TcpReceiveWindowLimitedParams
-    ) -> SysctlSnapshot | None:
-        raw = self.runtime.exec(
-            params.host_name,
-            f"cat {_ORIGINAL_SYSCTL_PATH} 2>/dev/null || true",
-            timeout=10,
-        ).strip()
-        lines = [line.strip() for line in raw.splitlines() if line.strip()]
-        if len(lines) != 3:
-            return None
-        return SysctlSnapshot(
-            moderate_rcvbuf=lines[0],
-            tcp_rmem=lines[1],
-            rmem_max=lines[2],
-        )
-
     def inject_fault(self, params: TcpReceiveWindowLimitedParams) -> None:
         baseline = measure_path_baseline(
             self.runtime,
@@ -146,8 +140,8 @@ class TcpReceiveWindowLimited(ProblemBase):
         self._baseline_bdp_bytes = baseline.bdp_bytes
         self._target_buffer_bytes = baseline.target_buffer_bytes
 
+        # Restore state stays in memory; a file on the receiver would expose it.
         self._original = read_sysctl_snapshot(self.runtime, params.host_name)
-        self._persist_original(params)
 
         rmem = format_tcp_rmem(baseline.target_buffer_bytes)
         injected = SysctlSnapshot(
@@ -233,7 +227,7 @@ class TcpReceiveWindowLimited(ProblemBase):
         )
 
     def recover_fault(self, params: TcpReceiveWindowLimitedParams) -> dict:
-        original = self._original or self._load_original_from_disk(params)
+        original = self._original
         if original is None:
             return {
                 "verified": False,
@@ -244,11 +238,6 @@ class TcpReceiveWindowLimited(ProblemBase):
             params.host_name,
             original,
             require_rmem_max=False,
-        )
-        self.runtime.exec(
-            params.host_name,
-            f"rm -f {_ORIGINAL_SYSCTL_PATH} 2>/dev/null || true",
-            timeout=5,
         )
         restored = read_sysctl_snapshot(self.runtime, params.host_name)
         ok = (

@@ -8,7 +8,7 @@ failure:
       client_host: br1_corp_pc
       cpu_quota: '0.05'
       dst_ip: 10.0.20.2
-      duration: '900'
+      duration: '3600'
       host_name: hq_srv
       large_url: http://10.0.20.2/large.bin
       small_url: http://10.0.20.2/small.bin
@@ -23,7 +23,7 @@ failure:
       client_host: br1_corp_pc
       cpu_quota: '0.05'
       dst_ip: 10.0.20.2
-      duration: '900'
+      duration: '3600'
       host_name: hq_srv
       large_url: http://10.0.20.2/large.bin
       small_url: http://10.0.20.2/small.bin
@@ -38,7 +38,7 @@ failure:
       client_host: br1_corp_pc
       cpu_quota: '0.05'
       dst_ip: 10.0.20.2
-      duration: '900'
+      duration: '3600'
       host_name: hq_srv
       large_url: http://10.0.20.2/large.bin
       small_url: http://10.0.20.2/small.bin

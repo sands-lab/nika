@@ -12,9 +12,9 @@ import pytest
 
 from nika.runtime.factory import runtime_for_session
 from nika.mcp.gateway.access import TOOL_NODE_ARGUMENTS
-from nika.mcp.gateway.app import _MCP_MODULE_ATTRS
 from nika.mcp.registry import (
     DIAGNOSIS_PACKET_CAPTURE_SERVER,
+    MCP_SERVER_SPECS,
     select_diagnosis_servers,
 )
 from nika.service.packet_capture import inspect
@@ -35,6 +35,7 @@ from tests.support.prerequisites import docker_available
 # --- limits -----------------------------------------------------------------
 
 
+@pytest.mark.unit
 class TestClampStartLimits:
     def test_uses_defaults_when_agent_omits_args(self) -> None:
         limits = clamp_start_limits(
@@ -68,6 +69,7 @@ class TestClampStartLimits:
             clamp_start_limits(max_duration_sec=0, max_packets=None, max_bytes=None)
 
 
+@pytest.mark.unit
 class TestClampInspectLimit:
     def test_defaults_to_page_size(self) -> None:
         assert clamp_inspect_limit(None) == HARD_INSPECT_PAGE_SIZE
@@ -86,6 +88,7 @@ def _packet(layers: dict) -> dict:
     return {"_source": {"layers": layers}}
 
 
+@pytest.mark.unit
 class TestProtocolFields:
     def test_tcp_fields(self) -> None:
         fields = extract_protocol_fields(
@@ -158,6 +161,7 @@ class TestProtocolFields:
 # --- inspect ----------------------------------------------------------------
 
 
+@pytest.mark.unit
 class TestInspectCapture:
     def test_packets_view_reports_truncation(self) -> None:
         runtime = MagicMock()
@@ -200,16 +204,16 @@ class TestInspectCapture:
 # --- registry / gateway -----------------------------------------------------
 
 
+@pytest.mark.unit
 class TestPacketCaptureRegistry:
     def test_selected_by_default(self) -> None:
         servers = select_diagnosis_servers("simple_bgp", backend="kathara")
         assert DIAGNOSIS_PACKET_CAPTURE_SERVER in servers
-        assert servers.index(DIAGNOSIS_PACKET_CAPTURE_SERVER) < servers.index(
-            "kathara_frr_mcp_server"
-        )
+        assert servers.index(DIAGNOSIS_PACKET_CAPTURE_SERVER) == 2
+        assert "kathara_frr_mcp_server" not in servers
 
     def test_gateway_mount_registered(self) -> None:
-        assert DIAGNOSIS_PACKET_CAPTURE_SERVER in _MCP_MODULE_ATTRS
+        assert DIAGNOSIS_PACKET_CAPTURE_SERVER in MCP_SERVER_SPECS
 
     def test_start_targets_device(self) -> None:
         assert TOOL_NODE_ARGUMENTS["packet_capture_start"] == ("device",)
@@ -252,9 +256,11 @@ class FakeRuntime:
             # test -f <path> && echo yes || echo no
             parts = command.split()
             path = parts[2] if len(parts) > 2 else ""
-            return "yes" if (node, path) in self.files or path.endswith(
-                ".pcapng"
-            ) else "no"
+            return (
+                "yes"
+                if (node, path) in self.files or path.endswith(".pcapng")
+                else "no"
+            )
         if "wc -c <" in command:
             return "11"
         if "tcpdump -r" in command and "wc -l" in command:
@@ -266,6 +272,7 @@ class FakeRuntime:
         return ""
 
 
+@pytest.mark.unit
 class TestCaptureLifecycle:
     def test_concurrent_captures_have_distinct_ids(self) -> None:
         runtime = FakeRuntime()
@@ -316,7 +323,7 @@ class TestCaptureLifecycle:
 # --- live e2e ---------------------------------------------------------------
 
 
-@pytest.mark.integration
+@pytest.mark.e2e
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
 class PacketCaptureLiveE2ETest(SharedSessionTestCase):
     """Exercise CaptureManager against a real Kathara simple_bgp lab."""

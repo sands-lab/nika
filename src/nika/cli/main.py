@@ -1,13 +1,17 @@
 """Root Typer application for the ``nika`` console script (``nika.cli``)."""
 
-import nika.config  # noqa: F401 — load .env before Typer reads envvar defaults
+import sys
 
 import typer
 
+import nika.config  # noqa: F401 — load .env before Typer reads envvar defaults
 from nika.cli.lazy_group import LAZY_COMMANDS, LazyCommandSpec, LazyTyperGroup
 
 LAZY_COMMANDS.update(
     {
+        "case": LazyCommandSpec(
+            "nika.cli.commands.case", "case_app", "Browse and try example cases."
+        ),
         "session": LazyCommandSpec(
             "nika.cli.commands.session", "session_app", "Session lifecycle."
         ),
@@ -51,6 +55,21 @@ LAZY_COMMANDS.update(
             "config_app",
             "Run configuration (config/nika.yaml).",
         ),
+        "images": LazyCommandSpec(
+            "nika.cli.commands.images",
+            "images_app",
+            "Prepare and list NIKA Docker images and caches.",
+        ),
+        "inspect": LazyCommandSpec(
+            "nika.cli.commands.inspect_cmd",
+            "inspect_app",
+            "Browse session trajectories in a local web UI.",
+        ),
+        "tui": LazyCommandSpec(
+            "nika.cli.commands.tui",
+            "tui_app",
+            "Interactive shell with slash commands.",
+        ),
     }
 )
 
@@ -67,7 +86,28 @@ def _root() -> None:
 
 def main() -> None:
     """Console entrypoint for setuptools `[project.scripts]`."""
-    app()
+    # Before lazy command imports pull MCP FastMCP / pydantic_settings.
+    # Do not quiet third-party loggers here — only ``nika benchmark run`` does.
+    from nika.cli.warning_capture import (
+        install_warning_capture,
+        print_deferred_warnings,
+    )
+
+    install_warning_capture(quiet_loggers=False)
+    # Interactive commands show lifecycle events as they land in nika.jsonl;
+    # batch ``benchmark run`` turns this off for its progress panel.
+    from nika.utils.logger import set_console_events
+
+    set_console_events(True)
+    # Bare ``nika`` in a terminal opens the interactive shell; scripts and
+    # pipes keep the usual "Missing command" error.
+    interactive = sys.stdin.isatty() and sys.stdout.isatty()
+    try:
+        app(args=["tui"] if len(sys.argv) == 1 and interactive else None)
+    finally:
+        # Flush any warnings buffered for non-benchmark commands (benchmark
+        # run also prints them after its report; a second call is a no-op).
+        print_deferred_warnings()
 
 
 if __name__ == "__main__":

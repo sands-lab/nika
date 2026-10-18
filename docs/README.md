@@ -1,14 +1,22 @@
 # NIKA documentation
 
-Start with the root [README](../README.md) to install NIKA and run one incident. Then choose the page that matches your task.
+Start with the root [README](../README.md) to install NIKA and run one incident. Use the references below to choose a network, inspect available agent tools, or run a benchmark.
+
+The [glossary](../GLOSSARY.md) defines the terms these documents use, such as agent, harness, scenario, and case.
+
+Join the [NIKA Slack community](https://sands-lab.github.io/nika/community/) for questions, agent discussion, and contributions.
 
 ## Start and operate a lab
 
 | Goal | Read | Type |
 | --- | --- | --- |
+| Install NIKA and use installer options | [Installation](operations/installation.md) | How-to |
 | Configure providers, labs, MCP, sandboxing, and result paths | [Run configuration](operations/configuration.md) | Reference |
 | Find a command, option, session rule, or artifact location | [CLI reference](operations/cli-reference.md) | Reference |
-| Select a scenario, backend, scale, or prerequisites | [Network scenarios](operations/network-scenarios.md) | Reference |
+| Pick tasks, agents, and sessions interactively instead of typing flags | [Interactive shell (`nika tui`)](operations/tui.md) | How-to |
+| Browse finished or running session trajectories in a browser | [Browse sessions with `nika inspect`](operations/session-inspect.md) | How-to |
+| Compare network types, scenarios, backends, and prerequisites | [Network scenarios](operations/network-scenarios.md) | Reference |
+| Recover from common lab, host, and run failures | [Troubleshooting](operations/troubleshooting.md) | How-to |
 | Select, inspect, and inject a failure | [Failure taxonomy and reference](operations/failures.md) | Reference |
 | Run the lab host and agent host separately | [Remote lab execution](operations/remote.md) | How-to |
 | Run a supported agent in a Docker Sandbox microVM | [Docker Sandbox execution](operations/agent-sandbox.md) | How-to |
@@ -17,9 +25,11 @@ Start with the root [README](../README.md) to install NIKA and run one incident.
 
 | Goal | Read | Type |
 | --- | --- | --- |
-| Compare registered agents, providers, and execution modes | [Agent implementation reference](agents/agent-implementations.md) | Reference |
-| Implement and register a `TroubleshootingAgent` | [Custom agent integration](agents/custom-agents.md) | How-to |
-| See which MCP servers a session mounts and how to use packet capture | [MCP servers](agents/mcp-servers.md) | Reference |
+| Choose an agent and run hosted or self-hosted models | [Choose and run an agent](agents/agent-implementations.md) | How-to |
+| Check provider support, limits, and telemetry semantics | [Agent reference](agents/agent-reference.md) | Reference |
+| Build and register your own agent | [Custom agent integration](agents/custom-agents.md) | How-to |
+| Start from a complete agent built on another framework | [NOOA agent example](agents/nooa-example.md) | Example |
+| Find Pingmesh, INT, packet capture, and other agent tools | [MCP servers](agents/mcp-servers.md) | Reference |
 | Add reusable instructions for Claude or Codex agents | [Configure agent skills](agents/agent-skills.md) | How-to |
 | Configure a community-maintained agent | [Community agent references](agents/community/README.md) | Reference |
 
@@ -28,8 +38,10 @@ Start with the root [README](../README.md) to install NIKA and run one incident.
 | Goal | Read | Type |
 | --- | --- | --- |
 | Run a frozen release or an ad-hoc case matrix, or inspect generated coverage | [Benchmark configuration](benchmarks/benchmark-configuration.md) | Reference |
+| Run the 0.1.0 case collection | [Run release 0.1.0](compat/release-0.1.0.md) | How-to |
 | Understand ground truth, agent submissions, and scores | [Root-cause ground truth and scoring](benchmarks/root-cause-evaluation.md) | Reference |
 | Package a completed official release run | [Leaderboard submission](benchmarks/leaderboard-submission.md) | How-to |
+| Size hosts and `batch_size` from measured scenario startup cost | [Scenario startup performance](benchmarks/scenario_perf.md) | Reference |
 
 ## Develop scenarios, failures, and verifiers
 
@@ -37,6 +49,7 @@ Start with the root [README](../README.md) to install NIKA and run one incident.
 | --- | --- | --- |
 | Add a scenario, failure, traffic source, or candidate case | [Create benchmark tasks](development/creating-benchmark-tasks.md) | How-to |
 | Define healthy-network intents or implement a verifier | [Scenario validation](development/scenario-validation.md) | Reference |
+| Check which release 0.2.0 cases passed the benchmark audit, and how to rerun it | [Benchmark audit](benchmarks/benchmark-audit.md) | Reference |
 | Select and run the smallest relevant test suite | [Testing](development/testing.md) | Guide |
 
 ## Maintain the documentation
@@ -51,7 +64,7 @@ uv run nika agent list
 
 | Contract | Implementation |
 | --- | --- |
-| Run configuration | [`schema.py`](../src/nika/run_config/schema.py), [`loader.py`](../src/nika/run_config/loader.py), [`nika.example.yaml`](../config/nika.example.yaml) |
+| Run configuration | [`schema.py`](../src/nika/run_config/schema.py), [`loader.py`](../src/nika/run_config/loader.py), [`nika.example.yaml`](../config/nika.example.yaml), [`config/*.example.yaml`](../config/) |
 | CLI and workflows | [`main.py`](../src/nika/cli/main.py), [`commands/`](../src/nika/cli/commands/), [`workflows/`](../src/nika/workflows/) |
 | Scenario registry | [`net_env_pool.py`](../src/nika/net_env/net_env_pool.py), [`base.py`](../src/nika/net_env/base.py) |
 | Scenario validation | [`contract.py`](../src/nika/net_env/contract.py), [`isp/contract.py`](../src/nika/net_env/isp/contract.py) |

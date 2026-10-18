@@ -6,10 +6,11 @@ import shutil
 import subprocess
 import tempfile
 import threading
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from agent.sandbox.config import sandbox_gateway_agent_host
+from agent.sandbox.config import resolve_sandbox_config, sandbox_gateway_agent_host
 from agent.sandbox.sbx.client import (
     ensure_sbx_ready,
     run_sbx_checked,
@@ -22,11 +23,13 @@ from agent.sandbox.sbx.policy import (
     deny_mcp_gateway,
     sanitize_sandbox_name,
 )
+from agent.sandbox.sbx.manager import SbxSandboxManager
 from agent.sandbox.sbx.workspace import prepare_workspace
 from nika.mcp.gateway.lifecycle import (
     ENV_GATEWAY_AGENT_URL,
     mcp_gateway_for_session,
 )
+from nika.utils.session_store import SessionStore
 
 SECURITY_PROBE_SCRIPT = Path(__file__).resolve().parent / "security_probe.sh"
 
@@ -39,18 +42,19 @@ def sandbox_runtime_available() -> bool:
     return sbx_available() and sbx_authenticated()
 
 
-def sandbox_openai_credential_available() -> bool:
-    from agent.sandbox.sbx.credentials import sbx_openai_credential_available
-    from nika.config import _REPO_ROOT
+def sandbox_provider_credential_available(provider: str) -> bool:
+    """Require the selected provider's key or a global native sbx service secret."""
+    from agent.utils.provider_env import has_provider_credentials
+    from agent.sandbox.sbx.client import list_sbx_secret_services
 
-    return sbx_openai_credential_available(env_file=_REPO_ROOT / ".env")
-
-
-def sandbox_anthropic_credential_available() -> bool:
-    from agent.sandbox.sbx.credentials import sbx_anthropic_credential_available
-    from nika.config import _REPO_ROOT
-
-    return sbx_anthropic_credential_available(env_file=_REPO_ROOT / ".env")
+    if has_provider_credentials(provider):
+        return True
+    if provider not in {"openai", "anthropic"} or not sbx_available():
+        return False
+    try:
+        return provider in list_sbx_secret_services(global_only=True)
+    except RuntimeError:
+        return False
 
 
 def run_security_probe_with_gateway(session_id: str = "sandbox-security-test") -> None:
@@ -72,6 +76,19 @@ def run_security_probe_with_gateway(session_id: str = "sandbox-security-test") -
         session_dir.mkdir()
         ground_truth = session_dir / "ground_truth.json"
         ground_truth.write_text('{"hidden": true}', encoding="utf-8")
+        (session_dir / "run.json").write_text(
+            json.dumps(
+                {
+                    "session_id": session_id,
+                    "scenario_name": "simple_bgp",
+                    "backend": "kathara",
+                    "status": "running",
+                    "problem_names": ["link_down"],
+                    "failure_domain": "link_interface",
+                }
+            ),
+            encoding="utf-8",
+        )
         host_probe = Path(tmp) / "host_secret_probe.txt"
         host_probe.write_text("host-only", encoding="utf-8")
 
@@ -88,64 +105,87 @@ def run_security_probe_with_gateway(session_id: str = "sandbox-security-test") -
             session_dir=session_dir,
             manifest=manifest,
             runtime_env={"NIKA_AGENT_TYPE": agent_type},
+            agent_session_id=session_id,
+            workspace_dir=Path(tmp) / "agent_workspace",
         )
         probe_in_workspace = workspace.workspace_dir / "security_probe.sh"
         shutil.copy(SECURITY_PROBE_SCRIPT, probe_in_workspace)
         probe_in_workspace.chmod(0o755)
 
-        with mcp_gateway_for_session(
-            session_id,
-            scenario_name="simple_bgp",
-            sandbox=True,
-            sandbox_agent_host=agent_host,
-        ) as gateway_manager:
-            gateway_url = os.environ[ENV_GATEWAY_AGENT_URL]
-            manifest["mcp_gateway_agent_url"] = gateway_url
-            workspace.manifest_path.write_text(
-                json.dumps(manifest, indent=2),
-                encoding="utf-8",
-            )
-
-            run_sbx_optional(["rm", "--force", sandbox_name])
-            try:
-                create_cmd = [
-                    "create",
-                    "--name",
-                    sandbox_name,
-                    sbx_agent,
-                    str(workspace.workspace_dir),
-                ]
-                run_sbx_checked(create_cmd)
-                allow_mcp_gateway(sandbox_name=sandbox_name, port=gateway_manager.port)
-
-                env_prefix = (
-                    f"NIKA_SBX_NATIVE=1 "
-                    f"NIKA_MCP_GATEWAY_AGENT_URL={gateway_url} "
-                    f"NIKA_SANDBOX_PROBE_FILE={host_probe} "
-                    f"NIKA_SANDBOX_GROUND_TRUTH={ground_truth}"
+        # mcp_gateway_for_session reads session_dir / node roles from SessionStore.
+        store = SessionStore()
+        store.create_session(
+            {
+                "session_id": session_id,
+                "lab_name": f"security-probe-{session_id}",
+                "scenario_name": "simple_bgp",
+                "scenario_topo_size": None,
+                "scenario_params": {},
+                "session_dir": str(session_dir),
+                "status": "running",
+                "backend": "kathara",
+            }
+        )
+        try:
+            with mcp_gateway_for_session(
+                session_id,
+                scenario_name="simple_bgp",
+                sandbox=True,
+                sandbox_agent_host=agent_host,
+                backend="kathara",
+            ) as gateway_manager:
+                gateway_url = os.environ[ENV_GATEWAY_AGENT_URL]
+                manifest["mcp_gateway_agent_url"] = gateway_url
+                workspace.manifest_path.write_text(
+                    json.dumps(manifest, indent=2),
+                    encoding="utf-8",
                 )
-                result = subprocess.run(
-                    [
-                        "sbx",
-                        "exec",
-                        "-d",
-                        sandbox_name,
-                        "bash",
-                        "-lc",
-                        f"cd {workspace.workspace_dir} && {env_prefix} bash ./security_probe.sh",
-                    ],
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                )
-                if result.returncode != 0:
-                    raise AssertionError(
-                        f"Security probe failed (code {result.returncode}):\n"
-                        f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
-                    )
-            finally:
-                deny_mcp_gateway(sandbox_name=sandbox_name, port=gateway_manager.port)
+
                 run_sbx_optional(["rm", "--force", sandbox_name])
+                try:
+                    create_cmd = SbxSandboxManager(
+                        resolve_sandbox_config()
+                    ).build_create_command(
+                        sandbox_name=sandbox_name,
+                        sbx_agent=sbx_agent,
+                        workspace_dir=workspace.workspace_dir,
+                    )
+                    run_sbx_checked(create_cmd)
+                    allow_mcp_gateway(
+                        sandbox_name=sandbox_name, port=gateway_manager.port
+                    )
+
+                    env_prefix = (
+                        f"NIKA_SBX_NATIVE=1 "
+                        f"NIKA_MCP_GATEWAY_AGENT_URL={gateway_url} "
+                        f"NIKA_SANDBOX_PROBE_FILE={host_probe} "
+                        f"NIKA_SANDBOX_GROUND_TRUTH={ground_truth}"
+                    )
+                    result = subprocess.run(
+                        [
+                            "sbx",
+                            "exec",
+                            sandbox_name,
+                            "bash",
+                            "-lc",
+                            f"cd {workspace.workspace_dir} && {env_prefix} bash ./security_probe.sh",
+                        ],
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                    )
+                    if result.returncode != 0:
+                        raise AssertionError(
+                            f"Security probe failed (code {result.returncode}):\n"
+                            f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+                        )
+                finally:
+                    deny_mcp_gateway(
+                        sandbox_name=sandbox_name, port=gateway_manager.port
+                    )
+                    run_sbx_optional(["rm", "--force", sandbox_name])
+        finally:
+            store.delete_session(session_id)
 
 
 def run_cross_sandbox_isolation_probe() -> None:
@@ -154,6 +194,7 @@ def run_cross_sandbox_isolation_probe() -> None:
     Starts two lightweight host listeners on distinct ports, creates one sbx
     microVM, allows only the first port, then checks from inside the VM that
     the allowed port succeeds and the peer port is blocked by network policy.
+    Finally revokes the allowed port and checks that it is blocked too.
     """
     if not sandbox_runtime_available():
         raise RuntimeError("sbx is required for cross-sandbox isolation probe")
@@ -202,20 +243,26 @@ def run_cross_sandbox_isolation_probe() -> None:
                     "backend": "kathara",
                 },
                 runtime_env={"NIKA_AGENT_TYPE": "cli.codex"},
+                agent_session_id=session_id,
+                workspace_dir=Path(tmp) / "agent_workspace",
             )
 
             run_sbx_optional(["rm", "--force", sandbox_name])
             try:
                 run_sbx_checked(
-                    [
-                        "create",
-                        "--name",
-                        sandbox_name,
-                        "shell",
-                        str(workspace.workspace_dir),
-                    ]
+                    SbxSandboxManager(resolve_sandbox_config()).build_create_command(
+                        sandbox_name=sandbox_name,
+                        sbx_agent="shell",
+                        workspace_dir=workspace.workspace_dir,
+                    )
                 )
                 allow_mcp_gateway(sandbox_name=sandbox_name, port=own_port)
+
+                # The peer server must answer on the host, so a non-200 inside
+                # the sandbox can only come from the network policy.
+                direct = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+                with direct.open(f"http://127.0.0.1:{peer_port}/", timeout=5) as resp:
+                    assert resp.status == 200
 
                 own_url = f"http://{agent_host}:{own_port}/"
                 peer_url = f"http://{agent_host}:{peer_port}/"
@@ -229,11 +276,10 @@ def run_cross_sandbox_isolation_probe() -> None:
                     "peer_body=$(cat /tmp/nika_peer_body 2>/dev/null || true); "
                     'echo "peer_http=$peer_code"; '
                     'echo "peer_body=$peer_body"; '
-                    'test "$peer_code" != "200"; '
-                    'echo "$peer_body" | grep -qi "Blocked by network policy"'
+                    'test "$peer_code" != "200"'
                 )
                 result = subprocess.run(
-                    ["sbx", "exec", "-d", sandbox_name, "bash", "-lc", inner],
+                    ["sbx", "exec", sandbox_name, "bash", "-lc", inner],
                     capture_output=True,
                     text=True,
                     check=False,
@@ -244,6 +290,28 @@ def run_cross_sandbox_isolation_probe() -> None:
                         f"MCP gateway port isolation failed for {sandbox_name} "
                         f"(own={own_port} peer={peer_port}):\n"
                         f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+                    )
+
+                deny_mcp_gateway(sandbox_name=sandbox_name, port=own_port)
+                revoked = subprocess.run(
+                    [
+                        "sbx",
+                        "exec",
+                        sandbox_name,
+                        "bash",
+                        "-lc",
+                        "curl -s -o /dev/null --connect-timeout 3 --max-time 5 "
+                        f"-w '%{{http_code}}' '{own_url}' || true",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=90,
+                )
+                if revoked.stdout.strip() == "200":
+                    raise AssertionError(
+                        f"Revoked MCP gateway port {own_port} is still reachable "
+                        f"from {sandbox_name}"
                     )
             finally:
                 # Removing the sandbox drops its network policy; avoid a separate

@@ -3,6 +3,7 @@
 from pydantic import BaseModel, Field
 
 from nika.problems.rca import node_resource
+from nika.problems.support.benchmark_targets import choice, prefer_prefixed_node
 
 from nika.problems.base import (
     FailureDomain,
@@ -19,11 +20,25 @@ class Bmv2SwitchDownParams(BaseModel):
 
 class Bmv2SwitchDown(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "path_http"
+    symptom_class = "unreachable"
     root_cause_name = "bmv2_switch_down"
     description = "BMv2 switch dataplane process is down."
     TAGS: str = ["p4"]
 
     Params = Bmv2SwitchDownParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        if ctx.scenario == "p4_dc_fabric":
+            return {
+                "host_name": prefer_prefixed_node(
+                    ctx.bmv2, prefix="leaf_", preferred="leaf_1", fallback="leaf_1"
+                )
+            }
+        if ctx.scenario == "p4_dc_gateway":
+            return {"host_name": ctx.net_env.model.clients[0].attached_switch}
+        return {"host_name": choice(ctx.rng, ctx.bmv2, ctx.host0)}
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)

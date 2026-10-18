@@ -55,7 +55,7 @@ class RemoteClient:
         path: str,
         *,
         body: dict[str, Any] | None = None,
-        timeout: float = 600.0,
+        timeout: float | None = 600.0,
         expect_json: bool = True,
     ) -> Any:
         data = None if body is None else json.dumps(body).encode("utf-8")
@@ -96,15 +96,31 @@ class RemoteClient:
             self._request("GET", "/health", timeout=10.0)
         )
 
+    # Deploy + verify and inject + verify block server-side for as long as the
+    # scenario's verify budget allows (up to 30 min for large labs), so these
+    # calls wait for the server's answer instead of a fixed client timeout.
     def env_start(self, request: EnvStartRequest) -> EnvStartResponse:
         return EnvStartResponse.model_validate(
-            self._request("POST", "/v1/env/start", body=request.model_dump())
+            self._request(
+                "POST", "/v1/env/start", body=request.model_dump(), timeout=None
+            )
         )
 
     def failure_inject(self, request: FailureInjectRequest) -> FailureInjectResponse:
         return FailureInjectResponse.model_validate(
-            self._request("POST", "/v1/failure/inject", body=request.model_dump())
+            self._request(
+                "POST", "/v1/failure/inject", body=request.model_dump(), timeout=None
+            )
         )
+
+    def fault_artifact(self, session_id: str) -> dict[str, Any]:
+        """Bound the network wait for a benchmark artifact recheck."""
+        payload = self._request(
+            "GET", f"/v1/sessions/{session_id}/fault-artifact", timeout=30.0
+        )
+        if not isinstance(payload, dict):
+            raise RemoteError("Unexpected fault-artifact response shape")
+        return payload
 
     def mcp_attach(
         self,

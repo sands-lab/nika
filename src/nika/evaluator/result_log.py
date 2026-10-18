@@ -8,7 +8,6 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from nika.config import RESULTS_DIR
-from nika.evaluator.llm_judge import JudgeResponse
 from nika.evaluator.trace_parser import AgentTraceParser
 from nika.problems.registry import get_problem_class
 from nika.utils.session_artifacts import RUN_FILENAME, is_finished_session
@@ -37,6 +36,7 @@ class EvalResult:
     net_env: str = None
     scenario_topo_size: str = None
     session_id: str = None
+    outcome: str = None
     in_tokens: int = None
     out_tokens: int = None
     steps: int = None
@@ -58,6 +58,9 @@ class EvalResult:
     rca_precision: float = None
     rca_recall: float = None
     rca_f1: float = None
+    fault_type_precision: float = None
+    fault_type_recall: float = None
+    fault_type_f1: float = None
 
 
 def _session_duration_seconds(start_time, end_time) -> float | None:
@@ -126,6 +129,8 @@ def build_eval_result_from_session_dir(session_dir: Path) -> EvalResult:
     )
     taxonomy = resolve_failure_metadata(run_meta)
 
+    from nika.evaluator.llm_judge import JudgeResponse
+
     judge_response: JudgeResponse | None = None
     judge_path = session_dir / LLM_JUDGE_FILENAME
     if judge_path.exists():
@@ -164,6 +169,7 @@ def build_eval_result_from_session_dir(session_dir: Path) -> EvalResult:
         net_env=run_meta.get("scenario_name"),
         scenario_topo_size=run_meta.get("scenario_topo_size"),
         session_id=run_meta.get("session_id") or session_dir.name,
+        outcome=run_meta.get("outcome"),
         in_tokens=trace_metrics.get("in_tokens"),
         out_tokens=trace_metrics.get("out_tokens"),
         steps=trace_metrics.get("steps"),
@@ -178,15 +184,18 @@ def build_eval_result_from_session_dir(session_dir: Path) -> EvalResult:
         llm_judge_clarity_score=clarity_score,
         llm_judge_final_outcome_score=final_outcome_score,
         llm_judge_overall_score=overall_score,
-        detection_score=metrics_blob.get("detection_score", -1.0),
-        localization_accuracy=metrics_blob.get("localization_accuracy", -1.0),
-        localization_precision=metrics_blob.get("localization_precision", -1.0),
-        localization_recall=metrics_blob.get("localization_recall", -1.0),
-        localization_f1=metrics_blob.get("localization_f1", -1.0),
-        rca_accuracy=metrics_blob.get("rca_accuracy", -1.0),
-        rca_precision=metrics_blob.get("rca_precision", -1.0),
-        rca_recall=metrics_blob.get("rca_recall", -1.0),
-        rca_f1=metrics_blob.get("rca_f1", -1.0),
+        detection_score=metrics_blob.get("detection_score"),
+        localization_accuracy=metrics_blob.get("localization_accuracy"),
+        localization_precision=metrics_blob.get("localization_precision"),
+        localization_recall=metrics_blob.get("localization_recall"),
+        localization_f1=metrics_blob.get("localization_f1"),
+        rca_accuracy=metrics_blob.get("rca_accuracy"),
+        rca_precision=metrics_blob.get("rca_precision"),
+        rca_recall=metrics_blob.get("rca_recall"),
+        rca_f1=metrics_blob.get("rca_f1"),
+        fault_type_precision=metrics_blob.get("fault_type_precision"),
+        fault_type_recall=metrics_blob.get("fault_type_recall"),
+        fault_type_f1=metrics_blob.get("fault_type_f1"),
     )
 
 

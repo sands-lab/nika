@@ -20,6 +20,11 @@ from nika.problems.base import (
     build_verify_result,
 )
 from nika.problems.rca import node_resource
+from nika.problems.support.benchmark_targets import (
+    choice,
+    choice_distinct,
+    require_distinct_hosts,
+)
 
 
 def _device_id_for_switch(switch: str) -> str:
@@ -44,11 +49,25 @@ def _onos_post_flow(runtime, device: str, body: dict) -> None:
     url = f"http://{ONOS_OOB_IP}:{ONOS_REST_PORT}/onos/v1/flows/{device}"
     runtime.exec(
         "fabric_mgr",
-        f"echo {payload} | base64 -d > /tmp/nika_flow.json && "
+        f"echo {payload} | base64 -d | "
         f"curl -s -u onos:rocks -H 'Content-Type: application/json' "
-        f"-X POST '{url}' --data-binary @/tmp/nika_flow.json >/dev/null || true",
+        f"-X POST '{url}' --data-binary @- >/dev/null || true",
         timeout=30,
     )
+
+
+def _flow_rule_loop_pair(net_env, rng) -> tuple[str, str, str, str]:
+    """Return (switch_a, switch_b, port_a, port_b) preferring an adjacent fabric link."""
+    model = getattr(net_env, "model", None)
+    if model is not None and model.leaf_spine_links:
+        leaf, spine = rng.choice(model.leaf_spine_links)
+        p0 = model.port_to_peer(leaf, spine)
+        p1 = model.port_to_peer(spine, leaf)
+        if p0 is not None and p1 is not None:
+            return leaf, spine, p0.name, p1.name
+    switches = net_env.ovs_switches or []
+    pair = choice_distinct(rng, switches, "leaf_1")
+    return pair[0], pair[1], "eth0", "eth0"
 
 
 class FlowRuleShadowingParams(BaseModel):
@@ -59,11 +78,17 @@ class FlowRuleShadowingParams(BaseModel):
 
 class FlowRuleShadowing(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name: str = "flow_rule_shadowing"
     description = "A higher-priority SDN rule shadows intended forwarding."
     TAGS: str = ["sdn"]
 
     Params = FlowRuleShadowingParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": choice(ctx.rng, ctx.net_env.ovs_switches, ctx.host0)}
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
@@ -120,11 +145,27 @@ class FlowRuleLoopParams(BaseModel):
 
 class FlowRuleLoop(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "custom"
+    symptom_class = "loss"
     root_cause_name: str = "flow_rule_loop"
     description = "SDN flow rules create a forwarding loop."
     TAGS: str = ["sdn"]
 
     Params = FlowRuleLoopParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        a, b, port_a, port_b = _flow_rule_loop_pair(ctx.net_env, ctx.rng)
+        return {
+            "host_name": a,
+            "host_name_2": b,
+            "port_name": port_a,
+            "port_name_2": port_b,
+        }
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        require_distinct_hosts(ctx, cls.root_cause_name, inject, switches=True)
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
@@ -134,28 +175,33 @@ class FlowRuleLoop(ProblemBase):
         return [node_resource(left)]
 
     def _resolve_ports(self, params: FlowRuleLoopParams) -> tuple[str, str]:
-        port0 = params.port_name or "eth0"
-        port1 = params.port_name_2 or "eth0"
-        if params.port_name and params.port_name_2:
-            return params.port_name, params.port_name_2
+        """Return the two ports that terminate the link between the switches.
+
+        A given port name is kept only when the topology confirms it faces the
+        other switch; otherwise the facing port is read from the fabric model,
+        so both bounce rules always sit on the two ends of one link.
+        """
+        given = (params.port_name or "eth0", params.port_name_2 or "eth0")
         model = getattr(self.net_env, "model", None)
-        if model is not None:
-            p0 = model.port_to_peer(params.host_name, params.host_name_2)
-            p1 = model.port_to_peer(params.host_name_2, params.host_name)
-            if p0 is not None and p1 is not None:
-                return p0.name, p1.name
-        return port0, port1
+        if model is None:
+            return given
+        p0 = model.port_to_peer(params.host_name, params.host_name_2)
+        p1 = model.port_to_peer(params.host_name_2, params.host_name)
+        if p0 is None or p1 is None:
+            return given
+        return p0.name, p1.name
 
     # Above proactive L3 Clos fabric priorities so the bounce actually matches.
     _LOOP_PRIORITY = 50000
 
     def inject_fault(self, params: FlowRuleLoopParams):
-        host0 = params.host_name
-        host1 = params.host_name_2
+        # Each end sends IPv4 arriving from the other switch straight back out
+        # the same port. OpenFlow only re-emits a packet on its ingress port
+        # through the reserved IN_PORT output, so a plain output:<port> would
+        # be a drop. The two rules bounce traffic on the link until its TTL
+        # expires; the TTL decrement keeps the loop bounded.
         port0, port1 = self._resolve_ports(params)
-        of0 = _ofport(self.runtime, host0, port0)
-        of1 = _ofport(self.runtime, host1, port1)
-        for switch, ofport in ((host0, of0), (host1, of1)):
+        for switch, port in ((params.host_name, port0), (params.host_name_2, port1)):
             device = _device_id_for_switch(switch)
             _onos_post_flow(
                 self.runtime,
@@ -165,10 +211,34 @@ class FlowRuleLoop(ProblemBase):
                     "timeout": 0,
                     "isPermanent": True,
                     "deviceId": device,
-                    "treatment": {"instructions": [{"type": "OUTPUT", "port": ofport}]},
-                    "selector": {"criteria": [{"type": "IN_PORT", "port": ofport}]},
+                    "treatment": {
+                        "instructions": [
+                            {"type": "L3MODIFICATION", "subtype": "DEC_TTL"},
+                            {"type": "OUTPUT", "port": "IN_PORT"},
+                        ]
+                    },
+                    "selector": {
+                        "criteria": [
+                            {
+                                "type": "IN_PORT",
+                                "port": _ofport(self.runtime, switch, port),
+                            },
+                            {"type": "ETH_TYPE", "ethType": "0x0800"},
+                        ]
+                    },
                 },
             )
+
+    def _bounce_installed(self, flows: str, ofport: str) -> bool:
+        match = f"priority={self._LOOP_PRIORITY},ip,in_port={ofport} "
+        return any(
+            match in line and "IN_PORT" in line.split("actions=", 1)[-1]
+            for line in flows.splitlines()
+        )
+
+    def _loop_lines(self, flows: str) -> list[str]:
+        marker = f"priority={self._LOOP_PRIORITY},"
+        return [line.strip() for line in flows.splitlines() if marker in line]
 
     def verify_fault(self, params: FlowRuleLoopParams) -> dict:
         host0 = params.host_name
@@ -184,23 +254,15 @@ class FlowRuleLoop(ProblemBase):
             host1,
             f"ovs-ofctl -O OpenFlow13 dump-flows {host1} 2>/dev/null",
         ).strip()
-        has_loop0 = (
-            f"priority={self._LOOP_PRIORITY}" in flows0
-            and f"in_port={of0}" in flows0
-            and f"output:{of0}" in flows0
-        )
-        has_loop1 = (
-            f"priority={self._LOOP_PRIORITY}" in flows1
-            and f"in_port={of1}" in flows1
-            and f"output:{of1}" in flows1
-        )
+        has_loop0 = self._bounce_installed(flows0, of0)
+        has_loop1 = self._bounce_installed(flows1, of1)
         verified = has_loop0 and has_loop1
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=verified,
             details={
-                "host0_flows": flows0,
-                "host1_flows": flows1,
+                "host0_loop_flows": self._loop_lines(flows0),
+                "host1_loop_flows": self._loop_lines(flows1),
                 "port0": port0,
                 "port1": port1,
                 "ofport0": of0,

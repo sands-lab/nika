@@ -12,14 +12,26 @@ from typing import Any
 
 from nika.evaluator.result_log import MESSAGES_FILENAME
 from nika.evaluator.trace_parser import AgentTraceParser
-from nika.workflows.eval.session import build_eval_metrics_payload
+from nika.utils.session_artifacts import (
+    update_run_json,
+    write_json_atomic,
+)
+from nika.workflows.benchmark.isp_options import ISP_DEPLOY_KEYS
+from nika.workflows.benchmark.outcomes import (
+    COUNTED_OUTCOMES,
+    KNOWN_OUTCOMES,
+    RETRYABLE_OUTCOMES,
+    agent_demonstrably_started,
+)
 from nika.workflows.benchmark.resume import (
+    benchmark_row_fingerprint,
     benchmark_row_identity,
     cleanup_benchmark_session,
 )
 
 TRIALS_DIRNAME = "trials"
-VALID_TRIAL_OUTCOMES = frozenset({"success", "agent_failed"})
+# Counted finished slots kept by --resume and packed into leaderboard scores.
+VALID_TRIAL_OUTCOMES = COUNTED_OUTCOMES
 REQUIRED_TRIAL_ARTIFACTS = (
     "run.json",
     "ground_truth.json",
@@ -29,6 +41,24 @@ REQUIRED_TRIAL_ARTIFACTS = (
 
 _SAFE_TOKEN_RE = re.compile(r"[^a-zA-Z0-9._-]+")
 
+# Short keys for human-facing trial labels (plan / progress panels).
+_INJECT_LABEL_KEYS = (
+    "host_name",
+    "host_name_2",
+    "intf_name",
+    "router_name",
+    "src",
+    "dst",
+    "node",
+    "vip",
+)
+_INJECT_KEY_SHORT = {
+    "host_name": "host",
+    "host_name_2": "host2",
+    "intf_name": "intf",
+    "router_name": "router",
+}
+
 
 def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
@@ -37,6 +67,43 @@ def _utc_now_iso() -> str:
 def sanitize_token(value: str) -> str:
     cleaned = _SAFE_TOKEN_RE.sub("_", value.strip())
     return cleaned.strip("._-") or "case"
+
+
+def _inject_label_parts(inject: Any) -> list[str]:
+    """Compact inject summary for CLI labels (preferred keys first)."""
+    if not isinstance(inject, dict) or not inject:
+        return []
+    parts: list[str] = []
+    seen: set[str] = set()
+
+    def _add(key: str, value: Any) -> None:
+        if key in seen or value in (None, ""):
+            return
+        if isinstance(value, dict):
+            return
+        seen.add(key)
+        short = _INJECT_KEY_SHORT.get(key, key)
+        parts.append(f"{short}={value}")
+
+    for key in _INJECT_LABEL_KEYS:
+        if key in inject:
+            _add(key, inject[key])
+    for key, value in sorted(inject.items()):
+        _add(str(key), value)
+    return parts
+
+
+def format_trial_label(row: dict[str, Any], *, trial_index: int) -> str:
+    """Human-facing trial id: scenario/problem, size, inject, tNN."""
+    scenario = str(row.get("scenario") or "?")
+    problem = str(row.get("problem") or "?")
+    bits = [f"{scenario}/{problem}"]
+    topo = row.get("topo_size") or row.get("topo") or ""
+    if topo != "":
+        bits.append(str(topo))
+    bits.extend(_inject_label_parts(row.get("inject")))
+    bits.append(f"t{trial_index:02d}")
+    return " ".join(bits)
 
 
 def _inject_case_key_parts(inject: Any) -> list[str]:
@@ -59,7 +126,7 @@ def case_key_for_row(row: dict[str, Any]) -> str:
         sanitize_token(str(identity["scenario"])),
         sanitize_token(str(identity["problem"])),
     ]
-    for key in ("topo_size", "topo", "igp", "bgp_mode", "backend", "device_profile"):
+    for key in _CATALOG_DEPLOY_KEYS:
         value = identity.get(key) or ""
         if value != "":
             parts.append(sanitize_token(str(value)))
@@ -67,20 +134,129 @@ def case_key_for_row(row: dict[str, Any]) -> str:
         parts.append("rpki")
     base = "__".join(parts)
     inject_parts = _inject_case_key_parts(identity.get("inject"))
-    if not inject_parts:
-        return base
     full = "__".join([base, *inject_parts])
-    # Linux NAME_MAX is 255; trial dirname appends ``__tNN``.
-    if len(full) + 5 <= 240:
+    # Keep trial directory names short for nested runtime paths. Retain the
+    # readable scenario/problem prefix and hash the full identity when needed.
+    if len(full) + 5 <= 48:
         return full
-    digest = hashlib.sha1(full.encode("utf-8")).hexdigest()[:16]
-    return f"{base}__inj-{digest}"
+    digest = hashlib.sha1(benchmark_row_fingerprint(row).encode("utf-8")).hexdigest()[
+        :12
+    ]
+    return f"{base[:28].rstrip('_-')}__h{digest}"
 
 
 def trial_dirname(case_key: str, trial_index: int) -> str:
     if trial_index < 1:
         raise ValueError("trial_index must be >= 1")
     return f"{case_key}__t{trial_index:02d}"
+
+
+_TRIAL_SUFFIX_RE = re.compile(r"^(.*)__t(\d+)$")
+# rpki is a flag handled separately by case keys and catalog entries.
+_CATALOG_DEPLOY_KEYS = (
+    "topo_size",
+    *(key for key in ISP_DEPLOY_KEYS if key != "rpki"),
+)
+
+
+def task_id_for_row(row: dict[str, Any]) -> str:
+    """Public case id. Same string as ``case_key_for_row``."""
+    return case_key_for_row(row)
+
+
+def parse_task_selector(selector: str) -> tuple[str, int | None]:
+    """Split a public id into ``(task_id, trial_index)``.
+
+    ``trial_index`` is set when *selector* is a trial dirname (``{task_id}__tNN``).
+    """
+    text = (selector or "").strip()
+    if not text:
+        raise ValueError("Task id must be a non-empty string.")
+    match = _TRIAL_SUFFIX_RE.fullmatch(text)
+    if match is None:
+        return text, None
+    task_id = match.group(1)
+    trial_index = int(match.group(2))
+    if not task_id or trial_index < 1:
+        raise ValueError(f"Invalid trial id {selector!r}")
+    return task_id, trial_index
+
+
+def index_rows_by_task_id(rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Map each row's public ``task_id`` to the row. Duplicate ids raise."""
+    indexed: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        task_id = task_id_for_row(row)
+        if task_id in indexed:
+            raise ValueError(f"Duplicate task_id {task_id!r}")
+        indexed[task_id] = row
+    return indexed
+
+
+def task_catalog_entry(row: dict[str, Any]) -> dict[str, Any]:
+    """Compact operator-facing fields for ``nika benchmark list``."""
+    entry: dict[str, Any] = {
+        "task_id": task_id_for_row(row),
+        "scenario": row["scenario"],
+        "problem": row["problem"],
+    }
+    for key in _CATALOG_DEPLOY_KEYS:
+        value = row.get(key)
+        if value not in (None, ""):
+            entry[key] = value
+    if row.get("rpki"):
+        entry["rpki"] = True
+    return entry
+
+
+def catalog_entries(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    index_rows_by_task_id(rows)
+    return [task_catalog_entry(row) for row in rows]
+
+
+def describe_task_payload(row: dict[str, Any]) -> dict[str, Any]:
+    """Decomposed case fields for ``nika benchmark describe``."""
+    payload = task_catalog_entry(row)
+    payload["inject"] = dict(row.get("inject") or {})
+    problems = row.get("problems")
+    if isinstance(problems, list) and len(problems) > 1:
+        payload["problems"] = list(problems)
+    if "root_causes" in row:
+        payload["root_causes"] = row["root_causes"]
+    status = row.get("root_causes_status")
+    if status:
+        payload["root_causes_status"] = status
+    return payload
+
+
+def resolve_catalog_row(rows: list[dict[str, Any]], selector: str) -> dict[str, Any]:
+    """Find one row by ``task_id`` or trial dirname. Unknown ids raise."""
+    task_id, _trial_index = parse_task_selector(selector)
+    indexed = index_rows_by_task_id(rows)
+    row = indexed.get(task_id)
+    if row is None:
+        raise ValueError(f"Unknown task id {selector!r}")
+    return row
+
+
+def store_session_id_for_trial(
+    trial_id: str | None, result_dir: str | Path | None
+) -> str | None:
+    """Return a SessionStore key that stays unique across parallel result roots.
+
+    Benchmark trial *slots* live under ``{result_dir}/trials/{trial_id}/``. The
+    global SessionStore file is ``runtime/sessions/{session_id}.json``. Using the
+    bare ``trial_id`` as ``session_id`` makes two concurrent ``nika benchmark
+    run`` processes on the same task (different ``--result_dir``) clobber one
+    lab/session. Suffix a short hash of the resolved result root so parallel
+    agents stay isolated while resume within one result root stays stable.
+    """
+    if not trial_id:
+        return None
+    if not result_dir:
+        return trial_id
+    digest = hashlib.sha1(str(Path(result_dir).resolve()).encode()).hexdigest()[:8]
+    return f"{trial_id}__r{digest}"
 
 
 def trials_root(result_dir: Path) -> Path:
@@ -103,22 +279,24 @@ class Trial:
 
     @property
     def label(self) -> str:
-        return (
-            f"[{self.case_index + 1}:{self.trial_index}] "
-            f"{self.row['scenario']}/{self.row['problem']}"
-        )
+        return format_trial_label(self.row, trial_index=self.trial_index)
 
 
 def expand_trials(
     rows: list[dict[str, Any]],
     n_trials: int,
 ) -> list[Trial]:
+    """Expand cases × trials in trial-major order: all t01, then all t02, …
+
+    The benchmark runner schedules from this list, so round 1 finishes across
+    cases before round 2 starts (subject to ``batch_size`` / admission).
+    """
     if n_trials < 1:
         raise ValueError("n_trials must be >= 1")
     trials: list[Trial] = []
-    for case_index, row in enumerate(rows):
-        case_key = case_key_for_row(row)
-        for trial_index in range(1, n_trials + 1):
+    for trial_index in range(1, n_trials + 1):
+        for case_index, row in enumerate(rows):
+            case_key = case_key_for_row(row)
             trial_id = trial_dirname(case_key, trial_index)
             trials.append(
                 Trial(
@@ -132,6 +310,36 @@ def expand_trials(
     return trials
 
 
+def select_trials(trials: list[Trial], selectors: list[str]) -> list[Trial]:
+    """Filter expanded trials by ``task_id`` and/or ``{task_id}__tNN`` selectors.
+
+    Preserves ``trials`` order (trial-major from ``expand_trials``). Multiple
+    case-level ``--task-id`` values must not collapse back to case-major.
+    """
+    if not selectors:
+        return list(trials)
+    by_task: dict[str, list[Trial]] = {}
+    by_trial: dict[str, Trial] = {}
+    for trial in trials:
+        by_task.setdefault(trial.case_key, []).append(trial)
+        by_trial[trial.trial_id] = trial
+    allowed: set[str] = set()
+    for raw in selectors:
+        task_id, trial_index = parse_task_selector(raw)
+        if trial_index is not None:
+            trial = by_trial.get(trial_dirname(task_id, trial_index))
+            if trial is None:
+                raise ValueError(f"Unknown task id {raw!r}")
+            allowed.add(trial.trial_id)
+            continue
+        matches = by_task.get(task_id)
+        if not matches:
+            raise ValueError(f"Unknown task id {raw!r}")
+        for trial in matches:
+            allowed.add(trial.trial_id)
+    return [trial for trial in trials if trial.trial_id in allowed]
+
+
 def _read_json(path: Path) -> dict[str, Any] | None:
     if not path.is_file():
         return None
@@ -142,6 +350,16 @@ def _read_json(path: Path) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else None
 
 
+def has_valid_submission(session_dir: str | Path) -> bool:
+    """True when ``submission.json`` (written by MCP ``submit()``) is a JSON object.
+
+    A valid submission means the agent finished its task, so the trial is a
+    ``success`` regardless of what happened afterwards (agent timeout during
+    teardown, sandbox cleanup error, worker kill before metrics).
+    """
+    return _read_json(Path(session_dir) / "submission.json") is not None
+
+
 def trial_has_required_artifacts(
     session_dir: Path,
     *,
@@ -150,13 +368,23 @@ def trial_has_required_artifacts(
     for name in REQUIRED_TRIAL_ARTIFACTS:
         if not (session_dir / name).is_file():
             return False
-    if outcome == "success" and not (session_dir / "submission.json").is_file():
+    if outcome == "success" and not has_valid_submission(session_dir):
         return False
     return True
 
 
+def is_infra_error_trial(session_dir: str | Path) -> bool:
+    """True when a finished trial is marked ``score_status=infra_error``."""
+    run_meta = _read_json(Path(session_dir) / "run.json")
+    return bool(run_meta and run_meta.get("score_status") == "infra_error")
+
+
 def is_valid_trial(session_dir: str | Path) -> bool:
-    """Return True when a trial directory is a counted completed trial."""
+    """Return True when a trial directory is a counted completed trial.
+
+    Residual ``infra_error`` trials remain counted (so pack can see them and
+    reject), but ``scan_trials`` / resume treat them as retryable.
+    """
     path = Path(session_dir)
     run_meta = _read_json(path / "run.json")
     if run_meta is None:
@@ -169,8 +397,29 @@ def is_valid_trial(session_dir: str | Path) -> bool:
     return trial_has_required_artifacts(path, outcome=str(outcome))
 
 
+def trial_outcome(session_dir: str | Path) -> str | None:
+    """Return the stamped ``outcome`` when present, else ``None``."""
+    run_meta = _read_json(Path(session_dir) / "run.json")
+    if run_meta is None:
+        return None
+    outcome = run_meta.get("outcome")
+    return str(outcome) if outcome else None
+
+
+def is_finalized_failure(session_dir: str | Path) -> bool:
+    """True when the worker already stamped a known failure outcome.
+
+    Includes retryable ``endpoint_failed`` / ``infra_failed`` so parents do not
+    overwrite them with a counted ``agent_failed`` after a non-zero worker exit.
+    """
+    outcome = trial_outcome(session_dir)
+    return outcome in KNOWN_OUTCOMES - {"success"}
+
+
 def _restore_success_eval_metrics(path: Path) -> bool:
     """Rebuild metrics for a solved trial interrupted before evaluation finished."""
+    from nika.workflows.eval.session import build_eval_metrics_payload
+
     metrics_path = path / "eval_metrics.json"
     if metrics_path.is_file():
         return True
@@ -185,38 +434,51 @@ def _restore_success_eval_metrics(path: Path) -> bool:
         trace_metrics = AgentTraceParser(trace_path=str(trajectory_path)).parse_trace()
     except (json.JSONDecodeError, OSError, TypeError, ValueError):
         trace_metrics = {}
-    payload = build_eval_metrics_payload(
+    payload, _status = build_eval_metrics_payload(
         gt=gt,
         submission=submission,
         trace_metrics=trace_metrics,
     )
     try:
-        metrics_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        write_json_atomic(metrics_path, payload)
     except OSError:
         return False
     return True
 
 
-def heal_trial_outcome(session_dir: str | Path) -> bool:
+def heal_trial_outcome(session_dir: str | Path, *, verbose: bool = False) -> bool:
     """Repair solved trials missing final metrics or ``outcome``.
 
     When ``status=finished``, rebuild missing metrics from a submission and
     infer an outcome that a kill/timeout prevented from being persisted:
 
-    - ``success`` if ``submission.json`` is present
-    - ``agent_failed`` otherwise
+    - ``success`` if a valid ``submission.json`` is present
+    - ``agent_failed`` if the agent demonstrably started
+    - otherwise leave the slot incomplete (infra failure, retried)
+
+    Retryable ``endpoint_failed`` / ``infra_failed`` slots stay incomplete so
+    ``--resume`` retries them.
 
     Returns True when the directory is a valid counted trial afterwards.
     """
+    from nika.workflows.benchmark.display import vprint
+
     path = Path(session_dir)
     if is_valid_trial(path):
         return True
 
     run_meta = _read_json(path / "run.json")
-    if run_meta is None or run_meta.get("status") != "finished":
+    if run_meta is None:
         return False
 
     outcome = run_meta.get("outcome")
+    # Never promote endpoint/infra failures into counted agent_failed zeros.
+    if outcome in RETRYABLE_OUTCOMES:
+        return False
+
+    if run_meta.get("status") != "finished":
+        return False
+
     if outcome == "success" and _restore_success_eval_metrics(path):
         return is_valid_trial(path)
     if outcome in VALID_TRIAL_OUTCOMES:
@@ -224,41 +486,56 @@ def heal_trial_outcome(session_dir: str | Path) -> bool:
 
     # Submission proves the agent completed its work. Recover metrics when a
     # kill happened after submission but before evaluation/outcome persisted.
-    if (path / "submission.json").is_file() and not _restore_success_eval_metrics(path):
+    submitted = has_valid_submission(path)
+    if submitted and not _restore_success_eval_metrics(path):
         return False
 
     for name in REQUIRED_TRIAL_ARTIFACTS:
         if not (path / name).is_file():
             return False
 
-    inferred = "success" if (path / "submission.json").is_file() else "agent_failed"
-    run_meta["outcome"] = inferred
-    run_meta["status"] = "finished"
+    if submitted:
+        inferred = "success"
+    elif agent_demonstrably_started(path):
+        inferred = "agent_failed"
+    else:
+        # The agent never got a turn: retry instead of scoring a zero.
+        return False
+
+    from nika.evaluator.score_status import infer_score_status_from_artifacts
+
+    score_status = infer_score_status_from_artifacts(
+        has_submission=submitted,
+        run_meta=run_meta,
+        has_ground_truth=(path / "ground_truth.json").is_file(),
+    )
+
+    def _stamp(meta: dict[str, Any]) -> None:
+        meta["outcome"] = inferred
+        meta["score_status"] = score_status
+        meta["status"] = "finished"
+
     try:
-        (path / "run.json").write_text(
-            json.dumps(run_meta, indent=2, default=str),
-            encoding="utf-8",
-        )
+        if not update_run_json(path, _stamp):
+            return False
     except OSError:
         return False
 
-    print(f"Healed trial outcome={inferred} under {path}")
+    vprint(
+        verbose,
+        f"Healed trial outcome={inferred} score_status={score_status} under {path}",
+    )
     return is_valid_trial(path)
 
 
-def count_completed_trials(
-    *,
-    trials: list[Trial],
-    result_dir: str | Path,
-) -> int:
-    """Return how many trials under ``result_dir`` are already valid."""
-    results_root = Path(result_dir)
-    completed = 0
-    for trial in trials:
-        path = trial_dir(results_root, trial.case_key, trial.trial_index)
-        if path.is_dir() and (is_valid_trial(path) or heal_trial_outcome(path)):
-            completed += 1
-    return completed
+def _slot_store_session_id(
+    run_meta: dict[str, Any], trial: Trial, results_root: Path
+) -> str:
+    """SessionStore key of a trial slot (``run.json`` may be missing/partial)."""
+    return str(
+        run_meta.get("session_id")
+        or store_session_id_for_trial(trial.trial_id, results_root)
+    )
 
 
 def scan_trials(
@@ -266,8 +543,21 @@ def scan_trials(
     trials: list[Trial],
     result_dir: str | Path,
     resume: bool,
+    verbose: bool = False,
+    announce: bool = True,
+    mutate: bool = True,
 ) -> tuple[Path, list[int]]:
-    """Return indices of trials that still need to run under ``result_dir``."""
+    """Return indices of trials that still need to run under ``result_dir``.
+
+    When ``announce`` is False, skip resume/clear summary lines (used for
+    internal re-scans during a run so the CLI is not spammed).
+
+    When ``mutate`` is False, only classify slots (for preflight plan /
+    confirmation) — do not clear ``--no-resume`` dirs or clean incomplete
+    resume slots.
+    """
+    from nika.workflows.benchmark.display import vprint
+
     results_root = Path(result_dir)
     results_root.mkdir(parents=True, exist_ok=True)
     trials_dir = trials_root(results_root)
@@ -275,53 +565,114 @@ def scan_trials(
     total = len(trials)
 
     if not resume:
+        if not mutate:
+            return results_root, list(range(total))
         # Explicit re-run: wipe existing slots so init_session cannot leave a
         # hybrid running run.json over old artifacts that resume would delete.
+        cleared = 0
         for trial in trials:
             path = trial_dir(results_root, trial.case_key, trial.trial_index)
             if path.exists():
                 run_meta = _read_json(path / "run.json") or {}
-                print(f"{trial.label} {trial.trial_id} clearing slot (--no-resume)")
+                vprint(
+                    verbose,
+                    f"{trial.label} {trial.trial_id} clearing slot (--no-resume)",
+                )
                 cleanup_benchmark_session(
-                    str(run_meta.get("session_id") or path.name),
+                    _slot_store_session_id(run_meta, trial, results_root),
                     path,
                 )
+                cleared += 1
+        if cleared and announce and not verbose:
+            print(f"Cleared {cleared} existing trial slot(s) (--no-resume)")
         return results_root, list(range(total))
 
     pending: list[int] = []
     completed = 0
+    cleaned = 0
 
     for index, trial in enumerate(trials):
         path = trial_dir(results_root, trial.case_key, trial.trial_index)
         label = f"{trial.label} {trial.trial_id}"
 
-        if path.is_dir() and (is_valid_trial(path) or heal_trial_outcome(path)):
-            completed += 1
-            print(f"{label} skip (already complete: {path})")
-            continue
-
-        if path.exists():
+        # Auto-retry residual infra_error slots (clear and re-run).
+        if (
+            mutate
+            and path.is_dir()
+            and is_valid_trial(path)
+            and is_infra_error_trial(path)
+        ):
             run_meta = _read_json(path / "run.json") or {}
-            # Never delete a counted agent_failed / success trial.
-            if is_valid_trial(path) or heal_trial_outcome(path):
-                completed += 1
-                print(f"{label} skip (already complete: {path})")
-                continue
-            print(f"{label} cleaning incomplete trial")
+            vprint(verbose, f"{label} retrying infra_error trial")
             cleanup_benchmark_session(
                 str(run_meta.get("session_id") or path.name),
                 path,
             )
+            cleaned += 1
+            pending.append(index)
+            continue
+
+        if path.is_dir() and is_valid_trial(path):
+            completed += 1
+            vprint(verbose, f"{label} skip (already complete: {path})")
+            continue
+
+        if mutate and path.is_dir() and heal_trial_outcome(path, verbose=verbose):
+            if is_infra_error_trial(path):
+                run_meta = _read_json(path / "run.json") or {}
+                vprint(verbose, f"{label} retrying healed infra_error trial")
+                cleanup_benchmark_session(
+                    str(run_meta.get("session_id") or path.name),
+                    path,
+                )
+                cleaned += 1
+                pending.append(index)
+                continue
+            completed += 1
+            vprint(verbose, f"{label} skip (already complete: {path})")
+            continue
+
+        if path.exists():
+            if not mutate:
+                # Preflight only: leave incomplete slots untouched.
+                pending.append(index)
+                continue
+            run_meta = _read_json(path / "run.json") or {}
+            # Never delete a counted agent_failed / success trial.
+            # endpoint_failed / infra_failed are incomplete and cleaned for retry.
+            # infra_error slots are retried above.
+            if is_valid_trial(path) or heal_trial_outcome(path, verbose=verbose):
+                if is_infra_error_trial(path):
+                    vprint(verbose, f"{label} retrying infra_error trial")
+                    cleanup_benchmark_session(
+                        str(run_meta.get("session_id") or path.name),
+                        path,
+                    )
+                    cleaned += 1
+                    pending.append(index)
+                    continue
+                completed += 1
+                vprint(verbose, f"{label} skip (already complete: {path})")
+                continue
+            vprint(verbose, f"{label} cleaning incomplete trial")
+            cleanup_benchmark_session(
+                _slot_store_session_id(run_meta, trial, results_root),
+                path,
+            )
+            cleaned += 1
 
         pending.append(index)
 
-    if completed and pending:
-        print(
-            f"Resuming run: {completed}/{total} trials complete, "
-            f"{len(pending)} remaining under {results_root}"
-        )
-    elif not pending:
-        print(f"All {total} trial(s) already complete under {results_root}")
+    if announce:
+        if completed and pending:
+            print(
+                f"Resuming run: {completed}/{total} trials complete, "
+                f"{len(pending)} remaining under {results_root}"
+            )
+        elif not pending:
+            print(f"All {total} trial(s) already complete under {results_root}")
+    if cleaned and not verbose:
+        print(f"Cleaned {cleaned} incomplete trial slot(s)")
 
     return results_root, pending
 
@@ -334,10 +685,15 @@ _RUN_IDENTITY_FIELDS = (
     "model",
     "llm_provider",
     "max_steps",
+    "max_tokens",
     "n_trials",
     "case_timeout_sec",
     "official",
+    "reasoning_effort",
+    "agent_timeout_sec",
+    "access_role",
 )
+_GIT_FIELDS = ("nika_git_commit", "nika_git_dirty")
 
 
 def run_config_identity(job: dict[str, Any]) -> dict[str, Any]:
@@ -347,13 +703,17 @@ def run_config_identity(job: dict[str, Any]) -> dict[str, Any]:
 def assert_run_config_compatible(
     existing: dict[str, Any], proposed: dict[str, Any]
 ) -> None:
-    """Refuse resume when run identity fields diverge."""
+    """Refuse resume when run identity fields diverge.
+
+    Fields absent from ``existing`` (runs recorded before the field was part of
+    the identity) are not compared; ``merge_run_config`` backfills them.
+    """
     old = run_config_identity(existing)
     new = run_config_identity(proposed)
     mismatches = [
         f"{key}: existing={old[key]!r} requested={new[key]!r}"
         for key in _RUN_IDENTITY_FIELDS
-        if old.get(key) != new.get(key)
+        if key in existing and old.get(key) != new.get(key)
     ]
     if mismatches:
         raise ValueError(
@@ -369,21 +729,46 @@ def merge_run_config(
     existing: dict[str, Any] | None,
     proposed: dict[str, Any],
 ) -> dict[str, Any]:
-    """Keep stable ``run_id`` / timestamps on resume; refresh updated_at."""
+    """Keep stable ``run_id`` / timestamps on resume; refresh updated_at.
+
+    ``nika_git_commit`` / ``nika_git_dirty`` track the latest launch, and
+    ``nika_git_history`` keeps every distinct commit the run was resumed from.
+    """
+    now = _utc_now_iso()
     if existing is None:
-        now = _utc_now_iso()
         out = dict(proposed)
         out.setdefault("run_id", out.get("job_id") or out.get("run_id"))
         out.setdefault("job_id", out["run_id"])
         out["created_at"] = now
         out["updated_at"] = now
+        if any(key in proposed for key in _GIT_FIELDS):
+            out["nika_git_history"] = [_git_entry(proposed, now)]
         return out
 
     assert_run_config_compatible(existing, proposed)
     out = dict(existing)
-    out["updated_at"] = _utc_now_iso()
-    # Allow refreshing git dirty/commit on resume without changing identity.
-    for key in ("nika_git_commit", "nika_git_dirty"):
-        if key in proposed:
+    out["updated_at"] = now
+    for key in _RUN_IDENTITY_FIELDS:
+        if key not in out and key in proposed:
             out[key] = proposed[key]
+    if any(key in proposed for key in _GIT_FIELDS):
+        history = list(out.get("nika_git_history") or [])
+        if not history and any(key in existing for key in _GIT_FIELDS):
+            history.append(_git_entry(existing, existing.get("created_at")))
+        entry = _git_entry(proposed, now)
+        last = history[-1] if history else None
+        if last is None or any(last.get(key) != entry[key] for key in _GIT_FIELDS):
+            history.append(entry)
+        out["nika_git_history"] = history
+        for key in _GIT_FIELDS:
+            if key in proposed:
+                out[key] = proposed[key]
     return out
+
+
+def _git_entry(job: dict[str, Any], recorded_at: Any) -> dict[str, Any]:
+    return {
+        "nika_git_commit": job.get("nika_git_commit"),
+        "nika_git_dirty": job.get("nika_git_dirty"),
+        "recorded_at": recorded_at,
+    }

@@ -200,6 +200,7 @@ class SwitchClient:
             "pipeline_name": name,
             "cookie": cookie,
             "table_count": len(resp.config.p4info.tables),
+            "tables": sorted(t.preamble.name for t in resp.config.p4info.tables),
         }
 
     def write(self, updates: list[p4runtime_pb2.Update], atomic: int) -> None:
@@ -210,16 +211,6 @@ class SwitchClient:
         req.atomicity = atomic
         req.updates.extend(updates)
         self.stub.Write(req, timeout=30)
-
-    def write_continue(self, updates: list[p4runtime_pb2.Update]) -> str | None:
-        try:
-            self.write(
-                updates,
-                p4runtime_pb2.WriteRequest.CONTINUE_ON_ERROR,
-            )
-            return None
-        except grpc.RpcError as exc:
-            return str(exc)
 
     def read_entities(self, *builders: Iterable[p4runtime_pb2.Entity]) -> list:
         req = p4runtime_pb2.ReadRequest()
@@ -560,6 +551,11 @@ def apply_switch(
 
 def observed_switch(client: SwitchClient, index: P4InfoIndex) -> dict[str, Any]:
     pipeline = client.get_pipeline()
+    # The programs carry no @pkginfo name, so compare the loaded P4Info tables
+    # with the P4Info this manager programs.
+    pipeline["matches_intent"] = bool(pipeline.get("ok")) and pipeline.get(
+        "tables"
+    ) == sorted(t.preamble.name for t in index.p4info.tables)
     members = []
     groups = []
     ipv4_lpm = []
@@ -642,7 +638,12 @@ def observed_switch(client: SwitchClient, index: P4InfoIndex) -> dict[str, Any]:
                 values[int(entry.index.index)] = decode_u(entry.data.bitstring)
         registers[name] = values
 
-    for table_name in ("ecn_config", "int_mtu_config", "runtime_role"):
+    for table_name in (
+        "ecn_config",
+        "int_mtu_config",
+        "runtime_role",
+        "icmp_frag_needed_acl",
+    ):
         if table_name not in index.tables:
             continue
         request = p4runtime_pb2.Entity()
@@ -654,6 +655,7 @@ def observed_switch(client: SwitchClient, index: P4InfoIndex) -> dict[str, Any]:
             entry = entity.table_entry
             row = {
                 "key": decode_u(entry.match[0].exact.value) if entry.match else 0,
+                "keys": [decode_u(m.exact.value) for m in entry.match],
                 "is_default": int(entry.is_default_action),
             }
             if entry.action.HasField("action"):
@@ -762,6 +764,47 @@ def cmd_read(args: argparse.Namespace) -> None:
         finally:
             client.close()
     print(json.dumps({"ok": True, "switches": payload}, default=str))
+
+
+def cmd_read_table(args: argparse.Namespace) -> None:
+    """Dump every entry of one table, keyed by the table name."""
+    intent = load_json(args.intent)
+    p4info = load_p4info(args.p4info)
+    index = P4InfoIndex(p4info)
+    table = index.tables[args.table]
+    fields = {int(f.id): _short(f.name) for f in table.match_fields}
+    actions = {int(a.preamble.id): a for a in p4info.actions}
+    request = p4runtime_pb2.Entity()
+    request.table_entry.table_id = index.table_id(args.table)
+    client = connect(intent["switches"][args.switch])
+    rows = []
+    try:
+        for entity in client.read_entities(request):
+            if not entity.HasField("table_entry"):
+                continue
+            entry = entity.table_entry
+            match: dict[str, Any] = {}
+            for mf in entry.match:
+                name = fields.get(int(mf.field_id), str(mf.field_id))
+                if mf.HasField("exact"):
+                    match[name] = decode_u(mf.exact.value)
+                elif mf.HasField("lpm"):
+                    match[name] = decode_prefix(mf.lpm.value, mf.lpm.prefix_len)
+            action = actions.get(int(entry.action.action.action_id))
+            names = {int(p.id): p.name for p in action.params} if action else {}
+            rows.append(
+                {
+                    "match": match,
+                    "action": _short(action.preamble.name) if action else None,
+                    "params": {
+                        names.get(int(p.param_id), str(p.param_id)): decode_u(p.value)
+                        for p in entry.action.action.params
+                    },
+                }
+            )
+    finally:
+        client.close()
+    print(json.dumps({"ok": True, "switch": args.switch, "tables": {args.table: rows}}))
 
 
 def cmd_delete_lpm(args: argparse.Namespace) -> None:
@@ -918,40 +961,6 @@ def cmd_set_pipeline(args: argparse.Namespace) -> None:
                     "ok": True,
                     "set_error": err,
                     "pipeline": pipeline,
-                }
-            )
-        )
-    finally:
-        client.close()
-
-
-def cmd_partial_write(args: argparse.Namespace) -> None:
-    intent = load_json(args.intent)
-    p4info = load_p4info(args.p4info)
-    index = P4InfoIndex(p4info)
-    switch = intent["switches"][args.switch]
-    entry = next(e for e in switch["ipv4_lpm"] if e["prefix"] == args.prefix)
-    good = lpm_entity(index, entry, insert=False)
-    bad = p4runtime_pb2.Update()
-    bad.type = p4runtime_pb2.Update.INSERT
-    bad.entity.table_entry.table_id = 0x7FFFFFFF
-    mf = bad.entity.table_entry.match.add()
-    mf.field_id = 1
-    mf.lpm.value = encode_ipv4("203.0.113.1")
-    mf.lpm.prefix_len = 32
-    client = connect(switch)
-    try:
-        err = client.write_continue([good, bad])
-        observed = observed_switch(client, index)
-        present = any(e.get("prefix") == args.prefix for e in observed["ipv4_lpm"])
-        remaining = len(observed["ipv4_lpm"])
-        print(
-            json.dumps(
-                {
-                    "ok": (not present) and remaining > 0,
-                    "prefix_present": present,
-                    "remaining_lpm": remaining,
-                    "write_error": err,
                 }
             )
         )
@@ -1164,7 +1173,9 @@ def cmd_gateway_lb(args: argparse.Namespace) -> None:
                     args.dip,
                 )
             ):
-                raise ValueError("learn requires --src-addr --src-port --dst-addr --dst-port --dip")
+                raise ValueError(
+                    "learn requires --src-addr --src-port --dst-addr --dst-port --dip"
+                )
             updates.append(
                 exact_fields_entity(
                     index,
@@ -1182,7 +1193,12 @@ def cmd_gateway_lb(args: argparse.Namespace) -> None:
         elif args.kind == "delete-conn":
             if not all(
                 value is not None
-                for value in (args.src_addr, args.src_port, args.dst_addr, args.dst_port)
+                for value in (
+                    args.src_addr,
+                    args.src_port,
+                    args.dst_addr,
+                    args.dst_port,
+                )
             ):
                 raise ValueError(
                     "delete-conn requires --src-addr --src-port --dst-addr --dst-port"
@@ -1253,6 +1269,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_read.add_argument("--switch")
     p_read.set_defaults(func=cmd_read)
 
+    p_table = sub.add_parser("read-table")
+    p_table.add_argument("--switch", required=True)
+    p_table.add_argument("--table", required=True)
+    p_table.set_defaults(func=cmd_read_table)
+
     p_del = sub.add_parser("delete-lpm")
     p_del.add_argument("--switch", required=True)
     p_del.add_argument("--prefix", required=True)
@@ -1280,11 +1301,6 @@ def build_parser() -> argparse.ArgumentParser:
     p_pipe = sub.add_parser("set-pipeline")
     p_pipe.add_argument("--switch", required=True)
     p_pipe.set_defaults(func=cmd_set_pipeline)
-
-    p_part = sub.add_parser("partial-write")
-    p_part.add_argument("--switch", required=True)
-    p_part.add_argument("--prefix", required=True)
-    p_part.set_defaults(func=cmd_partial_write)
 
     p_fill = sub.add_parser("fill-table")
     p_fill.add_argument("--switch", required=True)

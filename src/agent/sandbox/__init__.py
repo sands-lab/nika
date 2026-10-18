@@ -1,13 +1,5 @@
 """Docker sandbox execution for NIKA troubleshooting agents."""
 
-SANDBOX_SUPPORTED_AGENTS = (
-    "cli.codex",
-    "cli.claude",
-    "sdk.codex_sdk",
-    "sdk.claude_sdk",
-    "community.sade",
-)
-
 __all__ = [
     "SANDBOX_SUPPORTED_AGENTS",
     "SandboxConfig",
@@ -18,6 +10,11 @@ __all__ = [
 
 
 def __getattr__(name: str):
+    if name == "SANDBOX_SUPPORTED_AGENTS":
+        # Lazy: agent.registry imports agent.sandbox.config.
+        from agent.registry import SANDBOX_AGENT_TYPES
+
+        return SANDBOX_AGENT_TYPES
     if name == "SandboxConfig":
         from agent.sandbox.config import SandboxConfig
 

@@ -3,6 +3,17 @@
 from __future__ import annotations
 
 from nika.service.lab.protocols import SupportsExec
+from nika.utils.network_change_log import log_network_change
+
+_TC_OK_MARKER = "__nika_tc_ok__"
+
+
+def _exec_tc(api: SupportsExec, host_name: str, command: str) -> tuple[str, bool]:
+    """Run a tc change; return (output without marker, whether it succeeded)."""
+    output = api.exec_cmd(host_name, f"{command} && echo {_TC_OK_MARKER}")
+    lines = output.splitlines()
+    ok = _TC_OK_MARKER in (line.strip() for line in lines)
+    return "\n".join(line for line in lines if line.strip() != _TC_OK_MARKER), ok
 
 
 class TCMixin:
@@ -23,7 +34,7 @@ class TCMixin:
         handle: str | None = None,
         parent: str | None = None,
     ) -> str:
-        command = f"tc qdisc add dev {intf_name}"
+        command = f"tc qdisc replace dev {intf_name}"
         if parent is not None:
             command += f" parent {parent}"
         else:
@@ -46,7 +57,32 @@ class TCMixin:
             command += f" corrupt {corrupt}%"
         if limit is not None:
             command += f" limit {limit}"
-        return self.exec_cmd(host_name, command)
+        result, ok = _exec_tc(self, host_name, command)
+        if not ok:
+            return result
+        params = {
+            key: value
+            for key, value in {
+                "loss": loss,
+                "delay_ms": delay_ms,
+                "jitter_ms": jitter_ms,
+                "duplicate": duplicate,
+                "corrupt": corrupt,
+                "reorder": reorder,
+                "limit": limit,
+            }.items()
+            if value is not None
+        }
+        param_text = " ".join(f"{k}={v}" for k, v in params.items())
+        log_network_change(
+            f"tc netem on {host_name}:{intf_name}"
+            + (f" {param_text}" if param_text else ""),
+            mechanism="tc_netem",
+            host=host_name,
+            intf=intf_name,
+            params=params or None,
+        )
+        return result
 
     def tc_set_tbf(
         self: SupportsExec,
@@ -59,7 +95,7 @@ class TCMixin:
         handle: str | None = None,
         parent: str | None = None,
     ) -> str:
-        command = f"tc qdisc add dev {intf_name}"
+        command = f"tc qdisc replace dev {intf_name}"
         if parent is not None:
             command += f" parent {parent}"
         else:
@@ -68,10 +104,29 @@ class TCMixin:
             handle = handle if handle.endswith(":") else handle + ":"
             command += f" handle {handle}"
         command += f" tbf rate {rate} burst {burst} limit {limit}"
-        return self.exec_cmd(host_name, command)
+        result, ok = _exec_tc(self, host_name, command)
+        if not ok:
+            return result
+        log_network_change(
+            f"tc tbf on {host_name}:{intf_name} "
+            f"rate={rate} burst={burst} limit={limit}",
+            mechanism="tc_tbf",
+            host=host_name,
+            intf=intf_name,
+            params={"rate": rate, "burst": burst, "limit": limit},
+        )
+        return result
 
     def tc_clear_intf(self: SupportsExec, host_name: str, intf_name: str) -> str:
-        return self.exec_cmd(host_name, f"tc qdisc del dev {intf_name} root")
+        result = self.exec_cmd(host_name, f"tc qdisc del dev {intf_name} root")
+        log_network_change(
+            f"tc clear on {host_name}:{intf_name}",
+            mechanism="tc_clear",
+            host=host_name,
+            intf=intf_name,
+            action="clear",
+        )
+        return result
 
     def tc_show_intf(self: SupportsExec, host_name: str, intf_name: str) -> str:
         return self.exec_cmd(host_name, f"tc qdisc show dev {intf_name}")

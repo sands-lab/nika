@@ -9,22 +9,21 @@ from __future__ import annotations
 import json
 import sqlite3
 from collections.abc import Mapping
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from nika.config import RESULTS_DIR, SESSIONS_DB
-from nika.utils.session_artifacts import RUN_FILENAME, iter_session_dirs
+from nika.utils.session_artifacts import (
+    RUN_FILENAME,
+    is_job_run_dir,
+    iter_session_dirs,
+    normalize_session_status,
+)
 
 GROUND_TRUTH_FILENAME = "ground_truth.json"
 EVAL_METRICS_FILENAME = "eval_metrics.json"
 LLM_JUDGE_FILENAME = "llm_judge.json"
-
-
-def _is_finished_session(run_meta: dict) -> bool:
-    if run_meta.get("status") == "finished":
-        return True
-    return run_meta.get("end_time") is not None
 
 
 _JSON_LIST_FIELDS = frozenset({"problem_names"})
@@ -91,7 +90,7 @@ _UPSERT_COLUMNS = (
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _json_dumps(value: Any) -> str | None:
@@ -280,16 +279,22 @@ class SessionIndex:
             )
 
     def mark_finished(
-        self, session_id: str, *, doc: Mapping[str, Any] | None = None
+        self,
+        session_id: str,
+        *,
+        doc: Mapping[str, Any] | None = None,
+        status: str = "finished",
     ) -> None:
+        if status not in {"finished", "aborted", "error"}:
+            status = "finished"
         fields: dict[str, Any] = {
             "session_id": session_id,
-            "status": "finished",
+            "status": status,
             "updated_at": _now_iso(),
         }
         if doc is not None:
             fields.update(extract_index_fields(doc))
-            fields["status"] = "finished"
+            fields["status"] = status
         self.upsert(fields)
 
     def purge(self, session_id: str) -> None:
@@ -334,6 +339,8 @@ class SessionIndex:
         """Rebuild index rows from ``results/*/run.json`` artifacts."""
         count = 0
         for session_dir in iter_session_dirs(results_dir or RESULTS_DIR):
+            if is_job_run_dir(session_dir):
+                continue
             run_path = session_dir / RUN_FILENAME
             if not run_path.exists():
                 continue
@@ -341,15 +348,22 @@ class SessionIndex:
                 run_meta = json.loads(run_path.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, OSError):
                 continue
+            if not isinstance(run_meta, dict):
+                continue
+            # Job metadata reuses run.json but has no lab scenario; never index
+            # it as a running session (basename would become session_id).
+            if not run_meta.get("scenario_name") and (
+                run_meta.get("job_id")
+                or run_meta.get("run_id")
+                or run_meta.get("benchmark_ref")
+            ):
+                continue
 
             sid = run_meta.get("session_id") or session_dir.name
             fields = extract_index_fields(run_meta)
             fields["session_id"] = sid
             fields["session_dir"] = str(session_dir)
-            if _is_finished_session(run_meta):
-                fields["status"] = "finished"
-            else:
-                fields["status"] = run_meta.get("status", "running")
+            fields["status"] = normalize_session_status(run_meta)
 
             gt_path = session_dir / GROUND_TRUTH_FILENAME
             if gt_path.exists():
@@ -379,8 +393,12 @@ class SessionIndex:
                 problem_names = fields.get("problem_names") or run_meta.get(
                     "problem_names"
                 )
-                if problem_names:
-                    fields["failure_count"] = len(problem_names)
+                if isinstance(problem_names, list):
+                    from nika.workflows.benchmark.healthy import HEALTHY_PROBLEM
+
+                    faults = [p for p in problem_names if str(p) != HEALTHY_PROBLEM]
+                    if faults:
+                        fields["failure_count"] = len(faults)
 
             self.upsert(fields)
             count += 1

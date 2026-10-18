@@ -1,24 +1,48 @@
 from pydantic import BaseModel, Field
 
-import time
-
+from nika.net_env.verify import frr_bgp_has_established_session
 from nika.problems.rca import node_resource
 from nika.problems.base import (
     FailureDomain,
     build_verify_result,
     ProblemBase,
 )
+from nika.problems.support.benchmark_targets import (
+    arp_l2_endpoint_host,
+    first,
+    prefer_named,
+)
+from nika.problems.support.compatible_columns import NON_K8S_HOST_COLUMNS
+from nika.problems.support.polling import wait_until
 from nika.runtime.base import RuntimeCapabilityError
 
 
-def _verify_nft_drop(problem: ProblemBase, host_name: str, match_token: str) -> dict:
-    nft_output = problem.runtime.list_nft_ruleset(host_name)
-    verified = match_token in nft_output and "drop" in nft_output
+def _verify_nft_drop(
+    problem: ProblemBase, host_name: str, *rules: str, family: str = "inet"
+) -> dict:
+    """Verify every ``add_nft_drop_rule`` rule is live, matched exactly."""
+    present = {
+        rule: problem.runtime.nft_drop_rule_present(host_name, rule, family=family)
+        for rule in rules
+    }
     return build_verify_result(
         fault_type=problem.root_cause_name,
-        verified=verified,
-        details={"host": host_name, "nft_snippet": nft_output},
+        verified=all(present.values()),
+        details={"host": host_name, "family": family, "rules_present": present},
     )
+
+
+def _host_acl_target(ctx) -> str:
+    """Probe-source host whose own ICMP / HTTP traffic the ACL drops."""
+    if ctx.scenario == "enterprise_branch":
+        return prefer_named(
+            ctx.host_pool, "br1_corp_pc", first(ctx.host_pool) or ctx.host0
+        )
+    if ctx.scenario == "k8s_lab":
+        return prefer_named(ctx.host_pool, "client", ctx.host0)
+    if ctx.scenario in {"p4_dc_fabric", "sdn_l3_clos"}:
+        return prefer_named(ctx.host_pool, "client_1_1", ctx.host0)
+    return ctx.host0
 
 
 # ==================================================================
@@ -34,6 +58,8 @@ class BGPAclBlockParams(BaseModel):
 
 class BGPAclBlock(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "custom"
+    symptom_class = "control_plane"
     root_cause_name = "bgp_acl_block"
     description = "BGP control-plane traffic is blocked by an ACL."
     TAGS: str = ["bgp"]
@@ -41,13 +67,19 @@ class BGPAclBlock(ProblemBase):
 
     Params = BGPAclBlockParams
 
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": ctx.router0}
+
     def root_cause_resources(self, params: BGPAclBlockParams):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: BGPAclBlockParams):
         match self.lab_backend:
             case "containerlab":
-                self.runtime.srl_add_bgp_acl_drop_179(params.host_name)
+                self._srl_acl_entries = self.runtime.srl_add_bgp_acl_drop_179(
+                    params.host_name
+                )
             case "kathara":
                 self.runtime.add_nft_drop_rule(
                     params.host_name, "tcp dport 179 drop", family="inet"
@@ -55,28 +87,20 @@ class BGPAclBlock(ProblemBase):
                 self.runtime.add_nft_drop_rule(
                     params.host_name, "tcp sport 179 drop", family="inet"
                 )
+                # Hard-reset every session so the ACL takes effect now instead
+                # of after the 180 s hold timer; blocked TCP 179 keeps them down.
                 self.runtime.exec(
                     params.host_name,
-                    "vtysh -c 'clear ip bgp * soft' 2>/dev/null || true",
+                    "vtysh -c 'clear ip bgp *' 2>/dev/null || true",
                 )
-                neighbor = self.runtime.exec(
-                    params.host_name,
-                    "vtysh -c 'show bgp summary' 2>/dev/null | awk 'NR==2 {print $1}'",
-                ).strip()
-                asn = self.runtime.frr_get_bgp_asn_number(params.host_name)
-                if neighbor and asn:
-                    self.runtime.exec(
-                        params.host_name,
-                        f"vtysh -c 'configure terminal' -c 'router bgp {asn}' "
-                        f"-c 'neighbor {neighbor} shutdown' -c 'end' 2>/dev/null || true",
-                    )
-                    time.sleep(2)
-                    self.runtime.exec(
-                        params.host_name,
-                        f"vtysh -c 'configure terminal' -c 'router bgp {asn}' "
-                        f"-c 'no neighbor {neighbor} shutdown' -c 'end' 2>/dev/null || true",
-                    )
-                time.sleep(8)
+                wait_until(
+                    lambda: (
+                        not frr_bgp_has_established_session(
+                            self.runtime, params.host_name
+                        )
+                    ),
+                    8,
+                )
             case backend:
                 raise RuntimeCapabilityError(
                     f"{type(self).__name__} cannot inject_fault: unsupported backend {backend!r}."
@@ -86,19 +110,22 @@ class BGPAclBlock(ProblemBase):
         """Verify nftables or SRL ACL blocks TCP port 179 (BGP)."""
         match self.lab_backend:
             case "containerlab":
-                verified = self.runtime.srl_bgp_acl_drop_179_present(params.host_name)
+                entries = getattr(self, "_srl_acl_entries", {})
+                verified = self.runtime.srl_bgp_acl_drop_179_present(
+                    params.host_name, entries
+                )
                 return build_verify_result(
                     fault_type=self.root_cause_name,
                     verified=verified,
-                    details={"host": params.host_name, "srl_acl": verified},
+                    details={
+                        "host": params.host_name,
+                        "srl_acl": verified,
+                        "srl_acl_entries": sorted(entries),
+                    },
                 )
             case "kathara":
-                nft_output = self.runtime.list_nft_ruleset(params.host_name)
-                verified = "tcp dport 179" in nft_output and "drop" in nft_output
-                return build_verify_result(
-                    fault_type=self.root_cause_name,
-                    verified=verified,
-                    details={"host": params.host_name, "nft_snippet": nft_output},
+                return _verify_nft_drop(
+                    self, params.host_name, "tcp dport 179 drop", "tcp sport 179 drop"
                 )
             case backend:
                 raise RuntimeCapabilityError(
@@ -119,11 +146,17 @@ class OSPFAclBlockParams(BaseModel):
 
 class OSPFAclBlock(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "custom"
+    symptom_class = "control_plane"
     root_cause_name = "ospf_acl_block"
     description = "OSPF control-plane traffic is blocked by an ACL."
     TAGS: str = ["ospf"]
 
     Params = OSPFAclBlockParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": ctx.router0}
 
     def root_cause_resources(self, params: OSPFAclBlockParams):
         return [node_resource(params.host_name)]
@@ -135,7 +168,7 @@ class OSPFAclBlock(ProblemBase):
 
     def verify_fault(self, params: OSPFAclBlockParams) -> dict:
         """Verify nftables has a rule blocking OSPF protocol."""
-        return _verify_nft_drop(self, params.host_name, "ospf")
+        return _verify_nft_drop(self, params.host_name, "ip protocol ospf drop")
 
 
 # ==================================================================
@@ -151,23 +184,19 @@ class ARPAclBlockParams(BaseModel):
 
 class ARPAclBlock(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "path_ping"
+    symptom_class = "unreachable"
     root_cause_name = "arp_acl_block"
     description = "ARP is blocked by an ACL."
     TAGS: str = ["arp"]
     # k8s_lab / llmd_lab client images lack nftables and cannot apt-install offline.
-    COMPATIBLE_COLUMNS = frozenset(
-        {
-            "campus_lan",
-            "dc_clos",
-            "enterprise_branch",
-            "sdn_l3_clos",
-            "p4_dc_fabric",
-            "p4_dc_gateway",
-            "iosxr_simple_bgp",
-        }
-    )
+    COMPATIBLE_COLUMNS = NON_K8S_HOST_COLUMNS | {"iosxr_simple_bgp"}
 
     Params = ARPAclBlockParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": arp_l2_endpoint_host(ctx.roles, fallback=ctx.host0)}
 
     def root_cause_resources(self, params: ARPAclBlockParams):
         return [node_resource(params.host_name)]
@@ -180,7 +209,7 @@ class ARPAclBlock(ProblemBase):
 
     def verify_fault(self, params: ARPAclBlockParams) -> dict:
         """Verify nftables has a rule blocking ARP traffic."""
-        return _verify_nft_drop(self, params.host_name, "arp")
+        return _verify_nft_drop(self, params.host_name, "drop", family="arp")
 
 
 # ==================================================================
@@ -196,11 +225,17 @@ class IcmpAclBlockParams(BaseModel):
 
 class IcmpAclBlock(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "path_ping"
+    symptom_class = "unreachable"
     root_cause_name = "icmp_acl_block"
     description = "ICMP is blocked by an ACL."
     TAGS: str = ["icmp"]
 
     Params = IcmpAclBlockParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": _host_acl_target(ctx)}
 
     def root_cause_resources(self, params: IcmpAclBlockParams):
         return [node_resource(params.host_name)]
@@ -212,7 +247,9 @@ class IcmpAclBlock(ProblemBase):
 
     def verify_fault(self, params: IcmpAclBlockParams) -> dict:
         """Verify nftables has a rule blocking ICMP traffic."""
-        return _verify_nft_drop(self, params.host_name, "icmp")
+        return _verify_nft_drop(
+            self, params.host_name, "ip protocol icmp drop", family="ip"
+        )
 
 
 # ==================================================================
@@ -228,11 +265,17 @@ class HttpAclBlockParams(BaseModel):
 
 class HttpAclBlock(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "path_http"
+    symptom_class = "unreachable"
     root_cause_name = "http_acl_block"
     description = "HTTP traffic is blocked by an ACL."
     TAGS: str = ["http", "pc"]
 
     Params = HttpAclBlockParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": _host_acl_target(ctx)}
 
     def root_cause_resources(self, params: HttpAclBlockParams):
         return [node_resource(params.host_name)]
@@ -244,7 +287,7 @@ class HttpAclBlock(ProblemBase):
 
     def verify_fault(self, params: HttpAclBlockParams) -> dict:
         """Verify nftables has a rule blocking HTTP (port 80) traffic."""
-        return _verify_nft_drop(self, params.host_name, "tcp dport 80")
+        return _verify_nft_drop(self, params.host_name, "tcp dport 80 drop")
 
 
 # ==================================================================
@@ -260,12 +303,18 @@ class DNSPortBlockedParams(BaseModel):
 
 class DNSPortBlocked(ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name: str = "dns_port_blocked"
 
     description = "DNS service port is blocked."
     TAGS: str = ["dns", "http"]
 
     Params = DNSPortBlockedParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": ctx.dns0}
 
     def root_cause_resources(self, params: DNSPortBlockedParams):
         return [node_resource(params.host_name)]
@@ -280,4 +329,6 @@ class DNSPortBlocked(ProblemBase):
 
     def verify_fault(self, params: DNSPortBlockedParams) -> dict:
         """Verify nftables has rules blocking DNS port 53."""
-        return _verify_nft_drop(self, params.host_name, "dport 53")
+        return _verify_nft_drop(
+            self, params.host_name, "tcp dport 53 drop", "udp dport 53 drop"
+        )

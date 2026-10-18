@@ -15,7 +15,9 @@ from nika.net_env.p4_dc_fabric.topology_model import build_clos_fabric_model
 from nika.net_env.p4_dc_fabric.verify import verify_p4_dc_fabric_lab
 from nika.net_env.p4_dc_gateway.apply import reconcile_gateway
 from nika.net_env.p4_dc_gateway.topology_model import build_gateway_fabric_model
-from nika.net_env.sdn_l3_clos.topology_model import build_clos_fabric_model as build_sdn_model
+from nika.net_env.sdn_l3_clos.topology_model import (
+    build_clos_fabric_model as build_sdn_model,
+)
 from nika.net_env.sdn_l3_clos.verify import verify_sdn_l3_clos_lab
 from nika.net_env.verify import http_ok, ping_ok
 from nika.problems.registry import (
@@ -24,11 +26,15 @@ from nika.problems.registry import (
     list_avail_problem_names,
 )
 from nika.runtime.factory import runtime_for_session
+from nika.validation.presence import bound_injected_problem
 from nika.workflows.failure.inject import inject_failure as inject_failure_workflow
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import docker_available
 from tests.support.scenario_failure_compat import write_probe_report
-from tests.support.symptom import evaluate_symptom, get_symptom_contract
+from nika.validation.symptom import evaluate_symptom
+from nika.validation.symptom.custom import evaluate_custom_baseline
+
+pytestmark = pytest.mark.integration
 
 TOPO_SIZE = "s"
 
@@ -54,18 +60,11 @@ def _resolve_compat_params(problem: str, scenario: str) -> dict[str, str]:
     return resolve_inject_params(problem, scenario, topo_size=TOPO_SIZE, seed=0)
 
 
-def _verify_injected(
-    problem: str,
-    scenario: str,
-    params: dict[str, str],
-    scenario_kwargs: dict[str, Any],
-) -> bool:
-    problem_obj = get_problem_instance(
-        [problem],
-        scenario_name=scenario,
-        **scenario_kwargs,
-    )
-    verify = problem_obj.verify_fault(params=problem_obj.Params(**params))
+def _verify_injected(session_id: str) -> bool:
+    bound = bound_injected_problem(session_id)
+    assert bound is not None, session_id
+    problem_obj, params = bound
+    verify = problem_obj.verify_fault(params=params)
     return bool(verify.get("verified"))
 
 
@@ -160,9 +159,11 @@ def _p4_fabric_smoke(runtime, model) -> dict[str, bool]:
 def _sdn_smoke(runtime, model) -> dict[str, bool]:
     src = model.client_endpoints()[0]
     dst = next(w for w in model.web_endpoints() if w.leaf_id != src.leaf_id)
+    same = next(w for w in model.web_endpoints() if w.leaf_id == src.leaf_id)
     return {
         "cross_rack_ping": ping_ok(runtime, src.name, dst.ip),
         "cross_rack_http": http_ok(runtime, src.name, f"http://{dst.ip}/"),
+        "same_rack_ping": ping_ok(runtime, src.name, same.ip),
     }
 
 
@@ -173,11 +174,9 @@ def _sdn_observable(
     smoke_before: dict[str, bool],
     smoke_after: dict[str, bool],
     runtime,
-    params: dict[str, Any],
+    instance: Any,
+    parsed: Any,
 ) -> bool:
-    contract = get_symptom_contract(problem)
-    if contract.control_plane_only and verify_ok:
-        return True
     if verify_ok and (
         smoke_before.get("cross_rack_ping") and not smoke_after.get("cross_rack_ping")
     ):
@@ -187,18 +186,14 @@ def _sdn_observable(
     ):
         return True
     if verify_ok:
-        from pydantic import create_model
-
-        param_model = create_model(
-            "CompatParams", **{k: (str, v) for k, v in params.items()}
-        )()
         ok, _ = evaluate_symptom(
             runtime,
             problem,
-            param_model,
+            parsed,
             scenario="sdn_l3_clos",
             topo_size=TOPO_SIZE,
             before=None,
+            problem=instance,
         )
         if ok:
             return True
@@ -212,7 +207,8 @@ def _p4_fabric_observable(
     smoke_before: dict[str, bool],
     smoke_after: dict[str, bool],
     runtime,
-    params: dict[str, Any],
+    instance: Any,
+    parsed: Any,
 ) -> bool:
     if verify_ok and (
         smoke_before.get("cross_rack_ping") and not smoke_after.get("cross_rack_ping")
@@ -223,18 +219,14 @@ def _p4_fabric_observable(
     ):
         return True
     if verify_ok:
-        from pydantic import create_model
-
-        param_model = create_model(
-            "CompatParams", **{k: (str, v) for k, v in params.items()}
-        )()
         ok, _ = evaluate_symptom(
             runtime,
             problem,
-            param_model,
+            parsed,
             scenario="p4_dc_fabric",
             topo_size=TOPO_SIZE,
             before=None,
+            problem=instance,
         )
         if ok:
             return True
@@ -299,18 +291,23 @@ class TestScenarioFailureCompat(IntegrationTestCase):
                         results.append(row)
                         continue
 
+                instance = get_problem_instance(
+                    [problem], scenario_name=sweep.scenario, **scenario_kwargs
+                )
+                parsed = instance.Params(**params)
+                baseline = evaluate_custom_baseline(problem, instance, parsed)
+                if baseline is not None and not baseline[0]:
+                    row["error"] = f"symptom baseline failed: {baseline[1]}"
+                    continue
+
                 inject_failure_workflow(
                     [problem], session_id=session_id, param_overrides=params
                 )
                 row["injection_success"] = True
                 time.sleep(2)
 
-                verify_ok = _verify_injected(
-                    problem,
-                    sweep.scenario,
-                    params,
-                    scenario_kwargs,
-                )
+                instance, parsed = bound_injected_problem(session_id)
+                verify_ok = _verify_injected(session_id)
                 row["verify_fault"] = verify_ok
 
                 if sweep.scenario == "p4_dc_fabric":
@@ -322,7 +319,8 @@ class TestScenarioFailureCompat(IntegrationTestCase):
                         smoke_before=smoke_before,
                         smoke_after=row["smoke_after"],
                         runtime=runtime,
-                        params=params,
+                        instance=instance,
+                        parsed=parsed,
                     )
                     row["regression_status"] = (
                         "pass"
@@ -341,7 +339,8 @@ class TestScenarioFailureCompat(IntegrationTestCase):
                         smoke_before=smoke_before,
                         smoke_after=smoke_after,
                         runtime=runtime,
-                        params=params,
+                        instance=instance,
+                        parsed=parsed,
                     )
                     row["regression_status"] = (
                         "pass"
@@ -390,12 +389,7 @@ class TestScenarioFailureCompat(IntegrationTestCase):
                         [problem], session_id=session_id, param_overrides=params
                     )
                     row["injection_success"] = True
-                    row["verify_fault"] = _verify_injected(
-                        problem,
-                        sweep.scenario,
-                        params,
-                        self._scenario_kwargs(session_id),
-                    )
+                    row["verify_fault"] = _verify_injected(session_id)
                     row["smoke_after"] = _p4_fabric_smoke(runtime, model)
                     reconcile_fabric(runtime, model)
                     restored = _p4_fabric_smoke(runtime, model)
@@ -430,7 +424,7 @@ class TestScenarioFailureCompat(IntegrationTestCase):
             runtime = runtime_for_session(meta)
             model = build_gateway_fabric_model(TOPO_SIZE)
             source = model.clients[0]
-            url = model.web_urls[0]
+            url = model.vip_url
             assert http_ok(runtime, source.name, url)
 
             for problem in failures:
@@ -465,7 +459,6 @@ class TestP4RuntimePipelineMismatchStability(IntegrationTestCase):
             meta = self._assert_session_ready(session_id, "p4_dc_fabric")
             runtime = runtime_for_session(meta)
             model = build_clos_fabric_model(TOPO_SIZE)
-            scenario_kwargs = self._scenario_kwargs(session_id)
             healthy = verify_p4_dc_fabric_lab(
                 runtime, scenario_name="p4_dc_fabric", model=model
             )
@@ -482,9 +475,7 @@ class TestP4RuntimePipelineMismatchStability(IntegrationTestCase):
                 )
                 time.sleep(2)
 
-                verify_ok = _verify_injected(
-                    problem, "p4_dc_fabric", params, scenario_kwargs
-                )
+                verify_ok = _verify_injected(session_id)
                 assert verify_ok, f"cycle {cycle}: verify failed"
 
                 from pydantic import create_model

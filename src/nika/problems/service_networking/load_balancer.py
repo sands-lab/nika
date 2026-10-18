@@ -15,28 +15,36 @@ from nika.problems.base import (
     build_verify_result,
 )
 from nika.problems.rca import node_resource
-from nika.problems.service_networking.ab_helpers import (
+from nika.problems.support.benchmark_targets import choice, prefer_named
+from nika.problems.support.ab_helpers import (
     AbSummary,
     ab_summary_to_dict,
+    ab_worker_log_tail,
+    count_ab_workers,
+    ensure_ab,
     parse_ab_output,
+    start_ab_workers,
+    stop_ab_workers,
 )
 from nika.problems.support.cpu_quota_helpers import (
     NANOCPUS_PER_CPU,
-    clear_original_nano_cpus,
     cpu_quota_to_nano_cpus,
-    load_original_nano_cpus,
-    persist_original_nano_cpus,
     read_nano_cpus,
     set_nano_cpus,
 )
 from nika.utils.logger import system_logger
 
-_WORKER_TAG = "nika_lb_ovld_worker_"
 _VIP_PING_HOST = "web99.local"
 
 # Behavioral gates (fixed workload; not adaptive at runtime).
 # Pinned LB under ab flood typically lands ~0.7–0.9 of quota; 0.80 was flaky.
 _NGINX_CPU_MIN_RATIO = 0.65
+# The release pin of 0.2 CPU is wider than the ab flood on this nginx.
+# Cap the applied quota so that flood fills the slice. At 0.05 CPU nginx still
+# serves ~120 req/s (~2.5 kpps per hop), which saturates the emulated links on
+# the flood path, so the shared farm uplink congested and slowed web0 as well;
+# at 0.02 CPU (~600 pps) the LB accept queue is the only bottleneck.
+_APPLIED_QUOTA_CAP = 0.02
 _VIP_TAIL_MIN_RATIO = 2.0
 # web0 shares the campus farm uplink with VIP flood traffic, so mild inflation
 # is expected. Require success and that control stays clearly healthier than VIP.
@@ -88,11 +96,11 @@ class LoadBalancerOverloadParams(BaseModel):
         description="Fixed LB CPU capacity (fractional CPUs) for the whole experiment.",
     )
     concurrency: int = Field(
-        default=160,
+        default=200,
         description="ApacheBench concurrency per background load worker.",
     )
     load_workers: int = Field(
-        default=2,
+        default=4,
         description="Background ab worker processes per load client host.",
     )
     warmup_sec: float = Field(
@@ -123,6 +131,9 @@ class LoadBalancerOverloadParams(BaseModel):
 
 class LoadBalancerOverload(ProblemBase):
     failure_domain = FailureDomain.SERVICE_NETWORKING
+    symptom_probe = "custom"
+    symptom_class = "degradation"
+    dynamic_artifact = True
     root_cause_name: str = "load_balancer_overload"
     description = "Software load balancer is overloaded by offered HTTP load."
     TAGS: list[str] = ["load_balancer", "http"]
@@ -134,6 +145,49 @@ class LoadBalancerOverload(ProblemBase):
         "errors while NGINX CPU saturates; direct backend and parallel web paths, "
         "and the underlying network, remain healthy."
     )
+
+    BENCHMARK_TARGETS = "canonical"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        # Fixed capacity + HTTP surge on campus_lan NGINX VIP (web99.local).
+        # Workload knobs are fixed for reproducibility (not searched at runtime).
+        pc_pool = [h for h in ctx.host_pool if h.startswith("pc_")] or list(
+            ctx.host_pool
+        )
+        probe_client = prefer_named(
+            pc_pool, "pc_1_1_1_1", choice(ctx.rng, pc_pool, ctx.host0)
+        )
+        load_candidates = [h for h in pc_pool if h != probe_client]
+        if not load_candidates:
+            load_candidates = [probe_client]
+        # One load client, distinct from the probe PC when possible.
+        load_hosts = []
+        for preferred in ("pc_2_1_1_1", "pc_3_1_1_1", "pc_1_2_1_1"):
+            if preferred in load_candidates:
+                load_hosts.append(preferred)
+                break
+        if not load_hosts and load_candidates:
+            load_hosts = [load_candidates[0]]
+        if not load_hosts:
+            load_hosts = [probe_client]
+        return {
+            "host_name": ctx.lb0 if ctx.lb0 else "load_balancer",
+            "client_host": probe_client,
+            "load_client_hosts": ",".join(load_hosts),
+            "vip_url": "http://web99.local/small",
+            "control_url": "http://web0.local/small",
+            "backend_url": "http://20.200.0.2/small",
+            "backend_probe_host": "load_balancer",
+            "backend_cpu_host": "backend_web_0",
+            "cpu_quota": "0.2",
+            "concurrency": "200",
+            "load_workers": "4",
+            "warmup_sec": "5",
+            "probe_requests": "60",
+            "probe_concurrency": "4",
+            "duration_sec": "300",
+        }
 
     def __init__(self, scenario_name: str | None = None, **kwargs):
         super().__init__(scenario_name, **kwargs)
@@ -154,28 +208,6 @@ class LoadBalancerOverload(ProblemBase):
         # One load client saturates the pinned LB; extra buildings also flood
         # the campus core and break the control-path isolation gate.
         return hosts[:1]
-
-    def _ensure_ab(self, host: str) -> None:
-        check = self.runtime.exec(
-            host, "command -v ab >/dev/null 2>&1 && echo OK || echo MISSING", timeout=10
-        ).strip()
-        if "OK" in check:
-            return
-        install = self.runtime.exec(
-            host,
-            "export DEBIAN_FRONTEND=noninteractive; "
-            "apt-get update -qq && "
-            "apt-get install -y -qq apache2-utils >/tmp/nika_ab_install.log 2>&1; "
-            "command -v ab >/dev/null 2>&1 && echo OK || echo FAIL",
-            timeout=180,
-        ).strip()
-        if "OK" not in install:
-            log = self.runtime.exec(
-                host,
-                "tail -n 40 /tmp/nika_ab_install.log 2>/dev/null || true",
-                timeout=10,
-            )
-            raise RuntimeError(f"apachebench (ab) unavailable on {host}: {log!r}")
 
     def _run_ab(
         self,
@@ -230,6 +262,9 @@ class LoadBalancerOverload(ProblemBase):
             return 0.0
         return (cpu_delta / system_delta) * _online(s2) * 100.0
 
+    def _applied_quota(self, params: LoadBalancerOverloadParams) -> float:
+        return min(float(params.cpu_quota), _APPLIED_QUOTA_CAP)
+
     def _cpu_ratio_of_quota(
         self, host: str, *, quota_cpus: float, sample_sec: float
     ) -> float | None:
@@ -262,59 +297,26 @@ class LoadBalancerOverload(ProblemBase):
         workers = 0
         ab_procs = 0
         for host in load_hosts:
-            w_out = self.runtime.exec(
-                host,
-                f"ps -eo args 2>/dev/null | grep -c '[{_WORKER_TAG[0]}]{_WORKER_TAG[1:]}' || true",
-                timeout=10,
-            ).strip()
-            a_out = self.runtime.exec(
-                host,
-                "ps -eo comm 2>/dev/null | grep -c '^ab$' || true",
-                timeout=10,
-            ).strip()
-            try:
-                workers += int(w_out.splitlines()[-1])
-            except (IndexError, ValueError):
-                pass
-            try:
-                ab_procs += int(a_out.splitlines()[-1])
-            except (IndexError, ValueError):
-                pass
+            host_workers, host_ab, _ = count_ab_workers(self.runtime, host)
+            workers += host_workers
+            ab_procs += host_ab
         return workers, ab_procs
 
     def _stop_background_load(self, load_hosts: list[str]) -> None:
         for host in load_hosts:
-            self.runtime.exec(
-                host,
-                f"pkill -f '[{_WORKER_TAG[0]}]{_WORKER_TAG[1:]}' 2>/dev/null || true; "
-                "pkill -x ab 2>/dev/null || true",
-                timeout=15,
-            )
+            stop_ab_workers(self.runtime, host)
 
     def _start_background_load(
         self, params: LoadBalancerOverloadParams, load_hosts: list[str]
     ) -> None:
-        quoted_url = shlex.quote(params.vip_url)
         for host in load_hosts:
-            self._ensure_ab(host)
-            self._stop_background_load([host])
-            cmds = []
-            for worker in range(params.load_workers):
-                inner = (
-                    "while true; do "
-                    f"ab -n 200000000 -c {int(params.concurrency)} {quoted_url}; "
-                    "sleep 0.05; done"
-                )
-                cmds.append(
-                    "nohup bash -c "
-                    + shlex.quote(inner)
-                    + f" {_WORKER_TAG}{worker} </dev/null "
-                    + f">/tmp/nika_lb_ovld_{worker}.log 2>&1 &"
-                )
-            self.runtime.exec(
+            ensure_ab(self.runtime, host)
+            start_ab_workers(
+                self.runtime,
                 host,
-                "command -v ab >/dev/null 2>&1 || exit 127; " + " ".join(cmds),
-                timeout=20,
+                params.vip_url,
+                workers=params.load_workers,
+                concurrency=params.concurrency,
             )
 
         expected_workers = len(load_hosts) * params.load_workers
@@ -326,22 +328,14 @@ class LoadBalancerOverload(ProblemBase):
             if workers >= expected_workers and ab_procs >= 1:
                 break
         if workers < expected_workers or ab_procs < 1:
-            logs = []
-            for host in load_hosts:
-                logs.append(
-                    self.runtime.exec(
-                        host,
-                        "tail -n 30 /tmp/nika_lb_ovld_0.log 2>/dev/null || true",
-                        timeout=10,
-                    )
-                )
+            logs = [ab_worker_log_tail(self.runtime, host) for host in load_hosts]
             raise RuntimeError(
                 "load_balancer_overload background traffic did not become ready: "
                 f"workers={workers}/{expected_workers} ab={ab_procs} logs={logs!r}"
             )
 
     def _collect_baseline(self, params: LoadBalancerOverloadParams) -> dict[str, Any]:
-        self._ensure_ab(params.client_host)
+        ensure_ab(self.runtime, params.client_host)
 
         vip = self._run_ab(
             params.client_host,
@@ -382,7 +376,7 @@ class LoadBalancerOverload(ProblemBase):
         )
         lb_cpu = self._cpu_ratio_of_quota(
             params.host_name,
-            quota_cpus=params.cpu_quota,
+            quota_cpus=self._applied_quota(params),
             sample_sec=params.cpu_sample_sec,
         )
         backend_cpu = self._cpu_ratio_of_quota(
@@ -442,9 +436,8 @@ class LoadBalancerOverload(ProblemBase):
 
         original = read_nano_cpus(self.runtime, params.host_name)
         self._original_nano_cpus = original
-        persist_original_nano_cpus(self.runtime, params.host_name, original)
 
-        pinned = cpu_quota_to_nano_cpus(params.cpu_quota)
+        pinned = cpu_quota_to_nano_cpus(self._applied_quota(params))
         set_nano_cpus(self.runtime, params.host_name, pinned)
         self._pinned_nano_cpus = pinned
 
@@ -507,14 +500,12 @@ class LoadBalancerOverload(ProblemBase):
         workers, ab_procs = self._worker_counts(load_hosts)
         load_gone = workers == 0 and ab_procs == 0
 
+        # Restore state lives in this Problem instance, never on the node.
         original = self._original_nano_cpus
-        if original is None:
-            original = load_original_nano_cpus(self.runtime, params.host_name)
         quota_restored = True
         restored_nano = read_nano_cpus(self.runtime, params.host_name)
         if original is not None:
             set_nano_cpus(self.runtime, params.host_name, original)
-            clear_original_nano_cpus(self.runtime, params.host_name)
             restored_nano = read_nano_cpus(self.runtime, params.host_name)
             quota_restored = restored_nano == original
 

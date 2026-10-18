@@ -62,7 +62,12 @@ cases:
 - scenario: enterprise_branch
   problem: bgp_hijacking
   inject:
+    export_prefix_list: LOCAL-ADV
     host_name: br1_edge
+    observer_host: br2_corp_pc
+    probe_dst_ip: 10.9.10.2
+    symptom_host: br2_edge
+    target_network: 10.9.10.0/24
   topo_size: l
   root_causes:
   - resource:
@@ -111,7 +116,27 @@ cases:
   root_causes:
   - resource:
       kind: node
+      node: be1_be
+    fault_type: bgp_rpki_invalid_route_leak
+  - resource:
+      kind: node
       node: es1_es
+    fault_type: bgp_rpki_invalid_route_leak
+  - resource:
+      kind: node
+      node: fr1_fr
+    fault_type: bgp_rpki_invalid_route_leak
+  - resource:
+      kind: node
+      node: il1_il
+    fault_type: bgp_rpki_invalid_route_leak
+  - resource:
+      kind: node
+      node: lu1_lu
+    fault_type: bgp_rpki_invalid_route_leak
+  - resource:
+      kind: node
+      node: nl1_nl
     fault_type: bgp_rpki_invalid_route_leak
 - scenario: p4_dc_gateway
   problem: bmv2_switch_down
@@ -203,9 +228,8 @@ cases:
   topo_size: m
   root_causes:
   - resource:
-      kind: interface
+      kind: node
       node: dns_server
-      name: eth0
     fault_type: dns_lookup_latency
 - scenario: campus_lan
   problem: dns_port_blocked
@@ -311,12 +335,12 @@ cases:
 - scenario: k8s_lab
   problem: host_incorrect_netmask
   inject:
-    host_name: client
+    host_name: worker3
     netmask_prefix: '8'
   root_causes:
   - resource:
       kind: interface
-      node: client
+      node: worker3
       name: eth0
     fault_type: host_incorrect_netmask
 - scenario: llmd_lab
@@ -382,20 +406,19 @@ cases:
       node: gateway_1
     fault_type: icmp_frag_needed_filter_misconfiguration
 - scenario: p4_dc_fabric
+  topo_size: l
   problem: incast_traffic_network_limitation
+  problems:
+  - incast_traffic_network_limitation
   inject:
-    burst: 128kb
-    delay_ms: '300'
     host_name: web_2
-    limit: 128kb
     observer_device: client_1_1
     probe_dst_ip: 10.0.2.11
-    rate: 256kbit
-  topo_size: l
+    duration: '3600'
   root_causes:
   - resource:
       kind: interface
-      node: web_2
+      node: leaf_2
       name: eth0
     fault_type: incast_traffic_network_limitation
 - scenario: p4_dc_gateway
@@ -446,7 +469,7 @@ cases:
   root_causes:
   - resource:
       kind: k8s
-      name: nika-deny-ingress
+      name: default-deny-ingress
       namespace: word-ns
       k8s_kind: NetworkPolicy
     fault_type: k8s_networkpolicy_deny
@@ -461,27 +484,20 @@ cases:
       node: worker1
     fault_type: k8s_worker_apiserver_partition
 - scenario: p4_dc_gateway
-  problem: lb_connection_state_exhaustion
+  problem: p4_table_resource_exhaustion
   inject:
-    attacker_device: client_2
-    backend_dip: 10.0.1.11
-    capacity: '256'
-    client_host: client_1
-    host_name: gateway_1
-    seed: '42'
-    syn_timeout_sec: '10'
-    vip_url: http://20.0.0.1:80/
+    host_name: leaf_1
   topo_size: s
   root_causes:
   - resource:
       kind: node
-      node: gateway_1
-    fault_type: lb_connection_state_exhaustion
+      node: leaf_1
+    fault_type: p4_table_resource_exhaustion
 - scenario: p4_dc_gateway
   problem: lb_pending_connection_update_race
   inject:
     host_name: gateway_1
-    learning_delay_ms: '5'
+    learning_delay_ms: '8000'
     seed: '42'
   topo_size: l
   root_causes:
@@ -570,13 +586,13 @@ cases:
     backend_probe_host: load_balancer
     backend_url: http://20.200.0.2/small
     client_host: pc_1_1_1_1
-    concurrency: '160'
+    concurrency: '200'
     control_url: http://web0.local/small
     cpu_quota: '0.2'
     duration_sec: '300'
     host_name: load_balancer
     load_client_hosts: pc_2_1_1_1
-    load_workers: '2'
+    load_workers: '4'
     probe_concurrency: '4'
     probe_requests: '60'
     vip_url: http://web99.local/small
@@ -587,16 +603,16 @@ cases:
       kind: node
       node: load_balancer
     fault_type: load_balancer_overload
-- scenario: p4_dc_gateway
+- scenario: campus_lan
   problem: mac_address_conflict
   inject:
-    host_name: service_1_2
-    host_name_2: client_1
+    host_name: web_server_1
+    host_name_2: web_server_0
   topo_size: s
   root_causes:
   - resource:
       kind: interface
-      node: service_1_2
+      node: web_server_1
       name: eth0
     fault_type: mac_address_conflict
 - scenario: isp_geant_ebgp_rpki
@@ -612,6 +628,11 @@ cases:
   - resource:
       kind: interface
       node: at1_at
+      name: eth0
+    fault_type: mtu_mismatch
+  - resource:
+      kind: interface
+      node: ch1_ch
       name: eth0
     fault_type: mtu_mismatch
 - scenario: enterprise_branch
@@ -759,7 +780,7 @@ cases:
 - scenario: dc_clos
   problem: receiver_resource_contention
   inject:
-    duration: '600'
+    duration: '3600'
     host_name: client_0
   topo_size: s
   root_causes:
@@ -783,7 +804,7 @@ cases:
     client_host: client
     cpu_quota: '0.05'
     dst_ip: 200.0.0.8
-    duration: '600'
+    duration: '3600'
     host_name: web
     large_url: http://200.0.0.8/large.bin
     small_url: http://200.0.0.8/small.bin
@@ -863,9 +884,9 @@ cases:
   problem: tcp_syn_flood_attack
   inject:
     attacker_device: client_1
-    duration: '60'
-    flows: '40'
-    rate_pps: '100'
+    duration: '3600'
+    flows: '100'
+    rate_pps: '1000'
     seed: '42'
     target_ip: 10.0.4.12
     target_port: '80'
@@ -927,17 +948,27 @@ cases:
   - resource:
       kind: interface
       node: br1_edge
+      name: wg_dc2
+    fault_type: wireguard_peer_key_misconfiguration
+  - resource:
+      kind: interface
+      node: br1_edge
       name: wg_hq
     fault_type: wireguard_peer_key_misconfiguration
+  - resource:
+      kind: interface
+      node: br1_edge
+      name: wg_hq_b
+    fault_type: wireguard_peer_key_misconfiguration
 - scenario: min3clos
-  problem: bgp_missing_route_advertisement
+  problem: bgp_asn_misconfig
   inject:
     host_name: leaf1
   root_causes:
   - resource:
       kind: node
       node: leaf1
-    fault_type: bgp_missing_route_advertisement
+    fault_type: bgp_asn_misconfig
 - scenario: llmd_lab
   problem: healthy
   inject: {}

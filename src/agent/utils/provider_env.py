@@ -24,6 +24,8 @@ ENV_DEEPSEEK_API_KEY = "DEEPSEEK_API_KEY"
 ENV_CUSTOM_BASE_URL = "NIKA_CUSTOM_BASE_URL"
 ENV_CUSTOM_API_KEY = "NIKA_CUSTOM_API_KEY"
 ENV_CUSTOM_MODEL = "NIKA_CUSTOM_MODEL"
+# Sentinel for unauthenticated custom endpoints (OpenAI client libs require a key).
+CUSTOM_UNAUTHENTICATED_API_KEY = "no-key"
 
 # Deprecated aliases (still read with a warning)
 _DEPRECATED_CUSTOM_BASE = "CUSTOM_API_BASE"
@@ -39,29 +41,21 @@ DEEPSEEK_ANTHROPIC_BASE_URL = "https://api.deepseek.com/anthropic"
 
 SUPPORTED_PROVIDERS = ("openai", "anthropic", "deepseek", "custom")
 
-# Which providers each agent accepts
-AGENT_PROVIDERS: dict[str, frozenset[str]] = {
-    "byo.langgraph": frozenset({"openai", "anthropic", "deepseek", "custom"}),
-    "byo.mcp_agent": frozenset({"openai", "anthropic", "deepseek", "custom"}),
-    "byo.autogen": frozenset({"openai", "anthropic", "deepseek", "custom"}),
-    "cli.codex": frozenset({"openai", "deepseek", "custom"}),
-    "sdk.codex_sdk": frozenset({"openai", "deepseek", "custom"}),
-    "cli.claude": frozenset({"anthropic", "deepseek", "custom"}),
-    "sdk.claude_sdk": frozenset({"anthropic", "deepseek", "custom"}),
-    "community.sade": frozenset({"anthropic", "deepseek", "custom"}),
-    "mock": frozenset(SUPPORTED_PROVIDERS),
-}
 
-_CLAUDE_FAMILY = frozenset({"cli.claude", "sdk.claude_sdk", "community.sade"})
-_OPENAI_FAMILY = frozenset(
-    {
-        "byo.langgraph",
-        "byo.mcp_agent",
-        "byo.autogen",
-        "cli.codex",
-        "sdk.codex_sdk",
-    }
-)
+def agent_providers(agent_type: str) -> frozenset[str] | None:
+    """Providers *agent_type* accepts, or ``None`` for an unknown agent."""
+    from agent.registry import find_agent_spec
+
+    spec = find_agent_spec(agent_type)
+    return spec.providers if spec is not None else None
+
+
+def _credential_family(agent_type: str) -> str:
+    from agent.registry import find_agent_spec
+
+    spec = find_agent_spec(agent_type)
+    return spec.credential_family if spec is not None else "openai"
+
 
 # Keys that must never be forwarded into agent subprocess / sandbox runtime
 _FORBIDDEN_AGENT_KEYS = frozenset(
@@ -149,6 +143,19 @@ def resolve_custom_base_url(sources: Mapping[str, str] | None = None) -> str:
     return ""
 
 
+def openai_compat_to_anthropic_base_url(url: str) -> str:
+    """Strip a trailing ``/v1`` so Anthropic clients do not request ``/v1/v1/messages``.
+
+    OpenAI-compatible gateways are usually configured as ``http://host:port/v1``.
+    The Anthropic SDK appends ``/v1/messages`` itself, so Claude family agents need
+    the host root (or an Anthropic-native path like ``.../anthropic``).
+    """
+    text = (url or "").strip().rstrip("/")
+    if text.endswith("/v1"):
+        return text[:-3] or text
+    return (url or "").strip()
+
+
 def resolve_custom_api_key(sources: Mapping[str, str] | None = None) -> str:
     """Return custom API key if set (optional for unauthenticated endpoints)."""
     if value := _env_get(ENV_CUSTOM_API_KEY, sources):
@@ -164,39 +171,31 @@ def resolve_custom_model(sources: Mapping[str, str] | None = None) -> str | None
     return value or None
 
 
+def require_provider(provider: str | None) -> str:
+    """Return the normalized provider name, or raise when it is unset."""
+    if provider and str(provider).strip():
+        return str(provider).strip().lower()
+    raise ValueError(
+        "Missing LLM provider: set agent.provider in config/nika.yaml "
+        "or pass -p/--provider."
+    )
+
+
 def validate_provider_for_agent(agent_type: str, provider: str) -> str:
     """Normalize and validate *provider* for *agent_type*."""
-    normalized_agent = agent_type.lower()
     normalized = provider.strip().lower()
     if normalized not in SUPPORTED_PROVIDERS:
         raise ValueError(
             f"Unsupported LLM provider {provider!r}. "
             f"Choose one of: {', '.join(SUPPORTED_PROVIDERS)}."
         )
-    allowed = AGENT_PROVIDERS.get(normalized_agent)
+    allowed = agent_providers(agent_type)
     if allowed is not None and normalized not in allowed:
         raise ValueError(
             f"Provider {normalized!r} is not supported for agent {agent_type!r}. "
             f"Allowed: {', '.join(sorted(allowed))}."
         )
     return normalized
-
-
-def provider_credential_keys(provider: str) -> frozenset[str]:
-    """Keys that belong to *provider* (for allowlisting / sandbox sync)."""
-    match provider:
-        case "openai":
-            return frozenset({ENV_OPENAI_API_KEY})
-        case "anthropic":
-            return frozenset({ENV_ANTHROPIC_API_KEY})
-        case "deepseek":
-            return frozenset({ENV_DEEPSEEK_API_KEY})
-        case "custom":
-            return frozenset(
-                {ENV_CUSTOM_BASE_URL, ENV_CUSTOM_API_KEY, ENV_CUSTOM_MODEL}
-            )
-        case _:
-            return frozenset()
 
 
 def has_provider_credentials(
@@ -239,18 +238,15 @@ def map_provider_credentials(
     Only includes keys the agent needs. Does not copy unrelated provider keys.
     """
     provider = validate_provider_for_agent(agent_type, provider)
-    agent = agent_type.lower()
+    family = _credential_family(agent_type)
     out: dict[str, str] = {}
 
     if provider == "openai":
         key = _env_get(ENV_OPENAI_API_KEY, sources)
         if key:
             out[ENV_OPENAI_API_KEY] = key
-        # agent.custom.base_url can redirect the OpenAI provider to a compatible gateway.
-        base = _env_get(ENV_OPENAI_BASE_URL, sources) or resolve_custom_base_url(
-            sources
-        )
-        if base:
+        # OPENAI_BASE_URL can redirect the OpenAI provider to a compatible gateway.
+        if base := _env_get(ENV_OPENAI_BASE_URL, sources):
             out[ENV_OPENAI_BASE_URL] = base
         return out
 
@@ -258,12 +254,9 @@ def map_provider_credentials(
         key = _compat_anthropic_token(sources)
         if key:
             out[ENV_ANTHROPIC_API_KEY] = key
-        # Official Anthropic needs no base URL. agent.custom.base_url selects a gateway.
-        base = _env_get(ENV_ANTHROPIC_BASE_URL, sources) or resolve_custom_base_url(
-            sources
-        )
-        if base:
-            out[ENV_ANTHROPIC_BASE_URL] = base
+        # Official Anthropic needs no base URL. ANTHROPIC_BASE_URL selects a gateway.
+        if explicit := _env_get(ENV_ANTHROPIC_BASE_URL, sources):
+            out[ENV_ANTHROPIC_BASE_URL] = explicit
         return out
 
     if provider == "deepseek":
@@ -271,7 +264,7 @@ def map_provider_credentials(
         if not key:
             return out
         out[ENV_DEEPSEEK_API_KEY] = key
-        if agent in _CLAUDE_FAMILY:
+        if family == "anthropic":
             out[ENV_ANTHROPIC_API_KEY] = key
             out[ENV_ANTHROPIC_AUTH_TOKEN] = key
             out[ENV_ANTHROPIC_BASE_URL] = DEEPSEEK_ANTHROPIC_BASE_URL
@@ -292,17 +285,21 @@ def map_provider_credentials(
     if key:
         out[ENV_CUSTOM_API_KEY] = key
         out[_DEPRECATED_CUSTOM_KEY] = key
+    # Unauthenticated custom endpoints still need a non-empty family key for
+    # Codex/Claude clients (and for sandbox runtime_env forwarding).
+    if base and not key:
+        key = CUSTOM_UNAUTHENTICATED_API_KEY
     model = resolve_custom_model(sources)
     if model:
         out[ENV_CUSTOM_MODEL] = model
 
-    if agent in _CLAUDE_FAMILY:
+    if family == "anthropic":
         if key:
             out[ENV_ANTHROPIC_API_KEY] = key
             out[ENV_ANTHROPIC_AUTH_TOKEN] = key
         if base:
-            out[ENV_ANTHROPIC_BASE_URL] = base
-    elif agent in _OPENAI_FAMILY or agent == "mock":
+            out[ENV_ANTHROPIC_BASE_URL] = openai_compat_to_anthropic_base_url(base)
+    else:
         if key:
             out[ENV_OPENAI_API_KEY] = key
         if base:
@@ -315,16 +312,14 @@ def _copy_base_env(base: Mapping[str, str]) -> dict[str, str]:
     for key, value in base.items():
         if key in _FORBIDDEN_AGENT_KEYS:
             continue
-        if key in _BASE_SUBPROCESS_KEYS or key.startswith("NIKA_"):
-            # Still strip remote token / judge even if NIKA_*
-            if key in _FORBIDDEN_AGENT_KEYS:
-                continue
-            if "TOKEN" in key and key != "ANTHROPIC_AUTH_TOKEN":
-                if key == "NIKA_REMOTE_TOKEN":
-                    continue
-            text = str(value).strip() if value is not None else ""
-            if text:
-                env[key] = str(value)
+        if key not in _BASE_SUBPROCESS_KEYS and not key.startswith("NIKA_"):
+            continue
+        # NIKA_* secrets (remote token, gateway phase token) stay on the host.
+        if key.startswith("NIKA_") and "TOKEN" in key:
+            continue
+        text = str(value).strip() if value is not None else ""
+        if text:
+            env[key] = str(value)
     # Always allow PATH scaffolding even when empty-ish
     for key in ("PATH", "HOME", "USER", "LANG", "LC_ALL"):
         if key in base and key not in env:

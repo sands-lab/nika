@@ -2,12 +2,10 @@ from mcp.server.fastmcp import FastMCP
 
 from nika.mcp.session_context import get_lab_api
 from nika.service.pingmesh import engine as pingmesh_engine
-from nika.utils.errors import safe_tool
 
 mcp = FastMCP("pingmesh_mcp_server")
 
 
-@safe_tool
 @mcp.tool()
 async def run_pingmesh_snapshot(
     sources: list[str] | None = None,

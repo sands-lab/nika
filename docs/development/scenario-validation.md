@@ -214,7 +214,7 @@ Each `isp_<topology>` ID deploys one SNDlib graph with IS-IS or OSPF, optional B
 Batfish static validation applies only when an `isp_<topology>` scenario uses the Kathara backend, the FRR device profile, and a contract-bearing deployment. Enable it with `nika.static_validation.enabled: true` in `config/nika.yaml` or with `--static-validation` for a run.
 
 ```shell
-uv sync --extra kathara --extra batfish
+uv sync --extra batfish
 uv run nika env run isp_abilene --igp ospf --static-validation
 ```
 
@@ -288,6 +288,6 @@ Failure-effect validation compares the healthy contract with the lab after a rea
 5. Test schema validation, stable contract generation, runtime evidence, compiler questions, snapshot contents, and verifier coverage. Run live Batfish tests only when the Batfish extra and Docker are available.
 
 ```shell
-uv run pytest -q tests/nika/net_env/test_validation_contract.py tests/nika/net_env/isp/test_isp_contract.py tests/nika/net_env/isp/test_isp_verify_unit.py
+uv run pytest -q tests/nika/net_env/test_validation_contract.py tests/nika/net_env/isp/test_isp_contract.py
 uv run pytest -q tests/nika/validation -k 'not live'
 ```

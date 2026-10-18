@@ -13,18 +13,27 @@ from typing import Any, Literal
 
 import yaml
 
-from nika.config import BENCHMARK_DIR, REPO_ROOT
+from nika.config import BENCHMARK_DIR, BENCHMARK_VERSION, REPO_ROOT
+from nika.utils.session_artifacts import write_json_atomic
 from nika.net_env.utils.kathara.docker_files.docker_images import (
     ensure_nika_docker_images,
+    image_repository,
 )
+from nika.problems.compat.v010 import RELEASE_VERSION as RELEASE_010
 from nika.net_env.net_env_pool import (
     get_net_env_instance,
+    legacy_010_specs,
     list_all_net_envs,
     resolve_scenario_backend,
+    scenario_family,
     scenario_requires_topo_size,
 )
 from nika.workflows.benchmark.healthy import is_healthy_case
-from nika.problems.registry import list_avail_problem_instances
+from nika.problems.registry import (
+    compatible_columns,
+    get_problem_class,
+    list_avail_problem_instances,
+)
 from nika.mcp.registry import (
     DIAGNOSIS_PACKET_CAPTURE_SERVER,
     MCP_SERVER_SPECS,
@@ -40,14 +49,14 @@ from nika.workflows.benchmark.resume import benchmark_row_fingerprint
 
 BENCHMARK_ID = "nika-bench"
 BENCHMARK_ID_ALIASES = frozenset({"nika-bench", "nika"})
-DEFAULT_RELEASE_VERSION = "0.2.0"
+DEFAULT_RELEASE_VERSION = BENCHMARK_VERSION
 RELEASES_DIR = BENCHMARK_DIR / "releases"
 JOB_FILENAME = "benchmark_job.json"
 RUN_CONFIG_FILENAME = "run.json"
 
 # Published suites that predate the current scenario/failure identity model.
 # They remain on disk for provenance but are not loadable or runnable.
-DEPRECATED_RELEASES = frozenset({"0.1.0"})
+DEPRECATED_RELEASES: frozenset[str] = frozenset()
 
 SplitName = Literal["dev", "test"]
 VALID_SPLITS: tuple[SplitName, ...] = ("dev", "test")
@@ -382,6 +391,7 @@ def verify_dev_test_isolation(
     *,
     dev_cases: list[dict[str, Any]],
     test_cases: list[dict[str, Any]],
+    allow_context_overlap: bool = False,
 ) -> None:
     """Ensure Dev/Test use the same taxonomy and disjoint deployment contexts."""
     if not dev_cases or not test_cases:
@@ -402,31 +412,11 @@ def verify_dev_test_isolation(
     context_overlap = {selection_context_key(row) for row in dev_cases} & {
         selection_context_key(row) for row in test_cases
     }
-    if context_overlap:
+    if context_overlap and not allow_context_overlap:
         raise ReleaseError(
             "Dev/Test semantic isolation failed: "
             f"{len(context_overlap)} shared failure-context pair(s)"
         )
-
-
-def _scenario_family(scenario: str) -> str:
-    if scenario == "campus_lan":
-        return "campus"
-    if scenario in {"dc_clos", "enterprise_branch"}:
-        return scenario
-    if scenario.startswith("isp_"):
-        return "isp"
-    if scenario == "sdn_l3_clos":
-        return "sdn"
-    if scenario.startswith("p4_"):
-        return "p4"
-    if scenario == "k8s_lab":
-        return "kubernetes"
-    if scenario == "llmd_lab":
-        return "llm_serving"
-    if scenario == "min3clos":
-        return "srl_clos"
-    return scenario
 
 
 def _split_coverage(rows: list[dict[str, Any]]) -> tuple[set[str], set[str], set[str]]:
@@ -435,10 +425,19 @@ def _split_coverage(rows: list[dict[str, Any]]) -> tuple[set[str], set[str], set
     backends: set[str] = set()
     for row in rows:
         scenario = str(row["scenario"])
-        families.add(_scenario_family(scenario))
+        families.add(scenario_family(scenario))
         scales.add(normalize_topo_scale(row))
         backends.add(str(row.get("backend") or resolve_scenario_backend(scenario)))
     return families, scales, backends
+
+
+def _benchmark_failures() -> set[str]:
+    """Registered failures that some benchmark scenario can host.
+
+    A failure that ``INCOMPATIBLE_SCENARIOS`` keeps off every scenario stays
+    registered but cannot enter a split.
+    """
+    return {name for name in list_avail_problem_instances() if compatible_columns(name)}
 
 
 def _validate_release_splits(
@@ -507,33 +506,70 @@ def preflight_release(
             f"{release.cases_path.name} ({len(release.cases)})"
         )
 
+    is_010 = release.version == RELEASE_010
     scenarios = {row["scenario"] for row in release.cases}
-    problems = {
-        row["problem"] for row in release.cases if not is_healthy_case(row["problem"])
-    }
     known_scenarios = set(list_all_net_envs())
-    known_problems = set(list_avail_problem_instances())
+    if is_010:
+        known_scenarios.update(legacy_010_specs())
+        missing_problems = sorted(
+            {
+                row["problem"]
+                for row in release.cases
+                if get_problem_class(row["problem"], row["scenario"]) is None
+            }
+        )
+    else:
+        problems = {
+            row["problem"]
+            for row in release.cases
+            if not is_healthy_case(row["problem"])
+        }
+        missing_problems = sorted(problems - set(list_avail_problem_instances()))
     missing_scenarios = sorted(scenarios - known_scenarios)
-    missing_problems = sorted(problems - known_problems)
     if missing_scenarios:
         raise ReleaseError(f"Missing scenarios: {missing_scenarios}")
     if missing_problems:
         raise ReleaseError(f"Missing problems: {missing_problems}")
+    specs = list_all_net_envs()
+    licensed = sorted(
+        name for name in scenarios if name in specs and specs[name].licensed_images
+    )
+    if licensed:
+        raise ReleaseError(
+            f"Release cases use scenarios that need licensed vendor images: "
+            f"{licensed}; releases must only depend on openly available images"
+        )
 
+    # The manifest lists images for every split, not only the selected one.
+    release_scenarios = set(scenarios)
     # Isolation requires both splits on disk (always true for 0.1.0).
     if "dev" in release.splits and "test" in release.splits:
         dev = load_release_from_dir(release.root, split="dev").cases
         test = load_release_from_dir(release.root, split="test").cases
-        _validate_release_splits(
-            dev,
-            test,
-            expected_failures=set(list_avail_problem_instances()),
-        )
+        release_scenarios.update(row["scenario"] for row in dev + test)
+        if is_010:
+            # 0.1.0 predates the distinct deployment-context split rule.
+            verify_dev_test_isolation(
+                dev_cases=dev, test_cases=test, allow_context_overlap=True
+            )
+        else:
+            _validate_release_splits(
+                dev,
+                test,
+                expected_failures=_benchmark_failures(),
+            )
 
     _verify_mcp_policy(release.cases, release.tools)
 
     required = list(release.images.get("required") or [])
     if check_images and required:
+        # Frozen manifests may name images without the pin NIKA now deploys
+        # (e.g. ``nika/base``, ``kathara/p4``); ensure the pinned references.
+        current = {
+            image_repository(ref): ref
+            for ref in collect_images_for_scenarios(release_scenarios)
+        }
+        required = [current.get(image_repository(ref), ref) for ref in required]
         try:
             # Same ensure/build/pull path as ordinary lab deploy.
             ensure_nika_docker_images(required)
@@ -565,6 +601,46 @@ def read_git_commit() -> tuple[str | None, bool]:
     return commit or None, dirty
 
 
+def build_run_identity(
+    *,
+    agent_type: str | None,
+    model: str | None,
+    case_timeout_sec: int,
+    official: bool,
+    job_id: str | None = None,
+    llm_provider: str | None = None,
+    max_steps: int | None = None,
+    n_trials: int = 1,
+) -> dict[str, Any]:
+    """Agent/run fields shared by release and ad-hoc ``--config`` run configs."""
+    from nika.run_config.loader import get_run_config
+    from nika.utils.agent_config import (
+        resolve_agent_timeout,
+        resolve_max_tokens,
+        resolve_reasoning_effort,
+    )
+
+    commit, dirty = read_git_commit()
+    run_id = job_id or os.urandom(8).hex()
+    return {
+        "run_id": run_id,
+        "job_id": run_id,
+        "nika_git_commit": commit,
+        "nika_git_dirty": dirty,
+        "case_timeout_sec": case_timeout_sec,
+        "agent_type": agent_type,
+        "llm_provider": llm_provider,
+        "model": model,
+        "max_steps": max_steps,
+        "max_tokens": resolve_max_tokens(agent_type) if agent_type else None,
+        "agent_timeout_sec": resolve_agent_timeout(),
+        "reasoning_effort": resolve_reasoning_effort(),
+        "access_role": get_run_config().agent.access.role,
+        "n_trials": int(n_trials),
+        "official": official,
+    }
+
+
 def build_job_metadata(
     release: BenchmarkRelease,
     *,
@@ -577,31 +653,28 @@ def build_job_metadata(
     max_steps: int | None = None,
     n_trials: int = 1,
 ) -> dict[str, Any]:
-    commit, dirty = read_git_commit()
-    run_id = job_id or os.urandom(8).hex()
     return {
-        "run_id": run_id,
-        "job_id": run_id,
         "benchmark_id": release.id,
         "version": release.version,
         "benchmark_ref": release.ref,
         "split": release.split,
         "case_count": release.case_count,
-        "nika_git_commit": commit,
-        "nika_git_dirty": dirty,
         "scoring": release.scoring,
         "tools": {
             "allowed_mcp_servers": release.tools.get("allowed_mcp_servers"),
         },
         "resources": release.resources,
         "defaults": release.defaults,
-        "case_timeout_sec": case_timeout_sec,
-        "agent_type": agent_type,
-        "llm_provider": llm_provider,
-        "model": model,
-        "max_steps": max_steps,
-        "n_trials": int(n_trials),
-        "official": official,
+        **build_run_identity(
+            agent_type=agent_type,
+            model=model,
+            case_timeout_sec=case_timeout_sec,
+            official=official,
+            job_id=job_id,
+            llm_provider=llm_provider,
+            max_steps=max_steps,
+            n_trials=n_trials,
+        ),
     }
 
 
@@ -623,11 +696,9 @@ def load_run_config(result_dir: Path) -> dict[str, Any] | None:
 def write_job_metadata(result_dir: Path, job: dict[str, Any]) -> Path:
     """Write ``run.json`` plus legacy ``benchmark_job.json`` and lock file."""
     result_dir.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps(job, indent=2, sort_keys=True) + "\n"
     run_path = result_dir / RUN_CONFIG_FILENAME
-    run_path.write_text(payload, encoding="utf-8")
-    job_path = result_dir / JOB_FILENAME
-    job_path.write_text(payload, encoding="utf-8")
+    write_json_atomic(run_path, job, sort_keys=True)
+    write_json_atomic(result_dir / JOB_FILENAME, job, sort_keys=True)
     lock_path = result_dir / "RELEASE.lock.json"
     lock_path.write_text(
         json.dumps(
@@ -701,51 +772,6 @@ def write_release_manifest(
     )
 
 
-def rebuild_release_manifest(
-    dest: Path,
-    *,
-    scoring: dict[str, Any] | None = None,
-) -> None:
-    """Rewrite ``RELEASE.yaml`` from on-disk split YAML and current policy."""
-    dest = Path(dest)
-    manifest_path = dest / "RELEASE.yaml"
-    existing = _load_manifest(manifest_path) if manifest_path.is_file() else {}
-    version = str(existing.get("version") or dest.name)
-    defaults = dict(existing.get("defaults") or DEFAULTS_V1)
-    defaults.pop("case_timeout_sec", None)
-    tools = dict(existing.get("tools") or TOOLS_V1)
-    resources = dict(existing.get("resources") or {})
-    resources.pop("policy_id", None)
-    tools.pop("policy_id", None)
-
-    splits: dict[str, Any] = {}
-    all_cases: list[dict[str, Any]] = []
-    for name in VALID_SPLITS:
-        path = dest / f"{name}.yaml"
-        if not path.is_file():
-            continue
-        cases = load_benchmark_yaml(path)
-        all_cases.extend(cases)
-        splits[name] = {
-            "cases_file": f"{name}.yaml",
-            "case_count": len(cases),
-        }
-    if not splits:
-        raise ReleaseError(f"No split YAML files under {dest}")
-
-    scenarios = {row["scenario"] for row in all_cases}
-    write_release_manifest(
-        dest,
-        version=version,
-        splits=splits,
-        defaults=defaults,
-        scoring=dict(scoring or SCORING),
-        tools=tools,
-        resources=resources,
-        images={"required": collect_images_for_scenarios(scenarios)},
-    )
-
-
 def freeze_release(
     *,
     version: str,
@@ -812,7 +838,7 @@ def freeze_split_release(
     _validate_release_splits(
         dev,
         test,
-        expected_failures=set(list_avail_problem_instances()),
+        expected_failures=_benchmark_failures(),
     )
 
     dest = out_dir or (releases_dir() / version)

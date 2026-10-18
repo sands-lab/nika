@@ -1,34 +1,36 @@
-"""Helpers for optional dependency extras."""
+"""Helpers for optional lab dependencies."""
 
 from __future__ import annotations
 
+import shutil
 from typing import NoReturn
 
+_LABS_HINT = "Install with: uv sync (installs the 'labs' dependency group by default)."
+
 _EXTRA_HINTS: dict[str, str] = {
-    "kathara": (
-        "Kathara support requires the 'kathara' extra. "
-        "Install with: uv sync --extra kathara   # or: uv sync --extra labs"
-    ),
+    "kathara": f"Kathara support requires the 'kathara' package. {_LABS_HINT}",
     "containerlab": (
-        "Containerlab support requires the 'containerlab' extra (Docker SDK). "
+        "Containerlab support requires the Docker SDK. "
         "Also install the external `clab` binary (and `gnmic` for SRL scenarios). "
-        "Install with: uv sync --extra containerlab   # or: uv sync --extra labs"
+        f"{_LABS_HINT}"
     ),
-    "docker": (
-        "Docker SDK support requires a lab extra. Install with: uv sync --extra labs"
-    ),
-    "kubernetes": (
-        "Kubernetes support requires the 'kathara' extra. "
-        "Install with: uv sync --extra kathara   # or: uv sync --extra labs"
-    ),
+    "docker": f"Docker SDK support requires the 'docker' package. {_LABS_HINT}",
+    "kubernetes": f"Kubernetes support requires the 'kubernetes' package. {_LABS_HINT}",
 }
+
+GNMIC_INSTALL_HINT = (
+    "Nokia SR Linux Containerlab labs require the host `gnmic` binary "
+    "(min3clos and isp_* with --backend containerlab / nokia_srlinux). "
+    "Run ./scripts/install.sh, which installs it into .venv/bin, then run NIKA "
+    "after `source .venv/bin/activate` (or via `uv run`) so .venv/bin is on PATH."
+)
 
 
 def missing_extra_message(extra: str) -> str:
-    """Return the install hint for a missing optional lab extra."""
+    """Return the install hint for a missing optional lab dependency."""
     return _EXTRA_HINTS.get(
         extra,
-        f"Missing optional dependency for '{extra}'. Install with: uv sync --extra labs",
+        f"Missing optional dependency for '{extra}'. {_LABS_HINT}",
     )
 
 
@@ -54,3 +56,10 @@ def require_backend_extra(backend: str) -> None:
         return
 
     raise ValueError(f"Unknown lab backend: {backend!r}")
+
+
+def require_gnmic() -> None:
+    """Fail fast when the host ``gnmic`` CLI is missing (SRL Containerlab labs)."""
+    if shutil.which("gnmic"):
+        return
+    raise FileNotFoundError(GNMIC_INSTALL_HINT)

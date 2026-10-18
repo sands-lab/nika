@@ -10,6 +10,8 @@ from nika.net_env.campus_lan.verify import PROBE_HOST as CAMPUS_PROBE
 from tests.support.kathara_api_base import KatharaScenarioApiSmokeTest
 from tests.support.prerequisites import docker_available
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.mark.integration
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")

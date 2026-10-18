@@ -10,8 +10,9 @@ from Kathara.manager.Kathara import Kathara, Machine
 from Kathara.model.Lab import Lab
 
 from nika.config import pkg_path
-from nika.net_env.base import NetworkEnvBase
+from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.runtime.spec import NodeRole
+from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 
 # P2P links use 172.16.0.0/16 with /31 per link.
 # Leaf access networks use 10.<pod>.<leaf>.0/24 with leaf .1 and endpoint .2
@@ -54,6 +55,9 @@ router bgp {AS_number}
 line vty
 """
 
+# glibc reads at most three ``nameserver`` lines from /etc/resolv.conf.
+_RESOLV_MAXNS = 3
+
 FRR_NEIGHBOR_ADD_TEMPLATE = """neighbor {neighbor_ip} remote-as {neighbor_as}
 """
 
@@ -68,6 +72,7 @@ class RouterMeta:
         self.router_id = ""
         self.frr_config = ""
         self.frr_neighbor_configs = []
+        self.neighbor_ips: list[str] = []
         self.host_network = None
 
 
@@ -83,20 +88,6 @@ class HostMeta:
 class DCClos(NetworkEnvBase):
     LAB_NAME = "dc_clos"
     TOPO_LEVEL = "medium"
-    TOPO_SIZE = ["s", "m", "l"]
-    TAGS = [
-        "arp",
-        "link",
-        "mac",
-        "bgp",
-        "icmp",
-        "frr",
-        "pc",
-        "dns",
-        "http",
-        "dc_clos",
-        "forwarding_device",
-    ]
 
     def __init__(
         self,
@@ -127,7 +118,7 @@ class DCClos(NetworkEnvBase):
         for ss in range(super_spine_count):
             ss_name = f"super_spine_router_{ss}"
             router_ss = self.lab.new_machine(
-                ss_name, **{"image": "nika/frr", "cpus": 0.5, "mem": "256m"}
+                ss_name, **{"image": nika_image("frr"), "cpus": 0.5, "mem": "256m"}
             )
             self.declare_machine(
                 ss_name,
@@ -150,7 +141,7 @@ class DCClos(NetworkEnvBase):
                 spine_name = f"spine_router_{pod}_{spine_id}"
                 router_spine = self.lab.new_machine(
                     spine_name,
-                    **{"image": "nika/frr", "cpus": 0.5, "mem": "256m"},
+                    **{"image": nika_image("frr"), "cpus": 0.5, "mem": "256m"},
                 )
                 self.declare_machine(
                     spine_name,
@@ -172,7 +163,7 @@ class DCClos(NetworkEnvBase):
                 leaf_name = f"leaf_router_{pod}_{leaf_id}"
                 router_leaf = self.lab.new_machine(
                     leaf_name,
-                    **{"image": "nika/frr", "cpus": 0.5, "mem": "256m"},
+                    **{"image": nika_image("frr"), "cpus": 0.5, "mem": "256m"},
                 )
                 self.declare_machine(
                     leaf_name,
@@ -217,12 +208,14 @@ class DCClos(NetworkEnvBase):
                         neighbor_as=spine_meta.AS_number,
                     )
                 )
+                super_spine_meta.neighbor_ips.append(b_ip.split("/")[0])
                 spine_meta.frr_neighbor_configs.append(
                     FRR_NEIGHBOR_ADD_TEMPLATE.format(
                         neighbor_ip=a_ip.split("/")[0],
                         neighbor_as=super_spine_meta.AS_number,
                     )
                 )
+                spine_meta.neighbor_ips.append(a_ip.split("/")[0])
                 if super_spine_meta.router_id == "":
                     super_spine_meta.router_id = a_ip.split("/")[0]
                 if spine_meta.router_id == "":
@@ -256,12 +249,14 @@ class DCClos(NetworkEnvBase):
                             neighbor_as=leaf_meta.AS_number,
                         )
                     )
+                    spine_meta.neighbor_ips.append(b_ip.split("/")[0])
                     leaf_meta.frr_neighbor_configs.append(
                         FRR_NEIGHBOR_ADD_TEMPLATE.format(
                             neighbor_ip=a_ip.split("/")[0],
                             neighbor_as=spine_meta.AS_number,
                         )
                     )
+                    leaf_meta.neighbor_ips.append(a_ip.split("/")[0])
                     if spine_meta.router_id == "":
                         spine_meta.router_id = a_ip.split("/")[0]
                     if leaf_meta.router_id == "":
@@ -273,6 +268,11 @@ class DCClos(NetworkEnvBase):
             pod_leaves=pod_leaves,
             tot_super_spines=tot_super_spines,
         )
+        # Every configured eBGP session, by router, for lab verification.
+        self.bgp_neighbors = {
+            meta.name: tuple(meta.neighbor_ips)
+            for meta in tot_super_spines + tot_spines + tot_leaves
+        }
         advertise_routers = tot_leaves + tot_super_spines
         plain_routers = tot_spines
 
@@ -341,7 +341,7 @@ class DCClos(NetworkEnvBase):
         for pod in range(super_spine_count):
             dns_name = f"dns_pod{pod}"
             dns_machine = self.lab.new_machine(
-                dns_name, **{"image": "nika/base", "cpus": 0.5, "mem": "256m"}
+                dns_name, **{"image": nika_image("base"), "cpus": 0.5, "mem": "256m"}
             )
             self.declare_machine(
                 dns_name,
@@ -364,7 +364,7 @@ class DCClos(NetworkEnvBase):
                 web_name = f"webserver{host}_pod{pod}"
                 web_machine = self.lab.new_machine(
                     web_name,
-                    **{"image": "nika/base", "cpus": 0.5, "mem": "256m"},
+                    **{"image": nika_image("base"), "cpus": 0.5, "mem": "256m"},
                 )
                 self.declare_machine(
                     web_name,
@@ -386,7 +386,7 @@ class DCClos(NetworkEnvBase):
             client_name = f"client_{client_id}"
             client_machine = self.lab.new_machine(
                 client_name,
-                **{"image": "nika/base", "cpus": 0.5, "mem": "256m"},
+                **{"image": nika_image("base"), "cpus": 0.5, "mem": "256m"},
             )
             self.declare_machine(
                 client_name,
@@ -465,6 +465,12 @@ class DCClos(NetworkEnvBase):
             super_spine_meta.host_network = str(subnet)
             client_meta.ip_address = str(client_ip.ip)
 
+        self.client_addresses = {
+            client.name: client.ip_address for client in tot_clients
+        }
+        self.dns_servers = tuple(
+            (dns.ip_address, f"ns{idx}.pod{idx}") for idx, dns in enumerate(tot_dns)
+        )
         for host in tot_clients:
             ns_add_cmd = ""
             for dns in tot_dns:
@@ -475,6 +481,14 @@ class DCClos(NetworkEnvBase):
                 f"{host.machine.name}.startup",
             )
 
+        # The client resolver reads at most _RESOLV_MAXNS nameservers, so with
+        # more pods each server forwards the other pods' zones to their owner.
+        forward = len(tot_dns) > _RESOLV_MAXNS
+        recursion = (
+            "recursion yes; dnssec-validation no; max-cache-ttl 1; max-ncache-ttl 1;"
+            if forward
+            else "recursion no;"
+        )
         for dns_idx, dns in enumerate(tot_dns):
             zone_name = f"pod{dns_idx}"
             ns_name = f"ns{dns_idx}"
@@ -484,7 +498,7 @@ class DCClos(NetworkEnvBase):
                     directory "/var/cache/bind";
                     listen-on port 53 {{ any; }};
                     allow-query     {{ any; }};
-                    recursion no;
+                    {recursion}
                 }};
 
                 zone "{zone_name}" IN {{
@@ -492,6 +506,14 @@ class DCClos(NetworkEnvBase):
                     file "/etc/bind/db.{zone_name}";
                 }};"""
             )
+            if forward:
+                name_config += "".join(
+                    f'\n\nzone "pod{idx}" IN {{\n'
+                    "    type forward;\n    forward only;\n"
+                    f"    forwarders {{ {other.ip_address}; }};\n}};"
+                    for idx, other in enumerate(tot_dns)
+                    if idx != dns_idx
+                )
             dns.machine.create_file_from_string(name_config, "/etc/bind/named.conf")
 
             basic_bind_conf = textwrap.dedent(f"""\
@@ -536,12 +558,26 @@ class DCClos(NetworkEnvBase):
                 f"{web.machine.name}.startup",
             )
 
+    @classmethod
+    def default_probe_path(cls, *, topo_size: str = "s", **deploy_kwargs) -> ProbePath:
+        return ProbePath(
+            src_host="client_0",
+            dst_ip="10.0.1.2",
+            http_url="http://web0.pod0/",
+            http_name_url="http://web0.pod0/",
+            control_plane_host="leaf_router_0_0",
+            peer_host="webserver0_pod0",
+        )
+
     def startup_verify_lab(self) -> dict:
         from nika.net_env.dc_clos.verify import verify_dc_clos_lab_startup
 
         return verify_dc_clos_lab_startup(
             self._build_runtime(),
             scenario_name=self.LAB_NAME,
+            nodes=tuple(self.lab.machines),
+            bgp_neighbors=self.bgp_neighbors,
+            client_addresses=self.client_addresses,
         )
 
     def verify_lab(self) -> dict:
@@ -550,4 +586,9 @@ class DCClos(NetworkEnvBase):
         return verify_dc_clos_lab(
             self._build_runtime(),
             scenario_name=self.LAB_NAME,
+            nodes=tuple(self.lab.machines),
+            bgp_neighbors=self.bgp_neighbors,
+            client_addresses=self.client_addresses,
+            dns_servers=self.dns_servers,
+            web_urls=tuple(self.web_urls),
         )

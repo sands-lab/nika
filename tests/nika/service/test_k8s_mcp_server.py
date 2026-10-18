@@ -22,12 +22,14 @@ from nika.mcp.registry import (
     select_diagnosis_servers,
 )
 
+pytestmark = pytest.mark.unit
+
 
 class TestK8sMcpSelection:
-    def test_k8s_lab_includes_k8s_mcp_and_frr(self) -> None:
+    def test_k8s_lab_includes_k8s_events_and_generic_exec(self) -> None:
         servers = select_diagnosis_servers("k8s_lab", backend="kathara")
         assert K8S_MCP_SERVER in servers
-        assert "kathara_frr_mcp_server" in servers
+        assert "kathara_frr_mcp_server" not in servers
         assert "kathara_base_mcp_server" in servers
 
     def test_llmd_lab_includes_k8s_mcp(self) -> None:

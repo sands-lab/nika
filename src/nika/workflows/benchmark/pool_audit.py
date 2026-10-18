@@ -5,7 +5,10 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from typing import Any
 
-from nika.problems.rca.materialize import assert_root_causes_match, ground_truth_for_case
+from nika.problems.rca.materialize import (
+    assert_root_causes_match,
+    ground_truth_for_case,
+)
 from nika.problems.rca.inventory import load_offline_net_env
 from nika.problems.registry import list_avail_problem_instances
 from nika.workflows.benchmark.candidate_context import (
@@ -15,7 +18,11 @@ from nika.workflows.benchmark.candidate_context import (
     pool_context_key,
 )
 from nika.workflows.benchmark.healthy import is_healthy_case
-from nika.workflows.benchmark.load_config import load_candidate_catalog, normalize_benchmark_row
+from nika.workflows.benchmark.isp_options import ISP_DEPLOY_KEYS
+from nika.workflows.benchmark.load_config import (
+    load_candidate_catalog,
+    normalize_benchmark_row,
+)
 
 
 def _has_recover_fault(problem: str) -> bool:
@@ -45,23 +52,16 @@ def _telemetry_flags(problem: str) -> list[str]:
     return flags
 
 
-def _ground_truth_check(row: dict[str, Any], env_cache: dict[tuple[Any, ...], Any]) -> None:
+def _ground_truth_check(
+    row: dict[str, Any], env_cache: dict[tuple[Any, ...], Any]
+) -> None:
     scenario = str(row["scenario"])
     topo_size = str(row.get("topo_size") or "")
     isp_kwargs: dict[str, Any] = {}
-    for key in ("topo", "igp", "bgp_mode", "rpki", "backend", "device_profile"):
+    for key in ISP_DEPLOY_KEYS:
         if key in row:
             isp_kwargs[key] = row[key]
-    cache_key = (
-        scenario,
-        topo_size,
-        str(isp_kwargs.get("topo") or ""),
-        str(isp_kwargs.get("igp") or ""),
-        str(isp_kwargs.get("bgp_mode") or ""),
-        str(isp_kwargs.get("rpki", False)),
-        str(isp_kwargs.get("backend") or ""),
-        str(isp_kwargs.get("device_profile") or ""),
-    )
+    cache_key = (scenario, topo_size, *isp_kwargs.items())
     if cache_key not in env_cache:
         env_cache[cache_key] = load_offline_net_env(scenario, topo_size, **isp_kwargs)
     truth = ground_truth_for_case(
@@ -154,9 +154,7 @@ def audit_candidate_pool(path: str) -> dict[str, Any]:
             )
 
     recover_missing = sorted(
-        problem
-        for problem in registry_failures
-        if not _has_recover_fault(problem)
+        problem for problem in registry_failures if not _has_recover_fault(problem)
     )
 
     static_failures = [item for item in row_issues if item.get("issues")]
@@ -185,9 +183,7 @@ def audit_candidate_pool(path: str) -> dict[str, Any]:
         "row_issues_truncated": max(0, len(row_issues) - 200),
         "ground_truth_issues": gt_issues[:200],
         "ground_truth_issues_truncated": max(0, len(gt_issues) - 200),
-        "eligible_for_selection": (
-            len(static_failures) == 0 and len(gt_issues) == 0
-        ),
+        "eligible_for_selection": (len(static_failures) == 0 and len(gt_issues) == 0),
     }
 
 

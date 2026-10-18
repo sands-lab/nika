@@ -14,6 +14,20 @@ ISP_NAMED_SPECIALS: frozenset[str] = frozenset(
 )
 _ISP_PREFIX = "isp_"
 
+# ISP deploy option keys (protocol stack, backend stack, topology, metrics).
+ISP_PROTOCOL_KEYS = ("igp", "bgp_mode", "rpki")
+ISP_STACK_KEYS = ("backend", "device_profile")
+ISP_OPTION_KEYS = (*ISP_PROTOCOL_KEYS, *ISP_STACK_KEYS)
+# Deploy option fields carried on benchmark rows and session scenario params.
+ISP_DEPLOY_KEYS = ("topo", *ISP_OPTION_KEYS)
+ISP_METRIC_KEYS = ("metric_strategy", "constant_metric")
+# Net-env constructor kwargs restored from session scenario params; rpki is
+# baked into the scenario and backend is resolved separately.
+ISP_NET_ENV_PARAM_KEYS = (
+    *(key for key in ISP_DEPLOY_KEYS if key not in ("rpki", "backend")),
+    *ISP_METRIC_KEYS,
+)
+
 
 def isp_scenario_id(topo: str) -> str:
     """Return the registry scenario ID for an SNDlib topology name."""

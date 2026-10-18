@@ -1,0 +1,35 @@
+scenario:
+  name: routeros_simple_bgp
+failure:
+  fault_type: link_flap
+  cases:
+  - inject:
+      down_time: '1'
+      host_name: pc1
+      intf_name: eth0
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: pc1:eth0--router1:eth2
+      fault_type: link_flap
+  - inject:
+      down_time: '1'
+      host_name: pc2
+      intf_name: eth0
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: pc2:eth0--router2:eth2
+      fault_type: link_flap
+  - inject:
+      down_time: '1'
+      host_name: router1
+      intf_name: eth1
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: router1:eth1--router2:eth1
+      fault_type: link_flap

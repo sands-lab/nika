@@ -14,6 +14,8 @@ from nika.workflows.benchmark.load_config import (
     normalize_benchmark_row,
 )
 
+pytestmark = pytest.mark.contract
+
 
 def test_normalize_healthy_row() -> None:
     row = normalize_benchmark_row(

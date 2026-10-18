@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import pytest
+
 import nika.runtime.kathara.patch as kathara_patch
+
+pytestmark = pytest.mark.unit
 
 
 class KatharaPrivilegedPatchTest:

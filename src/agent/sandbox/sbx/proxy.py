@@ -2,18 +2,15 @@
 
 from __future__ import annotations
 
-import fcntl
 import logging
 import os
 import socket
 import subprocess
 import threading
 import time
-from collections.abc import Iterator
-from contextlib import contextmanager
 from pathlib import Path
 
-from agent.sandbox.sbx.client import sbx_available
+from agent.sandbox.sbx.client import sbx_available, sbx_host_lock
 
 logger = logging.getLogger(__name__)
 
@@ -151,29 +148,13 @@ _applied_proxy: str | None = None
 _proxy_config_lock = threading.Lock()
 
 
-def _proxy_lock_path() -> Path:
-    return Path.home() / ".local/state/sandboxes/nika-sbx-proxy.lock"
-
-
-@contextmanager
-def _cross_process_lock() -> Iterator[None]:
-    path = _proxy_lock_path()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("a", encoding="utf-8") as fh:
-        fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
-
-
 def ensure_sbx_proxy_config(upstream_proxy: str | None) -> None:
     """Apply daemon proxy configuration once, serializing parallel trials."""
     with _proxy_config_lock:
         if upstream_proxy and _applied_proxy == upstream_proxy and sbx_daemon_running():
             _apply_process_daemon_env(upstream_proxy)
             return
-        with _cross_process_lock():
+        with sbx_host_lock("proxy"):
             _ensure_sbx_proxy_config(upstream_proxy)
 
 

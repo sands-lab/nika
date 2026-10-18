@@ -76,6 +76,7 @@ class CaptureManager:
             device=meta.device,
             pid_path=meta.pid_path,
             remote_path=meta.remote_path,
+            capture_backend=meta.capture_backend,
         )
         stopped_at = datetime.now(timezone.utc).isoformat()
         meta.status = "stopped"

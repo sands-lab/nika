@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -26,6 +27,7 @@ DEFAULT_BUFFER_CEIL_BYTES = 128 * 1024
 DEFAULT_BDP_DIVISOR = 8.0
 # Reject paths where even the floor cannot sit well below BDP.
 MIN_BDP_BYTES = DEFAULT_BUFFER_FLOOR_BYTES * 4
+RTT_READY_TIMEOUT_SEC = 60.0
 
 
 @dataclass(frozen=True)
@@ -170,9 +172,15 @@ def measure_path_baseline(
     Prefers iperf3 for calibration speed; falls back to large HTTP download.
     Bulk direction is sender → receiver so the injected host is the TCP receiver.
     """
-    ping = ping_stats(runtime, receiver, sender_ip, count=10, interval_sec=0.2)
-    if ping.rtt_avg_ms is None or ping.rtt_avg_ms <= 0:
-        raise ValueError(f"unable to measure RTT from {receiver} to {sender_ip}")
+    # Right after startup the branch→HQ path may still be converging.
+    deadline = time.monotonic() + RTT_READY_TIMEOUT_SEC
+    while True:
+        ping = ping_stats(runtime, receiver, sender_ip, count=10, interval_sec=0.2)
+        if ping.rtt_avg_ms is not None and ping.rtt_avg_ms > 0:
+            break
+        if time.monotonic() >= deadline:
+            raise ValueError(f"unable to measure RTT from {receiver} to {sender_ip}")
+        time.sleep(3.0)
 
     receiver_ip = primary_ipv4(runtime, receiver)
     throughputs: list[float] = []

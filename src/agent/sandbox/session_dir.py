@@ -13,7 +13,7 @@ def resolve_agent_session_dir(session_dir: str) -> str:
 
     Inside an sbx microVM, SDK runners set ``NIKA_SANDBOX_EXECUTION=1``.
     Host-side CLI orchestration sets ``NIKA_SBX_SANDBOX_NAME`` and
-    ``NIKA_SESSION_DIR`` to the mounted ``.sandbox_run`` workspace while
+    ``NIKA_SESSION_DIR`` to the mounted agent workspace while
     LangGraph stays on the host.
     """
     override = os.environ.get(ENV_SESSION_DIR, "").strip()
@@ -24,3 +24,16 @@ def resolve_agent_session_dir(session_dir: str) -> str:
     if os.environ.get(ENV_SBX_SANDBOX_NAME, "").strip():
         return override
     return session_dir
+
+
+def resolve_agent_trace_dir(session_id: str, session_dir: str) -> str:
+    """Keep host-orchestrated CLI traces in the result directory."""
+    if not os.environ.get(ENV_SBX_SANDBOX_NAME, "").strip():
+        return session_dir
+
+    from nika.utils.session_store import SessionStore
+
+    row = SessionStore().find_by_agent_session_id(session_id)
+    if row is None or not row.get("session_dir"):
+        raise FileNotFoundError(f"Host session for agent {session_id!r} not found")
+    return str(row["session_dir"])

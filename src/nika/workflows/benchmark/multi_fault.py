@@ -21,10 +21,6 @@ def row_problems(row: dict[str, Any]) -> list[str]:
     return []
 
 
-def is_multi_fault_row(row: dict[str, Any]) -> bool:
-    return len(row_problems(row)) > 1
-
-
 def nested_inject_map(row: dict[str, Any]) -> dict[str, dict[str, str]]:
     problems = row_problems(row)
     inject = dict(row.get("inject") or {})

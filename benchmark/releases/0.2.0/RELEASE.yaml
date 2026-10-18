@@ -28,12 +28,12 @@ tools:
   - task_mcp_server
 images:
   required:
-  - kathara/p4
-  - kathara/sdn
-  - nika/base
-  - nika/fabric-controller
-  - nika/frr
-  - nika/nginx
-  - nika/onos
-  - nika/routinator:v0.14.2
-  - rancher/k3s:v1.34.1-k3s1
+  - kathara/p4:latest@sha256:62d4511908530028e275420b644d05e45ed9b4f5d786b56a63b5fb287dcce6ef
+  - kathara/sdn:latest@sha256:19cb5b383367e1d204e76f7e6e65753fbc947647747879f24883558a5c3fd8c5
+  - nika/base:0.2.0
+  - nika/fabric-controller:0.2.0
+  - nika/frr:0.2.0
+  - nika/nginx:0.2.0
+  - nika/onos:0.2.0
+  - nika/routinator:0.2.0
+  - rancher/k3s:v1.34.1-k3s1@sha256:5e0707cfd1239b358ef73f3254bc3eadc027dd30cd5ec6ca41e29e47652a1b8c

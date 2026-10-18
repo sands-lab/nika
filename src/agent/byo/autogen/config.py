@@ -34,11 +34,5 @@ def to_mcp_params(server: dict) -> StdioServerParams | StreamableHttpServerParam
     return StdioServerParams(**kwargs)
 
 
-def session_server_configs(session_id: str, scenario_name: str) -> dict:
-    return load_session_mcp_config(session_id, scenario_name)
-
-
-def diagnosis_server_names(scenario_name: str) -> list[str]:
-    from agent.utils.mcp_servers import select_diagnosis_servers
-
-    return select_diagnosis_servers(scenario_name)
+def session_server_configs(session_id: str, scenario_name: str, phase: str) -> dict:
+    return load_session_mcp_config(session_id, scenario_name, phase=phase)

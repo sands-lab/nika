@@ -1,42 +1,79 @@
-"""nika config: show and migrate run configuration."""
+"""nika config: show and update run configuration."""
 
 from __future__ import annotations
 
-import shutil
-from pathlib import Path
-from typing import Any
+import re
 
 import typer
 import yaml
-from dotenv import dotenv_values
+from pydantic import BaseModel
 
-from nika.config import REPO_ROOT
-from nika.run_config.legacy import (
-    CREDENTIAL_ENV_KEYS,
-    REMOVED_ENV_KEYS,
-    detect_legacy_operational_env,
-    detect_removed_env,
-    legacy_env_to_partial_dict,
-)
 from nika.run_config.loader import (
     ENV_RUN_CONFIG,
-    default_run_config_path,
-    dump_run_config,
     load_run_config,
+    resolve_run_config_path,
 )
-from nika.run_config.schema import RunConfig, default_run_config
+from nika.run_config.schema import RunConfig
 
 config_app = typer.Typer(help="Run configuration (config/nika.yaml).")
 
+_KEY_LINE_RE = re.compile(r"^(?P<indent> *)(?P<key>[A-Za-z0-9_-]+):(?P<rest>.*)$")
 
-def _deep_merge(base: dict[str, Any], overlay: dict[str, Any]) -> dict[str, Any]:
-    out = dict(base)
-    for key, value in overlay.items():
-        if key in out and isinstance(out[key], dict) and isinstance(value, dict):
-            out[key] = _deep_merge(out[key], value)
-        else:
-            out[key] = value
-    return out
+
+def _check_config_key(path: str) -> None:
+    """Reject dotted keys that do not name a scalar field of ``RunConfig``."""
+    model: type[BaseModel] = RunConfig
+    parts = path.split(".")
+    for index, part in enumerate(parts):
+        field = model.model_fields.get(part)
+        if field is None:
+            raise typer.BadParameter(
+                f"Unknown key {path!r} (no field {part!r}). See `nika config show`."
+            )
+        annotation = field.annotation
+        is_model = isinstance(annotation, type) and issubclass(annotation, BaseModel)
+        if index < len(parts) - 1:
+            if not is_model:
+                raise typer.BadParameter(f"Unknown key {path!r}.")
+            model = annotation
+        elif is_model:
+            raise typer.BadParameter(
+                f"Key {path!r} is a section; set one of its fields instead."
+            )
+
+
+def _set_yaml_line(text: str, path: str, raw_value: str) -> str:
+    """Overwrite ``path`` in YAML ``text`` in place, keeping comments and layout.
+
+    Replaces the value on the existing key line; otherwise inserts the key (and
+    missing parent sections, 2-space indent) after its deepest existing parent.
+    """
+    parts = path.split(".")
+    lines = text.splitlines()
+    stack: list[tuple[int, str]] = []
+    # depth -> index after the last line inside the block ``parts[:depth]``.
+    block_end = {0: len(lines)}
+    for lineno, line in enumerate(lines):
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        indent = len(line) - len(line.lstrip())
+        while stack and stack[-1][0] >= indent:
+            stack.pop()
+        match = _KEY_LINE_RE.match(line)
+        keys = [key for _, key in stack] + ([match.group("key")] if match else [])
+        if keys == parts:
+            lines[lineno] = f"{match.group('indent')}{keys[-1]}: {raw_value}"
+            return "\n".join(lines) + "\n"
+        for depth in range(1, min(len(keys), len(parts) - 1) + 1):
+            if keys[:depth] == parts[:depth]:
+                block_end[depth] = lineno + 1
+        if match:
+            stack.append((indent, match.group("key")))
+    depth = max(block_end)
+    new_lines = [f"{'  ' * d}{parts[d]}:" for d in range(depth, len(parts) - 1)]
+    new_lines.append(f"{'  ' * (len(parts) - 1)}{parts[-1]}: {raw_value}")
+    lines[block_end[depth] : block_end[depth]] = new_lines
+    return "\n".join(lines) + "\n"
 
 
 @config_app.command("show")
@@ -51,156 +88,60 @@ def config_show(
     """Print the effective run configuration (no secrets)."""
     cfg = load_run_config(run_config)
     typer.echo(
-        yaml.safe_dump(cfg.to_display_dict(), sort_keys=False, allow_unicode=True)
+        yaml.safe_dump(
+            cfg.model_dump(mode="python"), sort_keys=False, allow_unicode=True
+        )
     )
 
 
-@config_app.command("migrate")
-def config_migrate(
-    env_file: Path = typer.Option(
-        REPO_ROOT / ".env",
-        "--env-file",
-        help="Source .env to migrate operational settings from.",
+@config_app.command("set")
+def config_set(
+    assignments: list[str] = typer.Argument(
+        ...,
+        metavar="KEY=VALUE",
+        help=(
+            "Dotted config key assignment(s), e.g. agent.model=gpt-5 or "
+            "benchmark.batch_size=4. Any scalar key shown by `nika config show`."
+        ),
     ),
-    output: Path | None = typer.Option(
+    run_config: str | None = typer.Option(
         None,
-        "--output",
-        "-o",
-        help="Destination YAML path (default: config/nika.yaml).",
-    ),
-    write_env: bool = typer.Option(
-        False,
-        "--write-env",
-        help="Backup and rewrite .env to credentials-only after confirmation.",
-    ),
-    yes: bool = typer.Option(
-        False,
-        "--yes",
-        "-y",
-        help="Skip interactive confirmation (still prints the plan).",
+        "--run-config",
+        envvar=ENV_RUN_CONFIG,
+        help="Path to config/nika.yaml (default: config/nika.yaml).",
     ),
 ) -> None:
-    """Migrate operational settings from .env into config/nika.yaml."""
-    out_path = output or default_run_config_path()
-    values = {
-        k: v
-        for k, v in dotenv_values(env_file).items()
-        if v is not None and str(v).strip()
-    }
-    # Also consider process env for keys present there
-    import os
+    """Overwrite run-config keys in the YAML file in place (keeps comments)."""
+    path = resolve_run_config_path(run_config)
+    text = path.read_text(encoding="utf-8") if path.is_file() else ""
 
-    for key in list(values) + list(CREDENTIAL_ENV_KEYS) + list(REMOVED_ENV_KEYS):
-        if key in os.environ and os.environ[key].strip():
-            values.setdefault(key, os.environ[key].strip())
+    for raw in assignments:
+        if "=" not in raw:
+            raise typer.BadParameter(f"Invalid assignment {raw!r}. Use KEY=VALUE.")
+        key, raw_value = (part.strip() for part in raw.split("=", 1))
+        if not key:
+            raise typer.BadParameter(
+                f"Invalid assignment {raw!r}. Key cannot be empty."
+            )
+        _check_config_key(key)
+        try:
+            parsed = yaml.safe_load(raw_value)
+        except yaml.YAMLError as exc:
+            raise typer.BadParameter(f"Invalid value {raw_value!r}: {exc}") from exc
+        if isinstance(parsed, (dict, list)):
+            raise typer.BadParameter(
+                f"Value for {key!r} must be a scalar; edit {path} for lists/maps."
+            )
+        text = _set_yaml_line(text, key, raw_value)
 
-    legacy = detect_legacy_operational_env(values)
-    removed = detect_removed_env(values)
-    partial = legacy_env_to_partial_dict(values)
+    try:
+        loaded = yaml.safe_load(text) or {}
+        RunConfig.model_validate(loaded)
+    except Exception as exc:
+        raise typer.BadParameter(f"Invalid configuration after set: {exc}") from exc
 
-    base = default_run_config().model_dump(mode="python")
-    if out_path.is_file():
-        existing = yaml.safe_load(out_path.read_text(encoding="utf-8")) or {}
-        if isinstance(existing, dict):
-            base = _deep_merge(base, existing)
-    merged = _deep_merge(base, partial)
-    cfg = RunConfig.model_validate(merged)
-
-    typer.echo("=== NIKA config migrate ===")
-    typer.echo(f"Source env: {env_file}")
-    typer.echo(f"Target YAML: {out_path}")
-    if legacy:
-        typer.echo("Operational keys to migrate:")
-        for key in legacy:
-            typer.echo(f"  - {key}")
-    else:
-        typer.secho(
-            "No operational keys found in .env — nothing to migrate.",
-            fg=typer.colors.YELLOW,
-        )
-        typer.echo(
-            "For a new setup, prefer: cp config/nika.example.yaml config/nika.yaml"
-        )
-        typer.echo("Continuing writes built-in defaults (agent.models.* stay null).")
-    if removed:
-        typer.echo("Removed keys (will not migrate; safe to delete from .env):")
-        for key in removed:
-            typer.echo(f"  - {key}")
-
-    missing_hints: list[str] = []
-    if not (cfg.agent.type or "").strip():
-        missing_hints.append("agent.type")
-    if not (cfg.agent.provider or "").strip():
-        missing_hints.append("agent.provider")
-    if cfg.agent.provider == "custom" and not (cfg.agent.custom.base_url or "").strip():
-        missing_hints.append("agent.custom.base_url")
-    if missing_hints:
-        typer.secho(
-            "Please review / fill after migrate: " + ", ".join(missing_hints),
-            fg=typer.colors.YELLOW,
-        )
-
-    typer.echo("\nProposed YAML:")
-    typer.echo(
-        yaml.safe_dump(cfg.to_display_dict(), sort_keys=False, allow_unicode=True)
-    )
-
-    if not yes:
-        if not typer.confirm("Write this file?", default=False):
-            typer.echo("Aborted.")
-            raise typer.Exit(code=1)
-
-    dump_run_config(cfg, out_path)
-    typer.secho(f"Wrote {out_path}", fg=typer.colors.GREEN)
-
-    cred_lines = [
-        "# Credentials only — operational settings live in config/nika.yaml",
-        "# Copy from .env.example. Uncomment the provider(s) you use.",
-        "",
-        "# OPENAI_API_KEY=",
-        "# ANTHROPIC_API_KEY=",
-        "# DEEPSEEK_API_KEY=",
-        "# NIKA_CUSTOM_API_KEY=",
-        "# LANGFUSE_SECRET_KEY=",
-        "# LANGFUSE_PUBLIC_KEY=",
-        "# HF_TOKEN=",
-        "",
-    ]
-    # Keep credentials in .env. Provider and endpoint selection belongs in YAML.
-    for key in CREDENTIAL_ENV_KEYS:
-        if key in values:
-            # replace commented placeholder
-            cred_lines = [
-                line if not line.startswith(f"# {key}=") else f"{key}={values[key]}"
-                for line in cred_lines
-            ]
-            if not any(line.startswith(f"{key}=") for line in cred_lines):
-                cred_lines.append(f"{key}={values[key]}")
-
-    suggested = "\n".join(cred_lines).rstrip() + "\n"
-    typer.echo("\nSuggested credentials-only .env:")
-    # Redact values in display
-    for line in suggested.splitlines():
-        if "=" in line and not line.strip().startswith("#"):
-            k, _, _ = line.partition("=")
-            typer.echo(f"{k}=***REDACTED***")
-        else:
-            typer.echo(line)
-
-    if write_env:
-        if not yes:
-            if not typer.confirm(
-                f"Rewrite {env_file} to credentials-only?", default=False
-            ):
-                typer.echo("Skipped .env rewrite.")
-                return
-        backup = env_file.with_suffix(env_file.suffix + ".bak")
-        shutil.copy2(env_file, backup)
-        env_file.write_text(suggested, encoding="utf-8")
-        typer.secho(
-            f"Backed up to {backup} and wrote {env_file}", fg=typer.colors.GREEN
-        )
-    else:
-        typer.echo(
-            "\nRe-run with --write-env to backup and replace .env with credentials-only."
-        )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    typer.secho(f"Wrote {path}", fg=typer.colors.GREEN)
+    for raw in assignments:
+        typer.echo(f"  {raw.strip()}")

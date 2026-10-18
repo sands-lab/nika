@@ -1,7 +1,10 @@
+import pytest
 from nika.net_env.utils.containerlab.mgmt_subnet import (
     mgmt_ipv4_address,
     mgmt_ipv4_subnet,
 )
+
+pytestmark = pytest.mark.unit
 
 
 def test_mgmt_subnet_is_unique_per_lab() -> None:

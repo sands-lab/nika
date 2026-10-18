@@ -26,6 +26,8 @@ from nika.net_env.isp.traffic import (
 from nika.topology import list_sndlib_topologies
 from nika.topology.models import NetworkTopology, TopoLink, TopoNode
 
+pytestmark = pytest.mark.unit
+
 
 def _isp_plan(name: str = "tiny"):
     return compile_isp_plan(
@@ -142,7 +144,7 @@ def test_abilene_ebgp_rpki_profile() -> None:
     assert "rpki cache tcp" in frag
     assert "match rpki invalid" in frag
     leak_frag = render_bgp_frr_fragment(leaker_node, plan)
-    assert "prefix-list LEAK" in leak_frag
+    assert "prefix-list EXPORT-DENY" in leak_frag
     assert "route-map BGP-OUT deny 5" in leak_frag
 
 

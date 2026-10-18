@@ -6,6 +6,9 @@ from nika.problems.base import (
     ProblemBase,
 )
 from nika.problems.rca import node_resource
+from nika.problems.support.benchmark_targets import (
+    dhcp_server_client,
+)
 from nika.utils.logger import system_logger
 
 logger = system_logger
@@ -24,12 +27,19 @@ class DNSServiceDownParams(BaseModel):
 
 class DNSServiceDown(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name: str = "dns_service_down"
     description = "DNS server process is down."
     symptom_desc = "Some hosts cannot access external websites."
     TAGS: str = ["dns"]
+    RECORDED_ATTRS = ("service_name",)
 
     Params = DNSServiceDownParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": ctx.dns0}
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
@@ -60,17 +70,25 @@ class DHCPServiceDownParams(BaseModel):
     """Parameters for injecting a DHCP service down fault."""
 
     host_name: str = Field(description="Target DHCP server host name.")
+    host_name_2: str = Field(default="", description="Affected client host name.")
     service_name: str = Field(default="isc-dhcp-server", description="Service name.")
 
 
 class DHCPServiceDown(ProblemBase):
     failure_domain = FailureDomain.ADDRESSING_NEIGHBOR_NAMING
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
     root_cause_name: str = "dhcp_service_down"
 
     description = "DHCP server process is down."
     TAGS: str = ["dhcp"]
+    RECORDED_ATTRS = ("service_name",)
 
     Params = DHCPServiceDownParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return dhcp_server_client(ctx)
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
@@ -83,6 +101,9 @@ class DHCPServiceDown(ProblemBase):
         # Stop via systemd so the unit does not respawn dhcpd after pkill.
         self.runtime.systemctl(params.host_name, params.service_name, "stop")
         self.runtime.kill_process(params.host_name, "dhcpd")
+        # Renew now, as clients do when their leases run out during an outage;
+        # otherwise every client keeps a valid lease and nothing breaks.
+        self.runtime.renew_dhcp_leases(self.runtime.list_dhcp_client_nodes())
 
     def verify_fault(self, params: DHCPServiceDownParams) -> dict:
         """Verify DHCP server process is not running."""

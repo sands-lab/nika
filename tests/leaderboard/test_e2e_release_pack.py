@@ -24,7 +24,6 @@ from nika.workflows.benchmark.release import (
 from nika.workflows.benchmark.run import run_benchmark_from_release
 from nika.workflows.benchmark.trials import expand_trials, is_valid_trial, trial_dir
 from nika.workflows.leaderboard.meta_input import (
-    slugify_name,
     write_submission_templates,
 )
 from nika.workflows.leaderboard.pack import pack_leaderboard_submission
@@ -36,6 +35,8 @@ from nika.workflows.leaderboard.schema import (
     RESULTS_DIRNAME,
 )
 from nika.workflows.leaderboard.validate import validate_leaderboard_submission
+
+pytestmark = pytest.mark.e2e
 
 
 def _mini_cases_yaml(path: Path) -> Path:
@@ -101,6 +102,7 @@ def _write_mocked_trial(
         "session_id": trial_id,
         "status": "finished",
         "outcome": outcome,
+        "score_status": "scored" if outcome == "success" else "no_submission",
         "trial_id": trial_id,
         "trial_index": trial_index,
         "case_key": case_key,
@@ -136,18 +138,22 @@ def _write_mocked_trial(
         encoding="utf-8",
     )
     success = outcome == "success"
+
+    def zero_or(v: float) -> float:
+        return v if success else 0.0
+
     _write_json(
         session_dir / "eval_metrics.json",
         {
-            "detection_score": 1.0 if success else -1.0,
-            "localization_accuracy": 1.0 if success else -1.0,
-            "localization_precision": 1.0 if success else -1.0,
-            "localization_recall": 1.0 if success else -1.0,
-            "localization_f1": 1.0 if success else -1.0,
-            "rca_accuracy": rca_f1 if success else -1.0,
-            "rca_precision": rca_f1 if success else -1.0,
-            "rca_recall": rca_f1 if success else -1.0,
-            "rca_f1": rca_f1 if success else -1.0,
+            "detection_score": zero_or(1.0),
+            "localization_accuracy": zero_or(1.0),
+            "localization_precision": zero_or(1.0),
+            "localization_recall": zero_or(1.0),
+            "localization_f1": zero_or(1.0),
+            "rca_accuracy": zero_or(rca_f1),
+            "rca_precision": zero_or(rca_f1),
+            "rca_recall": zero_or(rca_f1),
+            "rca_f1": zero_or(rca_f1),
             "in_tokens": 20,
             "out_tokens": 8,
             "steps": 3,
@@ -272,7 +278,7 @@ class TestReleaseRunToLeaderboardPackE2E:
                 submission_dir=staging,
             ).scores_dir
 
-        slug = slugify_name("E2E Mock Agent")
+        slug = "mock_mock_v1"
         assert package.name.endswith(f"_{slug}")
         assert package.parent == result_dir.resolve()
         assert (package / METADATA_FILENAME).is_file()
@@ -474,8 +480,8 @@ class TestReleaseRunToLeaderboardPackE2E:
             lambda **kwargs: "https://github.com/sands-lab/nika-leaderboard/pull/1",
         )
         monkeypatch.setattr(
-            "nika.workflows.leaderboard.submit.hf.ensure_hf_token",
-            lambda: "hf_test",
+            "nika.workflows.leaderboard.submit.hf.ensure_hf_auth",
+            lambda _repo: None,
         )
 
         def fake_hf_upload(**kwargs):
@@ -509,7 +515,7 @@ class TestReleaseRunToLeaderboardPackE2E:
         assert "Opened GitHub pull request:" in submit_result.output
         assert "Opened HF trajectories PR:" in submit_result.output
 
-        slug = slugify_name("CLI E2E Agent")
+        slug = "mock_mock_v1"
         packages = [
             p
             for p in result_dir.iterdir()

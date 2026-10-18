@@ -5,8 +5,10 @@ failure:
   cases:
   - topo_size: s
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_1_1_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -14,8 +16,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: s
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_1_1_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -23,8 +27,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_1_1_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -32,8 +38,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_1_1_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -41,8 +49,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_1_2_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -50,8 +60,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_1_2_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -59,8 +71,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_2_1_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -68,8 +82,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_2_1_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -77,8 +93,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_2_2_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -86,8 +104,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_2_2_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -95,8 +115,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_1_1_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -104,8 +126,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_1_1_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -113,8 +137,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_1_2_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -122,8 +148,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_1_2_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -131,8 +159,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_2_1_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -140,8 +170,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_2_1_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -149,8 +181,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_2_2_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -158,8 +192,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: m
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_2_2_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -167,8 +203,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_1_1_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -176,8 +214,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_1_1_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -185,8 +225,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_1_1_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -194,8 +236,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_1_1_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -203,8 +247,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_1_2_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -212,8 +258,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_1_2_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -221,8 +269,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_1_2_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -230,8 +280,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_1_2_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -239,8 +291,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_1_3_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -248,8 +302,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_1_3_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -257,8 +313,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_1_3_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -266,8 +324,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_1_3_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -275,8 +335,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_1_4_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -284,8 +346,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_1_4_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -293,8 +357,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_1_4_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -302,8 +368,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_1_4_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -311,8 +379,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_2_1_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -320,8 +390,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_2_1_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -329,8 +401,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_2_1_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -338,8 +412,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_2_1_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -347,8 +423,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_2_2_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -356,8 +434,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_2_2_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -365,8 +445,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_2_2_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -374,8 +456,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_2_2_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -383,8 +467,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_2_3_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -392,8 +478,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_2_3_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -401,8 +489,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_2_3_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -410,8 +500,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_2_3_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -419,8 +511,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_2_4_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -428,8 +522,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_2_4_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -437,8 +533,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_2_4_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -446,8 +544,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_2_4_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -455,8 +555,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_3_1_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -464,8 +566,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_3_1_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -473,8 +577,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_3_1_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -482,8 +588,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_3_1_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -491,8 +599,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_3_2_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -500,8 +610,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_3_2_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -509,8 +621,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_3_2_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -518,8 +632,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_3_2_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -527,8 +643,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_3_3_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -536,8 +654,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_3_3_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -545,8 +665,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_3_3_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -554,8 +676,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_3_3_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -563,8 +687,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_3_4_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -572,8 +698,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_3_4_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -581,8 +709,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_3_4_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -590,8 +720,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_3_4_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -599,8 +731,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_4_1_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -608,8 +742,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_4_1_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -617,8 +753,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_4_1_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -626,8 +764,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_4_1_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -635,8 +775,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_4_2_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -644,8 +786,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_4_2_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -653,8 +797,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_4_2_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -662,8 +808,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_4_2_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -671,8 +819,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_4_3_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -680,8 +830,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_4_3_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -689,8 +841,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_4_3_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -698,8 +852,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_4_3_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -707,8 +863,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_4_4_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -716,8 +874,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_4_4_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -725,8 +885,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_4_4_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -734,8 +896,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_1_4_4_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -743,8 +907,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_1_1_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -752,8 +918,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_1_1_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -761,8 +929,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_1_1_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -770,8 +940,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_1_1_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -779,8 +951,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_1_2_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -788,8 +962,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_1_2_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -797,8 +973,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_1_2_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -806,8 +984,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_1_2_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -815,8 +995,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_1_3_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -824,8 +1006,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_1_3_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -833,8 +1017,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_1_3_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -842,8 +1028,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_1_3_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -851,8 +1039,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_1_4_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -860,8 +1050,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_1_4_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -869,8 +1061,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_1_4_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -878,8 +1072,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_1_4_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -887,8 +1083,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_2_1_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -896,8 +1094,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_2_1_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -905,8 +1105,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_2_1_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -914,8 +1116,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_2_1_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -923,8 +1127,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_2_2_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -932,8 +1138,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_2_2_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -941,8 +1149,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_2_2_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -950,8 +1160,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_2_2_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -959,8 +1171,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_2_3_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -968,8 +1182,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_2_3_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -977,8 +1193,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_2_3_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -986,8 +1204,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_2_3_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -995,8 +1215,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_2_4_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1004,8 +1226,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_2_4_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1013,8 +1237,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_2_4_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1022,8 +1248,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_2_4_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1031,8 +1259,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_3_1_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1040,8 +1270,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_3_1_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1049,8 +1281,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_3_1_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1058,8 +1292,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_3_1_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1067,8 +1303,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_3_2_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1076,8 +1314,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_3_2_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1085,8 +1325,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_3_2_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1094,8 +1336,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_3_2_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1103,8 +1347,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_3_3_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1112,8 +1358,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_3_3_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1121,8 +1369,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_3_3_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1130,8 +1380,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_3_3_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1139,8 +1391,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_3_4_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1148,8 +1402,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_3_4_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1157,8 +1413,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_3_4_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1166,8 +1424,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_3_4_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1175,8 +1435,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_4_1_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1184,8 +1446,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_4_1_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1193,8 +1457,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_4_1_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1202,8 +1468,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_4_1_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1211,8 +1479,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_4_2_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1220,8 +1490,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_4_2_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1229,8 +1501,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_4_2_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1238,8 +1512,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_4_2_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1247,8 +1523,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_4_3_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1256,8 +1534,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_4_3_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1265,8 +1545,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_4_3_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1274,8 +1556,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_4_3_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1283,8 +1567,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_4_4_1
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1292,8 +1578,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_4_4_2
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1301,8 +1589,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_4_4_3
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node
@@ -1310,8 +1600,10 @@ failure:
       fault_type: receiver_resource_contention
   - topo_size: l
     inject:
-      duration: '600'
+      duration: '3600'
       host_name: pc_2_4_4_4
+      large_url: https://web0.local/packages/catalog.txt
+      peer_host: web_server_0
     root_causes:
     - resource:
         kind: node

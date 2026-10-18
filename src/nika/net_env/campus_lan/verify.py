@@ -145,7 +145,8 @@ def _shared_checks(runtime: LabRuntime, dist_router: str) -> dict[str, bool]:
         "dns_server_reachable": _ping_ok(runtime, PROBE_HOST, DNS_SERVER_IP)
         if host_ready
         else False,
-        "dns_service_active": _service_active(runtime, DNS_SERVER, "named"),
+        # systemctl.py reports notify/simple units inactive; check the process.
+        "dns_service_active": _process_running(runtime, DNS_SERVER, "named"),
         "dns_resolution_web0": _dns_resolves(
             runtime, PROBE_HOST, "web0.local", expect_ip=WEB0_IP
         )
@@ -166,7 +167,7 @@ def verify_campus_lan_lab_startup(
     *,
     scenario_name: str,
 ) -> dict:
-    """Bounded readiness: core OSPF and probe-host gateway attachment."""
+    """Bounded readiness: core OSPF and the probe-host to peer-host path."""
     host_ready = _host_has_ipv4(runtime)
     checks = {
         "ospf_process": _ospf_process_running(runtime),
@@ -180,6 +181,7 @@ def verify_campus_lan_lab_startup(
         "gateway_reachable": _ping_ok(runtime, PROBE_HOST, HOST_GATEWAY)
         if host_ready
         else False,
+        "peer_host_reachable": _peer_host_reachable(runtime) if host_ready else False,
     }
     return build_lab_verify_result(
         scenario_name=scenario_name,
@@ -187,6 +189,7 @@ def verify_campus_lan_lab_startup(
         checks=checks,
         details={
             "probe_host": PROBE_HOST,
+            "peer_host": PEER_HOST,
             "core_router": CORE_ROUTER,
             "dist_router": DIST_ROUTER_DHCP,
         },
@@ -209,7 +212,9 @@ def verify_campus_lan_lab(
     checks["dhcp_relay_active"] = bool(
         "dhcrelay" in runtime.exec(dist_router, "pgrep -a dhcrelay", timeout=10)
     )
-    checks["web_service_active"] = _service_active(runtime, WEB_SERVER, "web_server")
+    checks["web_service_active"] = bool(
+        runtime.exec(WEB_SERVER, "pgrep -f '[w]eb_server.py'", timeout=10).strip()
+    )
     checks["load_balancer_nginx"] = _process_running(runtime, LOAD_BALANCER, "nginx")
     checks["dns_resolution_web99"] = _dns_resolves(runtime, PROBE_HOST, "web99.local")
     checks["load_balancer_http"] = _http_ok(runtime, PROBE_HOST, WEB99_URL)

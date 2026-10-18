@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-from unittest.mock import MagicMock
-
 import pytest
 
-from nika.utils.logger import bind_session_dir
+import json
+from pathlib import Path
+
+from nika.utils.logger import bind_session_dir, log_event
+
+pytestmark = pytest.mark.unit
 
 
 def test_bind_session_dir_accepts_str_and_path(tmp_path: Path) -> None:
@@ -17,7 +19,40 @@ def test_bind_session_dir_accepts_str_and_path(tmp_path: Path) -> None:
     assert (tmp_path / "b").is_dir()
 
 
-def test_bind_session_dir_rejects_magicmock() -> None:
-    session = MagicMock(name="Session()")
-    with pytest.raises(TypeError, match="str or Path"):
-        bind_session_dir(session.session_dir)
+def test_log_event_writes_top_level_duration_ms(tmp_path: Path) -> None:
+    bind_session_dir(tmp_path)
+    log_event("env_verify", "ok", scenario="simple_bgp", duration_ms=12.5)
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "nika.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert len(rows) == 1
+    assert rows[0]["event"] == "env_verify"
+    assert rows[0]["duration_ms"] == 12.5
+    assert "duration_ms" not in (rows[0].get("data") or {})
+    assert rows[0]["data"]["scenario"] == "simple_bgp"
+    assert rows[0]["timestamp"].endswith("+00:00") or rows[0]["timestamp"].endswith("Z")
+
+
+def test_concurrent_bindings_do_not_cross_write(tmp_path: Path) -> None:
+    """Parent threads finalizing different trials each write their own log."""
+    import threading
+
+    ready = threading.Barrier(2)
+
+    def _trial(name: str) -> None:
+        bind_session_dir(tmp_path / name)
+        ready.wait()  # both bound before either logs
+        log_event("env_stop", f"stopped {name}")
+
+    threads = [threading.Thread(target=_trial, args=(n,)) for n in ("a", "b")]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    for name in ("a", "b"):
+        lines = (tmp_path / name / "nika.jsonl").read_text(encoding="utf-8")
+        rows = [json.loads(line) for line in lines.splitlines() if line.strip()]
+        assert [row["message"] for row in rows] == [f"stopped {name}"]

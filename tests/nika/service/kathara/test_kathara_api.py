@@ -8,6 +8,8 @@ from tests.support.prerequisites import docker_available
 from tests.support.api_smoke import assert_json_payload
 from tests.support.kathara_api_base import KatharaScenarioApiSmokeTest
 
+pytestmark = pytest.mark.integration
+
 HOST = "pc1"
 HOST2 = "pc2"
 ROUTER = "router1"
@@ -114,7 +116,8 @@ class KatharaApiSmokeTest(KatharaScenarioApiSmokeTest):
             runtime.list_dhcp_client_nodes,
             expect_type=list,
         )
-        assert HOST in dhcp_clients
+        # simple_bgp hosts are statically addressed and declare no dhcp_client role.
+        assert dhcp_clients == []
         assert self.smoke(
             "runtime.process_running(zebra)",
             lambda: runtime.process_running(ROUTER, "zebra"),

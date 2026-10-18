@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from contextlib import ExitStack
 from typing import Any
 
@@ -18,6 +17,7 @@ from nika.remote.protocol import (
     PolicyMode,
     SessionContainersResponse,
 )
+from nika.mcp.gateway.phase import phase_advance_token
 from nika.mcp.gateway.lifecycle import (
     McpGatewayManager,
     SANDBOX_GATEWAY_BIND_HOST,
@@ -30,6 +30,7 @@ from nika.workflows.failure.inject import inject_failure
 from nika.workflows.session.close import close_session
 from nika.workflows.session.containers import list_session_containers
 from nika.workflows.session.list import list_sessions
+from nika.validation.presence import recheck_bound_artifact
 
 logger = logging.getLogger("nika.remote")
 
@@ -69,8 +70,10 @@ class RemoteHandlerState:
             )
         )
         self.gateways[session_id] = GatewayLease(stack=stack, manager=manager)
-        # Prefer the agent-facing URL env set by lifecycle when sandbox=True.
-        base = os.environ.get("NIKA_MCP_GATEWAY_AGENT_URL") or manager.base_url
+        # Agent-facing URL for this session's gateway. Read from the manager,
+        # never from process-global env: concurrent attaches run in parallel
+        # threads.
+        base = manager.agent_url or manager.base_url
         logger.info(
             "mcp attach done session_id=%s port=%s url=%s policy_mode=%s",
             session_id,
@@ -82,6 +85,7 @@ class RemoteHandlerState:
             session_id=session_id,
             gateway_port=manager.port,
             gateway_base_url=base,
+            phase_token=phase_advance_token(session_id),
         )
 
     def detach_gateway(self, session_id: str) -> None:
@@ -174,6 +178,14 @@ def handle_failure_inject(request: FailureInjectRequest) -> FailureInjectRespons
         session_id=request.session_id,
         session=session_public_dict(request.session_id),
     )
+
+
+def handle_fault_artifact(session_id: str) -> dict[str, Any]:
+    """Recheck the artifact on the instance that injected it in this daemon."""
+    meta = SessionStore().get_session(session_id)
+    if meta.get("status") != "running":
+        raise ValueError(f"Session '{session_id}' is not running.")
+    return recheck_bound_artifact(session_id)
 
 
 def handle_mcp_attach(session_id: str, request: McpAttachRequest) -> McpAttachResponse:

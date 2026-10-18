@@ -2,17 +2,33 @@
 
 from __future__ import annotations
 
+import fcntl
 import logging
 import shutil
 import subprocess
 import time
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
+from contextlib import contextmanager
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 SBX_BIN = "sbx"
 _HUB_TOKEN_MARKERS = ("token is unverifiable", "jwks.json")
 _HUB_RETRY_DELAYS_S = (2.0, 4.0)
+
+
+@contextmanager
+def sbx_host_lock(name: str) -> Iterator[None]:
+    """Exclusive host-wide lock shared by every NIKA process and thread."""
+    path = Path.home() / f".local/state/sandboxes/nika-sbx-{name}.lock"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as fh:
+        fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
 
 
 def _sbx_env(env: dict[str, str] | None = None) -> dict[str, str]:
@@ -26,32 +42,50 @@ def _is_hub_token_error(stderr: str) -> bool:
     return any(marker in text for marker in _HUB_TOKEN_MARKERS)
 
 
-def sbx_authenticated() -> bool:
+def sbx_authenticated(*, attempts: int = 3, delay_sec: float = 2.0) -> bool:
+    """True when Docker Sandboxes has a usable login session.
+
+    ``sbx policy ls`` can briefly report ``Not authenticated`` while a Hub
+    refresh token request fails (for example under an upstream proxy). Retry a
+    few times before treating the host as logged out.
+    """
     if not sbx_available():
         return False
     # ``sbx policy ls`` is slow on some hosts and may hang after the summary;
     # treat partial successful output as authenticated.
-    try:
-        proc = subprocess.run(
-            [SBX_BIN, "policy", "ls"],
-            env=_sbx_env(),
-            capture_output=True,
-            text=True,
-            check=False,
-            timeout=8,
-        )
-        combined = f"{proc.stdout}\n{proc.stderr}"
-        returncode = proc.returncode
-    except subprocess.TimeoutExpired as exc:
-        combined = f"{exc.stdout or ''}\n{exc.stderr or ''}"
-        returncode = -1
-    if "Not authenticated" in combined:
-        return False
-    if "has not been initialized" in combined:
-        return True
-    if "local-policy" in combined or "POLICY" in combined:
-        return True
-    return returncode == 0
+    last_combined = ""
+    last_code = -1
+    for attempt in range(max(1, attempts)):
+        try:
+            proc = subprocess.run(
+                [SBX_BIN, "policy", "ls"],
+                env=_sbx_env(),
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=8,
+            )
+            combined = f"{proc.stdout}\n{proc.stderr}"
+            returncode = proc.returncode
+        except subprocess.TimeoutExpired as exc:
+            combined = f"{exc.stdout or ''}\n{exc.stderr or ''}"
+            returncode = -1
+        last_combined = combined
+        last_code = returncode
+        if "Not authenticated" in combined:
+            if attempt + 1 < attempts:
+                time.sleep(delay_sec)
+                continue
+            return False
+        if "has not been initialized" in combined:
+            return True
+        if "local-policy" in combined or "POLICY" in combined:
+            return True
+        if returncode == 0:
+            return True
+        if attempt + 1 < attempts:
+            time.sleep(delay_sec)
+    return last_code == 0 and "Not authenticated" not in last_combined
 
 
 def require_sbx_authenticated() -> None:
@@ -126,8 +160,8 @@ def sbx_available() -> bool:
     return shutil.which(SBX_BIN) is not None
 
 
-def list_sbx_secret_services() -> set[str]:
-    """Return service names present in ``sbx secret ls`` (e.g. openai, anthropic)."""
+def list_sbx_secret_services(*, global_only: bool = False) -> set[str]:
+    """Return stored service names, optionally restricted to global credentials."""
     proc = run_sbx_optional(["secret", "ls"])
     if proc.returncode != 0:
         raise RuntimeError(
@@ -145,24 +179,32 @@ def list_sbx_secret_services() -> set[str]:
             continue
         if scope in {"SCOPE", "NAME"}:
             continue
+        if global_only and scope != "(global)":
+            continue
         services.add(name)
     return services
 
 
-def list_sbx_custom_secret_envs() -> set[str]:
-    """Return env var names already configured via ``sbx secret set-custom``."""
-    return set(list_sbx_custom_secrets())
-
-
 def list_sbx_custom_secrets() -> dict[str, str]:
     """Return ``{env_var: placeholder}`` for ``sbx secret set-custom`` entries."""
+    return {
+        env_name: meta["placeholder"]
+        for env_name, meta in list_sbx_custom_secret_entries().items()
+    }
+
+
+def list_sbx_custom_secret_entries() -> dict[str, dict[str, str]]:
+    """Return ``{env_var: {placeholder, hosts}}`` for custom secrets.
+
+    ``hosts`` is the comma-joined TARGETS column from ``sbx secret ls``.
+    """
     proc = run_sbx_optional(["secret", "ls"])
     if proc.returncode != 0:
         raise RuntimeError(
             f"sbx secret ls failed (code {proc.returncode}):\n"
             f"stdout:\n{proc.stdout}\nstderr:\n{proc.stderr}"
         )
-    secrets: dict[str, str] = {}
+    secrets: dict[str, dict[str, str]] = {}
     in_custom = False
     for line in proc.stdout.splitlines():
         stripped = line.strip()
@@ -177,7 +219,7 @@ def list_sbx_custom_secrets() -> dict[str, str]:
         if parts[0] in {"SCOPE", "NAME"} or parts[1] == "TARGETS":
             continue
         # SCOPE TARGETS ENV PLACEHOLDER SECRET
-        secrets[parts[2]] = parts[3]
+        secrets[parts[2]] = {"hosts": parts[1], "placeholder": parts[3]}
     return secrets
 
 
@@ -206,6 +248,7 @@ def run_sbx(
     text: bool = True,
     env: dict[str, str] | None = None,
     input_text: str | None = None,
+    timeout: float | None = None,
 ) -> subprocess.CompletedProcess[str]:
     if not sbx_available():
         raise RuntimeError(
@@ -221,6 +264,7 @@ def run_sbx(
         text=text,
         env=_sbx_env(env),
         input=input_text,
+        timeout=timeout,
     )
 
 
@@ -234,6 +278,7 @@ def run_sbx_checked(
     *,
     env: dict[str, str] | None = None,
     input_text: str | None = None,
+    timeout: float | None = None,
 ) -> subprocess.CompletedProcess[str]:
     proc: subprocess.CompletedProcess[str] | None = None
     for attempt, delay_s in enumerate((0.0, *_HUB_RETRY_DELAYS_S)):
@@ -246,6 +291,7 @@ def run_sbx_checked(
             text=True,
             env=env,
             input_text=input_text,
+            timeout=timeout,
         )
         if proc.returncode == 0:
             return proc

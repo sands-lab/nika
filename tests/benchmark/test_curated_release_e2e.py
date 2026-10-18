@@ -35,7 +35,7 @@ load_test_env()
 
 _AGENT = "byo.langgraph"
 _PROVIDER = "deepseek"
-_MODEL = "deepseek-chat"
+_MODEL = "deepseek-v4-flash"
 _MAX_STEPS = 15
 
 pytestmark = [

@@ -9,12 +9,13 @@ from typing import Any, Literal
 
 import typer
 
-from traffic.od_flows import ODFLowGenerator
-from traffic.web_access import WebBrowsingTrafficGenerator
+from nika.traffic.od_flows import ODFLowGenerator
+from nika.traffic.web_access import WebBrowsingTrafficGenerator
 from nika.net_env.net_env_pool import get_net_env_instance, scenario_requires_topo_size
 from nika.runtime.factory import runtime_for_net_env
 from nika.utils.session_resolve import resolve_running_session_id
 from nika.utils.session_store import SessionStore
+from nika.net_env.isp.identity import ISP_NET_ENV_PARAM_KEYS
 
 traffic_app = typer.Typer(help="Generate traffic in the Kathará lab.")
 
@@ -56,7 +57,10 @@ def _resolve_lab_and_size(
                 meta = store.get_session(str(matches[0]["session_id"]))
                 scenario = meta.get("scenario_name")
                 if scenario:
-                    return str(scenario), size or meta.get("scenario_topo_size")
+                    resolved_size = size or meta.get("scenario_topo_size")
+                    if not scenario_requires_topo_size(str(scenario)) and size is None:
+                        resolved_size = None
+                    return str(scenario), resolved_size
         except (OSError, KeyError, TypeError, json.JSONDecodeError):
             pass
     try:
@@ -82,7 +86,11 @@ def _resolve_lab_and_size(
         raise typer.BadParameter(
             "Session has no scenario_name; run `nika env run` or pass --lab."
         )
-    return resolved_lab, resolved_size
+    # Sessions may record a placeholder topo_size for size-less scenarios (ISP).
+    # Only honor an explicit CLI -s/--size in that case.
+    if not scenario_requires_topo_size(str(resolved_lab)) and size is None:
+        resolved_size = None
+    return str(resolved_lab), resolved_size
 
 
 def _normalize_size(raw: str | None) -> str | None:
@@ -251,7 +259,7 @@ def traffic_run(
     scenario, size_resolved = _resolve_lab_and_size(lab=lab, size=size_n)
 
     if t == "burst":
-        from traffic.burst import BurstTrafficGenerator
+        from nika.traffic.burst import BurstTrafficGenerator
 
         if not sources or not destination:
             raise typer.BadParameter("burst requires --sources and --destination.")
@@ -407,7 +415,7 @@ def _run_sndlib(
     server_args: str,
     client_args: str,
 ) -> None:
-    from traffic.sndlib_replay import SndlibTrafficReplayer
+    from nika.traffic.sndlib_replay import SndlibTrafficReplayer
     from nika.net_env.isp.traffic import resolve_traffic_series
     from nika.net_env.isp.traffic.models import DEFAULT_TRAFFIC_SCALE
     from nika.net_env.isp.identity import (
@@ -433,14 +441,7 @@ def _run_sndlib(
     lab_name = meta.get("lab_name") or params.get("lab_name")
     kwargs = {
         k: params[k]
-        for k in (
-            "topo",
-            "igp",
-            "metric_strategy",
-            "constant_metric",
-            "bgp_mode",
-            "device_profile",
-        )
+        for k in ISP_NET_ENV_PARAM_KEYS
         if k in params and params[k] is not None
     }
     backend = meta.get("backend") or params.get("backend")

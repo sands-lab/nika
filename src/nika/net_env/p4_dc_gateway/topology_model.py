@@ -4,14 +4,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Literal
+from nika.net_env.utils.kathara.docker_files.docker_images import (
+    KATHARA_P4_IMAGE,
+    nika_image,
+)
 
 TopoSize = Literal["s", "m", "l"]
 
-SWITCH_IMAGE = "kathara/p4"
-BASE_IMAGE = "nika/base"
-NGINX_IMAGE = "nika/nginx"
-CONTROLLER_IMAGE = "nika/fabric-controller"
-COLLECTOR_IMAGE = "nika/base"
+SWITCH_IMAGE = KATHARA_P4_IMAGE
+BASE_IMAGE = nika_image("base")
+NGINX_IMAGE = nika_image("nginx")
+CONTROLLER_IMAGE = nika_image("fabric-controller")
+COLLECTOR_IMAGE = nika_image("base")
 
 P4RUNTIME_PORT = 9559
 VIRTUAL_ROUTER_MAC = "02:00:00:00:00:01"
@@ -24,6 +28,10 @@ VIP_IP = "20.0.0.1"
 VIP_PORT = 80
 CONN_TABLE_CAPACITY = 256
 CONNECTION_LEARNING_DELAY_MS = 5
+# Gateway-local L4 agent (lb_agent.py): connection learner and pool updates.
+LB_AGENT = "/lb_agent.py"
+LB_AGENT_CONFIG = "/etc/nika/lb_agent.json"
+LB_AGENT_STATUS = "/var/lib/nika/lb_agent.status.json"
 
 # gateways, spines, leaves, external clients, HTTP services
 SIZE_TABLE: dict[TopoSize, tuple[int, int, int, int, int]] = {
