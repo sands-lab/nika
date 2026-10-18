@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import time
+
 from pydantic import BaseModel, Field
 
 from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
 from nika.problems.rca import node_resource
+
+_REPORTS = "/var/lib/nika/int_reports.jsonl"
+_COLLECTOR_FRESH_SEC = 30.0
 
 
 class TcpSynFloodAttackParams(BaseModel):
@@ -65,7 +70,7 @@ class TcpSynFloodAttack(ProblemBase):
         self._profile = {**params.model_dump(), "interval_us": interval_us}
 
     def verify_fault(self, params: TcpSynFloodAttackParams) -> dict:
-        """Verify SYN generators toward the target are running on the attacker."""
+        """Verify SYN flood processes and that INT collection is still live."""
         # Bracket the first character so pgrep does not match its own shell.
         pattern = f"[h]ping3 -S .*-p {params.target_port} .*{params.target_ip}"
         output = self.runtime.exec(
@@ -77,11 +82,37 @@ class TcpSynFloodAttack(ProblemBase):
             flows_running = int(output.splitlines()[-1])
         except (IndexError, ValueError):
             flows_running = 0
+        collector_alive = (
+            self.runtime.exec(
+                "collector",
+                "pgrep -f '[c]ollector.py' >/dev/null && echo yes || echo no",
+                timeout=10,
+            )
+            .strip()
+            .endswith("yes")
+        )
+        mtime_raw = self.runtime.exec(
+            "collector",
+            f"stat -c %Y {_REPORTS} 2>/dev/null || echo 0",
+            timeout=10,
+        ).strip()
+        try:
+            report_age_sec = max(0.0, time.time() - float(mtime_raw.splitlines()[-1]))
+        except (IndexError, ValueError):
+            report_age_sec = None
+        collector_fresh = (
+            collector_alive
+            and report_age_sec is not None
+            and report_age_sec <= _COLLECTOR_FRESH_SEC
+        )
         return build_verify_result(
             fault_type=self.root_cause_name,
-            verified=flows_running >= 1,
+            verified=flows_running >= 1 and collector_fresh,
             details={
                 "flows_running": flows_running,
                 "traffic_profile": getattr(self, "_profile", params.model_dump()),
+                "collector_alive": collector_alive,
+                "collector_fresh": collector_fresh,
+                "last_report_age_sec": report_age_sec,
             },
         )
