@@ -535,10 +535,13 @@ class SenderResourceContention(ProblemBase):
             "pkill -f stress-ng 2>/dev/null || true",
             timeout=10,
         )
-        time.sleep(0.5)
         set_nano_cpus(self.runtime, params.host_name, original)
+        deadline = time.monotonic() + 8.0
+        while self.runtime.process_running(params.host_name, "stress-ng"):
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(0.25)
 
-        stress_gone = not self.runtime.process_running(params.host_name, "stress-ng")
         restored_nano = read_nano_cpus(self.runtime, params.host_name)
         quota_restored = restored_nano == original
 
@@ -556,6 +559,7 @@ class SenderResourceContention(ProblemBase):
             restore_ratio = restored_bps / baseline_bps
             perf_restored = restore_ratio >= _RECOVER_THROUGHPUT_MIN_RATIO
 
+        stress_gone = not self.runtime.process_running(params.host_name, "stress-ng")
         ok = bool(stress_gone and quota_restored and perf_restored)
         system_logger.info(
             "recover_fault sender_resource_contention on %s: ok=%s "

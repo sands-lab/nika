@@ -24,15 +24,21 @@ def weather_app_http_url(ingress_ip: str) -> str:
     return "http://datacenter.com/weather?location=London"
 
 
-def sync_llmd_client_hosts(runtime: LabRuntime) -> str | None:
+def sync_llmd_client_hosts(
+    runtime: LabRuntime, *, gateway_addr: str | None = None
+) -> str | None:
     """Point client ``llmd`` at the live Gateway VIP; return the VIP when updated."""
-    gateway_addr = exec_or_empty(
-        runtime,
-        "controller",
-        "kubectl get gateway -n llm-d llm-d-gateway "
-        "-o jsonpath={.status.addresses[0].value}",
-        timeout=60,
-    ).strip()
+    gateway_addr = (
+        gateway_addr
+        if gateway_addr is not None
+        else exec_or_empty(
+            runtime,
+            "controller",
+            "kubectl get gateway -n llm-d llm-d-gateway "
+            "-o jsonpath={.status.addresses[0].value}",
+            timeout=60,
+        ).strip()
+    )
     if not gateway_addr.startswith("200.0.0."):
         return None
     runtime.exec(
@@ -45,15 +51,21 @@ def sync_llmd_client_hosts(runtime: LabRuntime) -> str | None:
     return gateway_addr
 
 
-def sync_k8s_client_hosts(runtime: LabRuntime) -> str | None:
+def sync_k8s_client_hosts(
+    runtime: LabRuntime, *, ingress_ip: str | None = None
+) -> str | None:
     """Point client ``datacenter.com`` at the ingress VIP; return the VIP when updated."""
-    ingress_ip = exec_or_empty(
-        runtime,
-        "controller",
-        "kubectl get svc -n ingress-nginx ingress-nginx-controller "
-        "-o jsonpath={.status.loadBalancer.ingress[0].ip}",
-        timeout=60,
-    ).strip()
+    ingress_ip = (
+        ingress_ip
+        if ingress_ip is not None
+        else exec_or_empty(
+            runtime,
+            "controller",
+            "kubectl get svc -n ingress-nginx ingress-nginx-controller "
+            "-o jsonpath={.status.loadBalancer.ingress[0].ip}",
+            timeout=60,
+        ).strip()
+    )
     if not ingress_ip.startswith("101."):
         return None
     runtime.exec(

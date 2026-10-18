@@ -22,7 +22,7 @@ from nika.net_env.contract import (
     ValidationReport,
 )
 from nika.net_env.isp.bgp import compile_bgp_plan
-from nika.net_env.isp.igp import IspConfig, compile_isp_plan
+from nika.net_env.isp.igp import IspConfig, compile_isp_plan, igp_components
 from nika.net_env.isp.kathara.lab import Isp
 from nika.net_env.net_env_pool import get_net_env_instance
 from nika.net_env.verify import build_lab_verify_result
@@ -38,6 +38,7 @@ from nika.workflows.env.start import start_net_env
 from tests.support.ci_depth import artifact_verify_only
 from tests.support.integration_base import CliIntegrationTestCase, IntegrationTestCase
 from tests.support.net_env import assert_verify_success
+from tests.support.scenario_evaluate import evaluate_scenario
 from tests.support.prerequisites import containerlab_prerequisites, docker_available
 from nika.net_env.isp.inject_targets import isp_inject_params
 
@@ -580,24 +581,27 @@ class IspTrafficCompatDockerTest(IntegrationTestCase):
     not containerlab_prerequisites(), reason="Containerlab/gnmic not available"
 )
 class IspClabReprSmokeTest(CliIntegrationTestCase):
-    def _env_args(self, topo: str) -> list[str]:
+    def _env_args(
+        self, topo: str, *, igp: str = "isis", bgp_mode: str = "ibgp_rr"
+    ) -> list[str]:
         return [
             "--backend",
             "containerlab",
             "--device-profile",
             "nokia_srlinux",
             "--igp",
-            "isis",
+            igp,
             "--bgp-mode",
-            "ibgp_rr",
+            bgp_mode,
         ]
 
     def _get_env(self, row: dict, topo: str):
+        params = row.get("scenario_params") or {}
         return get_net_env_instance(
             f"isp_{topo}",
             backend="containerlab",
-            igp="isis",
-            bgp_mode="ibgp_rr",
+            igp=params.get("igp", "isis"),
+            bgp_mode=params.get("bgp_mode", "ibgp_rr"),
             device_profile="nokia_srlinux",
             lab_name=row["lab_name"],
             topology_file=row.get("topology_file"),
@@ -662,6 +666,58 @@ class IspClabReprSmokeTest(CliIntegrationTestCase):
             if topo in CLI_TRAFFIC_TOPOS:
                 self._assert_traffic_cli(session_id)
             self._assert_inject(session_id, env)
+        finally:
+            self._close_session(session_id)
+
+    @pytest.mark.parametrize(
+        ("topo", "igp", "bgp_mode"),
+        [
+            variant
+            for variant in (
+                ("pdh", "isis", "ibgp_rr"),
+                ("dfn-bwin", "ospf", "ebgp"),
+                ("di-yuan", "isis", "none"),
+            )
+            if variant in _RELEASE_VARIANTS.get("containerlab", set())
+            and (_CI_TOPO_SET is None or variant[0] in _CI_TOPO_SET)
+        ],
+    )
+    def test_live_fib_blackhole_and_recovery(
+        self, topo: str, igp: str, bgp_mode: str
+    ) -> None:
+        from nika.service.lab.adapters import lab_api_for_runtime
+
+        scenario = f"isp_{topo}"
+        session_id = self._start_env(
+            scenario, self._env_args(topo, igp=igp, bgp_mode=bgp_mode)
+        )
+        try:
+            row = self._assert_session_ready(session_id, scenario)
+            env = self._get_env(row, topo)
+            healthy, result = evaluate_scenario(env)
+            assert healthy, result
+            runtime = runtime_for_session(row)
+            api = lab_api_for_runtime(runtime)
+            component = next(c for c in igp_components(env.plan) if len(c) > 1)
+            nodes = {node.device_name: node for node in env.plan.nodes}
+            source, target = nodes[component[0]], nodes[component[-1]]
+            prefix = target.loopback + "/32"
+            assert not api.srl_blackhole_static_present(source.device_name, prefix)
+            try:
+                api.srl_add_blackhole_static(source.device_name, prefix)
+                broken = env.verify_lab()
+                assert broken["verified"] is False
+                assert broken["checks"]["fib_all_pairs_reachable"] is False
+                assert any(
+                    failure["reason"] == "discard_route"
+                    for failure in broken["details"]["fib"]["failures"]
+                ), broken["details"]["fib"]
+            finally:
+                api._srl_candidate(
+                    source.device_name,
+                    f"delete /network-instance default static-routes route {prefix}",
+                )
+            assert_verify_success(env.verify_lab())
         finally:
             self._close_session(session_id)
 

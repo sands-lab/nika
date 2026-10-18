@@ -6,10 +6,12 @@ from nika.net_env.min3clos.verify import (
     CLIENT1,
     CLIENT2_IP,
     EXPECTED_NODES,
+    verify_min3clos_lab,
 )
 from nika.runtime.factory import resolve_backend, runtime_for_session
 from tests.support.integration_base import SharedSessionTestCase
 from tests.support.prerequisites import containerlab_prerequisites
+from tests.support.net_env import assert_verify_success
 
 pytestmark = pytest.mark.integration
 
@@ -48,3 +50,23 @@ class Min3ClosVerifyIntegrationTest(SharedSessionTestCase):
                 return
             time.sleep(2.0)
         assert "1 received" in output, f"client1 -> client2 ping failed: {output!r}"
+
+    def test_full_verification_checks_both_client_paths(self) -> None:
+        result = verify_min3clos_lab(self._runtime(), scenario_name=self.SCENARIO)
+        assert_verify_success(result)
+        assert result["checks"]["client_gateways_reachable"]
+        assert result["checks"]["cross_leaf_clients_reachable"]
+
+    def test_full_verification_refreshes_after_client_route_failure(self) -> None:
+        runtime = self._runtime()
+        route = f"blackhole {CLIENT2_IP}/32"
+        assert not runtime.exec(CLIENT1, f"ip -4 route show exact {CLIENT2_IP}/32")
+        assert_verify_success(verify_min3clos_lab(runtime, scenario_name=self.SCENARIO))
+        try:
+            runtime.exec(CLIENT1, f"ip -4 route add {route}")
+            broken = verify_min3clos_lab(runtime, scenario_name=self.SCENARIO)
+            assert broken["verified"] is False
+            assert broken["checks"]["cross_leaf_clients_reachable"] is False
+        finally:
+            runtime.exec(CLIENT1, f"ip -4 route del {route}")
+        assert_verify_success(verify_min3clos_lab(runtime, scenario_name=self.SCENARIO))

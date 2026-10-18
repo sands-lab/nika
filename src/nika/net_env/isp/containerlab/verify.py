@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections import defaultdict, deque
+from collections import defaultdict
 from typing import Any
 
 from nika.net_env.isp.bgp.plan import BgpPlan
@@ -13,6 +13,8 @@ from nika.net_env.isp.igp.plan import (
     igp_components,
 )
 from nika.net_env.isp.traffic.stubs import IspTrafficAttachment
+from nika.net_env.isp.verify_support import sample_traffic
+from nika.net_env.isp.fib import SRL_FIB_COMMAND, srl_fib, verify_fib
 from nika.net_env.verify import (
     build_lab_verify_result,
     exec_or_empty,
@@ -23,11 +25,113 @@ from nika.net_env.verify import (
 )
 from nika.utils.parallel import bounded_parallel_map
 from nika.runtime.base import LabRuntime
+from nika.net_env.verify_collection import (
+    VerifyCommand,
+    collect_verify_commands,
+    mesh_ping_command,
+)
 
 
 # SR Linux runs its data plane in this namespace; the container's default
 # namespace only has the management interface.
 _SRL_DATA_NETNS = "srbase-default"
+
+
+def _collect(runtime, plan, bgp_plan, traffic, *, full):
+    commands = []
+    adjacency = (
+        'sr_cli "show network-instance default protocols isis adjacency"'
+        if plan.igp == "isis"
+        else 'sr_cli "show network-instance default protocols ospf neighbor"'
+    )
+    for node in plan.nodes:
+        commands.append(VerifyCommand(node.device_name, adjacency, 30))
+        if full:
+            commands.extend(
+                [
+                    VerifyCommand(node.device_name, SRL_FIB_COMMAND, 30),
+                    VerifyCommand(node.device_name, 'sr_cli "show interface system0"'),
+                ]
+            )
+        if bgp_plan:
+            commands.append(
+                VerifyCommand(
+                    node.device_name,
+                    'sr_cli "show network-instance default protocols bgp neighbor"',
+                    30,
+                )
+            )
+            if full:
+                commands.append(
+                    VerifyCommand(
+                        node.device_name,
+                        'sr_cli "show network-instance default route-table ipv4-unicast summary"',
+                        30,
+                    )
+                )
+    for source, targets, netns in _loopback_probes(plan, traffic):
+        commands.extend(
+            VerifyCommand(source, mesh_ping_command(target, count=1, netns=netns), 30)
+            for target in targets
+        )
+    if full and traffic:
+        for host in traffic.hosts:
+            commands.extend(
+                [
+                    VerifyCommand(
+                        host.host_name, f"ip -4 -o addr show dev {host.host_iface}", 10
+                    ),
+                    VerifyCommand(host.host_name, mesh_ping_command(host.gateway), 30),
+                ]
+            )
+        by_router = {host.router_device: host for host in traffic.hosts}
+        for component in igp_components(plan):
+            hosts = [by_router[router] for router in component if router in by_router]
+            if len(hosts) >= 2:
+                commands.extend(
+                    VerifyCommand(
+                        hosts[0].host_name, mesh_ping_command(host.address), 30
+                    )
+                    for host in hosts[1:]
+                )
+    if full and bgp_plan:
+        for origin in bgp_plan.originated:
+            commands.append(
+                VerifyCommand(
+                    origin.device,
+                    f'sr_cli "show network-instance default protocols bgp routes ipv4 prefix {origin.prefix}"',
+                    30,
+                )
+            )
+        origins = {origin.prefix: origin for origin in bgp_plan.originated}
+        for observer, prefix in bgp_plan.expect_reachable:
+            commands.append(
+                VerifyCommand(
+                    observer,
+                    f'sr_cli "show network-instance default protocols bgp routes ipv4 prefix {prefix}"',
+                    30,
+                )
+            )
+            origin = origins.get(prefix)
+            if origin:
+                source = next(
+                    (
+                        session.local_ip
+                        for session in bgp_plan.sessions
+                        if session.session_type == "ebgp"
+                        and session.local_device == observer
+                        and session.remote_device == origin.device
+                    ),
+                    None,
+                )
+                source_arg = f" -I {source}" if source else ""
+                commands.append(
+                    VerifyCommand(
+                        observer,
+                        f'sr_cli "ping {origin.ping_address} network-instance default -c 3{source_arg}"',
+                    )
+                )
+    return collect_verify_commands(runtime, commands)
 
 
 def verify_isp_srl_lab_startup(
@@ -41,6 +145,8 @@ def verify_isp_srl_lab_startup(
     expected = [node.device_name for node in plan.nodes]
     if traffic is not None:
         expected.extend(h.host_name for h in traffic.hosts)
+    traffic = sample_traffic(traffic, bgp_plan=bgp_plan)
+    runtime = _collect(runtime, plan, bgp_plan, traffic, full=False)
     checks: dict[str, bool] = {
         "nodes_deployed": nodes_deployed(runtime, expected),
         "igp_adjacencies": _igp_adjacencies_ok(runtime, plan),
@@ -49,15 +155,17 @@ def verify_isp_srl_lab_startup(
     }
     if bgp_plan is not None:
         checks["bgp_sessions"] = _bgp_sessions_ok(runtime, bgp_plan)
-    return build_lab_verify_result(
-        scenario_name=scenario_name,
-        verified=all(checks.values()),
-        checks=checks,
-        details={
-            "topology_name": plan.topology_name,
-            "igp": plan.igp,
-            "bgp_mode": bgp_plan.mode if bgp_plan is not None else "none",
-        },
+    return runtime.finish(
+        build_lab_verify_result(
+            scenario_name=scenario_name,
+            verified=all(checks.values()),
+            checks=checks,
+            details={
+                "topology_name": plan.topology_name,
+                "igp": plan.igp,
+                "bgp_mode": bgp_plan.mode if bgp_plan is not None else "none",
+            },
+        )
     )
 
 
@@ -72,6 +180,9 @@ def verify_isp_srl_lab(
     expected = [node.device_name for node in plan.nodes]
     if traffic is not None:
         expected.extend(h.host_name for h in traffic.hosts)
+    all_hosts = [host.host_name for host in traffic.hosts] if traffic else []
+    traffic = sample_traffic(traffic, bgp_plan=bgp_plan)
+    runtime = _collect(runtime, plan, bgp_plan, traffic, full=True)
     checks: dict[str, bool] = {
         "nodes_deployed": nodes_deployed(runtime, expected),
         "igp_adjacencies": _igp_adjacencies_ok(runtime, plan),
@@ -106,11 +217,30 @@ def verify_isp_srl_lab(
         checks["bgp_prefixes_propagated"] = propagated
         details["bgp"] = bgp_plan.inventory
         details["bgp_prefix_probes"] = prefix_probes
-    return build_lab_verify_result(
-        scenario_name=scenario_name,
-        verified=all(checks.values()),
-        checks=checks,
-        details=details,
+    fibs, fib_errors = {}, {}
+    for node in plan.nodes:
+        try:
+            fibs[node.device_name] = srl_fib(
+                runtime.json(node.device_name, SRL_FIB_COMMAND)
+            )
+        except (ValueError, KeyError, TypeError) as exc:
+            fib_errors[node.device_name] = str(exc)
+    fib_report = verify_fib(plan, fibs, errors=fib_errors)
+    checks["fib_all_pairs_reachable"] = fib_report["all_pairs_reachable"]
+    checks["fib_shortest_paths"] = fib_report["shortest_paths"]
+    details["fib"] = fib_report
+    details["host_coverage"] = {
+        "total": len(all_hosts),
+        "checked": [host.host_name for host in traffic.hosts] if traffic else [],
+        "selection": "component endpoints and explicit observers",
+    }
+    return runtime.finish(
+        build_lab_verify_result(
+            scenario_name=scenario_name,
+            verified=all(checks.values()),
+            checks=checks,
+            details=details,
+        )
     )
 
 
@@ -164,57 +294,27 @@ def _srl_rows_in_state(output: str, state: str) -> list[set[str]]:
     return rows
 
 
-def _reachability_sources(plan: IspPlan, component: tuple[str, ...]) -> list[str]:
-    """Return the first router of a component and the router farthest from it."""
-    graph: dict[str, set[str]] = defaultdict(set)
-    for link in active_igp_links(plan):
-        graph[link.endpoint_a].add(link.endpoint_b)
-        graph[link.endpoint_b].add(link.endpoint_a)
-    root = component[0]
-    order = [root]
-    seen = {root}
-    queue: deque[str] = deque([root])
-    while queue:
-        for peer in sorted(graph[queue.popleft()]):
-            if peer not in seen:
-                seen.add(peer)
-                order.append(peer)
-                queue.append(peer)
-    return sorted({root, order[-1]})
-
-
-def _loopbacks_reachable(
-    runtime: LabRuntime,
-    plan: IspPlan,
-    traffic: IspTrafficAttachment | None,
-) -> bool:
-    """Ping every loopback of each IGP component from two distant vantage points.
-
-    The vantage points are the traffic hosts behind the component's first router
-    and the router farthest from it, so every probe crosses the IGP. Without
-    traffic hosts the routers ping from their data-plane namespace.
-    """
-    loopback = {node.device_name: node.loopback for node in plan.nodes}
-    host_by_router = (
+def _loopback_probes(plan, traffic):
+    loopbacks = {node.device_name: node.loopback for node in plan.nodes}
+    hosts = (
         {host.router_device: host.host_name for host in traffic.hosts}
-        if traffic is not None
+        if traffic
         else {}
     )
-    probes: list[tuple[str, list[str], str | None]] = []
-    for component in igp_components(plan):
-        if len(component) < 2:
-            continue
-        targets = [loopback[router] for router in component]
-        for router in _reachability_sources(plan, component):
-            if router in host_by_router:
-                probes.append((host_by_router[router], targets, None))
-            else:
-                probes.append((router, targets, _SRL_DATA_NETNS))
-    return not any(
-        bounded_parallel_map(
-            lambda probe: ping_unreachable(runtime, probe[0], probe[1], netns=probe[2]),
-            probes,
+    return [
+        (
+            hosts.get(component[0], component[0]),
+            [loopbacks[router] for router in component],
+            None if component[0] in hosts else _SRL_DATA_NETNS,
         )
+        for component in igp_components(plan)
+    ]
+
+
+def _loopbacks_reachable(runtime, plan, traffic):
+    return not any(
+        ping_unreachable(runtime, source, targets, count=1, netns=netns)
+        for source, targets, netns in _loopback_probes(plan, traffic)
     )
 
 
@@ -252,31 +352,15 @@ def _stub_gateway_ok(runtime: LabRuntime, traffic: IspTrafficAttachment) -> bool
     )
 
 
-def _stub_remote_ok(runtime: LabRuntime, traffic: IspTrafficAttachment) -> bool:
-    """Every traffic host answers the hosts behind two distant routers."""
-    host_by_router = {host.router_device: host for host in traffic.hosts}
-    probes: list[tuple[str, list[str]]] = []
+def _stub_remote_ok(runtime, traffic):
+    by_router = {host.router_device: host for host in traffic.hosts}
     for component in igp_components(traffic.plan):
-        hosts = [host_by_router[r] for r in component if r in host_by_router]
-        if len(hosts) < 2:
-            continue
-        sources = [
-            host_by_router[router]
-            for router in _reachability_sources(traffic.plan, component)
-            if router in host_by_router
-        ] or [hosts[0]]
-        for source in sources:
-            probes.append(
-                (
-                    source.host_name,
-                    [h.address for h in hosts if h.host_name != source.host_name],
-                )
-            )
-    return not any(
-        bounded_parallel_map(
-            lambda probe: ping_unreachable(runtime, probe[0], probe[1]), probes
-        )
-    )
+        hosts = [by_router[router] for router in component if router in by_router]
+        if len(hosts) >= 2 and ping_unreachable(
+            runtime, hosts[0].host_name, [host.address for host in hosts[1:]]
+        ):
+            return False
+    return True
 
 
 def _bgp_sessions_ok(runtime: LabRuntime, bgp_plan: BgpPlan) -> bool:

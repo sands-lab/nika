@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import heapq
 from dataclasses import dataclass
 from ipaddress import IPv4Network
 
@@ -17,7 +16,7 @@ from nika.net_env.contract import (
     ValidationIntent,
 )
 from nika.net_env.isp.bgp.plan import BgpPlan
-from nika.net_env.isp.igp.plan import IspPlan, active_igp_links
+from nika.net_env.isp.igp.plan import IspPlan, active_igp_links, shortest_distances
 from nika.net_env.isp.traffic.stubs import IspTrafficAttachment
 
 
@@ -254,8 +253,8 @@ def _path_constraint(
             continue
         graph[link.endpoint_a].append((link.endpoint_b, link.metric))
         graph[link.endpoint_b].append((link.endpoint_a, link.metric))
-    from_source = _shortest_distances(graph, source_node)
-    from_destination = _shortest_distances(graph, destination_node)
+    from_source = shortest_distances(graph, source_node)
+    from_destination = shortest_distances(graph, destination_node)
     total = from_source.get(destination_node)
     if total is None:
         return None
@@ -286,20 +285,3 @@ def _baseline_endpoints(
         if len(group) >= 2:
             return (group[0], group[-1])
     return ()
-
-
-def _shortest_distances(
-    graph: dict[str, list[tuple[str, int]]], source: str
-) -> dict[str, int]:
-    distances = {source: 0}
-    queue = [(0, source)]
-    while queue:
-        distance, node = heapq.heappop(queue)
-        if distance != distances[node]:
-            continue
-        for peer, metric in graph[node]:
-            candidate = distance + metric
-            if candidate < distances.get(peer, candidate + 1):
-                distances[peer] = candidate
-                heapq.heappush(queue, (candidate, peer))
-    return distances

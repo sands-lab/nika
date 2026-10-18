@@ -152,6 +152,11 @@ class IncastTrafficNetworkLimitation(ProblemBase):
                 probe_dst_ip="10.0.1.2",
                 observer_device="client_0",
             )
+            if ctx.topo_size == "s":
+                # Two available senders average 40 Mbit/s. A 60 Mbit/s port
+                # keeps mean load below capacity while their larger synchronized
+                # bursts overflow the 16 KiB egress queue.
+                params.update(port_rate="60mbit", sender_rate="20M/256")
         elif scenario == "campus_lan":
             target = prefer_named(
                 real_web,

@@ -12,6 +12,11 @@ from nika.net_env.verify import (
     srl_bgp_established_peers,
 )
 from nika.runtime.base import LabRuntime
+from nika.net_env.verify_collection import (
+    VerifyCommand,
+    collect_verify_commands,
+    mesh_ping_command,
+)
 
 CLIENT1 = "client1"
 CLIENT2 = "client2"
@@ -67,23 +72,51 @@ def _clients_addressed(runtime: LabRuntime) -> bool:
     )
 
 
+def _collect(runtime, *, full):
+    commands = [
+        VerifyCommand(
+            router, 'sr_cli "show network-instance default protocols bgp neighbor"', 30
+        )
+        for router in BGP_PEERS
+    ]
+    for client, (_, gateway, peer) in _CLIENTS.items():
+        commands.extend(
+            [
+                VerifyCommand(
+                    client, f"cat /sys/class/net/{CLIENT_INTF}/operstate", 10
+                ),
+                VerifyCommand(client, f"ip -4 -o addr show dev {CLIENT_INTF}", 10),
+            ]
+        )
+        if full:
+            commands.extend(
+                VerifyCommand(client, mesh_ping_command(target), 30)
+                for target in (gateway, peer)
+            )
+    return collect_verify_commands(runtime, commands)
+
+
 def verify_min3clos_lab_startup(runtime: LabRuntime, *, scenario_name: str) -> dict:
     """Bounded readiness: fabric nodes, client attachment, and all BGP sessions."""
+    runtime = _collect(runtime, full=False)
     checks = {
         "nodes_deployed": nodes_deployed(runtime, EXPECTED_NODES),
         "clients_addressed": _clients_addressed(runtime),
         "bgp_sessions_established": _bgp_sessions_established(runtime),
     }
-    return build_lab_verify_result(
-        scenario_name=scenario_name,
-        verified=all(checks.values()),
-        checks=checks,
-        details={"clients": sorted(_CLIENTS), "bgp_peers": sorted(BGP_PEERS)},
+    return runtime.finish(
+        build_lab_verify_result(
+            scenario_name=scenario_name,
+            verified=all(checks.values()),
+            checks=checks,
+            details={"clients": sorted(_CLIENTS), "bgp_peers": sorted(BGP_PEERS)},
+        )
     )
 
 
 def verify_min3clos_lab(runtime: LabRuntime, *, scenario_name: str) -> dict:
     """Check provisioning, all BGP sessions, and client reachability both ways."""
+    runtime = _collect(runtime, full=True)
     clients_ready = _clients_addressed(runtime)
     checks = {
         "nodes_deployed": nodes_deployed(runtime, EXPECTED_NODES),
@@ -100,9 +133,11 @@ def verify_min3clos_lab(runtime: LabRuntime, *, scenario_name: str) -> dict:
             for client, (_, _, peer) in _CLIENTS.items()
         ),
     }
-    return build_lab_verify_result(
-        scenario_name=scenario_name,
-        verified=all(checks.values()),
-        checks=checks,
-        details={"clients": sorted(_CLIENTS), "bgp_peers": sorted(BGP_PEERS)},
+    return runtime.finish(
+        build_lab_verify_result(
+            scenario_name=scenario_name,
+            verified=all(checks.values()),
+            checks=checks,
+            details={"clients": sorted(_CLIENTS), "bgp_peers": sorted(BGP_PEERS)},
+        )
     )

@@ -81,7 +81,10 @@ def _lb(runtime: LabRuntime, switch: str, kind: str, **options: object) -> dict:
         f"--switch {shlex.quote(switch)} --kind {shlex.quote(kind)}{option}",
         timeout=60,
     )
-    payload = json.loads(output)
+    try:
+        payload = json.loads(output)
+    except ValueError as exc:
+        raise RuntimeError(f"P4Runtime gateway L4 command failed: {output}") from exc
     if not payload.get("ok"):
         raise RuntimeError(f"P4Runtime gateway L4 configuration failed: {payload}")
     return payload
@@ -94,6 +97,7 @@ def exhaust_lb_conn_table(
     *,
     offset_start: int = 0,
 ) -> dict:
+    """Fill to the target occupancy while one manager holds P4Runtime mastership."""
     return _lb(
         runtime,
         switch,
