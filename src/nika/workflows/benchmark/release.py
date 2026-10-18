@@ -374,7 +374,11 @@ def _verify_mcp_policy(cases: list[dict[str, Any]], tools: dict[str, Any]) -> No
     # without rewriting frozen RELEASE.yaml allowlists (e.g. nika-bench@0.1.0).
     platform_optional = {DIAGNOSIS_PACKET_CAPTURE_SERVER}
     for row in cases:
-        servers = set(select_diagnosis_servers(row["scenario"]))
+        servers = set(
+            select_diagnosis_servers(
+                row["scenario"], telemetry=row.get("telemetry") or ()
+            )
+        )
         servers.add(SUBMISSION_SERVER)
         extra = servers - allowed - platform_optional
         if extra:

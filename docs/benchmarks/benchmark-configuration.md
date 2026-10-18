@@ -59,7 +59,7 @@ The runner loads each catalog case as an executable row before creating trials. 
 
 Pool files live at `working/pool/{scenario}/{fault_type}.yaml` (plus `healthy.yaml`). There is no separate manifest file; loaders scan the pool directory.
 
-Failure group files use `scenario` → `failure` → `cases`. Each case carries the deploy profile (`topo_size`, for base ISP scenarios `igp` / `bgp_mode` / `backend` / `device_profile`, and `device_profile` for other environments with native router profiles), scalar `inject`, and materialized `root_causes` in the same shape as frozen release cases. A row without `device_profile` deploys the environment's default routers, including native routers in vendor-specific environments.
+Failure group files use `scenario` → `failure` → `cases`. Each case carries the deploy profile (`topo_size`, optional [`telemetry`](../operations/network-scenarios.md#flow-telemetry), for base ISP scenarios `igp` / `bgp_mode` / `backend` / `device_profile`, and `device_profile` for other environments with native router profiles), scalar `inject`, and materialized `root_causes` in the same shape as frozen release cases. A row without `device_profile` deploys the environment's default routers, including native routers in vendor-specific environments.
 
 ```yaml
 scenario:

@@ -12,6 +12,7 @@ import os
 import socket
 import urllib.error
 import urllib.request
+from collections.abc import Iterable
 
 from agent.protocols import SUBMISSION
 from agent.runtime.contract import SESSION_HEADER, SESSION_TOKEN_HEADER
@@ -22,6 +23,7 @@ from nika.agents.sandbox.config import (
     SANDBOX_GATEWAY_HOST_BRIDGE,
 )
 from nika.mcp.registry import select_diagnosis_servers
+from nika.telemetry import telemetry_for_session
 
 __all__ = [
     "MCPServerConfig",
@@ -65,11 +67,14 @@ def select_session_servers(
     scenario_name: str,
     *,
     backend: str | None = None,
+    telemetry: Iterable[str] = (),
 ) -> list[str]:
     """Return all MCP server names for a troubleshooting session."""
     from nika.mcp.registry import SUBMISSION_SERVER
 
-    servers = select_diagnosis_servers(scenario_name, backend=backend)
+    servers = select_diagnosis_servers(
+        scenario_name, backend=backend, telemetry=telemetry
+    )
     if SUBMISSION_SERVER not in servers:
         servers.append(SUBMISSION_SERVER)
     return servers
@@ -146,22 +151,25 @@ class MCPServerConfig:
         *,
         backend: str | None = None,
         base_url: str | None = None,
+        telemetry: Iterable[str] = (),
     ) -> dict:
         """Return HTTP MCP config for all servers needed by the session."""
-        server_names = select_session_servers(scenario_name, backend=backend)
+        server_names = select_session_servers(
+            scenario_name, backend=backend, telemetry=telemetry
+        )
         return self.load_http_config(server_names, base_url=base_url)
 
 
-def _session_backend(session_id: str) -> str | None:
-    """Return the lab backend stored for *session_id*, if that session exists."""
+def _session_deployment(session_id: str) -> tuple[str | None, tuple[str, ...]]:
+    """Return the lab backend and telemetry stored for *session_id*, if it exists."""
     try:
         from nika.runtime.factory import resolve_backend
         from nika.utils.session_store import SessionStore
 
         row = SessionStore().get_session(session_id)
     except (FileNotFoundError, OSError):
-        return None
-    return resolve_backend(row)
+        return None, ()
+    return resolve_backend(row), telemetry_for_session(row)
 
 
 def load_session_mcp_config(
@@ -176,12 +184,11 @@ def load_session_mcp_config(
     With *phase*, only that phase's servers are returned (see
     :func:`~agent.utils.mcp_client.filter_phase_servers`).
     """
-    if backend is None:
-        # ISP scenarios support both lab backends. The gateway only mounts
-        # servers for the backend that was actually started.
-        backend = _session_backend(session_id)
+    # ISP scenarios support both lab backends, and telemetry is chosen per
+    # session. The gateway only mounts servers for what was actually started.
+    stored_backend, telemetry = _session_deployment(session_id)
     servers = MCPServerConfig(session_id=session_id).load_session_http_config(
-        scenario_name, backend=backend
+        scenario_name, backend=backend or stored_backend, telemetry=telemetry
     )
     return servers if phase is None else filter_phase_servers(servers, phase)
 

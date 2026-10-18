@@ -10,6 +10,7 @@ from nika.mcp.servers.common.host_server import mcp as host_mcp
 from nika.mcp.servers.containerlab.srl_server import mcp as srl_mcp
 from nika.mcp.servers.kathara.frr_server import mcp as frr_mcp
 from nika.mcp.servers.kathara.iosxr_server import mcp as iosxr_mcp
+from nika.mcp.servers.kathara.netflow_server import mcp as netflow_mcp
 from nika.mcp.servers.kathara.routeros_server import mcp as routeros_mcp
 from nika.mcp.servers.kathara.sdn_server import mcp as sdn_mcp
 
@@ -26,6 +27,7 @@ async def test_generic_and_specialized_tool_catalog() -> None:
         (routeros_mcp, {"routeros_exec"}),
         (srl_mcp, {"srl_exec_cli"}),
         (sdn_mcp, {"sdn_onos_rest"}),
+        (netflow_mcp, {"netflow_query"}),
     )
     for server, names in expected:
         assert {tool.name for tool in await server.list_tools()} == names
@@ -37,4 +39,13 @@ def test_frr_server_only_selected_for_rpki() -> None:
     )
     assert "kathara_frr_mcp_server" in select_diagnosis_servers(
         "isp_abilene_ebgp_rpki", backend="kathara"
+    )
+
+
+def test_netflow_server_only_selected_with_session_telemetry() -> None:
+    assert "kathara_netflow_mcp_server" not in select_diagnosis_servers(
+        "isp_abilene", backend="kathara"
+    )
+    assert "kathara_netflow_mcp_server" in select_diagnosis_servers(
+        "isp_abilene", backend="kathara", telemetry=("netflow",)
     )

@@ -157,6 +157,11 @@ nika:
     depth: light
     # Compare healthy and faulty contract evidence after fault injection.
     failure_effect: false
+  telemetry:
+    netflow:
+      # Out-of-band export LAN for cases with `telemetry: [netflow]`.
+      # Keep it disjoint from scenario addressing.
+      subnet: 172.28.0.0/16
 
 # Configure benchmark execution.
 benchmark:

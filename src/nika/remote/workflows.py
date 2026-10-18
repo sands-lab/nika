@@ -283,6 +283,7 @@ def remote_start_net_env(
     backend: str | None = None,
     device_profile: str | None = None,
     static_validation: bool = False,
+    telemetry: list[str] | None = None,
 ) -> str:
     """Deploy a lab on the remote host and mirror the session locally."""
     suffix = uuid4().hex[:6]
@@ -308,6 +309,7 @@ def remote_start_net_env(
             backend=backend,
             device_profile=device_profile,
             static_validation=static_validation,
+            telemetry=list(telemetry or []),
         )
     )
     session = _mirror_session_locally(

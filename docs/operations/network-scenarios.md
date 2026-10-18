@@ -667,6 +667,46 @@ class MyEnv(NetworkEnvBase):
 
 Keep the traffic light enough for size `l` and keep healthy links below saturation, so that ping-based probes do not read the background traffic as a fault.
 
+## Flow telemetry
+
+Agents can investigate an environment with flow records, the per-device traffic accounting that operators read from NetFlow or IPFIX collectors, as well as with device commands. To collect flow records, turn on telemetry when you deploy the environment:
+
+```shell
+uv run nika env run isp_abilene --telemetry netflow
+```
+
+In a benchmark task, set the same option in the case:
+
+```yaml
+- scenario: isp_abilene
+  problem: link_down
+  telemetry: [netflow]
+  ...
+```
+
+`netflow` is currently the only telemetry type. A task with telemetry has a different task ID from the same task without it, so their results are kept apart.
+
+With `netflow`, NIKA does the following before deployment:
+
+1. It adds a `flow_collector` node running `nfcapd`.
+2. It connects every device whose image supports NetFlow to the collector over an out-of-band export network.
+3. On each of these devices, it runs one pmacct probe per scenario interface. The probe exports ingress flows over IPFIX.
+
+The deployment then waits until the collector and every probe are running. Agents query the records with [`netflow_query`](../agents/mcp-servers.md#netflow-kathara_netflow_mcp_server).
+
+Each device keeps its export interface in a separate VRF named `nika_telemetry`. Its routing protocols therefore never advertise the export network, even with `redistribute connected` or `redistribute kernel`. The interface is also left out of the topology given to agents and failures.
+
+An image supports a telemetry type when it carries a matching `io.nika.telemetry` label (for example, `LABEL io.nika.telemetry="netflow"`). `nika/frr` carries it, so the routers of FRR-based environments export flows, while hosts on other images do not. If no device in the environment supports the requested type, `nika env run` fails before it deploys anything. Telemetry requires the Kathara backend.
+
+The export network uses `172.28.0.0/16` by default. If an environment already uses that range, choose a free one in `config/nika.yaml`:
+
+```yaml
+nika:
+  telemetry:
+    netflow:
+      subnet: 172.28.0.0/16
+```
+
 ## Inspect and close a scenario
 
 Each deployment creates a session and stores runtime state under `runtime/`. Use the session commands instead of deleting runtime files or backend objects.
