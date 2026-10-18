@@ -937,8 +937,8 @@
       "email": null,
       "trajectories_url": "https://huggingface.co/datasets/nika-bench/nika-trajectories/tree/main/trajectories/0.2.0/20261017_codex_gpt_6_1_sol",
       "trajectories_relpath": "trajectories/0.2.0/20261017_codex_gpt_6_1_sol",
-      "model": "GPT-6.1-Sol",
-      "model_id": null,
+      "model": "GPT-6.1 Sol",
+      "model_id": "gpt-6.1-sol",
       "submitted_model": "GPT-6.1-Sol",
       "framework": "Codex",
       "agent_type": "cli.codex",
@@ -1001,7 +1001,7 @@
       "run_id": "5a215b1c49811afe",
       "official": true,
       "nika_git_commit": "5096d23a3b79cd0d425d65ef1ebcb647ac2e8918",
-      "name": "GPT-6.1-Sol · Codex",
+      "name": "GPT-6.1 Sol · Codex",
       "rca_f1_ci": [
         0.597387,
         0.766735
