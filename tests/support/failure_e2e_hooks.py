@@ -150,9 +150,14 @@ def assert_link_capacity_bottleneck(ctx: FailureE2EContext) -> None:
     assert proxy is not None
     assert controller.tbf_configured(proxy)
 
-    # Ping before iperf: a 30kbit TBF fills under load and would drop replies.
+    # The symptom probe has already filled the 30kbit TBF queue. ICMP may be
+    # dropped while the receiver's byte counter still proves traffic flows.
     after_ping = ping_stats(ctx.runtime, src, peer_ip, count=5, interval_sec=0.2)
-    assert after_ping.received > 0
+    after = ctx.symptom["details"]["after"]
+    assert after_ping.received > 0 or after["received_bytes"] > 0, (
+        after_ping.raw,
+        after,
+    )
     injected_bps = iperf_throughput_bps(
         ctx.runtime,
         src,
@@ -369,10 +374,23 @@ def assert_isolation_http_pre(ctx: FailureE2EContext) -> None:
 
 def assert_lb_connection_state_exhaustion_pre(ctx: FailureE2EContext) -> None:
     from nika.net_env.verify import http_ok
+    from nika.problems.service_networking.gateway import _parse_vip
+    from nika.problems.support.p4_gateway import learn_lb_conn
 
     path = _require_probe_path(ctx)
     assert path.http_url is not None
     assert http_ok(ctx.runtime, path.src_host, path.http_url), path
+    vip_ip, vip_port = _parse_vip(ctx.parsed.vip_url)
+    # Keep another real table entry while the injector fills the remaining slots.
+    learn_lb_conn(
+        ctx.runtime,
+        ctx.parsed.host_name,
+        src_addr="192.0.2.11",
+        src_port=49999,
+        dst_addr=vip_ip,
+        dst_port=vip_port,
+        dip=ctx.parsed.backend_dip,
+    )
 
 
 def assert_lb_connection_state_exhaustion(ctx: FailureE2EContext) -> None:

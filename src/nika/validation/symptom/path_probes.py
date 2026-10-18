@@ -11,7 +11,7 @@ import re
 import time
 from typing import Any
 
-from nika.net_env.verify import exec_or_empty
+from nika.net_env.verify import exec_or_empty, srl_bgp_established_peers
 from nika.problems.base import build_verify_result
 from nika.problems.rca.inventory import (
     iter_link_termination_points,
@@ -302,12 +302,33 @@ def _blackhole_ends(problem: Any, params: Any) -> dict[str, Any]:
                 for node, ip in outside
                 if not any(ipaddress.ip_address(ip) in net for net in local)
             ]
+            control = first_reachable(src, remote)
+            if control is None and problem.lab_backend == "containerlab":
+                # SR Linux data-plane addresses do not appear in Linux `ip addr`.
+                # An established BGP peer is a live router beyond the injected
+                # router and provides a control path outside the dropped prefix.
+                peers = srl_bgp_established_peers(
+                    exec_or_empty(
+                        runtime,
+                        router,
+                        'sr_cli "show network-instance default protocols bgp neighbor"',
+                    )
+                )
+                control = first_reachable(
+                    src,
+                    [
+                        (router, ip)
+                        for ip in sorted(peers)
+                        if ipaddress.ip_address(ip) not in network
+                        and not any(ipaddress.ip_address(ip) in net for net in local)
+                    ],
+                )
             return {
                 "router": router,
                 "network": str(network),
                 "src": src,
                 "dst": dst,
-                "control_dst": first_reachable(src, remote),
+                "control_dst": control,
             }
     return {"router": router, "network": str(network), "sources": sources[:6]}
 

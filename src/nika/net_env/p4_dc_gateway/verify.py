@@ -15,6 +15,11 @@ from nika.net_env.verify import (
     process_running,
 )
 from nika.runtime.base import LabRuntime
+from nika.net_env.verify_collection import (
+    VerifyCommand,
+    collect_verify_commands,
+    http_command,
+)
 
 
 def _p4runtime_consistent(
@@ -129,21 +134,10 @@ def _collector_telemetry(
     }
 
 
-def _emit_int_probe(runtime: LabRuntime, model: GatewayFabricModel) -> None:
-    """Send a non-VIP TCP probe that exercises the INT watchlist.
-
-    VIP traffic intentionally avoids INT encapsulation because its L4 checksum
-    is part of the gateway load-balancing contract.  This probe therefore uses
-    the service address directly and is only an observation packet; the normal
-    VIP HTTP request remains the service-health check.
-    """
-    client = model.clients[0]
-    service = model.services[0]
-    exec_or_empty(
-        runtime,
-        client.name,
-        f"nc -z -w 1 {service.ip} 80 || true",
-        timeout=5,
+def int_probe_command(model: GatewayFabricModel) -> VerifyCommand:
+    """Probe the service DIP; VIP traffic intentionally bypasses INT encapsulation."""
+    return VerifyCommand(
+        model.clients[0].name, f"nc -z -w 1 {model.services[0].ip} 80 || true", 5
     )
 
 
@@ -152,25 +146,35 @@ def verify_p4_dc_gateway_lab_startup(
 ) -> dict:
     expected = model.fabric_switches() + [item.name for item in model.endpoints]
     expected += ["fabric_mgr", "collector"]
-    switches_up = all(
-        process_running(runtime, switch, "simple_switch_grpc")
-        for switch in model.fabric_switches()
-    )
     try:
         observed = run_manager(runtime, "read", timeout=180)
     except Exception:
         observed = {}
     p4runtime, p4runtime_details = _p4runtime_consistent(observed, model)
+    live_runtime = runtime
+    runtime = collect_verify_commands(
+        live_runtime,
+        [
+            VerifyCommand(switch, "pgrep -x simple_switch_grpc", 10)
+            for switch in model.fabric_switches()
+        ],
+    )
+    switches_up = all(
+        process_running(runtime, switch, "simple_switch_grpc")
+        for switch in model.fabric_switches()
+    )
     checks = {
         "nodes": nodes_deployed(runtime, expected),
         "bmv2": switches_up,
         "p4runtime": p4runtime,
     }
-    return build_lab_verify_result(
-        scenario_name=scenario_name,
-        verified=all(checks.values()),
-        checks=checks,
-        details={"p4runtime": p4runtime_details},
+    return runtime.finish(
+        build_lab_verify_result(
+            scenario_name=scenario_name,
+            verified=all(checks.values()),
+            checks=checks,
+            details={"p4runtime": p4runtime_details},
+        )
     )
 
 
@@ -179,21 +183,44 @@ def verify_p4_dc_gateway_lab(
 ) -> dict:
     expected = model.fabric_switches() + [item.name for item in model.endpoints]
     expected += ["fabric_mgr", "collector"]
-    switches_up = all(
-        process_running(runtime, switch, "simple_switch_grpc")
-        for switch in model.fabric_switches()
-    )
     try:
         observed = run_manager(runtime, "read", timeout=180)
     except Exception:
         observed = {}
     p4runtime, p4runtime_details = _p4runtime_consistent(observed, model)
+    live_runtime = runtime
+    commands = [
+        VerifyCommand(switch, "pgrep -x simple_switch_grpc", 10)
+        for switch in model.fabric_switches()
+    ]
+    commands.extend(
+        VerifyCommand(client.name, http_command(model.vip_url))
+        for client in model.clients
+    )
+    commands.append(VerifyCommand("collector", "pgrep -x python3", 10))
+    commands.append(int_probe_command(model))
+    runtime = collect_verify_commands(live_runtime, commands)
+    switches_up = all(
+        process_running(runtime, switch, "simple_switch_grpc")
+        for switch in model.fabric_switches()
+    )
     # Backend DIPs are intentionally internal.  The externally reachable
     # healthy workload is the stateful VIP, so this check exercises both
     # directions of the L4 translation rather than bypassing it.
     http = all(http_ok(runtime, client.name, model.vip_url) for client in model.clients)
     collector_process = process_running(runtime, "collector", "python3")
-    _emit_int_probe(runtime, model)
+    runtime = runtime.merged(
+        collect_verify_commands(
+            live_runtime,
+            [
+                VerifyCommand(
+                    "collector",
+                    "tail -n 2000 /var/lib/nika/int_reports.jsonl 2>/dev/null || true",
+                )
+            ],
+            nodes=runtime.nodes,
+        )
+    )
     telemetry_ok, telemetry_details = _collector_telemetry(runtime, model)
     checks = {
         "nodes": nodes_deployed(runtime, expected),
@@ -203,21 +230,23 @@ def verify_p4_dc_gateway_lab(
         "collector_process": collector_process,
         "int_telemetry": telemetry_ok,
     }
-    return build_lab_verify_result(
-        scenario_name=scenario_name,
-        verified=all(checks.values()),
-        checks=checks,
-        details={
-            "dimensions": {
-                "gateways": model.gateway_count,
-                "spines": model.spine_count,
-                "leaves": model.leaf_count,
-                "clients": model.client_count,
-                "services": model.service_count,
+    return runtime.finish(
+        build_lab_verify_result(
+            scenario_name=scenario_name,
+            verified=all(checks.values()),
+            checks=checks,
+            details={
+                "dimensions": {
+                    "gateways": model.gateway_count,
+                    "spines": model.spine_count,
+                    "leaves": model.leaf_count,
+                    "clients": model.client_count,
+                    "services": model.service_count,
+                },
+                "gateway_spine_links": len(model.gateway_spine_links),
+                "spine_leaf_links": len(model.spine_leaf_links),
+                "p4runtime": p4runtime_details,
+                "int_telemetry": telemetry_details,
             },
-            "gateway_spine_links": len(model.gateway_spine_links),
-            "spine_leaf_links": len(model.spine_leaf_links),
-            "p4runtime": p4runtime_details,
-            "int_telemetry": telemetry_details,
-        },
+        )
     )

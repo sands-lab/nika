@@ -275,7 +275,8 @@ def resolve_link_flap_params(
     if scenario == "min3clos":
         params.update(
             host_name="leaf1",
-            intf_name="e1-1",
+            intf_name="e1-2",
+            up_time="12",
             probe_dst_ip="10.0.0.27",
             observer_device="client1",
         )

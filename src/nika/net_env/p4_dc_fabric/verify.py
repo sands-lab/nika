@@ -24,6 +24,12 @@ from nika.net_env.verify import (
     process_running,
 )
 from nika.runtime.base import LabRuntime
+from nika.net_env.verify_collection import (
+    VerifyCommand,
+    collect_verify_commands,
+    ping_command,
+    http_command,
+)
 
 _UDP_FLOWS = 48
 
@@ -58,8 +64,10 @@ def _p4runtime_consistent(
         names = model.leaves[:2] + model.spines[:1]
     details: dict[str, Any] = {}
     ok = True
+    payload = run_manager(
+        runtime, "read", "--switches", *names, timeout=60 * max(1, len(names))
+    )
     for name in names:
-        payload = run_manager(runtime, "read", "--switch", name, timeout=60)
         switch = (payload.get("switches") or {}).get(name) or {}
         pipeline = switch.get("pipeline") or {}
         mismatches = switch.get("mismatches") or []
@@ -171,6 +179,58 @@ def _ecmp_multi_path(
     return ok, details
 
 
+def _collect(runtime, model, *, full):
+    commands = [
+        VerifyCommand(switch, "pgrep -x simple_switch_grpc", 10)
+        for switch in model.leaves[:2] + model.spines[:1]
+    ]
+    if full:
+        for switch in model.leaves[:1] + model.spines[:1]:
+            commands.append(
+                VerifyCommand(
+                    "fabric_mgr", ping_command(model.switch_info[switch].oob_ip), 15
+                )
+            )
+            commands.extend(
+                VerifyCommand(switch, f"cat /sys/class/net/{port.name}/operstate", 10)
+                for port in model.ports[switch][:2]
+            )
+        commands.extend(
+            VerifyCommand(ep.name, "ip -4 -o addr show dev eth0", 10)
+            for ep in model.endpoints[:2]
+        )
+        clients, webs = (
+            model.client_endpoints() or model.endpoints,
+            model.web_endpoints(),
+        )
+        if clients and webs:
+            web, source = webs[0], clients[0]
+            same = next(
+                (client for client in clients if client.leaf_id == web.leaf_id), None
+            )
+            commands.append(
+                VerifyCommand(
+                    same.name if same else web.name,
+                    ping_command(web.ip if same else gateway_ip(web.leaf_id)),
+                    15,
+                )
+            )
+            destination = next(
+                (web for web in webs if web.leaf_id != source.leaf_id), webs[0]
+            )
+            commands.append(
+                VerifyCommand(source.name, ping_command(destination.ip), 15)
+            )
+            commands.append(
+                VerifyCommand(source.name, http_command(f"http://{destination.ip}/"))
+            )
+            commands.extend(
+                VerifyCommand(source.name, ping_command(web.ip), 15)
+                for web in [web for web in webs if web.leaf_id != source.leaf_id][:3]
+            )
+    return collect_verify_commands(runtime, commands)
+
+
 def verify_p4_dc_fabric_lab_startup(
     runtime: LabRuntime,
     *,
@@ -181,16 +241,19 @@ def verify_p4_dc_fabric_lab_startup(
         ["fabric_mgr"] + model.spines + model.leaves + [e.name for e in model.endpoints]
     )
     p4_ok, p4_details = _p4runtime_consistent(runtime, model, sample=True)
+    runtime = _collect(runtime, model, full=False)
     checks: dict[str, bool] = {
         "nodes_deployed": nodes_deployed(runtime, expected_nodes),
         "bmv2_grpc_ready": _grpc_ready(runtime, model.leaves[:2] + model.spines[:1]),
         "p4runtime_consistent": p4_ok,
     }
-    return build_lab_verify_result(
-        scenario_name=scenario_name,
-        verified=all(checks.values()),
-        checks=checks,
-        details={"p4runtime": p4_details},
+    return runtime.finish(
+        build_lab_verify_result(
+            scenario_name=scenario_name,
+            verified=all(checks.values()),
+            checks=checks,
+            details={"p4runtime": p4_details},
+        )
     )
 
 
@@ -214,6 +277,8 @@ def verify_p4_dc_fabric_lab(
         intent = {}
         intent_ok = False
 
+    live_runtime = runtime
+    runtime = _collect(runtime, model, full=True)
     checks: dict[str, bool] = {
         "nodes_deployed": nodes_deployed(runtime, expected_nodes),
         "bmv2_grpc_ready": _grpc_ready(runtime, model.leaves[:2] + model.spines[:1]),
@@ -227,6 +292,16 @@ def verify_p4_dc_fabric_lab(
         "cross_rack_http": _sparse_cross_rack_http(runtime, model),
         "ecmp_multi_path": ecmp_ok,
     }
+    runtime = runtime.merged(
+        collect_verify_commands(
+            live_runtime,
+            [
+                VerifyCommand(ep.name, f"ip neigh show {gateway_ip(ep.leaf_id)}", 10)
+                for ep in sample_eps
+            ],
+            nodes=runtime.nodes,
+        )
+    )
     for ep in sample_eps:
         checks[f"{ep.name}_ipv4"] = host_has_ipv4(runtime, ep.name, ep.ip)
         checks[f"{ep.name}_gateway_neigh"] = (
@@ -236,13 +311,15 @@ def verify_p4_dc_fabric_lab(
             ).lower()
         )
 
-    return build_lab_verify_result(
-        scenario_name=scenario_name,
-        verified=all(checks.values()),
-        checks=checks,
-        details={
-            "p4runtime": p4_details,
-            "ecmp": ecmp_details,
-            "intent_pipeline": intent.get("pipeline"),
-        },
+    return runtime.finish(
+        build_lab_verify_result(
+            scenario_name=scenario_name,
+            verified=all(checks.values()),
+            checks=checks,
+            details={
+                "p4runtime": p4_details,
+                "ecmp": ecmp_details,
+                "intent_pipeline": intent.get("pipeline"),
+            },
+        )
     )

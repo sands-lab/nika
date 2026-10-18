@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 
 import pytest
+from tests.support.net_env import stub_verify_collection  # noqa: F401
 from nika.net_env.dc_clos.lab import DCClos
 from nika.net_env.dc_clos.verify import verify_dc_clos_lab, verify_dc_clos_lab_startup
 from nika.net_env.enterprise_branch.verify import (
@@ -184,6 +185,10 @@ class FakeRuntime:
     def exec(self, host: str, command: str, timeout: float = 10.0) -> str:
         if (host, command) in self.overrides:
             return self.overrides[host, command]
+        if command.startswith("dig +short"):
+            return re.search(r"@(\S+)", command)[1]
+        if command.startswith("ping -c 3 -i"):
+            return "3 packets transmitted, 3 received, 0% packet loss"
         if command.startswith("sh -c "):
             # Batched probes: every ping, dig, and curl in the script succeeds.
             lines = [
@@ -338,6 +343,7 @@ class FakeRuntime:
 
 
 @pytest.mark.unit
+@pytest.mark.usefixtures("stub_verify_collection")
 class KatharaVerifyUnitTest:
     def assert_verified(self, result: dict) -> None:
         assert_verify_success(result)

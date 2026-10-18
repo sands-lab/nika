@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import json
+
 import pytest
+from tests.support.net_env import stub_verify_collection  # noqa: F401
 
 from nika.net_env.isp.bgp import compile_bgp_plan
 from nika.net_env.isp.contract import build_isp_validation_contract
@@ -15,6 +18,8 @@ from nika.net_env.net_env_pool import (
     scenario_supported_backends,
 )
 from nika.topology.models import NetworkTopology, TopoLink, TopoNode
+
+pytestmark = pytest.mark.usefixtures("stub_verify_collection")
 
 
 def _plan():
@@ -108,6 +113,40 @@ class _ContractRuntime:
 
 
 @pytest.mark.contract
+@pytest.mark.parametrize("level", ["required", "optional"])
+def test_unsupported_entity_retains_other_intent_evidence(level) -> None:
+    from nika.net_env.isp.verify_support import intent_command
+
+    traffic = _traffic(_plan())
+    contract = build_isp_validation_contract(traffic.plan, traffic=traffic)
+    valid = next(
+        intent for intent in contract.intents if intent.property == "reachability"
+    )
+    invalid = valid.model_copy(
+        update={
+            "id": "reach.unsupported",
+            "level": level,
+            "destination": valid.destination.model_copy(update={"address": None}),
+        }
+    )
+    contract = contract.model_copy(update={"intents": (invalid, valid)})
+    request = intent_command(valid)
+    runtime = _ContractRuntime(
+        {
+            (
+                request.node,
+                request.command,
+            ): "1 packets transmitted, 1 received, 0% packet loss"
+        }
+    )
+    report = verify_isp_contract(runtime, contract=contract, plan=traffic.plan)
+    results = {result.intent: result for result in report.results}
+    assert results[invalid.id].status == "error"
+    assert results[valid.id].status == "passed"
+    assert (report.status == "passed") is (level == "optional")
+
+
+@pytest.mark.contract
 def test_runtime_verifier_reports_per_intent_evidence() -> None:
     original = _plan()
     traffic = _traffic(original)
@@ -128,7 +167,15 @@ def test_runtime_verifier_reports_per_intent_evidence() -> None:
                     intent.source.name,
                     f"ping -c 1 -W 2 {intent.destination.address}",
                 )
-            ] = "1 packets received"
+            ] = "1 packets transmitted, 1 packets received, 0% packet loss"
+    from nika.net_env.isp.verify_support import intent_command
+
+    for intent in contract.intents:
+        if intent.property == "isolation":
+            command = intent_command(intent)
+            outputs[command.node, command.command] = (
+                "1 packets transmitted, 0 received, 100% packet loss"
+            )
     report = verify_isp_contract(
         _ContractRuntime(outputs), contract=contract, plan=traffic.plan
     )
@@ -160,7 +207,10 @@ def test_runtime_verifier_reports_per_intent_evidence() -> None:
         == "reachability"
     )
     assert reachability_result.evidence["command"].startswith("ping -c 1")
-    assert reachability_result.evidence["output"] == "1 packets received"
+    assert (
+        reachability_result.evidence["output"]
+        == "1 packets transmitted, 1 packets received, 0% packet loss"
+    )
 
 
 @pytest.mark.unit
@@ -230,6 +280,39 @@ def test_verify_success_isis() -> None:
                 f" {iface.peer_device}  {iface.name}  2  Up  28  2020.2020.2020"
             )
         healthy[(device, "vtysh -c 'show isis neighbor'")] = "\n".join(neighbors)
+
+    for node in plan.nodes:
+        healthy[node.device_name, "systemctl is-active frr"] = "active"
+        healthy[node.device_name, "ip -j -4 addr show"] = json.dumps(
+            [
+                {
+                    "ifname": "lo",
+                    "addr_info": [{"family": "inet", "local": node.loopback}],
+                },
+                *[
+                    {
+                        "ifname": interface.name,
+                        "addr_info": [{"family": "inet", "local": interface.address}],
+                    }
+                    for interface in node.interfaces
+                ],
+            ]
+        )
+        routes = [{"dst": node.loopback, "type": "local", "table": "local"}]
+        for interface in node.interfaces:
+            peer = next(
+                other
+                for other in plan.nodes
+                if other.device_name == interface.peer_device
+            )
+            routes.append(
+                {
+                    "dst": peer.loopback,
+                    "gateway": interface.peer_address,
+                    "dev": interface.name,
+                }
+            )
+        healthy[node.device_name, "ip -j -4 route show table all"] = json.dumps(routes)
 
     result = verify_isp_lab(
         _FakeRuntime(nodes=devices, overrides=healthy),
