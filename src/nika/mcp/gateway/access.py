@@ -30,6 +30,7 @@ TOOL_NODE_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "sdn_onos_rest": (),
     "p4rt_exec": (),
     "int_query_telemetry": (),
+    "netflow_query": (),
     "k8s_list_events": (),
 }
 
@@ -39,6 +40,7 @@ TOOL_IMPLICIT_TARGETS: dict[str, tuple[str, ...]] = {
     "sdn_onos_rest": ("onos",),
     "p4rt_exec": ("fabric_mgr",),
     "int_query_telemetry": ("collector",),
+    "netflow_query": ("flow_collector",),
     **{
         name: _K8S_CONTROL_NODE
         for name in TOOL_NODE_ARGUMENTS
