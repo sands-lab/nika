@@ -925,6 +925,93 @@
       "rank": 1
     },
     {
+      "id": "0.2.0/20261017_codex_gpt_6_1_sol",
+      "dirname": "20261017_codex_gpt_6_1_sol",
+      "submission_name": "Codex + GPT-6.1 Sol (high)",
+      "authors": "NIKA Team",
+      "org": null,
+      "site": "https://sands-lab.github.io/nika/",
+      "report": "https://arxiv.org/abs/2512.16381",
+      "logo": null,
+      "github": "https://github.com/sands-lab/nika",
+      "email": null,
+      "trajectories_url": "https://huggingface.co/datasets/nika-bench/nika-trajectories/tree/main/trajectories/0.2.0/20261017_codex_gpt_6_1_sol",
+      "trajectories_relpath": "trajectories/0.2.0/20261017_codex_gpt_6_1_sol",
+      "model": "GPT-6.1-Sol",
+      "model_id": null,
+      "submitted_model": "GPT-6.1-Sol",
+      "framework": "Codex",
+      "agent_type": "cli.codex",
+      "llm_provider": "openai",
+      "tools": [
+        "containerlab_srl_mcp_server",
+        "k8s_mcp_server",
+        "kathara_base_mcp_server",
+        "pingmesh_mcp_server",
+        "packet_capture_mcp_server",
+        "kathara_frr_mcp_server",
+        "kathara_bmv2_mcp_server",
+        "kathara_sdn_mcp_server",
+        "kathara_telemetry_mcp_server",
+        "task_mcp_server"
+      ],
+      "skills": [],
+      "optimization_methods": [],
+      "tags": [],
+      "extra": {
+        "nika_agent": "cli.codex",
+        "runtime_model_id": "gpt-6.1-sol",
+        "provider": "openai (hosted, ChatGPT subscription authentication)",
+        "reasoning_effort": "high",
+        "sandbox_backend": "e2b",
+        "max_steps": 100,
+        "max_output_tokens": null,
+        "agent_timeout_sec": 1800,
+        "case_timeout_sec": 2400,
+        "nika_git_commit": "5096d23a3b79cd0d425d65ef1ebcb647ac2e8918"
+      },
+      "benchmark_version": "0.2.0",
+      "split": "test",
+      "case_count": 85,
+      "n_trials": 3,
+      "primary_metric": "rca_f1",
+      "mean_rca_f1": 0.6841192156862745,
+      "mean_localization_f1": 0.7547729411764706,
+      "mean_detection_score": 0.8549019607843137,
+      "n_trials_expected": 255,
+      "n_trials_present": 255,
+      "n_success": 245,
+      "n_agent_failed": 10,
+      "success_rate": 0.960784,
+      "token_totals": {
+        "in_tokens": 137499733,
+        "out_tokens": 1255556
+      },
+      "steps_totals": {
+        "steps": 10862,
+        "tool_calls": 10622,
+        "tool_errors": 0
+      },
+      "mean_tokens": 544138.388,
+      "mean_steps": 42.596,
+      "total_tokens": 138755289,
+      "max_steps": 100,
+      "case_timeout_sec": 2400,
+      "created_at": "2026-10-17T20:34:59+00:00",
+      "run_id": "5a215b1c49811afe",
+      "official": true,
+      "nika_git_commit": "5096d23a3b79cd0d425d65ef1ebcb647ac2e8918",
+      "name": "GPT-6.1-Sol · Codex",
+      "rca_f1_ci": [
+        0.597387,
+        0.766735
+      ],
+      "beaten_by": [
+        "0.2.0/20261016_claude_code_claude_opus_5_5"
+      ],
+      "rank": 2
+    },
+    {
       "id": "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
       "dirname": "20261010_claude_code_qwen3_8_27b_fp8",
       "submission_name": "Claude Code + Qwen3.8-27B-FP8",
@@ -1003,9 +1090,10 @@
       ],
       "beaten_by": [
         "0.2.0/20261016_claude_code_claude_opus_5_5",
-        "0.2.0/20261016_claude_code_claude_sonnet_5_5"
+        "0.2.0/20261016_claude_code_claude_sonnet_5_5",
+        "0.2.0/20261017_codex_gpt_6_1_sol"
       ],
-      "rank": 3
+      "rank": 4
     },
     {
       "id": "0.2.0/20261011_react_qwen3_8_27b_fp8",
@@ -1087,9 +1175,10 @@
       "beaten_by": [
         "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
         "0.2.0/20261016_claude_code_claude_opus_5_5",
-        "0.2.0/20261016_claude_code_claude_sonnet_5_5"
+        "0.2.0/20261016_claude_code_claude_sonnet_5_5",
+        "0.2.0/20261017_codex_gpt_6_1_sol"
       ],
-      "rank": 4
+      "rank": 5
     },
     {
       "id": "0.2.0/20261017_claude_code_claude_haiku_5_5",
@@ -1178,9 +1267,10 @@
         "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
         "0.2.0/20261011_react_qwen3_8_27b_fp8",
         "0.2.0/20261016_claude_code_claude_opus_5_5",
-        "0.2.0/20261016_claude_code_claude_sonnet_5_5"
+        "0.2.0/20261016_claude_code_claude_sonnet_5_5",
+        "0.2.0/20261017_codex_gpt_6_1_sol"
       ],
-      "rank": 5
+      "rank": 6
     },
     {
       "id": "0.2.0/20261014_react_qwen3_5_27b",
@@ -1264,9 +1354,10 @@
         "0.2.0/20261011_react_qwen3_8_27b_fp8",
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
-        "0.2.0/20261017_claude_code_claude_haiku_5_5"
+        "0.2.0/20261017_claude_code_claude_haiku_5_5",
+        "0.2.0/20261017_codex_gpt_6_1_sol"
       ],
-      "rank": 6
+      "rank": 7
     },
     {
       "id": "0.2.0/20261014_claude_code_qwen3_5_27b",
@@ -1350,9 +1441,10 @@
         "0.2.0/20261011_react_qwen3_8_27b_fp8",
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
-        "0.2.0/20261017_claude_code_claude_haiku_5_5"
+        "0.2.0/20261017_claude_code_claude_haiku_5_5",
+        "0.2.0/20261017_codex_gpt_6_1_sol"
       ],
-      "rank": 6
+      "rank": 7
     },
     {
       "id": "0.2.0/20261012_claude_code_gemma_4_31b_it",
@@ -1437,9 +1529,10 @@
         "0.2.0/20261011_react_qwen3_8_27b_fp8",
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
-        "0.2.0/20261017_claude_code_claude_haiku_5_5"
+        "0.2.0/20261017_claude_code_claude_haiku_5_5",
+        "0.2.0/20261017_codex_gpt_6_1_sol"
       ],
-      "rank": 6
+      "rank": 7
     },
     {
       "id": "0.2.0/20261016_claude_code_gpt_oss_120b",
@@ -1526,9 +1619,10 @@
         "0.2.0/20261014_react_qwen3_5_27b",
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
-        "0.2.0/20261017_claude_code_claude_haiku_5_5"
+        "0.2.0/20261017_claude_code_claude_haiku_5_5",
+        "0.2.0/20261017_codex_gpt_6_1_sol"
       ],
-      "rank": 7
+      "rank": 8
     },
     {
       "id": "0.2.0/20261013_claude_code_telecomgpt_r1",
@@ -1615,9 +1709,10 @@
         "0.2.0/20261014_react_qwen3_5_27b",
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
-        "0.2.0/20261017_claude_code_claude_haiku_5_5"
+        "0.2.0/20261017_claude_code_claude_haiku_5_5",
+        "0.2.0/20261017_codex_gpt_6_1_sol"
       ],
-      "rank": 9
+      "rank": 10
     },
     {
       "id": "0.2.0/20261013_react_telecomgpt_r1",
@@ -1704,9 +1799,10 @@
         "0.2.0/20261014_react_qwen3_5_27b",
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
-        "0.2.0/20261017_claude_code_claude_haiku_5_5"
+        "0.2.0/20261017_claude_code_claude_haiku_5_5",
+        "0.2.0/20261017_codex_gpt_6_1_sol"
       ],
-      "rank": 9
+      "rank": 10
     },
     {
       "id": "0.2.0/20261012_react_gemma_4_31b_it",
@@ -1794,9 +1890,10 @@
         "0.2.0/20261014_react_qwen3_5_27b",
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
-        "0.2.0/20261017_claude_code_claude_haiku_5_5"
+        "0.2.0/20261017_claude_code_claude_haiku_5_5",
+        "0.2.0/20261017_codex_gpt_6_1_sol"
       ],
-      "rank": 10
+      "rank": 11
     },
     {
       "id": "0.2.0/20261007_qwen3_6_35b_a3b_claudecode",
@@ -1869,9 +1966,10 @@
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261016_claude_code_gpt_oss_120b",
-        "0.2.0/20261017_claude_code_claude_haiku_5_5"
+        "0.2.0/20261017_claude_code_claude_haiku_5_5",
+        "0.2.0/20261017_codex_gpt_6_1_sol"
       ],
-      "rank": 12
+      "rank": 13
     },
     {
       "id": "0.2.0/20261008_qwen3_6_35b_a3b_codex",
@@ -1945,9 +2043,10 @@
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261016_claude_code_gpt_oss_120b",
-        "0.2.0/20261017_claude_code_claude_haiku_5_5"
+        "0.2.0/20261017_claude_code_claude_haiku_5_5",
+        "0.2.0/20261017_codex_gpt_6_1_sol"
       ],
-      "rank": 13
+      "rank": 14
     },
     {
       "id": "0.2.0/20261007_qwen3_6_35b_a3b_langgraph",
@@ -2021,9 +2120,10 @@
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261016_claude_code_gpt_oss_120b",
-        "0.2.0/20261017_claude_code_claude_haiku_5_5"
+        "0.2.0/20261017_claude_code_claude_haiku_5_5",
+        "0.2.0/20261017_codex_gpt_6_1_sol"
       ],
-      "rank": 13
+      "rank": 14
     },
     {
       "id": "0.2.0/20261014_claude_code_glm_4_7_flash",
@@ -2117,9 +2217,10 @@
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261016_claude_code_gpt_oss_120b",
-        "0.2.0/20261017_claude_code_claude_haiku_5_5"
+        "0.2.0/20261017_claude_code_claude_haiku_5_5",
+        "0.2.0/20261017_codex_gpt_6_1_sol"
       ],
-      "rank": 16
+      "rank": 17
     },
     {
       "id": "0.2.0/20261015_react_glm_4_7_flash",
@@ -2213,9 +2314,10 @@
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261016_claude_code_gpt_oss_120b",
-        "0.2.0/20261017_claude_code_claude_haiku_5_5"
+        "0.2.0/20261017_claude_code_claude_haiku_5_5",
+        "0.2.0/20261017_codex_gpt_6_1_sol"
       ],
-      "rank": 16
+      "rank": 17
     },
     {
       "id": "0.2.0/20261008_claude_cli_otel_2_0_llm_31b_it",
@@ -2318,9 +2420,10 @@
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261016_claude_code_gpt_oss_120b",
-        "0.2.0/20261017_claude_code_claude_haiku_5_5"
+        "0.2.0/20261017_claude_code_claude_haiku_5_5",
+        "0.2.0/20261017_codex_gpt_6_1_sol"
       ],
-      "rank": 18
+      "rank": 19
     }
   ]
 }

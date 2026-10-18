@@ -27,6 +27,7 @@
       "GPT OSS 20B",
       "GPT-5",
       "GPT-5 Mini",
+      "GPT-6.1-Sol",
       "Gemma 4 31B IT",
       "OTel-2.0-LLM-31B-IT",
       "Qwen3.5 27B",
@@ -55,5 +56,5 @@
     "seed": 0,
     "confidence": 0.95
   },
-  "generated_at": "2026-10-18T09:20:30+00:00"
+  "generated_at": "2026-10-18T09:23:20+00:00"
 }

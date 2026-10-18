@@ -7699,7 +7699,8 @@
   "beaten_by": [
     "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
     "0.2.0/20261016_claude_code_claude_opus_5_5",
-    "0.2.0/20261016_claude_code_claude_sonnet_5_5"
+    "0.2.0/20261016_claude_code_claude_sonnet_5_5",
+    "0.2.0/20261017_codex_gpt_6_1_sol"
   ],
-  "rank": 4
+  "rank": 5
 }
