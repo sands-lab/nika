@@ -1,4 +1,4 @@
-"""Unit tests for nika.snapshot settings, routing and naming (no VM needed)."""
+"""Unit tests for nika.firecracker settings, routing and naming (no VM needed)."""
 
 from __future__ import annotations
 
@@ -14,9 +14,9 @@ from nika.remote.config import (
     remote_override,
 )
 from nika.run_config.loader import reset_run_config, set_run_config
-from nika.run_config.schema import RunConfig, SnapshotSettings
-from nika.snapshot import golden
-from nika.snapshot.trial import trial_dir
+from nika.run_config.schema import RunConfig, FirecrackerSettings
+from nika.firecracker import image
+from nika.firecracker.trial import trial_dir
 
 pytestmark = pytest.mark.unit
 
@@ -28,12 +28,12 @@ def _clean_run_config():
     reset_run_config()
 
 
-def test_snapshot_settings_default_off_and_validated() -> None:
-    assert RunConfig().nika.snapshot.enabled is False
+def test_firecracker_settings_default_off_and_validated() -> None:
+    assert RunConfig().nika.execution == "native"
     with pytest.raises(ValidationError):
-        SnapshotSettings(vm_memory="8G")
+        FirecrackerSettings(vm_memory="8G")
     with pytest.raises(ValidationError):
-        SnapshotSettings(vm_memory_overrides={"isp_pdh": "20480MiB"})
+        FirecrackerSettings(vm_memory_overrides={"isp_pdh": "20480MiB"})
 
 
 def test_override_routes_lab_ops_and_maps_gateway_port() -> None:
@@ -72,21 +72,21 @@ def test_disposable_lab_closes_without_undeploy() -> None:
     client.close_session.assert_called_once_with("s1", undeploy=False, stop_all=False)
 
 
-def test_golden_key_tracks_variant_and_code(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_image_key_tracks_variant_and_code(monkeypatch: pytest.MonkeyPatch) -> None:
     set_run_config(RunConfig())
-    params = golden.variant(scenario="dc_clos", topo_size="s", igp=None)
+    params = image.variant(scenario="dc_clos", topo_size="s", igp=None)
     assert params == {"scenario": "dc_clos", "topo_size": "s"}
-    monkeypatch.setattr(golden, "base_manifest", lambda: {"id": "base-1"})
-    monkeypatch.setattr(golden, "code_fingerprint", lambda: "a")
-    key = golden.golden_key(params)
-    assert key == golden.golden_key(dict(params))
-    assert key != golden.golden_key({**params, "topo_size": "m"})
-    monkeypatch.setattr(golden, "code_fingerprint", lambda: "b")
-    assert key != golden.golden_key(params)
-    # A rebuilt base image gets a new id and invalidates every golden VM.
-    monkeypatch.setattr(golden, "code_fingerprint", lambda: "a")
-    monkeypatch.setattr(golden, "base_manifest", lambda: {"id": "base-2"})
-    assert key != golden.golden_key(params)
+    monkeypatch.setattr(image, "base_manifest", lambda: {"id": "base-1"})
+    monkeypatch.setattr(image, "code_fingerprint", lambda: "a")
+    key = image.image_key(params)
+    assert key == image.image_key(dict(params))
+    assert key != image.image_key({**params, "topo_size": "m"})
+    monkeypatch.setattr(image, "code_fingerprint", lambda: "b")
+    assert key != image.image_key(params)
+    # A rebuilt base image gets a new id and invalidates every lab image.
+    monkeypatch.setattr(image, "code_fingerprint", lambda: "a")
+    monkeypatch.setattr(image, "base_manifest", lambda: {"id": "base-2"})
+    assert key != image.image_key(params)
 
 
 def test_trial_dirs_are_stable_per_trial() -> None:
@@ -97,16 +97,16 @@ def test_trial_dirs_are_stable_per_trial() -> None:
     assert first.parent.name == "trials"
 
 
-def test_golden_build_liveness_protects_running_builds() -> None:
+def test_image_build_liveness_protects_running_builds() -> None:
     import os
     import socket
 
     host = socket.gethostname()
     alive = {"pid": os.getpid(), "host": host}
-    assert golden._builder_alive(alive) is True
-    assert golden._builder_alive({**alive, "pid": 0}) is False
+    assert image._builder_alive(alive) is True
+    assert image._builder_alive({**alive, "pid": 0}) is False
     # Builds on another host cannot be checked here; never treat them as abandoned.
-    assert golden._builder_alive({**alive, "host": "elsewhere"}) is True
+    assert image._builder_alive({**alive, "host": "elsewhere"}) is True
 
 
 def test_remote_gateway_yields_the_port_this_host_dials() -> None:
@@ -137,7 +137,7 @@ def test_remote_gateway_yields_the_port_this_host_dials() -> None:
 
 
 def test_gateway_route_follows_the_sandbox_runtime() -> None:
-    from nika.snapshot.trial import gateway_route
+    from nika.firecracker.trial import gateway_route
 
     # Host agents and E2B tunnels dial the forwarder on this host's loopback.
     assert gateway_route(None) == ("127.0.0.1", None)
@@ -152,7 +152,7 @@ def test_guest_exec_frames_stdin_and_reports_status(tmp_path) -> None:
     import socket
     import threading
 
-    from nika.snapshot import vmm
+    from nika.firecracker import vmm
 
     uds = tmp_path / "vsock.sock"
     server = socket.socket(socket.AF_UNIX)
@@ -180,10 +180,10 @@ def test_guest_exec_frames_stdin_and_reports_status(tmp_path) -> None:
 
 
 def test_page_server_prefetches_only_data_extents(tmp_path) -> None:
-    """Holes in a sparse golden memory file are not copied into the guest."""
+    """Holes in a sparse lab image memory file are not copied into the guest."""
     import os
 
-    from nika.snapshot.uffd import _data_extents
+    from nika.firecracker.uffd import _data_extents
 
     path = tmp_path / "mem"
     mib = 1 << 20
@@ -205,7 +205,7 @@ def test_page_server_prefetches_only_data_extents(tmp_path) -> None:
 def test_scheduler_groups_trials_by_variant() -> None:
     from types import SimpleNamespace
 
-    from nika.snapshot.schedule import group_by_variant
+    from nika.firecracker.schedule import group_by_variant
 
     set_run_config(RunConfig())
     rows = [
@@ -219,22 +219,22 @@ def test_scheduler_groups_trials_by_variant() -> None:
 
 
 def test_hugepage_need_follows_the_lab_not_the_vm(tmp_path, monkeypatch) -> None:
-    from nika.snapshot import schedule
+    from nika.firecracker import schedule
 
     row = {"scenario": "dc_clos", "topo_size": "s"}
     set_run_config(
-        RunConfig.model_validate({"nika": {"snapshot": {"huge_pages": False}}})
+        RunConfig.model_validate({"nika": {"firecracker": {"huge_pages": False}}})
     )
     assert schedule.hugepage_need_mib(row) == 0
 
     set_run_config(
         RunConfig.model_validate(
-            {"nika": {"snapshot": {"huge_pages": True, "vm_memory": "1GiB"}}}
+            {"nika": {"firecracker": {"huge_pages": True, "vm_memory": "1GiB"}}}
         )
     )
-    monkeypatch.setattr(schedule, "goldens_dir", lambda: tmp_path)
-    monkeypatch.setattr(schedule, "golden_key", lambda params: "k")
-    # Before the golden VM exists: its whole memory.
+    monkeypatch.setattr(schedule, "images_dir", lambda: tmp_path)
+    monkeypatch.setattr(schedule, "image_key", lambda params: "k")
+    # Before the lab image exists: its whole memory.
     assert schedule.hugepage_need_mib(row) == 1024
     (tmp_path / "k").mkdir()
     memory = tmp_path / "k" / "mem"
@@ -247,7 +247,7 @@ def test_hugepage_need_follows_the_lab_not_the_vm(tmp_path, monkeypatch) -> None
     assert schedule.hugepage_need_mib(row) == 1024  # never more than the VM
 
 
-def test_snapshot_runs_have_no_heavy_tier() -> None:
+def test_firecracker_runs_have_no_heavy_tier() -> None:
     from types import SimpleNamespace
 
     from nika.workflows.benchmark.admit import CLASS_LIGHT, resource_class
@@ -255,5 +255,5 @@ def test_snapshot_runs_have_no_heavy_tier() -> None:
     trial = SimpleNamespace(row={"scenario": "k8s_lab"}, case_key="k")
     set_run_config(RunConfig())
     assert resource_class(trial) != CLASS_LIGHT
-    set_run_config(RunConfig.model_validate({"nika": {"snapshot": {"enabled": True}}}))
+    set_run_config(RunConfig.model_validate({"nika": {"execution": "firecracker"}}))
     assert resource_class(trial) == CLASS_LIGHT

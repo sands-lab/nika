@@ -54,24 +54,24 @@ nika:
     url: null
     # Reserved for remote artifact storage. Keep null.
     artifact_root: null
-  snapshot:
-    # Advanced: run benchmark trials from Firecracker snapshots of deployed labs
-    # (docs/operations/vm-snapshots.md).
-    enabled: false
-    # Reflink-capable directory (btrfs/XFS) with base/, goldens/ and trials/.
-    root: /var/lib/nika-snapshots
+  # Where benchmark trials run their labs: native (this host) or firecracker
+  # (microVMs restored from lab images; docs/operations/firecracker.md).
+  execution: native
+  firecracker:
+    # Reflink-capable directory (btrfs/XFS) with base/, images/ and trials/.
+    root: /var/lib/nika-firecracker
     # Firecracker binary (name on PATH or path).
-    firecracker: firecracker
+    binary: firecracker
     vm_cpus: 4
     vm_memory: 4GiB
     # Scenario id -> VM memory for large labs, e.g. {k8s_lab: 8GiB, isp_pdh: 20GiB}.
     vm_memory_overrides: {}
-    # 2 MiB huge pages (reserve vm.nr_hugepages first): full speed right after
+    # 2 MiB huge pages (reserved at boot, see the docs): full speed right after
     # a restore, but copies do not share memory.
     huge_pages: false
-    # Verify the lab again after each restore, as a cold deploy does.
+    # Verify the lab again after each restore, as a native deploy does.
     verify_after_restore: true
-    # Delete the golden VMs a run used when it ends. Keeping them (false) takes
+    # Delete the lab images a run used when it ends. Keeping them (false) takes
     # substantial disk (often 2-8 GiB each) but makes later runs much faster.
     clean_after_run: false
   sandbox:

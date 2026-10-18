@@ -17,16 +17,16 @@ from nika.config import BENCHMARK_DIR, resolve_results_root
 from nika.evaluator.result_log import MESSAGES_FILENAME
 from nika.net_env.net_env_pool import scenario_requires_topo_size
 from nika.problems.registry import get_problem_class, get_problem_instance
-from nika.snapshot import snapshot_enabled
-from nika.snapshot.golden import variant_for_row
-from nika.snapshot.schedule import (
+from nika.firecracker import firecracker_enabled
+from nika.firecracker.image import variant_for_row
+from nika.firecracker.schedule import (
     clean_after_run,
     group_by_variant,
     hugepage_need_mib,
     hugepage_pool_mib,
-    prebuild_goldens,
+    prebuild_images,
 )
-from nika.snapshot.trial import (
+from nika.firecracker.trial import (
     TrialLab,
     active_trial_lab,
     reap_orphan_trials,
@@ -901,10 +901,10 @@ def run_single_case(
     # Trial directory stays ``trials/{trial_id}``; SessionStore key must also
     # incorporate result_dir so parallel same-task runs do not share a lab.
     store_session_id = store_session_id_for_trial(trial_id, result_dir) or trial_id
-    snapshot_lab = active_trial_lab()
-    if snapshot_lab is not None:
-        # nika.snapshot: the lab was restored from a golden VM; adopt it.
-        session_id = snapshot_lab.attach(
+    image_lab = active_trial_lab()
+    if image_lab is not None:
+        # nika.firecracker: the lab was restored from a lab image; adopt it.
+        session_id = image_lab.attach(
             session_id=store_session_id,
             result_dir=result_dir,
             session_dir=predetermined_dir,
@@ -1124,7 +1124,7 @@ def _run_trial(
 ) -> None:
     # Runs in-process or as a spawn worker; silence before FastMCP re-import noise.
     quiet_third_party_logging()
-    with _snapshot_trial_scope(trial, agent_type=agent_type, result_dir=result_dir):
+    with _firecracker_trial_scope(trial, agent_type=agent_type, result_dir=result_dir):
         _run_trial_case(
             trial,
             agent_type=agent_type,
@@ -1139,9 +1139,9 @@ def _run_trial(
         )
 
 
-def _snapshot_trial_scope(trial: Trial, *, agent_type: str, result_dir: str | None):
-    """Restore the trial's lab from a golden VM when ``nika.snapshot`` is enabled."""
-    if not snapshot_enabled():
+def _firecracker_trial_scope(trial: Trial, *, agent_type: str, result_dir: str | None):
+    """Restore the trial's lab from a lab image when ``nika.firecracker`` is enabled."""
+    if not firecracker_enabled():
         return nullcontext()
     from agent.sandbox import SANDBOX_SUPPORTED_AGENTS
     from agent.sandbox.config import resolve_sandbox_config
@@ -1261,7 +1261,7 @@ def _run_trial_with_timeout(
             _stop_worker(proc)
             leak_hint = (
                 "Its VM copy is released when the worker exits."
-                if snapshot_enabled()
+                if firecracker_enabled()
                 else "Its lab may be leaked — check `nika session ps`."
             )
             timeout_error = RuntimeError(
@@ -1306,7 +1306,7 @@ def _run_trial_with_timeout(
             raise crash_error
     finally:
         _unregister_trial_proc(proc)
-        if snapshot_enabled():
+        if firecracker_enabled():
             # A killed worker cannot delete its VM copy; release it here.
             release_trial(
                 store_session_id_for_trial(trial.trial_id, result_dir) or trial.trial_id
@@ -1346,7 +1346,7 @@ def _run_trials_batch(
     failures: list[str] = []
     if not trials_batch:
         return failures
-    if snapshot_enabled():
+    if firecracker_enabled():
         trials_batch = group_by_variant(trials_batch)
     limits = tier_limits(
         batch_size=max_workers or len(trials_batch),
@@ -1452,8 +1452,8 @@ def _run_trials_batch(
     # future -> (trial, resource_class)
     futures: dict[Any, tuple[Trial, str]] = {}
     in_flight: dict[str, int] = {}
-    # nika.snapshot with huge pages: expected huge-page use of running copies.
-    hugepage_pool = hugepage_pool_mib() if snapshot_enabled() else 0
+    # nika.firecracker with huge pages: expected huge-page use of running copies.
+    hugepage_pool = hugepage_pool_mib() if firecracker_enabled() else 0
     hugepages_in_flight: dict[Any, int] = {}
     # Each light phase may bypass waiting heavy trials at most one batch.
     # Once spent, drain the light tier so heavy trials cannot be starved.
@@ -1808,10 +1808,10 @@ def run_benchmark_trials(
 
         ensure_nika_docker_images(images)
 
-    if snapshot_enabled():
+    if firecracker_enabled():
         # VM copies left by a crashed earlier launch on this result dir.
         for orphan in reap_orphan_trials(str(results_root)):
-            print(f"[snapshot] released VM copy left by trial {orphan}")
+            print(f"[firecracker] released VM copy left by trial {orphan}")
 
     # Confirmed: mutate slots (clear --no-resume / clean incomplete) then run.
     _, initial_pending = scan_trials(
@@ -1827,10 +1827,10 @@ def run_benchmark_trials(
         _finish_progress([])
         _emit_report()
         return
-    if snapshot_enabled():
-        # Build every golden VM first: trials then only restore, and their
+    if firecracker_enabled():
+        # Build every lab image first: trials then only restore, and their
         # case timeout never includes a build.
-        prebuild_goldens([trials[i] for i in initial_pending], max_parallel=batch_size)
+        prebuild_images([trials[i] for i in initial_pending], max_parallel=batch_size)
 
     failures: list[str] = []
     previous_pending: int | None = None
@@ -1933,7 +1933,7 @@ def run_benchmark_trials(
         mutate=False,
     )
     _finish_progress(final_pending)
-    if snapshot_enabled():
+    if firecracker_enabled():
         clean_after_run(trials)
 
     if failures:
@@ -1985,8 +1985,8 @@ def run_benchmark_from_release(
     planned: list[Trial] | None = None
     if task_ids:
         planned = select_trials(expand_trials(resolved.cases, n_trials), task_ids)
-    # With nika.snapshot, labs (and their images) live in the golden VMs.
-    preflight_release(resolved, check_images=check_images and not snapshot_enabled())
+    # With nika.firecracker, labs (and their images) live in the lab images.
+    preflight_release(resolved, check_images=check_images and not firecracker_enabled())
 
     # Timeout is operational (run config / CLI), not a release pin.
     if case_timeout is None:

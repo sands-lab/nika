@@ -1,11 +1,11 @@
-"""Golden VMs: one deployed, verified lab per environment variant and code version.
+"""LabImage VMs: one deployed, verified lab per environment variant and code version.
 
-A golden VM boots a copy of the packaged base image in Firecracker, receives
+A lab image boots a copy of the packaged base image in Firecracker, receives
 this checkout's code, deploys the environment through its NIKA remote daemon
 (the same ``start_net_env`` path as a cold trial, including startup
 verification), and is kept as a full snapshot: ``disk.img``, ``vm.state`` and
-``mem`` in ``<root>/goldens/<key>/``. The key covers the deploy parameters,
-lab settings, code, base image and VM shape, so any change builds a new golden.
+``mem`` in ``<root>/images/<key>/``. The key covers the deploy parameters,
+lab settings, code, base image and VM shape, so any change builds a new image.
 
 A build runs in ``<key>.build/`` and is renamed to ``<key>/`` when complete;
 build locks live in ``<root>/locks/``.
@@ -30,8 +30,8 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from nika.config import REPO_ROOT
-from nika.snapshot.config import snapshot_settings
-from nika.snapshot.vmm import (
+from nika.firecracker.config import firecracker_settings
+from nika.firecracker.vmm import (
     DISK,
     VSOCK,
     Firecracker,
@@ -71,7 +71,7 @@ VARIANT_KEYS = (
 # Paths whose content can change a deployed lab or the daemon serving it ...
 FINGERPRINT_PATHS = ("src/", "pyproject.toml")
 # ... minus code that only runs on the host: agents, LLM clients, evaluation and
-# the result viewers. Changing them keeps the golden VMs.
+# the result viewers. Changing them keeps the lab images.
 HOST_ONLY_PATHS = (
     "src/agent/byo/",
     "src/agent/cli/",
@@ -84,13 +84,13 @@ HOST_ONLY_PATHS = (
     "src/nika/inspect/",
     "src/nika/tui/",
 )
-# Run-config sections that shape a deploy; golden VMs deploy with the host's values.
+# Run-config sections that shape a deploy; lab images deploy with the host's values.
 LAB_SETTING_SECTIONS = ("lab", "runtime_validation", "static_validation", "k8s")
 
 
 @dataclass(frozen=True)
-class Golden:
-    """A ready golden VM snapshot."""
+class LabImage:
+    """A ready lab image."""
 
     key: str
     path: Path
@@ -98,11 +98,11 @@ class Golden:
 
 
 def root() -> Path:
-    return Path(snapshot_settings().root)
+    return Path(firecracker_settings().root)
 
 
-def goldens_dir() -> Path:
-    return root() / "goldens"
+def images_dir() -> Path:
+    return root() / "images"
 
 
 def variant(**params: Any) -> dict[str, Any]:
@@ -138,7 +138,7 @@ def _repo_files(repo: Path) -> list[str]:
 
 @functools.cache
 def code_fingerprint() -> str:
-    """Hash of the code a golden VM runs (``FINGERPRINT_PATHS`` of this checkout)."""
+    """Hash of the code a lab image runs (``FINGERPRINT_PATHS`` of this checkout)."""
     files = [
         f
         for f in _repo_files(REPO_ROOT)
@@ -159,7 +159,7 @@ def lab_settings() -> dict[str, Any]:
 
 
 def vm_memory_mib(scenario: str) -> int:
-    settings = snapshot_settings()
+    settings = firecracker_settings()
     memory = settings.vm_memory_overrides.get(scenario, settings.vm_memory)
     return int(memory[:-3]) * 1024
 
@@ -170,13 +170,13 @@ def base_manifest() -> dict[str, Any]:
         return json.loads(path.read_text())
     except FileNotFoundError:
         raise VmmError(
-            f"No base image at {path.parent}; build it with scripts/snapshot-base.sh "
-            "(docs/operations/vm-snapshots.md)."
+            f"No base image at {path.parent}; build it with scripts/firecracker-base.sh "
+            "(docs/operations/firecracker.md)."
         ) from None
 
 
-def golden_key(params: dict[str, Any]) -> str:
-    settings = snapshot_settings()
+def image_key(params: dict[str, Any]) -> str:
+    settings = firecracker_settings()
     payload = {
         "variant": params,
         "lab_settings": lab_settings(),
@@ -191,7 +191,7 @@ def golden_key(params: dict[str, Any]) -> str:
 
 @contextmanager
 def _key_lock(key: str) -> Iterator[None]:
-    """Serialize builds of one golden VM across processes."""
+    """Serialize builds of one lab image across processes."""
     locks = root() / "locks"
     locks.mkdir(parents=True, exist_ok=True)
     with open(locks / f"{key}.lock", "a") as fh:
@@ -202,49 +202,51 @@ def _key_lock(key: str) -> Iterator[None]:
             fcntl.flock(fh, fcntl.LOCK_UN)
 
 
-def _ready(key: str) -> Golden | None:
-    path = goldens_dir() / key
+def _ready(key: str) -> LabImage | None:
+    path = images_dir() / key
     try:
         meta = json.loads((path / META).read_text())
     except FileNotFoundError:
         return None
-    return Golden(key=key, path=path, session_id=meta["session_id"])
+    return LabImage(key=key, path=path, session_id=meta["session_id"])
 
 
 def _log(message: str) -> None:
     print(message, flush=True)  # spawn workers: show build progress as it happens
 
 
-def ensure_golden(params: dict[str, Any]) -> Golden:
-    """Return the golden VM for ``params``, building it first if needed."""
-    key = golden_key(params)
-    golden = _ready(key)
-    if golden is not None:
-        return golden
+def ensure_image(params: dict[str, Any]) -> LabImage:
+    """Return the lab image for ``params``, building it first if needed."""
+    key = image_key(params)
+    image = _ready(key)
+    if image is not None:
+        return image
     with _key_lock(key):
-        golden = _ready(key)  # another trial may have built it meanwhile
-        if golden is not None:
-            return golden
-        _log(f"[snapshot] building golden VM {key} for {params}")
+        image = _ready(key)  # another trial may have built it meanwhile
+        if image is not None:
+            return image
+        _log(f"[firecracker] building lab image {key} for {params}")
         started = time.monotonic()
-        build = goldens_dir() / f"{key}.build"
+        build = images_dir() / f"{key}.build"
         try:
             _build(build, key, params)
         finally:
             kill_pid_file(build / "firecracker.pid")
         (build / "firecracker.pid").unlink(missing_ok=True)
-        os.replace(build, goldens_dir() / key)
-        _log(f"[snapshot] golden VM {key} ready in {time.monotonic() - started:.0f}s")
+        os.replace(build, images_dir() / key)
+        _log(
+            f"[firecracker] lab image {key} ready in {time.monotonic() - started:.0f}s"
+        )
         return _ready(key)  # type: ignore[return-value]
 
 
 def _clone(src: Path, dst: Path) -> None:
-    """Copy-on-write copy (the snapshot root must support reflinks)."""
+    """Copy-on-write copy (the Firecracker root must support reflinks)."""
     subprocess.run(["cp", "--reflink=always", str(src), str(dst)], check=True)
 
 
 def _build(build: Path, key: str, params: dict[str, Any]) -> None:
-    settings = snapshot_settings()
+    settings = firecracker_settings()
     base = root() / "base"
     manifest = base_manifest()
     if build.exists():
@@ -256,7 +258,7 @@ def _build(build: Path, key: str, params: dict[str, Any]) -> None:
         )
     )
     _clone(base / manifest["rootfs"], build / DISK)
-    vm = Firecracker(build, firecracker_binary(settings.firecracker))
+    vm = Firecracker(build, firecracker_binary(settings.binary))
     vm.start()
     vm.boot(
         kernel=str(base / manifest["kernel"]),
@@ -277,7 +279,7 @@ def _build(build: Path, key: str, params: dict[str, Any]) -> None:
     from nika.remote.config import RemoteConfig
     from nika.remote.protocol import EnvStartRequest
 
-    session_id = f"golden-{key}"
+    session_id = f"image-{key}"
     forwarder = VsockForwarder(uds, DAEMON_PORT)
     try:
         client = RemoteClient(
@@ -297,9 +299,9 @@ def _build(build: Path, key: str, params: dict[str, Any]) -> None:
     guest_memory = _guest_memory_mib(uds)
     if guest_memory["available"] < guest_memory["total"] * LOW_MEMORY_FRACTION:
         _log(
-            f"[snapshot] warning: {params['scenario']} leaves only "
+            f"[firecracker] warning: {params['scenario']} leaves only "
             f"{guest_memory['available']} of {guest_memory['total']} MiB free in its VM; "
-            "raise nika.snapshot.vm_memory_overrides for it"
+            "raise nika.firecracker.vm_memory_overrides for it"
         )
     if not settings.huge_pages:
         # Free the page cache and give the guest time to report it free, so the
@@ -339,12 +341,24 @@ def _guest_memory_mib(uds: Path) -> dict[str, int]:
 
 
 def write_guest_lab_settings(uds: Path) -> None:
-    """Copy the host's lab deploy settings into the guest's config/nika.yaml."""
+    """Copy the host's lab deploy settings into the guest's config/nika.yaml.
+
+    The guest's file comes from the base image; sections the synced code no
+    longer knows are dropped, or the daemon would reject the whole file.
+    """
     import yaml
+
+    from nika.run_config.schema import NikaSettings, RunConfig
 
     path = f"{GUEST_REPO}/config/nika.yaml"
     config = yaml.safe_load(guest_exec(uds, f"cat {path}")) or {}
-    config.setdefault("nika", {}).update(lab_settings())
+    config = {k: v for k, v in config.items() if k in RunConfig.model_fields}
+    nika = {
+        k: v
+        for k, v in (config.get("nika") or {}).items()
+        if k in NikaSettings.model_fields
+    }
+    config["nika"] = {**nika, **lab_settings()}
     guest_exec(
         uds,
         f"cat > {path} && chown ubuntu:ubuntu {path}",
@@ -375,7 +389,7 @@ def sync_code(uds: Path, repo: Path = REPO_ROOT) -> None:
         f"cat > {GUEST_REPO}/{SYNCED_FILES} && chown ubuntu:ubuntu {GUEST_REPO}/{SYNCED_FILES}",
         stdin="\0".join(files).encode(),
     )
-    # Golden VMs have no network; dependencies come through a host proxy.
+    # LabImage VMs have no network; dependencies come through a host proxy.
     proxy = HostProxy(uds.parent, PROXY_PORT)
     try:
         guest_exec(
@@ -388,9 +402,9 @@ def sync_code(uds: Path, repo: Path = REPO_ROOT) -> None:
     guest_exec(uds, "sync && systemctl restart nika-remote")
 
 
-def list_goldens() -> list[dict[str, Any]]:
+def list_images() -> list[dict[str, Any]]:
     rows = []
-    directory = goldens_dir()
+    directory = images_dir()
     if not directory.is_dir():
         return rows
     for path in sorted(directory.iterdir()):
@@ -424,7 +438,7 @@ def list_goldens() -> list[dict[str, Any]]:
                 "ready": bool(meta),
                 "building": False,
                 # Current = what a trial would use now (the key recomputed today matches).
-                "current": bool(variant_) and key == golden_key(variant_),
+                "current": bool(variant_) and key == image_key(variant_),
                 "variant": variant_,
                 "guest_memory_mib": meta.get("guest_memory_mib", {}),
             }
@@ -438,7 +452,7 @@ def _builder_alive(builder: dict[str, Any]) -> bool:
     return bool(builder.get("pid")) and pid_alive(int(builder["pid"]))
 
 
-def delete_golden(row: dict[str, Any]) -> None:
+def delete_image(row: dict[str, Any]) -> None:
     kill_pid_file(Path(row["path"]) / "firecracker.pid")
     shutil.rmtree(row["path"], ignore_errors=True)
     (root() / "locks" / f"{row['key']}.lock").unlink(missing_ok=True)

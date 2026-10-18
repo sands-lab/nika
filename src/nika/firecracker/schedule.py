@@ -1,12 +1,12 @@
-"""Benchmark scheduling for ``nika.snapshot``: build first, group, admit by memory.
+"""Benchmark scheduling for ``nika.firecracker``: build first, group, admit by memory.
 
-* :func:`prebuild_goldens` builds every golden VM a run needs before its trials
+* :func:`prebuild_images` builds every lab image a run needs before its trials
   start, several at a time, so trials only restore (and their case timeout
   never includes a build).
 * :func:`group_by_variant` runs trials of one environment variant together.
 * :func:`hugepage_need_mib` / :func:`hugepage_pool_mib` let the runner admit a
   trial only while the huge-page pool can hold its copy.
-* :func:`clean_after_run` deletes the run's golden VMs if configured.
+* :func:`clean_after_run` deletes the run's lab images if configured.
 """
 
 from __future__ import annotations
@@ -17,20 +17,20 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Iterable
 
-from nika.snapshot.config import snapshot_settings
-from nika.snapshot.golden import (
+from nika.firecracker.config import firecracker_settings
+from nika.firecracker.image import (
     MEMORY,
     META,
-    delete_golden,
-    ensure_golden,
-    golden_key,
-    goldens_dir,
-    list_goldens,
+    delete_image,
+    ensure_image,
+    image_key,
+    images_dir,
+    list_images,
     variant_for_row,
     vm_memory_mib,
 )
 
-# Headroom over a golden memory file's data (memory the lab touches later).
+# Headroom over a lab image memory file's data (memory the lab touches later).
 HUGEPAGE_HEADROOM = 1.25
 
 
@@ -47,8 +47,8 @@ def group_by_variant(trials: list[Any]) -> list[Any]:
 
 
 def build_parallelism(max_parallel: int) -> int:
-    """Golden builds to run at once: limited by vCPUs and the huge-page pool."""
-    settings = snapshot_settings()
+    """LabImage builds to run at once: limited by vCPUs and the huge-page pool."""
+    settings = firecracker_settings()
     by_cpu = max(1, (os.cpu_count() or 1) // settings.vm_cpus)
     limit = min(max_parallel, by_cpu)
     if settings.huge_pages:
@@ -57,8 +57,8 @@ def build_parallelism(max_parallel: int) -> int:
     return max(1, limit)
 
 
-def prebuild_goldens(trials: Iterable[Any], *, max_parallel: int) -> list[str]:
-    """Build the missing golden VMs of ``trials``; return failure messages."""
+def prebuild_images(trials: Iterable[Any], *, max_parallel: int) -> list[str]:
+    """Build the missing lab images of ``trials``; return failure messages."""
     variants: dict[str, dict[str, Any]] = {}
     for trial in trials:
         params = variant_for_row(trial.row)
@@ -66,25 +66,25 @@ def prebuild_goldens(trials: Iterable[Any], *, max_parallel: int) -> list[str]:
     missing = [
         p
         for p in variants.values()
-        if not (goldens_dir() / golden_key(p) / META).exists()
+        if not (images_dir() / image_key(p) / META).exists()
     ]
     if not missing:
         return []
     workers = min(len(missing), build_parallelism(max_parallel))
     print(
-        f"[snapshot] building {len(missing)} golden VM(s) before the trials, "
+        f"[firecracker] building {len(missing)} lab image(s) before the trials, "
         f"{workers} at a time",
         flush=True,
     )
     failures = []
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = {pool.submit(ensure_golden, params): params for params in missing}
+        futures = {pool.submit(ensure_image, params): params for params in missing}
         for future in as_completed(futures):
             try:
                 future.result()
             except Exception as exc:  # noqa: BLE001 - its trials retry the build
-                message = f"golden VM for {futures[future]} failed: {exc}"
-                print(f"[snapshot] {message}", flush=True)
+                message = f"lab image for {futures[future]} failed: {exc}"
+                print(f"[firecracker] {message}", flush=True)
                 failures.append(message)
     return failures
 
@@ -102,16 +102,16 @@ def hugepage_pool_mib() -> int:
 def hugepage_need_mib(row: dict[str, Any]) -> int:
     """Huge pages a trial's copy is expected to use (0 without huge pages).
 
-    A copy takes huge pages for the data in its golden memory file (which the
+    A copy takes huge pages for the data in its lab image memory file (which the
     page server prefetches; holes stay unused) plus what the lab touches later:
-    the file's data size plus headroom, or the whole VM memory before the golden
+    the file's data size plus headroom, or the whole VM memory before the lab image
     VM exists.
     """
-    if not snapshot_settings().huge_pages:
+    if not firecracker_settings().huge_pages:
         return 0
     params = variant_for_row(row)
     vm_mib = vm_memory_mib(str(params.get("scenario")))
-    memory = goldens_dir() / golden_key(params) / MEMORY
+    memory = images_dir() / image_key(params) / MEMORY
     try:
         data_mib = memory.stat().st_blocks * 512 >> 20
     except OSError:
@@ -120,19 +120,20 @@ def hugepage_need_mib(row: dict[str, Any]) -> int:
 
 
 def clean_after_run(trials: Iterable[Any]) -> None:
-    """Delete the golden VMs this run used when ``nika.snapshot.clean_after_run``."""
-    if not snapshot_settings().clean_after_run:
+    """Delete the lab images this run used when ``nika.firecracker.clean_after_run``."""
+    if not firecracker_settings().clean_after_run:
         return
-    keys = {golden_key(variant_for_row(trial.row)) for trial in trials}
-    from nika.snapshot.trial import trial_rows
+    keys = {image_key(variant_for_row(trial.row)) for trial in trials}
+    from nika.firecracker.trial import trial_rows
 
-    in_use = {row["golden"] for row in trial_rows() if row["alive"]}
+    in_use = {row["image"] for row in trial_rows() if row["alive"]}
     removed = 0
-    for row in list_goldens():
+    for row in list_images():
         if row["key"] in keys and row["key"] not in in_use and not row["building"]:
-            delete_golden(row)
+            delete_image(row)
             removed += 1
     if removed:
         print(
-            f"[snapshot] deleted {removed} golden VM(s) (clean_after_run)", flush=True
+            f"[firecracker] deleted {removed} lab image(s) (clean_after_run)",
+            flush=True,
         )

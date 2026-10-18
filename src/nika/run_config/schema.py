@@ -31,27 +31,26 @@ def _gib(value: str) -> str:
     return value
 
 
-class SnapshotSettings(BaseModel):
-    """Advanced: run benchmark trials from Firecracker snapshots of deployed labs.
+class FirecrackerSettings(BaseModel):
+    """Firecracker execution (``nika.execution: firecracker``), advanced.
 
     Each environment variant is deployed and verified once in a microVM booted
-    from the base image in ``root``; trials restore a copy of its snapshot
-    instead of deploying from scratch. See docs/operations/vm-snapshots.md.
+    from the base image in ``root`` and kept as a *lab image*; trials restore a
+    copy of it instead of deploying from scratch. See
+    docs/operations/firecracker.md.
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    enabled: bool = False
     # Directory on a reflink-capable filesystem (btrfs, XFS) holding base/,
-    # goldens/ and trials/.
-    root: str = "/var/lib/nika-snapshots"
+    # images/ and trials/.
+    root: str = "/var/lib/nika-firecracker"
     # Firecracker binary (name on PATH or path).
-    firecracker: str = "firecracker"
-    # Per VM. Few vCPUs keep one copy's bursts from starving its neighbours.
+    binary: str = "firecracker"
     vm_cpus: int = Field(default=4, ge=1)
     # Most Kathara labs use under 2 GiB; with huge pages every copy holds all of it.
     vm_memory: str = "4GiB"
-    # Scenario id -> VM memory, for larger labs (k8s, SR Linux). Golden builds
+    # Scenario id -> VM memory, for larger labs (k8s, SR Linux). Image builds
     # warn when a lab leaves too little of its VM memory free.
     vm_memory_overrides: dict[str, str] = Field(default_factory=dict)
     # Back VM memory with 2 MiB huge pages reserved on the host (vm.nr_hugepages):
@@ -59,7 +58,7 @@ class SnapshotSettings(BaseModel):
     huge_pages: bool = False
     # Re-run the startup lab verification after each restore, as a cold deploy does.
     verify_after_restore: bool = True
-    # Delete the golden VMs a benchmark run used when it ends. Keeping them (the
+    # Delete the lab images a benchmark run used when it ends. Keeping them (the
     # default) takes substantial disk (each holds its lab's memory and disk
     # changes, often 2-8 GiB) but lets later runs skip the builds.
     clean_after_run: bool = False
@@ -217,7 +216,10 @@ class NikaSettings(BaseModel):
 
     result_dir: str = "results"
     remote: RemoteSettings = Field(default_factory=RemoteSettings)
-    snapshot: SnapshotSettings = Field(default_factory=SnapshotSettings)
+    # Where benchmark trials run their labs: on this host, or in Firecracker
+    # microVMs restored from lab images (configured under ``firecracker``).
+    execution: Literal["native", "firecracker"] = "native"
+    firecracker: FirecrackerSettings = Field(default_factory=FirecrackerSettings)
     sandbox: SandboxSettings = Field(default_factory=SandboxSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
     judge: JudgeSettings = Field(default_factory=JudgeSettings)

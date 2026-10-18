@@ -19,7 +19,7 @@ Join the [NIKA Slack community](https://sands-lab.github.io/nika/community/) for
 | Recover from common lab, host, and run failures | [Troubleshooting](operations/troubleshooting.md) | How-to |
 | Select, inspect, and inject a failure | [Failure taxonomy and reference](operations/failures.md) | Reference |
 | Run the lab host and agent host separately | [Remote lab execution](operations/remote.md) | How-to |
-| Restore benchmark labs from VM snapshots instead of deploying each trial (advanced) | [VM snapshot runs](operations/vm-snapshots.md) | How-to |
+| Run benchmark labs in Firecracker microVMs restored from lab images (advanced) | [Firecracker execution](operations/firecracker.md) | How-to |
 | Run a supported agent in a sandbox, on Docker Sandboxes or E2B | [Run agents in sandboxes](operations/agent-sandbox.md) | How-to |
 
 ## Choose or integrate an agent

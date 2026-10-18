@@ -1,4 +1,4 @@
-# Run benchmark trials from VM snapshots (advanced)
+# Run benchmark trials in Firecracker (advanced)
 
 Every benchmark trial normally deploys its network environment from scratch,
 waits for it to converge and verify, and undeploys it afterwards. For
@@ -6,25 +6,26 @@ environments that take minutes to build, such as SR Linux topologies,
 Kubernetes labs or large ISP networks, that cost repeats for every task and
 trial.
 
-With `nika.snapshot` enabled, NIKA instead works like this:
+With `nika.execution: firecracker`, NIKA instead works like this:
 
 1. For each environment variant, it deploys and verifies the environment once in
    a [Firecracker](https://firecracker-microvm.github.io/) microVM and saves the
-   VM (memory, device state and disk) as a *golden* snapshot.
-2. Each trial restores a disposable copy of that snapshot, injects its failure,
+   VM (memory, device state and disk) as a *lab image*.
+2. Each trial restores a disposable copy of that lab image, injects its failure,
    runs the agent, and discards the copy.
 
 The agent and its sandbox stay on the host and reach the environment through the
 NIKA remote daemon in the VM, exactly as in [remote lab execution](remote.md).
 
-The feature is off by default and affects only `nika benchmark run`.
+`nika.execution` defaults to `native` (labs on this host). Firecracker execution
+affects only `nika benchmark run`.
 
 ## When it pays off
 
 Measured on a 16 vCPU host that is itself a VM (nested virtualization). "Ready"
 is the time until the restored lab passed NIKA's startup verification again:
 
-| Environment | Cold deploy | From snapshot, 4 KiB pages | From snapshot, huge pages |
+| Environment | Native deploy | Firecracker, 4 KiB pages | Firecracker, huge pages |
 |---|---:|---:|---:|
 | `dc_clos -s s` (Kathara) | 17–19 s | 25–44 s | 4 s |
 | `isp_nobel-germany` (Kathara, FRR) | not measured | 75 s | 8 s |
@@ -35,17 +36,17 @@ is the time until the restored lab passed NIKA's startup verification again:
 Without huge pages, a restored copy loads memory on first access, which is slow
 on nested hosts and can stall the lab's daemons. Use huge pages wherever the
 host can reserve them; the default mode suits hosts that cannot, or runs that
-keep many copies of one golden VM at once (they share memory).
+keep many copies of one lab image at once (they share memory).
 
-A golden snapshot costs one cold deploy plus a VM boot and the snapshot write.
+A lab image costs one native deploy plus a VM boot and the image write.
 With huge pages that is 1.5–3 minutes for Kathara labs, 3–6.5 minutes for
 SR Linux labs and up to 8.5 minutes for `k8s_lab`. All 29 environments of
-release 0.2.0 ran from snapshots with the same scores as cold runs (mock agent),
-and three copies of one golden VM ran at once as fast as one.
+release 0.2.0 ran in Firecracker with the same scores as native runs (mock agent),
+and three copies of one lab image ran at once as fast as one.
 
 ## Set up the host (once)
 
-These steps make the host able to run snapshot trials and are kept across
+These steps make the host able to run Firecracker trials and are kept across
 reboots. Run them as a user with `sudo`.
 
 1. **KVM.** Check that `/dev/kvm` exists and add yourself to its group, then log
@@ -55,7 +56,7 @@ reboots. Run them as a user with `sudo`.
    sudo usermod -aG kvm "$USER"
    ```
 
-2. **Firecracker** 1.17 or later on `PATH` (or set `nika.snapshot.firecracker`):
+2. **Firecracker** 1.17 or later on `PATH` (or set `nika.firecracker.binary`):
 
    ```shell
    v=v1.17.0; arch=$(uname -m)
@@ -64,22 +65,22 @@ reboots. Run them as a user with `sudo`.
    sudo install -m 755 "/tmp/release-$v-$arch/firecracker-$v-$arch" /usr/local/bin/firecracker
    ```
 
-3. **Snapshot root on a reflink-capable filesystem** (btrfs or XFS), owned by
-   you, at `nika.snapshot.root` (default `/var/lib/nika-snapshots`). Trial disks
-   are copy-on-write clones of golden disks. Without a spare disk, use a loop
+3. **Firecracker root on a reflink-capable filesystem** (btrfs or XFS), owned by
+   you, at `nika.firecracker.root` (default `/var/lib/nika-firecracker`). Trial disks
+   are copy-on-write clones of lab image disks. Without a spare disk, use a loop
    file:
 
    ```shell
-   sudo truncate -s 300G /var/lib/nika-snapshots.img
-   sudo mkfs.btrfs /var/lib/nika-snapshots.img
-   sudo mkdir -p /var/lib/nika-snapshots
-   echo '/var/lib/nika-snapshots.img /var/lib/nika-snapshots btrfs loop,noatime,nofail 0 0' \
+   sudo truncate -s 300G /var/lib/nika-firecracker.img
+   sudo mkfs.btrfs /var/lib/nika-firecracker.img
+   sudo mkdir -p /var/lib/nika-firecracker
+   echo '/var/lib/nika-firecracker.img /var/lib/nika-firecracker btrfs loop,noatime,nofail 0 0' \
      | sudo tee -a /etc/fstab
-   sudo systemctl daemon-reload && sudo mount /var/lib/nika-snapshots
-   sudo chown "$USER": /var/lib/nika-snapshots
+   sudo systemctl daemon-reload && sudo mount /var/lib/nika-firecracker
+   sudo chown "$USER": /var/lib/nika-firecracker
    ```
 
-   Size it for about 20 GiB of base image plus, per golden VM, the memory the
+   Size it for about 20 GiB of base image plus, per lab image, the memory the
    lab uses (1–3 GiB; unused memory is stored as holes) and the disk blocks its
    deploy changed.
 
@@ -87,7 +88,7 @@ reboots. Run them as a user with `sudo`.
    boot: a running host's memory is soon too fragmented to find enough
    contiguous 2 MiB blocks. The reserved memory is unavailable to everything
    else. A copy takes huge pages only for the memory its lab uses (`nika
-   snapshot list` shows it per golden VM: about 1 GiB for small Kathara labs,
+   firecracker list` shows it per lab image: about 1 GiB for small Kathara labs,
    2–5 GiB for ISP, k8s and SR Linux labs), but it can grow to its full
    `vm_memory`; a VM that finds the pool empty crashes. Reserve enough for the
    copies you run at once, with headroom. For 24 GiB:
@@ -120,7 +121,7 @@ reboots. Run them as a user with `sudo`.
    ```shell
    grep HugePages_Total /proc/meminfo     # the reserved count
    ls -l /dev/userfaultfd                 # crw-rw---- root kvm
-   findmnt /var/lib/nika-snapshots        # btrfs or xfs
+   findmnt /var/lib/nika-firecracker        # btrfs or xfs
    firecracker --version
    ```
 
@@ -129,7 +130,7 @@ reboots. Run them as a user with `sudo`.
 Build the base image once (about 15 minutes; needs `sudo` for the chroot):
 
 ```shell
-scripts/snapshot-base.sh
+scripts/firecracker-base.sh
 ```
 
 It unpacks Ubuntu 24.04 into an ext4 image, installs the kernel, Docker and the
@@ -138,16 +139,16 @@ load this host's runtime images. The VM has no network of its own: while it is
 built, it reaches the network through a proxy on the host, over vsock.
 
 Rebuild the base when NIKA's Python dependencies or the runtime images change.
-Code changes do not need a rebuild: golden VMs receive the current checkout.
+Code changes do not need a rebuild: lab images receive the current checkout.
 
-## Enable snapshot runs
+## Enable Firecracker runs
 
 In `config/nika.yaml`:
 
 ```yaml
 nika:
-  snapshot:
-    enabled: true
+  execution: firecracker
+  firecracker:
     huge_pages: true
 ```
 
@@ -157,45 +158,45 @@ Then run benchmarks as usual:
 nika benchmark run --release 0.2.0 --split test
 ```
 
-With snapshots on, every trial of the run uses a Firecracker VM, and the runner
-schedules for that:
+With Firecracker execution, every trial of the run uses a Firecracker VM, and
+the runner schedules for that:
 
-1. **Golden VMs first.** Before any trial starts, it builds the golden VMs the
+1. **Lab images first.** Before any trial starts, it builds the lab images the
    run needs and does not have yet, several at a time (bounded by vCPUs and huge
    pages). Trials then only restore, and `--case-timeout` never includes a build.
 2. **One variant at a time.** Trials of the same environment variant run next to
-   each other, so its golden memory file stays in the page cache.
+   each other, so its lab image's memory file stays in the page cache.
 3. **Admission by memory.** `--batch-size` caps concurrent trials; with huge
-   pages, a trial also waits until the pool can hold its lab (the golden VM's
-   measured memory use plus 25%). Heavy labs (k8s, Containerlab, size `l`) no
+   pages, a trial also waits until the pool can hold its copy (the data in its
+   lab image's memory file plus 25%). Heavy labs (k8s, Containerlab, size `l`) no
    longer run alone: a restore costs them no more than a light lab.
 
-To build all golden VMs ahead of a run, for example on another day:
+To build all lab images ahead of a run, for example on another day:
 
 ```shell
-nika snapshot build --release 0.2.0 --split test
+nika firecracker build --release 0.2.0 --split test
 ```
 
 ### Huge pages
 
-By default a restored copy maps the golden memory file and loads pages on first
-access. Copies of one golden share those pages, but the first minute after a
+By default a restored copy maps the lab image's memory file and loads pages on first
+access. Copies of one lab image share those pages, but the first minute after a
 restore is slow, especially on hosts that are themselves VMs: lab daemons can
 miss their watchdog deadlines (for example FRR's `watchfrr` exits, and the
 startup verification restarts it).
 
 With `huge_pages: true`, VM memory uses the 2 MiB huge pages reserved in
 [host setup](#set-up-the-host-once) step 4, and a page server
-(`nika.snapshot.uffd`) copies the memory the lab uses into each copy right after
+(`nika.firecracker.uffd`) copies the memory the lab uses into each copy right after
 the restore (well under a second for a small lab). Restored labs run at full
-speed at once, and golden builds are about twice as fast. Every running copy
+speed at once, and image builds are about twice as fast. Every running copy
 needs its own huge pages for the memory its lab uses.
 
 ### VM size
 
 Each VM gets `vm_cpus` vCPUs (default 4) and `vm_memory` (default 4 GiB), which
-fits most Kathara labs. Give larger labs more with `vm_memory_overrides`; a
-golden build warns when a lab leaves less than a quarter of its VM memory free.
+fits most Kathara labs. Give larger labs more with `vm_memory_overrides`; an
+image build warns when a lab leaves less than a quarter of its VM memory free.
 For release 0.2.0:
 
 ```yaml
@@ -213,25 +214,25 @@ commands) from starving the copies next to it.
 
 ## What changes in a trial
 
-* A trial's results directory has the same files as a cold trial, plus:
-  * `snapshot.nika.jsonl`: the golden build's events;
-  * `run.json` → `snapshot`: restore timings and the golden VM used.
+* A trial's results directory has the same files as a native trial, plus:
+  * `image.nika.jsonl`: the image build's events;
+  * `run.json` → `firecracker`: restore timings and the lab image used.
   * `env_stop` records that the lab was discarded with its VM copy;
     `failures_ended` and `session_cleared` come from the VM.
-* After restore, the lab passes the same startup verification as a cold deploy
+* After restore, the lab passes the same startup verification as a native deploy
   before the failure is injected. Set `verify_after_restore: false` to skip it.
 * Lab-host events in `nika.jsonl` and `messages.jsonl` carry
   `"origin": "remote"` and stream to the host about once a second.
 * Teardown discards the VM copy instead of undeploying the lab.
-* Resume, retries, `--case-timeout` and `--batch-size` work as in cold runs.
+* Resume, retries, `--case-timeout` and `--batch-size` work as in native runs.
   Copies that a crashed run left behind are deleted when the same results
-  directory runs again, or by `nika snapshot clean`.
+  directory runs again, or by `nika firecracker clean`.
 
 ### Clock
 
-A restored VM continues on the snapshot's timeline: its clock is not stepped, so
+A restored VM continues on its lab image's timeline: its clock is not stepped, so
 logs, leases, uptimes and protocol timers inside the lab stay consistent. As a
-result, the lab clock is behind the host by the snapshot's age. `run.json`
+result, the lab clock is behind the host by the image's age. `run.json`
 records the difference as `remote_clock_offset_sec`.
 
 * Agent timing metrics use host timestamps only.
@@ -239,37 +240,37 @@ records the difference as `remote_clock_offset_sec`.
   in order; the lab's own time is kept as `lab_timestamp`.
 * The log files themselves keep the lab-host time.
 
-## Manage golden VMs
+## Manage lab images
 
 | Command | Effect |
 |---|---|
-| `nika snapshot list` | Golden VMs, whether trials would still use them, and trial copies (running or orphaned) |
-| `nika snapshot clean` | Release orphaned trial copies; delete stale golden VMs (any key input changed) and abandoned builds. Builds in progress and golden VMs that running trials restore from are kept |
-| `nika snapshot clean --all` | Also delete every golden VM |
+| `nika firecracker list` | Lab images, whether trials would still use them, and trial copies (running or orphaned) |
+| `nika firecracker clean` | Release orphaned trial copies; delete stale lab images (any key input changed) and abandoned builds. Builds in progress and lab images that running trials restore from are kept |
+| `nika firecracker clean --all` | Also delete every lab image |
 
-Golden VMs stay after a run, so later runs (other agents, more trials, reruns)
+Lab images stay after a run, so later runs (other agents, more trials, reruns)
 reuse them. Each takes the memory its lab used plus the disk blocks its deploy
 changed, often 2–8 GiB, so a full release needs tens of GiB. To delete the ones
 a run used when it ends, set:
 
 ```yaml
 nika:
-  snapshot:
+  firecracker:
     clean_after_run: true
 ```
 
-Golden VMs are keyed by:
+Lab images are keyed by:
 
 * environment variant;
 * code that runs in the VM: `src/` and `pyproject.toml`, without host-only code
   (agents, LLM clients, evaluation, `nika inspect` and the TUI), so changing an
-  agent keeps the golden VMs;
+  agent keeps the lab images;
 * the host's lab deploy settings (`nika.lab`, `runtime_validation`,
-  `static_validation`, `k8s`), which the golden deploy uses;
+  `static_validation`, `k8s`), which the image deploy uses;
 * base image;
 * VM size and huge-page setting.
 
-A change to any of these builds a new golden VM on the next run, and `list`
+A change to any of these builds a new lab image on the next run, and `list`
 marks the old one stale.
 
 ## Limitations
@@ -278,5 +279,5 @@ marks the old one stale.
   Firecracker offers no nested virtualization to its guests.
 * **The first operations after a 4 KiB-page restore run slower.** This is most
   visible on hosts that are themselves VMs; huge pages remove it.
-* **Only benchmark runs use snapshots.** `nika env run`, `nika case run` and
+* **Only benchmark runs use Firecracker.** `nika env run`, `nika case run` and
   task-mode `nika agent run` still deploy from scratch.

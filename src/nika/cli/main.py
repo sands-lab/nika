@@ -50,10 +50,10 @@ LAZY_COMMANDS.update(
             "remote_app",
             "Optional remote lab-host control plane.",
         ),
-        "snapshot": LazyCommandSpec(
-            "nika.cli.commands.snapshot",
-            "snapshot_app",
-            "Advanced: golden VM snapshots of labs for benchmark runs.",
+        "firecracker": LazyCommandSpec(
+            "nika.cli.commands.firecracker",
+            "firecracker_app",
+            "Advanced: lab images for benchmark runs in Firecracker.",
         ),
         "config": LazyCommandSpec(
             "nika.cli.commands.config_cmd",

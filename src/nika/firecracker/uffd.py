@@ -1,6 +1,6 @@
 """Userfaultfd page server for restoring snapshots onto huge pages.
 
-  python -m nika.snapshot.uffd <socket> <memory_file>
+  python -m nika.firecracker.uffd <socket> <memory_file>
 
 Firecracker restores 2 MiB huge-page memory only through a page server: it
 connects to ``socket`` and passes the userfaultfd plus the guest memory

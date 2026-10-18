@@ -1,4 +1,4 @@
-"""Commands for golden VM snapshots (advanced ``nika.snapshot`` mode)."""
+"""Commands for Firecracker lab images (``nika.execution: firecracker``)."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ import typer
 
 from nika.run_config.loader import ENV_RUN_CONFIG
 
-snapshot_app = typer.Typer(
-    help="Golden VM snapshots of labs for nika.snapshot benchmark runs."
+firecracker_app = typer.Typer(
+    help="Lab images for benchmark runs in Firecracker (nika.execution: firecracker)."
 )
 
 
@@ -17,21 +17,21 @@ def _load_run_config(run_config: str | None) -> None:
     export_run_config_env(run_config)
 
 
-@snapshot_app.command("list")
+@firecracker_app.command("list")
 def snapshot_list(
     run_config: str | None = typer.Option(
         None, "--run-config", envvar=ENV_RUN_CONFIG, help="Path to config/nika.yaml."
     ),
 ) -> None:
-    """List golden VMs and running trial copies."""
+    """List lab images and running trial copies."""
     _load_run_config(run_config)
-    from nika.snapshot.golden import list_goldens
-    from nika.snapshot.trial import trial_rows
+    from nika.firecracker.image import list_images
+    from nika.firecracker.trial import trial_rows
 
-    goldens = list_goldens()
-    if not goldens:
-        typer.echo("No golden VMs.")
-    for row in goldens:
+    images = list_images()
+    if not images:
+        typer.echo("No lab images.")
+    for row in images:
         state = (
             "ready" if row["ready"] else "building" if row["building"] else "incomplete"
         )
@@ -52,7 +52,7 @@ def snapshot_list(
         )
 
 
-@snapshot_app.command("build")
+@firecracker_app.command("build")
 def snapshot_build(
     release: str = typer.Option(..., "--release", "-d", help="Release version."),
     split: str = typer.Option("dev", "--split", help="Release split: dev or test."),
@@ -63,9 +63,9 @@ def snapshot_build(
         None, "--run-config", envvar=ENV_RUN_CONFIG, help="Path to config/nika.yaml."
     ),
 ) -> None:
-    """Build the golden VMs a release split needs, before running it."""
+    """Build the lab images a release split needs, before running it."""
     _load_run_config(run_config)
-    from nika.snapshot.golden import ensure_golden, variant_for_row
+    from nika.firecracker.image import ensure_image, variant_for_row
     from nika.workflows.benchmark.release import load_release
 
     rows = load_release(release, split=split).cases
@@ -78,46 +78,46 @@ def snapshot_build(
             variants.append(params)
     typer.echo(f"{len(variants)} environment variant(s) for {release}/{split}.")
     for params in variants:
-        golden = ensure_golden(params)
-        typer.echo(f"{golden.key}  {params}")
+        image = ensure_image(params)
+        typer.echo(f"{image.key}  {params}")
 
 
-@snapshot_app.command("clean")
+@firecracker_app.command("clean")
 def snapshot_clean(
-    all_goldens: bool = typer.Option(
-        False, "--all", help="Delete every golden VM, not only stale or abandoned ones."
+    all_images: bool = typer.Option(
+        False, "--all", help="Delete every lab image, not only stale or abandoned ones."
     ),
     yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation."),
     run_config: str | None = typer.Option(
         None, "--run-config", envvar=ENV_RUN_CONFIG, help="Path to config/nika.yaml."
     ),
 ) -> None:
-    """Release orphaned trial copies; delete stale or abandoned golden VMs.
+    """Release orphaned trial copies; delete stale or abandoned lab images.
 
-    Golden VMs still being built or used by a running trial are kept.
+    LabImage VMs still being built or used by a running trial are kept.
     """
     _load_run_config(run_config)
-    from nika.snapshot.golden import delete_golden, list_goldens
-    from nika.snapshot.trial import reap_orphan_trials, trial_rows
+    from nika.firecracker.image import delete_image, list_images
+    from nika.firecracker.trial import reap_orphan_trials, trial_rows
 
     for trial in reap_orphan_trials():
         typer.echo(f"Released orphaned trial copy of {trial}.")
 
-    # Never delete a golden VM that any checkout is building or restoring from.
-    in_use = {row["golden"] for row in trial_rows() if row["alive"]}
+    # Never delete a lab image that any checkout is building or restoring from.
+    in_use = {row["image"] for row in trial_rows() if row["alive"]}
     targets = [
         row
-        for row in list_goldens()
+        for row in list_images()
         if not row["building"]
         and row["key"] not in in_use
-        and (all_goldens or not row["current"] or not row["ready"])
+        and (all_images or not row["current"] or not row["ready"])
     ]
     if not targets:
-        typer.echo("No golden VMs to delete.")
+        typer.echo("No lab images to delete.")
         return
     typer.echo("\n".join(row["key"] for row in targets))
     if not yes:
-        typer.confirm(f"Delete {len(targets)} golden VM(s)?", abort=True)
+        typer.confirm(f"Delete {len(targets)} lab image(s)?", abort=True)
     for row in targets:
-        delete_golden(row)
-    typer.echo(f"Deleted {len(targets)} golden VM(s).")
+        delete_image(row)
+    typer.echo(f"Deleted {len(targets)} lab image(s).")

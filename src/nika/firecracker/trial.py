@@ -1,10 +1,10 @@
-"""One benchmark trial on a disposable copy of a golden VM.
+"""One benchmark trial on a disposable copy of a lab image.
 
 The copy runs in ``<root>/trials/<digest>/`` with a copy-on-write clone of the
-golden disk and, through the relative paths the golden was built with, its own
-vsock socket. Its memory comes from the golden's memory file: mapped privately
+lab image disk and, through the relative paths the image was built with, its own
+vsock socket. Its memory comes from the lab image's memory file: mapped privately
 (pages load on first access), or, with huge pages, served by the
-``nika.snapshot.uffd`` page server, which also prefetches all of it. The host
+``nika.firecracker.uffd`` page server, which also prefetches all of it. The host
 reaches the copy only through vsock forwarders for the NIKA remote daemon and
 the MCP gateway, which ``remote_override`` routes this process's lab
 operations to.
@@ -24,18 +24,18 @@ from pathlib import Path
 from typing import Any
 
 from nika.remote.config import RemoteConfig, remote_override
-from nika.snapshot.config import snapshot_settings
-from nika.snapshot.golden import (
+from nika.firecracker.config import firecracker_settings
+from nika.firecracker.image import (
     DAEMON_PORT,
     GATEWAY_PORT,
     MEMORY,
     STATE,
-    Golden,
+    LabImage,
     _clone,
-    ensure_golden,
+    ensure_image,
     root,
 )
-from nika.snapshot.vmm import (
+from nika.firecracker.vmm import (
     DISK,
     VSOCK,
     Firecracker,
@@ -61,7 +61,7 @@ def trial_dir(trial_key: str) -> Path:
 
 
 class TrialLab:
-    """Context manager: restore a golden copy and route lab operations to it."""
+    """Context manager: restore a lab image copy and route lab operations to it."""
 
     def __init__(
         self,
@@ -77,7 +77,7 @@ class TrialLab:
         # Sandbox runtime of the trial's agent ("sbx", "e2b"), None when unsandboxed.
         self.sandbox_backend = sandbox_backend
         self.dir = trial_dir(trial_key)
-        self.golden: Golden | None = None
+        self.image: LabImage | None = None
         self.timings: dict[str, float] = {}
         self._forwarders: list[VsockForwarder] = []
         self._override = None
@@ -85,8 +85,8 @@ class TrialLab:
     def __enter__(self) -> TrialLab:
         global _active
         started = time.monotonic()
-        self.golden = ensure_golden(self.params)
-        self.timings["golden_sec"] = round(time.monotonic() - started, 2)
+        self.image = ensure_image(self.params)
+        self.timings["image_sec"] = round(time.monotonic() - started, 2)
         release_trial(self.trial_key)  # leftovers of an earlier attempt
         try:
             self._restore()
@@ -97,8 +97,8 @@ class TrialLab:
         return self
 
     def _restore(self) -> None:
-        assert self.golden is not None
-        settings = snapshot_settings()
+        assert self.image is not None
+        settings = firecracker_settings()
         started = time.monotonic()
         self.dir.mkdir(parents=True)
         (self.dir / TRIAL_META).write_text(
@@ -106,22 +106,22 @@ class TrialLab:
                 {
                     "trial": self.trial_key,
                     "owner": self.owner,
-                    "golden": self.golden.key,
+                    "image": self.image.key,
                     "pid": os.getpid(),
                     "host": socket.gethostname(),
                 }
             )
         )
-        _clone(self.golden.path / DISK, self.dir / DISK)
-        vm = Firecracker(self.dir, firecracker_binary(settings.firecracker))
+        _clone(self.image.path / DISK, self.dir / DISK)
+        vm = Firecracker(self.dir, firecracker_binary(settings.binary))
         vm.start()
         uffd = None
         if settings.huge_pages:
             uffd = self.dir / "uffd.sock"
-            _start_page_server(self.dir, uffd, self.golden.path / MEMORY)
+            _start_page_server(self.dir, uffd, self.image.path / MEMORY)
         vm.load(
-            state=self.golden.path / STATE,
-            memory=self.golden.path / MEMORY,
+            state=self.image.path / STATE,
+            memory=self.image.path / MEMORY,
             uffd_socket=uffd,
         )
         self.timings["restore_sec"] = round(time.monotonic() - started, 2)
@@ -154,15 +154,15 @@ class TrialLab:
         from nika.remote.workflows import _client, remote_rebind_session
         from nika.workflows.session.close import close_session
 
-        assert self.golden is not None
+        assert self.image is not None
         started = time.monotonic()
         new_id = remote_rebind_session(
-            self.golden.session_id,
+            self.image.session_id,
             new_session_id=session_id,
             result_dir=result_dir,
             session_dir=session_dir,
         )
-        if snapshot_settings().verify_after_restore:
+        if firecracker_settings().verify_after_restore:
             try:
                 _client().verify_session(new_id)
             except BaseException:
@@ -170,7 +170,7 @@ class TrialLab:
                 close_session(session_id=new_id, undeploy=False, status="error")
                 raise
         self.timings["attach_sec"] = round(time.monotonic() - started, 2)
-        _record_trial_timings(new_id, self.golden, self.timings)
+        _record_trial_timings(new_id, self.image, self.timings)
         return new_id
 
     def __exit__(self, *exc_info: object) -> None:
@@ -188,7 +188,7 @@ class TrialLab:
 def _start_page_server(run_dir: Path, sock: Path, memory: Path) -> None:
     log = open(run_dir / "uffd.log", "ab")
     proc = subprocess.Popen(
-        [sys.executable, "-m", "nika.snapshot.uffd", str(sock), str(memory)],
+        [sys.executable, "-m", "nika.firecracker.uffd", str(sock), str(memory)],
         stdin=subprocess.DEVNULL,
         stdout=log,
         stderr=log,
@@ -225,18 +225,18 @@ def gateway_route(sandbox_backend: str | None) -> tuple[str, str | None]:
     return "0.0.0.0", host
 
 
-def _record_trial_timings(session_id: str, golden: Golden, timings: dict) -> None:
+def _record_trial_timings(session_id: str, image: LabImage, timings: dict) -> None:
     from nika.utils.logger import log_event
     from nika.utils.session_store import SessionStore
 
     SessionStore().update_session(
-        session_id, {"snapshot": {"golden": golden.key, **timings}}
+        session_id, {"firecracker": {"image": image.key, **timings}}
     )
     log_event(
-        "snapshot_restore",
-        f"Restored golden {golden.key} for session {session_id}",
+        "lab_image_restore",
+        f"Restored lab image {image.key} for session {session_id}",
         session_id=session_id,
-        golden=golden.key,
+        image=image.key,
         **timings,
     )
 
@@ -274,7 +274,7 @@ def trial_rows(owner: str | None = None) -> list[dict[str, Any]]:
                 "path": path,
                 "trial": meta.get("trial", ""),
                 "owner": meta.get("owner", ""),
-                "golden": meta.get("golden", ""),
+                "image": meta.get("image", ""),
                 "alive": bool(pid) and pid_alive(pid),
             }
         )

@@ -52,7 +52,7 @@ LOCAL_ONLY_KEYS = (
     "sandbox_url",
     "sandbox_domain",
     "remote_clock_offset_sec",
-    "snapshot",
+    "firecracker",
 )
 
 
@@ -335,7 +335,7 @@ def remote_rebind_session(
 ) -> str:
     """Give a running remote session a fresh identity and mirror it locally.
 
-    Use after restoring a lab-host snapshot: the restored session keeps the id,
+    Use after restoring a lab image: the restored session keeps the id,
     agent id and logs of the build it was taken from.
     """
     resolved_id = new_session_id or make_session_id()

@@ -1,6 +1,6 @@
-"""Second stage of scripts/snapshot-base.sh: finish the base image in Firecracker.
+"""Second stage of scripts/firecracker-base.sh: finish the base image in Firecracker.
 
-  python -m nika.snapshot.base <build_dir> <kernel_version>
+  python -m nika.firecracker.base <build_dir> <kernel_version>
 
 Boots ``<build_dir>/rootfs.img`` (prepared by the script), runs
 ``scripts/install.sh --skip-images`` as the guest's ubuntu user, and fills the
@@ -22,9 +22,9 @@ import time
 from pathlib import Path
 
 from nika.config import REPO_ROOT
-from nika.snapshot.config import snapshot_settings
-from nika.snapshot.golden import GUEST_REPO, PROXY_PORT
-from nika.snapshot.vmm import (
+from nika.firecracker.config import firecracker_settings
+from nika.firecracker.image import GUEST_REPO, PROXY_PORT
+from nika.firecracker.vmm import (
     DISK,
     EXEC_PORT,
     EXIT_MARK,
@@ -129,11 +129,11 @@ def _host_plugins() -> list[str]:
 
 
 def build(build_dir: Path, kernel_version: str) -> None:
-    settings = snapshot_settings()
+    settings = firecracker_settings()
     disk = build_dir / DISK
     disk.unlink(missing_ok=True)
     disk.symlink_to("rootfs.img")
-    vm = Firecracker(build_dir, firecracker_binary(settings.firecracker))
+    vm = Firecracker(build_dir, firecracker_binary(settings.binary))
     vm.start()
     proxy = HostProxy(build_dir, PROXY_PORT)
     try:
@@ -192,7 +192,7 @@ def build(build_dir: Path, kernel_version: str) -> None:
             _log(f"  docker pull {ref}")
             guest_exec(uds, f"docker pull -q {ref}")
         # Kathara attaches lab links through this Docker plugin; Docker would
-        # otherwise fetch it on first use, and golden VMs have no network.
+        # otherwise fetch it on first use, and lab images have no network.
         plugins = _host_plugins()
         for plugin in plugins:
             _log(f"  docker plugin install {plugin}")

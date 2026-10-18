@@ -349,9 +349,9 @@ def handle_session_rebind(
 ) -> SessionRebindResponse:
     """Move a running session to a new id, agent id and results directory.
 
-    A lab restored from a VM snapshot still carries the session it was built
+    A lab restored from a Firecracker lab image still carries the session it was built
     with. Each trial needs its own identity, and the build-time events in the
-    session logs are kept as ``snapshot.<log>`` instead of opening the trial log.
+    session logs are kept as ``image.<log>`` instead of opening the trial log.
     """
     new_id = request.session_id
     if not new_id or Path(new_id).name != new_id or new_id in (".", ".."):
@@ -376,7 +376,7 @@ def handle_session_rebind(
     for name in FOLLOWED_LOGS:
         log = new_dir / name
         if log.is_file():
-            log.rename(new_dir / f"snapshot.{name}")
+            log.rename(new_dir / f"image.{name}")
     now = datetime.now(timezone.utc).isoformat()
     doc = dict(meta)
     doc.update(
@@ -408,7 +408,7 @@ def handle_session_verify(session_id: str) -> dict[str, Any]:
     """Run the startup lab verification of a running session again.
 
     Uses the same check and retry budget as ``nika env run`` (``verify_lab_with_retry``),
-    e.g. to confirm a lab restored from a snapshot before injecting a fault.
+    e.g. to confirm a lab restored from a lab image before injecting a fault.
     """
     from nika.net_env.verify import verify_lab_with_retry
     from nika.workflows.session.close import session_net_env

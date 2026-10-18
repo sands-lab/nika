@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
-# Build the Firecracker base image for nika.snapshot benchmark runs.
+# Build the base image of Firecracker lab images (nika.execution: firecracker).
 # Run from the repository root as a user with sudo, Docker and /dev/kvm access,
-# after `nika images prepare` on this host. See docs/operations/vm-snapshots.md.
+# after `nika images prepare` on this host. See docs/operations/firecracker.md.
 #
-#   scripts/snapshot-base.sh [--root /var/lib/nika-snapshots] [--size 80G]
+#   scripts/firecracker-base.sh [--root /var/lib/nika-firecracker] [--size 80G]
 #
 # 1. As root: unpack the Ubuntu 24.04 cloud root filesystem into an ext4 image
 #    and install the kernel, Docker, socat and the guest services in a chroot.
 # 2. As you: boot it in Firecracker, run scripts/install.sh --skip-images in the
 #    guest (network through a host proxy over vsock), and load this host's
 #    runtime images into the guest's Docker.
-# Writes <root>/base/{rootfs.img,vmlinux,initrd.img,base.json}; golden VMs built
+# Writes <root>/base/{rootfs.img,vmlinux,initrd.img,base.json}; lab images built
 # from an older base are rebuilt on the next run.
 set -euo pipefail
 
-ROOT=/var/lib/nika-snapshots SIZE=80G
+ROOT=/var/lib/nika-firecracker SIZE=80G
 while [ $# -gt 0 ]; do
   case "$1" in
     --root) ROOT=$2; shift 2 ;;
@@ -26,7 +26,7 @@ REPO=$(pwd)
 BASE=$ROOT/base
 WORK=$ROOT/base.build
 URL=https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-amd64-root.tar.xz
-CACHE=$REPO/.nika_cache/snapshot
+CACHE=$REPO/.nika_cache/firecracker
 log() { printf '+ %s\n' "$*"; }
 
 mkdir -p "$CACHE" "$WORK"
@@ -118,7 +118,7 @@ Restart=always
 WantedBy=multi-user.target
 EOF
 done
-# Keep the restored clock on the snapshot timeline and drop idle services.
+# Keep a restored lab's clock on its image's timeline and drop idle services.
 systemctl mask systemd-timesyncd.service cron.service apt-daily.timer apt-daily-upgrade.timer \
   dpkg-db-backup.timer e2scrub_all.timer fstrim.timer logrotate.timer motd-news.timer \
   systemd-networkd-wait-online.service unattended-upgrades.service >/dev/null 2>&1 || true
@@ -127,7 +127,7 @@ CHROOT
 log "copying the NIKA checkout"
 sudo mkdir -p "$MNT/home/ubuntu/nika"
 git -C "$REPO" ls-files -co --exclude-standard -z | tar --null -cf - -T - | sudo tar -xf - -C "$MNT/home/ubuntu/nika"
-# Golden builds sync code against this list (the guest has no git checkout).
+# Image builds sync code against this list (the guest has no git checkout).
 git -C "$REPO" ls-files -co --exclude-standard -z | sudo tee "$MNT/home/ubuntu/nika/.nika-files" >/dev/null
 sudo chroot "$MNT" chown -R ubuntu:ubuntu /home/ubuntu/nika
 
@@ -142,7 +142,7 @@ cleanup
 trap - EXIT
 
 log "installing NIKA and loading runtime images in the guest (Firecracker)"
-uv run python -m nika.snapshot.base "$WORK" "$KVER"
+uv run python -m nika.firecracker.base "$WORK" "$KVER"
 
 rm -rf "$BASE.old"
 [ -d "$BASE" ] && mv "$BASE" "$BASE.old"

@@ -44,7 +44,7 @@ def firecracker_binary(configured: str) -> str:
     if path is None:
         raise VmmError(
             f"Firecracker binary {configured!r} not found; "
-            "see docs/operations/vm-snapshots.md."
+            "see docs/operations/firecracker.md."
         )
     return path
 
@@ -337,7 +337,7 @@ class HostProxy:
 
     Firecracker connects a guest's connection to host CID 2 ``port`` to the
     Unix socket ``<vsock.sock>_<port>`` in the VM's directory. Used while
-    building golden VMs, which have no network of their own.
+    building lab images, which have no network of their own.
     """
 
     def __init__(self, run_dir: Path, port: int) -> None:
