@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -48,14 +48,16 @@ def group_by_variant(trials: list[Any]) -> list[Any]:
 
 
 def build_parallelism(max_parallel: int) -> int:
-    """LabImage builds to run at once: limited by vCPUs and the huge-page pool."""
-    settings = firecracker_settings()
-    by_cpu = max(1, (os.cpu_count() or 1) // settings.vm_cpus)
-    limit = min(max_parallel, by_cpu)
-    if settings.huge_pages:
-        # A build can fill its whole VM memory; size by the default VM.
-        limit = min(limit, max(1, hugepage_pool_mib() // vm_memory_mib("")))
-    return max(1, limit)
+    """LabImage builds to run at once, by vCPUs (huge pages: see prebuild_images)."""
+    by_cpu = max(1, (os.cpu_count() or 1) // firecracker_settings().vm_cpus)
+    return max(1, min(max_parallel, by_cpu))
+
+
+def _build_mib(params: dict[str, Any]) -> int:
+    """Huge pages a build holds: writing the lab image touches all VM memory."""
+    if not firecracker_settings().huge_pages:
+        return 0
+    return vm_memory_mib(str(params.get("scenario")))
 
 
 def prebuild_images(trials: Iterable[Any], *, max_parallel: int) -> list[str]:
@@ -79,15 +81,29 @@ def prebuild_images(trials: Iterable[Any], *, max_parallel: int) -> list[str]:
         flush=True,
     )
     failures = []
+    pool_mib = hugepage_pool_mib() if firecracker_settings().huge_pages else 0
+    pending = sorted(missing, key=_build_mib, reverse=True)
+    running: dict[Any, dict[str, Any]] = {}
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = {pool.submit(ensure_image, params): params for params in missing}
-        for future in as_completed(futures):
-            try:
-                future.result()
-            except Exception as exc:  # noqa: BLE001 - its trials retry the build
-                message = f"lab image for {futures[future]} failed: {exc}"
-                print(f"[firecracker] {message}", flush=True)
-                failures.append(message)
+        while pending or running:
+            # Admit builds while the huge-page pool holds their whole VM memory.
+            for params in list(pending):
+                if len(running) >= workers:
+                    break
+                held = sum(_build_mib(p) for p in running.values())
+                if running and held + _build_mib(params) > pool_mib > 0:
+                    continue
+                pending.remove(params)
+                running[pool.submit(ensure_image, params)] = params
+            done, _ = wait(running, return_when=FIRST_COMPLETED)
+            for future in done:
+                params = running.pop(future)
+                try:
+                    future.result()
+                except Exception as exc:  # noqa: BLE001 - its trials retry the build
+                    message = f"lab image for {params} failed: {exc}"
+                    print(f"[firecracker] {message}", flush=True)
+                    failures.append(message)
     return failures
 
 

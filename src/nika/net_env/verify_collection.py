@@ -7,6 +7,7 @@ state changes through the runtime and collect fresh observations afterwards.
 from __future__ import annotations
 
 import json
+import os
 import re
 import shlex
 from collections import defaultdict
@@ -235,7 +236,12 @@ def collect_verify_commands(
         return results
 
     results = {}
-    for node_results in bounded_parallel_map(collect, grouped.items()):
+    # Commands on a node run concurrently; on small hosts (or lab VMs) limit the
+    # nodes collected at once so heavy CLIs (e.g. sr_cli) do not hit timeouts.
+    workers = min(8, os.cpu_count() or 1)
+    for node_results in bounded_parallel_map(
+        collect, grouped.items(), max_workers=workers
+    ):
         results.update(node_results)
     return VerifyCollection(
         results,
