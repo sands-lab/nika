@@ -62,9 +62,9 @@ nika:
     root: /var/lib/nika-snapshots
     # Firecracker binary (name on PATH or path).
     firecracker: firecracker
-    vm_cpus: 16
-    vm_memory: 8GiB
-    # Scenario id -> VM memory for large labs, e.g. {isp_pdh: 20GiB}.
+    vm_cpus: 4
+    vm_memory: 4GiB
+    # Scenario id -> VM memory for large labs, e.g. {k8s_lab: 8GiB, isp_pdh: 20GiB}.
     vm_memory_overrides: {}
     # 2 MiB huge pages (reserve vm.nr_hugepages first): full speed right after
     # a restore, but copies do not share memory.

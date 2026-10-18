@@ -54,6 +54,8 @@ STATE = "vm.state"
 MEMORY = "mem"
 META = "meta.json"
 # Linux reports freed memory about 2 s after it is freed.
+# Warn when a deployed lab leaves less than this share of its VM memory free.
+LOW_MEMORY_FRACTION = 0.25
 FREE_PAGE_REPORT_SEC = 5
 # Deploy parameters that change the lab; mirrors ``start_net_env``'s keywords.
 VARIANT_KEYS = (
@@ -274,6 +276,13 @@ def _build(build: Path, key: str, params: dict[str, Any]) -> None:
         )
     finally:
         forwarder.close()
+    guest_memory = _guest_memory_mib(uds)
+    if guest_memory["available"] < guest_memory["total"] * LOW_MEMORY_FRACTION:
+        _log(
+            f"[snapshot] warning: {params['scenario']} leaves only "
+            f"{guest_memory['available']} of {guest_memory['total']} MiB free in its VM; "
+            "raise nika.snapshot.vm_memory_overrides for it"
+        )
     if not settings.huge_pages:
         # Free the page cache and give the guest time to report it free, so the
         # memory file holds only memory the lab uses (and restores fault less).
@@ -292,9 +301,23 @@ def _build(build: Path, key: str, params: dict[str, Any]) -> None:
                 "variant": params,
                 "created": time.time(),
                 "base": manifest["id"],
+                "guest_memory_mib": guest_memory,
             }
         )
     )
+
+
+def _guest_memory_mib(uds: Path) -> dict[str, int]:
+    """Guest memory after the deploy: total and available (reclaimable included)."""
+    fields = dict(
+        line.split(":")
+        for line in guest_exec(uds, "grep -E '^(MemTotal|MemAvailable):' /proc/meminfo")
+        .strip()
+        .splitlines()
+    )
+    total = int(fields["MemTotal"].split()[0]) // 1024
+    available = int(fields["MemAvailable"].split()[0]) // 1024
+    return {"total": total, "available": available, "used": total - available}
 
 
 def write_guest_lab_settings(uds: Path) -> None:
@@ -385,6 +408,7 @@ def list_goldens() -> list[dict[str, Any]]:
                 # Current = what a trial would use now (the key recomputed today matches).
                 "current": bool(variant_) and key == golden_key(variant_),
                 "variant": variant_,
+                "guest_memory_mib": meta.get("guest_memory_mib", {}),
             }
         )
     return rows

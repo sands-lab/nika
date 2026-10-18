@@ -5,8 +5,8 @@
 Firecracker restores 2 MiB huge-page memory only through a page server: it
 connects to ``socket`` and passes the userfaultfd plus the guest memory
 layout. This server answers page faults from ``memory_file`` and, in the
-background, copies the whole file into guest memory, so the guest stops
-faulting shortly after it resumes.
+background, copies the file's data into guest memory, so the guest stops
+faulting shortly after it resumes. Holes in the (sparse) file are skipped.
 """
 
 from __future__ import annotations
@@ -40,6 +40,20 @@ def _copy(fd: int, dst: int, src: int, length: int) -> int:
     return max(struct.unpack_from("q", buf, 32)[0], 0)
 
 
+def _data_extents(fd: int):
+    """Yield ``(start, end)`` byte ranges of ``fd`` that hold data (not holes)."""
+    size = os.fstat(fd).st_size
+    pos = 0
+    while pos < size:
+        try:
+            start = os.lseek(fd, pos, os.SEEK_DATA)
+        except OSError:  # ENXIO: only a hole remains
+            return
+        end = os.lseek(fd, start, os.SEEK_HOLE)
+        yield start, end
+        pos = end
+
+
 def serve(socket_path: str, memory_file: str) -> None:
     if os.path.exists(socket_path):
         os.unlink(socket_path)
@@ -61,6 +75,7 @@ def serve(socket_path: str, memory_file: str) -> None:
             flags=mmap.MAP_PRIVATE,
             prot=mmap.PROT_READ | mmap.PROT_WRITE,
         )
+        extents = list(_data_extents(fh.fileno()))
     base = ctypes.addressof(ctypes.c_char.from_buffer(source))
 
     def fault(addr: int) -> None:
@@ -73,17 +88,25 @@ def serve(socket_path: str, memory_file: str) -> None:
                 return
 
     def prefetch() -> None:
+        # Only the file's data: holes are memory the guest never used (or
+        # reported free); those pages are served on first access, if ever.
         for region in regions:
-            pos = 0
-            while pos < region["size"]:
-                n = min(CHUNK, region["size"] - pos)
-                done = _copy(
-                    uffd,
-                    region["base_host_virt_addr"] + pos,
-                    base + region["offset"] + pos,
-                    n,
-                )
-                pos += done or region["page_size"]  # a fault filled that page first
+            size, offset = region["page_size"], region["offset"]
+            for data_start, data_end in extents:
+                lo = max(data_start, offset) - offset
+                hi = min(data_end, offset + region["size"]) - offset
+                if lo >= hi:
+                    continue
+                pos, end = lo & ~(size - 1), (hi + size - 1) & ~(size - 1)
+                while pos < end:
+                    n = min(CHUNK, end - pos)
+                    done = _copy(
+                        uffd,
+                        region["base_host_virt_addr"] + pos,
+                        base + offset + pos,
+                        n,
+                    )
+                    pos += done or size  # a fault filled that page first
 
     threading.Thread(target=prefetch, daemon=True).start()
     poller = select.poll()

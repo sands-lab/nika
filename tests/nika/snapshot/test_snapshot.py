@@ -177,3 +177,26 @@ def test_guest_exec_frames_stdin_and_reports_status(tmp_path) -> None:
     assert vmm.guest_exec(uds, "cat", stdin=b"payload") == "payload"
     with pytest.raises(vmm.VmmError, match="failed \\(3\\)"):
         vmm.guest_exec(uds, "false")
+
+
+def test_page_server_prefetches_only_data_extents(tmp_path) -> None:
+    """Holes in a sparse golden memory file are not copied into the guest."""
+    import os
+
+    from nika.snapshot.uffd import _data_extents
+
+    path = tmp_path / "mem"
+    mib = 1 << 20
+    with open(path, "wb") as fh:
+        fh.truncate(64 * mib)
+        for offset in (0, 32 * mib):
+            fh.seek(offset)
+            fh.write(b"x" * mib)
+    with open(path, "rb") as fh:
+        extents = list(_data_extents(fh.fileno()))
+    # Filesystems round extents to their block size; the data must be inside them.
+    assert len(extents) == 2
+    assert extents[0][0] == 0 and extents[0][1] >= mib
+    assert extents[1][0] <= 32 * mib < extents[1][1] < 64 * mib
+    assert sum(end - start for start, end in extents) < 8 * mib
+    assert os.path.getsize(path) == 64 * mib

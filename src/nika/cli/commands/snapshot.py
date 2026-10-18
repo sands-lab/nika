@@ -41,7 +41,9 @@ def snapshot_list(
                 if row["current"]
                 else ", stale (code, settings or base changed)"
             )
-        typer.echo(f"{row['key']}  {state}  {row['variant']}")
+        memory = row.get("guest_memory_mib") or {}
+        used = f"  uses {memory['used']}/{memory['total']} MiB" if memory else ""
+        typer.echo(f"{row['key']}  {state}{used}  {row['variant']}")
     for row in trial_rows():
         state = "running" if row["alive"] else "orphaned (process gone)"
         typer.echo(

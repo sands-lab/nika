@@ -85,9 +85,12 @@ reboots. Run them as a user with `sudo`.
 
 4. **Huge pages** (recommended; see [Huge pages](#huge-pages)). Reserve them at
    boot: a running host's memory is soon too fragmented to find enough
-   contiguous 2 MiB blocks. Reserve `vm_memory / 2 MiB` pages per copy you run
-   at once; the reserved memory is unavailable to everything else. For three
-   8 GiB copies (24 GiB):
+   contiguous 2 MiB blocks. The reserved memory is unavailable to everything
+   else. A copy takes huge pages only for the memory its lab uses (`nika
+   snapshot list` shows it per golden VM: about 1 GiB for small Kathara labs,
+   2–5 GiB for ISP, k8s and SR Linux labs), but it can grow to its full
+   `vm_memory`; a VM that finds the pool empty crashes. Reserve enough for the
+   copies you run at once, with headroom. For 24 GiB:
 
    ```shell
    echo 'GRUB_CMDLINE_LINUX_DEFAULT="${GRUB_CMDLINE_LINUX_DEFAULT} hugepagesz=2M hugepages=12288"' \
@@ -145,10 +148,7 @@ In `config/nika.yaml`:
 nika:
   snapshot:
     enabled: true
-    vm_cpus: 16
-    vm_memory: 8GiB
-    vm_memory_overrides:
-      isp_pdh: 20GiB
+    huge_pages: true
 ```
 
 Then run benchmarks as usual:
@@ -176,10 +176,30 @@ startup verification restarts it).
 
 With `huge_pages: true`, VM memory uses the 2 MiB huge pages reserved in
 [host setup](#set-up-the-host-once) step 4, and a page server
-(`nika.snapshot.uffd`) copies the whole memory into each copy right after the
-restore (about 2 s for 10 GiB). Restored labs run at full speed at once, and
-golden builds are about twice as fast; every running copy needs its own
-`vm_memory` of huge pages.
+(`nika.snapshot.uffd`) copies the memory the lab uses into each copy right after
+the restore (well under a second for a small lab). Restored labs run at full
+speed at once, and golden builds are about twice as fast. Every running copy
+needs its own huge pages for the memory its lab uses.
+
+### VM size
+
+Each VM gets `vm_cpus` vCPUs (default 4) and `vm_memory` (default 4 GiB), which
+fits most Kathara labs. Give larger labs more with `vm_memory_overrides`; a
+golden build warns when a lab leaves less than a quarter of its VM memory free.
+For release 0.2.0:
+
+```yaml
+vm_memory_overrides:
+  k8s_lab: 8GiB
+  llmd_lab: 8GiB
+  min3clos: 8GiB
+  isp_pdh: 20GiB
+  isp_di-yuan: 20GiB
+  isp_dfn-gwin: 20GiB
+```
+
+Few vCPUs per VM keep one copy's bursts (verification, injection, the agent's
+commands) from starving the copies next to it.
 
 ## What changes in a trial
 

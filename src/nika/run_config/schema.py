@@ -47,9 +47,12 @@ class SnapshotSettings(BaseModel):
     root: str = "/var/lib/nika-snapshots"
     # Firecracker binary (name on PATH or path).
     firecracker: str = "firecracker"
-    vm_cpus: int = Field(default=16, ge=1)
-    vm_memory: str = "8GiB"
-    # Scenario id -> VM memory, for labs larger than ``vm_memory`` (e.g. SR Linux).
+    # Per VM. Few vCPUs keep one copy's bursts from starving its neighbours.
+    vm_cpus: int = Field(default=4, ge=1)
+    # Most Kathara labs use under 2 GiB; with huge pages every copy holds all of it.
+    vm_memory: str = "4GiB"
+    # Scenario id -> VM memory, for larger labs (k8s, SR Linux). Golden builds
+    # warn when a lab leaves too little of its VM memory free.
     vm_memory_overrides: dict[str, str] = Field(default_factory=dict)
     # Back VM memory with 2 MiB huge pages reserved on the host (vm.nr_hugepages):
     # restored labs run at full speed at once, but copies do not share memory.
