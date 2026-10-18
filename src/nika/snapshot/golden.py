@@ -68,8 +68,22 @@ VARIANT_KEYS = (
     "backend",
     "device_profile",
 )
-# Paths whose content can change a deployed lab or the daemon serving it.
+# Paths whose content can change a deployed lab or the daemon serving it ...
 FINGERPRINT_PATHS = ("src/", "pyproject.toml")
+# ... minus code that only runs on the host: agents, LLM clients, evaluation and
+# the result viewers. Changing them keeps the golden VMs.
+HOST_ONLY_PATHS = (
+    "src/agent/byo/",
+    "src/agent/cli/",
+    "src/agent/community/",
+    "src/agent/llm/",
+    "src/agent/mock/",
+    "src/agent/sdk/",
+    "src/agent/skills/",
+    "src/nika/evaluator/",
+    "src/nika/inspect/",
+    "src/nika/tui/",
+)
 # Run-config sections that shape a deploy; golden VMs deploy with the host's values.
 LAB_SETTING_SECTIONS = ("lab", "runtime_validation", "static_validation", "k8s")
 
@@ -125,7 +139,11 @@ def _repo_files(repo: Path) -> list[str]:
 @functools.cache
 def code_fingerprint() -> str:
     """Hash of the code a golden VM runs (``FINGERPRINT_PATHS`` of this checkout)."""
-    files = [f for f in _repo_files(REPO_ROOT) if f.startswith(FINGERPRINT_PATHS)]
+    files = [
+        f
+        for f in _repo_files(REPO_ROOT)
+        if f.startswith(FINGERPRINT_PATHS) and not f.startswith(HOST_ONLY_PATHS)
+    ]
     digest = hashlib.sha256()
     for rel in files:
         digest.update(rel.encode() + b"\0")

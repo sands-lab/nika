@@ -59,6 +59,10 @@ class SnapshotSettings(BaseModel):
     huge_pages: bool = False
     # Re-run the startup lab verification after each restore, as a cold deploy does.
     verify_after_restore: bool = True
+    # Delete the golden VMs a benchmark run used when it ends. Keeping them (the
+    # default) takes substantial disk (each holds its lab's memory and disk
+    # changes, often 2-8 GiB) but lets later runs skip the builds.
+    clean_after_run: bool = False
 
     @field_validator("vm_memory")
     @classmethod

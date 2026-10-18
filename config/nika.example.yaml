@@ -71,6 +71,9 @@ nika:
     huge_pages: false
     # Verify the lab again after each restore, as a cold deploy does.
     verify_after_restore: true
+    # Delete the golden VMs a run used when it ends. Keeping them (false) takes
+    # substantial disk (often 2-8 GiB each) but makes later runs much faster.
+    clean_after_run: false
   sandbox:
     # Sandbox runtime: sbx (Docker Sandboxes) or e2b (E2B-compatible service).
     backend: sbx

@@ -157,10 +157,20 @@ Then run benchmarks as usual:
 nika benchmark run --release 0.2.0 --split test
 ```
 
-The first trial of each environment variant builds its golden VM. Parallel trials
-of the same variant wait for that build, then each uses its own copy. The build
-counts against that trial's `--case-timeout`. To build all golden VMs before a
-run:
+With snapshots on, every trial of the run uses a Firecracker VM, and the runner
+schedules for that:
+
+1. **Golden VMs first.** Before any trial starts, it builds the golden VMs the
+   run needs and does not have yet, several at a time (bounded by vCPUs and huge
+   pages). Trials then only restore, and `--case-timeout` never includes a build.
+2. **One variant at a time.** Trials of the same environment variant run next to
+   each other, so its golden memory file stays in the page cache.
+3. **Admission by memory.** `--batch-size` caps concurrent trials; with huge
+   pages, a trial also waits until the pool can hold its lab (the golden VM's
+   measured memory use plus 25%). Heavy labs (k8s, Containerlab, size `l`) no
+   longer run alone: a restore costs them no more than a light lab.
+
+To build all golden VMs ahead of a run, for example on another day:
 
 ```shell
 nika snapshot build --release 0.2.0 --split test
@@ -237,10 +247,23 @@ records the difference as `remote_clock_offset_sec`.
 | `nika snapshot clean` | Release orphaned trial copies; delete stale golden VMs (any key input changed) and abandoned builds. Builds in progress and golden VMs that running trials restore from are kept |
 | `nika snapshot clean --all` | Also delete every golden VM |
 
+Golden VMs stay after a run, so later runs (other agents, more trials, reruns)
+reuse them. Each takes the memory its lab used plus the disk blocks its deploy
+changed, often 2–8 GiB, so a full release needs tens of GiB. To delete the ones
+a run used when it ends, set:
+
+```yaml
+nika:
+  snapshot:
+    clean_after_run: true
+```
+
 Golden VMs are keyed by:
 
 * environment variant;
-* code (`src/` and `pyproject.toml`);
+* code that runs in the VM: `src/` and `pyproject.toml`, without host-only code
+  (agents, LLM clients, evaluation, `nika inspect` and the TUI), so changing an
+  agent keeps the golden VMs;
 * the host's lab deploy settings (`nika.lab`, `runtime_validation`,
   `static_validation`, `k8s`), which the golden deploy uses;
 * base image;

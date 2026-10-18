@@ -19,6 +19,13 @@ from nika.net_env.net_env_pool import scenario_requires_topo_size
 from nika.problems.registry import get_problem_class, get_problem_instance
 from nika.snapshot import snapshot_enabled
 from nika.snapshot.golden import variant_for_row
+from nika.snapshot.schedule import (
+    clean_after_run,
+    group_by_variant,
+    hugepage_need_mib,
+    hugepage_pool_mib,
+    prebuild_goldens,
+)
 from nika.snapshot.trial import (
     TrialLab,
     active_trial_lab,
@@ -1339,6 +1346,8 @@ def _run_trials_batch(
     failures: list[str] = []
     if not trials_batch:
         return failures
+    if snapshot_enabled():
+        trials_batch = group_by_variant(trials_batch)
     limits = tier_limits(
         batch_size=max_workers or len(trials_batch),
         heavy_batch_size=heavy_batch_size,
@@ -1443,6 +1452,9 @@ def _run_trials_batch(
     # future -> (trial, resource_class)
     futures: dict[Any, tuple[Trial, str]] = {}
     in_flight: dict[str, int] = {}
+    # nika.snapshot with huge pages: expected huge-page use of running copies.
+    hugepage_pool = hugepage_pool_mib() if snapshot_enabled() else 0
+    hugepages_in_flight: dict[Any, int] = {}
     # Each light phase may bypass waiting heavy trials at most one batch.
     # Once spent, drain the light tier so heavy trials cannot be starved.
     backfill_remaining = limits["light"]
@@ -1460,6 +1472,9 @@ def _run_trials_batch(
             )
             if index is None:
                 break
+            need = hugepage_need_mib(pending[index].row) if hugepage_pool else 0
+            if futures and sum(hugepages_in_flight.values()) + need > hugepage_pool:
+                break  # wait until running copies free huge pages
             cls = resource_class(pending[index])
             if cls == CLASS_LIGHT and any(
                 resource_class(trial) != CLASS_LIGHT for trial in pending[:index]
@@ -1469,6 +1484,7 @@ def _run_trials_batch(
             in_flight[cls] = in_flight.get(cls, 0) + 1
             future = pool.submit(_run_one, trial)
             futures[future] = (trial, cls)
+            hugepages_in_flight[future] = need
 
     try:
         _admit_available()
@@ -1476,6 +1492,7 @@ def _run_trials_batch(
             for future in as_completed(futures):
                 trial, cls = futures.pop(future)
                 in_flight[cls] = max(0, in_flight.get(cls, 0) - 1)
+                hugepages_in_flight.pop(future, None)
                 try:
                     future.result()
                     _on_finished(trial)
@@ -1810,6 +1827,10 @@ def run_benchmark_trials(
         _finish_progress([])
         _emit_report()
         return
+    if snapshot_enabled():
+        # Build every golden VM first: trials then only restore, and their
+        # case timeout never includes a build.
+        prebuild_goldens([trials[i] for i in initial_pending], max_parallel=batch_size)
 
     failures: list[str] = []
     previous_pending: int | None = None
@@ -1912,6 +1933,8 @@ def run_benchmark_trials(
         mutate=False,
     )
     _finish_progress(final_pending)
+    if snapshot_enabled():
+        clean_after_run(trials)
 
     if failures:
         print(

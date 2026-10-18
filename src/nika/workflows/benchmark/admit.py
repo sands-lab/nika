@@ -66,6 +66,12 @@ def resource_class_for_row(row: Mapping[str, Any]) -> ResourceClass:
 
 def resource_class(trial: Trial) -> ResourceClass:
     """Classify a ``Trial`` (uses ``trial.row`` plus ``trial.case_key``)."""
+    from nika.snapshot import snapshot_enabled
+
+    if snapshot_enabled():
+        # Restored labs skip the deploy that makes heavy trials heavy; the
+        # runner admits them by huge-page memory instead.
+        return CLASS_LIGHT
     row = dict(trial.row)
     row.setdefault("case_key", trial.case_key)
     return resource_class_for_row(row)

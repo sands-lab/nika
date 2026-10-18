@@ -200,3 +200,60 @@ def test_page_server_prefetches_only_data_extents(tmp_path) -> None:
     assert extents[1][0] <= 32 * mib < extents[1][1] < 64 * mib
     assert sum(end - start for start, end in extents) < 8 * mib
     assert os.path.getsize(path) == 64 * mib
+
+
+def test_scheduler_groups_trials_by_variant() -> None:
+    from types import SimpleNamespace
+
+    from nika.snapshot.schedule import group_by_variant
+
+    set_run_config(RunConfig())
+    rows = [
+        {"scenario": "dc_clos", "topo_size": "s", "problem": "a"},
+        {"scenario": "campus_lan", "topo_size": "s", "problem": "b"},
+        {"scenario": "dc_clos", "topo_size": "s", "problem": "c"},
+        {"scenario": "dc_clos", "topo_size": "m", "problem": "d"},
+    ]
+    ordered = group_by_variant([SimpleNamespace(row=r) for r in rows])
+    assert [t.row["problem"] for t in ordered] == ["a", "c", "b", "d"]
+
+
+def test_hugepage_need_follows_the_lab_not_the_vm(tmp_path, monkeypatch) -> None:
+    from nika.snapshot import schedule
+
+    row = {"scenario": "dc_clos", "topo_size": "s"}
+    set_run_config(
+        RunConfig.model_validate({"nika": {"snapshot": {"huge_pages": False}}})
+    )
+    assert schedule.hugepage_need_mib(row) == 0
+
+    set_run_config(
+        RunConfig.model_validate(
+            {"nika": {"snapshot": {"huge_pages": True, "vm_memory": "1GiB"}}}
+        )
+    )
+    monkeypatch.setattr(schedule, "goldens_dir", lambda: tmp_path)
+    monkeypatch.setattr(schedule, "golden_key", lambda params: "k")
+    # Before the golden VM exists: its whole memory.
+    assert schedule.hugepage_need_mib(row) == 1024
+    (tmp_path / "k").mkdir()
+    memory = tmp_path / "k" / "mem"
+    with open(memory, "wb") as fh:  # 1 GiB file holding 200 MiB of data
+        fh.truncate(1024 << 20)
+        fh.write(b"x" * (200 << 20))
+    assert schedule.hugepage_need_mib(row) == 250  # data plus 25% headroom
+    with open(memory, "r+b") as fh:
+        fh.write(b"x" * (900 << 20))
+    assert schedule.hugepage_need_mib(row) == 1024  # never more than the VM
+
+
+def test_snapshot_runs_have_no_heavy_tier() -> None:
+    from types import SimpleNamespace
+
+    from nika.workflows.benchmark.admit import CLASS_LIGHT, resource_class
+
+    trial = SimpleNamespace(row={"scenario": "k8s_lab"}, case_key="k")
+    set_run_config(RunConfig())
+    assert resource_class(trial) != CLASS_LIGHT
+    set_run_config(RunConfig.model_validate({"nika": {"snapshot": {"enabled": True}}}))
+    assert resource_class(trial) == CLASS_LIGHT
