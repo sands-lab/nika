@@ -28,6 +28,9 @@ jobs:
           letta_api_key: ${{ secrets.LETTA_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           agent_id: agent-94fc2af6-52c5-4ec5-b0c1-758a3e09541a
+          # The action otherwise defaults to opus, even for an existing agent.
+          # Use NIKA-dev's ChatGPT subscription provider (see letta.yml).
+          model: chatgpt-plus/gpt-6.1-sol
           # Prompt (agent) mode ignores agent_id; pin the NIKA-dev agent via CLI args.
           letta_args: --agent agent-94fc2af6-52c5-4ec5-b0c1-758a3e09541a --new
           show_full_output: true
