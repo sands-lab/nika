@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Literal
 
 from nika.net_env.isp.igp.errors import IspConfigError
-from nika.topology.sndlib.catalog import SNDLIB_TOPOLOGY_NAMES, topology_network_path
+from nika.topology.catalog import ISP_TOPOLOGY_NAMES
 
 IgpProtocol = Literal["isis", "ospf"]
 MetricStrategy = Literal["constant", "routing_cost", "inv_capacity"]
@@ -41,6 +41,8 @@ class IspConfig:
     loopback_pool: IPv4Network = DEFAULT_LOOPBACK_POOL
     p2p_pool: IPv4Network = DEFAULT_P2P_POOL
     inv_capacity_reference: float = DEFAULT_INV_CAPACITY_REFERENCE
+    link_metrics: dict[str, int] | None = None
+    first_interface_index: int = 0
 
     def validated(self) -> IspConfig:
         """Return self after validating option combinations and pools."""
@@ -53,6 +55,8 @@ class IspConfig:
                 f"Unsupported metric strategy {self.metric_strategy!r}; "
                 f"expected one of {SUPPORTED_METRIC_STRATEGIES}."
             )
+        if self.first_interface_index < 0:
+            raise IspConfigError("first_interface_index must be nonnegative")
         if self.constant_metric < 1:
             raise IspConfigError(
                 f"constant_metric must be >= 1, got {self.constant_metric}."
@@ -77,14 +81,13 @@ def _validate_topology_ref(topology: str | Path) -> None:
         if not topology.is_file():
             raise IspConfigError(f"Topology file not found: {topology}")
         return
-    catalog_path = topology_network_path(topology)
-    if catalog_path.is_file():
+    if topology in ISP_TOPOLOGY_NAMES:
         return
     path = Path(topology)
     if path.is_file():
         return
-    known = ", ".join(SNDLIB_TOPOLOGY_NAMES)
     raise IspConfigError(
-        f"Unknown SNDlib topology {topology!r}. "
-        f"Pass a catalog name ({known}) or an existing network.xml path."
+        f"Unknown ISP topology {topology!r}. Pass a catalog name "
+        "(SNDlib or Topology Zoo, see `nika env list`) or an existing "
+        ".xml / .graphml path."
     )

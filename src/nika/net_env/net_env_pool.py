@@ -9,9 +9,10 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from nika.net_env.base import NetworkEnvBase, ProbePath
-from nika.topology.sndlib.catalog import (
+from nika.topology.catalog import (
     SNDLIB_TOPOLOGY_NAMES,
-    topology_size_for_name,
+    ZOO_TOPOLOGY_NAMES,
+    isp_topology_size,
 )
 from nika.utils.dependencies import raise_missing_extra, require_backend_extra
 from nika.utils.logger import system_logger
@@ -415,11 +416,38 @@ for _topo_name in SNDLIB_TOPOLOGY_NAMES:
         class_name="Isp",
         tags=_ISP_BASE_TAGS,
         supported_backends=("kathara", "containerlab"),
-        topo_size=topology_size_for_name(_topo_name),
+        topo_size=isp_topology_size(_topo_name),
         backend_bindings=_ISP_BACKEND_BINDINGS,
         deploy_defaults={"topo": _topo_name, "scenario_id": _scenario_id},
         family="isp",
         coverage_major=_scenario_id in _ISP_COVERAGE_SCENARIOS,
+    )
+
+# Topology Zoo ISP topologies share the Isp class but run on Kathara/FRR only
+# and stay out of benchmark generation (no demand matrix).
+_ISP_ZOO_TAGS: tuple[str, ...] = (
+    "isp",
+    "topology_zoo",
+    "frr",
+    "isis",
+    "ospf",
+    "bgp",
+    "igp",
+    "link",
+    "icmp",
+)
+for _topo_name in ZOO_TOPOLOGY_NAMES:
+    _scenario_id = f"isp_{_topo_name}"
+    _NET_ENV_SPECS[_scenario_id] = NetEnvSpec(
+        lab_name=_scenario_id,
+        module="nika.net_env.isp.kathara.lab",
+        class_name="Isp",
+        tags=_ISP_ZOO_TAGS,
+        supported_backends=("kathara",),
+        topo_size=isp_topology_size(_topo_name),
+        deploy_defaults={"topo": _topo_name, "scenario_id": _scenario_id},
+        family="isp",
+        benchmark_excluded=True,
     )
 del _topo_name, _scenario_id
 
@@ -603,6 +631,16 @@ def get_net_env_instance(
     cls = _load_net_env_class(canonical, backend=resolved)
     spec = _require_scenario(canonical)
     merged: dict[str, Any] = {**(spec.deploy_defaults or {}), **kwargs}
+    from nika.net_env.isp.identity import is_isp_base_topology
+
+    if (
+        resolved == "kathara"
+        and is_isp_base_topology(canonical)
+        and merged.get("device_profile") in {"iosxr", "routeros"}
+    ):
+        from nika.net_env.isp.kathara.vendor import IspVendor
+
+        cls = IspVendor
     lab_name = merged.pop("lab_name", None)
     topology_file = merged.pop("topology_file", None)
     runtime_workdir = merged.pop("runtime_workdir", None)

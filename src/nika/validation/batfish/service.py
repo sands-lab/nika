@@ -4,17 +4,14 @@ import time
 from typing import Any
 
 PYBATFISH_VERSION = "2025.7.7.2423"
-BATFISH_IMAGE = (
-    "batfish/batfish:2025.07.07.2423@"
-    "sha256:5515157739b7dca9a63b04e7a4a8f9c3d94ab0bdb8cd79ece57a5a5204307fbb"
-)
-BATFISH_CONTAINER_NAME = "nika-batfish-2025-07-07-2423"
+BATFISH_IMAGE = "nika/batfish:2025.07.07.2423-frr-next-hop-self"
+BATFISH_CONTAINER_NAME = "nika-batfish-2025-07-07-2423-frr-next-hop-self"
 
 
 def ensure_batfish_service(
     *, host: str = "127.0.0.1", port: int = 9996, timeout_sec: float = 120
 ) -> dict[str, Any]:
-    """Start or reuse the pinned official Batfish container."""
+    """Start or reuse the pinned Batfish build with the FRR next-hop correction."""
     if host not in {"127.0.0.1", "localhost"}:
         return _wait_for_service(host, port, timeout_sec)
     try:
@@ -31,12 +28,19 @@ def ensure_batfish_service(
         if container.status != "running":
             container.start()
     except NotFound:
-        client.images.pull(BATFISH_IMAGE)
+        try:
+            client.images.get(BATFISH_IMAGE)
+        except NotFound as exc:
+            raise RuntimeError(
+                "Build the pinned analyzer first: docker build -t "
+                f"{BATFISH_IMAGE} scripts/batfish"
+            ) from exc
         container = client.containers.run(
             BATFISH_IMAGE,
             name=BATFISH_CONTAINER_NAME,
             detach=True,
             ports={"9996/tcp": ("127.0.0.1", port)},
+            environment={"JAVA_TOOL_OPTIONS": "-Xmx8g"},
         )
     versions = _wait_for_service(host, port, timeout_sec)
     versions["container_id"] = container.id

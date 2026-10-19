@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections import defaultdict
 from ipaddress import IPv4Address, IPv4Network
 from time import perf_counter
@@ -16,6 +17,7 @@ from nika.net_env.contract import (
 )
 from nika.net_env.isp.bgp.plan import BgpPlan
 from nika.net_env.isp.igp.plan import IspPlan, active_igp_links, igp_components
+from nika.net_env.isp.igp.frr import isis_net_from_router_id
 from nika.net_env.isp.traffic.stubs import IspTrafficAttachment
 from nika.net_env.isp.verify_support import (
     sample_traffic,
@@ -102,12 +104,6 @@ def _collect(runtime, plan, bgp_plan, traffic, contract, healed, *, full):
     if contract:
         commands.extend(intent_commands(contract))
     if bgp_plan:
-        targets = {origin.prefix: origin.ping_address for origin in bgp_plan.originated}
-        commands.extend(
-            VerifyCommand(observer, ping_command(targets[prefix]), 15)
-            for observer, prefix in bgp_plan.expect_reachable
-            if prefix in targets
-        )
         if bgp_plan.inventory.get("rpki"):
             commands.append(
                 VerifyCommand(
@@ -348,9 +344,9 @@ def verify_isp_contract(
     runtime: LabRuntime,
     *,
     contract: ValidationContract,
-    plan: IspPlan,
+    plan: IspPlan | None,
 ) -> ValidationReport:
-    """Execute an ISP contract with runtime tools without changing its semantics."""
+    """Evaluate original ISP requirements against observed runtime behavior."""
     if not isinstance(runtime, VerifyCollection):
         runtime = collect_verify_commands(runtime, intent_commands(contract))
     command_cache: dict[tuple[str, str], str] = {}
@@ -365,7 +361,7 @@ def _verify_intent(
     runtime: LabRuntime,
     *,
     intent: ValidationIntent,
-    plan: IspPlan,
+    plan: IspPlan | None,
     command_cache: dict[tuple[str, str], str],
 ) -> ValidationResult:
     started = perf_counter()
@@ -380,9 +376,98 @@ def _verify_intent(
         command_cache[key] = result.output
         if result.error:
             raise ValueError(result.error)
-        if intent.property == "adjacency":
+        if intent.route_next_hops is not None:
+            expected = intent.route_next_hops
+            output = runtime.json(request.node, request.command)
+            actual = {
+                hop["ip"]
+                for route in output.get(expected.prefix, [])
+                if route.get("selected")
+                and route.get("destSelected")
+                and route.get("installed")
+                for hop in route.get("nexthops", [])
+                if hop.get("fib") and hop.get("active") and "ip" in hop
+            }
+            passed = bool(actual) and actual == set(expected.next_hops)
+            evidence = {
+                "observed_next_hops": sorted(actual),
+                "expected_next_hops": list(expected.next_hops),
+            }
+            reason = (
+                None
+                if passed
+                else "Installed next hops differ from the original requirement"
+            )
+        elif intent.property in {"bgp_route", "route_policy"}:
+            output = runtime.json(request.node, request.command)
+            if intent.bgp_route is not None:
+                expected = intent.bgp_route
+                selected = [
+                    path
+                    for path in output.get("paths", [])
+                    if path.get("bestpath") or path.get("multipath")
+                ]
+                paths = [
+                    path.get("aspath", {}).get("string", path.get("path", ""))
+                    for path in selected
+                ]
+                evidence = {
+                    "prefix": expected.prefix,
+                    "observed_present": bool(selected),
+                    "expected_present": expected.present,
+                    "selected_as_paths": paths,
+                    "expected_exit_asn": expected.exit_asn,
+                    "expected_origin_asn": expected.origin_asn,
+                }
+                passed = bool(selected) == expected.present and all(
+                    (
+                        expected.exit_asn is None
+                        or path.split()[:1] == [str(expected.exit_asn)]
+                    )
+                    and (
+                        expected.origin_asn is None
+                        or path.split()[-1:] == [str(expected.origin_asn)]
+                    )
+                    for path in paths
+                )
+            else:
+                expected = intent.route_policy
+                available = runtime.json(
+                    expected.node,
+                    f"vtysh -c 'show bgp ipv4 unicast {expected.prefix} json'",
+                )
+                if not any(
+                    path.get("valid")
+                    and (path.get("bestpath") or path.get("multipath"))
+                    for path in available.get("paths", [])
+                ):
+                    raise ValueError(
+                        "No valid selected input route exists to exercise the export requirement."
+                    )
+                if "advertisedRoutes" not in output:
+                    raise ValueError(
+                        "FRR did not return advertised-route observations."
+                    )
+                advertised = expected.prefix in output["advertisedRoutes"]
+                passed = advertised == expected.permit
+                evidence = {
+                    "prefix": expected.prefix,
+                    "peer": expected.peer,
+                    "advertised": advertised,
+                    "expected_permit": expected.permit,
+                }
+            reason = (
+                None
+                if passed
+                else "observed routing behavior differs from the original requirement"
+            )
+        elif intent.property == "adjacency":
             passed, evidence, reason = _verify_adjacency(runtime, intent, command_cache)
         elif intent.property == "waypoint":
+            if plan is None:
+                raise ValueError(
+                    "Runtime waypoint checks require an explicit router/interface plan"
+                )
             passed, evidence, reason = _verify_waypoint(runtime, intent, plan)
         else:
             passed, evidence, reason = _verify_connectivity(runtime, intent)
@@ -419,17 +504,14 @@ def _verify_connectivity(
     source = _runtime_source(intent.source)
     target = _probe_address(intent.destination)
     protocol = intent.traffic.protocol
+    request = intent_command(intent)
     if protocol in {"tcp", "udp"}:
         assert intent.traffic.destination_port is not None
-        udp_flag = "-u " if protocol == "udp" else ""
-        command = (
-            f"nc -z {udp_flag}-w 2 {target} {intent.traffic.destination_port} "
-            "&& echo NIKA_OPEN"
-        )
+        command = request.command
         output = exec_or_empty(runtime, source, command, timeout=10)
         reachable = "NIKA_OPEN" in output
     else:
-        command = f"ping -c 1 -W 2 {target}"
+        command = request.command
         output = exec_or_empty(runtime, source, command, timeout=15)
         stats = parse_ping_output(output)
         if stats["status"] == "unknown":
@@ -475,7 +557,27 @@ def _verify_adjacency(
             "output": output,
             "established_peers": established,
         }
-    else:
+        if passed and adjacency.route_reflector_client is not None:
+            role_command = "vtysh -c 'show bgp neighbors json'"
+            neighbors = json.loads(
+                _cached_exec(
+                    runtime,
+                    adjacency.local_node,
+                    role_command,
+                    command_cache,
+                    timeout=20,
+                )
+            )
+            family = neighbors[adjacency.remote_address]["addressFamilyInfo"][
+                "ipv4Unicast"
+            ]
+            observed_role = family.get("routeReflectorClient", False)
+            passed = passed and observed_role == adjacency.route_reflector_client
+            evidence.update(
+                expected_rr_client=adjacency.route_reflector_client,
+                observed_rr_client=observed_role,
+            )
+    elif adjacency.protocol == "ospf":
         command = "vtysh -c 'show ip ospf neighbor'"
         output = _cached_exec(
             runtime,
@@ -484,7 +586,14 @@ def _verify_adjacency(
             command_cache,
             timeout=20,
         )
-        full_router_ids = frr_ospf_full_router_ids(output)
+        # Router ID, priority and state precede the peer address. Excluding
+        # those fields also handles a Router ID equal to another link's IP.
+        peer_rows = "\n".join(
+            line
+            for line in output.splitlines()
+            if adjacency.remote_address in line.split()[3:]
+        )
+        full_router_ids = frr_ospf_full_router_ids(peer_rows)
         remote_router_id = adjacency.remote_router_id or adjacency.remote_address
         passed = remote_router_id in full_router_ids
         evidence = {
@@ -495,11 +604,87 @@ def _verify_adjacency(
             "output": output,
             "full_router_ids": sorted(full_router_ids),
         }
+    else:
+        command = "vtysh -c 'show isis neighbor'"
+        output = _cached_exec(
+            runtime,
+            adjacency.local_node,
+            command,
+            command_cache,
+            timeout=20,
+        )
+        neighbors = _parse_frr_isis_neighbors(output)
+        expected_system_id = ".".join(
+            isis_net_from_router_id(adjacency.remote_router_id).split(".")[2:-1]
+        )
+        matching = [
+            neighbor
+            for neighbor in neighbors
+            if neighbor["system_id"].casefold()
+            in {adjacency.remote_node.casefold(), expected_system_id.casefold()}
+            and neighbor["interface"] == adjacency.local_interface
+            and neighbor["level"] in {"2", "L2"}
+            and neighbor["state"].casefold() == "up"
+        ]
+        passed = bool(matching)
+        evidence = {
+            "local_node": adjacency.local_node,
+            "local_interface": adjacency.local_interface,
+            "remote_node": adjacency.remote_node,
+            "remote_interface": adjacency.remote_interface,
+            "peer_system_id": expected_system_id,
+            "command": command,
+            "output": output,
+            "neighbors": neighbors,
+            "matching_level2_up_neighbors": matching,
+            "semantic_oracle": "runtime",
+        }
     return (
         passed,
         evidence,
-        None if passed else "expected adjacency was not established",
+        None
+        if passed
+        else "expected adjacency or declared RR/client relation was not satisfied",
     )
+
+
+def _parse_frr_isis_neighbors(output: str) -> list[dict[str, str]]:
+    """Parse the table from FRR ``show isis neighbor``.
+
+    A valid header with no rows means there are no current neighbors. Output
+    without the expected table header is a command or parser error and must not
+    be mistaken for a legitimate down adjacency.
+    """
+    lines = output.splitlines()
+    header_index = next(
+        (
+            index
+            for index, line in enumerate(lines)
+            if {"system", "id", "interface", "state"}.issubset(
+                {field.casefold() for field in line.split()}
+            )
+        ),
+        None,
+    )
+    if header_index is None:
+        raise ValueError("malformed FRR IS-IS neighbor output: table header not found")
+
+    neighbors: list[dict[str, str]] = []
+    for line in lines[header_index + 1 :]:
+        fields = line.split()
+        if not fields:
+            continue
+        if len(fields) < 4 or fields[2].upper() not in {"1", "2", "L1", "L2"}:
+            raise ValueError(f"malformed FRR IS-IS neighbor row: {line.strip()!r}")
+        neighbors.append(
+            {
+                "system_id": fields[0],
+                "interface": fields[1],
+                "level": fields[2].upper(),
+                "state": fields[3],
+            }
+        )
+    return neighbors
 
 
 def _verify_waypoint(
@@ -510,7 +695,7 @@ def _verify_waypoint(
     assert intent.path is not None
     source = _runtime_source(intent.source)
     target = _probe_address(intent.destination)
-    command = f"traceroute -n -m 32 -w 1 -q 1 {target}"
+    command = intent_command(intent).command
     output = exec_or_empty(
         runtime,
         source,
@@ -523,6 +708,7 @@ def _verify_waypoint(
         for interface in node.interfaces:
             address_to_node[interface.address] = node.device_name
     hops = []
+    reached_target = False
     for line in output.splitlines():
         fields = line.split()
         for field in fields[1:]:
@@ -530,6 +716,7 @@ def _verify_waypoint(
                 address = str(IPv4Address(field))
             except ValueError:
                 continue
+            reached_target = reached_target or address == target
             node = address_to_node.get(address)
             if node and node not in hops:
                 hops.append(node)
@@ -537,9 +724,7 @@ def _verify_waypoint(
     required = set(intent.path.must_traverse)
     forbidden = set(intent.path.must_avoid)
     passed = (
-        bool(output.strip())
-        and required.issubset(hops)
-        and not forbidden.intersection(hops)
+        reached_target and required.issubset(hops) and not forbidden.intersection(hops)
     )
     evidence = {
         "source": source,
@@ -547,6 +732,7 @@ def _verify_waypoint(
         "command": command,
         "output": output,
         "observed_nodes": hops,
+        "reached_destination": reached_target,
         "must_traverse": list(intent.path.must_traverse),
         "must_avoid": list(intent.path.must_avoid),
     }
@@ -781,14 +967,15 @@ def _bgp_prefixes_originated_ok(runtime, bgp_plan):
 
 
 def _bgp_prefixes_propagated_ok(runtime, bgp_plan):
-    targets = {origin.prefix: origin.ping_address for origin in bgp_plan.originated}
+    # Propagation is a control-plane property. An unbound ping may choose an
+    # infrastructure source that another AS intentionally does not import.
+    # Data-plane checks use the explicit endpoints in the validation contract.
     try:
         return all(
             any(
                 path.get("valid") and path.get("bestpath")
                 for path in _bgp_routes(runtime, observer).get(prefix, [])
             )
-            and (prefix not in targets or ping_ok(runtime, observer, targets[prefix]))
             for observer, prefix in bgp_plan.expect_reachable
         )
     except (ValueError, KeyError, TypeError):

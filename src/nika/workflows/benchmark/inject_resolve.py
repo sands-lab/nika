@@ -308,6 +308,15 @@ def validate_benchmark_case(
             isp_options=isp_options,
         )
         _load_inventory(net_env)
+    if (
+        is_isp_base_topology(canonical)
+        and getattr(net_env, "device_profile", None) in {"iosxr", "routeros"}
+        and problem != "link_down"
+    ):
+        raise ValueError(
+            f"Native ISP benchmark profiles need native fault bindings for {problem!r}; "
+            "currently only link_down is supported."
+        )
     devices = _all_device_names(net_env)
     ifaces_by_device = _device_interfaces(net_env)
 

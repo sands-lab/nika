@@ -57,6 +57,8 @@ def resource_class_for_row(row: Mapping[str, Any]) -> ResourceClass:
         token = str(row.get(key) or "")
         if "containerlab" in token:
             return CLASS_CLAB
+    if str(row.get("device_profile") or "").lower() in {"iosxr", "routeros"}:
+        return CLASS_K8S
     if scenario in K8S_CLASS_SCENARIOS:
         return CLASS_K8S
     if _topo_size(row) == "l":
