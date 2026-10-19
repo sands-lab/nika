@@ -1984,8 +1984,8 @@
       "email": null,
       "trajectories_url": "https://huggingface.co/datasets/nika-bench/nika-trajectories/tree/main/trajectories/0.2.0/20261019_claude_code_qwen3_coder_next_fp8",
       "trajectories_relpath": "trajectories/0.2.0/20261019_claude_code_qwen3_coder_next_fp8",
-      "model": "Qwen3-Coder-Next-FP8",
-      "model_id": null,
+      "model": "Qwen3 Coder Next FP8",
+      "model_id": "qwen3-coder-next-fp8",
       "submitted_model": "Qwen3-Coder-Next-FP8",
       "framework": "Claude Code",
       "agent_type": "cli.claude",
@@ -2046,7 +2046,7 @@
       "run_id": "ee735260d73f56c0",
       "official": true,
       "nika_git_commit": "4f654ae61b438d824cccb6741e01521e9401db68",
-      "name": "Qwen3-Coder-Next-FP8 · Claude Code",
+      "name": "Qwen3 Coder Next FP8 · Claude Code",
       "rca_f1_ci": [
         0.138126,
         0.250745

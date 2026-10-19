@@ -11,8 +11,8 @@
   "email": null,
   "trajectories_url": "https://huggingface.co/datasets/nika-bench/nika-trajectories/tree/main/trajectories/0.2.0/20261019_claude_code_qwen3_coder_next_fp8",
   "trajectories_relpath": "trajectories/0.2.0/20261019_claude_code_qwen3_coder_next_fp8",
-  "model": "Qwen3-Coder-Next-FP8",
-  "model_id": null,
+  "model": "Qwen3 Coder Next FP8",
+  "model_id": "qwen3-coder-next-fp8",
   "submitted_model": "Qwen3-Coder-Next-FP8",
   "framework": "Claude Code",
   "agent_type": "cli.claude",
@@ -73,7 +73,7 @@
   "run_id": "ee735260d73f56c0",
   "official": true,
   "nika_git_commit": "4f654ae61b438d824cccb6741e01521e9401db68",
-  "name": "Qwen3-Coder-Next-FP8 · Claude Code",
+  "name": "Qwen3 Coder Next FP8 · Claude Code",
   "readme": "# Claude Code + Qwen3-Coder-Next\n\nAuthors: NIKA Team\n\nThis entry uses NIKA's `cli.claude` integration with self-hosted\n`Qwen/Qwen3-Coder-Next-FP8` and the standard NIKA MCP tools.\n\n## Evaluation\n\n- Benchmark release: nika-bench 0.2.0, test split, 85 tasks with 3 trials each.\n- All 255 slots finished: 254 scored submissions and 1 agent failure without a submission, which counts as zero in primary means.\n- Mean RCA F1: 0.1923976471 (19.24%).\n- Mean localization F1: 0.3154552941 (31.55%).\n- Mean detection score: 0.8156862745 (81.57%).\n- Budgets: 100 steps, 8192 maximum output tokens, 1800-second agent timeout and 2400-second task timeout.\n- No residual infrastructure or grading errors.\n\n## Run provenance\n\nThe run used NIKA's opt-in Firecracker execution mode (`nika.execution: firecracker`,\nhuge pages, added in [sands-lab/nika#204](https://github.com/sands-lab/nika/pull/204), merged as `4541af7e`):\neach trial restored a verified lab image, re-ran startup verification, and then\ninjected its failure; the agent and its sandbox ran on the host. Trials ran at\nthree commits of that branch: `0c9b5e35` (85 trials), `9556bdd0` (160) and\n`4f654ae6` (10). The later commits change only lab image scheduling, verification\nconcurrency on hosts with fewer than 8 CPUs, and a MetalLB startup retry; they do\nnot change tasks, injection, tools or scoring.\n\nNine trials whose lab VMs crashed when the host's huge-page pool ran out\n(`endpoint_failed` / `error`, not scored) were rerun once after the scheduling fix.\n\nThe model was served with vLLM 0.24 from revision\n`da6e2ed27304dd39abadd9c82ef50e8de67bdd4c` with FP8 weights, a 262144-token context\nwindow and tensor parallelism over two A100 80GB GPUs.\n\n## Links and model information\n\n- [Agent and benchmark](https://github.com/sands-lab/nika)\n- [Project site](https://sands-lab.github.io/nika/)\n- [Benchmark paper](https://arxiv.org/abs/2512.16381), which describes NIKA.\n- [Model checkpoint](https://huggingface.co/Qwen/Qwen3-Coder-Next-FP8)\n\nReference quote retrieved 2026-10-18: OpenRouter, USD 0.12 per million input\ntokens and USD 0.80 per million output tokens. Sources:\n[model page](https://openrouter.ai/qwen/qwen3-coder-next) and\n[public model API](https://openrouter.ai/api/v1/models). This is a hosted\nreference estimate, not the self-hosted GPU bill; cached-input discounts are\nnot applied.",
   "trials": [
     {
