@@ -33,7 +33,8 @@ nika_ready "metallb-system component=controller" -n metallb-system --selector co
 echo "[nika-startup] MetalLB controller ready"
 
 # Apply MetalLB configuration
-nika_run "apply /k8s/metallb-conf.yaml" kubectl --request-timeout=30s apply -f /k8s/metallb-conf.yaml
+# The webhook serves shortly after the controller pod is Ready; retry until it admits.
+nika_wait "apply /k8s/metallb-conf.yaml" 120 kubectl --request-timeout=30s apply -f /k8s/metallb-conf.yaml
 
 # Wait MetalLB speakers startup
 echo "[nika-startup] waiting for MetalLB speakers"
