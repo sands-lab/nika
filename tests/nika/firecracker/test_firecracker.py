@@ -218,7 +218,7 @@ def test_scheduler_groups_trials_by_variant() -> None:
     assert [t.row["problem"] for t in ordered] == ["a", "c", "b", "d"]
 
 
-def test_hugepage_need_follows_the_lab_not_the_vm(tmp_path, monkeypatch) -> None:
+def test_hugepage_need_reserves_the_whole_vm() -> None:
     from nika.firecracker import schedule
 
     row = {"scenario": "dc_clos", "topo_size": "s"}
@@ -226,25 +226,21 @@ def test_hugepage_need_follows_the_lab_not_the_vm(tmp_path, monkeypatch) -> None
         RunConfig.model_validate({"nika": {"firecracker": {"huge_pages": False}}})
     )
     assert schedule.hugepage_need_mib(row) == 0
-
     set_run_config(
         RunConfig.model_validate(
-            {"nika": {"firecracker": {"huge_pages": True, "vm_memory": "1GiB"}}}
+            {
+                "nika": {
+                    "firecracker": {
+                        "huge_pages": True,
+                        "vm_memory": "1GiB",
+                        "vm_memory_overrides": {"k8s_lab": "8GiB"},
+                    }
+                }
+            }
         )
     )
-    monkeypatch.setattr(schedule, "images_dir", lambda: tmp_path)
-    monkeypatch.setattr(schedule, "image_key", lambda params: "k")
-    # Before the lab image exists: its whole memory.
     assert schedule.hugepage_need_mib(row) == 1024
-    (tmp_path / "k").mkdir()
-    memory = tmp_path / "k" / "mem"
-    with open(memory, "wb") as fh:  # 1 GiB file holding 200 MiB of data
-        fh.truncate(1024 << 20)
-        fh.write(b"x" * (200 << 20))
-    assert schedule.hugepage_need_mib(row) == 250  # data plus 25% headroom
-    with open(memory, "r+b") as fh:
-        fh.write(b"x" * (900 << 20))
-    assert schedule.hugepage_need_mib(row) == 1024  # never more than the VM
+    assert schedule.hugepage_need_mib({"scenario": "k8s_lab"}) == 8192
 
 
 def test_firecracker_runs_have_no_heavy_tier() -> None:

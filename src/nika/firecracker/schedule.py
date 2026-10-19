@@ -20,7 +20,6 @@ from typing import Any, Iterable
 from nika.firecracker.base import ensure_base
 from nika.firecracker.config import firecracker_settings
 from nika.firecracker.image import (
-    MEMORY,
     META,
     delete_image,
     ensure_image,
@@ -30,9 +29,6 @@ from nika.firecracker.image import (
     variant_for_row,
     vm_memory_mib,
 )
-
-# Headroom over a lab image memory file's data (memory the lab touches later).
-HUGEPAGE_HEADROOM = 1.25
 
 
 def _variant_id(row: dict[str, Any]) -> str:
@@ -118,23 +114,14 @@ def hugepage_pool_mib() -> int:
 
 
 def hugepage_need_mib(row: dict[str, Any]) -> int:
-    """Huge pages a trial's copy is expected to use (0 without huge pages).
+    """Huge pages to reserve for a trial's copy (0 without huge pages).
 
-    A copy takes huge pages for the data in its lab image memory file (which the
-    page server prefetches; holes stay unused) plus what the lab touches later:
-    the file's data size plus headroom, or the whole VM memory before the lab image
-    VM exists.
+    A copy starts with the lab image's memory but can grow to its whole VM
+    memory, and a VM that finds the pool empty crashes, so reserve all of it.
     """
     if not firecracker_settings().huge_pages:
         return 0
-    params = variant_for_row(row)
-    vm_mib = vm_memory_mib(str(params.get("scenario")))
-    memory = images_dir() / image_key(params) / MEMORY
-    try:
-        data_mib = memory.stat().st_blocks * 512 >> 20
-    except OSError:
-        return vm_mib
-    return min(int(data_mib * HUGEPAGE_HEADROOM), vm_mib)
+    return vm_memory_mib(str(variant_for_row(row).get("scenario")))
 
 
 def clean_after_run(trials: Iterable[Any]) -> None:

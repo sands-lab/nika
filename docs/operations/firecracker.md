@@ -90,8 +90,9 @@ reboots. Run them as a user with `sudo`.
    else. A copy takes huge pages only for the memory its lab uses (`nika
    firecracker list` shows it per lab image: about 1 GiB for small Kathara labs,
    2–5 GiB for ISP, k8s and SR Linux labs), but it can grow to its full
-   `vm_memory`; a VM that finds the pool empty crashes. Reserve enough for the
-   copies you run at once, with headroom. For 24 GiB:
+   `vm_memory`; a VM that finds the pool empty crashes, so the runner admits a
+   trial only while the pool holds its full `vm_memory`. Reserve `vm_memory`
+   for each copy you want to run at once. For 24 GiB:
 
    ```shell
    echo 'GRUB_CMDLINE_LINUX_DEFAULT="${GRUB_CMDLINE_LINUX_DEFAULT} hugepagesz=2M hugepages=12288"' \
@@ -162,8 +163,8 @@ the runner schedules for that:
 2. **One variant at a time.** Trials of the same environment variant run next to
    each other, so its lab image's memory file stays in the page cache.
 3. **Admission by memory.** `--batch-size` caps concurrent trials; with huge
-   pages, a trial also waits until the pool can hold its copy (the data in its
-   lab image's memory file plus 25%). Heavy labs (k8s, Containerlab, size `l`) no
+   pages, a trial also waits until the pool can hold its copy's whole
+   `vm_memory`, so a copy can never exhaust the pool. Heavy labs (k8s, Containerlab, size `l`) no
    longer run alone: a restore costs them no more than a light lab.
 
 ### Huge pages
