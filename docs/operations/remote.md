@@ -71,10 +71,6 @@ nika eval metrics
 
 Artifacts are copied to the local `{nika.result_dir}/{session_id}/` directory (default `results/{session_id}/`), and evaluation runs locally. Remote mode also applies to `nika benchmark run`.
 
-While `nika failure inject` and `nika agent run` execute, the agent host follows the remote `nika.jsonl` and `messages.jsonl` and appends new lines to the local copies about once a second, so you can watch a remote trial as it runs.
-
-Rows written on the lab host carry `"origin": "remote"` and use the lab host's clock. The measured difference (agent host minus lab host) is stored as `remote_clock_offset_sec` in `run.json`.
-
 Confirm that `results/<session_id>/` on the agent host contains the synced session files after the workflow. `nika session close -y` must also remove the lab from the remote host, and the sandbox of an interrupted agent run from the agent host.
 
 ## Operational constraints

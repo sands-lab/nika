@@ -3,10 +3,7 @@
 from __future__ import annotations
 
 import os
-import threading
-from collections.abc import Iterator
-from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from urllib.parse import urlparse
 
 ENV_REMOTE_URL = "NIKA_REMOTE_URL"
@@ -27,12 +24,6 @@ class RemoteConfig:
     enabled: bool
     url: str
     artifact_root: str
-    # Lab-host gateway port -> port agents dial (e.g. a local forwarder).
-    gateway_ports: dict[int, int] = field(default_factory=dict)
-    # Host agents dial for the gateway when it differs from the daemon's host.
-    gateway_host: str | None = None
-    # The lab is thrown away after the trial: close without undeploying it.
-    disposable_lab: bool = False
 
     @property
     def base_url(self) -> str:
@@ -49,44 +40,12 @@ class RemoteConfig:
         """Build a routable MCP gateway URL for agents on the local host."""
         parsed = urlparse(self.url)
         scheme = parsed.scheme or "http"
-        port = self.gateway_ports.get(int(port), int(port))
-        return f"{scheme}://{self.gateway_host or self.host}:{port}"
-
-
-# One trial at a time per process: benchmark trials run sequentially in-process
-# or one per spawn worker. Process-wide (not a ContextVar) so helper threads such
-# as the fault-presence watch see the same lab host.
-_override: RemoteConfig | None = None
-_override_lock = threading.Lock()
-
-
-@contextmanager
-def remote_override(config: RemoteConfig) -> Iterator[RemoteConfig]:
-    """Route this process's lab operations to ``config`` instead of the run config."""
-    global _override
-    with _override_lock:
-        if _override is not None:
-            raise RuntimeError("A remote override is already active in this process.")
-        _override = config
-    try:
-        yield config
-    finally:
-        with _override_lock:
-            _override = None
+        return f"{scheme}://{self.host}:{int(port)}"
 
 
 def is_remote_server() -> bool:
     """True when this process is the lab-host remote daemon."""
     return _env_truthy(ENV_REMOTE_SERVER, "false")
-
-
-def event_origin() -> dict[str, str]:
-    """Extra field for log rows the lab-host daemon writes, so they can be told apart.
-
-    The daemon's clock can differ from the agent host's (e.g. a lab restored from
-    a VM snapshot keeps the snapshot's timeline); see ``remote_clock_offset_sec``.
-    """
-    return {"origin": "remote"} if is_remote_server() else {}
 
 
 def is_remote_enabled() -> bool:
@@ -96,8 +55,6 @@ def is_remote_enabled() -> bool:
     """
     if is_remote_server():
         return False
-    if _override is not None:
-        return True
     try:
         from nika.run_config.loader import get_run_config
 
@@ -110,9 +67,7 @@ def is_remote_enabled() -> bool:
 
 
 def load_remote_config() -> RemoteConfig:
-    """Load remote client config from run config YAML (or the active override)."""
-    if _override is not None and not is_remote_server():
-        return _override
+    """Load remote client config from run config YAML."""
     from nika.run_config.loader import get_run_config
 
     remote = get_run_config().nika.remote
