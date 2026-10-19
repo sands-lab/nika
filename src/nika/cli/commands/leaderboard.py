@@ -78,6 +78,24 @@ def leaderboard_submit(
         "--dry-run",
         help="Pack and validate locally without creating remote PRs.",
     ),
+    hf_model: Optional[str] = typer.Option(
+        None,
+        "--hf-model",
+        help="Hugging Face repo (org/name) of the open-weight model the run served. "
+        "Default: the run's model when it is a Hugging Face ID.",
+    ),
+    hf_revision: Optional[str] = typer.Option(
+        None,
+        "--hf-revision",
+        help="Commit, branch, or tag of --hf-model that the run served; "
+        "recorded as a commit SHA. Default: the latest revision at submit time.",
+    ),
+    proprietary: bool = typer.Option(
+        False,
+        "--proprietary",
+        help="The run's custom endpoint served a proprietary model; "
+        "record no Hugging Face repo.",
+    ),
     out: Optional[Path] = typer.Option(
         None,
         "--out",
@@ -154,6 +172,9 @@ def leaderboard_submit(
             name=name,
             authors=authors,
             dry_run=dry_run,
+            hf_model=hf_model,
+            hf_revision=hf_revision,
+            proprietary=proprietary,
             out_dir=out,
             repo=repo,
             draft=draft,
@@ -169,6 +190,8 @@ def leaderboard_submit(
         raise typer.Exit(code=1) from exc
 
     typer.echo(f"Packed scores package: {result.package_dir}")
+    if result.hf_model:
+        typer.echo(f"Hugging Face model: {result.hf_model}")
     if result.trajectories_dir is not None:
         typer.echo(f"Packed trajectories package: {result.trajectories_dir}")
     if dry_run:
