@@ -29,10 +29,12 @@ To inspect packages before uploading, add `--dry-run` to the same command. This 
 Success prints both PR URLs. Maintainers still review and merge the two PRs before publishing the entry. The command does not merge PRs.
 
 The one-command form creates minimal metadata. Before publishing, review the
-entry's code link, project links, harness display name, model page, release date,
-and reference price. Use custom metadata below when you need to supply these
-details. A successful pack and validation check verifies the benchmark package;
-it does not verify that the leaderboard's model catalog covers your model.
+entry's code link, project links, and harness display name. Use custom metadata
+below when you need to supply these details.
+
+For an open-weight model, `submit` also records which Hugging Face model the run
+served, so the leaderboard can find its release date and price. See
+[the open-weight model record](#record-the-open-weight-model).
 
 ## Submit with custom metadata
 
@@ -49,6 +51,8 @@ nika leaderboard submit --result_dir results/my-run \
   --submission results/my-run/submission
 # optional:
 #   --dry-run
+#   --hf-model org/name --hf-revision <commit|branch|tag>
+#   --proprietary
 #   --draft
 #   --skip-github / --skip-trajectories
 #   --traj-repo nika-bench/nika-trajectories
@@ -159,41 +163,53 @@ Field notes:
 
 ## Model release dates, prices, and display names
 
-Submitters provide model identity, project links, and sources. Maintainers review
-shared model information in the
-[leaderboard repository](https://github.com/sands-lab/nika-leaderboard).
-The website derives costs and chart labels from those records and the submitted
-run. You do not need to calculate a total cost for the scores package.
+You do not supply release dates or prices. After your scores PR merges, the
+[leaderboard repository](https://github.com/sands-lab/nika-leaderboard) looks
+up the model's release date and reference price from public catalogs and opens a
+catalog PR for its maintainers to review. Until that PR merges, the website shows
+the entry's cost as `pending`; models with no public quote show `n/a`. Neither
+blocks your submission. See the leaderboard README for the catalog format and
+sources.
 
-For a model's first submission, include these sources in your README:
+### Record the open-weight model
 
-| Information | What to supply | Maintainer location |
-| --- | --- | --- |
-| Model page | Official model card, including the quantized checkpoint when used | `catalog/models.json`, `model_page` |
-| Released date | Public release date and announcement or first weight-upload link | `catalog/models.json`, `released` and `release_source` |
-| Reference price | Provider, USD per million input/output tokens, source URL, retrieval date, and precision differences | `catalog/pricing.json`, keyed by the submitted `agent.model` |
+Open-weight prices and release dates come from the model's Hugging Face repo, so
+`submit` writes the repo and a pinned commit to `agent.extra`:
 
-Reuse an existing reviewed model entry when the identity matches. Maintainers
-should verify the public release evidence; a model repository's creation date
-can precede its weight release. Keep network lookups out of benchmark packing
-and validation so submissions remain reproducible when providers change pages.
+```yaml
+agent:
+  extra:
+    hf_repo: nvidia/Qwen3.6-35B-A3B-NVFP4
+    hf_revision: 1355db6a052410cfd62085d94b58866fd0f2c3c5
+    hf_revision_source: latest   # or: specified
+```
 
-Before merging, the leaderboard's required `model-metadata` check verifies that
-`catalog/models.json` and `catalog/pricing.json` contain entries under the exact
-submitted `agent.model` string. Register a new model in the scores PR or in an
-earlier catalog PR. A model entry needs `released` (YYYY-MM-DD), an HTTPS
-`release_source`, and an HTTPS `model_page`. A price entry needs positive finite
-input/output rates, a provider, `basis` (`api` or `hosted_open_weight`), an HTTPS
-source, and a `retrieved` date. Missing fields and future/invalid dates fail CI.
-Run `uv run python scripts/validate_model_metadata.py` from the leaderboard
-checkout to check the catalog before uploading. Maintainers still review sources.
+When a custom endpoint served the model under its Hugging Face ID, as vLLM does
+by default, `submit` finds the repo from the run's `model` and needs no extra
+flags. Unless you pass `--hf-revision`, it records the repo's latest revision at
+submit time and prints it. Pass `--hf-revision` when the run served an older
+commit, branch, or tag; `submit` stores its commit SHA.
+
+`submit` stops before packing when it cannot identify the model, for example
+when vLLM used `--served-model-name` or Ollama served a library model such as
+`gpt-oss:120b`. Pass the repo explicitly, or mark a proprietary model behind a
+custom endpoint:
+
+```shell
+uv run nika leaderboard submit --result_dir results/my-run \
+  --name "My Agent" --authors "Your Name" \
+  --hf-model openai/gpt-oss-120b      # or: --proprietary
+```
+
+Runs against a vendor API (`openai`, `anthropic`, `deepseek`) record nothing.
+
+### How the website prices runs
 
 The leaderboard uses vendor API list prices for proprietary models and public
 hosted-inference quotes for open weights. For open weights, this is a reference
-estimate for hosted inference, not the submitter's self-hosted GPU bill. Record
-any precision differences between the quote and the run. If no supported quote
-exists, the submission cannot pass the required model-metadata check. Another
-model's price or a zero does not represent a missing quote.
+estimate for hosted inference, not the submitter's self-hosted GPU bill. Each
+run uses the quote that was current on its package date; a **Current prices**
+toggle re-prices every run at the latest quote.
 
 The website computes the token-priced total as
 `(input_tokens × input_rate + output_tokens × output_rate) / 1,000,000`.
@@ -230,7 +246,8 @@ See also [root-cause ground truth and scoring](root-cause-evaluation.md#score-a-
 - [ ] Official release run; local pack/validate during `nika leaderboard submit` passed
 - [ ] Required metadata fields filled; README describes the system
 - [ ] Code, project/report links, public harness name, and tools reviewed against the run
-- [ ] Model page, sourced released date, and sourced reference price registered in the leaderboard; required `model-metadata` check passes
+- [ ] Open-weight model: `agent.extra.hf_repo` and `hf_revision` match the served model
+- [ ] Required `model-metadata` check passes (a new model is reported as `pending`)
 - [ ] Path is `submissions/<version>/{YYYYMMDD}_{slug}/`
 - [ ] CI validate workflow is green
 

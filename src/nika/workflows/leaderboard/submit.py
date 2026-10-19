@@ -5,7 +5,7 @@ from __future__ import annotations
 import shlex
 import shutil
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import yaml
@@ -14,6 +14,7 @@ from nika.config import REPO_ROOT, resolve_results_root
 from nika.workflows.benchmark.release import load_run_config
 from nika.workflows.leaderboard import github_cli as gh
 from nika.workflows.leaderboard import hf_cli as hf
+from nika.workflows.leaderboard.hf_model import HfModelError, resolve_hf_model
 from nika.workflows.leaderboard.hf_remote import (
     DEFAULT_TRAJECTORIES_REPO,
     remote_trajectories_relpath,
@@ -21,6 +22,7 @@ from nika.workflows.leaderboard.hf_remote import (
 from nika.workflows.leaderboard.meta_input import (
     MetaInputError,
     default_meta_template,
+    load_submission_dir,
     parse_metadata_payload,
 )
 from nika.workflows.leaderboard.pack import (
@@ -66,6 +68,8 @@ class SubmitResult:
     trajectories_remote_path: str | None = None
     trajectories_pr_url: str | None = None
     trajectories_pr_num: int | None = None
+    # ``org/repo@sha`` recorded for an open-weight model, else None.
+    hf_model: str | None = None
 
 
 def _resolve_package_dir(path: str | Path) -> Path:
@@ -473,25 +477,30 @@ def submit_leaderboard_package(
     skip_trajectories: bool = False,
     traj_repo: str = DEFAULT_TRAJECTORIES_REPO,
     dry_run: bool = False,
+    hf_model: str | None = None,
+    hf_revision: str | None = None,
+    proprietary: bool = False,
 ) -> SubmitResult:
     """Pack a release run, validate packages, then open GitHub and/or HF PRs.
 
     Pack or validate failures raise before any remote submit. Default: both
     GitHub scores and HF trajectories PRs. Use ``skip_github`` /
-    ``skip_trajectories`` to disable one side.
+    ``skip_trajectories`` to disable one side. Open-weight runs record their
+    Hugging Face repo and pinned revision in ``agent.extra``
+    (see :func:`resolve_hf_model`).
     """
     try:
         metadata = None
         readme_text = None
         if submission_dir is not None and (name is not None or authors is not None):
             raise MetaInputError("Use either --submission DIR or --name/--authors.")
+        run_cfg = load_run_config(resolve_results_root(result_dir)) or {}
         if submission_dir is None:
             if not name or not name.strip() or not authors or not authors.strip():
                 raise MetaInputError(
                     "Pass --name and --authors, or --submission DIR with "
                     "metadata.yaml + README.md."
                 )
-            run_cfg = load_run_config(resolve_results_root(result_dir)) or {}
             payload = default_meta_template()
             payload["info"].update(name=name, authors=authors)
             payload["agent"].update(
@@ -505,17 +514,31 @@ def submit_leaderboard_package(
                 f"Framework: {metadata.agent.framework}\n\n"
                 f"Model: {metadata.agent.model}\n"
             )
+        else:
+            metadata, _meta_path, readme_path = load_submission_dir(submission_dir)
+            readme_text = readme_path.read_text(encoding="utf-8")
+        metadata.agent.extra.update(
+            resolve_hf_model(
+                run_cfg,
+                metadata.agent.extra,
+                hf_model=hf_model,
+                hf_revision=hf_revision,
+                proprietary=proprietary,
+            )
+        )
         packed: PackResult = pack_leaderboard_submission(
             result_dir,
-            submission_dir=submission_dir,
             metadata=metadata,
             readme_text=readme_text,
             out_dir=out_dir,
         )
+    except HfModelError as exc:
+        raise LeaderboardSubmitError(str(exc)) from exc
     except (LeaderboardPackError, MetaInputError) as exc:
         raise LeaderboardSubmitError(f"pack failed: {exc}") from exc
 
-    return _submit_packed_package(
+    extra = metadata.agent.extra
+    result = _submit_packed_package(
         packed.scores_dir,
         repo=repo,
         draft=draft,
@@ -530,3 +553,10 @@ def submit_leaderboard_package(
         trajectories_dir=packed.trajectories_dir,
         dry_run=dry_run,
     )
+    if extra.get("hf_repo"):
+        result = replace(
+            result,
+            hf_model=f"{extra['hf_repo']}@{extra.get('hf_revision')} "
+            f"({extra.get('hf_revision_source', 'specified')} revision)",
+        )
+    return result
