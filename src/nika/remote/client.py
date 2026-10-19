@@ -116,10 +116,12 @@ class RemoteClient:
             )
         )
 
-    def fault_artifact(self, session_id: str) -> dict[str, Any]:
+    def fault_artifact(
+        self, session_id: str, *, timeout: float = 30.0
+    ) -> dict[str, Any]:
         """Bound the network wait for a benchmark artifact recheck."""
         payload = self._request(
-            "GET", f"/v1/sessions/{session_id}/fault-artifact", timeout=30.0
+            "GET", f"/v1/sessions/{session_id}/fault-artifact", timeout=timeout
         )
         if not isinstance(payload, dict):
             raise RemoteError("Unexpected fault-artifact response shape")

@@ -60,6 +60,11 @@ class FirecrackerSettings(BaseModel):
     huge_pages: bool = False
     # Re-run the startup lab verification after each restore, as a cold deploy does.
     verify_after_restore: bool = True
+    # Also keep each failure case as a case image (snapshot after injection, its
+    # memory stored as a compressed diff against the lab image): trials skip
+    # verification and injection. All trials of a case start from the same
+    # injected state. Costs disk (tens of MiB per case) and one build per case.
+    case_images: bool = False
     # Delete the lab images a benchmark run used when it ends. Keeping them (the
     # default) takes substantial disk (each holds its lab's memory and disk
     # changes, often 2-8 GiB) but lets later runs skip the builds.

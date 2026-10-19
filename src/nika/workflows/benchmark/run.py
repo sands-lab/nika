@@ -18,6 +18,7 @@ from nika.evaluator.result_log import MESSAGES_FILENAME
 from nika.net_env.net_env_pool import scenario_requires_topo_size
 from nika.problems.registry import get_problem_class, get_problem_instance
 from nika.firecracker import firecracker_enabled
+from nika.firecracker.case import wants_case_image
 from nika.firecracker.image import variant_for_row
 from nika.firecracker.schedule import (
     clean_after_run,
@@ -67,7 +68,11 @@ from nika.workflows.benchmark.healthy import (
 )
 from nika.workflows.benchmark.isp_options import ISP_DEPLOY_KEYS
 from nika.workflows.benchmark.load_config import load_benchmark_input
-from nika.workflows.benchmark.multi_fault import flatten_inject_overrides, row_problems
+from nika.workflows.benchmark.multi_fault import (
+    flatten_inject_overrides,
+    inject_overrides,
+    row_problems,
+)
 from nika.workflows.benchmark.outcomes import (
     COUNTED_OUTCOMES,
     RETRYABLE_OUTCOMES,
@@ -855,17 +860,7 @@ def run_single_case(
     resolved_problems = list(
         problems or row_problems({"problem": problem, "inject": inject_params})
     )
-    inject_overrides = (
-        flatten_inject_overrides(
-            {
-                "problem": problem,
-                "problems": resolved_problems,
-                "inject": inject_params,
-            }
-        )
-        if len(resolved_problems) > 1
-        else dict(inject_params)
-    )
+    inject_args = inject_overrides(problem, resolved_problems, inject_params)
 
     validate_inject_params(
         problem,
@@ -933,12 +928,15 @@ def run_single_case(
             session_dir = Path(load_session_meta_for_close(session_id)["session_dir"])
         if is_healthy_case(problem):
             write_healthy_session_artifacts(session_id)
+        elif image_lab is not None and image_lab.case is not None:
+            # Restored from a case image: injected and ground truth written there.
+            pass
         else:
             _phase("inject")
             inject_failure(
                 problem_names=resolved_problems,
                 session_id=session_id,
-                param_overrides=inject_overrides,
+                param_overrides=inject_args,
                 expected_root_causes=expected_root_causes,
             )
         gt_written = (session_dir / "ground_truth.json").is_file()
@@ -1156,6 +1154,7 @@ def _firecracker_trial_scope(trial: Trial, *, agent_type: str, result_dir: str |
             if agent_type in SANDBOX_SUPPORTED_AGENTS
             else None
         ),
+        case_row=trial.row if wants_case_image(trial.row) else None,
     )
 
 

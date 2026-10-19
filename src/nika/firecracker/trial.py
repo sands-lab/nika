@@ -4,7 +4,9 @@ The copy runs in ``<root>/trials/<digest>/`` with a copy-on-write clone of the
 lab image disk and, through the relative paths the image was built with, its own
 vsock socket. Its memory comes from the lab image's memory file: mapped privately
 (pages load on first access), or, with huge pages, served by the
-``nika.firecracker.uffd`` page server, which also prefetches all of it. The host
+``nika.firecracker.uffd`` page server, which also prefetches all of it. A copy
+of a case image (``nika.firecracker.case``) always uses the page server, which
+overlays the case's memory diff on the lab image memory. The host
 reaches the copy only through vsock forwarders for the NIKA remote daemon and
 the MCP gateway, which ``remote_override`` routes this process's lab
 operations to.
@@ -24,6 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from nika.remote.config import RemoteConfig, remote_override
+from nika.firecracker.case import ZDIFF, CaseImage, ensure_case
 from nika.firecracker.config import firecracker_settings
 from nika.firecracker.image import (
     DAEMON_PORT,
@@ -70,6 +73,8 @@ class TrialLab:
         trial_key: str,
         owner: str,  # results root of the run, for finding its orphaned copies
         sandbox_backend: str | None = None,
+        # Restore this row's case image (already injected) instead of the lab image.
+        case_row: dict[str, Any] | None = None,
     ) -> None:
         self.params = params
         self.trial_key = trial_key
@@ -78,6 +83,8 @@ class TrialLab:
         self.sandbox_backend = sandbox_backend
         self.dir = trial_dir(trial_key)
         self.image: LabImage | None = None
+        self.case_row = case_row
+        self.case: CaseImage | None = None
         self.timings: dict[str, float] = {}
         self._forwarders: list[VsockForwarder] = []
         self._override = None
@@ -85,7 +92,11 @@ class TrialLab:
     def __enter__(self) -> TrialLab:
         global _active
         started = time.monotonic()
-        self.image = ensure_image(self.params)
+        if self.case_row is not None:
+            self.case = ensure_case(self.case_row)
+            self.image = self.case.image
+        else:
+            self.image = ensure_image(self.params)
         self.timings["image_sec"] = round(time.monotonic() - started, 2)
         release_trial(self.trial_key)  # leftovers of an earlier attempt
         try:
@@ -107,20 +118,27 @@ class TrialLab:
                     "trial": self.trial_key,
                     "owner": self.owner,
                     "image": self.image.key,
+                    "case": self.case.key if self.case else None,
                     "pid": os.getpid(),
                     "host": socket.gethostname(),
                 }
             )
         )
-        _clone(self.image.path / DISK, self.dir / DISK)
+        source = self.case.path if self.case else self.image.path
+        _clone(source / DISK, self.dir / DISK)
         vm = Firecracker(self.dir, firecracker_binary(settings.binary))
         vm.start()
         uffd = None
-        if settings.huge_pages:
+        if settings.huge_pages or self.case:
             uffd = self.dir / "uffd.sock"
-            _start_page_server(self.dir, uffd, self.image.path / MEMORY)
+            _start_page_server(
+                self.dir,
+                uffd,
+                self.image.path / MEMORY,
+                self.case.path / ZDIFF if self.case else None,
+            )
         vm.load(
-            state=self.image.path / STATE,
+            state=source / STATE,
             memory=self.image.path / MEMORY,
             uffd_socket=uffd,
         )
@@ -157,12 +175,23 @@ class TrialLab:
         assert self.image is not None
         started = time.monotonic()
         new_id = remote_rebind_session(
-            self.image.session_id,
+            self.case.session_id if self.case else self.image.session_id,
             new_session_id=session_id,
             result_dir=result_dir,
             session_dir=session_dir,
         )
-        if firecracker_settings().verify_after_restore:
+        if self.case is not None:
+            # The lab carries its failure: check the injected artifact instead.
+            # Right after a restore (several copies at once, a loaded lab) the
+            # check can take much longer than during the agent's run.
+            check = _client().fault_artifact(new_id, timeout=180.0)
+            if not check.get("present"):
+                close_session(session_id=new_id, undeploy=False, status="error")
+                raise VmmError(
+                    f"case image {self.case.key}: injected fault not present "
+                    f"after restore: {check}"
+                )
+        elif firecracker_settings().verify_after_restore:
             try:
                 _client().verify_session(new_id)
             except BaseException:
@@ -170,7 +199,7 @@ class TrialLab:
                 close_session(session_id=new_id, undeploy=False, status="error")
                 raise
         self.timings["attach_sec"] = round(time.monotonic() - started, 2)
-        _record_trial_timings(new_id, self.image, self.timings)
+        _record_trial_timings(new_id, self.image, self.timings, self.case)
         return new_id
 
     def __exit__(self, *exc_info: object) -> None:
@@ -187,10 +216,13 @@ class TrialLab:
         release_trial(self.trial_key)
 
 
-def _start_page_server(run_dir: Path, sock: Path, memory: Path) -> None:
+def _start_page_server(
+    run_dir: Path, sock: Path, memory: Path, diff: Path | None = None
+) -> None:
     log = open(run_dir / "uffd.log", "ab")
     proc = subprocess.Popen(
-        [sys.executable, "-m", "nika.firecracker.uffd", str(sock), str(memory)],
+        [sys.executable, "-m", "nika.firecracker.uffd", str(sock), str(memory)]
+        + ([str(diff)] if diff else []),
         stdin=subprocess.DEVNULL,
         stdout=log,
         stderr=log,
@@ -227,18 +259,20 @@ def gateway_route(sandbox_backend: str | None) -> tuple[str, str | None]:
     return "0.0.0.0", host
 
 
-def _record_trial_timings(session_id: str, image: LabImage, timings: dict) -> None:
+def _record_trial_timings(
+    session_id: str, image: LabImage, timings: dict, case: CaseImage | None = None
+) -> None:
     from nika.utils.logger import log_event
     from nika.utils.session_store import SessionStore
 
-    SessionStore().update_session(
-        session_id, {"firecracker": {"image": image.key, **timings}}
-    )
+    restored = {"image": image.key, **({"case": case.key} if case else {})}
+    SessionStore().update_session(session_id, {"firecracker": {**restored, **timings}})
+    what = f"case image {case.key}" if case else f"lab image {image.key}"
     log_event(
         "lab_image_restore",
-        f"Restored lab image {image.key} for session {session_id}",
+        f"Restored {what} for session {session_id}",
         session_id=session_id,
-        image=image.key,
+        **restored,
         **timings,
     )
 
@@ -287,6 +321,7 @@ def trial_rows(owner: str | None = None) -> list[dict[str, Any]]:
                 "trial": meta.get("trial", ""),
                 "owner": meta.get("owner", ""),
                 "image": meta.get("image", ""),
+                "case": meta.get("case") or "",
                 "alive": bool(pid) and pid_alive(pid),
             }
         )

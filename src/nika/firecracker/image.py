@@ -85,6 +85,8 @@ HOST_ONLY_PATHS = (
     "src/agent/sdk/",
     "src/agent/skills/",
     "src/nika/evaluator/",
+    # Host side of Firecracker runs; base image and binary have their own key parts.
+    "src/nika/firecracker/",
     "src/nika/inspect/",
     "src/nika/tui/",
 )

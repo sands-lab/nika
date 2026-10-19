@@ -260,3 +260,59 @@ def test_firecracker_runs_have_no_heavy_tier() -> None:
     assert resource_class(trial) != CLASS_LIGHT
     set_run_config(RunConfig.model_validate({"nika": {"execution": "firecracker"}}))
     assert resource_class(trial) == CLASS_LIGHT
+
+
+def test_memory_diff_round_trips_changed_pages(tmp_path) -> None:
+    import mmap
+    import os
+
+    from nika.firecracker import memdiff
+
+    page = memdiff.PAGE
+    base, case, diff = tmp_path / "base", tmp_path / "case", tmp_path / "diff"
+    size = 3 * memdiff.BLOCK  # three 2 MiB blocks
+    with open(base, "wb") as fh:
+        fh.truncate(size)
+        fh.write(os.urandom(page * 4))  # data, then a hole
+    original = base.read_bytes()
+    changed = bytearray(original)
+    changed[page : page + 3] = b"abc"  # inside the data
+    changed[memdiff.BLOCK + 5 * page] = 7  # inside the base file's hole
+    changed[0:page] = bytes(page)  # data page zeroed
+    case.write_bytes(bytes(changed))
+
+    sizes = memdiff.encode(base, case, diff)
+    assert sizes["pages"] == 3
+    assert memdiff.read_index(diff) == [0, 1, memdiff.BLOCK // page + 5]
+    with open(base, "rb") as fh:
+        mm = mmap.mmap(
+            fh.fileno(), 0, flags=mmap.MAP_PRIVATE, prot=mmap.PROT_READ | mmap.PROT_WRITE
+        )
+    assert memdiff.apply(mm, diff) == 3
+    assert mm[:] == bytes(changed)
+    assert base.read_bytes() == original  # the lab image file is never written
+
+
+def test_case_images_follow_lab_image_and_case(monkeypatch: pytest.MonkeyPatch) -> None:
+    from nika.firecracker import case
+
+    set_run_config(
+        RunConfig.model_validate({"nika": {"firecracker": {"case_images": True}}})
+    )
+    monkeypatch.setattr(case, "image_key", lambda params: "img-1")
+    row = {
+        "scenario": "dc_clos",
+        "topo_size": "s",
+        "problem": "link_down",
+        "inject": {"host_name": "leaf_1"},
+        "root_causes": [{"resource": {"kind": "node", "node": "leaf_1"}}],
+    }
+    key = case.case_key(row)
+    assert key == case.case_key(dict(row))
+    assert key != case.case_key({**row, "inject": {"host_name": "leaf_2"}})
+    monkeypatch.setattr(case, "image_key", lambda params: "img-2")
+    assert key != case.case_key(row)  # a new lab image needs new case images
+    assert case.wants_case_image(row)
+    assert not case.wants_case_image({**row, "problem": "healthy"})
+    set_run_config(RunConfig())
+    assert not case.wants_case_image(row)

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 import time
 from contextlib import ExitStack
 from datetime import datetime, timezone
@@ -42,7 +43,12 @@ from nika.workflows.failure.inject import inject_failure
 from nika.workflows.session.close import close_session, load_session_meta_for_close
 from nika.workflows.session.containers import list_session_containers
 from nika.workflows.session.list import list_sessions
-from nika.validation.presence import recheck_bound_artifact
+from nika.validation.presence import (
+    bind_injected_problem,
+    bound_injected_problem,
+    clear_injected_problem,
+    recheck_bound_artifact,
+)
 
 logger = logging.getLogger("nika.remote")
 # Cap one log read so a large backlog streams in several polls.
@@ -376,8 +382,21 @@ def handle_session_rebind(
     old_dir.rename(new_dir)
     for name in FOLLOWED_LOGS:
         log = new_dir / name
-        if log.is_file():
-            log.rename(new_dir / f"image.{name}")
+        if not log.is_file():
+            continue
+        kept = new_dir / f"image.{name}"
+        if kept.is_file():
+            # A case image: its lab image's build events, then its injection.
+            with open(kept, "ab") as dst, open(log, "rb") as src:
+                shutil.copyfileobj(src, dst)
+            log.unlink()
+        else:
+            log.rename(kept)
+    # A fault injected before the snapshot (case image) stays checkable.
+    bound = bound_injected_problem(session_id)
+    if bound is not None:
+        bind_injected_problem(new_id, *bound)
+        clear_injected_problem(session_id)
     now = datetime.now(timezone.utc).isoformat()
     doc = dict(meta)
     doc.update(

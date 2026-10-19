@@ -221,6 +221,54 @@ vm_memory_overrides:
 Few vCPUs per VM keep one copy's bursts (verification, injection, the agent's
 commands) from starving the copies next to it.
 
+### Case images (optional)
+
+Even from a lab image, every trial still verifies the restored environment and
+injects its failure before the agent starts. Most tasks need a few seconds for
+that, but some need much longer: in release 0.2.0, injection takes 50–110 s for
+several `dc_clos`, `enterprise_branch`, `campus_lan`, `k8s_lab` and `llmd_lab`
+tasks, and verifying `isp_pdh` (SR Linux) takes about 100 s. A run repeats this
+for every trial.
+
+With case images, NIKA injects each task's failure once and keeps the VM right
+after injection as a *case image*. Every trial of the task restores it and the
+agent starts at once:
+
+```yaml
+nika:
+  firecracker:
+    case_images: true
+```
+
+Case images are worth it when you run the same tasks repeatedly, such as several
+agents or models on one release. They change how trials start:
+
+* All trials of a task start from the same injected state, instead of each
+  trial injecting the failure again. Failures that evolve over time (traffic
+  floods, resource contention, flapping) continue from the moment of injection.
+* A trial does not repeat the startup verification. It checks that the injected
+  failure is still present, and fails if it is not.
+* Healthy tasks (no failure) restore the lab image as before.
+
+A case image stores only the memory pages that injection and the lab's own
+activity changed since the lab image, compressed, plus the disk blocks they
+changed. Measured on release 0.2.0 with huge pages:
+
+| | Per task | Test split (76 failure tasks) |
+|---|---|---|
+| Disk | median 40 MiB, up to 190 MiB (`isp_pdh`, `k8s_lab`, `llmd_lab`) | about 4 GiB |
+| One-time build (restore, inject, snapshot, compress) | 2.5–3 min; about 9 min for `isp_pdh` | about 3.5 h of VM time; builds run in parallel |
+| Restore until the agent can start | 1–2.5 s; 6–8 s for `k8s_lab` and `isp_pdh` | — |
+
+These restore times assume the lab image's memory is in the host page cache,
+which is the normal case because trials of one environment variant run
+together. The first restore of a variant from a cold cache reads that memory
+from disk first: 10–40 s for most labs and about 100 s for `isp_pdh` (15 GiB).
+
+Without huge pages, a copy of a case image receives its memory from the page
+server instead of mapping the lab image file, so copies no longer share memory:
+each holds the memory its lab uses (1–8 GiB).
+
 ## What changes in a trial
 
 * A trial's results directory has the same files as a native trial, plus:
@@ -230,6 +278,7 @@ commands) from starving the copies next to it.
     `failures_ended` and `session_cleared` come from the VM.
 * After restore, the lab passes the same startup verification as a native deploy
   before the failure is injected. Set `verify_after_restore: false` to skip it.
+  [Case images](#case-images-optional) check the injected failure instead.
 * Lab-host events in `nika.jsonl` and `messages.jsonl` carry
   `"origin": "remote"` and stream to the host about once a second.
 * Teardown discards the VM copy instead of undeploying the lab.
@@ -253,9 +302,9 @@ records the difference as `remote_clock_offset_sec`.
 
 | Command | Effect |
 |---|---|
-| `nika firecracker list` | Lab images, whether trials would still use them, and trial copies (running or orphaned) |
-| `nika firecracker clean` | Release orphaned trial copies; delete stale lab images (any key input changed) and abandoned builds. Builds in progress and lab images that running trials restore from are kept |
-| `nika firecracker clean --all` | Also delete every lab image |
+| `nika firecracker list` | Lab and case images, whether trials would still use them, and trial copies (running or orphaned) |
+| `nika firecracker clean` | Release orphaned trial copies; delete stale lab and case images (any key input changed) and abandoned builds. Builds in progress and images that running trials restore from are kept |
+| `nika firecracker clean --all` | Also delete every lab and case image |
 
 Lab images stay after a run, so later runs (other agents, more trials, reruns)
 reuse them. Each takes the memory its lab used plus the disk blocks its deploy
@@ -272,8 +321,8 @@ Lab images are keyed by:
 
 * environment variant;
 * code that runs in the VM: `src/` and `pyproject.toml`, without host-only code
-  (agents, LLM clients, evaluation, `nika inspect` and the TUI), so changing an
-  agent keeps the lab images;
+  (agents, LLM clients, evaluation, `nika inspect`, the TUI and NIKA's
+  Firecracker host code), so changing an agent keeps the lab images;
 * the host's lab deploy settings (`nika.lab`, `runtime_validation`,
   `static_validation`, `k8s`), which the image deploy uses;
 * base image;
@@ -282,7 +331,8 @@ Lab images are keyed by:
   it.
 
 A change to any of these builds a new lab image on the next run, and `list`
-marks the old one stale.
+marks the old one stale. A case image is keyed by its lab image and its task, so
+a new lab image also builds new case images.
 
 ## Limitations
 

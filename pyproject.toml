@@ -41,6 +41,7 @@ dependencies = [
     "huggingface_hub>=1.29.0,<2",
     "starlette>=1.0.0,<2",
     "uvicorn>=0.47.0,<0.48",
+    "zstandard>=0.25.0,<0.26",
 ]
 
 [project.optional-dependencies]
