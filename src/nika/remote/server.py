@@ -45,11 +45,6 @@ def serve_remote(
     """Start the remote control-plane HTTP server (blocking)."""
     os.environ[ENV_REMOTE_SERVER] = "1"
     configure_host_logging()
-    # Import the MCP submission path up front: the first phase advance otherwise
-    # pays for it, which is slow on a lab host restored from a VM snapshot.
-    import nika.workflows.agent.submission  # noqa: F401
-    import nika.workflows.failure.inject  # noqa: F401
-
     app = create_remote_app()
     logging.getLogger("nika.remote").info(
         "daemon listening on http://%s:%s", host, port

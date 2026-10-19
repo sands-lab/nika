@@ -21,9 +21,6 @@ from nika.remote.protocol import (
     PolicyMode,
     SessionCloseRequest,
     SessionContainersResponse,
-    SessionLogResponse,
-    SessionRebindRequest,
-    SessionRebindResponse,
 )
 
 
@@ -165,34 +162,6 @@ class RemoteClient:
         if not session_id:
             raise ValueError("session_id is required unless stop_all=True")
         self._request("POST", f"/v1/sessions/{session_id}/close", body=body)
-
-    def rebind_session(
-        self,
-        session_id: str,
-        new_session_id: str,
-        *,
-        agent_session_id: str | None = None,
-    ) -> SessionRebindResponse:
-        body = SessionRebindRequest(
-            session_id=new_session_id, agent_session_id=agent_session_id
-        ).model_dump()
-        return SessionRebindResponse.model_validate(
-            self._request("POST", f"/v1/sessions/{session_id}/rebind", body=body)
-        )
-
-    def verify_session(self, session_id: str) -> dict[str, Any]:
-        return self._request(
-            "POST", f"/v1/sessions/{session_id}/verify", body={}, timeout=None
-        )
-
-    def read_log(self, session_id: str, name: str, offset: int) -> SessionLogResponse:
-        return SessionLogResponse.model_validate(
-            self._request(
-                "GET",
-                f"/v1/sessions/{session_id}/logs/{name}?offset={int(offset)}",
-                timeout=30.0,
-            )
-        )
 
     def get_session(self, session_id: str) -> dict[str, Any]:
         return self._request("GET", f"/v1/sessions/{session_id}")

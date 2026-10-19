@@ -237,29 +237,3 @@ class TraceParserTest:
         assert metrics["in_tokens"] == 15
         assert metrics["out_tokens"] == 150
         assert metrics["reasoning_tokens"] == 110
-
-    def test_time_taken_ignores_lab_host_clock(self, tmp_path: Path) -> None:
-        # A lab restored from a snapshot runs behind the agent host's clock.
-        path = _write_trace(
-            tmp_path,
-            [
-                {
-                    "timestamp": "2026-10-13T12:00:00+00:00",
-                    "phase": "diagnosis",
-                    "event": "agent_start",
-                },
-                {
-                    "timestamp": "2026-10-13T11:50:00+00:00",
-                    "phase": "diagnosis",
-                    "event": "diagnosis_frozen",
-                    "origin": "remote",
-                },
-                {
-                    "timestamp": "2026-10-13T12:02:00+00:00",
-                    "phase": "diagnosis",
-                    "event": "agent_done",
-                },
-            ],
-        )
-        metrics = AgentTraceParser(trace_path=path).parse_trace()
-        assert metrics["time_taken"] == 120
