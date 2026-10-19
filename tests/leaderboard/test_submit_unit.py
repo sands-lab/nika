@@ -298,6 +298,7 @@ def test_submit_direct_push_opens_pr(
     assert branches == ["submission/20260101_unit_agent"]
     assert pushes == ["submission/20260101_unit_agent"]
     assert prs[0]["draft"] is True
+    assert prs[0]["labels"] == ("leaderboard-submit",)
     assert prs[0]["head"] == "submission/20260101_unit_agent"
     dest = cloned["dest"] / result.remote_path
     assert (dest / "metadata.yaml").is_file()
