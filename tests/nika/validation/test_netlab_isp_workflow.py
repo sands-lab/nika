@@ -24,8 +24,9 @@ from nika.workflows.validation.benchmark_routing import (
         )
     ]
     + [
-        ("frr", topology, "isis", "none")
+        ("frr", topology, "isis", mode)
         for topology in ("arpanet196912", "dataxchange", "abilene")
+        for mode in ("none", "ibgp_rr")
     ],
 )
 def test_netlab_synthesis_execution_and_recovery(

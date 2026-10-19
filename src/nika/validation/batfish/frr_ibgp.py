@@ -9,13 +9,26 @@ from nika.net_env.utils.kathara.frr_origin import BGP_ORIGIN_IFACE
 
 
 def split_frr_ibgp(config: str) -> tuple[str, str]:
-    """Separate the appended BGP fragment from the original IGP config."""
-    match = re.search(
-        rf"^(?:interface {re.escape(BGP_ORIGIN_IFACE)}\b|ip prefix-list |route-map |router bgp )",
-        config,
-        re.MULTILINE,
-    )
-    return (config[: match.start()], config[match.start() :]) if match else (config, "")
+    """Separate concrete protocol blocks, including interleaved tool fragments."""
+    igp, bgp = [], []
+    target = igp
+    for line in config.splitlines(keepends=True):
+        if line and not line[0].isspace() and not line.startswith(("!", "#")):
+            if line.startswith(("interface ", "router ")):
+                target = (
+                    bgp
+                    if (
+                        line.strip() == f"interface {BGP_ORIGIN_IFACE}"
+                        or line.startswith("router bgp ")
+                    )
+                    else igp
+                )
+            elif line.startswith(("ip prefix-list ", "route-map ")):
+                target = bgp
+            elif line.startswith(("hostname ", "log file ", "frr ", "ip forwarding")):
+                target = igp
+        target.append(line)
+    return "".join(igp), "".join(bgp)
 
 
 def project_frr_ibgp(fragment: str) -> str:
@@ -46,7 +59,7 @@ def project_frr_ibgp(fragment: str) -> str:
 
     for raw in fragment.splitlines():
         line = raw.strip()
-        if not line or line.startswith("!"):
+        if not line or line.startswith(("!", "#")):
             continue
         if line == f"interface {BGP_ORIGIN_IFACE}":
             if addresses or section == "origin":
@@ -57,6 +70,10 @@ def project_frr_ibgp(fragment: str) -> str:
             if address in addresses:
                 reject(line)
             addresses.append(address)
+        elif section == "origin" and (
+            line == "no shutdown" or line.startswith("description ")
+        ):
+            continue
         elif match := re.fullmatch(
             r"ip prefix-list (\S+) seq ([0-9]+) permit ([0-9./]+)(?: le ([0-9]+))?",
             line,
@@ -90,6 +107,16 @@ def project_frr_ibgp(fragment: str) -> str:
                 if line in flags:
                     reject(line)
                 flags.add(line)
+            elif line in {
+                "no bgp ebgp-requires-policy",
+                "bgp default show-hostname",
+                "bgp default show-nexthop-hostname",
+                "bgp bestpath as-path multipath-relax",
+            }:
+                # The declared ordinary iBGP subset has empty AS paths and no
+                # community-based policy; these defaults do not change its RIB.
+                flags.add(line)
+                continue
             elif line == "address-family ipv4 unicast" and not af:
                 af = True
             elif line == "exit-address-family" and af:
@@ -99,6 +126,11 @@ def project_frr_ibgp(fragment: str) -> str:
                 if prefix in networks:
                     reject(line)
                 networks.append(prefix)
+            elif match := re.fullmatch(
+                r"no neighbor ([0-9.]+) send-community all", line
+            ):
+                if not af or str(IPv4Address(match[1])) not in peers:
+                    reject(line)
             elif match := re.fullmatch(r"neighbor ([0-9.]+) (.+)", line):
                 peer = peers.setdefault(str(IPv4Address(match[1])), {})
                 attribute = match[2]
@@ -111,6 +143,18 @@ def project_frr_ibgp(fragment: str) -> str:
                     assign(peer, "source", "Loopback0")
                 elif attribute in {"activate", "route-reflector-client"} and af:
                     assign(peer, attribute, True)
+                elif attribute.startswith("description ") and not af:
+                    continue
+                elif (
+                    attribute
+                    in {
+                        "send-community standard",
+                        "send-community large",
+                        "send-community extended",
+                    }
+                    and af
+                ):
+                    continue
                 elif value := re.fullmatch(r"route-map (\S+) (in|out)", attribute):
                     if not af:
                         reject(line)
@@ -121,12 +165,21 @@ def project_frr_ibgp(fragment: str) -> str:
                 reject(line)
         else:
             reject(line)
-    if af or not {"asn", "router-id"} <= router.keys() or len(flags) != 2:
+    # FRR also accepts an address family ending at configuration-file EOF.
+    if (
+        not {"asn", "router-id"} <= router.keys()
+        or "no bgp default ipv4-unicast" not in flags
+    ):
         reject("incomplete BGP instance")
     if any(prefix not in {a.network for a in addresses} for prefix in networks):
-        reject("non-connected origin with disabled FRR import-check")
+        reject("non-connected origin in the connected-prefix subset")
     if any("asn" not in peer for peer in peers.values()):
         reject("incomplete BGP peer")
+    if flags & {
+        "no bgp ebgp-requires-policy",
+        "bgp bestpath as-path multipath-relax",
+    } and any(peer["asn"] != router["asn"] for peer in peers.values()):
+        reject("upstream BGP defaults are only modeled for same-AS iBGP peers")
 
     lines = []
     if addresses:

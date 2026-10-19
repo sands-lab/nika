@@ -137,6 +137,31 @@ def test_projection_rejects_non_connected_network_origin(janos_ibgp_configs):
         project_frr_ibgp(mutated)
 
 
+@pytest.mark.unit
+def test_projection_keeps_both_protocols_when_bgp_precedes_isis(janos_ibgp_configs):
+    from nika.validation.batfish.isis import project_frr_isis
+
+    _, configs = janos_ibgp_configs
+    igp, bgp = split_frr_ibgp(configs["albany"])
+    assert project_frr_isis("albany", bgp + igp) == project_frr_isis(
+        "albany", configs["albany"]
+    )
+
+
+@pytest.mark.unit
+def test_upstream_multipath_defaults_require_same_as_peers(janos_ibgp_configs):
+    _, configs = janos_ibgp_configs
+    _, fragment = split_frr_ibgp(configs["albany"])
+    fragment = fragment.replace(
+        "router bgp 65000\n",
+        "router bgp 65000\n bgp bestpath as-path multipath-relax\n",
+    )
+    assert "router bgp 65000" in project_frr_ibgp(fragment)
+    fragment = fragment.replace("remote-as 65000", "remote-as 65001", 1)
+    with pytest.raises(ValueError, match="same-AS iBGP"):
+        project_frr_ibgp(fragment)
+
+
 @pytest.mark.contract
 def test_selected_isis_ibgp_benchmark_failures_preserve_original_design():
     from nika.net_env.isp.igp.plan import active_igp_links

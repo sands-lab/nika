@@ -254,13 +254,13 @@ The supported construction scope is Kathara FRR and IOS XR ISP plans using IPv4
 OSPF, with no BGP, iBGP RR, or ordinary eBGP. Prefix lists and per-prefix
 local-preference use netlab's [routing module](https://netlab.tools/module/routing/)
 and [BGP policy plugin](https://netlab.tools/plugins/bgp.policy/). OSPF costs must
-fit upstream's 1–65,534 range. FRR IPv4 Level-2 IS-IS without BGP uses the same
-adapter and workflow: NetComplete solves the declared additive shortest-path
-requirements, and netlab generates IS-IS NETs, interfaces and wide metrics from
+fit upstream's 1–65,534 range. FRR IPv4 Level-2 IS-IS with optional ordinary iBGP
+RR uses the same adapter and workflow: NetComplete solves the declared additive
+shortest-path requirements, and netlab generates IS-IS NETs, interfaces and wide metrics from
 the fixed inputs. NIKA supplies the existing NET identities and passive-loopback
-setting through upstream topology inputs. IS-IS with BGP remains outside the
-netlab construction scope because the concrete validation parser does not yet
-cover upstream's composed configuration fragments.
+setting through upstream topology inputs. The concrete IS-IS/BGP model supports
+connected business prefixes and same-AS RR sessions. IS-IS with eBGP remains
+outside that model.
 
 Security overlays and registered configuration-failure bindings are not covered;
 the experiment retains its declared negative controls and link incidents. RouterOS7 lacks
@@ -283,6 +283,12 @@ logging, dynamic-hostname and LSP-timer commands from its steady-state model;
 [FRR's IS-IS documentation](https://docs.frrouting.org/en/stable-10.2/isisd.html)
 defines the routing commands, and its [timer implementation](https://github.com/FRRouting/frr/blob/stable/10.5/isisd/isis_cli.c)
 defines the combined LSP-timer syntax.
+For IS-IS+iBGP RR, the parser separates interleaved concrete protocol blocks and
+retains origins, ASNs, peer addresses, source interfaces and RR roles.
+The model covers prefix-only policy and connected origins. Netlab's display,
+community-export and AS-path multipath defaults do not affect route selection
+within this subset: the sessions remain inside one AS and carry empty AS paths.
+Configurations combining those AS-path defaults with external peers are rejected.
 Both paths read candidate commands, including mutations. Native validation deploys
 the generated configuration through the ordinary NIKA
 startup API and evaluates the original predicates, negative controls, link loss

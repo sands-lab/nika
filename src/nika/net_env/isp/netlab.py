@@ -27,7 +27,8 @@ NETLAB_VERSION = "26.10"
 def netlab_topology(plan: IspPlan, bgp: BgpPlan | None, device_profile: str) -> dict:
     """Translate explicit addresses, directed costs, ASes and policies to netlab.
 
-    Scope is capability based: IPv4 OSPF with ordinary BGP, or FRR L2 IS-IS.
+    Scope is capability based: IPv4 OSPF with ordinary BGP, or FRR L2 IS-IS
+    with optional ordinary iBGP RR.
     Security overlays and unsupported devices fail before invoking the tool.
     """
     if device_profile not in {"frr", "iosxr"}:
@@ -40,9 +41,9 @@ def netlab_topology(plan: IspPlan, bgp: BgpPlan | None, device_profile: str) -> 
         plan.igp == "isis" and device_profile != "frr"
     ):
         raise ValueError("netlab ISP construction requires OSPF or FRR L2 IS-IS")
-    if plan.igp == "isis" and bgp:
+    if plan.igp == "isis" and bgp and bgp.mode != "ibgp_rr":
         raise ValueError(
-            "netlab IS-IS/BGP composition is not covered by the concrete validation model"
+            "netlab IS-IS construction supports ordinary iBGP RR, not eBGP"
         )
     if bgp and (
         bgp.mode not in {"ibgp_rr", "ebgp"}

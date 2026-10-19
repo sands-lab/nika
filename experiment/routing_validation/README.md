@@ -50,8 +50,8 @@ NetComplete chooses costs and import preferences; upstream netlab transforms the
 fixed topology and generates interfaces, IGP, BGP/RR and routing policies. The
 existing Batfish and native checks still evaluate the original requirements.
 
-The scope includes ordinary OSPF-only, OSPF with iBGP RR/eBGP, and FRR IS-IS-only
-ISP designs. IS-IS with BGP, RouterOS,
+The scope includes ordinary OSPF-only, OSPF with iBGP RR/eBGP, and FRR IS-IS
+with optional iBGP RR. IS-IS with eBGP, RouterOS,
 SR Linux, security overlays, registered configuration-failure bindings and other
 scenario families are currently rejected
 when this option is selected. The [implementation guide](../../docs/development/routing-verification.md#delegate-configuration-generation-to-netlab)

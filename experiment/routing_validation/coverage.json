@@ -117,7 +117,7 @@
     },
     "netlab_construction": {
       "version": "26.10",
-      "scope": "Kathara FRR/IOS XR IPv4 OSPF with optional ordinary iBGP RR/eBGP; FRR IPv4 Level-2 IS-IS without BGP; no security overlays or registered configuration-failure bindings",
+      "scope": "Kathara FRR/IOS XR IPv4 OSPF with optional ordinary iBGP RR/eBGP; FRR IPv4 Level-2 IS-IS with optional ordinary iBGP RR; no security overlays or registered configuration-failure bindings",
       "offline_generation": {
         "topologies": [
           "arpanet196912",
@@ -232,6 +232,36 @@
           "link_down_predicates": 76,
           "recovered_predicates": 100,
           "predeclared_counterexamples_verified": true
+        },
+        {
+          "scenario": "isp_arpanet196912",
+          "device_profile": "frr",
+          "igp": "isis",
+          "bgp_mode": "ibgp_rr",
+          "healthy_predicates": 36,
+          "link_down_predicates": 35,
+          "recovered_predicates": 36,
+          "predeclared_counterexamples_verified": true
+        },
+        {
+          "scenario": "isp_dataxchange",
+          "device_profile": "frr",
+          "igp": "isis",
+          "bgp_mode": "ibgp_rr",
+          "healthy_predicates": 67,
+          "link_down_predicates": 65,
+          "recovered_predicates": 67,
+          "predeclared_counterexamples_verified": true
+        },
+        {
+          "scenario": "isp_abilene",
+          "device_profile": "frr",
+          "igp": "isis",
+          "bgp_mode": "ibgp_rr",
+          "healthy_predicates": 148,
+          "link_down_predicates": 153,
+          "recovered_predicates": 148,
+          "predeclared_counterexamples_verified": true
         }
       ],
       "static_policy_comparison": {
@@ -277,6 +307,29 @@
         "igp": "isis",
         "device_profile": "frr",
         "bgp_mode": "none",
+        "largest_router_count": 197,
+        "restricted_concrete_projection_checked": true,
+        "static_predicates_checked": false,
+        "native_execution_claim": false
+      },
+      "isis_ibgp_offline_generation": {
+        "topologies": [
+          "arpanet196912",
+          "dataxchange",
+          "abilene",
+          "cost266",
+          "nobel-eu",
+          "pioro40",
+          "janos-us",
+          "zib54",
+          "geant",
+          "germany50",
+          "cogentco"
+        ],
+        "variants": 11,
+        "igp": "isis",
+        "device_profile": "frr",
+        "bgp_mode": "ibgp_rr",
         "largest_router_count": 197,
         "restricted_concrete_projection_checked": true,
         "static_predicates_checked": false,
