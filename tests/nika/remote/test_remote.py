@@ -17,8 +17,12 @@ from nika.remote.config import (
     RemoteConfig,
     is_remote_enabled,
 )
-from nika.remote.handlers import handle_env_start
-from nika.remote.protocol import EnvStartRequest, EnvStartResponse
+from nika.remote.handlers import handle_env_start, handle_failure_inject
+from nika.remote.protocol import (
+    EnvStartRequest,
+    EnvStartResponse,
+    FailureInjectRequest,
+)
 from nika.run_config.loader import reset_run_config, set_run_config
 from nika.run_config.schema import RunConfig
 
@@ -149,6 +153,32 @@ def test_handle_env_start_forwards_static_validation() -> None:
             EnvStartRequest(scenario="isp_abilene", static_validation=True)
         )
     assert start.call_args.kwargs["static_validation"] is True
+
+
+def test_remote_inject_checks_benchmark_root_causes() -> None:
+    """A remote lab enforces the benchmark root causes as a local inject does."""
+    expected = [{"resource": {"kind": "node", "node": "r1"}, "fault_type": "x"}]
+    with (
+        patch("nika.remote.config.is_remote_enabled", return_value=True),
+        patch("nika.remote.workflows.remote_inject_failure") as remote,
+    ):
+        from nika.workflows.failure.inject import inject_failure
+
+        inject_failure(["x"], session_id="s1", expected_root_causes=expected)
+    assert remote.call_args.kwargs["expected_root_causes"] == expected
+    with (
+        patch("nika.remote.handlers.inject_failure") as inject,
+        patch(
+            "nika.remote.handlers.session_public_dict",
+            return_value={"session_id": "s1"},
+        ),
+    ):
+        handle_failure_inject(
+            FailureInjectRequest(
+                session_id="s1", problem_names=["x"], expected_root_causes=expected
+            )
+        )
+    assert inject.call_args.kwargs["expected_root_causes"] == expected
 
 
 def test_remote_app_health_no_auth() -> None:

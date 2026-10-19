@@ -60,8 +60,10 @@ nika:
   firecracker:
     # Reflink-capable directory (btrfs/XFS) with base/, images/ and trials/.
     root: /var/lib/nika-firecracker
-    # Firecracker binary (name on PATH or path).
-    binary: firecracker
+    # Firecracker binary (name on PATH or path). null: NIKA builds Firecracker
+    # with its nested virtualization patch on first use (labs that run VMs,
+    # such as RouterOS, need it).
+    binary: null
     vm_cpus: 4
     vm_memory: 4GiB
     # Scenario id -> VM memory for large labs, e.g. {k8s_lab: 8GiB, isp_pdh: 20GiB}.

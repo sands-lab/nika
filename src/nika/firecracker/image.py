@@ -37,6 +37,7 @@ from nika.firecracker.base import (
     _repo_files,
     ensure_base,
 )
+from nika.firecracker.binary import binary_id
 from nika.firecracker.config import firecracker_settings
 from nika.firecracker.vmm import (
     DISK,
@@ -175,6 +176,7 @@ def image_key(params: dict[str, Any]) -> str:
         "cpus": settings.vm_cpus,
         "memory_mib": vm_memory_mib(str(params.get("scenario"))),
         "huge_pages": settings.huge_pages,
+        "firecracker": binary_id(firecracker_binary(settings.binary)),
     }
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:12]
 

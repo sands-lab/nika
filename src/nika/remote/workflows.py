@@ -363,6 +363,7 @@ def remote_inject_failure(
     *,
     session_id: str | None = None,
     param_overrides: dict[str, str] | None = None,
+    expected_root_causes: list | None = None,
 ) -> None:
     """Inject faults on the remote host and sync artifacts locally."""
     session = Session()
@@ -375,6 +376,7 @@ def remote_inject_failure(
                 session_id=session.session_id,
                 problem_names=list(problem_names),
                 param_overrides=dict(param_overrides or {}),
+                expected_root_causes=expected_root_causes,
             )
         )
     _sync_local_meta_from_remote(session.session_id, resp.session)

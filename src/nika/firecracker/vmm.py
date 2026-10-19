@@ -37,7 +37,12 @@ class VmmError(RuntimeError):
     """A Firecracker API call or guest command failed."""
 
 
-def firecracker_binary(configured: str) -> str:
+def firecracker_binary(configured: str | None) -> str:
+    """The configured binary, or the patched build NIKA makes when unset."""
+    if configured is None:
+        from nika.firecracker.binary import ensure_firecracker
+
+        return str(ensure_firecracker())
     path = shutil.which(configured) or (
         configured if os.access(configured, os.X_OK) else None
     )
@@ -316,13 +321,27 @@ class VsockForwarder:
                 client, _ = self._server.accept()
             except OSError:
                 return
+            threading.Thread(target=self._forward, args=(client,), daemon=True).start()
+
+    def _forward(self, client: socket.socket) -> None:
+        # A loaded guest can miss the vsock handshake. Nothing has reached the
+        # guest yet (the request waits in the client socket), so retry.
+        deadline = time.monotonic() + 60
+        while True:
             try:
                 upstream = connect_vsock(self._uds, self._port)
-            except OSError:
-                client.close()
-                continue
-            for a, b in ((client, upstream), (upstream, client)):
-                threading.Thread(target=_pipe, args=(a, b), daemon=True).start()
+                break
+            except OSError as exc:
+                if self._closed.is_set() or time.monotonic() > deadline:
+                    print(
+                        f"[firecracker] vsock {self._uds}:{self._port}: {exc}",
+                        flush=True,
+                    )
+                    client.close()
+                    return
+                time.sleep(1)
+        for a, b in ((client, upstream), (upstream, client)):
+            threading.Thread(target=_pipe, args=(a, b), daemon=True).start()
 
     def close(self) -> None:
         self._closed.set()

@@ -1,0 +1,139 @@
+diff --git a/resources/seccomp/x86_64-unknown-linux-musl.json b/resources/seccomp/x86_64-unknown-linux-musl.json
+index 8ecbc1c..6bdf843 100644
+--- a/resources/seccomp/x86_64-unknown-linux-musl.json
++++ b/resources/seccomp/x86_64-unknown-linux-musl.json
+@@ -1376,6 +1376,18 @@
+                     }
+                 ]
+             },
++            {
++                "syscall": "ioctl",
++                "args": [
++                    {
++                        "index": 1,
++                        "type": "dword",
++                        "op": "eq",
++                        "val": 3229658814,
++                        "comment": "KVM_GET_NESTED_STATE"
++                    }
++                ]
++            },
+             {
+                 "syscall": "ioctl",
+                 "args": [
+diff --git a/src/vmm/src/arch/x86_64/msr.rs b/src/vmm/src/arch/x86_64/msr.rs
+index 9af3a71..419aadb 100644
+--- a/src/vmm/src/arch/x86_64/msr.rs
++++ b/src/vmm/src/arch/x86_64/msr.rs
+@@ -246,9 +246,27 @@ pub fn msr_should_serialize(index: u32) -> bool {
+     };
+     SERIALIZABLE_MSR_RANGES
+         .iter()
++        .chain(NESTED_MSR_RANGES)
+         .any(|range| range.contains(index))
+ }
+ 
++/// MSRs an L1 hypervisor in the guest depends on. KVM lists them only when nested
++/// virtualization is enabled, and they can be read only while the guest CPUID exposes SVM or
++/// VMX, so vCPUs keep the ones they can read (see `KvmVcpu::configure_msrs_for_boot`).
++static NESTED_MSR_RANGES: &[MsrRange] = &[
++    // SVM: the host save area of the L1 hypervisor (VMRUN faults while it is 0) and the
++    // L2 TSC ratio.
++    MSR_RANGE!(MSR_VM_HSAVE_PA),
++    MSR_RANGE!(MSR_AMD64_TSC_RATIO),
++    // VMX: the capability MSRs KVM_SET_NESTED_STATE validates the L1 VMCS against.
++    MSR_RANGE!(MSR_IA32_VMX_BASIC, 18),
++];
++
++/// Whether `index` is an MSR of nested virtualization.
++pub fn msr_is_nested(index: u32) -> bool {
++    NESTED_MSR_RANGES.iter().any(|range| range.contains(index))
++}
++
+ /// Returns the list of serializable MSR indices.
+ ///
+ /// # Arguments
+diff --git a/src/vmm/src/arch/x86_64/vcpu.rs b/src/vmm/src/arch/x86_64/vcpu.rs
+index 26c82dd..af1330b 100644
+--- a/src/vmm/src/arch/x86_64/vcpu.rs
++++ b/src/vmm/src/arch/x86_64/vcpu.rs
+@@ -13,6 +13,7 @@ use kvm_bindings::{
+     CpuId, KVM_MAX_CPUID_ENTRIES, KVM_MAX_MSR_ENTRIES, Msrs, Xsave, kvm_debugregs, kvm_lapic_state,
+     kvm_mp_state, kvm_regs, kvm_sregs, kvm_vcpu_events, kvm_xcrs, kvm_xsave, kvm_xsave2,
+ };
++use kvm_bindings::nested::KvmNestedStateBuffer;
+ use kvm_ioctls::{VcpuExit, VcpuFd};
+ use serde::{Deserialize, Serialize};
+ use vmm_sys_util::fam::{self, FamStruct};
+@@ -101,6 +102,10 @@ pub enum KvmVcpuError {
+     VcpuSetSregs(kvm_ioctls::Error),
+     /// Failed to set KVM vcpu event: {0}
+     VcpuSetVcpuEvents(kvm_ioctls::Error),
++    /// Failed to get KVM nested state: {0}
++    VcpuGetNestedState(kvm_ioctls::Error),
++    /// Failed to set KVM nested state: {0}
++    VcpuSetNestedState(kvm_ioctls::Error),
+     /// Failed to set KVM vcpu xcrs: {0}
+     VcpuSetXcrs(kvm_ioctls::Error),
+     /// Failed to set KVM vcpu xsave: {0}
+@@ -267,6 +272,19 @@ impl KvmVcpu {
+         let extra_msrs = cpuid::common::msrs_to_save_by_cpuid(configured_cpuid);
+         self.msrs_to_save.extend(extra_msrs);
+ 
++        // Nested virtualization MSRs are readable only when the CPUID exposes SVM or VMX.
++        let fd = &self.fd;
++        self.msrs_to_save.retain(|&index| {
++            !crate::arch::x86_64::msr::msr_is_nested(index) || {
++                let mut probe = Msrs::from_entries(&[kvm_bindings::kvm_msr_entry {
++                    index,
++                    ..Default::default()
++                }])
++                .unwrap();
++                fd.get_msrs(&mut probe) == Ok(1)
++            }
++        });
++
+         let kvm_msrs = msrs
+             .into_iter()
+             .map(|entry| kvm_bindings::kvm_msr_entry {
+@@ -626,12 +644,19 @@ impl KvmVcpu {
+         });
+         let cpuid = self.get_cpuid()?;
+         let saved_msrs = self.get_msr_chunks(self.msrs_to_save.iter().copied())?;
++        let mut nested_state = KvmNestedStateBuffer::empty();
++        let nested_state = match self.fd.nested_state(&mut nested_state) {
++            Ok(_) => Some(nested_state),
++            Err(err) if err.errno() == libc::EINVAL || err.errno() == libc::ENOTTY => None,
++            Err(err) => return Err(KvmVcpuError::VcpuGetNestedState(err)),
++        };
+         let vcpu_events = self
+             .fd
+             .get_vcpu_events()
+             .map_err(KvmVcpuError::VcpuGetVcpuEvents)?;
+ 
+         Ok(VcpuState {
++            nested_state,
+             cpuid,
+             saved_msrs,
+             debug_regs,
+@@ -741,6 +766,11 @@ impl KvmVcpu {
+                 return Err(KvmVcpuError::VcpuSetMsrsIncomplete);
+             }
+         }
++        if let Some(nested_state) = &state.nested_state {
++            self.fd
++                .set_nested_state(nested_state)
++                .map_err(KvmVcpuError::VcpuSetNestedState)?;
++        }
+         self.fd
+             .set_vcpu_events(&state.vcpu_events)
+             .map_err(KvmVcpuError::VcpuSetVcpuEvents)?;
+@@ -814,6 +844,8 @@ pub struct VcpuState {
+     pub xsave: Xsave,
+     /// Tsc khz.
+     pub tsc_khz: Option<u32>,
++    /// KVM nested virtualization state (L1 hypervisor state and any running L2).
++    pub nested_state: Option<KvmNestedStateBuffer>,
+ }
+ 
+ impl Debug for VcpuState {

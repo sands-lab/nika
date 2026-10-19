@@ -180,6 +180,7 @@ def handle_failure_inject(request: FailureInjectRequest) -> FailureInjectRespons
             problem_names=list(request.problem_names),
             session_id=request.session_id,
             param_overrides=dict(request.param_overrides or {}),
+            expected_root_causes=request.expected_root_causes,
         )
     except Exception:
         logger.exception(

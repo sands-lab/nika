@@ -85,6 +85,10 @@ class BGPAsnMisconfig(ProblemBase):
     description = "BGP local ASN is misconfigured relative to peer expectation."
     effect_protocol = "bgp"
     TAGS: str = ["bgp"]
+    INCOMPATIBLE_SCENARIOS = {
+        "routeros_simple_bgp": "The injector reads and edits the FRR BGP "
+        "configuration, which RouterOS routers do not have."
+    }
     supported_backends = ("kathara", "containerlab")
 
     Params = BGPAsnMisconfigParams
@@ -344,7 +348,9 @@ class BGPMissingAdvertise(ProblemBase):
     TAGS: str = ["bgp"]
     INCOMPATIBLE_SCENARIOS = {
         "min3clos": "The IGP also carries the host subnets, so peers keep a route "
-        "after BGP stops advertising it."
+        "after BGP stops advertising it.",
+        "routeros_simple_bgp": "The injector reads and edits the FRR BGP "
+        "configuration, which RouterOS routers do not have.",
     }
     supported_backends = ("kathara", "containerlab")
 

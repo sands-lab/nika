@@ -10,8 +10,8 @@ builder version, this host's runtime images and Kathara plugins) changed:
 2. **In Firecracker:** the image boots, runs ``scripts/install.sh
    --skip-images`` as the guest's ubuntu user, and fills the guest's Docker with
    this host's runtime images: digest-pinned images are pulled by the guest
-   (keeping their digests), locally built ones are copied with ``docker save`` /
-   ``docker load``, plus the Kathara plugin and the k8s caches. The guest reaches
+   (keeping their digests), locally built and vendor ones are copied with
+   ``docker save`` / ``docker load``, plus the Kathara plugin and the k8s caches. The guest reaches
    the network only through a host proxy over vsock.
 """
 
@@ -55,7 +55,10 @@ UBUNTU_IMAGE = "ubuntu:24.04"
 ROOTFS_SIZE = "80G"
 BOOT_ARGS = (
     "console=ttyS0 reboot=k panic=1 root=LABEL=nika-root rw "
-    "cloud-init=disabled systemd.mask=systemd-networkd-wait-online.service"
+    "cloud-init=disabled systemd.mask=systemd-networkd-wait-online.service "
+    # A restored copy fills its memory after it resumes; an async page fault
+    # KVM sends meanwhile can hit a kernel-mode fault and panic the guest.
+    "no-kvmapf"
 )
 DOCKER_PROXY = "/etc/systemd/system/docker.service.d/nika-build-proxy.conf"
 # Caches under .nika_cache that k8s labs deploy from (filled by `nika images prepare`).
@@ -200,8 +203,14 @@ def _finish_in_firecracker(build_dir: Path, kernel_version: str, key: str) -> No
         }
         pinned = sorted({ref for ref in images if "@sha256:" in ref} | parents)
         _log(f"pulling {len(pinned)} pinned image(s) through the host proxy")
+        # Keep images in the host's Docker image store: image IDs differ between
+        # the stores, and NIKA's build hashes cover parents' image IDs.
+        store = json.dumps(
+            {"features": {"containerd-snapshotter": _containerd_store()}}
+        )
         guest_exec(
             uds,
+            f"printf '%s\\n' '{store}' > /etc/docker/daemon.json && "
             f"mkdir -p {Path(DOCKER_PROXY).parent} && printf '[Service]\\n"
             f"Environment=HTTPS_PROXY=http://127.0.0.1:{PROXY_PORT} "
             f"HTTP_PROXY=http://127.0.0.1:{PROXY_PORT}\\n' > {DOCKER_PROXY} && "
@@ -224,6 +233,12 @@ def _finish_in_firecracker(build_dir: Path, kernel_version: str, key: str) -> No
         for ref in local:
             _log(f"  {ref}")
             _load_image(uds, ref)
+        vendor = _vendor_images()
+        if vendor:
+            _log(f"copying {len(vendor)} vendor image(s) from this host")
+        for ref in vendor:
+            _log(f"  {ref}")
+            _load_image(uds, ref)
         missing = guest_exec(
             uds,
             f"rm -f {DOCKER_PROXY}; systemctl stop nika-build-proxy; "
@@ -231,7 +246,7 @@ def _finish_in_firecracker(build_dir: Path, kernel_version: str, key: str) -> No
             + "; ".join(
                 [
                     f"docker image inspect {r} >/dev/null 2>&1 || echo {r}"
-                    for r in images
+                    for r in images + vendor
                 ]
                 + [
                     f"docker plugin inspect {p} >/dev/null 2>&1 || echo {p}"
@@ -473,11 +488,39 @@ def _runtime_images() -> list[str]:
     ).stdout.split()
 
 
+def _containerd_store() -> bool:
+    """Whether this host's Docker keeps images in the containerd image store."""
+    return (
+        "io.containerd.snapshotter"
+        in subprocess.run(
+            ["docker", "info", "-f", "{{json .DriverStatus}}"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+    )
+
+
+def _vendor_images() -> list[str]:
+    """Vendor router images this host prepared (``install.sh --with-vendor-images``)."""
+    from nika.net_env.routeros_simple_bgp.lab import IMAGE as ROUTEROS_IMAGE
+    from nika.net_env.utils.iosxr.common import IMAGE as XRD_IMAGE
+
+    return [
+        ref
+        for ref in (ROUTEROS_IMAGE, XRD_IMAGE)
+        if subprocess.run(
+            ["docker", "image", "inspect", ref], capture_output=True, check=False
+        ).returncode
+        == 0
+    ]
+
+
 @functools.cache
 def base_key() -> str:
     """What the base image must match: builder version, runtime images, plugins."""
     images = []
-    for ref in _runtime_images():
+    for ref in _runtime_images() + _vendor_images():
         image_id = subprocess.run(
             ["docker", "image", "inspect", "-f", "{{.Id}}", ref],
             capture_output=True,
@@ -487,9 +530,11 @@ def base_key() -> str:
         images.append(f"{ref}={image_id}")
     payload = {
         "version": BASE_VERSION,
+        "boot_args": BOOT_ARGS,
         "ubuntu": UBUNTU_IMAGE,
         "images": images,
         "plugins": _host_plugins(),
+        "containerd_store": _containerd_store(),
     }
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:12]
 

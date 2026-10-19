@@ -91,7 +91,7 @@ class TrialLab:
         try:
             self._restore()
         except BaseException:
-            self.__exit__(None, None, None)
+            self.__exit__(*sys.exc_info())
             raise
         _active = self
         return self
@@ -182,6 +182,8 @@ class TrialLab:
         for forwarder in self._forwarders:
             forwarder.close()
         self._forwarders = []
+        if exc_info[0] is not None:
+            _print_console_tail(trial_dir(self.trial_key), self.trial_key)
         release_trial(self.trial_key)
 
 
@@ -239,6 +241,16 @@ def _record_trial_timings(session_id: str, image: LabImage, timings: dict) -> No
         image=image.key,
         **timings,
     )
+
+
+def _print_console_tail(path: Path, trial_key: str, lines: int = 40) -> None:
+    """Show a failed copy's guest console before its directory is deleted."""
+    try:
+        text = (path / "console.log").read_text(errors="replace")
+    except OSError:
+        return
+    tail = "\n".join(text.splitlines()[-lines:])
+    print(f"[firecracker] console of failed copy {trial_key}:\n{tail}", flush=True)
 
 
 def release_trial(trial_key: str) -> None:

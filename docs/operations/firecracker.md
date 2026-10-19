@@ -56,14 +56,20 @@ reboots. Run them as a user with `sudo`.
    sudo usermod -aG kvm "$USER"
    ```
 
-2. **Firecracker** 1.17 or later on `PATH` (or set `nika.firecracker.binary`):
+2. **Nested virtualization in KVM**, for labs that run VMs themselves (vrnetlab
+   images such as RouterOS). It is on by default on recent kernels; check that
+   this prints `1` or `Y`:
 
    ```shell
-   v=v1.17.0; arch=$(uname -m)
-   curl -fsSL "https://github.com/firecracker-microvm/firecracker/releases/download/$v/firecracker-$v-$arch.tgz" \
-     | tar -xz -C /tmp
-   sudo install -m 755 "/tmp/release-$v-$arch/firecracker-$v-$arch" /usr/local/bin/firecracker
+   cat /sys/module/kvm_amd/parameters/nested 2>/dev/null || cat /sys/module/kvm_intel/parameters/nested
    ```
+
+   Firecracker itself needs no installation. On first use NIKA builds
+   Firecracker 1.17 with its nested virtualization patch in a Rust container,
+   which takes about 3 minutes, into `<root>/firecracker/`. Upstream Firecracker
+   snapshots lose the state of a hypervisor in the guest, so restored labs that
+   run VMs crash without the patch. To use another binary, set
+   `nika.firecracker.binary` to its name on `PATH` or its path.
 
 3. **Firecracker root on a reflink-capable filesystem** (btrfs or XFS), owned by
    you, at `nika.firecracker.root` (default `/var/lib/nika-firecracker`). Trial disks
@@ -71,6 +77,7 @@ reboots. Run them as a user with `sudo`.
    file:
 
    ```shell
+   sudo apt-get install -y btrfs-progs
    sudo truncate -s 300G /var/lib/nika-firecracker.img
    sudo mkfs.btrfs /var/lib/nika-firecracker.img
    sudo mkdir -p /var/lib/nika-firecracker
@@ -82,7 +89,10 @@ reboots. Run them as a user with `sudo`.
 
    Size it for about 20 GiB of base image plus, per lab image, the memory the
    lab uses (1–3 GiB; unused memory is stored as holes) and the disk blocks its
-   deploy changed.
+   deploy changed. A loop file grows on the disk that holds it, and rebuilding
+   the base briefly needs room for two bases. Keep that disk well below full: on
+   a Kubernetes node, kubelet deletes every unused Docker image once the disk
+   passes 85%.
 
 4. **Huge pages** (recommended; see [Huge pages](#huge-pages)). Reserve them at
    boot: a running host's memory is soon too fragmented to find enough
@@ -98,6 +108,15 @@ reboots. Run them as a user with `sudo`.
    echo 'GRUB_CMDLINE_LINUX_DEFAULT="${GRUB_CMDLINE_LINUX_DEFAULT} hugepagesz=2M hugepages=12288"' \
      | sudo tee /etc/default/grub.d/99-nika-hugepages.cfg
    sudo update-grub
+   ```
+
+   On a host with plenty of free memory, you can reserve them now instead of
+   rebooting, and check that the count was reached. This reservation does not
+   survive a reboot:
+
+   ```shell
+   sudo sysctl vm.nr_hugepages=12288
+   grep HugePages_Total /proc/meminfo
    ```
 
 5. **userfaultfd for the `kvm` group**, used by the huge-page page server:
@@ -123,13 +142,13 @@ reboots. Run them as a user with `sudo`.
    grep HugePages_Total /proc/meminfo     # the reserved count
    ls -l /dev/userfaultfd                 # crw-rw---- root kvm
    findmnt /var/lib/nika-firecracker        # btrfs or xfs
-   firecracker --version
    ```
 
 ## Base image
 
 Every lab image starts from a base image (Ubuntu with Docker, NIKA and this
-host's runtime images). The first Firecracker run builds it, which takes about
+host's runtime images, plus the vendor images it has, such as RouterOS; see
+[Prepare vendor images](installation.md#prepare-vendor-images)). The first Firecracker run builds it, which takes about
 20 minutes, and later runs rebuild it when this host's runtime images or Kathara
 plugins change. Code changes do not: lab images receive the current checkout.
 
@@ -258,15 +277,19 @@ Lab images are keyed by:
 * the host's lab deploy settings (`nika.lab`, `runtime_validation`,
   `static_validation`, `k8s`), which the image deploy uses;
 * base image;
-* VM size and huge-page setting.
+* VM size and huge-page setting;
+* Firecracker binary, since a lab image restores only with the binary that saved
+  it.
 
 A change to any of these builds a new lab image on the next run, and `list`
 marks the old one stale.
 
 ## Limitations
 
-* **Labs that run VMs themselves** (vrnetlab images such as RouterOS) do not work:
-  Firecracker offers no nested virtualization to its guests.
+* **Labs that run VMs themselves** (vrnetlab RouterOS) need KVM nested
+  virtualization on the host and NIKA's Firecracker build (see
+  [Set up the host](#set-up-the-host-once)). They are tested on AMD; the Intel
+  (VMX) path is implemented but not yet tested.
 * **The first operations after a 4 KiB-page restore run slower.** This is most
   visible on hosts that are themselves VMs; huge pages remove it.
 * **Only benchmark runs use Firecracker.** `nika env run`, `nika case run` and

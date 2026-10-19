@@ -45,8 +45,10 @@ class FirecrackerSettings(BaseModel):
     # Directory on a reflink-capable filesystem (btrfs, XFS) holding base/,
     # images/ and trials/.
     root: str = "/var/lib/nika-firecracker"
-    # Firecracker binary (name on PATH or path).
-    binary: str = "firecracker"
+    # Firecracker binary (name on PATH or path). Unset: NIKA builds Firecracker
+    # with its nested virtualization patch on first use, which labs that run
+    # VMs (RouterOS) need to restore.
+    binary: str | None = None
     vm_cpus: int = Field(default=4, ge=1)
     # Most Kathara labs use under 2 GiB; with huge pages every copy holds all of it.
     vm_memory: str = "4GiB"

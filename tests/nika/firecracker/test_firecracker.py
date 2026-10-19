@@ -78,6 +78,8 @@ def test_image_key_tracks_variant_and_code(monkeypatch: pytest.MonkeyPatch) -> N
     assert params == {"scenario": "dc_clos", "topo_size": "s"}
     monkeypatch.setattr(image, "base_manifest", lambda: {"id": "base-1"})
     monkeypatch.setattr(image, "code_fingerprint", lambda: "a")
+    monkeypatch.setattr(image, "firecracker_binary", lambda configured: "/fc")
+    monkeypatch.setattr(image, "binary_id", lambda path: "fc-1")
     key = image.image_key(params)
     assert key == image.image_key(dict(params))
     assert key != image.image_key({**params, "topo_size": "m"})
@@ -86,6 +88,11 @@ def test_image_key_tracks_variant_and_code(monkeypatch: pytest.MonkeyPatch) -> N
     # A rebuilt base image gets a new id and invalidates every lab image.
     monkeypatch.setattr(image, "code_fingerprint", lambda: "a")
     monkeypatch.setattr(image, "base_manifest", lambda: {"id": "base-2"})
+    assert key != image.image_key(params)
+    # A lab image restores only with the Firecracker binary that saved it.
+    monkeypatch.setattr(image, "base_manifest", lambda: {"id": "base-1"})
+    assert key == image.image_key(params)
+    monkeypatch.setattr(image, "binary_id", lambda path: "fc-2")
     assert key != image.image_key(params)
 
 
