@@ -31,6 +31,9 @@ uv.lock
 .cursor/
 .DS_Store
 .claude/
+!/.claude/
+/.claude/*
+!/.claude/skills
 !src/agent/skills/.claude/
 !src/agent/skills/.claude/**
 .pytest_cache/
