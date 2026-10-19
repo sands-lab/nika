@@ -26,7 +26,7 @@ The command generates `metadata.yaml` and a short README using your name and aut
 
 To inspect packages before uploading, add `--dry-run` to the same command. This packs and validates locally, prints both destination paths, and requires no remote authentication.
 
-Success prints both PR URLs. Maintainers still review and merge the two PRs before publishing the entry. The command does not merge PRs.
+The GitHub PR carries the `leaderboard-submit` label, which the leaderboard repository requires on submission PRs. Success prints both PR URLs. Maintainers still review and merge the two PRs before publishing the entry. The command does not merge PRs.
 
 The one-command form creates minimal metadata. Before publishing, review the
 entry's code link, project links, harness display name, model page, release date,

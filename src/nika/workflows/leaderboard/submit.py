@@ -30,6 +30,7 @@ from nika.workflows.leaderboard.pack import (
 )
 from nika.workflows.leaderboard.remote import (
     DEFAULT_LEADERBOARD_REPO,
+    SUBMISSION_LABEL,
     remote_submission_relpath,
     submission_branch_name,
 )
@@ -252,6 +253,7 @@ def _submit_github(
             title=pr_title,
             body=pr_body,
             draft=draft,
+            labels=(SUBMISSION_LABEL,),
         )
         return SubmitResult(
             repo=repo,
