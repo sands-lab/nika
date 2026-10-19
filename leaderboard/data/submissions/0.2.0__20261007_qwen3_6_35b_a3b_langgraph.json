@@ -6887,7 +6887,8 @@
     "0.2.0/20261016_claude_code_claude_sonnet_5_5",
     "0.2.0/20261016_claude_code_gpt_oss_120b",
     "0.2.0/20261017_claude_code_claude_haiku_5_5",
-    "0.2.0/20261017_codex_gpt_6_1_sol"
+    "0.2.0/20261017_codex_gpt_6_1_sol",
+    "0.2.0/20261019_claude_code_qwen3_coder_next_fp8"
   ],
-  "rank": 14
+  "rank": 15
 }

@@ -1972,6 +1972,102 @@
       "rank": 13
     },
     {
+      "id": "0.2.0/20261019_claude_code_qwen3_coder_next_fp8",
+      "dirname": "20261019_claude_code_qwen3_coder_next_fp8",
+      "submission_name": "Claude Code + Qwen3-Coder-Next",
+      "authors": "NIKA Team",
+      "org": null,
+      "site": "https://sands-lab.github.io/nika/",
+      "report": "https://arxiv.org/abs/2512.16381",
+      "logo": null,
+      "github": "https://github.com/sands-lab/nika",
+      "email": null,
+      "trajectories_url": "https://huggingface.co/datasets/nika-bench/nika-trajectories/tree/main/trajectories/0.2.0/20261019_claude_code_qwen3_coder_next_fp8",
+      "trajectories_relpath": "trajectories/0.2.0/20261019_claude_code_qwen3_coder_next_fp8",
+      "model": "Qwen3-Coder-Next-FP8",
+      "model_id": null,
+      "submitted_model": "Qwen3-Coder-Next-FP8",
+      "framework": "Claude Code",
+      "agent_type": "cli.claude",
+      "llm_provider": "custom",
+      "tools": [
+        "containerlab_srl_mcp_server",
+        "k8s_mcp_server",
+        "kathara_base_mcp_server",
+        "pingmesh_mcp_server",
+        "packet_capture_mcp_server",
+        "kathara_frr_mcp_server",
+        "kathara_bmv2_mcp_server",
+        "kathara_sdn_mcp_server",
+        "kathara_telemetry_mcp_server",
+        "task_mcp_server"
+      ],
+      "skills": [],
+      "optimization_methods": [],
+      "tags": [],
+      "extra": {
+        "model_repository": "Qwen/Qwen3-Coder-Next-FP8",
+        "model_revision": "da6e2ed27304dd39abadd9c82ef50e8de67bdd4c",
+        "serving": "vLLM 0.24, FP8 weights, 262144-token context, 2x A100 80GB",
+        "execution": "firecracker",
+        "max_steps": 100,
+        "max_tokens": 8192,
+        "agent_timeout_sec": 1800,
+        "case_timeout_sec": 2400
+      },
+      "benchmark_version": "0.2.0",
+      "split": "test",
+      "case_count": 85,
+      "n_trials": 3,
+      "primary_metric": "rca_f1",
+      "mean_rca_f1": 0.1923976470588235,
+      "mean_localization_f1": 0.315455294117647,
+      "mean_detection_score": 0.8156862745098039,
+      "n_trials_expected": 255,
+      "n_trials_present": 255,
+      "n_success": 254,
+      "n_agent_failed": 1,
+      "success_rate": 0.996078,
+      "token_totals": {
+        "in_tokens": 251114865,
+        "out_tokens": 1409876
+      },
+      "steps_totals": {
+        "steps": 14675,
+        "tool_calls": 14506,
+        "tool_errors": 0
+      },
+      "mean_tokens": 990293.102,
+      "mean_steps": 57.549,
+      "total_tokens": 252524741,
+      "max_steps": 100,
+      "case_timeout_sec": 2400,
+      "created_at": "2026-10-19T06:32:46+00:00",
+      "run_id": "ee735260d73f56c0",
+      "official": true,
+      "nika_git_commit": "4f654ae61b438d824cccb6741e01521e9401db68",
+      "name": "Qwen3-Coder-Next-FP8 · Claude Code",
+      "rca_f1_ci": [
+        0.138126,
+        0.250745
+      ],
+      "beaten_by": [
+        "0.2.0/20261007_qwen3_6_35b_a3b_claudecode",
+        "0.2.0/20261008_qwen3_6_35b_a3b_codex",
+        "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
+        "0.2.0/20261011_react_qwen3_8_27b_fp8",
+        "0.2.0/20261012_claude_code_gemma_4_31b_it",
+        "0.2.0/20261014_claude_code_qwen3_5_27b",
+        "0.2.0/20261014_react_qwen3_5_27b",
+        "0.2.0/20261016_claude_code_claude_opus_5_5",
+        "0.2.0/20261016_claude_code_claude_sonnet_5_5",
+        "0.2.0/20261016_claude_code_gpt_oss_120b",
+        "0.2.0/20261017_claude_code_claude_haiku_5_5",
+        "0.2.0/20261017_codex_gpt_6_1_sol"
+      ],
+      "rank": 13
+    },
+    {
       "id": "0.2.0/20261008_qwen3_6_35b_a3b_codex",
       "dirname": "20261008_qwen3_6_35b_a3b_codex",
       "submission_name": "Qwen3.6-35B-A3B Codex",
@@ -2121,9 +2217,10 @@
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261016_claude_code_gpt_oss_120b",
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
-        "0.2.0/20261017_codex_gpt_6_1_sol"
+        "0.2.0/20261017_codex_gpt_6_1_sol",
+        "0.2.0/20261019_claude_code_qwen3_coder_next_fp8"
       ],
-      "rank": 14
+      "rank": 15
     },
     {
       "id": "0.2.0/20261014_claude_code_glm_4_7_flash",
@@ -2218,9 +2315,10 @@
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261016_claude_code_gpt_oss_120b",
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
-        "0.2.0/20261017_codex_gpt_6_1_sol"
+        "0.2.0/20261017_codex_gpt_6_1_sol",
+        "0.2.0/20261019_claude_code_qwen3_coder_next_fp8"
       ],
-      "rank": 17
+      "rank": 18
     },
     {
       "id": "0.2.0/20261015_react_glm_4_7_flash",
@@ -2315,9 +2413,10 @@
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261016_claude_code_gpt_oss_120b",
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
-        "0.2.0/20261017_codex_gpt_6_1_sol"
+        "0.2.0/20261017_codex_gpt_6_1_sol",
+        "0.2.0/20261019_claude_code_qwen3_coder_next_fp8"
       ],
-      "rank": 17
+      "rank": 18
     },
     {
       "id": "0.2.0/20261008_claude_cli_otel_2_0_llm_31b_it",
@@ -2421,9 +2520,10 @@
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261016_claude_code_gpt_oss_120b",
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
-        "0.2.0/20261017_codex_gpt_6_1_sol"
+        "0.2.0/20261017_codex_gpt_6_1_sol",
+        "0.2.0/20261019_claude_code_qwen3_coder_next_fp8"
       ],
-      "rank": 19
+      "rank": 20
     }
   ]
 }
