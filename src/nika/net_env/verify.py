@@ -754,13 +754,27 @@ def frr_bgp_established(
 
 
 def frr_bgp_established_peers(summary: str) -> set[str]:
-    """Parse FRR ``show bgp summary`` neighbor lines for Established peers.
+    """Read established peer identities from FRR summary JSON or legacy text.
 
     FRR columns: Neighbor V AS MsgRcvd MsgSent TblVer InQ OutQ Up/Down
     State/PfxRcd PfxSnt [Desc]. Established peers show a numeric PfxRcd;
     other sessions show their FSM state (Idle, Active, Connect, ...).
     Numbered and unnumbered (interface or hostname) neighbors both count.
     """
+    if summary.lstrip().startswith("{"):
+        try:
+            families = json.loads(summary)
+        except ValueError:
+            return set()
+        if not isinstance(families, dict):
+            return set()
+        return {
+            peer
+            for family in families.values()
+            if isinstance(family, dict) and isinstance(family.get("peers"), dict)
+            for peer, row in family["peers"].items()
+            if isinstance(row, dict) and row.get("state") == "Established"
+        }
     peers: set[str] = set()
     for line in summary.splitlines():
         fields = line.split()

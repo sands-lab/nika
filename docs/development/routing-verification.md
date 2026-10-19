@@ -20,7 +20,7 @@ Public graph + authored behavior + fixed routing sketch
 
 1. **Specify behavior.** Typed requirements name permitted paths, exact ECMP sets, BGP candidate order, adjacencies and communication or isolation. Requirements and incident expectations precede synthesis. Fixed addressing and session bindings resolve them to concrete `ValidationIntent` predicates.
 2. **Complete supported parameters.** [NetComplete's partial-synthesis formulation](https://netcomplete.ethz.ch/files/netcomplete-nsdi2018.pdf) supplies the method: retain a routing sketch and solve its unknown configuration values. NIKA delegates supported path costs, export decisions and import preferences to the pinned upstream implementation. Solver output cannot redefine the requirements.
-3. **Render configurations.** Existing NIKA constructors bind typed parameters to the original graph, protocols and services. This deterministic rendering supplies a candidate; it does not itself prove the candidate correct.
+3. **Generate configurations.** Bind the completed parameters to the original graph, protocols and services. The optional netlab ISP path delegates topology transformation and vendor syntax to upstream netlab. Existing NIKA constructors cover the other supported designs. Generation supplies a candidate; independent checks establish acceptance.
 4. **Check the candidate independently.** Batfish parses the final configuration or an explicitly restricted projection and evaluates the original predicates. Required errors, unsupported results and violations reject the candidate. Counterexamples must violate their independently declared predicate sets.
 5. **Check execution.** Native protocol, route and flow observations evaluate the same requirements. Runtime-only requirements cover properties outside the static model, including the evaluated FRR ECMP installation limit and enterprise overlay behavior.
 6. **Validate the incident.** Normal NIKA failure injection must produce its declared effects. Modeled configuration faults must also reproduce Batfish's predicted violation set. Recovery must restore the complete original healthy requirements.
@@ -215,3 +215,67 @@ need a common execution backend. Extending the existing Containerlab path is a
 practical next step because SR Linux already uses it. A mixed deployment must
 check interoperability on each cross-vendor link. Per-node profile overrides
 are not implemented yet.
+
+## Delegate configuration generation to netlab
+
+The manual construction workflow can use pinned [netlab](https://netlab.tools/netlab/create/)
+to transform the completed topology into vendor configurations:
+
+```bash
+uv sync --extra batfish --extra netlab
+```
+
+```python
+from copy import deepcopy
+from pathlib import Path
+from nika.workflows.validation.benchmark_routing import (
+    isp_catalog_profiles, build_benchmark_isp_experiment,
+)
+from nika.workflows.validation.routing import validate_routing_design
+
+profile = deepcopy(next(
+    p for p in isp_catalog_profiles().values() if p["scenario"] == "isp_dataxchange"
+))
+profile["deployment"].update(igp="ospf", bgp_mode="ebgp", device_profile="frr")
+spec = build_benchmark_isp_experiment(profile)
+summary = validate_routing_design(
+    spec, Path("/tmp/isp-netlab"), runtime=True, config_generator="netlab",
+)
+```
+
+NetComplete still selects OSPF costs and prefix import preferences from the original
+behavior requirements. A shared adapter supplies explicit addresses, directed
+costs, AS membership, RR roles, connected business prefixes and policies to
+netlab. Upstream topology transformation derives the BGP sessions, and upstream
+interface, OSPF, BGP and routing-policy templates generate the device commands.
+A derived session set that differs from the fixed sketch is rejected.
+
+The supported construction scope is Kathara FRR and IOS XR ISP plans using IPv4
+OSPF, with no BGP, iBGP RR, or ordinary eBGP. Prefix lists and per-prefix
+local-preference use netlab's [routing module](https://netlab.tools/module/routing/)
+and [BGP policy plugin](https://netlab.tools/plugins/bgp.policy/). OSPF costs must
+fit upstream's 1–65,534 range. Security overlays and registered configuration-failure bindings are not covered;
+the experiment retains its declared negative controls and link incidents. RouterOS7 lacks
+upstream generic routing policies; SR Linux still needs an adapter for deploying
+netlab's native CLI through NIKA's document-based backend. These profiles retain
+the existing implementation and are rejected when netlab generation is requested.
+No automatic fallback substitutes a different generator.
+
+The construction saves `netlab/topology.yml`, the transformed topology, upstream
+configuration fragments and the final `candidate-configs`. Batfish checks those
+final configurations. For FRR, snapshot import normalizes the interface-level
+`ip ospf passive` command to `passive-interface` for the pinned parser, using
+[FRR's documented semantics](https://docs.frrouting.org/en/stable-10.2/ospfd.html).
+This normalization is limited to one default-table OSPF process without mixed
+passive syntaxes. It reads the candidate commands, including mutations, and does
+not reconstruct an ideal configuration from the plan. Native validation deploys
+the generated configuration through the ordinary NIKA
+startup API and evaluates the original predicates, negative controls, link loss
+and recovery. Negative-control command bindings follow the emitted syntax while
+their expected violation sets remain fixed. The successful build loader reuses
+the saved configurations, rather than regenerating a candidate at startup.
+
+This delegates configuration transformation and syntax to an established tool;
+it does not add a compiler-correctness claim. Acceptance continues to come from
+independent checks of the original requirements. The default benchmark path and
+published case definitions do not change.

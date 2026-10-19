@@ -77,7 +77,10 @@ def validate_routing_design(
     image="nika/netcomplete:experiment",
     parameters: RoutingParameters | None = None,
     batfish_verifier: BatfishVerifier | None = None,
+    config_generator: str | None = None,
 ):
+    if config_generator not in {None, "netlab"}:
+        raise ValueError("Unknown configuration generator")
     output = output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     (output / "summary.json").unlink(missing_ok=True)
@@ -96,6 +99,11 @@ def validate_routing_design(
     env = get_net_env_instance(
         spec.scenario, topo_size=spec.topo_size, **deploy_options
     )
+    if config_generator == "netlab":
+        from nika.workflows.validation.netlab import check_netlab_scope
+
+        # Reject unsupported capabilities before running a solver or analyzer.
+        check_netlab_scope(spec, env)
     if native_srl:
         from nika.net_env.srl_validation import verify_srl_contract
 
@@ -247,8 +255,25 @@ def validate_routing_design(
             routing_parameters=parameters.model_dump(mode="json"),
             **deploy_options,
         )
+    generated_configs = None
+    if config_generator == "netlab":
+        from nika.net_env.isp.netlab import generate_netlab_configs
+        from nika.net_env.synthesis.configuration import apply_routing_configs
+        from nika.workflows.validation.netlab import bind_netlab_controls
+
+        generated_configs = generate_netlab_configs(
+            env.plan, env.bgp_plan, env.device_profile, output / "netlab"
+        )
+        apply_routing_configs(env, generated_configs)
+        spec = bind_netlab_controls(spec, generated_configs, env.device_profile)
+        (output / "resolved-spec.json").write_text(
+            spec.model_dump_json(indent=2) + "\n"
+        )
     candidate_dir = output / "candidate-configs"
     candidate_dir.mkdir(exist_ok=True)
+    for previous in candidate_dir.iterdir():
+        if previous.suffix in {".conf", ".yaml"}:
+            previous.unlink()
 
     def candidate_configs():
         if native_vendor:
@@ -271,6 +296,10 @@ def validate_routing_design(
             config
         )
     summary = {"static": {}, "runtime": {}, "counterexamples": {}}
+    if generated_configs is not None:
+        from nika.net_env.isp.netlab import NETLAB_VERSION
+
+        summary["configuration"] = {"generator": "netlab", "version": NETLAB_VERSION}
     if parameters is not None:
         summary["synthesis"] = {
             "backend": "netcomplete" if synthesized_here else "provided-stage-output",
@@ -424,7 +453,7 @@ def validate_routing_design(
             }
         if runtime:
             start_net_env(
-                **routing_start_kwargs(spec, parameters),
+                **routing_start_kwargs(spec, parameters, configs=generated_configs),
                 session_id=session_id,
                 session_dir=str(output / "runtime"),
             )

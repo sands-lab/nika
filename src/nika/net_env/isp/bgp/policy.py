@@ -9,6 +9,18 @@ from pydantic import Field, StrictInt, model_validator
 from nika.net_env.contract import ContractModel
 
 
+# Healthy business allow-list, including the dormant unauthorized-origin prefix.
+BUSINESS_PREFIXES = (
+    "203.0.113.0/24",
+    "203.0.114.0/24",
+    "203.0.115.0/24",
+    "198.51.100.0/24",
+    "198.51.101.0/24",
+    "198.51.102.0/24",
+    "198.18.0.0/24",
+)
+
+
 class BgpPolicyTerm(ContractModel):
     prefix: str
     permit: bool

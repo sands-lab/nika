@@ -69,7 +69,7 @@ def intent_command(intent: ValidationIntent) -> VerifyCommand:
     if intent.property == "adjacency":
         assert intent.adjacency is not None
         command = (
-            "vtysh -c 'show bgp summary'"
+            "vtysh -c 'show bgp summary json'"
             if intent.adjacency.protocol == "bgp"
             else (
                 "vtysh -c 'show isis neighbor'"

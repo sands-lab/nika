@@ -15,6 +15,7 @@ def main() -> None:
     parser.add_argument("specification", type=Path)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--runtime", action="store_true")
+    parser.add_argument("--config-generator", choices=["netlab"], default=None)
     parser.add_argument("--image", default="nika/netcomplete:experiment")
     args = parser.parse_args()
     result = validate_routing_design(
@@ -22,6 +23,7 @@ def main() -> None:
         args.output,
         runtime=args.runtime,
         image=args.image,
+        config_generator=args.config_generator,
     )
     print(json.dumps(result, indent=2))
 

@@ -114,6 +114,126 @@
           "available_memory_gib": 33.5
         }
       ]
+    },
+    "netlab_construction": {
+      "version": "26.10",
+      "scope": "Kathara FRR/IOS XR IPv4 OSPF, optional ordinary iBGP RR/eBGP; no security overlays or registered configuration-failure bindings",
+      "offline_generation": {
+        "topologies": [
+          "arpanet196912",
+          "dataxchange",
+          "abilene",
+          "geant",
+          "germany50",
+          "bteurope",
+          "cogentco"
+        ],
+        "device_profiles": [
+          "frr",
+          "iosxr"
+        ],
+        "bgp_modes": [
+          "none",
+          "ibgp_rr",
+          "ebgp"
+        ],
+        "variants": 42,
+        "largest_router_count": 197,
+        "native_execution_claim": false
+      },
+      "completed_native_runs": [
+        {
+          "scenario": "isp_arpanet196912",
+          "device_profile": "frr",
+          "bgp_mode": "none",
+          "healthy_predicates": 20,
+          "link_down_predicates": 19,
+          "recovered_predicates": 20,
+          "predeclared_counterexamples_verified": true
+        },
+        {
+          "scenario": "isp_arpanet196912",
+          "device_profile": "iosxr",
+          "bgp_mode": "none",
+          "healthy_predicates": 20,
+          "link_down_predicates": 19,
+          "recovered_predicates": 20,
+          "predeclared_counterexamples_verified": true
+        },
+        {
+          "scenario": "isp_arpanet196912",
+          "device_profile": "frr",
+          "bgp_mode": "ibgp_rr",
+          "healthy_predicates": 36,
+          "link_down_predicates": 35,
+          "recovered_predicates": 36,
+          "predeclared_counterexamples_verified": true
+        },
+        {
+          "scenario": "isp_arpanet196912",
+          "device_profile": "iosxr",
+          "bgp_mode": "ibgp_rr",
+          "healthy_predicates": 36,
+          "link_down_predicates": 35,
+          "recovered_predicates": 36,
+          "predeclared_counterexamples_verified": true
+        },
+        {
+          "scenario": "isp_dataxchange",
+          "device_profile": "frr",
+          "bgp_mode": "ebgp",
+          "healthy_predicates": 62,
+          "link_down_predicates": 60,
+          "recovered_predicates": 62,
+          "predeclared_counterexamples_verified": true
+        },
+        {
+          "scenario": "isp_dataxchange",
+          "device_profile": "iosxr",
+          "bgp_mode": "ebgp",
+          "healthy_predicates": 62,
+          "link_down_predicates": 60,
+          "recovered_predicates": 62,
+          "predeclared_counterexamples_verified": true
+        }
+      ],
+      "static_policy_comparison": {
+        "scenario": "isp_abilene",
+        "required_asn": 65001,
+        "prefix": "198.51.102.0/24",
+        "ordered_neighbor_asns": [
+          65002,
+          65003
+        ],
+        "ospf_costs": 20,
+        "bgp_import_policies": 4,
+        "local_preferences": [
+          1,
+          2
+        ],
+        "same_completed_parameters_across_vendors": true,
+        "native_execution_claim": false,
+        "runs": [
+          {
+            "device_profile": "frr",
+            "healthy_predicates": 113,
+            "link_down_predicates": 113,
+            "predeclared_counterexamples_verified": true
+          },
+          {
+            "device_profile": "iosxr",
+            "healthy_predicates": 113,
+            "link_down_predicates": 113,
+            "predeclared_counterexamples_verified": true
+          }
+        ]
+      },
+      "ordinary_startup": {
+        "saved_netlab_configuration_predicates": 20,
+        "default_nika_predicates": 36,
+        "construction_tools_invoked": false
+      },
+      "native_regression": "tests/nika/validation/test_netlab_isp_workflow.py"
     }
   },
   "cross_domain": {

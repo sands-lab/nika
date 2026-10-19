@@ -74,7 +74,7 @@ def _collect(runtime, plan, bgp_plan, traffic, contract, healed, *, full):
         if bgp_plan:
             commands.extend(
                 [
-                    VerifyCommand(device, "vtysh -c 'show bgp summary'"),
+                    VerifyCommand(device, "vtysh -c 'show bgp summary json'"),
                     VerifyCommand(device, _BGP_TABLE),
                 ]
             )
@@ -539,7 +539,7 @@ def _verify_adjacency(
     assert intent.adjacency is not None
     adjacency = intent.adjacency
     if adjacency.protocol == "bgp":
-        command = "vtysh -c 'show bgp summary'"
+        command = "vtysh -c 'show bgp summary json'"
         output = _cached_exec(
             runtime,
             adjacency.local_node,
@@ -938,7 +938,7 @@ def _bgp_sessions_ok(runtime: LabRuntime, bgp_plan: BgpPlan) -> bool:
     def device_ok(item: tuple[str, set[str]]) -> bool:
         device, peers = item
         output = exec_or_empty(
-            runtime, device, "vtysh -c 'show bgp summary'", timeout=20
+            runtime, device, "vtysh -c 'show bgp summary json'", timeout=20
         )
         established = frr_bgp_established_peers(output)
         return peers.issubset(established)

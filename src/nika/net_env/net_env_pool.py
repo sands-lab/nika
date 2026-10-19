@@ -644,6 +644,7 @@ def get_net_env_instance(
     lab_name = merged.pop("lab_name", None)
     topology_file = merged.pop("topology_file", None)
     runtime_workdir = merged.pop("runtime_workdir", None)
+    routing_configs = merged.pop("routing_configs", None)
     # Many Kathara lab ``__init__`` signatures omit ``backend`` (and ``**kwargs``).
     # Pass it only when accepted; always assign afterward so ``instance.backend``
     # matches the resolved runtime backend.
@@ -653,6 +654,10 @@ def get_net_env_instance(
     )
     instance = cls(backend=resolved, **merged) if accepts_backend else cls(**merged)
     instance.backend = resolved
+    if routing_configs is not None:
+        from nika.net_env.synthesis.configuration import apply_routing_configs
+
+        apply_routing_configs(instance, routing_configs)
     if lab_name:
         instance.name = lab_name
         if instance.lab is not None:

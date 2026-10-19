@@ -568,3 +568,22 @@ class KatharaScenarioVerifyIntegrationTest(IntegrationTestCase):
             assert ok is True, result
         finally:
             self._close_session(session_id)
+
+
+@pytest.mark.unit
+def test_bgp_summary_json_preserves_peer_ip_when_hostnames_are_enabled():
+    import json
+
+    from nika.net_env.verify import frr_bgp_established_peers
+
+    summary = json.dumps(
+        {
+            "ipv4Unicast": {
+                "peers": {
+                    "10.255.0.2": {"hostname": "ucla", "state": "Established"},
+                    "10.255.0.3": {"hostname": "uscb", "state": "Idle"},
+                }
+            }
+        }
+    )
+    assert frr_bgp_established_peers(summary) == {"10.255.0.2"}

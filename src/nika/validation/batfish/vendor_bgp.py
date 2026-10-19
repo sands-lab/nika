@@ -39,10 +39,14 @@ def vendor_addresses(config, device_profile):
             elif line and not line[0].isspace():
                 interface = None
             elif interface and line.lstrip().startswith("ipv4 address "):
-                match = re.fullmatch(r" ipv4 address ([0-9.]+/[0-9]+)", line)
+                match = re.fullmatch(
+                    r" ipv4 address ([0-9.]+(?:/[0-9]+| [0-9.]+))", line
+                )
                 if not match:
                     raise ValueError("Unsupported IOS XR IPv4 addressing")
-                addresses.append((str(IPv4Interface(match[1])), interface))
+                addresses.append(
+                    (str(IPv4Interface(match[1].replace(" ", "/"))), interface)
+                )
     elif device_profile == "routeros":
         for line in config.splitlines():
             parts = shlex.split(line)
@@ -91,7 +95,7 @@ def vendor_ospf_interfaces(node, config, device_profile):
             if in_ospf:
                 raise ValueError("Native ISP completion requires one OSPF instance")
             in_ospf, area, interface = True, None, None
-        elif line and not line[0].isspace() and line != "!":
+        elif line and not line[0].isspace() and not line.startswith("!"):
             in_ospf = False
         elif in_ospf:
             if match := re.fullmatch(r" area ([0-9.]+)", line):

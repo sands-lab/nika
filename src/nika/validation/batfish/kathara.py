@@ -109,6 +109,41 @@ def build_kathara_snapshot(
             config,
             flags=re.MULTILINE,
         )
+        # FRR documents interface-level passive and router-level
+        # passive-interface as equivalent. The pinned Batfish parser supports
+        # only the latter. Normalize concrete commands, never the design plan.
+        # https://docs.frrouting.org/en/stable-10.2/ospfd.html
+        passive, interface = {}, None
+        for line in config.splitlines():
+            if match := re.fullmatch(r"interface (\S+)", line):
+                interface = match[1]
+            elif line.strip().startswith(("ip ospf passive", "no ip ospf passive")):
+                if line.strip() not in {"ip ospf passive", "no ip ospf passive"}:
+                    raise ValueError(
+                        "Address-specific OSPF passive syntax is not covered"
+                    )
+                if interface is None:
+                    raise ValueError("OSPF passive command outside an interface")
+                passive[interface] = line.strip() == "ip ospf passive"
+            elif line and not line[0].isspace() and not line.startswith(("!", "#")):
+                interface = None
+        if passive:
+            if len(re.findall(r"^router ospf$", config, re.M)) != 1 or re.search(
+                r"^\s+(?:no )?passive-interface\b", config, re.M
+            ):
+                raise ValueError(
+                    "Interface passive normalization requires one OSPF process without mixed passive syntax"
+                )
+            config = re.sub(r"^ (?:no )?ip ospf passive\n", "", config, flags=re.M)
+            config += (
+                "\nrouter ospf\n"
+                + "".join(
+                    f" passive-interface {iface}\n"
+                    for iface, enabled in passive.items()
+                    if enabled
+                )
+                + "!\n"
+            )
         (root / "configs" / f"{name}.cfg").write_text(
             _cumulus_frr_snapshot(
                 name,

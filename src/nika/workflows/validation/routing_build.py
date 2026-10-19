@@ -1,4 +1,4 @@
-"""Reuse completed routing parameters through normal NIKA session startup."""
+"""Reuse completed routing parameters and configurations at session startup."""
 
 import json
 from pathlib import Path
@@ -9,7 +9,10 @@ from nika.workflows.validation.routing_spec import RoutingExperiment
 
 
 def routing_start_kwargs(
-    spec: RoutingExperiment, parameters: RoutingParameters | None
+    spec: RoutingExperiment,
+    parameters: RoutingParameters | None,
+    *,
+    configs: dict[str, str] | None = None,
 ) -> dict:
     """Bind the same deployment choices during verification and later execution."""
     options = spec.deployment.model_dump(exclude_none=True)
@@ -26,6 +29,7 @@ def routing_start_kwargs(
         for key in ("igp", "bgp_mode", "rpki", "device_profile"):
             options.pop(key, None)
     return {
+        **({"routing_configs": configs} if configs is not None else {}),
         "scenario": spec.scenario,
         "topo_size": spec.topo_size,
         **options,
@@ -55,4 +59,14 @@ def load_routing_build(directory: Path) -> dict:
         if spec.completion is not None
         else None
     )
-    return routing_start_kwargs(spec, parameters)
+    configs = None
+    if summary.get("configuration", {}).get("generator") == "netlab":
+        configs = {
+            p.stem: p.read_text()
+            for p in (directory / "candidate-configs").glob("*.conf")
+        }
+    if configs == {}:
+        raise FileNotFoundError(
+            "Saved netlab construction is missing candidate configurations"
+        )
+    return routing_start_kwargs(spec, parameters, configs=configs)

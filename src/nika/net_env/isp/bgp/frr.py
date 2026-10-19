@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from nika.net_env.isp.bgp.policy import BUSINESS_PREFIXES
+
 from nika.net_env.isp.bgp.plan import BgpNodePlan, BgpPlan
 from nika.net_env.utils.kathara.frr_origin import BGP_ORIGIN_IFACE
 
@@ -28,28 +30,15 @@ def merge_frr_conf(igp_conf: str, bgp_fragment: str) -> str:
 
 def _common_prefix_lists(*, extra_business: tuple[str, ...] = ()) -> list[str]:
     lines = [
-        "ip prefix-list BUSINESS seq 5 permit 203.0.113.0/24 le 24",
-        "ip prefix-list BUSINESS seq 10 permit 203.0.114.0/24 le 24",
-        "ip prefix-list BUSINESS seq 15 permit 203.0.115.0/24 le 24",
-        "ip prefix-list BUSINESS seq 20 permit 198.51.100.0/24 le 24",
-        "ip prefix-list BUSINESS seq 25 permit 198.51.101.0/24 le 24",
-        "ip prefix-list BUSINESS seq 30 permit 198.51.102.0/24 le 24",
-        # Dormant benchmark prefix: no router originates it in the healthy
-        # baseline. An unauthorized origin can propagate when injected.
-        "ip prefix-list BUSINESS seq 31 permit 198.18.0.0/24 le 24",
+        f"ip prefix-list BUSINESS seq {seq} permit {prefix} le 24"
+        for seq, prefix in zip(
+            (5, 10, 15, 20, 25, 30, 31), BUSINESS_PREFIXES, strict=True
+        )
     ]
     seq = 35
     for prefix in extra_business:
         # Already covered by 203.0.113/114 entries when those are leak targets.
-        if prefix in (
-            "203.0.113.0/24",
-            "203.0.114.0/24",
-            "203.0.115.0/24",
-            "198.51.100.0/24",
-            "198.51.101.0/24",
-            "198.51.102.0/24",
-            "198.18.0.0/24",
-        ):
+        if prefix in BUSINESS_PREFIXES:
             continue
         lines.append(f"ip prefix-list BUSINESS seq {seq} permit {prefix} le 24")
         seq += 5

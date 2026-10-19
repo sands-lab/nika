@@ -41,6 +41,23 @@ uv run python experiment/routing_validation/benchmark_isp.py --catalog --output 
 
 `coverage.json` and `results.json` in the output directory distinguish unsupported, prepared and passed profiles. The runner saves progress after each completed profile. Published releases and the working benchmark manifests retain their existing deployment choices.
 
+## Generate ISP configurations with netlab
+
+For supported FRR and IOS XR OSPF ISP profiles, install
+`uv sync --extra batfish --extra netlab` and add `--config-generator netlab` to either experiment runner.
+The Python workflow accepts the same `config_generator="netlab"` option.
+NetComplete chooses costs and import preferences; upstream netlab transforms the
+fixed topology and generates interfaces, OSPF, BGP/RR and routing policies. The
+existing Batfish and native checks still evaluate the original requirements.
+
+The scope includes ordinary OSPF-only, iBGP RR and eBGP ISP designs. RouterOS,
+SR Linux, security overlays, registered configuration-failure bindings and other
+scenario families are currently rejected
+when this option is selected. The [implementation guide](../../docs/development/routing-verification.md#delegate-configuration-generation-to-netlab)
+explains the upstream limitations and saved artifacts. Omitting the option keeps
+the existing construction path. This is an experiment option, not a NIKA CLI
+command or an automatic change to benchmark cases.
+
 ## Reuse a saved construction
 
 Load the original deployment choices and completed parameters into the normal startup API:
@@ -59,7 +76,7 @@ finally:
     close_session(session_id=session_id)
 ```
 
-This path uses the same deployment arguments as native verification. It runs normal readiness checks and reuses the existing deterministic configuration generators. It does not call NetComplete or Batfish, or repeat the validation fault sequence. The loader requires a successful summary and the saved parameters when completion was declared. Check the saved `validation_scope` when selecting a construction; loading a static-only result adds no runtime evidence. Batch benchmark selection of saved constructions is not connected automatically.
+This path uses the same deployment arguments as native verification. It runs normal readiness checks. Netlab constructions reuse their saved candidate configurations; other constructions reuse the existing deterministic configuration generators. It does not call NetComplete or Batfish, or repeat the validation fault sequence. The loader requires a successful summary and the saved parameters when completion was declared. Check the saved `validation_scope` when selecting a construction; loading a static-only result adds no runtime evidence. Batch benchmark selection of saved constructions is not connected automatically.
 
 ## Tool responsibilities and model scope
 

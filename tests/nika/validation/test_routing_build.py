@@ -99,3 +99,17 @@ def test_saved_build_deploys_with_original_requirements(tmp_path, netcomplete_im
         )
     finally:
         client.close()
+
+
+@pytest.mark.contract
+def test_saved_netlab_build_cannot_fall_back_to_local_renderer(tmp_path):
+    specimen = (
+        Path(__file__).resolve().parents[3] / "experiment/routing_validation/clos.json"
+    )
+    (tmp_path / "summary.json").write_text(
+        json.dumps({"status": "passed", "configuration": {"generator": "netlab"}})
+    )
+    (tmp_path / "original-spec.json").write_text(specimen.read_text())
+    (tmp_path / "routing-parameters.json").write_text("{}")
+    with pytest.raises(FileNotFoundError, match="missing candidate configurations"):
+        load_routing_build(tmp_path)
