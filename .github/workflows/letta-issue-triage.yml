@@ -7,7 +7,8 @@ on:
 jobs:
   triage:
     name: Letta Issue Triage
-    runs-on: [self-hosted, Linux, X64, cornaca-copilot]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
     permissions:
       contents: read
       issues: write
@@ -18,9 +19,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Locate preinstalled Letta CLI
-        id: letta
-        run: echo "path=$(command -v letta)" >> "$GITHUB_OUTPUT"
+      # Same install as ci.yml's install-benchmark-e2e, so the agent can run NIKA.
+      # Runners ship Docker; their Azure kernels keep vrf.ko in linux-modules-extra.
+      - name: Install host prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y "linux-modules-extra-$(uname -r)"
+      # Labs build or pull their images on first deploy.
+      - name: Install NIKA
+        run: ./scripts/install.sh --skip-images
       - name: Ensure triage labels exist
         run: |
           gh label create agent-ready --color 0E8A16 --description "Well-scoped; an agent can implement it" --force
@@ -36,16 +43,14 @@ jobs:
           # Prompt (agent) mode ignores agent_id; pin the NIKA-dev agent via CLI args.
           letta_args: --agent agent-94fc2af6-52c5-4ec5-b0c1-758a3e09541a --new
           show_full_output: true
-          path_to_letta_executable: ${{ steps.letta.outputs.path }}
           prompt: |
             Triage issue #${{ github.event.issue.number }}. Read it with
             `gh issue view ${{ github.event.issue.number }} --comments`.
 
-            Delegate the heavy lifting (code exploration, reproducing behavior,
-            searching issues and PRs) to Claude Code, which is installed on this
-            machine. Use it first; fall back to doing the work
-            yourself only if it is unavailable. You run in a checkout of the
-            repository and may inspect and execute code, but do not push commits,
+            You run in a checkout of the repository with NIKA installed: run
+            `source .venv/bin/activate` to use the `nika` CLI and start labs if
+            reproducing the issue helps the triage. Lab images build on first
+            deploy, so prefer reading code when that suffices. Do not push commits,
             open PRs, or leave runtime resources (containers, sessions) behind.
 
             1. Labels: list existing labels (`gh label list --limit 200`) and apply the
