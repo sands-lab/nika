@@ -42,6 +42,7 @@ class IspConfig:
     p2p_pool: IPv4Network = DEFAULT_P2P_POOL
     inv_capacity_reference: float = DEFAULT_INV_CAPACITY_REFERENCE
     link_metrics: dict[str, int] | None = None
+    first_interface_index: int = 0
 
     def validated(self) -> IspConfig:
         """Return self after validating option combinations and pools."""
@@ -54,6 +55,8 @@ class IspConfig:
                 f"Unsupported metric strategy {self.metric_strategy!r}; "
                 f"expected one of {SUPPORTED_METRIC_STRATEGIES}."
             )
+        if self.first_interface_index < 0:
+            raise IspConfigError("first_interface_index must be nonnegative")
         if self.constant_metric < 1:
             raise IspConfigError(
                 f"constant_metric must be >= 1, got {self.constant_metric}."

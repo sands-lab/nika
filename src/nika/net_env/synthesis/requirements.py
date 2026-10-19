@@ -306,6 +306,15 @@ def resolve_routing_requirements(spec, env):
                 from nika.validation.batfish.srl_isp import srl_addresses
 
                 addresses = srl_addresses(env.routing_documents[terminal])
+            elif getattr(env, "device_profile", None) in {"iosxr", "routeros"}:
+                from nika.validation.batfish.vendor_bgp import (
+                    vendor_addresses,
+                    vendor_configs,
+                )
+
+                addresses = vendor_addresses(
+                    vendor_configs(env)[terminal], env.device_profile
+                )
             else:
                 if terminal not in env.lab.machines:
                     raise ValueError("Routing path has an unknown terminal router")

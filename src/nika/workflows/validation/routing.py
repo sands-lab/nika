@@ -84,7 +84,12 @@ def validate_routing_design(
     # Save original behavior before resolving fixed address/session bindings.
     (output / "original-spec.json").write_text(spec.model_dump_json(indent=2) + "\n")
     native_srl = spec.routing_model in {"srl-bgp", "srl-isp"}
-    native_vendor = spec.routing_model in {"iosxr-bgp", "routeros-bgp"}
+    native_vendor = spec.routing_model in {
+        "iosxr-bgp",
+        "routeros-bgp",
+        "iosxr-isp",
+        "routeros-isp",
+    }
     deploy_options = spec.deployment.model_dump(exclude_none=True)
     if (native_srl and spec.routing_model != "srl-isp") or native_vendor:
         deploy_options["routing_model"] = spec.routing_model
@@ -135,7 +140,7 @@ def validate_routing_design(
         )
         runtime_verifier = (
             verify_iosxr_contract
-            if spec.routing_model == "iosxr-bgp"
+            if spec.routing_model in {"iosxr-bgp", "iosxr-isp"}
             else verify_routeros_contract
         )
         if spec.failure_checks:
@@ -433,7 +438,10 @@ def validate_routing_design(
                     report = runtime_verifier(
                         backend,
                         contract=contract,
-                        plan=env.plan if spec.routing_model == "srl-isp" else None,
+                        plan=env.plan
+                        if spec.routing_model
+                        in {"srl-isp", "iosxr-isp", "routeros-isp"}
+                        else None,
                     )
                     report.write(output / f"runtime-{name}.json")
                     if report.status == "passed" and all(
@@ -458,7 +466,10 @@ def validate_routing_design(
                         runtime_verifier(
                             backend,
                             contract=c,
-                            plan=env.plan if spec.routing_model == "srl-isp" else None,
+                            plan=env.plan
+                            if spec.routing_model
+                            in {"srl-isp", "iosxr-isp", "routeros-isp"}
+                            else None,
                         )
                         for c in contracts
                     ]
@@ -592,7 +603,7 @@ def validate_routing_design(
 
                 inspection_command = (
                     "/pkg/bin/xr_cli 'show route'"
-                    if spec.routing_model == "iosxr-bgp"
+                    if spec.routing_model in {"iosxr-bgp", "iosxr-isp"}
                     else routeros_cli.format(command="/ip/route/print detail")
                 )
             else:
@@ -641,10 +652,12 @@ def validate_routing_design(
                             )
                         return
                     if native_vendor:
-                        if spec.routing_model == "iosxr-bgp":
-                            command = shlex.join(
-                                ["/pkg/bin/xr_cli", "\n".join(commands)]
+                        if spec.routing_model in {"iosxr-bgp", "iosxr-isp"}:
+                            from nika.net_env.utils.iosxr.common import (
+                                build_xr_config_command,
                             )
+
+                            command = build_xr_config_command(commands)
                         else:
                             from nika.net_env.routeros_simple_bgp.verify import (
                                 CLI_COMMAND,

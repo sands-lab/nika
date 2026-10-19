@@ -631,6 +631,16 @@ def get_net_env_instance(
     cls = _load_net_env_class(canonical, backend=resolved)
     spec = _require_scenario(canonical)
     merged: dict[str, Any] = {**(spec.deploy_defaults or {}), **kwargs}
+    from nika.net_env.isp.identity import is_isp_base_topology
+
+    if (
+        resolved == "kathara"
+        and is_isp_base_topology(canonical)
+        and merged.get("device_profile") in {"iosxr", "routeros"}
+    ):
+        from nika.net_env.isp.kathara.vendor import IspVendor
+
+        cls = IspVendor
     lab_name = merged.pop("lab_name", None)
     topology_file = merged.pop("topology_file", None)
     runtime_workdir = merged.pop("runtime_workdir", None)

@@ -113,6 +113,105 @@ uv run pytest 'tests/nika/validation/test_benchmark_routing.py::test_as_import_a
 
 Reusable completion code lives in `src/nika/net_env/synthesis`; verifier adapters live in `src/nika/validation`; construction and validation orchestration live in `src/nika/workflows/validation`. Manual entry points and specimens live in `experiment/routing_validation`. Normal benchmark execution does not invoke the construction experiment. Saved original deployment choices and completed parameters can be loaded explicitly through `load_routing_build` and the existing startup API.
 
-The [coverage record](../../experiment/routing_validation/coverage.json) distinguishes 289 statically checked default ISP profiles from 39 natively exercised benchmark deployment profiles. FRR and SR Linux have broader ISP coverage; Cisco XRd and RouterOS cover two-router direct eBGP. These counts describe recorded experiments before source cleanup. The retained regressions and experiment inventory reproduce their stated scopes on the current revision.
+The [coverage record](../../experiment/routing_validation/coverage.json) distinguishes 289 statically checked default ISP profiles from 39 natively exercised benchmark deployment profiles. FRR and SR Linux have broader native ISP coverage. The native ISP profile regressions below extend Cisco XRd and RouterOS beyond their original two-router direct-eBGP examples. These counts describe recorded experiments before source cleanup. The retained regressions and experiment inventory reproduce their stated scopes on the current revision.
 
 A new compatible topology supplies different inputs to this workflow. A new protocol or vendor needs supported completion bindings, configuration analysis and native observations while preserving the original requirements. Cross-domain reuse retains this construction and acceptance sequence and states the remaining modeling limits.
+
+## ISP device profiles
+
+`device_profile` selects a concrete network operating system, while `backend`
+selects its execution environment. The existing benchmark row identity includes
+both fields, so the same graph and protocol sketch can have distinct FRR, SR
+Linux, IOS XR and RouterOS tasks without adding a separate `vendor` field.
+IOS XR and RouterOS ISP deployments currently require explicit `igp: ospf` and
+support `bgp_mode: none`, `ibgp_rr` and `ebgp`; security overlays remain excluded.
+
+With both vendor images installed, run the retained native matrix serially:
+
+```bash
+uv run pytest tests/nika/validation/test_vendor_isp_workflow.py -m e2e -x -q
+```
+
+The matrix uses ARPANET196912 for OSPF and iBGP route reflection, and DataXchange
+for multi-AS BGP. Each profile follows NetComplete, Batfish, native checks,
+configuration negative controls, link failure and recovery. The coverage record
+lists accepted executions separately from offline configuration compilation.
+
+Recorded native examples include:
+
+| Graph | BGP sketch | Profiles | Healthy predicates |
+| --- | --- | --- | --- |
+| ARPANET196912 | none | IOS XR, RouterOS | 20 |
+| ARPANET196912 | iBGP route reflection | IOS XR, RouterOS | 36 |
+| DataXchange | multi-AS BGP | IOS XR, RouterOS | 62 |
+| Abilene | multi-AS BGP | RouterOS | 133 |
+
+Each listed execution also rejected its declared configuration negative controls,
+checked the link-failure state and restored every healthy predicate. These are
+model-specific acceptance results, not a proof about arbitrary configurations.
+The IOS XR Abilene variant passed its 133 static checks, but its native deployment
+was rejected by memory admission and is not included in native coverage.
+
+To generate fault targets for a profile, use the existing benchmark generator:
+
+```python
+from nika.workflows.benchmark.generate import build_failure_cases
+
+cases, rejected = build_failure_cases(
+    scenario="isp_arpanet196912", problem="link_down", topo_size="",
+    isp_options={"igp": "ospf", "bgp_mode": "none", "rpki": False,
+                 "backend": "kathara", "device_profile": "routeros"},
+)
+rows = [dict(scenario="isp_arpanet196912", problem="link_down", **case)
+        for case in cases]
+```
+
+The generated rows retain `device_profile`, injection targets and ground truth.
+A manifest containing multiple profiles is handled by `benchmark_isp_profiles`
+and the existing routing experiment. Native variants receive distinct profile
+keys; existing default-profile keys remain unchanged.
+
+The native profiles consume the same typed graph, path requirements and
+NetComplete parameter types. IOS XR configurations go directly to Batfish.
+RouterOS configurations pass through a restricted, concrete-command projection:
+explicit IPv4 addresses, point-to-point OSPF in area 0, passive interfaces,
+BGP sessions and reflector roles, exact-prefix filters and local preference.
+The projection reads the final candidate, including counterexamples; unknown
+commands or policy actions are rejected. Native forwarding and protocol
+observations remain required to validate this model's assumptions.
+
+Native ISP profiles use standard next-hop selection: reflected routes retain their
+next hop, as recommended by [RFC 4456 section 4](https://www.rfc-editor.org/rfc/rfc4456#section-4).
+External-link subnets are advertised passively in the AS's OSPF domain, keeping
+unchanged external next hops reachable. RouterOS `force-self` also rewrites
+reflected next hops; it is not equivalent to ordinary FRR `next-hop-self`.
+The restricted projection rejects that iBGP setting rather than modeling it
+as FRR's different operation. See the
+[RouterOS next-hop choices](https://help.mikrotik.com/docs/spaces/ROS/pages/331612228/routing%2Bbgp)
+and [FRR BGP commands](https://docs.frrouting.org/en/latest/bgp.html).
+
+For a vendor comparison, regenerate injection targets from each profile's
+inventory. RouterOS reserves its first port for management, so copying a Linux
+interface index from an FRR task can select a different attachment. Pair tasks
+by the original graph edge and fault, then retain the generated physical
+attachment and ground truth for each profile. The routing experiment accepts
+native `link_down` bindings and explicitly rejects configuration failures that
+still require FRR-specific commands. Published benchmark releases are unchanged.
+
+Native ISP profiles use the benchmark runner's heavy tier, which runs exclusively
+by default. Before creating containers, deployment checks a conservative memory
+estimate: 3 GiB per XRd router or 1 GiB per RouterOS router, 256 MiB per edge host,
+and 2 GiB of headroom. Insufficient available memory rejects deployment. These
+estimates limit experiment size. Native router containers also have matching
+3 GiB / 1 GiB memory limits and one CPU each.
+Large graphs can be compiled offline without claiming that native execution was
+validated.
+
+A future mixed-vendor extension should retain `device_profile` as the default
+and resolve per-node overrides before allocating interfaces. Link addresses,
+OSPF network type, BGP sessions and original predicates remain shared inputs;
+rendering and native observations dispatch by node. All selected profiles also
+need a common execution backend. Extending the existing Containerlab path is a
+practical next step because SR Linux already uses it. A mixed deployment must
+check interoperability on each cross-vendor link. Per-node profile overrides
+are not implemented yet.

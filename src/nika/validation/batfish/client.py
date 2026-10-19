@@ -143,8 +143,8 @@ class BatfishClient:
         else:  # pragma: no cover - compiler constrains this field
             raise ValueError(f"unknown Batfish question kind {question.kind!r}")
         rows = _records(frame)
-        if question.kind == "isis_adjacency":
-            rows = _normalize_isis_interfaces(
+        if question.kind in {"ospf_adjacency", "isis_adjacency"}:
+            rows = _normalize_interfaces(
                 rows, self._snapshot_metadata.get("interface_aliases", {})
             )
         if question.kind in {"ospf_adjacency", "isis_adjacency"}:
@@ -276,7 +276,7 @@ def _json_value(value: Any) -> Any:
     return str(value)
 
 
-def _normalize_isis_interfaces(
+def _normalize_interfaces(
     rows: list[dict[str, Any]], aliases: dict[str, dict[str, str]]
 ) -> list[dict[str, Any]]:
     """Map Batfish interface names back to the topology's original names."""

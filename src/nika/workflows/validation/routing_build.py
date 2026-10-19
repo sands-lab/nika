@@ -13,7 +13,13 @@ def routing_start_kwargs(
 ) -> dict:
     """Bind the same deployment choices during verification and later execution."""
     options = spec.deployment.model_dump(exclude_none=True)
-    if spec.routing_model in {"srl-bgp", "iosxr-bgp", "routeros-bgp"}:
+    if spec.routing_model in {
+        "srl-bgp",
+        "iosxr-bgp",
+        "routeros-bgp",
+        "iosxr-isp",
+        "routeros-isp",
+    }:
         options["routing_model"] = spec.routing_model
     if is_isp_named_special(spec.scenario):
         # These constructors retain their registered protocol stack.

@@ -283,6 +283,7 @@ def complete_routing(spec, env, directory: Path, *, image: str):
                 (a.local_node, a.remote_node, a.local_address, a.remote_address)
             )
             srl = getattr(env, "device_profile", None) == "nokia_srlinux"
+            vendor = getattr(env, "device_profile", None) in {"iosxr", "routeros"}
             if srl:
                 from nika.validation.batfish.srl_isp import (
                     srl_addresses,
@@ -295,6 +296,23 @@ def complete_routing(spec, env, directory: Path, *, image: str):
                     (addr, "eth" + str(int(iface.split("/")[1].split(".")[0]) - 1))
                     for addr, iface in srl_addresses(document)
                     if iface.startswith("ethernet-")
+                ]
+            elif vendor:
+                from nika.validation.batfish.vendor_bgp import (
+                    vendor_addresses,
+                    vendor_configs,
+                    vendor_ospf_interfaces,
+                )
+
+                config = vendor_configs(env)[a.local_node]
+                logical = {
+                    native: name for name, native in env.BGP_INTERFACE_MAP.items()
+                }
+                addresses = [
+                    (address, logical.get(interface, interface))
+                    for address, interface in vendor_addresses(
+                        config, env.device_profile
+                    )
                 ]
             else:
                 addresses = startup_addresses(
@@ -333,6 +351,16 @@ def complete_routing(spec, env, directory: Path, *, image: str):
                 ]
                 if row.get("passive"):
                     raise ValueError("Link-state completion requires active interfaces")
+            elif vendor:
+                if isis:
+                    raise ValueError("Native ISP completion supports OSPF only")
+                binding = vendor_ospf_interfaces(
+                    a.local_node, config, env.device_profile
+                ).get(env.BGP_INTERFACE_MAP[interface])
+                if binding != (completion.area, False):
+                    raise ValueError(
+                        "Link-state completion requires active native interfaces in the declared area"
+                    )
             else:
                 config = env.lab.machines[a.local_node].fs.readtext("etc/frr/frr.conf")
                 if isis:

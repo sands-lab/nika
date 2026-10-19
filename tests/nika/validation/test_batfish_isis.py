@@ -12,7 +12,7 @@ from nika.validation.batfish.isis import (
     project_frr_isis,
 )
 from nika.net_env.contract import AdjacencyExpectation, ValidationIntent
-from nika.validation.batfish.client import _normalize_isis_interfaces
+from nika.validation.batfish.client import _normalize_interfaces
 from nika.validation.batfish.compiler import compile_intent
 from nika.validation.batfish.verifier import _evaluate_adjacency
 
@@ -163,19 +163,20 @@ def test_compiles_isis_adjacency_as_topology_edge_query():
     assert question.parameters["remote_interface"] == "eth0"
 
 
-def test_batfish_edge_aliases_normalize_to_original_interfaces():
+@pytest.mark.parametrize("native", ["GigabitEthernet0/0/0/0", "ether2"])
+def test_batfish_edge_aliases_normalize_to_original_interfaces(native):
     rows = [
         {
-            "Interface": "r1[GigabitEthernet0/0/0/0]",
-            "Remote_Interface": "r2[GigabitEthernet0/0/0/0]",
+            "Interface": f"r1[{native}]",
+            "Remote_Interface": f"r2[{native}]",
         }
     ]
 
-    normalized = _normalize_isis_interfaces(
+    normalized = _normalize_interfaces(
         rows,
         {
-            "r1": {"GigabitEthernet0/0/0/0": "eth0"},
-            "r2": {"GigabitEthernet0/0/0/0": "eth0"},
+            "r1": {native: "eth0"},
+            "r2": {native: "eth0"},
         },
     )
 

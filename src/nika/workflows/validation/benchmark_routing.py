@@ -60,15 +60,24 @@ def _profile_limitations(deployment, features):
     if (
         deployment["igp"] == "isis"
         and deployment["bgp_mode"] == "ebgp"
-        and deployment["device_profile"] != "nokia_srlinux"
+        and deployment["device_profile"] == "frr"
     ):
         reasons.append("FRR IS-IS with eBGP policy projection remains required")
     if (deployment["backend"], deployment["device_profile"]) not in {
         ("kathara", "frr"),
+        ("kathara", "iosxr"),
+        ("kathara", "routeros"),
         ("containerlab", "nokia_srlinux"),
     }:
         reasons.append(
             "Native ISP vendor observation and configuration analysis remain required"
+        )
+    if deployment["device_profile"] in {"iosxr", "routeros"} and (
+        deployment["igp"] != "ospf"
+        or deployment["bgp_mode"] not in {"none", "ibgp_rr", "ebgp"}
+    ):
+        reasons.append(
+            "Native ISP vendor profiles require IPv4 OSPF and supported BGP modes"
         )
     if features and (
         not set(features) <= {"rpki", "rtbh"}
@@ -77,6 +86,14 @@ def _profile_limitations(deployment, features):
     ):
         reasons.append("Policy semantics require separate coverage")
     return reasons
+
+
+def _profile_key(scenario, deployment):
+    parts = [scenario, deployment["igp"], deployment["bgp_mode"], deployment["backend"]]
+    # Preserve existing default-profile keys and distinguish native variants.
+    if deployment["device_profile"] != default_device_profile(deployment["backend"]):
+        parts.append(deployment["device_profile"])
+    return "--".join(parts)
 
 
 def isp_catalog_profiles():
@@ -111,7 +128,7 @@ def isp_catalog_profiles():
             if fixed.rtbh:
                 features.add("rtbh")
         limitations = _profile_limitations(deployment, features)
-        key = "--".join((scenario, deployment["igp"], deployment["bgp_mode"], backend))
+        key = _profile_key(scenario, deployment)
         profiles[key] = dict(
             scenario=scenario,
             deployment=deployment,
@@ -169,14 +186,7 @@ def benchmark_isp_profiles(manifests: list[Path]):
                     features.add("rtbh")
             if deployment["rpki"]:
                 features.add("rpki")
-            key = "--".join(
-                (
-                    scenario,
-                    deployment["igp"],
-                    deployment["bgp_mode"],
-                    deployment["backend"],
-                )
-            )
+            key = _profile_key(scenario, deployment)
             if key not in profiles:
                 reasons = _profile_limitations(deployment, features)
                 profiles[key] = {
@@ -211,6 +221,23 @@ def build_benchmark_isp_experiment(
         )
     scenario = profile["scenario"]
     deployment = RoutingDeployment.model_validate(profile["deployment"])
+    vendor = deployment.device_profile in {"iosxr", "routeros"}
+    if vendor:
+        limitations = _profile_limitations(
+            deployment.model_dump(), profile.get("features", ())
+        )
+        if limitations:
+            raise ValueError("Unsupported benchmark profile: " + "; ".join(limitations))
+        unsupported_faults = {
+            case["problem"]
+            for case in profile["benchmark_cases"]
+            if case["problem"] != "link_down"
+        }
+        if unsupported_faults:
+            raise ValueError(
+                "Native ISP experiment needs native fault bindings for: "
+                + ", ".join(sorted(unsupported_faults))
+            )
     env = load_offline_net_env(scenario, **deployment.model_dump(exclude_none=True))
     plan = env.plan
     srl = env.device_profile == "nokia_srlinux"
@@ -1097,6 +1124,140 @@ def build_benchmark_isp_experiment(
                     expected_failed_ids=(role.id,),
                 )
             )
+    elif vendor:
+        if env.device_profile == "iosxr":
+            if env.bgp_plan:
+                withdraw_native = (
+                    "configure terminal",
+                    *context,
+                    *withdrawal,
+                    "commit",
+                    "end",
+                )
+                recover_native = (
+                    "configure terminal",
+                    *context,
+                    *recovery,
+                    "commit",
+                    "end",
+                )
+            else:
+                old_announcement = "  interface Loopback0\n   passive enable\n  !\n"
+                context = ("router ospf NIKA", "area 0")
+                withdraw_native = (
+                    "configure terminal",
+                    *context,
+                    "no interface Loopback0",
+                    "commit",
+                    "end",
+                )
+                recover_native = (
+                    "configure terminal",
+                    *context,
+                    "interface Loopback0",
+                    "passive enable",
+                    "commit",
+                    "end",
+                )
+        else:
+            if env.bgp_plan:
+                old_announcement = (
+                    f"/ip firewall address-list add list=BGP-ORIGINS address={prefix}"
+                )
+                withdraw_native = (
+                    "/ip firewall address-list remove "
+                    f"[find where list=BGP-ORIGINS and address={prefix}]",
+                )
+                recover_native = (old_announcement,)
+            else:
+                old_announcement = next(
+                    line
+                    for line in env.deployment_configs[target].splitlines()
+                    if line.startswith("/routing ospf interface-template add ")
+                    and "interfaces=lo0 " in line
+                )
+                withdraw_native = (
+                    "/routing ospf interface-template remove [find where interfaces=lo0]",
+                )
+                recover_native = (old_announcement,)
+        role_static, role_runtime = [], []
+        if env.bgp_mode == "ibgp_rr":
+            role = next(
+                i
+                for i in healthy.intents
+                if i.adjacency and i.adjacency.route_reflector_client
+            )
+            adjacency = role.adjacency
+            local, peer = adjacency.local_node, adjacency.remote_address
+            if env.device_profile == "iosxr":
+                from nika.net_env.isp.iosxr import iosxr_interface
+
+                session = next(
+                    session
+                    for session in env.bgp_plan.sessions
+                    if session.local_device == local and session.remote_ip == peer
+                )
+                original = (
+                    f" neighbor {peer}\n  remote-as {session.remote_asn}\n"
+                    + (
+                        f"  update-source {iosxr_interface(session.update_source)}\n"
+                        if session.update_source
+                        else ""
+                    )
+                    + "  address-family ipv4 unicast\n   route-reflector-client\n"
+                )
+                altered = original.replace("   route-reflector-client\n", "")
+                context = (
+                    f"router bgp {adjacency.local_asn}",
+                    f"neighbor {peer}",
+                    "address-family ipv4 unicast",
+                )
+                remove_role = (
+                    "configure terminal",
+                    *context,
+                    "no route-reflector-client",
+                    "commit",
+                    "end",
+                )
+                restore_role = (
+                    "configure terminal",
+                    *context,
+                    "route-reflector-client",
+                    "commit",
+                    "end",
+                )
+            else:
+                config = env.deployment_configs[local]
+                original = next(
+                    line
+                    for line in config.splitlines()
+                    if line.startswith("/routing bgp connection add ")
+                    and f"remote.address={peer} " in line
+                )
+                altered = original.replace("local.role=ibgp-rr ", "local.role=ibgp ")
+                command = (
+                    "/routing bgp connection set "
+                    f"[find where remote.address={peer}] local.role="
+                )
+                remove_role, restore_role = (command + "ibgp",), (command + "ibgp-rr",)
+            role_static.append(
+                RoutingMutation(
+                    name="missing-rr-client-role",
+                    node=local,
+                    old=original,
+                    new=altered,
+                    expected_failed_ids=(role.id,),
+                )
+            )
+            role_runtime.append(
+                RoutingRuntimeMutation(
+                    name="rr-client-role-withdrawal",
+                    node=local,
+                    commands=remove_role,
+                    recovery=restore_role,
+                    expected_failed_ids=(role.id,),
+                )
+            )
     else:
         withdraw_native = ("configure terminal", *context, *withdrawal, "end")
         recover_native = ("configure terminal", *context, *recovery, "end")
@@ -1129,9 +1290,15 @@ def build_benchmark_isp_experiment(
         runtime_failed = tuple(sorted((*runtime_failed, *withdrawn_selections)))
     return RoutingExperiment(
         scenario=scenario,
-        routing_model="srl-isp"
-        if srl
-        else ("frr-isis" if plan.igp == "isis" else "frr"),
+        routing_model=(
+            f"{env.device_profile}-isp"
+            if vendor
+            else "srl-isp"
+            if srl
+            else "frr-isis"
+            if plan.igp == "isis"
+            else "frr"
+        ),
         solver_timeout_sec=900,
         deployment=deployment,
         healthy=healthy,
