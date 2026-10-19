@@ -25,7 +25,7 @@ NIKA is a platform for generating and running executable benchmarks for network 
 ### Leaderboard submissions
 
 * Use `YYYYMMDD_<framework>_<model>` package directories, with normalized public harness names, for scores and Hugging Face trajectories.
-* Before merging a leaderboard entry, register sourced model release dates and reference prices in the leaderboard catalogs and confirm both required checks (`model-metadata` and `validate`) pass. Existing reviewed model entries may be reused.
+* Submit with the [leaderboard submission skill](.agents/skills/nika-leaderboard-submit/SKILL.md). Submitters do not add model release dates or prices; the leaderboard repository resolves them after merge. Confirm both required checks (`model-metadata` and `validate`) pass.
 
 ### Commit message
 
