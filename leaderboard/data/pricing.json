@@ -50,6 +50,14 @@
           "output": 2.6,
           "source": "https://openrouter.ai/qwen/qwen3.5-27b",
           "retrieved": "2026-10-08"
+        },
+        {
+          "input": 0.27,
+          "output": 2.16,
+          "cache_read": 0.27,
+          "source": "https://openrouter.ai/qwen/qwen3.5-27b",
+          "retrieved": "2026-10-19",
+          "retrieved_via": "openrouter-api"
         }
       ]
     },
@@ -75,6 +83,14 @@
           "output": 2.0,
           "source": "https://openrouter.ai/qwen/qwen3.6-27b",
           "retrieved": "2026-10-08"
+        },
+        {
+          "input": 0.25,
+          "output": 2.0,
+          "cache_read": 0.025,
+          "source": "https://openrouter.ai/qwen/qwen3.6-27b",
+          "retrieved": "2026-10-19",
+          "retrieved_via": "openrouter-api"
         }
       ]
     },
@@ -88,6 +104,14 @@
           "output": 2.55,
           "source": "https://openrouter.ai/qwen/qwen3.8-27b",
           "retrieved": "2026-10-10"
+        },
+        {
+          "input": 0.24,
+          "output": 2.2,
+          "cache_read": 0.05,
+          "source": "https://openrouter.ai/qwen/qwen3.8-27b",
+          "retrieved": "2026-10-19",
+          "retrieved_via": "openrouter-api"
         }
       ]
     },
@@ -114,6 +138,13 @@
           "output": 0.34,
           "source": "https://openrouter.ai/google/gemma-4-31b-it",
           "retrieved": "2026-10-12"
+        },
+        {
+          "input": 0.2,
+          "output": 0.4,
+          "source": "https://openrouter.ai/google/gemma-4-31b-it",
+          "retrieved": "2026-10-19",
+          "retrieved_via": "openrouter-api"
         }
       ]
     },
