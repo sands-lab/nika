@@ -243,18 +243,26 @@ summary = validate_routing_design(
 )
 ```
 
-NetComplete still selects OSPF costs and prefix import preferences from the original
+NetComplete still selects IGP costs and prefix import preferences from the original
 behavior requirements. A shared adapter supplies explicit addresses, directed
 costs, AS membership, RR roles, connected business prefixes and policies to
 netlab. Upstream topology transformation derives the BGP sessions, and upstream
-interface, OSPF, BGP and routing-policy templates generate the device commands.
+interface, IGP, BGP and routing-policy templates generate the device commands.
 A derived session set that differs from the fixed sketch is rejected.
 
 The supported construction scope is Kathara FRR and IOS XR ISP plans using IPv4
 OSPF, with no BGP, iBGP RR, or ordinary eBGP. Prefix lists and per-prefix
 local-preference use netlab's [routing module](https://netlab.tools/module/routing/)
 and [BGP policy plugin](https://netlab.tools/plugins/bgp.policy/). OSPF costs must
-fit upstream's 1–65,534 range. Security overlays and registered configuration-failure bindings are not covered;
+fit upstream's 1–65,534 range. FRR IPv4 Level-2 IS-IS without BGP uses the same
+adapter and workflow: NetComplete solves the declared additive shortest-path
+requirements, and netlab generates IS-IS NETs, interfaces and wide metrics from
+the fixed inputs. NIKA supplies the existing NET identities and passive-loopback
+setting through upstream topology inputs. IS-IS with BGP remains outside the
+netlab construction scope because the concrete validation parser does not yet
+cover upstream's composed configuration fragments.
+
+Security overlays and registered configuration-failure bindings are not covered;
 the experiment retains its declared negative controls and link incidents. RouterOS7 lacks
 upstream generic routing policies; SR Linux still needs an adapter for deploying
 netlab's native CLI through NIKA's document-based backend. These profiles retain
@@ -267,8 +275,15 @@ final configurations. For FRR, snapshot import normalizes the interface-level
 `ip ospf passive` command to `passive-interface` for the pinned parser, using
 [FRR's documented semantics](https://docs.frrouting.org/en/stable-10.2/ospfd.html).
 This normalization is limited to one default-table OSPF process without mixed
-passive syntaxes. It reads the candidate commands, including mutations, and does
-not reconstruct an ideal configuration from the plan. Native validation deploys
+passive syntaxes. For IS-IS, the existing concrete FRR-to-IOS-XR projection reads
+the generated interface blocks, including separately emitted address and protocol
+blocks. It retains point-to-point network type, metrics, passivity and NET identity.
+The projection accepts the `level-2` CLI abbreviation and excludes the emitted
+logging, dynamic-hostname and LSP-timer commands from its steady-state model;
+[FRR's IS-IS documentation](https://docs.frrouting.org/en/stable-10.2/isisd.html)
+defines the routing commands, and its [timer implementation](https://github.com/FRRouting/frr/blob/stable/10.5/isisd/isis_cli.c)
+defines the combined LSP-timer syntax.
+Both paths read candidate commands, including mutations. Native validation deploys
 the generated configuration through the ordinary NIKA
 startup API and evaluates the original predicates, negative controls, link loss
 and recovery. Negative-control command bindings follow the emitted syntax while

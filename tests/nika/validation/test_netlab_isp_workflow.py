@@ -12,13 +12,24 @@ from nika.workflows.validation.benchmark_routing import (
 
 
 @pytest.mark.e2e
-@pytest.mark.parametrize("vendor", ["frr", "iosxr"])
 @pytest.mark.parametrize(
-    "topology,bgp_mode",
-    [("arpanet196912", "none"), ("arpanet196912", "ibgp_rr"), ("dataxchange", "ebgp")],
+    "vendor,topology,igp,bgp_mode",
+    [
+        (vendor, topology, "ospf", mode)
+        for vendor in ("frr", "iosxr")
+        for topology, mode in (
+            ("arpanet196912", "none"),
+            ("arpanet196912", "ibgp_rr"),
+            ("dataxchange", "ebgp"),
+        )
+    ]
+    + [
+        ("frr", topology, "isis", "none")
+        for topology in ("arpanet196912", "dataxchange", "abilene")
+    ],
 )
 def test_netlab_synthesis_execution_and_recovery(
-    vendor, topology, bgp_mode, tmp_path, netcomplete_image
+    vendor, topology, igp, bgp_mode, tmp_path, netcomplete_image
 ):
     if find_spec("netsim") is None:
         pytest.skip("Install the netlab extra for upstream construction tests")
@@ -45,7 +56,7 @@ def test_netlab_synthesis_execution_and_recovery(
             if p["scenario"] == f"isp_{topology}"
         )
     )
-    profile["deployment"].update(igp="ospf", bgp_mode=bgp_mode, device_profile=vendor)
+    profile["deployment"].update(igp=igp, bgp_mode=bgp_mode, device_profile=vendor)
     spec = build_benchmark_isp_experiment(profile)
     summary = validate_routing_design(
         spec, tmp_path, runtime=True, image=netcomplete_image, config_generator="netlab"

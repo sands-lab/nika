@@ -19,6 +19,7 @@ import yaml
 from nika.net_env.isp.bgp.plan import BgpPlan
 from nika.net_env.isp.bgp.policy import BUSINESS_PREFIXES
 from nika.net_env.isp.igp.plan import IspPlan
+from nika.net_env.isp.igp.frr import isis_net_from_router_id
 
 NETLAB_VERSION = "26.10"
 
@@ -26,7 +27,7 @@ NETLAB_VERSION = "26.10"
 def netlab_topology(plan: IspPlan, bgp: BgpPlan | None, device_profile: str) -> dict:
     """Translate explicit addresses, directed costs, ASes and policies to netlab.
 
-    Scope is capability based: IPv4 OSPF, optionally ordinary iBGP RR/eBGP.
+    Scope is capability based: IPv4 OSPF with ordinary BGP, or FRR L2 IS-IS.
     Security overlays and unsupported devices fail before invoking the tool.
     """
     if device_profile not in {"frr", "iosxr"}:
@@ -35,8 +36,14 @@ def netlab_topology(plan: IspPlan, bgp: BgpPlan | None, device_profile: str) -> 
             "does not support upstream generic routing policies, and SR Linux "
             "requires a native CLI deployment adapter"
         )
-    if plan.igp != "ospf":
-        raise ValueError("netlab ISP construction currently requires IPv4 OSPF")
+    if plan.igp not in {"ospf", "isis"} or (
+        plan.igp == "isis" and device_profile != "frr"
+    ):
+        raise ValueError("netlab ISP construction requires OSPF or FRR L2 IS-IS")
+    if plan.igp == "isis" and bgp:
+        raise ValueError(
+            "netlab IS-IS/BGP composition is not covered by the concrete validation model"
+        )
     if bgp and (
         bgp.mode not in {"ibgp_rr", "ebgp"}
         or any(bgp.inventory.get(k) for k in ("rpki", "rtbh", "leak_prefixes"))
@@ -64,15 +71,25 @@ def netlab_topology(plan: IspPlan, bgp: BgpPlan | None, device_profile: str) -> 
         "defaults.const.MAX_NODE_ID": max(150, len(plan.nodes) + 1),
         "defaults.const.MAX_NODE_ID_LENGTH": 63,
         "addressing.mgmt.ipv4": "172.31.0.0/16",
-        "module": ["ospf"],
-        "ospf": {"process": 1, "area": "0.0.0.0"},
+        "module": [plan.igp],
+        plan.igp: {"process": 1, "area": "0.0.0.0"}
+        if plan.igp == "ospf"
+        else {"instance": "NIKA", "type": "level-2", "af": {"ipv4": True}},
         "nodes": {},
         "links": [],
     }
+    if device_profile == "frr" and plan.igp == "isis":
+        # NIKA owns Linux interface/management setup; preserve FRR defaults used
+        # by its existing runtime and the concrete IS-IS validation subset.
+        topology["defaults.devices.frr.clab.group_vars.netlab_mgmt_vrf"] = False
+        topology["defaults.devices.frr.clab.group_vars.netlab_frr_defaults"] = (
+            "traditional"
+        )
+        topology["defaults.devices.frr.features.isis.loopback.passive"] = True
     if bgp:
         topology.update(
             {
-                "module": ["ospf", "bgp", "routing"],
+                "module": [plan.igp, "bgp", "routing"],
                 "plugin": ["bgp.policy"],
                 "bgp": {
                     "advertise_loopback": False,
@@ -86,8 +103,11 @@ def netlab_topology(plan: IspPlan, bgp: BgpPlan | None, device_profile: str) -> 
             "loopback": {
                 "ipv4": f"{node.loopback}/32",
             },
-            "ospf.router_id": node.router_id,
         }
+        if plan.igp == "ospf":
+            data["ospf.router_id"] = node.router_id
+        else:
+            data["isis.net"] = isis_net_from_router_id(node.router_id)
         if bgp:
             bnode = bgp_nodes[node.device_name]
             data.update(
@@ -143,14 +163,17 @@ def netlab_topology(plan: IspPlan, bgp: BgpPlan | None, device_profile: str) -> 
 
     def endpoint(device, interface):
         iface = by_interface[device, interface]
-        if not 1 <= iface.metric <= 65534:
-            raise ValueError("netlab OSPF costs must be in 1..65534")
+        maximum = 65534 if plan.igp == "ospf" else 16777214
+        if not 1 <= iface.metric <= maximum:
+            raise ValueError(f"netlab {plan.igp} costs must be in 1..{maximum}")
         result = {
             "node": device,
             "ifname": native(interface),
             "ipv4": f"{iface.address}/{iface.prefixlen}",
-            "ospf": {"cost": iface.metric, "passive": iface.passive},
+            plan.igp: {"cost": iface.metric, "passive": iface.passive},
         }
+        if plan.igp == "isis":
+            result["isis"]["type"] = "level-2"
         if bgp:
             result["bgp.advertise"] = False
             bnode = bgp_nodes[device]
@@ -199,7 +222,7 @@ def netlab_topology(plan: IspPlan, bgp: BgpPlan | None, device_profile: str) -> 
                 topology["links"].append(
                     {
                         "type": "loopback",
-                        "ospf": False,
+                        plan.igp: False,
                         "bgp.advertise": True,
                         "interfaces": [
                             {

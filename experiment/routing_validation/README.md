@@ -43,14 +43,15 @@ uv run python experiment/routing_validation/benchmark_isp.py --catalog --output 
 
 ## Generate ISP configurations with netlab
 
-For supported FRR and IOS XR OSPF ISP profiles, install
+For FRR/IOS XR OSPF or FRR Level-2 IS-IS ISP profiles, install
 `uv sync --extra batfish --extra netlab` and add `--config-generator netlab` to either experiment runner.
 The Python workflow accepts the same `config_generator="netlab"` option.
 NetComplete chooses costs and import preferences; upstream netlab transforms the
-fixed topology and generates interfaces, OSPF, BGP/RR and routing policies. The
+fixed topology and generates interfaces, IGP, BGP/RR and routing policies. The
 existing Batfish and native checks still evaluate the original requirements.
 
-The scope includes ordinary OSPF-only, iBGP RR and eBGP ISP designs. RouterOS,
+The scope includes ordinary OSPF-only, OSPF with iBGP RR/eBGP, and FRR IS-IS-only
+ISP designs. IS-IS with BGP, RouterOS,
 SR Linux, security overlays, registered configuration-failure bindings and other
 scenario families are currently rejected
 when this option is selected. The [implementation guide](../../docs/development/routing-verification.md#delegate-configuration-generation-to-netlab)

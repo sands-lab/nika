@@ -39,21 +39,25 @@ def parse_frr_isis(node: str, config: str) -> tuple[str, dict[str, dict]]:
 
     for raw in config.splitlines():
         line = raw.strip()
-        if not line or line.startswith("!"):
+        if not line or line.startswith(("!", "#")):
             continue
         if line.startswith("interface "):
             name = line.removeprefix("interface ")
-            if not _IFACE_RE.fullmatch(name) or name in interfaces:
+            if not _IFACE_RE.fullmatch(name):
                 reject(line)
             current_iface = name
-            interfaces[name] = {
-                "address": None,
-                "metric": 10,
-                "passive": False,
-                "isis_enabled": False,
-                "circuit_type": None,
-                "metric_explicit": False,
-            }
+            interfaces.setdefault(
+                name,
+                {
+                    "address": None,
+                    "metric": 10,
+                    "passive": False,
+                    "isis_enabled": False,
+                    "circuit_type": None,
+                    "metric_explicit": False,
+                    "point_to_point": False,
+                },
+            )
             section = "interface"
             continue
         if line == "router isis NIKA":
@@ -63,7 +67,10 @@ def parse_frr_isis(node: str, config: str) -> tuple[str, dict[str, dict]]:
             section = "router"
             current_iface = None
             continue
-        if line == "log file /var/log/frr/frr.log":
+        if line in {
+            "log file /var/log/frr/frr.log",
+            "log file /var/log/frr/frr.log informational",
+        }:
             if line in seen_global:
                 reject(line)
             seen_global.add(line)
@@ -73,6 +80,7 @@ def parse_frr_isis(node: str, config: str) -> tuple[str, dict[str, dict]]:
                 "frr version 10.5.3",
                 "frr defaults traditional",
                 "log file /var/log/frr/frr.log",
+                "ip forwarding",
             }:
                 if line in seen_global:
                     reject(line)
@@ -98,7 +106,10 @@ def parse_frr_isis(node: str, config: str) -> tuple[str, dict[str, dict]]:
                 if iface["isis_enabled"]:
                     reject(line)
                 iface["isis_enabled"] = True
-            elif line == "isis circuit-type level-2-only":
+            elif line in {
+                "isis circuit-type level-2-only",
+                "isis circuit-type level-2",
+            }:
                 if iface["circuit_type"] is not None:
                     reject(line)
                 iface["circuit_type"] = "level-2-only"
@@ -106,6 +117,14 @@ def parse_frr_isis(node: str, config: str) -> tuple[str, dict[str, dict]]:
                 if iface["passive"]:
                     reject(line)
                 iface["passive"] = True
+            elif line == "isis network point-to-point":
+                if iface["point_to_point"]:
+                    reject(line)
+                iface["point_to_point"] = True
+            elif line == "no shutdown" or line.startswith("description "):
+                # Cosmetic descriptions and explicit enabled defaults do not
+                # alter the modeled forwarding behavior.
+                continue
             else:
                 match = _METRIC_RE.fullmatch(line)
                 if not match or iface["metric_explicit"]:
@@ -128,11 +147,23 @@ def parse_frr_isis(node: str, config: str) -> tuple[str, dict[str, dict]]:
                     reject(line)
                 net = candidate
                 router_values["net"] = candidate
-            elif line in {"is-type level-2-only", "metric-style wide"}:
+            elif line in {
+                "is-type level-2-only",
+                "is-type level-2",
+                "metric-style wide",
+            }:
                 key, value = line.split(" ", 1)
                 if key in router_values:
                     reject(line)
-                router_values[key] = value
+                router_values[key] = "level-2-only" if value == "level-2" else value
+            elif line in {
+                "log-adjacency-changes",
+                "hostname dynamic",
+                "lsp-timers gen-interval 1 refresh-interval 900 max-lifetime 1800",
+            }:
+                # Logging, dynamic hostnames and LSP scheduling are outside
+                # the steady-state route model. Runtime checks cover execution.
+                continue
             else:
                 reject(line)
 
@@ -142,10 +173,7 @@ def parse_frr_isis(node: str, config: str) -> tuple[str, dict[str, dict]]:
         or router_values.get("metric-style") != "wide"
     ):
         raise ValueError(f"Incomplete FRR IS-IS configuration on {node}")
-    if (
-        not {"frr version 10.5.3", "frr defaults traditional", "hostname"}
-        <= seen_global
-    ):
+    if not {"frr defaults traditional", "hostname"} <= seen_global:
         raise ValueError(f"Incomplete FRR configuration header on {node}")
     if not interfaces:
         raise ValueError(f"FRR IS-IS config on {node} has no interfaces")
@@ -155,6 +183,7 @@ def parse_frr_isis(node: str, config: str) -> tuple[str, dict[str, dict]]:
                 iface["passive"]
                 or iface["circuit_type"] is not None
                 or iface["metric_explicit"]
+                or iface["point_to_point"]
             ):
                 raise ValueError(
                     f"Incomplete disabled FRR IS-IS interface on {node}:{name}"
@@ -164,6 +193,7 @@ def parse_frr_isis(node: str, config: str) -> tuple[str, dict[str, dict]]:
                 not iface["passive"]
                 or iface["circuit_type"] is not None
                 or iface["metric_explicit"]
+                or iface["point_to_point"]
             ):
                 raise ValueError(f"Unsupported FRR IS-IS loopback config on {node}")
         elif iface["circuit_type"] != "level-2-only" or not iface["metric_explicit"]:
@@ -206,6 +236,8 @@ def project_frr_isis(node: str, config: str, *, shutdown=()) -> str:
         lines.extend([f" interface {_native_interface(original)}"])
         if original != "lo":
             lines.append("  circuit-type level-2-only")
+        if details["point_to_point"]:
+            lines.append("  point-to-point")
         if details["passive"]:
             lines.append("  passive")
         lines.extend(

@@ -117,7 +117,7 @@
     },
     "netlab_construction": {
       "version": "26.10",
-      "scope": "Kathara FRR/IOS XR IPv4 OSPF, optional ordinary iBGP RR/eBGP; no security overlays or registered configuration-failure bindings",
+      "scope": "Kathara FRR/IOS XR IPv4 OSPF with optional ordinary iBGP RR/eBGP; FRR IPv4 Level-2 IS-IS without BGP; no security overlays or registered configuration-failure bindings",
       "offline_generation": {
         "topologies": [
           "arpanet196912",
@@ -139,7 +139,8 @@
         ],
         "variants": 42,
         "largest_router_count": 197,
-        "native_execution_claim": false
+        "native_execution_claim": false,
+        "igp": "ospf"
       },
       "completed_native_runs": [
         {
@@ -149,7 +150,8 @@
           "healthy_predicates": 20,
           "link_down_predicates": 19,
           "recovered_predicates": 20,
-          "predeclared_counterexamples_verified": true
+          "predeclared_counterexamples_verified": true,
+          "igp": "ospf"
         },
         {
           "scenario": "isp_arpanet196912",
@@ -158,7 +160,8 @@
           "healthy_predicates": 20,
           "link_down_predicates": 19,
           "recovered_predicates": 20,
-          "predeclared_counterexamples_verified": true
+          "predeclared_counterexamples_verified": true,
+          "igp": "ospf"
         },
         {
           "scenario": "isp_arpanet196912",
@@ -167,7 +170,8 @@
           "healthy_predicates": 36,
           "link_down_predicates": 35,
           "recovered_predicates": 36,
-          "predeclared_counterexamples_verified": true
+          "predeclared_counterexamples_verified": true,
+          "igp": "ospf"
         },
         {
           "scenario": "isp_arpanet196912",
@@ -176,7 +180,8 @@
           "healthy_predicates": 36,
           "link_down_predicates": 35,
           "recovered_predicates": 36,
-          "predeclared_counterexamples_verified": true
+          "predeclared_counterexamples_verified": true,
+          "igp": "ospf"
         },
         {
           "scenario": "isp_dataxchange",
@@ -185,7 +190,8 @@
           "healthy_predicates": 62,
           "link_down_predicates": 60,
           "recovered_predicates": 62,
-          "predeclared_counterexamples_verified": true
+          "predeclared_counterexamples_verified": true,
+          "igp": "ospf"
         },
         {
           "scenario": "isp_dataxchange",
@@ -194,6 +200,37 @@
           "healthy_predicates": 62,
           "link_down_predicates": 60,
           "recovered_predicates": 62,
+          "predeclared_counterexamples_verified": true,
+          "igp": "ospf"
+        },
+        {
+          "scenario": "isp_arpanet196912",
+          "device_profile": "frr",
+          "igp": "isis",
+          "bgp_mode": "none",
+          "healthy_predicates": 20,
+          "link_down_predicates": 19,
+          "recovered_predicates": 20,
+          "predeclared_counterexamples_verified": true
+        },
+        {
+          "scenario": "isp_dataxchange",
+          "device_profile": "frr",
+          "igp": "isis",
+          "bgp_mode": "none",
+          "healthy_predicates": 43,
+          "link_down_predicates": 41,
+          "recovered_predicates": 43,
+          "predeclared_counterexamples_verified": true
+        },
+        {
+          "scenario": "isp_abilene",
+          "device_profile": "frr",
+          "igp": "isis",
+          "bgp_mode": "none",
+          "healthy_predicates": 100,
+          "link_down_predicates": 76,
+          "recovered_predicates": 100,
           "predeclared_counterexamples_verified": true
         }
       ],
@@ -233,7 +270,18 @@
         "default_nika_predicates": 36,
         "construction_tools_invoked": false
       },
-      "native_regression": "tests/nika/validation/test_netlab_isp_workflow.py"
+      "native_regression": "tests/nika/validation/test_netlab_isp_workflow.py",
+      "isis_offline_generation": {
+        "catalog": "ISP_TOPOLOGY_NAMES",
+        "topologies": 285,
+        "igp": "isis",
+        "device_profile": "frr",
+        "bgp_mode": "none",
+        "largest_router_count": 197,
+        "restricted_concrete_projection_checked": true,
+        "static_predicates_checked": false,
+        "native_execution_claim": false
+      }
     }
   },
   "cross_domain": {

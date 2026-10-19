@@ -55,6 +55,14 @@ def bind_netlab_controls(spec, configs, device_profile):
                 blocks = re.findall(
                     r"^interface lo\n(?:(?: [^\n]*|![^\n]*|)\n)*", config, re.M
                 )
+                isis = [b for b in blocks if " ip router isis NIKA\n" in b]
+                if isis:
+                    (old,) = isis
+                    new = re.sub(
+                        r"^ (?:ip router isis NIKA|isis passive)\n", "", old, flags=re.M
+                    )
+                    static.append(mutation.model_copy(update={"old": old, "new": new}))
+                    continue
                 (old,) = [b for b in blocks if " ip ospf area " in b]
                 new = re.sub(r"^ ip ospf area [^\n]*\n", "", old, flags=re.M)
                 (area,) = re.findall(r"^ ip ospf area (\S+)$", old, re.M)
