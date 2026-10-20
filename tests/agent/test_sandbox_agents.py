@@ -5,7 +5,11 @@ import json
 
 import pytest
 from agent.protocols import DIAGNOSIS
-from nika.run_config.loader import reset_run_config, set_run_config
+from nika.run_config.loader import (
+    load_run_config,
+    reset_run_config,
+    set_run_config,
+)
 from nika.run_config.schema import RunConfig
 from nika.utils.session_store import SessionStore
 from tests.agent._assertions import (
@@ -42,17 +46,21 @@ _SENSITIVE_NAMES = ("auth.json", ".credentials.json", ".host_auth")
 def _isolate_agent_run_config(
     *, agent_type: str, provider: str, model: str, backend: str
 ) -> None:
-    """Avoid host config/nika.yaml base_url leaking into provider env."""
+    """Avoid host config/nika.yaml base_url leaking into provider env.
+
+    Keeps the host's E2B service address (``nika.sandbox.url``), so the E2B
+    variants run against the configured service, such as AgentENV.
+    """
     reset_run_config()
+    sandbox: dict[str, object] = {"backend": backend, "offline_sdk_wheels": True}
+    if backend == "e2b":
+        sandbox["url"] = load_run_config().nika.sandbox.url
     set_run_config(
         RunConfig.model_validate(
             {
                 "nika": {
                     "result_dir": "results/test",
-                    "sandbox": {
-                        "backend": backend,
-                        "offline_sdk_wheels": True,
-                    },
+                    "sandbox": sandbox,
                 },
                 "agent": {
                     "type": agent_type,
