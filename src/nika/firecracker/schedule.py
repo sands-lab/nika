@@ -47,6 +47,10 @@ from nika.firecracker.image import (
 )
 
 
+# Huge pages kept free beyond the admitted copies.
+HUGEPAGE_MARGIN_MIB = 512
+
+
 def _variant_id(row: dict[str, Any]) -> str:
     return json.dumps(variant_for_row(row), sort_keys=True)
 
@@ -191,7 +195,10 @@ def hugepage_pool_mib() -> int | None:
         for line in Path("/proc/meminfo").read_text().splitlines()
         if line.startswith(("HugePages_Free", "Hugepagesize"))
     }
-    return info.get("HugePages_Free", 0) * info.get("Hugepagesize", 0) // 1024
+    free = info.get("HugePages_Free", 0) * info.get("Hugepagesize", 0) // 1024
+    # Copies that fill the pool exactly leave no room for pages still being
+    # released by VMs that just exited.
+    return max(free - HUGEPAGE_MARGIN_MIB, 0)
 
 
 def hugepage_need_mib(row: dict[str, Any]) -> int:

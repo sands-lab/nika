@@ -21,6 +21,7 @@ import shutil
 import socket
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -87,6 +88,7 @@ class TrialLab:
         self.case: CaseImage | None = None
         self.timings: dict[str, float] = {}
         self._forwarders: list[VsockForwarder] = []
+        self._released = threading.Event()
         self._override = None
 
     def __enter__(self) -> TrialLab:
@@ -158,6 +160,8 @@ class TrialLab:
                 f"page server exited during restore: {log.splitlines()[-1:]}"
             ) from None
         self.timings["ready_sec"] = round(time.monotonic() - started, 2)
+        if server is not None:
+            _watch_page_server(server, vm, self.trial_key, self._released)
         bind_host, agent_host = gateway_route(self.sandbox_backend)
         self._forwarders.append(VsockForwarder(uds, DAEMON_PORT))
         gateway = VsockForwarder(uds, GATEWAY_PORT, host=bind_host)
@@ -225,6 +229,7 @@ class TrialLab:
         self._forwarders = []
         if exc_info[0] is not None:
             _print_console_tail(trial_dir(self.trial_key), self.trial_key)
+        self._released.set()
         release_trial(self.trial_key)
 
 
@@ -248,6 +253,27 @@ def _start_page_server(
             raise VmmError(f"page server did not start; see {run_dir}/uffd.log")
         time.sleep(0.01)
     return proc
+
+
+def _watch_page_server(
+    server: subprocess.Popen, vm: Firecracker, name: str, released: threading.Event
+) -> None:
+    """Stop the VM if its page server exits: the guest would hang on its next fault.
+
+    Its API calls (a snapshot) and the lab's tools then fail at once instead
+    of blocking until their own timeouts.
+    """
+
+    def watch() -> None:
+        server.wait()
+        if not released.is_set():
+            print(
+                f"[firecracker] page server of {name} exited; stopping its VM",
+                flush=True,
+            )
+            vm.kill()
+
+    threading.Thread(target=watch, daemon=True).start()
 
 
 def active_trial_lab() -> TrialLab | None:

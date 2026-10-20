@@ -27,21 +27,40 @@ import socket
 import struct
 import sys
 import threading
+import time
 
 UFFDIO_COPY = 0xC028AA03  # _IOWR(0xAA, 0x03, struct uffdio_copy)
 UFFD_EVENT_PAGEFAULT = 0x12
 CHUNK = 64 << 20
+# How long to wait for free huge pages before giving up on a page.
+ENOMEM_WAIT_SEC = 600
 
 
 def _copy(fd: int, dst: int, src: int, length: int) -> int:
-    """UFFDIO_COPY; return bytes copied (0 when the first page already exists)."""
-    buf = bytearray(struct.pack("QQQQq", dst, src, length, 0, 0))
-    try:
-        fcntl.ioctl(fd, UFFDIO_COPY, buf, True)
-    except OSError as exc:
-        if exc.errno not in (errno.EEXIST, errno.EAGAIN):
-            raise
-    return max(struct.unpack_from("q", buf, 32)[0], 0)
+    """UFFDIO_COPY; return bytes copied (0 when the first page already exists).
+
+    ENOMEM means the huge-page pool is empty for now. Exiting would freeze the
+    guest on its next fault for good, so wait for other VMs to release pages.
+    """
+    deadline = None
+    while True:
+        buf = bytearray(struct.pack("QQQQq", dst, src, length, 0, 0))
+        try:
+            fcntl.ioctl(fd, UFFDIO_COPY, buf, True)
+        except OSError as exc:
+            if exc.errno == errno.ENOMEM:
+                copied = struct.unpack_from("q", buf, 32)[0]
+                if copied > 0:
+                    return copied  # the caller continues after these pages
+                if deadline is None:
+                    deadline = time.monotonic() + ENOMEM_WAIT_SEC
+                    print("huge pages exhausted; waiting", file=sys.stderr, flush=True)
+                if time.monotonic() < deadline:
+                    time.sleep(0.5)
+                    continue
+            if exc.errno not in (errno.EEXIST, errno.EAGAIN):
+                raise
+        return max(struct.unpack_from("q", buf, 32)[0], 0)
 
 
 def _data_extents(fd: int):
