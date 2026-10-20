@@ -712,7 +712,6 @@ def assert_run_config_compatible(
     the identity) are not compared unless ``_IDENTITY_DEFAULTS`` names the
     behavior those runs had; ``merge_run_config`` backfills them.
     """
-    # Runs that predate a defaulted field ran with its default.
     defaults = {k: v for k, v in _IDENTITY_DEFAULTS.items() if k in proposed}
     existing = {**defaults, **existing}
     old = run_config_identity(existing)

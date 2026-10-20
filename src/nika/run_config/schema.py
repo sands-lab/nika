@@ -249,15 +249,18 @@ class AgentSubmissionSettings(BaseModel):
     base_url: str | None = None
     # Independent mappings of the report; the majority answer is submitted.
     samples: int = 1
+    # Sampling temperature of the mapping model; null keeps the provider
+    # default (0 for custom). Use a value above 0 when samples > 1.
+    temperature: float | None = None
 
     @model_validator(mode="after")
     def _mode_fields(self) -> "AgentSubmissionSettings":
-        mapper_fields = (self.provider, self.model, self.base_url)
+        mapper_fields = (self.provider, self.model, self.base_url, self.temperature)
         if self.mode == "structured":
             if any(value is not None for value in mapper_fields) or self.samples != 1:
                 raise ValueError(
-                    "agent.submission provider/model/base_url/samples apply only "
-                    "to mode: unstructured"
+                    "agent.submission provider/model/base_url/samples/temperature "
+                    "apply only to mode: unstructured"
                 )
         elif not self.provider or not (self.model or "").strip():
             raise ValueError(
@@ -265,6 +268,8 @@ class AgentSubmissionSettings(BaseModel):
             )
         if self.samples < 1:
             raise ValueError("agent.submission.samples must be >= 1")
+        if self.temperature is not None and self.temperature < 0:
+            raise ValueError("agent.submission.temperature must be >= 0")
         return self
 
     def identity(self) -> dict[str, Any]:

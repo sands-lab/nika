@@ -66,8 +66,8 @@ class BasicReActAgent(NikaAgent):
         asyncio.run(diagnosis_phase.load_tools())
         self._diagnosis_runner = diagnosis_phase.get_agent()
 
-    def _callbacks(self, phase: str) -> tuple[AgentCallbackLogger, list[Any]]:
-        cb = AgentCallbackLogger(phase=phase, session_dir=self.trace_dir)
+    def _diagnosis_callbacks(self) -> tuple[AgentCallbackLogger, list[Any]]:
+        cb = AgentCallbackLogger(phase=DIAGNOSIS, session_dir=self.trace_dir)
         callbacks: list[Any] = [cb]
         if self.langfuse_handler is not None:
             callbacks.append(self.langfuse_handler)
@@ -108,7 +108,7 @@ class BasicReActAgent(NikaAgent):
         return handler
 
     async def diagnose(self, task_description: str) -> str:
-        cb, callbacks = self._callbacks(DIAGNOSIS)
+        cb, callbacks = self._diagnosis_callbacks()
         try:
             result = await self._diagnosis_runner.ainvoke(
                 {"messages": [HumanMessage(content=task_description)]},

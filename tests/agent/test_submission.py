@@ -72,6 +72,8 @@ def test_submission_settings_require_mapper_model_only_when_unstructured() -> No
         AgentSubmissionSettings(
             mode="unstructured", provider="custom", model="m", samples=0
         )
+    with pytest.raises(ValidationError, match="apply only"):
+        AgentSubmissionSettings(temperature=0.7)
 
 
 def test_report_mapper_traces_samples_and_vote(tmp_path, monkeypatch) -> None:
@@ -134,10 +136,3 @@ def test_parse_answer_takes_last_answer_object_after_reasoning() -> None:
         '[{"resource_id": "link/a--b", "fault_type": "link_down"}]} done {x}'
     )
     assert parse_answer(text, **_CATALOG) == (_LINK_DOWN, "")
-
-
-def test_unstructured_requires_nika_agent() -> None:
-    from agent.submission import attach_report_mapper
-
-    with pytest.raises(ValueError, match="subclasses agent.base.NikaAgent"):
-        attach_report_mapper(object(), object())

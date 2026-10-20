@@ -30,7 +30,7 @@ from agent.base import ERROR_PREFIX
 from agent.protocols import SUBMISSION
 
 if TYPE_CHECKING:
-    from langchain_core.language_models.chat_models import BaseChatModel
+    from langchain_core.runnables import Runnable
 
     from agent.base import NikaAgent
     from nika.run_config.schema import AgentSubmissionSettings
@@ -152,10 +152,11 @@ class ReportMapper:
     credentials, which the agent's environment may clear.
     """
 
-    llm: BaseChatModel
+    llm: Runnable
     provider: str
     model: str
     samples: int = 1
+    temperature: float | None = None
 
     @classmethod
     def from_settings(
@@ -168,13 +169,21 @@ class ReportMapper:
 
         provider = str(settings.provider)
         model = str(settings.model)
-        llm = load_model(
+        llm: Runnable = load_model(
             llm_provider=provider,
             model=model,
             max_tokens=max_tokens,
             base_url=settings.base_url,
         )
-        return cls(llm=llm, provider=provider, model=model, samples=settings.samples)
+        if settings.temperature is not None:
+            llm = llm.bind(temperature=settings.temperature)
+        return cls(
+            llm=llm,
+            provider=provider,
+            model=model,
+            samples=settings.samples,
+            temperature=settings.temperature,
+        )
 
     def trace_fields(self) -> dict[str, Any]:
         return {
@@ -182,6 +191,7 @@ class ReportMapper:
             "provider": self.provider,
             "model": self.model,
             "samples": self.samples,
+            "temperature": self.temperature,
         }
 
     async def submit(
@@ -195,7 +205,11 @@ class ReportMapper:
     ) -> str:
         from agent.utils.loggers import MessageLogger
 
-        catalog_ids = {str(item["id"]) for item in context["resources"]}
+        catalog_ids = {
+            str(item["id"])
+            for item in context["resources"]
+            if isinstance(item, dict) and item.get("id")
+        }
         fault_types = {
             str(item.get("id")) if isinstance(item, dict) else str(item)
             for item in context["fault_ontology"]

@@ -124,7 +124,7 @@ Use [Run configuration](../operations/configuration.md) for every setting, [CLI]
 
 ## Trace event contract
 
-`NikaAgent` writes each phase's lifecycle events. The submission `agent_start` event records `submission_mode`, plus the mapping `provider`, `model`, and `samples` in `unstructured` mode. Unstructured runs also record each mapping attempt as `submission_sample` (`sample`, `attempt`, raw `text`, parsed `answer` or `error`) and the outcome as `submission_vote` (per-sample `answers`, `votes` with counts, and the `chosen` answer). Workers record real model and tool calls using `MessageLogger` (or `AgentCallbackLogger` for LangChain). The evaluator normally measures diagnosis-phase events only.
+`NikaAgent` writes each phase's lifecycle events. The submission `agent_start` event records `submission_mode`, plus the mapping `provider`, `model`, `samples`, and `temperature` in `unstructured` mode. Unstructured runs also record each mapping attempt as `submission_sample` (`sample`, `attempt`, raw `text`, parsed `answer` or `error`) and the outcome as `submission_vote` (per-sample `answers`, `votes` with counts, and the `chosen` answer). Workers record real model and tool calls using `MessageLogger` (or `AgentCallbackLogger` for LangChain). The evaluator normally measures diagnosis-phase events only.
 
 | Event | Worker payload | Meaning |
 | --- | --- | --- |

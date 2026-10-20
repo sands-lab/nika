@@ -21,7 +21,7 @@ Blue steps are run by NIKA; the orange step is run by your agent.
 
 1. **Start lab** and **inject fault**: NIKA deploys the network and breaks it, for example by taking a link down.
 2. **Diagnose**: your agent gets a description of the symptoms and investigates the live network through NIKA's [MCP tools](mcp-servers.md), such as running commands on devices or measuring reachability. It returns a written diagnosis report.
-3. **Submit**: NIKA freezes the report and converts it into a structured answer, which component failed and how, using your agent's model. The answer comes only from the report; the network is no longer reachable.
+3. **Submit**: NIKA freezes the report and converts it into a structured answer, which component failed and how, by default with your agent's model. The answer comes only from the report; the network is no longer reachable.
 4. **Score**: NIKA compares that answer with the fault it injected, then closes the lab.
 
 Your agent implements **Diagnose**. NIKA handles the other steps.

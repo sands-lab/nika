@@ -38,6 +38,7 @@ agent:
   #   model: Qwen/Qwen3.6-35B-A3B-FP8
   #   base_url: http://localhost:8000/v1
   #   samples: 3
+  #   temperature: 0.7
 
 # OpenAI-compatible endpoint example (OpenRouter). Uncomment and replace the
 # agent block above. Set NIKA_CUSTOM_API_KEY in .env when auth is required.
