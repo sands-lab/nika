@@ -139,7 +139,8 @@ reboots. Run them as a user with `sudo`.
    lab uses (1–3 GiB; unused memory is stored as holes) and the disk blocks its
    deploy changed. While a lab image is built, its snapshot first writes the
    VM's whole `vm_memory` (4–20 GiB) before the unused part becomes holes, so
-   parallel builds need that much free space each, for a few minutes.
+   parallel builds need that much free space each, for a few minutes (NIKA
+   starts a build only while the root has room for all running ones).
    Rebuilding the base briefly needs room for two bases.
 
    A loop file grows on the disk that holds it, and `truncate` does not check

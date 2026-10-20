@@ -36,12 +36,14 @@ from nika.firecracker.case import (
 )
 from nika.firecracker.config import firecracker_settings
 from nika.firecracker.image import (
+    BUILD_SPACE_MARGIN_MIB,
     META,
     delete_image,
     ensure_image,
     image_key,
     images_dir,
     list_images,
+    root,
     variant_for_row,
     vm_memory_mib,
 )
@@ -76,15 +78,28 @@ def _build_mib(params: dict[str, Any]) -> int:
     return vm_memory_mib(str(params.get("scenario")))
 
 
+def _disk_mib(params: dict[str, Any]) -> int:
+    """Root space a build needs: its snapshot first writes the whole VM memory."""
+    return vm_memory_mib(str(params.get("scenario"))) + BUILD_SPACE_MARGIN_MIB
+
+
+def _free_root_mib() -> int:
+    stat = os.statvfs(root())
+    return stat.f_bavail * stat.f_frsize >> 20
+
+
 def _build_admitted(
     items: list[Any],
     *,
     mib: Callable[[Any], int],
+    disk: Callable[[Any], int],
     submit: Callable[[Any], Future],
     workers: int,
     label: Callable[[Any], str],
 ) -> list[str]:
-    """Run builds, at most ``workers`` and only while huge pages hold their VMs."""
+    """Run builds, at most ``workers`` and only while huge pages and root space
+    hold them (each build checks only its own need, so parallel builds would
+    all pass that check and then fill the root together)."""
     failures = []
     pool_mib = hugepage_pool_mib()
     pending = sorted(items, key=mib, reverse=True)
@@ -95,6 +110,9 @@ def _build_admitted(
                 break
             held = sum(mib(i) for i in running.values())
             if running and pool_mib is not None and held + mib(item) > pool_mib:
+                continue
+            reserved = sum(disk(i) for i in running.values())
+            if running and reserved + disk(item) > _free_root_mib():
                 continue
             pending.remove(item)
             running[submit(item)] = item
@@ -140,6 +158,7 @@ def prebuild_images(trials: Iterable[Any], *, max_parallel: int) -> list[str]:
             failures += _build_admitted(
                 missing,
                 mib=_build_mib,
+                disk=_disk_mib,
                 submit=lambda p: pool.submit(ensure_image, p),
                 workers=workers,
                 label=lambda p: f"lab image for {p}",
@@ -173,6 +192,7 @@ def prebuild_cases(trials: Iterable[Any], *, max_parallel: int) -> list[str]:
         return _build_admitted(
             missing,
             mib=lambda row: _build_mib(variant_for_row(row)),
+            disk=lambda row: _disk_mib(variant_for_row(row)),
             submit=lambda row: pool.submit(build_case_worker, row),
             workers=workers,
             label=lambda row: (
