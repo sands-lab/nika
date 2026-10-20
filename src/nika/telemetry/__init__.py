@@ -57,7 +57,7 @@ def telemetry_for_session(meta: dict[str, Any] | Any) -> tuple[str, ...]:
 
 
 def apply_telemetry(net_env: NetworkEnvBase, kinds: Iterable[str]) -> dict[str, Any]:
-    """Attach each telemetry kind to the built, not yet deployed, lab.
+    """Wire each telemetry kind's network into the built, not yet deployed, lab.
 
     Returns per-kind metadata to persist with the session.
     """
@@ -69,6 +69,19 @@ def apply_telemetry(net_env: NetworkEnvBase, kinds: Iterable[str]) -> dict[str, 
     if NETFLOW in normalize_telemetry(kinds):
         applied[NETFLOW] = netflow.attach(net_env, settings.netflow.subnet)
     return applied
+
+
+def configure_telemetry(runtime: LabRuntime, applied: dict[str, Any]) -> dict[str, Any]:
+    """Configure each wired telemetry kind on the devices that support it.
+
+    Runs in the lab check phase, once the containers are up. A device without
+    support is left unconfigured; that is not an error.
+    """
+    from nika.telemetry import netflow
+
+    if NETFLOW not in applied:
+        return applied
+    return {**applied, NETFLOW: netflow.configure(runtime, applied[NETFLOW])}
 
 
 def telemetry_running(runtime: LabRuntime, applied: dict[str, Any]) -> bool:
