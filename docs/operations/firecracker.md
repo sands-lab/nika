@@ -358,8 +358,12 @@ a new lab image also builds new case images.
 * **Labs that run VMs themselves** (vrnetlab RouterOS) need KVM nested
   virtualization on the host and NIKA's Firecracker build (see
   [Set up the host](#set-up-the-host-once)). They work when NIKA runs on bare
-  metal or in a VM (RouterOS then runs two levels deep); on a host that is
-  itself a VM inside a VM, RouterOS does not boot. They are tested on AMD; the
+  metal or in a VM (RouterOS then runs two levels deep). On a host that is
+  itself a VM inside a VM, the router VM runs four levels deep: each level
+  multiplies the cost of its VM exits (measured about 13× per level on an AMD
+  host whose hypervisor exposes only `npt` and `nrip_save`), the router VM
+  spends all its time on timer interrupts and never leaves its BIOS, and lab
+  verification fails. Labs without inner VMs work at any depth. They are tested on AMD; the
   Intel (VMX) path is implemented but not yet tested.
 * **The first operations after a 4 KiB-page restore run slower.** This is most
   visible on hosts that are themselves VMs; huge pages remove it.
