@@ -86,6 +86,7 @@ HOST_ONLY_PATHS = (
     "src/agent/community/",
     "src/agent/llm/",
     "src/agent/mock/",
+    "src/agent/sandbox/",
     "src/agent/sdk/",
     "src/agent/skills/",
     "src/nika/evaluator/",

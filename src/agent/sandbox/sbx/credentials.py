@@ -9,10 +9,14 @@ host login stores subscription credentials in the built-in services.
 
 from __future__ import annotations
 
+import fcntl
 import logging
 import os
+import tempfile
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Iterator
 from urllib.parse import urlparse
 
 import httpx
@@ -302,6 +306,23 @@ def _ensure_custom_secret(
     return placeholder
 
 
+@contextmanager
+def _credentials_lock() -> Iterator[None]:
+    """Serialize credential sync across processes (parallel benchmark trials).
+
+    Syncing reads the sbx secrets and then creates missing ones; two trials
+    doing that at once both try to create the same secret, and sbx rejects the
+    second (``already exists``).
+    """
+    path = Path(tempfile.gettempdir()) / f"nika-sbx-credentials-{os.getuid()}.lock"
+    with open(path, "a") as fh:
+        fcntl.flock(fh, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(fh, fcntl.LOCK_UN)
+
+
 def ensure_sbx_credentials(
     *,
     env_file: Path,
@@ -313,6 +334,22 @@ def ensure_sbx_credentials(
 
     Only credentials for the active provider are synced.
     """
+    with _credentials_lock():
+        return _ensure_sbx_credentials(
+            env_file=env_file,
+            required_services=required_services,
+            provider=provider,
+            agent_type=agent_type,
+        )
+
+
+def _ensure_sbx_credentials(
+    *,
+    env_file: Path,
+    required_services: frozenset[str] | set[str] | None,
+    provider: str | None,
+    agent_type: str,
+) -> SbxCredentialPlan:
     if not sbx_available():
         raise RuntimeError("sbx is required for sandbox credential sync")
 

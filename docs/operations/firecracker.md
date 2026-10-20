@@ -337,8 +337,8 @@ Lab images are keyed by:
 
 * environment variant;
 * code that runs in the VM: `src/` and `pyproject.toml`, without host-only code
-  (agents, LLM clients, evaluation, `nika inspect`, the TUI and NIKA's
-  Firecracker host code), so changing an agent keeps the lab images;
+  (agents and their sandboxes, LLM clients, evaluation, `nika inspect`, the
+  TUI and NIKA's Firecracker host code), so changing an agent keeps the lab images;
 * the host's lab deploy settings (`nika.lab`, `runtime_validation`,
   `static_validation`, `k8s`), which the image deploy uses;
 * base image;
