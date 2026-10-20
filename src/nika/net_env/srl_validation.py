@@ -180,9 +180,9 @@ def verify_srl_contract(runtime, *, contract, plan=None):
                         for i in node.interfaces
                         if i.address == adjacency.local_address
                     ]
-                    instance = next(
-                        i for i in state["instance"] if i["name"] == "default"
-                    )
+                    (instance,) = [
+                        i for i in state["instance"] if i["name"] in {"default", "1"}
+                    ]
                     if adjacency.protocol == "isis":
                         row = next(
                             (

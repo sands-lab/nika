@@ -19,9 +19,37 @@ from nika.validation.batfish.snapshot import (
     _cumulus_frr_snapshot,
     _edge,
 )
+from nika.net_env.synthesis.srl_updates import srl_config_document
+
+
+def _document(value):
+    if isinstance(value, str):
+        value = yaml.safe_load(value)
+    if isinstance(value, dict) and set(value) == {"operations"}:
+        return srl_config_document(yaml.safe_dump(value, sort_keys=False))
+    return value
+
+
+def _is_netlab_default(document):
+    (instance,) = document["srl_nokia-network-instance:network-instance"]
+    return instance.get("type") == "default"
+
+
+def _native_link_interface(endpoint):
+    from nika.validation.batfish.srl_isp import native_interface
+
+    prefix, index = endpoint.split("-", 1)
+    if prefix != "e1" or not index.isdecimal() or int(index) < 1:
+        raise ValueError(f"Unsupported SR Linux Containerlab interface {endpoint!r}")
+    return native_interface(f"ethernet-1/{int(index)}.0")
 
 
 def project_srl_bgp(node, document, *, shutdown=()):
+    document = _document(document)
+    if _is_netlab_default(document):
+        from nika.validation.batfish.srl_isp import project_srl_isp
+
+        return project_srl_isp(node, document, shutdown=shutdown, require_igp=False)
     if set(document) != {
         "srl_nokia-interfaces:interface",
         "srl_nokia-network-instance:network-instance",
@@ -170,34 +198,75 @@ def build_srl_snapshot(env, contract, root: Path, *, configs=None, shutdown=()):
     documents = (
         env.routing_documents
         if configs is None
-        else {n: yaml.safe_load(c) for n, c in configs.items()}
+        else {n: _document(c) for n, c in configs.items()}
     )
+    documents = {node: _document(document) for node, document in documents.items()}
     root = prepare_snapshot(root)
     (root / "configs").mkdir(parents=True, exist_ok=True)
     (root / "batfish").mkdir(exist_ok=True)
-    interface_names = {
-        node: {
-            i["name"].replace("ethernet-", "e").replace("/", "-"): f"eth{index}"
-            for index, i in enumerate(doc["srl_nokia-interfaces:interface"])
-        }
-        for node, doc in documents.items()
+    native_nodes = {
+        node: _is_netlab_default(document) for node, document in documents.items()
     }
+    interface_names = {}
+    aliases = {}
+    if not all(native_nodes.values()):
+        interface_names = {
+            node: {
+                i["name"].replace("ethernet-", "e").replace("/", "-"): f"eth{index}"
+                for index, i in enumerate(doc["srl_nokia-interfaces:interface"])
+            }
+            for node, doc in documents.items()
+            if not native_nodes[node]
+        }
+    if any(native_nodes.values()):
+        from nika.validation.batfish.srl_isp import (
+            canonical_interface,
+            native_interface,
+            srl_addresses,
+        )
+
+        aliases = {
+            node: {
+                native_interface(name): canonical_interface(name)
+                for _, name in srl_addresses(document)
+            }
+            for node, document in documents.items()
+            if native_nodes[node]
+        }
     for node, document in documents.items():
         content = project_srl_bgp(node, document, shutdown=shutdown)
-        (root / "configs" / f"{node}.cfg").write_text(
-            _cumulus_frr_snapshot(
-                node, "frr version 10.5\nfrr defaults traditional\n" + content
+        if native_nodes[node]:
+            (root / "configs" / f"{node}.cfg").write_text(content)
+        else:
+            (root / "configs" / f"{node}.cfg").write_text(
+                _cumulus_frr_snapshot(
+                    node, "frr version 10.5\nfrr defaults traditional\n" + content
+                )
             )
-        )
     edges = []
     for link in env.get_lab_spec().links:
         a, b = (endpoint.split(":") for endpoint in link.endpoints)
         if a[0] in documents and b[0] in documents:
-            edges.append(
-                _edge(
-                    a[0], interface_names[a[0]][a[1]], b[0], interface_names[b[0]][b[1]]
+            if native_nodes[a[0]] and native_nodes[b[0]]:
+                edges.append(
+                    _edge(
+                        a[0],
+                        _native_link_interface(a[1]),
+                        b[0],
+                        _native_link_interface(b[1]),
+                    )
                 )
-            )
+            elif not native_nodes[a[0]] and not native_nodes[b[0]]:
+                edges.append(
+                    _edge(
+                        a[0],
+                        interface_names[a[0]][a[1]],
+                        b[0],
+                        interface_names[b[0]][b[1]],
+                    )
+                )
+            else:
+                raise ValueError("Cannot mix native and FRR SR Linux projection nodes")
     (root / "batfish" / "layer1_topology.json").write_text(
         json.dumps({"edges": edges}) + "\n"
     )
@@ -207,6 +276,8 @@ def build_srl_snapshot(env, contract, root: Path, *, configs=None, shutdown=()):
         metadata={
             "routing_model": "srl-bgp-projection",
             "native_config_analysis": False,
-            "scope": "IPv4 default-instance addressed interfaces, direct eBGP, exact-prefix export policies; excludes IPv6 and native SR Linux implementation semantics",
+            "interface_aliases": aliases,
+            "projection_evidence": "concrete transformed SR Linux configuration",
+            "scope": "Concrete IPv4 default-instance routing configuration projected to Batfish; native SR Linux execution remains authoritative",
         },
     )

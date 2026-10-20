@@ -18,6 +18,7 @@ from nika.net_env.synthesis.requirements import (
 )
 from nika.net_env.isp.kathara.verify import verify_isp_contract
 from nika.problems.link_interface.link import LinkFailure, LinkFailureParams
+from nika.problems.support.polling import wait_until
 from nika.runtime.factory import runtime_for_session
 from nika.utils.session import Session
 from nika.validation.batfish.kathara import (
@@ -257,15 +258,33 @@ def validate_routing_design(
         )
     generated_configs = None
     if config_generator == "netlab":
-        from nika.net_env.isp.netlab import generate_netlab_configs
         from nika.net_env.synthesis.configuration import apply_routing_configs
-        from nika.workflows.validation.netlab import bind_netlab_controls
-
-        generated_configs = generate_netlab_configs(
-            env.plan, env.bgp_plan, env.device_profile, output / "netlab"
+        from nika.workflows.validation.netlab import (
+            bind_netlab_controls,
+            generate_configs,
         )
+
+        generated_configs = generate_configs(spec, env, parameters, output / "netlab")
         apply_routing_configs(env, generated_configs)
-        spec = bind_netlab_controls(spec, generated_configs, env.device_profile)
+        control_configs = generated_configs
+        if native_srl:
+            import yaml
+
+            control_configs = {
+                node: yaml.safe_dump(document, sort_keys=False)
+                for node, document in env.routing_documents.items()
+            }
+        spec = bind_netlab_controls(
+            spec,
+            control_configs,
+            "nokia_srlinux"
+            if native_srl
+            else getattr(
+                env,
+                "device_profile",
+                spec.routing_model.split("-")[0] if native_vendor else "frr",
+            ),
+        )
         (output / "resolved-spec.json").write_text(
             spec.model_dump_json(indent=2) + "\n"
         )
@@ -297,9 +316,29 @@ def validate_routing_design(
         )
     summary = {"static": {}, "runtime": {}, "counterexamples": {}}
     if generated_configs is not None:
-        from nika.net_env.isp.netlab import NETLAB_VERSION
+        from nika.net_env.synthesis.netlab import NETLAB_VERSION
 
         summary["configuration"] = {"generator": "netlab", "version": NETLAB_VERSION}
+        retained = []
+        if spec.routing_model == "srl-bgp":
+            retained.append("existing IPv6 interface addressing")
+        elif native_srl:
+            retained.append("IGP ECMP capacity from the completed sketch")
+        if spec.routing_model == "routeros-bgp" or (
+            getattr(env, "device_profile", None) == "routeros"
+            and getattr(env, "bgp_plan", None)
+        ):
+            retained.append("exact-prefix admission and local-preference filters")
+        elif getattr(env, "bgp_plan", None) and any(
+            peer.session_type == "ibgp" for peer in env.bgp_plan.sessions
+        ):
+            retained.append("iBGP attachment of upstream-generated admission policies")
+        if "import_preferences" in env.ROUTING_PARAMETER_KINDS:
+            retained.append("default-to-business VRF imports")
+        if getattr(env, "rpki", False) or getattr(env, "rtbh", False):
+            retained.append("RPKI/RTBH security policy and runtime attachments")
+        if retained:
+            summary["configuration"]["retained"] = retained
     if parameters is not None:
         summary["synthesis"] = {
             "backend": "netcomplete" if synthesized_here else "provided-stage-output",
@@ -316,6 +355,7 @@ def validate_routing_design(
         except NotFound:
             owned = True
     session_id = f"routing-spec-{uuid4().hex[:12]}"
+    start_requested = False
     started = False
 
     def accept(report, path):
@@ -452,6 +492,7 @@ def validate_routing_design(
                 "predicted_failed_ids": sorted(failed),
             }
         if runtime:
+            start_requested = True
             start_net_env(
                 **routing_start_kwargs(spec, parameters, configs=generated_configs),
                 session_id=session_id,
@@ -587,8 +628,31 @@ def validate_routing_design(
                                     for p in env.bgp_plan.sessions
                                     if p.local_device == node
                                 ):
+                                    original_bgp = env.routing_documents[node][
+                                        "srl_nokia-network-instance:network-instance"
+                                    ][0]["protocols"]["srl_nokia-bgp:bgp"]
+                                    original_peer = next(
+                                        p
+                                        for p in original_bgp["neighbor"]
+                                        if p["peer-address"] == peer.remote_ip
+                                    )
+                                    original_af = next(
+                                        (
+                                            af
+                                            for af in original_peer.get("afi-safi", [])
+                                            if af["afi-safi-name"] == "ipv4-unicast"
+                                        ),
+                                        {},
+                                    )
+                                    policies = original_af.get("export-policy")
+                                    path = f"/network-instance default protocols bgp neighbor {peer.remote_ip} afi-safi ipv4-unicast export-policy"
                                     commands.append(
-                                        f"delete /network-instance default protocols bgp neighbor {peer.remote_ip} afi-safi ipv4-unicast export-policy"
+                                        path
+                                        + " [ "
+                                        + " ".join(json.dumps(p) for p in policies)
+                                        + " ]"
+                                        if policies is not None
+                                        else "delete " + path
                                     )
                                 commands += [
                                     f"delete /routing-policy policy {NIKA_BGP_WITHDRAW}",
@@ -732,7 +796,13 @@ def validate_routing_design(
                 failure = LinkFailure(
                     scenario_name=spec.scenario, **session.scenario_params
                 )
-                if not failure.recover_fault(LinkFailureParams(**params))["verified"]:
+                # Carrier observation can lag the recovery action on native routers.
+                if not wait_until(
+                    lambda: failure.recover_fault(LinkFailureParams(**params))[
+                        "verified"
+                    ],
+                    spec.convergence_timeout_sec,
+                ):
                     raise RuntimeError("Link recovery failed")
                 restored = (
                     []
@@ -752,8 +822,15 @@ def validate_routing_design(
                     )
     finally:
         try:
-            if started:
-                close_session(session_id=session_id)
+            if start_requested:
+                try:
+                    close_session(
+                        session_id=session_id,
+                        status="finished" if started else "error",
+                    )
+                except FileNotFoundError:
+                    # Startup can fail before it has created a session record.
+                    pass
         finally:
             try:
                 if owned:

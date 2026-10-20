@@ -372,7 +372,11 @@ def complete_routing(spec, env, directory: Path, *, image: str):
                     )
 
                     igp_config, bgp_fragment = split_frr_ibgp(config)
-                    project_frr_ibgp(bgp_fragment)
+                    project_frr_ibgp(
+                        bgp_fragment,
+                        allow_ebgp=env.bgp_plan is not None
+                        and env.bgp_plan.mode == "ebgp",
+                    )
                     _, configured = parse_frr_isis(a.local_node, igp_config)
                     iface = configured.get(interface)
                     if (

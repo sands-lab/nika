@@ -100,3 +100,49 @@ def test_export_denial_requires_a_valid_selected_input_route(valid) -> None:
         plan=env.plan,
     )
     assert report.results[0].status == ("passed" if valid else "error")
+
+
+@pytest.mark.parametrize("multipath", [False, True])
+def test_exit_selection_distinguishes_overall_best_from_best_per_as(multipath):
+    from nika.net_env.contract import BgpRouteExpectation
+    from nika.net_env.isp.kathara.verify import verify_isp_contract
+    from nika.net_env.isp.verify_support import intent_command
+    from nika.net_env.verify_collection import CommandResult, VerifyCollection
+
+    env = Isp(topo="claranet", igp="ospf", bgp_mode="ibgp_rr")
+    intent = ValidationIntent(
+        id="exit.test",
+        description="Only selected paths must use the specified neighboring AS.",
+        property="bgp_route",
+        expected="selected",
+        bgp_route=BgpRouteExpectation(
+            node=env.plan.nodes[0].device_name,
+            prefix="198.51.101.0/24",
+            exit_asn=65002,
+        ),
+    )
+    request = intent_command(intent)
+    # FRR reports bestpathFromAs even on a lower-preference, unselected path.
+    paths = [
+        {"path": "65002", "bestpath": {"bestpathFromAs": 65002, "overall": True}},
+        {
+            "path": "65003 65002",
+            "bestpath": {"bestpathFromAs": 65003},
+            "multipath": multipath,
+        },
+    ]
+    observations = VerifyCollection(
+        {
+            (request.node, request.command): CommandResult(
+                json.dumps({"paths": paths}), 0
+            )
+        },
+        [request.node],
+        0,
+    )
+    report = verify_isp_contract(
+        observations,
+        contract=env.validation_contract.model_copy(update={"intents": (intent,)}),
+        plan=env.plan,
+    )
+    assert report.results[0].status == ("failed" if multipath else "passed")

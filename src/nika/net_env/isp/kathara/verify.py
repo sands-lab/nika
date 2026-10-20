@@ -46,6 +46,15 @@ from nika.net_env.verify_collection import (
 )
 
 
+def _selected_bgp_path(path):
+    best = path.get("bestpath")
+    return (
+        (isinstance(best, dict) and best.get("overall") is True)
+        or best is True
+        or path.get("multipath") is True
+    )
+
+
 def _collect(runtime, plan, bgp_plan, traffic, contract, healed, *, full):
     commands = []
     for node in plan.nodes:
@@ -403,9 +412,7 @@ def _verify_intent(
             if intent.bgp_route is not None:
                 expected = intent.bgp_route
                 selected = [
-                    path
-                    for path in output.get("paths", [])
-                    if path.get("bestpath") or path.get("multipath")
+                    path for path in output.get("paths", []) if _selected_bgp_path(path)
                 ]
                 paths = [
                     path.get("aspath", {}).get("string", path.get("path", ""))
@@ -437,8 +444,7 @@ def _verify_intent(
                     f"vtysh -c 'show bgp ipv4 unicast {expected.prefix} json'",
                 )
                 if not any(
-                    path.get("valid")
-                    and (path.get("bestpath") or path.get("multipath"))
+                    path.get("valid") and _selected_bgp_path(path)
                     for path in available.get("paths", [])
                 ):
                     raise ValueError(
@@ -973,7 +979,7 @@ def _bgp_prefixes_propagated_ok(runtime, bgp_plan):
     try:
         return all(
             any(
-                path.get("valid") and path.get("bestpath")
+                path.get("valid") and _selected_bgp_path(path)
                 for path in _bgp_routes(runtime, observer).get(prefix, [])
             )
             for observer, prefix in bgp_plan.expect_reachable

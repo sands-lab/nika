@@ -27,6 +27,41 @@ def _ospf_networks(config: str) -> list[tuple[str, str]]:
     return _NETWORK_RE.findall(_ospf_block(config))
 
 
+_INTERFACE_RE = re.compile(r"^interface\s+(\S+)\s*$")
+_INTERFACE_AREA_RE = re.compile(r"^\s+ip ospf area\s+(\S+)\s*$")
+_COMMENTED_INTERFACE_AREA_RE = re.compile(r"^\s+!\s+ip ospf area\s+(\S+)\s*$")
+
+
+def _ospf_interface_areas(
+    config: str, *, commented: bool = False
+) -> list[tuple[str, str]]:
+    """Extract active or commented ``(interface, area)`` bindings from FRR config."""
+    pattern = _COMMENTED_INTERFACE_AREA_RE if commented else _INTERFACE_AREA_RE
+    bindings = []
+    interface = None
+    for line in config.splitlines():
+        if match := _INTERFACE_RE.fullmatch(line):
+            interface = match[1]
+        elif line and not line[0].isspace() and not line.startswith("!"):
+            interface = None
+        elif interface and (match := pattern.fullmatch(line)):
+            bindings.append((interface, match[1]))
+    return bindings
+
+
+def _ospf_area_bindings(
+    config: str,
+) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
+    """Extract one supported OSPF binding style, rejecting mixed active syntax."""
+    networks = _ospf_networks(config)
+    interfaces = _ospf_interface_areas(config)
+    if networks and interfaces:
+        raise RuntimeCapabilityError(
+            "OSPF configuration mixes network statements and interface area bindings"
+        )
+    return networks, interfaces
+
+
 # ==================================================================
 # Problem: OSPF Area Misconfiguration
 # ==================================================================
@@ -65,47 +100,62 @@ class OSPFAreaMisconfig(ProblemBase):
         running_cfg = self.runtime.exec(
             params.host_name, "vtysh -c 'show running-config'"
         )
-        statements = _ospf_networks(running_cfg)
-        if not statements:
+        statements, interface_bindings = _ospf_area_bindings(running_cfg)
+        if not statements and not interface_bindings:
             raise RuntimeError(f"Could not find OSPF area on {params.host_name}")
-        correct_area = statements[0][1]
+        correct_area = (statements or interface_bindings)[0][-1]
         wrong_area = "66" if correct_area != "66" else "99"
         # Keep the original area set in memory; a .bak file would expose it.
-        self._orig_areas = {area for _prefix, area in statements}
-        # Move the statements in the running daemon (no restart), then keep the
-        # startup file consistent with it.
-        moves = " ".join(
-            f"-c 'no network {prefix} area {area}' -c 'network {prefix} area {wrong_area}'"
-            for prefix, area in statements
-            if area == correct_area
-        )
-        self.runtime.exec(
-            params.host_name,
-            f"vtysh -c 'configure terminal' -c 'router ospf' {moves} -c 'end'",
-        )
-        self.runtime.exec(
-            params.host_name,
-            f"sed -i -E 's/(area ){correct_area}$/\\1{wrong_area}/g' /etc/frr/frr.conf",
-        )
+        self._orig_areas = {binding[-1] for binding in statements + interface_bindings}
+        if statements:
+            # Move the statements in the running daemon (no restart), then keep
+            # the startup file consistent with it.
+            moves = " ".join(
+                f"-c 'no network {prefix} area {area}' -c 'network {prefix} area {wrong_area}'"
+                for prefix, area in statements
+                if area == correct_area
+            )
+            self.runtime.exec(
+                params.host_name,
+                f"vtysh -c 'configure terminal' -c 'router ospf' {moves} -c 'end'",
+            )
+            self.runtime.exec(
+                params.host_name,
+                f"sed -i -E 's/(area ){correct_area}$/\\1{wrong_area}/g' /etc/frr/frr.conf",
+            )
+        else:
+            moves = " ".join(
+                f"-c 'interface {interface}' -c 'no ip ospf area {area}' -c 'ip ospf area {wrong_area}'"
+                for interface, area in interface_bindings
+                if area == correct_area
+            )
+            self.runtime.exec(
+                params.host_name,
+                f"vtysh -c 'configure terminal' {moves} -c 'end'",
+            )
+            self.runtime.exec(
+                params.host_name,
+                "sed -i -E "
+                f"'s/^([[:space:]]*ip ospf area ){re.escape(correct_area)}$/\\1{wrong_area}/' "
+                "/etc/frr/frr.conf",
+            )
         self.logger.info(
             f"Injected OSPF area misconfiguration on {params.host_name} from area {correct_area} to {wrong_area}."
         )
 
     def verify_fault(self, params: OSPFAreaMisconfigParams) -> dict:
         """Verify the OSPF area in frr.conf and in the running daemon was changed."""
-        file_areas_raw = self.runtime.exec(
-            params.host_name,
-            "grep -E '^[[:space:]]*network .* area ' /etc/frr/frr.conf 2>/dev/null | awk '{print $NF}' | sort -u",
-        ).strip()
-        running_areas_raw = self.runtime.exec(
-            params.host_name,
-            "vtysh -c 'show running-config' 2>/dev/null | grep -E '^[[:space:]]*network .* area ' | awk '{print $NF}' | sort -u",
-        ).strip()
-        file_areas = set(file_areas_raw.splitlines()) if file_areas_raw else set()
-        orig_areas = set(getattr(self, "_orig_areas", None) or ())
-        running_areas = (
-            set(running_areas_raw.splitlines()) if running_areas_raw else set()
+        file_config = self.runtime.exec(params.host_name, "cat /etc/frr/frr.conf")
+        running_config = self.runtime.exec(
+            params.host_name, "vtysh -c 'show running-config' 2>/dev/null"
         )
+        file_networks, file_interfaces = _ospf_area_bindings(file_config)
+        running_networks, running_interfaces = _ospf_area_bindings(running_config)
+        file_areas = {binding[-1] for binding in file_networks + file_interfaces}
+        orig_areas = set(getattr(self, "_orig_areas", None) or ())
+        running_areas = {
+            binding[-1] for binding in running_networks + running_interfaces
+        }
         file_changed = (
             bool(file_areas) and bool(orig_areas) and file_areas != orig_areas
         )
@@ -162,55 +212,90 @@ class OSPFNeighborMissing(ProblemBase):
     def root_cause_resources(self, params: OSPFNeighborMissingParams):
         return [node_resource(params.host_name)]
 
-    def _single_adjacency_network(self, host: str) -> tuple[str, str]:
-        """The first ``network`` statement that covers exactly one Full adjacency."""
-        statements = _ospf_networks(
-            self.runtime.exec(host, "vtysh -c 'show running-config'")
-        )
+    def _single_adjacency_binding(self, host: str) -> tuple[str, str, str]:
+        """Select one network or interface binding covering exactly one Full peer."""
+        config = self.runtime.exec(host, "vtysh -c 'show running-config'")
+        statements, interfaces = _ospf_area_bindings(config)
         raw = self.runtime.exec(host, "vtysh -c 'show ip ospf neighbor json'")
         try:
             neighbors = json.loads(raw).get("neighbors") or {}
         except (ValueError, AttributeError):
             neighbors = {}
-        local_ips = [
-            ipaddress.ip_address(str(entry.get("ifaceName", "")).split(":")[-1])
-            for entries in neighbors.values()
-            for entry in (entries if isinstance(entries, list) else [entries])
-            if str(entry.get("nbrState", "")).startswith("Full")
-            and ":" in str(entry.get("ifaceName", ""))
-        ]
+        full_peers = []
+        for entries in neighbors.values():
+            for entry in entries if isinstance(entries, list) else [entries]:
+                if not isinstance(entry, dict) or not str(
+                    entry.get("nbrState", "")
+                ).startswith("Full"):
+                    continue
+                iface_name = str(entry.get("ifaceName", ""))
+                if ":" not in iface_name:
+                    continue
+                interface, address = iface_name.split(":", 1)
+                try:
+                    full_peers.append((interface, ipaddress.ip_address(address)))
+                except ValueError:
+                    continue
+        local_ips = [address for _, address in full_peers]
         for prefix, area in statements:
             network = ipaddress.ip_network(prefix, strict=False)
             if sum(ip in network for ip in local_ips) == 1:
-                return prefix, area
+                return "network", prefix, area
+        for interface, area in interfaces:
+            if (
+                sum(peer_interface == interface for peer_interface, _ in full_peers)
+                == 1
+            ):
+                return "interface", interface, area
         raise RuntimeCapabilityError(
-            f"{type(self).__name__}: no OSPF network statement on {host!r} "
-            "covers exactly one Full adjacency."
+            f"{type(self).__name__}: no OSPF binding on {host!r} covers exactly one Full adjacency."
         )
 
     def inject_fault(self, params: OSPFNeighborMissingParams):
-        # Drop the one statement that brings a single adjacency into OSPF, the
-        # way a deleted ``network`` line loses that neighbor and only it.
-        prefix, area = self._single_adjacency_network(params.host_name)
-        self.runtime.exec(
-            params.host_name,
-            "vtysh -c 'configure terminal' -c 'router ospf' "
-            f"-c 'no network {prefix} area {area}' -c 'end'",
-        )
-        line = f"network {prefix} area {area}".replace(".", "\\.").replace("/", "\\/")
-        self.runtime.exec(
-            params.host_name,
-            "sed -i -E "
-            f"'{_OSPF_BLOCK_RANGE} s/^([[:space:]]+)({line})[[:space:]]*$/\\1# \\2/' "
-            "/etc/frr/frr.conf",
-        )
+        # Drop the one binding that brings a single adjacency into OSPF.
+        kind, binding, area = self._single_adjacency_binding(params.host_name)
+        if kind == "network":
+            prefix = binding
+            self.runtime.exec(
+                params.host_name,
+                "vtysh -c 'configure terminal' -c 'router ospf' "
+                f"-c 'no network {prefix} area {area}' -c 'end'",
+            )
+            line = f"network {prefix} area {area}".replace(".", "\\.").replace(
+                "/", "\\/"
+            )
+            self.runtime.exec(
+                params.host_name,
+                "sed -i -E "
+                f"'{_OSPF_BLOCK_RANGE} s/^([[:space:]]+)({line})[[:space:]]*$/\\1# \\2/' "
+                "/etc/frr/frr.conf",
+            )
+        else:
+            interface = binding
+            self.runtime.exec(
+                params.host_name,
+                "vtysh -c 'configure terminal' "
+                f"-c 'interface {interface}' -c 'no ip ospf area {area}' -c 'end'",
+            )
+            interface_pattern = re.escape(interface)
+            self.runtime.exec(
+                params.host_name,
+                "sed -i -E "
+                f"'/^interface {interface_pattern}$/,/^[^[:space:]!#]/ "
+                f"s/^([[:space:]]*)ip ospf area {re.escape(area)}$/\\1! ip ospf area {area}/' "
+                "/etc/frr/frr.conf",
+            )
         self.logger.info(
             f"Injected OSPF neighbor missing on {params.host_name} "
-            f"(removed network {prefix} area {area})."
+            f"(removed {kind} binding {binding} area {area})."
         )
 
     def verify_fault(self, params: OSPFNeighborMissingParams) -> dict:
-        """Verify one ``network`` statement is gone from the daemon and the others stay."""
+        """Verify one OSPF binding is gone while the other bindings remain."""
+        file_config = self.runtime.exec(params.host_name, "cat /etc/frr/frr.conf")
+        running_config = self.runtime.exec(
+            params.host_name, "vtysh -c 'show running-config' 2>/dev/null"
+        )
         commented = re.findall(
             r"^\s*#\s*network\s+(\S+)\s+area\s+(\S+)",
             self.runtime.exec(
@@ -219,19 +304,39 @@ class OSPFNeighborMissing(ProblemBase):
             ),
             re.MULTILINE,
         )
-        running = _ospf_networks(
-            self.runtime.exec(
-                params.host_name, "vtysh -c 'show running-config' 2>/dev/null"
-            )
-        )
+        dropped_interfaces = _ospf_interface_areas(file_config, commented=True)
+        file_networks, file_interfaces = _ospf_area_bindings(file_config)
+        running_networks, running_interfaces = _ospf_area_bindings(running_config)
         dropped = [tuple(item) for item in commented]
-        verified = len(dropped) == 1 and dropped[0] not in running and len(running) > 0
+        if dropped_interfaces:
+            verified = (
+                len(dropped_interfaces) == 1
+                and not dropped
+                and set(file_interfaces) == set(running_interfaces)
+                and dropped_interfaces[0] not in running_interfaces
+                and bool(running_interfaces)
+                and not file_networks
+                and not running_networks
+            )
+            dropped_interface_binding = list(dropped_interfaces[0])
+        else:
+            verified = (
+                len(dropped) == 1
+                and dropped[0] not in running_networks
+                and len(running_networks) > 0
+                and set(file_networks) == set(running_networks)
+                and not file_interfaces
+                and not running_interfaces
+            )
+            dropped_interface_binding = None
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=verified,
             details={
                 "host": params.host_name,
                 "dropped_network": list(dropped[0]) if dropped else None,
-                "running_network_count": len(running),
+                "dropped_interface_binding": dropped_interface_binding,
+                "running_network_count": len(running_networks),
+                "running_interface_binding_count": len(running_interfaces),
             },
         )

@@ -207,7 +207,7 @@ def parse_frr_isis(node: str, config: str) -> tuple[str, dict[str, dict]]:
     return net, interfaces
 
 
-def project_frr_isis(node: str, config: str, *, shutdown=()) -> str:
+def project_frr_isis(node: str, config: str, *, shutdown=(), allow_ebgp=False) -> str:
     """Translate one supported FRR config to native IOS XR IS-IS syntax."""
     igp_config, bgp_fragment = split_frr_ibgp(config)
     net, interfaces = parse_frr_isis(node, igp_config)
@@ -249,7 +249,9 @@ def project_frr_isis(node: str, config: str, *, shutdown=()) -> str:
             ]
         )
     lines.append("!")
-    return "\n".join(lines) + "\n" + project_frr_ibgp(bgp_fragment)
+    return (
+        "\n".join(lines) + "\n" + project_frr_ibgp(bgp_fragment, allow_ebgp=allow_ebgp)
+    )
 
 
 def build_isis_snapshot(
@@ -267,12 +269,12 @@ def build_isis_snapshot(
     plan = env.plan
     if (
         plan.igp != "isis"
-        or (env.bgp_plan is not None and env.bgp_plan.mode != "ibgp_rr")
+        or (env.bgp_plan is not None and env.bgp_plan.mode not in {"ibgp_rr", "ebgp"})
         or env.rpki
         or env.rtbh
     ):
         raise ValueError(
-            "IS-IS projection requires an ordinary no-BGP or iBGP RR ISP profile"
+            "IS-IS projection requires an ordinary no-BGP, iBGP RR, or eBGP ISP profile"
         )
     deployment_configs = env.deployment_configs if configs is None else configs
     expected = {node.device_name for node in plan.nodes}
@@ -295,7 +297,15 @@ def build_isis_snapshot(
         _validate_startup_addresses(node, plan_nodes[node].startup_commands, interfaces)
         native_map = {_native_interface(name): name for name in interfaces}
         aliases[node] = native_map
-        projected = project_frr_isis(node, config, shutdown=shutdown)
+        projected = project_frr_isis(
+            node,
+            config,
+            shutdown=shutdown,
+            # A registered ASN fault can turn an intended iBGP peer into a
+            # mismatched external peer. Analyze the concrete ASN rather than
+            # assuming the original sketch remained same-AS.
+            allow_ebgp=env.bgp_plan is not None,
+        )
         (configs_dir / f"{node}.cfg").write_text(projected, encoding="utf-8")
 
     edges = []
@@ -320,7 +330,7 @@ def build_isis_snapshot(
         "routing_model": routing_model,
         "native_config_analysis": False,
         "interface_aliases": aliases,
-        "scope": "FRR IPv4 IS-IS L2-only wide metrics and optional ordinary iBGP RR projected to IOS XR; connected router interfaces only",
+        "scope": "FRR IPv4 IS-IS L2-only wide metrics and optional ordinary iBGP RR or direct eBGP projected to IOS XR; connected router interfaces only",
     }
     Path(root).mkdir(parents=True, exist_ok=True)
     (Path(root) / "batfish-snapshot-metadata.json").write_text(

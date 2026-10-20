@@ -6,48 +6,40 @@ supplies the behavior predicates used to accept the resulting configuration.
 
 from __future__ import annotations
 
-import json
-import os
-import subprocess
-import sys
-from importlib.metadata import PackageNotFoundError, version
 from ipaddress import IPv4Network
-from pathlib import Path
+import re
 
 import yaml
+from pathlib import Path
 
 from nika.net_env.isp.bgp.plan import BgpPlan
 from nika.net_env.isp.bgp.policy import BUSINESS_PREFIXES
 from nika.net_env.isp.igp.plan import IspPlan
 from nika.net_env.isp.igp.frr import isis_net_from_router_id
-
-NETLAB_VERSION = "26.10"
+from nika.net_env.isp.igp.ifaces import srl_ethernet_name
+from nika.net_env.isp.containerlab.lab import SRL_IMAGE, SRL_TYPE
+from nika.net_env.synthesis.netlab import NETLAB_VERSION as NETLAB_VERSION
+from nika.net_env.synthesis.netlab import run_netlab
 
 
 def netlab_topology(plan: IspPlan, bgp: BgpPlan | None, device_profile: str) -> dict:
     """Translate explicit addresses, directed costs, ASes and policies to netlab.
 
-    Scope is capability based: IPv4 OSPF with ordinary BGP, or FRR L2 IS-IS
-    with optional ordinary iBGP RR.
-    Security overlays and unsupported devices fail before invoking the tool.
+    Scope is capability based: IPv4 OSPF or L2 IS-IS with ordinary BGP,
+    plus the existing FRR OSPF/eBGP security overlays.
     """
-    if device_profile not in {"frr", "iosxr"}:
+    if device_profile not in {"frr", "iosxr", "nokia_srlinux", "routeros"}:
         raise ValueError(
-            "netlab construction currently supports FRR and IOS XR; RouterOS7 "
-            "does not support upstream generic routing policies, and SR Linux "
-            "requires a native CLI deployment adapter"
+            "netlab construction currently supports FRR, IOS XR, Nokia SR Linux and RouterOS"
         )
     if plan.igp not in {"ospf", "isis"} or (
-        plan.igp == "isis" and device_profile != "frr"
+        plan.igp == "isis" and device_profile not in {"frr", "nokia_srlinux"}
     ):
-        raise ValueError("netlab ISP construction requires OSPF or FRR L2 IS-IS")
-    if plan.igp == "isis" and bgp and bgp.mode != "ibgp_rr":
-        raise ValueError(
-            "netlab IS-IS construction supports ordinary iBGP RR, not eBGP"
-        )
-    if bgp and (
-        bgp.mode not in {"ibgp_rr", "ebgp"}
-        or any(bgp.inventory.get(k) for k in ("rpki", "rtbh", "leak_prefixes"))
+        raise ValueError("netlab ISP construction requires OSPF or supported L2 IS-IS")
+    if bgp and bgp.mode not in {"ibgp_rr", "ebgp"}:
+        raise ValueError("netlab ISP construction requires a supported BGP mode")
+    security = bgp and (
+        any(bgp.inventory.get(k) for k in ("rpki", "rtbh", "leak_prefixes"))
         or any(
             n.rpki_cache
             or n.rov_reject_invalid
@@ -56,18 +48,39 @@ def netlab_topology(plan: IspPlan, bgp: BgpPlan | None, device_profile: str) -> 
             or n.ebgp_outbound_route_maps
             for n in bgp.nodes
         )
+    )
+    if security and (
+        device_profile != "frr"
+        or plan.igp != "ospf"
+        or bgp.mode != "ebgp"
+        or bool(bgp.inventory.get("rpki")) == bool(bgp.inventory.get("rtbh"))
     ):
-        raise ValueError("netlab ISP construction does not support security overlays")
+        raise ValueError(
+            "netlab security overlays require FRR OSPF/eBGP and one security profile"
+        )
     from nika.net_env.isp.iosxr import iosxr_interface
+    from nika.net_env.isp.routeros import routeros_interface
 
-    native = iosxr_interface if device_profile == "iosxr" else lambda name: name
+    native = (
+        iosxr_interface
+        if device_profile == "iosxr"
+        else srl_ethernet_name
+        if device_profile == "nokia_srlinux"
+        else routeros_interface
+        if device_profile == "routeros"
+        else lambda name: name
+    )
+    netlab_device = {
+        "nokia_srlinux": "srlinux",
+        "routeros": "routeros7",
+    }.get(device_profile, device_profile)
     bgp_nodes = {n.device_name: n for n in bgp.nodes} if bgp else {}
     if bgp and set(bgp_nodes) != {n.device_name for n in plan.nodes}:
         raise ValueError("BGP and IGP plans must contain the same nodes")
     topology = {
         "name": "nika",
         "provider": "clab",  # Transformation only: NIKA still owns deployment.
-        "defaults.device": device_profile,
+        "defaults.device": netlab_device,
         "defaults.sources.list": ["package:topology-defaults.yml"],
         "defaults.const.MAX_NODE_ID": max(150, len(plan.nodes) + 1),
         "defaults.const.MAX_NODE_ID_LENGTH": 63,
@@ -75,7 +88,11 @@ def netlab_topology(plan: IspPlan, bgp: BgpPlan | None, device_profile: str) -> 
         "module": [plan.igp],
         plan.igp: {"process": 1, "area": "0.0.0.0"}
         if plan.igp == "ospf"
-        else {"instance": "NIKA", "type": "level-2", "af": {"ipv4": True}},
+        else {
+            "instance": "default" if device_profile == "nokia_srlinux" else "NIKA",
+            "type": "level-2",
+            "af": {"ipv4": True},
+        },
         "nodes": {},
         "links": [],
     }
@@ -90,8 +107,9 @@ def netlab_topology(plan: IspPlan, bgp: BgpPlan | None, device_profile: str) -> 
     if bgp:
         topology.update(
             {
-                "module": [plan.igp, "bgp", "routing"],
-                "plugin": ["bgp.policy"],
+                "module": [plan.igp, "bgp"]
+                if device_profile == "routeros"
+                else [plan.igp, "bgp", "routing"],
                 "bgp": {
                     "advertise_loopback": False,
                     "advertise_roles": [],
@@ -99,12 +117,20 @@ def netlab_topology(plan: IspPlan, bgp: BgpPlan | None, device_profile: str) -> 
                 },
             }
         )
+        if device_profile != "routeros":
+            topology["plugin"] = ["bgp.policy"]
     for node in plan.nodes:
         data = {
             "loopback": {
                 "ipv4": f"{node.loopback}/32",
             },
         }
+        if device_profile == "nokia_srlinux":
+            data.update({"box": SRL_IMAGE, "clab.type": SRL_TYPE})
+        elif device_profile == "routeros":
+            from nika.net_env.routeros_simple_bgp.lab import IMAGE
+
+            data.update({"box": IMAGE, "clab.type": "vr-ros"})
         if plan.igp == "ospf":
             data["ospf.router_id"] = node.router_id
         else:
@@ -155,7 +181,8 @@ def netlab_topology(plan: IspPlan, bgp: BgpPlan | None, device_profile: str) -> 
                         entry["set"] = {"locpref": term.local_preference}
                     entries.append(entry)
                 policies[f"NC_IN_{i}"] = entries + policies["BGP-IN"]
-            data["routing"] = {"prefix": prefixes, "policy": policies}
+            if device_profile != "routeros":
+                data["routing"] = {"prefix": prefixes, "policy": policies}
         topology["nodes"][node.device_name] = data
 
     by_interface = {
@@ -181,7 +208,7 @@ def netlab_topology(plan: IspPlan, bgp: BgpPlan | None, device_profile: str) -> 
             peer = next(
                 (s for s in bnode.sessions if s.remote_ip == iface.peer_address), None
             )
-            if peer and peer.session_type == "ebgp":
+            if peer and peer.session_type == "ebgp" and device_profile != "routeros":
                 index = bnode.sessions.index(peer)
                 policy = (
                     f"NC_IN_{index}"
@@ -230,7 +257,11 @@ def netlab_topology(plan: IspPlan, bgp: BgpPlan | None, device_profile: str) -> 
                                 "node": node.device_name,
                                 "ifname": f"Loopback{index}"
                                 if device_profile == "iosxr"
-                                else "lo1",
+                                else f"lo0.{index}"
+                                if device_profile == "nokia_srlinux"
+                                else "lo1"
+                                if device_profile == "routeros"
+                                else f"lo{index}",
                                 "ipv4": f"{origin.ping_address}/{IPv4Network(origin.prefix).prefixlen}",
                             }
                         ],
@@ -248,39 +279,40 @@ def generate_netlab_configs(
     No provider deployment or shell configuration fragment is executed.
     """
     topology = netlab_topology(plan, bgp, device_profile)
-    try:
-        installed = version("networklab")
-    except PackageNotFoundError as exc:
-        raise RuntimeError(
-            "Install the construction tool with uv sync --extra netlab"
-        ) from exc
-    if installed != NETLAB_VERSION:
-        raise RuntimeError(f"Expected networklab=={NETLAB_VERSION}, found {installed}")
-    directory = directory.resolve()
-    directory.mkdir(parents=True, exist_ok=True)
-    (directory / "topology.yml").write_text(yaml.safe_dump(topology, sort_keys=False))
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-c",
-            "from netsim.cli import main; main()",
-            "create",
-            "topology.yml",
-            "-o",
-            "config",
-            "-o",
-            "json=transformed.json",
-        ],
-        cwd=directory,
-        env={k: v for k, v in os.environ.items() if not k.startswith("NETLAB_")},
-        capture_output=True,
-        text=True,
-        timeout=300,
-    )
-    (directory / "netlab.log").write_text(result.stdout + result.stderr)
-    if result.returncode:
-        raise RuntimeError(f"netlab compilation failed; see {directory / 'netlab.log'}")
-    transformed = json.loads((directory / "transformed.json").read_text())
+    configs, transformed = run_netlab(topology, directory)
+    if bgp and device_profile != "routeros":
+        configs = _bind_ibgp_policies(configs, transformed)
+    if device_profile == "frr" and bgp:
+        # netlab requires unique virtual interface identities. NIKA already owns
+        # one dummy interface with multiple origin addresses; bind those emitted
+        # address blocks back to that same fixed Linux interface.
+        for node in bgp.nodes:
+            for index in range(2, len(node.originated) + 1):
+                configs[node.device_name] = re.sub(
+                    rf"^interface lo{index}$",
+                    "interface lo1",
+                    configs[node.device_name],
+                    flags=re.M,
+                )
+        from nika.net_env.isp.netlab_security import apply_netlab_security_overlay
+
+        configs = apply_netlab_security_overlay(configs, transformed, bgp)
+        # Existing incident injectors address these fixed admission policies.
+        # Bind the upstream AF-qualified names consistently at definitions and
+        # references; the generated prefix tests and actions remain unchanged.
+        aliases = {
+            "BUSINESS-ipv4": "BUSINESS",
+            "BGP-IN-ipv4": "BGP-IN",
+            "BGP-OUT-ipv4": "BGP-OUT",
+        }
+        for name, text in configs.items():
+            configs[name] = re.sub(
+                r"(?<!\S)(BUSINESS-ipv4|BGP-IN-ipv4|BGP-OUT-ipv4)(?!\S)",
+                lambda match: aliases[match[1]],
+                text,
+            )
+    if device_profile == "routeros":
+        configs = _routeros_policy_fragments(configs, transformed, plan, bgp)
     # Netlab derives sessions from explicit AS/RR inputs. Reject a different sketch
     # rather than silently changing the authored control-plane design.
     actual, expected = set(), set()
@@ -307,26 +339,135 @@ def generate_netlab_configs(
             raise ValueError(
                 "netlab-derived prefix origins differ from the fixed sketch"
             )
-    configs = {}
-    for node in plan.nodes:
-        root = directory / "node_files" / node.device_name
-        modules = ["initial", *transformed["nodes"][node.device_name]["module"]]
-        modules += transformed["nodes"][node.device_name].get("config", [])
-        fragments = []
-        for module in modules:
-            fragment = (root / module).read_text()
-            if device_profile == "frr" and module == "initial":
-                # Upstream packages FRR initial CLI in a shell heredoc. Extract
-                # the literal CLI; NIKA already owns Linux interface creation.
-                marker = "cat >/tmp/config <<CONFIG\n"
-                if fragment.count(marker) != 1:
-                    raise ValueError("Unsupported netlab FRR initial config envelope")
-                fragment = fragment.split(marker)[1].split("\nCONFIG\n", 1)[0]
-            # 'do write' is an interactive persistence command, not startup CLI.
-            fragments.append(
-                "\n".join(
-                    line for line in fragment.splitlines() if line.strip() != "do write"
-                )
-            )
-        configs[node.device_name] = "\n!\n".join(fragments) + "\n"
     return configs
+
+
+def _routeros_policy_fragments(configs, transformed, plan, bgp):
+    """Complete RouterOS areas netlab 26.10 does not generate (origins/policy)."""
+    if bgp is None:
+        return configs
+    from nika.net_env.isp.bgp.policy import BUSINESS_PREFIXES
+    from nika.net_env.isp.routeros import _filter_rule
+
+    bgp_nodes = {node.device_name: node for node in bgp.nodes}
+    result = dict(configs)
+    business = sorted({*BUSINESS_PREFIXES, *(o.prefix for o in bgp.originated)})
+    for name, node in transformed["nodes"].items():
+        bnode = bgp_nodes[name]
+        lines = ["# NIKA RouterOS policy bindings and business origins"]
+        origins = sorted({o.prefix for o in bnode.originated})
+        current = configs[name]
+        if origins and "name=lo1 protocol-mode=none" not in current:
+            lines.append("/interface/bridge add name=lo1 protocol-mode=none")
+            for origin in sorted(bnode.originated, key=lambda item: item.prefix):
+                plen = IPv4Network(origin.prefix).prefixlen
+                if f"address={origin.ping_address}/{plen}" not in current:
+                    lines.append(
+                        f"/ip/address add interface=lo1 address={origin.ping_address}/{plen}"
+                    )
+        for origin in sorted(bnode.originated, key=lambda item: item.prefix):
+            if f"list=bgp-networks address={origin.prefix}" not in current:
+                lines.append(
+                    f"/ip/firewall/address-list add list=bgp-networks address={origin.prefix}"
+                )
+        for prefix in business:
+            lines.append(
+                _filter_rule("NIKA-BGP-IN", f"if (dst == {prefix}) {{ accept; }}")
+            )
+            lines.append(
+                _filter_rule("NIKA-BGP-OUT", f"if (dst == {prefix}) {{ accept; }}")
+            )
+        for chain in ("NIKA-BGP-IN", "NIKA-BGP-OUT"):
+            lines.append(_filter_rule(chain, "reject;"))
+        imports = dict(bnode.import_policies)
+        for index, session in enumerate(
+            sorted(bnode.sessions, key=lambda s: (s.remote_ip, s.remote_device))
+        ):
+            chain = f"NIKA-NC-IN-{index}"
+            if session.remote_ip in imports:
+                for term in imports[session.remote_ip]:
+                    action = "jump NIKA-BGP-IN;" if term.permit else "reject;"
+                    if term.permit and term.local_preference is not None:
+                        action = f"set bgp-local-pref {term.local_preference}; {action}"
+                    lines.append(
+                        _filter_rule(chain, f"if (dst == {term.prefix}) {{ {action} }}")
+                    )
+                lines.append(_filter_rule(chain, "jump NIKA-BGP-IN;"))
+            else:
+                chain = "NIKA-BGP-IN"
+            peer = session.remote_ip.replace(".", "_")
+            lines.append(
+                f"/routing/bgp/connection set [/routing/bgp/connection find name={peer}] "
+                f"input.filter={chain} output.filter-chain=NIKA-BGP-OUT local.address={session.local_ip}"
+            )
+        result[name] += "\n" + "\n".join(lines) + "\n"
+    return result
+
+
+def _bind_ibgp_policies(configs, transformed):
+    """Attach upstream-generated admission policies to actual iBGP neighbors.
+
+    netlab 26.10 bgp.policy binds external peers only. NIKA's fixed sketch applies
+    the same admission policy within an AS. Keep that binding while letting the
+    upstream routing module generate the prefix tests and policy actions.
+    """
+    result = dict(configs)
+    for name, node in transformed["nodes"].items():
+        peers = [
+            p["ipv4"]
+            for p in node.get("bgp", {}).get("neighbors", [])
+            if p["type"] == "ibgp"
+        ]
+        if not peers:
+            continue
+        if node["device"] == "srlinux":
+            document = yaml.safe_load(result[name])
+            for peer in peers:
+                base = f"/network-instance[name=default]/protocols/bgp/neighbor[peer-address={peer}]/afi-safi[afi-safi-name=ipv4-unicast]"
+                for direction, policies in (
+                    ("import", ["BGP-IN"]),
+                    ("export", ["default_bgp_export", "BGP-OUT"]),
+                ):
+                    document["operations"].append(
+                        {
+                            "operation": "replace",
+                            "path": base + f"/{direction}-policy",
+                            "value": policies,
+                        }
+                    )
+            result[name] = yaml.safe_dump(document, sort_keys=False)
+            continue
+        asn = node["bgp"]["as"]
+        lines = [f"router bgp {asn}"]
+        if node["device"] == "frr":
+            for policy in ("BGP-IN-ipv4", "BGP-OUT-ipv4"):
+                if not re.search(rf"^route-map {policy} ", result[name], re.M):
+                    raise ValueError("Missing upstream iBGP admission policy")
+            lines.append(" address-family ipv4 unicast")
+            for peer in peers:
+                lines.extend(
+                    [
+                        f"  neighbor {peer} route-map BGP-IN-ipv4 in",
+                        f"  neighbor {peer} route-map BGP-OUT-ipv4 out",
+                    ]
+                )
+            lines.append(" exit-address-family")
+        elif node["device"] == "iosxr":
+            for policy in ("BGP-IN", "BGP-OUT"):
+                if not re.search(rf"^route-policy {policy}$", result[name], re.M):
+                    raise ValueError("Missing upstream iBGP admission policy")
+            for peer in peers:
+                lines.extend(
+                    [
+                        f" neighbor {peer}",
+                        "  address-family ipv4 unicast",
+                        "   route-policy BGP-IN in",
+                        "   route-policy BGP-OUT out",
+                        "  !",
+                        " !",
+                    ]
+                )
+        else:
+            raise ValueError("Unsupported iBGP policy-binding device")
+        result[name] += "\n" + "\n".join(lines) + "\n!\n"
+    return result

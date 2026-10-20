@@ -35,7 +35,7 @@ def _bgp_failures(
     def missing(item: tuple[str, Sequence[str]]) -> list[str]:
         router, peers = item
         summary = exec_or_empty(
-            runtime, router, "vtysh -c 'show bgp summary'", timeout=20
+            runtime, router, "vtysh -c 'show bgp summary json'", timeout=20
         )
         return sorted(set(peers) - frr_bgp_established_peers(summary))
 
@@ -75,7 +75,8 @@ def _service_commands(dns_servers, web_urls):
 
 def _collect(runtime, bgp_neighbors, client_addresses, dns_servers=(), web_urls=()):
     commands = [
-        VerifyCommand(router, "vtysh -c 'show bgp summary'") for router in bgp_neighbors
+        VerifyCommand(router, "vtysh -c 'show bgp summary json'")
+        for router in bgp_neighbors
     ]
     for client in client_addresses:
         commands.append(VerifyCommand(client, "ip -4 -o addr show dev eth0", 10))

@@ -57,12 +57,6 @@ from nika.workflows.validation.routing_spec import (
 
 def _profile_limitations(deployment, features):
     reasons = []
-    if (
-        deployment["igp"] == "isis"
-        and deployment["bgp_mode"] == "ebgp"
-        and deployment["device_profile"] == "frr"
-    ):
-        reasons.append("FRR IS-IS with eBGP policy projection remains required")
     if (deployment["backend"], deployment["device_profile"]) not in {
         ("kathara", "frr"),
         ("kathara", "iosxr"),
@@ -255,7 +249,6 @@ def build_benchmark_isp_experiment(
         )
     if (
         plan.igp not in {"ospf", "isis"}
-        or (plan.igp == "isis" and env.bgp_mode == "ebgp" and not srl)
         or (env.backend != "kathara" and not srl)
         or env.bgp_mode not in {"none", "ebgp", "ibgp_rr"}
     ):
@@ -1077,14 +1070,23 @@ def build_benchmark_isp_experiment(
             )
         else:
             instance = mutated["srl_nokia-network-instance:network-instance"][0]
-            igp = instance["protocols"]["srl_nokia-isis:isis"]["instance"][0]
-            loopback_row = next(
-                i for i in igp["interface"] if i["interface-name"] == "system0.0"
+            igp = instance["protocols"][f"srl_nokia-{plan.igp}:{plan.igp}"]["instance"][
+                0
+            ]
+            rows = (
+                igp["interface"] if plan.igp == "isis" else igp["area"][0]["interface"]
             )
+            loopback_row = next(i for i in rows if i["interface-name"] == "system0.0")
             old_announcement = indent(
-                yaml.safe_dump([loopback_row], sort_keys=False), " " * 8
+                yaml.safe_dump([loopback_row], sort_keys=False),
+                " " * (8 if plan.igp == "isis" else 10),
             )
-            path = "/network-instance default protocols isis instance default interface system0.0"
+            path = (
+                f"/network-instance default protocols {plan.igp} instance {igp['name']}"
+            )
+            if plan.igp == "ospf":
+                path += " area " + igp["area"][0]["area-id"]
+            path += " interface system0.0"
             withdraw_native = ("enter candidate", f"delete {path}", "commit now")
             recover_native = ("enter candidate", f"{path} passive true", "commit now")
         static_replacement = ""

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import json
 
 import pytest
 from tests.support.net_env import stub_verify_collection  # noqa: F401
@@ -139,8 +140,24 @@ HOST_ADDRS = {
 }
 
 
-def _bgp_summary(established: list[str], idle: tuple[str, ...] = ()) -> str:
+def _bgp_summary(
+    established: list[str], idle: tuple[str, ...] = (), *, json_output=False
+) -> str:
     """Render FRR ``show bgp summary`` with Established and Idle neighbors."""
+    if json_output:
+        return json.dumps(
+            {
+                "ipv4Unicast": {
+                    "peers": {
+                        **{
+                            p: {"state": "Established", "hostname": "router"}
+                            for p in established
+                        },
+                        **{p: {"state": "Idle"} for p in idle},
+                    }
+                }
+            }
+        )
     rows = [f"{peer} 4 65000 25 9 6 0 0 00:00:30 5 1 N/A" for peer in established]
     rows += [f"{peer} 4 65000 0 0 0 0 0 never Idle 0 N/A" for peer in idle]
     return (
@@ -165,7 +182,9 @@ def _dc_clos_lab(
     for router, peers in lab.bgp_neighbors.items():
         down = tuple(p for p in peers if idle == (router, p))
         up = [p for p in peers if p not in down]
-        summaries[router, "vtysh -c 'show bgp summary'"] = _bgp_summary(up, down)
+        summaries[router, "vtysh -c 'show bgp summary json'"] = _bgp_summary(
+            up, down, json_output=True
+        )
     return lab, summaries
 
 
@@ -262,13 +281,16 @@ class FakeRuntime:
             return '{"hosts":[]}'
         if command.startswith("ip neigh show"):
             return "10.0.1.1 lladdr 02:00:00:00:00:01 REACHABLE"
-        if command == "vtysh -c 'show bgp summary'":
+        if command in {
+            "vtysh -c 'show bgp summary'",
+            "vtysh -c 'show bgp summary json'",
+        }:
             # Established numbered peers (enterprise_branch /30 tunnels),
             # unnumbered k8s_lab fabric peers, and the k8s_lab AS1-AS2 link.
             peers = [f"172.30.0.{i}" for i in range(1, 40)]
             peers += [f"peer({iface})" for iface in ("eth0", "eth1", "eth2", "eth3")]
             peers += ["10.0.4.1", "10.0.4.2"]
-            return _bgp_summary(peers)
+            return _bgp_summary(peers, json_output="json" in command)
         if command == "vtysh -c 'show ip bgp'":
             return (
                 "*> 10.0.10.0/24\n*> 10.0.20.0/24\n"

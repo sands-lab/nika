@@ -120,6 +120,30 @@ def test_snapshot_writes_router_only_edges_and_interface_aliases(tmp_path):
     }
 
 
+def test_snapshot_projects_ordinary_isis_ebgp_configs(tmp_path):
+    from nika.net_env.isp.bgp.frr import merge_frr_conf, render_bgp_frr_fragment
+
+    env = load_offline_net_env(
+        "isp_abilene", igp="isis", bgp_mode="ebgp", backend="kathara"
+    )
+    bgp_nodes = {node.device_name: node for node in env.bgp_plan.nodes}
+    configs = {
+        node.device_name: merge_frr_conf(
+            node.frr_conf,
+            render_bgp_frr_fragment(bgp_nodes[node.device_name], env.bgp_plan),
+        )
+        for node in env.plan.nodes
+    }
+
+    snapshot = build_isis_snapshot(
+        env, env.validation_contract, tmp_path, configs=configs
+    )
+
+    projected = (snapshot.path / "configs" / "atlam5.cfg").read_text()
+    assert "router bgp " in projected
+    assert "next-hop-self" in projected
+
+
 def test_snapshot_rejects_static_route_startup(tmp_path):
     env = load_offline_net_env(
         "isp_abilene", igp="isis", bgp_mode="none", backend="kathara"
@@ -212,3 +236,20 @@ def test_isis_evaluator_rejects_wrong_parallel_counterpart():
     assert not passed
     assert matched == []
     assert violations == edges
+
+
+def test_isis_snapshot_preserves_a_registered_local_asn_fault(tmp_path):
+    env = load_offline_net_env(
+        "isp_abilene", igp="isis", bgp_mode="ibgp_rr", backend="kathara"
+    )
+    configs = dict(env.deployment_configs)
+    node = env.bgp_plan.nodes[0]
+    configs[node.device_name] = configs[node.device_name].replace(
+        f"router bgp {node.asn}\n", f"router bgp {node.asn + 600}\n"
+    )
+    snapshot = build_isis_snapshot(
+        env, env.validation_contract, tmp_path, configs=configs
+    )
+    projected = (snapshot.path / "configs" / f"{node.device_name}.cfg").read_text()
+    assert f"router bgp {node.asn + 600}" in projected
+    assert f"remote-as {node.asn}" in projected

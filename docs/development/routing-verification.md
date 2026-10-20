@@ -20,7 +20,7 @@ Public graph + authored behavior + fixed routing sketch
 
 1. **Specify behavior.** Typed requirements name permitted paths, exact ECMP sets, BGP candidate order, adjacencies and communication or isolation. Requirements and incident expectations precede synthesis. Fixed addressing and session bindings resolve them to concrete `ValidationIntent` predicates.
 2. **Complete supported parameters.** [NetComplete's partial-synthesis formulation](https://netcomplete.ethz.ch/files/netcomplete-nsdi2018.pdf) supplies the method: retain a routing sketch and solve its unknown configuration values. NIKA delegates supported path costs, export decisions and import preferences to the pinned upstream implementation. Solver output cannot redefine the requirements.
-3. **Generate configurations.** Bind the completed parameters to the original graph, protocols and services. The optional netlab ISP path delegates topology transformation and vendor syntax to upstream netlab. Existing NIKA constructors cover the other supported designs. Generation supplies a candidate; independent checks establish acceptance.
+3. **Generate configurations.** Bind the completed parameters to the original graph, protocols and services. The optional netlab construction path delegates topology transformation and vendor syntax to upstream netlab. NIKA retains topology, services and the documented features outside the upstream templates. Generation supplies a candidate; independent checks establish acceptance.
 4. **Check the candidate independently.** Batfish parses the final configuration or an explicitly restricted projection and evaluates the original predicates. Required errors, unsupported results and violations reject the candidate. Counterexamples must violate their independently declared predicate sets.
 5. **Check execution.** Native protocol, route and flow observations evaluate the same requirements. Runtime-only requirements cover properties outside the static model, including the evaluated FRR ECMP installation limit and enterprise overlay behavior.
 6. **Validate the incident.** Normal NIKA failure injection must produce its declared effects. Modeled configuration faults must also reproduce Batfish's predicted violation set. Recovery must restore the complete original healthy requirements.
@@ -250,51 +250,66 @@ netlab. Upstream topology transformation derives the BGP sessions, and upstream
 interface, IGP, BGP and routing-policy templates generate the device commands.
 A derived session set that differs from the fixed sketch is rejected.
 
-The supported construction scope is Kathara FRR and IOS XR ISP plans using IPv4
-OSPF, with no BGP, iBGP RR, or ordinary eBGP. Prefix lists and per-prefix
-local-preference use netlab's [routing module](https://netlab.tools/module/routing/)
-and [BGP policy plugin](https://netlab.tools/plugins/bgp.policy/). OSPF costs must
-fit upstream's 1–65,534 range. FRR IPv4 Level-2 IS-IS with optional ordinary iBGP
-RR uses the same adapter and workflow: NetComplete solves the declared additive
-shortest-path requirements, and netlab generates IS-IS NETs, interfaces and wide metrics from
-the fixed inputs. NIKA supplies the existing NET identities and passive-loopback
-setting through upstream topology inputs. The concrete IS-IS/BGP model supports
-connected business prefixes and same-AS RR sessions. IS-IS with eBGP remains
-outside that model.
+The same construction path covers these existing routing sketches:
 
-Security overlays and registered configuration-failure bindings are not covered;
-the experiment retains its declared negative controls and link incidents. RouterOS7 lacks
-upstream generic routing policies; SR Linux still needs an adapter for deploying
-netlab's native CLI through NIKA's document-based backend. These profiles retain
-the existing implementation and are rejected when netlab generation is requested.
-No automatic fallback substitutes a different generator.
+| Sketch | Configuration generation | Retained NIKA responsibilities |
+| --- | --- | --- |
+| ISP FRR and SR Linux | OSPF or Level-2 IS-IS; no BGP, iBGP RR or ordinary eBGP | Fixed topology and protocol choices; SR Linux IGP ECMP capacity |
+| ISP IOS XR and RouterOS | OSPF; no BGP, iBGP RR or eBGP | RouterOS exact-prefix filters and local preference |
+| Clos and campus FRR | Ethernet OSPF or eBGP, including solved export policies | Linux addressing, switching and services |
+| Enterprise FRR | Tunnel-endpoint BGP and prefix/preference policies | WireGuard lifecycle and existing default-to-business VRF imports |
+| SR Linux BGP fabric | IPv4 BGP and solved export policies | Existing IPv6 interface addressing |
+| Direct IOS XR and RouterOS BGP | Fixed addressed peers and connected origins | RouterOS exact-prefix export filters |
+| FRR OSPF/eBGP security profiles | Base interfaces, protocols, origins and ordinary policies | Existing RPKI/RTBH policy fragments and runtime attachments |
 
-The construction saves `netlab/topology.yml`, the transformed topology, upstream
-configuration fragments and the final `candidate-configs`. Batfish checks those
-final configurations. For FRR, snapshot import normalizes the interface-level
-`ip ospf passive` command to `passive-interface` for the pinned parser, using
-[FRR's documented semantics](https://docs.frrouting.org/en/stable-10.2/ospfd.html).
-This normalization is limited to one default-table OSPF process without mixed
-passive syntaxes. For IS-IS, the existing concrete FRR-to-IOS-XR projection reads
-the generated interface blocks, including separately emitted address and protocol
-blocks. It retains point-to-point network type, metrics, passivity and NET identity.
-The projection accepts the `level-2` CLI abbreviation and excludes the emitted
-logging, dynamic-hostname and LSP-timer commands from its steady-state model;
-[FRR's IS-IS documentation](https://docs.frrouting.org/en/stable-10.2/isisd.html)
-defines the routing commands, and its [timer implementation](https://github.com/FRRouting/frr/blob/stable/10.5/isisd/isis_cli.c)
-defines the combined LSP-timer syntax.
-For IS-IS+iBGP RR, the parser separates interleaved concrete protocol blocks and
-retains origins, ASNs, peer addresses, source interfaces and RR roles.
-The model covers prefix-only policy and connected origins. Netlab's display,
-community-export and AS-path multipath defaults do not affect route selection
-within this subset: the sessions remain inside one AS and carry empty AS paths.
-Configurations combining those AS-path defaults with external peers are rejected.
-Both paths read candidate commands, including mutations. Native validation deploys
-the generated configuration through the ordinary NIKA
-startup API and evaluates the original predicates, negative controls, link loss
-and recovery. Negative-control command bindings follow the emitted syntax while
-their expected violation sets remain fixed. The successful build loader reuses
-the saved configurations, rather than regenerating a candidate at startup.
+NetComplete supplies the solved values; netlab supplies protocol and policy syntax.
+Prefix filters and local preference use upstream's [routing module](https://netlab.tools/module/routing/)
+and [BGP policy plugin](https://netlab.tools/plugins/bgp.policy/). The latter binds
+eBGP policies only. NIKA attaches the same upstream-generated admission policies
+to the actual iBGP peers in the fixed ISP sketch. RouterOS lacks this generic
+policy module, so NIKA retains its existing finite filter implementation.
+The summary records these retained configuration responsibilities. Unsupported
+protocol or policy combinations raise an error.
+
+The pinned RouterOS BGP template needs bounded compatibility corrections for
+community property names and the loopback source address. The runner applies
+the names documented in [RouterOS Route Selection and Filters](https://help.mikrotik.com/docs/spaces/ROS/pages/74678285/Route%2BSelection%2Band%2BFilters)
+and binds the source to the explicit loopback address. FRR policies retain the
+existing incident-facing names; maximum-prefix injection selects the policies
+actually attached to peers, including solved import policies.
+
+The construction saves the input topology, transformed model, upstream fragments
+and final candidate configurations. Batfish evaluates the final candidates against
+the original predicates. Native execution deploys those same candidates through
+NIKA's ordinary lifecycle and checks the original behavior, declared negative
+controls, outages and recovery. Bindings select the corresponding command or
+configuration object in the new syntax; they preserve the original violation sets.
+The saved-build loader reads the accepted candidates without invoking the tools.
+
+The static models remain explicit about their scope:
+
+- FRR OSPF/BGP and IOS XR use Batfish's native parsers. FRR passive-interface
+  normalization follows [the FRR OSPF command semantics](https://docs.frrouting.org/en/stable-10.2/ospfd.html).
+- FRR IS-IS uses a restricted concrete IPv4 Level-2 projection to IOS XR. Its BGP
+  projection preserves origins, source interfaces, ASNs, RR roles, prefix admission
+  and local preference. The eBGP subset also preserves policy defaults and AS-path
+  multipath eligibility from the [FRR BGP commands](https://docs.frrouting.org/en/latest/bgp.html).
+- SR Linux analysis expands concrete group inheritance and ordered policies from
+  the generated configuration tree. Default values follow the pinned
+  [SR Linux 24.10 YANG models](https://github.com/nokia/srlinux-yang-models/tree/v24.10.1/srlinux-yang-models/srl_nokia/models).
+  NIKA assembles upstream path/value operations in order and rejects unsupported
+  operations. Both native execution and static projection consume that assembled tree.
+- RouterOS analysis resolves actual templates, connection updates and finite prefix
+  filters according to the [RouterOS BGP configuration model](https://help.mikrotik.com/docs/spaces/ROS/pages/328220/BGP).
+  It excludes community housekeeping from the IPv4 route model; it does not claim
+  verification of general community policy.
+
+Unknown routing attributes fail the restricted projections. Enterprise business
+VRF forwarding and WireGuard behavior remain native obligations. IPv6 routing,
+arbitrary redistribution, overlays and global convergence are outside these models.
+The pinned SR Linux dual-stack BGP template repeats a YAML address-family key;
+this IPv4 workflow supplies IPv4 routing inputs and retains the original IPv6
+interface data. It rejects duplicate YAML fields rather than dropping one family.
 
 This delegates configuration transformation and syntax to an established tool;
 it does not add a compiler-correctness claim. Acceptance continues to come from

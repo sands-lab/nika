@@ -94,25 +94,15 @@ def _route_maps(
     )
     if rtbh_import_policy and blackhole_community and discard_next_hop:
         lines.extend(
-            [
-                f"bgp community-list standard BH-SIGNAL permit {blackhole_community}",
-                "!",
-                "route-map BGP-IN permit 5",
-                " match ip address prefix-list BUSINESS",
-                " match community BH-SIGNAL",
-                " set local-preference 200",
-                f" set ip next-hop {discard_next_hop}",
-                "!",
-            ]
+            _rtbh_import_route_map(
+                "BGP-IN",
+                prefix_list="BUSINESS",
+                blackhole_community=blackhole_community,
+                discard_next_hop=discard_next_hop,
+            )
         )
     if rov_reject_invalid:
-        lines.extend(
-            [
-                "route-map BGP-IN deny 5",
-                " match rpki invalid",
-                "!",
-            ]
-        )
+        lines.extend(_rpki_reject_route_map("BGP-IN"))
     lines.extend(
         [
             "route-map BGP-IN permit 10",
@@ -127,6 +117,8 @@ def _route_maps(
 
 def _leaker_outbound_route_maps(
     outbound_maps: tuple[tuple[str, str], ...],
+    *,
+    prefix_list: str = "BUSINESS",
 ) -> list[str]:
     if not outbound_maps:
         return []
@@ -136,13 +128,37 @@ def _leaker_outbound_route_maps(
         lines.extend(
             [
                 f"route-map {name} permit 10",
-                " match ip address prefix-list BUSINESS",
+                f" match ip address prefix-list {prefix_list}",
                 "!",
                 f"route-map {name} deny 20",
                 "!",
             ]
         )
     return lines
+
+
+def _rpki_reject_route_map(name: str, sequence: int = 5) -> list[str]:
+    return [f"route-map {name} deny {sequence}", " match rpki invalid", "!"]
+
+
+def _rtbh_import_route_map(
+    name: str,
+    *,
+    prefix_list: str,
+    blackhole_community: str,
+    discard_next_hop: str,
+    sequence: int = 5,
+) -> list[str]:
+    return [
+        f"bgp community-list standard BH-SIGNAL permit {blackhole_community}",
+        "!",
+        f"route-map {name} permit {sequence}",
+        f" match ip address prefix-list {prefix_list}",
+        " match community BH-SIGNAL",
+        " set local-preference 200",
+        f" set ip next-hop {discard_next_hop}",
+        "!",
+    ]
 
 
 def _rtbh_discard_static(discard_next_hop: str | None) -> list[str]:

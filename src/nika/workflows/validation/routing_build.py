@@ -63,7 +63,8 @@ def load_routing_build(directory: Path) -> dict:
     if summary.get("configuration", {}).get("generator") == "netlab":
         configs = {
             p.stem: p.read_text()
-            for p in (directory / "candidate-configs").glob("*.conf")
+            for p in (directory / "candidate-configs").glob("*")
+            if p.suffix in {".conf", ".yaml"}
         }
     if configs == {}:
         raise FileNotFoundError(

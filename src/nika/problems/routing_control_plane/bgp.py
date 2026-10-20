@@ -922,20 +922,16 @@ class BGPBlackholeCommunityLeak(ProblemBase):
         )
 
     def _bgp_sessions_established(self, devices: list[str]) -> bool:
-        for device in devices:
-            summary = self.runtime.exec(
-                device, "vtysh -c 'show bgp summary' 2>/dev/null || true"
+        from nika.net_env.verify import frr_bgp_established_peers
+
+        return all(
+            frr_bgp_established_peers(
+                self.runtime.exec(
+                    device, "vtysh -c 'show bgp summary json' 2>/dev/null || true"
+                )
             )
-            peers_up = False
-            for line in summary.splitlines():
-                fields = line.split()
-                if len(fields) >= 10 and fields[0].count(".") == 3:
-                    if fields[9].isdigit() or fields[9] == "Established":
-                        peers_up = True
-                        break
-            if not peers_up:
-                return False
-        return True
+            for device in devices
+        )
 
     def _origin_preserved(
         self,
@@ -1500,15 +1496,13 @@ class BGPMaxPrefixExceeded(ProblemBase):
             if match:
                 return int(match.group(1))
         summary = self.runtime.exec(
-            router, "vtysh -c 'show bgp summary' 2>/dev/null || true"
+            router, "vtysh -c 'show bgp summary json' 2>/dev/null || true"
         )
-        for line in summary.splitlines():
-            fields = line.split()
-            if not fields or fields[0] != neighbor_ip:
-                continue
-            if len(fields) >= 10 and fields[-1].isdigit():
-                return int(fields[-1])
-        return 0
+        try:
+            peers = json.loads(summary).get("ipv4Unicast", {}).get("peers", {})
+            return int(peers.get(neighbor_ip, {}).get("pfxRcd", 0))
+        except (ValueError, TypeError, AttributeError):
+            return 0
 
     def _business_prefix_missing(self, receiver: str, peer: str) -> bool:
         bgp = self._bgp_inventory()
@@ -1540,37 +1534,58 @@ class BGPMaxPrefixExceeded(ProblemBase):
                 missing += 1
         return missing == len(peer_prefixes)
 
-    def _install_flood_policy(self, device: str) -> None:
-        cmd = (
-            "vtysh -c 'configure terminal' "
-            f"-c 'ip prefix-list {_FLOOD_PREFIX_LIST} seq 5 permit 198.19.0.0/16 le 24' "
-            "-c 'route-map BGP-OUT permit 1' "
-            f"-c 'match ip address prefix-list {_FLOOD_PREFIX_LIST}' "
-            "-c 'route-map BGP-IN permit 1' "
-            f"-c 'match ip address prefix-list {_FLOOD_PREFIX_LIST}' "
-            "-c 'end'"
+    def _flood_policy_maps(self, device: str) -> list[str]:
+        config = self.runtime.exec(device, "vtysh -c 'show running-config'")
+        maps = sorted(
+            set(
+                re.findall(
+                    r"^\s*neighbor \S+ route-map ([A-Za-z0-9_.-]+) (?:in|out)$",
+                    config,
+                    re.M,
+                )
+            )
         )
-        self.runtime.exec(device, cmd)
+        if not maps:
+            raise RuntimeCapabilityError(
+                "BGP flood setup requires bound import/export policies"
+            )
+        return maps
+
+    def _install_flood_policy(self, device: str) -> None:
+        # Include solved import policies, not only the baseline policy names.
+        parts = [
+            "vtysh",
+            "-c 'configure terminal'",
+            f"-c 'ip prefix-list {_FLOOD_PREFIX_LIST} seq 5 permit 198.19.0.0/16 le 24'",
+        ]
+        for policy in self._flood_policy_maps(device):
+            parts.extend(
+                [
+                    f"-c 'route-map {policy} permit 1'",
+                    f"-c 'match ip address prefix-list {_FLOOD_PREFIX_LIST}'",
+                ]
+            )
+        parts.append("-c 'end'")
+        self.runtime.exec(device, " ".join(parts))
 
     def _remove_flood_policy(self, device: str) -> None:
-        cmd = (
-            "vtysh -c 'configure terminal' "
-            "-c 'no route-map BGP-OUT permit 1' "
-            "-c 'no route-map BGP-IN permit 1' "
-            f"-c 'no ip prefix-list {_FLOOD_PREFIX_LIST}' "
-            "-c 'end'"
+        parts = ["vtysh", "-c 'configure terminal'"]
+        parts.extend(
+            f"-c 'no route-map {policy} permit 1'"
+            for policy in self._flood_policy_maps(device)
         )
-        self.runtime.exec(device, cmd)
+        parts.extend([f"-c 'no ip prefix-list {_FLOOD_PREFIX_LIST}'", "-c 'end'"])
+        self.runtime.exec(device, " ".join(parts))
 
     def _flood_prefixes(self, count: int) -> list[str]:
         return [f"{_FLOOD_PREFIX_BASE}.{i}.0/24" for i in range(count)]
 
     def _advertise_flood(self, peer: str, asn: int, prefixes: list[str]) -> None:
-        parts = [
-            "vtysh -c 'configure terminal'",
-            f"-c 'router bgp {asn}'",
-            "-c 'address-family ipv4 unicast'",
-        ]
+        # Back each test announcement with a route so origination works with
+        # FRR's network import check enabled as well as legacy configurations.
+        parts = ["vtysh -c 'configure terminal'"]
+        parts.extend(f"-c 'ip route {prefix} Null0'" for prefix in prefixes)
+        parts += [f"-c 'router bgp {asn}'", "-c 'address-family ipv4 unicast'"]
         for prefix in prefixes:
             parts.append(f"-c 'network {prefix}'")
         parts.extend(["-c 'end'", "-c 'write memory'"])
@@ -1587,6 +1602,8 @@ class BGPMaxPrefixExceeded(ProblemBase):
         ]
         for prefix in prefixes:
             parts.append(f"-c 'no network {prefix}'")
+        parts += ["-c 'exit-address-family'", "-c 'exit'"]
+        parts.extend(f"-c 'no ip route {prefix} Null0'" for prefix in prefixes)
         parts.extend(["-c 'end'", "-c 'write memory'"])
         self.runtime.exec(peer, " ".join(parts))
 

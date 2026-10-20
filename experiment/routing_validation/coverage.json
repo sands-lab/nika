@@ -1,5 +1,5 @@
 {
-  "date": "2026-10-19",
+  "date": "2026-10-20",
   "scope": "Recorded executions, including the native ISP profile extension. Use the experiment commands and retained regressions to reproduce on the current revision. Counts cover declared requirements and incidents, not all network behavior.",
   "isp": {
     "registered_default_profiles_static": 289,
@@ -117,7 +117,7 @@
     },
     "netlab_construction": {
       "version": "26.10",
-      "scope": "Kathara FRR/IOS XR IPv4 OSPF with optional ordinary iBGP RR/eBGP; FRR IPv4 Level-2 IS-IS with optional ordinary iBGP RR; no security overlays or registered configuration-failure bindings",
+      "scope": "Capability-based generation for existing FRR, IOS XR, Nokia SR Linux and RouterOS routing sketches. OSPF on all four profiles; Level-2 IPv4 IS-IS on FRR and SR Linux; optional iBGP RR/eBGP. FRR OSPF/eBGP security profiles retain existing security fragments. Native acceptance checks original predicates, declared negative controls, outages and recovery.",
       "offline_generation": {
         "topologies": [
           "arpanet196912",
@@ -144,83 +144,23 @@
       },
       "completed_native_runs": [
         {
-          "scenario": "isp_arpanet196912",
-          "device_profile": "frr",
-          "bgp_mode": "none",
-          "healthy_predicates": 20,
-          "link_down_predicates": 19,
-          "recovered_predicates": 20,
-          "predeclared_counterexamples_verified": true,
-          "igp": "ospf"
-        },
-        {
-          "scenario": "isp_arpanet196912",
-          "device_profile": "iosxr",
-          "bgp_mode": "none",
-          "healthy_predicates": 20,
-          "link_down_predicates": 19,
-          "recovered_predicates": 20,
-          "predeclared_counterexamples_verified": true,
-          "igp": "ospf"
-        },
-        {
-          "scenario": "isp_arpanet196912",
-          "device_profile": "frr",
-          "bgp_mode": "ibgp_rr",
-          "healthy_predicates": 36,
-          "link_down_predicates": 35,
-          "recovered_predicates": 36,
-          "predeclared_counterexamples_verified": true,
-          "igp": "ospf"
-        },
-        {
-          "scenario": "isp_arpanet196912",
-          "device_profile": "iosxr",
-          "bgp_mode": "ibgp_rr",
-          "healthy_predicates": 36,
-          "link_down_predicates": 35,
-          "recovered_predicates": 36,
-          "predeclared_counterexamples_verified": true,
-          "igp": "ospf"
-        },
-        {
-          "scenario": "isp_dataxchange",
-          "device_profile": "frr",
-          "bgp_mode": "ebgp",
-          "healthy_predicates": 62,
-          "link_down_predicates": 60,
-          "recovered_predicates": 62,
-          "predeclared_counterexamples_verified": true,
-          "igp": "ospf"
-        },
-        {
-          "scenario": "isp_dataxchange",
-          "device_profile": "iosxr",
-          "bgp_mode": "ebgp",
-          "healthy_predicates": 62,
-          "link_down_predicates": 60,
-          "recovered_predicates": 62,
-          "predeclared_counterexamples_verified": true,
-          "igp": "ospf"
-        },
-        {
-          "scenario": "isp_arpanet196912",
+          "scenario": "isp_abilene",
           "device_profile": "frr",
           "igp": "isis",
-          "bgp_mode": "none",
-          "healthy_predicates": 20,
-          "link_down_predicates": 19,
-          "recovered_predicates": 20,
+          "bgp_mode": "ebgp",
+          "healthy_predicates": 133,
+          "link_down_predicates": 133,
+          "recovered_predicates": 133,
           "predeclared_counterexamples_verified": true
         },
         {
-          "scenario": "isp_dataxchange",
+          "scenario": "isp_abilene",
           "device_profile": "frr",
           "igp": "isis",
-          "bgp_mode": "none",
-          "healthy_predicates": 43,
-          "link_down_predicates": 41,
-          "recovered_predicates": 43,
+          "bgp_mode": "ibgp_rr",
+          "healthy_predicates": 148,
+          "link_down_predicates": 153,
+          "recovered_predicates": 148,
           "predeclared_counterexamples_verified": true
         },
         {
@@ -234,6 +174,65 @@
           "predeclared_counterexamples_verified": true
         },
         {
+          "scenario": "isp_abilene",
+          "device_profile": "frr",
+          "igp": "ospf",
+          "bgp_mode": "ebgp",
+          "healthy_predicates": 133,
+          "link_down_predicates": 133,
+          "recovered_predicates": 133,
+          "predeclared_counterexamples_verified": true,
+          "registered_faults": [
+            "bgp_max_prefix_exceeded"
+          ]
+        },
+        {
+          "scenario": "isp_abilene",
+          "device_profile": "nokia_srlinux",
+          "igp": "isis",
+          "bgp_mode": "ebgp",
+          "healthy_predicates": 133,
+          "link_down_predicates": 133,
+          "recovered_predicates": 133,
+          "predeclared_counterexamples_verified": true
+        },
+        {
+          "scenario": "isp_abilene",
+          "device_profile": "nokia_srlinux",
+          "igp": "ospf",
+          "bgp_mode": "none",
+          "healthy_predicates": 100,
+          "link_down_predicates": 76,
+          "recovered_predicates": 100,
+          "predeclared_counterexamples_verified": true
+        },
+        {
+          "scenario": "isp_abilene_ebgp_rpki",
+          "device_profile": "frr",
+          "igp": "ospf",
+          "bgp_mode": "ebgp",
+          "healthy_predicates": 137,
+          "link_down_predicates": 137,
+          "recovered_predicates": 137,
+          "predeclared_counterexamples_verified": true,
+          "registered_faults": [
+            "bgp_rpki_invalid_route_leak"
+          ]
+        },
+        {
+          "scenario": "isp_abilene_ebgp_rtbh",
+          "device_profile": "frr",
+          "igp": "ospf",
+          "bgp_mode": "ebgp",
+          "healthy_predicates": 126,
+          "link_down_predicates": 126,
+          "recovered_predicates": 126,
+          "predeclared_counterexamples_verified": true,
+          "registered_faults": [
+            "bgp_blackhole_community_leak"
+          ]
+        },
+        {
           "scenario": "isp_arpanet196912",
           "device_profile": "frr",
           "igp": "isis",
@@ -241,6 +240,86 @@
           "healthy_predicates": 36,
           "link_down_predicates": 35,
           "recovered_predicates": 36,
+          "predeclared_counterexamples_verified": true
+        },
+        {
+          "scenario": "isp_arpanet196912",
+          "device_profile": "frr",
+          "igp": "isis",
+          "bgp_mode": "none",
+          "healthy_predicates": 20,
+          "link_down_predicates": 19,
+          "recovered_predicates": 20,
+          "predeclared_counterexamples_verified": true
+        },
+        {
+          "scenario": "isp_arpanet196912",
+          "device_profile": "frr",
+          "igp": "ospf",
+          "bgp_mode": "ibgp_rr",
+          "healthy_predicates": 36,
+          "link_down_predicates": 35,
+          "recovered_predicates": 36,
+          "predeclared_counterexamples_verified": true
+        },
+        {
+          "scenario": "isp_arpanet196912",
+          "device_profile": "frr",
+          "bgp_mode": "none",
+          "healthy_predicates": 20,
+          "link_down_predicates": 19,
+          "recovered_predicates": 20,
+          "predeclared_counterexamples_verified": true,
+          "igp": "ospf"
+        },
+        {
+          "scenario": "isp_arpanet196912",
+          "device_profile": "iosxr",
+          "igp": "ospf",
+          "bgp_mode": "ibgp_rr",
+          "healthy_predicates": 36,
+          "link_down_predicates": 35,
+          "recovered_predicates": 36,
+          "predeclared_counterexamples_verified": true
+        },
+        {
+          "scenario": "isp_arpanet196912",
+          "device_profile": "iosxr",
+          "bgp_mode": "none",
+          "healthy_predicates": 20,
+          "link_down_predicates": 19,
+          "recovered_predicates": 20,
+          "predeclared_counterexamples_verified": true,
+          "igp": "ospf"
+        },
+        {
+          "scenario": "isp_arpanet196912",
+          "device_profile": "routeros",
+          "igp": "ospf",
+          "bgp_mode": "ibgp_rr",
+          "healthy_predicates": 36,
+          "link_down_predicates": 35,
+          "recovered_predicates": 36,
+          "predeclared_counterexamples_verified": true
+        },
+        {
+          "scenario": "isp_arpanet196912",
+          "device_profile": "routeros",
+          "igp": "ospf",
+          "bgp_mode": "none",
+          "healthy_predicates": 20,
+          "link_down_predicates": 19,
+          "recovered_predicates": 20,
+          "predeclared_counterexamples_verified": true
+        },
+        {
+          "scenario": "isp_dataxchange",
+          "device_profile": "frr",
+          "igp": "isis",
+          "bgp_mode": "ebgp",
+          "healthy_predicates": 62,
+          "link_down_predicates": 60,
+          "recovered_predicates": 62,
           "predeclared_counterexamples_verified": true
         },
         {
@@ -254,13 +333,53 @@
           "predeclared_counterexamples_verified": true
         },
         {
-          "scenario": "isp_abilene",
+          "scenario": "isp_dataxchange",
           "device_profile": "frr",
           "igp": "isis",
+          "bgp_mode": "none",
+          "healthy_predicates": 43,
+          "link_down_predicates": 41,
+          "recovered_predicates": 43,
+          "predeclared_counterexamples_verified": true
+        },
+        {
+          "scenario": "isp_dataxchange",
+          "device_profile": "frr",
+          "bgp_mode": "ebgp",
+          "healthy_predicates": 62,
+          "link_down_predicates": 60,
+          "recovered_predicates": 62,
+          "predeclared_counterexamples_verified": true,
+          "igp": "ospf"
+        },
+        {
+          "scenario": "isp_dataxchange",
+          "device_profile": "iosxr",
+          "bgp_mode": "ebgp",
+          "healthy_predicates": 62,
+          "link_down_predicates": 60,
+          "recovered_predicates": 62,
+          "predeclared_counterexamples_verified": true,
+          "igp": "ospf"
+        },
+        {
+          "scenario": "isp_dataxchange",
+          "device_profile": "routeros",
+          "igp": "ospf",
+          "bgp_mode": "ebgp",
+          "healthy_predicates": 62,
+          "link_down_predicates": 60,
+          "recovered_predicates": 62,
+          "predeclared_counterexamples_verified": true
+        },
+        {
+          "scenario": "isp_dfn-bwin",
+          "device_profile": "nokia_srlinux",
+          "igp": "isis",
           "bgp_mode": "ibgp_rr",
-          "healthy_predicates": 148,
-          "link_down_predicates": 153,
-          "recovered_predicates": 148,
+          "healthy_predicates": 166,
+          "link_down_predicates": 172,
+          "recovered_predicates": 166,
           "predeclared_counterexamples_verified": true
         }
       ],
@@ -334,6 +453,30 @@
         "restricted_concrete_projection_checked": true,
         "static_predicates_checked": false,
         "native_execution_claim": false
+      },
+      "routeros_catalog_generation": {
+        "base_graphs": 285,
+        "igp": "ospf",
+        "bgp_modes": [
+          "none",
+          "ibgp_rr",
+          "ebgp"
+        ],
+        "variants": 855,
+        "restricted_concrete_projection_checked": true,
+        "static_predicates_checked": false,
+        "native_execution_claim": false
+      },
+      "benchmark_inventory_generation": {
+        "deployment_profiles": 39,
+        "original_configuration_counterexamples": 48,
+        "modeled_registered_faults": 8,
+        "scope": "Original benchmark protocol sketches and completed-configuration bindings with reference metrics. Upstream generation, concrete model import and original fault/negative-control bindings; no solver, Batfish analysis or native execution claim for this inventory pass.",
+        "manifests": [
+          "benchmark/working/cases.yaml",
+          "benchmark/releases/0.2.0/dev.yaml",
+          "benchmark/releases/0.2.0/test.yaml"
+        ]
       }
     }
   },
@@ -345,20 +488,91 @@
       "enterprise",
       "min3clos"
     ],
-    "regression": "tests/nika/validation/test_routing_completion.py::test_completion_configuration_execution_and_registered_failures"
+    "regression": "tests/nika/validation/test_routing_completion.py::test_completion_configuration_execution_and_registered_failures",
+    "netlab_native_runs": [
+      {
+        "specimen": "clos",
+        "scenario": "dc_clos",
+        "healthy_predicates": 14,
+        "additional_native_predicates": 2,
+        "declared_incidents_and_recovery_verified": true
+      },
+      {
+        "specimen": "clos-m",
+        "scenario": "dc_clos",
+        "healthy_predicates": 100,
+        "additional_native_predicates": 2,
+        "declared_incidents_and_recovery_verified": true
+      },
+      {
+        "specimen": "campus",
+        "scenario": "campus_lan",
+        "healthy_predicates": 21,
+        "additional_native_predicates": 0,
+        "declared_incidents_and_recovery_verified": true
+      },
+      {
+        "specimen": "enterprise",
+        "scenario": "enterprise_branch",
+        "healthy_predicates": 4,
+        "additional_native_predicates": 6,
+        "declared_incidents_and_recovery_verified": true
+      },
+      {
+        "specimen": "min3clos",
+        "scenario": "min3clos",
+        "healthy_predicates": 6,
+        "additional_native_predicates": 0,
+        "declared_incidents_and_recovery_verified": true
+      }
+    ]
   },
   "vendors": {
     "FRR": "ISP graphs, Clos, campus and enterprise within their declared model scopes.",
     "Nokia SR Linux": "ISP graphs and min3clos; restricted concrete-configuration projection plus native checks.",
     "Cisco IOS XR": "Two-router direct eBGP and native ISP OSPF/iBGP-RR/multi-AS BGP specimens; native Batfish parser and XRd execution. See completed_native_runs for accepted ISP coverage.",
     "MikroTik RouterOS": "Two-router direct eBGP and native ISP OSPF/iBGP-RR/multi-AS BGP specimens; restricted concrete-configuration projection plus native checks.",
-    "regression": "tests/nika/validation/test_vendor_routing.py"
+    "regression": "tests/nika/validation/test_vendor_routing.py",
+    "netlab_direct_bgp_runs": [
+      {
+        "scenario": "routeros_simple_bgp",
+        "routing_model": "routeros-bgp",
+        "healthy_predicates": 4,
+        "link_loss_and_recovery_verified": true
+      },
+      {
+        "scenario": "iosxr_simple_bgp",
+        "routing_model": "iosxr-bgp",
+        "healthy_predicates": 4,
+        "link_loss_and_recovery_verified": true
+      }
+    ]
   },
   "limitations": [
     "The 289 default profiles were not all executed natively. Historical FRR/SR Linux execution covered 39 benchmark deployment profiles; additional native vendor specimens are listed separately.",
-    "Cisco XRd and RouterOS do not have the general ISP coverage of FRR and SR Linux.",
-    "IS-IS uses a scoped single-level shortest-path reduction. FRR IS-IS with eBGP remains unsupported by the configuration projection.",
+    "Native execution coverage differs by device profile. Offline catalog generation does not establish runtime behavior on unexecuted graphs.",
+    "IS-IS uses a scoped IPv4 single-level shortest-path reduction; its supported BGP subset includes FRR and SR Linux eBGP and route reflection.",
     "Static-only acceptance carries no native execution claim. No universal analyzer/router equivalence or global convergence proof is claimed.",
     "Native IOS XR and RouterOS ISP profiles currently require OSPF and exclude security overlays. Benchmark link_down targets are supported; FRR-specific configuration fault bindings are explicitly rejected. Per-node mixed-vendor deployments remain unimplemented."
-  ]
+  ],
+  "configuration_fault_compatibility": {
+    "configuration_paths": [
+      "existing_generators",
+      "netlab"
+    ],
+    "native_registered_faults": [
+      "ospf_neighbor_missing",
+      "bgp_max_prefix_exceeded",
+      "bgp_blackhole_community_leak"
+    ],
+    "campus_netlab_neighbor_missing": {
+      "full_peers_lost": 1,
+      "recovered_original_predicates": 21
+    },
+    "regressions": [
+      "tests/nika/problems/test_failure_inject_contract.py",
+      "tests/nika/problems/test_bgp_max_prefix_exceeded_e2e.py",
+      "tests/nika/problems/test_bgp_blackhole_community_leak_e2e.py"
+    ]
+  }
 }

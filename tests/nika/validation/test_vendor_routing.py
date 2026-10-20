@@ -80,10 +80,15 @@ def test_routeros_projection_rejects_unmodeled_forwarding():
 
 
 @pytest.mark.integration
+@pytest.mark.parametrize("config_generator", [None, "netlab"])
 @pytest.mark.parametrize("scenario,model", PLATFORMS)
-def test_vendor_netcomplete_and_batfish(scenario, model, tmp_path, netcomplete_image):
+def test_vendor_netcomplete_and_batfish(
+    scenario, model, config_generator, tmp_path, netcomplete_image
+):
     spec = build_direct_bgp_experiment(scenario, routing_model=model)
-    summary = validate_routing_design(spec, tmp_path, image=netcomplete_image)
+    summary = validate_routing_design(
+        spec, tmp_path, image=netcomplete_image, config_generator=config_generator
+    )
     assert summary["status"] == "passed"
     assert summary["validation_scope"] == "static-only"
     assert summary["synthesis"]["parameters"] == {"bgp_exports": 2}
@@ -95,9 +100,10 @@ def test_vendor_netcomplete_and_batfish(scenario, model, tmp_path, netcomplete_i
 
 
 @pytest.mark.e2e
+@pytest.mark.parametrize("config_generator", [None, "netlab"])
 @pytest.mark.parametrize("scenario,model", PLATFORMS)
 def test_native_vendor_completion_execution_and_link_recovery(
-    scenario, model, tmp_path, netcomplete_image
+    scenario, model, config_generator, tmp_path, netcomplete_image
 ):
     import docker
     from docker.errors import ImageNotFound
@@ -114,7 +120,11 @@ def test_native_vendor_completion_execution_and_link_recovery(
         client.close()
     spec = build_direct_bgp_experiment(scenario, routing_model=model)
     summary = validate_routing_design(
-        spec, tmp_path, runtime=True, image=netcomplete_image
+        spec,
+        tmp_path,
+        runtime=True,
+        image=netcomplete_image,
+        config_generator=config_generator,
     )
     assert summary["runtime"]["healthy"]["passed"] == 4
     assert summary["runtime"]["transit-down"]["passed"] == 2

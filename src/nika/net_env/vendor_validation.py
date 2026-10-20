@@ -413,7 +413,11 @@ def _supported_request(intent, platform: str, plan=None) -> VerifyCommand | None
                 else f"/ping address={intent.destination.address} src-address={intent.source.address} count=3 interval=1s"
             )
             return VerifyCommand(
-                intent.source.name, _native_command(platform, command), 15
+                intent.source.name,
+                _native_command(platform, command),
+                # XR CLI startup and concurrent probes need time in addition
+                # to the three per-packet timeouts, especially during outages.
+                30 if platform == "iosxr" else 15,
             )
         return VerifyCommand(
             intent.source.name,

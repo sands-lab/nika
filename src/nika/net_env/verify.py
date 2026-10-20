@@ -749,7 +749,9 @@ def http_ok(runtime: "LabRuntime", host: str, url: str) -> bool:
 def frr_bgp_established(
     runtime: "LabRuntime", router: str, *, min_neighbors: int = 1
 ) -> bool:
-    output = exec_or_empty(runtime, router, "vtysh -c 'show bgp summary'", timeout=20)
+    output = exec_or_empty(
+        runtime, router, "vtysh -c 'show bgp summary json'", timeout=20
+    )
     return len(frr_bgp_established_peers(output)) >= min_neighbors
 
 

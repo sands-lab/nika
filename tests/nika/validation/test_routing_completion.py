@@ -189,17 +189,27 @@ def test_runtime_requirements_cannot_redefine_a_static_predicate(tmp_path):
 
 
 @pytest.mark.e2e
+@pytest.mark.parametrize("config_generator", [None, "netlab"])
 @pytest.mark.parametrize(
     "specimen", ["clos", "clos-m", "campus", "enterprise", "min3clos"]
 )
 def test_completion_configuration_execution_and_registered_failures(
-    specimen, tmp_path, netcomplete_image
+    specimen, config_generator, tmp_path, netcomplete_image
 ):
+    if config_generator:
+        from importlib.util import find_spec
+
+        if find_spec("netsim") is None:
+            pytest.skip("Install the netlab extra for upstream construction")
     spec = RoutingExperiment.model_validate_json(
         (SPECIMENS / f"{specimen}.json").read_text()
     )
     summary = validate_routing_design(
-        spec, tmp_path, runtime=True, image=netcomplete_image
+        spec,
+        tmp_path,
+        runtime=True,
+        image=netcomplete_image,
+        config_generator=config_generator,
     )
     assert summary["status"] == "passed"
     assert summary["validation_scope"] == "static-and-runtime"

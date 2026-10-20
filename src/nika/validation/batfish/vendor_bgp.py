@@ -123,6 +123,8 @@ def project_routeros_bgp(node, config, *, shutdown=()):
     Parse the concrete candidate, including mutations, rather than regenerating
     an idealized configuration from the original requirements or solver result.
     """
+    if "/routing/bgp/template add " in config:
+        return project_routeros_isp(node, config, shutdown=shutdown, require_igp=False)
     addresses, instances, connections, filters = [], [], [], {}
     for line in config.splitlines():
         if not line.strip():
@@ -249,17 +251,18 @@ def build_vendor_snapshot(
                 )
             content = "!! IOS XR Configuration 7.0.0\n" + config
         else:
+            projector = project_routeros_isp if isp else project_routeros_bgp
             content = _cumulus_frr_snapshot(
                 node,
                 "frr version 10.5\nfrr defaults traditional\n"
-                + (project_routeros_isp if isp else project_routeros_bgp)(
-                    node, config, shutdown=disabled
-                ),
+                + projector(node, config, shutdown=disabled),
             )
         (root / "configs" / f"{node}.cfg").write_text(content)
         if isp:
             aliases[node] = {
-                native_name: logical_name
+                native_name
+                if native
+                else routeros_model_interface(native_name): logical_name
                 for logical_name, native_name in env.BGP_INTERFACE_MAP.items()
             }
     # Linux hosts are concrete routed endpoints with their original default routes.
@@ -301,8 +304,13 @@ def build_vendor_snapshot(
             endpoints = [
                 (
                     n,
-                    env.BGP_INTERFACE_MAP[i]
-                    if n in configs and routing_model != "routeros-isp"
+                    (
+                        routeros_model_interface(env.BGP_INTERFACE_MAP[i])
+                        if not native
+                        and (isp or "/routing/bgp/template add " in configs[n])
+                        else env.BGP_INTERFACE_MAP[i]
+                    )
+                    if n in configs
                     else i,
                 )
                 for n, i in endpoints

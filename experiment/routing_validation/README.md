@@ -41,23 +41,25 @@ uv run python experiment/routing_validation/benchmark_isp.py --catalog --output 
 
 `coverage.json` and `results.json` in the output directory distinguish unsupported, prepared and passed profiles. The runner saves progress after each completed profile. Published releases and the working benchmark manifests retain their existing deployment choices.
 
-## Generate ISP configurations with netlab
+## Generate configurations with netlab
 
-For FRR/IOS XR OSPF or FRR Level-2 IS-IS ISP profiles, install
-`uv sync --extra batfish --extra netlab` and add `--config-generator netlab` to either experiment runner.
-The Python workflow accepts the same `config_generator="netlab"` option.
-NetComplete chooses costs and import preferences; upstream netlab transforms the
-fixed topology and generates interfaces, IGP, BGP/RR and routing policies. The
-existing Batfish and native checks still evaluate the original requirements.
+Install `uv sync --extra batfish --extra netlab` and add `--config-generator netlab`
+to either experiment runner. The Python workflow accepts
+`config_generator="netlab"`. NetComplete solves the declared routing choices;
+netlab generates protocol and policy configuration; Batfish and native execution
+check the original requirements.
 
-The scope includes ordinary OSPF-only, OSPF with iBGP RR/eBGP, and FRR IS-IS
-with optional iBGP RR. IS-IS with eBGP, RouterOS,
-SR Linux, security overlays, registered configuration-failure bindings and other
-scenario families are currently rejected
-when this option is selected. The [implementation guide](../../docs/development/routing-verification.md#delegate-configuration-generation-to-netlab)
-explains the upstream limitations and saved artifacts. Omitting the option keeps
-the existing construction path. This is an experiment option, not a NIKA CLI
-command or an automatic change to benchmark cases.
+This path supports the existing ISP, Clos, campus, enterprise and direct-BGP
+routing sketches. ISP devices include FRR, IOS XR, SR Linux and RouterOS within
+their supported protocol scopes. NIKA retains the configuration features missing
+from upstream templates, such as RouterOS filters and enterprise VRF imports;
+the result summary lists these responsibilities. See the
+[configuration generation scope](../../docs/development/routing-verification.md#delegate-configuration-generation-to-netlab)
+for protocol limits and model assumptions.
+
+Omitting the option keeps the existing construction path. Normal benchmark
+startup can reuse saved candidates; it does not run NetComplete, netlab or
+Batfish. This option adds no NIKA CLI command and changes no published tasks.
 
 ## Reuse a saved construction
 
@@ -96,10 +98,10 @@ Batfish checks original predicates against the final candidate configuration. Na
 | Platform or domain | Static analysis | Native obligation |
 | --- | --- | --- |
 | FRR OSPF/BGP | Native configuration parser | Sessions, routes, flows and declared fault/recovery behavior |
-| FRR IS-IS | Restricted translation of concrete IPv4 Level-2 configuration to IOS XR | Original IS-IS and supported iBGP predicates; FRR IS-IS/eBGP is unsupported |
+| FRR IS-IS | Restricted translation of concrete IPv4 Level-2 configuration to IOS XR | Original IS-IS, ordinary iBGP RR and direct eBGP predicates |
 | Nokia SR Linux | Restricted concrete-configuration projection | Original IGP/BGP predicates on SR Linux |
-| Cisco IOS XR | Native parser | Direct two-router eBGP on XRd |
-| MikroTik RouterOS | Restricted IPv4/direct-eBGP projection | Original predicates on RouterOS |
+| Cisco IOS XR | Native parser | Original ISP OSPF/BGP and direct eBGP predicates on XRd |
+| MikroTik RouterOS | Restricted concrete IPv4 OSPF/BGP projection | Original predicates on RouterOS |
 | Enterprise | Explicit static-underlay projection | WireGuard, VRF routing and isolation |
 | Clos ECMP | Routing model | Installed ECMP sets, including FRR multipath limits |
 
@@ -111,7 +113,7 @@ The [coverage record](coverage.json) summarizes earlier executions and their lim
 
 ```bash
 uv run pytest tests/nika/validation -m 'unit or contract' -q
-uv run pytest 'tests/nika/validation/test_routing_completion.py::test_completion_configuration_execution_and_registered_failures[clos]' -q
+uv run pytest 'tests/nika/validation/test_routing_completion.py::test_completion_configuration_execution_and_registered_failures[clos-netlab]' -q
 uv run pytest 'tests/nika/validation/test_benchmark_routing.py::test_as_import_and_igp_completion_preserve_benchmark_failures[isp_abilene-kathara]' -q
 uv run pytest tests/nika/validation/test_vendor_routing.py -m e2e -q
 ```

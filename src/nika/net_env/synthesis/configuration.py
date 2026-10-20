@@ -5,25 +5,41 @@ def apply_routing_configs(env, configs: dict[str, str]) -> None:
     """Bind concrete configuration text without invoking a generator at startup.
 
     The topology, stub hosts and daemon startup remain owned by NIKA. This
-    adapter currently accepts the native text formats exercised by netlab ISP
-    construction, rather than silently ignoring configurations on other labs.
+    adapter installs native text or SR Linux JSON-IETF configuration trees.
     """
-    if (
-        env.backend != "kathara"
-        or getattr(env, "device_profile", None) not in {"frr", "iosxr"}
-        or getattr(env, "plan", None) is None
-        or not hasattr(env, "deployment_configs")
-    ):
+    if env.backend == "containerlab" and getattr(env, "routing_documents", None):
+        from nika.net_env.synthesis.srl_updates import srl_config_document
+
+        if set(configs) != set(env.routing_documents):
+            raise ValueError(
+                "Completed configurations must cover every router exactly once"
+            )
+        documents = {name: srl_config_document(text) for name, text in configs.items()}
+        if isinstance(getattr(type(env), "routing_documents", None), property):
+            env._completed_routing_documents = documents
+        else:
+            env.routing_documents = documents
+        return
+    if env.backend != "kathara" or getattr(env, "device_profile", "frr") not in {
+        "frr",
+        "iosxr",
+        "routeros",
+    }:
         raise ValueError(
-            "Completed configuration deployment requires a Kathara FRR/IOS XR ISP"
+            "Completed configuration deployment requires a supported routing backend"
         )
-    if set(configs) != set(env.deployment_configs) or any(
+    path = getattr(env, "BGP_CONFIG_PATH", "/etc/frr/frr.conf")
+    expected = {
+        name
+        for name, machine in env.lab.machines.items()
+        if machine.fs and machine.fs.exists(path.lstrip("/"))
+    }
+    if set(configs) != expected or any(
         not isinstance(value, str) or not value.strip() for value in configs.values()
     ):
         raise ValueError(
             "Completed configurations must cover every router exactly once"
         )
-    path = getattr(env, "BGP_CONFIG_PATH", "/etc/frr/frr.conf")
     for name, text in configs.items():
         env.lab.machines[name].create_file_from_string(text, path)
     env.deployment_configs = dict(configs)

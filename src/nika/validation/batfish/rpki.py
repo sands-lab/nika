@@ -38,7 +38,8 @@ def project_frr_rpki(config, slurm, *, cache):
         r"^\s*(?:rpki|match rpki (?!invalid$))", config, re.MULTILINE
     ):
         raise ValueError("RPKI cache or policy is outside the fixed-VRP projection")
-    (local_asn,) = re.findall(r"^router bgp ([0-9]+)$", config, re.MULTILINE)
+    # Upstream policy fragments may reopen the same router instance.
+    (local_asn,) = set(re.findall(r"^router bgp ([0-9]+)$", config, re.MULTILINE))
     local_asn = int(local_asn)
     asns = sorted({asn for _, _, asn in vrps if asn})
     names = []
