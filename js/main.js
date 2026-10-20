@@ -102,23 +102,30 @@
 /* ── NAVBAR SCROLL BEHAVIOUR ────────────────────────────────────────────── */
 (function () {
   const navbar = document.getElementById('navbar');
-  function onScroll() {
-    navbar.classList.toggle('scrolled', window.scrollY > 20);
-  }
-  window.addEventListener('scroll', onScroll, { passive: true });
-  onScroll();
-
   // The hero buttons duplicate the navbar links, so keep the navbar hidden
-  // while they are on screen and slide it in once they scroll out of view.
+  // until they have scrolled up behind it. Measured on every scroll frame
+  // (not with an IntersectionObserver, which can miss very fast scrolls).
   const heroCtas = document.querySelector('.hero-ctas');
-  if (!heroCtas || !('IntersectionObserver' in window)) return;
-  new IntersectionObserver(
-    ([entry]) => {
-      const ctasVisible = entry.isIntersecting || entry.boundingClientRect.top > 0;
-      navbar.classList.toggle('nav-hidden', ctasVisible && !navbar.classList.contains('menu-open'));
-    },
-    { rootMargin: '-64px 0px 0px 0px' }
-  ).observe(heroCtas);
+  const NAV_HEIGHT = 64;
+  let ticking = false;
+
+  function update() {
+    ticking = false;
+    navbar.classList.toggle('scrolled', window.scrollY > 20);
+    if (!heroCtas) return;
+    const ctasBelowNav = heroCtas.getBoundingClientRect().bottom > NAV_HEIGHT;
+    navbar.classList.toggle('nav-hidden', ctasBelowNav && !navbar.classList.contains('menu-open'));
+  }
+  function requestUpdate() {
+    if (!ticking) {
+      ticking = true;
+      requestAnimationFrame(update);
+    }
+  }
+  window.addEventListener('scroll', requestUpdate, { passive: true });
+  window.addEventListener('resize', requestUpdate);
+  window.addEventListener('load', requestUpdate);
+  update();
 })();
 
 /* ── MOBILE MENU ─────────────────────────────────────────────────────────── */

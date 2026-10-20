@@ -124,14 +124,15 @@ code {
 }
 .btn-primary:hover { background: #33dcff; transform: translateY(-1px); }
 
-/* Leaderboard call-out: cyan, turning gold on hover. */
+/* Leaderboard call-out: solid gold, lighter on hover. The 1px border keeps
+   it the same height as the outline buttons next to it. */
 .btn-leaderboard {
-  background: var(--cyan);
-  color: #000;
-  transition: background var(--transition), color var(--transition), transform var(--transition);
+  background: #f5c542;
+  color: #1a1305;
+  border: 1px solid #f5c542;
 }
 .btn-leaderboard .icon-trophy { color: currentColor; }
-.btn-leaderboard:hover { background: #f5c542; color: #1a1305; transform: translateY(-1px); }
+.btn-leaderboard:hover { background: #fcd34d; border-color: #fcd34d; transform: translateY(-1px); }
 
 .btn-outline {
   background: transparent;
