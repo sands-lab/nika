@@ -7,8 +7,8 @@ Check generated network configurations against requirements authored before cons
 The shared workflow currently covers the supported ISP profiles, `dc_clos`,
 `campus_lan`, `enterprise_branch`, `min3clos`, `iosxr_simple_bgp`,
 `routeros_simple_bgp`, `sdn_l3_clos`, `p4_dc_fabric` and `p4_dc_gateway`.
-The [coverage record](coverage.json) identifies completed executions; adapter
-support alone does not imply native acceptance for every size, vendor or fault.
+Use the retained test matrices below to reproduce acceptance for a deployment.
+Adapter support alone does not imply native acceptance for every size, vendor or fault.
 
 `k8s_lab` and `llmd_lab` retain their existing runtime checks and are not integrated
 with this specification-driven experiment. For SDN and P4, recorded end-to-end
@@ -164,14 +164,10 @@ for this driver, so the host needs no additional Java installation.
 
 ## Reproduce regression checks
 
-The [coverage record](coverage.json) summarizes earlier executions and their limits.
-
-Distinguish historical generator runs, offline netlab generation and native netlab
-acceptance. The historical 39 benchmark deployment profiles do not imply that all
-39 have passed the new construction path. Native netlab records appear under
-`isp.netlab_construction.completed_native_runs`; compare the full scenario, device
-profile, IGP and BGP mode when assessing coverage. Offline generation and restricted
-model import provide no native acceptance evidence.
+Compare the full scenario, device profile, IGP and BGP mode when assessing
+coverage. Offline generation and model import provide no native acceptance
+evidence. Each experiment saves its own specifications, reports and summary
+under the selected output directory; retain those artifacts with experiment results.
 
 The routing, native-vendor and packet-fabric tests share
 [`assert_scenario_acceptance`](../../tests/support/scenario_validation.py) for

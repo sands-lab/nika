@@ -98,7 +98,15 @@ def assert_scenario_acceptance(
     for failure in spec.failure_checks:
         result = summary["failure_compatibility"][failure.name]
         assert result["problem"] == failure.problem
-        assert set(result["failed_ids"]) == set(failure.expected_failed_ids)
+        expected = set(failure.expected_failed_ids)
+        if failure.static_edits:
+            model = ValidationReport.model_validate_json(
+                (output / f"model-{failure.name}.json").read_text()
+            )
+            predicted = {r.intent for r in model.results if r.status == "failed"}
+            assert expected <= predicted
+            expected = predicted
+        assert set(result["failed_ids"]) == expected
     for name in summary["runtime"]:
         report = check_report(output / f"runtime-{name}.json", runtime_states.get(name))
         assert summary["runtime"][name]["passed"] == len(report.results), name

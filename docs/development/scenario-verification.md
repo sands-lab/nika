@@ -126,7 +126,12 @@ closure. Routing resolution must retain each original predicate unchanged.
 Scenario differences enter through specification builders and parameter matrices;
 protocol-specific assertions supplement the common acceptance criteria.
 
-The [coverage record](../../experiment/scenario_validation/coverage.json) distinguishes 289 statically checked default ISP profiles from 39 natively exercised benchmark deployment profiles. FRR and SR Linux have broader native ISP coverage. The native ISP profile regressions below extend Cisco XRd and RouterOS beyond their original two-router direct-eBGP examples. These counts describe recorded experiments before source cleanup. The retained regressions and experiment inventory reproduce their stated scopes on the current revision.
+Use the benchmark inventory runner and retained test matrices to reproduce
+coverage on the current revision. Compare the complete topology, device profile,
+IGP and BGP mode: offline compilation, static analysis and native acceptance are
+distinct results. Each experiment saves its evidence in the selected output
+directory. The native ISP regressions also cover Cisco XRd and RouterOS beyond
+their original two-router direct-eBGP examples.
 
 The workflow covers declared properties rather than every function of an
 environment. The following boundaries also apply to the experiment inventory:
@@ -134,7 +139,7 @@ environment. The following boundaries also apply to the experiment inventory:
 | Environment family | Specification-driven checks | Remaining execution or coverage boundary |
 | --- | --- | --- |
 | ISP and direct BGP | Original adjacencies, routes, next hops, routing policy and endpoint communication where declared | Native acceptance covers recorded deployment profiles, not every graph/vendor/protocol combination |
-| Clos, campus and min3clos | Declared routing, communication and isolation predicates | Installed ECMP limits require native observations; recorded sizes appear in the coverage record |
+| Clos, campus and min3clos | Declared routing, communication and isolation predicates | Installed ECMP limits require native observations; retained test matrices declare the exercised sizes |
 | Enterprise | Static-underlay communication and declared routing predicates | WireGuard, VRF routing and isolation require native observations |
 | SDN and P4 fabrics | Client-service ICMP and unowned-address isolation, configuration counterexamples and endpoint outages | Recorded native acceptance covers sizes `s` and `m`; P4 stateful services, INT and ECN remain runtime checks |
 | Kubernetes and llmd | Existing readiness and runtime checks only | No integration with this specification-driven experiment and no formal correctness claim |
@@ -148,7 +153,7 @@ NetKAT analyzed Kubernetes policies or application behavior.
 The additional packet-fabric scale experiments recorded the following static
 results. A passed row includes healthy requirements, declared endpoint-outage
 requirements and the exact predeclared configuration-counterexample violation set.
-The coverage record separately lists native acceptance for sizes `s` and `m`.
+Native acceptance also covers sizes `s` and `m`.
 Size `l` has static acceptance only.
 
 | Environment | Size | Healthy / outage predicates | Complete static acceptance |
@@ -187,8 +192,8 @@ uv run pytest tests/nika/validation/test_vendor_isp_workflow.py -m e2e -x -q
 
 The matrix uses ARPANET196912 for OSPF and iBGP route reflection, and DataXchange
 for multi-AS BGP. Each profile follows NetComplete, Batfish, native checks,
-configuration negative controls, link failure and recovery. The coverage record
-lists accepted executions separately from offline configuration compilation.
+configuration negative controls, link failure and recovery. Keep native
+acceptance results separate from offline configuration compilation.
 
 Recorded native examples include:
 

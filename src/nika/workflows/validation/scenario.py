@@ -462,7 +462,6 @@ def validate_scenario_design(
                 "failed_ids": sorted(failed),
             }
         predicted_failures = {}
-        fault_verifier = verifier
         for failure in spec.failure_checks:
             if not failure.static_edits:
                 continue
@@ -484,7 +483,7 @@ def validate_scenario_design(
                     else {"routing_model": spec.routing_model}
                 ),
             )
-            report = fault_verifier.verify(spec.healthy, snapshot)
+            report = verifier.verify(spec.healthy, snapshot)
             report.write(output / ("model-" + failure.name + ".json"))
             failed = {r.intent for r in report.results if r.status == "failed"}
             if (
@@ -496,7 +495,7 @@ def validate_scenario_design(
                     "Modeled fault did not satisfy its original mandatory violations"
                 )
             if failure.requirements:
-                positive = fault_verifier.verify(failure.requirements, snapshot)
+                positive = verifier.verify(failure.requirements, snapshot)
                 accept(positive, output / ("model-" + failure.name + "-state.json"))
             predicted_failures[failure.name] = tuple(sorted(failed))
             summary.setdefault("failure_models", {})[failure.name] = {

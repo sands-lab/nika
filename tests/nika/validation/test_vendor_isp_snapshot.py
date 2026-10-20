@@ -150,7 +150,9 @@ def test_iosxr_concrete_addresses_accept_prefix_and_netmask_notation(address):
 
 @pytest.mark.contract
 @pytest.mark.parametrize("enabled", [False, True])
-def test_frr_passive_import_reads_concrete_candidate_not_original_plan(tmp_path, enabled):
+def test_frr_passive_import_reads_concrete_candidate_not_original_plan(
+    tmp_path, enabled
+):
     import re
 
     from nika.problems.rca.inventory import load_offline_net_env
