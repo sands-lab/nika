@@ -1,6 +1,7 @@
 <div align="center">
 
-<img src="./assets/images/nika-banner.svg" alt="NIKA" width="100%"/>
+<img src="./assets/images/nika-banner-light.svg#gh-light-mode-only" alt="NIKA" width="100%"/>
+<img src="./assets/images/nika-banner.svg#gh-dark-mode-only" alt="NIKA" width="100%"/>
 
 <br />
 
@@ -22,7 +23,22 @@
 
 ## ❓ What is NIKA?
 
-Think about [SWE-Bench](https://github.com/swe-bench/SWE-bench), but for network troubleshooting. [NIKA](https://sands-lab.github.io/nika/), **N**etwork **I**ncident Benchmar**k** for **A**I Agents, is an *open benchmark for agentic evals on network troubleshooting tasks*. NIKA reproduces network incidents across data center and campus networks, enterprise WAN overlays, ISP backbones, SDN and P4 fabrics, Kubernetes clusters, and vendor routing environments. It connects any agent directly to a live network stack while the incident is ongoing, evaluating the ability of the AI agent to troubleshoot the network using network diagnostic tools, switch CLIs, and network telemetry data. You don't need physical hardware to run the benchmark, NIKA is powered by state-of-the-art network emulation backends like [Kathará](https://www.kathara.org/) and [Containerlab](https://containerlab.dev/), so you can run it on your laptop or in the cloud.
+Think about [SWE-Bench](https://github.com/swe-bench/SWE-bench), but for network troubleshooting. [NIKA](https://sands-lab.github.io/nika/), **Network Incident Benchmark for AI Agents**, is an *open benchmark for agentic evals on network troubleshooting tasks*. NIKA reproduces network incidents across data center and campus networks, enterprise WAN overlays, ISP backbones, SDN and P4 fabrics, Kubernetes clusters, and vendor routing environments. It connects any agent directly to a live network stack while the incident is ongoing, evaluating the ability of the AI agent to troubleshoot the network using network diagnostic tools, switch CLIs, and network telemetry data. You don't need physical hardware to run the benchmark, NIKA is powered by state-of-the-art network emulation backends like [Kathará](https://www.kathara.org/) and [Containerlab](https://containerlab.dev/), so you can run it on your laptop or in the cloud.
+
+<p align="center">
+  <a href="https://sands-lab.github.io/nika/leaderboard/#gh-light-mode-only"><img src="./assets/images/nika-leaderboard-banner-light.svg#gh-light-mode-only" alt="🏆 NIKA Leaderboard: compare agents and submit your own" width="432"/></a>
+  <a href="https://sands-lab.github.io/nika/leaderboard/#gh-dark-mode-only"><img src="./assets/images/nika-leaderboard-banner-dark.svg#gh-dark-mode-only" alt="🏆 NIKA Leaderboard: compare agents and submit your own" width="432"/></a>
+</p>
+
+## 🙋 Why NIKA?
+
+NIKA enables the comparison of AI agents for network operations under identical, reproducible conditions. This may help different users:
+
+- 💬 **Network SRE** *"I respond to network incidents every day. I want an AI agent to help, but I can't test it in the production network due to safety concerns."*
+- 💬 **Network Manager** *"A vendor is pitching me an AI solution for network operations. It passes all the offline telecom benchmarks (TeleQnA, TeleLogs, TeleMath, 3GPP-TSG), but I need evidence it can handle live network operations before I sign off."*
+- 💬 **AI Researcher** *"I'm designing a new harness for networking tasks. I need a benchmark to ablate components, measure reproducibly, and compare against published baselines."*
+- 💬 **Applied ML Engineer** *"I want to post-train an open-source model on network troubleshooting and need a structured dataset paired with a rigorous evaluation framework."*
+- 💬 **Contributor** *"I want to publish a twin of my network environment along with the common faults I experience, and see if the community can create an agent better than mine!"*
 
 ## ✨ Features
 
@@ -35,18 +51,6 @@ Think about [SWE-Bench](https://github.com/swe-bench/SWE-bench), but for network
 - **Parallel and remote execution:** Run isolated sessions in parallel to speed up evaluations, or deploy the network on a [remote server](docs/operations/remote.md).
 - **Session inspection:** Review agent actions, logs, and scores in the browser with [`nika inspect`](docs/operations/session-inspect.md).
 - **NIKA SDK:** [Create benchmark tasks](docs/development/creating-benchmark-tasks.md) with new network environments, traffic patterns, and faults.
-
-## 🙋 Why NIKA?
-
-NIKA lets you plug in any LLM or agent framework and measure its operational capability under identical, reproducible conditions.
-
-It helps different users answer questions like:
-
-- 💬 **Network Manager** "A vendor is pitching me an AI solution for network operations. It passes all the standard telecom benchmarks (TeleQnA, TeleLogs, TeleMath, 3GPP-TSG), but I need objective evidence it can handle real incidents before I sign off."
-- 💬 **Network SRE** "I respond to network incidents every day. I want an AI agent to help, but I'm not sure it will understand my topology or make things worse."
-- 💬 **AI Researcher** "I'm designing a new harness for long-horizon network tasks. I need a benchmark to ablate components, measure reproducibly, and compare against published baselines."
-- 💬 **Applied ML Engineer** "I want to fine-tune an open-source model on network troubleshooting and need a structured dataset paired with a rigorous evaluation framework."
-- 💬 **Contributor** "I want to contribute a new network environment or fault type to the community and have it evaluated systematically."
 
 ## 🤖 Overview
 
