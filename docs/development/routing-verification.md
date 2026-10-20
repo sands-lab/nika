@@ -321,91 +321,125 @@ it does not add a compiler-correctness claim. Acceptance continues to come from
 independent checks of the original requirements. The default benchmark path and
 published case definitions do not change.
 
-## Extending verification to SDN and P4
+## SDN and P4 forwarding verification
 
-The reusable method is to specify behavior before construction, check the candidate
-with an independent analyzer, then exercise the same requirements during execution,
-fault injection and recovery. Each domain needs an analyzer for its semantics.
-NetComplete, netlab and Batfish currently serve the routing experiments above.
-The SDN and P4 integrations below are proposed work; existing startup checks do
-not establish the formal properties described here.
-
-The current P4 fabric verifier compares P4Runtime readbacks with the generated
-intent and probes endpoint traffic. Readback consistency confirms deployment of
-that intent, but cannot detect a policy error shared by the generator and its
-expected table entries. Author endpoint communication and isolation requirements
-before generating either OpenFlow rules or P4 table entries.
-
-Reuse the existing `ValidationIntent` reachability, isolation and waypoint shapes,
-`TrafficSelector` and original predicate IDs for those requirements. Add domain
-observations behind those meanings; keep P4 header and action assertions separate
-from routing-protocol predicates.
-
-| Existing scenario | Candidate to analyze | Proposed method | Initial properties |
-| --- | --- | --- | --- |
-| `sdn_l3_clos` | OpenFlow matches, priorities, actions, groups and physical links | NetKAT encoding checked by KATch | IPv4 delivery, isolation and permitted exits |
-| `p4_dc_fabric` | `fabric.p4`, LPM entries and selector groups/members | P4-aware symbolic tests, plus a scoped forwarding model | Invalid-header and TTL handling; endpoint delivery and allowed ECMP exits |
-| `p4_dc_gateway` | `gateway.p4` and its concrete control-plane entries | Begin with the stateless IPv4 forwarding subset | Forwarding and access-control properties under explicit state assumptions |
-
-### SDN forwarding properties
-
-[Header Space Analysis](https://www.usenix.org/conference/nsdi12/technical-sessions/presentation/kazemian)
-models devices as packet-header transformations and composes them through the
-network. [NetKAT](https://doi.org/10.1145/2535838.2535862) gives packet processing
-an algebraic semantics. [KATch](https://github.com/cornell-netlab/KATch) provides an
-external equivalence and containment checker for NetKAT policies. These methods
-give the proposed SDN adapter an established semantic basis.
-
-For `sdn_l3_clos`, encode the actual forwarding rules, including priority masking,
-prefix matches, rewrites and output ports, and compose them with the physical
-links. Build the requirements separately from endpoint ownership and authored
-communication policy. For example, with input class `I`, candidate forwarding
-relation `F`, and forbidden egress class `U`, isolation requires:
+SDN and P4 experiments use the same `RoutingExperiment`, `ValidationIntent`,
+`ValidationSnapshot`, dispatcher and report types as the routing experiments.
+`routing_model="netkat"` selects the packet-forwarding backend through the existing
+`validate_routing_design` API. Normal benchmark startup keeps its existing behavior.
 
 ```text
-I ; F ; U = 0
+Authored communication policy + original endpoint attachments
+                         |
+       Existing OpenFlow/P4Runtime configuration generator
+                         |
+       Restricted match/action model + physical topology
+                         |
+            NetKAT queries checked by upstream KATch
+                         |
+       Native observations of the original predicate IDs
+                         |
+       Configuration counterexample + endpoint outage + recovery
 ```
 
-KATch can check this as a policy equivalence. A separate delivery requirement is
-necessary: an empty forwarding relation also satisfies isolation. Model SELECT
-groups as nondeterministic choices when checking safety over all permitted exits.
-Reachability in that abstraction establishes a possible path; it alone does not
-establish delivery for every hash choice, balanced traffic, or absence of loops.
-Requirements for guaranteed delivery must also exclude drops and nonterminating
-paths under the stated model.
+The shared example policy requires client-service ICMP communication in both
+directions and isolation from an unowned test address. Endpoint roles and
+attachments determine this specification before configuration generation. It does
+not assume arbitrary endpoint full-mesh communication: the gateway design provides
+client-service forwarding, while additional same-role communication needs its own
+specification. You can also author a `RoutingExperiment` with explicit packet
+requirements instead of using the example policy builder.
 
-The first adapter should cover the IPv4 rules emitted by the existing
-`build_forwarding_rules` function. ARP responder actions, controller transitions
-and unsupported OpenFlow features need explicit exclusions or separate checks.
-Checking a fixed rule set establishes properties of that state; native fault and
-recovery tests remain necessary for controller behavior.
+| Scenario capability | Concrete candidate | Static interpretation |
+| --- | --- | --- |
+| OpenFlow Clos | Existing `build_forwarding_rules` output | Single-table IPv4 destination matches, explicit priorities, MAC rewrites, output ports and SELECT groups |
+| P4Runtime Clos | Existing `build_forwarding_intent` output and compiled `fabric.p4` | Destination LPM entries, selector groups/members and the checked forwarding action |
+| P4Runtime gateway fabric | Existing `build_gateway_intent` output and compiled `gateway.p4` | The same ICMP forwarding slice; TCP VIP and stateful functions remain native obligations |
 
-### P4 program and table behavior
+Frontends dispatch on topology-model capabilities, so topology size does not
+change the analysis procedure. NIKA retains the existing domain configuration
+generators. These fixed forwarding candidates have no routing-parameter holes;
+NetComplete and netlab do not participate in their construction.
 
-A P4 configuration includes both the program and its control-plane table entries.
-Checking only `build_forwarding_intent` output leaves the program's interpretation
-of those entries unchecked. Successful compilation establishes compiler acceptance,
-but provides no independent forwarding-policy proof.
+### Method and supported properties
 
-[P4Testgen](https://p4lang.github.io/p4c/p4testgen.html), part of upstream p4c,
-symbolically generates input packets, control-plane entries and expected output
-packets. Its BMv2/v1model target matches the architecture of NIKA's current fabric
-program. It can exercise invalid headers, TTL boundaries, LPM actions and packet
-rewrites, and generate counterexamples to supplied assertions. A bounded successful
-test run is testing evidence. Statement coverage is not a proof of the original
-network specification.
+[Header Space Analysis](https://www.usenix.org/conference/nsdi12/technical-sessions/presentation/kazemian)
+models networks through composed packet-header transformations.
+[NetKAT](https://doi.org/10.1145/2535838.2535862) provides an algebraic semantics,
+and [MatchKAT](https://arxiv.org/abs/2102.07374) relates match/action processing to
+NetKAT. NIKA lowers the supported forwarding slice to that language and delegates
+its equivalence queries to [KATch](https://github.com/cornell-netlab/KATch).
+NIKA does not implement a new reachability solver.
 
-Before using these tests for scenario acceptance, establish how the tool constrains
-the concrete scenario entries and compare outputs with independently authored
-requirements. Tests using the tool's own synthesized entries cannot substitute for
-checking NIKA's candidate entries. A scoped network model can complement program
-tests, provided its assumed P4 action semantics and selector abstraction remain
-explicit.
+Let `F` be one forwarding step, `I` the original input packet class and `O` the
+specified receiving endpoint. The reachability query is:
 
-[p4v](https://www.cs.cornell.edu/~jnfoster/papers/p4v.pdf) provides the related
-proof approach: verify program safety properties under stated control-plane
-assumptions. Its paper supplies a methodological reference; NIKA has not integrated
-or established compatibility with that verifier. Begin implementation with
-`p4_dc_fabric` before the gateway, whose registers, queues, telemetry and changing
-load-balancer state require more than P4Testgen's single-packet model. Keep those
-behaviors as native obligations until an appropriate stateful model is available.
+```text
+I ; F* ; O != 0
+```
+
+Isolation requires the corresponding relation to equal zero. Round-trip delivery
+requires a second reachability query with the original endpoints reversed.
+Static waypoint requirements exclude successful traces that avoid a required node
+or visit a forbidden node. Native waypoint identity mapping is not supported yet.
+Required unsupported properties and tool errors prevent acceptance.
+
+The OpenFlow frontend subtracts higher-priority prefix regions before encoding
+lower-priority rules. The P4Runtime frontend resolves actual numeric output ports
+and member/group references; descriptive peer labels do not determine forwarding.
+The shared topology model supplies the physical attachments. Endpoint reception
+checks the rewritten destination MAC. Unsupported IPv4 OpenFlow actions, ambiguous
+priorities and unresolved P4 members or ports reject the construction.
+
+Selector choices overapproximate possible hash outputs. Consequently, isolation
+and forbidden-path checks quantify over the modeled choices, while reachability
+establishes a possible path. It does not establish delivery for every hash choice,
+uniform load balance, absence of loops or global convergence. Inputs assume
+well-formed, unfragmented IPv4 ICMP, sufficient TTL and resolved neighbors. The
+static model excludes ARP, controller transitions, queue behavior and registers.
+
+### P4 program boundary
+
+A P4 configuration includes both its program and table entries. The experiment
+compiles the original program with the installed BMv2 p4c image and retains its
+JSON output. Fixed checks inspect the destination LPM key and the forwarding
+action's assignments to the output port, Ethernet addresses and TTL, following the
+[BMv2 JSON representation](https://github.com/p4lang/behavioral-model/blob/main/docs/JSON_format.md).
+A changed action outside that slice rejects the projection.
+
+These checks do not establish full parser, control-flow, checksum or extern
+correctness. The model assumes that the declared ICMP forwarding path reaches the
+checked LPM/action slice. Native execution tests that assumption for the original
+requirements. Gateway TCP load balancing, INT, ECN and multi-packet state continue
+to rely on the scenario's existing native startup verification; the experiment
+does not label those functions as NetKAT-verified.
+
+[P4Testgen](https://p4lang.github.io/p4c/p4testgen.html) and
+[p4v](https://www.cs.cornell.edu/~jnfoster/papers/p4v.pdf) provide complementary
+program-level approaches. Neither is integrated into this workflow. P4Testgen
+symbolically generates single-packet tests; bounded test success would add testing
+evidence, rather than a proof of the original network specification.
+
+### Counterexamples and operating states
+
+Before modifying a candidate, the experiment declares which original round-trip
+predicates depend on one selected endpoint. It removes that endpoint's P4 LPM
+entry, or installs a higher-priority OpenFlow drop for the same destination.
+KATch must reject exactly the declared predicates. Applying the corresponding
+change through P4Runtime or OpenFlow must reproduce that violation set; restoring
+the candidate must satisfy the complete healthy specification.
+
+The endpoint-outage model removes one attachment. Native execution administratively
+disables only the endpoint's own interface, checks the declared fault-state
+requirements, then restores the interface and all healthy requirements. This
+experiment leaves the benchmark's registered faults unchanged. The broader
+benchmark `link_down` action also disables the switch-side interface; an initial
+BMv2 experiment showed additional interruption on another endpoint of that leaf.
+That run failed acceptance and provides no evidence for the broader fault model.
+
+KATch containers use a 2 GiB memory limit, two CPUs and a total analysis timeout.
+P4 compilation uses the same resource bounds. Experiments retain the original
+specification, candidate, restricted model, concrete NetKAT queries, tool logs and
+static/native reports. Run native environments sequentially. Consult the
+[experiment guide](../../experiment/routing_validation/README.md#verify-sdn-and-p4-fabrics)
+for the manual entrypoint and retained regressions.

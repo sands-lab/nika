@@ -107,6 +107,40 @@ Batfish checks original predicates against the final candidate configuration. Na
 
 The pinned Batfish image includes an [FRR next-hop correction](../../scripts/batfish/frr-next-hop-self.patch). Projections reject unsupported statements instead of silently assigning them supported semantics. Static/native agreement covers the declared experiments, rather than universal implementation equivalence.
 
+## Verify SDN and P4 fabrics
+
+Use the same experiment API for the current OpenFlow and P4Runtime fabrics. Docker
+must have the normal NIKA scenario images and the pinned KATch artifact:
+
+```bash
+docker pull julesjacobs/katch@sha256:7184375abfbcf38e6c1e176637507272006d4e4bfa8ce30dab60069dcd6da410
+```
+
+```python
+from pathlib import Path
+from nika.workflows.validation.forwarding import build_forwarding_experiment
+from nika.workflows.validation.routing import validate_routing_design
+
+spec = build_forwarding_experiment("sdn_l3_clos", topo_size="s")
+result = validate_routing_design(spec, Path("/tmp/sdn-validation"), runtime=True)
+assert result["status"] == "passed"
+```
+
+Select `p4_dc_fabric` or `p4_dc_gateway` through the same builder. Topology sizes
+`s`, `m` and `l` use the same procedure; a supported size is not a completed native
+run. Omit `runtime=True` for static analysis only. The builder declares client-service
+ICMP communication and unowned-address isolation before generating configuration.
+For another policy, author the original `RoutingExperiment` packet requirements
+with `routing_model="netkat"`. Saved specifications also work with `experiment.py`.
+
+KATch checks the restricted forwarding model. Native checks evaluate the same
+original predicate IDs, reproduce a declared configuration counterexample and
+restore the healthy specification after endpoint-interface shutdown. NetComplete
+and netlab are not needed for these fixed match/action candidates. Benchmark
+startup does not invoke KATch, and the registered benchmark failures keep their
+existing behavior. See the [method and P4 scope](../../docs/development/routing-verification.md#sdn-and-p4-forwarding-verification)
+before interpreting acceptance as evidence about a whole P4 program or controller.
+
 ## Reproduce regression checks
 
 The [coverage record](coverage.json) summarizes earlier executions and their limits.
@@ -125,6 +159,7 @@ uv run pytest tests/nika/validation -m 'unit or contract' -q
 uv run pytest 'tests/nika/validation/test_routing_completion.py::test_completion_configuration_execution_and_registered_failures[clos-netlab]' -q
 uv run pytest 'tests/nika/validation/test_benchmark_routing.py::test_as_import_and_igp_completion_preserve_benchmark_failures[isp_abilene-kathara]' -q
 uv run pytest tests/nika/validation/test_vendor_routing.py -m e2e -q
+uv run pytest tests/nika/validation/test_netkat.py -m e2e -q
 ```
 
 Vendor execution requires locally installed licensed images. Missing vendor images cause the corresponding native test to skip; a skipped test is not validation evidence. See the [method and concrete Abilene example](../../docs/development/routing-verification.md) for the correctness argument and input/output examples.

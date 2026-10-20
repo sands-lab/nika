@@ -80,6 +80,18 @@ def validate_routing_design(
     batfish_verifier: BatfishVerifier | None = None,
     config_generator: str | None = None,
 ):
+    if spec.routing_model == "netkat":
+        from nika.workflows.validation.forwarding import validate_forwarding_design
+
+        if (
+            config_generator is not None
+            or parameters is not None
+            or batfish_verifier is not None
+        ):
+            raise ValueError(
+                "Packet-forwarding experiments use their existing domain configuration generators"
+            )
+        return validate_forwarding_design(spec, output, runtime=runtime)
     if config_generator not in {None, "netlab"}:
         raise ValueError("Unknown configuration generator")
     output = output.resolve()

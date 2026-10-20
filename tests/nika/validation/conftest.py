@@ -20,3 +20,21 @@ def netcomplete_image():
     finally:
         client.close()
     return "nika/netcomplete:experiment"
+
+
+@pytest.fixture
+def katch_image():
+    if not docker_available():
+        pytest.skip("Docker not available")
+    import docker
+    from docker.errors import ImageNotFound
+    from nika.validation.netkat.verifier import KATCH_IMAGE
+
+    client = docker.from_env()
+    try:
+        client.images.get(KATCH_IMAGE)
+    except ImageNotFound:
+        pytest.skip("Install the pinned KATch experiment image first")
+    finally:
+        client.close()
+    return KATCH_IMAGE

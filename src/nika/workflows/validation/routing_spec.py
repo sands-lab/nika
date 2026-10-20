@@ -69,6 +69,7 @@ class RoutingExperiment(ContractModel):
         "srl-isp",
         "iosxr-isp",
         "routeros-isp",
+        "netkat",
     ] = "frr"
     topo_size: Literal["s", "m", "l"] | None = None
     deployment: RoutingDeployment = Field(default_factory=RoutingDeployment)

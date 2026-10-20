@@ -594,5 +594,50 @@
       "tests/nika/problems/test_bgp_max_prefix_exceeded_e2e.py",
       "tests/nika/problems/test_bgp_blackhole_community_leak_e2e.py"
     ]
+  },
+  "packet_forwarding": {
+    "analyzer": "KATch / NetKAT",
+    "specification_construction_sizes": [
+      "s",
+      "m",
+      "l"
+    ],
+    "static_scope": "IPv4 ICMP destination-prefix forwarding, numeric ports, MAC rewrites and nondeterministic selector choices under the documented P4/OpenFlow assumptions",
+    "native_outage": "Administrative shutdown of the endpoint interface only, with original route and permanent-neighbor declarations restored. Benchmark registered faults remain unchanged.",
+    "completed_native_runs": [
+      {
+        "scenario": "sdn_l3_clos",
+        "topo_size": "s",
+        "healthy_predicates": 40,
+        "endpoint_outage_predicates": 40,
+        "recovered_predicates": 40,
+        "configuration_counterexample_predicates": 8,
+        "counterexample_static_and_native": true
+      },
+      {
+        "scenario": "p4_dc_fabric",
+        "topo_size": "s",
+        "healthy_predicates": 40,
+        "endpoint_outage_predicates": 40,
+        "recovered_predicates": 40,
+        "configuration_counterexample_predicates": 8,
+        "counterexample_static_and_native": true
+      },
+      {
+        "scenario": "p4_dc_gateway",
+        "topo_size": "s",
+        "healthy_predicates": 22,
+        "endpoint_outage_predicates": 22,
+        "recovered_predicates": 22,
+        "configuration_counterexample_predicates": 8,
+        "counterexample_static_and_native": true
+      }
+    ],
+    "excluded_formal_claims": [
+      "full P4 program correctness",
+      "stateful load balancing, queues, INT and ECN",
+      "universal delivery over hash choices or global convergence"
+    ],
+    "native_regression": "tests/nika/validation/test_netkat.py"
   }
 }
