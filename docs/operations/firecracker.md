@@ -22,27 +22,75 @@ affects only `nika benchmark run`.
 
 ## When it pays off
 
-Measured on a 16 vCPU host that is itself a VM (nested virtualization). "Ready"
-is the time until the restored lab passed NIKA's startup verification again:
+Firecracker execution trades a one-time cost for a smaller cost per trial. Each
+environment variant is deployed once more to build its lab image; after that, a
+trial restores the lab instead of deploying it and discards the copy instead of
+undeploying it.
 
-| Environment | Native deploy | Firecracker, 4 KiB pages | Firecracker, huge pages |
+Measured on release 0.2.0 (test split, 85 tasks × 3 trials) on a 16 vCPU host
+that is itself a VM, with huge pages. *Per trial* is the time a trial spends
+outside the agent: deploy (or restore), verification, injection and teardown.
+*Pays off after* is the number of benchmark runs (all tasks of the environment,
+3 trials each) after which the one-time build has cost less than the time saved.
+
+| Environment | Tasks | Native, per trial | Lab image build, once | Firecracker, per trial | Lab image pays off after (runs) | Case image builds, once (all tasks) | With case images, per trial | Case images pay off after (more runs) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `campus_lan` l | 6 | 196 s | 241 s | 27 s | 0.08 | 702 s | 2 s | 1.6 |
+| `campus_lan` m | 6 | 103 s | 154 s | 5 s | 0.09 | 280 s | 2 s | 5.8 |
+| `campus_lan` s | 4 | 87 s | 106 s | 10 s | 0.12 | 267 s | 2 s | 2.7 |
+| `dc_clos` l | 2 | 296 s | 280 s | 11 s | 0.16 | 98 s | 2 s | 3.3 |
+| `dc_clos` m | 3 | 67 s | 91 s | 7 s | 0.17 | 151 s | 2 s | 3.8 |
+| `dc_clos` s | 2 | 36 s | 61 s | 3 s | 0.31 | 139 s | 3 s | 0.5 |
+| `enterprise_branch` l | 5 | 81 s | 169 s | 6 s | 0.15 | 388 s | 2 s | 5.9 |
+| `enterprise_branch` m | 4 | 64 s | 89 s | 11 s | 0.14 | 318 s | 2 s | 2.3 |
+| `enterprise_branch` s | 3 | 43 s | 61 s | 9 s | 0.20 | 133 s | 2 s | 2.1 |
+| `isp_abilene` s | 1 | 80 s | 152 s | 6 s | 0.69 | 66 s | 2 s | 5.3 |
+| `isp_dfn-bwin_ebgp_rtbh` s | 1 | 97 s | 113 s | 6 s | 0.41 | 40 s | 3 s | 4.5 |
+| `isp_di-yuan` s | 1 | 92 s | 145 s | 18 s | 0.66 | 171 s | 2 s | 3.4 |
+| `isp_geant_ebgp_rpki` m | 2 | 640 s | 661 s | 7 s | 0.17 | 201 s | 2 s | 6.4 |
+| `isp_germany50` l | 1 | 111 s | 126 s | 12 s | 0.42 | 141 s | 2 s | 4.7 |
+| `isp_pdh` s | 1 | 237 s | 574 s | 117 s | 1.59 | 449 s | 5 s | 1.3 |
+| `k8s_lab` | 6 | 344 s | 460 s | 23 s | 0.08 | 924 s | 2 s | 2.8 |
+| `llmd_lab` | 5 | 207 s | 258 s | 20 s | 0.09 | 859 s | 3 s | 3.2 |
+| `min3clos` | 1 | 115 s | 207 s | 10 s | 0.66 | 151 s | 3 s | 7.2 |
+| `p4_dc_fabric` l | 1 | 187 s | 192 s | 9 s | 0.36 | 56 s | 2 s | 2.8 |
+| `p4_dc_fabric` m | 1 | 106 s | 123 s | 12 s | 0.44 | 48 s | 5 s | 2.2 |
+| `p4_dc_gateway` l | 5 | 173 s | 193 s | 17 s | 0.08 | 350 s | 3 s | 1.7 |
+| `p4_dc_gateway` m | 7 | 88 s | 118 s | 8 s | 0.07 | 281 s | 2 s | 2.7 |
+| `p4_dc_gateway` s | 7 | 70 s | 89 s | 11 s | 0.07 | 391 s | 3 s | 2.2 |
+| `sdn_l3_clos` l | 4 | 298 s | 283 s | 8 s | 0.08 | 237 s | 2 s | 4.0 |
+| `sdn_l3_clos` m | 2 | 130 s | 168 s | 4 s | 0.22 | 50 s | 2 s | 6.4 |
+| `sdn_l3_clos` s | 4 | 82 s | 114 s | 10 s | 0.13 | 248 s | 2 s | 2.4 |
+
+For the whole test split:
+
+| | Native | Firecracker (lab images) | Firecracker (lab and case images) |
 |---|---:|---:|---:|
-| `dc_clos -s s` (Kathara) | 17–19 s | 25–44 s | 4 s |
-| `isp_nobel-germany` (Kathara, FRR) | not measured | 75 s | 8 s |
-| `min3clos` (Containerlab, SR Linux) | 108 s | 40–100 s | 19 s |
-| `k8s_lab` | 301 s | 159 s | 29 s |
-| `llmd_lab` | 190 s | 231 s | 26 s |
+| One-time builds (VM time) | — | 1.5 h | 1.5 h + 2.0 h |
+| Time outside the agent, per run of 255 trials | 10.8 h | 0.9 h | 0.1 h |
+| Pays off after | — | the first run (0.15 runs) | about 2.4 more runs |
+| Wall time of 85 trials (one per task, 8 at a time), measured | 5 h 55 min | 1 h 55 min + 35 min of image builds | — |
 
-Without huge pages, a restored copy loads memory on first access, which is slow
-on nested hosts and can stall the lab's daemons. Use huge pages wherever the
-host can reserve them; the default mode suits hosts that cannot, or runs that
-keep many copies of one lab image at once (they share memory).
+Lab images repay their build within the first run for every environment except
+`isp_pdh` (1.6 runs), because a build costs about one native deploy and every
+trial saves most of one. Case images build one snapshot per task, so they pay
+off only when the same tasks run again: about 2–7 runs, depending on how long
+injection takes. The case-image column counts failure tasks only; healthy tasks
+always restore the lab image.
 
-A lab image costs one native deploy plus a VM boot and the image write.
-With huge pages that is 1.5–3 minutes for Kathara labs, 3–6.5 minutes for
-SR Linux labs and up to 8.5 minutes for `k8s_lab`. All 29 environments of
-release 0.2.0 ran in Firecracker with the same scores as native runs (mock agent),
-and three copies of one lab image ran at once as fast as one.
+Native wall time is longer than the sum of its trial setup suggests because
+heavy labs (k8s, Containerlab, size `l`) run alone. Firecracker trials run side
+by side whatever their lab. Agent time is not part of these numbers; with 6–8
+copies running at once, tools that probe the network (ping meshes, HTTP tests)
+took 20–150% longer in their median than in the native run, which ran fewer
+trials at once.
+
+Without huge pages, a restored copy loads its memory on first access. On hosts
+that are themselves VMs this makes the first minute after a restore slow (for
+example 25–44 s instead of 4 s until `dc_clos -s s` is verified again) and can
+stall the lab's daemons. Use huge pages wherever the host can reserve them; the
+default mode suits hosts that cannot, or runs that keep many copies of one lab
+image at once (they share memory).
 
 ## Set up the host (once)
 
@@ -257,7 +305,8 @@ nika:
 ```
 
 Case images are worth it when you run the same tasks repeatedly, such as several
-agents or models on one release. They change how trials start:
+agents or models on one release: on release 0.2.0 they repay their builds after
+about 2.4 runs (see [When it pays off](#when-it-pays-off)). They change how trials start:
 
 * All trials of a task start from the same injected state, instead of each
   trial injecting the failure again. Failures that evolve over time (traffic
@@ -273,7 +322,7 @@ changed. Measured on release 0.2.0 with huge pages:
 | | Per task | Test split (76 failure tasks) |
 |---|---|---|
 | Disk | median 40 MiB, up to 190 MiB (`isp_pdh`, `k8s_lab`, `llmd_lab`) | about 4 GiB |
-| One-time build (restore, inject, snapshot, compress) | 2.5–3 min; about 9 min for `isp_pdh` | about 3.5 h of VM time; builds run in parallel |
+| One-time build (restore, inject, snapshot, compress) | median 1.2 min, up to 7.5 min (`isp_pdh`) | about 2 h of VM time; builds run in parallel |
 | Restore until the agent can start | 1–2.5 s; 6–8 s for `k8s_lab` and `isp_pdh` | — |
 
 These restore times assume the lab image's memory is in the host page cache,
