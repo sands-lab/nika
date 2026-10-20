@@ -37,17 +37,6 @@
         <a href="#" class="nav-logo">
           <span class="logo-n">N</span><span class="logo-rest">IKA</span>
         </a>
-        <nav class="nav-links" id="nav-links">
-          <a href="#overview">Overview</a>
-          <a href="#features">Features</a>
-          <a href="#scenarios">Scenarios</a>
-          <a href="#failures">Failures</a>
-          <a href="#extend">Benchmark</a>
-          <a href="#agents">Agents</a>
-          <a href="#quickstart">Quickstart</a>
-          <a href="#mcp">MCP</a>
-          <a href="#cite">Cite</a>
-        </nav>
         <div class="nav-actions">
           <a
             class="btn btn-ghost"
@@ -75,6 +64,20 @@
             </svg>
             Leaderboard
           </a>
+          <a class="btn btn-ghost" href="blog/">
+            <svg
+              class="icon"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              aria-hidden="true"
+            >
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z" />
+            </svg>
+            Blog
+          </a>
           <a
             class="btn btn-ghost"
             href="https://arxiv.org/abs/2512.16381"
@@ -93,6 +96,20 @@
             </svg>
             Paper
           </a>
+          <a class="btn btn-ghost" href="community/">
+            <svg
+              class="icon"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path fill="#E01E5A" d="M5.042 15.165a2.528 2.528 0 01-2.52 2.523A2.528 2.528 0 010 15.165a2.527 2.527 0 012.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 012.521-2.52 2.527 2.527 0 012.521 2.52v6.313A2.528 2.528 0 018.834 24a2.528 2.528 0 01-2.521-2.522v-6.313z" />
+              <path fill="#36C5F0" d="M8.834 5.042a2.528 2.528 0 01-2.521-2.52A2.528 2.528 0 018.834 0a2.528 2.528 0 012.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 012.521 2.521 2.528 2.528 0 01-2.521 2.521H2.522A2.528 2.528 0 010 8.834a2.528 2.528 0 012.522-2.521h6.312z" />
+              <path fill="#2EB67D" d="M18.956 8.834a2.528 2.528 0 012.522-2.521A2.528 2.528 0 0124 8.834a2.528 2.528 0 01-2.522 2.521h-2.522V8.834zm-1.268 0a2.528 2.528 0 01-2.523 2.521 2.527 2.527 0 01-2.52-2.521V2.522A2.527 2.527 0 0115.165 0a2.528 2.528 0 012.523 2.522v6.312z" />
+              <path fill="#ECB22E" d="M15.165 18.956a2.528 2.528 0 012.523 2.522A2.528 2.528 0 0115.165 24a2.527 2.527 0 01-2.52-2.522v-2.522h2.52zm0-1.268a2.527 2.527 0 01-2.52-2.523 2.526 2.526 0 012.52-2.52h6.313A2.527 2.527 0 0124 15.165a2.528 2.528 0 01-2.522 2.523h-6.313z" />
+            </svg>
+            Slack
+          </a>
           <a
             class="btn btn-primary"
             href="https://github.com/sands-lab/nika"
@@ -107,6 +124,20 @@
             GitHub
           </a>
         </div>
+        <!-- GitHub stays visible next to the burger on narrow screens. -->
+        <a
+          class="btn btn-primary nav-github-mobile"
+          href="https://github.com/sands-lab/nika"
+          target="_blank"
+          rel="noopener"
+        >
+          <svg class="icon" viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M12 2C6.477 2 2 6.484 2 12.021c0 4.428 2.865 8.185 6.839 9.504.5.092.682-.217.682-.483 0-.237-.009-.868-.013-1.703-2.782.605-3.369-1.342-3.369-1.342-.454-1.155-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844a9.59 9.59 0 012.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.579.688.481C19.138 20.203 22 16.447 22 12.021 22 6.484 17.522 2 12 2z"
+            />
+          </svg>
+          GitHub
+        </a>
         <button
           class="nav-hamburger"
           id="nav-hamburger"
@@ -119,17 +150,6 @@
 
     <!-- ── MOBILE MENU (sibling of header — root stacking context) ──────── -->
     <div class="mobile-menu" id="mobile-menu" aria-hidden="true">
-      <nav class="mobile-nav-links">
-        <a href="#overview">Overview</a>
-        <a href="#features">Features</a>
-        <a href="#scenarios">Scenarios</a>
-        <a href="#failures">Failures</a>
-        <a href="#extend">Benchmark</a>
-        <a href="#agents">Agents</a>
-        <a href="#quickstart">Quick Start</a>
-        <a href="#mcp">MCP</a>
-        <a href="#cite">Cite</a>
-      </nav>
       <div class="mobile-nav-actions">
         <a
           class="btn btn-ghost"
@@ -157,6 +177,20 @@
           </svg>
           Leaderboard
         </a>
+        <a class="btn btn-ghost" href="blog/">
+          <svg
+            class="icon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            aria-hidden="true"
+          >
+            <path d="M12 20h9" />
+            <path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z" />
+          </svg>
+          Blog
+        </a>
         <a
           class="btn btn-ghost"
           href="https://arxiv.org/abs/2512.16381"
@@ -174,6 +208,20 @@
             <polyline points="14 2 14 8 20 8" />
           </svg>
           Paper
+        </a>
+        <a class="btn btn-ghost" href="community/">
+          <svg
+            class="icon"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+            aria-hidden="true"
+          >
+            <path fill="#E01E5A" d="M5.042 15.165a2.528 2.528 0 01-2.52 2.523A2.528 2.528 0 010 15.165a2.527 2.527 0 012.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 012.521-2.52 2.527 2.527 0 012.521 2.52v6.313A2.528 2.528 0 018.834 24a2.528 2.528 0 01-2.521-2.522v-6.313z" />
+            <path fill="#36C5F0" d="M8.834 5.042a2.528 2.528 0 01-2.521-2.52A2.528 2.528 0 018.834 0a2.528 2.528 0 012.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 012.521 2.521 2.528 2.528 0 01-2.521 2.521H2.522A2.528 2.528 0 010 8.834a2.528 2.528 0 012.522-2.521h6.312z" />
+            <path fill="#2EB67D" d="M18.956 8.834a2.528 2.528 0 012.522-2.521A2.528 2.528 0 0124 8.834a2.528 2.528 0 01-2.522 2.521h-2.522V8.834zm-1.268 0a2.528 2.528 0 01-2.523 2.521 2.527 2.527 0 01-2.52-2.521V2.522A2.527 2.527 0 0115.165 0a2.528 2.528 0 012.523 2.522v6.312z" />
+            <path fill="#ECB22E" d="M15.165 18.956a2.528 2.528 0 012.523 2.522A2.528 2.528 0 0115.165 24a2.527 2.527 0 01-2.52-2.522v-2.522h2.52zm0-1.268a2.527 2.527 0 01-2.52-2.523 2.526 2.526 0 012.52-2.52h6.313A2.527 2.527 0 0124 15.165a2.528 2.528 0 01-2.522 2.523h-6.313z" />
+          </svg>
+          Slack
         </a>
         <a
           class="btn btn-primary"
@@ -205,7 +253,7 @@
             <circle cx="12" cy="12" r="10" />
             <path d="M12 8v4l3 3" />
           </svg>
-          New: NIKA 0.2.0 has been released
+          New: NIKA 0.2 is out
         </div>
         <h1 class="hero-title">
           <span class="hero-nika">NIKA</span>
@@ -217,10 +265,37 @@
           >
         </h1>
         <p class="hero-desc"><!-- A unified platform for agentic evaluations on realistic network troubleshooting tasks. -->
-A unified platform for benchmarking AI agents on realistic network troubleshooting tasks.</p>
+The agentic benchmark for live network operations.</p>
         <div class="hero-ctas">
           <a
-            class="btn btn-primary btn-lg"
+            class="btn btn-leaderboard btn-lg"
+            href="https://sands-lab.github.io/nika/leaderboard/"
+            target="_blank"
+            rel="noopener"
+          >
+            <svg
+              class="icon icon-trophy"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              aria-hidden="true"
+            >
+              <path d="M6 9H4.5a2.5 2.5 0 010-5H6" />
+              <path d="M18 9h1.5a2.5 2.5 0 000-5H18" />
+              <path d="M4 22h16" />
+              <path
+                d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"
+              />
+              <path
+                d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"
+              />
+              <path d="M18 2H6v7a6 6 0 0012 0V2z" />
+            </svg>
+            Leaderboard
+          </a>
+          <a
+            class="btn btn-outline btn-lg"
             href="https://github.com/sands-lab/nika"
             target="_blank"
             rel="noopener"
@@ -253,33 +328,6 @@ A unified platform for benchmarking AI agents on realistic network troubleshooti
             </svg>
             Read the Paper
           </a>
-          <a
-            class="btn btn-outline btn-lg"
-            href="https://sands-lab.github.io/nika/leaderboard/"
-            target="_blank"
-            rel="noopener"
-          >
-            <svg
-              class="icon icon-trophy"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              aria-hidden="true"
-            >
-              <path d="M6 9H4.5a2.5 2.5 0 010-5H6" />
-              <path d="M18 9h1.5a2.5 2.5 0 000-5H18" />
-              <path d="M4 22h16" />
-              <path
-                d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"
-              />
-              <path
-                d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"
-              />
-              <path d="M18 2H6v7a6 6 0 0012 0V2z" />
-            </svg>
-            Leaderboard
-          </a>
           <a class="btn btn-outline btn-lg" href="community/">
             <svg
               class="icon"
@@ -296,10 +344,12 @@ A unified platform for benchmarking AI agents on realistic network troubleshooti
           </a>
         </div>
         <a class="hero-demo-link" href="#demo">
-          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-            <path d="M8 5.14v13.72a1 1 0 001.5.86l11-6.86a1 1 0 000-1.72l-11-6.86A1 1 0 008 5.14z" />
-          </svg>
-          Watch the 20-second demo
+          <span class="hero-demo-play" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M8 5.14v13.72a1 1 0 001.5.86l11-6.86a1 1 0 000-1.72l-11-6.86A1 1 0 008 5.14z" />
+            </svg>
+          </span>
+          <span class="hero-demo-text">Watch the demo</span>
         </a>
       </div>
       <div class="hero-scroll-hint">
@@ -675,7 +725,7 @@ nika eval judge</code></pre>
                 <span class="issue-count">6 types</span>
               </div>
             </div>
-            <p><code>link_down</code>, flap, capacity bottleneck, packet corruption.</p>
+            <p>Link down, flap, capacity bottleneck, packet corruption.</p>
           </div>
           <div class="issue-category">
             <div class="issue-cat-header">
@@ -994,6 +1044,33 @@ nika eval judge</code></pre>
       </div>
     </section>
 
+    <!-- ── DEMO ──────────────────────────────────────────────────────────── -->
+    <section class="section" id="demo">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-tag">Demo</span>
+          <h2 class="section-title">See It in Action</h2>
+        </div>
+        <div class="demo-video-frame">
+          <!-- Sources are attached by js/main.js when the video scrolls into view;
+               it then loops muted, shows controls on hover, and pauses when scrolled away. -->
+          <video
+            class="demo-video"
+            autoplay
+            muted
+            loop
+            playsinline
+            preload="none"
+            poster="assets/video/nika-demo-poster.webp"
+            aria-label="NIKA demo: the interactive shell, benchmark tasks and agents"
+          >
+            <source data-src="assets/video/nika-demo.mp4" type="video/mp4" />
+            <source data-src="assets/video/nika-demo.webm" type="video/webm" />
+          </video>
+        </div>
+      </div>
+    </section>
+
     <!-- ── QUICK START ───────────────────────────────────────────────────── -->
     <section class="section section-alt" id="quickstart">
       <div class="container">
@@ -1001,24 +1078,6 @@ nika eval judge</code></pre>
           <span class="section-tag">Quick Start</span>
           <h2 class="section-title">Up and Running in Minutes</h2>
           <p class="section-desc">See the <a href="https://github.com/sands-lab/nika/blob/main/README.md#basic-setup" target="_blank" rel="noopener">setup guide</a> for installation requirements and configuration details.</p>
-        </div>
-
-        <div class="demo-video-frame" id="demo">
-          <!-- Sources are attached by js/main.js when the video scrolls into view;
-               it then autoplays muted, and pauses when scrolled away. -->
-          <video
-            class="demo-video"
-            autoplay
-            muted
-            playsinline
-            controls
-            preload="none"
-            poster="assets/video/nika-demo-poster.webp"
-            aria-label="NIKA demo: launching the interactive shell and browsing benchmark tasks"
-          >
-            <source data-src="assets/video/nika-demo.mp4" type="video/mp4" />
-            <source data-src="assets/video/nika-demo.webm" type="video/webm" />
-          </video>
         </div>
 
         <div class="qs-steps">
@@ -1087,7 +1146,7 @@ uv run nika config show</code></pre>
                 <pre
                   id="code-run"
                 ><code><span class="cm"># Frozen release, then summarize</span>
-uv run nika benchmark run --release 0.2.0 --split test \
+uv run nika benchmark run --release 0.2 --split test \
   --result_dir results/my-run --batch-size 4
 uv run nika eval summary --result_dir results/my-run</code></pre>
               </div>

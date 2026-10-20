@@ -107,6 +107,18 @@
   }
   window.addEventListener('scroll', onScroll, { passive: true });
   onScroll();
+
+  // The hero buttons duplicate the navbar links, so keep the navbar hidden
+  // while they are on screen and slide it in once they scroll out of view.
+  const heroCtas = document.querySelector('.hero-ctas');
+  if (!heroCtas || !('IntersectionObserver' in window)) return;
+  new IntersectionObserver(
+    ([entry]) => {
+      const ctasVisible = entry.isIntersecting || entry.boundingClientRect.top > 0;
+      navbar.classList.toggle('nav-hidden', ctasVisible && !navbar.classList.contains('menu-open'));
+    },
+    { rootMargin: '-64px 0px 0px 0px' }
+  ).observe(heroCtas);
 })();
 
 /* ── MOBILE MENU ─────────────────────────────────────────────────────────── */
@@ -211,27 +223,29 @@
   });
 })();
 
-/* ── ACTIVE NAV LINK ON SCROLL ───────────────────────────────────────────── */
+/* ── ARCHITECTURE DIAGRAM: inline the animated SVG ─────────────────────── */
+// The diagram animates on its own as an <img>, but its hover effects need the
+// SVG in the page. Swap the <img> for the inline SVG when it can be fetched
+// (not over file://), and pause the animation while it is off screen.
 (function () {
-  const sections = document.querySelectorAll('section[id]');
-  const links    = document.querySelectorAll('.nav-links a[href^="#"]');
-
-  const observer = new IntersectionObserver(
-    entries => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          links.forEach(l => l.classList.remove('active'));
-          const active = document.querySelector(
-            `.nav-links a[href="#${entry.target.id}"]`
-          );
-          if (active) active.classList.add('active');
-        }
-      });
-    },
-    { threshold: 0.4 }
-  );
-
-  sections.forEach(s => observer.observe(s));
+  const img = document.querySelector('img.overview-image[src$=".svg"]');
+  if (!img || !window.fetch) return;
+  fetch(img.src)
+    .then((res) => (res.ok ? res.text() : Promise.reject()))
+    .then((text) => {
+      const svg = new DOMParser().parseFromString(text, 'image/svg+xml').documentElement;
+      if (svg.nodeName !== 'svg') return;
+      svg.classList.add('overview-image');
+      svg.setAttribute('aria-label', img.alt);
+      img.replaceWith(document.importNode(svg, true));
+      const inline = document.querySelector('svg.overview-image');
+      if (!inline || !('IntersectionObserver' in window)) return;
+      new IntersectionObserver(([entry]) => {
+        if (entry.isIntersecting) inline.unpauseAnimations();
+        else inline.pauseAnimations();
+      }).observe(inline);
+    })
+    .catch(() => {});
 })();
 
 /* ── DEMO VIDEO: lazy-load, reveal, autoplay muted while in view ────────── */
@@ -250,14 +264,24 @@
     video.load();
   }
 
+  // Controls stay hidden until the pointer is over the video. On touch
+  // screens, which have no hover, they appear on the first tap and stay.
+  function showControls(on) {
+    video.controls = on;
+    if (frame) frame.classList.toggle('show-controls', on);
+  }
+  video.addEventListener('pointerenter', () => showControls(true));
+  video.addEventListener('pointerleave', (e) => {
+    if (e.pointerType === 'mouse') showControls(false);
+  });
+
   // Without IntersectionObserver: just make the video playable on demand.
   if (!('IntersectionObserver' in window)) {
     loadSources();
     return;
   }
 
-  // Fetch the video only once it starts scrolling into view. It sits just
-  // below the hero, so a pre-load margin would fetch it on every page load.
+  // Fetch the video only once it starts scrolling into view.
   new IntersectionObserver((entries, obs) => {
     if (entries.some((e) => e.isIntersecting)) {
       loadSources();

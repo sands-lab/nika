@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0" />
+    <title>NIKA Blog — Coming soon</title>
+    <meta name="description" content="The NIKA blog is coming soon." />
+    <meta name="robots" content="noindex" />
+    <link rel="icon" type="image/svg+xml" href="../assets/images/favicon.svg" />
+    <link rel="stylesheet" href="../css/style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      .blog-page {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        background:
+          radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0, 212, 255, 0.12), transparent 55%),
+          radial-gradient(ellipse 60% 40% at 80% 80%, rgba(59, 130, 246, 0.08), transparent 50%),
+          var(--bg);
+      }
+      .blog-nav {
+        padding: 20px 24px;
+      }
+      .blog-nav-inner {
+        max-width: 720px;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .blog-main {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 48px 24px 80px;
+      }
+      .blog-card {
+        max-width: 560px;
+        text-align: center;
+      }
+      .blog-brand {
+        font-size: 1.25rem;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        margin-bottom: 28px;
+      }
+      .blog-card h1 {
+        font-size: clamp(1.75rem, 4vw, 2.5rem);
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        color: #fff;
+        margin-bottom: 16px;
+        line-height: 1.2;
+      }
+      .blog-card p {
+        font-size: 1.0625rem;
+        color: var(--text-muted);
+        line-height: 1.6;
+      }
+      .blog-footer {
+        padding: 24px;
+        text-align: center;
+        font-size: 0.8125rem;
+        color: var(--text-dim);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="blog-page">
+      <header class="blog-nav">
+        <div class="blog-nav-inner">
+          <a href="../" class="nav-logo">
+            <span class="logo-n">N</span><span class="logo-rest">IKA</span>
+          </a>
+          <a class="btn btn-ghost btn-sm" href="../">Back to site</a>
+        </div>
+      </header>
+
+      <main class="blog-main">
+        <div class="blog-card">
+          <div class="blog-brand">
+            <span class="logo-n">N</span><span class="logo-rest">IKA</span>
+          </div>
+          <h1>Blog coming soon</h1>
+          <p>We're preparing the first posts. Check back soon.</p>
+        </div>
+      </main>
+
+      <footer class="blog-footer">
+        <a href="https://github.com/sands-lab/nika" target="_blank" rel="noopener">GitHub</a>
+        ·
+        <a href="https://sands.kaust.edu.sa/" target="_blank" rel="noopener">SANDS Lab</a>
+      </footer>
+    </div>
+  </body>
+</html>

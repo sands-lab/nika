@@ -124,6 +124,15 @@ code {
 }
 .btn-primary:hover { background: #33dcff; transform: translateY(-1px); }
 
+/* Leaderboard call-out: cyan, turning gold on hover. */
+.btn-leaderboard {
+  background: var(--cyan);
+  color: #000;
+  transition: background var(--transition), color var(--transition), transform var(--transition);
+}
+.btn-leaderboard .icon-trophy { color: currentColor; }
+.btn-leaderboard:hover { background: #f5c542; color: #1a1305; transform: translateY(-1px); }
+
 .btn-outline {
   background: transparent;
   color: var(--text);
@@ -157,7 +166,13 @@ code {
   height: 64px;
   display: flex;
   align-items: center;
-  transition: background 0.3s, backdrop-filter 0.3s, box-shadow 0.3s;
+  transition: background 0.3s, backdrop-filter 0.3s, box-shadow 0.3s, transform 0.3s ease, opacity 0.3s ease;
+}
+/* Hidden while the hero buttons are on screen (toggled by main.js). */
+.navbar.nav-hidden {
+  transform: translateY(-100%);
+  opacity: 0;
+  pointer-events: none;
 }
 .navbar.scrolled {
   background: rgba(8,13,24,0.9);
@@ -186,24 +201,6 @@ code {
 .logo-n    { color: var(--cyan); }
 .logo-rest { color: #fff; }
 
-.nav-links {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 1;
-  min-width: 0;
-}
-.nav-links a {
-  color: var(--text-muted);
-  font-size: 0.8125rem;
-  font-weight: 500;
-  transition: color var(--transition);
-  text-decoration: none;
-  white-space: nowrap;
-}
-.nav-links a:hover  { color: var(--text); }
-.nav-links a.active { color: var(--cyan); }
-
 .nav-actions { display: flex; gap: 6px; margin-left: auto; flex-shrink: 0; }
 .nav-actions .btn {
   font-size: 0.8125rem;
@@ -223,6 +220,14 @@ code {
   cursor: pointer;
   padding: 4px;
   margin-left: auto;
+}
+.nav-github-mobile {
+  display: none;
+  margin-left: auto;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  padding: 6px 12px;
+  gap: 6px;
 }
 .nav-hamburger span {
   display: block;
@@ -272,16 +277,19 @@ code {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.8125rem;
+  font-size: 0.75rem;
   font-weight: 500;
-  color: var(--cyan);
-  background: rgba(0,212,255,0.08);
-  border: 1px solid rgba(0,212,255,0.2);
-  padding: 6px 14px;
+  color: var(--text-muted);
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border-hover);
+  padding: 4px 12px;
   border-radius: 100px;
   margin-bottom: 32px;
+  transition: color var(--transition), border-color var(--transition);
 }
-.hero-badge svg { width: 14px; height: 14px; }
+/* Low-key news note: neutral grey, brightening on hover. */
+.hero-badge:hover { color: var(--text); border-color: rgba(255,255,255,0.25); }
+.hero-badge svg { width: 12px; height: 12px; }
 
 .hero-title {
   display: flex;
@@ -1055,9 +1063,10 @@ code {
 
 /* ── RESPONSIVE ──────────────────────────────────────────────────────────── */
 @media (max-width: 1100px) {
-  .nav-links   { display: none; }
   .nav-actions { display: none; }
   .nav-hamburger { display: flex; }
+  .nav-github-mobile { display: inline-flex; }
+  .nav-github-mobile + .nav-hamburger { margin-left: 0; }
 
   .mobile-menu.open {
     display: flex;
@@ -1072,22 +1081,6 @@ code {
     border-top: 1px solid var(--border);
     z-index: 9999;
   }
-  .mobile-nav-links {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    padding: 24px;
-    gap: 16px;
-    border-bottom: 1px solid var(--border);
-  }
-  .mobile-nav-links a {
-    color: var(--text-muted);
-    font-size: 0.875rem;
-    font-weight: 500;
-    text-decoration: none;
-    transition: color var(--transition);
-  }
-  .mobile-nav-links a:hover { color: var(--text); }
   .mobile-nav-actions {
     display: flex;
     flex-direction: column;
@@ -1119,17 +1112,24 @@ code {
 }
 
 /* ── DEMO VIDEO ──────────────────────────────────────────────────────────── */
-/* Inside the quick start section, between its subtitle and the steps. */
+/* Frameless, with soft edges that fade into the section background. */
 .demo-video-frame {
-  max-width: 960px;
-  margin: 0 auto 64px;
-  scroll-margin-top: 96px;
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  border: 1px solid var(--border-hover);
-  background: var(--bg-card);
-  box-shadow: var(--shadow-lg), 0 0 80px rgba(0, 212, 255, 0.06);
+  max-width: 900px;
+  margin: 0 auto;
+  -webkit-mask-image:
+    linear-gradient(to right, transparent, #000 6%, #000 94%, transparent),
+    linear-gradient(to bottom, transparent, #000 6%, #000 94%, transparent);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, transparent, #000 6%, #000 94%, transparent),
+    linear-gradient(to bottom, transparent, #000 6%, #000 94%, transparent);
+  mask-composite: intersect;
   transition: opacity 0.8s ease, transform 0.8s ease;
+}
+/* While controls are shown, fade only the sides so the control bar stays readable. */
+.demo-video-frame.show-controls {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
 }
 /* Fade/slide in on first view; only when JS is running (class set by main.js). */
 .demo-video-frame.reveal-pending { opacity: 0; transform: translateY(32px); }
@@ -1138,23 +1138,66 @@ code {
   width: 100%;
   height: auto;
   aspect-ratio: 16 / 9;
-  background: var(--bg);
+  background: transparent;
 }
 @media (prefers-reduced-motion: reduce) {
   .demo-video-frame { transition: none; }
 }
 
 /* ── HERO DEMO LINK ──────────────────────────────────────────────────────── */
+/* Frameless link: pulsing play button and a light sweeping across the text. */
 .hero-demo-link {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  margin-top: -28px;
+  gap: 10px;
+  margin-top: -16px;
   margin-bottom: 40px;
   font-size: 0.9375rem;
   font-weight: 500;
-  color: var(--text-muted);
-  transition: var(--transition);
+  color: var(--cyan);
 }
-.hero-demo-link svg { width: 14px; height: 14px; color: var(--cyan); }
-.hero-demo-link:hover { color: var(--cyan); }
+.hero-demo-link:hover { text-decoration: none; }
+.hero-demo-link:hover .hero-demo-play { box-shadow: 0 0 20px rgba(0, 212, 255, 0.85); }
+.hero-demo-play {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--cyan);
+  color: var(--bg);
+  box-shadow: 0 0 12px rgba(0, 212, 255, 0.6);
+  transition: box-shadow var(--transition);
+}
+.hero-demo-play svg { width: 12px; height: 12px; margin-left: 2px; }
+/* Expanding ring around the play button. */
+.hero-demo-play::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--cyan);
+  animation: demo-pulse 1.6s ease-out infinite;
+}
+/* White highlight crossing the text in step with the band. */
+.hero-demo-text {
+  position: relative;
+  z-index: 1;
+  background: linear-gradient(100deg, var(--cyan) 35%, #fff 50%, var(--cyan) 65%);
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: demo-sweep 2.8s ease-in-out infinite;
+}
+@keyframes demo-pulse {
+  0%   { transform: scale(1);   opacity: 0.9; }
+  100% { transform: scale(2.1); opacity: 0; }
+}
+@keyframes demo-sweep {
+  0%   { background-position: 100% 0; }
+  100% { background-position: 0% 0; }
+}
