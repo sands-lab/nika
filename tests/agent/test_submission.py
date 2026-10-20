@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from agent.submission import majority_answer, parse_answer
+from agent.submission import parse_answer, vote
 from nika.run_config.schema import AgentSubmissionSettings
 
 pytestmark = pytest.mark.unit
@@ -53,10 +53,13 @@ def test_parse_answer_accepts_healthy() -> None:
     )
 
 
-def test_majority_answer_prefers_count_then_earliest() -> None:
+def test_vote_prefers_count_then_earliest() -> None:
     healthy = {"is_anomaly": False, "root_causes": []}
-    assert majority_answer([healthy, _LINK_DOWN, _LINK_DOWN]) == _LINK_DOWN
-    assert majority_answer([healthy, _LINK_DOWN]) == healthy
+    assert vote([healthy, _LINK_DOWN, _LINK_DOWN])[0] == {
+        "answer": _LINK_DOWN,
+        "count": 2,
+    }
+    assert vote([healthy, _LINK_DOWN])[0]["answer"] == healthy
 
 
 def test_submission_settings_require_mapper_model_only_when_unstructured() -> None:

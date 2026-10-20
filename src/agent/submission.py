@@ -131,21 +131,16 @@ def _last_answer_object(text: str) -> dict[str, Any] | None:
     return found
 
 
-def _vote_counts(answers: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Distinct answers with their counts, most frequent first."""
+def vote(answers: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Distinct answers with their counts, the majority first.
+
+    Ties keep sample order, so the earliest of the tied answers wins.
+    """
     counts = Counter(json.dumps(answer, sort_keys=True) for answer in answers)
     return [
         {"answer": json.loads(key), "count": count}
         for key, count in counts.most_common()
     ]
-
-
-def majority_answer(answers: list[dict[str, Any]]) -> dict[str, Any]:
-    """Most frequent answer; ties go to the earliest sample."""
-    keys = [json.dumps(answer, sort_keys=True) for answer in answers]
-    counts = Counter(keys)
-    best = max(range(len(keys)), key=lambda i: (counts[keys[i]], -i))
-    return answers[best]
 
 
 @dataclass
@@ -198,13 +193,13 @@ class ReportMapper:
         scenario_name: str,
         trace_dir: str,
     ) -> str:
+        from agent.utils.loggers import MessageLogger
+
         catalog_ids = {str(item["id"]) for item in context["resources"]}
         fault_types = {
             str(item.get("id")) if isinstance(item, dict) else str(item)
             for item in context["fault_ontology"]
         }
-        from agent.utils.loggers import MessageLogger
-
         logger = MessageLogger(phase=SUBMISSION, session_dir=trace_dir)
         per_sample = [
             await self._sample(
@@ -218,12 +213,13 @@ class ReportMapper:
             for index in range(1, self.samples + 1)
         ]
         answers = [answer for answer in per_sample if answer is not None]
-        chosen = majority_answer(answers) if answers else None
+        votes = vote(answers)
+        chosen = votes[0]["answer"] if votes else None
         logger.log(
             "submission_vote",
             {
                 "answers": per_sample,
-                "votes": _vote_counts(answers),
+                "votes": votes,
                 "chosen": chosen,
                 "message": f"{len(answers)}/{self.samples} valid sample(s)",
             },
@@ -265,27 +261,18 @@ class ReportMapper:
         logger = MessageLogger(phase=SUBMISSION, session_dir=trace_dir)
         callbacks = [AgentCallbackLogger(phase=SUBMISSION, session_dir=trace_dir)]
         for attempt in range(1, _ATTEMPTS_PER_SAMPLE + 1):
+            reply, text, answer = None, None, None
             try:
                 reply = await self.llm.ainvoke(
                     messages, config={"callbacks": callbacks}
                 )
             except Exception as exc:  # noqa: BLE001 - other samples can still vote
-                logger.log(
-                    "submission_sample",
-                    {
-                        "sample": sample,
-                        "attempt": attempt,
-                        "text": None,
-                        "answer": None,
-                        "error": f"{type(exc).__name__}: {exc}",
-                        "message": f"sample {sample} attempt {attempt}: model call failed",
-                    },
+                error = f"model call failed: {type(exc).__name__}: {exc}"
+            else:
+                text = message_text(reply)
+                answer, error = parse_answer(
+                    text, catalog_ids=catalog_ids, fault_types=fault_types
                 )
-                return None
-            text = message_text(reply)
-            answer, error = parse_answer(
-                text, catalog_ids=catalog_ids, fault_types=fault_types
-            )
             logger.log(
                 "submission_sample",
                 {
@@ -298,7 +285,7 @@ class ReportMapper:
                     + ("valid" if answer is not None else f"invalid ({error})"),
                 },
             )
-            if answer is not None:
+            if reply is None or answer is not None:
                 return answer
             messages += [
                 reply,
