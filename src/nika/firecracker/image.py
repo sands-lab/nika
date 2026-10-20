@@ -65,6 +65,8 @@ FREE_PAGE_REPORT_SEC = 5
 # 10 min for isp_pdh); a lab that cannot start (e.g. too little VM memory) must
 # not hang the build.
 BUILD_DEPLOY_TIMEOUT_SEC = 1800
+# Free space kept on the Firecracker root beyond a build's VM memory.
+BUILD_SPACE_MARGIN_MIB = 4096
 # Deploy parameters that change the lab; mirrors ``start_net_env``'s keywords.
 VARIANT_KEYS = (
     "scenario",
@@ -243,6 +245,24 @@ def ensure_image(params: dict[str, Any]) -> LabImage:
         return _ready(key)  # type: ignore[return-value]
 
 
+def require_build_space(memory_mib: int) -> None:
+    """Fail before a build that could fill the Firecracker root.
+
+    A snapshot writes the whole VM memory before its unused part becomes holes,
+    and a full btrfs root fails every build and trial (and the run's own logs
+    when they live there).
+    """
+    stat = os.statvfs(root())
+    free_mib = stat.f_bavail * stat.f_frsize >> 20
+    need_mib = memory_mib + BUILD_SPACE_MARGIN_MIB
+    if free_mib < need_mib:
+        raise RuntimeError(
+            f"Only {free_mib / 1024:.0f} GiB free on {root()}; a build needs about "
+            f"{need_mib / 1024:.0f} GiB. Delete stale lab and case images with "
+            "`nika firecracker clean` (or free space) and run again."
+        )
+
+
 def _clone(src: Path, dst: Path) -> None:
     """Copy-on-write copy (the Firecracker root must support reflinks)."""
     subprocess.run(["cp", "--reflink=always", str(src), str(dst)], check=True)
@@ -256,6 +276,7 @@ def _build(build: Path, key: str, params: dict[str, Any]) -> None:
         # An interrupted build (we hold its lock): stop its VM before deleting it.
         kill_pid_file(build / "firecracker.pid")
         shutil.rmtree(build)
+    require_build_space(vm_memory_mib(str(params.get("scenario"))))
     build.mkdir(parents=True)
     (build / "builder.json").write_text(
         json.dumps(

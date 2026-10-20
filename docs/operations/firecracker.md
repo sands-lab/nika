@@ -347,7 +347,10 @@ Lab images are keyed by:
   it.
 
 A change to any of these builds a new lab image on the next run, and `list`
-marks the old one stale. A case image is keyed by its lab image and its task, so
+marks the old one stale. Stale images are not deleted automatically (another
+checkout may still use them), so run `nika firecracker clean` after updating
+NIKA. A build that would leave the Firecracker root without room for its
+snapshot fails at once and asks you to clean up. A case image is keyed by its lab image and its task, so
 a new lab image also builds new case images.
 
 ## Limitations

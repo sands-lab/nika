@@ -39,8 +39,10 @@ from nika.firecracker.image import (
     _ready,
     ensure_image,
     image_key,
+    require_build_space,
     root,
     variant_for_row,
+    vm_memory_mib,
 )
 from nika.firecracker.vmm import DISK, Firecracker, firecracker_binary, pid_alive
 
@@ -110,6 +112,7 @@ def ensure_case(row: dict[str, Any]) -> CaseImage:
         build = cases_dir() / f"{key}.build"
         if build.exists():
             shutil.rmtree(build)  # an interrupted build; we hold its lock
+        require_build_space(vm_memory_mib(str(row["scenario"])))
         build.mkdir(parents=True)
         try:
             _build_case(build, key, row)
