@@ -128,10 +128,10 @@ class TrialLab:
         _clone(source / DISK, self.dir / DISK)
         vm = Firecracker(self.dir, firecracker_binary(settings.binary))
         vm.start()
-        uffd = None
+        uffd = server = None
         if settings.huge_pages or self.case:
             uffd = self.dir / "uffd.sock"
-            _start_page_server(
+            server = _start_page_server(
                 self.dir,
                 uffd,
                 self.image.path / MEMORY,
@@ -144,7 +144,19 @@ class TrialLab:
         )
         self.timings["restore_sec"] = round(time.monotonic() - started, 2)
         uds = self.dir / VSOCK
-        wait_http_ok(uds, DAEMON_PORT)
+        try:
+            # A page server that failed (e.g. ENOMEM: the huge-page pool ran
+            # dry) leaves the guest blocked on its next fault: fail now.
+            wait_http_ok(
+                uds,
+                DAEMON_PORT,
+                alive=lambda: server is None or server.poll() is None,
+            )
+        except VmmError:
+            log = (self.dir / "uffd.log").read_text(errors="replace").strip()
+            raise VmmError(
+                f"page server exited during restore: {log.splitlines()[-1:]}"
+            ) from None
         self.timings["ready_sec"] = round(time.monotonic() - started, 2)
         bind_host, agent_host = gateway_route(self.sandbox_backend)
         self._forwarders.append(VsockForwarder(uds, DAEMON_PORT))
@@ -218,7 +230,7 @@ class TrialLab:
 
 def _start_page_server(
     run_dir: Path, sock: Path, memory: Path, diff: Path | None = None
-) -> None:
+) -> subprocess.Popen:
     log = open(run_dir / "uffd.log", "ab")
     proc = subprocess.Popen(
         [sys.executable, "-m", "nika.firecracker.uffd", str(sock), str(memory)]
@@ -235,6 +247,7 @@ def _start_page_server(
         if proc.poll() is not None or time.monotonic() > deadline:
             raise VmmError(f"page server did not start; see {run_dir}/uffd.log")
         time.sleep(0.01)
+    return proc
 
 
 def active_trial_lab() -> TrialLab | None:

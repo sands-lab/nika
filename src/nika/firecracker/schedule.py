@@ -5,7 +5,7 @@
   trials only restore (and their case timeout never includes a build).
 * :func:`group_by_variant` runs trials of one environment variant together.
 * :func:`hugepage_need_mib` / :func:`hugepage_pool_mib` let the runner admit a
-  trial only while the huge-page pool can hold its copy.
+  trial only while the free huge pages can hold its copy.
 * :func:`clean_after_run` deletes the run's lab and case images if configured.
 """
 
@@ -82,7 +82,7 @@ def _build_admitted(
 ) -> list[str]:
     """Run builds, at most ``workers`` and only while huge pages hold their VMs."""
     failures = []
-    pool_mib = hugepage_pool_mib() if firecracker_settings().huge_pages else 0
+    pool_mib = hugepage_pool_mib()
     pending = sorted(items, key=mib, reverse=True)
     running: dict[Future, Any] = {}
     while pending or running:
@@ -90,7 +90,7 @@ def _build_admitted(
             if len(running) >= workers:
                 break
             held = sum(mib(i) for i in running.values())
-            if running and held + mib(item) > pool_mib > 0:
+            if running and pool_mib is not None and held + mib(item) > pool_mib:
                 continue
             pending.remove(item)
             running[submit(item)] = item
@@ -177,14 +177,21 @@ def prebuild_cases(trials: Iterable[Any], *, max_parallel: int) -> list[str]:
         )
 
 
-def hugepage_pool_mib() -> int:
-    """Size of the host's huge-page pool (all reserved huge pages)."""
+def hugepage_pool_mib() -> int | None:
+    """Free huge pages in MiB (None without huge pages).
+
+    Read it before the run starts copies: pages that other runs, builds or VMs
+    hold are not free, so admitting against the reserved total would let copies
+    find the pool empty.
+    """
+    if not firecracker_settings().huge_pages:
+        return None
     info = {
         line.split(":")[0]: int(line.split()[1])
         for line in Path("/proc/meminfo").read_text().splitlines()
-        if line.startswith(("HugePages_Total", "Hugepagesize"))
+        if line.startswith(("HugePages_Free", "Hugepagesize"))
     }
-    return info.get("HugePages_Total", 0) * info.get("Hugepagesize", 0) // 1024
+    return info.get("HugePages_Free", 0) * info.get("Hugepagesize", 0) // 1024
 
 
 def hugepage_need_mib(row: dict[str, Any]) -> int:

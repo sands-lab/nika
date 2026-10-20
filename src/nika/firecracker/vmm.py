@@ -169,6 +169,9 @@ class Firecracker:
             "PUT",
             "/snapshot/create",
             {"snapshot_type": "Full", "snapshot_path": state, "mem_file_path": memory},
+            # Writes all VM memory (up to tens of GiB); parallel builds share
+            # the disk, so this can take far longer than other API calls.
+            timeout=3600,
         )
 
     def load(self, *, state: Path, memory: Path, uffd_socket: Path | None) -> None:
@@ -244,11 +247,16 @@ def http_ok(uds: Path, port: int, path: str = "/health") -> bool:
         return False
 
 
-def wait_http_ok(uds: Path, port: int, *, timeout: float = 300.0) -> None:
+def wait_http_ok(uds: Path, port: int, *, timeout: float = 300.0, alive=None) -> None:
+    """Wait for HTTP 200; stop early once ``alive()`` reports the VM gone."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if http_ok(uds, port):
             return
+        if alive is not None and not alive():
+            raise VmmError(
+                f"VM in {uds.parent} stopped before vsock port {port} answered"
+            )
         time.sleep(0.05)
     raise TimeoutError(f"no HTTP 200 on vsock {uds}:{port} within {timeout:.0f}s")
 

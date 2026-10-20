@@ -61,6 +61,10 @@ META = "meta.json"
 # Warn when a deployed lab leaves less than this share of its VM memory free.
 LOW_MEMORY_FRACTION = 0.25
 FREE_PAGE_REPORT_SEC = 5
+# Deploy plus startup verification in a lab image build (longest seen: about
+# 10 min for isp_pdh); a lab that cannot start (e.g. too little VM memory) must
+# not hang the build.
+BUILD_DEPLOY_TIMEOUT_SEC = 1800
 # Deploy parameters that change the lab; mirrors ``start_net_env``'s keywords.
 VARIANT_KEYS = (
     "scenario",
@@ -248,7 +252,9 @@ def _build(build: Path, key: str, params: dict[str, Any]) -> None:
     base = root() / "base"
     manifest = base_manifest()
     if build.exists():
-        shutil.rmtree(build)  # an interrupted build; we hold its lock
+        # An interrupted build (we hold its lock): stop its VM before deleting it.
+        kill_pid_file(build / "firecracker.pid")
+        shutil.rmtree(build)
     build.mkdir(parents=True)
     (build / "builder.json").write_text(
         json.dumps(
@@ -290,7 +296,8 @@ def _build(build: Path, key: str, params: dict[str, Any]) -> None:
                 **params,
                 session_id=session_id,
                 static_validation=lab_settings()["static_validation"]["enabled"],
-            )
+            ),
+            timeout=BUILD_DEPLOY_TIMEOUT_SEC,
         )
     finally:
         forwarder.close()

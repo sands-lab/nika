@@ -102,10 +102,12 @@ class RemoteClient:
     # Deploy + verify and inject + verify block server-side for as long as the
     # scenario's verify budget allows (up to 30 min for large labs), so these
     # calls wait for the server's answer instead of a fixed client timeout.
-    def env_start(self, request: EnvStartRequest) -> EnvStartResponse:
+    def env_start(
+        self, request: EnvStartRequest, *, timeout: float | None = None
+    ) -> EnvStartResponse:
         return EnvStartResponse.model_validate(
             self._request(
-                "POST", "/v1/env/start", body=request.model_dump(), timeout=None
+                "POST", "/v1/env/start", body=request.model_dump(), timeout=timeout
             )
         )
 

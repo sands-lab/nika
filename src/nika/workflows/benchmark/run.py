@@ -1452,7 +1452,7 @@ def _run_trials_batch(
     futures: dict[Any, tuple[Trial, str]] = {}
     in_flight: dict[str, int] = {}
     # nika.firecracker with huge pages: expected huge-page use of running copies.
-    hugepage_pool = hugepage_pool_mib() if firecracker_enabled() else 0
+    hugepage_pool = hugepage_pool_mib() if firecracker_enabled() else None
     hugepages_in_flight: dict[Any, int] = {}
     # Each light phase may bypass waiting heavy trials at most one batch.
     # Once spent, drain the light tier so heavy trials cannot be starved.
@@ -1471,8 +1471,12 @@ def _run_trials_batch(
             )
             if index is None:
                 break
-            need = hugepage_need_mib(pending[index].row) if hugepage_pool else 0
-            if futures and sum(hugepages_in_flight.values()) + need > hugepage_pool:
+            need = hugepage_need_mib(pending[index].row)
+            if (
+                futures
+                and hugepage_pool is not None
+                and sum(hugepages_in_flight.values()) + need > hugepage_pool
+            ):
                 break  # wait until running copies free huge pages
             cls = resource_class(pending[index])
             if cls == CLASS_LIGHT and any(

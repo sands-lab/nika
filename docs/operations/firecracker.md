@@ -87,12 +87,19 @@ reboots. Run them as a user with `sudo`.
    sudo chown "$USER": /var/lib/nika-firecracker
    ```
 
-   Size it for about 20 GiB of base image plus, per lab image, the memory the
+   Size it for about 22 GiB of base image plus, per lab image, the memory the
    lab uses (1–3 GiB; unused memory is stored as holes) and the disk blocks its
-   deploy changed. A loop file grows on the disk that holds it, and rebuilding
-   the base briefly needs room for two bases. Keep that disk well below full: on
-   a Kubernetes node, kubelet deletes every unused Docker image once the disk
-   passes 85%.
+   deploy changed. While a lab image is built, its snapshot first writes the
+   VM's whole `vm_memory` (4–20 GiB) before the unused part becomes holes, so
+   parallel builds need that much free space each, for a few minutes.
+   Rebuilding the base briefly needs room for two bases.
+
+   A loop file grows on the disk that holds it, and `truncate` does not check
+   that the disk has the space: size the file to the real free space of that
+   disk, which also holds NIKA's runtime images (about 20 GiB). When the disk
+   fills up, btrfs on a loop file stops with I/O errors. Keep that disk well
+   below full: on a Kubernetes node, kubelet deletes every unused Docker image
+   once the disk passes 85%.
 
 4. **Huge pages** (recommended; see [Huge pages](#huge-pages)). Reserve them at
    boot: a running host's memory is soon too fragmented to find enough
@@ -133,8 +140,11 @@ reboots. Run them as a user with `sudo`.
 
    ```shell
    nika images prepare
-   docker plugin install --grant-all-permissions kathara/katharanp_vde:$(dpkg --print-architecture)
+   docker plugin ls | grep -q katharanp \
+     || docker plugin install --grant-all-permissions kathara/katharanp_vde:$(dpkg --print-architecture)
    ```
+
+   NIKA's installer already installs the plugin.
 
 7. **Reboot** (for the huge pages), then check:
 
@@ -178,12 +188,16 @@ the runner schedules for that:
 
 1. **Lab images first.** Before any trial starts, it builds the lab images the
    run needs and does not have yet, several at a time (bounded by vCPUs and huge
-   pages). Trials then only restore, and `--case-timeout` never includes a build.
+   pages). Trials then only restore, and `--case-timeout` does not include a
+   build. If a build fails, each trial of that variant retries it within its own
+   case timeout.
 2. **One variant at a time.** Trials of the same environment variant run next to
    each other, so its lab image's memory file stays in the page cache.
 3. **Admission by memory.** `--batch-size` caps concurrent trials; with huge
-   pages, a trial also waits until the pool can hold its copy's whole
-   `vm_memory`, so a copy can never exhaust the pool. Heavy labs (k8s, Containerlab, size `l`) no
+   pages, a trial also waits until the huge pages that were free when the run
+   started can hold its copy's whole `vm_memory`, so a copy never finds the
+   pool empty. Huge pages that other runs or VMs hold are not counted as free;
+   if a copy still cannot get its memory, its restore fails at once. Heavy labs (k8s, Containerlab, size `l`) no
    longer run alone: a restore costs them no more than a light lab.
 
 ### Huge pages
@@ -206,13 +220,15 @@ needs its own huge pages for the memory its lab uses.
 Each VM gets `vm_cpus` vCPUs (default 4) and `vm_memory` (default 4 GiB), which
 fits most Kathara labs. Give larger labs more with `vm_memory_overrides`; an
 image build warns when a lab leaves less than a quarter of its VM memory free.
-For release 0.2.0:
+For release 0.2.0, plus Cisco XRd (`iosxr_simple_bgp`), whose build otherwise
+runs out of memory:
 
 ```yaml
 vm_memory_overrides:
   k8s_lab: 8GiB
   llmd_lab: 8GiB
   min3clos: 8GiB
+  iosxr_simple_bgp: 8GiB
   isp_pdh: 20GiB
   isp_di-yuan: 20GiB
   isp_dfn-gwin: 20GiB
@@ -338,8 +354,10 @@ a new lab image also builds new case images.
 
 * **Labs that run VMs themselves** (vrnetlab RouterOS) need KVM nested
   virtualization on the host and NIKA's Firecracker build (see
-  [Set up the host](#set-up-the-host-once)). They are tested on AMD; the Intel
-  (VMX) path is implemented but not yet tested.
+  [Set up the host](#set-up-the-host-once)). They work when NIKA runs on bare
+  metal or in a VM (RouterOS then runs two levels deep); on a host that is
+  itself a VM inside a VM, RouterOS does not boot. They are tested on AMD; the
+  Intel (VMX) path is implemented but not yet tested.
 * **The first operations after a 4 KiB-page restore run slower.** This is most
   visible on hosts that are themselves VMs; huge pages remove it.
 * **Only benchmark runs use Firecracker.** `nika env run`, `nika case run` and
