@@ -1,4 +1,4 @@
-"""Contract tests for sandbox SDK wheel staging."""
+"""Contract tests for agent wheel staging and requirement sets."""
 
 from __future__ import annotations
 
@@ -6,72 +6,80 @@ import pytest
 
 from unittest.mock import patch
 
-from agent.sandbox.config import resolve_sandbox_config
-from agent.sandbox.sbx.wheels import install_sdk_packages_in_sandbox
-from agent.sandbox.wheels import SDK_WHEEL_DIRNAME, sdk_wheel_dir, stage_sdk_wheels
+from nika.agents.sandbox.config import resolve_sandbox_config
+from nika.agents.registry import BUILTIN_AGENTS
+from nika.agents.sandbox.sbx.wheels import install_agent_packages_in_sandbox
+from nika.agents.sandbox.wheels import (
+    WHEEL_DIRNAME,
+    load_requirements,
+    stage_wheels,
+    wheel_dir,
+)
 
 pytestmark = pytest.mark.unit
 
 
-def test_sdk_wheels_are_staged_and_installed_offline(tmp_path) -> None:
+def test_agent_wheels_are_staged_and_installed_offline(tmp_path) -> None:
     cache = tmp_path / "cache"
-    cache.mkdir()
+    (cache / "claude_sdk").mkdir(parents=True)
+    cache = cache / "claude_sdk"
     (cache / "pkg-1.0-py3-none-any.whl").write_bytes(b"wheel")
     workspace = tmp_path / "workspace"
     workspace.mkdir()
 
     with (
-        patch("agent.sandbox.wheels._WHEEL_CACHE", cache),
-        patch("agent.sandbox.wheels._pip_download"),
+        patch("nika.agents.sandbox.wheels._WHEEL_CACHE", cache.parent),
+        patch("nika.agents.sandbox.wheels._pip_download"),
     ):
-        staged = stage_sdk_wheels(workspace)
-    assert staged == workspace / SDK_WHEEL_DIRNAME
+        staged = stage_wheels(workspace, "claude_sdk")
+    assert staged == workspace / WHEEL_DIRNAME
 
-    wheels = sdk_wheel_dir(workspace)
-    with patch("agent.sandbox.sbx.wheels.run_sbx_checked") as run:
-        install_sdk_packages_in_sandbox(
-            sandbox_name="nika-test",
+    wheels = wheel_dir(workspace)
+    with patch("nika.agents.sandbox.sbx.wheels.run_sbx_checked") as run:
+        install_agent_packages_in_sandbox(
+            sandbox_name="agent-test",
             workspace_dir=workspace,
+            requirements="claude_sdk",
             offline=True,
         )
 
     command = run.call_args.args[0]
-    assert command[:2] == ["exec", "nika-test"]
+    assert command[:2] == ["exec", "agent-test"]
     assert "--no-index" in command[-1]
     assert str(wheels) in command[-1]
     assert "-r '" in command[-1]
-    assert (workspace / "requirements-sdk.txt").is_file()
+    assert (workspace / "requirements.txt").is_file()
 
 
-def test_sdk_packages_install_from_pypi_when_offline_disabled(tmp_path) -> None:
-    from agent.sandbox.sbx.wheels import install_sdk_packages_in_sandbox
-
+def test_agent_packages_install_from_pypi_when_offline_disabled(tmp_path) -> None:
     workspace = tmp_path / "workspace"
     workspace.mkdir()
-    with patch("agent.sandbox.sbx.wheels.run_sbx_checked") as run:
-        install_sdk_packages_in_sandbox(
-            sandbox_name="nika-test",
+    with patch("nika.agents.sandbox.sbx.wheels.run_sbx_checked") as run:
+        install_agent_packages_in_sandbox(
+            sandbox_name="agent-test",
             workspace_dir=workspace,
+            requirements="runtime",
+            packages=["nooa[mcp]==0.0.10"],
             offline=False,
         )
 
-    command = run.call_args.args[0]
-    assert command[:2] == ["exec", "nika-test"]
-    assert "--no-index" not in command[-1]
-    assert "pip3 install" in command[-1]
-    assert "-r '" in command[-1]
-    assert (workspace / "requirements-sdk.txt").is_file()
+    base, extra = (call.args[0] for call in run.call_args_list)
+    assert base[:2] == ["exec", "agent-test"]
+    assert "--no-index" not in base[-1]
+    assert "-r '" in base[-1]
+    # An added agent's own packages come from PyPI after the frozen set.
+    assert "'nooa[mcp]==0.0.10'" in extra[-1]
+    assert (workspace / "requirements.txt").is_file()
 
 
-def test_sdk_requirements_are_exact_pins() -> None:
-    from agent.sandbox.wheels import SDK_PIP_PACKAGES, SDK_REQUIREMENTS_FILE
-
-    assert SDK_REQUIREMENTS_FILE.is_file()
-    assert SDK_PIP_PACKAGES
-    assert all("==" in req for req in SDK_PIP_PACKAGES)
-    assert any(req.startswith("pydantic==") for req in SDK_PIP_PACKAGES)
-    assert any(req.startswith("claude-agent-sdk==") for req in SDK_PIP_PACKAGES)
-    assert any(req.startswith("openai-codex==") for req in SDK_PIP_PACKAGES)
+@pytest.mark.parametrize(
+    "name", sorted({spec.requirements for spec in BUILTIN_AGENTS} | {"langgraph"})
+)
+def test_agent_requirement_sets_are_exact_pins(name: str) -> None:
+    pins = load_requirements(name)
+    assert all("==" in req for req in pins)
+    # Every agent environment can import the shared runtime (trace logging).
+    assert any(req.startswith("langchain-core==") for req in pins)
 
 
 def test_resolve_sandbox_config_offline_sdk_wheels_default_on() -> None:

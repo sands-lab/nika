@@ -8,9 +8,9 @@ from unittest.mock import patch
 
 import pytest
 
-from agent.sandbox.sbx.cleanup import cleanup_sbx_for_session
-from agent.sandbox.sbx.policy import sanitize_sandbox_name
-from agent.sandbox.workspace import opaque_agent_workspace_dir
+from nika.agents.sandbox.sbx.cleanup import cleanup_sbx_for_session
+from nika.agents.sandbox.sbx.policy import sanitize_sandbox_name
+from nika.agents.sandbox.workspace import opaque_agent_workspace_dir
 
 pytestmark = pytest.mark.unit
 
@@ -21,8 +21,8 @@ def test_cleanup_sbx_for_session_targets_only_own_sandbox(
 ) -> None:
     agent_sid = "20260926-120000-a-abcdef"
     monkeypatch.setattr(
-        "agent.sandbox.workspace.RUNTIME_DIR",
-        tmp_path / "runtime",
+        "nika.agents.sandbox.workspace.agent_workspaces_root",
+        lambda: tmp_path / "workspaces",
     )
     workspace = opaque_agent_workspace_dir(agent_sid)
     workspace.mkdir(parents=True)
@@ -40,8 +40,8 @@ def test_cleanup_sbx_for_session_targets_only_own_sandbox(
         return SimpleNamespace(returncode=0, stdout="Sandbox removed\n", stderr="")
 
     with (
-        patch("agent.sandbox.sbx.client.sbx_available", return_value=True),
-        patch("agent.sandbox.sbx.client.run_sbx_optional", side_effect=_fake_rm),
+        patch("nika.agents.sandbox.sbx.client.sbx_available", return_value=True),
+        patch("nika.agents.sandbox.sbx.client.run_sbx_optional", side_effect=_fake_rm),
     ):
         result = cleanup_sbx_for_session(
             {
@@ -65,14 +65,14 @@ def test_cleanup_sbx_for_session_skips_when_already_gone(
 ) -> None:
     agent_sid = "20260926-120000-a-dead01"
     monkeypatch.setattr(
-        "agent.sandbox.workspace.RUNTIME_DIR",
-        tmp_path / "runtime",
+        "nika.agents.sandbox.workspace.agent_workspaces_root",
+        lambda: tmp_path / "workspaces",
     )
 
     with (
-        patch("agent.sandbox.sbx.client.sbx_available", return_value=True),
+        patch("nika.agents.sandbox.sbx.client.sbx_available", return_value=True),
         patch(
-            "agent.sandbox.sbx.client.run_sbx_optional",
+            "nika.agents.sandbox.sbx.client.run_sbx_optional",
             return_value=SimpleNamespace(
                 returncode=0, stdout="", stderr="sandbox not found"
             ),

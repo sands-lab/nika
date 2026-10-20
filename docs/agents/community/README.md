@@ -1,6 +1,6 @@
 # Community agent references
 
-This index lists community-maintained troubleshooting agents that implement NIKA's `agent.protocols.TroubleshootingAgent` contract. Each agent keeps its implementation under `src/agent/community/<name>/` and its operator reference in this directory.
+This index lists community-maintained troubleshooting agents that subclass `agent.base.DiagnosisAgent`. Each agent keeps its implementation under `src/agent/community/<name>/` and its operator reference in this directory.
 
 | Agent | CLI name | Reference | Implementation |
 | --- | --- | --- | --- |

@@ -123,14 +123,17 @@ Run agent unit tests to check configuration, authentication mapping, and output 
 | `test_codex_sdk.py` | `sdk.codex_sdk` | auth/reasoning + MCP TOML | None (unit tests) |
 | `test_mcp_read_timeout.py` | shared MCP | client read-timeout configuration | None |
 | `test_sbx.py` | sandbox | sbx manager, credentials, proxy | None |
-| `test_sandbox.py` | sandbox | manifest, redaction, SDK context, E2B connection settings | None |
+| `test_sandbox.py` | sandbox | task, redaction, E2B connection settings | None |
+| `test_model_calls.py` | sandbox | model call record, LLM request budget, host-authoritative metrics | None |
+| `test_agent_isolation_contract.py` | sandbox | no file copied into a sandbox names NIKA | None |
+| `test_diagnosis_agent.py` | shared contract | phase bookends, report freeze, in-sandbox phase runner | None |
 | `test_model_proxy.py` | sandbox | model proxy request adaptation and credential swap | None |
 | `test_subscription.py` | sandbox | E2B subscription logins, Codex login refresh, sandbox placeholders | None |
 | `test_sandbox_tunnel.py` | sandbox | host tunnel for E2B sandboxes | None |
 | `test_sandbox_security.py` | sandbox | microVM security probe | sbx + Docker |
 | `test_sandbox_isolation.py` | sandbox | distinct gateway ports + cross-sandbox MCP policy isolation | unit; sbx for peer-gateway probe |
 | `test_sandbox_e2b.py` | sandbox | an E2B sandbox reaches only its tunnel, no other host port and no internet | E2B service (`E2B_API_KEY`) |
-| `test_sandbox_agents.py` | sandbox | five-agent E2E (test BGP fixture / `link_down`); `Sandbox*` classes on sbx, `E2b*` classes on E2B | See [Live agent credentials](#live-agent-credentials) |
+| `test_sandbox_agents.py` | sandbox | E2E of every built-in agent (test BGP fixture / `link_down`); `Sandbox*` classes on sbx, `E2b*` classes on E2B. With a custom endpoint, also checks that no model request, and nothing in the kept sbx sandbox, names NIKA | See [Live agent credentials](#live-agent-credentials) |
 
 ### Live agent credentials
 
@@ -138,18 +141,18 @@ Choose the agent tests that match your available credentials. Set API keys and t
 
 | Live E2E coverage | Provider and model | Required credentials |
 |-------------------|--------------------|----------------------|
-| Codex CLI/SDK sandbox agents; Codex sandbox benchmark | `openai`, default `gpt-5-mini` | `OPENAI_API_KEY`; or a ChatGPT login with Codex access: a native `openai` sbx secret on sbx (CLI agent and benchmark only; the sbx Codex SDK test needs `OPENAI_API_KEY`), or the [E2B Codex login](../operations/agent-sandbox.md#subscriptions-with-e2b) on E2B |
+| Codex CLI/SDK and BYO sandbox agents; Codex sandbox benchmark | `openai`, default `gpt-5-mini` (or the OpenAI-family override below) | `OPENAI_API_KEY`; or NIKA's [Codex login](../operations/agent-sandbox.md#subscriptions) with Codex access |
 | Claude CLI/SDK and SADE sandbox agents; Claude sandbox benchmark; Kubernetes Claude agent E2E | Default `deepseek` / `deepseek-v4-flash` | `DEEPSEEK_API_KEY`; no Claude subscription required |
-| The same Claude-family tests with the Anthropic override below | `anthropic`, explicit account-accessible Claude model | `ANTHROPIC_API_KEY` (legacy `ANTHROPIC_AUTH_TOKEN` also works); or a Claude subscription with Claude Code access: a native `anthropic` sbx secret on sbx, or `CLAUDE_CODE_OAUTH_TOKEN` on E2B |
+| The same Claude-family tests with the Anthropic override below | `anthropic`, explicit account-accessible Claude model | `ANTHROPIC_API_KEY` (legacy `ANTHROPIC_AUTH_TOKEN` also works); or a Claude subscription with Claude Code access as `CLAUDE_CODE_OAUTH_TOKEN` |
 | The same Claude-family tests with the custom override below | `custom`, explicit model served by your endpoint | `NIKA_TEST_CUSTOM_BASE_URL`, plus `NIKA_CUSTOM_API_KEY` if the endpoint requires one |
 | BYO LangGraph/MCP Agent/AutoGen pipelines in `test_agent_pipeline_contract.py`; curated release live E2E | Fixed DeepSeek configuration | `DEEPSEEK_API_KEY`; the Claude/Codex overrides below do not apply |
 | Sandbox security and isolation probes | No LLM calls | No LLM key or subscription; authenticated sbx runtime, or an E2B service for `test_sandbox_e2b.py` |
 
-Sandbox tests require a working Docker engine and a [sandbox runtime](../operations/agent-sandbox.md#set-up-the-runtime). Each sandbox pipeline and benchmark test class has an sbx variant (`Sandbox*`), which runs after `sbx login`, and an E2B variant (`E2b*`), which runs when `E2B_API_KEY` is set, against the service in your run config (`nika.sandbox.url`, else `E2B_DOMAIN`, else E2B cloud). Docker login is separate from LLM authentication. Install the host agent CLI for CLI tests. SDK tests need no SDK packages on the host, because the sandbox provides them; SADE tests need `uv sync --extra sade`. Kubernetes agent E2E also needs privileged Kathara/k3s support; the BYO Containerlab pipeline needs `clab` and `gnmic`.
+Sandbox tests require a working Docker engine and a [sandbox runtime](../operations/agent-sandbox.md#set-up-the-runtime). Each sandbox pipeline and benchmark test class has an sbx variant (`Sandbox*`), which runs after `sbx login`, and an E2B variant (`E2b*`), which runs when `E2B_API_KEY` is set, against the service in your run config (`nika.sandbox.url`, else `E2B_DOMAIN`, else E2B cloud). Docker login is separate from LLM authentication. Agent CLIs and Python packages come with the sandbox, so the host needs none of them. Kubernetes agent E2E also needs privileged Kathara/k3s support; the BYO Containerlab pipeline needs `clab` and `gnmic`.
 
-For **API-key mode**, NIKA keeps the selected provider's key on the host (see [API keys](../operations/agent-sandbox.md#api-keys-automatic)). An API key uses the provider's API account; a ChatGPT or Claude subscription is an alternative authentication path for the corresponding sandbox agents, not an API key for BYO frameworks. See [OpenAI authentication](https://learn.chatgpt.com/docs/auth) and [Docker's Claude authentication](https://docs.docker.com/ai/sandboxes/agents/claude-code/#authentication).
+For **API-key mode**, NIKA keeps the selected provider's key on the host (see [API keys](../operations/agent-sandbox.md#api-keys)). An API key uses the provider's API account; a ChatGPT or Claude subscription is an alternative authentication path for the corresponding sandbox agents, not an API key for BYO frameworks. See [OpenAI authentication](https://learn.chatgpt.com/docs/auth) and [Docker's Claude authentication](https://docs.docker.com/ai/sandboxes/agents/claude-code/#authentication).
 
-For subscription mode, complete the [subscription login](../operations/agent-sandbox.md#subscription--oauth-interactive-once) for each runtime you test. On sbx, confirm a global service entry with `sbx secret ls`; local CLI login and sandbox-scoped credentials do not cover newly created test sandboxes.
+For subscription mode, complete the [subscription login](../operations/agent-sandbox.md#subscriptions) on the host; it covers every runtime.
 
 Use these test-only overrides to select a model your account can access. Selecting Anthropic or custom without a model, or an unsupported provider, stops collection with a configuration error:
 
@@ -158,7 +161,8 @@ Use these test-only overrides to select a model your account can access. Selecti
 | `NIKA_TEST_ANTHROPIC_PROVIDER` | `deepseek` | Claude CLI/SDK, SADE, Claude sandbox benchmark, Kubernetes Claude E2E; accepts `deepseek`, `anthropic`, or `custom` |
 | `NIKA_TEST_ANTHROPIC_MODEL` | `deepseek-v4-flash` for DeepSeek; required for Anthropic and custom | The same Claude-family tests |
 | `NIKA_TEST_CUSTOM_BASE_URL` | None | Endpoint (`agent.base_url`) for the custom override; the endpoint must serve the Anthropic `/v1/messages` route |
-| `NIKA_TEST_CODEX_MODEL` | `gpt-5-mini` | Codex CLI/SDK sandbox agents and sandbox benchmark; provider stays `openai` |
+| `NIKA_TEST_OPENAI_PROVIDER` | `openai` | Codex CLI/SDK and BYO sandbox agents; accepts `openai`, `deepseek`, or `custom` (with `NIKA_TEST_CUSTOM_BASE_URL`) |
+| `NIKA_TEST_CODEX_MODEL` | `gpt-5-mini` | The same OpenAI-family sandbox agents, and the Codex sandbox benchmark |
 
 For example, with an Anthropic API key or sbx subscription login configured, replace `YOUR_CLAUDE_MODEL` with a model available to that account:
 
@@ -356,7 +360,7 @@ uv run pytest tests/nika/evaluator/ -v
 
 ## Mock agent (test-only)
 
-The **mock agent** (`src/agent/mock/mock_agent.py`) is a deterministic stand-in for LLM-backed agents. It runs a fixed two-phase MCP tool sequence without API keys.
+The **mock agent** (`src/nika/agents/mock/mock_agent.py`) is a deterministic stand-in for LLM-backed agents. It runs a fixed two-phase MCP tool sequence without API keys.
 
 ```shell
 nika agent run -a mock -m mock-v1 -n 5 --session_id <id>

@@ -1,13 +1,11 @@
 """Commands for running diagnosis agents."""
 
-import subprocess
-import sys
 from pathlib import Path
 
 import typer
 
 from agent.cli.codex.codex_worker import REASONING_EFFORT_LEVELS
-from agent.registry import BUILTIN_AGENTS, AgentSpec
+from nika.agents.registry import BUILTIN_AGENTS, AgentSpec
 from nika.run_config.loader import (
     ENV_RUN_CONFIG,
     export_run_config_env,
@@ -85,10 +83,8 @@ def _agent_row(agent_id: str, spec: AgentSpec | None, problem: str = "") -> str:
     if spec is None:
         return f"  {agent_id:<20} {'user':<12} unavailable: {problem}"
     notes = []
-    if spec.sbx is not None:
-        notes.append("sandbox")
-    elif spec.sandbox_definition is not None:
-        notes.append("sandbox declared (runs on host for now)")
+    if spec.template is not None:
+        notes.append(f"sandbox: {spec.template}")
     providers = ",".join(sorted(spec.providers))
     line = f"  {spec.id:<20} {spec.source:<12} {providers}"
     return f"{line}  [{'; '.join(notes)}]" if notes else line
@@ -97,7 +93,7 @@ def _agent_row(agent_id: str, spec: AgentSpec | None, problem: str = "") -> str:
 @agent_app.command("list")
 def agent_list() -> None:
     """Print available agents (built-in and added), LLM providers, and effort levels."""
-    from agent.plugins import list_external_agents
+    from nika.agents.plugins import list_external_agents
 
     typer.echo("agent_types:")
     for spec in BUILTIN_AGENTS:
@@ -116,26 +112,6 @@ def agent_list() -> None:
         typer.echo(f"  {level}")
 
 
-def _check_class(class_path: str, root: Path) -> None:
-    """Import *class_path* from *root* in a fresh interpreter, as `agent run` would."""
-    module_name, _, attr = class_path.partition(":")
-    code = (
-        "import importlib, sys\n"
-        f"sys.path.append({str(root)!r})\n"
-        f"target = getattr(importlib.import_module({module_name!r}), {attr!r})\n"
-        "if not callable(target):\n"
-        "    sys.exit(f'{target!r} is not callable')\n"
-    )
-    result = subprocess.run(
-        [sys.executable, "-c", code], capture_output=True, text=True
-    )
-    if result.returncode != 0:
-        detail = (result.stderr or result.stdout).strip().splitlines()
-        raise typer.BadParameter(
-            f"Cannot load {class_path!r}: {detail[-1] if detail else 'import failed'}"
-        )
-
-
 @agent_app.command("add")
 def agent_add(
     path: Path = typer.Argument(
@@ -143,10 +119,12 @@ def agent_add(
     ),
 ) -> None:
     """Register an agent developed outside NIKA so `-a <id>` can run it."""
-    from agent.plugins import (
+    from nika.agents.plugins import (
+        class_defined,
         import_root,
+        check_import_root,
         load_manifest,
-        missing_dependencies,
+        project_dependencies,
         read_registered_agents,
         write_registered_agents,
     )
@@ -157,26 +135,29 @@ def agent_add(
         if project.is_file():
             project = project.parent
         root = import_root(project, manifest.class_path)
+        check_import_root(root)
     except (FileNotFoundError, ValueError) as exc:
         raise typer.BadParameter(str(exc)) from exc
 
-    if missing := missing_dependencies(project):
-        quoted = " ".join(f"'{req}'" for req in missing)
+    if not class_defined(root, manifest.class_path):
         raise typer.BadParameter(
-            f"{project.name} depends on packages missing from NIKA's environment: "
-            f"{', '.join(missing)}. Install them with `uv pip install {quoted}` "
-            "and run `nika agent add` again."
+            f"Cannot find {manifest.class_path!r} under {root}; check `class` in "
+            "nika-agent.yaml."
         )
-    _check_class(manifest.class_path, root)
 
     agents = read_registered_agents()
     agents[manifest.id] = {"path": str(project)}
     write_registered_agents(agents)
     typer.echo(f"Added agent {manifest.id!r} ({manifest.class_path}).")
-    if manifest.sandbox is not None:
+    sandbox = manifest.sandbox
+    packages = (
+        sandbox.install
+        if sandbox is not None and sandbox.install is not None
+        else project_dependencies(root)
+    )
+    if packages:
         typer.echo(
-            "Its sandbox definition is valid; NIKA runs external agents on the "
-            "host until sandbox backends support them."
+            "Its sandbox installs: " + ", ".join(packages) + " (from PyPI, per run)."
         )
     typer.echo(f"Run it with: nika agent run -a {manifest.id} --problem <task>")
 
@@ -186,7 +167,7 @@ def agent_remove(
     agent_id: str = typer.Argument(..., help="Agent id shown by `nika agent list`."),
 ) -> None:
     """Unregister an agent added with `nika agent add`; its project is untouched."""
-    from agent.plugins import read_registered_agents, write_registered_agents
+    from nika.agents.plugins import read_registered_agents, write_registered_agents
 
     agents = read_registered_agents()
     if agents.pop(agent_id, None) is None:
@@ -217,7 +198,7 @@ def agent_check(
     """Check that the configured LLM endpoint is up and serves the model."""
     from dataclasses import asdict
 
-    from agent.utils.endpoint_probe import probe_endpoint
+    from nika.agents.endpoint_probe import probe_endpoint
 
     cfg = merge_cli(
         load_run_config(run_config),
@@ -449,7 +430,12 @@ def _run_one_shot(
         resolve_default_inject_params,
     )
 
+    from nika.agents.registry import get_agent_spec
+    from nika.utils.agent_config import resolve_agent_type
+
     try:
+        # Fail before deploying the environment.
+        get_agent_spec(resolve_agent_type(agent_type))
         scenario, topo_size, problem_name = parse_task_label(problem_label)
         overrides = _parse_set_options(sets)
         inject_params = resolve_default_inject_params(

@@ -45,7 +45,7 @@ NIKA enables the comparison of AI agents for network operations under identical,
 - **Network emulators:** Use NIKA with [Kathará](https://www.kathara.org/) or [Containerlab](https://containerlab.dev/) to run live networks without physical hardware.
 - **Pre-built tasks:** Troubleshoot network incidents without building the setup yourself. NIKA deploys the network and injects the faults.
 - **Bring your AI agent:** Use the included Claude Code, Codex, or LangGraph agents, or [connect your own harness](docs/agents/custom-agents.md).
-- **Agent sandboxing:** Run supported agents in [isolated sandboxes](docs/operations/agent-sandbox.md), with controlled access to the network, filesystem, and tools.
+- **Agent sandboxing:** Run every agent in an [isolated sandbox](docs/operations/agent-sandbox.md), with controlled access to the network, filesystem, and tools.
 - **Fair evaluation:** Evaluate incident detection, localization, and diagnosis under reproducible conditions, and [submit your results](docs/benchmarks/leaderboard-submission.md) to the leaderboard.
 - **MCP network telemetry:** Give agents access to [network diagnostic tools](#network-inspection-via-mcp), telemetry, and router and switch CLIs.
 - **Parallel and remote execution:** Run isolated sessions in parallel to speed up evaluations, or deploy the network on a [remote server](docs/operations/remote.md).
@@ -114,6 +114,7 @@ Depending on the network environment, agents can use MCP tools to inspect hosts,
 - Linux with Python 3.12+, `curl`, `git`, and `sudo`.
 - [Docker Engine](https://docs.docker.com/engine/install/).
 - The host `vrf` kernel module. On Ubuntu, install it with `sudo apt-get install linux-modules-extra-$(uname -r)`.
+- KVM (`/dev/kvm`) for the agent sandboxes, or an [E2B](https://e2b.dev/) account on hosts without it.
 
 ### Install NIKA
 
@@ -131,14 +132,13 @@ To run networks on another server, see [remote execution](docs/operations/remote
 
 ### Agent sandboxing
 
-Host agents such as LangGraph need no sandbox. For sandboxed agents (`cli.*`, `sdk.*`, `community.sade`), install `sbx` with KVM access and sign in:
+Every agent runs in its own sandbox, so its framework and dependencies never touch NIKA's environment and it reaches the network only through NIKA's tools. Install a sandbox runtime; we recommend [AgentENV](https://github.com/kvcache-ai/AgentENV), an open-source sandbox service that runs in Docker on your host:
 
 ```shell
-./scripts/install.sh --with-sbx
-sbx login
+./scripts/install.sh --with-agentenv
 ```
 
-If the installer adds you to the `kvm` group, open a new login shell and run `sbx daemon stop` before the first sandboxed run. Without KVM, run these agents on [E2B](docs/operations/agent-sandbox.md#connect-to-e2b) or an E2B-compatible service (like AgentENV) instead. More detail: [agent sandboxing](docs/operations/agent-sandbox.md).
+It needs KVM and kernel 6.8 or later. To use Docker Sandboxes instead, run `./scripts/install.sh --with-sbx` and `sbx login`; without KVM, use E2B cloud. See [agent sandboxing](docs/operations/agent-sandbox.md) to compare them.
 
 ## 🚀 Quick start
 

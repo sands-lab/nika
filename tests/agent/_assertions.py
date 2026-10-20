@@ -100,7 +100,9 @@ def _message_text(entry: dict) -> str:
     return "\n".join(parts)
 
 
-def skill_invoked(messages: list[dict], skill_name: str = "nika-test-skill") -> bool:
+def skill_invoked(
+    messages: list[dict], skill_name: str = "skill-loading-check"
+) -> bool:
     """Return True if messages show the named skill was invoked."""
     skill_markers = (
         skill_name,
@@ -132,7 +134,7 @@ def skill_invoked(messages: list[dict], skill_name: str = "nika-test-skill") -> 
 
 def marker_before_first_mcp_tool(
     messages: list[dict],
-    marker: str = "NIKA_TEST_SKILL_ACTIVE",
+    marker: str = "SKILL_LOADING_CHECK_ACTIVE",
 ) -> bool:
     """Return True when marker text appears before the first non-Skill MCP tool call."""
     for entry in messages:

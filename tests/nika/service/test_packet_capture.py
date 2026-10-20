@@ -173,7 +173,7 @@ class TestInspectCapture:
             payload = inspect.inspect_capture(
                 runtime,
                 "pc1",
-                "/tmp/nika-capture-abc.pcapng",
+                "/tmp/capture-abc.pcapng",
                 view="packets",
                 limit=1,
                 offset=0,
@@ -190,7 +190,7 @@ class TestInspectCapture:
             inspect.inspect_capture(
                 runtime,
                 "pc1",
-                "/tmp/nika-capture-abc.pcapng",
+                "/tmp/capture-abc.pcapng",
                 view="protocol",
             )
 
@@ -247,9 +247,9 @@ class FakeRuntime:
             return "TShark 4.0.0"
         if "echo $! >" in command and "nohup" in command:
             return ""
-        if command.startswith("cat /tmp/nika-capture-") and command.endswith(".pid"):
+        if command.startswith("cat /tmp/capture-") and command.endswith(".pid"):
             return "4242"
-        if command.startswith("cat /tmp/nika-capture-") and ".meta.json" in command:
+        if command.startswith("cat /tmp/capture-") and ".meta.json" in command:
             path = command[len("cat ") :].strip()
             return self.files.get((node, path), "")
         if "test -f" in command and "echo yes" in command:
@@ -298,14 +298,11 @@ class TestCaptureLifecycle:
         assert stopped["packet_count"] == 2
         assert stopped["captured_bytes"] == 11
         assert stopped["artifact"]["device"] == "router1"
-        assert (
-            stopped["artifact"]["remote_path"]
-            == f"/tmp/nika-capture-{capture_id}.pcapng"
-        )
+        assert stopped["artifact"]["remote_path"] == f"/tmp/capture-{capture_id}.pcapng"
         assert stopped["artifact"]["tshark_version"] == "TShark 4.0.0"
         meta = read_meta(runtime, capture_id)
         assert meta["status"] == "stopped"
-        assert meta["remote_path"] == f"/tmp/nika-capture-{capture_id}.pcapng"
+        assert meta["remote_path"] == f"/tmp/capture-{capture_id}.pcapng"
         assert (
             "router1",
             remote_meta_path(capture_id),
@@ -378,20 +375,17 @@ class PacketCaptureLiveE2ETest(SharedSessionTestCase):
         assert stopped["packet_count"] >= 1, stopped
         assert stopped["captured_bytes"] > 0, stopped
         assert stopped["artifact"]["device"] == self.CAPTURE_HOST
-        assert (
-            stopped["artifact"]["remote_path"]
-            == f"/tmp/nika-capture-{capture_id}.pcapng"
-        )
+        assert stopped["artifact"]["remote_path"] == f"/tmp/capture-{capture_id}.pcapng"
 
         meta = read_meta(runtime, capture_id)
         assert meta["status"] == "stopped"
         assert meta["device"] == self.CAPTURE_HOST
-        assert meta["remote_path"] == f"/tmp/nika-capture-{capture_id}.pcapng"
+        assert meta["remote_path"] == f"/tmp/capture-{capture_id}.pcapng"
         assert "ground_truth" not in json.dumps(meta)
         assert not (session_dir / "packet_captures").exists()
         remote_meta = runtime.exec(
             self.CAPTURE_HOST,
-            f"test -f /tmp/nika-capture-{capture_id}.meta.json && echo yes",
+            f"test -f /tmp/capture-{capture_id}.meta.json && echo yes",
             timeout=5,
         ).strip()
         assert remote_meta == "yes"
@@ -443,8 +437,8 @@ class PacketCaptureLiveE2ETest(SharedSessionTestCase):
         stop_b = manager.stop(second["capture_id"])
         assert stop_a["packet_count"] >= 1, stop_a
         assert stop_b["packet_count"] >= 1, stop_b
-        assert stop_a["artifact"]["remote_path"].startswith("/tmp/nika-capture-")
-        assert stop_b["artifact"]["remote_path"].startswith("/tmp/nika-capture-")
+        assert stop_a["artifact"]["remote_path"].startswith("/tmp/capture-")
+        assert stop_b["artifact"]["remote_path"].startswith("/tmp/capture-")
 
     def test_all_inspect_views_and_container_pcap_persistence(self) -> None:
         """Verify pcap stays on the node and every inspect view works in Docker."""

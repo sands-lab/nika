@@ -2,7 +2,7 @@
 
 This is the complete agent from [Integrate a custom agent](custom-agents.md), built on [NVIDIA-labs Object Oriented Agents](https://github.com/NVIDIA-NeMo/labs-OO-Agents) (NOOA). Copy it as a starting point for an agent on any framework.
 
-> **Safety:** NOOA runs model-generated Python. External agents run on the NIKA host, not in a sandbox, so run this only where that code can do no harm.
+NOOA runs model-generated Python. Like every agent, it runs in its own sandbox, which reaches only the lab's MCP tools and the model endpoint.
 
 ## Project files
 
@@ -10,27 +10,27 @@ This is the complete agent from [Integrate a custom agent](custom-agents.md), bu
 
 ```toml
 [project]
-name = "nika-nooa-agent"
+name = "nooa-agent"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = ["nooa[mcp]==0.0.10"]
+dependencies = ["nooa[mcp]==0.0.10", "litellm<1.106"]
 ```
 
 `nika-agent.yaml`:
 
 ```yaml
 id: nooa
-class: nooa_nika.agent:NooaAgent
+class: nooa_agent.agent:NooaAgent
 providers: [openai, custom]
 ```
 
-`nooa_nika/agent.py`:
+`nooa_agent/agent.py`:
 
 ```python
-"""NIKA agent whose diagnosis is a NOOA agent.
+"""Diagnosis agent backed by NOOA.
 
-NIKA supplies setup and submission; ``diagnose`` hands the incident to a NOOA
-CodeAct agent that calls NIKA's MCP tools from Python.
+``diagnose`` hands the incident to a NOOA CodeAct agent that calls the lab's
+MCP tools from Python.
 """
 
 from nooa import Agent, set_default_strategy
@@ -40,7 +40,7 @@ from nooa.mcp import MCPManager, MCPTool
 from nooa.strategies import CodeActStrategy
 from nooa.unifiedllm.registry import get_llm_client
 
-from agent.base import NikaAgent, max_steps_report
+from agent.base import DiagnosisAgent, max_steps_report
 from agent.protocols import DIAGNOSIS
 from agent.utils.loggers import MessageLogger
 
@@ -69,7 +69,7 @@ class NetworkInvestigator(Agent):
         ...
 
 
-class NooaAgent(NikaAgent):
+class NooaAgent(DiagnosisAgent):
     async def diagnose(self, task_description: str) -> str:
         log = MessageLogger(phase=DIAGNOSIS, session_dir=self.trace_dir)
         servers = {}
@@ -80,25 +80,25 @@ class NooaAgent(NikaAgent):
             _trace_tool_calls(tool, log)
             servers[name] = tool
 
-        # LiteLLM reads the OPENAI_* credentials NIKA sets for openai and custom.
+        # LiteLLM reads the standard OPENAI_* endpoint and key variables.
         llm = get_llm_client(f"openai/{self.model}", max_tokens=self.max_tokens)
         investigator = NetworkInvestigator(servers, llm=llm)
         last_turn = _trace_llm_turns(investigator, log)
-        # NIKA's max_steps is the number of LLM turns, CodeAct's max_iterations.
+        # max_steps is the number of LLM turns, CodeAct's max_iterations.
         set_default_strategy(
             CodeActStrategy(config=CodeActConfig(max_iterations=self.max_steps))
         )
         try:
             return await investigator.investigate(task_description)
         except GenerationError:
-            # Out of turns: freeze the latest model text, as NIKA's other agents do.
+            # Out of turns: report the latest model text.
             return max_steps_report(
                 log, max_steps=self.max_steps, latest_text=last_turn["text"]
             )
 
 
 def _trace_tool_calls(tool: MCPTool, log: MessageLogger) -> None:
-    """Record MCP calls with NIKA's trace events so the evaluator counts them."""
+    """Record MCP calls as trace events."""
     invoke = tool._invoke
 
     async def traced(name, arguments):
@@ -115,7 +115,7 @@ def _trace_tool_calls(tool: MCPTool, log: MessageLogger) -> None:
 
 
 def _trace_llm_turns(investigator: Agent, log: MessageLogger) -> dict[str, str]:
-    """Record one ``llm_end`` per model response; NIKA counts them as steps.
+    """Record one ``llm_end`` per model response.
 
     Returns a dict whose ``text`` is the latest non-empty model text.
     """
@@ -151,18 +151,17 @@ Compared with the [short version](custom-agents.md#1-write-your-agent), the agen
 | Addition | Why |
 | --- | --- |
 | `tools = {...}` before `...` | NOOA runs this code before the first model turn, so the model starts with the tool inventory instead of spending turns discovering it. |
-| `_trace_tool_calls`, `_trace_llm_turns` | Write NIKA's [trace events](agent-reference.md#trace-event-contract) to `messages.jsonl`. Without them the evaluator reports zero steps and tool calls. |
+| `_trace_tool_calls`, `_trace_llm_turns` | Write [trace events](agent-reference.md#trace-event-contract) to `messages.jsonl`, so the session trace shows each model turn and tool call. NIKA counts steps and tool calls from its own records either way. |
 | `max_iterations=self.max_steps` and `GenerationError` | Apply NIKA's [step limit](agent-reference.md#step-limit) and, when it is reached, report the latest model text like NIKA's other agents. |
 
 The event names `LLMComplete` and `LLMOutput` match NOOA 0.0.10; NOOA's development branch merges them into `LLMResponse`.
 
 ## Install and run
 
-NIKA's uv settings allow prereleases, and LiteLLM `1.106.0rc1` fails against NIKA's `openai` package, so pin LiteLLM when installing NOOA:
+NIKA installs the project's dependencies in the agent's sandbox on every run. The `pyproject.toml` above pins LiteLLM because `1.106.0rc1` fails against NOOA's `openai` client.
 
 ```shell
-uv pip install 'nooa[mcp]==0.0.10' 'litellm<1.106'
-uv run nika agent add ../nika-nooa-agent
+uv run nika agent add ../nooa-agent
 ```
 
 Point it at any OpenAI-compatible endpoint, for example a local vLLM server:

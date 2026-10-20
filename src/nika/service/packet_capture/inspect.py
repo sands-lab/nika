@@ -23,7 +23,7 @@ def require_tshark(runtime: LabRuntime, device: str) -> str:
     if not path:
         raise TsharkNotFoundError(
             f"Node {device!r} has no tshark installed for capture inspection. "
-            "Use a nika/base or nika/frr node, or rebuild lab images with tshark."
+            "Inspect the capture on a node that has tshark."
         )
     return path
 

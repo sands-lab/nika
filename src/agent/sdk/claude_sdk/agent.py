@@ -1,7 +1,6 @@
 """Claude Agent SDK troubleshooting agent.
 
 Two-phase pipeline via native ``ClaudeSDKClient`` sessions (no LangGraph).
-Select with ``nika agent run -a sdk.claude_sdk``.
 """
 
 from __future__ import annotations
@@ -9,10 +8,10 @@ from __future__ import annotations
 from agent.sdk.claude_sdk.config import resolve_claude_sdk_model
 from agent.sdk.claude_sdk.phases.diagnosis import ClaudeSdkDiagnosisPhase
 from agent.sdk.claude_sdk.phases.submission import ClaudeSdkSubmissionPhase
-from agent.base import NikaAgent
+from agent.base import DiagnosisAgent
 
 
-class ClaudeSdkAgent(NikaAgent):
+class ClaudeSdkAgent(DiagnosisAgent):
     """Two-phase troubleshooting agent backed by claude-agent-sdk."""
 
     def __init__(

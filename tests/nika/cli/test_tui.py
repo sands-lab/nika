@@ -3,8 +3,8 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from agent.utils import endpoint_probe
-from agent.utils.endpoint_probe import probe_endpoint
+from nika.agents import endpoint_probe
+from nika.agents.endpoint_probe import probe_endpoint
 from nika.tui.app import Form
 
 pytestmark = pytest.mark.unit

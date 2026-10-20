@@ -1,4 +1,4 @@
-"""AutoGen phase runner with NIKA messages.jsonl logging."""
+"""AutoGen phase runner with messages.jsonl logging."""
 
 from __future__ import annotations
 
@@ -26,24 +26,21 @@ from agent.utils.loggers import (
     tool_event_payload,
 )
 from agent.utils.usage import normalize_usage
-from nika.mcp.registry import MCP_SERVER_PREFIXES
-from agent.utils.provider_env import (
-    require_provider,
-    DEEPSEEK_OPENAI_BASE_URL,
+from agent.llm.endpoints import (
     ENV_ANTHROPIC_API_KEY,
     ENV_ANTHROPIC_BASE_URL,
-    ENV_DEEPSEEK_API_KEY,
     ENV_OPENAI_API_KEY,
     ENV_OPENAI_BASE_URL,
-    resolve_custom_api_key,
-    resolve_custom_base_url,
+    UNAUTHENTICATED_API_KEY,
+    openai_api_key,
+    openai_base_url,
+    require_provider,
 )
+from agent.runtime.task import current_task
 from agent.utils.reasoning_capture import reasoning_fields_for_log
 from agent.utils.reasoning_effort import map_anthropic_effort
 from agent.base import max_steps_report
 
-
-_KATHARA_PREFIXES = MCP_SERVER_PREFIXES
 
 _DEEPSEEK_MODEL_INFO = {
     "vision": False,
@@ -74,7 +71,7 @@ _ANTHROPIC_COMPAT_MODEL_INFO = {
 def _short_tool_name(name: str) -> str:
     if name.startswith("task_mcp_server_"):
         return name.removeprefix("task_mcp_server_")
-    for prefix in _KATHARA_PREFIXES:
+    for prefix in (f"{name}_" for name in current_task().mcp_servers):
         if name.startswith(prefix):
             return name.removeprefix(prefix)
     return name
@@ -124,13 +121,7 @@ def create_model_client(
     if prov == "anthropic":
         api_key = os.environ.get(ENV_ANTHROPIC_API_KEY, "").strip()
         if not api_key:
-            raise ValueError(
-                "ANTHROPIC_API_KEY required for Anthropic models: set it in .env "
-                "and set agent.provider to anthropic in config/nika.yaml. "
-                "For DeepSeek Anthropic-compat (Claude agents), use "
-                "agent.provider: deepseek. For other Anthropic-compatible "
-                "gateways, set ANTHROPIC_BASE_URL in .env."
-            )
+            raise ValueError("ANTHROPIC_API_KEY is not set for the anthropic provider.")
         kwargs: dict = {
             "model": model,
             "api_key": api_key,
@@ -145,17 +136,12 @@ def create_model_client(
         return _inject_anthropic_output_config(client, reasoning_effort)
 
     if prov == "deepseek":
-        api_key = os.environ.get(ENV_DEEPSEEK_API_KEY) or os.environ.get(
-            ENV_OPENAI_API_KEY
-        )
+        api_key = openai_api_key(prov)
         if not api_key:
-            raise ValueError(
-                "DEEPSEEK_API_KEY required for DeepSeek models: set it in .env "
-                "and set agent.provider to deepseek in config/nika.yaml."
-            )
+            raise ValueError("No API key is set for the deepseek provider.")
         kwargs = {
             "model": model,
-            "base_url": os.environ.get(ENV_OPENAI_BASE_URL) or DEEPSEEK_OPENAI_BASE_URL,
+            "base_url": openai_base_url(prov),
             "api_key": api_key,
             "model_info": _DEEPSEEK_MODEL_INFO,
         }
@@ -164,25 +150,13 @@ def create_model_client(
         return OpenAIChatCompletionClient(**kwargs)
 
     if prov == "custom":
-        base_url = resolve_custom_base_url() or os.environ.get(ENV_OPENAI_BASE_URL, "")
+        base_url = openai_base_url(prov)
         if not base_url:
-            try:
-                from nika.run_config.loader import get_run_config
-
-                base_url = (get_run_config().agent.base_url or "").strip()
-            except Exception:  # noqa: BLE001
-                base_url = ""
-        if not base_url:
-            raise ValueError(
-                "agent.base_url required for custom provider in config/nika.yaml."
-            )
-        api_key = (
-            resolve_custom_api_key() or os.environ.get(ENV_OPENAI_API_KEY) or "no-key"
-        )
+            raise ValueError("The custom provider needs a base URL (OPENAI_BASE_URL).")
         kwargs = {
             "model": model,
             "base_url": base_url,
-            "api_key": api_key,
+            "api_key": openai_api_key(prov) or UNAUTHENTICATED_API_KEY,
             "model_info": _OPENAI_COMPAT_MODEL_INFO,
         }
         if reasoning_effort is not None:

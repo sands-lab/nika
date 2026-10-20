@@ -1,15 +1,21 @@
-"""Parse messages.jsonl to extract agent trace metrics.
+"""Extract agent trace metrics of a session.
 
-The parser reads the session message trace and optionally filters
-by the ``phase`` field. Token counts, step counts, and timing are derived
-from the diagnosis phase by default (``phase_filter=DIAGNOSIS``).
+The parser reads the session message trace (``messages.jsonl``) and optionally
+filters by the ``phase`` field; metrics cover the diagnosis phase by default
+(``phase_filter=DIAGNOSIS``). The agent writes that trace in its sandbox, so
+the host's own records win when the session has them: steps and tokens come
+from the model proxy (``model_calls.jsonl``, one step per LLM request) and tool
+calls from the MCP gateway (``tool_calls.jsonl``). Timing stays with the trace.
 """
 
 import json
 from datetime import datetime
+from pathlib import Path
 
 from agent.protocols import DIAGNOSIS
 from agent.utils.usage import normalize_usage
+from nika.agents.sandbox.model_calls import MODEL_CALLS_FILENAME, model_call_metrics
+from nika.mcp.gateway.tool_log import TOOL_CALLS_FILENAME
 
 
 class AgentTraceParser:
@@ -77,6 +83,28 @@ class AgentTraceParser:
                 self.steps += int(num_turns) if num_turns is not None else 1
                 self._add_usage(claude_event.get("usage"))
 
+    def _apply_host_records(self, session_dir: Path) -> None:
+        """Replace counts with the host's records of the session, if any."""
+        model_calls = session_dir / MODEL_CALLS_FILENAME
+        if model_calls.is_file():
+            metrics = model_call_metrics(model_calls, phase=self.phase_filter)
+            self.steps = metrics["steps"]
+            self.in_tokens = metrics["in_tokens"]
+            self.out_tokens = metrics["out_tokens"]
+            self.reasoning_tokens = metrics["reasoning_tokens"]
+        tool_calls = session_dir / TOOL_CALLS_FILENAME
+        if tool_calls.is_file():
+            self.tool_calls = self.tool_errors = 0
+            with tool_calls.open(encoding="utf-8") as handle:
+                for line in handle:
+                    if not line.strip():
+                        continue
+                    entry = json.loads(line)
+                    if self.phase_filter and entry.get("phase") != self.phase_filter:
+                        continue
+                    self.tool_calls += 1
+                    self.tool_errors += int(bool(entry.get("is_error")))
+
     def parse_trace(self) -> dict:
         time_start: datetime | None = None
         time_end: datetime | None = None
@@ -103,6 +131,7 @@ class AgentTraceParser:
         self.time_taken = (
             (time_end - time_start).total_seconds() if time_start and time_end else 0
         )
+        self._apply_host_records(Path(self.trace_path).parent)
         return {
             "in_tokens": self.in_tokens,
             "out_tokens": self.out_tokens,

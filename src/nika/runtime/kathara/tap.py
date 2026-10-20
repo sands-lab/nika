@@ -13,8 +13,11 @@ from nika.utils.logger import log_event
 
 
 def tap_owner(lab_name: str) -> str:
-    """Opaque kernel alias; the session document maps it back to its lab."""
-    return "nika:tap:" + hashlib.sha256(lab_name.encode()).hexdigest()
+    """Opaque kernel alias; the session document maps it back to its lab.
+
+    Agents can read it with ``ip link`` on lab devices, so it names no host.
+    """
+    return "tap:" + hashlib.sha256(lab_name.encode()).hexdigest()
 
 
 # sysfs works in BusyBox images whose `ip` lacks -j and alias (e.g. Routinator);

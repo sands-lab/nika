@@ -1,4 +1,4 @@
-# NIKA run-config template for byo.autogen (AutoGen GraphFlow, host).
+# NIKA run-config template for byo.autogen (AutoGen GraphFlow, sandbox).
 # Setup: cp config/byo.autogen.example.yaml config/byo.autogen.yaml
 # Use:   uv run nika agent run --run-config config/byo.autogen.yaml --problem dc_clos_s_link_down
 # Credentials stay in the repo-root .env file. Other keys use built-in defaults;

@@ -120,7 +120,7 @@ def test_mcp_errors_omit_canonical_case_key(tmp_path: Path, monkeypatch) -> None
     client = TestClient(create_gateway_app())
     phase = client.post(
         f"/gateway/sessions/{CASE_KEY}/phase",
-        headers={"NIKA-Session-Id": CASE_KEY},
+        headers={"X-Session-Id": CASE_KEY},
         json={"phase": "submission", "diagnosis_report": "x"},
     )
     assert phase.status_code == 404

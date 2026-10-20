@@ -34,7 +34,7 @@ src/agent/skills/
 
 Claude agents load `.claude/` via `setting_sources=["project"]`. Codex agents receive `.agents/skills/` and a short `AGENTS.md` in the per-session workspace.
 
-`nika-test-skill` lives under [`tests/agent/fixtures/skills/`](../../tests/agent/fixtures/skills/nika-test-skill/SKILL.md) and is **not** part of the production skill package (sandbox copies never include it). Skill tests pass `include_test_skill=True` to `prepare_claude_workspace` / `prepare_codex_workspace` / `diagnosis_prompt_with_skills` to materialize it.
+`skill-loading-check` lives under [`tests/agent/fixtures/skills/`](../../tests/agent/fixtures/skills/skill-loading-check/SKILL.md) and is **not** part of the production skill package (sandbox copies never include it). Skill tests pass `include_test_skill=True` to `prepare_claude_workspace` / `prepare_codex_workspace` / `diagnosis_prompt_with_skills` to materialize it.
 
 ## Configuration
 
@@ -129,4 +129,4 @@ Use SADE as a reference for large skill libraries; use `src/agent/skills/` for s
 ## Code reference
 
 - Shared helpers: [`src/agent/utils/skills.py`](../../src/agent/utils/skills.py)
-- Test skill (opt-in fixture): [`tests/agent/fixtures/skills/nika-test-skill/SKILL.md`](../../tests/agent/fixtures/skills/nika-test-skill/SKILL.md)
+- Test skill (opt-in fixture): [`tests/agent/fixtures/skills/skill-loading-check/SKILL.md`](../../tests/agent/fixtures/skills/skill-loading-check/SKILL.md)

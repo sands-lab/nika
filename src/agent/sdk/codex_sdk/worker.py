@@ -7,12 +7,12 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from agent.sandbox.sbx.auth import apply_codex_auth
 from agent.cli.codex.codex_worker import (
     _build_mcp_toml,
     _codex_model_provider_id,
     _codex_provider_base_url,
-    prepare_codex_subprocess_env,
+    codex_env,
+    write_codex_auth,
 )
 from agent.sdk.codex_sdk.config import validate_reasoning_effort
 from agent.utils.loggers import (
@@ -21,7 +21,7 @@ from agent.utils.loggers import (
     render_prompt,
     tool_event_payload,
 )
-from agent.utils.mcp_client import load_session_mcp_config
+from agent.utils.mcp_client import session_mcp_config
 from agent.protocols import PHASES
 from agent.utils.skills import prepare_codex_workspace
 from agent.base import max_steps_report
@@ -98,13 +98,11 @@ class CodexSdkWorker:
                 capture_output=True,
             )
 
-        apply_codex_auth(self._codex_home)
+        write_codex_auth(self._codex_home)
 
         prepare_codex_workspace(self.workspace)
 
-        servers = load_session_mcp_config(
-            self.session_id, self.scenario_name, phase=self.phase
-        )
+        servers = session_mcp_config(self.phase)
 
         self._logger.log(
             "mcp_config",
@@ -259,7 +257,7 @@ class CodexSdkWorker:
             from openai_codex import AsyncCodex, CodexConfig, Sandbox
         except ImportError as exc:
             raise RuntimeError(
-                "openai-codex is not installed. Run: uv sync --extra sdk --prerelease=allow"
+                "openai-codex is not installed in the agent environment."
             ) from exc
 
         self._setup_workspace()
@@ -287,11 +285,7 @@ class CodexSdkWorker:
         if self.reasoning_effort is not None:
             thread_config["model_reasoning_effort"] = self.reasoning_effort
 
-        sdk_env = prepare_codex_subprocess_env(
-            codex_home=self._codex_home,
-            provider=self.llm_provider,
-            agent_type="sdk.codex_sdk",
-        )
+        sdk_env = codex_env(codex_home=self._codex_home)
         codex_config = CodexConfig(
             env=sdk_env,
             cwd=str(self.workspace),

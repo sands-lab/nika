@@ -1,6 +1,6 @@
 # SADE community agent
 
-This reference is for operators and maintainers of NIKA's Symptom-Aware Diagnostic Escalation (SADE) community agent. SADE runs Claude Code through a phase-gated diagnostic workflow and a 15-skill network troubleshooting library. It implements `agent.protocols.TroubleshootingAgent`.
+This reference is for operators and maintainers of NIKA's Symptom-Aware Diagnostic Escalation (SADE) community agent. SADE runs Claude Code through a phase-gated diagnostic workflow and a 15-skill network troubleshooting library. It subclasses `agent.base.DiagnosisAgent`.
 
 Implementation: [`agent.py`](../../../src/agent/community/sade/agent.py) implements the protocol; [`prompts/`](../../../src/agent/community/sade/prompts/) and [`.claude/skills/`](../../../src/agent/community/sade/.claude/skills/) contain the diagnostic workflow.
 
@@ -23,11 +23,7 @@ If you use SADE in academic research, please cite the paper:
 
 ## Install
 
-SADE drives Claude Code through the Anthropic Agent SDK, declared as an optional extra:
-
-```bash
-uv sync --extra sade
-```
+SADE drives Claude Code through the Anthropic Agent SDK. NIKA installs the SDK and Claude Code in SADE's sandbox, so the host needs nothing beyond a [sandbox runtime](../../operations/agent-sandbox.md).
 
 Set provider credentials in the repo-root `.env` (same as `cli.claude`; see [`.env.example`](../../../.env.example)), and select the provider under `agent.provider` in `config/nika.yaml`:
 
@@ -47,7 +43,7 @@ SADE writes `messages.jsonl` and `submission.json`, then submits through NIKA's 
 
 ```
 src/agent/community/sade/
-├── agent.py            # SadeAgent (TroubleshootingAgent contract)
+├── agent.py            # SadeAgent (DiagnosisAgent subclass)
 ├── h.py                # helper-script launcher used by the skills (python h.py <script>)
 ├── prompts/            # sade_prompt.py (phase-gated workflow)
 └── .claude/

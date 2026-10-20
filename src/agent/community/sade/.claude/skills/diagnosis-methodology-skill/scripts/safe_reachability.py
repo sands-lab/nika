@@ -27,15 +27,11 @@ if str(SRC_ROOT) not in sys.path:
 
 
 def _load_api_class():
-    try:
-        from nika.service.kathara import KatharaAPIALL as KatharaAPI  # noqa: E402
-    except ModuleNotFoundError as exc:
-        venv_python = REPO_ROOT / ".venv" / "Scripts" / "python.exe"
-        raise SystemExit(
-            f"Missing project dependency '{exc.name}'. "
-            f"Run this script with the project interpreter, e.g. '{venv_python}'."
-        ) from exc
-    return KatharaAPI
+    # The agent sandbox has no direct lab access; only the MCP tools reach the lab.
+    raise SystemExit(
+        "This helper needs direct lab access, which the agent sandbox does not "
+        "provide. Use the MCP tools instead."
+    )
 
 
 def _host_list(api: Any) -> list[str]:

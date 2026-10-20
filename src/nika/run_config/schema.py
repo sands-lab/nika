@@ -14,7 +14,7 @@ from pydantic import (
     model_validator,
 )
 
-from agent.utils.provider_env import validate_provider_for_agent
+from nika.agents.provider_env import validate_provider_for_agent
 
 
 class RemoteSettings(BaseModel):
@@ -45,8 +45,21 @@ class SandboxSettings(BaseModel):
 class ObservabilitySettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    # Langfuse tracing ran in the host process of byo.langgraph. Agents now run
+    # in sandboxes that reach only the MCP gateway and the model proxy, so it
+    # is unavailable; the fields stay so existing configs still load.
     langfuse_enabled: bool = False
     langfuse_host: str = "https://cloud.langfuse.com"
+
+    @model_validator(mode="after")
+    def _langfuse_unavailable(self) -> "ObservabilitySettings":
+        if self.langfuse_enabled:
+            raise ValueError(
+                "nika.observability.langfuse_enabled is no longer supported: "
+                "agents run in sandboxes without access to Langfuse. NIKA "
+                "records every model call in the session's model_calls.jsonl."
+            )
+        return self
 
 
 class JudgeSettings(BaseModel):

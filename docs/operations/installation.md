@@ -90,20 +90,30 @@ After `--track stable`, run cases with a frozen release, for example:
 uv run nika benchmark run --release 0.2.0 --split test --result_dir results/my-run
 ```
 
-## Install sbx for sandboxed agents
+## Install a sandbox runtime
 
-Skip this unless you run sandboxed agents (`cli.*`, `sdk.*`, `community.sade`). Host agents such as `byo.langgraph` do not need it.
+NIKA runs every agent in a sandbox, so agent runs need a sandbox runtime. On a host with KVM, the installer can set one up. See [Choose a sandbox runtime](agent-sandbox.md#choose-a-sandbox-runtime) to compare them.
+
+**AgentENV in Docker (recommended).** An open-source, E2B-compatible sandbox service that runs on this host and needs no account:
+
+```shell
+./scripts/install.sh --with-agentenv
+```
+
+It needs `/dev/kvm` and kernel 6.8 or later. The installer loads the `ublk_drv` kernel module and persists it in `/etc/modules-load.d/`, starts the privileged `nika-agentenv` container on `127.0.0.1:8800`, writes its key to `.env`, and points `config/nika.yaml` at it.
+
+**Docker Sandboxes (sbx).** Docker's microVM sandboxes; they need a Docker account:
 
 ```shell
 ./scripts/install.sh --with-sbx
 sbx login
 ```
 
-The flag installs `docker-sbx` from Docker's apt repo, or runs `get.docker.com` with `SBX=1` when that package is unavailable. sbx ships only as a package, so this opt-in step is the only one that uses apt. It skips the install when `sbx` is already on `PATH`.
+The flag installs `docker-sbx` from Docker's apt repo, or runs `get.docker.com` with `SBX=1` when that package is unavailable. sbx ships only as a package, so this opt-in step uses apt. It skips the install when `sbx` is already on `PATH`.
 
 sbx runs each sandbox as a KVM microVM, so your user needs read/write on `/dev/kvm`. When it lacks access, the installer adds you to the group that owns the device (usually `kvm`). Open a new login shell (or run `newgrp kvm`), then run `sbx daemon stop` so the next NIKA run starts the daemon with the new group. Without this, `sbx create` fails with `KVM error: Permission denied`. If `/dev/kvm` is missing, enable hardware virtualization (or nested virtualization on a VM).
 
-Without KVM, skip sbx and [run sandboxed agents on E2B](agent-sandbox.md#connect-to-e2b) instead. See [Agent sandboxing](agent-sandbox.md) for credentials and runtime settings.
+**Without KVM**, use [E2B cloud](agent-sandbox.md#connect-to-e2b-cloud-or-another-e2b-compatible-service). See [Agent sandboxing](agent-sandbox.md) for credentials and runtime settings.
 
 ## Prepare vendor images
 
@@ -157,7 +167,7 @@ The last command now prints the loopback qdisc without a password prompt.
 
 | Removed | Kept |
 | --- | --- |
-| Running sessions, Kathará and Containerlab labs, the Batfish container | Docker and your docker group membership; sbx and your kvm group membership |
+| Running sessions, Kathará and Containerlab labs, the Batfish container, the AgentENV container | Docker and your docker group membership; sbx and your kvm group membership |
 | Docker images NIKA built or pulled, including vendor router images, build parents such as `debian:bookworm-slim`, and legacy tags | A uv installed outside the repository |
 | The Kathará Docker network plugin and `~/.config/kathara.conf` | apt packages that older installers added: clang, skopeo |
 | `/etc/sysctl.d/99-nika-inotify.conf`, with the original inotify limits restored | The source tree |
@@ -174,5 +184,5 @@ To install again, run `./scripts/install.sh`.
 ## Related
 
 - [Remote lab execution](remote.md): lab host vs agent host
-- [Agent sandboxing](agent-sandbox.md): `sbx` for sandboxed agents
+- [Agent sandboxing](agent-sandbox.md): the sandbox runtime every agent runs in
 - [Run configuration](configuration.md): `.env` and `config/nika.yaml`

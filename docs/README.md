@@ -69,7 +69,7 @@ uv run nika agent list
 | Scenario registry | [`net_env_pool.py`](../src/nika/net_env/net_env_pool.py), [`base.py`](../src/nika/net_env/base.py) |
 | Scenario validation | [`contract.py`](../src/nika/net_env/contract.py), [`isp/contract.py`](../src/nika/net_env/isp/contract.py) |
 | Failure registry and labels | [`registry.py`](../src/nika/problems/registry.py), [`base.py`](../src/nika/problems/base.py), [`rca/`](../src/nika/problems/rca/) |
-| Agent protocol and registry | [`protocols.py`](../src/agent/protocols.py), [`registry.py`](../src/agent/registry.py) |
+| Agent protocol and registry | [`protocols.py`](../src/agent/protocols.py), [`registry.py`](../src/nika/agents/registry.py) |
 | MCP server catalog and selection | [`mcp/registry.py`](../src/nika/mcp/registry.py), [`mcp/servers/`](../src/nika/mcp/servers/), [`mcp/gateway/`](../src/nika/mcp/gateway/) |
 | Benchmark generation | [`workflows/benchmark/`](../src/nika/workflows/benchmark/) (`nika benchmark generate` / `select`) |
 | Test suites | [`tests/`](../tests/) |

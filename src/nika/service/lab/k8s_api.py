@@ -18,9 +18,9 @@ DEFAULT_SERVICE_CIDR_PREFIX: int = 16
 KUBECTL_TIMEOUT_SEC: float = 60
 KUBECTL_EXEC_MARGIN_SEC: float = 15.0
 
-_RC_MARK = "__NIKA_RC="
-_ERR_MARK = "__NIKA_ERR="
-_STDERR_FILE = "/tmp/.nika_k8s_stderr"
+_RC_MARK = "__RC="
+_ERR_MARK = "__ERR="
+_STDERR_FILE = "/tmp/.k8s_stderr"
 _TIMEOUT_SENTINEL = "[TIMEOUT]"
 
 
@@ -126,7 +126,7 @@ class K8sAPIMixin:
         self: SupportsExec, node: str, content: str, *, suffix: str = "yaml"
     ) -> str:
         digest = hashlib.sha1(content.encode()).hexdigest()[:10]
-        path = f"/tmp/nika-k8s-{digest}.{suffix}"
+        path = f"/tmp/k8s-{digest}.{suffix}"
         self.write_file(node, path, content)
         return path
 

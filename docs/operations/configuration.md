@@ -86,7 +86,7 @@ Model resolution order: `-m/--model`, then `agent.model`.
 | `sdk.claude_sdk` | `anthropic`, `deepseek`, `custom` |
 | `community.sade` | `anthropic`, `deepseek`, `custom` |
 
-Provider credentials belong in `.env`: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`, or optional `NIKA_CUSTOM_API_KEY`. NIKA maps credentials for the selected provider into the agent process or sandbox. The E2B sandbox runtime also reads `E2B_API_KEY`, optional `E2B_DOMAIN`, and an optional Claude subscription token, `CLAUDE_CODE_OAUTH_TOKEN`, from `.env`; see [Connect to E2B](agent-sandbox.md#connect-to-e2b).
+Provider credentials belong in `.env`: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`, or optional `NIKA_CUSTOM_API_KEY`. NIKA maps credentials for the selected provider into the agent process or sandbox. The E2B sandbox runtime also reads `E2B_API_KEY`, optional `E2B_DOMAIN`, and an optional Claude subscription token, `CLAUDE_CODE_OAUTH_TOKEN`, from `.env`; see [Connect to E2B](agent-sandbox.md#connect-to-e2b-cloud-or-another-e2b-compatible-service).
 
 Leaderboard trajectory submit reads `HF_TOKEN` from `.env` / the environment. See [leaderboard submission](../benchmarks/leaderboard-submission.md).
 
@@ -105,8 +105,6 @@ Leaderboard trajectory submit reads `HF_TOKEN` from `.env` / the environment. Se
 | `nika.sandbox.memory` | `4g` | Memory limit per sandbox. `null` lets sbx use half of host memory, or E2B use the service default. |
 | `nika.sandbox.offline_sdk_wheels` | `true` | `sbx` only: stage cached SDK wheels for SDK and SADE sandboxes. Set `false` to install packages from PyPI inside the sandbox. |
 | `nika.sandbox.upstream_proxy` | `null` | `sbx` only: proxy used by the shared `sandboxd` process and host `sbx` commands. |
-| `nika.observability.langfuse_enabled` | `false` | Enable Langfuse callbacks for `byo.langgraph`. |
-| `nika.observability.langfuse_host` | `https://cloud.langfuse.com` | Langfuse endpoint. Credentials remain in `.env`. |
 | `nika.judge.provider` | `openai` | Provider used by `nika eval judge` when the CLI does not override it. |
 | `nika.judge.model` | `gpt-5-mini` | Judge model used when the CLI does not override it. |
 | `nika.k8s.access` | `auto` | `auto` and `mcp` register the Kubernetes MCP server. `kubectl_only` skips it. |

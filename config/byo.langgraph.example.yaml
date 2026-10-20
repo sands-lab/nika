@@ -1,4 +1,4 @@
-# NIKA run-config template for byo.langgraph (LangGraph ReAct, host).
+# NIKA run-config template for byo.langgraph (LangGraph ReAct, sandbox).
 # Setup: cp config/byo.langgraph.example.yaml config/byo.langgraph.yaml
 # Use:   uv run nika agent run --run-config config/byo.langgraph.yaml --problem dc_clos_s_link_down
 # Credentials stay in the repo-root .env file. Other keys use built-in defaults;

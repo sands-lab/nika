@@ -7,7 +7,7 @@ import urllib.request
 
 import pytest
 
-from agent.sandbox.sbx.policy import sanitize_sandbox_name
+from nika.agents.sandbox.sbx.policy import sanitize_sandbox_name
 from nika.mcp.gateway.lifecycle import McpGatewayManager
 from nika.utils.net import pick_free_port
 from tests.agent.sandbox_support import (
@@ -21,8 +21,8 @@ def test_sandbox_names_are_unique_per_session() -> None:
     a = sanitize_sandbox_name("20260724-120000-test-aaaaaa")
     b = sanitize_sandbox_name("20260724-120000-test-bbbbbb")
     assert a != b
-    assert a.startswith("nika-")
-    assert b.startswith("nika-")
+    assert a.startswith("agent-")
+    assert b.startswith("agent-")
 
 
 @pytest.mark.unit
@@ -33,7 +33,7 @@ def test_sandbox_names_fit_linux_hostname_limit() -> None:
     )
     name = sanitize_sandbox_name(long_id)
     assert len(name) <= 63
-    assert name.startswith("nika-")
+    assert name.startswith("agent-")
     other = sanitize_sandbox_name(long_id.replace("amsterdam", "brussels"))
     assert name != other
     assert len(other) <= 63
