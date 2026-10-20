@@ -1,6 +1,7 @@
 <div align="center">
 
-<img src="./assets/images/nika-banner.svg" alt="NIKA" width="100%"/>
+<img src="./assets/images/nika-banner-light.svg#gh-light-mode-only" alt="NIKA" width="100%"/>
+<img src="./assets/images/nika-banner.svg#gh-dark-mode-only" alt="NIKA" width="100%"/>
 
 <br />
 
