@@ -68,6 +68,7 @@ include = ["nika*", "agent*"]
 
 [tool.setuptools.package-data]
 # Runtime data loaded from the installed package (lab files, images, prompts).
+"nika.validation.netkat" = ["KatchBatch.java"]
 "nika.inspect" = ["www/dist/**/*"]
 "nika.net_env.compat.v010.p4_bloom_filter" = ["*.p4", "cmds/*.txt"]
 "nika.net_env.compat.v010.p4_counter" = ["p4_src/*.p4", "cmds/*.txt"]

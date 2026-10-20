@@ -111,64 +111,64 @@ class NetKatVerifier:
             for index, (query, op) in enumerate(checks):
                 pending.append(((intent.id, index), f"check {query} {op} ⊥"))
         client = None
-        attempt = 0
         try:
             if pending:
-                client = docker.from_env()
-            while pending:
-                name = f"query-{attempt:03d}.nkpl"
-                path = snapshot.path / name
-                path.write_text(
-                    f"net = {relation}\n"
-                    + "\n".join(query for _, query in pending)
-                    + "\n"
-                )
+                query_dir = snapshot.path / "queries"
+                query_dir.mkdir(exist_ok=True)
+                for old in query_dir.glob("query-*.nkpl"):
+                    old.unlink()
+                (snapshot.path / "network.nkpl").write_text(f"net = {relation}\n")
+                for index, (_, query) in enumerate(pending):
+                    (query_dir / f"query-{index:06d}.nkpl").write_text(query + "\n")
                 remaining = self.timeout - (monotonic() - started)
                 if remaining <= 0:
                     raise TimeoutError("KATch analysis exceeded its time budget")
+                client = docker.from_env()
                 container = client.containers.create(
                     self.image,
-                    entrypoint=["java", "-Xmx1536m", "-Xss10m", "-jar", KATCH_JAR],
-                    command=["run", f"/work/{name}"],
+                    entrypoint=["/bin/sh", "-c"],
+                    command=[
+                        f"javac -J-Xmx256m -cp {KATCH_JAR} -d /tmp /adapter/KatchBatch.java"
+                        f" && exec java -Xmx1536m -Xss10m -cp /tmp:{KATCH_JAR}"
+                        " KatchBatch /work/network.nkpl /work/queries"
+                    ],
                     name=f"nika-katch-{uuid4().hex[:12]}",
                     network_disabled=True,
                     mem_limit="2g",
                     nano_cpus=2_000_000_000,
                     volumes={
-                        str(snapshot.path.resolve()): {"bind": "/work", "mode": "ro"}
+                        str(snapshot.path.resolve()): {"bind": "/work", "mode": "ro"},
+                        str(Path(__file__).resolve().parent): {
+                            "bind": "/adapter",
+                            "mode": "ro",
+                        },
                     },
                 )
                 try:
                     container.start()
-                    status = container.wait(timeout=remaining)["StatusCode"]
-                    log = container.logs().decode(errors="replace")
+                    try:
+                        status = container.wait(timeout=remaining)["StatusCode"]
+                    finally:
+                        log = container.logs().decode(errors="replace")
+                        (snapshot.path / "batch.log").write_text(log)
                 finally:
                     container.remove(force=True)
-                (snapshot.path / f"query-{attempt:03d}.log").write_text(log)
                 clean = re.sub(r"\x1b\[[0-9;]*m", "", log)
                 matched = {}
-                for result, line in re.findall(
-                    rf"Check (passed|failed) in /work/{re.escape(name)}:(\d+)", clean
+                for result, number, line in re.findall(
+                    r"Check (passed|failed) in /work/queries/query-(\d+)\.nkpl:(\d+)",
+                    clean,
                 ):
-                    index = int(line) - 2
-                    if not 0 <= index < len(pending) or index in matched:
+                    index = int(number)
+                    if not 0 <= index < len(pending) or index in matched or line != "1":
                         raise RuntimeError("Unexpected KATch result location")
                     matched[index] = result
+                if status != 0 or len(matched) != len(pending):
+                    raise RuntimeError(
+                        "KATch batch failed or is incomplete; see batch.log"
+                    )
                 for index, result in matched.items():
                     outcomes[pending[index][0]] = result
-                if not matched or (status != 0 and "failed" not in matched.values()):
-                    raise RuntimeError(
-                        f"KATch execution failed; see query-{attempt:03d}.log"
-                    )
-                failed_intents = {
-                    name for (name, _), result in outcomes.items() if result == "failed"
-                }
-                pending = [
-                    item
-                    for index, item in enumerate(pending)
-                    if index not in matched and item[0][0] not in failed_intents
-                ]
-                attempt += 1
         except Exception as exc:
             for key, _ in pending:
                 outcomes[key] = "error"
@@ -224,9 +224,11 @@ def write_snapshot(network, root):
 
     root = Path(root).resolve()
     root.mkdir(parents=True, exist_ok=True)
-    for pattern in ("query-*.nkpl", "query-*.log"):
+    for pattern in ("query-*.nkpl", "query-*.log", "batch.log", "network.nkpl"):
         for old in root.glob(pattern):
             old.unlink()
+    for old in (root / "queries").glob("query-*.nkpl"):
+        old.unlink()
     (root / "network.json").write_text(
         json.dumps(network.model_dump(mode="json"), indent=2) + "\n"
     )

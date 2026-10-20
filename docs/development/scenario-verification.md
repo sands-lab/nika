@@ -146,13 +146,17 @@ These runs add no native execution evidence for sizes `m` or `l`.
 | SDN Clos | m | 416 / 416 | Passed; 48 predicted counterexample violations |
 | P4 fabric | m | 416 / 416 | Passed; 48 predicted counterexample violations |
 | P4 gateway | m | 76 / 76 | Passed; 16 predicted counterexample violations |
-| SDN Clos | l | 1,600 / 1,600 | Incomplete; counterexample analysis exceeded the 300-second budget |
-| P4 fabric | l | 1,600 / 1,600 | Incomplete; counterexample analysis exceeded the 300-second budget |
+| SDN Clos | l | 1,600 / 1,600 | Passed; 96 predicted counterexample violations |
+| P4 fabric | l | 1,600 / 1,600 | Passed; 96 predicted counterexample violations |
 | P4 gateway | l | 280 / 280 | Passed; 32 predicted counterexample violations |
 
-The KATch adapter collects violations across fail-fast invocations. Its complete
-counterexample analysis can hit the time budget on larger designs. Partial results
-do not produce an acceptance summary; the coverage record preserves those limits.
+The batch driver loads the network once per analysis and invokes KATch's upstream
+parser and equivalence procedure for each original assertion in one JVM. Normal
+assertion failures remain predicate violations and allow subsequent assertions to
+run. Parser errors, resource failures and incomplete query results reject
+acceptance. The large SDN and P4 fabric counterexamples completed in approximately
+16 and 15 seconds respectively, within the original 300-second analysis budget and
+the unchanged 2 GiB memory and two-CPU limits.
 
 A new compatible topology supplies different inputs to this workflow. A new protocol or vendor needs supported completion bindings, configuration analysis and native observations while preserving the original requirements. Cross-domain reuse retains this construction and acceptance sequence and states the remaining modeling limits.
 

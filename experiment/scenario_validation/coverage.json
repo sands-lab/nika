@@ -674,31 +674,29 @@
         "healthy_predicates": 280,
         "endpoint_outage_predicates": 280,
         "configuration_counterexample_predicates": 32,
-        "validation_scope": "static-only"
-      }
-    ],
-    "incomplete_static_runs": [
+        "validation_scope": "static-only",
+        "solver_timeout_sec": 300,
+        "configuration_counterexample_analysis_sec": 11.49
+      },
       {
         "scenario": "sdn_l3_clos",
         "topo_size": "l",
-        "status": "incomplete",
-        "healthy_passed": 1600,
-        "endpoint_outage_passed": 1600,
-        "counterexample_errors": 1039,
+        "healthy_predicates": 1600,
+        "endpoint_outage_predicates": 1600,
+        "configuration_counterexample_predicates": 96,
+        "validation_scope": "static-only",
         "solver_timeout_sec": 300,
-        "reason": "UnixHTTPConnectionPool(host='localhost', port=None): Read timed out.",
-        "accepted": false
+        "configuration_counterexample_analysis_sec": 15.98
       },
       {
         "scenario": "p4_dc_fabric",
         "topo_size": "l",
-        "status": "incomplete",
-        "healthy_passed": 1600,
-        "endpoint_outage_passed": 1600,
-        "counterexample_errors": 1071,
+        "healthy_predicates": 1600,
+        "endpoint_outage_predicates": 1600,
+        "configuration_counterexample_predicates": 96,
+        "validation_scope": "static-only",
         "solver_timeout_sec": 300,
-        "reason": "UnixHTTPConnectionPool(host='localhost', port=None): Read timed out.",
-        "accepted": false
+        "configuration_counterexample_analysis_sec": 14.87
       }
     ]
   },

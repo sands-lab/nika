@@ -154,13 +154,13 @@ startup does not invoke KATch, and the registered benchmark failures keep their
 existing behavior. See the [method and P4 scope](../../docs/development/scenario-verification.md#sdn-and-p4-forwarding-verification)
 before interpreting acceptance as evidence about a whole P4 program or controller.
 
-The pinned KATch runner exits at its first failed assertion. The adapter reruns
-remaining queries to collect the complete set of violated predicates. Large
-configuration counterexamples can therefore exceed the specification's
-`solver_timeout_sec` budget even when healthy-state analysis succeeds. A timed-out
-report is incomplete evidence and cannot establish either the exact violation set
-or construction acceptance. Increase that explicit budget only when the experiment
-can afford the additional analysis time; memory and CPU bounds still apply.
+NIKA's batch driver loads the network once and evaluates each original assertion
+through the pinned KATch parser and equivalence procedure in one JVM. It records
+normal assertion failures and continues through the remaining queries. Parser
+errors, resource failures, missing results and timeouts reject acceptance. The
+specification's `solver_timeout_sec` budget covers the batch; the existing memory
+and CPU limits still apply. The installed KATch image supplies the Java compiler
+for this driver, so the host needs no additional Java installation.
 
 ## Reproduce regression checks
 

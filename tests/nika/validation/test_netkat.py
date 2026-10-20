@@ -129,6 +129,26 @@ def test_katch_priority_round_trip_and_path_properties(tmp_path, katch_image):
     assert report.results[0].supported is False
 
 
+@pytest.mark.integration
+@pytest.mark.parametrize("scenario", ["sdn_l3_clos", "p4_dc_fabric"])
+def test_large_forwarding_counterexample_is_fully_classified(
+    scenario, tmp_path, katch_image
+):
+    from nika.workflows.validation.scenario import validate_scenario_design
+
+    spec = build_forwarding_experiment(scenario, topo_size="l")
+    result = validate_scenario_design(spec, tmp_path)
+    assert result["status"] == "passed"
+    assert result["validation_scope"] == "static-only"
+    assert result["static"]["healthy"]["passed"] == len(spec.healthy.intents)
+    negative = result["static"]["missing-endpoint-route"]
+    assert negative["errors"] == negative["unsupported"] == 0
+    assert negative["passed"] + negative["failed"] == len(spec.healthy.intents)
+    assert negative["failed"] == len(
+        result["counterexamples"]["missing-endpoint-route"]["failed_ids"]
+    )
+
+
 @pytest.mark.contract
 def test_openflow_projection_rejects_unknown_ipv4_actions():
     from nika.net_env.sdn_l3_clos.fabric_manager.forwarding_rules import (
