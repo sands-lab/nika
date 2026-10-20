@@ -15,6 +15,7 @@ from agent.cli.codex.codex_worker import (
     CodexWorker,
     RECONNECT_STALL_TIMEOUT_S,
     _build_mcp_toml,
+    _fatal_codex_error_message,
     _is_productive_codex_event,
     _reconnect_transport_failed,
 )
@@ -120,6 +121,22 @@ class CodexProgressDetectionTest:
             },
         }
         assert _reconnect_transport_failed(event)
+
+    def test_only_real_auth_errors_are_fatal(self) -> None:
+        warning = (
+            "Under-development features enabled: non_prefixed_mcp_tool_names. To "
+            "suppress this warning, set `suppress_unstable_features_warning = true` "
+            "in /ws/agent_workspaces/20261020-114015-a-17224f/.codex_home/config.toml."
+        )
+        assert _fatal_codex_error_message({"type": "error", "message": warning}) is None
+        path_401 = "stream error at /tmp/run-114015/x: unexpected EOF"
+        assert (
+            _fatal_codex_error_message({"type": "error", "message": path_401}) is None
+        )
+        auth = "unexpected status 401 Unauthorized: invalid token"
+        assert _fatal_codex_error_message({"type": "error", "message": auth}) == auth
+        busy = "unexpected status 503 Service Unavailable: no healthy backend"
+        assert _fatal_codex_error_message({"type": "error", "message": busy}) is None
 
     def test_reconnect_failure_triggers_stall(self) -> None:
         worker = CodexWorker(

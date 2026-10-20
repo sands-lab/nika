@@ -29,6 +29,7 @@ isolated, per-session workspace.  It handles:
 import asyncio
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -145,6 +146,9 @@ class _ResponseCounter:
         return started
 
 
+_HTTP_STATUS = re.compile(r"\b(?:status(?: code)?|http)[:=]?\s*(\d{3})\b")
+
+
 def _fatal_codex_error_message(event: dict) -> str | None:
     """Return the message when the event is a permanent API/config failure.
 
@@ -168,15 +172,21 @@ def _fatal_codex_error_message(event: dict) -> str | None:
     lower = message.lower()
     if "defaulting to fallback metadata" in lower:
         return None
+    if "under-development features enabled" in lower:
+        return None  # warning about a feature NIKA enables on purpose
     if "does not exist or you do not have access" in lower:
-        return message
-    if "404" in lower and "not found" in lower and "model" in lower:
         return message
     if "invalid api key" in lower or "incorrect api key" in lower:
         return message
-    if "401" in lower or "unauthorized" in lower:
+    # Match HTTP statuses only as statuses: messages also carry paths and ids
+    # (e.g. a workspace named after the time 11:40:15 contains "401").
+    status = _HTTP_STATUS.search(lower)
+    code = int(status.group(1)) if status else None
+    if code == 404 and "not found" in lower and "model" in lower:
         return message
-    if "403" in lower and ("forbidden" in lower or "access" in lower):
+    if code == 401 or "401 unauthorized" in lower:
+        return message
+    if code == 403 and ("forbidden" in lower or "access" in lower):
         return message
     return None
 
@@ -292,6 +302,8 @@ def _build_mcp_toml(
                 "",
             ]
         )
+        # Top-level key: TOML puts keys after a table header into that table.
+        lines.insert(0, "suppress_unstable_features_warning = true")
     if provider_id and resolved_base:
         # Codex requires Responses wire_api; chat is rejected on current builds.
         lines.extend(
