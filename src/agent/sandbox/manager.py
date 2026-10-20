@@ -553,6 +553,7 @@ class SandboxManager:
                 )
             else:
                 from agent.registry import create_agent, run_agent
+                from agent.submission import attach_report_mapper
 
                 agent = create_agent(
                     agent_type,
@@ -564,7 +565,7 @@ class SandboxManager:
                     max_tokens=max_tokens,
                     stream_output=stream_output,
                 )
-                agent.report_mapper = report_mapper
+                attach_report_mapper(agent, report_mapper)
                 run_agent(agent, session.task_description, timeout_sec=timeout_sec)
 
         return SandboxRunResult(returncode=0, sandbox_name=sandbox_session.sandbox_name)

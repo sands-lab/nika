@@ -41,7 +41,8 @@ def start_agent(
     sandbox_offline_sdk_wheels: bool | None = None,
 ) -> None:
     """Load the running session, run the agent on ``task_description``, then end the session."""
-    from agent.submission import ReportMapper
+    from agent.submission import ReportMapper, attach_report_mapper
+    from nika.run_config.loader import get_run_config
     from nika.utils.agent_config import apply_custom_provider_env
 
     # Benchmarks pass stream_output=False; keep MCP/httpx off the console.
@@ -61,7 +62,9 @@ def start_agent(
     model = resolve_agent_model(agent_type, model)
     submission = resolve_submission_settings()
     # Built before the agent's provider environment clears other credentials.
-    report_mapper = ReportMapper.from_settings(submission, max_tokens=max_tokens)
+    report_mapper = ReportMapper.from_settings(
+        submission, max_tokens=get_run_config().agent.max_tokens
+    )
     sandbox_config = resolve_sandbox_config(
         keep_container=sandbox_keep_container,
         cpus=sandbox_cpus,
@@ -188,7 +191,7 @@ def start_agent(
                             max_tokens=max_tokens,
                             stream_output=stream_output,
                         )
-                        agent.report_mapper = report_mapper
+                        attach_report_mapper(agent, report_mapper)
                         run_agent(
                             agent,
                             session.task_description,
@@ -241,7 +244,7 @@ def start_agent(
                             max_tokens=max_tokens,
                             stream_output=stream_output,
                         )
-                        agent.report_mapper = report_mapper
+                        attach_report_mapper(agent, report_mapper)
                         run_agent(
                             agent,
                             session.task_description,

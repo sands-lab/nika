@@ -122,3 +122,19 @@ def test_report_mapper_traces_samples_and_vote(tmp_path, monkeypatch) -> None:
     assert vote["chosen"] == _LINK_DOWN and recorded == [_LINK_DOWN]
     assert [v["count"] for v in vote["votes"]] == [2, 1]
     assert vote["answers"][1] == {"is_anomaly": False, "root_causes": []}
+
+
+def test_parse_answer_takes_last_answer_object_after_reasoning() -> None:
+    text = (
+        'The inventory uses ids like {"id": "node/pc1"}. Final answer: '
+        '{"is_anomaly": true, "root_causes": '
+        '[{"resource_id": "link/a--b", "fault_type": "link_down"}]} done {x}'
+    )
+    assert parse_answer(text, **_CATALOG) == (_LINK_DOWN, "")
+
+
+def test_unstructured_requires_nika_agent() -> None:
+    from agent.submission import attach_report_mapper
+
+    with pytest.raises(ValueError, match="subclasses agent.base.NikaAgent"):
+        attach_report_mapper(object(), object())

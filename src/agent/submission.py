@@ -39,6 +39,24 @@ if TYPE_CHECKING:
 _ATTEMPTS_PER_SAMPLE = 2
 
 
+def attach_report_mapper(agent: Any, mapper: ReportMapper | None) -> None:
+    """Give *agent* the unstructured-submission mapper, if any.
+
+    Only :class:`~agent.base.NikaAgent` runs the mapper; any other agent would
+    keep its own submission while the run records ``unstructured``.
+    """
+    if mapper is None:
+        return
+    from agent.base import NikaAgent
+
+    if not isinstance(agent, NikaAgent):
+        raise ValueError(
+            "agent.submission.mode unstructured requires an agent that subclasses "
+            f"agent.base.NikaAgent; {type(agent).__name__} does not."
+        )
+    agent.report_mapper = mapper
+
+
 async def submit_with_agent_model(
     agent: NikaAgent,
     diagnosis_report: str,
@@ -74,14 +92,10 @@ def parse_answer(
     """Return ``(answer, "")`` for a valid JSON answer, else ``(None, error)``."""
     from nika.mcp.servers.common.task_server import validate_root_cause_choices
 
-    start, end = text.find("{"), text.rfind("}")
-    if start < 0 or end < start:
-        return None, "no JSON object found."
-    try:
-        raw = json.loads(text[start : end + 1])
-    except ValueError as exc:
-        return None, f"invalid JSON: {exc}."
-    if not isinstance(raw, dict) or type(raw.get("is_anomaly")) is not bool:
+    raw = _last_answer_object(text)
+    if raw is None:
+        return None, "no JSON object with is_anomaly found."
+    if type(raw.get("is_anomaly")) is not bool:
         return None, "is_anomaly must be a boolean."
     causes = raw.get("root_causes") or []
     if not isinstance(causes, list):
@@ -98,6 +112,23 @@ def parse_answer(
         "is_anomaly": raw["is_anomaly"],
         "root_causes": [{"resource_id": r, "fault_type": f} for r, f in pairs],
     }, ""
+
+
+def _last_answer_object(text: str) -> dict[str, Any] | None:
+    """Last JSON object in *text* that has an ``is_anomaly`` key."""
+    decoder = json.JSONDecoder()
+    found = None
+    index = text.find("{")
+    while index >= 0:
+        try:
+            value, end = decoder.raw_decode(text, index)
+        except ValueError:
+            index = text.find("{", index + 1)
+            continue
+        if isinstance(value, dict) and "is_anomaly" in value:
+            found = value
+        index = text.find("{", end)
+    return found
 
 
 def _vote_counts(answers: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -234,7 +265,23 @@ class ReportMapper:
         logger = MessageLogger(phase=SUBMISSION, session_dir=trace_dir)
         callbacks = [AgentCallbackLogger(phase=SUBMISSION, session_dir=trace_dir)]
         for attempt in range(1, _ATTEMPTS_PER_SAMPLE + 1):
-            reply = await self.llm.ainvoke(messages, config={"callbacks": callbacks})
+            try:
+                reply = await self.llm.ainvoke(
+                    messages, config={"callbacks": callbacks}
+                )
+            except Exception as exc:  # noqa: BLE001 - other samples can still vote
+                logger.log(
+                    "submission_sample",
+                    {
+                        "sample": sample,
+                        "attempt": attempt,
+                        "text": None,
+                        "answer": None,
+                        "error": f"{type(exc).__name__}: {exc}",
+                        "message": f"sample {sample} attempt {attempt}: model call failed",
+                    },
+                )
+                return None
             text = message_text(reply)
             answer, error = parse_answer(
                 text, catalog_ids=catalog_ids, fault_types=fault_types

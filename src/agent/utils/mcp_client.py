@@ -131,11 +131,12 @@ def _rewrite_gateway_base_for_client(base: str) -> str:
 def client_mcp_config(servers: dict) -> dict:
     """Point session MCP servers at the gateway as this host process reaches it.
 
-    Host code that calls a sandboxed agent's MCP servers (NIKA's unstructured
-    submission) reads the sandbox manifest, whose gateway URL works only inside
-    the sandbox (``host.docker.internal``, or an E2B tunnel relay on the
-    sandbox's loopback). ``NIKA_MCP_GATEWAY_URL`` is the host-facing gateway,
-    local or on a remote lab host.
+    While a sandbox session is open on the host, session MCP config comes from
+    the sandbox manifest, whose gateway URL works only inside the sandbox
+    (``host.docker.internal``, or an E2B tunnel relay on the sandbox's
+    loopback). NIKA's unstructured submission runs on the host, so it dials
+    ``NIKA_MCP_GATEWAY_URL``, the host-facing gateway (local or on a remote lab
+    host). Without a sandbox the URLs already point there.
     """
     base = _rewrite_gateway_base_for_client(
         os.environ.get(ENV_GATEWAY_URL, "").strip().rstrip("/")
@@ -143,7 +144,7 @@ def client_mcp_config(servers: dict) -> dict:
     if not base:
         return servers
     return {
-        name: {**cfg, "url": base + cfg["url"][cfg["url"].index("/mcp/") :]}
+        name: {**cfg, "url": base + cfg["url"][cfg["url"].rindex(f"/mcp/{name}/") :]}
         for name, cfg in servers.items()
     }
 

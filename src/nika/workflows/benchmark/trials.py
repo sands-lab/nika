@@ -695,6 +695,8 @@ _RUN_IDENTITY_FIELDS = (
     "submission",
 )
 _GIT_FIELDS = ("nika_git_commit", "nika_git_dirty")
+# Identity of runs recorded before the field existed.
+_IDENTITY_DEFAULTS = {"submission": {"mode": "structured"}}
 
 
 def run_config_identity(job: dict[str, Any]) -> dict[str, Any]:
@@ -707,8 +709,12 @@ def assert_run_config_compatible(
     """Refuse resume when run identity fields diverge.
 
     Fields absent from ``existing`` (runs recorded before the field was part of
-    the identity) are not compared; ``merge_run_config`` backfills them.
+    the identity) are not compared unless ``_IDENTITY_DEFAULTS`` names the
+    behavior those runs had; ``merge_run_config`` backfills them.
     """
+    # Runs that predate a defaulted field ran with its default.
+    defaults = {k: v for k, v in _IDENTITY_DEFAULTS.items() if k in proposed}
+    existing = {**defaults, **existing}
     old = run_config_identity(existing)
     new = run_config_identity(proposed)
     mismatches = [
