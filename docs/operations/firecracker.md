@@ -22,75 +22,75 @@ affects only `nika benchmark run`.
 
 ## When it pays off
 
-Firecracker execution trades a one-time cost for a smaller cost per trial. Each
-environment variant is deployed once more to build its lab image; after that, a
-trial restores the lab instead of deploying it and discards the copy instead of
-undeploying it.
+Firecracker execution makes each trial cheaper in exchange for a one-time
+build per environment variant and the disk to keep the result. A lab image
+build costs about one native deploy and holds 1–15 GiB; after that, a trial
+restores its lab in seconds instead of deploying and undeploying it.
 
-Measured on release 0.2.0 (test split, 85 tasks × 3 trials) on a 16 vCPU host
-that is itself a VM, with huge pages. *Per trial* is the time a trial spends
-outside the agent: deploy (or restore), verification, injection and teardown.
-*Pays off after* is the number of benchmark runs (all tasks of the environment,
-3 trials each) after which the one-time build has cost less than the time saved.
+For release 0.2.0 (test split, 85 tasks × 3 trials), measured on a 16 vCPU host
+that is itself a VM, with huge pages:
 
-| Environment | Tasks | Native, per trial | Lab image build, once | Firecracker, per trial | Lab image pays off after (runs) | Case image builds, once (all tasks) | With case images, per trial | Case images pay off after (more runs) |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| `campus_lan` l | 6 | 196 s | 241 s | 27 s | 0.08 | 702 s | 2 s | 1.6 |
-| `campus_lan` m | 6 | 103 s | 154 s | 5 s | 0.09 | 280 s | 2 s | 5.8 |
-| `campus_lan` s | 4 | 87 s | 106 s | 10 s | 0.12 | 267 s | 2 s | 2.7 |
-| `dc_clos` l | 2 | 296 s | 280 s | 11 s | 0.16 | 98 s | 2 s | 3.3 |
-| `dc_clos` m | 3 | 67 s | 91 s | 7 s | 0.17 | 151 s | 2 s | 3.8 |
-| `dc_clos` s | 2 | 36 s | 61 s | 3 s | 0.31 | 139 s | 3 s | 0.5 |
-| `enterprise_branch` l | 5 | 81 s | 169 s | 6 s | 0.15 | 388 s | 2 s | 5.9 |
-| `enterprise_branch` m | 4 | 64 s | 89 s | 11 s | 0.14 | 318 s | 2 s | 2.3 |
-| `enterprise_branch` s | 3 | 43 s | 61 s | 9 s | 0.20 | 133 s | 2 s | 2.1 |
-| `isp_abilene` s | 1 | 80 s | 152 s | 6 s | 0.69 | 66 s | 2 s | 5.3 |
-| `isp_dfn-bwin_ebgp_rtbh` s | 1 | 97 s | 113 s | 6 s | 0.41 | 40 s | 3 s | 4.5 |
-| `isp_di-yuan` s | 1 | 92 s | 145 s | 18 s | 0.66 | 171 s | 2 s | 3.4 |
-| `isp_geant_ebgp_rpki` m | 2 | 640 s | 661 s | 7 s | 0.17 | 201 s | 2 s | 6.4 |
-| `isp_germany50` l | 1 | 111 s | 126 s | 12 s | 0.42 | 141 s | 2 s | 4.7 |
-| `isp_pdh` s | 1 | 237 s | 574 s | 117 s | 1.59 | 449 s | 5 s | 1.3 |
-| `k8s_lab` | 6 | 344 s | 460 s | 23 s | 0.08 | 924 s | 2 s | 2.8 |
-| `llmd_lab` | 5 | 207 s | 258 s | 20 s | 0.09 | 859 s | 3 s | 3.2 |
-| `min3clos` | 1 | 115 s | 207 s | 10 s | 0.66 | 151 s | 3 s | 7.2 |
-| `p4_dc_fabric` l | 1 | 187 s | 192 s | 9 s | 0.36 | 56 s | 2 s | 2.8 |
-| `p4_dc_fabric` m | 1 | 106 s | 123 s | 12 s | 0.44 | 48 s | 5 s | 2.2 |
-| `p4_dc_gateway` l | 5 | 173 s | 193 s | 17 s | 0.08 | 350 s | 3 s | 1.7 |
-| `p4_dc_gateway` m | 7 | 88 s | 118 s | 8 s | 0.07 | 281 s | 2 s | 2.7 |
-| `p4_dc_gateway` s | 7 | 70 s | 89 s | 11 s | 0.07 | 391 s | 3 s | 2.2 |
-| `sdn_l3_clos` l | 4 | 298 s | 283 s | 8 s | 0.08 | 237 s | 2 s | 4.0 |
-| `sdn_l3_clos` m | 2 | 130 s | 168 s | 4 s | 0.22 | 50 s | 2 s | 6.4 |
-| `sdn_l3_clos` s | 4 | 82 s | 114 s | 10 s | 0.13 | 248 s | 2 s | 2.4 |
-
-For the whole test split:
-
-| | Native | Firecracker (lab images) | Firecracker (lab and case images) |
+| | Native | Lab images | Lab and case images |
 |---|---:|---:|---:|
 | One-time builds (VM time) | — | 1.5 h | 1.5 h + 2.0 h |
-| Time outside the agent, per run of 255 trials | 10.8 h | 0.9 h | 0.1 h |
-| Pays off after | — | the first run (0.15 runs) | about 2.4 more runs |
-| Wall time of 85 trials (one per task, 8 at a time), measured | 5 h 55 min | 1 h 55 min + 35 min of image builds | — |
+| Disk | — | 21 GiB base + 79 GiB | 21 GiB base + 79 GiB + 4.4 GiB |
+| Time outside the agent per run (255 trials) | 10.8 h | 0.9 h | 0.1 h |
+| Builds pay for themselves after | — | the first run | about 2.4 more runs |
+| Measured wall time, 85 trials 8 at a time | 5 h 55 min | 1 h 55 min, plus 35 min of builds | — |
 
-Lab images repay their build within the first run for every environment except
-`isp_pdh` (1.6 runs), because a build costs about one native deploy and every
-trial saves most of one. Case images build one snapshot per task, so they pay
-off only when the same tasks run again: about 2–7 runs, depending on how long
-injection takes. The case-image column counts failure tasks only; healthy tasks
-always restore the lab image.
+*Time outside the agent* covers deploy or restore, verification, injection and
+teardown; agent time is the same in all modes. A *run* is every task of the
+split with 3 trials each. [Case images](#case-images-optional) are optional and
+pay off only when the same tasks run again.
 
-Native wall time is longer than the sum of its trial setup suggests because
-heavy labs (k8s, Containerlab, size `l`) run alone. Firecracker trials run side
-by side whatever their lab. Agent time is not part of these numbers; with 6–8
-copies running at once, tools that probe the network (ping meshes, HTTP tests)
-took 20–150% longer in their median than in the native run, which ran fewer
-trials at once.
+Native runs also take longer in wall time because heavy labs (k8s, Containerlab,
+size `l`) run alone; Firecracker trials run side by side. With 6–8 copies at
+once, tools that probe the network (ping meshes, HTTP tests) took 20–150%
+longer in their median than in the native run, which ran fewer trials at once.
 
-Without huge pages, a restored copy loads its memory on first access. On hosts
-that are themselves VMs this makes the first minute after a restore slow (for
-example 25–44 s instead of 4 s until `dc_clos -s s` is verified again) and can
-stall the lab's daemons. Use huge pages wherever the host can reserve them; the
-default mode suits hosts that cannot, or runs that keep many copies of one lab
-image at once (they share memory).
+While a lab image is built, its snapshot temporarily needs the VM's whole
+`vm_memory` (4–20 GiB) of free disk. See [host setup](#set-up-the-host-once)
+step 3 for sizing the Firecracker root.
+
+### Per environment
+
+*Per trial* is the median time outside the agent. *Pays off after* is the number
+of runs of that environment's tasks after which its builds have cost less than
+the time they saved. Case images count failure tasks only; healthy tasks
+restore the lab image.
+
+| Environment | Tasks | Native, per trial | Lab image: build, disk | Firecracker, per trial | Pays off after (runs) | Case images: builds, disk | With case images, per trial | Case images pay off after (more runs) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `campus_lan` l | 6 | 196 s | 241 s, 3.4 GiB | 27 s | 0.08 | 702 s, 641 MiB | 2 s | 1.6 |
+| `campus_lan` m | 6 | 103 s | 154 s, 2.0 GiB | 5 s | 0.09 | 280 s, 150 MiB | 2 s | 5.8 |
+| `campus_lan` s | 4 | 87 s | 106 s, 1.7 GiB | 10 s | 0.12 | 267 s, 89 MiB | 2 s | 2.7 |
+| `dc_clos` l | 2 | 296 s | 280 s, 3.3 GiB | 11 s | 0.16 | 98 s, 67 MiB | 2 s | 3.3 |
+| `dc_clos` m | 3 | 67 s | 91 s, 1.7 GiB | 7 s | 0.17 | 151 s, 62 MiB | 2 s | 3.8 |
+| `dc_clos` s | 2 | 36 s | 61 s, 1.1 GiB | 3 s | 0.31 | 139 s, 101 MiB | 3 s | 0.5 |
+| `enterprise_branch` l | 5 | 81 s | 169 s, 2.1 GiB | 6 s | 0.15 | 388 s, 214 MiB | 2 s | 5.9 |
+| `enterprise_branch` m | 4 | 64 s | 89 s, 1.4 GiB | 11 s | 0.14 | 318 s, 100 MiB | 2 s | 2.3 |
+| `enterprise_branch` s | 3 | 43 s | 61 s, 1.2 GiB | 9 s | 0.20 | 133 s, 57 MiB | 2 s | 2.1 |
+| `isp_abilene` s | 1 | 80 s | 152 s, 1.6 GiB | 6 s | 0.69 | 66 s, 47 MiB | 2 s | 5.3 |
+| `isp_dfn-bwin_ebgp_rtbh` s | 1 | 97 s | 113 s, 1.5 GiB | 6 s | 0.41 | 40 s, 43 MiB | 3 s | 4.5 |
+| `isp_di-yuan` s | 1 | 92 s | 145 s, 1.8 GiB | 18 s | 0.66 | 171 s, 49 MiB | 2 s | 3.4 |
+| `isp_geant_ebgp_rpki` m | 2 | 640 s | 661 s, 2.1 GiB | 7 s | 0.17 | 201 s, 114 MiB | 2 s | 6.4 |
+| `isp_germany50` l | 1 | 111 s | 126 s, 2.8 GiB | 12 s | 0.42 | 141 s, 94 MiB | 2 s | 4.7 |
+| `isp_pdh` s | 1 | 237 s | 574 s, 14.8 GiB | 117 s | 1.59 | 449 s, 206 MiB | 5 s | 1.3 |
+| `k8s_lab` | 6 | 344 s | 460 s, 7.7 GiB | 23 s | 0.08 | 924 s, 683 MiB | 2 s | 2.8 |
+| `llmd_lab` | 5 | 207 s | 258 s, 7.7 GiB | 20 s | 0.09 | 859 s, 533 MiB | 3 s | 3.2 |
+| `min3clos` | 1 | 115 s | 207 s, 5.4 GiB | 10 s | 0.66 | 151 s, 65 MiB | 3 s | 7.2 |
+| `p4_dc_fabric` l | 1 | 187 s | 192 s, 1.9 GiB | 9 s | 0.36 | 56 s, 39 MiB | 2 s | 2.8 |
+| `p4_dc_fabric` m | 1 | 106 s | 123 s, 1.4 GiB | 12 s | 0.44 | 48 s, 27 MiB | 5 s | 2.2 |
+| `p4_dc_gateway` l | 5 | 173 s | 193 s, 2.2 GiB | 17 s | 0.08 | 350 s, 220 MiB | 3 s | 1.7 |
+| `p4_dc_gateway` m | 7 | 88 s | 118 s, 1.6 GiB | 8 s | 0.07 | 281 s, 161 MiB | 2 s | 2.7 |
+| `p4_dc_gateway` s | 7 | 70 s | 89 s, 1.3 GiB | 11 s | 0.07 | 391 s, 151 MiB | 3 s | 2.2 |
+| `sdn_l3_clos` l | 4 | 298 s | 283 s, 2.9 GiB | 8 s | 0.08 | 237 s, 307 MiB | 2 s | 4.0 |
+| `sdn_l3_clos` m | 2 | 130 s | 168 s, 2.2 GiB | 4 s | 0.22 | 50 s, 44 MiB | 2 s | 6.4 |
+| `sdn_l3_clos` s | 4 | 82 s | 114 s, 1.9 GiB | 10 s | 0.13 | 248 s, 242 MiB | 2 s | 2.4 |
+
+Lab images pay off within the first run for every environment except
+`isp_pdh`, whose SR Linux lab takes 15 GiB and longer to build than to deploy.
+Case images pay off after 0.5–7 more runs, depending on how long injection takes.
 
 ## Set up the host (once)
 
@@ -135,20 +135,18 @@ reboots. Run them as a user with `sudo`.
    sudo chown "$USER": /var/lib/nika-firecracker
    ```
 
-   Size it for about 22 GiB of base image plus, per lab image, the memory the
-   lab uses (1–3 GiB; unused memory is stored as holes) and the disk blocks its
-   deploy changed. While a lab image is built, its snapshot first writes the
-   VM's whole `vm_memory` (4–20 GiB) before the unused part becomes holes, so
-   parallel builds need that much free space each, for a few minutes (NIKA
-   starts a build only while the root has room for all running ones).
+   Size it for the base image (about 21 GiB) plus the lab images you keep: each
+   holds the memory its lab uses, 1–15 GiB, and release 0.2.0's test split
+   needs 79 GiB ([per environment](#per-environment)). Add free space for
+   builds: a snapshot first writes the VM's whole `vm_memory` (4–20 GiB), and
+   NIKA starts a build only while the root has room for every running one.
    Rebuilding the base briefly needs room for two bases.
 
-   A loop file grows on the disk that holds it, and `truncate` does not check
-   that the disk has the space: size the file to the real free space of that
-   disk, which also holds NIKA's runtime images (about 20 GiB). When the disk
-   fills up, btrfs on a loop file stops with I/O errors. Keep that disk well
-   below full: on a Kubernetes node, kubelet deletes every unused Docker image
-   once the disk passes 85%.
+   `truncate` does not check that the disk holding the loop file has the space,
+   and btrfs on a loop file stops with I/O errors when that disk fills up. Size
+   the file to the real free space of that disk, which also holds NIKA's runtime
+   images (about 20 GiB). On a Kubernetes node, keep the disk well below 85%:
+   kubelet then deletes every unused Docker image.
 
 4. **Huge pages** (recommended; see [Huge pages](#huge-pages)). Reserve them at
    boot: a running host's memory is soon too fragmented to find enough
@@ -242,12 +240,11 @@ the runner schedules for that:
    case timeout.
 2. **One variant at a time.** Trials of the same environment variant run next to
    each other, so its lab image's memory file stays in the page cache.
-3. **Admission by memory.** `--batch-size` caps concurrent trials; with huge
-   pages, a trial also waits until the huge pages that were free when the run
-   started can hold its copy's whole `vm_memory`, so a copy never finds the
-   pool empty. Huge pages that other runs or VMs hold are not counted as free;
-   if a copy still cannot get its memory, its restore fails at once. Heavy labs (k8s, Containerlab, size `l`) no
-   longer run alone: a restore costs them no more than a light lab.
+3. **Admission by memory.** `--batch-size` caps concurrent trials. With huge
+   pages, a trial also waits until the huge pages free at the start of the run
+   can hold its copy's whole `vm_memory`, so a running copy never finds the pool
+   empty. Heavy labs (k8s, Containerlab, size `l`) no longer run alone: a
+   restore costs them no more than a light lab.
 
 ### Huge pages
 
@@ -261,8 +258,9 @@ With `huge_pages: true`, VM memory uses the 2 MiB huge pages reserved in
 [host setup](#set-up-the-host-once) step 4, and a page server
 (`nika.firecracker.uffd`) copies the memory the lab uses into each copy right after
 the restore (well under a second for a small lab). Restored labs run at full
-speed at once, and image builds are about twice as fast. Every running copy
-needs its own huge pages for the memory its lab uses.
+speed at once: `dc_clos -s s` passes its verification again 4 s after a restore,
+against 25–44 s without huge pages, and image builds are about twice as fast.
+Every running copy needs its own huge pages for the memory its lab uses.
 
 ### VM size
 
@@ -288,16 +286,15 @@ commands) from starving the copies next to it.
 
 ### Case images (optional)
 
-Even from a lab image, every trial still verifies the restored environment and
-injects its failure before the agent starts. Most tasks need a few seconds for
-that, but some need much longer: in release 0.2.0, injection takes 50–110 s for
-several `dc_clos`, `enterprise_branch`, `campus_lan`, `k8s_lab` and `llmd_lab`
-tasks, and verifying `isp_pdh` (SR Linux) takes about 100 s. A run repeats this
-for every trial.
+A trial restored from a lab image still verifies the environment and injects
+its failure before the agent starts. For most tasks that takes a few seconds,
+but in release 0.2.0 injection takes 50–110 s for several `dc_clos`,
+`enterprise_branch`, `campus_lan`, `k8s_lab` and `llmd_lab` tasks, and
+verifying `isp_pdh` (SR Linux) takes about 100 s, again in every trial.
 
-With case images, NIKA injects each task's failure once and keeps the VM right
-after injection as a *case image*. Every trial of the task restores it and the
-agent starts at once:
+To skip that when you run the same tasks repeatedly, such as several agents or
+models on one release, keep each task's VM right after injection as a *case
+image*:
 
 ```yaml
 nika:
@@ -305,35 +302,29 @@ nika:
     case_images: true
 ```
 
-Case images are worth it when you run the same tasks repeatedly, such as several
-agents or models on one release: on release 0.2.0 they repay their builds after
-about 2.4 runs (see [When it pays off](#when-it-pays-off)). They change how trials start:
+Every trial of the task then restores its case image, and the agent starts 1–8 s
+after the trial begins. A case image stores only the memory pages that changed
+since the lab image, compressed, plus the disk blocks that changed: median
+40 MiB, up to 190 MiB, and 4.4 GiB for release 0.2.0's test split. Building one
+takes a restore, the injection and a snapshot, about a minute for most tasks.
+[Per environment](#per-environment) lists the build time, disk and break-even
+point.
 
-* All trials of a task start from the same injected state, instead of each
-  trial injecting the failure again. Failures that evolve over time (traffic
-  floods, resource contention, flapping) continue from the moment of injection.
-* A trial does not repeat the startup verification. It checks that the injected
-  failure is still present, and fails if it is not.
-* Healthy tasks (no failure) restore the lab image as before.
+Case images change how trials start:
 
-A case image stores only the memory pages that injection and the lab's own
-activity changed since the lab image, compressed, plus the disk blocks they
-changed. Measured on release 0.2.0 with huge pages:
+* All trials of a task start from the same injected state instead of injecting
+  the failure again. Failures that evolve over time (traffic floods, resource
+  contention, flapping) continue from the moment of injection.
+* A trial checks that the injected failure is still present instead of
+  repeating the startup verification, and fails if it is not.
+* Healthy tasks restore the lab image as before.
 
-| | Per task | Test split (76 failure tasks) |
-|---|---|---|
-| Disk | median 40 MiB, up to 190 MiB (`isp_pdh`, `k8s_lab`, `llmd_lab`) | about 4 GiB |
-| One-time build (restore, inject, snapshot, compress) | median 1.2 min, up to 7.5 min (`isp_pdh`) | about 2 h of VM time; builds run in parallel |
-| Restore until the agent can start | 1–2.5 s; 6–8 s for `k8s_lab` and `isp_pdh` | — |
-
-These restore times assume the lab image's memory is in the host page cache,
-which is the normal case because trials of one environment variant run
-together. The first restore of a variant from a cold cache reads that memory
-from disk first: 10–40 s for most labs and about 100 s for `isp_pdh` (15 GiB).
-
-Without huge pages, a copy of a case image receives its memory from the page
-server instead of mapping the lab image file, so copies no longer share memory:
-each holds the memory its lab uses (1–8 GiB).
+The restore times above assume the lab image's memory is in the page cache,
+which is usual because trials of one environment variant run together. The first
+restore of a variant reads that memory from disk: 10–40 s for most labs and
+about 100 s for `isp_pdh` (15 GiB). Without huge pages, copies of a case image
+receive their memory from the page server instead of sharing the lab image
+file, so each copy holds the memory its lab uses (1–8 GiB).
 
 ## What changes in a trial
 
@@ -372,10 +363,9 @@ records the difference as `remote_clock_offset_sec`.
 | `nika firecracker clean` | Release orphaned trial copies; delete stale lab and case images (any key input changed) and abandoned builds. Builds in progress and images that running trials restore from are kept |
 | `nika firecracker clean --all` | Also delete every lab and case image |
 
-Lab images stay after a run, so later runs (other agents, more trials, reruns)
-reuse them. Each takes the memory its lab used plus the disk blocks its deploy
-changed, often 2–8 GiB, so a full release needs tens of GiB. To delete the ones
-a run used when it ends, set:
+Lab and case images stay after a run, so later runs (other agents, more trials,
+reruns) reuse them; [Per environment](#per-environment) lists the disk each one
+takes. To delete the ones a run used when it ends, set:
 
 ```yaml
 nika:
@@ -397,24 +387,25 @@ Lab images are keyed by:
   it.
 
 A change to any of these builds a new lab image on the next run, and `list`
-marks the old one stale. Stale images are not deleted automatically (another
-checkout may still use them), so run `nika firecracker clean` after updating
-NIKA. A build that would leave the Firecracker root without room for its
-snapshot fails at once and asks you to clean up. A case image is keyed by its lab image and its task, so
+marks the old one stale. A case image is keyed by its lab image and its task, so
 a new lab image also builds new case images.
+
+Stale images are not deleted automatically, because another checkout may still
+use them. Run `nika firecracker clean` after updating NIKA. A build that would
+leave the Firecracker root without room for its snapshot fails at once and asks
+you to clean up.
 
 ## Limitations
 
 * **Labs that run VMs themselves** (vrnetlab RouterOS) need KVM nested
-  virtualization on the host and NIKA's Firecracker build (see
-  [Set up the host](#set-up-the-host-once)). They work when NIKA runs on bare
-  metal or in a VM (RouterOS then runs two levels deep). On a host that is
-  itself a VM inside a VM, the router VM runs four levels deep: each level
-  multiplies the cost of its VM exits (measured about 13× per level on an AMD
-  host whose hypervisor exposes only `npt` and `nrip_save`), the router VM
-  spends all its time on timer interrupts and never leaves its BIOS, and lab
-  verification fails. Labs without inner VMs work at any depth. They are tested on AMD; the
-  Intel (VMX) path is implemented but not yet tested.
+  virtualization and NIKA's Firecracker build (see
+  [Set up the host](#set-up-the-host-once)). Run NIKA on bare metal or in a VM,
+  not in a VM inside another VM. There the router VM would run four levels deep,
+  and each level multiplies the cost of its VM exits (about 13× per level,
+  measured on an AMD host whose hypervisor exposes only `npt` and `nrip_save`).
+  The router VM then spends all its time on timer interrupts, never leaves its
+  BIOS, and verification fails. Labs without inner VMs work at any depth. These
+  labs are tested on AMD; the Intel (VMX) path is implemented but not tested.
 * **The first operations after a 4 KiB-page restore run slower.** This is most
   visible on hosts that are themselves VMs; huge pages remove it.
 * **Only benchmark runs use Firecracker.** `nika env run`, `nika case run` and
