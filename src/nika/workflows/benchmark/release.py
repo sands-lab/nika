@@ -636,6 +636,7 @@ def build_run_identity(
         "agent_timeout_sec": resolve_agent_timeout(),
         "reasoning_effort": resolve_reasoning_effort(),
         "access_role": get_run_config().agent.access.role,
+        "submission": get_run_config().agent.submission.identity(),
         "n_trials": int(n_trials),
         "official": official,
     }

@@ -692,6 +692,7 @@ _RUN_IDENTITY_FIELDS = (
     "reasoning_effort",
     "agent_timeout_sec",
     "access_role",
+    "submission",
 )
 _GIT_FIELDS = ("nika_git_commit", "nika_git_dirty")
 

@@ -1,11 +1,43 @@
-"""LangChain agent middleware shared by the LangGraph diagnosis and submission phases."""
+"""LangChain agent middleware and limits shared by the LangGraph phases.
+
+NIKA's default structured submission (:mod:`agent.submission`) runs the same
+submission graph for agents that implement only ``diagnose``.
+"""
 
 from __future__ import annotations
 
 from typing import Any
 
 from langchain.agents.middleware import AgentMiddleware, hook_config
+from langchain.agents.middleware.model_call_limit import ModelCallLimitExceededError
 from langchain_core.messages import AIMessage, HumanMessage
+from langgraph.errors import GraphRecursionError
+
+# Binding LLM-turn limit is ModelCallLimitMiddleware(run_limit=max_steps).
+# create_agent may count before_model/model/after_model/tools as separate
+# recursion steps, so keep recursion_limit as a loose backstop only.
+_RECURSION_STEPS_PER_LLM_TURN = 5
+_RECURSION_LIMIT_SLACK = 10
+
+MAX_STEPS_EXCEEDED = (GraphRecursionError, ModelCallLimitExceededError)
+
+
+def react_recursion_limit(max_steps: int) -> int:
+    return max_steps * _RECURSION_STEPS_PER_LLM_TURN + _RECURSION_LIMIT_SLACK
+
+
+def message_text(message: Any) -> str:
+    content = getattr(message, "content", message)
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "\n".join(
+            str(block.get("text", "")) if isinstance(block, dict) else str(block)
+            for block in content
+            if not isinstance(block, dict) or block.get("type") == "text"
+        )
+    return str(content)
+
 
 # Consecutive unfinished turns to re-prompt before letting the phase end.
 MAX_TRUNCATION_RETRIES = 2

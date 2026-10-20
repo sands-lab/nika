@@ -17,6 +17,7 @@ from nika.utils.agent_config import (
     resolve_max_steps,
     resolve_max_tokens,
     resolve_reasoning_effort,
+    resolve_submission_settings,
 )
 from nika.utils.logger import bind_session_dir, elapsed_ms, log_error_event, log_event
 from nika.utils.session import Session
@@ -40,6 +41,7 @@ def start_agent(
     sandbox_offline_sdk_wheels: bool | None = None,
 ) -> None:
     """Load the running session, run the agent on ``task_description``, then end the session."""
+    from agent.submission import ReportMapper
     from nika.utils.agent_config import apply_custom_provider_env
 
     # Benchmarks pass stream_output=False; keep MCP/httpx off the console.
@@ -57,6 +59,9 @@ def start_agent(
     max_tokens = resolve_max_tokens(agent_type)
     llm_provider = resolve_llm_provider(llm_provider, agent_type=agent_type)
     model = resolve_agent_model(agent_type, model)
+    submission = resolve_submission_settings()
+    # Built before the agent's provider environment clears other credentials.
+    report_mapper = ReportMapper.from_settings(submission, max_tokens=max_tokens)
     sandbox_config = resolve_sandbox_config(
         keep_container=sandbox_keep_container,
         cpus=sandbox_cpus,
@@ -96,6 +101,7 @@ def start_agent(
         session.update_session("reasoning_effort", reasoning_effort)
     if max_tokens is not None:
         session.update_session("max_tokens", max_tokens)
+    session.update_session("submission", submission.identity())
     session.start_session()
 
     bind_session_dir(session.session_dir)
@@ -117,6 +123,7 @@ def start_agent(
         sandbox=use_sandbox,
         max_steps=max_steps,
         timeout_sec=timeout_sec,
+        submission_mode=submission.mode,
     )
     from nika.validation.presence import PresenceWatch
 
@@ -164,6 +171,7 @@ def start_agent(
                         mcp_gateway_agent_url=gateway_base_url,
                         gateway_port=gateway_port,
                         stream_output=stream_output,
+                        report_mapper=report_mapper,
                     )
                 else:
                     with provider_env_context(
@@ -180,6 +188,7 @@ def start_agent(
                             max_tokens=max_tokens,
                             stream_output=stream_output,
                         )
+                        agent.report_mapper = report_mapper
                         run_agent(
                             agent,
                             session.task_description,
@@ -215,6 +224,7 @@ def start_agent(
                         mcp_gateway_agent_url=gateway_agent_url,
                         gateway_port=gateway_manager.port,
                         stream_output=stream_output,
+                        report_mapper=report_mapper,
                     )
                 else:
                     with provider_env_context(
@@ -231,6 +241,7 @@ def start_agent(
                             max_tokens=max_tokens,
                             stream_output=stream_output,
                         )
+                        agent.report_mapper = report_mapper
                         run_agent(
                             agent,
                             session.task_description,

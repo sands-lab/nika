@@ -21,14 +21,14 @@ Blue steps are run by NIKA; the orange step is run by your agent.
 
 1. **Start lab** and **inject fault**: NIKA deploys the network and breaks it, for example by taking a link down.
 2. **Diagnose**: your agent gets a description of the symptoms and investigates the live network through NIKA's [MCP tools](mcp-servers.md), such as running commands on devices or measuring reachability. It returns a written diagnosis report.
-3. **Submit**: NIKA freezes the report, and the agent converts it into a structured answer: which component failed, and how.
+3. **Submit**: NIKA freezes the report and converts it into a structured answer, which component failed and how, using your agent's model. The answer comes only from the report; the network is no longer reachable.
 4. **Score**: NIKA compares that answer with the fault it injected, then closes the lab.
 
-Your agent implements **Diagnose**. NIKA handles the other steps, and an existing NIKA agent supplies **Submit**.
+Your agent implements **Diagnose**. NIKA handles the other steps.
 
 ## 1. Write your agent
 
-Your agent is a Python class. Inherit NIKA's LangGraph agent, which already implements submission, and override `diagnose`: it receives the incident description and returns the diagnosis report.
+Your agent is a Python class. Inherit `NikaAgent` and implement `diagnose`: it receives the incident description and returns the diagnosis report. `NikaAgent` loads the running session and the run settings, such as `self.model` and `self.max_steps`, and its `diagnosis_mcp_config()` returns the MCP servers your agent may use.
 
 The example has two classes. `NetworkInvestigator` is the NOOA agent that reasons about the network. `NooaAgent` is the class NIKA runs: it connects the investigator to the lab's MCP tools and returns its report.
 
@@ -37,9 +37,7 @@ from nooa import Agent
 from nooa.mcp import MCPManager, MCPTool
 from nooa.unifiedllm.registry import get_llm_client
 
-from agent.byo.langgraph.react_agent import BasicReActAgent
-from agent.protocols import DIAGNOSIS
-from agent.utils.mcp_client import load_session_mcp_config
+from agent.base import NikaAgent
 
 
 class NetworkInvestigator(Agent):
@@ -58,16 +56,13 @@ class NetworkInvestigator(Agent):
         ...  # NOOA's model writes and runs Python here
 
 
-class NooaAgent(BasicReActAgent):
+class NooaAgent(NikaAgent):
     async def diagnose(self, task_description: str) -> str:
-        mcp = load_session_mcp_config(
-            self.session_id, self.session.scenario_name, phase=DIAGNOSIS
-        )
         servers = {
             name: await MCPManager.create_url_server(
                 name, cfg["url"], headers=cfg["headers"]
             )
-            for name, cfg in mcp.items()
+            for name, cfg in self.diagnosis_mcp_config().items()
         }
         llm = get_llm_client(f"openai/{self.model}")
         investigator = NetworkInvestigator(servers, llm=llm)

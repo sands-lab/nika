@@ -128,6 +128,26 @@ def _rewrite_gateway_base_for_client(base: str) -> str:
     return base
 
 
+def client_mcp_config(servers: dict) -> dict:
+    """Point session MCP servers at the gateway as this host process reaches it.
+
+    Host code that calls a sandboxed agent's MCP servers (NIKA's unstructured
+    submission) reads the sandbox manifest, whose gateway URL works only inside
+    the sandbox (``host.docker.internal``, or an E2B tunnel relay on the
+    sandbox's loopback). ``NIKA_MCP_GATEWAY_URL`` is the host-facing gateway,
+    local or on a remote lab host.
+    """
+    base = _rewrite_gateway_base_for_client(
+        os.environ.get(ENV_GATEWAY_URL, "").strip().rstrip("/")
+    )
+    if not base:
+        return servers
+    return {
+        name: {**cfg, "url": base + cfg["url"][cfg["url"].index("/mcp/") :]}
+        for name, cfg in servers.items()
+    }
+
+
 def _phase_timeout_sec() -> float:
     try:
         from nika.run_config.loader import get_run_config

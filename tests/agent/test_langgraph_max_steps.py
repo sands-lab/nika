@@ -11,10 +11,10 @@ from langchain_core.tools import tool
 from agent.byo.langgraph.middleware import (
     MAX_TRUNCATION_RETRIES,
     TRUNCATION_NUDGE,
+    react_recursion_limit,
 )
 from agent.byo.langgraph.phases.diagnosis import DiagnosisPhase
 from agent.byo.langgraph.phases.submission import SubmissionPhase
-from agent.byo.langgraph.react_agent import _react_recursion_limit
 
 pytestmark = pytest.mark.unit
 
@@ -123,12 +123,12 @@ async def test_phase_turns_respect_truncation_and_budget(
         with pytest.raises(ModelCallLimitExceededError):
             await agent.ainvoke(
                 {"messages": [HumanMessage("go")]},
-                config={"recursion_limit": _react_recursion_limit(max_steps)},
+                config={"recursion_limit": react_recursion_limit(max_steps)},
             )
     else:
         result = await agent.ainvoke(
             {"messages": [HumanMessage("go")]},
-            config={"recursion_limit": _react_recursion_limit(max_steps)},
+            config={"recursion_limit": react_recursion_limit(max_steps)},
         )
         messages = result["messages"]
         assert (

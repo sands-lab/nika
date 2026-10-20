@@ -18,6 +18,7 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from agent.protocols import DIAGNOSIS, SUBMISSION
 from agent.sandbox.backend import (
@@ -51,6 +52,9 @@ from agent.utils.skills import ENV_ENABLE_SKILLS, skills_enabled
 from nika.utils.agent_session_id import resolve_agent_session_id
 from nika.utils.logger import elapsed_ms, log_event
 from nika.utils.session import Session
+
+if TYPE_CHECKING:
+    from agent.submission import ReportMapper
 
 logger = logging.getLogger(__name__)
 
@@ -402,12 +406,15 @@ class SandboxManager:
         sandbox_session: SandboxSession,
         stream_output: bool,
         timeout_sec: int,
+        session: Session,
+        report_mapper: ReportMapper | None = None,
     ) -> None:
         """Diagnosis in the sandbox, freeze + phase advance on the host, then submission.
 
         The gateway's phase-advance secret stays in this host process, so the
         sandboxed agent cannot reach the submission context before its
-        diagnosis step has exited.
+        diagnosis step has exited. With a *report_mapper* (unstructured
+        submission), the host maps the report and the sandbox stays idle.
         """
         from agent.utils.mcp_client import begin_submission_mcp_phase
 
@@ -437,6 +444,18 @@ class SandboxManager:
         if mirror is not None:
             mirror.set_phase(SUBMISSION)
         context = begin_submission_mcp_phase(sandbox_session.agent_session_id, report)
+        if report_mapper is not None:
+            self._map_report_on_host(
+                report_mapper,
+                report,
+                context,
+                session=session,
+                agent_session_id=sandbox_session.agent_session_id,
+                stream_output=stream_output,
+                timeout_sec=remaining(),
+                budget_sec=timeout_sec,
+            )
+            return
         write_workspace_text(
             workspace / SUBMISSION_CONTEXT_FILENAME,
             json.dumps(context, ensure_ascii=False),
@@ -449,6 +468,51 @@ class SandboxManager:
             timeout_sec=remaining(),
             budget_sec=timeout_sec,
         )
+
+    @staticmethod
+    def _map_report_on_host(
+        report_mapper: ReportMapper,
+        report: str,
+        context: dict,
+        *,
+        session: Session,
+        agent_session_id: str,
+        stream_output: bool,
+        timeout_sec: float | None,
+        budget_sec: int,
+    ) -> None:
+        import asyncio
+
+        from agent.base import run_submission_phase
+        from agent.registry import AgentTimeoutError
+
+        async def _run() -> bool:
+            """Return ``False`` when the run budget expired."""
+            try:
+                async with asyncio.timeout(timeout_sec) as budget:
+                    await run_submission_phase(
+                        lambda: report_mapper.submit(
+                            report,
+                            context,
+                            session_id=agent_session_id,
+                            scenario_name=session.scenario_name,
+                            trace_dir=session.session_dir,
+                        ),
+                        trace_dir=session.session_dir,
+                        stream_output=stream_output,
+                        **report_mapper.trace_fields(),
+                    )
+            except TimeoutError:
+                # An LLM request timeout is not a budget expiry.
+                if not budget.expired():
+                    raise
+                return False
+            return True
+
+        if not asyncio.run(_run()):
+            raise AgentTimeoutError(
+                f"agent run exceeded agent.timeout_sec ({budget_sec}s)"
+            )
 
     def run(
         self,
@@ -464,6 +528,7 @@ class SandboxManager:
         mcp_gateway_agent_url: str,
         gateway_port: int,
         stream_output: bool = True,
+        report_mapper: ReportMapper | None = None,
     ) -> SandboxRunResult:
         """Create a sandbox, run the agent, collect artifacts."""
         with self.open_session(
@@ -483,6 +548,8 @@ class SandboxManager:
                     sandbox_session=sandbox_session,
                     stream_output=stream_output,
                     timeout_sec=timeout_sec,
+                    session=session,
+                    report_mapper=report_mapper,
                 )
             else:
                 from agent.registry import create_agent, run_agent
@@ -497,6 +564,7 @@ class SandboxManager:
                     max_tokens=max_tokens,
                     stream_output=stream_output,
                 )
+                agent.report_mapper = report_mapper
                 run_agent(agent, session.task_description, timeout_sec=timeout_sec)
 
         return SandboxRunResult(returncode=0, sandbox_name=sandbox_session.sandbox_name)
