@@ -41,7 +41,7 @@ from agent.sandbox.workspace import write_workspace_text
 from agent.utils.loggers import MessageLogger
 from agent.utils.mcp_client import load_session_mcp_config
 from agent.utils.skills import prepare_claude_workspace, skills_enabled
-from agent.utils.two_phase import max_steps_report
+from agent.base import max_steps_report
 
 
 def _build_mcp_json(servers: dict) -> str:

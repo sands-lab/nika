@@ -40,7 +40,7 @@ from agent.utils.provider_env import (
 )
 from agent.utils.reasoning_capture import reasoning_fields_for_log
 from agent.utils.reasoning_effort import map_anthropic_effort
-from agent.utils.two_phase import max_steps_report
+from agent.base import max_steps_report
 
 
 _KATHARA_PREFIXES = MCP_SERVER_PREFIXES

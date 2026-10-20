@@ -322,7 +322,13 @@ def load_model(
     max_tokens: int | None = None,
     timeout_sec: float | None = None,
     max_retries: int | None = None,
+    base_url: str | None = None,
 ) -> BaseChatModel:
+    """Build the chat model for *llm_provider*.
+
+    *base_url* overrides the custom endpoint (``NIKA_CUSTOM_BASE_URL``, then
+    ``agent.base_url``); other providers ignore it.
+    """
     cfg_timeout, cfg_retries, stream = _llm_client_settings()
     timeout = cfg_timeout if timeout_sec is None else float(timeout_sec)
     retries = cfg_retries if max_retries is None else int(max_retries)
@@ -359,7 +365,7 @@ def load_model(
         return ChatDeepSeek(**kwargs)
 
     if llm_provider == "custom":
-        base_url = resolve_custom_base_url()
+        base_url = (base_url or "").strip() or resolve_custom_base_url()
         if not base_url:
             try:
                 from nika.run_config.loader import get_run_config

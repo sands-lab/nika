@@ -1,6 +1,6 @@
 """Mock LLM agent that simulates a troubleshooting agent without a real LLM.
 
-The agent follows the shared two-phase pipeline (``TwoPhaseAgent``):
+The agent follows the shared two-phase pipeline (``NikaAgent``):
   1. diagnosis phase  – calls lab MCP tools and emits a deterministic report
   2. submission phase – calls submit via task MCP server using frozen context
 
@@ -23,10 +23,9 @@ from agent.utils.mcp_client import load_session_mcp_config
 from agent.utils.loggers import tool_event_payload
 from agent.utils.mcp_servers import select_diagnosis_servers
 from agent.protocols import DIAGNOSIS, SUBMISSION
-from agent.utils.two_phase import TwoPhaseAgent
+from agent.base import NikaAgent
 from nika.problems.rca import RootCause
 from nika.runtime.factory import resolve_backend
-from nika.utils.session import Session
 
 _ROUTER_HINTS = ("router", "leaf", "spine", "super_spine")
 
@@ -209,7 +208,7 @@ def _mock_diagnosis_report(*, devices: list[str], preferred: list[str]) -> str:
     )
 
 
-class MockAgent(TwoPhaseAgent):
+class MockAgent(NikaAgent):
     """Deterministic mock agent on the shared two-phase pipeline."""
 
     def __init__(
@@ -219,13 +218,9 @@ class MockAgent(TwoPhaseAgent):
         max_steps: int = 20,
         stream_output: bool = True,
     ) -> None:
-        self.session_id = session_id
-        self.model = model
-        self.max_steps = max_steps
-        self.stream_output = stream_output
-        self.session = Session()
-        self.session.load_running_session(session_id=session_id)
-        self.trace_dir = self.session.session_dir
+        super().__init__(
+            session_id, model=model, max_steps=max_steps, stream_output=stream_output
+        )
 
     async def diagnose(self, task_description: str) -> str:
         self.session.load_running_session(session_id=self.session_id)

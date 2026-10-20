@@ -45,6 +45,21 @@ SUBMIT_PROMPT_TEMPLATE = dedent("""\
     Rely only on the MCP tools available to you; do not execute arbitrary shell commands.\
 """).strip()
 
+MAP_REPORT_PROMPT = dedent("""\
+    You are an expert network engineer.
+    Map a frozen network diagnosis report to the benchmark answer format.
+    You are given the report, a fault ontology, and a canonical resource
+    inventory. Do not investigate again or revise the report; answer only from
+    what it states. Reply with one JSON object and nothing else:
+    {"is_anomaly": true, "root_causes": [{"resource_id": "<inventory id>", "fault_type": "<ontology id>"}]}
+    Each fault ontology entry has an ``id``, a short ``description`` of what
+    that id means, and an ``owner_kind``. Each fault_type must be an exact
+    ontology ``id`` (never an owner_kind, description, or natural-language
+    alias), and each resource_id must be an exact inventory id. Do not invent
+    ids. If the report finds no fault, reply
+    {"is_anomaly": false, "root_causes": []}.\
+""").strip()
+
 LLM_JUDGE_PROMPT_TEMPLATE = """
 You are an expert networking engineer acting as a judge.
 You will assess the performance of an autonomous agent given:

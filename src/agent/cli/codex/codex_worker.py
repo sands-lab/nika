@@ -53,7 +53,7 @@ from agent.utils.loggers import (
 from agent.utils.mcp_client import load_session_mcp_config
 from agent.utils.provider_env import build_agent_subprocess_env, require_provider
 from agent.utils.skills import prepare_codex_workspace
-from agent.utils.two_phase import max_steps_report
+from agent.base import max_steps_report
 from agent.utils.usage import normalize_usage
 
 REASONING_EFFORT_LEVELS = ("none", "minimal", "low", "medium", "high", "xhigh")

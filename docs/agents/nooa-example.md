@@ -29,8 +29,8 @@ providers: [openai, custom]
 ```python
 """NIKA agent whose diagnosis is a NOOA agent.
 
-Setup and submission come from NIKA's LangGraph agent; ``diagnose`` hands the
-incident to a NOOA CodeAct agent that calls NIKA's MCP tools from Python.
+NIKA supplies setup and submission; ``diagnose`` hands the incident to a NOOA
+CodeAct agent that calls NIKA's MCP tools from Python.
 """
 
 from nooa import Agent, set_default_strategy
@@ -40,11 +40,9 @@ from nooa.mcp import MCPManager, MCPTool
 from nooa.strategies import CodeActStrategy
 from nooa.unifiedllm.registry import get_llm_client
 
-from agent.byo.langgraph.react_agent import BasicReActAgent
+from agent.base import NikaAgent, max_steps_report
 from agent.protocols import DIAGNOSIS
 from agent.utils.loggers import MessageLogger
-from agent.utils.mcp_client import load_session_mcp_config
-from agent.utils.two_phase import max_steps_report
 
 
 class NetworkInvestigator(Agent):
@@ -71,14 +69,11 @@ class NetworkInvestigator(Agent):
         ...
 
 
-class NooaAgent(BasicReActAgent):
+class NooaAgent(NikaAgent):
     async def diagnose(self, task_description: str) -> str:
-        log = MessageLogger(phase=DIAGNOSIS, session_dir=self.session_dir)
+        log = MessageLogger(phase=DIAGNOSIS, session_dir=self.trace_dir)
         servers = {}
-        mcp = load_session_mcp_config(
-            self.session_id, self.session.scenario_name, phase=DIAGNOSIS
-        )
-        for name, cfg in mcp.items():
+        for name, cfg in self.diagnosis_mcp_config().items():
             tool = await MCPManager.create_url_server(
                 name, cfg["url"], headers=cfg.get("headers")
             )
