@@ -25,7 +25,14 @@ Every agent runs the same pipeline:
 
 1. **Diagnosis.** The agent inspects the live lab through the diagnosis MCP servers and writes a free-text report.
 2. **Freeze and advance.** The host records the report as `diagnosis_frozen` in `messages.jsonl` and moves the MCP gateway to the submission phase. The gateway then returns the fault ontology and the resource catalog.
-3. **Submission.** The agent gets the frozen report and that context, with only the task MCP server, and calls `submit`.
+3. **Submission.** The frozen report and that context become the answer recorded by the task MCP `submit` tool. Submission has no diagnosis tools, so it cannot investigate again. `agent.submission.mode` selects who answers:
+
+| Mode | Who answers | Use it for |
+| --- | --- | --- |
+| `structured` (default) | The agent's own model, with only the `submit` tool. Built-in harnesses use their own submission worker; other agents get NIKA's default, the `byo.langgraph` submission agent. | Leaderboard and comparable runs: the score includes how well the agent's model fills the answer. |
+| `unstructured` | A separate model set in `agent.submission`, the same for every agent type. It returns a JSON answer for each of `samples` calls; NIKA submits the majority answer once. | Comparing diagnosis reports when agents use different models or none, independent of each model's tool calling. |
+
+Unstructured runs record the submission model in the run identity and cannot be packed for the leaderboard.
 
 A completed run writes `messages.jsonl` and `submission.json` under the session result directory. The [root-cause scoring reference](../benchmarks/root-cause-evaluation.md) defines the submission schema.
 
@@ -117,7 +124,7 @@ Use [Run configuration](../operations/configuration.md) for every setting, [CLI]
 
 ## Trace event contract
 
-`TwoPhaseAgent` writes each phase's lifecycle events. Workers record real model and tool calls using `MessageLogger` (or `AgentCallbackLogger` for LangChain). The evaluator normally measures diagnosis-phase events only.
+`NikaAgent` writes each phase's lifecycle events. The submission `agent_start` event records `submission_mode`, plus the mapping `provider`, `model`, `samples`, and `temperature` in `unstructured` mode. Unstructured runs also record each mapping attempt as `submission_sample` (`sample`, `attempt`, raw `text`, parsed `answer` or `error`) and the outcome as `submission_vote` (per-sample `answers`, `votes` with counts, and the `chosen` answer). Workers record real model and tool calls using `MessageLogger` (or `AgentCallbackLogger` for LangChain). The evaluator normally measures diagnosis-phase events only.
 
 | Event | Worker payload | Meaning |
 | --- | --- | --- |
@@ -131,11 +138,11 @@ The logger supplies timestamp and phase. Preserve real usage and errors; do not 
 
 ## Custom agent integration
 
-Host-run harnesses can subclass [`TwoPhaseAgent`](../../src/agent/utils/two_phase.py). Initialize `session_id`, `trace_dir`, and `stream_output`; the current base class does not provide a constructor. Follow the [LangGraph constructor](../../src/agent/byo/langgraph/react_agent.py) for loading the running session and model settings.
+Subclass [`NikaAgent`](../../src/agent/base.py) and implement `diagnose(task_description) -> str`. The constructor loads the running session and keeps the run settings: `self.model`, `self.llm_provider`, `self.max_steps`, `self.max_tokens`, `self.reasoning_effort`, `self.session_id`, `self.scenario_name`, and `self.trace_dir` (where `messages.jsonl` lives). `self.diagnosis_mcp_config()` returns the diagnosis MCP servers. A subclass that needs its own constructor calls `super().__init__(session_id, ...)` first.
 
-Implement `diagnose(task_description) -> str` for the investigation and `submit(diagnosis_report, context) -> str` for NIKA's structured-answer adapter. The orchestrator freezes the diagnosis and supplies the resource and fault catalogs before calling that adapter. The adapter invokes the task MCP `submit` tool; the current orchestrator does not generate the structured answer itself. See [the shared run contract](#shared-run-contract) and [Python MCP client](#python-mcp-client).
+Submission needs no code: NIKA answers from the frozen report as described in [the shared run contract](#shared-run-contract). The default `submit(diagnosis_report, context)` uses the agent's `model` and `llm_provider`, so an agent without a provider must override `submit` or run in `unstructured` mode. Override `submit` only to keep a framework's own submission worker; it must answer from the report and context alone, through the task MCP `submit` tool ([Python MCP client](#python-mcp-client)).
 
-Workers enforce the [step limit](#step-limit) and record calls using the [trace event contract](#trace-event-contract). Lifecycle events and report freezing belong to the base class and host.
+Workers enforce the [step limit](#step-limit) and record calls using the [trace event contract](#trace-event-contract). Lifecycle events, report freezing, and submission mode belong to the base class and host.
 
 ## Custom agent registration
 

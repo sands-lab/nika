@@ -174,3 +174,28 @@ def test_remote_advance_surfaces_gateway_errors(
     monkeypatch.setattr(mcp_client.urllib.request, "urlopen", fake_urlopen)
     with pytest.raises(RuntimeError, match="NIKA-Phase-Token"):
         mcp_client.begin_submission_mcp_phase("sess-remote", "report text")
+
+
+@pytest.mark.parametrize(
+    ("gateway_url", "expected"),
+    [
+        ("http://0.0.0.0:9100", "http://127.0.0.1:9100/mcp/task_mcp_server/mcp"),
+        ("http://lab-host:9100", "http://lab-host:9100/mcp/task_mcp_server/mcp"),
+    ],
+)
+def test_client_mcp_config_uses_host_facing_gateway(
+    monkeypatch: pytest.MonkeyPatch, gateway_url: str, expected: str
+) -> None:
+    """Host-side submission must not dial the sandbox-only gateway address."""
+    monkeypatch.setenv(ENV_GATEWAY_URL, gateway_url)
+    sandbox_view = {
+        "task_mcp_server": {
+            "url": "http://127.0.0.1:9099/mcp/task_mcp_server/mcp",
+            "headers": {"NIKA-Session-Id": "s"},
+        }
+    }
+    config = mcp_client.client_mcp_config(sandbox_view)
+    assert config["task_mcp_server"] == {
+        "url": expected,
+        "headers": {"NIKA-Session-Id": "s"},
+    }

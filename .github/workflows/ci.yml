@@ -53,10 +53,13 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Install host prerequisites
-        # Runners ship Docker; their Azure kernels keep vrf.ko in linux-modules-extra.
+        # Runners ship Docker. Older Azure kernels keep vrf.ko only in
+        # linux-modules-extra, which newer runner kernels may not publish.
         run: |
-          sudo apt-get update
-          sudo apt-get install -y "linux-modules-extra-$(uname -r)"
+          if ! sudo modprobe -n vrf; then
+            sudo apt-get update
+            sudo apt-get install -y "linux-modules-extra-$(uname -r)"
+          fi
       - name: Run one-shot installer
         run: ./scripts/install.sh
       - name: Verify installed user environment

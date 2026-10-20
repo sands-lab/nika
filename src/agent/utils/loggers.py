@@ -21,7 +21,7 @@ Two layers (keep names stable so inspect can match uniformly):
   One pair per pipeline phase (diagnosis / submission).
 
 Every agent emits the phase bookends through
-:class:`~agent.utils.two_phase.TwoPhaseAgent` (which calls
+:class:`~agent.base.NikaAgent` (which calls
 :meth:`MessageLogger.log_agent_start` / :meth:`MessageLogger.log_agent_done` /
 :meth:`MessageLogger.log_agent_error`), so inspect pairing stays agent-agnostic.
 Workers log one ``llm_end`` per model response (the ``max_steps`` unit).

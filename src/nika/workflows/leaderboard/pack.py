@@ -293,6 +293,12 @@ def pack_leaderboard_submission(
         raise LeaderboardPackError(
             "Only official release runs can be packed (run.official must be true)"
         )
+    submission_mode = (run_cfg.get("submission") or {}).get("mode", "structured")
+    if submission_mode != "structured":
+        # Leaderboard scores assume the agent's own model submits its answer.
+        raise LeaderboardPackError(
+            f"Only structured-submission runs can be packed (got {submission_mode!r})"
+        )
 
     version = str(run_cfg.get("version") or "")
     split = str(run_cfg.get("split") or "")

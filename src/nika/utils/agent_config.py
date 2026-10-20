@@ -8,7 +8,7 @@ from __future__ import annotations
 import os
 
 from nika.run_config.loader import get_run_config
-from nika.run_config.schema import RunConfig
+from nika.run_config.schema import AgentSubmissionSettings, RunConfig
 from agent.registry import find_agent_spec, get_agent_spec
 from agent.utils.provider_env import validate_provider_for_agent
 
@@ -55,6 +55,12 @@ def resolve_max_steps(
 
 def resolve_agent_timeout(*, config: RunConfig | None = None) -> int:
     return _cfg(config).agent.timeout_sec
+
+
+def resolve_submission_settings(
+    *, config: RunConfig | None = None
+) -> AgentSubmissionSettings:
+    return _cfg(config).agent.submission
 
 
 def resolve_reasoning_effort(

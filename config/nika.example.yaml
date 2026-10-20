@@ -29,6 +29,16 @@ agent:
   # reasoning_effort: medium
   # Output-token cap per model response. Not applied by Codex agents or SADE.
   max_tokens: 8192
+  # How the frozen report becomes the scored answer. structured (default): the
+  # agent's own model calls submit(). unstructured: the model below maps the
+  # report for every agent type; such runs cannot be packed for the leaderboard.
+  # submission:
+  #   mode: unstructured
+  #   provider: custom
+  #   model: Qwen/Qwen3.6-35B-A3B-FP8
+  #   base_url: http://localhost:8000/v1
+  #   samples: 3
+  #   temperature: 0.7
 
 # OpenAI-compatible endpoint example (OpenRouter). Uncomment and replace the
 # agent block above. Set NIKA_CUSTOM_API_KEY in .env when auth is required.

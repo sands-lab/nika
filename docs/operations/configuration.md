@@ -62,6 +62,12 @@ Relative result paths resolve from the repository root. NIKA rejects unknown YAM
 | `agent.llm.timeout_sec` | `480` | LLM request timeout used by the `byo.langgraph` model factory. Must be non-negative. With streaming it bounds the wait between chunks, not the whole response. |
 | `agent.llm.max_retries` | `2` | LLM retries used by the `byo.langgraph` model factory. Must be non-negative. |
 | `agent.llm.stream` | `true` | Stream LLM responses in the `byo.langgraph` model factory. Set `false` for OpenAI-compatible servers that do not support streaming or `stream_options`. |
+| `agent.submission.mode` | `structured` | How the frozen report becomes the scored answer. `structured`: the agent's own model calls `submit`. `unstructured`: the model below maps the report for every agent type. See [submission modes](../agents/agent-reference.md#shared-run-contract). Benchmark runs record `agent.submission` in the run identity; only `structured` runs can be packed for the leaderboard. |
+| `agent.submission.provider` | `null` | `unstructured` only, required. Provider of the mapping model; credentials come from `.env` as for `agent.provider`. |
+| `agent.submission.model` | `null` | `unstructured` only, required. Mapping model id. Its output is capped by `agent.max_tokens`, also for agents that ignore that setting. |
+| `agent.submission.base_url` | `null` | `unstructured` only. Endpoint for `provider: custom`; defaults to `agent.base_url`. |
+| `agent.submission.samples` | `1` | `unstructured` only. Independent mappings of the report; NIKA submits the most frequent valid answer (ties go to the earliest). Each mapping gets one corrective retry when its answer is invalid. |
+| `agent.submission.temperature` | `null` | `unstructured` only. Sampling temperature of the mapping model; `null` keeps the provider default, which is `0` for `custom`. With `samples` above `1`, set it above `0`, or every sample gives the same answer. |
 | `agent.access.role` | `default` | Diagnosis access role for the run. `--role` on `agent run` / `benchmark run` overrides it. The role must exist in `agent.access.roles`. Benchmark runs record it in the run identity. |
 | `agent.access.roles.<role>.tools` | `["*"]` | MCP tools the agent may call during diagnosis. `*` allows every tool. Submission always allows only `submit`. |
 | `agent.access.roles.<role>.node_roles` | `["*"]` | Scenario node roles that node-targeted tools may address. `*` allows every role. |

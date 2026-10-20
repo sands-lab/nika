@@ -11,7 +11,7 @@ from agent.byo.mcp_agent.llm import create_nika_augmented_llm
 from agent.utils.loggers import MessageLogger
 from agent.protocols import DIAGNOSIS
 from agent.utils.template import OVERALL_DIAGNOSIS_PROMPT
-from agent.utils.two_phase import max_steps_report
+from agent.base import max_steps_report
 
 
 class McpDiagnosisPhase:

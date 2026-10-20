@@ -1,6 +1,6 @@
 """mcp-agent SDK agent.
 
-Two-phase troubleshooting pipeline on :class:`~agent.utils.two_phase.TwoPhaseAgent`,
+Two-phase troubleshooting pipeline on :class:`~agent.base.NikaAgent`,
 with both phases inside one ``MCPApp`` context.
 
 Select with ``nika agent run -a byo.mcp_agent``.
@@ -20,13 +20,12 @@ from agent.byo.mcp_agent.phases.diagnosis import McpDiagnosisPhase
 from agent.byo.mcp_agent.phases.submission import McpSubmissionPhase
 from agent.protocols import DIAGNOSIS, SUBMISSION
 from agent.utils.mcp_client import filter_phase_servers
-from agent.utils.two_phase import TwoPhaseAgent
-from nika.utils.session import Session
+from agent.base import NikaAgent
 
 logging.basicConfig(level=logging.INFO)
 
 
-class McpAgent(TwoPhaseAgent):
+class McpAgent(NikaAgent):
     """Two-phase troubleshooting agent using mcp-agent ``Agent`` + AugmentedLLM."""
 
     def __init__(
@@ -40,22 +39,16 @@ class McpAgent(TwoPhaseAgent):
         max_tokens: int | None = None,
         stream_output: bool = True,
     ) -> None:
-        self.session_id = session_id
-        self.model = model
-        self.max_steps = max_steps
-        self.llm_provider = llm_provider
-        self.reasoning_effort = reasoning_effort
-        self.max_tokens = max_tokens
-        self.stream_output = stream_output
-
-        session = Session()
-        session.load_running_session(session_id=session_id)
-        self.session = session
-        self.session_dir: str = session.session_dir
-        self.trace_dir = self.session_dir
-
-        self._scenario_name: str = getattr(session, "scenario_name", "")
-        names = session_server_names(self._scenario_name)
+        super().__init__(
+            session_id,
+            model=model,
+            llm_provider=llm_provider,
+            max_steps=max_steps,
+            reasoning_effort=reasoning_effort,
+            max_tokens=max_tokens,
+            stream_output=stream_output,
+        )
+        names = session_server_names(self.scenario_name)
         self._server_names = {
             phase: list(filter_phase_servers(dict.fromkeys(names), phase))
             for phase in (DIAGNOSIS, SUBMISSION)
@@ -65,7 +58,7 @@ class McpAgent(TwoPhaseAgent):
         """Execute the two-phase pipeline inside an MCPApp context."""
         settings = build_mcp_agent_settings(
             session_id=self.session_id,
-            scenario_name=self._scenario_name,
+            scenario_name=self.scenario_name,
             model=self.model,
             provider=self.llm_provider,
             reasoning_effort=self.reasoning_effort,
