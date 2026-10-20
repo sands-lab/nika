@@ -105,6 +105,24 @@ def run_netlab(topology: dict, directory: Path) -> tuple[dict[str, str], dict]:
                 if fragment.count(marker) != 1:
                     raise ValueError("Unsupported netlab FRR initial config envelope")
                 fragment = fragment.split(marker)[1].split("\nCONFIG\n", 1)[0]
+            if node["device"] == "routeros7" and module == "initial":
+                # netlab 26.10 creates extra loopbacks as bridges but addresses
+                # their settings through /interface/ethernet. RouterOS aborts
+                # the import there; use the actual upstream-created object type.
+                loopbacks = {
+                    interface["ifname"]
+                    for interface in node.get("interfaces", [])
+                    if interface.get("type") == "loopback"
+                }
+                fragment = "\n".join(
+                    line.replace(
+                        "/interface/ethernet set ", "/interface/bridge set ", 1
+                    )
+                    if line.startswith("/interface/ethernet set ")
+                    and line.rsplit(" ", 1)[-1] in loopbacks
+                    else line
+                    for line in fragment.splitlines()
+                )
             if node["device"] == "routeros7" and module == "bgp":
                 # netlab 26.10 uses three invalid community property spellings.
                 # RouterOS Route Selection and Filters documents these names.

@@ -75,6 +75,8 @@ Run independent E2E tests in parallel when safe to reduce test time. The benchma
 
 Use unit tests mainly for stable isolated logic such as parsing, schemas, deterministic transformations, compatibility rules, and pure algorithms.
 
+Share acceptance assertions across specification-driven experiments. Keep scenario differences in declared specifications and deployment parameters rather than separate test workflows.
+
 Do not add permanent unit tests merely to mirror implementation details or increase coverage.
 
 During feature development, temporary focused tests and helpers are acceptable. After completing each feature, proactively remove all development-only test functions, fixtures, mocks, scripts, and helper functions introduced for that work. Retain only durable tests and reusable helpers that directly exercise or support NIKA’s primary workflows, user-visible behavior, benchmark contracts, or reusable core logic.

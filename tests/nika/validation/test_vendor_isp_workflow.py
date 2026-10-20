@@ -4,6 +4,8 @@ from copy import deepcopy
 
 import pytest
 
+from tests.support.scenario_validation import assert_scenario_acceptance
+
 from nika.workflows.validation.benchmark_routing import (
     build_benchmark_isp_experiment,
     isp_catalog_profiles,
@@ -17,7 +19,7 @@ from nika.workflows.validation.benchmark_routing import (
     [("arpanet196912", "none"), ("arpanet196912", "ibgp_rr"), ("dataxchange", "ebgp")],
 )
 def test_native_isp_synthesis_execution_and_recovery(
-    vendor, topology, bgp_mode, tmp_path, netcomplete_image
+    vendor, topology, bgp_mode, tmp_path, netcomplete_image, batfish_verifier
 ):
     import docker
     from docker.errors import ImageNotFound
@@ -44,18 +46,14 @@ def test_native_isp_synthesis_execution_and_recovery(
     profile["deployment"].update(igp="ospf", bgp_mode=bgp_mode, device_profile=vendor)
     spec = build_benchmark_isp_experiment(profile)
     summary = validate_scenario_design(
-        spec, tmp_path, runtime=True, image=netcomplete_image
+        spec,
+        tmp_path,
+        runtime=True,
+        image=netcomplete_image,
+        batfish_verifier=batfish_verifier,
     )
-    assert summary["status"] == "passed"
+    assert_scenario_acceptance(spec, summary, tmp_path, runtime=True)
     assert summary["synthesis"]["backend"] == "netcomplete"
-    assert (
-        summary["runtime"]["backbone-link-down-recovered"]
-        == summary["runtime"]["healthy"]
-    )
-    for mutation in spec.runtime_counterexamples:
-        assert (
-            summary["counterexamples"][mutation.name]["status"] == "rejected-in-runtime"
-        )
 
 
 @pytest.mark.contract

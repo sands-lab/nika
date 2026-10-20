@@ -29,7 +29,9 @@ def test_saved_completion_cannot_fall_back_to_default_parameters(tmp_path):
 
 
 @pytest.mark.e2e
-def test_saved_build_deploys_with_original_requirements(tmp_path, netcomplete_image):
+def test_saved_build_deploys_with_original_requirements(
+    tmp_path, netcomplete_image, batfish_verifier
+):
     import time
     from typer.testing import CliRunner
     from nika.cli.main import app
@@ -41,13 +43,17 @@ def test_saved_build_deploys_with_original_requirements(tmp_path, netcomplete_im
     from nika.workflows.session.close import close_session
     from nika.workflows.validation.scenario import validate_scenario_design
     from nika.workflows.validation.scenario_spec import ScenarioExperiment
+    from tests.support.scenario_validation import assert_scenario_acceptance
 
     specimen = (
         Path(__file__).resolve().parents[3] / "experiment/scenario_validation/clos.json"
     )
     spec = ScenarioExperiment.model_validate_json(specimen.read_text())
     build = tmp_path / "construction"
-    validate_scenario_design(spec, build, image=netcomplete_image)
+    summary = validate_scenario_design(
+        spec, build, image=netcomplete_image, batfish_verifier=batfish_verifier
+    )
+    assert_scenario_acceptance(spec, summary, build, runtime=False)
     kwargs = load_scenario_build(build)
     assert kwargs["routing_parameters"] == json.loads(
         (build / "routing-parameters.json").read_text()

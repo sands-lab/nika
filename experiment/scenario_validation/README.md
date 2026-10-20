@@ -12,7 +12,7 @@ support alone does not imply native acceptance for every size, vendor or fault.
 
 `k8s_lab` and `llmd_lab` retain their existing runtime checks and are not integrated
 with this specification-driven experiment. For SDN and P4, recorded end-to-end
-acceptance covers size `s` and the declared ICMP forwarding requirements. It does
+acceptance covers sizes `s` and `m` and the declared ICMP forwarding requirements. It does
 not establish full controller, P4 program or stateful service correctness.
 
 ## Run an experiment
@@ -172,6 +172,14 @@ acceptance. The historical 39 benchmark deployment profiles do not imply that al
 `isp.netlab_construction.completed_native_runs`; compare the full scenario, device
 profile, IGP and BGP mode when assessing coverage. Offline generation and restricted
 model import provide no native acceptance evidence.
+
+The routing, native-vendor and packet-fabric tests share
+[`assert_scenario_acceptance`](../../tests/support/scenario_validation.py) for
+predicate coverage, operating states, counterexamples, recovery and session closure.
+Extend their parameter matrices to cover another compatible deployment. Keep
+protocol-specific requirements in the specification and retain any additional
+protocol assertions. Routing tests share a pinned Batfish instance on an allocated
+local port, so they preserve independently running analyzers.
 
 Run the retained regressions against the shared implementation:
 

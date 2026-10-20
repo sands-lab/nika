@@ -305,11 +305,15 @@ def _normalize_netlab_routeros(node, config):
                 values["interface"], values["interface"]
             )
             addresses.append({"interface": interface, "address": values["address"]})
-        elif path == ("interface", "ethernet", "set"):
+        elif path in {
+            ("interface", "ethernet", "set"),
+            ("interface", "bridge", "set"),
+        }:
+            interface_pattern = r"ether[1-9][0-9]*" if path[1] == "ethernet" else "lo1"
             if (
                 set(values) != {"comment"}
                 or not raw
-                or not re.fullmatch(r"ether[1-9][0-9]*|lo1", raw[-1])
+                or not re.fullmatch(interface_pattern, raw[-1])
             ):
                 raise ValueError("Unsupported RouterOS netlab interface metadata")
         elif path == ("ip", "address", "set"):

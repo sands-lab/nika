@@ -300,6 +300,11 @@ def validate_forwarding_design(spec, output, *, runtime=False):
         mutated["flows"].append(
             {
                 "switch": ep.switch,
+                "device_id": next(
+                    f["device_id"]
+                    for f in candidate["flows"]
+                    if f["switch"] == ep.switch
+                ),
                 "table": 0,
                 "priority": 55000,
                 "match": f"ip,nw_dst={ep.address}",
@@ -369,17 +374,49 @@ def validate_forwarding_design(spec, output, *, runtime=False):
                 if not result.get("ok"):
                     raise RuntimeError("Native LPM withdrawal failed")
             else:
-                command = shlex.join(
-                    [
-                        "ovs-ofctl",
-                        "-O",
-                        "OpenFlow13",
-                        "add-flow",
-                        ep.switch,
-                        f"priority=55000,ip,nw_dst={ep.address},actions=drop",
-                    ]
+                from nika.net_env.sdn_l3_clos.fabric_manager.apply import (
+                    _install_onos_flow_body,
+                    _onos_batch_resilient,
+                    _onos_json,
                 )
-                backend.exec(ep.switch, command)
+
+                # Controller-owned rules survive ONOS reconciliation during a
+                # complete predicate scan, including larger topology sizes.
+                body = _install_onos_flow_body(mutated["flows"][-1], {})
+                flow_path = f"/onos/v1/flows/{body['deviceId']}"
+                _onos_batch_resilient(
+                    backend,
+                    [("POST", flow_path, body)],
+                    operation="counterexample install",
+                )
+                installed = []
+
+                def counterexample_ready():
+                    installed[:] = [
+                        f
+                        for f in _onos_json(backend, flow_path).get("flows", [])
+                        if f.get("priority") == body["priority"]
+                        and any(
+                            c.get("type") == "IPV4_DST"
+                            and c.get("ip") == f"{ep.address}/32"
+                            for c in f.get("selector", {}).get("criteria", [])
+                        )
+                        # ONOS serializes an empty drop treatment as NOACTION.
+                        and all(
+                            instruction.get("type") == "NOACTION"
+                            for instruction in f.get("treatment", {}).get(
+                                "instructions", []
+                            )
+                        )
+                        and f.get("state") == "ADDED"
+                    ]
+                    return len(installed) == 1
+
+                if not wait_until(counterexample_ready, spec.convergence_timeout_sec):
+                    raise RuntimeError(
+                        "ONOS did not install the declared counterexample"
+                    )
+                flow_id = installed[0]["id"]
             try:
                 observed = verify_isp_contract(
                     backend, contract=spec.healthy, plan=None
@@ -403,19 +440,10 @@ def validate_forwarding_design(spec, output, *, runtime=False):
                     ):
                         raise RuntimeError("Native LPM restoration failed")
                 else:
-                    backend.exec(
-                        ep.switch,
-                        shlex.join(
-                            [
-                                "ovs-ofctl",
-                                "-O",
-                                "OpenFlow13",
-                                "--strict",
-                                "del-flows",
-                                ep.switch,
-                                f"priority=55000,ip,nw_dst={ep.address}",
-                            ]
-                        ),
+                    _onos_batch_resilient(
+                        backend,
+                        [("DELETE", f"{flow_path}/{flow_id}", None)],
+                        operation="counterexample restore",
                     )
             observe("route-restored", spec.healthy)
             for incident in spec.incidents:

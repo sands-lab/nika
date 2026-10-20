@@ -401,6 +401,26 @@
           "link_down_predicates": 132,
           "recovered_predicates": 126,
           "predeclared_counterexamples_verified": true
+        },
+        {
+          "scenario": "isp_dataxchange",
+          "device_profile": "routeros",
+          "igp": "ospf",
+          "bgp_mode": "ibgp_rr",
+          "healthy_predicates": 67,
+          "link_down_predicates": 65,
+          "recovered_predicates": 67,
+          "predeclared_counterexamples_verified": true
+        },
+        {
+          "scenario": "isp_arpanet19706",
+          "device_profile": "frr",
+          "igp": "isis",
+          "bgp_mode": "ibgp_rr",
+          "healthy_predicates": 95,
+          "link_down_predicates": 98,
+          "recovered_predicates": 95,
+          "predeclared_counterexamples_verified": true
         }
       ],
       "static_policy_comparison": {
@@ -631,6 +651,33 @@
         "recovered_predicates": 22,
         "configuration_counterexample_predicates": 8,
         "counterexample_static_and_native": true
+      },
+      {
+        "scenario": "sdn_l3_clos",
+        "topo_size": "m",
+        "healthy_predicates": 416,
+        "endpoint_outage_predicates": 416,
+        "recovered_predicates": 416,
+        "configuration_counterexample_predicates": 48,
+        "counterexample_static_and_native": true
+      },
+      {
+        "scenario": "p4_dc_fabric",
+        "topo_size": "m",
+        "healthy_predicates": 416,
+        "endpoint_outage_predicates": 416,
+        "recovered_predicates": 416,
+        "configuration_counterexample_predicates": 48,
+        "counterexample_static_and_native": true
+      },
+      {
+        "scenario": "p4_dc_gateway",
+        "topo_size": "m",
+        "healthy_predicates": 76,
+        "endpoint_outage_predicates": 76,
+        "recovered_predicates": 76,
+        "configuration_counterexample_predicates": 16,
+        "counterexample_static_and_native": true
       }
     ],
     "excluded_formal_claims": [
@@ -640,7 +687,6 @@
     ],
     "native_regression": "tests/nika/validation/test_netkat.py",
     "pending_native_sizes": [
-      "m",
       "l"
     ],
     "completed_static_runs": [

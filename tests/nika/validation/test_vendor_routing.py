@@ -2,6 +2,8 @@
 
 import pytest
 
+from tests.support.scenario_validation import assert_scenario_acceptance
+
 from nika.net_env.net_env_pool import get_net_env_instance
 from nika.validation.batfish.vendor_bgp import project_routeros_bgp, vendor_configs
 from nika.workflows.validation.direct_bgp import build_direct_bgp_experiment
@@ -83,14 +85,17 @@ def test_routeros_projection_rejects_unmodeled_forwarding():
 @pytest.mark.parametrize("config_generator", [None, "netlab"])
 @pytest.mark.parametrize("scenario,model", PLATFORMS)
 def test_vendor_netcomplete_and_batfish(
-    scenario, model, config_generator, tmp_path, netcomplete_image
+    scenario, model, config_generator, tmp_path, netcomplete_image, batfish_verifier
 ):
     spec = build_direct_bgp_experiment(scenario, routing_model=model)
     summary = validate_scenario_design(
-        spec, tmp_path, image=netcomplete_image, config_generator=config_generator
+        spec,
+        tmp_path,
+        image=netcomplete_image,
+        config_generator=config_generator,
+        batfish_verifier=batfish_verifier,
     )
-    assert summary["status"] == "passed"
-    assert summary["validation_scope"] == "static-only"
+    assert_scenario_acceptance(spec, summary, tmp_path, runtime=False)
     assert summary["synthesis"]["parameters"] == {"bgp_exports": 2}
     assert summary["static"] == {
         "healthy": {"passed": 4, "failed": 0},
@@ -103,7 +108,7 @@ def test_vendor_netcomplete_and_batfish(
 @pytest.mark.parametrize("config_generator", [None, "netlab"])
 @pytest.mark.parametrize("scenario,model", PLATFORMS)
 def test_native_vendor_completion_execution_and_link_recovery(
-    scenario, model, config_generator, tmp_path, netcomplete_image
+    scenario, model, config_generator, tmp_path, netcomplete_image, batfish_verifier
 ):
     import docker
     from docker.errors import ImageNotFound
@@ -125,7 +130,9 @@ def test_native_vendor_completion_execution_and_link_recovery(
         runtime=True,
         image=netcomplete_image,
         config_generator=config_generator,
+        batfish_verifier=batfish_verifier,
     )
+    assert_scenario_acceptance(spec, summary, tmp_path, runtime=True)
     assert summary["runtime"]["healthy"]["passed"] == 4
     assert summary["runtime"]["transit-down"]["passed"] == 2
     assert summary["runtime"]["transit-down-recovered"]["passed"] == 4

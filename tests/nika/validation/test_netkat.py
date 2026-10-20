@@ -2,6 +2,8 @@
 
 import pytest
 
+from tests.support.scenario_validation import assert_scenario_acceptance
+
 from nika.net_env.contract import (
     NetworkEntity,
     PathConstraint,
@@ -138,8 +140,7 @@ def test_large_forwarding_counterexample_is_fully_classified(
 
     spec = build_forwarding_experiment(scenario, topo_size="l")
     result = validate_scenario_design(spec, tmp_path)
-    assert result["status"] == "passed"
-    assert result["validation_scope"] == "static-only"
+    assert_scenario_acceptance(spec, result, tmp_path, runtime=False)
     assert result["static"]["healthy"]["passed"] == len(spec.healthy.intents)
     negative = result["static"]["missing-endpoint-route"]
     assert negative["errors"] == negative["unsupported"] == 0
@@ -167,21 +168,16 @@ def test_openflow_projection_rejects_unknown_ipv4_actions():
 
 @pytest.mark.e2e
 @pytest.mark.parametrize("scenario", ["sdn_l3_clos", "p4_dc_fabric", "p4_dc_gateway"])
+@pytest.mark.parametrize("size", ["s", "m"])
 def test_forwarding_candidate_native_fault_and_recovery(
-    scenario, tmp_path, katch_image
+    scenario, size, tmp_path, katch_image
 ):
     from nika.workflows.validation.scenario import validate_scenario_design
 
-    result = validate_scenario_design(
-        build_forwarding_experiment(scenario), tmp_path, runtime=True
-    )
-    assert result["status"] == "passed"
-    assert result["validation_scope"] == "static-and-runtime"
+    spec = build_forwarding_experiment(scenario, topo_size=size)
+    result = validate_scenario_design(spec, tmp_path, runtime=True)
+    assert_scenario_acceptance(spec, result, tmp_path, runtime=True)
     assert (
         result["counterexamples"]["missing-endpoint-route"]["runtime_status"]
         == "rejected"
-    )
-    assert (
-        result["runtime"]["healthy"]
-        == result["runtime"]["endpoint-link-down-recovered"]
     )

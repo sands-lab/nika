@@ -3,6 +3,8 @@
 from pathlib import Path
 
 import pytest
+
+from tests.support.scenario_validation import assert_scenario_acceptance
 from pydantic import ValidationError
 
 from nika.net_env.net_env_pool import get_net_env_instance
@@ -194,7 +196,7 @@ def test_runtime_requirements_cannot_redefine_a_static_predicate(tmp_path):
     "specimen", ["clos", "clos-m", "campus", "enterprise", "min3clos"]
 )
 def test_completion_configuration_execution_and_registered_failures(
-    specimen, config_generator, tmp_path, netcomplete_image
+    specimen, config_generator, tmp_path, netcomplete_image, batfish_verifier
 ):
     if config_generator:
         from importlib.util import find_spec
@@ -210,14 +212,10 @@ def test_completion_configuration_execution_and_registered_failures(
         runtime=True,
         image=netcomplete_image,
         config_generator=config_generator,
+        batfish_verifier=batfish_verifier,
     )
-    assert summary["status"] == "passed"
-    assert summary["validation_scope"] == "static-and-runtime"
+    assert_scenario_acceptance(spec, summary, tmp_path, runtime=True)
     assert summary["synthesis"]["backend"] == "netcomplete"
-    assert summary["static"] and summary["runtime"]
-    assert set(summary.get("failure_compatibility", {})) == {
-        f.name for f in spec.failure_checks
-    }
 
 
 @pytest.mark.integration

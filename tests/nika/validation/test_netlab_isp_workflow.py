@@ -5,6 +5,8 @@ from importlib.util import find_spec
 
 import pytest
 
+from tests.support.scenario_validation import assert_scenario_acceptance
+
 from nika.workflows.validation.benchmark_routing import (
     build_benchmark_isp_experiment,
     isp_catalog_profiles,
@@ -89,10 +91,14 @@ def test_frr_netlab_fault_bindings_preserve_original_edits():
         ("nokia_srlinux", "abilene", "ospf", "none"),
         ("nokia_srlinux", "abilene", "isis", "ebgp"),
     ]
-    + [("frr", topology, "isis", "ebgp") for topology in ("dataxchange", "abilene")],
+    + [("frr", topology, "isis", "ebgp") for topology in ("dataxchange", "abilene")]
+    + [
+        ("routeros", "dataxchange", "ospf", "ibgp_rr"),
+        ("frr", "arpanet19706", "isis", "ibgp_rr"),
+    ],
 )
 def test_netlab_synthesis_execution_and_recovery(
-    vendor, topology, igp, bgp_mode, tmp_path, netcomplete_image
+    vendor, topology, igp, bgp_mode, tmp_path, netcomplete_image, batfish_verifier
 ):
     if find_spec("netsim") is None:
         pytest.skip("Install the netlab extra for upstream construction tests")
@@ -124,17 +130,18 @@ def test_netlab_synthesis_execution_and_recovery(
         profile["deployment"]["backend"] = "containerlab"
     spec = build_benchmark_isp_experiment(profile)
     summary = validate_scenario_design(
-        spec, tmp_path, runtime=True, image=netcomplete_image, config_generator="netlab"
+        spec,
+        tmp_path,
+        runtime=True,
+        image=netcomplete_image,
+        config_generator="netlab",
+        batfish_verifier=batfish_verifier,
     )
-    assert summary["status"] == "passed"
+    assert_scenario_acceptance(spec, summary, tmp_path, runtime=True)
     assert summary["configuration"]["generator"] == "netlab"
     assert summary["configuration"]["version"] == "26.10"
     if vendor == "nokia_srlinux" or (vendor == "routeros" and bgp_mode != "none"):
         assert summary["configuration"]["retained"]
-    assert (
-        summary["runtime"]["backbone-link-down-recovered"]
-        == summary["runtime"]["healthy"]
-    )
     # Ordinary replay consumes concrete accepted configurations, without tools.
     kwargs = load_scenario_build(tmp_path)
     kwargs.pop("static_validation")

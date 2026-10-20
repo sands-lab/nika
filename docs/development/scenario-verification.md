@@ -117,6 +117,15 @@ uv run pytest 'tests/nika/validation/test_benchmark_routing.py::test_as_import_a
 
 Reusable completion code lives in `src/nika/net_env/synthesis`; verifier adapters live in `src/nika/validation`; construction and validation orchestration live in `src/nika/workflows/validation`. Manual entry points and specimens live in `experiment/scenario_validation`. Normal benchmark execution does not invoke the construction experiment. Saved original deployment choices and completed parameters can be loaded explicitly through `load_scenario_build` and the existing startup API.
 
+Routing and packet-fabric regressions call the same `validate_scenario_design`
+entry point and share
+[`assert_scenario_acceptance`](../../tests/support/scenario_validation.py).
+That assertion checks declared predicate IDs in saved reports, healthy and fault
+states, configuration-counterexample rejection, healthy-state recovery and session
+closure. Routing resolution must retain each original predicate unchanged.
+Scenario differences enter through specification builders and parameter matrices;
+protocol-specific assertions supplement the common acceptance criteria.
+
 The [coverage record](../../experiment/scenario_validation/coverage.json) distinguishes 289 statically checked default ISP profiles from 39 natively exercised benchmark deployment profiles. FRR and SR Linux have broader native ISP coverage. The native ISP profile regressions below extend Cisco XRd and RouterOS beyond their original two-router direct-eBGP examples. These counts describe recorded experiments before source cleanup. The retained regressions and experiment inventory reproduce their stated scopes on the current revision.
 
 The workflow covers declared properties rather than every function of an
@@ -127,7 +136,7 @@ environment. The following boundaries also apply to the experiment inventory:
 | ISP and direct BGP | Original adjacencies, routes, next hops, routing policy and endpoint communication where declared | Native acceptance covers recorded deployment profiles, not every graph/vendor/protocol combination |
 | Clos, campus and min3clos | Declared routing, communication and isolation predicates | Installed ECMP limits require native observations; recorded sizes appear in the coverage record |
 | Enterprise | Static-underlay communication and declared routing predicates | WireGuard, VRF routing and isolation require native observations |
-| SDN and P4 fabrics | Client-service ICMP and unowned-address isolation, configuration counterexamples and endpoint outages | Recorded native acceptance covers size `s`; P4 stateful services, INT and ECN remain runtime checks |
+| SDN and P4 fabrics | Client-service ICMP and unowned-address isolation, configuration counterexamples and endpoint outages | Recorded native acceptance covers sizes `s` and `m`; P4 stateful services, INT and ECN remain runtime checks |
 | Kubernetes and llmd | Existing readiness and runtime checks only | No integration with this specification-driven experiment and no formal correctness claim |
 
 Kubernetes runtime checks cover cluster readiness, declared BGP peers, endpoint
@@ -139,7 +148,8 @@ NetKAT analyzed Kubernetes policies or application behavior.
 The additional packet-fabric scale experiments recorded the following static
 results. A passed row includes healthy requirements, declared endpoint-outage
 requirements and the exact predeclared configuration-counterexample violation set.
-These runs add no native execution evidence for sizes `m` or `l`.
+The coverage record separately lists native acceptance for sizes `s` and `m`.
+Size `l` has static acceptance only.
 
 | Environment | Size | Healthy / outage predicates | Complete static acceptance |
 | --- | --- | --- | --- |
@@ -314,9 +324,12 @@ policy module, so NIKA retains its existing finite filter implementation.
 The summary records these retained configuration responsibilities. Unsupported
 protocol or policy combinations raise an error.
 
-The pinned RouterOS BGP template needs bounded compatibility corrections for
-community property names and the loopback source address. The runner applies
-the names documented in [RouterOS Route Selection and Filters](https://help.mikrotik.com/docs/spaces/ROS/pages/74678285/Route%2BSelection%2Band%2BFilters)
+The pinned RouterOS templates need bounded compatibility corrections for
+community property names, the loopback source address and additional loopback
+settings. The initial template creates these loopbacks as bridges, so the runner
+binds their settings to `/interface/bridge` rather than `/interface/ethernet`.
+The runner applies the names documented in
+[RouterOS Route Selection and Filters](https://help.mikrotik.com/docs/spaces/ROS/pages/74678285/Route%2BSelection%2Band%2BFilters)
 and binds the source to the explicit loopback address. FRR policies retain the
 existing incident-facing names; maximum-prefix injection selects the policies
 actually attached to peers, including solved import policies.
@@ -466,6 +479,10 @@ entry, or installs a higher-priority OpenFlow drop for the same destination.
 KATch must reject exactly the declared predicates. Applying the corresponding
 change through P4Runtime or OpenFlow must reproduce that violation set; restoring
 the candidate must satisfy the complete healthy specification.
+The OpenFlow experiment uses the existing ONOS flow compiler and controller API
+for installation and removal. Controller-owned rules preserve the counterexample
+throughout the predicate scan; unmanaged OVS rules can disappear during controller
+reconciliation. This procedure applies across topology sizes.
 
 The endpoint-outage model removes one attachment. Native execution administratively
 disables only the endpoint's own interface, checks the declared fault-state
