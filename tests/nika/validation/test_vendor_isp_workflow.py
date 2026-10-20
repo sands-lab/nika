@@ -24,7 +24,7 @@ def test_native_isp_synthesis_execution_and_recovery(
 
     from nika.net_env.iosxr_simple_bgp.lab import IMAGE as xrd_image
     from nika.net_env.routeros_simple_bgp.lab import IMAGE as routeros_image
-    from nika.workflows.validation.routing import validate_routing_design
+    from nika.workflows.validation.scenario import validate_scenario_design
 
     client = docker.from_env()
     try:
@@ -43,7 +43,7 @@ def test_native_isp_synthesis_execution_and_recovery(
     )
     profile["deployment"].update(igp="ospf", bgp_mode=bgp_mode, device_profile=vendor)
     spec = build_benchmark_isp_experiment(profile)
-    summary = validate_routing_design(
+    summary = validate_scenario_design(
         spec, tmp_path, runtime=True, image=netcomplete_image
     )
     assert summary["status"] == "passed"

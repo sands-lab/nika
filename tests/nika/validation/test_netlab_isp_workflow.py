@@ -99,8 +99,8 @@ def test_netlab_synthesis_execution_and_recovery(
     import docker
     from docker.errors import ImageNotFound
     from nika.net_env.utils.iosxr.common import IMAGE
-    from nika.workflows.validation.routing import validate_routing_design
-    from nika.workflows.validation.routing_build import load_routing_build
+    from nika.workflows.validation.scenario import validate_scenario_design
+    from nika.workflows.validation.scenario_build import load_scenario_build
     from nika.net_env.net_env_pool import get_net_env_instance
 
     if vendor == "iosxr":
@@ -123,7 +123,7 @@ def test_netlab_synthesis_execution_and_recovery(
     if vendor == "nokia_srlinux":
         profile["deployment"]["backend"] = "containerlab"
     spec = build_benchmark_isp_experiment(profile)
-    summary = validate_routing_design(
+    summary = validate_scenario_design(
         spec, tmp_path, runtime=True, image=netcomplete_image, config_generator="netlab"
     )
     assert summary["status"] == "passed"
@@ -136,7 +136,7 @@ def test_netlab_synthesis_execution_and_recovery(
         == summary["runtime"]["healthy"]
     )
     # Ordinary replay consumes concrete accepted configurations, without tools.
-    kwargs = load_routing_build(tmp_path)
+    kwargs = load_scenario_build(tmp_path)
     kwargs.pop("static_validation")
     env = get_net_env_instance(kwargs.pop("scenario"), **kwargs)
     if vendor == "nokia_srlinux":

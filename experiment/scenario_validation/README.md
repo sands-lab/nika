@@ -1,6 +1,19 @@
-# Routing construction and verification experiments
+# Scenario construction and verification experiments
 
-Construct a routing configuration with NetComplete, then check it against requirements authored before synthesis. The same NIKA workflow supports ISP, Clos, campus and enterprise sketches within the model scopes below. Run this workflow when preparing or changing an environment. Normal benchmark execution keeps its deployment defaults and does not invoke this experiment.
+Check generated network configurations against requirements authored before construction. Routing experiments use NetComplete and Batfish; SDN and P4 forwarding experiments use NetKAT through KATch. The shared workflow covers ISP, Clos, campus, enterprise and the supported packet fabrics within the model scopes below. Run this workflow when preparing or changing an environment. Normal benchmark execution keeps its deployment defaults and does not invoke this experiment.
+
+## Coverage boundaries
+
+The shared workflow currently covers the supported ISP profiles, `dc_clos`,
+`campus_lan`, `enterprise_branch`, `min3clos`, `iosxr_simple_bgp`,
+`routeros_simple_bgp`, `sdn_l3_clos`, `p4_dc_fabric` and `p4_dc_gateway`.
+The [coverage record](coverage.json) identifies completed executions; adapter
+support alone does not imply native acceptance for every size, vendor or fault.
+
+`k8s_lab` and `llmd_lab` retain their existing runtime checks and are not integrated
+with this specification-driven experiment. For SDN and P4, recorded end-to-end
+acceptance covers size `s` and the declared ICMP forwarding requirements. It does
+not establish full controller, P4 program or stateful service correctness.
 
 ## Run an experiment
 
@@ -16,7 +29,7 @@ docker build -t nika/batfish:2025.07.07.2423-frr-next-hop-self scripts/batfish
 Run one specification through synthesis, static checks, native execution, declared faults and recovery:
 
 ```bash
-uv run python experiment/routing_validation/experiment.py experiment/routing_validation/clos.json --output /tmp/routing-clos --runtime
+uv run python experiment/scenario_validation/experiment.py experiment/scenario_validation/clos.json --output /tmp/routing-clos --runtime
 ```
 
 Use `campus.json`, `enterprise.json`, `clos-m.json` or `min3clos.json` for the other specimens. Run heavy environments sequentially. Omit `--runtime` for static analysis only. A successful `summary.json` records `status: passed` and either `validation_scope: static-only` or `static-and-runtime`. Unsupported or failed required checks reject the construction.
@@ -30,13 +43,13 @@ The workflow closes its own native session and removes a Batfish service only wh
 Prepare specifications from the benchmark's selected topology, IGP, BGP mode, backend and device profile:
 
 ```bash
-uv run python experiment/routing_validation/benchmark_isp.py benchmark/working/cases.yaml benchmark/releases/0.2.0/dev.yaml benchmark/releases/0.2.0/test.yaml --output /tmp/benchmark-isp
+uv run python experiment/scenario_validation/benchmark_isp.py benchmark/working/cases.yaml benchmark/releases/0.2.0/dev.yaml benchmark/releases/0.2.0/test.yaml --output /tmp/benchmark-isp
 ```
 
 Add `--run` for NetComplete and Batfish, and `--runtime` for execution and fault recovery. `--scenario isp_abilene` restricts the selected inventory. To select registered default ISP deployments instead of benchmark variants:
 
 ```bash
-uv run python experiment/routing_validation/benchmark_isp.py --catalog --output /tmp/catalog-isp --run
+uv run python experiment/scenario_validation/benchmark_isp.py --catalog --output /tmp/catalog-isp --run
 ```
 
 `coverage.json` and `results.json` in the output directory distinguish unsupported, prepared and passed profiles. The runner saves progress after each completed profile. Published releases and the working benchmark manifests retain their existing deployment choices.
@@ -54,7 +67,7 @@ routing sketches. ISP devices include FRR, IOS XR, SR Linux and RouterOS within
 their supported protocol scopes. NIKA retains the configuration features missing
 from upstream templates, such as RouterOS filters and enterprise VRF imports;
 the result summary lists these responsibilities. See the
-[configuration generation scope](../../docs/development/routing-verification.md#delegate-configuration-generation-to-netlab)
+[configuration generation scope](../../docs/development/scenario-verification.md#delegate-configuration-generation-to-netlab)
 for protocol limits and model assumptions.
 
 Omitting the option keeps the existing construction path. Normal benchmark
@@ -69,9 +82,9 @@ Load the original deployment choices and completed parameters into the normal st
 from pathlib import Path
 from nika.workflows.env.start import start_net_env
 from nika.workflows.session.close import close_session
-from nika.workflows.validation.routing_build import load_routing_build
+from nika.workflows.validation.scenario_build import load_scenario_build
 
-session_id = start_net_env(**load_routing_build(Path("/tmp/routing-clos")))
+session_id = start_net_env(**load_scenario_build(Path("/tmp/routing-clos")))
 try:
     # Run the intended workload or troubleshooting task in this session.
     ...
@@ -119,10 +132,10 @@ docker pull julesjacobs/katch@sha256:7184375abfbcf38e6c1e176637507272006d4e4bfa8
 ```python
 from pathlib import Path
 from nika.workflows.validation.forwarding import build_forwarding_experiment
-from nika.workflows.validation.routing import validate_routing_design
+from nika.workflows.validation.scenario import validate_scenario_design
 
 spec = build_forwarding_experiment("sdn_l3_clos", topo_size="s")
-result = validate_routing_design(spec, Path("/tmp/sdn-validation"), runtime=True)
+result = validate_scenario_design(spec, Path("/tmp/sdn-validation"), runtime=True)
 assert result["status"] == "passed"
 ```
 
@@ -130,7 +143,7 @@ Select `p4_dc_fabric` or `p4_dc_gateway` through the same builder. Topology size
 `s`, `m` and `l` use the same procedure; a supported size is not a completed native
 run. Omit `runtime=True` for static analysis only. The builder declares client-service
 ICMP communication and unowned-address isolation before generating configuration.
-For another policy, author the original `RoutingExperiment` packet requirements
+For another policy, author the original `ScenarioExperiment` packet requirements
 with `routing_model="netkat"`. Saved specifications also work with `experiment.py`.
 
 KATch checks the restricted forwarding model. Native checks evaluate the same
@@ -138,8 +151,16 @@ original predicate IDs, reproduce a declared configuration counterexample and
 restore the healthy specification after endpoint-interface shutdown. NetComplete
 and netlab are not needed for these fixed match/action candidates. Benchmark
 startup does not invoke KATch, and the registered benchmark failures keep their
-existing behavior. See the [method and P4 scope](../../docs/development/routing-verification.md#sdn-and-p4-forwarding-verification)
+existing behavior. See the [method and P4 scope](../../docs/development/scenario-verification.md#sdn-and-p4-forwarding-verification)
 before interpreting acceptance as evidence about a whole P4 program or controller.
+
+The pinned KATch runner exits at its first failed assertion. The adapter reruns
+remaining queries to collect the complete set of violated predicates. Large
+configuration counterexamples can therefore exceed the specification's
+`solver_timeout_sec` budget even when healthy-state analysis succeeds. A timed-out
+report is incomplete evidence and cannot establish either the exact violation set
+or construction acceptance. Increase that explicit budget only when the experiment
+can afford the additional analysis time; memory and CPU bounds still apply.
 
 ## Reproduce regression checks
 
@@ -162,4 +183,4 @@ uv run pytest tests/nika/validation/test_vendor_routing.py -m e2e -q
 uv run pytest tests/nika/validation/test_netkat.py -m e2e -q
 ```
 
-Vendor execution requires locally installed licensed images. Missing vendor images cause the corresponding native test to skip; a skipped test is not validation evidence. See the [method and concrete Abilene example](../../docs/development/routing-verification.md) for the correctness argument and input/output examples.
+Vendor execution requires locally installed licensed images. Missing vendor images cause the corresponding native test to skip; a skipped test is not validation evidence. See the [method and concrete Abilene example](../../docs/development/scenario-verification.md) for the correctness argument and input/output examples.

@@ -1,4 +1,4 @@
-"""Complete routing sketches and check their final configuration and execution."""
+"""Construct scenario candidates and verify their original behavioral specifications."""
 
 from __future__ import annotations
 import json
@@ -34,8 +34,8 @@ from nika.validation.batfish.verifier import BatfishVerifier
 from nika.workflows.env.start import start_net_env
 from nika.workflows.failure.inject import inject_failure
 from nika.workflows.session.close import close_session
-from nika.workflows.validation.routing_spec import RoutingExperiment
-from nika.workflows.validation.routing_build import routing_start_kwargs
+from nika.workflows.validation.scenario_spec import ScenarioExperiment
+from nika.workflows.validation.scenario_build import scenario_start_kwargs
 
 
 def restore_link_routes(env, backend, host_name: str, intf_name: str):
@@ -70,8 +70,8 @@ def restore_link_routes(env, backend, host_name: str, intf_name: str):
     return restored
 
 
-def validate_routing_design(
-    spec: RoutingExperiment,
+def validate_scenario_design(
+    spec: ScenarioExperiment,
     output: Path,
     *,
     runtime=False,
@@ -506,7 +506,7 @@ def validate_routing_design(
         if runtime:
             start_requested = True
             start_net_env(
-                **routing_start_kwargs(spec, parameters, configs=generated_configs),
+                **scenario_start_kwargs(spec, parameters, configs=generated_configs),
                 session_id=session_id,
                 session_dir=str(output / "runtime"),
             )

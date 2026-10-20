@@ -150,9 +150,9 @@ def test_openflow_projection_rejects_unknown_ipv4_actions():
 def test_forwarding_candidate_native_fault_and_recovery(
     scenario, tmp_path, katch_image
 ):
-    from nika.workflows.validation.routing import validate_routing_design
+    from nika.workflows.validation.scenario import validate_scenario_design
 
-    result = validate_routing_design(
+    result = validate_scenario_design(
         build_forwarding_experiment(scenario), tmp_path, runtime=True
     )
     assert result["status"] == "passed"

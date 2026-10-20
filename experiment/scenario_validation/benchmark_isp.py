@@ -11,7 +11,7 @@ from nika.workflows.validation.benchmark_routing import (
     build_benchmark_isp_experiment,
     isp_catalog_profiles,
 )
-from nika.workflows.validation.routing import validate_routing_design
+from nika.workflows.validation.scenario import validate_scenario_design
 
 
 def main():
@@ -82,7 +82,7 @@ def main():
         if args.run:
             results[key] = {
                 "status": "passed",
-                "summary": validate_routing_design(
+                "summary": validate_scenario_design(
                     spec,
                     root,
                     runtime=args.runtime,

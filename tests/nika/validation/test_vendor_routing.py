@@ -5,7 +5,7 @@ import pytest
 from nika.net_env.net_env_pool import get_net_env_instance
 from nika.validation.batfish.vendor_bgp import project_routeros_bgp, vendor_configs
 from nika.workflows.validation.direct_bgp import build_direct_bgp_experiment
-from nika.workflows.validation.routing import validate_routing_design
+from nika.workflows.validation.scenario import validate_scenario_design
 
 PLATFORMS = [("iosxr_simple_bgp", "iosxr-bgp"), ("routeros_simple_bgp", "routeros-bgp")]
 
@@ -86,7 +86,7 @@ def test_vendor_netcomplete_and_batfish(
     scenario, model, config_generator, tmp_path, netcomplete_image
 ):
     spec = build_direct_bgp_experiment(scenario, routing_model=model)
-    summary = validate_routing_design(
+    summary = validate_scenario_design(
         spec, tmp_path, image=netcomplete_image, config_generator=config_generator
     )
     assert summary["status"] == "passed"
@@ -119,7 +119,7 @@ def test_native_vendor_completion_execution_and_link_recovery(
     finally:
         client.close()
     spec = build_direct_bgp_experiment(scenario, routing_model=model)
-    summary = validate_routing_design(
+    summary = validate_scenario_design(
         spec,
         tmp_path,
         runtime=True,

@@ -1,4 +1,4 @@
-"""Shared prerequisites for real routing synthesis and verification."""
+"""Shared prerequisites for real scenario synthesis and verification."""
 
 import pytest
 

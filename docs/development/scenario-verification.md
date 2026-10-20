@@ -1,6 +1,6 @@
-# Specification-driven routing construction
+# Specification-driven environment verification
 
-NIKA prepares routing environments from explicit behavior and a partial network design. A topology graph supplies structure; the experiment specifies protocols, route-reflector roles, prefix ownership and intended routing behavior. A converged configuration can implement the wrong policy, so acceptance requires both independent configuration analysis and native execution against the original requirements.
+NIKA verifies routing, SDN and P4 environments against explicit behavior specifications. Each experiment retains the original topology and design choices, constructs a candidate configuration, then checks it with independent static analysis and native execution. Routing experiments can complete configuration parameters with NetComplete before generation. Acceptance requires the candidate to satisfy the original requirements within the documented model and execution scopes.
 
 Run this workflow explicitly during environment development. Normal benchmark
 execution keeps its existing construction and startup checks. Developers can
@@ -10,13 +10,12 @@ select saved constructions or invoke the synthesis and verification tools by def
 ## Construction and acceptance
 
 ```text
-Public graph + authored behavior + fixed routing sketch
+Original topology + authored behavior + fixed domain design
                          |
-             NetComplete parameter completion
+             Domain-specific configuration construction
+          (parameter completion where applicable)
                          |
-       netlab templates or existing NIKA generators
-                         |
-        Batfish checks of original behavioral predicates
+       Batfish or KATch checks of original behavioral predicates
                          |
        Native checks of the same predicates and runtime properties
                          |
@@ -24,13 +23,13 @@ Public graph + authored behavior + fixed routing sketch
 ```
 
 1. **Specify behavior.** Typed requirements name permitted paths, exact ECMP sets, BGP candidate order, adjacencies and communication or isolation. Requirements and incident expectations precede synthesis. Fixed addressing and session bindings resolve them to concrete `ValidationIntent` predicates.
-2. **Complete supported parameters.** [NetComplete's partial-synthesis formulation](https://netcomplete.ethz.ch/files/netcomplete-nsdi2018.pdf) supplies the method: retain a routing sketch and solve its unknown configuration values. NIKA delegates supported path costs, export decisions and import preferences to the pinned upstream implementation. Solver output cannot redefine the requirements.
-3. **Generate configurations.** Bind the completed parameters to the original graph, protocols and services. The optional netlab construction path delegates topology transformation and vendor syntax to upstream netlab. NIKA retains topology, services and the documented features outside the upstream templates. Generation supplies a candidate; independent checks establish acceptance.
-4. **Check the candidate independently.** Batfish parses the final configuration or an explicitly restricted projection and evaluates the original predicates. Required errors, unsupported results and violations reject the candidate. Counterexamples must violate their independently declared predicate sets.
+2. **Complete supported parameters.** For routing experiments, [NetComplete's partial-synthesis formulation](https://netcomplete.ethz.ch/files/netcomplete-nsdi2018.pdf) supplies the method: retain a routing sketch and solve its unknown configuration values. NIKA delegates supported path costs, export decisions and import preferences to the pinned upstream implementation. Solver output cannot redefine the requirements. Fixed SDN and P4 forwarding candidates do not need this completion step.
+3. **Generate configurations.** Bind the fixed design and any completed parameters to the original graph, protocols and services. The optional netlab construction path delegates routing topology transformation and vendor syntax to upstream netlab. SDN and P4 experiments retain their existing domain generators. NIKA retains topology, services and the documented features outside the upstream templates. Generation supplies a candidate; independent checks establish acceptance.
+4. **Check the candidate independently.** Batfish analyzes routing configurations or restricted projections; KATch checks the supported OpenFlow and P4 forwarding models. Both evaluate the original behavioral predicates. Required errors, unsupported results and violations reject the candidate. Counterexamples must violate their independently declared predicate sets.
 5. **Check execution.** Native protocol, route and flow observations evaluate the same requirements. Runtime-only requirements cover properties outside the static model, including the evaluated FRR ECMP installation limit and enterprise overlay behavior.
-6. **Validate the incident.** Normal NIKA failure injection must produce its declared effects. Modeled configuration faults must also reproduce Batfish's predicted violation set. Recovery must restore the complete original healthy requirements.
+6. **Validate the incident.** Exercise declared faults through NIKA's failure or runtime APIs. Modeled configuration faults must reproduce the static analyzer's predicted violation set. Recovery must restore the complete original healthy requirements.
 
-Acceptance means the completed configuration satisfies the declared properties in the supported static model and the exercised runtime states. The method does not establish universal compiler correctness, equivalence between Batfish and a router implementation, or global protocol convergence under arbitrary failures. Hidden implementation bugs remain possible.
+Acceptance means the candidate configuration satisfies the declared properties in the supported static model and the exercised runtime states. The method does not establish universal compiler correctness, equivalence between an analyzer and a device implementation, or global protocol convergence under arbitrary failures. Hidden implementation bugs remain possible.
 
 ## Predicates and established methods
 
@@ -56,7 +55,7 @@ P(s,d) = argmin over paths p from s to d of sum(metric(e) for e in p)
 
 The adapter lowers these requirements to NetComplete's `PathReq` and `ECMPPathsReq`. Healthy and fault-state graph copies share surviving-link metric variables. Contradictory state requirements must therefore return UNSAT. IPv4 single-level IS-IS uses the same additive shortest-path objective under an explicit reduction, with symmetric metrics limited to 1–65,535. [RFC 1195](https://www.rfc-editor.org/rfc/rfc1195) and [RFC 5305](https://www.rfc-editor.org/rfc/rfc5305) define the relevant IS-IS semantics; this reduction does not claim native NetComplete IS-IS synthesis.
 
-The [experiment guide](../../experiment/routing_validation/README.md#tool-responsibilities-and-model-scope) states each synthesis and verifier boundary. Unsupported forwarding syntax fails explicitly. The implementation keeps fixed security policies outside the completed BGP scope.
+The [experiment guide](../../experiment/scenario_validation/README.md#tool-responsibilities-and-model-scope) states each synthesis and verifier boundary. Unsupported forwarding syntax fails explicitly. The implementation keeps fixed security policies outside the completed BGP scope.
 
 ## An Abilene example
 
@@ -68,7 +67,7 @@ from nika.net_env.synthesis.requirements import BgpAsSelectionRequirement
 from nika.workflows.validation.benchmark_routing import (
     benchmark_isp_profiles, build_benchmark_isp_experiment,
 )
-from nika.workflows.validation.routing import validate_routing_design
+from nika.workflows.validation.scenario import validate_scenario_design
 
 profile = benchmark_isp_profiles([Path("benchmark/working/cases.yaml")])[
     "isp_abilene--ospf--ebgp--kathara"
@@ -78,7 +77,7 @@ selection = BgpAsSelectionRequirement(
     asn=65001, prefix="198.51.102.0/24", candidates=(65002, 65003),
 )
 spec = build_benchmark_isp_experiment(profile, bgp_selections=(selection,))
-summary = validate_routing_design(spec, Path("/tmp/abilene-policy"), runtime=True)
+summary = validate_scenario_design(spec, Path("/tmp/abilene-policy"), runtime=True)
 ```
 
 The builder composes IGP and AS import completion. Before generation, requirement resolution fixes predicates such as:
@@ -116,9 +115,44 @@ uv run pytest 'tests/nika/validation/test_benchmark_routing.py::test_as_import_a
 
 ## Reuse and coverage
 
-Reusable completion code lives in `src/nika/net_env/synthesis`; verifier adapters live in `src/nika/validation`; construction and validation orchestration live in `src/nika/workflows/validation`. Manual entry points and specimens live in `experiment/routing_validation`. Normal benchmark execution does not invoke the construction experiment. Saved original deployment choices and completed parameters can be loaded explicitly through `load_routing_build` and the existing startup API.
+Reusable completion code lives in `src/nika/net_env/synthesis`; verifier adapters live in `src/nika/validation`; construction and validation orchestration live in `src/nika/workflows/validation`. Manual entry points and specimens live in `experiment/scenario_validation`. Normal benchmark execution does not invoke the construction experiment. Saved original deployment choices and completed parameters can be loaded explicitly through `load_scenario_build` and the existing startup API.
 
-The [coverage record](../../experiment/routing_validation/coverage.json) distinguishes 289 statically checked default ISP profiles from 39 natively exercised benchmark deployment profiles. FRR and SR Linux have broader native ISP coverage. The native ISP profile regressions below extend Cisco XRd and RouterOS beyond their original two-router direct-eBGP examples. These counts describe recorded experiments before source cleanup. The retained regressions and experiment inventory reproduce their stated scopes on the current revision.
+The [coverage record](../../experiment/scenario_validation/coverage.json) distinguishes 289 statically checked default ISP profiles from 39 natively exercised benchmark deployment profiles. FRR and SR Linux have broader native ISP coverage. The native ISP profile regressions below extend Cisco XRd and RouterOS beyond their original two-router direct-eBGP examples. These counts describe recorded experiments before source cleanup. The retained regressions and experiment inventory reproduce their stated scopes on the current revision.
+
+The workflow covers declared properties rather than every function of an
+environment. The following boundaries also apply to the experiment inventory:
+
+| Environment family | Specification-driven checks | Remaining execution or coverage boundary |
+| --- | --- | --- |
+| ISP and direct BGP | Original adjacencies, routes, next hops, routing policy and endpoint communication where declared | Native acceptance covers recorded deployment profiles, not every graph/vendor/protocol combination |
+| Clos, campus and min3clos | Declared routing, communication and isolation predicates | Installed ECMP limits require native observations; recorded sizes appear in the coverage record |
+| Enterprise | Static-underlay communication and declared routing predicates | WireGuard, VRF routing and isolation require native observations |
+| SDN and P4 fabrics | Client-service ICMP and unowned-address isolation, configuration counterexamples and endpoint outages | Recorded native acceptance covers size `s`; P4 stateful services, INT and ECN remain runtime checks |
+| Kubernetes and llmd | Existing readiness and runtime checks only | No integration with this specification-driven experiment and no formal correctness claim |
+
+Kubernetes runtime checks cover cluster readiness, declared BGP peers, endpoint
+communication and application HTTP behavior. llmd checks cover cluster and serving
+readiness, endpoint communication and the models HTTP endpoint. Those observations
+remain useful execution evidence; they do not imply that NetComplete, Batfish or
+NetKAT analyzed Kubernetes policies or application behavior.
+
+The additional packet-fabric scale experiments recorded the following static
+results. A passed row includes healthy requirements, declared endpoint-outage
+requirements and the exact predeclared configuration-counterexample violation set.
+These runs add no native execution evidence for sizes `m` or `l`.
+
+| Environment | Size | Healthy / outage predicates | Complete static acceptance |
+| --- | --- | --- | --- |
+| SDN Clos | m | 416 / 416 | Passed; 48 predicted counterexample violations |
+| P4 fabric | m | 416 / 416 | Passed; 48 predicted counterexample violations |
+| P4 gateway | m | 76 / 76 | Passed; 16 predicted counterexample violations |
+| SDN Clos | l | 1,600 / 1,600 | Incomplete; counterexample analysis exceeded the 300-second budget |
+| P4 fabric | l | 1,600 / 1,600 | Incomplete; counterexample analysis exceeded the 300-second budget |
+| P4 gateway | l | 280 / 280 | Passed; 32 predicted counterexample violations |
+
+The KATch adapter collects violations across fail-fast invocations. Its complete
+counterexample analysis can hit the time budget on larger designs. Partial results
+do not produce an acceptance summary; the coverage record preserves those limits.
 
 A new compatible topology supplies different inputs to this workflow. A new protocol or vendor needs supported completion bindings, configuration analysis and native observations while preserving the original requirements. Cross-domain reuse retains this construction and acceptance sequence and states the remaining modeling limits.
 
@@ -236,14 +270,14 @@ from pathlib import Path
 from nika.workflows.validation.benchmark_routing import (
     isp_catalog_profiles, build_benchmark_isp_experiment,
 )
-from nika.workflows.validation.routing import validate_routing_design
+from nika.workflows.validation.scenario import validate_scenario_design
 
 profile = deepcopy(next(
     p for p in isp_catalog_profiles().values() if p["scenario"] == "isp_dataxchange"
 ))
 profile["deployment"].update(igp="ospf", bgp_mode="ebgp", device_profile="frr")
 spec = build_benchmark_isp_experiment(profile)
-summary = validate_routing_design(
+summary = validate_scenario_design(
     spec, Path("/tmp/isp-netlab"), runtime=True, config_generator="netlab",
 )
 ```
@@ -323,10 +357,10 @@ published case definitions do not change.
 
 ## SDN and P4 forwarding verification
 
-SDN and P4 experiments use the same `RoutingExperiment`, `ValidationIntent`,
+SDN and P4 experiments use the same `ScenarioExperiment`, `ValidationIntent`,
 `ValidationSnapshot`, dispatcher and report types as the routing experiments.
 `routing_model="netkat"` selects the packet-forwarding backend through the existing
-`validate_routing_design` API. Normal benchmark startup keeps its existing behavior.
+`validate_scenario_design` API. Normal benchmark startup keeps its existing behavior.
 
 ```text
 Authored communication policy + original endpoint attachments
@@ -347,7 +381,7 @@ directions and isolation from an unowned test address. Endpoint roles and
 attachments determine this specification before configuration generation. It does
 not assume arbitrary endpoint full-mesh communication: the gateway design provides
 client-service forwarding, while additional same-role communication needs its own
-specification. You can also author a `RoutingExperiment` with explicit packet
+specification. You can also author a `ScenarioExperiment` with explicit packet
 requirements instead of using the example policy builder.
 
 | Scenario capability | Concrete candidate | Static interpretation |
@@ -441,5 +475,5 @@ KATch containers use a 2 GiB memory limit, two CPUs and a total analysis timeout
 P4 compilation uses the same resource bounds. Experiments retain the original
 specification, candidate, restricted model, concrete NetKAT queries, tool logs and
 static/native reports. Run native environments sequentially. Consult the
-[experiment guide](../../experiment/routing_validation/README.md#verify-sdn-and-p4-fabrics)
+[experiment guide](../../experiment/scenario_validation/README.md#verify-sdn-and-p4-fabrics)
 for the manual entrypoint and retained regressions.

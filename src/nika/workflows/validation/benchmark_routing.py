@@ -45,10 +45,10 @@ from nika.net_env.isp.igp.plan import active_igp_links, igp_components, shortest
 from nika.net_env.net_env_pool import list_all_net_envs, resolve_scenario_backend
 from nika.problems.rca.inventory import load_offline_net_env
 from nika.workflows.benchmark.load_config import load_benchmark_input
-from nika.workflows.validation.routing_spec import (
-    RoutingDeployment,
-    RoutingExperiment,
-    RoutingIncident,
+from nika.workflows.validation.scenario_spec import (
+    ScenarioDeployment,
+    ScenarioExperiment,
+    ScenarioIncident,
     RoutingFailureCheck,
     RoutingMutation,
     RoutingRuntimeMutation,
@@ -207,14 +207,14 @@ def benchmark_isp_profiles(manifests: list[Path]):
 
 def build_benchmark_isp_experiment(
     profile, *, bgp_selections: tuple[BgpAsSelectionRequirement, ...] | None = None
-) -> RoutingExperiment:
+) -> ScenarioExperiment:
     """Resolve healthy and link-loss expectations from the fixed original graph."""
     if not profile["supported"]:
         raise ValueError(
             "Unsupported benchmark profile: " + "; ".join(profile["limitations"])
         )
     scenario = profile["scenario"]
-    deployment = RoutingDeployment.model_validate(profile["deployment"])
+    deployment = ScenarioDeployment.model_validate(profile["deployment"])
     vendor = deployment.device_profile in {"iosxr", "routeros"}
     if vendor:
         limitations = _profile_limitations(
@@ -1290,7 +1290,7 @@ def build_benchmark_isp_experiment(
         )
         static_failed = tuple(sorted((*static_failed, *withdrawn_selections)))
         runtime_failed = tuple(sorted((*runtime_failed, *withdrawn_selections)))
-    return RoutingExperiment(
+    return ScenarioExperiment(
         scenario=scenario,
         routing_model=(
             f"{env.device_profile}-isp"
@@ -1307,7 +1307,7 @@ def build_benchmark_isp_experiment(
         behavior=behavior,
         completion=completion,
         incidents=(
-            RoutingIncident(
+            ScenarioIncident(
                 name="backbone-link-down",
                 host_name=declared_down["inject"]["host_name"]
                 if declared_down

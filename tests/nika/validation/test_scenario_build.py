@@ -1,4 +1,4 @@
-"""Saved routing constructions deploy through the existing session lifecycle."""
+"""Saved scenario constructions deploy through the existing session lifecycle."""
 
 import json
 from pathlib import Path
@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import pytest
 
-from nika.workflows.validation.routing_build import load_routing_build
+from nika.workflows.validation.scenario_build import load_scenario_build
 
 
 @pytest.mark.contract
@@ -14,18 +14,18 @@ from nika.workflows.validation.routing_build import load_routing_build
 def test_saved_build_requires_successful_validation(tmp_path, status):
     (tmp_path / "summary.json").write_text(json.dumps({"status": status}))
     with pytest.raises(ValueError, match="successful validation"):
-        load_routing_build(tmp_path)
+        load_scenario_build(tmp_path)
 
 
 @pytest.mark.contract
 def test_saved_completion_cannot_fall_back_to_default_parameters(tmp_path):
     specimen = (
-        Path(__file__).resolve().parents[3] / "experiment/routing_validation/clos.json"
+        Path(__file__).resolve().parents[3] / "experiment/scenario_validation/clos.json"
     )
     (tmp_path / "summary.json").write_text('{"status": "passed"}')
     (tmp_path / "original-spec.json").write_text(specimen.read_text())
     with pytest.raises(FileNotFoundError, match="routing-parameters.json"):
-        load_routing_build(tmp_path)
+        load_scenario_build(tmp_path)
 
 
 @pytest.mark.e2e
@@ -39,16 +39,16 @@ def test_saved_build_deploys_with_original_requirements(tmp_path, netcomplete_im
     from nika.utils.session_store import SessionStore
     from nika.workflows.env.start import start_net_env
     from nika.workflows.session.close import close_session
-    from nika.workflows.validation.routing import validate_routing_design
-    from nika.workflows.validation.routing_spec import RoutingExperiment
+    from nika.workflows.validation.scenario import validate_scenario_design
+    from nika.workflows.validation.scenario_spec import ScenarioExperiment
 
     specimen = (
-        Path(__file__).resolve().parents[3] / "experiment/routing_validation/clos.json"
+        Path(__file__).resolve().parents[3] / "experiment/scenario_validation/clos.json"
     )
-    spec = RoutingExperiment.model_validate_json(specimen.read_text())
+    spec = ScenarioExperiment.model_validate_json(specimen.read_text())
     build = tmp_path / "construction"
-    validate_routing_design(spec, build, image=netcomplete_image)
-    kwargs = load_routing_build(build)
+    validate_scenario_design(spec, build, image=netcomplete_image)
+    kwargs = load_scenario_build(build)
     assert kwargs["routing_parameters"] == json.loads(
         (build / "routing-parameters.json").read_text()
     )
@@ -104,7 +104,7 @@ def test_saved_build_deploys_with_original_requirements(tmp_path, netcomplete_im
 @pytest.mark.contract
 def test_saved_netlab_build_cannot_fall_back_to_local_renderer(tmp_path):
     specimen = (
-        Path(__file__).resolve().parents[3] / "experiment/routing_validation/clos.json"
+        Path(__file__).resolve().parents[3] / "experiment/scenario_validation/clos.json"
     )
     (tmp_path / "summary.json").write_text(
         json.dumps({"status": "passed", "configuration": {"generator": "netlab"}})
@@ -112,4 +112,4 @@ def test_saved_netlab_build_cannot_fall_back_to_local_renderer(tmp_path):
     (tmp_path / "original-spec.json").write_text(specimen.read_text())
     (tmp_path / "routing-parameters.json").write_text("{}")
     with pytest.raises(FileNotFoundError, match="missing candidate configurations"):
-        load_routing_build(tmp_path)
+        load_scenario_build(tmp_path)

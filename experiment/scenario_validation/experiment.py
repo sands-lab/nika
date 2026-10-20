@@ -1,4 +1,4 @@
-"""Complete and check authored routing requirements on an existing NIKA scenario design."""
+"""Construct and verify a NIKA scenario against its original behavioral requirements."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ import argparse
 import json
 from pathlib import Path
 
-from nika.workflows.validation.routing import validate_routing_design
-from nika.workflows.validation.routing_spec import RoutingExperiment
+from nika.workflows.validation.scenario import validate_scenario_design
+from nika.workflows.validation.scenario_spec import ScenarioExperiment
 
 
 def main() -> None:
@@ -18,8 +18,8 @@ def main() -> None:
     parser.add_argument("--config-generator", choices=["netlab"], default=None)
     parser.add_argument("--image", default="nika/netcomplete:experiment")
     args = parser.parse_args()
-    result = validate_routing_design(
-        RoutingExperiment.model_validate_json(args.specification.read_text()),
+    result = validate_scenario_design(
+        ScenarioExperiment.model_validate_json(args.specification.read_text()),
         args.output,
         runtime=args.runtime,
         image=args.image,

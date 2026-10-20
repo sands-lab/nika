@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[3]
 def test_srl_isis_and_as_import_completion(scenario, tmp_path, netcomplete_image):
     from copy import deepcopy
 
-    from nika.workflows.validation.routing import validate_routing_design
+    from nika.workflows.validation.scenario import validate_scenario_design
 
     profile = deepcopy(
         benchmark_isp_profiles(
@@ -36,7 +36,7 @@ def test_srl_isis_and_as_import_completion(scenario, tmp_path, netcomplete_image
         "isis_level",
         "bgp_as_imports",
     )
-    summary = validate_routing_design(
+    summary = validate_scenario_design(
         spec, tmp_path, runtime=True, image=netcomplete_image
     )
     assert set(summary["synthesis"]["parameters"]) == {"isis_metrics", "bgp_imports"}
@@ -64,7 +64,7 @@ def test_as_import_and_igp_completion_preserve_benchmark_failures(
     import json
 
     from nika.net_env.synthesis.requirements import BgpAsSelectionRequirement
-    from nika.workflows.validation.routing import validate_routing_design
+    from nika.workflows.validation.scenario import validate_scenario_design
 
     profile = benchmark_isp_profiles(
         [
@@ -97,7 +97,7 @@ def test_as_import_and_igp_completion_preserve_benchmark_failures(
     spec = build_benchmark_isp_experiment(profile, bgp_selections=selections)
     # Composition and the new behavior survive persisted experiment inputs.
     spec = type(spec).model_validate_json(spec.model_dump_json())
-    summary = validate_routing_design(
+    summary = validate_scenario_design(
         spec, tmp_path, runtime=True, image=netcomplete_image
     )
     assert summary["synthesis"]["kind"] == "composite"
@@ -411,7 +411,7 @@ def test_rtbh_echo_requirement_names_the_original_active_endpoint(scenario):
 def test_benchmark_isp_configuration_execution_and_recovery(
     profile_key, tmp_path, netcomplete_image
 ):
-    from nika.workflows.validation.routing import validate_routing_design
+    from nika.workflows.validation.scenario import validate_scenario_design
 
     manifests = [
         ROOT / "benchmark/working/cases.yaml",
@@ -420,7 +420,7 @@ def test_benchmark_isp_configuration_execution_and_recovery(
     ]
     profile = benchmark_isp_profiles(manifests)[profile_key]
     spec = build_benchmark_isp_experiment(profile)
-    summary = validate_routing_design(
+    summary = validate_scenario_design(
         spec, tmp_path, runtime=True, image=netcomplete_image
     )
     assert summary["synthesis"]["backend"] == "netcomplete"

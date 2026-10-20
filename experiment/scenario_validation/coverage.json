@@ -10,7 +10,7 @@
       "isp_di-yuan",
       "isp_pdh"
     ],
-    "static_reproduction": "experiment/routing_validation/benchmark_isp.py --catalog --run",
+    "static_reproduction": "experiment/scenario_validation/benchmark_isp.py --catalog --run",
     "native_regression": "tests/nika/validation/test_benchmark_routing.py",
     "native_vendor_profiles": {
       "configuration_compilation": {
@@ -638,6 +638,91 @@
       "stateful load balancing, queues, INT and ECN",
       "universal delivery over hash choices or global convergence"
     ],
-    "native_regression": "tests/nika/validation/test_netkat.py"
+    "native_regression": "tests/nika/validation/test_netkat.py",
+    "pending_native_sizes": [
+      "m",
+      "l"
+    ],
+    "completed_static_runs": [
+      {
+        "scenario": "sdn_l3_clos",
+        "topo_size": "m",
+        "healthy_predicates": 416,
+        "endpoint_outage_predicates": 416,
+        "configuration_counterexample_predicates": 48,
+        "validation_scope": "static-only"
+      },
+      {
+        "scenario": "p4_dc_fabric",
+        "topo_size": "m",
+        "healthy_predicates": 416,
+        "endpoint_outage_predicates": 416,
+        "configuration_counterexample_predicates": 48,
+        "validation_scope": "static-only"
+      },
+      {
+        "scenario": "p4_dc_gateway",
+        "topo_size": "m",
+        "healthy_predicates": 76,
+        "endpoint_outage_predicates": 76,
+        "configuration_counterexample_predicates": 16,
+        "validation_scope": "static-only"
+      },
+      {
+        "scenario": "p4_dc_gateway",
+        "topo_size": "l",
+        "healthy_predicates": 280,
+        "endpoint_outage_predicates": 280,
+        "configuration_counterexample_predicates": 32,
+        "validation_scope": "static-only"
+      }
+    ],
+    "incomplete_static_runs": [
+      {
+        "scenario": "sdn_l3_clos",
+        "topo_size": "l",
+        "status": "incomplete",
+        "healthy_passed": 1600,
+        "endpoint_outage_passed": 1600,
+        "counterexample_errors": 1039,
+        "solver_timeout_sec": 300,
+        "reason": "UnixHTTPConnectionPool(host='localhost', port=None): Read timed out.",
+        "accepted": false
+      },
+      {
+        "scenario": "p4_dc_fabric",
+        "topo_size": "l",
+        "status": "incomplete",
+        "healthy_passed": 1600,
+        "endpoint_outage_passed": 1600,
+        "counterexample_errors": 1071,
+        "solver_timeout_sec": 300,
+        "reason": "UnixHTTPConnectionPool(host='localhost', port=None): Read timed out.",
+        "accepted": false
+      }
+    ]
+  },
+  "runtime_only_domains": {
+    "k8s_lab": {
+      "checks": [
+        "cluster readiness",
+        "declared BGP peers",
+        "endpoint communication",
+        "application HTTP"
+      ],
+      "implementation": "src/nika/net_env/k8s_lab/verify.py",
+      "specification_workflow_integrated": false,
+      "formal_analysis_claim": false
+    },
+    "llmd_lab": {
+      "checks": [
+        "cluster and serving readiness",
+        "endpoint communication",
+        "models HTTP"
+      ],
+      "implementation": "src/nika/net_env/llmd_lab/verify.py",
+      "specification_workflow_integrated": false,
+      "formal_analysis_claim": false
+    }
   }
 }

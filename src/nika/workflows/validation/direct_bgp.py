@@ -4,9 +4,9 @@ from ipaddress import IPv4Interface
 
 from nika.net_env.contract import ValidationContract, ValidationIntent
 from nika.net_env.net_env_pool import get_net_env_instance
-from nika.workflows.validation.routing_spec import (
-    RoutingExperiment,
-    RoutingIncident,
+from nika.workflows.validation.scenario_spec import (
+    ScenarioExperiment,
+    ScenarioIncident,
     RoutingMutation,
     RoutingRuntimeMutation,
 )
@@ -164,7 +164,7 @@ def build_direct_bgp_experiment(scenario, *, routing_model):
                 expected_failed_ids=all_ids,
             ),
         )
-    return RoutingExperiment(
+    return ScenarioExperiment(
         scenario=scenario,
         routing_model=routing_model,
         healthy=contract,
@@ -188,7 +188,7 @@ def build_direct_bgp_experiment(scenario, *, routing_model):
         ),
         runtime_counterexamples=native_controls,
         incidents=(
-            RoutingIncident(
+            ScenarioIncident(
                 name="transit-down",
                 host_name=node,
                 intf_name=interface,

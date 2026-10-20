@@ -32,8 +32,8 @@ from nika.validation.netkat.p4 import compile_forwarding_slice
 from nika.validation.netkat.verifier import NetKatVerifier, write_snapshot
 from nika.workflows.env.start import start_net_env
 from nika.workflows.session.close import close_session
-from nika.workflows.validation.routing_build import routing_start_kwargs
-from nika.workflows.validation.routing_spec import RoutingExperiment, RoutingIncident
+from nika.workflows.validation.scenario_build import scenario_start_kwargs
+from nika.workflows.validation.scenario_spec import ScenarioExperiment, ScenarioIncident
 
 
 def _frontend(env):
@@ -146,7 +146,7 @@ def build_forwarding_experiment(scenario, *, topo_size="s"):
                 }
             )
         failed.append(intent)
-    incident = RoutingIncident(
+    incident = ScenarioIncident(
         name="endpoint-link-down",
         host_name=target,
         intf_name="eth0",
@@ -157,7 +157,7 @@ def build_forwarding_experiment(scenario, *, topo_size="s"):
             }
         ),
     )
-    return RoutingExperiment(
+    return ScenarioExperiment(
         scenario=scenario,
         routing_model="netkat",
         topo_size=topo_size,
@@ -331,7 +331,7 @@ def validate_forwarding_design(spec, output, *, runtime=False):
         session_id = f"forwarding-spec-{uuid4().hex[:12]}"
         try:
             start_net_env(
-                **routing_start_kwargs(spec, None),
+                **scenario_start_kwargs(spec, None),
                 session_id=session_id,
                 session_dir=str(output / "runtime"),
             )
