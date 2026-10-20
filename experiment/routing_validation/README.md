@@ -109,7 +109,16 @@ The pinned Batfish image includes an [FRR next-hop correction](../../scripts/bat
 
 ## Reproduce regression checks
 
-The [coverage record](coverage.json) summarizes earlier executions and their limits. Current regressions exercise the shared implementation:
+The [coverage record](coverage.json) summarizes earlier executions and their limits.
+
+Distinguish historical generator runs, offline netlab generation and native netlab
+acceptance. The historical 39 benchmark deployment profiles do not imply that all
+39 have passed the new construction path. Native netlab records appear under
+`isp.netlab_construction.completed_native_runs`; compare the full scenario, device
+profile, IGP and BGP mode when assessing coverage. Offline generation and restricted
+model import provide no native acceptance evidence.
+
+Run the retained regressions against the shared implementation:
 
 ```bash
 uv run pytest tests/nika/validation -m 'unit or contract' -q

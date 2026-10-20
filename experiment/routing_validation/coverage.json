@@ -381,6 +381,26 @@
           "link_down_predicates": 172,
           "recovered_predicates": 166,
           "predeclared_counterexamples_verified": true
+        },
+        {
+          "scenario": "isp_dfn-bwin",
+          "device_profile": "nokia_srlinux",
+          "igp": "isis",
+          "bgp_mode": "none",
+          "healthy_predicates": 126,
+          "link_down_predicates": 132,
+          "recovered_predicates": 126,
+          "predeclared_counterexamples_verified": true
+        },
+        {
+          "scenario": "isp_dfn-bwin",
+          "device_profile": "frr",
+          "igp": "isis",
+          "bgp_mode": "none",
+          "healthy_predicates": 126,
+          "link_down_predicates": 132,
+          "recovered_predicates": 126,
+          "predeclared_counterexamples_verified": true
         }
       ],
       "static_policy_comparison": {

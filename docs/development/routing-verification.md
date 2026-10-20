@@ -2,6 +2,11 @@
 
 NIKA prepares routing environments from explicit behavior and a partial network design. A topology graph supplies structure; the experiment specifies protocols, route-reflector roles, prefix ownership and intended routing behavior. A converged configuration can implement the wrong policy, so acceptance requires both independent configuration analysis and native execution against the original requirements.
 
+Run this workflow explicitly during environment development. Normal benchmark
+execution keeps its existing construction and startup checks. Developers can
+replay an accepted construction through the startup API; benchmark runs do not
+select saved constructions or invoke the synthesis and verification tools by default.
+
 ## Construction and acceptance
 
 ```text
@@ -9,7 +14,7 @@ Public graph + authored behavior + fixed routing sketch
                          |
              NetComplete parameter completion
                          |
-          Existing NIKA configuration generators
+       netlab templates or existing NIKA generators
                          |
         Batfish checks of original behavioral predicates
                          |
@@ -315,3 +320,92 @@ This delegates configuration transformation and syntax to an established tool;
 it does not add a compiler-correctness claim. Acceptance continues to come from
 independent checks of the original requirements. The default benchmark path and
 published case definitions do not change.
+
+## Extending verification to SDN and P4
+
+The reusable method is to specify behavior before construction, check the candidate
+with an independent analyzer, then exercise the same requirements during execution,
+fault injection and recovery. Each domain needs an analyzer for its semantics.
+NetComplete, netlab and Batfish currently serve the routing experiments above.
+The SDN and P4 integrations below are proposed work; existing startup checks do
+not establish the formal properties described here.
+
+The current P4 fabric verifier compares P4Runtime readbacks with the generated
+intent and probes endpoint traffic. Readback consistency confirms deployment of
+that intent, but cannot detect a policy error shared by the generator and its
+expected table entries. Author endpoint communication and isolation requirements
+before generating either OpenFlow rules or P4 table entries.
+
+Reuse the existing `ValidationIntent` reachability, isolation and waypoint shapes,
+`TrafficSelector` and original predicate IDs for those requirements. Add domain
+observations behind those meanings; keep P4 header and action assertions separate
+from routing-protocol predicates.
+
+| Existing scenario | Candidate to analyze | Proposed method | Initial properties |
+| --- | --- | --- | --- |
+| `sdn_l3_clos` | OpenFlow matches, priorities, actions, groups and physical links | NetKAT encoding checked by KATch | IPv4 delivery, isolation and permitted exits |
+| `p4_dc_fabric` | `fabric.p4`, LPM entries and selector groups/members | P4-aware symbolic tests, plus a scoped forwarding model | Invalid-header and TTL handling; endpoint delivery and allowed ECMP exits |
+| `p4_dc_gateway` | `gateway.p4` and its concrete control-plane entries | Begin with the stateless IPv4 forwarding subset | Forwarding and access-control properties under explicit state assumptions |
+
+### SDN forwarding properties
+
+[Header Space Analysis](https://www.usenix.org/conference/nsdi12/technical-sessions/presentation/kazemian)
+models devices as packet-header transformations and composes them through the
+network. [NetKAT](https://doi.org/10.1145/2535838.2535862) gives packet processing
+an algebraic semantics. [KATch](https://github.com/cornell-netlab/KATch) provides an
+external equivalence and containment checker for NetKAT policies. These methods
+give the proposed SDN adapter an established semantic basis.
+
+For `sdn_l3_clos`, encode the actual forwarding rules, including priority masking,
+prefix matches, rewrites and output ports, and compose them with the physical
+links. Build the requirements separately from endpoint ownership and authored
+communication policy. For example, with input class `I`, candidate forwarding
+relation `F`, and forbidden egress class `U`, isolation requires:
+
+```text
+I ; F ; U = 0
+```
+
+KATch can check this as a policy equivalence. A separate delivery requirement is
+necessary: an empty forwarding relation also satisfies isolation. Model SELECT
+groups as nondeterministic choices when checking safety over all permitted exits.
+Reachability in that abstraction establishes a possible path; it alone does not
+establish delivery for every hash choice, balanced traffic, or absence of loops.
+Requirements for guaranteed delivery must also exclude drops and nonterminating
+paths under the stated model.
+
+The first adapter should cover the IPv4 rules emitted by the existing
+`build_forwarding_rules` function. ARP responder actions, controller transitions
+and unsupported OpenFlow features need explicit exclusions or separate checks.
+Checking a fixed rule set establishes properties of that state; native fault and
+recovery tests remain necessary for controller behavior.
+
+### P4 program and table behavior
+
+A P4 configuration includes both the program and its control-plane table entries.
+Checking only `build_forwarding_intent` output leaves the program's interpretation
+of those entries unchecked. Successful compilation establishes compiler acceptance,
+but provides no independent forwarding-policy proof.
+
+[P4Testgen](https://p4lang.github.io/p4c/p4testgen.html), part of upstream p4c,
+symbolically generates input packets, control-plane entries and expected output
+packets. Its BMv2/v1model target matches the architecture of NIKA's current fabric
+program. It can exercise invalid headers, TTL boundaries, LPM actions and packet
+rewrites, and generate counterexamples to supplied assertions. A bounded successful
+test run is testing evidence. Statement coverage is not a proof of the original
+network specification.
+
+Before using these tests for scenario acceptance, establish how the tool constrains
+the concrete scenario entries and compare outputs with independently authored
+requirements. Tests using the tool's own synthesized entries cannot substitute for
+checking NIKA's candidate entries. A scoped network model can complement program
+tests, provided its assumed P4 action semantics and selector abstraction remain
+explicit.
+
+[p4v](https://www.cs.cornell.edu/~jnfoster/papers/p4v.pdf) provides the related
+proof approach: verify program safety properties under stated control-plane
+assumptions. Its paper supplies a methodological reference; NIKA has not integrated
+or established compatibility with that verifier. Begin implementation with
+`p4_dc_fabric` before the gateway, whose registers, queues, telemetry and changing
+load-balancer state require more than P4Testgen's single-packet model. Keep those
+behaviors as native obligations until an appropriate stateful model is available.

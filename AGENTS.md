@@ -51,6 +51,8 @@ Never merge into `dev` via manual local `git merge --squash` + push — bypasses
 * Avoid telemetry, metadata, or interfaces that leak ground truth.
 * New failures follow the existing `ProblemBase` model, failure taxonomy, registry, and RCA conventions.
 * Cross-domain reusable failure logic belongs in shared support code rather than concrete registered failures.
+* Keep scenario synthesis and formal-validation experiments opt-in during development; preserve the normal benchmark startup path unless explicitly asked to change it.
+* Reuse established synthesis and verification tools within their supported semantics. State the original requirements, retained NIKA responsibilities and verification limits in the documentation; keep the workflow capability-based across scenarios.
 
 ## Benchmark contracts
 
