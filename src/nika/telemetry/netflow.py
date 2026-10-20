@@ -1,19 +1,25 @@
-"""NetFlow/IPFIX telemetry: pmacct probes on capable devices, nfdump collector."""
+"""NetFlow/IPFIX telemetry: pmacct probes on capable devices, nfdump collector.
+
+Two phases: ``attach`` wires the collector and the export LAN before deployment;
+``configure`` runs in the lab check phase, probes each container for pmacct and
+configures only the devices that have it.
+"""
 
 from __future__ import annotations
 
 import ipaddress
+import re
 from typing import TYPE_CHECKING, Any
 
-from nika.net_env.utils.kathara.docker_files.docker_images import (
-    image_telemetry,
-    nika_image,
-)
-from nika.net_env.verify import process_running
+from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
+from nika.net_env.verify import exec_or_empty, process_running
 from nika.runtime.spec import NodeRole
 from nika.telemetry import NETFLOW, TELEMETRY_NETWORK
+from nika.utils.parallel import bounded_parallel_map
 
 if TYPE_CHECKING:
+    from Kathara.model.Lab import Lab
+
     from nika.net_env.base import NetworkEnvBase
     from nika.runtime.base import LabRuntime
 
@@ -35,6 +41,8 @@ PMACCT_SCRIPT = f"{PMACCT_DIR}/nika-netflow.sh"
 EXPORT_VRF_TABLE = 4242
 # Policy rule, ahead of the main table, that sends probe exports into the VRF.
 EXPORT_RULE_PREF = 100
+# ``pmacctd -V`` prints e.g. "Promiscuous Mode Accounting Daemon, pmacctd 1.7.7-git".
+_PMACCTD_VERSION = re.compile(r"\bpmacctd (\d[\w.\-]*)")
 
 
 def export_plan(subnet: str, exporters: list[str]) -> tuple[str, int, dict[str, str]]:
@@ -145,17 +153,14 @@ def collector_startup(collector: str, prefixlen: int, export_iface: str) -> list
 
 
 def attach(net_env: NetworkEnvBase, subnet: str) -> dict[str, Any]:
-    """Add the collector and export LAN, and configure every NetFlow-capable device.
+    """Wire the collector and the export LAN into the built, not yet deployed, lab.
 
-    Raises when no device image declares NetFlow support.
+    Every device joins the export LAN on its last interface; none is configured
+    yet. ``configure`` later sets up only the devices whose container runs pmacct.
     """
     lab = net_env.lab
-    candidates = [
-        name
-        for name, identity in net_env.machine_identities.items()
-        if identity.role != NodeRole.INFRASTRUCTURE
-    ]
-    collector = lab.new_machine(
+    devices = sorted(lab.machines)
+    lab.new_machine(
         FLOW_COLLECTOR, image=nika_image("flow-collector"), cpus=0.5, mem="256m"
     )
     net_env.declare_machine(
@@ -163,59 +168,93 @@ def attach(net_env: NetworkEnvBase, subnet: str) -> dict[str, Any]:
         role=NodeRole.INFRASTRUCTURE,
         capabilities=("linux", NETFLOW),
     )
-    # Labels are read from local images, so make sure every image is present.
-    net_env._ensure_docker_images()
-    exporters = [
-        name
-        for name in candidates
-        if NETFLOW in image_telemetry(lab.machines[name].get_image())
-    ]
-    if not exporters:
-        images = sorted({lab.machines[name].get_image() for name in candidates})
-        raise RuntimeError(
-            f"Scenario {net_env.name} has no device image that supports NetFlow "
-            f"telemetry (images: {', '.join(images)})."
-        )
-
-    collector_ip, prefixlen, addresses = export_plan(subnet, exporters)
-    _, collector_iface = lab.connect_machine_to_link(FLOW_COLLECTOR, TELEMETRY_NETWORK)
-    collector.create_file_from_string(
-        "".join(f"{ip} {name}\n" for name, ip in addresses.items()),
-        FLOW_EXPORTERS_FILE,
-    )
+    collector_ip, prefixlen, _ = export_plan(subnet, [])
+    collector_iface = _connect_last(lab, FLOW_COLLECTOR)
     lab.create_file_from_list(
-        collector_startup(collector_ip, prefixlen, f"eth{collector_iface.num}"),
+        collector_startup(collector_ip, prefixlen, collector_iface),
         f"{FLOW_COLLECTOR}.startup",
     )
-    for name, address in addresses.items():
-        machine = lab.machines[name]
-        data_ifaces = [f"eth{num}" for num in sorted(machine.interfaces)]
-        _, export_iface = lab.connect_machine_to_link(name, TELEMETRY_NETWORK)
-        for engine, iface in enumerate(data_ifaces, 1):
-            machine.create_file_from_string(
-                pmacct_conf(collector_ip, iface, engine), pmacct_conf_path(iface)
-            )
-        machine.create_file_from_string(
-            exporter_script(
-                data_ifaces=data_ifaces,
-                export_iface=f"eth{export_iface.num}",
-                address=address,
-                prefixlen=prefixlen,
-                collector=collector_ip,
-            ),
-            PMACCT_SCRIPT,
-        )
-        # Leading newline: some startup files do not end with one.
-        lab.fs.appendtext(
-            f"{name}.startup",
-            f"\nnohup sh {PMACCT_SCRIPT} >/var/log/nika-netflow.log 2>&1 &\n",
-        )
+    candidates = {}
+    for name in devices:
+        data_ifaces = [f"eth{num}" for num in sorted(lab.machines[name].interfaces)]
+        candidates[name] = {
+            "export_iface": _connect_last(lab, name),
+            "data_ifaces": data_ifaces,
+        }
     net_env.load_machines()
     return {
         "collector": FLOW_COLLECTOR,
         "subnet": subnet,
-        "exporters": addresses,
+        "candidates": candidates,
+        "exporters": {},
+        "versions": {},
     }
+
+
+def _connect_last(lab: Lab, name: str) -> str:
+    """Connect ``name`` to the export LAN on the interface after its last one.
+
+    Kathara would otherwise take the first free number, which fills a gap in a
+    scenario's interface numbering instead of coming last. On ``bridged``
+    devices, Kathara appends its host-bridge NIC after it at deploy time.
+    """
+    number = max(lab.machines[name].interfaces, default=-1) + 1
+    lab.connect_machine_to_link(name, TELEMETRY_NETWORK, machine_iface_number=number)
+    return f"eth{number}"
+
+
+def probe_versions(runtime: LabRuntime, devices: list[str]) -> dict[str, str]:
+    """Return the pmacct version installed in each device that has one."""
+
+    def probe(name: str) -> str | None:
+        out = exec_or_empty(runtime, name, "pmacctd -V 2>&1 | head -n 1")
+        match = _PMACCTD_VERSION.search(out)
+        return match.group(1) if match else None
+
+    found = bounded_parallel_map(probe, devices)
+    return {
+        name: version for name, version in zip(devices, found, strict=True) if version
+    }
+
+
+def configure(runtime: LabRuntime, plan: dict[str, Any]) -> dict[str, Any]:
+    """Configure export on every device whose container runs pmacct.
+
+    Devices without pmacct keep their export interface unconfigured. With no
+    capable device, the collector simply receives no records.
+    """
+    versions = probe_versions(runtime, sorted(plan["candidates"]))
+    collector_ip, prefixlen, addresses = export_plan(plan["subnet"], list(versions))
+
+    def start(name: str) -> None:
+        device = plan["candidates"][name]
+        runtime.exec(name, f"mkdir -p {PMACCT_DIR}")
+        for engine, iface in enumerate(device["data_ifaces"], 1):
+            runtime.write_file(
+                name, pmacct_conf_path(iface), pmacct_conf(collector_ip, iface, engine)
+            )
+        runtime.write_file(
+            name,
+            PMACCT_SCRIPT,
+            exporter_script(
+                data_ifaces=device["data_ifaces"],
+                export_iface=device["export_iface"],
+                address=addresses[name],
+                prefixlen=prefixlen,
+                collector=collector_ip,
+            ),
+        )
+        runtime.exec(
+            name, f"nohup sh {PMACCT_SCRIPT} >/var/log/nika-netflow.log 2>&1 &"
+        )
+
+    bounded_parallel_map(start, sorted(addresses))
+    runtime.write_file(
+        FLOW_COLLECTOR,
+        FLOW_EXPORTERS_FILE,
+        "".join(f"{ip} {name}\n" for name, ip in addresses.items()),
+    )
+    return {**plan, "exporters": addresses, "versions": versions}
 
 
 def export_running(runtime: LabRuntime, metadata: dict[str, Any]) -> bool:
