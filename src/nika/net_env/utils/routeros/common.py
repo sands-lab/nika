@@ -33,6 +33,28 @@ _CONFIG_APPLIED = "Script file loaded and executed successfully"
 
 # vrnetlab attaches 31 virtio NICs, including ether1 for management.
 MAX_DATA_INTERFACES = 30
+
+# QEMU does not propagate a container interface's link state to the guest NIC.
+# vrnetlab keeps its own monitor connection open, so NIKA adds a second monitor
+# and a watcher that mirrors each data interface's state with ``set_link``.
+# Link failures then reach RouterOS as carrier loss, as they do on FRR.
+LINK_MONITOR_PORT = 4100
+LINK_WATCHER_PATH = "/usr/local/bin/nika-link-carrier"
+_LINK_WATCHER = rf"""#!/bin/bash
+# Mirror container data-interface state into the RouterOS VM NIC carrier.
+declare -A applied
+while true; do
+  for i in $(seq 1 "$1"); do
+    [ "$(cat /sys/class/net/eth$i/operstate 2>/dev/null)" = down ] && link=off || link=on
+    [ "${{applied[$i]}}" = "$link" ] && continue
+    # vrnetlab names the QEMU netdev of container interface ethN pNN.
+    printf 'set_link p%02d %s\n' "$i" "$link" \
+      | socat -t1 - TCP:127.0.0.1:{LINK_MONITOR_PORT} >/dev/null 2>&1 \
+      && applied[$i]=$link
+  done
+  sleep 1
+done
+"""
 # The VM itself uses 256 MiB; the remainder covers QEMU and vrnetlab.
 CONTAINER_MEMORY = "1g"
 
@@ -88,6 +110,16 @@ def add_routeros_router(
     # (Containerlab's model). Kathara attaches them before the container
     # starts; macvtap wraps the interfaces that already exist.
     machine.add_meta("args", "--connection-mode macvtap")
+    machine.add_meta(
+        "env",
+        "QEMU_ADDITIONAL_ARGS="
+        f"-monitor tcp:127.0.0.1:{LINK_MONITOR_PORT},server,nowait",
+    )
+    machine.create_file_from_string(_LINK_WATCHER, LINK_WATCHER_PATH)
+    lab.create_file_from_list(
+        [f"nohup bash {LINK_WATCHER_PATH} {data_interfaces} >/dev/null 2>&1 &"],
+        f"{name}.startup",
+    )
     if config is not None:
         set_routeros_config(machine, config)
     lab.connect_machine_to_link(name, f"{name}_reserved0", machine_iface_number=0)
