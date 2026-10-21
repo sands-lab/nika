@@ -9,7 +9,6 @@ NIKA is a platform for generating and running executable benchmarks for network 
 * Reuse existing NIKA abstractions instead of creating parallel implementations.
 * Drive synthesis and verification by declared capabilities and specifications, without scenario-name branches. Cover all applicable deployment profiles in the selected benchmark inventory and report unsupported capabilities explicitly.
 * Prefer established deterministic synthesis and verification tools for configuration decisions; keep authored requirements independent of generated outputs.
-* For research workflows, ground generation and verification stages in established methods, state their supported correctness claims, and distinguish scientific contributions from implementation bookkeeping. Keep implementation limited to the evidence needed for the stated claims; avoid adding proof machinery beyond that scope.
 * Preserve benchmark reproducibility, ground truth, telemetry semantics, and backend neutrality.
 * Do not weaken tests to make changes pass.
 * Avoid introducing feature-specific helpers, wrappers, mocks, or abstractions unless they have clear reuse value.

@@ -626,7 +626,7 @@ class IspClabReprSmokeTest(CliIntegrationTestCase):
             [
                 "traffic",
                 "run",
-                "sndlib",
+                "matrix-replay",
                 "--mode",
                 "demands",
                 "--unit",

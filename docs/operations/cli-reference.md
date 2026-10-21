@@ -24,7 +24,7 @@ Runtime paths (`runtime/`, `results/`, `benchmark/`) resolve from the repository
 | `nika leaderboard` | Write a submission template, then pack, validate, and submit scores (GitHub PR) and trajectories (HF PR) from an official release run |
 | `nika inspect` | Local web UI for session trajectories, merged timelines, and scores |
 | `nika remote` | Optional lab-host control plane (`serve` / `health`); see [remote lab execution](remote.md) |
-| `nika traffic` | Synthetic traffic (`od`, `web`, `sndlib`, `burst`) against the running lab |
+| `nika traffic` | Synthetic traffic (`od`, `web`, `matrix-replay`, `burst`) against the running lab |
 | `nika tui` | Interactive shell with slash commands and guided forms over this CLI (bare `nika` in a terminal opens it too); see [interactive shell](tui.md) |
 
 Use `nika <group> --help` and `nika <group> <command> --help` for generated option text.
@@ -570,7 +570,7 @@ When `nika.remote.enabled` and `nika.remote.url` are set in `config/nika.yaml` o
 
 Requires a deployed lab. By default the **current session** supplies the deployed lab name and size; override with **`--lab`** (and **`-s`** when the scenario needs a size).
 
-- **`nika traffic list`**: supported **`TYPE`** values for `run` (`burst`, `od`, `sndlib`, `web`).
+- **`nika traffic list`**: supported **`TYPE`** values for `run` (`burst`, `matrix-replay`, `od`, `web`).
 - **`nika traffic fetch sndlib --topo NAME [--force]`**: fetch dynamic SNDlib traffic.
 - **`nika traffic run TYPE …`**: start traffic; options depend on **`TYPE`**.
 
@@ -579,7 +579,7 @@ Requires a deployed lab. By default the **current session** supplies the deploye
 | TYPE | `--no-background` (default) | `--background` |
 |------|------------------------------|------------------|
 | `od` | Run iperf3 clients synchronously; print JSON summaries to stdout | Start iperf3 in the background inside the lab; print a short JSON list of flow labels |
-| `sndlib` | Replay each SNDlib interval synchronously | Start each interval in the background, wait `duration_sec`, then next |
+| `matrix-replay` | Replay each traffic-matrix interval synchronously | Start each interval in the background, wait `duration_sec`, then next |
 | `web` | Block until interrupted or finished (`--no-loop`) | Not supported: web load blocks this CLI |
 | `burst` | Run the synchronized flows, then print a JSON event | Ignored: `burst` always runs in the foreground |
 
@@ -608,9 +608,9 @@ Shared iperf tuning:
 - **`--udp` / `--no-udp`**
 - **`--server-args`**, **`--client-args`**: extra iperf3 arguments.
 
-### `nika traffic run sndlib`
+### `nika traffic run matrix-replay`
 
-Replay SNDlib demands/dynamic series on ISP stub hosts (`pc_<router>`). Deploy any `isp_<topology>` or named ISP special (`nika env run isp_abilene`, …); those labs attach stubs. Choose the matrix with **`--mode demands|dynamic`** (default `demands`) and optional **`--scale`**. Intervals play **in order**. Use **`--max-intervals N`** for smoke tests.
+Replay an ISP PoP-to-PoP traffic matrix (SNDlib static demands or a measured dynamic series) on ISP stub hosts (`pc_<router>`). Deploy an SNDlib `isp_<topology>` or named ISP special (`nika env run isp_abilene`, …); those labs attach stubs. Choose the matrix with **`--mode demands|dynamic`** (default `demands`) and optional **`--scale`**. Intervals play **in order**. Use **`--max-intervals N`** for smoke tests.
 
 ### `nika traffic run burst`
 
