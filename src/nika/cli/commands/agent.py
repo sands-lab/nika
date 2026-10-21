@@ -431,11 +431,16 @@ def _run_one_shot(
     )
 
     from nika.agents.registry import get_agent_spec
-    from nika.utils.agent_config import resolve_agent_type
+    from nika.agents.sandbox.model_proxy import require_agent_credentials
+    from nika.utils.agent_config import resolve_agent_type, resolve_llm_provider
 
     try:
         # Fail before deploying the environment.
-        get_agent_spec(resolve_agent_type(agent_type))
+        resolved_type = resolve_agent_type(agent_type)
+        spec = get_agent_spec(resolved_type)
+        provider = resolve_llm_provider(llm_provider, agent_type=resolved_type)
+        if spec.template is not None and provider:
+            require_agent_credentials(resolved_type, provider)
         scenario, topo_size, problem_name = parse_task_label(problem_label)
         overrides = _parse_set_options(sets)
         inject_params = resolve_default_inject_params(

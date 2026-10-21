@@ -79,7 +79,7 @@ The container runs privileged with the host's `/dev`, because AgentENV starts ea
 
 ## Authentication
 
-Choose an API key or a supported subscription for your agent. NIKA keeps the real credential on the host: every model request of a sandbox goes through NIKA's model proxy on the host, which adds the credential, so the sandbox only receives a per-session proxy token. See [How sandboxes stay isolated](#how-sandboxes-stay-isolated).
+Every agent works with an API key. Codex and Claude agents (`cli.codex`, `sdk.codex_sdk`, `cli.claude`, `sdk.claude_sdk`, `community.sade`) can use a Claude or ChatGPT subscription instead. NIKA keeps the real credential on the host: every model request of a sandbox goes through NIKA's model proxy on the host, which adds the credential, so the sandbox only receives a per-session proxy token. See [How sandboxes stay isolated](#how-sandboxes-stay-isolated).
 
 ### API keys
 
@@ -102,7 +102,7 @@ Select the matching `agent.provider` in `config/nika.yaml` or pass `-p` on the C
 
 ### Subscriptions
 
-Your local Claude or Codex login does not authenticate a NIKA sandbox, and NIKA never copies host auth files into a sandbox. To evaluate with a Claude or ChatGPT subscription, sign in once on the NIKA host; NIKA's model proxy adds the login to the agent's model requests. If `.env` also holds an API key for the provider, NIKA uses the API key.
+Subscriptions work with Codex and Claude agents only; BYO agents and agents you add need an API key. Your local Claude or Codex login does not authenticate a NIKA sandbox, and NIKA never copies host auth files into a sandbox. To evaluate with a Claude or ChatGPT subscription, sign in once on the NIKA host; NIKA's model proxy adds the login to the agent's model requests. If `.env` also holds an API key for the provider, NIKA uses the API key.
 
 - **Claude subscription:** create a long-lived token and add it to the repository-root `.env`:
 
@@ -121,7 +121,7 @@ Your local Claude or Codex login does not authenticate a NIKA sandbox, and NIKA 
   CODEX_HOME=~/.local/state/nika/codex codex login
   ```
 
-Use provider `anthropic` or `openai` with a model available to your subscription. The logins cover every agent on every runtime. If a login stops working, sign in again with the same command.
+Use provider `anthropic` or `openai` with a model available to your subscription. The logins work on every runtime. If a login stops working, sign in again with the same command.
 
 ## Quick start
 

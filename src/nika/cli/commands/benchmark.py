@@ -595,6 +595,16 @@ def benchmark_run(
     llm_provider = resolve_llm_provider(llm_provider, agent_type=agent_type, config=cfg)
     model = resolve_agent_model(agent_type, model, config=cfg)
     max_steps = resolve_max_steps(max_steps, config=cfg)
+    if llm_provider:
+        from nika.agents.registry import get_agent_spec
+        from nika.agents.sandbox.model_proxy import require_agent_credentials
+
+        try:
+            # Fail before any trial deploys an environment.
+            if get_agent_spec(agent_type).template is not None:
+                require_agent_credentials(agent_type, llm_provider)
+        except ValueError as exc:
+            raise typer.BadParameter(str(exc)) from exc
 
     bench = cfg.benchmark
     resolved_batch_size = bench.batch_size
