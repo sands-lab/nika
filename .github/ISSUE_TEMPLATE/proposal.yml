@@ -1,0 +1,37 @@
+name: Proposal or improvement
+description: Suggest a feature, documentation improvement, or architectural change.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Start with the need and the desired outcome. A short proposal is enough; implementation details and a separate acceptance checklist are not required.
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: What is difficult or missing today, who is affected, and why does it matter?
+    validations:
+      required: true
+  - type: textarea
+    id: requirements
+    attributes:
+      label: Main requirements
+      description: |
+        Describe a few concrete outcomes the change should provide. Include essential constraints or exclusions. For documentation, identify the page and what readers should be able to understand or do. Avoid prescribing implementation details unless they are already agreed.
+    validations:
+      required: true
+  - type: textarea
+    id: analysis
+    attributes:
+      label: Initial analysis
+      description: |
+        Optional. Note relevant existing functionality, a possible direction, or useful references and related issues. Clearly distinguish agreed decisions from suggestions.
+    validations:
+      required: false
+  - type: textarea
+    id: questions
+    attributes:
+      label: Open questions
+      description: Optional. Which decisions are needed before implementation can begin? Leave this empty if the request is already clear.
+    validations:
+      required: false

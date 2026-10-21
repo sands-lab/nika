@@ -22,6 +22,10 @@ NIKA is a platform for generating and running executable benchmarks for network 
 
 `dev` -> `main` (opening/merging that PR, testing off `dev` meanwhile) is human-only — the agent never touches it.
 
+### Writing issues
+
+When opening an issue, follow the applicable form in [`.github/ISSUE_TEMPLATE/`](.github/ISSUE_TEMPLATE/), using its section headings and guidance. This also applies to issues created through the CLI or API. Omit empty optional sections.
+
 ### Leaderboard submissions
 
 * Use `YYYYMMDD_<framework>_<model>` package directories, with normalized public harness names, for scores and Hugging Face trajectories.

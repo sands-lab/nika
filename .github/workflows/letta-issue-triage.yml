@@ -16,24 +16,45 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
-        with:
+      # Every step is retried up to 3 times after the first attempt. `uses:` steps
+      # are repeated: each retry runs only if the previous attempt failed, and the
+      # last attempt has no continue-on-error, so a final failure fails the job.
+      - id: checkout-1
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with: &checkout
           fetch-depth: 0
+      - id: checkout-2
+        if: steps.checkout-1.outcome == 'failure'
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with: *checkout
+      - id: checkout-3
+        if: steps.checkout-2.outcome == 'failure'
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with: *checkout
+      - id: checkout-4
+        if: steps.checkout-3.outcome == 'failure'
+        uses: actions/checkout@v4
+        with: *checkout
       # Same install as ci.yml's install-benchmark-e2e, so the agent can run NIKA.
       # Runners ship Docker; their Azure kernels keep vrf.ko in linux-modules-extra.
       - name: Install host prerequisites
         run: |
-          sudo apt-get update
-          sudo apt-get install -y "linux-modules-extra-$(uname -r)"
+          .github/scripts/retry.sh sudo apt-get update
+          .github/scripts/retry.sh sudo apt-get install -y "linux-modules-extra-$(uname -r)"
       # Labs build or pull their images on first deploy.
       - name: Install NIKA
-        run: ./scripts/install.sh --skip-images
+        run: .github/scripts/retry.sh ./scripts/install.sh --skip-images
       - name: Ensure triage labels exist
         run: |
-          gh label create agent-ready --color 0E8A16 --description "Well-scoped; an agent can implement it" --force
-          gh label create needs-human --color D93F0B --description "Needs human design or architectural decisions" --force
-      - uses: letta-ai/letta-code-action@v0
-        with:
+          .github/scripts/retry.sh gh label create agent-ready --color 0E8A16 --description "Well-scoped; an agent can implement it" --force
+          .github/scripts/retry.sh gh label create needs-human --color D93F0B --description "Needs human design or architectural decisions" --force
+      - id: triage-1
+        uses: letta-ai/letta-code-action@v0
+        continue-on-error: true
+        with: &triage
           letta_api_key: ${{ secrets.LETTA_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           agent_id: agent-94fc2af6-52c5-4ec5-b0c1-758a3e09541a
@@ -75,7 +96,12 @@ jobs:
                  ambiguous requirements, benchmark contract changes, or anything you
                  are unsure about.
 
-            4. Post ONE triage comment with these sections, omitting empty ones:
+            4. Post ONE triage comment with these sections, omitting empty ones.
+               Retries must not create duplicate triage comments. Before posting,
+               look for a comment by `github-actions[bot]` containing
+               `<!-- nika-issue-triage -->`. Update that comment if it exists;
+               otherwise create one. Include this marker in the comment. Do not
+               edit comments by other authors.
                - `### TL;DR`: only if the issue is long or highly technical (typical of
                  AI-written issues). 2-4 short sentences explaining, without
                  implementation details, what is wrong or wanted and why it matters.
@@ -83,3 +109,33 @@ jobs:
                  how they relate.
                - `### Triage`: `agent-ready` or `needs-human`, with a brief rationale
                  and, for needs-human, the specific questions a human must decide.
+      - id: triage-2
+        if: steps.triage-1.outcome == 'failure'
+        uses: letta-ai/letta-code-action@v0
+        continue-on-error: true
+        with: *triage
+      - id: triage-3
+        if: steps.triage-2.outcome == 'failure'
+        uses: letta-ai/letta-code-action@v0
+        continue-on-error: true
+        with: *triage
+      - id: triage-4
+        if: steps.triage-3.outcome == 'failure'
+        uses: letta-ai/letta-code-action@v0
+        with: *triage
+      # The agent can exit 0 without commenting, or duplicate a comment after an
+      # uncertain write; fail visibly in both cases. Only github-actions[bot]
+      # comments count, so issue authors cannot satisfy the check with the marker.
+      # Retrying the whole check also absorbs API read lag after the agent's write.
+      - name: Verify triage comment
+        env:
+          ISSUE: ${{ github.event.issue.number }}
+          FILTER: >-
+            .[] | select(.user.login == "github-actions[bot]"
+            and (.body | contains("<!-- nika-issue-triage -->"))) | .html_url
+        run: |
+          .github/scripts/retry.sh bash -c '
+            urls=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$ISSUE/comments" --jq "$FILTER") || exit
+            count=$(grep -c . <<<"$urls")
+            echo "Found $count triage comment(s): $urls"
+            [ "$count" -eq 1 ]'
