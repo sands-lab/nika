@@ -15,6 +15,9 @@ class DCClosIosXr(DCClos):
     """The FRR eBGP Clos, its addressing and services, on native IOS XR."""
 
     ROUTING_PARAMETER_KINDS = frozenset()
+    # XRd boots and applies configuration in minutes, not seconds.
+    VERIFY_MAX_WAIT_SEC = 900
+    VERIFY_RETRY_DELAY_SEC = 10
 
     def __init__(
         self,
@@ -70,16 +73,9 @@ class DCClosIosXr(DCClos):
         return IOSXR_BGP_COMMAND, iosxr_bgp_established_peers
 
     def startup_verify_lab(self) -> dict:
-        from nika.net_env.dc_clos.verify import verify_dc_clos_lab_startup
-
-        return verify_dc_clos_lab_startup(
-            self._build_runtime(),
-            scenario_name=self.LAB_NAME,
-            nodes=tuple(self.lab.machines),
-            bgp_neighbors=self.bgp_neighbors,
-            client_addresses=self.client_addresses,
-            bgp_sessions=self._bgp_sessions(),
-        )
+        # XR defers best-path selection after sessions establish (BGP update
+        # delay), so established sessions alone do not mean routes are ready.
+        return self.verify_lab()
 
     def verify_lab(self) -> dict:
         from nika.net_env.dc_clos.verify import verify_dc_clos_lab
