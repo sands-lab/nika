@@ -531,8 +531,8 @@ def validate_routing_design(
                 finally:
                     if native_srl:
                         from nika.service.containerlab.srl_api import (
-                            NIKA_BGP_WITHDRAW,
-                            NIKA_BGP_WITHDRAW_PFX,
+                            BGP_EXPORT_POLICY,
+                            BGP_EXPORT_PREFIX_SET,
                         )
 
                         for node in failure.restore_nodes:
@@ -556,8 +556,8 @@ def validate_routing_design(
                                         f"delete /network-instance default protocols bgp neighbor {peer.remote_ip} afi-safi ipv4-unicast export-policy"
                                     )
                                 commands += [
-                                    f"delete /routing-policy policy {NIKA_BGP_WITHDRAW}",
-                                    f"delete /routing-policy prefix-set {NIKA_BGP_WITHDRAW_PFX}",
+                                    f"delete /routing-policy policy {BGP_EXPORT_POLICY}",
+                                    f"delete /routing-policy prefix-set {BGP_EXPORT_PREFIX_SET}",
                                 ]
                             elif failure.problem == "bgp_acl_block":
                                 commands.extend(

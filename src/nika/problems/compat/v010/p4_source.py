@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import shlex
 
 from pydantic import BaseModel, Field
@@ -31,6 +32,11 @@ class _LegacyP4SourceFault(ProblemBase):
             raise RuntimeError(f"Expected one P4 program on {host}: {program!r}")
         return program
 
+    def _backup_path(self, source: str) -> str:
+        # One backup per fault, named without revealing it.
+        digest = hashlib.sha1(self.root_cause_name.encode()).hexdigest()[:8]
+        return f"/tmp{source}.{digest}.orig"
+
     def _is_edited(self, host: str, source: str) -> bool:
         if self.new_text.startswith("#define"):
             result = self.runtime.exec(
@@ -43,7 +49,7 @@ class _LegacyP4SourceFault(ProblemBase):
     def inject_fault(self, params: LegacyP4SourceParams):
         host = params.host_name
         source = self._source_name(host)
-        backup = f"/tmp/nika-010-{self.root_cause_name}.p4"
+        backup = self._backup_path(source)
         old = (self.old_pattern or self.old_text).replace("'", "'\\''")
         new = self.new_text.replace("'", "'\\''")
         changed = self.runtime.exec(
@@ -60,7 +66,7 @@ class _LegacyP4SourceFault(ProblemBase):
             # A failed compiler invocation during rollout leaves this switch down.
             result = self.runtime.exec(
                 host,
-                f"p4c {source} -o /tmp/nika-010-invalid.json "
+                f"p4c {source} -o /tmp/p4c-out.json "
                 "2>&1 && echo COMPILED || echo COMPILE_FAILED",
                 timeout=60,
             )
@@ -87,7 +93,7 @@ class _LegacyP4SourceFault(ProblemBase):
     def recover_fault(self, params: LegacyP4SourceParams) -> dict:
         host = params.host_name
         source = self._source_name(host)
-        backup = f"/tmp/nika-010-{self.root_cause_name}.p4"
+        backup = self._backup_path(source)
         self.runtime.exec(
             host,
             f"pkill -x simple_switch || true; cp {backup} {source} && "

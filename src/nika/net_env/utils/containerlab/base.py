@@ -6,7 +6,7 @@ import inspect
 from pathlib import Path
 from typing import ClassVar
 
-from nika.config import RUNTIME_DIR
+from nika.config import CLAB_RUNTIME_DIR
 from nika.net_env.base import NetworkEnvBase
 from nika.runtime.containerlab.parse import parse_clab_topology
 from nika.runtime.containerlab.render import render_topology
@@ -36,7 +36,7 @@ class ContainerlabNetworkEnv(NetworkEnvBase):
         lab_name = self.name
         if not lab_name:
             raise ValueError("Lab name is required before deploy.")
-        self.runtime_workdir = RUNTIME_DIR / "containerlab" / lab_name
+        self.runtime_workdir = CLAB_RUNTIME_DIR / lab_name
         self.runtime_workdir.mkdir(parents=True, exist_ok=True)
 
         self.topology_file = self.runtime_workdir / f"{self.LAB_NAME}.clab.yml"

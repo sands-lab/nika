@@ -45,7 +45,7 @@ def _render_isis(node: PlannedNode, interfaces: tuple[PlannedInterface, ...]) ->
         "!",
         "interface lo",
         f" ip address {node.loopback}/32",
-        " ip router isis NIKA",
+        " ip router isis CORE",
         " isis passive",
         "!",
     ]
@@ -56,7 +56,7 @@ def _render_isis(node: PlannedNode, interfaces: tuple[PlannedInterface, ...]) ->
             [
                 f"interface {iface.name}",
                 f" ip address {iface.address}/{iface.prefixlen}",
-                " ip router isis NIKA",
+                " ip router isis CORE",
                 " isis circuit-type level-2-only",
                 f" isis metric {iface.metric}",
                 *([" isis passive"] if iface.passive else []),
@@ -65,7 +65,7 @@ def _render_isis(node: PlannedNode, interfaces: tuple[PlannedInterface, ...]) ->
         )
     lines.extend(
         [
-            "router isis NIKA",
+            "router isis CORE",
             f" net {net}",
             " is-type level-2-only",
             " metric-style wide",

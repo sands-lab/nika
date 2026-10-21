@@ -33,6 +33,7 @@ def parse_frr_isis(node: str, config: str) -> tuple[str, dict[str, dict]]:
     section = "global"
     current_iface = None
     seen_global: set[str] = set()
+    process_names: set[str] = set()
 
     def reject(line: str) -> None:
         raise ValueError(f"Unsupported FRR IS-IS config on {node}: {line!r}")
@@ -56,10 +57,11 @@ def parse_frr_isis(node: str, config: str) -> tuple[str, dict[str, dict]]:
             }
             section = "interface"
             continue
-        if line == "router isis NIKA":
+        if line in {"router isis CORE", "router isis NIKA"}:
             if section == "router" or "router" in seen_global:
                 reject(line)
             seen_global.add("router")
+            process_names.add(line.rsplit(" ", 1)[-1])
             section = "router"
             current_iface = None
             continue
@@ -94,10 +96,11 @@ def parse_frr_isis(node: str, config: str) -> tuple[str, dict[str, dict]]:
                     iface["address"] = IPv4Interface(match.group(1))
                 except ValueError:
                     reject(line)
-            elif line == "ip router isis NIKA":
+            elif line in {"ip router isis CORE", "ip router isis NIKA"}:
                 if iface["isis_enabled"]:
                     reject(line)
                 iface["isis_enabled"] = True
+                process_names.add(line.rsplit(" ", 1)[-1])
             elif line == "isis circuit-type level-2-only":
                 if iface["circuit_type"] is not None:
                     reject(line)
@@ -136,6 +139,8 @@ def parse_frr_isis(node: str, config: str) -> tuple[str, dict[str, dict]]:
             else:
                 reject(line)
 
+    if len(process_names) > 1:
+        raise ValueError(f"Inconsistent FRR IS-IS process names on {node}")
     if (
         net is None
         or router_values.get("is-type") != "level-2-only"

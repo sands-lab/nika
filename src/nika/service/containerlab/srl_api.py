@@ -8,12 +8,12 @@ import re
 
 from nika.service.containerlab.protocols import SupportsSRL
 
-NIKA_BGP_ACL = "nika_bgp_block"
-NIKA_BGP_WITHDRAW = "nika_bgp_withdraw"
-NIKA_BGP_WITHDRAW_PFX = "nika_bgp_withdraw_pfx"
-NIKA_BLACKHOLE_NHG = "nika_blackhole"
+BGP_ACL_DESCRIPTION = "cpm-protect"
+BGP_EXPORT_POLICY = "CLOS01-OUT"
+BGP_EXPORT_PREFIX_SET = "CLOS01-OUT-PFX"
+STATIC_NHG = "static-nhg-1"
 # Transport port fields matched against TCP/179, in drop-entry order.
-_NIKA_BGP_ACL_PORTS = ("destination-port", "source-port")
+_BGP_ACL_DESCRIPTION_PORTS = ("destination-port", "source-port")
 _CPM_IPV4_ENTRY_RE = re.compile(
     r"^set / acl acl-filter cpm type ipv4 entry (\d+) (.+)$", re.MULTILINE
 )
@@ -121,7 +121,7 @@ class SRLAPIMixin:
         if not entries:
             raise ValueError(f"SRL node {device_name!r} has no CPM IPv4 filter entries")
         bgp_matches = {
-            f"match transport {port} value 179" for port in _NIKA_BGP_ACL_PORTS
+            f"match transport {port} value 179" for port in _BGP_ACL_DESCRIPTION_PORTS
         }
         bgp_accepts = [
             seq
@@ -134,7 +134,7 @@ class SRLAPIMixin:
         for lo in [*sorted((seq for seq in entries if seq < anchor), reverse=True), 0]:
             if hi - lo > 2:
                 first = min((lo + hi) // 2, hi - 2)
-                return dict(zip((first, first + 1), _NIKA_BGP_ACL_PORTS))
+                return dict(zip((first, first + 1), _BGP_ACL_DESCRIPTION_PORTS))
             hi = lo
         raise ValueError(
             f"No two adjacent free CPM IPv4 filter sequence IDs before entry "
@@ -153,7 +153,7 @@ class SRLAPIMixin:
         for seq, port in drop_entries.items():
             entry = f"/acl acl-filter cpm type ipv4 entry {seq}"
             commands += [
-                f"{entry} description {NIKA_BGP_ACL}",
+                f"{entry} description {BGP_ACL_DESCRIPTION}",
                 f"{entry} match ipv4 protocol tcp",
                 f"{entry} match transport {port} operator eq",
                 f"{entry} match transport {port} value 179",
@@ -222,12 +222,11 @@ class SRLAPIMixin:
         prefix_str = str(ipaddress.ip_network(prefix, strict=False))
         self._srl_candidate(
             device_name,
-            f"/network-instance default next-hop-groups group {NIKA_BLACKHOLE_NHG} "
+            f"/network-instance default next-hop-groups group {STATIC_NHG} "
             "admin-state enable",
-            f"/network-instance default next-hop-groups group {NIKA_BLACKHOLE_NHG} "
-            "blackhole",
+            f"/network-instance default next-hop-groups group {STATIC_NHG} blackhole",
             f"/network-instance default static-routes route {prefix_str} "
-            f"next-hop-group {NIKA_BLACKHOLE_NHG}",
+            f"next-hop-group {STATIC_NHG}",
             f"/network-instance default static-routes route {prefix_str} "
             "admin-state enable",
             # Prefer over BGP (default preference 170) so the discard wins.
@@ -244,7 +243,7 @@ class SRLAPIMixin:
         nhg = self.srl_exec_cli(
             device_name,
             "info from running network-instance default next-hop-groups "
-            f"group {NIKA_BLACKHOLE_NHG}",
+            f"group {STATIC_NHG}",
         )
         return prefix_str in routes and "blackhole" in nhg.lower()
 
@@ -293,10 +292,10 @@ class SRLAPIMixin:
         )
         bgp = state["network-instance"][0]["protocols"]["bgp"]
         commands = [
-            f"/routing-policy prefix-set {NIKA_BGP_WITHDRAW_PFX} prefix {prefix_str} mask-length-range exact",
-            f"/routing-policy policy {NIKA_BGP_WITHDRAW} default-action policy-result next-policy",
-            f"/routing-policy policy {NIKA_BGP_WITHDRAW} statement 10 match prefix-set {NIKA_BGP_WITHDRAW_PFX}",
-            f"/routing-policy policy {NIKA_BGP_WITHDRAW} statement 10 action policy-result reject",
+            f"/routing-policy prefix-set {BGP_EXPORT_PREFIX_SET} prefix {prefix_str} mask-length-range exact",
+            f"/routing-policy policy {BGP_EXPORT_POLICY} default-action policy-result next-policy",
+            f"/routing-policy policy {BGP_EXPORT_POLICY} statement 10 match prefix-set {BGP_EXPORT_PREFIX_SET}",
+            f"/routing-policy policy {BGP_EXPORT_POLICY} statement 10 action policy-result reject",
         ]
         if not bgp.get("neighbor"):
             raise ValueError("BGP withdrawal requires actual configured peers")
@@ -306,7 +305,7 @@ class SRLAPIMixin:
                 for af in neighbor["afi-safi"]
                 if af["afi-safi-name"] == "ipv4-unicast"
             )
-            policies = [NIKA_BGP_WITHDRAW, *family.get("export-policy", [])]
+            policies = [BGP_EXPORT_POLICY, *family.get("export-policy", [])]
             commands.append(
                 f"/network-instance default protocols bgp neighbor {neighbor['peer-address']} afi-safi ipv4-unicast export-policy [{' '.join(policies)}]"
             )
@@ -325,7 +324,7 @@ class SRLAPIMixin:
             device_name, "info from running network-instance default protocols bgp"
         )
         return (
-            NIKA_BGP_WITHDRAW in policy_output
+            BGP_EXPORT_POLICY in policy_output
             and prefix_str in policy_output
-            and NIKA_BGP_WITHDRAW in bgp_output
+            and BGP_EXPORT_POLICY in bgp_output
         )

@@ -9,7 +9,7 @@ from typing import Any
 from nika.service.kathara.base_api import KatharaBaseAPI, _SupportsBase
 
 _P4RT_BASE = (
-    "python3 /opt/nika/p4rt_manager.py "
+    "python3 /opt/p4rt/p4rt_manager.py "
     "--intent /tmp/p4_fabric/intent.json "
     "--p4info /tmp/p4_fabric/fabric.p4info.txt "
     "--json /tmp/p4_fabric/fabric.json"

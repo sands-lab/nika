@@ -585,7 +585,7 @@ class HostIncorrectDNS(ProblemBase):
             "if test -d /etc/dhcp/dhclient-enter-hooks.d; then "
             "printf '%s\\n' 'new_domain_name_servers=\""
             f"{params.fake_dns_ip}"
-            "\"' > /etc/dhcp/dhclient-enter-hooks.d/nika-incorrect-dns; fi; "
+            "\"' > /etc/dhcp/dhclient-enter-hooks.d/nameservers; fi; "
             # Drop static hosts overrides so name lookups must use DNS.
             "sed -i -E '/\\sweb0\\.(local|pod0)\\s*$/d' /etc/hosts 2>/dev/null || true; "
             "sed -i -E '/\\swebserver/d' /etc/hosts 2>/dev/null || true",

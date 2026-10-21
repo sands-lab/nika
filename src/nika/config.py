@@ -1,5 +1,6 @@
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -23,6 +24,10 @@ RUNTIME_DIR = REPO_ROOT / "runtime"
 SESSIONS_DIR = RUNTIME_DIR / "sessions"
 SESSIONS_DB = RUNTIME_DIR / "sessions.db"
 BENCHMARK_RUNS_DIR = RUNTIME_DIR / "benchmark_runs"
+# Containerlab working directories. Containerlab exposes the topology and lab
+# paths to every node (CLAB_LABEL_* variables), so they live outside the
+# checkout, on local disk, under a name that does not identify NIKA.
+CLAB_RUNTIME_DIR = Path(tempfile.gettempdir()) / f"labs-{os.getuid()}"
 RESULTS_DIR = REPO_ROOT / "results"
 BENCHMARK_DIR = REPO_ROOT / "benchmark"
 # Current nika-bench release. Locally built nika/* images are tagged with it.

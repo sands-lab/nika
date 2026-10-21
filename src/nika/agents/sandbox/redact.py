@@ -12,7 +12,6 @@ _SENSITIVE_ENV_KEYS = frozenset(
         "DEEPSEEK_API_KEY",
         "NIKA_CUSTOM_API_KEY",
         "CUSTOM_API_KEY",
-        "LANGFUSE_SECRET_KEY",
         "NIKA_REMOTE_TOKEN",
     }
 )

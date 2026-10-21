@@ -10,7 +10,7 @@ from typing import Any
 from nika.net_env.p4_dc_gateway.topology_model import VIP_IP
 from nika.problems.base import build_verify_result
 
-_REPORTS = "/var/lib/nika/int_reports.jsonl"
+_REPORTS = "/var/lib/int-collector/int_reports.jsonl"
 _INT_PORT = 19600
 _SMALL_PAYLOAD = 200
 # 1448 B UDP payload is a 1490 B frame: it fits the default 1500 B INT MTU
