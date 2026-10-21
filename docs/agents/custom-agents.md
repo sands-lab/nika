@@ -89,15 +89,17 @@ The repository ships the complete NOOA agent as [`src/agent/custom/nooa.py`](../
 
 ## 2. Run it
 
-Run the agent by its name:
+For this NOOA example, configure an [OpenAI API key](../operations/agent-sandbox.md#api-keys), then select a supported provider and model in your existing configuration:
 
 ```shell
-uv run nika agent run -a custom.nooa --problem dc_clos_s_link_down
+uv run nika config set agent.type=custom.nooa \
+  agent.provider=openai agent.model=gpt-5-mini
+uv run nika agent run --problem dc_clos_s_link_down
 ```
 
-NIKA starts the agent in its sandbox, carries out every step above, and prints the score at the end. To use the agent by default, including for `nika benchmark run`, set `agent.type: custom.nooa` in `config/nika.yaml`. The provider, model, and limits come from the same file, and `uv run nika agent list` shows the agent with its providers.
+These settings preserve your sandbox runtime and select `custom.nooa` for both `nika agent run` and `nika benchmark run`. NIKA runs the agent in its sandbox, carries out every step above, and prints the score at the end. `uv run nika agent list` shows the agent with its providers.
 
-Custom agents authenticate with an API key in `.env`; subscription logins apply only to the built-in Codex and Claude agents.
+For an OpenAI-compatible endpoint, use the [NOOA profile setup](nooa-example.md#run-it) and run with that profile instead. Custom agents use API credentials; subscription logins apply only to the built-in Codex and Claude agents.
 
 <details>
 <summary>Example investigation from a real run</summary>
