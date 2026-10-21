@@ -45,8 +45,9 @@ log file /var/log/frr/frr.log
 """
 
 
-def test_parser_retains_net_interface_addresses_cost_and_passive_state():
-    net, interfaces = parse_frr_isis("r1", _config())
+@pytest.mark.parametrize("process_name", ["CORE", "NIKA"])
+def test_parser_retains_net_interface_addresses_cost_and_passive_state(process_name):
+    net, interfaces = parse_frr_isis("r1", _config().replace("NIKA", process_name))
 
     assert net == "49.0001.0000.0aff.0001.00"
     assert str(interfaces["lo"]["address"]) == "10.255.0.1/32"
@@ -57,6 +58,12 @@ def test_parser_retains_net_interface_addresses_cost_and_passive_state():
     assert interfaces["eth0"]["passive"] is False
     assert interfaces["eth0"]["enabled"] is True
     assert str(interfaces["eth0"]["address"]) == "10.0.0.0/31"
+
+
+def test_parser_rejects_interfaces_bound_to_a_different_process():
+    config = _config().replace("ip router isis NIKA", "ip router isis CORE", 1)
+    with pytest.raises(ValueError, match="Inconsistent FRR IS-IS process names"):
+        parse_frr_isis("r1", config)
 
 
 def test_parser_and_projection_follow_mutated_metric_and_loopback_withdrawal():

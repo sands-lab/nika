@@ -22,7 +22,9 @@ from nika.net_env.net_env_pool import (
 
 pytestmark = pytest.mark.contract
 
-_HOST_NAME = re.compile("nika", re.IGNORECASE)
+# Match benchmark identifiers, including NikaAgent and nika-prefixed paths,
+# while preserving real topology names such as Thessalonika and Carnikava.
+_HOST_NAME = re.compile(r"(?<![a-z])nika", re.IGNORECASE)
 _NET_ENV = Path(__file__).resolve().parents[3] / "src" / "nika" / "net_env"
 # Dockerfile lines that never reach the image filesystem.
 _HOST_ONLY_DOCKERFILE_LINE = re.compile(r"^\s*(#|FROM |ARG |LABEL )")
@@ -32,6 +34,10 @@ def test_device_files_do_not_name_the_host() -> None:
     leaks = []
     for path in _NET_ENV.rglob("*"):
         if not path.is_file() or path.suffix in {".py", ".pyc"}:
+            continue
+        # Topology source datasets and documentation stay on the host.
+        # Agent briefs derived from them are checked below.
+        if path.is_relative_to(_NET_ENV / "isp" / "topologies"):
             continue
         # lab.conf only selects images on the host.
         if path.name == "lab.conf":
@@ -44,6 +50,26 @@ def test_device_files_do_not_name_the_host() -> None:
         if any(_HOST_NAME.search(line) for line in lines):
             leaks.append(str(path.relative_to(_NET_ENV)))
     assert leaks == []
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "NIKA",
+        "NikaAgent",
+        "nika-proxy-token",
+        "/opt/nika",
+        "run_nika",
+        "nika-agent.yaml",
+    ],
+)
+def test_name_check_rejects_benchmark_identifiers(text: str) -> None:
+    assert _HOST_NAME.search(text)
+
+
+@pytest.mark.parametrize("text", ["Thessalonika", "Carnikava", "thessalonika_1"])
+def test_name_check_preserves_real_topology_names(text: str) -> None:
+    assert not _HOST_NAME.search(text)
 
 
 @pytest.mark.parametrize("scenario", sorted(list_all_net_envs()))
