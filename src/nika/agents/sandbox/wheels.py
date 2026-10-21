@@ -17,6 +17,8 @@ import subprocess
 from collections.abc import Sequence
 from pathlib import Path
 
+from packaging.specifiers import SpecifierSet
+
 from nika.agents.sandbox.locks import host_file_lock
 from nika.config import REPO_ROOT
 
@@ -29,6 +31,10 @@ REQUIREMENTS_DIR = Path(__file__).resolve().parent / "requirements"
 _WHEEL_CACHE = REPO_ROOT / ".nika_cache" / "agent-wheels"
 _CACHE_REQ_STAMP = ".requirements.txt"
 _TARGET_PYTHON = "3.14"
+# Virtualenv for an agent whose ``requires_python`` excludes the template's
+# Python; uv (preinstalled in the templates) provides a matching interpreter.
+AGENT_VENV = "$HOME/.agent-venv"
+_VENV_PYTHON = f'"{AGENT_VENV}/bin/python"'
 
 
 # glibc of the sandbox templates is 2.43; wheels built for older glibc run too.
@@ -239,3 +245,44 @@ def packages_install_command(packages: Sequence[str]) -> str:
         "pip3 install --break-system-packages --retries 10 --timeout 120 "
         + " ".join(shlex.quote(package) for package in packages)
     )
+
+
+def needs_agent_venv(requires_python: str | None) -> bool:
+    """Whether *requires_python* excludes the sandbox template's Python."""
+    if not requires_python:
+        return False
+    return not SpecifierSet(requires_python).contains(_TARGET_PYTHON)
+
+
+def venv_install_commands(
+    requires_python: str,
+    *,
+    requirements_file: str | None = None,
+    packages: Sequence[str] = (),
+    no_cache: bool = False,
+) -> list[str]:
+    """Commands that create :data:`AGENT_VENV` and install the agent into it.
+
+    uv picks or downloads an interpreter matching *requires_python*, then
+    installs *requirements_file* and *packages* from PyPI: the offline wheels
+    are built for the template's Python only.
+    """
+    install = "UV_HTTP_TIMEOUT=120 uv pip install"
+    if no_cache:
+        install += " --no-cache"
+    install += f" --python {_VENV_PYTHON}"
+    commands = [f'uv venv --python {shlex.quote(requires_python)} "{AGENT_VENV}"']
+    if requirements_file:
+        commands.append(f"{install} -r {shlex.quote(requirements_file)}")
+    if packages:
+        commands.append(
+            f"{install} " + " ".join(shlex.quote(package) for package in packages)
+        )
+    return commands
+
+
+def runner_path_prefix(requires_python: str | None) -> str:
+    """Shell prefix that puts the agent venv first on ``PATH``, if it has one."""
+    if not needs_agent_venv(requires_python):
+        return ""
+    return f'PATH="{AGENT_VENV}/bin:$PATH" '

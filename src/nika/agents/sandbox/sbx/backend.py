@@ -43,7 +43,7 @@ from nika.agents.sandbox.sbx.proxy import (
     resolve_sbx_upstream_proxy,
 )
 from nika.agents.sandbox.sbx.wheels import install_agent_packages_in_sandbox
-from nika.agents.sandbox.wheels import stage_wheels
+from nika.agents.sandbox.wheels import needs_agent_venv, stage_wheels
 
 # Covers a first-run template image pull; a normal create takes under a minute.
 _SBX_CREATE_TIMEOUT_SEC = 600
@@ -105,8 +105,12 @@ class SbxBackend(SandboxBackend):
         return env
 
     def stage_workspace(self, workspace_dir: Path, *, agent_type: str) -> None:
-        if self.config.offline_sdk_wheels:
-            stage_wheels(workspace_dir, get_agent_spec(agent_type).requirements)
+        spec = get_agent_spec(agent_type)
+        # A venv for another Python installs from PyPI: the wheels are cp314.
+        if self.config.offline_sdk_wheels and not needs_agent_venv(
+            spec.requires_python
+        ):
+            stage_wheels(workspace_dir, spec.requirements)
 
     def build_create_command(
         self,
@@ -152,13 +156,15 @@ class SbxBackend(SandboxBackend):
             with sbx_host_lock("create"):
                 run_sbx_checked(self._create_command, timeout=_SBX_CREATE_TIMEOUT_SEC)
             spec = get_agent_spec(agent_type)
-            if spec.packages or not self.config.offline_sdk_wheels:
-                ensure_pypi_network_policy()
+            venv = needs_agent_venv(spec.requires_python)
+            if spec.packages or venv or not self.config.offline_sdk_wheels:
+                ensure_pypi_network_policy(python_download=venv)
             install_agent_packages_in_sandbox(
                 sandbox_name=sandbox_name,
                 workspace_dir=workspace_dir,
                 requirements=spec.requirements,
                 packages=spec.packages,
+                requires_python=spec.requires_python,
                 offline=self.config.offline_sdk_wheels,
             )
         except BaseException:

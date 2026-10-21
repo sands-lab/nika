@@ -37,6 +37,7 @@ dependencies = [
     "httpx>=0.28.1,<0.29",
     "func_timeout>=4.3.5,<5",
     "pyyaml>=6.0.3,<7",
+    "packaging>=24.0,<27",
     "huggingface_hub>=1.29.0,<2",
     "starlette>=1.0.0,<2",
     "uvicorn>=0.47.0,<0.48",
