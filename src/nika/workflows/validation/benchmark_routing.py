@@ -60,6 +60,11 @@ from nika.workflows.validation.scenario_spec import (
 )
 
 
+_NATIVE_FAULT_LIMITATION = (
+    "Native ISP vendor profiles have native fault bindings only for link_down"
+)
+
+
 def _profile_limitations(deployment, features):
     reasons = []
     if (deployment["backend"], deployment["device_profile"]) not in {
@@ -207,6 +212,14 @@ def benchmark_isp_profiles(manifests: list[Path]):
             }
             if provenance not in profiles[key]["benchmark_cases"]:
                 profiles[key]["benchmark_cases"].append(provenance)
+            reason = _NATIVE_FAULT_LIMITATION
+            if (
+                deployment["device_profile"] in {"iosxr", "routeros"}
+                and row["problem"] != "link_down"
+                and reason not in profiles[key]["limitations"]
+            ):
+                profiles[key]["limitations"].append(reason)
+                profiles[key]["supported"] = False
     return dict(sorted(profiles.items()))
 
 

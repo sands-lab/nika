@@ -224,7 +224,7 @@ def write_snapshot(network, root):
 
     root = Path(root).resolve()
     root.mkdir(parents=True, exist_ok=True)
-    for pattern in ("query-*.nkpl", "query-*.log", "batch.log", "network.nkpl"):
+    for pattern in ("batch.log", "network.nkpl"):
         for old in root.glob(pattern):
             old.unlink()
     for old in (root / "queries").glob("query-*.nkpl"):

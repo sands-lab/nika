@@ -13,12 +13,11 @@ import yaml
 from pathlib import Path
 
 from nika.net_env.isp.bgp.plan import BgpPlan
-from nika.net_env.isp.bgp.policy import BUSINESS_PREFIXES
+from nika.net_env.isp.bgp.policy import business_prefixes
 from nika.net_env.isp.igp.plan import IspPlan
 from nika.net_env.isp.igp.frr import isis_net_from_router_id
 from nika.net_env.isp.igp.ifaces import srl_ethernet_name
 from nika.net_env.isp.containerlab.lab import SRL_IMAGE, SRL_TYPE
-from nika.net_env.synthesis.netlab import NETLAB_VERSION as NETLAB_VERSION
 from nika.net_env.synthesis.netlab import run_netlab
 
 
@@ -147,12 +146,7 @@ def netlab_topology(plan: IspPlan, bgp: BgpPlan | None, device_profile: str) -> 
                 data["bgp.rr"] = True
             if bnode.cluster_id:
                 data["bgp.rr_cluster_id"] = bnode.cluster_id
-            business = sorted(
-                {
-                    *BUSINESS_PREFIXES,
-                    *(o.prefix for o in bgp.originated),
-                }
-            )
+            business = business_prefixes(o.prefix for o in bgp.originated)
             prefixes = {"BUSINESS": [{"ipv4": p} for p in business]}
             policies = {
                 name: [{"action": "permit", "match": {"prefix": "BUSINESS"}}]
@@ -346,12 +340,11 @@ def _routeros_policy_fragments(configs, transformed, plan, bgp):
     """Complete RouterOS areas netlab 26.10 does not generate (origins/policy)."""
     if bgp is None:
         return configs
-    from nika.net_env.isp.bgp.policy import BUSINESS_PREFIXES
     from nika.net_env.isp.routeros import _filter_rule
 
     bgp_nodes = {node.device_name: node for node in bgp.nodes}
     result = dict(configs)
-    business = sorted({*BUSINESS_PREFIXES, *(o.prefix for o in bgp.originated)})
+    business = business_prefixes(o.prefix for o in bgp.originated)
     for name, node in transformed["nodes"].items():
         bnode = bgp_nodes[name]
         lines = ["# NIKA RouterOS policy bindings and business origins"]

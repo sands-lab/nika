@@ -6,7 +6,7 @@ import re
 from ipaddress import IPv4Network
 
 from nika.net_env.isp.bgp.plan import BgpNodePlan, BgpPlan
-from nika.net_env.isp.bgp.policy import BUSINESS_PREFIXES
+from nika.net_env.isp.bgp.policy import business_prefixes
 from nika.net_env.isp.igp.plan import IspPlan
 
 
@@ -114,12 +114,8 @@ def _render_bgp(node: BgpNodePlan, plan: BgpPlan) -> list[str]:
         )
     # Match the original FRR BUSINESS allow-list, including the dormant prefix
     # used by unauthorized-origin failures and additional planned origins.
-    business = {
-        *BUSINESS_PREFIXES,
-        *(origin.prefix for origin in plan.originated),
-    }
     lines.append("prefix-set BUSINESS")
-    prefixes = sorted(business)
+    prefixes = business_prefixes(origin.prefix for origin in plan.originated)
     lines.extend(
         f" {prefix}{',' if i < len(prefixes) - 1 else ''}"
         for i, prefix in enumerate(prefixes)

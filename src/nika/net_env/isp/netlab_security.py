@@ -108,10 +108,7 @@ def apply_netlab_security_overlay(
                         f"Export deny overlay has no output policy on {name}"
                     )
             else:
-                if not re.search(
-                    rf"^ip prefix-list {re.escape('BUSINESS-ipv4')}\b", config, re.M
-                ):
-                    raise ValueError(f"netlab BUSINESS-ipv4 list missing on {name}")
+                _require_business_list(config, name)
                 lines.extend(_leak_prefix_list(tuple(node_plan.export_deny_prefixes)))
                 for policy in maps:
                     _require_map(config, policy, name)
@@ -127,8 +124,7 @@ def apply_netlab_security_overlay(
             discard = str(plan.inventory.get("discard_next_hop") or "")
             if not community or not discard:
                 raise ValueError("RTBH plan lacks community or discard next hop")
-            if not re.search(r"^ip prefix-list BUSINESS-ipv4\b", config, re.M):
-                raise ValueError(f"netlab BUSINESS-ipv4 list missing on {name}")
+            _require_business_list(config, name)
             maps = sorted({row["in"] for row in bindings.values() if "in" in row})
             if not maps:
                 raise ValueError(f"RTBH provider has no actual import policy on {name}")
@@ -156,8 +152,7 @@ def apply_netlab_security_overlay(
                     raise ValueError(
                         f"RTBH peer is absent from transformed BGP: {name} {peer}"
                     )
-                if not re.search(r"^ip prefix-list BUSINESS-ipv4\b", config, re.M):
-                    raise ValueError(f"netlab BUSINESS-ipv4 list missing on {name}")
+                _require_business_list(config, name)
                 lines.extend(
                     _leaker_outbound_route_maps(
                         ((peer, policy),), prefix_list="BUSINESS-ipv4"
@@ -195,3 +190,8 @@ def _require_map(config: str, policy: str, node: str) -> None:
         rf"^route-map {re.escape(policy)} (?:permit|deny) [0-9]+$", config, re.M
     ):
         raise ValueError(f"netlab policy {policy!r} is undefined on {node}")
+
+
+def _require_business_list(config: str, node: str) -> None:
+    if not re.search(r"^ip prefix-list BUSINESS-ipv4\b", config, re.M):
+        raise ValueError(f"netlab BUSINESS-ipv4 list missing on {node}")

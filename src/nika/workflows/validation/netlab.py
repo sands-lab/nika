@@ -321,21 +321,6 @@ def bind_netlab_controls(spec, configs, device_profile):
                             "recovery": (old,),
                         }
                     )
-        elif device_profile == "routeros" and mutation.name.startswith(
-            "benchmark-area-"
-        ):
-            area_line = re.search(r"^/routing/ospf/area add .*?$", config, re.M)
-            template_lines = list(
-                re.finditer(r"^/routing/ospf/interface-template add .*?$", config, re.M)
-            )
-            if not area_line or not template_lines:
-                raise ValueError(
-                    "RouterOS netlab OSPF area mutation has no emitted area"
-                )
-            start, end = area_line.start(), template_lines[-1].end()
-            old = config[start:end]
-            old_area = "0.0.0.0"
-            new = old.replace(f"area-id={old_area}", "area-id=66")
         elif device_profile == "routeros" and mutation.name == "missing-rr-client-role":
             adjacency = next(
                 i.adjacency

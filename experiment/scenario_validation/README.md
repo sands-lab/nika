@@ -43,7 +43,7 @@ Run heavy environments sequentially. Omit `--runtime` for static analysis only. 
 
 The output directory contains the original and resolved specifications, NetComplete inputs and solution, completed parameters, candidate configurations, verifier reports and final summary. These are run artifacts; they are not committed source files. A failed rerun removes the previous acceptance summary. Snapshot exporters replace their generated snapshots so obsolete devices cannot enter later analyses.
 
-The workflow closes its own native session and removes a Batfish service only when it started that service. It preserves an existing analyzer. For independently managed analyzers, pass `batfish_verifier=BatfishVerifier(host=..., port=...)` to the Python workflow and manage that service in the caller.
+The workflow closes its own native session and removes a Batfish service only when it created that service, and stops a stopped analyzer again after restarting it. It leaves a running analyzer in place. For independently managed analyzers, pass `batfish_verifier=BatfishVerifier(host=..., port=...)` to the Python workflow and manage that service in the caller.
 
 ## Cover benchmark ISP deployments
 

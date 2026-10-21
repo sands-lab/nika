@@ -6,7 +6,7 @@ import re
 from ipaddress import IPv4Network
 
 from nika.net_env.isp.bgp.plan import BgpNodePlan, BgpPlan
-from nika.net_env.isp.bgp.policy import BUSINESS_PREFIXES
+from nika.net_env.isp.bgp.policy import business_prefixes
 from nika.net_env.isp.igp.plan import IspPlan
 
 
@@ -95,12 +95,9 @@ def _render_bgp(node: BgpNodePlan, plan: BgpPlan) -> list[str]:
             ]
         )
     # Match the ordinary FRR BUSINESS policy, including the dormant fault prefix.
-    prefixes = {
-        *BUSINESS_PREFIXES,
-        *(origin.prefix for origin in plan.originated),
-    }
+    prefixes = business_prefixes(origin.prefix for origin in plan.originated)
     for chain in ("BGP-IN", "BGP-OUT"):
-        for prefix in sorted(prefixes):
+        for prefix in prefixes:
             lines.append(_filter_rule(chain, f"if (dst == {prefix}) {{ accept; }}"))
         lines.append(_filter_rule(chain, "reject;"))
     inbound = {}

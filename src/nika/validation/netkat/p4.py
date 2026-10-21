@@ -12,34 +12,36 @@ from nika.net_env.p4_dc_fabric.topology_model import SWITCH_IMAGE
 def compile_forwarding_slice(program: Path, output: Path):
     output.mkdir(parents=True, exist_ok=True)
     client = docker.from_env()
-    container = client.containers.create(
-        SWITCH_IMAGE,
-        command=[
-            "p4c-bm2-ss",
-            "--std",
-            "p4-16",
-            "-o",
-            "/output/pipeline.json",
-            f"/input/{program.name}",
-        ],
-        name=f"nika-p4-compile-{uuid4().hex[:12]}",
-        network_disabled=True,
-        mem_limit="2g",
-        nano_cpus=2_000_000_000,
-        volumes={
-            str(program.parent): {"bind": "/input", "mode": "ro"},
-            str(output.resolve()): {"bind": "/output", "mode": "rw"},
-        },
-    )
     try:
-        container.start()
-        status = container.wait(timeout=120)["StatusCode"]
-        log = container.logs().decode(errors="replace")
-        (output / "compiler.log").write_text(log)
-        if status:
-            raise RuntimeError("P4 compilation failed; see compiler.log")
+        container = client.containers.create(
+            SWITCH_IMAGE,
+            command=[
+                "p4c-bm2-ss",
+                "--std",
+                "p4-16",
+                "-o",
+                "/output/pipeline.json",
+                f"/input/{program.name}",
+            ],
+            name=f"nika-p4-compile-{uuid4().hex[:12]}",
+            network_disabled=True,
+            mem_limit="2g",
+            nano_cpus=2_000_000_000,
+            volumes={
+                str(program.parent): {"bind": "/input", "mode": "ro"},
+                str(output.resolve()): {"bind": "/output", "mode": "rw"},
+            },
+        )
+        try:
+            container.start()
+            status = container.wait(timeout=120)["StatusCode"]
+            log = container.logs().decode(errors="replace")
+            (output / "compiler.log").write_text(log)
+            if status:
+                raise RuntimeError("P4 compilation failed; see compiler.log")
+        finally:
+            container.remove(force=True)
     finally:
-        container.remove(force=True)
         client.close()
     ir = json.loads((output / "pipeline.json").read_text())
     actions = [a for a in ir["actions"] if a["name"].endswith(".ipv4_forward")]
