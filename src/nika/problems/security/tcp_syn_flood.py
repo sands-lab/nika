@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
 from nika.problems.rca import node_resource
 
-_REPORTS = "/var/lib/nika/int_reports.jsonl"
+_REPORTS = "/var/lib/int-collector/int_reports.jsonl"
 _COLLECTOR_FRESH_SEC = 30.0
 
 

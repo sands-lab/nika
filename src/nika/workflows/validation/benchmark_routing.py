@@ -12,6 +12,7 @@ from copy import deepcopy
 from textwrap import indent
 
 import yaml
+from nika.net_env.isp.igp.frr import ISIS_PROCESS
 from nika.net_env.isp.igp.ifaces import srl_e1_name
 from ipaddress import IPv4Network
 
@@ -1007,12 +1008,10 @@ def build_benchmark_isp_experiment(
     recovery = (announcement,)
     if plan.igp == "isis" and not env.bgp_plan:
         context = ("interface lo",)
-        old_announcement = (
-            f"interface lo\n ip address {prefix}\n ip router isis NIKA\n isis passive"
-        )
+        old_announcement = f"interface lo\n ip address {prefix}\n ip router isis {ISIS_PROCESS}\n isis passive"
         static_replacement = f"interface lo\n ip address {prefix}"
-        withdrawal = ("no ip router isis NIKA",)
-        recovery = ("ip router isis NIKA", "isis passive")
+        withdrawal = (f"no ip router isis {ISIS_PROCESS}",)
+        recovery = (f"ip router isis {ISIS_PROCESS}", "isis passive")
     role_static, role_runtime = [], []
     if env.bgp_mode == "ibgp_rr":
         role = next(

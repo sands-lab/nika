@@ -185,9 +185,9 @@ class P4DcGateway(NetworkEnvBase):
             [
                 f"ip addr add {CONTROLLER_OOB_IP}/24 dev eth0",
                 "ip link set eth0 up",
-                "mkdir -p /tmp/p4_fabric /opt/nika",
-                "cp p4rt_manager.py /opt/nika/p4rt_manager.py 2>/dev/null || cp /p4rt_manager.py /opt/nika/p4rt_manager.py",
-                "chmod +x /opt/nika/p4rt_manager.py",
+                "mkdir -p /tmp/p4_fabric /opt/p4rt",
+                "cp p4rt_manager.py /opt/p4rt/p4rt_manager.py 2>/dev/null || cp /p4rt_manager.py /opt/p4rt/p4rt_manager.py",
+                "chmod +x /opt/p4rt/p4rt_manager.py",
             ],
             "fabric_mgr.startup",
         )
@@ -196,8 +196,8 @@ class P4DcGateway(NetworkEnvBase):
             [
                 f"ip addr add {COLLECTOR_TELEMETRY_IP}/24 dev eth0",
                 "ip link set eth0 up",
-                "mkdir -p /var/lib/nika",
-                "python3 collector.py --output /var/lib/nika/int_reports.jsonl >/tmp/collector.log 2>&1 &",
+                "mkdir -p /var/lib/int-collector",
+                "python3 collector.py --output /var/lib/int-collector/int_reports.jsonl >/tmp/collector.log 2>&1 &",
             ],
             "collector.startup",
         )

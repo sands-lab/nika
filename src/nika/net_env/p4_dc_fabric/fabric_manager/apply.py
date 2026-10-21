@@ -19,7 +19,7 @@ from nika.utils.logger import system_logger
 logger = system_logger
 
 FABRIC_DIR = "/tmp/p4_fabric"
-MANAGER = "/opt/nika/p4rt_manager.py"
+MANAGER = "/opt/p4rt/p4rt_manager.py"
 INTENT_PATH = f"{FABRIC_DIR}/intent.json"
 P4INFO_PATH = f"{FABRIC_DIR}/fabric.p4info.txt"
 JSON_PATH = f"{FABRIC_DIR}/fabric.json"
@@ -90,7 +90,7 @@ def load_intent(runtime: LabRuntime) -> dict[str, Any]:
     return json.loads(_copy_out(runtime, "fabric_mgr", INTENT_PATH).decode())
 
 
-_COMPILE_OK = "__NIKA_COMPILE_OK"
+_COMPILE_OK = "__P4C_COMPILE_OK"
 
 
 def compile_pipeline_cmd(program: str, p4info_name: str, json_name: str) -> str:

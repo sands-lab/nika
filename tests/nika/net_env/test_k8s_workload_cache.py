@@ -260,7 +260,7 @@ def test_preload_raises_without_cached_tars() -> None:
         cache.preload_workload_images(net_env)
 
     assert not any(
-        "nika-images-preloaded" in str(call) for call in runtime.exec.call_args_list
+        "images-preloaded" in str(call) for call in runtime.exec.call_args_list
     )
 
 
@@ -320,7 +320,7 @@ def test_preload_records_stopped_node_before_failure_cleanup() -> None:
     assert event.kwargs["container_state"]["OOMKilled"] is True
     assert "k3s agent exited" in event.kwargs["container_logs_tail"]
     assert not any(
-        "nika-images-preloaded" in str(call) for call in runtime.exec.call_args_list
+        "images-preloaded" in str(call) for call in runtime.exec.call_args_list
     )
 
 
@@ -335,5 +335,5 @@ def test_import_tar_to_node_requires_exit_marker() -> None:
 @pytest.mark.unit
 def test_import_tar_to_node_accepts_success_marker() -> None:
     runtime = MagicMock()
-    runtime.exec.return_value = "imported\nNIKA_IMPORT_EXIT:0\n"
+    runtime.exec.return_value = "imported\nIMPORT_EXIT:0\n"
     cache.import_tar_to_node(runtime, "controller", Path("/tmp/x.tar"))

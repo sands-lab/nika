@@ -54,8 +54,8 @@ _PROXY_ENV_KEYS = (
     "no_proxy",
 )
 
-_PRELOAD_SIGNAL_PATH = "/var/run/nika-images-preloaded"
-_MOUNT_CACHE_DIR = "/nika-image-cache"
+_PRELOAD_SIGNAL_PATH = "/var/run/images-preloaded"
+_MOUNT_CACHE_DIR = "/image-cache"
 _K3S_API_WAIT_SEC = 600.0
 _K3S_API_POLL_SEC = 2.0
 _IMPORT_TIMEOUT_SEC = 600.0
@@ -454,19 +454,19 @@ def import_tar_to_node(runtime: LabRuntime, node: str, tar_path: Path) -> None:
     # raise on non-zero exit, so require an explicit marker.
     output = runtime.exec(
         node,
-        f"if [ ! -f {remote_path} ]; then echo NIKA_IMPORT_MISSING; exit 1; fi; "
+        f"if [ ! -f {remote_path} ]; then echo IMPORT_MISSING; exit 1; fi; "
         f"ctr --address /run/k3s/containerd/containerd.sock -n k8s.io "
-        f"images import --local --platform linux/{host_machine_arch()} {remote_path} >/tmp/nika-import.log 2>&1; "
-        f"echo NIKA_IMPORT_EXIT:$?; "
-        f"tail -c 400 /tmp/nika-import.log 2>/dev/null || true",
+        f"images import --local --platform linux/{host_machine_arch()} {remote_path} >/tmp/image-import.log 2>&1; "
+        f"echo IMPORT_EXIT:$?; "
+        f"tail -c 400 /tmp/image-import.log 2>/dev/null || true",
         timeout=_IMPORT_TIMEOUT_SEC,
     )
-    if "NIKA_IMPORT_MISSING" in output:
+    if "IMPORT_MISSING" in output:
         raise RuntimeError(
             f"Cached image tar missing on {node}: {remote_path} "
             f"(is {_MOUNT_CACHE_DIR} mounted?)"
         )
-    if "NIKA_IMPORT_EXIT:0" not in output:
+    if "IMPORT_EXIT:0" not in output:
         raise RuntimeError(
             f"Failed to import {tar_path.name} on {node}: {output.strip()[-500:]}"
         )
