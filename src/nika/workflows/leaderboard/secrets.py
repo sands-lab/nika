@@ -52,12 +52,18 @@ _SECRET_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 # as /etc, /var and /tmp are lab-container state the agent inspects, not host
 # leakage. Text may hold JSON-escaped strings, so a path may follow a literal
 # ``\n``/``\r``/``\t`` escape, and ``x:\n`` (``Summary:\nBGP``) is not a drive.
-_ESCAPE_BEFORE = r"(?<=\\[nrt])"
+# Past the drive, ``C:\\Users\\nina`` (escaped) stops only at a lone ``\``,
+# and ``C:\Users\nina`` (raw) keeps every ``\`` that joins path characters.
+# Each branch starts with a literal (``/`` or ``X:``) and checks what precedes
+# it with a lookbehind, so the scan stays fast on large JSONL files.
+PATH_START = r"/(?:(?<=\\[nrt]/)|(?<![\w.~-]/))"
+_DRIVE = r"[A-Za-z]:(?:(?<=\\[nrt][A-Za-z]:)|(?<![\w\\][A-Za-z]:))"
 _NOT_ESCAPE_AFTER = r"(?![nrt\s\"'\\]|u[0-9a-fA-F]{4})"
+_PATH_CHAR = r"[^\s\"'\\]"
 HOST_PATH_PATTERN = (
-    rf"(?:{_ESCAPE_BEFORE}|(?<![\w.~/-]))/(?:home|Users)/[^\s\"'\\]*"
-    rf"|(?:{_ESCAPE_BEFORE}|(?<![\w\\]))[A-Za-z]:\\\\?{_NOT_ESCAPE_AFTER}"
-    rf"(?:[^\s\"'\\]|\\\\?{_NOT_ESCAPE_AFTER})*"
+    rf"{PATH_START}(?:home|Users)/{_PATH_CHAR}*"
+    rf"|{_DRIVE}(?:\\\\{_NOT_ESCAPE_AFTER}(?:{_PATH_CHAR}|\\\\)*"
+    rf"|\\{_NOT_ESCAPE_AFTER}(?:{_PATH_CHAR}|\\(?={_PATH_CHAR}))*)"
 )
 _ABS_PATH_RE = re.compile(HOST_PATH_PATTERN)
 

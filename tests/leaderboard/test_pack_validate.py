@@ -668,8 +668,9 @@ class TestLeaderboardPackValidate:
             # Host-local paths are redacted.
             ("open /home/alice/x now", "open <REDACTED_PATH> now"),
             (r"out\n/Users/bob/a\nnext", r"out\n<REDACTED_PATH>\nnext"),
-            (r"C:\Users\bob\f.txt ok", "<REDACTED_PATH> ok"),
-            (r"C:\\Users\\bob\nnext", r"<REDACTED_PATH>\nnext"),
+            (r"C:\Users\nina\f.txt ok", "<REDACTED_PATH> ok"),
+            (r"C:\\Users\\nina\nnext", r"<REDACTED_PATH>\nnext"),
+            ("see file:///home/alice/x", "see file://<REDACTED_PATH>"),
             (f"{REPO_ROOT}/results/run/a ok", "<REDACTED_PATH> ok"),
         ],
     )
