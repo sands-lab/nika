@@ -181,8 +181,10 @@ A new compatible topology supplies different inputs to this workflow. A new prot
 selects its execution environment. The existing benchmark row identity includes
 both fields, so the same graph and protocol sketch can have distinct FRR, SR
 Linux, IOS XR and RouterOS tasks without adding a separate `vendor` field.
-IOS XR and RouterOS ISP deployments currently require explicit `igp: ospf` and
-support `bgp_mode: none`, `ibgp_rr` and `ebgp`; security overlays remain excluded.
+IOS XR ISP deployments support `igp: ospf` or `isis` (Level 2), RouterOS ISP
+deployments require `igp: ospf`, and both support `bgp_mode: none`, `ibgp_rr` and
+`ebgp`; security overlays remain excluded. ISP contracts declare OSPF adjacencies
+only, so IOS XR readiness checks IS-IS Level-2 adjacencies natively.
 
 With both vendor images installed, run the retained native matrix serially:
 
@@ -191,7 +193,7 @@ uv run pytest tests/nika/validation/test_vendor_isp_workflow.py -m e2e -x -q
 ```
 
 The matrix uses ARPANET196912 for OSPF and iBGP route reflection, and DataXchange
-for multi-AS BGP. Each profile follows NetComplete, Batfish, native checks,
+for multi-AS BGP. IOS XR also runs iBGP route reflection over IS-IS. Each profile follows NetComplete, Batfish, native checks,
 configuration negative controls, link failure and recovery. Keep native
 acceptance results separate from offline configuration compilation.
 
@@ -313,7 +315,8 @@ The same construction path covers these existing routing sketches:
 | Sketch | Configuration generation | Retained NIKA responsibilities |
 | --- | --- | --- |
 | ISP FRR and SR Linux | OSPF or Level-2 IS-IS; no BGP, iBGP RR or ordinary eBGP | Fixed topology and protocol choices; SR Linux IGP ECMP capacity |
-| ISP IOS XR and RouterOS | OSPF; no BGP, iBGP RR or eBGP | RouterOS exact-prefix filters and local preference |
+| ISP IOS XR | OSPF or Level-2 IS-IS; no BGP, iBGP RR or eBGP | None beyond the fixed sketch |
+| ISP RouterOS | OSPF; no BGP, iBGP RR or eBGP | RouterOS exact-prefix filters and local preference |
 | Clos and campus FRR | Ethernet OSPF or eBGP, including solved export policies | Linux addressing, switching and services |
 | Enterprise FRR | Tunnel-endpoint BGP and prefix/preference policies | WireGuard lifecycle and existing default-to-business VRF imports |
 | SR Linux BGP fabric | IPv4 BGP and solved export policies | Existing IPv6 interface addressing |

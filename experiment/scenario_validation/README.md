@@ -120,7 +120,7 @@ Batfish checks original predicates against the final candidate configuration. Na
 | FRR OSPF/BGP | Native configuration parser | Sessions, routes, flows and declared fault/recovery behavior |
 | FRR IS-IS | Restricted translation of concrete IPv4 Level-2 configuration to IOS XR | Original IS-IS, ordinary iBGP RR and direct eBGP predicates |
 | Nokia SR Linux | Restricted concrete-configuration projection | Original IGP/BGP predicates on SR Linux |
-| Cisco IOS XR | Native parser | Original ISP OSPF/BGP and direct eBGP predicates on XRd |
+| Cisco IOS XR | Native parser | Original ISP OSPF or IS-IS/BGP and direct eBGP predicates on XRd |
 | MikroTik RouterOS | Restricted concrete IPv4 OSPF/BGP projection | Original predicates on RouterOS |
 | Enterprise | Explicit static-underlay projection | WireGuard, VRF routing and isolation |
 | Clos ECMP | Routing model | Installed ECMP sets, including FRR multipath limits |
