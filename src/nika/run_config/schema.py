@@ -42,26 +42,6 @@ class SandboxSettings(BaseModel):
     upstream_proxy: str | None = None
 
 
-class ObservabilitySettings(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    # Langfuse tracing ran in the host process of byo.langgraph. Agents now run
-    # in sandboxes that reach only the MCP gateway and the model proxy, so it
-    # is unavailable; the fields stay so existing configs still load.
-    langfuse_enabled: bool = False
-    langfuse_host: str = "https://cloud.langfuse.com"
-
-    @model_validator(mode="after")
-    def _langfuse_unavailable(self) -> "ObservabilitySettings":
-        if self.langfuse_enabled:
-            raise ValueError(
-                "nika.observability.langfuse_enabled is no longer supported: "
-                "agents run in sandboxes without access to Langfuse. NIKA "
-                "records every model call in the session's model_calls.jsonl."
-            )
-        return self
-
-
 class JudgeSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -180,10 +160,31 @@ class RuntimeValidationSettings(BaseModel):
 class NikaSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_observability(cls, data: Any) -> Any:
+        """Ignore ``nika.observability``, which saved run configs still hold.
+
+        It configured Langfuse tracing; the model proxy now records every
+        model call in ``model_calls.jsonl``.
+        """
+        if not isinstance(data, dict) or "observability" not in data:
+            return data
+        data = dict(data)
+        observability = data.pop("observability")
+        if isinstance(observability, dict) and observability.get("langfuse_enabled"):
+            # A UserWarning, because Python hides DeprecationWarning by default.
+            warnings.warn(
+                "nika.observability is ignored: Langfuse tracing was removed; "
+                "model_calls.jsonl records every model call.",
+                UserWarning,
+                stacklevel=2,
+            )
+        return data
+
     result_dir: str = "results"
     remote: RemoteSettings = Field(default_factory=RemoteSettings)
     sandbox: SandboxSettings = Field(default_factory=SandboxSettings)
-    observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
     judge: JudgeSettings = Field(default_factory=JudgeSettings)
     k8s: K8sSettings = Field(default_factory=K8sSettings)
     lab: LabSettings = Field(default_factory=LabSettings)
