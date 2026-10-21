@@ -44,6 +44,11 @@ from nika.net_env.isp.profiles import default_device_profile
 from nika.net_env.isp.igp.plan import active_igp_links, igp_components, shortest_paths
 from nika.net_env.net_env_pool import list_all_net_envs, resolve_scenario_backend
 from nika.problems.rca.inventory import load_offline_net_env
+from nika.problems.routing_control_plane.bgp import (
+    ASN_MISCONFIG_OFFSET,
+    RTBH_PREFIX_LIST,
+)
+from nika.problems.routing_control_plane.ospf import ospf_networks
 from nika.workflows.benchmark.load_config import load_benchmark_input
 from nika.workflows.validation.scenario_spec import (
     ScenarioDeployment,
@@ -649,8 +654,6 @@ def build_benchmark_isp_experiment(
                 )
                 name = "benchmark-rpki-leak"
             else:
-                from nika.problems.routing_control_plane.bgp import _RTBH_PREFIX_LIST
-
                 route_map, prefix, community = (
                     info["leaker_outbound_route_map"],
                     info["target_prefix"],
@@ -658,7 +661,7 @@ def build_benchmark_isp_experiment(
                 )
                 old = f"route-map {route_map} permit 10"
                 new = (
-                    f"ip prefix-list {_RTBH_PREFIX_LIST} seq 5 permit {prefix} le 24\nroute-map {route_map} permit 5\n match ip address prefix-list {_RTBH_PREFIX_LIST}\n set community {community} additive\n!\n"
+                    f"ip prefix-list {RTBH_PREFIX_LIST} seq 5 permit {prefix} le 24\nroute-map {route_map} permit 5\n match ip address prefix-list {RTBH_PREFIX_LIST}\n set community {community} additive\n!\n"
                     + old
                 )
                 edits = {info["leaker_device"]: (old, new)}
@@ -709,12 +712,11 @@ def build_benchmark_isp_experiment(
             static_edits = {}
             if problem == "bgp_asn_misconfig":
                 asn = next(n.asn for n in env.bgp_plan.nodes if n.device_name == target)
-                # The registered failure changes the local ASN by +600.
                 old = f"autonomous-system: {asn}\n" if srl else f"router bgp {asn}\n"
                 new = (
-                    f"autonomous-system: {asn + 600}\n"
+                    f"autonomous-system: {asn + ASN_MISCONFIG_OFFSET}\n"
                     if srl
-                    else f"router bgp {asn + 600}\n"
+                    else f"router bgp {asn + ASN_MISCONFIG_OFFSET}\n"
                 )
                 static_edits = {target: (old, new)}
             if problem in {"bgp_asn_misconfig", "bgp_acl_block"}:
@@ -892,7 +894,6 @@ def build_benchmark_isp_experiment(
             or i.route_next_hops != by_id[i.id].route_next_hops
         )
         name = "benchmark-area-" + target
-        from nika.problems.routing_control_plane.ospf import _ospf_networks
 
         config = env.lab.machines[target].fs.readtext("etc/frr/frr.conf")
         old = (
@@ -900,7 +901,7 @@ def build_benchmark_isp_experiment(
             + config.split("router ospf\n", 1)[1].split("\n!", 1)[0]
             + "\n"
         )
-        statements = _ospf_networks(old)
+        statements = ospf_networks(old)
         correct_area = statements[0][1]
         wrong_area = "66" if correct_area != "66" else "99"
         new = old
@@ -948,8 +949,8 @@ def build_benchmark_isp_experiment(
     announcement = f"network {prefix} area 0.0.0.0"
     old_announcement = " " + announcement
     context = ("router ospf",)
-    static_failed = tuple(sorted((destination_id, *withdrawn_ids)))
-    runtime_failed = tuple(
+    # Both oracles evaluate echo request and reply from the same specification.
+    failed_ids = tuple(
         sorted((destination_id, f"reach.{target}.{withdrawal_anchor}", *withdrawn_ids))
     )
     if env.bgp_plan:
@@ -977,16 +978,7 @@ def build_benchmark_isp_experiment(
                 )
             )
 
-        static_failed = tuple(
-            sorted(
-                i.id
-                for i in healthy.intents
-                if i.property == "reachability"
-                and i.source.name != target
-                and uses_origin(i.destination)
-            )
-        )
-        runtime_failed = tuple(
+        failed_ids = tuple(
             sorted(
                 i.id
                 for i in healthy.intents
@@ -1048,8 +1040,6 @@ def build_benchmark_isp_experiment(
                 expected_failed_ids=(role.id,),
             )
         )
-    # Both oracles evaluate echo request and reply from the same specification.
-    static_failed = runtime_failed
     if srl:
         # Mutate concrete native documents, retaining the original requirement IDs.
         documents = env.routing_documents
@@ -1288,8 +1278,7 @@ def build_benchmark_isp_experiment(
             for n in env.bgp_plan.nodes
             if n.asn == r.asn
         )
-        static_failed = tuple(sorted((*static_failed, *withdrawn_selections)))
-        runtime_failed = tuple(sorted((*runtime_failed, *withdrawn_selections)))
+        failed_ids = tuple(sorted((*failed_ids, *withdrawn_selections)))
     return ScenarioExperiment(
         scenario=scenario,
         routing_model=(
@@ -1325,7 +1314,7 @@ def build_benchmark_isp_experiment(
                 node=target,
                 old=old_announcement,
                 new=static_replacement,
-                expected_failed_ids=static_failed,
+                expected_failed_ids=failed_ids,
             ),
             *role_static,
         ),
@@ -1335,7 +1324,7 @@ def build_benchmark_isp_experiment(
                 node=target,
                 commands=withdraw_native,
                 recovery=recover_native,
-                expected_failed_ids=runtime_failed,
+                expected_failed_ids=failed_ids,
             ),
             *role_runtime,
         ),

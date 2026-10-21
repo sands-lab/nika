@@ -149,7 +149,7 @@ def fetch_dynamic_traffic(
         known = ", ".join(sorted(DYNAMIC_TRAFFIC_CATALOG))
         raise ValueError(
             f"No dynamic traffic fetch adapter for topology {topology!r}. "
-            f"Known: {known}. Use `nika traffic run sndlib --mode demands` or "
+            f"Known: {known}. Use `nika traffic run matrix-replay --mode demands` or "
             f"write a normalized cache under .nika_cache/sndlib/traffic/{topo}/."
         )
 
@@ -164,7 +164,7 @@ def fetch_dynamic_traffic(
             f"Official download URL for {topo!r} is not configured in NIKA yet. "
             f"Place a normalized cache at {cache_dir} "
             f"(manifest.json + intervals/NNNNNN.json), or use "
-            f"`nika traffic run sndlib --mode demands`."
+            f"`nika traffic run matrix-replay --mode demands`."
         )
 
     cache_dir.mkdir(parents=True, exist_ok=True)

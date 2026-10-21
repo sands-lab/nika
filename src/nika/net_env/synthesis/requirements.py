@@ -131,10 +131,6 @@ def link_state_paths_intents(requirement, paths, adjacencies):
     ]
 
 
-# Retain the original OSPF API while sharing one link-state lowering.
-ospf_paths_intents = link_state_paths_intents
-
-
 class BgpSelectionRequirement(ContractModel):
     kind: Literal["bgp_selection"]
     id: str = Field(pattern=r"^[a-z0-9][a-z0-9._-]*$")

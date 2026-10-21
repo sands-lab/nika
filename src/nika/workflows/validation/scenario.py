@@ -3,7 +3,6 @@
 from __future__ import annotations
 import json
 import shlex
-import subprocess
 import time
 from pathlib import Path
 from ipaddress import IPv4Address, IPv4Interface
@@ -21,6 +20,7 @@ from nika.problems.link_interface.link import LinkFailure, LinkFailureParams
 from nika.problems.support.polling import wait_until
 from nika.runtime.factory import runtime_for_session
 from nika.utils.session import Session
+from nika.utils.logger import system_logger
 from nika.validation.batfish.kathara import (
     build_kathara_snapshot,
     startup_addresses,
@@ -34,7 +34,10 @@ from nika.validation.batfish.verifier import BatfishVerifier
 from nika.workflows.env.start import start_net_env
 from nika.workflows.failure.inject import inject_failure
 from nika.workflows.session.close import close_session
-from nika.workflows.validation.scenario_spec import ScenarioExperiment
+from nika.workflows.validation.scenario_spec import (
+    ENV_ROUTING_MODELS,
+    ScenarioExperiment,
+)
 from nika.workflows.validation.scenario_build import scenario_start_kwargs
 
 
@@ -107,7 +110,7 @@ def validate_scenario_design(
         "routeros-isp",
     }
     deploy_options = spec.deployment.model_dump(exclude_none=True)
-    if (native_srl and spec.routing_model != "srl-isp") or native_vendor:
+    if spec.routing_model in ENV_ROUTING_MODELS:
         deploy_options["routing_model"] = spec.routing_model
     env = get_net_env_instance(
         spec.scenario, topo_size=spec.topo_size, **deploy_options
@@ -419,7 +422,9 @@ def validate_scenario_design(
             summary["static"][name] = accept(
                 verifier.verify(contract, snapshot), output / f"static-{name}.json"
             )
-            print("static", spec.scenario, name, summary["static"][name], flush=True)
+            system_logger.info(
+                "static %s %s %s", spec.scenario, name, summary["static"][name]
+            )
         for mutation in spec.counterexamples:
             configs = candidate_configs()
             if configs[mutation.node].count(mutation.old) != 1:
@@ -533,8 +538,8 @@ def validate_scenario_design(
                         accept(report, output / f"runtime-{name}.json")
                     time.sleep(3)
                 summary["runtime"][name] = {"passed": len(report.results), "failed": 0}
-                print(
-                    "runtime", spec.scenario, name, summary["runtime"][name], flush=True
+                system_logger.info(
+                    "runtime %s %s %s", spec.scenario, name, summary["runtime"][name]
                 )
 
             def reject(name, expected_failed_ids):
@@ -727,20 +732,10 @@ def validate_scenario_design(
             if native_vendor:
                 node = next(iter(env.BGP_ROUTERS))
             if node:
-                observed = subprocess.run(
-                    [
-                        "nika",
-                        "exec",
-                        "--session_id",
-                        session_id,
-                        node if isinstance(node, str) else node.name,
-                        inspection_command,
-                    ],
-                    capture_output=True,
-                    text=True,
-                    check=True,
+                observed = backend.exec(
+                    node if isinstance(node, str) else node.name, inspection_command
                 )
-                (output / "runtime-route-inspection.json").write_text(observed.stdout)
+                (output / "runtime-route-inspection.json").write_text(observed)
             for mutation in spec.runtime_counterexamples:
 
                 def configure(commands):

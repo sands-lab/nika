@@ -38,7 +38,7 @@ def test_routing_workflow_rejects_unsupported_required_analysis(tmp_path):
     from nika.workflows.validation.scenario_spec import ScenarioExperiment
 
     env = Isp(topo="abilene", igp="ospf", bgp_mode="none")
-    # The legacy RPKI marker explicitly declares semantics outside this snapshot's
+    # The RPKI design marker declares semantics outside this snapshot's
     # model. The report may retain partial observations, but is not acceptance.
     contract = env.validation_contract.model_copy(
         update={

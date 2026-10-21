@@ -57,7 +57,7 @@ def verify_srl_contract(runtime, *, contract, plan=None):
         if intent.adjacency:
             protocol = intent.adjacency.protocol
             if protocol not in {"bgp", "isis", "ospf"}:
-                raise ValueError("Unsupported SR Linux protocol")
+                raise NotImplementedError("Unsupported SR Linux protocol")
             return VerifyCommand(
                 intent.adjacency.local_node,
                 f'sr_cli "info from state network-instance default protocols {protocol} | as json"',
@@ -73,7 +73,9 @@ def verify_srl_contract(runtime, *, contract, plan=None):
                 or not intent.source.address
                 or not intent.destination.address
             ):
-                raise ValueError("SR Linux ICMP checks require addressed router nodes")
+                raise NotImplementedError(
+                    "SR Linux ICMP checks require addressed router nodes"
+                )
             command = shlex.join(
                 [
                     "ip",
@@ -92,15 +94,22 @@ def verify_srl_contract(runtime, *, contract, plan=None):
                 ]
             )
             return VerifyCommand(intent.source.name, command, 15)
-        raise ValueError("Unsupported SR Linux runtime predicate")
+        raise NotImplementedError("Unsupported SR Linux runtime predicate")
 
-    requests = {intent.id: request(intent) for intent in contract.intents}
+    requests, unsupported = {}, {}
+    for intent in contract.intents:
+        try:
+            requests[intent.id] = request(intent)
+        except NotImplementedError as exc:
+            unsupported[intent.id] = exc
     collected = collect_verify_commands(runtime, list(requests.values()))
     rows = []
     for intent in contract.intents:
         started = perf_counter()
         evidence = {}
         try:
+            if intent.id in unsupported:
+                raise unsupported[intent.id]
             query = requests[intent.id]
             node, command = query.node, query.command
             result = collected.results[node, command]
@@ -238,17 +247,20 @@ def verify_srl_contract(runtime, *, contract, plan=None):
                 if passed
                 else "Observed behavior differs from the original requirement"
             )
+        except NotImplementedError as exc:
+            status, reason = "unsupported", str(exc)
         except Exception as exc:
             status = "error"
             reason = str(exc)
         rows.append(
             ValidationResult(
                 intent=intent.id,
-                verifier="srl-runtime-v1",
+                verifier="srl-runtime",
                 status=status,
+                supported=status != "unsupported",
                 evidence=evidence,
                 reason=reason,
                 duration_ms=(perf_counter() - started) * 1000,
             )
         )
-    return ValidationReport.from_results(contract, "srl-runtime-v1", rows)
+    return ValidationReport.from_results(contract, "srl-runtime", rows)

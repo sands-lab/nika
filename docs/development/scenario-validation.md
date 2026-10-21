@@ -246,11 +246,10 @@ ISP stub checks select the first and last host in each IGP component, plus contr
 
 ## ISP Batfish static validation
 
-Batfish static validation applies only when an `isp_<topology>` scenario uses the Kathara backend, the FRR device profile, and a contract-bearing deployment. Enable it with `nika.static_validation.enabled: true` in `config/nika.yaml` or with `--static-validation` for a run.
+Batfish static validation applies only when an `isp_<topology>` scenario uses the Kathara backend, the FRR device profile, and a contract-bearing deployment. Enable it with `nika.static_validation.enabled: true` in `config/nika.yaml` or with `--static-validation` for a run. The first run builds the pinned Batfish image from `scripts/batfish`.
 
 ```shell
 uv sync --extra batfish
-docker build -t nika/batfish:2025.07.07.2423-frr-next-hop-self scripts/batfish
 uv run nika env run isp_abilene --igp ospf --static-validation
 ```
 

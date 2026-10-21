@@ -243,12 +243,16 @@ def parse_sndlib_xml(
 ) -> NetworkTopology:
     """Parse a SNDlib network XML file or XML string into NetworkTopology."""
     if isinstance(source, Path):
-        topology_name = name or source.parent.name or source.stem
+        topology_name = name or (
+            source.parent.name if source.name == "network.xml" else source.stem
+        )
         raw = _read_xml_text(source, topology=topology_name)
     else:
         path = Path(source)
         if "\n" not in source and path.is_file():
-            topology_name = name or path.parent.name or path.stem
+            topology_name = name or (
+                path.parent.name if path.name == "network.xml" else path.stem
+            )
             raw = _read_xml_text(path, topology=topology_name)
         else:
             topology_name = name or "inline"

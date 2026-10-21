@@ -22,7 +22,7 @@ def _ospf_block(config: str) -> str:
     return match.group(0) if match else ""
 
 
-def _ospf_networks(config: str) -> list[tuple[str, str]]:
+def ospf_networks(config: str) -> list[tuple[str, str]]:
     """``(prefix, area)`` of each ``network`` statement in the ``router ospf`` block."""
     return _NETWORK_RE.findall(_ospf_block(config))
 
@@ -53,7 +53,7 @@ def _ospf_area_bindings(
     config: str,
 ) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
     """Extract one supported OSPF binding style, rejecting mixed active syntax."""
-    networks = _ospf_networks(config)
+    networks = ospf_networks(config)
     interfaces = _ospf_interface_areas(config)
     if networks and interfaces:
         raise RuntimeCapabilityError(

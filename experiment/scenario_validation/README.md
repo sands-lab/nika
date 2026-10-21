@@ -32,7 +32,14 @@ Run one specification through synthesis, static checks, native execution, declar
 uv run python experiment/scenario_validation/experiment.py experiment/scenario_validation/clos.json --output /tmp/routing-clos --runtime
 ```
 
-Use `campus.json`, `enterprise.json`, `clos-m.json` or `min3clos.json` for the other specimens. Run heavy environments sequentially. Omit `--runtime` for static analysis only. A successful `summary.json` records `status: passed` and either `validation_scope: static-only` or `static-and-runtime`. Unsupported or failed required checks reject the construction.
+Use `campus.json`, `enterprise.json`, `clos-m.json` or `min3clos.json` for the other specimens. The two-router vendor scenarios derive their specification from the scenario's own router declarations instead:
+
+```bash
+uv run python experiment/scenario_validation/experiment.py --direct-bgp iosxr_simple_bgp --routing-model iosxr-bgp --output /tmp/routing-xrd --runtime
+uv run python experiment/scenario_validation/experiment.py --direct-bgp routeros_simple_bgp --routing-model routeros-bgp --output /tmp/routing-routeros --runtime
+```
+
+Run heavy environments sequentially. Omit `--runtime` for static analysis only. A successful `summary.json` records `status: passed` and either `validation_scope: static-only` or `static-and-runtime`. Unsupported or failed required checks reject the construction.
 
 The output directory contains the original and resolved specifications, NetComplete inputs and solution, completed parameters, candidate configurations, verifier reports and final summary. These are run artifacts; they are not committed source files. A failed rerun removes the previous acceptance summary. Snapshot exporters replace their generated snapshots so obsolete devices cannot enter later analyses.
 

@@ -415,7 +415,7 @@ NIKA ranks the 26 vendored SNDlib graphs by node count, breaks ties by topology 
 Traffic does not start with the lab. Replay the static demand matrix or a cached dynamic series after deployment:
 
 ```shell
-uv run nika traffic run sndlib --mode demands --unit K \
+uv run nika traffic run matrix-replay --mode demands --unit K \
   --max-intervals 1 --background
 ```
 
@@ -428,7 +428,7 @@ NIKA also vendors 259 graphs from the [Internet Topology Zoo](http://www.topolog
 Zoo scenarios use the same compiler, IGP and BGP options, stub hosts and compatible failures as SNDlib ISP scenarios. They differ in four ways:
 
 - They run on Kathara with FRR only.
-- Topology Zoo has no demand matrix, so `nika traffic run sndlib` rejects them.
+- Topology Zoo has no demand matrix, so `nika traffic run matrix-replay` rejects them.
 - They are excluded from benchmark generation. The `s` / `m` / `l` size is metadata only (15 or fewer routers is `s`, 28 or fewer is `m`, more is `l`).
 - The importer adapts each graph:
   - It keeps only the largest connected component and drops self-loops, so every router can reach every other router.
