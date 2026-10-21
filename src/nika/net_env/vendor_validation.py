@@ -14,6 +14,7 @@ from nika.net_env.contract import (
     ValidationResult,
 )
 from nika.net_env.routeros_simple_bgp.verify import CLI_COMMAND
+from nika.net_env.utils.routeros.parse import routeros_properties as _ros_properties
 from nika.net_env.verify_collection import (
     VerifyCommand,
     collect_verify_commands,
@@ -152,15 +153,6 @@ def _check_output(output: str) -> None:
         re.I,
     ):
         raise ValueError("Native CLI returned missing or invalid output")
-
-
-def _ros_properties(output: str) -> dict[str, str]:
-    return {
-        key.lstrip("."): quoted or bare
-        for key, quoted, bare in re.findall(
-            r'(?:^|\s)([\w.-]+)=(?:"([^"\n]*)"|([^\s]+))', output
-        )
-    }
 
 
 def _ros_rows(output: str, key: str) -> list[dict[str, str]]:

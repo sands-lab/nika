@@ -7,6 +7,7 @@ import pytest
 from nika.net_env.isp.bgp import compile_bgp_plan, scope_igp_to_bgp_as
 from nika.net_env.isp.bgp.policy import BgpPolicyTerm
 from nika.net_env.isp.igp import IspConfig, compile_isp_plan
+from nika.net_env.isp.igp.frr import isis_net_from_router_id
 from nika.net_env.isp.routeros import render_routeros_isp, routeros_interface
 from nika.topology.models import NetworkTopology, TopoLink, TopoNode
 
@@ -103,5 +104,28 @@ def test_import_policy_and_unsupported_profiles():
     )
     with pytest.raises(ValueError, match="security profiles"):
         render_routeros_isp(plan, replace(bgp, inventory={"rtbh": True}))
-    with pytest.raises(ValueError, match="only IPv4 OSPF"):
-        render_routeros_isp(replace(plan, igp="isis"))
+    node = plan.nodes[0]
+    wide = replace(node, interfaces=node.interfaces * 31)
+    with pytest.raises(ValueError, match="at most 30 data interfaces"):
+        render_routeros_isp(replace(plan, nodes=(wide, *plan.nodes[1:])))
+
+
+def test_isis_matches_frr_level2_domain_and_passive_edges():
+    plan = _plan()
+    node = plan.nodes[0]
+    edge = replace(node.interfaces[0], name="eth2", metric=37, passive=True)
+    plan = replace(
+        replace(plan, igp="isis"),
+        nodes=(replace(node, interfaces=(*node.interfaces, edge)), *plan.nodes[1:]),
+    )
+    config = render_routeros_isp(plan)[node.device_name]
+    system_id = ".".join(isis_net_from_router_id(node.router_id).split(".")[2:5])
+    assert f"areas=49.0001 system-id={system_id} metric-type=wide" in config
+    assert "interfaces=lo0 levels=l2 passive" in config
+    active = node.interfaces[0]
+    assert (
+        f"interfaces={routeros_interface(active.name)} levels=l2 ptp "
+        f"ptp.l2.metric={active.metric}\n" in config
+    )
+    assert "interfaces=ether3 levels=l2 passive\n" in config
+    assert "/routing ospf" not in config

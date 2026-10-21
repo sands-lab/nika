@@ -28,7 +28,7 @@ def test_containerlab_iosxr_pair_rejected() -> None:
 
 
 @pytest.mark.parametrize("profile", ["iosxr", "routeros"])
-def test_native_isp_profiles_require_explicit_ospf(profile) -> None:
+def test_native_isp_profiles_gate_the_default_igp_by_vendor(profile) -> None:
     kwargs = _resolve_isp_kwargs(
         "isp_abilene",
         topo=None,
@@ -43,8 +43,12 @@ def test_native_isp_profiles_require_explicit_ospf(profile) -> None:
     assert kwargs["device_profile"] == profile
     from nika.net_env.net_env_pool import get_net_env_instance
 
-    with pytest.raises(ValueError, match="Native ISP supports OSPF"):
-        get_net_env_instance("isp_abilene", **kwargs)
+    assert kwargs["igp"] == "isis"
+    if profile == "iosxr":
+        with pytest.raises(ValueError, match="supports OSPF only"):
+            get_net_env_instance("isp_abilene", **kwargs)
+    else:
+        assert get_net_env_instance("isp_abilene", **kwargs).plan.igp == "isis"
 
     kwargs["igp"] = "ospf"
     env = get_net_env_instance("isp_abilene", **kwargs)
