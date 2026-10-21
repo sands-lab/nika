@@ -18,6 +18,7 @@ from nika.workflows.benchmark.release import (
     load_release_from_dir,
     write_release_manifest,
 )
+from nika.config import REPO_ROOT
 from nika.workflows.benchmark.trials import expand_trials, trial_dir
 from nika.workflows.leaderboard.meta_input import (
     MetaInputError,
@@ -640,16 +641,61 @@ class TestLeaderboardPackValidate:
             assert lines == [
                 {
                     "role": "tool",
-                    "content": 'cat <REDACTED_PATH> echo "done"\ncount D:\n0',
+                    "content": 'cat /tmp/state; echo "done"\ncount D:\n0',
                     "output": {
                         "path": "<REDACTED_PATH>",
-                        "result": ['read <REDACTED_PATH> "next"', "bearer tokens"],
+                        "result": ['read /etc/hosts; "next"', "bearer tokens"],
                     },
                 },
                 records[1],
                 records[2],
             ]
             assert (session / name).read_text() == original
+
+    @pytest.mark.parametrize(
+        "text, expected",
+        [
+            # JSON-escaped line breaks after a colon are not Windows drives.
+            (r"requirements:\n- Use", r"requirements:\n- Use"),
+            (r"Summary:\\nBGP router", r"Summary:\\nBGP router"),
+            (r"Q:\nA", r"Q:\nA"),
+            # Lab-container paths are audit evidence.
+            ("cat /etc/frr/frr.conf", "cat /etc/frr/frr.conf"),
+            (
+                "ls /var/lib/named /tmp/catalog.txt",
+                "ls /var/lib/named /tmp/catalog.txt",
+            ),
+            # Host-local paths are redacted.
+            ("open /home/alice/x now", "open <REDACTED_PATH> now"),
+            (r"out\n/Users/bob/a\nnext", r"out\n<REDACTED_PATH>\nnext"),
+            (r"C:\Users\nina\f.txt ok", "<REDACTED_PATH> ok"),
+            (r"C:\\Users\\nina\nnext", r"<REDACTED_PATH>\nnext"),
+            ("see file:///home/alice/x", "see file://<REDACTED_PATH>"),
+            (f"{REPO_ROOT}/results/run/a ok", "<REDACTED_PATH> ok"),
+        ],
+    )
+    def test_pack_redacts_only_host_local_paths(
+        self, mini_release_env, text, expected
+    ) -> None:
+        from nika.workflows.leaderboard.validate_trajectories import (
+            validate_trajectory_package,
+        )
+
+        _release, result_dir = mini_release_env
+        session = next((result_dir / "trials").iterdir())
+        # Tool output that is itself JSON keeps escapes such as ``\n`` literal.
+        record = {"role": "tool", "content": text}
+        (session / "messages.jsonl").write_text(json.dumps(record) + "\n")
+        result = pack_leaderboard_submission(
+            result_dir, metadata=_FULL_METADATA, readme_text=_DEFAULT_README
+        )
+        packed = result.trajectories_dir / "trials" / session.name / "messages.jsonl"
+        assert json.loads(packed.read_text(encoding="utf-8"))["content"] == expected
+        # The validator accepts what pack keeps, so lab paths do not fail it.
+        report = validate_trajectory_package(
+            result.trajectories_dir, scores_dir=result.scores_dir
+        )
+        assert report.ok, report.errors
 
     @pytest.mark.parametrize("name", ["messages.jsonl", "nika.jsonl"])
     def test_invalid_jsonl_stops_pack_and_validation(
