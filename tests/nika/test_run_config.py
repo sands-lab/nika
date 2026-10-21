@@ -72,7 +72,7 @@ def test_export_run_config_env_sets_absolute(monkeypatch, tmp_path: Path) -> Non
     assert Path(os.environ[ENV_RUN_CONFIG]).resolve() == exported_default
 
 
-def test_static_validation_yaml_has_only_enabled_flag() -> None:
+def test_static_validation_yaml_rejects_unknown_keys() -> None:
     cfg = RunConfig.model_validate({"nika": {"static_validation": {"enabled": True}}})
     assert cfg.nika.static_validation.enabled is True
     with pytest.raises(ValidationError, match="verifiers"):

@@ -122,3 +122,14 @@ def test_invalid_json_is_reported_as_a_required_observation_error():
     assert not collected.finish({"verified": True, "checks": {}, "details": {}})[
         "verified"
     ]
+
+
+def test_large_node_collection_preserves_every_observation():
+    runtime = _Shell()
+    requests = [VerifyCommand("node", f"printf result-{index}") for index in range(400)]
+    collected = collect_verify_commands(runtime, requests)
+    assert runtime.calls > 1
+    assert not collected.errors
+    assert [collected.exec("node", request.command) for request in requests] == [
+        f"result-{index}" for index in range(400)
+    ]

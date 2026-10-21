@@ -1,6 +1,6 @@
 # Network scenario reference
 
-This reference helps benchmark operators choose and configure a NIKA network scenario. This checkout lists scenario IDs through `nika env list` (including one ID per SNDlib ISP topology plus named ISP specials). Most scenarios use one backend; ISP topology scenarios support both Kathara and Containerlab.
+This reference helps benchmark operators choose and configure a NIKA network scenario. This checkout lists scenario IDs through `nika env list` (including one ID per SNDlib or Topology Zoo ISP topology plus named ISP specials). Most scenarios use one backend; SNDlib ISP topology scenarios support both Kathara and Containerlab.
 
 The [`net_env_pool.py`](../../src/nika/net_env/net_env_pool.py) registry defines the authoritative scenario IDs, backends, tags, and size controls. Backend implementations live under [`net_env/`](../../src/nika/net_env/). Confirm the installed checkout with:
 
@@ -48,6 +48,7 @@ Why heavy labs need a separate cap:
 | `iosxr_simple_bgp` | Kathara | Fixed |  | Two Cisco XRd routers with eBGP and two PCs |
 | `routeros_simple_bgp` | Kathara | Fixed |  | Two MikroTik RouterOS routers with eBGP and two PCs |
 | `isp_<topology>` | Kathara or Containerlab | Fixed metadata `s`/`m`/`l` | Protocol options | One SNDlib graph per scenario ID, compiled to FRR or SR Linux |
+| `isp_<zoo topology>` | Kathara | Fixed metadata `s`/`m`/`l` | Protocol options | One Topology Zoo graph per scenario ID, compiled to FRR; not a benchmark candidate |
 | `isp_abilene_ebgp_rpki` / `isp_geant_ebgp_rpki` | Kathara | Fixed | — | Named eBGP + offline RPKI overlays |
 | `isp_abilene_ebgp_rtbh` / `isp_dfn-bwin_ebgp_rtbh` | Kathara | Fixed | — | Named eBGP + RTBH blackhole overlays |
 | `min3clos` | Containerlab | Fixed |  | Five-node SR Linux eBGP Clos |
@@ -352,7 +353,7 @@ Abilene is one example. The map shows its 12 routers and 15 links; NIKA also att
 
 <img src="../../assets/images/abilene-sndlib-topology.svg" alt="Abilene SNDlib backbone with 12 routers and 15 links across the United States" width="800">
 
-Map: [TopoHub's Abilene topology](https://www.topohub.org/?topology=sndlib%2Fabilene), based on [SNDlib](https://sndlib.put.poznan.pl/networks.overview.action). © Piotr Jurkiewicz; [MIT license](../../assets/images/abilene-sndlib-topology.LICENSE). The topology matches the vendored [`abilene/network.xml`](../../src/nika/net_env/isp/sndlib/abilene/network.xml).
+Map: [TopoHub's Abilene topology](https://www.topohub.org/?topology=sndlib%2Fabilene), based on [SNDlib](https://sndlib.put.poznan.pl/networks.overview.action). © Piotr Jurkiewicz; [MIT license](../../assets/images/abilene-sndlib-topology.LICENSE). The topology matches the vendored [`abilene.xml`](../../src/nika/net_env/isp/topologies/abilene.xml).
 
 ```shell
 # Default: Kathara, IS-IS, constant metric 10, no BGP
@@ -374,7 +375,7 @@ uv run nika env run isp_france --backend containerlab \
 | `--constant-metric` | Positive integer | `10` | Sets constant and fallback metrics |
 | `--bgp-mode` | `none`, `ibgp_rr`, `ebgp` | `none` | Adds a NIKA-defined BGP preset |
 
-`ibgp_rr` uses AS 65000, selects up to two route reflectors, and originates up to three TEST-NET business prefixes. `ebgp` partitions the physical graph into up to three connected AS regions. Each AS uses one route reflector, and each physical AS boundary carries an eBGP session. The IGP forms adjacencies inside each AS and treats inter-AS interfaces as passive.
+`ibgp_rr` uses AS 65000, selects up to two route reflectors, and originates up to three TEST-NET business prefixes. Originators hold these prefixes on a `lo1` dummy interface that no IGP runs on, so only BGP carries them. `ebgp` partitions the physical graph into up to three connected AS regions. Each AS uses one route reflector, and each physical AS boundary carries an eBGP session. The IGP forms adjacencies inside each AS and treats inter-AS interfaces as passive.
 
 ### Named ISP specials
 
@@ -414,11 +415,33 @@ NIKA ranks the 26 vendored SNDlib graphs by node count, breaks ties by topology 
 Traffic does not start with the lab. Replay the static demand matrix or a cached dynamic series after deployment:
 
 ```shell
-uv run nika traffic run sndlib --mode demands --unit K \
+uv run nika traffic run matrix-replay --mode demands --unit K \
   --max-intervals 1 --background
 ```
 
 SNDlib traffic values retain their source units. `--unit` tells iperf how to interpret the values; NIKA does not treat them as Mbps by default. Cite [SNDlib](https://sndlib.put.poznan.pl/home.action) when publishing results that use these topologies.
+
+## Topology Zoo ISP scenarios
+
+NIKA also vendors 259 graphs from the [Internet Topology Zoo](http://www.topology-zoo.org/) as `isp_<name>` scenarios, for example `isp_geant2012`, `isp_cogentco` or `isp_garr201201`. Zoo Abilene is skipped because `isp_abilene` already comes from SNDlib, and KDL (754 routers) is skipped because it is too large for one host. Run `nika env list` for the full list.
+
+Zoo scenarios use the same compiler, IGP and BGP options, stub hosts and compatible failures as SNDlib ISP scenarios. They differ in four ways:
+
+- They run on Kathara with FRR only.
+- Topology Zoo has no demand matrix, so `nika traffic run matrix-replay` rejects them.
+- They are excluded from benchmark generation. The `s` / `m` / `l` size is metadata only (15 or fewer routers is `s`, 28 or fewer is `m`, more is `l`).
+- The importer adapts each graph:
+  - It keeps only the largest connected component and drops self-loops, so every router can reach every other router.
+  - Router names are ASCII slugs of the zoo labels, at most 19 characters, with `_2`, `_3` suffixes for duplicates.
+  - Parallel zoo edges become parallel links. A link-level failure on one member of a parallel bundle can be masked by ECMP over the others.
+  - With `--metric-strategy inv_capacity`, 28 zoo graphs have parallel links with unequal metrics. OSPF keeps each member's metric and forwards over the cheapest one. FRR IS-IS costs a neighbor by its cheapest adjacency but can forward over any of them, so with `--igp isis` every member of a parallel bundle gets the bundle's lowest metric and the bundle forwards as ECMP. Use `--igp ospf` when per-member capacity metrics matter.
+  - `LinkSpeedRaw` becomes link capacity in Mbit/s, which `--metric-strategy inv_capacity` uses.
+
+```shell
+uv run nika env run isp_geant2012 --igp ospf --bgp-mode ebgp
+```
+
+Sizes range from 4 to 197 routers (`isp_cogentco`), and every router also gets a stub host, so the largest labs run about 400 containers. Regenerate the vendored files with `uv run python scripts/import_topology_zoo.py`. Cite the Topology Zoo paper (Knight et al., IEEE JSAC 2011) when publishing results that use these topologies.
 
 ## Containerlab Clos scenario
 

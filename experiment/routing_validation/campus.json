@@ -1,0 +1,989 @@
+{
+  "scenario": "campus_lan",
+  "topo_size": "s",
+  "healthy": {
+    "scenario": "campus_lan",
+    "contract_id": "routing.campus.s",
+    "design_source": {
+      "basis": "RFC 2328; backbone area 0, access area 1; original gateway and server-path requirements; DHCP and L2 outside static scope"
+    },
+    "intents": [
+      {
+        "id": "adj.router_core_1.router_core_2",
+        "description": "Declared OSPF adjacency must be Full.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "ospf",
+          "local_node": "router_core_1",
+          "remote_node": "router_core_2",
+          "local_address": "172.16.0.0",
+          "remote_address": "172.16.0.1",
+          "remote_router_id": "172.16.0.1",
+          "local_router_id": "172.16.0.0"
+        }
+      },
+      {
+        "id": "adj.router_core_1.router_core_3",
+        "description": "Declared OSPF adjacency must be Full.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "ospf",
+          "local_node": "router_core_1",
+          "remote_node": "router_core_3",
+          "local_address": "172.16.0.2",
+          "remote_address": "172.16.0.3",
+          "remote_router_id": "172.16.0.3",
+          "local_router_id": "172.16.0.0"
+        }
+      },
+      {
+        "id": "adj.router_core_1.router_dist_1_1",
+        "description": "Declared OSPF adjacency must be Full.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "ospf",
+          "local_node": "router_core_1",
+          "remote_node": "router_dist_1_1",
+          "local_address": "172.16.0.6",
+          "remote_address": "172.16.0.7",
+          "remote_router_id": "172.16.0.7",
+          "local_router_id": "172.16.0.0"
+        }
+      },
+      {
+        "id": "adj.router_core_2.router_core_1",
+        "description": "Declared OSPF adjacency must be Full.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "ospf",
+          "local_node": "router_core_2",
+          "remote_node": "router_core_1",
+          "local_address": "172.16.0.1",
+          "remote_address": "172.16.0.0",
+          "remote_router_id": "172.16.0.0",
+          "local_router_id": "172.16.0.1"
+        }
+      },
+      {
+        "id": "adj.router_core_2.router_core_3",
+        "description": "Declared OSPF adjacency must be Full.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "ospf",
+          "local_node": "router_core_2",
+          "remote_node": "router_core_3",
+          "local_address": "172.16.0.4",
+          "remote_address": "172.16.0.5",
+          "remote_router_id": "172.16.0.3",
+          "local_router_id": "172.16.0.1"
+        }
+      },
+      {
+        "id": "adj.router_core_2.router_dist_2_1",
+        "description": "Declared OSPF adjacency must be Full.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "ospf",
+          "local_node": "router_core_2",
+          "remote_node": "router_dist_2_1",
+          "local_address": "172.16.0.8",
+          "remote_address": "172.16.0.9",
+          "remote_router_id": "172.16.0.9",
+          "local_router_id": "172.16.0.1"
+        }
+      },
+      {
+        "id": "adj.router_core_3.router_core_1",
+        "description": "Declared OSPF adjacency must be Full.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "ospf",
+          "local_node": "router_core_3",
+          "remote_node": "router_core_1",
+          "local_address": "172.16.0.3",
+          "remote_address": "172.16.0.2",
+          "remote_router_id": "172.16.0.0",
+          "local_router_id": "172.16.0.3"
+        }
+      },
+      {
+        "id": "adj.router_core_3.router_core_2",
+        "description": "Declared OSPF adjacency must be Full.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "ospf",
+          "local_node": "router_core_3",
+          "remote_node": "router_core_2",
+          "local_address": "172.16.0.5",
+          "remote_address": "172.16.0.4",
+          "remote_router_id": "172.16.0.1",
+          "local_router_id": "172.16.0.3"
+        }
+      },
+      {
+        "id": "adj.router_core_3.server_access_router",
+        "description": "Declared OSPF adjacency must be Full.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "ospf",
+          "local_node": "router_core_3",
+          "remote_node": "server_access_router",
+          "local_address": "172.16.0.10",
+          "remote_address": "172.16.0.11",
+          "remote_router_id": "172.16.0.11",
+          "local_router_id": "172.16.0.3"
+        }
+      },
+      {
+        "id": "adj.router_dist_1_1.router_core_1",
+        "description": "Declared OSPF adjacency must be Full.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "ospf",
+          "local_node": "router_dist_1_1",
+          "remote_node": "router_core_1",
+          "local_address": "172.16.0.7",
+          "remote_address": "172.16.0.6",
+          "remote_router_id": "172.16.0.0",
+          "local_router_id": "172.16.0.7"
+        }
+      },
+      {
+        "id": "adj.router_dist_2_1.router_core_2",
+        "description": "Declared OSPF adjacency must be Full.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "ospf",
+          "local_node": "router_dist_2_1",
+          "remote_node": "router_core_2",
+          "local_address": "172.16.0.9",
+          "remote_address": "172.16.0.8",
+          "remote_router_id": "172.16.0.1",
+          "local_router_id": "172.16.0.9"
+        }
+      },
+      {
+        "id": "adj.server_access_router.router_core_3",
+        "description": "Declared OSPF adjacency must be Full.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "ospf",
+          "local_node": "server_access_router",
+          "remote_node": "router_core_3",
+          "local_address": "172.16.0.11",
+          "remote_address": "172.16.0.10",
+          "remote_router_id": "172.16.0.3",
+          "local_router_id": "172.16.0.11"
+        }
+      },
+      {
+        "id": "reach.router_dist_1_1.router_dist_2_1",
+        "description": "Routed campus gateways communicate across the declared OSPF areas.",
+        "property": "reachability",
+        "expected": "reachable",
+        "source": {
+          "kind": "node",
+          "name": "router_dist_1_1",
+          "address": "10.1.1.1"
+        },
+        "destination": {
+          "kind": "node",
+          "name": "router_dist_2_1",
+          "address": "10.2.1.1"
+        },
+        "traffic": {
+          "protocol": "icmp",
+          "round_trip": true
+        }
+      },
+      {
+        "id": "reach.router_dist_1_1.server_access_router",
+        "description": "Routed campus gateways communicate across the declared OSPF areas.",
+        "property": "reachability",
+        "expected": "reachable",
+        "source": {
+          "kind": "node",
+          "name": "router_dist_1_1",
+          "address": "10.1.1.1"
+        },
+        "destination": {
+          "kind": "node",
+          "name": "server_access_router",
+          "address": "10.200.0.1"
+        },
+        "traffic": {
+          "protocol": "icmp",
+          "round_trip": true
+        }
+      },
+      {
+        "id": "reach.router_dist_2_1.router_dist_1_1",
+        "description": "Routed campus gateways communicate across the declared OSPF areas.",
+        "property": "reachability",
+        "expected": "reachable",
+        "source": {
+          "kind": "node",
+          "name": "router_dist_2_1",
+          "address": "10.2.1.1"
+        },
+        "destination": {
+          "kind": "node",
+          "name": "router_dist_1_1",
+          "address": "10.1.1.1"
+        },
+        "traffic": {
+          "protocol": "icmp",
+          "round_trip": true
+        }
+      },
+      {
+        "id": "reach.router_dist_2_1.server_access_router",
+        "description": "Routed campus gateways communicate across the declared OSPF areas.",
+        "property": "reachability",
+        "expected": "reachable",
+        "source": {
+          "kind": "node",
+          "name": "router_dist_2_1",
+          "address": "10.2.1.1"
+        },
+        "destination": {
+          "kind": "node",
+          "name": "server_access_router",
+          "address": "10.200.0.1"
+        },
+        "traffic": {
+          "protocol": "icmp",
+          "round_trip": true
+        }
+      },
+      {
+        "id": "reach.server_access_router.router_dist_1_1",
+        "description": "Routed campus gateways communicate across the declared OSPF areas.",
+        "property": "reachability",
+        "expected": "reachable",
+        "source": {
+          "kind": "node",
+          "name": "server_access_router",
+          "address": "10.200.0.1"
+        },
+        "destination": {
+          "kind": "node",
+          "name": "router_dist_1_1",
+          "address": "10.1.1.1"
+        },
+        "traffic": {
+          "protocol": "icmp",
+          "round_trip": true
+        }
+      },
+      {
+        "id": "reach.server_access_router.router_dist_2_1",
+        "description": "Routed campus gateways communicate across the declared OSPF areas.",
+        "property": "reachability",
+        "expected": "reachable",
+        "source": {
+          "kind": "node",
+          "name": "server_access_router",
+          "address": "10.200.0.1"
+        },
+        "destination": {
+          "kind": "node",
+          "name": "router_dist_2_1",
+          "address": "10.2.1.1"
+        },
+        "traffic": {
+          "protocol": "icmp",
+          "round_trip": true
+        }
+      }
+    ]
+  },
+  "incidents": [
+    {
+      "name": "core-link-down",
+      "host_name": "router_core_1",
+      "intf_name": "eth0",
+      "requirements": {
+        "scenario": "campus_lan",
+        "contract_id": "routing.campus.s.core-link-down",
+        "design_source": {
+          "basis": "RFC 2328; backbone area 0, access area 1; fixed routed gateway requirements; DHCP and L2 outside static scope"
+        },
+        "intents": [
+          {
+            "id": "adj.router_core_1.router_core_3",
+            "description": "Declared OSPF adjacency must be Full.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "ospf",
+              "local_node": "router_core_1",
+              "remote_node": "router_core_3",
+              "local_address": "172.16.0.2",
+              "remote_address": "172.16.0.3",
+              "remote_router_id": "172.16.0.3",
+              "local_router_id": "172.16.0.0"
+            }
+          },
+          {
+            "id": "adj.router_core_1.router_dist_1_1",
+            "description": "Declared OSPF adjacency must be Full.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "ospf",
+              "local_node": "router_core_1",
+              "remote_node": "router_dist_1_1",
+              "local_address": "172.16.0.6",
+              "remote_address": "172.16.0.7",
+              "remote_router_id": "172.16.0.7",
+              "local_router_id": "172.16.0.0"
+            }
+          },
+          {
+            "id": "adj.router_core_2.router_core_3",
+            "description": "Declared OSPF adjacency must be Full.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "ospf",
+              "local_node": "router_core_2",
+              "remote_node": "router_core_3",
+              "local_address": "172.16.0.4",
+              "remote_address": "172.16.0.5",
+              "remote_router_id": "172.16.0.3",
+              "local_router_id": "172.16.0.1"
+            }
+          },
+          {
+            "id": "adj.router_core_2.router_dist_2_1",
+            "description": "Declared OSPF adjacency must be Full.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "ospf",
+              "local_node": "router_core_2",
+              "remote_node": "router_dist_2_1",
+              "local_address": "172.16.0.8",
+              "remote_address": "172.16.0.9",
+              "remote_router_id": "172.16.0.9",
+              "local_router_id": "172.16.0.1"
+            }
+          },
+          {
+            "id": "adj.router_core_3.router_core_1",
+            "description": "Declared OSPF adjacency must be Full.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "ospf",
+              "local_node": "router_core_3",
+              "remote_node": "router_core_1",
+              "local_address": "172.16.0.3",
+              "remote_address": "172.16.0.2",
+              "remote_router_id": "172.16.0.0",
+              "local_router_id": "172.16.0.3"
+            }
+          },
+          {
+            "id": "adj.router_core_3.router_core_2",
+            "description": "Declared OSPF adjacency must be Full.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "ospf",
+              "local_node": "router_core_3",
+              "remote_node": "router_core_2",
+              "local_address": "172.16.0.5",
+              "remote_address": "172.16.0.4",
+              "remote_router_id": "172.16.0.1",
+              "local_router_id": "172.16.0.3"
+            }
+          },
+          {
+            "id": "adj.router_core_3.server_access_router",
+            "description": "Declared OSPF adjacency must be Full.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "ospf",
+              "local_node": "router_core_3",
+              "remote_node": "server_access_router",
+              "local_address": "172.16.0.10",
+              "remote_address": "172.16.0.11",
+              "remote_router_id": "172.16.0.11",
+              "local_router_id": "172.16.0.3"
+            }
+          },
+          {
+            "id": "adj.router_dist_1_1.router_core_1",
+            "description": "Declared OSPF adjacency must be Full.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "ospf",
+              "local_node": "router_dist_1_1",
+              "remote_node": "router_core_1",
+              "local_address": "172.16.0.7",
+              "remote_address": "172.16.0.6",
+              "remote_router_id": "172.16.0.0",
+              "local_router_id": "172.16.0.7"
+            }
+          },
+          {
+            "id": "adj.router_dist_2_1.router_core_2",
+            "description": "Declared OSPF adjacency must be Full.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "ospf",
+              "local_node": "router_dist_2_1",
+              "remote_node": "router_core_2",
+              "local_address": "172.16.0.9",
+              "remote_address": "172.16.0.8",
+              "remote_router_id": "172.16.0.1",
+              "local_router_id": "172.16.0.9"
+            }
+          },
+          {
+            "id": "adj.server_access_router.router_core_3",
+            "description": "Declared OSPF adjacency must be Full.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "ospf",
+              "local_node": "server_access_router",
+              "remote_node": "router_core_3",
+              "local_address": "172.16.0.11",
+              "remote_address": "172.16.0.10",
+              "remote_router_id": "172.16.0.3",
+              "local_router_id": "172.16.0.11"
+            }
+          },
+          {
+            "id": "reach.router_dist_1_1.router_dist_2_1",
+            "description": "Routed campus gateways communicate across the declared OSPF areas.",
+            "property": "reachability",
+            "expected": "reachable",
+            "source": {
+              "kind": "node",
+              "name": "router_dist_1_1",
+              "address": "10.1.1.1"
+            },
+            "destination": {
+              "kind": "node",
+              "name": "router_dist_2_1",
+              "address": "10.2.1.1"
+            },
+            "traffic": {
+              "protocol": "icmp",
+              "round_trip": true
+            }
+          },
+          {
+            "id": "reach.router_dist_1_1.server_access_router",
+            "description": "Routed campus gateways communicate across the declared OSPF areas.",
+            "property": "reachability",
+            "expected": "reachable",
+            "source": {
+              "kind": "node",
+              "name": "router_dist_1_1",
+              "address": "10.1.1.1"
+            },
+            "destination": {
+              "kind": "node",
+              "name": "server_access_router",
+              "address": "10.200.0.1"
+            },
+            "traffic": {
+              "protocol": "icmp",
+              "round_trip": true
+            }
+          },
+          {
+            "id": "reach.router_dist_2_1.router_dist_1_1",
+            "description": "Routed campus gateways communicate across the declared OSPF areas.",
+            "property": "reachability",
+            "expected": "reachable",
+            "source": {
+              "kind": "node",
+              "name": "router_dist_2_1",
+              "address": "10.2.1.1"
+            },
+            "destination": {
+              "kind": "node",
+              "name": "router_dist_1_1",
+              "address": "10.1.1.1"
+            },
+            "traffic": {
+              "protocol": "icmp",
+              "round_trip": true
+            }
+          },
+          {
+            "id": "reach.router_dist_2_1.server_access_router",
+            "description": "Routed campus gateways communicate across the declared OSPF areas.",
+            "property": "reachability",
+            "expected": "reachable",
+            "source": {
+              "kind": "node",
+              "name": "router_dist_2_1",
+              "address": "10.2.1.1"
+            },
+            "destination": {
+              "kind": "node",
+              "name": "server_access_router",
+              "address": "10.200.0.1"
+            },
+            "traffic": {
+              "protocol": "icmp",
+              "round_trip": true
+            }
+          },
+          {
+            "id": "reach.server_access_router.router_dist_1_1",
+            "description": "Routed campus gateways communicate across the declared OSPF areas.",
+            "property": "reachability",
+            "expected": "reachable",
+            "source": {
+              "kind": "node",
+              "name": "server_access_router",
+              "address": "10.200.0.1"
+            },
+            "destination": {
+              "kind": "node",
+              "name": "router_dist_1_1",
+              "address": "10.1.1.1"
+            },
+            "traffic": {
+              "protocol": "icmp",
+              "round_trip": true
+            }
+          },
+          {
+            "id": "reach.server_access_router.router_dist_2_1",
+            "description": "Routed campus gateways communicate across the declared OSPF areas.",
+            "property": "reachability",
+            "expected": "reachable",
+            "source": {
+              "kind": "node",
+              "name": "server_access_router",
+              "address": "10.200.0.1"
+            },
+            "destination": {
+              "kind": "node",
+              "name": "router_dist_2_1",
+              "address": "10.2.1.1"
+            },
+            "traffic": {
+              "protocol": "icmp",
+              "round_trip": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "access-link-down",
+      "host_name": "router_dist_1_1",
+      "intf_name": "eth0",
+      "requirements": {
+        "scenario": "campus_lan",
+        "contract_id": "routing.campus.s.access-link-down",
+        "design_source": {
+          "basis": "RFC 2328; backbone area 0, access area 1; fixed routed gateway requirements; DHCP and L2 outside static scope"
+        },
+        "intents": [
+          {
+            "id": "adj.router_core_1.router_core_2",
+            "description": "Declared OSPF adjacency must be Full.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "ospf",
+              "local_node": "router_core_1",
+              "remote_node": "router_core_2",
+              "local_address": "172.16.0.0",
+              "remote_address": "172.16.0.1",
+              "remote_router_id": "172.16.0.1",
+              "local_router_id": "172.16.0.0"
+            }
+          },
+          {
+            "id": "adj.router_core_1.router_core_3",
+            "description": "Declared OSPF adjacency must be Full.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "ospf",
+              "local_node": "router_core_1",
+              "remote_node": "router_core_3",
+              "local_address": "172.16.0.2",
+              "remote_address": "172.16.0.3",
+              "remote_router_id": "172.16.0.3",
+              "local_router_id": "172.16.0.0"
+            }
+          },
+          {
+            "id": "adj.router_core_2.router_core_1",
+            "description": "Declared OSPF adjacency must be Full.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "ospf",
+              "local_node": "router_core_2",
+              "remote_node": "router_core_1",
+              "local_address": "172.16.0.1",
+              "remote_address": "172.16.0.0",
+              "remote_router_id": "172.16.0.0",
+              "local_router_id": "172.16.0.1"
+            }
+          },
+          {
+            "id": "adj.router_core_2.router_core_3",
+            "description": "Declared OSPF adjacency must be Full.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "ospf",
+              "local_node": "router_core_2",
+              "remote_node": "router_core_3",
+              "local_address": "172.16.0.4",
+              "remote_address": "172.16.0.5",
+              "remote_router_id": "172.16.0.3",
+              "local_router_id": "172.16.0.1"
+            }
+          },
+          {
+            "id": "adj.router_core_2.router_dist_2_1",
+            "description": "Declared OSPF adjacency must be Full.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "ospf",
+              "local_node": "router_core_2",
+              "remote_node": "router_dist_2_1",
+              "local_address": "172.16.0.8",
+              "remote_address": "172.16.0.9",
+              "remote_router_id": "172.16.0.9",
+              "local_router_id": "172.16.0.1"
+            }
+          },
+          {
+            "id": "adj.router_core_3.router_core_1",
+            "description": "Declared OSPF adjacency must be Full.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "ospf",
+              "local_node": "router_core_3",
+              "remote_node": "router_core_1",
+              "local_address": "172.16.0.3",
+              "remote_address": "172.16.0.2",
+              "remote_router_id": "172.16.0.0",
+              "local_router_id": "172.16.0.3"
+            }
+          },
+          {
+            "id": "adj.router_core_3.router_core_2",
+            "description": "Declared OSPF adjacency must be Full.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "ospf",
+              "local_node": "router_core_3",
+              "remote_node": "router_core_2",
+              "local_address": "172.16.0.5",
+              "remote_address": "172.16.0.4",
+              "remote_router_id": "172.16.0.1",
+              "local_router_id": "172.16.0.3"
+            }
+          },
+          {
+            "id": "adj.router_core_3.server_access_router",
+            "description": "Declared OSPF adjacency must be Full.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "ospf",
+              "local_node": "router_core_3",
+              "remote_node": "server_access_router",
+              "local_address": "172.16.0.10",
+              "remote_address": "172.16.0.11",
+              "remote_router_id": "172.16.0.11",
+              "local_router_id": "172.16.0.3"
+            }
+          },
+          {
+            "id": "adj.router_dist_2_1.router_core_2",
+            "description": "Declared OSPF adjacency must be Full.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "ospf",
+              "local_node": "router_dist_2_1",
+              "remote_node": "router_core_2",
+              "local_address": "172.16.0.9",
+              "remote_address": "172.16.0.8",
+              "remote_router_id": "172.16.0.1",
+              "local_router_id": "172.16.0.9"
+            }
+          },
+          {
+            "id": "adj.server_access_router.router_core_3",
+            "description": "Declared OSPF adjacency must be Full.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "ospf",
+              "local_node": "server_access_router",
+              "remote_node": "router_core_3",
+              "local_address": "172.16.0.11",
+              "remote_address": "172.16.0.10",
+              "remote_router_id": "172.16.0.3",
+              "local_router_id": "172.16.0.11"
+            }
+          },
+          {
+            "id": "reach.router_dist_1_1.router_dist_2_1",
+            "description": "Routed campus gateways communicate across the declared OSPF areas.",
+            "property": "isolation",
+            "expected": "unreachable",
+            "source": {
+              "kind": "node",
+              "name": "router_dist_1_1",
+              "address": "10.1.1.1"
+            },
+            "destination": {
+              "kind": "node",
+              "name": "router_dist_2_1",
+              "address": "10.2.1.1"
+            },
+            "traffic": {
+              "protocol": "icmp",
+              "round_trip": true
+            }
+          },
+          {
+            "id": "reach.router_dist_1_1.server_access_router",
+            "description": "Routed campus gateways communicate across the declared OSPF areas.",
+            "property": "isolation",
+            "expected": "unreachable",
+            "source": {
+              "kind": "node",
+              "name": "router_dist_1_1",
+              "address": "10.1.1.1"
+            },
+            "destination": {
+              "kind": "node",
+              "name": "server_access_router",
+              "address": "10.200.0.1"
+            },
+            "traffic": {
+              "protocol": "icmp",
+              "round_trip": true
+            }
+          },
+          {
+            "id": "reach.router_dist_2_1.router_dist_1_1",
+            "description": "Routed campus gateways communicate across the declared OSPF areas.",
+            "property": "isolation",
+            "expected": "unreachable",
+            "source": {
+              "kind": "node",
+              "name": "router_dist_2_1",
+              "address": "10.2.1.1"
+            },
+            "destination": {
+              "kind": "node",
+              "name": "router_dist_1_1",
+              "address": "10.1.1.1"
+            },
+            "traffic": {
+              "protocol": "icmp",
+              "round_trip": true
+            }
+          },
+          {
+            "id": "reach.router_dist_2_1.server_access_router",
+            "description": "Routed campus gateways communicate across the declared OSPF areas.",
+            "property": "reachability",
+            "expected": "reachable",
+            "source": {
+              "kind": "node",
+              "name": "router_dist_2_1",
+              "address": "10.2.1.1"
+            },
+            "destination": {
+              "kind": "node",
+              "name": "server_access_router",
+              "address": "10.200.0.1"
+            },
+            "traffic": {
+              "protocol": "icmp",
+              "round_trip": true
+            }
+          },
+          {
+            "id": "reach.server_access_router.router_dist_1_1",
+            "description": "Routed campus gateways communicate across the declared OSPF areas.",
+            "property": "isolation",
+            "expected": "unreachable",
+            "source": {
+              "kind": "node",
+              "name": "server_access_router",
+              "address": "10.200.0.1"
+            },
+            "destination": {
+              "kind": "node",
+              "name": "router_dist_1_1",
+              "address": "10.1.1.1"
+            },
+            "traffic": {
+              "protocol": "icmp",
+              "round_trip": true
+            }
+          },
+          {
+            "id": "reach.server_access_router.router_dist_2_1",
+            "description": "Routed campus gateways communicate across the declared OSPF areas.",
+            "property": "reachability",
+            "expected": "reachable",
+            "source": {
+              "kind": "node",
+              "name": "server_access_router",
+              "address": "10.200.0.1"
+            },
+            "destination": {
+              "kind": "node",
+              "name": "router_dist_2_1",
+              "address": "10.2.1.1"
+            },
+            "traffic": {
+              "protocol": "icmp",
+              "round_trip": true
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "counterexamples": [
+    {
+      "name": "ospf-area-mismatch",
+      "node": "router_dist_1_1",
+      "old": " network 172.16.0.6/31 area 1",
+      "new": " network 172.16.0.6/31 area 2",
+      "expected_failed_ids": [
+        "adj.router_core_1.router_dist_1_1",
+        "adj.router_dist_1_1.router_core_1",
+        "reach.router_dist_1_1.router_dist_2_1",
+        "reach.router_dist_1_1.server_access_router",
+        "reach.router_dist_2_1.router_dist_1_1",
+        "reach.server_access_router.router_dist_1_1"
+      ]
+    },
+    {
+      "name": "wrong-downstream-route",
+      "node": "router_core_2",
+      "old": "log file /var/log/frr/frr.log",
+      "new": "ip route 10.200.0.0/24 Null0\nlog file /var/log/frr/frr.log",
+      "expected_failed_ids": [
+        "path.server.core1.router_core_2",
+        "reach.router_dist_1_1.server_access_router",
+        "reach.router_dist_2_1.server_access_router",
+        "reach.server_access_router.router_dist_1_1",
+        "reach.server_access_router.router_dist_2_1"
+      ]
+    }
+  ],
+  "completion": {
+    "kind": "ospf_area",
+    "area": 0,
+    "routers": [
+      "router_core_1",
+      "router_core_2",
+      "router_core_3",
+      "server_access_router"
+    ],
+    "requirements": [
+      "path.server.core1"
+    ]
+  },
+  "failure_checks": [
+    {
+      "name": "ospf-area-failure",
+      "problem": "ospf_area_misconfiguration",
+      "params": {
+        "host_name": "router_dist_1_1"
+      },
+      "restore_nodes": [
+        "router_dist_1_1"
+      ],
+      "expected_failed_ids": [
+        "adj.router_core_1.router_dist_1_1",
+        "adj.router_dist_1_1.router_core_1",
+        "reach.router_dist_1_1.router_dist_2_1",
+        "reach.router_dist_1_1.server_access_router",
+        "reach.router_dist_2_1.router_dist_1_1",
+        "reach.server_access_router.router_dist_1_1"
+      ]
+    }
+  ],
+  "behavior": [
+    {
+      "kind": "ospf_path",
+      "id": "path.server.core1",
+      "area": 0,
+      "prefix": "10.200.0.0/24",
+      "path": [
+        "router_core_1",
+        "router_core_2",
+        "router_core_3",
+        "server_access_router"
+      ],
+      "state_paths": {
+        "core-link-down": [
+          "router_core_1",
+          "router_core_3",
+          "server_access_router"
+        ]
+      }
+    }
+  ],
+  "runtime_counterexamples": [
+    {
+      "name": "downstream-blackhole",
+      "node": "router_core_2",
+      "commands": [
+        "configure terminal",
+        "ip route 10.200.0.0/24 Null0",
+        "end"
+      ],
+      "recovery": [
+        "configure terminal",
+        "no ip route 10.200.0.0/24 Null0",
+        "end"
+      ],
+      "expected_failed_ids": [
+        "path.server.core1.router_core_2",
+        "reach.router_dist_1_1.server_access_router",
+        "reach.router_dist_2_1.server_access_router",
+        "reach.server_access_router.router_dist_1_1",
+        "reach.server_access_router.router_dist_2_1"
+      ]
+    }
+  ]
+}

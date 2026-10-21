@@ -117,29 +117,7 @@ def build_isp_validation_contract(
             )
 
     if bgp_plan is not None:
-        for session in sorted(
-            bgp_plan.sessions,
-            key=lambda item: (item.local_device, item.remote_device, item.remote_ip),
-        ):
-            intents.append(
-                ValidationIntent(
-                    id=f"adj.bgp.{session.local_device}.{session.remote_device}.{session.remote_ip.replace('.', '-')}",
-                    description=f"BGP session {session.local_device} to {session.remote_device} must be established.",
-                    property="adjacency",
-                    expected="established",
-                    adjacency=AdjacencyExpectation(
-                        protocol="bgp",
-                        local_node=session.local_device,
-                        remote_node=session.remote_device,
-                        local_address=session.local_ip,
-                        remote_address=session.remote_ip,
-                        local_asn=session.local_asn,
-                        remote_asn=session.remote_asn,
-                        update_source=session.update_source,
-                        session_type=session.session_type,
-                    ),
-                )
-            )
+        intents.extend(bgp_adjacency_intents(bgp_plan))
         prefix_by_value = {
             entity.address: entity
             for entity in catalog.entities
@@ -148,15 +126,31 @@ def build_isp_validation_contract(
         node_by_name = {
             entity.name: entity for entity in catalog.entities if entity.kind == "node"
         }
+        origin_by_prefix = {item.prefix: item.device for item in bgp_plan.originated}
         for observer, prefix in sorted(bgp_plan.expect_reachable):
             destination = prefix_by_value[prefix]
+            source = node_by_name[observer]
+            # A loopback stays inside its own AS, so an eBGP observer probes
+            # from its peering link to the originator.
+            session = next(
+                (
+                    s
+                    for s in bgp_plan.sessions
+                    if s.session_type == "ebgp"
+                    and s.local_device == observer
+                    and s.remote_device == origin_by_prefix[prefix]
+                ),
+                None,
+            )
+            if session is not None:
+                source = source.model_copy(update={"address": session.local_ip})
             intents.append(
                 ValidationIntent(
                     id=f"reach.bgp.{observer}.{destination.name}.icmp",
                     description=f"BGP observer {observer} must reach designed prefix {prefix}.",
                     property="reachability",
                     expected="reachable",
-                    source=node_by_name[observer],
+                    source=source,
                     destination=destination,
                     traffic=TrafficSelector(protocol="icmp"),
                 )
@@ -179,6 +173,38 @@ def build_isp_validation_contract(
         },
         intents=tuple(sorted(intents, key=lambda intent: intent.id)),
     )
+
+
+def bgp_adjacency_intents(
+    bgp_plan: BgpPlan, *, verify_rr_roles: bool = False
+) -> list[ValidationIntent]:
+    """Bind BGP sessions from the original design to shared typed predicates."""
+    return [
+        ValidationIntent(
+            id=f"adj.bgp.{session.local_device}.{session.remote_device}.{session.remote_ip.replace('.', '-')}",
+            description=f"BGP session {session.local_device} to {session.remote_device} must be established.",
+            property="adjacency",
+            expected="established",
+            adjacency=AdjacencyExpectation(
+                protocol="bgp",
+                local_node=session.local_device,
+                remote_node=session.remote_device,
+                local_address=session.local_ip,
+                remote_address=session.remote_ip,
+                local_asn=session.local_asn,
+                remote_asn=session.remote_asn,
+                session_type=session.session_type,
+                update_source=session.update_source,
+                route_reflector_client=session.route_reflector_client
+                if verify_rr_roles
+                else None,
+            ),
+        )
+        for session in sorted(
+            bgp_plan.sessions,
+            key=lambda s: (s.local_device, s.remote_device, s.remote_ip),
+        )
+    ]
 
 
 def _catalog(

@@ -1,0 +1,85 @@
+name: Letta Issue Triage
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  triage:
+    name: Letta Issue Triage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Same install as ci.yml's install-benchmark-e2e, so the agent can run NIKA.
+      # Runners ship Docker; their Azure kernels keep vrf.ko in linux-modules-extra.
+      - name: Install host prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y "linux-modules-extra-$(uname -r)"
+      # Labs build or pull their images on first deploy.
+      - name: Install NIKA
+        run: ./scripts/install.sh --skip-images
+      - name: Ensure triage labels exist
+        run: |
+          gh label create agent-ready --color 0E8A16 --description "Well-scoped; an agent can implement it" --force
+          gh label create needs-human --color D93F0B --description "Needs human design or architectural decisions" --force
+      - uses: letta-ai/letta-code-action@v0
+        with:
+          letta_api_key: ${{ secrets.LETTA_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          agent_id: agent-94fc2af6-52c5-4ec5-b0c1-758a3e09541a
+          # The action otherwise defaults to opus, even for an existing agent.
+          # Use NIKA-dev's ChatGPT subscription provider (see letta.yml).
+          model: chatgpt-plus/gpt-6.1-sol
+          # Prompt (agent) mode ignores agent_id; pin the NIKA-dev agent via CLI args.
+          letta_args: --agent agent-94fc2af6-52c5-4ec5-b0c1-758a3e09541a --new
+          show_full_output: true
+          prompt: |
+            Triage issue #${{ github.event.issue.number }}. Read it with
+            `gh issue view ${{ github.event.issue.number }} --comments`.
+
+            You run in a checkout of the repository with NIKA installed: run
+            `source .venv/bin/activate` to use the `nika` CLI and start labs if
+            reproducing the issue helps the triage. Lab images build on first
+            deploy, so prefer reading code when that suffices. Do not push commits,
+            open PRs, or leave runtime resources (containers, sessions) behind.
+
+            1. Labels: list existing labels (`gh label list --limit 200`) and apply the
+               fitting ones (type, area, priority if evident) with
+               `gh issue edit ${{ github.event.issue.number }} --add-label ...`.
+               Do not create labels.
+
+            2. Duplicates and related work: search open AND closed issues and pull
+               requests as a maintainer would (`gh search issues`, `gh search prs`,
+               `gh issue list --state all --search ...`, `gh pr list --state all --search ...`)
+               using several phrasings of the problem, affected components, and error
+               messages. Distinguish duplicates (same request) from related items.
+               Do not close the issue yourself.
+
+            3. Agent-readiness judgment: inspect the relevant code (and test if useful)
+               to judge the scope. Be conservative.
+               - Add `agent-ready` only if it is a well-scoped implementation or quick
+                 fix with clear acceptance criteria, no open design questions, and no
+                 change to benchmark contracts (taxonomy, ground truth, registries,
+                 published benchmark data).
+               - Otherwise add `needs-human`: open design or architectural choices,
+                 ambiguous requirements, benchmark contract changes, or anything you
+                 are unsure about.
+
+            4. Post ONE triage comment with these sections, omitting empty ones:
+               - `### TL;DR`: only if the issue is long or highly technical (typical of
+                 AI-written issues). 2-4 short sentences explaining, without
+                 implementation details, what is wrong or wanted and why it matters.
+               - `### Possible duplicates` / `### Related`: links with one line each on
+                 how they relate.
+               - `### Triage`: `agent-ready` or `needs-human`, with a brief rationale
+                 and, for needs-human, the specific questions a human must decide.

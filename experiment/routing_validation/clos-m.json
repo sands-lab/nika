@@ -1,0 +1,3382 @@
+{
+  "scenario": "dc_clos",
+  "topo_size": "m",
+  "healthy": {
+    "scenario": "dc_clos",
+    "contract_id": "routing.clos.m",
+    "design_source": {
+      "basis": "RFC 7938; fixed eBGP graph and prefix ownership; declared shortest-AS-path propagation and routed gateway requirements"
+    },
+    "intents": [
+      {
+        "id": "adj.leaf_router_0_0.spine_router_0_0",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_0_0",
+          "remote_node": "spine_router_0_0",
+          "local_address": "172.16.0.33",
+          "remote_address": "172.16.0.32",
+          "local_asn": 65200,
+          "remote_asn": 65100,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf_router_0_0.spine_router_0_1",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_0_0",
+          "remote_node": "spine_router_0_1",
+          "local_address": "172.16.0.41",
+          "remote_address": "172.16.0.40",
+          "local_asn": 65200,
+          "remote_asn": 65101,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf_router_0_0.spine_router_0_2",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_0_0",
+          "remote_node": "spine_router_0_2",
+          "local_address": "172.16.0.49",
+          "remote_address": "172.16.0.48",
+          "local_asn": 65200,
+          "remote_asn": 65102,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf_router_0_0.spine_router_0_3",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_0_0",
+          "remote_node": "spine_router_0_3",
+          "local_address": "172.16.0.57",
+          "remote_address": "172.16.0.56",
+          "local_asn": 65200,
+          "remote_asn": 65103,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf_router_0_1.spine_router_0_0",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_0_1",
+          "remote_node": "spine_router_0_0",
+          "local_address": "172.16.0.35",
+          "remote_address": "172.16.0.34",
+          "local_asn": 65201,
+          "remote_asn": 65100,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf_router_0_1.spine_router_0_1",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_0_1",
+          "remote_node": "spine_router_0_1",
+          "local_address": "172.16.0.43",
+          "remote_address": "172.16.0.42",
+          "local_asn": 65201,
+          "remote_asn": 65101,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf_router_0_1.spine_router_0_2",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_0_1",
+          "remote_node": "spine_router_0_2",
+          "local_address": "172.16.0.51",
+          "remote_address": "172.16.0.50",
+          "local_asn": 65201,
+          "remote_asn": 65102,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf_router_0_1.spine_router_0_3",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_0_1",
+          "remote_node": "spine_router_0_3",
+          "local_address": "172.16.0.59",
+          "remote_address": "172.16.0.58",
+          "local_asn": 65201,
+          "remote_asn": 65103,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf_router_0_2.spine_router_0_0",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_0_2",
+          "remote_node": "spine_router_0_0",
+          "local_address": "172.16.0.37",
+          "remote_address": "172.16.0.36",
+          "local_asn": 65202,
+          "remote_asn": 65100,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf_router_0_2.spine_router_0_1",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_0_2",
+          "remote_node": "spine_router_0_1",
+          "local_address": "172.16.0.45",
+          "remote_address": "172.16.0.44",
+          "local_asn": 65202,
+          "remote_asn": 65101,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf_router_0_2.spine_router_0_2",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_0_2",
+          "remote_node": "spine_router_0_2",
+          "local_address": "172.16.0.53",
+          "remote_address": "172.16.0.52",
+          "local_asn": 65202,
+          "remote_asn": 65102,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf_router_0_2.spine_router_0_3",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_0_2",
+          "remote_node": "spine_router_0_3",
+          "local_address": "172.16.0.61",
+          "remote_address": "172.16.0.60",
+          "local_asn": 65202,
+          "remote_asn": 65103,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf_router_0_3.spine_router_0_0",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_0_3",
+          "remote_node": "spine_router_0_0",
+          "local_address": "172.16.0.39",
+          "remote_address": "172.16.0.38",
+          "local_asn": 65203,
+          "remote_asn": 65100,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf_router_0_3.spine_router_0_1",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_0_3",
+          "remote_node": "spine_router_0_1",
+          "local_address": "172.16.0.47",
+          "remote_address": "172.16.0.46",
+          "local_asn": 65203,
+          "remote_asn": 65101,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf_router_0_3.spine_router_0_2",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_0_3",
+          "remote_node": "spine_router_0_2",
+          "local_address": "172.16.0.55",
+          "remote_address": "172.16.0.54",
+          "local_asn": 65203,
+          "remote_asn": 65102,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf_router_0_3.spine_router_0_3",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_0_3",
+          "remote_node": "spine_router_0_3",
+          "local_address": "172.16.0.63",
+          "remote_address": "172.16.0.62",
+          "local_asn": 65203,
+          "remote_asn": 65103,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf_router_1_0.spine_router_1_0",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_1_0",
+          "remote_node": "spine_router_1_0",
+          "local_address": "172.16.0.65",
+          "remote_address": "172.16.0.64",
+          "local_asn": 65210,
+          "remote_asn": 65110,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf_router_1_0.spine_router_1_1",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_1_0",
+          "remote_node": "spine_router_1_1",
+          "local_address": "172.16.0.73",
+          "remote_address": "172.16.0.72",
+          "local_asn": 65210,
+          "remote_asn": 65111,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf_router_1_0.spine_router_1_2",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_1_0",
+          "remote_node": "spine_router_1_2",
+          "local_address": "172.16.0.81",
+          "remote_address": "172.16.0.80",
+          "local_asn": 65210,
+          "remote_asn": 65112,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf_router_1_0.spine_router_1_3",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_1_0",
+          "remote_node": "spine_router_1_3",
+          "local_address": "172.16.0.89",
+          "remote_address": "172.16.0.88",
+          "local_asn": 65210,
+          "remote_asn": 65113,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf_router_1_1.spine_router_1_0",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_1_1",
+          "remote_node": "spine_router_1_0",
+          "local_address": "172.16.0.67",
+          "remote_address": "172.16.0.66",
+          "local_asn": 65211,
+          "remote_asn": 65110,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf_router_1_1.spine_router_1_1",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_1_1",
+          "remote_node": "spine_router_1_1",
+          "local_address": "172.16.0.75",
+          "remote_address": "172.16.0.74",
+          "local_asn": 65211,
+          "remote_asn": 65111,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf_router_1_1.spine_router_1_2",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_1_1",
+          "remote_node": "spine_router_1_2",
+          "local_address": "172.16.0.83",
+          "remote_address": "172.16.0.82",
+          "local_asn": 65211,
+          "remote_asn": 65112,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf_router_1_1.spine_router_1_3",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_1_1",
+          "remote_node": "spine_router_1_3",
+          "local_address": "172.16.0.91",
+          "remote_address": "172.16.0.90",
+          "local_asn": 65211,
+          "remote_asn": 65113,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf_router_1_2.spine_router_1_0",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_1_2",
+          "remote_node": "spine_router_1_0",
+          "local_address": "172.16.0.69",
+          "remote_address": "172.16.0.68",
+          "local_asn": 65212,
+          "remote_asn": 65110,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf_router_1_2.spine_router_1_1",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_1_2",
+          "remote_node": "spine_router_1_1",
+          "local_address": "172.16.0.77",
+          "remote_address": "172.16.0.76",
+          "local_asn": 65212,
+          "remote_asn": 65111,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf_router_1_2.spine_router_1_2",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_1_2",
+          "remote_node": "spine_router_1_2",
+          "local_address": "172.16.0.85",
+          "remote_address": "172.16.0.84",
+          "local_asn": 65212,
+          "remote_asn": 65112,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf_router_1_2.spine_router_1_3",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_1_2",
+          "remote_node": "spine_router_1_3",
+          "local_address": "172.16.0.93",
+          "remote_address": "172.16.0.92",
+          "local_asn": 65212,
+          "remote_asn": 65113,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf_router_1_3.spine_router_1_0",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_1_3",
+          "remote_node": "spine_router_1_0",
+          "local_address": "172.16.0.71",
+          "remote_address": "172.16.0.70",
+          "local_asn": 65213,
+          "remote_asn": 65110,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf_router_1_3.spine_router_1_1",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_1_3",
+          "remote_node": "spine_router_1_1",
+          "local_address": "172.16.0.79",
+          "remote_address": "172.16.0.78",
+          "local_asn": 65213,
+          "remote_asn": 65111,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf_router_1_3.spine_router_1_2",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_1_3",
+          "remote_node": "spine_router_1_2",
+          "local_address": "172.16.0.87",
+          "remote_address": "172.16.0.86",
+          "local_asn": 65213,
+          "remote_asn": 65112,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf_router_1_3.spine_router_1_3",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf_router_1_3",
+          "remote_node": "spine_router_1_3",
+          "local_address": "172.16.0.95",
+          "remote_address": "172.16.0.94",
+          "local_asn": 65213,
+          "remote_asn": 65113,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_0_0.leaf_router_0_0",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_0_0",
+          "remote_node": "leaf_router_0_0",
+          "local_address": "172.16.0.32",
+          "remote_address": "172.16.0.33",
+          "local_asn": 65100,
+          "remote_asn": 65200,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_0_0.leaf_router_0_1",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_0_0",
+          "remote_node": "leaf_router_0_1",
+          "local_address": "172.16.0.34",
+          "remote_address": "172.16.0.35",
+          "local_asn": 65100,
+          "remote_asn": 65201,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_0_0.leaf_router_0_2",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_0_0",
+          "remote_node": "leaf_router_0_2",
+          "local_address": "172.16.0.36",
+          "remote_address": "172.16.0.37",
+          "local_asn": 65100,
+          "remote_asn": 65202,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_0_0.leaf_router_0_3",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_0_0",
+          "remote_node": "leaf_router_0_3",
+          "local_address": "172.16.0.38",
+          "remote_address": "172.16.0.39",
+          "local_asn": 65100,
+          "remote_asn": 65203,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_0_0.super_spine_router_0",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_0_0",
+          "remote_node": "super_spine_router_0",
+          "local_address": "172.16.0.1",
+          "remote_address": "172.16.0.0",
+          "local_asn": 65100,
+          "remote_asn": 65000,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_0_0.super_spine_router_1",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_0_0",
+          "remote_node": "super_spine_router_1",
+          "local_address": "172.16.0.17",
+          "remote_address": "172.16.0.16",
+          "local_asn": 65100,
+          "remote_asn": 65001,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_0_1.leaf_router_0_0",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_0_1",
+          "remote_node": "leaf_router_0_0",
+          "local_address": "172.16.0.40",
+          "remote_address": "172.16.0.41",
+          "local_asn": 65101,
+          "remote_asn": 65200,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_0_1.leaf_router_0_1",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_0_1",
+          "remote_node": "leaf_router_0_1",
+          "local_address": "172.16.0.42",
+          "remote_address": "172.16.0.43",
+          "local_asn": 65101,
+          "remote_asn": 65201,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_0_1.leaf_router_0_2",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_0_1",
+          "remote_node": "leaf_router_0_2",
+          "local_address": "172.16.0.44",
+          "remote_address": "172.16.0.45",
+          "local_asn": 65101,
+          "remote_asn": 65202,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_0_1.leaf_router_0_3",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_0_1",
+          "remote_node": "leaf_router_0_3",
+          "local_address": "172.16.0.46",
+          "remote_address": "172.16.0.47",
+          "local_asn": 65101,
+          "remote_asn": 65203,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_0_1.super_spine_router_0",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_0_1",
+          "remote_node": "super_spine_router_0",
+          "local_address": "172.16.0.3",
+          "remote_address": "172.16.0.2",
+          "local_asn": 65101,
+          "remote_asn": 65000,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_0_1.super_spine_router_1",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_0_1",
+          "remote_node": "super_spine_router_1",
+          "local_address": "172.16.0.19",
+          "remote_address": "172.16.0.18",
+          "local_asn": 65101,
+          "remote_asn": 65001,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_0_2.leaf_router_0_0",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_0_2",
+          "remote_node": "leaf_router_0_0",
+          "local_address": "172.16.0.48",
+          "remote_address": "172.16.0.49",
+          "local_asn": 65102,
+          "remote_asn": 65200,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_0_2.leaf_router_0_1",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_0_2",
+          "remote_node": "leaf_router_0_1",
+          "local_address": "172.16.0.50",
+          "remote_address": "172.16.0.51",
+          "local_asn": 65102,
+          "remote_asn": 65201,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_0_2.leaf_router_0_2",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_0_2",
+          "remote_node": "leaf_router_0_2",
+          "local_address": "172.16.0.52",
+          "remote_address": "172.16.0.53",
+          "local_asn": 65102,
+          "remote_asn": 65202,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_0_2.leaf_router_0_3",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_0_2",
+          "remote_node": "leaf_router_0_3",
+          "local_address": "172.16.0.54",
+          "remote_address": "172.16.0.55",
+          "local_asn": 65102,
+          "remote_asn": 65203,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_0_2.super_spine_router_0",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_0_2",
+          "remote_node": "super_spine_router_0",
+          "local_address": "172.16.0.5",
+          "remote_address": "172.16.0.4",
+          "local_asn": 65102,
+          "remote_asn": 65000,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_0_2.super_spine_router_1",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_0_2",
+          "remote_node": "super_spine_router_1",
+          "local_address": "172.16.0.21",
+          "remote_address": "172.16.0.20",
+          "local_asn": 65102,
+          "remote_asn": 65001,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_0_3.leaf_router_0_0",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_0_3",
+          "remote_node": "leaf_router_0_0",
+          "local_address": "172.16.0.56",
+          "remote_address": "172.16.0.57",
+          "local_asn": 65103,
+          "remote_asn": 65200,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_0_3.leaf_router_0_1",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_0_3",
+          "remote_node": "leaf_router_0_1",
+          "local_address": "172.16.0.58",
+          "remote_address": "172.16.0.59",
+          "local_asn": 65103,
+          "remote_asn": 65201,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_0_3.leaf_router_0_2",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_0_3",
+          "remote_node": "leaf_router_0_2",
+          "local_address": "172.16.0.60",
+          "remote_address": "172.16.0.61",
+          "local_asn": 65103,
+          "remote_asn": 65202,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_0_3.leaf_router_0_3",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_0_3",
+          "remote_node": "leaf_router_0_3",
+          "local_address": "172.16.0.62",
+          "remote_address": "172.16.0.63",
+          "local_asn": 65103,
+          "remote_asn": 65203,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_0_3.super_spine_router_0",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_0_3",
+          "remote_node": "super_spine_router_0",
+          "local_address": "172.16.0.7",
+          "remote_address": "172.16.0.6",
+          "local_asn": 65103,
+          "remote_asn": 65000,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_0_3.super_spine_router_1",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_0_3",
+          "remote_node": "super_spine_router_1",
+          "local_address": "172.16.0.23",
+          "remote_address": "172.16.0.22",
+          "local_asn": 65103,
+          "remote_asn": 65001,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_1_0.leaf_router_1_0",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_1_0",
+          "remote_node": "leaf_router_1_0",
+          "local_address": "172.16.0.64",
+          "remote_address": "172.16.0.65",
+          "local_asn": 65110,
+          "remote_asn": 65210,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_1_0.leaf_router_1_1",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_1_0",
+          "remote_node": "leaf_router_1_1",
+          "local_address": "172.16.0.66",
+          "remote_address": "172.16.0.67",
+          "local_asn": 65110,
+          "remote_asn": 65211,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_1_0.leaf_router_1_2",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_1_0",
+          "remote_node": "leaf_router_1_2",
+          "local_address": "172.16.0.68",
+          "remote_address": "172.16.0.69",
+          "local_asn": 65110,
+          "remote_asn": 65212,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_1_0.leaf_router_1_3",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_1_0",
+          "remote_node": "leaf_router_1_3",
+          "local_address": "172.16.0.70",
+          "remote_address": "172.16.0.71",
+          "local_asn": 65110,
+          "remote_asn": 65213,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_1_0.super_spine_router_0",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_1_0",
+          "remote_node": "super_spine_router_0",
+          "local_address": "172.16.0.9",
+          "remote_address": "172.16.0.8",
+          "local_asn": 65110,
+          "remote_asn": 65000,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_1_0.super_spine_router_1",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_1_0",
+          "remote_node": "super_spine_router_1",
+          "local_address": "172.16.0.25",
+          "remote_address": "172.16.0.24",
+          "local_asn": 65110,
+          "remote_asn": 65001,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_1_1.leaf_router_1_0",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_1_1",
+          "remote_node": "leaf_router_1_0",
+          "local_address": "172.16.0.72",
+          "remote_address": "172.16.0.73",
+          "local_asn": 65111,
+          "remote_asn": 65210,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_1_1.leaf_router_1_1",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_1_1",
+          "remote_node": "leaf_router_1_1",
+          "local_address": "172.16.0.74",
+          "remote_address": "172.16.0.75",
+          "local_asn": 65111,
+          "remote_asn": 65211,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_1_1.leaf_router_1_2",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_1_1",
+          "remote_node": "leaf_router_1_2",
+          "local_address": "172.16.0.76",
+          "remote_address": "172.16.0.77",
+          "local_asn": 65111,
+          "remote_asn": 65212,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_1_1.leaf_router_1_3",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_1_1",
+          "remote_node": "leaf_router_1_3",
+          "local_address": "172.16.0.78",
+          "remote_address": "172.16.0.79",
+          "local_asn": 65111,
+          "remote_asn": 65213,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_1_1.super_spine_router_0",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_1_1",
+          "remote_node": "super_spine_router_0",
+          "local_address": "172.16.0.11",
+          "remote_address": "172.16.0.10",
+          "local_asn": 65111,
+          "remote_asn": 65000,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_1_1.super_spine_router_1",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_1_1",
+          "remote_node": "super_spine_router_1",
+          "local_address": "172.16.0.27",
+          "remote_address": "172.16.0.26",
+          "local_asn": 65111,
+          "remote_asn": 65001,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_1_2.leaf_router_1_0",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_1_2",
+          "remote_node": "leaf_router_1_0",
+          "local_address": "172.16.0.80",
+          "remote_address": "172.16.0.81",
+          "local_asn": 65112,
+          "remote_asn": 65210,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_1_2.leaf_router_1_1",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_1_2",
+          "remote_node": "leaf_router_1_1",
+          "local_address": "172.16.0.82",
+          "remote_address": "172.16.0.83",
+          "local_asn": 65112,
+          "remote_asn": 65211,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_1_2.leaf_router_1_2",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_1_2",
+          "remote_node": "leaf_router_1_2",
+          "local_address": "172.16.0.84",
+          "remote_address": "172.16.0.85",
+          "local_asn": 65112,
+          "remote_asn": 65212,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_1_2.leaf_router_1_3",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_1_2",
+          "remote_node": "leaf_router_1_3",
+          "local_address": "172.16.0.86",
+          "remote_address": "172.16.0.87",
+          "local_asn": 65112,
+          "remote_asn": 65213,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_1_2.super_spine_router_0",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_1_2",
+          "remote_node": "super_spine_router_0",
+          "local_address": "172.16.0.13",
+          "remote_address": "172.16.0.12",
+          "local_asn": 65112,
+          "remote_asn": 65000,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_1_2.super_spine_router_1",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_1_2",
+          "remote_node": "super_spine_router_1",
+          "local_address": "172.16.0.29",
+          "remote_address": "172.16.0.28",
+          "local_asn": 65112,
+          "remote_asn": 65001,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_1_3.leaf_router_1_0",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_1_3",
+          "remote_node": "leaf_router_1_0",
+          "local_address": "172.16.0.88",
+          "remote_address": "172.16.0.89",
+          "local_asn": 65113,
+          "remote_asn": 65210,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_1_3.leaf_router_1_1",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_1_3",
+          "remote_node": "leaf_router_1_1",
+          "local_address": "172.16.0.90",
+          "remote_address": "172.16.0.91",
+          "local_asn": 65113,
+          "remote_asn": 65211,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_1_3.leaf_router_1_2",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_1_3",
+          "remote_node": "leaf_router_1_2",
+          "local_address": "172.16.0.92",
+          "remote_address": "172.16.0.93",
+          "local_asn": 65113,
+          "remote_asn": 65212,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_1_3.leaf_router_1_3",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_1_3",
+          "remote_node": "leaf_router_1_3",
+          "local_address": "172.16.0.94",
+          "remote_address": "172.16.0.95",
+          "local_asn": 65113,
+          "remote_asn": 65213,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_1_3.super_spine_router_0",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_1_3",
+          "remote_node": "super_spine_router_0",
+          "local_address": "172.16.0.15",
+          "remote_address": "172.16.0.14",
+          "local_asn": 65113,
+          "remote_asn": 65000,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine_router_1_3.super_spine_router_1",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine_router_1_3",
+          "remote_node": "super_spine_router_1",
+          "local_address": "172.16.0.31",
+          "remote_address": "172.16.0.30",
+          "local_asn": 65113,
+          "remote_asn": 65001,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.super_spine_router_0.spine_router_0_0",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "super_spine_router_0",
+          "remote_node": "spine_router_0_0",
+          "local_address": "172.16.0.0",
+          "remote_address": "172.16.0.1",
+          "local_asn": 65000,
+          "remote_asn": 65100,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.super_spine_router_0.spine_router_0_1",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "super_spine_router_0",
+          "remote_node": "spine_router_0_1",
+          "local_address": "172.16.0.2",
+          "remote_address": "172.16.0.3",
+          "local_asn": 65000,
+          "remote_asn": 65101,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.super_spine_router_0.spine_router_0_2",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "super_spine_router_0",
+          "remote_node": "spine_router_0_2",
+          "local_address": "172.16.0.4",
+          "remote_address": "172.16.0.5",
+          "local_asn": 65000,
+          "remote_asn": 65102,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.super_spine_router_0.spine_router_0_3",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "super_spine_router_0",
+          "remote_node": "spine_router_0_3",
+          "local_address": "172.16.0.6",
+          "remote_address": "172.16.0.7",
+          "local_asn": 65000,
+          "remote_asn": 65103,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.super_spine_router_0.spine_router_1_0",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "super_spine_router_0",
+          "remote_node": "spine_router_1_0",
+          "local_address": "172.16.0.8",
+          "remote_address": "172.16.0.9",
+          "local_asn": 65000,
+          "remote_asn": 65110,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.super_spine_router_0.spine_router_1_1",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "super_spine_router_0",
+          "remote_node": "spine_router_1_1",
+          "local_address": "172.16.0.10",
+          "remote_address": "172.16.0.11",
+          "local_asn": 65000,
+          "remote_asn": 65111,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.super_spine_router_0.spine_router_1_2",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "super_spine_router_0",
+          "remote_node": "spine_router_1_2",
+          "local_address": "172.16.0.12",
+          "remote_address": "172.16.0.13",
+          "local_asn": 65000,
+          "remote_asn": 65112,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.super_spine_router_0.spine_router_1_3",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "super_spine_router_0",
+          "remote_node": "spine_router_1_3",
+          "local_address": "172.16.0.14",
+          "remote_address": "172.16.0.15",
+          "local_asn": 65000,
+          "remote_asn": 65113,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.super_spine_router_1.spine_router_0_0",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "super_spine_router_1",
+          "remote_node": "spine_router_0_0",
+          "local_address": "172.16.0.16",
+          "remote_address": "172.16.0.17",
+          "local_asn": 65001,
+          "remote_asn": 65100,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.super_spine_router_1.spine_router_0_1",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "super_spine_router_1",
+          "remote_node": "spine_router_0_1",
+          "local_address": "172.16.0.18",
+          "remote_address": "172.16.0.19",
+          "local_asn": 65001,
+          "remote_asn": 65101,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.super_spine_router_1.spine_router_0_2",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "super_spine_router_1",
+          "remote_node": "spine_router_0_2",
+          "local_address": "172.16.0.20",
+          "remote_address": "172.16.0.21",
+          "local_asn": 65001,
+          "remote_asn": 65102,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.super_spine_router_1.spine_router_0_3",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "super_spine_router_1",
+          "remote_node": "spine_router_0_3",
+          "local_address": "172.16.0.22",
+          "remote_address": "172.16.0.23",
+          "local_asn": 65001,
+          "remote_asn": 65103,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.super_spine_router_1.spine_router_1_0",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "super_spine_router_1",
+          "remote_node": "spine_router_1_0",
+          "local_address": "172.16.0.24",
+          "remote_address": "172.16.0.25",
+          "local_asn": 65001,
+          "remote_asn": 65110,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.super_spine_router_1.spine_router_1_1",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "super_spine_router_1",
+          "remote_node": "spine_router_1_1",
+          "local_address": "172.16.0.26",
+          "remote_address": "172.16.0.27",
+          "local_asn": 65001,
+          "remote_asn": 65111,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.super_spine_router_1.spine_router_1_2",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "super_spine_router_1",
+          "remote_node": "spine_router_1_2",
+          "local_address": "172.16.0.28",
+          "remote_address": "172.16.0.29",
+          "local_asn": 65001,
+          "remote_asn": 65112,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.super_spine_router_1.spine_router_1_3",
+        "description": "The declared fabric eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "super_spine_router_1",
+          "remote_node": "spine_router_1_3",
+          "local_address": "172.16.0.30",
+          "remote_address": "172.16.0.31",
+          "local_asn": 65001,
+          "remote_asn": 65113,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "reach.client-pod0.client-pod1",
+        "description": "Distinct super-spine ASNs must permit communication between client gateways.",
+        "property": "reachability",
+        "expected": "reachable",
+        "source": {
+          "kind": "node",
+          "name": "super_spine_router_0",
+          "address": "192.168.0.1"
+        },
+        "destination": {
+          "kind": "node",
+          "name": "super_spine_router_1",
+          "address": "192.168.1.1"
+        },
+        "traffic": {
+          "ip_version": 4,
+          "protocol": "icmp",
+          "round_trip": true
+        }
+      },
+      {
+        "id": "reach.client-pod1.client-pod0",
+        "description": "Distinct super-spine ASNs must permit communication between client gateways.",
+        "property": "reachability",
+        "expected": "reachable",
+        "source": {
+          "kind": "node",
+          "name": "super_spine_router_1",
+          "address": "192.168.1.1"
+        },
+        "destination": {
+          "kind": "node",
+          "name": "super_spine_router_0",
+          "address": "192.168.0.1"
+        },
+        "traffic": {
+          "ip_version": 4,
+          "protocol": "icmp",
+          "round_trip": true
+        }
+      },
+      {
+        "id": "reach.leaf0.remote-pod",
+        "description": "Leaf zero reaches the remote leaf access gateway.",
+        "property": "reachability",
+        "expected": "reachable",
+        "source": {
+          "kind": "node",
+          "name": "leaf_router_0_0",
+          "address": "10.0.0.1"
+        },
+        "destination": {
+          "kind": "node",
+          "name": "leaf_router_1_0",
+          "address": "10.1.0.1"
+        },
+        "traffic": {
+          "protocol": "icmp",
+          "round_trip": true
+        }
+      },
+      {
+        "id": "reach.remote-pod.leaf0",
+        "description": "Leaf one reaches the remote leaf access gateway.",
+        "property": "reachability",
+        "expected": "reachable",
+        "source": {
+          "kind": "node",
+          "name": "leaf_router_1_0",
+          "address": "10.1.0.1"
+        },
+        "destination": {
+          "kind": "node",
+          "name": "leaf_router_0_0",
+          "address": "10.0.0.1"
+        },
+        "traffic": {
+          "protocol": "icmp",
+          "round_trip": true
+        }
+      }
+    ]
+  },
+  "incidents": [
+    {
+      "name": "uplink-down",
+      "host_name": "leaf_router_0_0",
+      "intf_name": "eth0",
+      "requirements": {
+        "scenario": "dc_clos",
+        "contract_id": "routing.clos.m.uplink-down",
+        "design_source": {
+          "basis": "RFC 7938; concrete eBGP sketch; authored router-to-router service-prefix reachability"
+        },
+        "intents": [
+          {
+            "id": "adj.leaf_router_0_0.spine_router_0_1",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf_router_0_0",
+              "remote_node": "spine_router_0_1",
+              "local_address": "172.16.0.41",
+              "remote_address": "172.16.0.40",
+              "local_asn": 65200,
+              "remote_asn": 65101,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.leaf_router_0_0.spine_router_0_2",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf_router_0_0",
+              "remote_node": "spine_router_0_2",
+              "local_address": "172.16.0.49",
+              "remote_address": "172.16.0.48",
+              "local_asn": 65200,
+              "remote_asn": 65102,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.leaf_router_0_0.spine_router_0_3",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf_router_0_0",
+              "remote_node": "spine_router_0_3",
+              "local_address": "172.16.0.57",
+              "remote_address": "172.16.0.56",
+              "local_asn": 65200,
+              "remote_asn": 65103,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.leaf_router_0_1.spine_router_0_0",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf_router_0_1",
+              "remote_node": "spine_router_0_0",
+              "local_address": "172.16.0.35",
+              "remote_address": "172.16.0.34",
+              "local_asn": 65201,
+              "remote_asn": 65100,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.leaf_router_0_1.spine_router_0_1",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf_router_0_1",
+              "remote_node": "spine_router_0_1",
+              "local_address": "172.16.0.43",
+              "remote_address": "172.16.0.42",
+              "local_asn": 65201,
+              "remote_asn": 65101,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.leaf_router_0_1.spine_router_0_2",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf_router_0_1",
+              "remote_node": "spine_router_0_2",
+              "local_address": "172.16.0.51",
+              "remote_address": "172.16.0.50",
+              "local_asn": 65201,
+              "remote_asn": 65102,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.leaf_router_0_1.spine_router_0_3",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf_router_0_1",
+              "remote_node": "spine_router_0_3",
+              "local_address": "172.16.0.59",
+              "remote_address": "172.16.0.58",
+              "local_asn": 65201,
+              "remote_asn": 65103,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.leaf_router_0_2.spine_router_0_0",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf_router_0_2",
+              "remote_node": "spine_router_0_0",
+              "local_address": "172.16.0.37",
+              "remote_address": "172.16.0.36",
+              "local_asn": 65202,
+              "remote_asn": 65100,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.leaf_router_0_2.spine_router_0_1",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf_router_0_2",
+              "remote_node": "spine_router_0_1",
+              "local_address": "172.16.0.45",
+              "remote_address": "172.16.0.44",
+              "local_asn": 65202,
+              "remote_asn": 65101,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.leaf_router_0_2.spine_router_0_2",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf_router_0_2",
+              "remote_node": "spine_router_0_2",
+              "local_address": "172.16.0.53",
+              "remote_address": "172.16.0.52",
+              "local_asn": 65202,
+              "remote_asn": 65102,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.leaf_router_0_2.spine_router_0_3",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf_router_0_2",
+              "remote_node": "spine_router_0_3",
+              "local_address": "172.16.0.61",
+              "remote_address": "172.16.0.60",
+              "local_asn": 65202,
+              "remote_asn": 65103,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.leaf_router_0_3.spine_router_0_0",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf_router_0_3",
+              "remote_node": "spine_router_0_0",
+              "local_address": "172.16.0.39",
+              "remote_address": "172.16.0.38",
+              "local_asn": 65203,
+              "remote_asn": 65100,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.leaf_router_0_3.spine_router_0_1",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf_router_0_3",
+              "remote_node": "spine_router_0_1",
+              "local_address": "172.16.0.47",
+              "remote_address": "172.16.0.46",
+              "local_asn": 65203,
+              "remote_asn": 65101,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.leaf_router_0_3.spine_router_0_2",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf_router_0_3",
+              "remote_node": "spine_router_0_2",
+              "local_address": "172.16.0.55",
+              "remote_address": "172.16.0.54",
+              "local_asn": 65203,
+              "remote_asn": 65102,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.leaf_router_0_3.spine_router_0_3",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf_router_0_3",
+              "remote_node": "spine_router_0_3",
+              "local_address": "172.16.0.63",
+              "remote_address": "172.16.0.62",
+              "local_asn": 65203,
+              "remote_asn": 65103,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.leaf_router_1_0.spine_router_1_0",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf_router_1_0",
+              "remote_node": "spine_router_1_0",
+              "local_address": "172.16.0.65",
+              "remote_address": "172.16.0.64",
+              "local_asn": 65210,
+              "remote_asn": 65110,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.leaf_router_1_0.spine_router_1_1",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf_router_1_0",
+              "remote_node": "spine_router_1_1",
+              "local_address": "172.16.0.73",
+              "remote_address": "172.16.0.72",
+              "local_asn": 65210,
+              "remote_asn": 65111,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.leaf_router_1_0.spine_router_1_2",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf_router_1_0",
+              "remote_node": "spine_router_1_2",
+              "local_address": "172.16.0.81",
+              "remote_address": "172.16.0.80",
+              "local_asn": 65210,
+              "remote_asn": 65112,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.leaf_router_1_0.spine_router_1_3",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf_router_1_0",
+              "remote_node": "spine_router_1_3",
+              "local_address": "172.16.0.89",
+              "remote_address": "172.16.0.88",
+              "local_asn": 65210,
+              "remote_asn": 65113,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.leaf_router_1_1.spine_router_1_0",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf_router_1_1",
+              "remote_node": "spine_router_1_0",
+              "local_address": "172.16.0.67",
+              "remote_address": "172.16.0.66",
+              "local_asn": 65211,
+              "remote_asn": 65110,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.leaf_router_1_1.spine_router_1_1",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf_router_1_1",
+              "remote_node": "spine_router_1_1",
+              "local_address": "172.16.0.75",
+              "remote_address": "172.16.0.74",
+              "local_asn": 65211,
+              "remote_asn": 65111,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.leaf_router_1_1.spine_router_1_2",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf_router_1_1",
+              "remote_node": "spine_router_1_2",
+              "local_address": "172.16.0.83",
+              "remote_address": "172.16.0.82",
+              "local_asn": 65211,
+              "remote_asn": 65112,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.leaf_router_1_1.spine_router_1_3",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf_router_1_1",
+              "remote_node": "spine_router_1_3",
+              "local_address": "172.16.0.91",
+              "remote_address": "172.16.0.90",
+              "local_asn": 65211,
+              "remote_asn": 65113,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.leaf_router_1_2.spine_router_1_0",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf_router_1_2",
+              "remote_node": "spine_router_1_0",
+              "local_address": "172.16.0.69",
+              "remote_address": "172.16.0.68",
+              "local_asn": 65212,
+              "remote_asn": 65110,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.leaf_router_1_2.spine_router_1_1",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf_router_1_2",
+              "remote_node": "spine_router_1_1",
+              "local_address": "172.16.0.77",
+              "remote_address": "172.16.0.76",
+              "local_asn": 65212,
+              "remote_asn": 65111,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.leaf_router_1_2.spine_router_1_2",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf_router_1_2",
+              "remote_node": "spine_router_1_2",
+              "local_address": "172.16.0.85",
+              "remote_address": "172.16.0.84",
+              "local_asn": 65212,
+              "remote_asn": 65112,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.leaf_router_1_2.spine_router_1_3",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf_router_1_2",
+              "remote_node": "spine_router_1_3",
+              "local_address": "172.16.0.93",
+              "remote_address": "172.16.0.92",
+              "local_asn": 65212,
+              "remote_asn": 65113,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.leaf_router_1_3.spine_router_1_0",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf_router_1_3",
+              "remote_node": "spine_router_1_0",
+              "local_address": "172.16.0.71",
+              "remote_address": "172.16.0.70",
+              "local_asn": 65213,
+              "remote_asn": 65110,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.leaf_router_1_3.spine_router_1_1",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf_router_1_3",
+              "remote_node": "spine_router_1_1",
+              "local_address": "172.16.0.79",
+              "remote_address": "172.16.0.78",
+              "local_asn": 65213,
+              "remote_asn": 65111,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.leaf_router_1_3.spine_router_1_2",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf_router_1_3",
+              "remote_node": "spine_router_1_2",
+              "local_address": "172.16.0.87",
+              "remote_address": "172.16.0.86",
+              "local_asn": 65213,
+              "remote_asn": 65112,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.leaf_router_1_3.spine_router_1_3",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf_router_1_3",
+              "remote_node": "spine_router_1_3",
+              "local_address": "172.16.0.95",
+              "remote_address": "172.16.0.94",
+              "local_asn": 65213,
+              "remote_asn": 65113,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_0_0.leaf_router_0_1",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_0_0",
+              "remote_node": "leaf_router_0_1",
+              "local_address": "172.16.0.34",
+              "remote_address": "172.16.0.35",
+              "local_asn": 65100,
+              "remote_asn": 65201,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_0_0.leaf_router_0_2",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_0_0",
+              "remote_node": "leaf_router_0_2",
+              "local_address": "172.16.0.36",
+              "remote_address": "172.16.0.37",
+              "local_asn": 65100,
+              "remote_asn": 65202,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_0_0.leaf_router_0_3",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_0_0",
+              "remote_node": "leaf_router_0_3",
+              "local_address": "172.16.0.38",
+              "remote_address": "172.16.0.39",
+              "local_asn": 65100,
+              "remote_asn": 65203,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_0_0.super_spine_router_0",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_0_0",
+              "remote_node": "super_spine_router_0",
+              "local_address": "172.16.0.1",
+              "remote_address": "172.16.0.0",
+              "local_asn": 65100,
+              "remote_asn": 65000,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_0_0.super_spine_router_1",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_0_0",
+              "remote_node": "super_spine_router_1",
+              "local_address": "172.16.0.17",
+              "remote_address": "172.16.0.16",
+              "local_asn": 65100,
+              "remote_asn": 65001,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_0_1.leaf_router_0_0",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_0_1",
+              "remote_node": "leaf_router_0_0",
+              "local_address": "172.16.0.40",
+              "remote_address": "172.16.0.41",
+              "local_asn": 65101,
+              "remote_asn": 65200,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_0_1.leaf_router_0_1",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_0_1",
+              "remote_node": "leaf_router_0_1",
+              "local_address": "172.16.0.42",
+              "remote_address": "172.16.0.43",
+              "local_asn": 65101,
+              "remote_asn": 65201,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_0_1.leaf_router_0_2",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_0_1",
+              "remote_node": "leaf_router_0_2",
+              "local_address": "172.16.0.44",
+              "remote_address": "172.16.0.45",
+              "local_asn": 65101,
+              "remote_asn": 65202,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_0_1.leaf_router_0_3",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_0_1",
+              "remote_node": "leaf_router_0_3",
+              "local_address": "172.16.0.46",
+              "remote_address": "172.16.0.47",
+              "local_asn": 65101,
+              "remote_asn": 65203,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_0_1.super_spine_router_0",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_0_1",
+              "remote_node": "super_spine_router_0",
+              "local_address": "172.16.0.3",
+              "remote_address": "172.16.0.2",
+              "local_asn": 65101,
+              "remote_asn": 65000,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_0_1.super_spine_router_1",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_0_1",
+              "remote_node": "super_spine_router_1",
+              "local_address": "172.16.0.19",
+              "remote_address": "172.16.0.18",
+              "local_asn": 65101,
+              "remote_asn": 65001,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_0_2.leaf_router_0_0",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_0_2",
+              "remote_node": "leaf_router_0_0",
+              "local_address": "172.16.0.48",
+              "remote_address": "172.16.0.49",
+              "local_asn": 65102,
+              "remote_asn": 65200,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_0_2.leaf_router_0_1",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_0_2",
+              "remote_node": "leaf_router_0_1",
+              "local_address": "172.16.0.50",
+              "remote_address": "172.16.0.51",
+              "local_asn": 65102,
+              "remote_asn": 65201,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_0_2.leaf_router_0_2",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_0_2",
+              "remote_node": "leaf_router_0_2",
+              "local_address": "172.16.0.52",
+              "remote_address": "172.16.0.53",
+              "local_asn": 65102,
+              "remote_asn": 65202,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_0_2.leaf_router_0_3",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_0_2",
+              "remote_node": "leaf_router_0_3",
+              "local_address": "172.16.0.54",
+              "remote_address": "172.16.0.55",
+              "local_asn": 65102,
+              "remote_asn": 65203,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_0_2.super_spine_router_0",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_0_2",
+              "remote_node": "super_spine_router_0",
+              "local_address": "172.16.0.5",
+              "remote_address": "172.16.0.4",
+              "local_asn": 65102,
+              "remote_asn": 65000,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_0_2.super_spine_router_1",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_0_2",
+              "remote_node": "super_spine_router_1",
+              "local_address": "172.16.0.21",
+              "remote_address": "172.16.0.20",
+              "local_asn": 65102,
+              "remote_asn": 65001,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_0_3.leaf_router_0_0",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_0_3",
+              "remote_node": "leaf_router_0_0",
+              "local_address": "172.16.0.56",
+              "remote_address": "172.16.0.57",
+              "local_asn": 65103,
+              "remote_asn": 65200,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_0_3.leaf_router_0_1",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_0_3",
+              "remote_node": "leaf_router_0_1",
+              "local_address": "172.16.0.58",
+              "remote_address": "172.16.0.59",
+              "local_asn": 65103,
+              "remote_asn": 65201,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_0_3.leaf_router_0_2",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_0_3",
+              "remote_node": "leaf_router_0_2",
+              "local_address": "172.16.0.60",
+              "remote_address": "172.16.0.61",
+              "local_asn": 65103,
+              "remote_asn": 65202,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_0_3.leaf_router_0_3",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_0_3",
+              "remote_node": "leaf_router_0_3",
+              "local_address": "172.16.0.62",
+              "remote_address": "172.16.0.63",
+              "local_asn": 65103,
+              "remote_asn": 65203,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_0_3.super_spine_router_0",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_0_3",
+              "remote_node": "super_spine_router_0",
+              "local_address": "172.16.0.7",
+              "remote_address": "172.16.0.6",
+              "local_asn": 65103,
+              "remote_asn": 65000,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_0_3.super_spine_router_1",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_0_3",
+              "remote_node": "super_spine_router_1",
+              "local_address": "172.16.0.23",
+              "remote_address": "172.16.0.22",
+              "local_asn": 65103,
+              "remote_asn": 65001,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_1_0.leaf_router_1_0",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_1_0",
+              "remote_node": "leaf_router_1_0",
+              "local_address": "172.16.0.64",
+              "remote_address": "172.16.0.65",
+              "local_asn": 65110,
+              "remote_asn": 65210,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_1_0.leaf_router_1_1",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_1_0",
+              "remote_node": "leaf_router_1_1",
+              "local_address": "172.16.0.66",
+              "remote_address": "172.16.0.67",
+              "local_asn": 65110,
+              "remote_asn": 65211,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_1_0.leaf_router_1_2",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_1_0",
+              "remote_node": "leaf_router_1_2",
+              "local_address": "172.16.0.68",
+              "remote_address": "172.16.0.69",
+              "local_asn": 65110,
+              "remote_asn": 65212,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_1_0.leaf_router_1_3",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_1_0",
+              "remote_node": "leaf_router_1_3",
+              "local_address": "172.16.0.70",
+              "remote_address": "172.16.0.71",
+              "local_asn": 65110,
+              "remote_asn": 65213,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_1_0.super_spine_router_0",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_1_0",
+              "remote_node": "super_spine_router_0",
+              "local_address": "172.16.0.9",
+              "remote_address": "172.16.0.8",
+              "local_asn": 65110,
+              "remote_asn": 65000,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_1_0.super_spine_router_1",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_1_0",
+              "remote_node": "super_spine_router_1",
+              "local_address": "172.16.0.25",
+              "remote_address": "172.16.0.24",
+              "local_asn": 65110,
+              "remote_asn": 65001,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_1_1.leaf_router_1_0",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_1_1",
+              "remote_node": "leaf_router_1_0",
+              "local_address": "172.16.0.72",
+              "remote_address": "172.16.0.73",
+              "local_asn": 65111,
+              "remote_asn": 65210,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_1_1.leaf_router_1_1",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_1_1",
+              "remote_node": "leaf_router_1_1",
+              "local_address": "172.16.0.74",
+              "remote_address": "172.16.0.75",
+              "local_asn": 65111,
+              "remote_asn": 65211,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_1_1.leaf_router_1_2",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_1_1",
+              "remote_node": "leaf_router_1_2",
+              "local_address": "172.16.0.76",
+              "remote_address": "172.16.0.77",
+              "local_asn": 65111,
+              "remote_asn": 65212,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_1_1.leaf_router_1_3",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_1_1",
+              "remote_node": "leaf_router_1_3",
+              "local_address": "172.16.0.78",
+              "remote_address": "172.16.0.79",
+              "local_asn": 65111,
+              "remote_asn": 65213,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_1_1.super_spine_router_0",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_1_1",
+              "remote_node": "super_spine_router_0",
+              "local_address": "172.16.0.11",
+              "remote_address": "172.16.0.10",
+              "local_asn": 65111,
+              "remote_asn": 65000,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_1_1.super_spine_router_1",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_1_1",
+              "remote_node": "super_spine_router_1",
+              "local_address": "172.16.0.27",
+              "remote_address": "172.16.0.26",
+              "local_asn": 65111,
+              "remote_asn": 65001,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_1_2.leaf_router_1_0",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_1_2",
+              "remote_node": "leaf_router_1_0",
+              "local_address": "172.16.0.80",
+              "remote_address": "172.16.0.81",
+              "local_asn": 65112,
+              "remote_asn": 65210,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_1_2.leaf_router_1_1",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_1_2",
+              "remote_node": "leaf_router_1_1",
+              "local_address": "172.16.0.82",
+              "remote_address": "172.16.0.83",
+              "local_asn": 65112,
+              "remote_asn": 65211,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_1_2.leaf_router_1_2",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_1_2",
+              "remote_node": "leaf_router_1_2",
+              "local_address": "172.16.0.84",
+              "remote_address": "172.16.0.85",
+              "local_asn": 65112,
+              "remote_asn": 65212,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_1_2.leaf_router_1_3",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_1_2",
+              "remote_node": "leaf_router_1_3",
+              "local_address": "172.16.0.86",
+              "remote_address": "172.16.0.87",
+              "local_asn": 65112,
+              "remote_asn": 65213,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_1_2.super_spine_router_0",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_1_2",
+              "remote_node": "super_spine_router_0",
+              "local_address": "172.16.0.13",
+              "remote_address": "172.16.0.12",
+              "local_asn": 65112,
+              "remote_asn": 65000,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_1_2.super_spine_router_1",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_1_2",
+              "remote_node": "super_spine_router_1",
+              "local_address": "172.16.0.29",
+              "remote_address": "172.16.0.28",
+              "local_asn": 65112,
+              "remote_asn": 65001,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_1_3.leaf_router_1_0",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_1_3",
+              "remote_node": "leaf_router_1_0",
+              "local_address": "172.16.0.88",
+              "remote_address": "172.16.0.89",
+              "local_asn": 65113,
+              "remote_asn": 65210,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_1_3.leaf_router_1_1",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_1_3",
+              "remote_node": "leaf_router_1_1",
+              "local_address": "172.16.0.90",
+              "remote_address": "172.16.0.91",
+              "local_asn": 65113,
+              "remote_asn": 65211,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_1_3.leaf_router_1_2",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_1_3",
+              "remote_node": "leaf_router_1_2",
+              "local_address": "172.16.0.92",
+              "remote_address": "172.16.0.93",
+              "local_asn": 65113,
+              "remote_asn": 65212,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_1_3.leaf_router_1_3",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_1_3",
+              "remote_node": "leaf_router_1_3",
+              "local_address": "172.16.0.94",
+              "remote_address": "172.16.0.95",
+              "local_asn": 65113,
+              "remote_asn": 65213,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_1_3.super_spine_router_0",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_1_3",
+              "remote_node": "super_spine_router_0",
+              "local_address": "172.16.0.15",
+              "remote_address": "172.16.0.14",
+              "local_asn": 65113,
+              "remote_asn": 65000,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine_router_1_3.super_spine_router_1",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine_router_1_3",
+              "remote_node": "super_spine_router_1",
+              "local_address": "172.16.0.31",
+              "remote_address": "172.16.0.30",
+              "local_asn": 65113,
+              "remote_asn": 65001,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.super_spine_router_0.spine_router_0_0",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "super_spine_router_0",
+              "remote_node": "spine_router_0_0",
+              "local_address": "172.16.0.0",
+              "remote_address": "172.16.0.1",
+              "local_asn": 65000,
+              "remote_asn": 65100,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.super_spine_router_0.spine_router_0_1",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "super_spine_router_0",
+              "remote_node": "spine_router_0_1",
+              "local_address": "172.16.0.2",
+              "remote_address": "172.16.0.3",
+              "local_asn": 65000,
+              "remote_asn": 65101,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.super_spine_router_0.spine_router_0_2",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "super_spine_router_0",
+              "remote_node": "spine_router_0_2",
+              "local_address": "172.16.0.4",
+              "remote_address": "172.16.0.5",
+              "local_asn": 65000,
+              "remote_asn": 65102,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.super_spine_router_0.spine_router_0_3",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "super_spine_router_0",
+              "remote_node": "spine_router_0_3",
+              "local_address": "172.16.0.6",
+              "remote_address": "172.16.0.7",
+              "local_asn": 65000,
+              "remote_asn": 65103,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.super_spine_router_0.spine_router_1_0",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "super_spine_router_0",
+              "remote_node": "spine_router_1_0",
+              "local_address": "172.16.0.8",
+              "remote_address": "172.16.0.9",
+              "local_asn": 65000,
+              "remote_asn": 65110,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.super_spine_router_0.spine_router_1_1",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "super_spine_router_0",
+              "remote_node": "spine_router_1_1",
+              "local_address": "172.16.0.10",
+              "remote_address": "172.16.0.11",
+              "local_asn": 65000,
+              "remote_asn": 65111,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.super_spine_router_0.spine_router_1_2",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "super_spine_router_0",
+              "remote_node": "spine_router_1_2",
+              "local_address": "172.16.0.12",
+              "remote_address": "172.16.0.13",
+              "local_asn": 65000,
+              "remote_asn": 65112,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.super_spine_router_0.spine_router_1_3",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "super_spine_router_0",
+              "remote_node": "spine_router_1_3",
+              "local_address": "172.16.0.14",
+              "remote_address": "172.16.0.15",
+              "local_asn": 65000,
+              "remote_asn": 65113,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.super_spine_router_1.spine_router_0_0",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "super_spine_router_1",
+              "remote_node": "spine_router_0_0",
+              "local_address": "172.16.0.16",
+              "remote_address": "172.16.0.17",
+              "local_asn": 65001,
+              "remote_asn": 65100,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.super_spine_router_1.spine_router_0_1",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "super_spine_router_1",
+              "remote_node": "spine_router_0_1",
+              "local_address": "172.16.0.18",
+              "remote_address": "172.16.0.19",
+              "local_asn": 65001,
+              "remote_asn": 65101,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.super_spine_router_1.spine_router_0_2",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "super_spine_router_1",
+              "remote_node": "spine_router_0_2",
+              "local_address": "172.16.0.20",
+              "remote_address": "172.16.0.21",
+              "local_asn": 65001,
+              "remote_asn": 65102,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.super_spine_router_1.spine_router_0_3",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "super_spine_router_1",
+              "remote_node": "spine_router_0_3",
+              "local_address": "172.16.0.22",
+              "remote_address": "172.16.0.23",
+              "local_asn": 65001,
+              "remote_asn": 65103,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.super_spine_router_1.spine_router_1_0",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "super_spine_router_1",
+              "remote_node": "spine_router_1_0",
+              "local_address": "172.16.0.24",
+              "remote_address": "172.16.0.25",
+              "local_asn": 65001,
+              "remote_asn": 65110,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.super_spine_router_1.spine_router_1_1",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "super_spine_router_1",
+              "remote_node": "spine_router_1_1",
+              "local_address": "172.16.0.26",
+              "remote_address": "172.16.0.27",
+              "local_asn": 65001,
+              "remote_asn": 65111,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.super_spine_router_1.spine_router_1_2",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "super_spine_router_1",
+              "remote_node": "spine_router_1_2",
+              "local_address": "172.16.0.28",
+              "remote_address": "172.16.0.29",
+              "local_asn": 65001,
+              "remote_asn": 65112,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.super_spine_router_1.spine_router_1_3",
+            "description": "The declared fabric eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "super_spine_router_1",
+              "remote_node": "spine_router_1_3",
+              "local_address": "172.16.0.30",
+              "remote_address": "172.16.0.31",
+              "local_asn": 65001,
+              "remote_asn": 65113,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "reach.client-pod0.client-pod1",
+            "description": "Distinct super-spine ASNs must permit communication between client gateways.",
+            "property": "reachability",
+            "expected": "reachable",
+            "source": {
+              "kind": "node",
+              "name": "super_spine_router_0",
+              "address": "192.168.0.1"
+            },
+            "destination": {
+              "kind": "node",
+              "name": "super_spine_router_1",
+              "address": "192.168.1.1"
+            },
+            "traffic": {
+              "ip_version": 4,
+              "protocol": "icmp",
+              "round_trip": true
+            }
+          },
+          {
+            "id": "reach.client-pod1.client-pod0",
+            "description": "Distinct super-spine ASNs must permit communication between client gateways.",
+            "property": "reachability",
+            "expected": "reachable",
+            "source": {
+              "kind": "node",
+              "name": "super_spine_router_1",
+              "address": "192.168.1.1"
+            },
+            "destination": {
+              "kind": "node",
+              "name": "super_spine_router_0",
+              "address": "192.168.0.1"
+            },
+            "traffic": {
+              "ip_version": 4,
+              "protocol": "icmp",
+              "round_trip": true
+            }
+          },
+          {
+            "id": "reach.leaf0.remote-pod",
+            "description": "Leaf zero reaches the remote leaf access gateway.",
+            "property": "reachability",
+            "expected": "reachable",
+            "source": {
+              "kind": "node",
+              "name": "leaf_router_0_0",
+              "address": "10.0.0.1"
+            },
+            "destination": {
+              "kind": "node",
+              "name": "leaf_router_1_0",
+              "address": "10.1.0.1"
+            },
+            "traffic": {
+              "protocol": "icmp",
+              "round_trip": true
+            }
+          },
+          {
+            "id": "reach.remote-pod.leaf0",
+            "description": "Leaf one reaches the remote leaf access gateway.",
+            "property": "reachability",
+            "expected": "reachable",
+            "source": {
+              "kind": "node",
+              "name": "leaf_router_1_0",
+              "address": "10.1.0.1"
+            },
+            "destination": {
+              "kind": "node",
+              "name": "leaf_router_0_0",
+              "address": "10.0.0.1"
+            },
+            "traffic": {
+              "protocol": "icmp",
+              "round_trip": true
+            }
+          }
+        ]
+      },
+      "runtime_requirements": {
+        "scenario": "dc_clos",
+        "contract_id": "routing.clos.m.runtime-ecmp.uplink-down",
+        "design_source": {
+          "basis": "RFC 7938; concrete eBGP sketch; authored router-to-router service-prefix reachability"
+        },
+        "intents": [
+          {
+            "id": "ecmp.leaf_router_0_0",
+            "description": "All declared equal-cost next hops must be installed.",
+            "property": "route_next_hops",
+            "expected": "next_hops_match",
+            "route_next_hops": {
+              "node": "leaf_router_0_0",
+              "prefix": "10.1.0.0/24",
+              "next_hops": [
+                "172.16.0.40",
+                "172.16.0.48",
+                "172.16.0.56"
+              ]
+            }
+          },
+          {
+            "id": "ecmp.leaf_router_1_0",
+            "description": "All declared equal-cost next hops must be installed.",
+            "property": "route_next_hops",
+            "expected": "next_hops_match",
+            "route_next_hops": {
+              "node": "leaf_router_1_0",
+              "prefix": "10.0.0.0/24",
+              "next_hops": [
+                "172.16.0.64",
+                "172.16.0.72",
+                "172.16.0.80",
+                "172.16.0.88"
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "counterexamples": [
+    {
+      "name": "wrong-bgp-asn",
+      "node": "leaf_router_0_0",
+      "old": "neighbor 172.16.0.32 remote-as 65100",
+      "new": "neighbor 172.16.0.32 remote-as 65099",
+      "expected_failed_ids": [
+        "adj.leaf_router_0_0.spine_router_0_0",
+        "adj.spine_router_0_0.leaf_router_0_0"
+      ]
+    }
+  ],
+  "runtime_requirements": {
+    "scenario": "dc_clos",
+    "contract_id": "routing.clos.m.runtime-ecmp",
+    "design_source": {
+      "basis": "RFC 7938; concrete eBGP sketch; authored router-to-router service-prefix reachability"
+    },
+    "intents": [
+      {
+        "id": "ecmp.leaf_router_0_0",
+        "description": "All declared equal-cost next hops must be installed.",
+        "property": "route_next_hops",
+        "expected": "next_hops_match",
+        "route_next_hops": {
+          "node": "leaf_router_0_0",
+          "prefix": "10.1.0.0/24",
+          "next_hops": [
+            "172.16.0.32",
+            "172.16.0.40",
+            "172.16.0.48",
+            "172.16.0.56"
+          ]
+        }
+      },
+      {
+        "id": "ecmp.leaf_router_1_0",
+        "description": "All declared equal-cost next hops must be installed.",
+        "property": "route_next_hops",
+        "expected": "next_hops_match",
+        "route_next_hops": {
+          "node": "leaf_router_1_0",
+          "prefix": "10.0.0.0/24",
+          "next_hops": [
+            "172.16.0.64",
+            "172.16.0.72",
+            "172.16.0.80",
+            "172.16.0.88"
+          ]
+        }
+      }
+    ]
+  },
+  "runtime_counterexamples": [
+    {
+      "name": "missing-ecmp-path",
+      "node": "leaf_router_0_0",
+      "commands": [
+        "configure terminal",
+        "router bgp 65200",
+        "address-family ipv4 unicast",
+        "maximum-paths 1",
+        "end"
+      ],
+      "recovery": [
+        "configure terminal",
+        "router bgp 65200",
+        "address-family ipv4 unicast",
+        "maximum-paths 32",
+        "end"
+      ],
+      "expected_failed_ids": [
+        "ecmp.leaf_router_0_0"
+      ]
+    }
+  ],
+  "completion": {
+    "kind": "bgp_fabric",
+    "origins": {
+      "10.0.0.0/24": "leaf_router_0_0",
+      "10.0.1.0/24": "leaf_router_0_1",
+      "10.0.2.0/24": "leaf_router_0_2",
+      "10.0.3.0/24": "leaf_router_0_3",
+      "10.1.0.0/24": "leaf_router_1_0",
+      "10.1.1.0/24": "leaf_router_1_1",
+      "10.1.2.0/24": "leaf_router_1_2",
+      "10.1.3.0/24": "leaf_router_1_3",
+      "192.168.0.0/24": "super_spine_router_0",
+      "192.168.1.0/24": "super_spine_router_1"
+    }
+  },
+  "failure_checks": [
+    {
+      "name": "origin-withdrawal",
+      "problem": "bgp_missing_route_advertisement",
+      "params": {
+        "host_name": "leaf_router_1_0",
+        "prefix": "10.1.0.0/24"
+      },
+      "restore_nodes": [
+        "leaf_router_1_0"
+      ],
+      "expected_failed_ids": [
+        "ecmp.leaf_router_0_0",
+        "reach.leaf0.remote-pod",
+        "reach.remote-pod.leaf0"
+      ]
+    }
+  ]
+}
