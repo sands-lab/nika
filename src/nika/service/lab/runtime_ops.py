@@ -190,8 +190,16 @@ class ExecSemanticOpsMixin:
     def srl_get_bgp_as(self, node: str) -> int:
         return self._api().srl_get_bgp_as(node)
 
+    def srl_run_script(
+        self, node: str, commands: tuple[str, ...] | list[str], *, timeout: float = 30
+    ) -> str:
+        return self._api()._srl_run_script(node, list(commands), timeout=timeout)
+
     def srl_set_bgp_as(self, node: str, asn: int) -> None:
         self._api().srl_set_bgp_as(node, asn)
+
+    def srl_bgp_acl_drop_179_entries(self, node: str) -> dict[int, str]:
+        return self._api().srl_bgp_acl_drop_179_entries(node)
 
     def srl_add_bgp_acl_drop_179(self, node: str) -> dict[int, str]:
         return self._api().srl_add_bgp_acl_drop_179(node)

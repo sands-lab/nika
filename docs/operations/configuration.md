@@ -138,6 +138,7 @@ Leaderboard trajectory submit reads `HF_TOKEN` from `.env` / the environment. Se
 | Key | Default | Meaning and constraints |
 | --- | --- | --- |
 | `nika.static_validation.enabled` | `false` | Run the optional Batfish verifier before deployment for supported ISP Kathara FRR scenarios. |
+| `nika.static_validation.batfish_heap` | `8g` | Java heap (`<n>m` or `<n>g`) for the Batfish container NIKA creates. Remove the existing container to apply a new value. |
 
 The CLI flag `--static-validation` overrides this setting for one run. Use `--no-static-validation` to force the runtime-only path.
 

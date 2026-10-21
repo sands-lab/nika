@@ -30,8 +30,8 @@ from nika.net_env.isp.igp import (
     compile_isp_plan,
 )
 from nika.net_env.utils.containerlab.mgmt_subnet import (
-    mgmt_ipv4_address,
-    mgmt_ipv4_subnet,
+    mgmt_ipv4_addresses,
+    mgmt_ipv4_network,
 )
 from nika.net_env.isp.igp.ifaces import srl_e1_name
 from nika.net_env.isp.igp.srl import render_srl_node_config
@@ -74,6 +74,9 @@ def _stub_series_all_routers(plan: IspPlan) -> TrafficMatrixSeries:
 class Isp(ContainerlabNetworkEnv):
     """SNDlib ISP on Containerlab with nokia_srlinux routers + linux stubs."""
 
+    ROUTING_PARAMETER_KINDS = frozenset({"ospf_costs", "isis_metrics", "bgp_imports"})
+    ROUTING_MODELS = frozenset({"srl-isp"})
+
     LAB_NAME = "isp"
     TOPO_LEVEL = "medium"
     DESC = "ISP from SNDlib on Containerlab (Nokia SR Linux)."
@@ -90,6 +93,7 @@ class Isp(ContainerlabNetworkEnv):
         device_profile: str | None = None,
         topo_size: str | None = None,
         scenario_id: str | None = None,
+        routing_parameters: dict | None = None,
         **kwargs,
     ):
         kwargs.pop("traffic_mode", None)
@@ -142,6 +146,24 @@ class Isp(ContainerlabNetworkEnv):
         base_plan = compile_isp_plan(config)
         self.bgp_plan: BgpPlan | None = compile_bgp_plan(base_plan, self.bgp_mode)
         base_plan = scope_igp_to_bgp_as(base_plan, self.bgp_plan)
+        from nika.net_env.synthesis.parameters import (
+            RoutingParameters,
+            bind_isp_imports,
+            bind_isp_metrics,
+        )
+
+        solved = RoutingParameters.model_validate(routing_parameters or {})
+        # Only completed IGP metrics declare the all-shortest-path ECMP sketch.
+        self.completed_metrics = bool(solved.ospf_costs or solved.isis_metrics)
+        base_plan = bind_isp_metrics(
+            config,
+            base_plan,
+            self.bgp_plan,
+            routing_parameters,
+            parameter_kinds=self.ROUTING_PARAMETER_KINDS,
+        )
+        if routing_parameters is not None:
+            self.bgp_plan = bind_isp_imports(self.bgp_plan, routing_parameters)
         stub_series = _stub_series_all_routers(base_plan)
         attachment = attach_traffic_stubs(
             base_plan,
@@ -185,18 +207,12 @@ class Isp(ContainerlabNetworkEnv):
         self._populate_role_lists()
 
     def _assign_mgmt_ips(self) -> dict[str, str]:
-        mapping: dict[str, str] = {}
-        index = 2
-        lab = self.name or self.scenario_id
-        for node in sorted(self.plan.nodes, key=lambda n: n.device_name):
-            mapping[node.device_name] = mgmt_ipv4_address(lab, index)
-            index += 1
-        for host in sorted(self.traffic.hosts, key=lambda h: h.host_name):
-            mapping[host.host_name] = mgmt_ipv4_address(lab, index)
-            index += 1
-            if index > 254:
-                raise ValueError("Too many ISP nodes for mgmt /24.")
-        return mapping
+        names = [
+            *sorted(n.device_name for n in self.plan.nodes),
+            *sorted(h.host_name for h in self.traffic.hosts),
+        ]
+        addresses = mgmt_ipv4_addresses(self.name or self.scenario_id, len(names))
+        return dict(zip(names, addresses, strict=True))
 
     def _populate_role_lists(self) -> None:
         self.routers = sorted(n.device_name for n in self.plan.nodes)
@@ -226,7 +242,7 @@ class Isp(ContainerlabNetworkEnv):
     def _build_clab_document(self, *, lab_name: str) -> dict:
         if not getattr(self, "_mgmt_ipv4", None):
             self._mgmt_ipv4 = self._assign_mgmt_ips()
-        mgmt_subnet = mgmt_ipv4_subnet(lab_name)
+        mgmt_subnet = str(mgmt_ipv4_network(lab_name, len(self._mgmt_ipv4)))
         nodes: dict = {}
         for node in self.plan.nodes:
             nodes[node.device_name] = {
@@ -312,6 +328,22 @@ class Isp(ContainerlabNetworkEnv):
         configs = self.runtime_workdir / "configs"
         configs.mkdir(parents=True, exist_ok=True)
 
+        for node, document in self.routing_documents.items():
+            (configs / f"{node}.yaml").write_text(
+                yaml.safe_dump(document, sort_keys=False)
+            )
+
+        for host in self.traffic.hosts:
+            script = "\n".join(
+                ["#!/bin/bash", "set -euo pipefail", *host.startup_commands, ""]
+            )
+            path = configs / f"{host.host_name}.sh"
+            path.write_text(script, encoding="utf-8")
+            path.chmod(0o755)
+
+    @property
+    def routing_documents(self):
+        documents = {}
         bgp_by_device = {}
         if self.bgp_plan is not None:
             bgp_by_device = {n.device_name: n for n in self.bgp_plan.nodes}
@@ -335,17 +367,27 @@ class Isp(ContainerlabNetworkEnv):
                 extra_loopback_addrs=tuple(extras),
                 include_routing_policy=include_policy,
             )
-            (configs / f"{node.device_name}.yaml").write_text(
-                yaml_text, encoding="utf-8"
-            )
+            document = yaml.safe_load(yaml_text)
+            if bgp_node and bgp_node.import_policies:
+                from nika.net_env.isp.bgp.srl import routing_policy_document
 
-        for host in self.traffic.hosts:
-            script = "\n".join(
-                ["#!/bin/bash", "set -euo pipefail", *host.startup_commands, ""]
-            )
-            path = configs / f"{host.host_name}.sh"
-            path.write_text(script, encoding="utf-8")
-            path.chmod(0o755)
+                document.update(routing_policy_document(bgp_node))
+            if self.completed_metrics:
+                # The declared all-shortest-path sketch requires all equal next hops.
+                protocols = document["srl_nokia-network-instance:network-instance"][0][
+                    "protocols"
+                ]
+                igp_key = (
+                    "srl_nokia-isis:isis"
+                    if self.plan.igp == "isis"
+                    else "srl_nokia-ospf:ospf"
+                )
+                protocols[igp_key]["instance"][0]["max-ecmp-paths"] = max(
+                    len(n.interfaces) for n in self.plan.nodes
+                )
+            documents[node.device_name] = document
+
+        return documents
 
     def _write_setup_script(self, *, lab_name: str) -> None:
         assert self.runtime_workdir is not None

@@ -190,6 +190,9 @@ class SrlApiTest:
 
     def test_srl_withdraw_bgp_prefix_uses_candidate(self) -> None:
         api = _SRLStub()
+        api.srl_exec_cli = lambda *args, **kwargs: (
+            '{"network-instance":[{"protocols":{"bgp":{"neighbor":[{"peer-address":"10.0.0.1","afi-safi":[{"afi-safi-name":"ipv4-unicast","export-policy":["BGP-OUT"]}]}]}}}]}'
+        )
         api.srl_withdraw_bgp_prefix("leaf1", "10.0.0.24/31")
 
         assert len(api.exec_calls) == 1
@@ -201,7 +204,11 @@ class SrlApiTest:
 
         assert "10.0.0.24/31" in script
 
-        assert "default-action policy-result accept" in script
+        assert "default-action policy-result next-policy" in script
+        assert (
+            f"neighbor 10.0.0.1 afi-safi ipv4-unicast export-policy [{BGP_EXPORT_POLICY} BGP-OUT]"
+            in script
+        )
 
         assert "match prefix-set" in script
 

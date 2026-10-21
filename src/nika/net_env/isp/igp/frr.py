@@ -46,8 +46,11 @@ def _render_isis(node: PlannedNode, interfaces: tuple[PlannedInterface, ...]) ->
         "interface lo",
         f" ip address {node.loopback}/32",
         " ip router isis CORE",
+        " isis passive",
         "!",
     ]
+    # isisd has no ``passive-interface`` router command (it silently drops
+    # it), so passive edge and inter-AS links use ``isis passive``.
     for iface in interfaces:
         lines.extend(
             [
@@ -56,6 +59,7 @@ def _render_isis(node: PlannedNode, interfaces: tuple[PlannedInterface, ...]) ->
                 " ip router isis CORE",
                 " isis circuit-type level-2-only",
                 f" isis metric {iface.metric}",
+                *([" isis passive"] if iface.passive else []),
                 "!",
             ]
         )
@@ -65,14 +69,6 @@ def _render_isis(node: PlannedNode, interfaces: tuple[PlannedInterface, ...]) ->
             f" net {net}",
             " is-type level-2-only",
             " metric-style wide",
-            " passive-interface lo",
-        ]
-    )
-    for iface in interfaces:
-        if iface.passive:
-            lines.append(f" passive-interface {iface.name}")
-    lines.extend(
-        [
             "!",
             "log file /var/log/frr/frr.log",
             "!",

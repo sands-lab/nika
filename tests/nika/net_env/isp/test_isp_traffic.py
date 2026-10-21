@@ -21,13 +21,13 @@ from nika.net_env.isp.traffic.models import (
     TrafficInterval,
     TrafficMatrixSeries,
 )
-from nika.topology import load_sndlib_topology
+from nika.topology import load_topology
 
 pytestmark = pytest.mark.unit
 
 
 def test_demands_series_polska() -> None:
-    topo = load_sndlib_topology("polska")
+    topo = load_topology("polska")
     series = series_from_demands(topo, duration_sec=5)
     assert series.source == "demands"
     assert len(series.intervals) == 1

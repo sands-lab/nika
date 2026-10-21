@@ -53,7 +53,7 @@ def test_config_rejects_unsupported_metric_strategy() -> None:
 
 
 def test_config_rejects_unknown_topology() -> None:
-    with pytest.raises(IspConfigError, match="Unknown SNDlib topology"):
+    with pytest.raises(IspConfigError, match="Unknown ISP topology"):
         IspConfig(topology="not-a-real-topo").validated()
 
 
@@ -159,6 +159,32 @@ def test_metric_strategies() -> None:
     )
 
 
+def test_isis_parallel_links_share_cheapest_metric() -> None:
+    def link(lid: str, capacity: float) -> TopoLink:
+        return TopoLink(
+            id=lid,
+            source="A",
+            target="B",
+            preinstalled=CapacityModule(capacity=capacity, cost=1.0),
+        )
+
+    topo = NetworkTopology(
+        name="bundle",
+        source_format="topology-zoo-graphml",
+        meta={},
+        nodes=(TopoNode(id="A"), TopoNode(id="B")),
+        links=(link("L1", 10_000.0), link("L2", 1_000.0)),
+        demands=(),
+    )
+
+    def metrics(igp: str) -> list[int]:
+        cfg = IspConfig(topology="polska", igp=igp, metric_strategy="inv_capacity")
+        return [lk.metric for lk in compile_isp_plan(cfg, topology=topo).links]
+
+    assert metrics("isis") == [100, 100]
+    assert metrics("ospf") == [100, 1000]
+
+
 def test_ospf_and_isis_frr_differ() -> None:
     topo = _tiny_topology(nodes=("A", "B"), links=(("L1", "A", "B"),))
     isis = compile_isp_plan(IspConfig(topology="polska", igp="isis"), topology=topo)
@@ -185,3 +211,17 @@ def test_endpoint_address_order_stable_by_device_name() -> None:
     assert link.endpoint_b == "z"
     assert link.address_a.endswith("0") or True  # /31 first address on lex-smaller
     assert plan.inventory["links"][0]["endpoint_a"]["device"] == "a"
+
+
+def test_shortest_paths_preserve_ecmp_and_exclude_longer_paths():
+    from nika.net_env.isp.igp.plan import shortest_paths
+
+    graph = {
+        "a": [("b", 1), ("c", 1), ("d", 3)],
+        "b": [("a", 1), ("d", 1)],
+        "c": [("a", 1), ("d", 1)],
+        "d": [("a", 3), ("b", 1), ("c", 1)],
+        "isolated": [],
+    }
+    assert shortest_paths(graph, "a", "d") == (("a", "b", "d"), ("a", "c", "d"))
+    assert shortest_paths(graph, "a", "isolated") == ()

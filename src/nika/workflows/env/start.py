@@ -218,6 +218,8 @@ def start_net_env(
     backend: str | None = None,
     device_profile: str | None = None,
     static_validation: bool | None = None,
+    routing_parameters: dict | None = None,
+    routing_model: str | None = None,
 ) -> str:
     """Deploy the lab for ``scenario`` and create a new runtime session."""
     from nika.remote.config import is_remote_enabled
@@ -230,6 +232,10 @@ def start_net_env(
     )
 
     if is_remote_enabled():
+        if routing_parameters is not None or routing_model is not None:
+            raise ValueError(
+                "Routing-specification deployment currently requires a local session."
+            )
         from nika.remote.workflows import remote_start_net_env
 
         return remote_start_net_env(
@@ -282,6 +288,18 @@ def start_net_env(
         backend=backend,
         default_when_ambiguous=default_backend,
     )
+    if routing_parameters is not None:
+        from nika.net_env.synthesis.parameters import RoutingParameters
+
+        if resolved_backend not in {"kathara", "containerlab"}:
+            raise ValueError(
+                "Solved routing parameters require a supported local backend"
+            )
+        isp_kwargs["routing_parameters"] = RoutingParameters.model_validate(
+            routing_parameters
+        ).model_dump(mode="json")
+    if routing_model is not None:
+        isp_kwargs["routing_model"] = routing_model
 
     refresh_logger()
     suffix = uuid4().hex[:6]
@@ -301,6 +319,14 @@ def start_net_env(
     net_env = get_net_env_instance(
         canonical, backend=resolved_backend, **net_env_kwargs
     )
+    if routing_model is not None and routing_model not in net_env.ROUTING_MODELS:
+        raise ValueError("Routing model does not match scenario capabilities")
+    if routing_parameters is not None:
+        supplied = {
+            name for name, values in isp_kwargs["routing_parameters"].items() if values
+        }
+        if not supplied <= net_env.ROUTING_PARAMETER_KINDS:
+            raise ValueError("Solved parameters do not match scenario capabilities")
     if resolved_backend == "kathara":
         net_env.load_machines()
         # k8s_lab / llmd_lab create runtime/kathara/<lab>/ before deploy so the

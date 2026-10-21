@@ -5,6 +5,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 import time
+import yaml
 from typing import ClassVar
 
 from nika.config import CLAB_RUNTIME_DIR
@@ -15,16 +16,43 @@ from nika.utils.dependencies import require_gnmic
 
 
 class ContainerlabMin3Clos(ContainerlabNetworkEnv):
+    ROUTING_PARAMETER_KINDS = frozenset({"bgp_exports"})
+    ROUTING_MODELS = frozenset({"srl-bgp"})
     # ref: https://containerlab.dev/lab-examples/min-clos/
     LAB_NAME = "min3clos"
     TOPO_LEVEL = "easy"
     DESC = "3-node CLOS fabric with Nokia SR Linux (Containerlab min-clos / clos01)."
     GNMI_WAIT_TIMEOUT_SEC: ClassVar[int] = 300
 
-    def __init__(self, *, backend: str = "containerlab", **kwargs):
+    def __init__(
+        self,
+        *,
+        backend: str = "containerlab",
+        routing_model=None,
+        routing_parameters=None,
+        **kwargs,
+    ):
         from nika.runtime.spec import NodeRole
 
         super().__init__(backend=backend, **kwargs)
+        self.routing_model = routing_model
+        self.routing_documents = None
+        if routing_model == "srl-bgp":
+            from nika.net_env.synthesis.srl import bgp_sketch, apply_srl_exports
+
+            documents = {
+                path.stem: yaml.safe_load(path.read_text())
+                for path in (self.lab_dir / "configs").glob("*.yaml")
+            }
+            self.routing_documents = bgp_sketch(documents, self.bgp_origin_prefixes())
+            if routing_parameters is not None:
+                self.routing_documents = apply_srl_exports(
+                    self.routing_documents, routing_parameters
+                )
+        elif routing_parameters is not None:
+            raise ValueError(
+                "SR Linux parameters require the declared srl-bgp routing model"
+            )
         for name in ("leaf1", "leaf2", "spine"):
             self.declare_machine(
                 name,
@@ -70,6 +98,10 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
             )
         return replacements
 
+    def bgp_origin_prefixes(self):
+        # Original client-facing /31 prefixes; no change to node/interface roles.
+        return {"10.0.0.24/31": "leaf1", "10.0.0.26/31": "leaf2"}
+
     def _mgmt_ipv4_for_srl(self) -> dict[str, str]:
         from nika.net_env.utils.containerlab.mgmt_subnet import mgmt_ipv4_address
 
@@ -99,6 +131,11 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
         if configs_dst.exists():
             shutil.rmtree(configs_dst)
         shutil.copytree(configs_src, configs_dst)
+        if self.routing_documents is not None:
+            for node, document in self.routing_documents.items():
+                (configs_dst / f"{node}.yaml").write_text(
+                    yaml.safe_dump(document, sort_keys=False)
+                )
 
         setup_template = self.lab_dir / "setup.sh.tmpl"
         setup_dst = self.runtime_workdir / "setup.sh"
