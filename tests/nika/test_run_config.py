@@ -413,7 +413,7 @@ def test_saved_config_with_observability_still_loads() -> None:
     saved = {"langfuse_enabled": False, "langfuse_host": "https://cloud.langfuse.com"}
     cfg = RunConfig.model_validate({"nika": {"observability": saved}})
     assert "observability" not in cfg.model_dump()["nika"]
-    with pytest.warns(DeprecationWarning, match="nika.observability is ignored"):
+    with pytest.warns(UserWarning, match="nika.observability is ignored"):
         RunConfig.model_validate(
             {"nika": {"observability": {**saved, "langfuse_enabled": True}}}
         )
