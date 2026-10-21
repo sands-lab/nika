@@ -69,7 +69,7 @@ Re-run `./scripts/install.sh` after `git pull` or on a host with an older or par
 - Reinstalls gnmic into `.venv/bin` when the `gnmic` on `PATH` differs from the pinned version, and installs Containerlab there when the `clab` on `PATH` is older than the minimum version. A newer Containerlab is kept, including one installed from a package by an older installer.
 - Rewrites an inotify sysctl file from an older installer into the current format.
 
-The installer never rewrites `.env` or `config/nika.yaml`. When `config/nika.yaml` fails validation (for example, it uses a key that this version removed), the installer prints the validation error. Compare the file with `config/nika.example.yaml` and fix it.
+The installer preserves existing `.env` and `config/nika.yaml` settings, except when `--with-agentenv` adds the service credentials and selects the AgentENV sandbox runtime. When `config/nika.yaml` fails validation (for example, it uses a key that this version removed), the installer prints the validation error. Compare the file with `config/nika.example.yaml` and fix it.
 
 A second re-run prints `No stale NIKA images` and builds nothing.
 

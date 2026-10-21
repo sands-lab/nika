@@ -2,7 +2,7 @@
 
 This reference is for operators who configure NIKA runs. NIKA reads run settings from `config/nika.yaml` and credentials from the repository-root `.env`.
 
-Copy the tracked templates for a new checkout:
+The installer creates these files when missing. For a manual checkout, create them before configuring a sandbox runtime:
 
 ```shell
 cp config/nika.example.yaml config/nika.yaml
@@ -10,13 +10,16 @@ cp .env.example .env
 uv run nika config show
 ```
 
-To compare agents, copy a per-agent template and pass `--run-config`:
+To compare agents, copy your active configuration and change its agent settings:
 
 ```shell
-cp config/cli.codex.example.yaml config/cli.codex.yaml
-# edit provider / model in that file if needed
+cp config/nika.yaml config/cli.codex.yaml
+uv run nika config set --run-config config/cli.codex.yaml \
+  agent.type=cli.codex agent.provider=openai agent.model=gpt-5-mini
 uv run nika agent run --run-config config/cli.codex.yaml --problem dc_clos_s_link_down
 ```
+
+Each `--run-config` file is a complete configuration; it does not inherit `config/nika.yaml`. Copying the active file preserves your AgentENV, E2B, or sbx settings. Use per-agent templates as references when editing the copied file's `agent` section.
 
 Tracked per-agent templates live next to `nika.example.yaml`: `byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `cli.codex`, `cli.claude`, `sdk.codex_sdk`, and `sdk.claude_sdk` (each as `config/<agent>.example.yaml`).
 
@@ -41,7 +44,7 @@ NIKA resolves values in this order:
 2. The selected YAML file
 3. Defaults in [`run_config/schema.py`](../../src/nika/run_config/schema.py)
 
-The tracked [`config/nika.example.yaml`](../../config/nika.example.yaml) is the full platform reference (`agent:` / `nika:` / `benchmark:`) with a default `byo.langgraph` profile. Prefer the per-agent `config/<agent>.example.yaml` files when you want one ready profile per harness; missing keys fall back to schema defaults. A run must set `agent.model` (or pass `-m/--model`).
+The tracked [`config/nika.example.yaml`](../../config/nika.example.yaml) is the full platform reference (`agent:` / `nika:` / `benchmark:`) with a default `byo.langgraph` profile. The per-agent `config/<agent>.example.yaml` files provide agent settings to use in your profile. Missing keys fall back to schema defaults, including `sbx` for the sandbox backend. A run must set `agent.model` (or pass `-m/--model`).
 
 Relative result paths resolve from the repository root. NIKA rejects unknown YAML keys and values outside the validation constraints below.
 
@@ -53,7 +56,7 @@ Relative result paths resolve from the repository root. NIKA rejects unknown YAM
 | `agent.provider` | `openai` | Provider name. The selected agent must support it. |
 | `agent.model` | `null` | Canonical model id for the active agent type. |
 | `agent.base_url` | `null` | Required for `provider: custom`. Use the OpenAI-style API root, usually ending in `/v1` (for example `http://localhost:8000/v1`), not the bare host and port. Other providers ignore it; set `OPENAI_BASE_URL` or `ANTHROPIC_BASE_URL` in `.env` to route them through a gateway. Set via YAML, `nika config set agent.base_url=...`, or `--base-url` on `agent run` / `benchmark run`. |
-| `agent.max_steps` | `20` | Max LLM turns per phase for agents that support it (same unit as eval `steps` / `llm_end`). `byo.langgraph` enforces it with model-call limits and `cli.claude` with `claude --max-turns`. `cli.codex` and `sdk.codex_sdk` have no turn limit. Must be at least `1`. |
+| `agent.max_steps` | `20` | Host-enforced limit on successful LLM generation requests per phase for every sandboxed agent, including sub-agent requests. Provider failures do not consume the budget. Must be at least `1`. See [Step limit](../agents/agent-reference.md#step-limit). |
 | `agent.timeout_sec` | `1800` | Wall-clock budget in seconds for one agent run (diagnosis plus submission). Applies to every agent type. When it expires, NIKA stops the agent and cleans up its sandbox. Benchmark batch runs record the trial as counted `agent_failed`, or as `success` when the agent already wrote a valid `submission.json`. Keep it below `benchmark.case_timeout_sec`. Set `0` to disable it. |
 | `agent.enable_skills` | `true` | Load the shared skill library for Claude and Codex agents. |
 | `agent.submit_reject_limit` | `5` | Max consecutive `submit()` validation failures. After the last one, `submit()` refuses every later call for the session, including valid ones. Set `0` to disable the cap. |
@@ -86,7 +89,9 @@ Model resolution order: `-m/--model`, then `agent.model`.
 | `sdk.claude_sdk` | `anthropic`, `deepseek`, `custom` |
 | `community.sade` | `anthropic`, `deepseek`, `custom` |
 
-Provider credentials belong in `.env`: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`, or optional `NIKA_CUSTOM_API_KEY`. NIKA maps credentials for the selected provider into the agent process or sandbox. The E2B sandbox runtime also reads `E2B_API_KEY`, optional `E2B_DOMAIN`, and an optional Claude subscription token, `CLAUDE_CODE_OAUTH_TOKEN`, from `.env`; see [Connect to E2B](agent-sandbox.md#connect-to-e2b-cloud-or-another-e2b-compatible-service).
+Provider credentials belong in `.env`: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`, or optional `NIKA_CUSTOM_API_KEY`. NIKA keeps them on the host; sandboxes receive a model-proxy token or subscription placeholder. Codex and Claude harnesses can also use subscription login on either sandbox runtime. See [Authentication](agent-sandbox.md#authentication) for setup and supported agents.
+
+E2B service credentials are separate: the host reads `E2B_API_KEY` and optional `E2B_DOMAIN` to connect to the sandbox service. See [Connect to E2B](agent-sandbox.md#connect-to-e2b-cloud-or-another-e2b-compatible-service).
 
 Leaderboard trajectory submit reads `HF_TOKEN` from `.env` / the environment. See [leaderboard submission](../benchmarks/leaderboard-submission.md).
 
