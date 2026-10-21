@@ -9,12 +9,8 @@ Two-phase pipeline via ``claude -p`` subprocesses (no LangGraph).
   (``claude -p`` with the task MCP server; calls ``submit()`` to record
   a structured result)
 
-Authentication uses ``agent.provider`` (``-p`` / config/nika.yaml) with
-``ANTHROPIC_API_KEY``, ``DEEPSEEK_API_KEY``, or ``NIKA_CUSTOM_*`` (mapped for
-the subprocess only), or ``claude auth login``.  See
-:mod:`agent.cli.claude.config` and ``docs/agents/agent-implementations.md``.
-
-Select with ``nika agent run -a cli.claude``.
+Authentication comes from the sandbox environment the host prepares (see
+:mod:`agent.cli.claude.config`).
 """
 
 from __future__ import annotations
@@ -22,20 +18,18 @@ from __future__ import annotations
 from agent.cli.claude.config import resolve_claude_model
 from agent.cli.claude.phases.diagnosis import ClaudeDiagnosisPhase
 from agent.cli.claude.phases.submission import ClaudeSubmissionPhase
-from agent.base import NikaAgent
+from agent.base import DiagnosisAgent
 
 
-class ClaudeAgent(NikaAgent):
+class ClaudeAgent(DiagnosisAgent):
     """Two-phase troubleshooting agent backed by Claude Code CLI workers.
 
     Parameters
     ----------
     session_id:
-        NIKA session identifier.
+        Opaque session handle of the run.
     model:
-        Claude model name forwarded to ``claude --model``.  When omitted,
-        requires ``agent.model`` / ``-m`` (see
-        :func:`~agent.cli.claude.config.resolve_claude_model`).
+        Claude model name forwarded to ``claude --model`` (required).
     llm_provider:
         Active LLM provider (``anthropic``, ``deepseek``, ``custom``).
     max_steps:
@@ -54,8 +48,6 @@ class ClaudeAgent(NikaAgent):
         max_tokens: int | None = None,
         stream_output: bool = True,
     ) -> None:
-        # The sandbox workspace holds the CLI workspace; the trace stays in the
-        # host session dir, which the sandbox cannot write.
         super().__init__(
             session_id,
             model=resolve_claude_model(model),

@@ -37,6 +37,11 @@ TASK_B = "dc_clos__link_flap__s__hcc30df961cd6"
 def _isolate_run_config(monkeypatch: pytest.MonkeyPatch):
     """CLI invokes persist effective config; do not leak release into later tests."""
     monkeypatch.delenv(ENV_RUN_CONFIG, raising=False)
+    # The runs are mocked; provider credentials are not under test.
+    monkeypatch.setattr(
+        "nika.agents.sandbox.model_proxy.require_agent_credentials",
+        lambda *args, **kwargs: None,
+    )
     reset_run_config()
     yield
     reset_run_config()

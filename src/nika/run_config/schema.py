@@ -14,7 +14,7 @@ from pydantic import (
     model_validator,
 )
 
-from agent.utils.provider_env import validate_provider_for_agent
+from nika.agents.provider_env import validate_provider_for_agent
 
 
 class RemoteSettings(BaseModel):
@@ -40,13 +40,6 @@ class SandboxSettings(BaseModel):
     memory: str | None = "4g"
     offline_sdk_wheels: bool = True
     upstream_proxy: str | None = None
-
-
-class ObservabilitySettings(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    langfuse_enabled: bool = False
-    langfuse_host: str = "https://cloud.langfuse.com"
 
 
 class JudgeSettings(BaseModel):
@@ -167,10 +160,31 @@ class RuntimeValidationSettings(BaseModel):
 class NikaSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_observability(cls, data: Any) -> Any:
+        """Ignore ``nika.observability``, which saved run configs still hold.
+
+        It configured Langfuse tracing; the model proxy now records every
+        model call in ``model_calls.jsonl``.
+        """
+        if not isinstance(data, dict) or "observability" not in data:
+            return data
+        data = dict(data)
+        observability = data.pop("observability")
+        if isinstance(observability, dict) and observability.get("langfuse_enabled"):
+            # A UserWarning, because Python hides DeprecationWarning by default.
+            warnings.warn(
+                "nika.observability is ignored: Langfuse tracing was removed; "
+                "model_calls.jsonl records every model call.",
+                UserWarning,
+                stacklevel=2,
+            )
+        return data
+
     result_dir: str = "results"
     remote: RemoteSettings = Field(default_factory=RemoteSettings)
     sandbox: SandboxSettings = Field(default_factory=SandboxSettings)
-    observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
     judge: JudgeSettings = Field(default_factory=JudgeSettings)
     k8s: K8sSettings = Field(default_factory=K8sSettings)
     lab: LabSettings = Field(default_factory=LabSettings)

@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import os
 import tempfile
-import unittest.mock
 from pathlib import Path
 
 import pytest
@@ -22,27 +20,20 @@ from agent.utils.template import (
     SKILLS_PROMPT_SUFFIX,
     TEST_SKILLS_PROMPT_SUFFIX,
 )
-from nika.run_config.loader import reset_run_config, set_run_config
-from nika.run_config.schema import RunConfig
 from tests.agent._assertions import marker_before_first_mcp_tool, skill_invoked
-from tests.support.integration_pipeline import load_test_env
 
 pytestmark = pytest.mark.unit
 
-load_test_env()
-
 
 @pytest.fixture(autouse=True)
-def _isolate_skills_config(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.delenv("NIKA_ENABLE_SKILLS", raising=False)
-    reset_run_config()
-    set_run_config(RunConfig())
-    yield
-    reset_run_config()
+def set_skills(agent_task):
+    """Write the task with skills on (the run config default) or off."""
 
+    def write(enabled: bool) -> Path:
+        return agent_task(enable_skills=enabled)
 
-def _set_skills_enabled(enabled: bool) -> None:
-    set_run_config(RunConfig.model_validate({"agent": {"enable_skills": enabled}}))
+    write(True)
+    return write
 
 
 class SkillsConfigTest:
@@ -55,30 +46,21 @@ class SkillsConfigTest:
         assert (test_dir / "SKILL.md").is_file()
         assert "tests" in test_dir.parts
 
-    def test_resolve_skills_root_sandbox_session_copy(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            session_dir = Path(tmp)
-            skills_root = session_dir / "skills"
-            skills_root.mkdir()
-            with unittest.mock.patch.dict(
-                os.environ,
-                {
-                    "NIKA_SANDBOX_EXECUTION": "1",
-                    "NIKA_SESSION_DIR": str(session_dir),
-                },
-                clear=False,
-            ):
-                assert resolve_skills_root() == skills_root.resolve()
+    def test_resolve_skills_root_workspace_copy(self, set_skills) -> None:
+        workspace = set_skills(True)
+        skills_root = workspace / "skills"
+        skills_root.mkdir()
+        assert resolve_skills_root() == skills_root.resolve()
 
     def test_skills_enabled_default(self) -> None:
         assert skills_enabled()
 
-    def test_skills_enabled_false(self) -> None:
-        _set_skills_enabled(False)
+    def test_skills_enabled_false(self, set_skills) -> None:
+        set_skills(False)
         assert not skills_enabled()
 
-    def test_claude_skills_package_dir_when_disabled(self) -> None:
-        _set_skills_enabled(False)
+    def test_claude_skills_package_dir_when_disabled(self, set_skills) -> None:
+        set_skills(False)
         assert claude_skills_package_dir() is None
 
     def test_claude_skills_package_dir_when_enabled(self) -> None:
@@ -89,7 +71,7 @@ class SkillsConfigTest:
             package / ".claude" / "skills" / TEST_SKILL_NAME / "SKILL.md"
         ).exists()
 
-    def test_diagnosis_prompt_with_skills(self) -> None:
+    def test_diagnosis_prompt_with_skills(self, set_skills) -> None:
         prompt = diagnosis_prompt_with_skills(OVERALL_DIAGNOSIS_PROMPT)
         assert SKILLS_PROMPT_SUFFIX in prompt
         assert TEST_SKILL_NAME not in prompt
@@ -97,7 +79,7 @@ class SkillsConfigTest:
             OVERALL_DIAGNOSIS_PROMPT, include_test_skill=True
         )
         assert TEST_SKILLS_PROMPT_SUFFIX in test_prompt
-        _set_skills_enabled(False)
+        set_skills(False)
         assert (
             diagnosis_prompt_with_skills(OVERALL_DIAGNOSIS_PROMPT)
             == OVERALL_DIAGNOSIS_PROMPT
@@ -149,7 +131,7 @@ class SkillAssertionTest:
             {
                 "event": "tool_start",
                 "tool": {"name": "Skill"},
-                "input": "{'skill': 'nika-test-skill'}",
+                "input": "{'skill': 'skill-loading-check'}",
             }
         ]
         assert skill_invoked(messages)
@@ -165,7 +147,7 @@ class SkillAssertionTest:
                             {
                                 "type": "tool_use",
                                 "name": "Skill",
-                                "input": {"skill": "nika-test-skill"},
+                                "input": {"skill": "skill-loading-check"},
                             }
                         ]
                     },
@@ -176,7 +158,7 @@ class SkillAssertionTest:
 
     def test_marker_before_first_mcp_tool(self) -> None:
         messages = [
-            {"event": "llm_end", "text": "NIKA_TEST_SKILL_ACTIVE"},
+            {"event": "llm_end", "text": "SKILL_LOADING_CHECK_ACTIVE"},
             {
                 "event": "tool_start",
                 "tool": {"name": "get_reachability"},
@@ -192,6 +174,6 @@ class SkillAssertionTest:
                 "tool": {"name": "get_reachability"},
                 "input": "{}",
             },
-            {"event": "llm_end", "text": "NIKA_TEST_SKILL_ACTIVE"},
+            {"event": "llm_end", "text": "SKILL_LOADING_CHECK_ACTIVE"},
         ]
         assert not marker_before_first_mcp_tool(messages)

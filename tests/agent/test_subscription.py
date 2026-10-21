@@ -1,4 +1,4 @@
-"""Subscription logins held on the host for the e2b backend's model proxy."""
+"""Subscription logins held on the host for the model proxy."""
 
 from __future__ import annotations
 
@@ -11,8 +11,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from agent.sandbox import subscription
-from agent.sandbox.subscription import CodexLogin
+from nika.agents.sandbox import subscription
+from nika.agents.sandbox.subscription import CodexLogin
 
 pytestmark = pytest.mark.unit
 
@@ -95,7 +95,7 @@ def test_codex_login_keeps_a_valid_token(tmp_path, monkeypatch) -> None:
 def test_model_proxy_uses_a_subscription_only_without_api_key(
     tmp_path, monkeypatch
 ) -> None:
-    from agent.sandbox.model_proxy import start_model_proxy
+    from nika.agents.sandbox.model_proxy import start_model_proxy
 
     for key in _KEYS:
         monkeypatch.delenv(key, raising=False)
@@ -115,21 +115,27 @@ def test_model_proxy_uses_a_subscription_only_without_api_key(
         return env
 
     env_file.write_text("")
-    with pytest.raises(RuntimeError, match="claude setup-token"):
+    with pytest.raises(ValueError, match="claude setup-token"):
         start("cli.claude", "anthropic")
-    with pytest.raises(RuntimeError, match="codex login"):
+    with pytest.raises(ValueError, match="codex login"):
         start("cli.codex", "openai")
 
     # The sandbox only gets the proxy token, as Claude Code's OAuth bearer.
     env_file.write_text("CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-real\n")
     env = start("cli.claude", "anthropic")
-    assert set(env) == {"ANTHROPIC_BASE_URL", "CLAUDE_CODE_OAUTH_TOKEN"}
-    assert env["CLAUDE_CODE_OAUTH_TOKEN"].startswith("nika-proxy-")
+    assert env["CLAUDE_CODE_OAUTH_TOKEN"].startswith("proxy-token-")
+    # Claude Code prefers an API key, so one the runtime injects is cleared.
+    assert env["ANTHROPIC_API_KEY"] == env["ANTHROPIC_AUTH_TOKEN"] == ""
 
     _write_login(tmp_path / "codex", expires_in=3600)
     env = start("cli.codex", "openai")
     assert set(env) == {"OPENAI_BASE_URL", "OPENAI_API_KEY"}
-    assert env["OPENAI_API_KEY"].startswith("nika-proxy-")
+    assert env["OPENAI_API_KEY"].startswith("proxy-token-")
+
+    # BYO agents need an API key even when a login is present.
+    for provider in ("openai", "anthropic"):
+        with pytest.raises(ValueError, match="needs an API key"):
+            start("byo.langgraph", provider)
 
     # An API key still wins over the subscription.
     env_file.write_text(
@@ -145,38 +151,26 @@ def test_model_proxy_uses_a_subscription_only_without_api_key(
 
 
 def test_agents_use_the_subscription_stand_in_on_e2b(monkeypatch) -> None:
-    from agent.cli.claude.config import (
-        prepare_claude_subprocess_env,
-        use_bare_claude_mode,
-    )
+    from agent.cli.claude.config import claude_env, use_bare_claude_mode
     from agent.cli.codex.codex_worker import _build_mcp_toml
-    from agent.sandbox.exec import sandbox_shell_command
 
     for key in _KEYS:
         monkeypatch.delenv(key, raising=False)
     proxy = "http://127.0.0.1:41000"
-    token = "nika-proxy-session"
+    token = "proxy-token-session"
 
     # Codex reaches the proxy through its own provider block.
     monkeypatch.setenv("OPENAI_BASE_URL", proxy)
     monkeypatch.setenv("OPENAI_API_KEY", token)
     config = _build_mcp_toml({}, provider="openai")
-    assert 'model_provider = "nika_openai"' in config
+    assert 'model_provider = "openai_llm"' in config
     assert f'base_url = "{proxy}"' in config
-    # Outside NIKA's proxy (host, sbx) Codex keeps its built-in provider.
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-real")
+    # Without a base URL (sbx) Codex keeps its built-in provider.
+    monkeypatch.delenv("OPENAI_BASE_URL")
     assert "model_provider" not in _build_mcp_toml({}, provider="openai")
 
     # Claude Code runs in subscription mode with the proxy token.
     monkeypatch.setenv("ANTHROPIC_BASE_URL", proxy)
     monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", token)
-    env = prepare_claude_subprocess_env(provider="anthropic")
-    assert env["CLAUDE_CODE_OAUTH_TOKEN"] == token
-    assert env["ANTHROPIC_BASE_URL"] == proxy
-    assert "ANTHROPIC_API_KEY" not in env
-    assert not use_bare_claude_mode(provider="anthropic")
-
-    # Only a proxy token enters the sandbox; a real login is dropped.
-    assert token in sandbox_shell_command(["claude"], env=env)
-    real = {**env, "CLAUDE_CODE_OAUTH_TOKEN": "sk-ant-oat01-real"}
-    assert "CLAUDE_CODE_OAUTH_TOKEN" not in sandbox_shell_command(["claude"], env=real)
+    assert not use_bare_claude_mode()
+    assert "ANTHROPIC_AUTH_TOKEN" not in claude_env()

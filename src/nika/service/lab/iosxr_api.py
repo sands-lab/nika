@@ -55,7 +55,7 @@ class IOSXRAPIMixin:
         self: SupportsExec, device_name: str, config_lines: list[str]
     ) -> str:
         return self._iosxr_write_apply_file(
-            device_name, "/tmp/nika_iosxr_apply.cfg", config_lines
+            device_name, "/tmp/iosxr_apply.cfg", config_lines
         )
 
     def iosxr_get_bgp_asn_number(self: SupportsExec, device_name: str) -> int:
@@ -89,11 +89,11 @@ class IOSXRAPIMixin:
         rebuilt = _rewrite_router_bgp_asn(conf, current, asn)
         self._iosxr_write_apply_file(
             device_name,
-            "/tmp/nika_iosxr_no_bgp.cfg",
+            "/tmp/iosxr_no_bgp.cfg",
             [f"no router bgp {current}", "end"],
         )
         self._iosxr_write_apply_file(
-            device_name, "/tmp/nika_iosxr_new_bgp.cfg", [*rebuilt, "end"]
+            device_name, "/tmp/iosxr_new_bgp.cfg", [*rebuilt, "end"]
         )
 
     def _iosxr_write_apply_file(
@@ -121,7 +121,7 @@ class IOSXRAPIMixin:
         asn = self.iosxr_get_bgp_asn_number(device_name)
         self._iosxr_write_apply_file(
             device_name,
-            "/tmp/nika_iosxr_withdraw.cfg",
+            "/tmp/iosxr_withdraw.cfg",
             [
                 f"router bgp {asn}",
                 " address-family ipv4 unicast",

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from agent.submission import parse_answer, vote
+from nika.agents.submission import parse_answer, vote
 from nika.run_config.schema import AgentSubmissionSettings
 
 pytestmark = pytest.mark.unit
@@ -82,7 +82,7 @@ def test_report_mapper_traces_samples_and_vote(tmp_path, monkeypatch) -> None:
 
     from langchain_core.language_models.fake_chat_models import FakeListChatModel
 
-    from agent.submission import ReportMapper
+    from nika.agents.submission import ReportMapper
 
     link = json.dumps(_LINK_DOWN)
     replies = ["no idea", link, '{"is_anomaly": false, "root_causes": []}', link]
@@ -92,7 +92,7 @@ def test_report_mapper_traces_samples_and_vote(tmp_path, monkeypatch) -> None:
         recorded.append(answer)
         return "Submitted"
 
-    monkeypatch.setattr("agent.submission._record", record)
+    monkeypatch.setattr("nika.agents.submission._record", record)
     mapper = ReportMapper(
         llm=FakeListChatModel(responses=replies),
         provider="custom",

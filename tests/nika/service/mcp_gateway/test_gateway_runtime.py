@@ -53,8 +53,8 @@ def _headers(session_id: str, **extra: str) -> dict:
     token = get_session(session_id).access_token
     return {
         **_ACCEPT,
-        "NIKA-Session-Id": session_id,
-        "NIKA-Session-Token": token,
+        "X-Session-Id": session_id,
+        "X-Session-Token": token,
         **extra,
     }
 
@@ -125,13 +125,13 @@ def test_requests_need_their_session_token(gateway: TestClient) -> None:
             _URL,
             headers={
                 **_ACCEPT,
-                "NIKA-Session-Id": "sess-a",
-                "NIKA-Session-Token": token,
+                "X-Session-Id": "sess-a",
+                "X-Session-Token": token,
             },
             json=_INITIALIZE,
         )
         assert response.status_code == 401, token
-        assert "NIKA-Session-Token" in response.text
+        assert "X-Session-Token" in response.text
 
 
 def test_transport_rejects_a_different_session_header(gateway: TestClient) -> None:
@@ -153,6 +153,4 @@ def test_unselected_diagnosis_server_is_denied(gateway: TestClient) -> None:
     transport_id = _initialize(gateway, "sess-a")
     response = _call(gateway, "sess-a", transport_id, "nika_test_probe_binding")
     body = _result(response)
-    assert body["error"]["message"] == (
-        "NIKA access denied: diagnosis_server_not_allowed"
-    )
+    assert body["error"]["message"] == ("Access denied: diagnosis_server_not_allowed")

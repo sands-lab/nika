@@ -9,7 +9,7 @@ from typing import ClassVar
 import pytest
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
-from agent.utils.mcp_servers import MCPServerConfig
+from nika.agents.mcp_config import MCPServerConfig
 from agent.protocols import DIAGNOSIS, SUBMISSION
 from nika.cli.utils import env_id_from_lab
 from nika.utils.session_store import SessionStore
@@ -230,7 +230,7 @@ class PipelineCaseBase(CliIntegrationTestCase, OrderedPipelineTestCase):
     def test_step_06_submit_via_mcp(self) -> None:
         assert self.session_id is not None
         assert self.session_dir is not None
-        from agent.utils.mcp_client import begin_submission_mcp_phase
+        from nika.agents.mcp_config import begin_submission_mcp_phase
         from nika.mcp.gateway.lifecycle import mcp_gateway_for_session
         from nika.workflows.agent.submission import load_submission_context
 

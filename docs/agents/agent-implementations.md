@@ -4,7 +4,7 @@ NIKA runs troubleshooting agents against network incidents and scores their diag
 
 ## Run your first incident
 
-Complete [Installation](../operations/installation.md), run `uv sync`, and add your provider key to the repository's `.env`:
+Complete [Installation](../operations/installation.md), [set up a sandbox runtime](../operations/agent-sandbox.md#set-up-the-runtime), and add your provider key to the repository's `.env`. Every agent runs in its own sandbox, isolated from NIKA:
 
 ```dotenv
 OPENAI_API_KEY=<your-api-key>
@@ -21,17 +21,17 @@ NIKA creates the lab, injects the failure, runs the agent, evaluates its answer,
 
 ## Available harnesses
 
-Each harness name links to its example configuration.
+Each harness name links to its example configuration. Docker Sandboxes runs the sandboxes as microVMs on the NIKA host and needs KVM, while E2B runs them on E2B cloud or an E2B-compatible service (like AgentENV).
 
-### On the host
+### Agent frameworks
 
 - [LangGraph](../../config/byo.langgraph.example.yaml) (`byo.langgraph`)
 - [mcp-agent](../../config/byo.mcp_agent.example.yaml) (`byo.mcp_agent`)
 - [AutoGen](../../config/byo.autogen.example.yaml) (`byo.autogen`)
 
-### In a sandbox
+### Coding agent CLIs and SDKs
 
-[Set up a sandbox runtime](../operations/agent-sandbox.md#set-up-the-runtime) first: Docker Sandboxes runs microVMs on the NIKA host and needs KVM, while E2B runs sandboxes on E2B cloud or an E2B-compatible service (like AgentENV). Then choose a CLI or SDK harness. For a Claude or ChatGPT subscription, complete the [subscription login](../operations/agent-sandbox.md#subscription--oauth-interactive-once) for your runtime first; NIKA does not import your local CLI login:
+For a Claude or ChatGPT subscription, complete the [subscription login](../operations/agent-sandbox.md#subscriptions) for your runtime first; NIKA does not import your local CLI login:
 
 - [Codex CLI](../../config/cli.codex.example.yaml) (`cli.codex`)
 - [Claude Code](../../config/cli.claude.example.yaml) (`cli.claude`)
@@ -44,8 +44,6 @@ For example:
 uv run nika agent run -a cli.codex -p openai -m gpt-5-mini \
   --problem dc_clos_s_link_down
 ```
-
-SDK harnesses also need `uv sync --extra sdk --prerelease=allow`.
 
 ### Community and testing
 

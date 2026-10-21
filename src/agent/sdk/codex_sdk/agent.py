@@ -1,17 +1,16 @@
 """OpenAI Codex SDK troubleshooting agent.
 
 Two-phase pipeline via native ``AsyncCodex`` threads (no LangGraph).
-Select with ``nika agent run -a sdk.codex_sdk``.
 """
 
 from __future__ import annotations
 
 from agent.sdk.codex_sdk.phases.diagnosis import CodexSdkDiagnosisPhase
 from agent.sdk.codex_sdk.phases.submission import CodexSdkSubmissionPhase
-from agent.base import NikaAgent
+from agent.base import DiagnosisAgent
 
 
-class CodexSdkAgent(NikaAgent):
+class CodexSdkAgent(DiagnosisAgent):
     """Two-phase troubleshooting agent backed by openai-codex."""
 
     def __init__(
