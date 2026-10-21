@@ -179,7 +179,7 @@ sandbox:
   egress: [integrate.api.nvidia.com]
 ```
 
-The sandbox installs NIKA's pinned `langgraph` package set first, then `install` from PyPI. Pin versions in `install` or in `pyproject.toml` so runs stay reproducible. `egress` applies on Docker Sandboxes; E2B sandboxes have no internet access. Files named `nika-agent.yaml` stay on the host.
+The sandbox installs NIKA's pinned `langgraph` package set first, then `install` from PyPI. When `[project].requires-python` excludes the sandbox's Python, both go into an environment with a matching interpreter, as for [custom agents](custom-agents.md). Pin versions in `install` or in `pyproject.toml` so runs stay reproducible. `egress` applies on Docker Sandboxes; E2B sandboxes have no internet access. Files named `nika-agent.yaml` stay on the host.
 
 ## Python MCP client
 

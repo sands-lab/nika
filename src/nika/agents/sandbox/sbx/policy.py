@@ -26,13 +26,6 @@ _PYPI_NETWORK_HOSTS = (
     "files.pythonhosted.org",
     "pypi.python.org",
 )
-# Where ``uv venv --python`` downloads a managed interpreter
-# (python-build-standalone release assets on GitHub).
-_PYTHON_DOWNLOAD_HOSTS = (
-    "github.com",
-    "release-assets.githubusercontent.com",
-    "objects.githubusercontent.com",
-)
 
 
 def mcp_policy_resource(port: int, *, host: str = "localhost") -> str:
@@ -77,15 +70,10 @@ def allow_network_hosts(*hosts: str) -> None:
             )
 
 
-def ensure_pypi_network_policy(*, python_download: bool = False) -> None:
-    """Allow PyPI hosts for in-sandbox SDK package installs.
-
-    With *python_download*, also allow the hosts uv downloads a managed
-    Python interpreter from.
-    """
+def ensure_pypi_network_policy() -> None:
+    """Allow PyPI hosts for in-sandbox SDK package installs."""
     ensure_sbx_ready()
-    hosts = _PYPI_NETWORK_HOSTS + (_PYTHON_DOWNLOAD_HOSTS if python_download else ())
-    for host in hosts:
+    for host in _PYPI_NETWORK_HOSTS:
         proc = run_sbx_optional(["policy", "allow", "network", host])
         if proc.returncode != 0:
             combined = f"{proc.stdout}\n{proc.stderr}".lower()

@@ -175,7 +175,7 @@ With sbx, NIKA preloads the matching `docker/sandbox-templates:*` image when ens
 
 ### Agent packages (optional offline wheels)
 
-To reuse pinned packages without downloading them for each evaluation, sbx sandboxes install host-cached wheels by default. NIKA caches each package set under `.nika_cache/agent-wheels/<set>/`, stages it in the sandbox workspace, and installs it with `pip --no-index`. The host downloads the wheels with `python3 -m pip`, or with `uvx` when the system Python has no pip. A custom or added agent's own dependencies always come from PyPI. E2B templates already contain the packages.
+To reuse pinned packages without downloading them for each evaluation, sbx sandboxes install host-cached wheels by default. NIKA caches each package set under `.nika_cache/agent-wheels/<set>/`, stages it in the sandbox workspace, and installs it with `pip --no-index`. The host downloads the wheels with `python3 -m pip`, or with `uvx` when the system Python has no pip. A custom or added agent's own dependencies always come from PyPI, and so does everything for an agent whose `requires_python` excludes the sandbox's Python. E2B templates already contain the packages.
 
 If the host cannot cache the wheels, disable offline installation to download packages from PyPI inside the microVM:
 

@@ -19,11 +19,11 @@ import ast
 from pathlib import Path
 from typing import Any
 
+from nika.agents.plugins import EXTERNAL_AGENT_REQUIREMENTS
 from nika.agents.registry import ALL_PROVIDERS, AgentSpec
+from nika.agents.sandbox.wheels import check_requires_python
 
 PREFIX = "custom."
-# Requirement set every custom agent gets (see nika.agents.sandbox.wheels).
-_REQUIREMENTS = "langgraph"
 _BASE_CLASS = "DiagnosisAgent"
 _FIELDS = ("dependencies", "requires_python", "providers")
 
@@ -73,7 +73,10 @@ def _class_fields(cls: ast.ClassDef, path: Path) -> dict[str, Any]:
 
 
 def _spec(path: Path) -> AgentSpec:
-    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    except SyntaxError as exc:
+        raise ValueError(f"{path}: {exc}") from exc
     cls = _agent_class(tree, path)
     fields = _class_fields(cls, path)
     dependencies = fields.get("dependencies", [])
@@ -81,9 +84,9 @@ def _spec(path: Path) -> AgentSpec:
         isinstance(item, str) for item in dependencies
     ):
         raise ValueError(f"{path}: {cls.name}.dependencies must be a list of strings.")
-    requires_python = fields.get("requires_python")
-    if requires_python is not None and not isinstance(requires_python, str):
-        raise ValueError(f"{path}: {cls.name}.requires_python must be a string.")
+    requires_python = check_requires_python(
+        fields.get("requires_python"), where=f"{path}: {cls.name}"
+    )
     providers = frozenset(fields.get("providers") or ALL_PROVIDERS)
     if unknown := providers - ALL_PROVIDERS:
         raise ValueError(
@@ -94,7 +97,7 @@ def _spec(path: Path) -> AgentSpec:
         id=PREFIX + path.stem,
         class_path=f"agent.custom.{path.stem}:{cls.name}",
         providers=providers,
-        requirements=_REQUIREMENTS,
+        requirements=EXTERNAL_AGENT_REQUIREMENTS,
         packages=tuple(dependencies),
         requires_python=requires_python,
         source="custom",
@@ -105,15 +108,20 @@ def _agent_files() -> list[Path]:
     root = custom_dir()
     if not root.is_dir():
         return []
-    return sorted(path for path in root.glob("*.py") if not path.name.startswith("_"))
+    return sorted(
+        path
+        for path in root.glob("*.py")
+        if path.stem.isidentifier() and not path.stem.startswith("_")
+    )
 
 
 def find_custom_agent_spec(agent_type: str) -> AgentSpec | None:
     """Spec of ``custom.<name>``, or ``None`` when no such file exists."""
-    if not agent_type.startswith(PREFIX):
+    name = agent_type.removeprefix(PREFIX)
+    if name == agent_type or not name.isidentifier() or name.startswith("_"):
         return None
-    path = custom_dir() / f"{agent_type.removeprefix(PREFIX)}.py"
-    if not path.is_file() or path.name.startswith("_"):
+    path = custom_dir() / f"{name}.py"
+    if not path.is_file():
         return None
     return _spec(path)
 
@@ -124,6 +132,6 @@ def list_custom_agents() -> list[tuple[str, AgentSpec | None, str]]:
     for path in _agent_files():
         try:
             rows.append((PREFIX + path.stem, _spec(path), ""))
-        except (SyntaxError, ValueError) as exc:
+        except ValueError as exc:
             rows.append((PREFIX + path.stem, None, str(exc)))
     return rows

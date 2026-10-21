@@ -80,10 +80,10 @@ Your framework is not installed in NIKA's environment. The class attributes, all
 | Attribute | Default | Meaning |
 | --- | --- | --- |
 | `dependencies` | none | pip requirements, installed from PyPI on every run. Pin versions so every run installs the same packages. |
-| `requires_python` | the sandbox's Python | Version specifier, such as `">=3.12,<3.14"`. NIKA runs the agent on a matching interpreter. |
+| `requires_python` | the sandbox's Python | Version specifier, such as `">=3.12,<3.14"`. When the sandbox's Python does not match, NIKA downloads a matching interpreter into the sandbox and installs your agent and its packages there from PyPI. |
 | `providers` | all | LLM providers your model client supports, among `openai`, `anthropic`, `deepseek`, and `custom`. NIKA rejects any other provider before the run starts. |
 
-NIKA reads these attributes without importing your file, so write them as literal values. Everything under `src/agent/` is copied into the sandbox, where the agent must not learn which benchmark runs it: keep the word "NIKA" out of the file, including comments.
+NIKA reads these attributes without importing your file, so write them as literal values, on a class that inherits `DiagnosisAgent` directly. Everything under `src/agent/` is copied into the sandbox, where the agent must not learn which benchmark runs it: keep the word "NIKA" out of the file, including comments.
 
 The repository ships the complete NOOA agent as [`src/agent/custom/nooa.py`](../../src/agent/custom/nooa.py), which also records its tool calls and model turns and honors the step limit. The [NOOA agent example](nooa-example.md) explains those additions.
 

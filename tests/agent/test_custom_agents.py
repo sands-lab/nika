@@ -67,6 +67,12 @@ def test_declarations_are_optional(custom_root) -> None:
             "class A(DiagnosisAgent):\n    dependencies = DEPS\n",
             "must be a literal",
         ),
+        (
+            "from agent.base import DiagnosisAgent\n"
+            "class A(DiagnosisAgent):\n    requires_python = '3.12'\n",
+            "not a version specifier",
+        ),
+        ("class A(DiagnosisAgent:\n", "invalid syntax"),
     ],
 )
 def test_invalid_files_are_reported(custom_root, source: str, error: str) -> None:
@@ -79,7 +85,8 @@ def test_invalid_files_are_reported(custom_root, source: str, error: str) -> Non
 
 def test_unknown_and_private_files_are_not_agents(custom_root) -> None:
     (custom_root / "_helpers.py").write_text(_AGENT)
-    for agent_type in ("custom.missing", "custom._helpers"):
+    (custom_root.parent / "outside.py").write_text(_AGENT)
+    for agent_type in ("custom.missing", "custom._helpers", "custom.../outside"):
         with pytest.raises(ValueError, match="Unsupported agent type"):
             get_agent_spec(agent_type)
     assert custom.list_custom_agents() == []

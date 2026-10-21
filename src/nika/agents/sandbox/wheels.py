@@ -17,7 +17,7 @@ import subprocess
 from collections.abc import Sequence
 from pathlib import Path
 
-from packaging.specifiers import SpecifierSet
+from packaging.specifiers import InvalidSpecifier, SpecifierSet
 
 from nika.agents.sandbox.locks import host_file_lock
 from nika.config import REPO_ROOT
@@ -33,8 +33,8 @@ _CACHE_REQ_STAMP = ".requirements.txt"
 _TARGET_PYTHON = "3.14"
 # Virtualenv for an agent whose ``requires_python`` excludes the template's
 # Python; uv (preinstalled in the templates) provides a matching interpreter.
-AGENT_VENV = "$HOME/.agent-venv"
-_VENV_PYTHON = f'"{AGENT_VENV}/bin/python"'
+_AGENT_VENV = "$HOME/.agent-venv"
+_VENV_PYTHON = f'"{_AGENT_VENV}/bin/python"'
 
 
 # glibc of the sandbox templates is 2.43; wheels built for older glibc run too.
@@ -247,6 +247,20 @@ def packages_install_command(packages: Sequence[str]) -> str:
     )
 
 
+def check_requires_python(value: str | None, *, where: str) -> str | None:
+    """Return *value* if it is a valid PEP 440 specifier set; raise otherwise."""
+    if value is None:
+        return None
+    try:
+        SpecifierSet(value)
+    except (InvalidSpecifier, TypeError) as exc:
+        raise ValueError(
+            f"{where}: requires-python {value!r} is not a version specifier "
+            "such as '>=3.12,<3.14'."
+        ) from exc
+    return value
+
+
 def needs_agent_venv(requires_python: str | None) -> bool:
     """Whether *requires_python* excludes the sandbox template's Python."""
     if not requires_python:
@@ -261,7 +275,7 @@ def venv_install_commands(
     packages: Sequence[str] = (),
     no_cache: bool = False,
 ) -> list[str]:
-    """Commands that create :data:`AGENT_VENV` and install the agent into it.
+    """Commands that create :data:`_AGENT_VENV` and install the agent into it.
 
     uv picks or downloads an interpreter matching *requires_python*, then
     installs *requirements_file* and *packages* from PyPI: the offline wheels
@@ -271,7 +285,7 @@ def venv_install_commands(
     if no_cache:
         install += " --no-cache"
     install += f" --python {_VENV_PYTHON}"
-    commands = [f'uv venv --python {shlex.quote(requires_python)} "{AGENT_VENV}"']
+    commands = [f'uv venv --python {shlex.quote(requires_python)} "{_AGENT_VENV}"']
     if requirements_file:
         commands.append(f"{install} -r {shlex.quote(requirements_file)}")
     if packages:
@@ -285,4 +299,4 @@ def runner_path_prefix(requires_python: str | None) -> str:
     """Shell prefix that puts the agent venv first on ``PATH``, if it has one."""
     if not needs_agent_venv(requires_python):
         return ""
-    return f'PATH="{AGENT_VENV}/bin:$PATH" '
+    return f'PATH="{_AGENT_VENV}/bin:$PATH" '

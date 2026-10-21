@@ -156,9 +156,14 @@ class SbxBackend(SandboxBackend):
             with sbx_host_lock("create"):
                 run_sbx_checked(self._create_command, timeout=_SBX_CREATE_TIMEOUT_SEC)
             spec = get_agent_spec(agent_type)
-            venv = needs_agent_venv(spec.requires_python)
-            if spec.packages or venv or not self.config.offline_sdk_wheels:
-                ensure_pypi_network_policy(python_download=venv)
+            # PyPI for the packages; uv fetches a venv's interpreter under the
+            # runtime's default network policy.
+            if (
+                spec.packages
+                or needs_agent_venv(spec.requires_python)
+                or not self.config.offline_sdk_wheels
+            ):
+                ensure_pypi_network_policy()
             install_agent_packages_in_sandbox(
                 sandbox_name=sandbox_name,
                 workspace_dir=workspace_dir,

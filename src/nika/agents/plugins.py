@@ -215,7 +215,11 @@ def project_dependencies(root: Path) -> list[str]:
 
 def project_requires_python(root: Path) -> str | None:
     """``[project].requires-python`` of the project at *root* or its parent."""
-    return _project_table(root).get("requires-python")
+    from nika.agents.sandbox.wheels import check_requires_python
+
+    return check_requires_python(
+        _project_table(root).get("requires-python"), where=str(root)
+    )
 
 
 def class_defined(root: Path, class_path: str) -> bool:
