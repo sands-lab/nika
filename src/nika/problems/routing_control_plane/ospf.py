@@ -22,7 +22,7 @@ def _ospf_block(config: str) -> str:
     return match.group(0) if match else ""
 
 
-def _ospf_networks(config: str) -> list[tuple[str, str]]:
+def ospf_networks(config: str) -> list[tuple[str, str]]:
     """``(prefix, area)`` of each ``network`` statement in the ``router ospf`` block."""
     return _NETWORK_RE.findall(_ospf_block(config))
 
@@ -65,7 +65,7 @@ class OSPFAreaMisconfig(ProblemBase):
         running_cfg = self.runtime.exec(
             params.host_name, "vtysh -c 'show running-config'"
         )
-        statements = _ospf_networks(running_cfg)
+        statements = ospf_networks(running_cfg)
         if not statements:
             raise RuntimeError(f"Could not find OSPF area on {params.host_name}")
         correct_area = statements[0][1]
@@ -164,7 +164,7 @@ class OSPFNeighborMissing(ProblemBase):
 
     def _single_adjacency_network(self, host: str) -> tuple[str, str]:
         """The first ``network`` statement that covers exactly one Full adjacency."""
-        statements = _ospf_networks(
+        statements = ospf_networks(
             self.runtime.exec(host, "vtysh -c 'show running-config'")
         )
         raw = self.runtime.exec(host, "vtysh -c 'show ip ospf neighbor json'")
@@ -219,7 +219,7 @@ class OSPFNeighborMissing(ProblemBase):
             ),
             re.MULTILINE,
         )
-        running = _ospf_networks(
+        running = ospf_networks(
             self.runtime.exec(
                 params.host_name, "vtysh -c 'show running-config' 2>/dev/null"
             )

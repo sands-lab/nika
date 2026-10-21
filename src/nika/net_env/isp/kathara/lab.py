@@ -139,7 +139,7 @@ class Isp(NetworkEnvBase):
         validate_backend_profile("kathara", self.device_profile)
         if self.device_profile == "iosxr":
             raise ValueError(
-                "device_profile='iosxr' is not implemented for SNDlib ISP labs "
+                "device_profile='iosxr' is not implemented for ISP labs "
                 "(no XR config renderer). Use scenario 'iosxr_simple_bgp' for "
                 "XRd Control Plane. Multi-router ISP on XR is also "
                 "resource-gated (~2 GiB RAM per XR node)."

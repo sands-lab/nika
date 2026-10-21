@@ -41,12 +41,18 @@ def ensure_batfish_service(
             name=BATFISH_CONTAINER_NAME,
             detach=True,
             ports={"9996/tcp": ("127.0.0.1", port)},
-            environment={"JAVA_TOOL_OPTIONS": "-Xmx8g"},
+            environment={"JAVA_TOOL_OPTIONS": f"-Xmx{_batfish_heap()}"},
         )
     versions = _wait_for_service(host, port, timeout_sec)
     versions["container_id"] = container.id
     versions["container_image"] = BATFISH_IMAGE
     return versions
+
+
+def _batfish_heap() -> str:
+    from nika.run_config.loader import get_run_config
+
+    return get_run_config().nika.static_validation.batfish_heap
 
 
 def _wait_for_service(host: str, port: int, timeout_sec: float) -> dict[str, Any]:

@@ -44,6 +44,11 @@ from nika.net_env.isp.profiles import default_device_profile
 from nika.net_env.isp.igp.plan import active_igp_links, igp_components, shortest_paths
 from nika.net_env.net_env_pool import list_all_net_envs, resolve_scenario_backend
 from nika.problems.rca.inventory import load_offline_net_env
+from nika.problems.routing_control_plane.bgp import (
+    ASN_MISCONFIG_OFFSET,
+    RTBH_PREFIX_LIST,
+)
+from nika.problems.routing_control_plane.ospf import ospf_networks
 from nika.workflows.benchmark.load_config import load_benchmark_input
 from nika.workflows.validation.routing_spec import (
     RoutingDeployment,
@@ -629,8 +634,6 @@ def build_benchmark_isp_experiment(
                 )
                 name = "benchmark-rpki-leak"
             else:
-                from nika.problems.routing_control_plane.bgp import _RTBH_PREFIX_LIST
-
                 route_map, prefix, community = (
                     info["leaker_outbound_route_map"],
                     info["target_prefix"],
@@ -638,7 +641,7 @@ def build_benchmark_isp_experiment(
                 )
                 old = f"route-map {route_map} permit 10"
                 new = (
-                    f"ip prefix-list {_RTBH_PREFIX_LIST} seq 5 permit {prefix} le 24\nroute-map {route_map} permit 5\n match ip address prefix-list {_RTBH_PREFIX_LIST}\n set community {community} additive\n!\n"
+                    f"ip prefix-list {RTBH_PREFIX_LIST} seq 5 permit {prefix} le 24\nroute-map {route_map} permit 5\n match ip address prefix-list {RTBH_PREFIX_LIST}\n set community {community} additive\n!\n"
                     + old
                 )
                 edits = {info["leaker_device"]: (old, new)}
@@ -689,12 +692,11 @@ def build_benchmark_isp_experiment(
             static_edits = {}
             if problem == "bgp_asn_misconfig":
                 asn = next(n.asn for n in env.bgp_plan.nodes if n.device_name == target)
-                # The registered failure changes the local ASN by +600.
                 old = f"autonomous-system: {asn}\n" if srl else f"router bgp {asn}\n"
                 new = (
-                    f"autonomous-system: {asn + 600}\n"
+                    f"autonomous-system: {asn + ASN_MISCONFIG_OFFSET}\n"
                     if srl
-                    else f"router bgp {asn + 600}\n"
+                    else f"router bgp {asn + ASN_MISCONFIG_OFFSET}\n"
                 )
                 static_edits = {target: (old, new)}
             if problem in {"bgp_asn_misconfig", "bgp_acl_block"}:
@@ -872,7 +874,6 @@ def build_benchmark_isp_experiment(
             or i.route_next_hops != by_id[i.id].route_next_hops
         )
         name = "benchmark-area-" + target
-        from nika.problems.routing_control_plane.ospf import _ospf_networks
 
         config = env.lab.machines[target].fs.readtext("etc/frr/frr.conf")
         old = (
@@ -880,7 +881,7 @@ def build_benchmark_isp_experiment(
             + config.split("router ospf\n", 1)[1].split("\n!", 1)[0]
             + "\n"
         )
-        statements = _ospf_networks(old)
+        statements = ospf_networks(old)
         correct_area = statements[0][1]
         wrong_area = "66" if correct_area != "66" else "99"
         new = old
