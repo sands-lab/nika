@@ -174,31 +174,13 @@ class IspVendor(NetworkEnvBase):
                 node.device_name, role=NodeRole.ROUTER, capabilities=capabilities
             )
             if self.device_profile == "iosxr":
-                from nika.net_env.utils.iosxr.common import (
-                    XR_ENTRYPOINT,
-                    XR_ZTP_DISABLE_ENV,
-                    build_xr_interfaces_env,
-                    build_xr_startup_script,
-                )
+                from nika.net_env.utils.iosxr.common import configure_xrd_router
 
-                machine.add_meta("ipv6", True)
-                machine.add_meta("entrypoint", XR_ENTRYPOINT)
-                machine.add_meta(
-                    "env",
-                    build_xr_interfaces_env(
-                        *(
-                            (iface.name, native_interface(iface.name))
-                            for iface in node.interfaces
-                        )
-                    ),
-                )
-                machine.add_meta("env", XR_ZTP_DISABLE_ENV)
-                self.lab.create_file_from_list(
-                    build_xr_startup_script(
-                        CONFIG_FILE_PATH,
-                        wait_iface=native_interface(node.interfaces[0].name),
-                    ),
-                    f"{node.device_name}.startup",
+                configure_xrd_router(
+                    self.lab,
+                    machine,
+                    self.deployment_configs[node.device_name],
+                    [iface.name for iface in node.interfaces],
                 )
             else:
                 machine.add_meta("env", f"CLAB_INTFS={len(node.interfaces)}")
@@ -252,27 +234,17 @@ class IspVendor(NetworkEnvBase):
             raise RuntimeError(
                 f"Native ISP image {self._image!r} must be installed locally"
             )
-        # Conservative admission estimate, not a bound on vendor process usage.
-        # Reject oversized native deployments before creating any containers.
-        available = next(
-            int(line.split()[1]) * 1024
-            for line in Path("/proc/meminfo").read_text().splitlines()
-            if line.startswith("MemAvailable:")
+        from nika.net_env.utils.native_admission import (
+            GIB,
+            require_native_lab_memory,
         )
-        gib = 1024**3
-        per_router = 3 * gib if self.device_profile == "iosxr" else gib
-        required = (
-            2 * gib
-            + len(self.plan.nodes) * per_router
-            + len(self.traffic.hosts) * (gib // 4)
+
+        require_native_lab_memory(
+            f"Native ISP {self.device_profile}",
+            routers=len(self.plan.nodes),
+            per_router=3 * GIB if self.device_profile == "iosxr" else GIB,
+            hosts=len(self.traffic.hosts),
         )
-        if required > available:
-            raise RuntimeError(
-                f"Native ISP {self.device_profile} with {len(self.plan.nodes)} routers "
-                f"needs an estimated {required / gib:.1f} GiB including headroom; "
-                f"only {available / gib:.1f} GiB is available. Use a smaller topology "
-                "or a host with more memory."
-            )
         super().deploy()
 
     def get_info(self):

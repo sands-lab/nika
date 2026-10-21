@@ -136,16 +136,16 @@ def _resolve_isp_kwargs(
             for key, value in provided.items()
             if key != "device_profile"
         )
-        if protocol_flags or (profile not in (None, "frr") and profile not in native):
+        if protocol_flags:
             raise ValueError(
                 f"Scenario '{scenario}' does not accept --topo/--igp/"
-                "--metric-strategy/--constant-metric/--bgp-mode/--rpki"
-                + (
-                    f"; --device-profile accepts frr or {', '.join(native)}."
-                    if native
-                    else "/--device-profile; those flags are only valid for "
-                    "ISP topology scenarios (e.g. isp_abilene)."
-                )
+                "--metric-strategy/--constant-metric/--bgp-mode/--rpki; those "
+                "flags are only valid for ISP topology scenarios (e.g. isp_abilene)."
+            )
+        if profile not in (None, "frr", *native):
+            raise ValueError(
+                f"Scenario '{scenario}' does not support device_profile="
+                f"{profile!r}; supported: {', '.join(('frr', *native))}."
             )
         # Native profiles deploy on Kathara; frr keeps the scenario default.
         if profile in native:

@@ -81,6 +81,15 @@ def _parse_iosxr_bgp_summary(output: str) -> tuple[int | None, dict[str, _BgpPee
     return local_asn, peers
 
 
+def iosxr_bgp_established_peers(output: str) -> set[str]:
+    """Established neighbors from ``show bgp summary``; none if unparseable."""
+    try:
+        _, peers = _parse_iosxr_bgp_summary(output)
+    except ValueError:
+        return set()
+    return {address for address, peer in peers.items() if peer.established}
+
+
 def _parse_routeros_bgp_sessions(output: str) -> dict[str, _BgpPeer]:
     """Parse terse RouterOS session rows, retaining remote/local AS identity."""
     if re.search(

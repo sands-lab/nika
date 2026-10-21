@@ -127,6 +127,11 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         module="nika.net_env.dc_clos.lab",
         class_name="DCClos",
         coverage_major=True,
+        device_profiles={
+            "iosxr": BackendEnvBinding(
+                module="nika.net_env.dc_clos.iosxr", class_name="DCClosIosXr"
+            )
+        },
         tags=(
             "arp",
             "link",

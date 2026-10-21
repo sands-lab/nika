@@ -9,15 +9,7 @@ from nika.net_env.isp.bgp.plan import BgpNodePlan, BgpPlan
 from nika.net_env.isp.bgp.policy import BUSINESS_PREFIXES
 from nika.net_env.isp.igp.frr import isis_net_from_router_id
 from nika.net_env.isp.igp.plan import IspPlan, PlannedNode
-
-
-def iosxr_interface(name: str) -> str:
-    """Map a planned Linux interface to its XRd control-plane interface."""
-    if name == "lo":
-        return "Loopback0"
-    if match := re.fullmatch(r"eth(0|[1-9][0-9]*)", name):
-        return f"GigabitEthernet0/0/0/{match[1]}"
-    raise ValueError(f"Unsupported IOS XR ISP interface: {name!r}")
+from nika.net_env.utils.iosxr.common import iosxr_interface
 
 
 def render_iosxr_isp(plan: IspPlan, bgp_plan: BgpPlan | None = None) -> dict[str, str]:
