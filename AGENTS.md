@@ -17,7 +17,7 @@ Start from the [documentation index](docs/README.md). It maps each contract to i
 
 ## Commit and pull request messages
 
-Commit subjects and pull request titles follow Conventional Commits: `type(scope): imperative summary`, where the type is one of `feat`, `fix`, `docs`, `refactor`, `perf`, `test`, `chore`, `ci`, `build`, or `revert`. The [`commit-msg` hook](scripts/git-hooks/commit-msg) rejects other subjects (`./scripts/install.sh` enables it), and the `Commit messages` CI check applies the same rule to every pull request commit and title.
+Commit subjects and pull request titles follow Conventional Commits: `type(scope): imperative summary`, where the type is one of `feat`, `fix`, `docs`, `refactor`, `perf`, `test`, `chore`, `ci`, `build`, or `revert`. The [`commit-msg` hook](scripts/git-hooks/commit-msg) rejects other subjects, except the ones Git writes for local merges and `fixup!`/`squash!`/`amend!` commits (`./scripts/install.sh` enables it). The `Commit messages` CI check applies the same rule to every pull request commit and title, and also rejects fixup commits, so squash them before merging.
 
 * The pull request title is the Conventional Commit line without a PR number. The merge commit subject is that line followed by `(#<PR number>)`.
 * The body is a short summary followed by `Fixes #<issue>` (or `Closes` or `Resolves`) so the merge closes the issue. Use one keyword per issue. When the work only contributes to an issue, write `Refs #<issue>` instead; it links the issue without closing it. Omit both when there is no issue.
