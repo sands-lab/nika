@@ -2,7 +2,7 @@
 
 This reference is for operators who configure NIKA runs. NIKA reads run settings from `config/nika.yaml` and credentials from the repository-root `.env`.
 
-Copy the tracked templates for a new checkout:
+The installer creates these files when missing. For a manual checkout, create them before configuring a sandbox runtime:
 
 ```shell
 cp config/nika.example.yaml config/nika.yaml
@@ -10,13 +10,16 @@ cp .env.example .env
 uv run nika config show
 ```
 
-To compare agents, copy a per-agent template and pass `--run-config`:
+To compare agents, copy your active configuration and change its agent settings:
 
 ```shell
-cp config/cli.codex.example.yaml config/cli.codex.yaml
-# edit provider / model in that file if needed
+cp config/nika.yaml config/cli.codex.yaml
+uv run nika config set --run-config config/cli.codex.yaml \
+  agent.type=cli.codex agent.provider=openai agent.model=gpt-5-mini
 uv run nika agent run --run-config config/cli.codex.yaml --problem dc_clos_s_link_down
 ```
+
+Each `--run-config` file is a complete configuration; it does not inherit `config/nika.yaml`. Copying the active file preserves your AgentENV, E2B, or sbx settings. Use per-agent templates as references when editing the copied file's `agent` section.
 
 Tracked per-agent templates live next to `nika.example.yaml`: `byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `cli.codex`, `cli.claude`, `sdk.codex_sdk`, and `sdk.claude_sdk` (each as `config/<agent>.example.yaml`).
 
@@ -41,7 +44,7 @@ NIKA resolves values in this order:
 2. The selected YAML file
 3. Defaults in [`run_config/schema.py`](../../src/nika/run_config/schema.py)
 
-The tracked [`config/nika.example.yaml`](../../config/nika.example.yaml) is the full platform reference (`agent:` / `nika:` / `benchmark:`) with a default `byo.langgraph` profile. Prefer the per-agent `config/<agent>.example.yaml` files when you want one ready profile per harness; missing keys fall back to schema defaults. A run must set `agent.model` (or pass `-m/--model`).
+The tracked [`config/nika.example.yaml`](../../config/nika.example.yaml) is the full platform reference (`agent:` / `nika:` / `benchmark:`) with a default `byo.langgraph` profile. The per-agent `config/<agent>.example.yaml` files provide agent settings to use in your profile. Missing keys fall back to schema defaults, including `sbx` for the sandbox backend. A run must set `agent.model` (or pass `-m/--model`).
 
 Relative result paths resolve from the repository root. NIKA rejects unknown YAML keys and values outside the validation constraints below.
 

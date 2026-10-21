@@ -1,7 +1,8 @@
 # NIKA run-config template for sdk.claude_sdk (Claude Agent SDK, Docker Sandbox).
-# Setup: cp config/sdk.claude_sdk.example.yaml config/sdk.claude_sdk.yaml
+# Setup: cp config/nika.yaml config/sdk.claude_sdk.yaml
+# Replace the copied agent section with this example; preserve your sandbox settings.
 # Use:   uv run nika agent run --run-config config/sdk.claude_sdk.yaml --problem dc_clos_s_link_down
-# Credentials stay in the repo-root .env file. Other keys use built-in defaults;
+# Credentials stay in the repo-root .env file. This template uses sbx by default;
 # see config/nika.example.yaml for the full platform / benchmark reference.
 
 agent:
