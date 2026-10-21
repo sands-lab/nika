@@ -15,7 +15,7 @@ description: Identify link_flap, link_down, and link_detach faults. Use when an 
 
 - Interface state (`ip link show`) proves whether the interface exists and whether it is up right now.
 - Direct evidence of repeated link transitions — climbing carrier-changes, kernel link events, or any agent on the host repeatedly toggling the interface — is stronger than transient DHCP fallout alone.
-- Link history (startup logs, `dhcp_link_history.py`) is important when the interface has already recovered by the time you inspect it.
+- Link history (startup and DHCP logs) is important when the interface has already recovered by the time you inspect it.
 
 ## Exact Calls
 
@@ -23,7 +23,6 @@ description: Identify link_flap, link_down, and link_detach faults. Use when an 
 - `exec_shell(host_name="<host>", command="ip link show")`
 - Check for repeated link transitions: interface counters (`ip -s link show <iface>`), kernel link events (`dmesg | grep -i link`), or any process or scheduled job repeatedly toggling the interface.
 - `exec_shell(host_name="<host>", command="tail -100 /var/log/startup.log")`
-- `python diagnosis-methodology-skill/scripts/dhcp_link_history.py <host>`
 
 ## Submit on match
 

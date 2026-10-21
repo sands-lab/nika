@@ -152,10 +152,10 @@ NIKA ships preconfigured agents with templates in [`config/`](config/). The exam
 uv run nika agent list
 ```
 
-**Step 2. Start from its template.** The installer creates `config/nika.yaml` for settings. Replace it with the LangGraph template:
+**Step 2. Select the agent.** Update the installer-created configuration, keeping its sandbox settings:
 
 ```shell
-cp config/byo.langgraph.example.yaml config/nika.yaml
+uv run nika config set agent.type=byo.langgraph
 ```
 
 **Step 3. Select the provider and model:**

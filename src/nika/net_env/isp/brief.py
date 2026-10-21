@@ -31,7 +31,7 @@ def format_isp_network_info(
         lines.append(f"device_profile: {device_profile}")
     host_n = len(inventory.get("hosts") or [])
     lines.append(
-        f"Edge stubs: {host_n} (traffic matrix chosen at `nika traffic run sndlib`)"
+        f"Edge stubs: {host_n} (traffic matrix chosen at `nika traffic run matrix-replay`)"
     )
     lines.append(
         f"Inventory nodes: {inventory['node_count']}; links: {inventory['link_count']}"

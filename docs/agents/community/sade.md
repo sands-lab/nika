@@ -44,16 +44,15 @@ SADE writes `messages.jsonl` and `submission.json`, then submits through NIKA's 
 ```
 src/agent/community/sade/
 ├── agent.py            # SadeAgent (DiagnosisAgent subclass)
-├── h.py                # helper-script launcher used by the skills (python h.py <script>)
+├── h.py                # saved-output parser launcher (python h.py parse_large <file>)
 ├── prompts/            # sade_prompt.py (phase-gated workflow)
 └── .claude/
     ├── CLAUDE.md       # fault-routing + tool index
-    └── skills/         # 15 skills: 12 fault-family books, diagnosis-methodology
-                        # (with read-only helper scripts), and 2 utility books
+    └── skills/         # 15 diagnostic and utility skills
 ```
 
 ## How it works
 
-- **Diagnosis** runs inside one Claude Code session against NIKA's diagnosis MCP servers, with at most `max_steps` model responses. The system prompt enforces the SADE workflow: blind start, branch, symptom-first diagnosis, and broad-search escalation. The skill library and `CLAUDE.md` index select a fault family after observed evidence implicates it. At half the budget, a `PostToolUse` hook adds one reminder to the next tool result that asks SADE to write its final report once evidence is conclusive.
+- **Diagnosis** runs inside one Claude Code session against NIKA's diagnosis MCP servers, with the host-enforced [request budget](../agent-reference.md#step-limit). The system prompt enforces the SADE workflow: blind start, branch, symptom-first diagnosis, and broad-search escalation. The skill library and `CLAUDE.md` index select a fault family after observed evidence implicates it. At half the budget, a `PostToolUse` hook adds one reminder to the next tool result that asks SADE to write its final report once evidence is conclusive.
 - **Submission** runs in a second Claude Code session with only the task MCP server. SADE gets the frozen report plus the fault ontology and resource catalog, and calls `submit` with `root_causes` as `[{resource_id, fault_type}, ...]`. See the [root-cause ground truth and scoring reference](../../benchmarks/root-cause-evaluation.md).
-- `h.py` runs read-only skill helpers such as `infra_sweep`, `ospf_snapshot`, and `bgp_snapshot` with the project interpreter. It supplies the active lab name from the running NIKA session.
+- The diagnostic skills guide network inspection through the session's MCP tools. `h.py` launches `parse_large` to summarize oversized saved tool output; it does not access the network.

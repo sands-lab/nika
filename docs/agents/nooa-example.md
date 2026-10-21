@@ -18,17 +18,13 @@ Compared with the [short version](custom-agents.md#1-write-your-agent), the agen
 
 NIKA installs the agent's `dependencies` in its sandbox on every run. They pin LiteLLM because `1.106.0rc1` fails against NOOA's `openai` client.
 
-Point the agent at any OpenAI-compatible endpoint, for example a local vLLM server:
-
-```yaml
-# config/nooa.yaml
-agent:
-  type: custom.nooa
-  provider: custom
-  model: nvidia/Qwen3.6-35B-A3B-NVFP4
-  base_url: http://localhost:8000/v1
-```
+Copy your active configuration so the NOOA profile keeps your sandbox runtime, then select an OpenAI-compatible endpoint, such as a local vLLM server:
 
 ```shell
+cp config/nika.yaml config/nooa.yaml
+uv run nika config set --run-config config/nooa.yaml \
+  agent.type=custom.nooa agent.provider=custom \
+  agent.model=nvidia/Qwen3.6-35B-A3B-NVFP4 \
+  agent.base_url=http://localhost:8000/v1
 uv run nika agent run --run-config config/nooa.yaml --problem dc_clos_s_link_down
 ```

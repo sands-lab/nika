@@ -158,14 +158,14 @@ def test_runtime_verifier_reports_per_intent_evidence() -> None:
             adjacency = intent.adjacency
             key = (adjacency.local_node, "vtysh -c 'show ip ospf neighbor'")
             outputs[key] = outputs.get(key, "") + (
-                f"{adjacency.remote_router_id} 1 Full/DR 00:00:30 10.0.0.1 eth0\n"
+                f"{adjacency.remote_router_id} 1 Full/DR 00:00:30 {adjacency.remote_address} eth0\n"
             )
         elif intent.property == "reachability":
             assert intent.source is not None and intent.destination is not None
             outputs[
                 (
                     intent.source.name,
-                    f"ping -c 1 -W 2 {intent.destination.address}",
+                    f"ping -I {intent.source.address} -c 1 -W 2 {intent.destination.address}",
                 )
             ] = "1 packets transmitted, 1 packets received, 0% packet loss"
     from nika.net_env.isp.verify_support import intent_command
@@ -206,7 +206,12 @@ def test_runtime_verifier_reports_per_intent_evidence() -> None:
         ).property
         == "reachability"
     )
-    assert reachability_result.evidence["command"].startswith("ping -c 1")
+    checked = next(
+        intent for intent in contract.intents if intent.id == reachability_result.intent
+    )
+    assert reachability_result.evidence["command"] == (
+        f"ping -I {checked.source.address} -c 1 -W 2 {checked.destination.address}"
+    )
     assert (
         reachability_result.evidence["output"]
         == "1 packets transmitted, 1 packets received, 0% packet loss"

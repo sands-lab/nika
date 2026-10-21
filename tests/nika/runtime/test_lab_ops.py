@@ -303,24 +303,27 @@ class LabOpsTest:
         assert runtime.tc_qdisc_contains("pc1", "eth0", "corrupt")
 
     def test_start_background_od_traffic(self):
-        addr_json = json.dumps(
-            [
-                {
-                    "ifname": "eth0",
-                    "addr_info": [
-                        {"family": "inet", "local": "10.0.0.2", "prefixlen": 24}
-                    ],
-                }
-            ]
-        )
-        runtime = _StubRuntime({("pc2", "ip -j addr"): addr_json})
+        runtime = _StubRuntime()
         labels = runtime.start_background_od_traffic(
-            {"pc1": {"pc2": 20}}, interval=10, unit="M"
+            {"pc1": {"pc1": 5, "pc2": 20, "pc3": 10}, "pc3": {"pc2": 30}},
+            interval=10,
+            unit="M",
+            host_ips={"pc2": "10.0.0.2", "pc3": "10.0.0.3"},
         )
 
-        assert labels == ["pc1_to_pc2"]
-        cmds = [cmd for _, cmd in runtime.calls]
-
-        assert any(("iperf3 -s" in cmd for cmd in cmds))
-
-        assert any(("iperf3 -c 10.0.0.2" in cmd for cmd in cmds))
+        # Diagonal demands are skipped, and each destination gets one port
+        # per source.
+        assert labels == ["pc1_to_pc2", "pc1_to_pc3", "pc3_to_pc2"]
+        by_node: dict[str, list[str]] = {}
+        for node, cmd in runtime.calls:
+            by_node.setdefault(node, []).append(cmd)
+        # One exec per host and phase, not one per flow.
+        assert len(by_node["pc1"]) == 1
+        assert len(by_node["pc2"]) == 1
+        assert len(by_node["pc3"]) == 2
+        # One-shot servers exit after their transfer instead of piling up.
+        assert "iperf3 -s -1 -p $p" in by_node["pc2"][0]
+        assert "for p in 5201 5202;" in by_node["pc2"][0]
+        assert "iperf3 -c 10.0.0.2 -p 5201 -b 20M -t 10" in by_node["pc1"][0]
+        assert "iperf3 -c 10.0.0.3 -p 5201 -b 10M -t 10" in by_node["pc1"][0]
+        assert "iperf3 -c 10.0.0.2 -p 5202 -b 30M -t 10" in by_node["pc3"][1]

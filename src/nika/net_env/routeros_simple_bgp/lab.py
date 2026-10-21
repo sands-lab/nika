@@ -38,6 +38,7 @@ MGMT_ADDR = "172.31.255.30"
 # CLAB_INTFS + 1 total container interfaces, so setting this too high hangs
 # the VM forever waiting for interfaces this scenario never attaches.
 CLAB_INTFS = 2
+CONFIG_FILE_PATH = "/ftpboot/config.auto.rsc"
 
 LINK_IFACE = "ether2"
 PC_IFACE = "ether3"
@@ -93,20 +94,35 @@ def _build_startup_config(name: str, router: dict) -> str:
 
 
 class RouterOsSimpleBGP(NetworkEnvBase):
+    ROUTING_PARAMETER_KINDS = frozenset({"bgp_exports"})
+    ROUTING_MODELS = frozenset({"routeros-bgp"})
+    BGP_ROUTERS = ROUTERS
+    BGP_INTERFACE_MAP = {"eth1": LINK_IFACE, "eth2": PC_IFACE}
+    BGP_PEERING_INTERFACE = LINK_IFACE
+    BGP_CONFIG_PATH = CONFIG_FILE_PATH
     LAB_NAME = "routeros_simple_bgp"
     # Nested QEMU boot is slower than XRd's native-container boot.
     VERIFY_MAX_WAIT_SEC = 600
     VERIFY_RETRY_DELAY_SEC = 10
     TOPO_LEVEL = "easy"
 
-    def __init__(self, **kwargs):
-        super().__init__()
+    def __init__(self, *, routing_parameters=None, **kwargs):
+        super().__init__(**kwargs)
         self.lab = Lab(self.LAB_NAME)
         self.name = self.LAB_NAME
         self.instance = Kathara.get_instance()
         self.desc = (
             "A simple BGP network with two MikroTik RouterOS routers and two pcs."
         )
+
+        from nika.net_env.synthesis.vendor_bgp import render_routeros_bgp_exports
+
+        if routing_parameters is not None:
+            from nika.net_env.synthesis.parameters import RoutingParameters
+
+            solved = RoutingParameters.model_validate(routing_parameters)
+            if any(policy.node not in ROUTERS for policy in solved.bgp_exports):
+                raise ValueError("Unknown solved RouterOS node")
 
         for router_name, router in ROUTERS.items():
             machine = self.lab.new_machine(router_name, **{"image": IMAGE})
@@ -125,10 +141,12 @@ class RouterOsSimpleBGP(NetworkEnvBase):
             # instead wraps the already-present interface in a passthru
             # macvtap, which is the datapath that matches Kathara's model.
             machine.add_meta("args", "--connection-mode macvtap")
-            machine.create_file_from_string(
-                _build_startup_config(router_name, router),
-                "/ftpboot/config.auto.rsc",
-            )
+            config = _build_startup_config(router_name, router)
+            if routing_parameters is not None:
+                config = render_routeros_bgp_exports(
+                    config, router_name, routing_parameters
+                )
+            machine.create_file_from_string(config, CONFIG_FILE_PATH)
             # Consumes Kathara interface index 0 (RouterOS `ether1`, reserved
             # by vrnetlab for its own mgmt bridge). Must be connected first.
             self.lab.connect_machine_to_link(router_name, f"{router_name}_reserved0")
@@ -169,6 +187,9 @@ class RouterOsSimpleBGP(NetworkEnvBase):
         )
 
         self.load_machines()
+
+    def bgp_origin_prefixes(self):
+        return {str(router["pc_ip"].network): name for name, router in ROUTERS.items()}
 
     def deploy(self):
         if not image_exists(IMAGE):

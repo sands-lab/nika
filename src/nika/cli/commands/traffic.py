@@ -23,7 +23,7 @@ _TRAFFIC_TYPE_HELP: dict[str, str] = {
     "burst": "Synchronized deterministic UDP or TCP incast.",
     "od": "OD-matrix iperf3 between hosts (--od-json, --mesh-mbps, or --all-to-host + --mbps).",
     "web": "Synthetic web browsing (ab) for scenarios with web_urls.",
-    "sndlib": "Replay SNDlib demands/dynamic series on isp stub hosts (interval order).",
+    "matrix-replay": "Replay an ISP PoP-to-PoP traffic matrix (static demands or a measured time series) on stub hosts, interval by interval.",
 }
 
 
@@ -44,6 +44,7 @@ def _net_env_kwargs_for_scenario(scenario: str, size: str | None) -> dict[str, A
 def _resolve_lab_and_size(
     lab: str | None,
     size: str | None,
+    session_id: str | None = None,
 ) -> tuple[str, str | None]:
     store = SessionStore()
     if lab:
@@ -64,7 +65,7 @@ def _resolve_lab_and_size(
         except (OSError, KeyError, TypeError, json.JSONDecodeError):
             pass
     try:
-        resolved_id = resolve_running_session_id()
+        resolved_id = resolve_running_session_id(session_id)
         meta = store.get_session(resolved_id)
     except (
         FileNotFoundError,
@@ -101,11 +102,10 @@ def _normalize_size(raw: str | None) -> str | None:
     return raw
 
 
-def _active_runtime_lab_name(scenario: str) -> str | None:
+def _active_runtime_lab_name(scenario: str, session_id: str | None) -> str | None:
     """Return the concrete lab name when the current session matches a scenario."""
     try:
-        session_id = resolve_running_session_id()
-        meta = SessionStore().get_session(session_id)
+        meta = SessionStore().get_session(resolve_running_session_id(session_id))
     except (FileNotFoundError, ValueError, OSError, KeyError, TypeError):
         return None
     if meta.get("scenario_name") != scenario:
@@ -142,21 +142,26 @@ def traffic_fetch(
 def traffic_list() -> None:
     """List supported traffic types for `nika traffic run`."""
     for name, desc in sorted(_TRAFFIC_TYPE_HELP.items()):
-        typer.echo(f"{name:8}  {desc}")
+        typer.echo(f"{name:13}  {desc}")
 
 
 @traffic_app.command("run")
 def traffic_run(
     traffic_type: str = typer.Argument(
-        ..., metavar="TYPE", help="od | web | sndlib | burst"
+        ..., metavar="TYPE", help="od | web | matrix-replay | burst"
     ),
     background: bool = typer.Option(
         False,
         "--background/--no-background",
-        help="Run traffic in the background where supported (od/sndlib); web always blocks the CLI.",
+        help="Run traffic in the background where supported (od/matrix-replay); web always blocks the CLI.",
     ),
     lab: str | None = typer.Option(
         None, "--lab", help="Kathará lab name (defaults to current session scenario)."
+    ),
+    session_id: str | None = typer.Option(
+        None,
+        "--session_id",
+        help="Target session id. Auto-selects when only one session is running.",
     ),
     size: str | None = typer.Option(
         None,
@@ -199,17 +204,17 @@ def traffic_run(
     max_intervals: int | None = typer.Option(
         None,
         "--max-intervals",
-        help="[sndlib] Replay at most N intervals (smoke / CI).",
+        help="[matrix-replay] Replay at most N intervals (smoke / CI).",
     ),
     mode: str | None = typer.Option(
         None,
         "--mode",
-        help="[sndlib] Traffic matrix: demands (static XML) or dynamic (cache).",
+        help="[matrix-replay] Traffic matrix: demands (static XML) or dynamic (cache).",
     ),
     scale: float | None = typer.Option(
         None,
         "--scale",
-        help="[sndlib] Multiply SNDlib rates before iperf -b (default: 1.0).",
+        help="[matrix-replay] Multiply matrix rates before iperf -b (default: 1.0).",
     ),
     # web-only
     request_delay_min: float = typer.Option(
@@ -256,7 +261,9 @@ def traffic_run(
         )
 
     size_n = _normalize_size(size)
-    scenario, size_resolved = _resolve_lab_and_size(lab=lab, size=size_n)
+    scenario, size_resolved = _resolve_lab_and_size(
+        lab=lab, size=size_n, session_id=session_id
+    )
 
     if t == "burst":
         from nika.traffic.burst import BurstTrafficGenerator
@@ -269,7 +276,7 @@ def traffic_run(
         if packet_size <= 0 or duration <= 0:
             raise typer.BadParameter("--packet-size and --duration must be positive.")
         kwargs = _net_env_kwargs_for_scenario(scenario, size_resolved)
-        runtime_lab_name = lab or _active_runtime_lab_name(scenario)
+        runtime_lab_name = lab or _active_runtime_lab_name(scenario, session_id)
         if runtime_lab_name:
             kwargs["lab_name"] = runtime_lab_name
         net_env = get_net_env_instance(scenario, **kwargs)
@@ -291,9 +298,10 @@ def traffic_run(
         raise typer.BadParameter('--unit must be "K" or "M".')
     unit_lit: Literal["K", "M"] = unit  # type: ignore[assignment]
 
-    if t == "sndlib":
-        _run_sndlib(
+    if t == "matrix-replay":
+        _run_matrix_replay(
             scenario=scenario,
+            session_id=session_id,
             size_resolved=size_resolved,
             unit=unit_lit,
             udp=udp,
@@ -312,7 +320,7 @@ def traffic_run(
                 "`web` traffic always blocks this CLI until interrupted; do not pass `--background`."
             )
         kwargs = _net_env_kwargs_for_scenario(scenario, size_resolved)
-        runtime_lab_name = lab or _active_runtime_lab_name(scenario)
+        runtime_lab_name = lab or _active_runtime_lab_name(scenario, session_id)
         if runtime_lab_name:
             kwargs["lab_name"] = runtime_lab_name
         gen = WebBrowsingTrafficGenerator(
@@ -327,7 +335,7 @@ def traffic_run(
 
     if t == "od":
         kwargs = _net_env_kwargs_for_scenario(scenario, size_resolved)
-        runtime_lab_name = lab or _active_runtime_lab_name(scenario)
+        runtime_lab_name = lab or _active_runtime_lab_name(scenario, session_id)
         if runtime_lab_name:
             kwargs["lab_name"] = runtime_lab_name
         net_env = get_net_env_instance(scenario, **kwargs)
@@ -402,9 +410,10 @@ def traffic_run(
         return
 
 
-def _run_sndlib(
+def _run_matrix_replay(
     *,
     scenario: str,
+    session_id: str | None,
     size_resolved: str | None,
     unit: Literal["K", "M"],
     udp: bool,
@@ -425,7 +434,7 @@ def _run_sndlib(
 
     if not is_isp_scenario(scenario):
         raise typer.BadParameter(
-            "sndlib traffic replay requires an ISP scenario (e.g. isp_abilene)."
+            "matrix-replay traffic requires an ISP scenario (e.g. isp_abilene)."
         )
 
     traffic_mode = (mode or "demands").strip().lower()
@@ -435,7 +444,7 @@ def _run_sndlib(
     if traffic_scale <= 0:
         raise typer.BadParameter("--scale must be > 0.")
 
-    resolved_id = resolve_running_session_id()
+    resolved_id = resolve_running_session_id(session_id)
     meta = SessionStore().get_session(resolved_id)
     params = dict(meta.get("scenario_params") or {})
     lab_name = meta.get("lab_name") or params.get("lab_name")
@@ -466,7 +475,7 @@ def _run_sndlib(
     )
     series = resolve_traffic_series(topo, traffic_mode)
     if series is None:
-        raise typer.BadParameter("Could not resolve SNDlib traffic series.")
+        raise typer.BadParameter("Could not resolve the traffic matrix series.")
     inventory = getattr(net_env, "inventory", {}) or {}
     if not (inventory.get("hosts") or inventory.get("traffic", {}).get("stubs")):
         raise typer.BadParameter(

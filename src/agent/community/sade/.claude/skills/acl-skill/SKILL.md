@@ -23,11 +23,10 @@ description: Identify ACL and firewall faults from nftables or iptables rules. U
 
 ## Exact Calls
 
-- `python diagnosis-methodology-skill/scripts/infra_sweep.py`
 - `exec_shell(host_name="<flagged-device>", command="nft list ruleset")`
 - `exec_shell(host_name="<flagged-device>", command="iptables -L -n -v")`
 
-`infra_sweep` already runs `nft list ruleset` across every device and tags ACL fingerprints (ARP / OSPF protocol 89 / TCP 179 / TCP 80 / ICMP / packet-length filters). Use it for discovery; use the per-host probes only to confirm on the device infra_sweep flagged.
+Inspect the implicated devices through MCP and match firewall rules against the affected protocol and path.
 
 ## Host Vs Router Ownership
 

@@ -115,25 +115,25 @@ Use [Run configuration](../operations/configuration.md) for every setting, [CLI]
 
 ## Trace event contract
 
-`DiagnosisAgent` writes each phase's lifecycle events. The submission `agent_start` event records `submission_mode`, plus the mapping `provider`, `model`, `samples`, and `temperature` in `unstructured` mode. Unstructured runs also record each mapping attempt as `submission_sample` (`sample`, `attempt`, raw `text`, parsed `answer` or `error`) and the outcome as `submission_vote` (per-sample `answers`, `votes` with counts, and the `chosen` answer). Workers record real model and tool calls using `MessageLogger` (or `AgentCallbackLogger` for LangChain). The evaluator normally measures diagnosis-phase events only.
+`DiagnosisAgent` writes each phase's lifecycle events. The submission `agent_start` event records `submission_mode`, plus the mapping `provider`, `model`, `samples`, and `temperature` in `unstructured` mode. Unstructured runs also record each mapping attempt as `submission_sample` (`sample`, `attempt`, raw `text`, parsed `answer` or `error`) and the outcome as `submission_vote` (per-sample `answers`, `votes` with counts, and the `chosen` answer). Workers can record model and tool events using `MessageLogger` (or `AgentCallbackLogger` for LangChain) to display the investigation transcript. For evaluation, NIKA uses diagnosis-phase host records when available; trace-based counts are the fallback when the corresponding host record is absent. See [Step limit](#step-limit) for model-request accounting.
 
 | Event | Worker payload | Meaning |
 | --- | --- | --- |
 | `llm_start` | `messages` | Model request begins. |
-| `llm_end` | `text`, `model`, `usage_metadata` when available | One actual model response; increments the step metric. Usage supports `input_tokens`, `output_tokens`, and `reasoning_tokens` through the shared normalizer. |
-| `tool_start` | `tool: {name}`, `input`, `tool_call_id` when available | Tool invocation; increments tool-call count. |
+| `llm_end` | `text`, `model`, `usage_metadata` when available | Model response for the transcript. Usage supports `input_tokens`, `output_tokens`, and `reasoning_tokens` through the shared normalizer. |
+| `tool_start` | `tool: {name}`, `input`, `tool_call_id` when available | Tool invocation for the transcript. |
 | `tool_end` | Matching tool name/call ID, `output` | Tool result. |
-| `tool_error` | Matching tool name/call ID, error details | Failed tool invocation; increments tool-error count. |
+| `tool_error` | Matching tool name/call ID, error details | Failed tool invocation for the transcript. |
 
 The logger supplies timestamp and phase. Preserve real usage and errors; do not emit synthetic model events for deterministic code. See [`loggers.py`](../../src/agent/utils/loggers.py), [`usage.py`](../../src/agent/utils/usage.py), and [`trace_parser.py`](../../src/nika/evaluator/trace_parser.py) for supported payload normalization and native CLI/SDK transcript handling.
 
 ## Custom agent integration
 
-Subclass [`DiagnosisAgent`](../../src/agent/base.py) and implement `diagnose(task_description) -> str`. The shortest path is one file, `src/agent/custom/<name>.py`, which runs as agent type `custom.<name>`; [Integrate a custom agent](custom-agents.md) describes it and its class attributes. The agent runs in its sandbox, one phase per process. The constructor reads the task from the sandbox workspace and keeps the run settings: `self.model`, `self.llm_provider`, `self.max_steps`, `self.max_tokens`, `self.reasoning_effort`, `self.session_id`, `self.scenario_name`, and `self.trace_dir` (where `messages.jsonl` lives). `self.diagnosis_mcp_config()` returns the diagnosis MCP servers. Model clients read the standard variables `OPENAI_BASE_URL`/`OPENAI_API_KEY` (or `ANTHROPIC_*`), which NIKA points at the provider or its model proxy. A subclass that needs its own constructor calls `super().__init__(session_id, ...)` first.
+Subclass [`DiagnosisAgent`](../../src/agent/base.py) and implement `diagnose(task_description) -> str`. The shortest path is one file, `src/agent/custom/<name>.py`, which runs as agent type `custom.<name>`; [Integrate a custom agent](custom-agents.md) describes it and its class attributes. The agent runs in its sandbox, one phase per process. The constructor reads the task from the sandbox workspace and keeps the run settings: `self.model`, `self.llm_provider`, `self.max_steps`, `self.max_tokens`, `self.reasoning_effort`, `self.session_id`, `self.scenario_name`, and `self.trace_dir` (where `messages.jsonl` lives). `self.diagnosis_mcp_config()` returns the diagnosis MCP servers. Model clients read the standard variables `OPENAI_BASE_URL`/`OPENAI_API_KEY` (or `ANTHROPIC_*`), which NIKA points at its host model proxy. A subclass that needs its own constructor calls `super().__init__(session_id, ...)` first.
 
 Submission needs no code: NIKA answers from the frozen report as described in [the shared run contract](#shared-run-contract). The default `submit(diagnosis_report, context)` uses the agent's `model` and `llm_provider`, so an agent without a provider must override `submit` or run in `unstructured` mode. Override `submit` only to keep a framework's own submission worker; it must answer from the report and context alone, through the task MCP `submit` tool ([Python MCP client](#python-mcp-client)).
 
-Workers enforce the [step limit](#step-limit) and record calls using the [trace event contract](#trace-event-contract). Lifecycle events, report freezing, and submission mode belong to the base class and host.
+The host enforces the [step limit](#step-limit) and records model and MCP calls for evaluation. Workers can add transcript detail using the [trace event contract](#trace-event-contract). Lifecycle events, report freezing, and submission mode belong to the base class and host.
 
 ## Custom agent registration
 
