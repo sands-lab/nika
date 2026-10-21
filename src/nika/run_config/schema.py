@@ -32,7 +32,7 @@ def _gib(value: str) -> str:
 
 
 class FirecrackerSettings(BaseModel):
-    """Firecracker execution (``nika.execution: firecracker``), advanced.
+    """Firecracker execution (``nika.execution.mode: firecracker``), advanced.
 
     Each environment variant is deployed and verified once in a microVM booted
     from the base image in ``root`` and kept as a *lab image*; trials restore a
@@ -42,13 +42,10 @@ class FirecrackerSettings(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    # Directory on a reflink-capable filesystem (btrfs, XFS) holding base/,
-    # images/ and trials/.
-    root: str = "/var/lib/nika-firecracker"
-    # Firecracker binary (name on PATH or path). Unset: NIKA builds Firecracker
-    # with its nested virtualization patch on first use, which labs that run
-    # VMs (RouterOS) need to restore.
-    binary: str | None = None
+    # Directory on a reflink-capable filesystem (btrfs, XFS) for the base image,
+    # lab and case images, trial copies and NIKA's Firecracker build. Relative
+    # paths are under the NIKA checkout, so uninstalling NIKA removes it.
+    root: str = "runtime/firecracker"
     vm_cpus: int = Field(default=4, ge=1)
     # Most Kathara labs use under 2 GiB; with huge pages every copy holds all of it.
     vm_memory: str = "4GiB"
@@ -218,15 +215,23 @@ class RuntimeValidationSettings(BaseModel):
     failure_effect: bool = False
 
 
+class ExecutionSettings(BaseModel):
+    """Where benchmark trials run their labs."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # ``native``: on this host. ``firecracker``: in Firecracker microVMs restored
+    # from lab images, configured under ``firecracker``.
+    mode: Literal["native", "firecracker"] = "native"
+    firecracker: FirecrackerSettings = Field(default_factory=FirecrackerSettings)
+
+
 class NikaSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     result_dir: str = "results"
     remote: RemoteSettings = Field(default_factory=RemoteSettings)
-    # Where benchmark trials run their labs: on this host, or in Firecracker
-    # microVMs restored from lab images (configured under ``firecracker``).
-    execution: Literal["native", "firecracker"] = "native"
-    firecracker: FirecrackerSettings = Field(default_factory=FirecrackerSettings)
+    execution: ExecutionSettings = Field(default_factory=ExecutionSettings)
     sandbox: SandboxSettings = Field(default_factory=SandboxSettings)
     observability: ObservabilitySettings = Field(default_factory=ObservabilitySettings)
     judge: JudgeSettings = Field(default_factory=JudgeSettings)

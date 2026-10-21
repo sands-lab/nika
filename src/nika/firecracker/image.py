@@ -38,7 +38,7 @@ from nika.firecracker.base import (
     ensure_base,
 )
 from nika.firecracker.binary import binary_id
-from nika.firecracker.config import firecracker_settings
+from nika.firecracker.config import firecracker_root, firecracker_settings
 from nika.firecracker.vmm import (
     DISK,
     VSOCK,
@@ -111,7 +111,7 @@ class LabImage:
 
 
 def root() -> Path:
-    return Path(firecracker_settings().root)
+    return firecracker_root()
 
 
 def images_dir() -> Path:
@@ -185,7 +185,7 @@ def image_key(params: dict[str, Any]) -> str:
         "cpus": settings.vm_cpus,
         "memory_mib": vm_memory_mib(str(params.get("scenario"))),
         "huge_pages": settings.huge_pages,
-        "firecracker": binary_id(firecracker_binary(settings.binary)),
+        "firecracker": binary_id(firecracker_binary()),
     }
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:12]
 
@@ -265,7 +265,15 @@ def require_build_space(memory_mib: int) -> None:
 
 def _clone(src: Path, dst: Path) -> None:
     """Copy-on-write copy (the Firecracker root must support reflinks)."""
-    subprocess.run(["cp", "--reflink=always", str(src), str(dst)], check=True)
+    done = subprocess.run(
+        ["cp", "--reflink=always", str(src), str(dst)], capture_output=True, text=True
+    )
+    if done.returncode != 0:
+        raise RuntimeError(
+            f"Cannot clone {src} ({done.stderr.strip()}). The Firecracker root "
+            f"{root()} must be on btrfs or XFS; see 'Set up the host' in "
+            "docs/operations/firecracker.md."
+        )
 
 
 def _build(build: Path, key: str, params: dict[str, Any]) -> None:
@@ -284,7 +292,7 @@ def _build(build: Path, key: str, params: dict[str, Any]) -> None:
         )
     )
     _clone(base / manifest["rootfs"], build / DISK)
-    vm = Firecracker(build, firecracker_binary(settings.binary))
+    vm = Firecracker(build, firecracker_binary())
     vm.start()
     vm.boot(
         kernel=str(base / manifest["kernel"]),
@@ -328,7 +336,7 @@ def _build(build: Path, key: str, params: dict[str, Any]) -> None:
         _log(
             f"[firecracker] warning: {params['scenario']} leaves only "
             f"{guest_memory['available']} of {guest_memory['total']} MiB free in its VM; "
-            "raise nika.firecracker.vm_memory_overrides for it"
+            "raise nika.execution.firecracker.vm_memory_overrides for it"
         )
     if not settings.huge_pages:
         # Free the page cache and give the guest time to report it free, so the

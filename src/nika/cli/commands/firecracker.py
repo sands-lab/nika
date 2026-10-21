@@ -1,4 +1,4 @@
-"""Commands for Firecracker lab images (``nika.execution: firecracker``)."""
+"""Commands for Firecracker lab images (``nika.execution.mode: firecracker``)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import typer
 from nika.run_config.loader import ENV_RUN_CONFIG
 
 firecracker_app = typer.Typer(
-    help="Lab images for benchmark runs in Firecracker (nika.execution: firecracker)."
+    help="Lab images for benchmark runs in Firecracker (nika.execution.mode: firecracker)."
 )
 
 

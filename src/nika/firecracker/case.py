@@ -1,6 +1,6 @@
 """Case images: a lab image copy saved right after its case's failure injection.
 
-With ``nika.firecracker.case_images``, each failure case is injected once:
+With ``nika.execution.firecracker.case_images``, each failure case is injected once:
 restore its lab image, adopt the lab session, verify it, inject the case's
 failure (the same ``inject_failure`` path as a trial), then snapshot the VM.
 The case image in ``<root>/cases/<key>/`` keeps:
@@ -156,7 +156,7 @@ def _build_case(build: Path, key: str, row: dict[str, Any]) -> None:
             )
             timings["inject_sec"] = round(time.monotonic() - started, 1)
             started = time.monotonic()
-            vm = Firecracker(lab.dir, firecracker_binary(firecracker_settings().binary))
+            vm = Firecracker(lab.dir, firecracker_binary())
             vm.snapshot("case.state", "case.mem")
             timings["snapshot_sec"] = round(time.monotonic() - started, 1)
             started = time.monotonic()

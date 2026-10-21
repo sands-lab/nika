@@ -163,7 +163,7 @@ The last command now prints the loopback qdisc without a password prompt.
 | `/etc/sysctl.d/99-nika-inotify.conf`, with the original inotify limits restored | The source tree |
 | `/etc/sudoers.d/nika-host-tc` | `.env` and `config/` |
 | The `clab_admins` group, plus the Containerlab package, `/etc/containerlab`, and `/usr/local/bin/gnmic` that older installers added | `results/` |
-| `.venv` (including `clab` and `gnmic`), `.nika_cache` (including uv and its cache, XRd tarballs, and CHR downloads), and `runtime/` | |
+| `.venv` (including `clab` and `gnmic`), `.nika_cache` (including uv and its cache, XRd tarballs, and CHR downloads), and `runtime/`, including [Firecracker](firecracker.md) images (a btrfs loop file mounted at `runtime/firecracker` is unmounted and its `/etc/fstab` line removed first) | Firecracker images in a `root` you set outside the checkout |
 
 An image that a non-NIKA container still uses is kept, and the script prints its name. Pass `--prune-build-cache` to also run `docker builder prune -af`. The Docker build cache is shared with every build on the host, so only use this flag on a dedicated lab host.
 

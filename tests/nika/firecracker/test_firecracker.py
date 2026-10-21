@@ -29,7 +29,7 @@ def _clean_run_config():
 
 
 def test_firecracker_settings_default_off_and_validated() -> None:
-    assert RunConfig().nika.execution == "native"
+    assert RunConfig().nika.execution.mode == "native"
     with pytest.raises(ValidationError):
         FirecrackerSettings(vm_memory="8G")
     with pytest.raises(ValidationError):
@@ -78,7 +78,7 @@ def test_image_key_tracks_variant_and_code(monkeypatch: pytest.MonkeyPatch) -> N
     assert params == {"scenario": "dc_clos", "topo_size": "s"}
     monkeypatch.setattr(image, "base_manifest", lambda: {"id": "base-1"})
     monkeypatch.setattr(image, "code_fingerprint", lambda: "a")
-    monkeypatch.setattr(image, "firecracker_binary", lambda configured: "/fc")
+    monkeypatch.setattr(image, "firecracker_binary", lambda: "/fc")
     monkeypatch.setattr(image, "binary_id", lambda path: "fc-1")
     key = image.image_key(params)
     assert key == image.image_key(dict(params))
@@ -96,8 +96,12 @@ def test_image_key_tracks_variant_and_code(monkeypatch: pytest.MonkeyPatch) -> N
     assert key != image.image_key(params)
 
 
-def test_trial_dirs_are_stable_per_trial() -> None:
-    set_run_config(RunConfig())
+def test_trial_dirs_are_stable_per_trial(tmp_path) -> None:
+    set_run_config(
+        RunConfig.model_validate(
+            {"nika": {"execution": {"firecracker": {"root": str(tmp_path)}}}}
+        )
+    )
     first = trial_dir("dc_clos__link_down__t01__rabc")
     assert first == trial_dir("dc_clos__link_down__t01__rabc")
     assert first != trial_dir("dc_clos__link_down__t02__rabc")
@@ -230,17 +234,21 @@ def test_hugepage_need_reserves_the_whole_vm() -> None:
 
     row = {"scenario": "dc_clos", "topo_size": "s"}
     set_run_config(
-        RunConfig.model_validate({"nika": {"firecracker": {"huge_pages": False}}})
+        RunConfig.model_validate(
+            {"nika": {"execution": {"firecracker": {"huge_pages": False}}}}
+        )
     )
     assert schedule.hugepage_need_mib(row) == 0
     set_run_config(
         RunConfig.model_validate(
             {
                 "nika": {
-                    "firecracker": {
-                        "huge_pages": True,
-                        "vm_memory": "1GiB",
-                        "vm_memory_overrides": {"k8s_lab": "8GiB"},
+                    "execution": {
+                        "firecracker": {
+                            "huge_pages": True,
+                            "vm_memory": "1GiB",
+                            "vm_memory_overrides": {"k8s_lab": "8GiB"},
+                        }
                     }
                 }
             }
@@ -258,7 +266,9 @@ def test_firecracker_runs_have_no_heavy_tier() -> None:
     trial = SimpleNamespace(row={"scenario": "k8s_lab"}, case_key="k")
     set_run_config(RunConfig())
     assert resource_class(trial) != CLASS_LIGHT
-    set_run_config(RunConfig.model_validate({"nika": {"execution": "firecracker"}}))
+    set_run_config(
+        RunConfig.model_validate({"nika": {"execution": {"mode": "firecracker"}}})
+    )
     assert resource_class(trial) == CLASS_LIGHT
 
 
@@ -286,7 +296,10 @@ def test_memory_diff_round_trips_changed_pages(tmp_path) -> None:
     assert memdiff.read_index(diff) == [0, 1, memdiff.BLOCK // page + 5]
     with open(base, "rb") as fh:
         mm = mmap.mmap(
-            fh.fileno(), 0, flags=mmap.MAP_PRIVATE, prot=mmap.PROT_READ | mmap.PROT_WRITE
+            fh.fileno(),
+            0,
+            flags=mmap.MAP_PRIVATE,
+            prot=mmap.PROT_READ | mmap.PROT_WRITE,
         )
     assert memdiff.apply(mm, diff) == 3
     assert mm[:] == bytes(changed)
@@ -297,7 +310,9 @@ def test_case_images_follow_lab_image_and_case(monkeypatch: pytest.MonkeyPatch) 
     from nika.firecracker import case
 
     set_run_config(
-        RunConfig.model_validate({"nika": {"firecracker": {"case_images": True}}})
+        RunConfig.model_validate(
+            {"nika": {"execution": {"firecracker": {"case_images": True}}}}
+        )
     )
     monkeypatch.setattr(case, "image_key", lambda params: "img-1")
     row = {
@@ -316,3 +331,49 @@ def test_case_images_follow_lab_image_and_case(monkeypatch: pytest.MonkeyPatch) 
     assert not case.wants_case_image({**row, "problem": "healthy"})
     set_run_config(RunConfig())
     assert not case.wants_case_image(row)
+
+
+def test_root_is_under_the_checkout_and_compresses_images(tmp_path) -> None:
+    import os
+
+    from nika.config import REPO_ROOT
+    from nika.firecracker import config
+
+    set_run_config(RunConfig())
+    assert config.firecracker_settings().root == "runtime/firecracker"
+    root = tmp_path / "fc"
+    set_run_config(
+        RunConfig.model_validate(
+            {"nika": {"execution": {"firecracker": {"root": str(root)}}}}
+        )
+    )
+    assert config.firecracker_root() == root
+    assert (root / "images").is_dir() and (root / "trials").is_dir()
+    try:
+        assert os.getxattr(root / "images", "btrfs.compression") == b"zstd"
+        assert os.getxattr(root / "trials", "btrfs.compression") == b"none"
+    except OSError:
+        pass  # not btrfs: nothing to set
+    assert not str(config.firecracker_root()).startswith(str(REPO_ROOT / "runtime"))
+
+
+def test_unix_sockets_work_in_deep_vm_directories(tmp_path) -> None:
+    import socket
+
+    from nika.firecracker.vmm import unix_path
+
+    deep = tmp_path / ("d" * 60) / ("e" * 60)
+    deep.mkdir(parents=True)
+    path = deep / "vsock.sock_8700"
+    assert len(str(path)) > 108
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    with unix_path(path) as name:
+        server.bind(name)
+    server.listen(1)
+    client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    with unix_path(path) as name:
+        client.connect(name)
+    server.accept()[0].close()
+    client.close()
+    server.close()
+    assert path.exists()

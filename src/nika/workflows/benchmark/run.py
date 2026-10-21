@@ -898,7 +898,7 @@ def run_single_case(
     store_session_id = store_session_id_for_trial(trial_id, result_dir) or trial_id
     image_lab = active_trial_lab()
     if image_lab is not None:
-        # nika.firecracker: the lab was restored from a lab image; adopt it.
+        # Firecracker execution: the lab was restored from a lab image; adopt it.
         session_id = image_lab.attach(
             session_id=store_session_id,
             result_dir=result_dir,
@@ -1138,7 +1138,7 @@ def _run_trial(
 
 
 def _firecracker_trial_scope(trial: Trial, *, agent_type: str, result_dir: str | None):
-    """Restore the trial's lab from a lab image when ``nika.firecracker`` is enabled."""
+    """Restore the trial's lab from a lab image with Firecracker execution."""
     if not firecracker_enabled():
         return nullcontext()
     from agent.sandbox import SANDBOX_SUPPORTED_AGENTS
@@ -1451,7 +1451,7 @@ def _run_trials_batch(
     # future -> (trial, resource_class)
     futures: dict[Any, tuple[Trial, str]] = {}
     in_flight: dict[str, int] = {}
-    # nika.firecracker with huge pages: expected huge-page use of running copies.
+    # Firecracker execution with huge pages: expected huge-page use of running copies.
     hugepage_pool = hugepage_pool_mib() if firecracker_enabled() else None
     hugepages_in_flight: dict[Any, int] = {}
     # Each light phase may bypass waiting heavy trials at most one batch.
@@ -1988,7 +1988,7 @@ def run_benchmark_from_release(
     planned: list[Trial] | None = None
     if task_ids:
         planned = select_trials(expand_trials(resolved.cases, n_trials), task_ids)
-    # With nika.firecracker, labs (and their images) live in the lab images.
+    # With Firecracker execution, labs (and their images) live in the lab images.
     preflight_release(resolved, check_images=check_images and not firecracker_enabled())
 
     # Timeout is operational (run config / CLI), not a release pin.

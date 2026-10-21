@@ -21,7 +21,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from nika.firecracker.config import firecracker_settings
+from nika.firecracker.config import firecracker_root
 
 FIRECRACKER_VERSION = "v1.17.0"
 FIRECRACKER_REPO = "https://github.com/firecracker-microvm/firecracker"
@@ -52,7 +52,7 @@ def build_key() -> str:
 
 def ensure_firecracker() -> Path:
     """Return the patched Firecracker binary, building it first when missing."""
-    root = Path(firecracker_settings().root)
+    root = firecracker_root()
     out = root / "firecracker" / build_key()
     binary = out / "firecracker"
     if binary.exists():

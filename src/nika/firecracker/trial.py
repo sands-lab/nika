@@ -128,7 +128,7 @@ class TrialLab:
         )
         source = self.case.path if self.case else self.image.path
         _clone(source / DISK, self.dir / DISK)
-        vm = Firecracker(self.dir, firecracker_binary(settings.binary))
+        vm = Firecracker(self.dir, firecracker_binary())
         vm.start()
         uffd = server = None
         if settings.huge_pages or self.case:

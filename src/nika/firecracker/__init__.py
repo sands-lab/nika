@@ -1,4 +1,4 @@
-"""Advanced: run benchmark trials in Firecracker microVMs (``nika.execution``).
+"""Advanced: run benchmark trials in Firecracker microVMs (``nika.execution.mode: firecracker``).
 
 A *lab image* per environment variant holds a deployed, verified lab: a
 Firecracker snapshot of a VM (memory, device state and disk). Each trial

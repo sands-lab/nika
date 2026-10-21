@@ -118,7 +118,10 @@ def serve(socket_path: str, memory_file: str, memory_diff: str | None = None) ->
     if os.path.exists(socket_path):
         os.unlink(socket_path)
     server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    server.bind(socket_path)
+    from nika.firecracker.vmm import unix_path
+
+    with unix_path(socket_path) as name:
+        server.bind(name)
     server.listen(1)
     # Prepare memory before accepting: Firecracker waits on the connection.
     with open(memory_file, "rb") as fh:

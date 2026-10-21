@@ -6,7 +6,7 @@ environments that take minutes to build, such as SR Linux topologies,
 Kubernetes labs or large ISP networks, that cost repeats for every task and
 trial.
 
-With `nika.execution: firecracker`, NIKA instead works like this:
+With `nika.execution.mode: firecracker`, NIKA instead works like this:
 
 1. For each environment variant, it deploys and verifies the environment once in
    a [Firecracker](https://firecracker-microvm.github.io/) microVM and saves the
@@ -17,14 +17,14 @@ With `nika.execution: firecracker`, NIKA instead works like this:
 The agent and its sandbox stay on the host and reach the environment through the
 NIKA remote daemon in the VM, exactly as in [remote lab execution](remote.md).
 
-`nika.execution` defaults to `native` (labs on this host). Firecracker execution
+`nika.execution.mode` defaults to `native` (labs on this host). Firecracker execution
 affects only `nika benchmark run`.
 
 ## When it pays off
 
 Firecracker execution makes each trial cheaper in exchange for a one-time
 build per environment variant and the disk to keep the result. A lab image
-build costs about one native deploy and holds 1–15 GiB; after that, a trial
+build costs about one native deploy and holds 0.3–4 GiB; after that, a trial
 restores its lab in seconds instead of deploying and undeploying it.
 
 For release 0.2.0 (test split, 85 tasks × 3 trials), measured on a 16 vCPU host
@@ -33,7 +33,7 @@ that is itself a VM, with huge pages:
 | | Native | Lab images | Lab and case images |
 |---|---:|---:|---:|
 | One-time builds (VM time) | — | 1.5 h | 1.5 h + 2.0 h |
-| Disk | — | 21 GiB base + 79 GiB | 21 GiB base + 79 GiB + 4.4 GiB |
+| Disk | — | 12 GiB base + 23 GiB | 12 GiB base + 23 GiB + 3.5 GiB |
 | Time outside the agent per run (255 trials) | 10.8 h | 0.9 h | 0.1 h |
 | Builds pay for themselves after | — | the first run | about 2.4 more runs |
 | Measured wall time, 85 trials 8 at a time | 5 h 55 min | 1 h 55 min, plus 35 min of builds | — |
@@ -49,8 +49,9 @@ once, tools that probe the network (ping meshes, HTTP tests) took 20–150%
 longer in their median than in the native run, which ran fewer trials at once.
 
 While a lab image is built, its snapshot temporarily needs the VM's whole
-`vm_memory` (4–20 GiB) of free disk. See [host setup](#set-up-the-host-once)
-step 3 for sizing the Firecracker root.
+`vm_memory` (4–20 GiB) of free disk. Disk sizes are with btrfs, where NIKA stores
+images zstd-compressed (about 3.5× smaller); on XFS they are uncompressed. See
+[host setup](#set-up-the-host-once) step 3 for sizing the Firecracker root.
 
 ### Per environment
 
@@ -61,35 +62,35 @@ restore the lab image.
 
 | Environment | Tasks | Native, per trial | Lab image: build, disk | Firecracker, per trial | Pays off after (runs) | Case images: builds, disk | With case images, per trial | Case images pay off after (more runs) |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
-| `campus_lan` l | 6 | 196 s | 241 s, 3.4 GiB | 27 s | 0.08 | 702 s, 641 MiB | 2 s | 1.6 |
-| `campus_lan` m | 6 | 103 s | 154 s, 2.0 GiB | 5 s | 0.09 | 280 s, 150 MiB | 2 s | 5.8 |
-| `campus_lan` s | 4 | 87 s | 106 s, 1.7 GiB | 10 s | 0.12 | 267 s, 89 MiB | 2 s | 2.7 |
-| `dc_clos` l | 2 | 296 s | 280 s, 3.3 GiB | 11 s | 0.16 | 98 s, 67 MiB | 2 s | 3.3 |
-| `dc_clos` m | 3 | 67 s | 91 s, 1.7 GiB | 7 s | 0.17 | 151 s, 62 MiB | 2 s | 3.8 |
-| `dc_clos` s | 2 | 36 s | 61 s, 1.1 GiB | 3 s | 0.31 | 139 s, 101 MiB | 3 s | 0.5 |
-| `enterprise_branch` l | 5 | 81 s | 169 s, 2.1 GiB | 6 s | 0.15 | 388 s, 214 MiB | 2 s | 5.9 |
-| `enterprise_branch` m | 4 | 64 s | 89 s, 1.4 GiB | 11 s | 0.14 | 318 s, 100 MiB | 2 s | 2.3 |
-| `enterprise_branch` s | 3 | 43 s | 61 s, 1.2 GiB | 9 s | 0.20 | 133 s, 57 MiB | 2 s | 2.1 |
-| `isp_abilene` s | 1 | 80 s | 152 s, 1.6 GiB | 6 s | 0.69 | 66 s, 47 MiB | 2 s | 5.3 |
-| `isp_dfn-bwin_ebgp_rtbh` s | 1 | 97 s | 113 s, 1.5 GiB | 6 s | 0.41 | 40 s, 43 MiB | 3 s | 4.5 |
-| `isp_di-yuan` s | 1 | 92 s | 145 s, 1.8 GiB | 18 s | 0.66 | 171 s, 49 MiB | 2 s | 3.4 |
-| `isp_geant_ebgp_rpki` m | 2 | 640 s | 661 s, 2.1 GiB | 7 s | 0.17 | 201 s, 114 MiB | 2 s | 6.4 |
-| `isp_germany50` l | 1 | 111 s | 126 s, 2.8 GiB | 12 s | 0.42 | 141 s, 94 MiB | 2 s | 4.7 |
-| `isp_pdh` s | 1 | 237 s | 574 s, 14.8 GiB | 117 s | 1.59 | 449 s, 206 MiB | 5 s | 1.3 |
-| `k8s_lab` | 6 | 344 s | 460 s, 7.7 GiB | 23 s | 0.08 | 924 s, 683 MiB | 2 s | 2.8 |
-| `llmd_lab` | 5 | 207 s | 258 s, 7.7 GiB | 20 s | 0.09 | 859 s, 533 MiB | 3 s | 3.2 |
-| `min3clos` | 1 | 115 s | 207 s, 5.4 GiB | 10 s | 0.66 | 151 s, 65 MiB | 3 s | 7.2 |
-| `p4_dc_fabric` l | 1 | 187 s | 192 s, 1.9 GiB | 9 s | 0.36 | 56 s, 39 MiB | 2 s | 2.8 |
-| `p4_dc_fabric` m | 1 | 106 s | 123 s, 1.4 GiB | 12 s | 0.44 | 48 s, 27 MiB | 5 s | 2.2 |
-| `p4_dc_gateway` l | 5 | 173 s | 193 s, 2.2 GiB | 17 s | 0.08 | 350 s, 220 MiB | 3 s | 1.7 |
-| `p4_dc_gateway` m | 7 | 88 s | 118 s, 1.6 GiB | 8 s | 0.07 | 281 s, 161 MiB | 2 s | 2.7 |
-| `p4_dc_gateway` s | 7 | 70 s | 89 s, 1.3 GiB | 11 s | 0.07 | 391 s, 151 MiB | 3 s | 2.2 |
-| `sdn_l3_clos` l | 4 | 298 s | 283 s, 2.9 GiB | 8 s | 0.08 | 237 s, 307 MiB | 2 s | 4.0 |
-| `sdn_l3_clos` m | 2 | 130 s | 168 s, 2.2 GiB | 4 s | 0.22 | 50 s, 44 MiB | 2 s | 6.4 |
-| `sdn_l3_clos` s | 4 | 82 s | 114 s, 1.9 GiB | 10 s | 0.13 | 248 s, 242 MiB | 2 s | 2.4 |
+| `campus_lan` l | 6 | 196 s | 241 s, 973 MiB | 27 s | 0.08 | 702 s, 417 MiB | 2 s | 1.6 |
+| `campus_lan` m | 6 | 103 s | 154 s, 655 MiB | 5 s | 0.09 | 280 s, 134 MiB | 2 s | 5.8 |
+| `campus_lan` s | 4 | 87 s | 106 s, 379 MiB | 10 s | 0.12 | 267 s, 81 MiB | 2 s | 2.7 |
+| `dc_clos` l | 2 | 296 s | 280 s, 573 MiB | 11 s | 0.16 | 98 s, 60 MiB | 2 s | 3.3 |
+| `dc_clos` m | 3 | 67 s | 91 s, 358 MiB | 7 s | 0.17 | 151 s, 52 MiB | 2 s | 3.8 |
+| `dc_clos` s | 2 | 36 s | 61 s, 358 MiB | 3 s | 0.31 | 139 s, 31 MiB | 3 s | 0.5 |
+| `enterprise_branch` l | 5 | 81 s | 169 s, 399 MiB | 6 s | 0.15 | 388 s, 164 MiB | 2 s | 5.9 |
+| `enterprise_branch` m | 4 | 64 s | 89 s, 317 MiB | 11 s | 0.14 | 318 s, 86 MiB | 2 s | 2.3 |
+| `enterprise_branch` s | 3 | 43 s | 61 s, 287 MiB | 9 s | 0.20 | 133 s, 54 MiB | 2 s | 2.1 |
+| `isp_abilene` s | 1 | 80 s | 152 s, 338 MiB | 6 s | 0.69 | 66 s, 40 MiB | 2 s | 5.3 |
+| `isp_dfn-bwin_ebgp_rtbh` s | 1 | 97 s | 113 s, 328 MiB | 6 s | 0.41 | 40 s, 42 MiB | 3 s | 4.5 |
+| `isp_di-yuan` s | 1 | 92 s | 145 s, 328 MiB | 18 s | 0.66 | 171 s, 42 MiB | 2 s | 3.4 |
+| `isp_geant_ebgp_rpki` m | 2 | 640 s | 661 s, 430 MiB | 7 s | 0.17 | 201 s, 106 MiB | 2 s | 6.4 |
+| `isp_germany50` l | 1 | 111 s | 126 s, 512 MiB | 12 s | 0.42 | 141 s, 73 MiB | 2 s | 4.7 |
+| `isp_pdh` s | 1 | 237 s | 574 s, 2.8 GiB | 117 s | 1.59 | 449 s, 179 MiB | 5 s | 1.3 |
+| `k8s_lab` | 6 | 344 s | 460 s, 4.2 GiB | 23 s | 0.08 | 924 s, 506 MiB | 2 s | 2.8 |
+| `llmd_lab` | 5 | 207 s | 258 s, 4.3 GiB | 20 s | 0.09 | 859 s, 457 MiB | 3 s | 3.2 |
+| `min3clos` | 1 | 115 s | 207 s, 1.4 GiB | 10 s | 0.66 | 151 s, 64 MiB | 3 s | 7.2 |
+| `p4_dc_fabric` l | 1 | 187 s | 192 s, 389 MiB | 9 s | 0.36 | 56 s, 34 MiB | 2 s | 2.8 |
+| `p4_dc_fabric` m | 1 | 106 s | 123 s, 328 MiB | 12 s | 0.44 | 48 s, 23 MiB | 5 s | 2.2 |
+| `p4_dc_gateway` l | 5 | 173 s | 193 s, 471 MiB | 17 s | 0.08 | 350 s, 185 MiB | 3 s | 1.7 |
+| `p4_dc_gateway` m | 7 | 88 s | 118 s, 379 MiB | 8 s | 0.07 | 281 s, 143 MiB | 2 s | 2.7 |
+| `p4_dc_gateway` s | 7 | 70 s | 89 s, 338 MiB | 11 s | 0.07 | 391 s, 139 MiB | 3 s | 2.2 |
+| `sdn_l3_clos` l | 4 | 298 s | 283 s, 860 MiB | 8 s | 0.08 | 237 s, 262 MiB | 2 s | 4.0 |
+| `sdn_l3_clos` m | 2 | 130 s | 168 s, 840 MiB | 4 s | 0.22 | 50 s, 38 MiB | 2 s | 6.4 |
+| `sdn_l3_clos` s | 4 | 82 s | 114 s, 901 MiB | 10 s | 0.13 | 248 s, 123 MiB | 2 s | 2.4 |
 
 Lab images pay off within the first run for every environment except
-`isp_pdh`, whose SR Linux lab takes 15 GiB and longer to build than to deploy.
+`isp_pdh`, whose SR Linux lab takes longer to build than to deploy.
 Case images pay off after 0.5–7 more runs, depending on how long injection takes.
 
 ## Set up the host (once)
@@ -114,33 +115,38 @@ reboots. Run them as a user with `sudo`.
 
    Firecracker itself needs no installation. On first use NIKA builds
    Firecracker 1.17 with its nested virtualization patch in a Rust container,
-   which takes about 3 minutes, into `<root>/firecracker/`. Upstream Firecracker
-   snapshots lose the state of a hypervisor in the guest, so restored labs that
-   run VMs crash without the patch. To use another binary, set
-   `nika.firecracker.binary` to its name on `PATH` or its path.
+   which takes about 3 minutes. Upstream Firecracker snapshots lose the state of
+   a hypervisor in the guest, so restored labs that run VMs crash without the
+   patch.
 
-3. **Firecracker root on a reflink-capable filesystem** (btrfs or XFS), owned by
-   you, at `nika.firecracker.root` (default `/var/lib/nika-firecracker`). Trial disks
-   are copy-on-write clones of lab image disks. Without a spare disk, use a loop
-   file:
+3. **A btrfs filesystem for the Firecracker root.** NIKA keeps the base image,
+   lab and case images, trial copies and its Firecracker build in
+   `runtime/firecracker/` in the NIKA checkout, so
+   [uninstalling NIKA](installation.md#uninstall) removes them. Trial disks are
+   copy-on-write clones of lab image disks, which needs btrfs (or XFS), and on
+   btrfs NIKA stores images zstd-compressed. If the checkout is on another
+   filesystem, mount a btrfs loop file there, from the NIKA checkout:
 
    ```shell
    sudo apt-get install -y btrfs-progs
-   sudo truncate -s 300G /var/lib/nika-firecracker.img
-   sudo mkfs.btrfs /var/lib/nika-firecracker.img
-   sudo mkdir -p /var/lib/nika-firecracker
-   echo '/var/lib/nika-firecracker.img /var/lib/nika-firecracker btrfs loop,noatime,nofail 0 0' \
+   mkdir -p runtime/firecracker
+   truncate -s 150G runtime/firecracker.img
+   mkfs.btrfs -q runtime/firecracker.img
+   echo "$PWD/runtime/firecracker.img $PWD/runtime/firecracker btrfs loop,noatime,nofail 0 0" \
      | sudo tee -a /etc/fstab
-   sudo systemctl daemon-reload && sudo mount /var/lib/nika-firecracker
-   sudo chown "$USER": /var/lib/nika-firecracker
+   sudo systemctl daemon-reload && sudo mount runtime/firecracker
+   sudo chown "$USER": runtime/firecracker
    ```
 
-   Size it for the base image (about 21 GiB) plus the lab images you keep: each
-   holds the memory its lab uses, 1–15 GiB, and release 0.2.0's test split
-   needs 79 GiB ([per environment](#per-environment)). Add free space for
-   builds: a snapshot first writes the VM's whole `vm_memory` (4–20 GiB), and
-   NIKA starts a build only while the root has room for every running one.
-   Rebuilding the base briefly needs room for two bases.
+   To keep the images elsewhere, such as on a separate disk, set
+   `nika.execution.firecracker.root` to a directory on btrfs or XFS.
+
+   Size it for the base image (12 GiB) plus the lab images you keep: each holds
+   the memory its lab uses, compressed to 0.3–4 GiB, and release 0.2.0's test
+   split needs 23 GiB ([per environment](#per-environment)). Add free space for
+   builds: NIKA starts a build only while the root has room for the VM's whole
+   `vm_memory` (4–20 GiB) per running build. Rebuilding the base briefly needs
+   room for two bases.
 
    `truncate` does not check that the disk holding the loop file has the space,
    and btrfs on a loop file stops with I/O errors when that disk fills up. Size
@@ -198,7 +204,7 @@ reboots. Run them as a user with `sudo`.
    ```shell
    grep HugePages_Total /proc/meminfo     # the reserved count
    ls -l /dev/userfaultfd                 # crw-rw---- root kvm
-   findmnt /var/lib/nika-firecracker        # btrfs or xfs
+   findmnt -T runtime/firecracker         # btrfs or xfs
    ```
 
 ## Base image
@@ -219,9 +225,10 @@ In `config/nika.yaml`:
 
 ```yaml
 nika:
-  execution: firecracker
-  firecracker:
-    huge_pages: true
+  execution:
+    mode: firecracker
+    firecracker:
+      huge_pages: true
 ```
 
 Then run benchmarks as usual:
@@ -298,14 +305,15 @@ image*:
 
 ```yaml
 nika:
-  firecracker:
-    case_images: true
+  execution:
+    firecracker:
+      case_images: true
 ```
 
 Every trial of the task then restores its case image, and the agent starts 1–8 s
 after the trial begins. A case image stores only the memory pages that changed
 since the lab image, compressed, plus the disk blocks that changed: median
-40 MiB, up to 190 MiB, and 4.4 GiB for release 0.2.0's test split. Building one
+32 MiB, up to 180 MiB, and 3.5 GiB for release 0.2.0's test split. Building one
 takes a restore, the injection and a snapshot, about a minute for most tasks.
 [Per environment](#per-environment) lists the build time, disk and break-even
 point.
@@ -369,8 +377,9 @@ takes. To delete the ones a run used when it ends, set:
 
 ```yaml
 nika:
-  firecracker:
-    clean_after_run: true
+  execution:
+    firecracker:
+      clean_after_run: true
 ```
 
 Lab images are keyed by:

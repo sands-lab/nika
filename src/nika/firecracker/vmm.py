@@ -16,14 +16,14 @@ import base64
 import http.client
 import json
 import os
-import shutil
 import signal
 import socket
 import subprocess
 import threading
 import time
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 DISK = "disk.img"
 VSOCK = "vsock.sock"
@@ -37,21 +37,33 @@ class VmmError(RuntimeError):
     """A Firecracker API call or guest command failed."""
 
 
-def firecracker_binary(configured: str | None) -> str:
-    """The configured binary, or the patched build NIKA makes when unset."""
-    if configured is None:
-        from nika.firecracker.binary import ensure_firecracker
+def firecracker_binary() -> str:
+    """NIKA's Firecracker build (with its nested virtualization patch)."""
+    from nika.firecracker.binary import ensure_firecracker
 
-        return str(ensure_firecracker())
-    path = shutil.which(configured) or (
-        configured if os.access(configured, os.X_OK) else None
-    )
-    if path is None:
-        raise VmmError(
-            f"Firecracker binary {configured!r} not found; "
-            "see docs/operations/firecracker.md."
-        )
-    return path
+    return str(ensure_firecracker())
+
+
+# sun_path holds 108 bytes; VM directories under a deep checkout exceed it.
+_SUN_PATH_MAX = 100
+
+
+@contextmanager
+def unix_path(path: Path | str) -> Iterator[str]:
+    """A name for ``path`` short enough to bind or connect a Unix socket.
+
+    Long paths go through the directory's file descriptor
+    (``/proc/self/fd/<n>/<name>``), which needs it open only meanwhile.
+    """
+    path = Path(path)
+    if len(os.fsencode(path)) <= _SUN_PATH_MAX:
+        yield str(path)
+        return
+    fd = os.open(path.parent, os.O_PATH | os.O_DIRECTORY)
+    try:
+        yield f"/proc/self/fd/{fd}/{path.name}"
+    finally:
+        os.close(fd)
 
 
 class _UnixHTTP(http.client.HTTPConnection):
@@ -62,7 +74,8 @@ class _UnixHTTP(http.client.HTTPConnection):
     def connect(self) -> None:
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.sock.settimeout(self.timeout)
-        self.sock.connect(self._path)
+        with unix_path(self._path) as name:
+            self.sock.connect(name)
 
 
 class Firecracker:
@@ -176,7 +189,12 @@ class Firecracker:
 
     def load(self, *, state: Path, memory: Path, uffd_socket: Path | None) -> None:
         backend = (
-            {"backend_type": "Uffd", "backend_path": str(uffd_socket)}
+            # Relative to the run directory (Firecracker's cwd): an absolute
+            # path can exceed the 108-byte limit of a Unix socket name.
+            {
+                "backend_type": "Uffd",
+                "backend_path": os.path.relpath(uffd_socket, self.run_dir),
+            }
             if uffd_socket
             else {"backend_type": "File", "backend_path": str(memory)}
         )
@@ -220,7 +238,8 @@ def connect_vsock(uds: Path, port: int, *, timeout: float = 10.0) -> socket.sock
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     try:
         sock.settimeout(timeout)
-        sock.connect(str(uds))
+        with unix_path(uds) as name:
+            sock.connect(name)
         sock.sendall(f"CONNECT {port}\n".encode())
         line = b""
         while not line.endswith(b"\n"):
@@ -372,7 +391,8 @@ class HostProxy:
         self._path = run_dir / f"{VSOCK}_{port}"
         self._path.unlink(missing_ok=True)
         self._server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self._server.bind(str(self._path))
+        with unix_path(self._path) as name:
+            self._server.bind(name)
         self._server.listen(64)
         threading.Thread(target=self._serve, name="vsock-proxy", daemon=True).start()
 

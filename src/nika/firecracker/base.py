@@ -32,7 +32,7 @@ import uuid
 from pathlib import Path
 
 from nika.config import REPO_ROOT
-from nika.firecracker.config import firecracker_settings
+from nika.firecracker.config import firecracker_root, firecracker_settings
 from nika.firecracker.vmm import (
     DISK,
     EXEC_PORT,
@@ -162,7 +162,7 @@ def _finish_in_firecracker(build_dir: Path, kernel_version: str, key: str) -> No
     disk = build_dir / DISK
     disk.unlink(missing_ok=True)
     disk.symlink_to("rootfs.img")
-    vm = Firecracker(build_dir, firecracker_binary(settings.binary))
+    vm = Firecracker(build_dir, firecracker_binary())
     vm.start()
     proxy = HostProxy(build_dir, PROXY_PORT)
     try:
@@ -391,6 +391,19 @@ def _extract_vmlinux(cache: Path) -> Path:
     return path
 
 
+def _rewrite(path: Path) -> None:
+    """Write ``path`` again with plain writes, keeping holes.
+
+    mkfs and the guest fill preallocated extents in place, which btrfs does not
+    compress; a rewritten copy is compressed (about 2x for the base disk).
+    """
+    tmp = path.with_name(path.name + ".tmp")
+    subprocess.run(
+        ["cp", "--sparse=always", "--reflink=never", str(path), str(tmp)], check=True
+    )
+    os.replace(tmp, path)
+
+
 def _build_rootfs(build_dir: Path) -> str:
     """Write rootfs.img, vmlinux and initrd.img into ``build_dir``; return the kernel version."""
     name = f"nika-firecracker-base-{uuid.uuid4().hex[:8]}"
@@ -548,7 +561,7 @@ def _current(base: Path) -> bool:
 
 def ensure_base() -> Path:
     """Return ``<root>/base``, building it first when missing or outdated."""
-    root = Path(firecracker_settings().root)
+    root = firecracker_root()
     base = root / "base"
     if _current(base):
         return base
@@ -569,6 +582,7 @@ def ensure_base() -> Path:
         work.mkdir(parents=True)
         kernel = _build_rootfs(work)
         _finish_in_firecracker(work, kernel, base_key())
+        _rewrite(work / "rootfs.img")
         old = root / "base.old"
         shutil.rmtree(old, ignore_errors=True)
         if base.exists():

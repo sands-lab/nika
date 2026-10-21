@@ -1,4 +1,4 @@
-"""Benchmark scheduling for ``nika.firecracker``: build first, group, admit by memory.
+"""Benchmark scheduling for Firecracker execution: build first, group, admit by memory.
 
 * :func:`prebuild_images` builds every lab image (and, with ``case_images``,
   every case image) a run needs before its trials start, several at a time, so

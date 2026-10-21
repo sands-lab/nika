@@ -30,6 +30,8 @@ Removes everything NIKA set up on this host:
     from older installers) and the ${GNMIC_BIN} older installers added
   - ~/.config/kathara.conf and, in the repo, .venv (with clab and gnmic),
     .nika_cache (with uv and its cache when the installer added them), runtime/
+    (including Firecracker images, after unmounting runtime/firecracker and
+    removing its /etc/fstab entry when the host setup mounted a loop file there)
 
 Keeps Docker and docker group membership, sbx and kvm group membership, a uv
 installed outside the repo, apt packages that older installers added (clang,
@@ -268,6 +270,28 @@ remove_host_tools() {
   fi
 }
 
+FIRECRACKER_ROOT="${ROOT}/runtime/firecracker"
+
+stop_firecracker() {
+  [[ -d "${FIRECRACKER_ROOT}" ]] || return 0
+  # Firecracker VMs (image builds, trial copies) and their page servers.
+  local pid cwd
+  for pid in $(pgrep -x firecracker 2>/dev/null); do
+    cwd="$(readlink "/proc/${pid}/cwd" 2>/dev/null || true)"
+    [[ "${cwd}" == "${FIRECRACKER_ROOT}"/* ]] && kill "${pid}" 2>/dev/null || true
+  done
+  pkill -f "nika.firecracker.uffd ${FIRECRACKER_ROOT}/" 2>/dev/null || true
+  # The documented host setup mounts a btrfs loop file here.
+  if mountpoint -q "${FIRECRACKER_ROOT}"; then
+    ${SUDO} umount "${FIRECRACKER_ROOT}"
+    log "Unmounted ${FIRECRACKER_ROOT}"
+  fi
+  if grep -qF " ${FIRECRACKER_ROOT} " /etc/fstab 2>/dev/null; then
+    ${SUDO} sed -i "\\| ${FIRECRACKER_ROOT} |d" /etc/fstab
+    log "Removed the ${FIRECRACKER_ROOT} entry from /etc/fstab"
+  fi
+}
+
 remove_files() {
   local kathara_conf="${HOME}/.config/kathara.conf"
   if [[ -f "${kathara_conf}" ]]; then
@@ -302,6 +326,7 @@ main() {
   remove_images
   restore_inotify
   remove_host_tools
+  stop_firecracker
   remove_files
   log "NIKA removed. Kept: Docker, apt packages, source tree, .env, config/, results/"
 }
