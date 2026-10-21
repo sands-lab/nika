@@ -53,7 +53,7 @@ Relative result paths resolve from the repository root. NIKA rejects unknown YAM
 | `agent.provider` | `openai` | Provider name. The selected agent must support it. |
 | `agent.model` | `null` | Canonical model id for the active agent type. |
 | `agent.base_url` | `null` | Required for `provider: custom`. Use the OpenAI-style API root, usually ending in `/v1` (for example `http://localhost:8000/v1`), not the bare host and port. Other providers ignore it; set `OPENAI_BASE_URL` or `ANTHROPIC_BASE_URL` in `.env` to route them through a gateway. Set via YAML, `nika config set agent.base_url=...`, or `--base-url` on `agent run` / `benchmark run`. |
-| `agent.max_steps` | `20` | Max LLM turns per phase for agents that support it (same unit as eval `steps` / `llm_end`). `byo.langgraph` enforces it with model-call limits and `cli.claude` with `claude --max-turns`. `cli.codex` and `sdk.codex_sdk` have no turn limit. Must be at least `1`. |
+| `agent.max_steps` | `20` | Host-enforced limit on successful LLM generation requests per phase for every sandboxed agent, including sub-agent requests. Provider failures do not consume the budget. Must be at least `1`. See [Step limit](../agents/agent-reference.md#step-limit). |
 | `agent.timeout_sec` | `1800` | Wall-clock budget in seconds for one agent run (diagnosis plus submission). Applies to every agent type. When it expires, NIKA stops the agent and cleans up its sandbox. Benchmark batch runs record the trial as counted `agent_failed`, or as `success` when the agent already wrote a valid `submission.json`. Keep it below `benchmark.case_timeout_sec`. Set `0` to disable it. |
 | `agent.enable_skills` | `true` | Load the shared skill library for Claude and Codex agents. |
 | `agent.submit_reject_limit` | `5` | Max consecutive `submit()` validation failures. After the last one, `submit()` refuses every later call for the session, including valid ones. Set `0` to disable the cap. |
@@ -86,7 +86,9 @@ Model resolution order: `-m/--model`, then `agent.model`.
 | `sdk.claude_sdk` | `anthropic`, `deepseek`, `custom` |
 | `community.sade` | `anthropic`, `deepseek`, `custom` |
 
-Provider credentials belong in `.env`: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`, or optional `NIKA_CUSTOM_API_KEY`. NIKA maps credentials for the selected provider into the agent process or sandbox. The E2B sandbox runtime also reads `E2B_API_KEY`, optional `E2B_DOMAIN`, and an optional Claude subscription token, `CLAUDE_CODE_OAUTH_TOKEN`, from `.env`; see [Connect to E2B](agent-sandbox.md#connect-to-e2b-cloud-or-another-e2b-compatible-service).
+Provider credentials belong in `.env`: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `DEEPSEEK_API_KEY`, or optional `NIKA_CUSTOM_API_KEY`. NIKA keeps them on the host; sandboxes receive a model-proxy token or subscription placeholder. Codex and Claude harnesses can also use subscription login on either sandbox runtime. See [Authentication](agent-sandbox.md#authentication) for setup and supported agents.
+
+E2B service credentials are separate: the host reads `E2B_API_KEY` and optional `E2B_DOMAIN` to connect to the sandbox service. See [Connect to E2B](agent-sandbox.md#connect-to-e2b-cloud-or-another-e2b-compatible-service).
 
 Leaderboard trajectory submit reads `HF_TOKEN` from `.env` / the environment. See [leaderboard submission](../benchmarks/leaderboard-submission.md).
 
