@@ -856,7 +856,7 @@ def raise_for_k8s_startup_failure(
                 f"{container.logs(tail=30).decode(errors='replace')[-4000:]}"
             )
     failure = exec_or_empty(
-        runtime, "controller", "cat /var/run/nika-startup-failed 2>/dev/null || true"
+        runtime, "controller", "cat /var/run/startup-failed 2>/dev/null || true"
     ).strip()
     # A busy controller can time out the read; only the marker itself is a failure.
     if failure and not failure.startswith("[TIMEOUT]"):
@@ -965,7 +965,7 @@ def verify_lab_with_retry(net_env: NetworkEnvBase) -> dict[str, Any] | None:
                 exec_or_empty(
                     runtime,
                     "controller",
-                    "test -f /var/run/nika-startup-complete && echo complete",
+                    "test -f /var/run/startup-complete && echo complete",
                 ).strip()
                 == "complete"
             )

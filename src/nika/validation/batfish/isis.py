@@ -7,6 +7,7 @@ import re
 from ipaddress import IPv4Interface
 from pathlib import Path
 
+from nika.net_env.isp.igp.frr import ISIS_PROCESS
 from nika.validation.base import ValidationSnapshot
 from nika.validation.batfish.snapshot import prepare_snapshot, _edge
 from nika.validation.batfish.frr_ibgp import project_frr_ibgp, split_frr_ibgp
@@ -56,7 +57,7 @@ def parse_frr_isis(node: str, config: str) -> tuple[str, dict[str, dict]]:
             }
             section = "interface"
             continue
-        if line == "router isis NIKA":
+        if line == f"router isis {ISIS_PROCESS}":
             if section == "router" or "router" in seen_global:
                 reject(line)
             seen_global.add("router")
@@ -94,7 +95,7 @@ def parse_frr_isis(node: str, config: str) -> tuple[str, dict[str, dict]]:
                     iface["address"] = IPv4Interface(match.group(1))
                 except ValueError:
                     reject(line)
-            elif line == "ip router isis NIKA":
+            elif line == f"ip router isis {ISIS_PROCESS}":
                 if iface["isis_enabled"]:
                     reject(line)
                 iface["isis_enabled"] = True
@@ -192,7 +193,7 @@ def project_frr_isis(node: str, config: str, *, shutdown=()) -> str:
         lines.append("!")
     lines.extend(
         [
-            "router isis NIKA",
+            f"router isis {ISIS_PROCESS}",
             f" net {net}",
             " is-type level-2-only",
             " address-family ipv4 unicast",

@@ -8,6 +8,7 @@ from ipaddress import IPv4Interface, IPv4Network
 
 import yaml
 
+from nika.net_env.isp.igp.frr import ISIS_PROCESS
 from nika.validation.base import ValidationSnapshot
 from nika.validation.batfish.snapshot import prepare_snapshot, _edge
 
@@ -113,7 +114,7 @@ def project_srl_isp(node, document, *, shutdown=()):
             raise ValueError("Projection requires single L2 wide-metric IS-IS")
         (net,) = igp["net"]
         lines += [
-            "router isis NIKA",
+            f"router isis {ISIS_PROCESS}",
             f" net {net}",
             " is-type level-2-only",
             " address-family ipv4 unicast",
@@ -153,7 +154,7 @@ def project_srl_isp(node, document, *, shutdown=()):
         (area,) = igp["area"]
         _keys(area, ["area-id", "interface"])
         lines += [
-            "router ospf NIKA",
+            "router ospf",
             f" router-id {igp['router-id']}",
             f" area {area['area-id']}",
         ]

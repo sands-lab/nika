@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from unittest.mock import MagicMock
 from nika.service.containerlab.adapters import LabRuntimeContainerlabAPI
-from nika.service.containerlab.srl_api import NIKA_BGP_WITHDRAW, SRLAPIMixin
+from nika.service.containerlab.srl_api import BGP_EXPORT_POLICY, SRLAPIMixin
 
 pytestmark = pytest.mark.integration
 
@@ -67,12 +67,12 @@ set / acl acl-filter cpm type ipv4 entry 75 action accept
 _CPM_INJECTED = (
     _CPM_DEFAULT
     + """\
-set / acl acl-filter cpm type ipv4 entry 185 description nika_bgp_block
+set / acl acl-filter cpm type ipv4 entry 185 description cpm-protect
 set / acl acl-filter cpm type ipv4 entry 185 match ipv4 protocol tcp
 set / acl acl-filter cpm type ipv4 entry 185 match transport destination-port operator eq
 set / acl acl-filter cpm type ipv4 entry 185 match transport destination-port value 179
 set / acl acl-filter cpm type ipv4 entry 185 action drop
-set / acl acl-filter cpm type ipv4 entry 186 description nika_bgp_block
+set / acl acl-filter cpm type ipv4 entry 186 description cpm-protect
 set / acl acl-filter cpm type ipv4 entry 186 match ipv4 protocol tcp
 set / acl acl-filter cpm type ipv4 entry 186 match transport source-port operator eq
 set / acl acl-filter cpm type ipv4 entry 186 match transport source-port value 179
@@ -200,13 +200,13 @@ class SrlApiTest:
 
         assert "enter candidate" in script
 
-        assert NIKA_BGP_WITHDRAW in script
+        assert BGP_EXPORT_POLICY in script
 
         assert "10.0.0.24/31" in script
 
         assert "default-action policy-result next-policy" in script
         assert (
-            "neighbor 10.0.0.1 afi-safi ipv4-unicast export-policy [nika_bgp_withdraw BGP-OUT]"
+            f"neighbor 10.0.0.1 afi-safi ipv4-unicast export-policy [{BGP_EXPORT_POLICY} BGP-OUT]"
             in script
         )
 
@@ -218,8 +218,8 @@ class SrlApiTest:
         runtime = MagicMock()
         runtime.backend = "containerlab"
         runtime.exec.side_effect = [
-            f"policy {NIKA_BGP_WITHDRAW} prefix 10.0.0.24/31",
-            f"group clos01 export-policy {NIKA_BGP_WITHDRAW}",
+            f"policy {BGP_EXPORT_POLICY} prefix 10.0.0.24/31",
+            f"group clos01 export-policy {BGP_EXPORT_POLICY}",
         ]
         adapter = LabRuntimeContainerlabAPI(runtime)
 
