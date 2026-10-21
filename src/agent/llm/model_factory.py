@@ -6,7 +6,6 @@ import time
 import uuid
 from typing import Any
 
-from dotenv import load_dotenv
 from langchain_core.language_models.chat_models import (
     BaseChatModel,
     agenerate_from_stream,
@@ -17,30 +16,16 @@ from langchain_core.outputs import ChatGenerationChunk, ChatResult
 from langchain_openai import ChatOpenAI
 from pydantic import PrivateAttr
 
-from agent.utils.loggers import log_llm_retry
-from agent.utils.provider_env import (
-    DEEPSEEK_OPENAI_BASE_URL,
+from agent.llm.endpoints import (
     ENV_ANTHROPIC_API_KEY,
     ENV_ANTHROPIC_BASE_URL,
-    ENV_DEEPSEEK_API_KEY,
-    ENV_OPENAI_BASE_URL,
-    resolve_custom_api_key,
-    resolve_custom_base_url,
+    UNAUTHENTICATED_API_KEY,
+    openai_api_key,
+    openai_base_url,
 )
+from agent.runtime.task import LlmClientSettings, current_task
+from agent.utils.loggers import log_llm_retry
 from agent.utils.reasoning_capture import attach_openai_reasoning
-
-load_dotenv()
-
-
-def _llm_client_settings() -> tuple[float, int, bool]:
-    """Return LangGraph client timeout, retry and streaming settings."""
-    try:
-        from nika.run_config.loader import get_run_config
-
-        llm = get_run_config().agent.llm
-        return float(llm.timeout_sec), int(llm.max_retries), bool(llm.stream)
-    except Exception:  # noqa: BLE001 - sandbox / early import
-        return 480.0, 2, True
 
 
 def _openai_message_from_choice(choice: Any) -> Any | None:
@@ -160,7 +145,7 @@ class ReasoningChatOpenAI(ChatOpenAI):
 
     Upstream ``ChatOpenAI`` drops these fields when building ``AIMessage``.
     DeepSeek's client already preserves them; openai/custom providers need the
-    same so NIKA can log thinking for Qwen/vLLM and similar servers.
+    same so the trace keeps thinking for Qwen/vLLM and similar servers.
 
     Tool calls a Qwen model leaves inside its reasoning are recovered (see
     ``_recover_reasoning_tool_calls``).
@@ -168,18 +153,18 @@ class ReasoningChatOpenAI(ChatOpenAI):
     HTTP retries are owned here (client ``max_retries=0``) so each failed
     attempt can emit ``llm_retry`` into ``messages.jsonl`` for inspect.
 
-    With ``_nika_stream`` each attempt streams and is aggregated here, so the
+    With ``_stream_each_attempt`` each attempt streams and is aggregated here, so the
     client timeout bounds the gap between chunks instead of the whole response.
     ``streaming=True`` is not used: LangChain would then call ``_stream``
     directly and skip these retries and the tool-call recovery.
     """
 
-    _nika_max_retries: int = PrivateAttr(default=0)
-    _nika_stream: bool = PrivateAttr(default=False)
+    _attempt_retries: int = PrivateAttr(default=0)
+    _stream_each_attempt: bool = PrivateAttr(default=False)
 
     def _stream_attempt(self, kwargs: dict[str, Any]) -> bool:
         # Structured output (response_format) stays on the parse endpoint.
-        return self._nika_stream and "response_format" not in kwargs
+        return self._stream_each_attempt and "response_format" not in kwargs
 
     def _create_chat_result(
         self,
@@ -237,7 +222,7 @@ class ReasoningChatOpenAI(ChatOpenAI):
         run_manager: Any | None = None,
         **kwargs: Any,
     ) -> ChatResult:
-        retries = int(self._nika_max_retries or 0)
+        retries = int(self._attempt_retries or 0)
         for attempt in range(retries + 1):
             try:
                 if self._stream_attempt(kwargs):
@@ -269,7 +254,7 @@ class ReasoningChatOpenAI(ChatOpenAI):
         run_manager: Any | None = None,
         **kwargs: Any,
     ) -> ChatResult:
-        retries = int(self._nika_max_retries or 0)
+        retries = int(self._attempt_retries or 0)
         for attempt in range(retries + 1):
             try:
                 if self._stream_attempt(kwargs):
@@ -296,14 +281,14 @@ class ReasoningChatOpenAI(ChatOpenAI):
 
 
 def _openai_model(*, retries: int, stream: bool, **kwargs: Any) -> ReasoningChatOpenAI:
-    """Build ReasoningChatOpenAI with client retries off; NIKA owns retry + logs."""
+    """Build ReasoningChatOpenAI with client retries off; this module retries and logs."""
     kwargs["max_retries"] = 0
     if stream:
         # A custom base_url turns streamed usage off by default.
         kwargs["stream_usage"] = True
     model = ReasoningChatOpenAI(**kwargs)
-    model._nika_max_retries = int(retries)
-    model._nika_stream = bool(stream)
+    model._attempt_retries = int(retries)
+    model._stream_each_attempt = bool(stream)
     return model
 
 
@@ -322,10 +307,21 @@ def load_model(
     max_tokens: int | None = None,
     timeout_sec: float | None = None,
     max_retries: int | None = None,
+    base_url: str | None = None,
+    api_key: str | None = None,
+    client: LlmClientSettings | None = None,
 ) -> BaseChatModel:
-    cfg_timeout, cfg_retries, stream = _llm_client_settings()
-    timeout = cfg_timeout if timeout_sec is None else float(timeout_sec)
-    retries = cfg_retries if max_retries is None else int(max_retries)
+    """Build the chat model for *llm_provider*.
+
+    The endpoint comes from the standard client variables (see
+    :mod:`agent.llm.endpoints`); *base_url* and *api_key* override them for
+    OpenAI-compatible providers. *client* (default: the task's) sets the
+    timeout, retries and streaming.
+    """
+    client = client or current_task().llm
+    timeout = client.timeout_sec if timeout_sec is None else float(timeout_sec)
+    retries = client.max_retries if max_retries is None else int(max_retries)
+    stream = client.stream
 
     if llm_provider == "openai":
         kwargs: dict = {
@@ -337,9 +333,11 @@ def load_model(
         if max_tokens is not None:
             # Sent as ``max_completion_tokens``, as OpenAI reasoning models require.
             kwargs["max_tokens"] = max_tokens
-        base = os.getenv(ENV_OPENAI_BASE_URL) or None
+        base = base_url or openai_base_url(llm_provider)
         if base:
             kwargs["base_url"] = base
+        if api_key:
+            kwargs["api_key"] = api_key
         return _openai_model(retries=retries, stream=stream, **kwargs)
 
     if llm_provider == "deepseek":
@@ -347,8 +345,8 @@ def load_model(
 
         kwargs = {
             "model": model,
-            "api_key": os.getenv(ENV_DEEPSEEK_API_KEY) or None,
-            "base_url": DEEPSEEK_OPENAI_BASE_URL,
+            "api_key": api_key or openai_api_key(llm_provider),
+            "base_url": base_url or openai_base_url(llm_provider),
             "timeout": timeout,
             "max_retries": retries,
             "max_tokens": max_tokens,
@@ -359,31 +357,21 @@ def load_model(
         return ChatDeepSeek(**kwargs)
 
     if llm_provider == "custom":
-        base_url = resolve_custom_base_url()
+        base_url = (base_url or "").strip() or openai_base_url(llm_provider)
         if not base_url:
-            try:
-                from nika.run_config.loader import get_run_config
-
-                base_url = (get_run_config().agent.base_url or "").strip() or None
-            except Exception:  # noqa: BLE001
-                base_url = None
-        if not base_url:
-            raise ValueError(
-                "Missing agent.base_url: set it in config/nika.yaml "
-                "when agent.provider is custom."
-            )
-        # resolve_custom_api_key warns when it uses the deprecated CUSTOM_API_KEY.
-        api_key = resolve_custom_api_key() or None
+            raise ValueError("The custom provider needs a base URL (OPENAI_BASE_URL).")
         # ChatOpenAI requires a non-empty key even for unauthenticated local servers.
         kwargs = {
             "model": model,
             "base_url": base_url,
-            "api_key": api_key or "no-key",
+            "api_key": api_key
+            or openai_api_key(llm_provider)
+            or UNAUTHENTICATED_API_KEY,
             "temperature": 0,
             "timeout": timeout,
         }
         # Do not forward reasoning_effort: many OpenAI-compat servers (vLLM/Qwen)
-        # reject NIKA levels like ``xhigh``. Thinking is enabled via extra_body.
+        # reject levels like ``xhigh``. Thinking is enabled via extra_body.
         extra_body = _custom_extra_body(reasoning_effort) or {}
         if max_tokens is not None:
             # ChatOpenAI renames max_tokens to max_completion_tokens, which not
@@ -399,7 +387,7 @@ def load_model(
 
         kwargs = {
             "model": model,
-            "api_key": os.getenv(ENV_ANTHROPIC_API_KEY) or None,
+            "api_key": api_key or os.getenv(ENV_ANTHROPIC_API_KEY) or None,
             "base_url": os.getenv(ENV_ANTHROPIC_BASE_URL) or None,
             "default_request_timeout": timeout,
             "max_retries": retries,

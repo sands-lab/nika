@@ -1,18 +1,16 @@
 """OpenAI Codex SDK troubleshooting agent.
 
 Two-phase pipeline via native ``AsyncCodex`` threads (no LangGraph).
-Select with ``nika agent run -a sdk.codex_sdk``.
 """
 
 from __future__ import annotations
 
-from agent.sandbox.sdk_context import resolve_sdk_session_fields
 from agent.sdk.codex_sdk.phases.diagnosis import CodexSdkDiagnosisPhase
 from agent.sdk.codex_sdk.phases.submission import CodexSdkSubmissionPhase
-from agent.utils.two_phase import TwoPhaseAgent
+from agent.base import DiagnosisAgent
 
 
-class CodexSdkAgent(TwoPhaseAgent):
+class CodexSdkAgent(DiagnosisAgent):
     """Two-phase troubleshooting agent backed by openai-codex."""
 
     def __init__(
@@ -25,14 +23,15 @@ class CodexSdkAgent(TwoPhaseAgent):
         llm_provider: str,
         stream_output: bool = True,
     ) -> None:
-        self.session_id = session_id
-        self.model = model
-        self.llm_provider = llm_provider
-        self.reasoning_effort = reasoning_effort
-        self.stream_output = stream_output
-
-        self.session_dir, scenario_name = resolve_sdk_session_fields(session_id)
-        self.trace_dir = self.session_dir
+        super().__init__(
+            session_id,
+            model=model,
+            llm_provider=llm_provider,
+            max_steps=max_steps,
+            reasoning_effort=reasoning_effort,
+            stream_output=stream_output,
+        )
+        scenario_name = self.scenario_name
 
         self._diagnosis_phase = CodexSdkDiagnosisPhase(
             session_id=session_id,

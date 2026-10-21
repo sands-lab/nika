@@ -1,18 +1,22 @@
-from dotenv import load_dotenv
 from langchain.agents import create_agent
 from langchain.agents.middleware import ModelCallLimitMiddleware
+from langchain_core.messages import HumanMessage
 from langchain_core.tools.structured import StructuredTool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
-from agent.byo.langgraph.middleware import TruncationRetryMiddleware
+from agent.base import max_steps_report
+from agent.byo.langgraph.middleware import (
+    MAX_STEPS_EXCEEDED,
+    TruncationRetryMiddleware,
+    message_text,
+    react_recursion_limit,
+)
+from agent.utils.loggers import AgentCallbackLogger, MessageLogger
+from agent.utils.submission_context import submission_user_prompt
 from agent.utils.template import SUBMIT_PROMPT_TEMPLATE
 from agent.llm.model_factory import load_model
-from agent.utils.mcp_client import load_session_mcp_config
-from agent.utils.mcp_servers import harden_mcp_tools
+from agent.utils.mcp_client import harden_mcp_tools, session_mcp_config
 from agent.protocols import SUBMISSION
-from nika.utils.session import Session
-
-load_dotenv()
 
 
 class SubmissionPhase:
@@ -20,19 +24,13 @@ class SubmissionPhase:
 
     def __init__(
         self,
-        session_id: str,
         llm_provider: str = "openai",
         model: str = "gpt-5-mini",
-        scenario_name: str = "",
         reasoning_effort: str | None = None,
         max_tokens: int | None = None,
         max_steps: int = 20,
     ):
-        session = Session()
-        session.load_running_session(session_id=session_id)
-        mcp_server_config = load_session_mcp_config(
-            session_id, scenario_name or session.scenario_name, phase=SUBMISSION
-        )
+        mcp_server_config = session_mcp_config(SUBMISSION)
         self.client = MultiServerMCPClient(connections=mcp_server_config)
         self.tools = None
         self.max_steps = max_steps
@@ -68,3 +66,39 @@ class SubmissionPhase:
             ],
         )
         return agent
+
+    async def run(
+        self,
+        diagnosis_report: str,
+        context: dict,
+        *,
+        trace_dir: str,
+    ) -> str:
+        """Answer from the frozen report with the task MCP ``submit`` tool."""
+        await self.load_tools()
+        cb = AgentCallbackLogger(phase=SUBMISSION, session_dir=trace_dir)
+        try:
+            result = await self.get_agent().ainvoke(
+                {
+                    "messages": [
+                        HumanMessage(
+                            content=submission_user_prompt(diagnosis_report, context)
+                        )
+                    ]
+                },
+                config={
+                    "callbacks": [cb],
+                    "recursion_limit": react_recursion_limit(self.max_steps),
+                },
+                debug=False,
+            )
+        except MAX_STEPS_EXCEEDED:
+            # submit() records submission.json when called, so an answer may
+            # already be on disk; the evaluator scores a missing one as "no
+            # submission", which beats failing the whole case.
+            return max_steps_report(
+                MessageLogger(phase=SUBMISSION, session_dir=trace_dir),
+                max_steps=self.max_steps,
+                latest_text=cb.last_text,
+            )
+        return message_text(result["messages"][-1])

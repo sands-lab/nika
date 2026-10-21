@@ -230,11 +230,17 @@ def _render_edge_frr(
 
 
 class EnterpriseBranch(NetworkEnvBase):
+    ROUTING_PARAMETER_KINDS = frozenset({"import_preferences"})
     LAB_NAME = "enterprise_branch"
     TOPO_LEVEL = "medium"
     VERIFY_MAX_WAIT_SEC = 240
 
-    def __init__(self, topo_size: TopoSize = "s", **kwargs):
+    def __init__(
+        self,
+        topo_size: TopoSize = "s",
+        routing_parameters: dict | None = None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self.topo_size: TopoSize = topo_size
         self.spec: TopoSpec = build_topo_spec(topo_size)
@@ -260,11 +266,30 @@ class EnterpriseBranch(NetworkEnvBase):
         self._write_isp_configs()
         self._write_host_configs()
 
+        from nika.net_env.synthesis.parameters import apply_routing_parameters
+
+        apply_routing_parameters(self, routing_parameters)
+
         self.desc = (
             "Enterprise hub-and-spoke Branch VPN over provider IP underlay. "
             "Site Edge routers terminate WireGuard tunnels and run eBGP for "
             "authorized business prefixes in per-role VRFs. Providers only "
             "forward tunnel endpoint reachability."
+        )
+
+    def bgp_import_peers(self):
+        from nika.net_env.synthesis.requirements import BgpImportPeer
+
+        return tuple(
+            BgpImportPeer(
+                node=edge.name,
+                interface=interface,
+                local_asn=self.spec.sites[site].asn,
+                remote_asn=self.spec.sites[tunnel[3]].asn,
+                remote_address=tunnel[1],
+            )
+            for site, edge in self._edges.items()
+            for interface, tunnel in edge.tunnels.items()
         )
 
     def overlay_interfaces(self) -> list[tuple[str, str]]:

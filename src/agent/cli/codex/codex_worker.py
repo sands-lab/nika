@@ -1,23 +1,18 @@
 """Codex CLI subprocess adapter for diagnosis/submission phases.
 
 Each ``CodexWorker`` instance drives one ``codex exec`` invocation inside an
-isolated, per-session workspace.  It handles:
+isolated, per-session workspace of the agent's sandbox.  It handles:
 
 * **Workspace creation** – ``{session_dir}/codex_workspace/`` (git-initialised
   so Codex is happy; safe to call multiple times).
 * **CODEX_HOME isolation** – a private ``.codex_home/`` inside the workspace is
-  used as ``CODEX_HOME``, so no files are written to ``~/.codex/``.
-  ``auth.json`` is sym-linked from the user's real ``~/.codex/auth.json`` so
-  that authentication still works.
+  used as ``CODEX_HOME``. ``auth.json`` holds the API key placeholder of the
+  sandbox, if any (see :func:`write_codex_auth`).
 * **MCP server config** – ``config.toml`` in the isolated home contains only
-  the servers relevant to the current phase and scenario (selected by
-  :func:`~agent.utils.mcp_servers.select_diagnosis_servers`).
-* **Session ID propagation** – ``NIKA_SESSION_ID`` is injected into every MCP
-  server's ``env`` block, exactly as :class:`~agent.utils.mcp_servers.MCPServerConfig`
-  does for the LangChain path.
+  the servers of the current phase.
 * **Output capture** – the final assistant message is written by
   ``--output-last-message``; JSONL events emitted via ``--json`` are streamed
-  line-by-line, logged to the host ``messages.jsonl`` (``trace_dir``) in real
+  line-by-line, logged to ``messages.jsonl`` (``trace_dir``) in real
   time, and pretty-printed to the terminal via
   :func:`~agent.utils.display.display_agent_event`.
 * **Step budget** – ``codex exec`` has no turn limit and reports usage only
@@ -35,26 +30,20 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from agent.protocols import PHASES
-from agent.sandbox.backend import active_sandbox_backend
-from agent.sandbox.config import sandbox_name_from_env
-from agent.sandbox.exec import (
-    exec_in_sandbox,
-    is_credential_placeholder,
-    pull_from_sandbox,
-    push_to_sandbox,
+from agent.base import max_steps_report
+from agent.llm.endpoints import (
+    ENV_OPENAI_API_KEY,
+    ENV_OPENAI_BASE_URL,
+    openai_base_url,
 )
-from agent.sandbox.sbx.auth import apply_codex_auth, in_sandbox
-from agent.sandbox.sbx.client import run_sbx_checked
+from agent.protocols import PHASES
 from agent.utils.loggers import (
     MessageLogger,
     PendingToolCallTracker,
     tool_event_payload,
 )
-from agent.utils.mcp_client import load_session_mcp_config
-from agent.utils.provider_env import build_agent_subprocess_env, require_provider
+from agent.utils.mcp_client import session_mcp_config
 from agent.utils.skills import prepare_codex_workspace
-from agent.utils.two_phase import max_steps_report
 from agent.utils.usage import normalize_usage
 
 REASONING_EFFORT_LEVELS = ("none", "minimal", "low", "medium", "high", "xhigh")
@@ -62,22 +51,63 @@ DEFAULT_STALL_TIMEOUT_S = 300
 RECONNECT_STALL_TIMEOUT_S = 120
 
 
-def prepare_codex_subprocess_env(
-    *,
-    codex_home: str | Path,
-    provider: str,
-    agent_type: str = "cli.codex",
-    base: dict[str, str] | None = None,
-) -> dict[str, str]:
-    """Minimal env for ``codex exec`` with provider-mapped credentials only."""
-    env = build_agent_subprocess_env(
-        agent_type=agent_type, provider=require_provider(provider), base=base
+def codex_env(*, codex_home: str | Path) -> dict[str, str]:
+    """The sandbox environment with Codex's home isolated to *codex_home*."""
+    return {**os.environ, "CODEX_HOME": str(codex_home)}
+
+
+def write_codex_auth(codex_home: Path) -> None:
+    """Write ``auth.json`` for API-key mode from ``OPENAI_API_KEY``.
+
+    The sandbox holds only a placeholder that a credential proxy replaces. A
+    subscription leaves ``OPENAI_API_KEY`` unset, and Codex then uses the
+    provider the sandbox runtime configured.
+    """
+    codex_home.mkdir(parents=True, exist_ok=True)
+    dest = codex_home / "auth.json"
+    api_key = os.environ.get(ENV_OPENAI_API_KEY, "").strip()
+    if dest.exists() or dest.is_symlink() or not api_key:
+        return
+    dest.write_text(
+        json.dumps({"OPENAI_API_KEY": api_key, "auth_mode": "apikey"}),
+        encoding="utf-8",
     )
-    placeholder = os.environ.get("OPENAI_API_KEY", "").strip()
-    if in_sandbox() and is_credential_placeholder(placeholder):
-        env["OPENAI_API_KEY"] = placeholder
-    env["CODEX_HOME"] = str(codex_home)
-    return env
+    dest.chmod(0o600)
+
+
+def merge_native_codex_providers(config_path: Path) -> None:
+    """Copy the model provider of the sandbox's own Codex config into *config_path*.
+
+    A sandbox runtime may route a subscription through a provider it writes
+    into its own Codex config (``$CODEX_HOME``, else ``~/.codex``); isolating
+    ``CODEX_HOME`` would otherwise lose it.
+    """
+    native_home = os.environ.get("CODEX_HOME") or str(Path.home() / ".codex")
+    native = Path(native_home) / "config.toml"
+    if not native.is_file() or native.resolve() == config_path.resolve():
+        return
+    roots: list[str] = []
+    providers: list[str] = []
+    section = ""
+    for line in native.read_text(encoding="utf-8").splitlines(keepends=True):
+        text = line.strip()
+        if text.startswith("["):
+            section = text
+        if not section and text.split("=", 1)[0].strip() in {
+            "model_provider",
+            "forced_login_method",
+        }:
+            roots.append(line)
+        elif section.startswith("[model_providers."):
+            providers.append(line)
+    if providers:
+        config_path.write_text(
+            "".join(roots)
+            + config_path.read_text(encoding="utf-8")
+            + "\n"
+            + "".join(providers),
+            encoding="utf-8",
+        )
 
 
 class CodexSubprocessStallError(Exception):
@@ -173,7 +203,7 @@ def _fatal_codex_error_message(event: dict) -> str | None:
     if "defaulting to fallback metadata" in lower:
         return None
     if "under-development features enabled" in lower:
-        return None  # warning about a feature NIKA enables on purpose
+        return None  # warning about a feature this config enables on purpose
     if "does not exist or you do not have access" in lower:
         return message
     if "invalid api key" in lower or "incorrect api key" in lower:
@@ -228,43 +258,30 @@ def _codex_model_provider_id(provider: str | None) -> str | None:
     """Return a non-reserved Codex provider id for custom/DeepSeek endpoints.
 
     Built-in ids ``openai`` / ``ollama`` / ``lmstudio`` are reserved; Codex also
-    ignores ``OPENAI_BASE_URL`` for third-party hosts, so NIKA must register a
-    ``model_providers.*`` block and set ``model_provider`` to this id. OpenAI
-    gets one only behind NIKA's model proxy (see :func:`_codex_provider_base_url`).
+    ignores ``OPENAI_BASE_URL`` for third-party hosts, so the worker registers a
+    ``model_providers.*`` block and sets ``model_provider`` to this id. OpenAI
+    gets one only when the sandbox has a base URL (a model proxy; see
+    :func:`_codex_provider_base_url`).
     """
     if not provider or not str(provider).strip():
         return None
     match str(provider).strip().lower():
         case "custom":
-            return "nika_custom"
+            return "custom_llm"
         case "deepseek":
-            return "nika_deepseek"
+            return "deepseek_llm"
         case "openai":
-            return "nika_openai"
+            return "openai_llm"
         case _:
             return None
 
 
 def _codex_provider_base_url(provider: str | None) -> str:
     """Resolve the Responses API base URL for a Codex custom/DeepSeek provider."""
-    from agent.sandbox.constants import PROXY_TOKEN_PREFIX
-    from agent.utils.provider_env import (
-        DEEPSEEK_OPENAI_BASE_URL,
-        ENV_OPENAI_API_KEY,
-        ENV_OPENAI_BASE_URL,
-        resolve_custom_base_url,
-    )
-
     prov = (provider or "").strip().lower()
-    env_base = os.environ.get(ENV_OPENAI_BASE_URL, "").strip()
-    if prov == "deepseek":
-        return env_base or DEEPSEEK_OPENAI_BASE_URL
-    if prov == "custom":
-        return env_base or resolve_custom_base_url()
-    if prov == "openai":
-        key = os.environ.get(ENV_OPENAI_API_KEY, "").strip()
-        return env_base if key.startswith(PROXY_TOKEN_PREFIX) else ""
-    return env_base
+    if prov in ("deepseek", "custom"):
+        return openai_base_url(prov) or ""
+    return os.environ.get(ENV_OPENAI_BASE_URL, "").strip()
 
 
 def _build_mcp_toml(
@@ -355,10 +372,9 @@ class CodexWorker:
     Parameters
     ----------
     session_id:
-        NIKA session identifier — resolves the session directory and is
-        propagated to MCP servers via ``NIKA_SESSION_ID``.
+        Opaque session handle of the run.
     session_dir:
-        Absolute path to the session results directory.
+        Absolute path to the agent workspace.
     phase:
         One of :data:`~agent.protocols.PHASES` (``diagnosis`` or ``submission``).
     model:
@@ -369,18 +385,16 @@ class CodexWorker:
     stall_timeout:
         Kill the subprocess when no productive Codex events arrive for this
         many seconds (default 300 s).  After reconnect exhaustion the limit
-        drops to :data:`RECONNECT_STALL_TIMEOUT_S`.  The wall-clock budget is
-        ``agent.timeout_sec``, applied to the whole agent run by
-        :func:`~agent.registry.run_agent`.
+        drops to :data:`RECONNECT_STALL_TIMEOUT_S`.  The host enforces the
+        wall-clock budget of the whole run.
     llm_provider:
-        Active LLM provider for credential mapping.
+        Active LLM provider.
     scenario_name:
-        Used by :func:`~agent.utils.mcp_servers.select_diagnosis_servers` to pick relevant servers.
-        Ignored for the submission phase (which always uses the task server).
+        Scenario of the session (informational).
     max_steps:
         LLM-turn budget for this phase (see :class:`_ResponseCounter`).
     trace_dir:
-        Host directory for ``messages.jsonl`` (default: *session_dir*).
+        Directory for ``messages.jsonl`` (default: *session_dir*).
     """
 
     def __init__(
@@ -448,66 +462,23 @@ class CodexWorker:
                 capture_output=True,
             )
 
-        # Populate auth.json from staged host auth, host symlink, or env API key.
-        apply_codex_auth(self._codex_home)
+        write_codex_auth(self._codex_home)
 
         prepare_codex_workspace(self.workspace)
         self._write_mcp_config()
 
     def _write_mcp_config(self) -> None:
-        servers = load_session_mcp_config(
-            self.session_id,
-            self.scenario_name,
-            session_dir=self.session_dir,
-            phase=self.phase,
-        )
+        servers = session_mcp_config(self.phase)
         self._logger.log(
             "mcp_config",
             {"phase": self.phase, "servers": list(servers.keys())},
         )
-        # Host-only: agent.sandbox.workspace needs nika, which SDK sandboxes lack.
-        from agent.sandbox.workspace import write_workspace_text
-
         config_path = self._codex_home / "config.toml"
-        write_workspace_text(
-            config_path, _build_mcp_toml(servers, provider=self.llm_provider)
+        config_path.write_text(
+            _build_mcp_toml(servers, provider=self.llm_provider), encoding="utf-8"
         )
-        sandbox_name = sandbox_name_from_env()
-        if (
-            sandbox_name
-            and self.llm_provider == "openai"
-            and active_sandbox_backend(sandbox_name).name == "sbx"
-        ):
-            # sbx supplies the subscription route and proxy bearer in its native
-            # provider config. Merge those inside the VM when isolating CODEX_HOME;
-            # no host OAuth file or token is read or passed to the sandbox.
-            run_sbx_checked(
-                [
-                    "exec",
-                    sandbox_name,
-                    "python3",
-                    "-c",
-                    "import os, pathlib, sys\n"
-                    "native = pathlib.Path(os.environ.get('CODEX_HOME', "
-                    "str(pathlib.Path.home() / '.codex'))) / 'config.toml'\n"
-                    "target = pathlib.Path(sys.argv[1])\n"
-                    "if native.is_file() and native != target:\n"
-                    "    roots, providers, section = [], [], ''\n"
-                    "    for line in native.read_text().splitlines(keepends=True):\n"
-                    "        text = line.strip()\n"
-                    "        if text.startswith('['):\n"
-                    "            section = text\n"
-                    "        if not section and text.split('=', 1)[0].strip() "
-                    "in {'model_provider', 'forced_login_method'}:\n"
-                    "            roots.append(line)\n"
-                    "        elif section.startswith('[model_providers.'):\n"
-                    "            providers.append(line)\n"
-                    "    if providers:\n"
-                    "        target.write_text(''.join(roots) + target.read_text() "
-                    "+ '\\n' + ''.join(providers))\n",
-                    str(config_path),
-                ]
-            )
+        if self.llm_provider == "openai":
+            merge_native_codex_providers(config_path)
 
     # ------------------------------------------------------------------
     # Subprocess invocation
@@ -521,7 +492,6 @@ class CodexWorker:
         ``ERROR:`` results as hard failures and skips submission.
         """
         self._setup_workspace()
-        push_to_sandbox([self.workspace])
 
         output_file = self.workspace / f"{self.phase}_output.txt"
         output_file.unlink(missing_ok=True)
@@ -531,11 +501,7 @@ class CodexWorker:
         self._response_text = []
         self._response_reasoning = []
 
-        # Provider-mapped credentials only; override CODEX_HOME for isolation.
-        env = prepare_codex_subprocess_env(
-            codex_home=self._codex_home,
-            provider=self.llm_provider,
-        )
+        env = codex_env(codex_home=self._codex_home)
 
         cmd = ["codex", "exec"]
         provider_id = _codex_model_provider_id(self.llm_provider)
@@ -567,7 +533,15 @@ class CodexWorker:
         self._last_progress_at = None
 
         try:
-            proc = await exec_in_sandbox(cmd, env=env, cwd=str(self.workspace))
+            proc = await asyncio.create_subprocess_exec(
+                *cmd,
+                env=env,
+                cwd=str(self.workspace),
+                stdin=asyncio.subprocess.DEVNULL,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                limit=8 * 1024 * 1024,
+            )
             returncode, stderr_text = await self._stream_subprocess(proc)
         except CodexMaxStepsReached:
             self._flush_response()
@@ -595,13 +569,10 @@ class CodexWorker:
             )
             return f"ERROR: {self.phase} phase {exc}"
         except FileNotFoundError:
-            self._logger.log(
-                "subprocess_error", {"error": "sbx binary not found in PATH"}
-            )
-            return "ERROR: 'sbx' not found in PATH — is Docker Sandboxes installed?"
+            self._logger.log("subprocess_error", {"error": "codex not found in PATH"})
+            return "ERROR: 'codex' not found in PATH"
         # A response still open (e.g. no turn.completed on failure) keeps its step.
         self._flush_response()
-        pull_from_sandbox([output_file])
 
         if returncode != 0:
             recovered = self._resolved_phase_output(output_file)
@@ -641,10 +612,8 @@ class CodexWorker:
 
     def _resolved_phase_output(self, output_file: Path) -> str:
         """Prefer Codex ``--output-last-message``, else last streamed agent_message."""
-        from agent.sandbox.workspace import read_workspace_text
-
         try:
-            text = read_workspace_text(output_file).strip()
+            text = output_file.read_text(encoding="utf-8").strip()
         except OSError:
             text = ""
         if text:

@@ -19,7 +19,7 @@ from nika.workflows.agent.submission import fault_candidates
 
 def _phase_headers() -> dict[str, str]:
     return {
-        "NIKA-Session-Id": "sess-1",
+        "X-Session-Id": "sess-1",
         "NIKA-Phase-Token": phase_advance_token("sess-1"),
     }
 
@@ -160,7 +160,7 @@ class GatewayPhaseRouteTest:
         client = TestClient(create_gateway_app())
         response = client.post(
             "/gateway/sessions/sess-1/phase",
-            headers={"NIKA-Session-Id": "sess-1"},
+            headers={"X-Session-Id": "sess-1"},
             json={"phase": "submission", "diagnosis_report": "link down on pc1"},
         )
         assert response.status_code == 403

@@ -10,21 +10,21 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from agent.sandbox.config import resolve_sandbox_config
-from agent.sandbox.sbx.client import (
+from nika.agents.sandbox.config import resolve_sandbox_config
+from nika.agents.sandbox.sbx.client import (
     ensure_sbx_ready,
     run_sbx_checked,
     run_sbx_optional,
     sbx_available,
     sbx_authenticated,
 )
-from agent.sandbox.sbx.policy import (
+from nika.agents.sandbox.sbx.policy import (
     allow_mcp_gateway,
     deny_mcp_gateway,
     sanitize_sandbox_name,
 )
-from agent.sandbox.sbx.backend import SbxBackend
-from agent.sandbox.workspace import prepare_workspace
+from nika.agents.sandbox.sbx.backend import SbxBackend
+from nika.agents.sandbox.workspace import prepare_workspace
 from nika.mcp.gateway.lifecycle import (
     ENV_GATEWAY_AGENT_URL,
     mcp_gateway_for_session,
@@ -48,7 +48,7 @@ def e2b_runtime_available() -> bool:
         import e2b  # noqa: F401
     except ImportError:
         return False
-    from agent.sandbox.e2b.backend import _api_key
+    from nika.agents.sandbox.e2b.backend import _api_key
 
     return bool(_api_key(resolve_sandbox_config().env_file))
 
@@ -62,38 +62,25 @@ def sandbox_backend_available(backend: str) -> bool:
 def sandbox_provider_credential_available(
     provider: str, *, backend: str = "sbx"
 ) -> bool:
-    """Require the selected provider's key, or a subscription login.
+    """Require the selected provider's key, or NIKA's subscription login.
 
-    On sbx that is a global native sbx secret; on e2b, NIKA's own login (see
-    ``agent.sandbox.subscription``). The ``custom`` test provider needs its
-    endpoint (``NIKA_TEST_CUSTOM_BASE_URL``).
+    Every runtime reaches models through NIKA's model proxy, which uses the
+    host login (see ``nika.agents.sandbox.subscription``). The ``custom`` test
+    provider needs its endpoint (``NIKA_TEST_CUSTOM_BASE_URL``).
     """
-    from agent.utils.provider_env import has_provider_credentials
-    from agent.sandbox.sbx.client import list_sbx_secret_services
+    from nika.agents.provider_env import has_provider_credentials
+    from nika.agents.sandbox.config import load_sandbox_env_values
+    from nika.agents.sandbox.subscription import CodexLogin, claude_oauth_token
     from tests.support.integration_pipeline import live_custom_base_url
 
     if provider == "custom":
         return bool(live_custom_base_url())
     if has_provider_credentials(provider):
         return True
-    if backend == "e2b":
-        from agent.sandbox.config import load_sandbox_env_values
-        from agent.sandbox.subscription import CodexLogin, claude_oauth_token
-
-        if provider == "anthropic":
-            env_file = resolve_sandbox_config().env_file
-            return bool(claude_oauth_token(load_sandbox_env_values(env_file)))
-        return provider == "openai" and CodexLogin.load() is not None
-    if (
-        backend != "sbx"
-        or provider not in {"openai", "anthropic"}
-        or not sbx_available()
-    ):
-        return False
-    try:
-        return provider in list_sbx_secret_services(global_only=True)
-    except RuntimeError:
-        return False
+    if provider == "anthropic":
+        env_file = resolve_sandbox_config().env_file
+        return bool(claude_oauth_token(load_sandbox_env_values(env_file)))
+    return provider == "openai" and CodexLogin.load() is not None
 
 
 def run_security_probe_with_gateway(session_id: str = "sandbox-security-test") -> None:
@@ -142,9 +129,10 @@ def run_security_probe_with_gateway(session_id: str = "sandbox-security-test") -
         }
         workspace = prepare_workspace(
             session_dir=session_dir,
-            manifest=manifest,
-            runtime_env={"NIKA_AGENT_TYPE": agent_type},
+            task_json=json.dumps(manifest),
+            runtime_env={},
             agent_session_id=session_id,
+            enable_skills=False,
             workspace_dir=Path(tmp) / "agent_workspace",
         )
         probe_in_workspace = workspace.workspace_dir / "security_probe.sh"
@@ -175,7 +163,7 @@ def run_security_probe_with_gateway(session_id: str = "sandbox-security-test") -
             ) as gateway_manager:
                 gateway_url = os.environ[ENV_GATEWAY_AGENT_URL]
                 manifest["mcp_gateway_agent_url"] = gateway_url
-                workspace.manifest_path.write_text(
+                workspace.task_path.write_text(
                     json.dumps(manifest, indent=2),
                     encoding="utf-8",
                 )
@@ -272,17 +260,12 @@ def run_cross_sandbox_isolation_probe() -> None:
             session_dir.mkdir()
             workspace = prepare_workspace(
                 session_dir=session_dir,
-                manifest={
-                    "session_id": session_id,
-                    "session_dir": str(session_dir),
-                    "agent_type": "cli.codex",
-                    "model": "gpt-5.4-mini",
-                    "task_description": "isolation-probe",
-                    "mcp_gateway_agent_url": f"http://{agent_host}:{own_port}",
-                    "backend": "kathara",
-                },
-                runtime_env={"NIKA_AGENT_TYPE": "cli.codex"},
+                task_json=json.dumps(
+                    {"session_id": session_id, "task_description": "isolation-probe"}
+                ),
+                runtime_env={},
                 agent_session_id=session_id,
+                enable_skills=False,
                 workspace_dir=Path(tmp) / "agent_workspace",
             )
 

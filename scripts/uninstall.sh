@@ -8,6 +8,9 @@ set -euo pipefail
 
 INOTIFY_CONF=/etc/sysctl.d/99-nika-inotify.conf
 VRF_MODULES_CONF=/etc/modules-load.d/nika-vrf.conf
+UBLK_MODULES_CONF=/etc/modules-load.d/nika-agentenv-ublk.conf
+UBLK_MODPROBE_CONF=/etc/modprobe.d/nika-agentenv-ublk.conf
+AGENTENV_CONTAINER="${AGENTENV_CONTAINER:-nika-agentenv}"
 SUDOERS_FILE=/etc/sudoers.d/nika-host-tc
 GNMIC_BIN=/usr/local/bin/gnmic
 
@@ -20,12 +23,13 @@ usage() {
 Usage: ./scripts/uninstall.sh [options]
 
 Removes everything NIKA set up on this host:
-  - running sessions, Kathara labs, Containerlab labs, the Batfish container
+  - running sessions, Kathara labs, Containerlab labs, the Batfish container,
+    and the AgentENV container (${AGENTENV_CONTAINER}) with its sandboxes
   - Docker images NIKA built or pulled (nika/*, kathara/*, k3s, srlinux,
     vendor router images, build parents, legacy tags) unless a non-NIKA
     container still uses them, and the Kathara Docker network plugin
   - the inotify sysctl file (original values restored), ${SUDOERS_FILE},
-    and ${VRF_MODULES_CONF}
+    ${VRF_MODULES_CONF}, and the AgentENV ublk_drv module files
   - Containerlab (clab_admins group, plus the package and /etc/containerlab
     from older installers) and the ${GNMIC_BIN} older installers added
   - ~/.config/kathara.conf and, in the repo, .venv (with clab and gnmic),
@@ -136,6 +140,14 @@ stop_labs() {
   docker network prune -f --filter label=containerlab >/dev/null || true
 }
 
+remove_agentenv() {
+  # Its sandboxes go with it; the pulled image stays for a reinstall.
+  if docker ps -a --format '{{.Names}}' | grep -qx "${AGENTENV_CONTAINER}"; then
+    docker rm -f "${AGENTENV_CONTAINER}" >/dev/null
+    log "Removed the AgentENV container ${AGENTENV_CONTAINER}"
+  fi
+}
+
 remove_images() {
   if ! docker_usable; then
     warn "Docker not usable; skipping image removal"
@@ -240,6 +252,13 @@ remove_host_tools() {
     ${SUDO} rm -f "${VRF_MODULES_CONF}"
     log "Removed ${VRF_MODULES_CONF}"
   fi
+  local conf
+  for conf in "${UBLK_MODULES_CONF}" "${UBLK_MODPROBE_CONF}"; do
+    if [[ -f "${conf}" ]]; then
+      ${SUDO} rm -f "${conf}"
+      log "Removed ${conf}"
+    fi
+  done
 
   if command -v dpkg >/dev/null 2>&1 && dpkg -s containerlab >/dev/null 2>&1; then
     log "Removing Containerlab package"
@@ -323,6 +342,7 @@ main() {
   fi
   confirm
   stop_labs
+  remove_agentenv
   remove_images
   restore_inotify
   remove_host_tools

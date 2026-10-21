@@ -14,7 +14,7 @@ from pydantic import (
     model_validator,
 )
 
-from agent.utils.provider_env import validate_provider_for_agent
+from nika.agents.provider_env import validate_provider_for_agent
 
 
 class RemoteSettings(BaseModel):
@@ -98,8 +98,21 @@ class SandboxSettings(BaseModel):
 class ObservabilitySettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    # Langfuse tracing ran in the host process of byo.langgraph. Agents now run
+    # in sandboxes that reach only the MCP gateway and the model proxy, so it
+    # is unavailable; the fields stay so existing configs still load.
     langfuse_enabled: bool = False
     langfuse_host: str = "https://cloud.langfuse.com"
+
+    @model_validator(mode="after")
+    def _langfuse_unavailable(self) -> "ObservabilitySettings":
+        if self.langfuse_enabled:
+            raise ValueError(
+                "nika.observability.langfuse_enabled is no longer supported: "
+                "agents run in sandboxes without access to Langfuse. NIKA "
+                "records every model call in the session's model_calls.jsonl."
+            )
+        return self
 
 
 class JudgeSettings(BaseModel):
@@ -204,6 +217,8 @@ class StaticValidationSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     enabled: bool = False
+    # Java heap for the Batfish container; applies when NIKA creates it.
+    batfish_heap: str = Field(default="8g", pattern=r"^[1-9][0-9]*[mMgG]$")
 
 
 class RuntimeValidationSettings(BaseModel):
@@ -297,6 +312,53 @@ class AgentAccessSettings(BaseModel):
         return self
 
 
+class AgentSubmissionSettings(BaseModel):
+    """How the frozen diagnosis report becomes the scored submission.
+
+    ``structured``: the agent's own model picks the answer, through the
+    agent's ``submit()`` or NIKA's default one. ``unstructured``: NIKA maps
+    the report with the model below, the same way for every agent type.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    mode: Literal["structured", "unstructured"] = "structured"
+    provider: Literal["openai", "anthropic", "deepseek", "custom"] | None = None
+    model: str | None = None
+    # OpenAI-style API root for provider=custom; defaults to agent.base_url.
+    base_url: str | None = None
+    # Independent mappings of the report; the majority answer is submitted.
+    samples: int = 1
+    # Sampling temperature of the mapping model; null keeps the provider
+    # default (0 for custom). Use a value above 0 when samples > 1.
+    temperature: float | None = None
+
+    @model_validator(mode="after")
+    def _mode_fields(self) -> "AgentSubmissionSettings":
+        mapper_fields = (self.provider, self.model, self.base_url, self.temperature)
+        if self.mode == "structured":
+            if any(value is not None for value in mapper_fields) or self.samples != 1:
+                raise ValueError(
+                    "agent.submission provider/model/base_url/samples/temperature "
+                    "apply only to mode: unstructured"
+                )
+        elif not self.provider or not (self.model or "").strip():
+            raise ValueError(
+                "agent.submission.mode unstructured requires provider and model"
+            )
+        if self.samples < 1:
+            raise ValueError("agent.submission.samples must be >= 1")
+        if self.temperature is not None and self.temperature < 0:
+            raise ValueError("agent.submission.temperature must be >= 0")
+        return self
+
+    def identity(self) -> dict[str, Any]:
+        """Settings that define the submission, as recorded with a run."""
+        if self.mode == "structured":
+            return {"mode": self.mode}
+        return self.model_dump(exclude_none=True)
+
+
 class AgentSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -320,6 +382,7 @@ class AgentSettings(BaseModel):
     max_tokens: int = 8192
     llm: AgentLlmSettings = Field(default_factory=AgentLlmSettings)
     access: AgentAccessSettings = Field(default_factory=AgentAccessSettings)
+    submission: AgentSubmissionSettings = Field(default_factory=AgentSubmissionSettings)
 
     @model_validator(mode="before")
     @classmethod

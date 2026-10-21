@@ -4,13 +4,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from agent.cli.claude.config import MCP_CONNECT_WAIT_ENV
+from agent.cli.claude.config import claude_env
 from agent.protocols import PHASES, SUBMISSION
-from agent.sdk.claude_sdk.config import prepare_claude_sdk_env
 from agent.sdk.claude_sdk.transcript import ClaudeSdkTranscript, run_claude_sdk_query
 from agent.sdk.mcp import to_sdk_mcp_servers
 from agent.utils.loggers import MessageLogger, render_prompt
-from agent.utils.mcp_client import load_session_mcp_config
+from agent.utils.mcp_client import session_mcp_config
 from agent.utils.skills import CLAUDE_SETTING_SOURCES, claude_skills_package_dir
 
 
@@ -49,20 +48,11 @@ class ClaudeSdkWorker:
             from claude_agent_sdk import ClaudeAgentOptions
         except ImportError as exc:
             raise RuntimeError(
-                "claude-agent-sdk is not installed. Run: uv sync --extra sdk"
+                "claude-agent-sdk is not installed in the agent environment."
             ) from exc
 
-        mcp_servers = to_sdk_mcp_servers(
-            load_session_mcp_config(
-                self.session_id, self.scenario_name, phase=self.phase
-            )
-        )
-        sdk_env = prepare_claude_sdk_env(
-            session_id=self.session_id, provider=self.llm_provider
-        )
-        sdk_env.update(MCP_CONNECT_WAIT_ENV)
-        if self.max_tokens is not None:
-            sdk_env["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] = str(self.max_tokens)
+        mcp_servers = to_sdk_mcp_servers(session_mcp_config(self.phase))
+        sdk_env = claude_env(max_tokens=self.max_tokens)
         self._logger.log(
             "mcp_config",
             {"phase": self.phase, "servers": list(mcp_servers.keys())},

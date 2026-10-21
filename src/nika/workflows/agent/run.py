@@ -3,11 +3,10 @@
 import logging
 import time
 
-from agent.registry import create_agent, get_agent_spec, run_agent
-from agent.sandbox import SANDBOX_SUPPORTED_AGENTS, SandboxManager
-from agent.sandbox.backend import backend_class, get_backend
-from agent.sandbox.config import resolve_sandbox_config
-from agent.utils.provider_env import provider_env_context
+from nika.agents.registry import create_agent, get_agent_spec, run_agent
+from nika.agents.sandbox import SandboxManager
+from nika.agents.sandbox.backend import backend_class, get_backend
+from nika.agents.sandbox.config import resolve_sandbox_config
 from nika.mcp.gateway.lifecycle import mcp_gateway_for_session
 from nika.utils.agent_config import (
     resolve_agent_model,
@@ -17,6 +16,7 @@ from nika.utils.agent_config import (
     resolve_max_steps,
     resolve_max_tokens,
     resolve_reasoning_effort,
+    resolve_submission_settings,
 )
 from nika.utils.logger import bind_session_dir, elapsed_ms, log_error_event, log_event
 from nika.utils.session import Session
@@ -39,7 +39,13 @@ def start_agent(
     sandbox_memory: str | None = None,
     sandbox_offline_sdk_wheels: bool | None = None,
 ) -> None:
-    """Load the running session, run the agent on ``task_description``, then end the session."""
+    """Load the running session, run the agent on ``task_description``, then end the session.
+
+    Every agent runs in its own sandbox; only test agents that need host state
+    (``template=None``, e.g. ``mock``) run in this process.
+    """
+    from nika.agents.submission import ReportMapper
+    from nika.run_config.loader import get_run_config
     from nika.utils.agent_config import apply_custom_provider_env
 
     # Benchmarks pass stream_output=False; keep MCP/httpx off the console.
@@ -57,19 +63,18 @@ def start_agent(
     max_tokens = resolve_max_tokens(agent_type)
     llm_provider = resolve_llm_provider(llm_provider, agent_type=agent_type)
     model = resolve_agent_model(agent_type, model)
+    submission = resolve_submission_settings()
+    # Built before the agent's provider environment clears other credentials.
+    report_mapper = ReportMapper.from_settings(
+        submission, max_tokens=get_run_config().agent.max_tokens
+    )
     sandbox_config = resolve_sandbox_config(
         keep_container=sandbox_keep_container,
         cpus=sandbox_cpus,
         memory=sandbox_memory,
         offline_sdk_wheels=sandbox_offline_sdk_wheels,
     )
-    use_sandbox = agent_type in SANDBOX_SUPPORTED_AGENTS
-    if not use_sandbox and get_agent_spec(agent_type).sandbox_definition:
-        logging.getLogger(__name__).warning(
-            "Agent %s declares a sandbox; external agents run on the host until "
-            "sandbox backends support them.",
-            agent_type,
-        )
+    use_sandbox = get_agent_spec(agent_type).template is not None
     if use_sandbox:
         # Idempotent: a no-op when the job or env start already prepared it.
         # Covers ``nika agent run`` without a prior env start that knew the
@@ -96,6 +101,7 @@ def start_agent(
         session.update_session("reasoning_effort", reasoning_effort)
     if max_tokens is not None:
         session.update_session("max_tokens", max_tokens)
+    session.update_session("submission", submission.identity())
     session.start_session()
 
     bind_session_dir(session.session_dir)
@@ -117,6 +123,7 @@ def start_agent(
         sandbox=use_sandbox,
         max_steps=max_steps,
         timeout_sec=timeout_sec,
+        submission_mode=submission.mode,
     )
     from nika.validation.presence import PresenceWatch
 
@@ -172,27 +179,25 @@ def start_agent(
                         mcp_gateway_agent_url=gateway_base_url,
                         gateway_port=gateway_port,
                         stream_output=stream_output,
+                        report_mapper=report_mapper,
                     )
                 else:
-                    with provider_env_context(
-                        agent_type=agent_type,
-                        provider=llm_provider or "openai",
-                    ):
-                        agent = create_agent(
-                            agent_type,
-                            session_id=session.session_id,
-                            llm_provider=llm_provider,
-                            model=model,
-                            max_steps=max_steps,
-                            reasoning_effort=reasoning_effort,
-                            max_tokens=max_tokens,
-                            stream_output=stream_output,
-                        )
-                        run_agent(
-                            agent,
-                            session.task_description,
-                            timeout_sec=timeout_sec,
-                        )
+                    agent = create_agent(
+                        agent_type,
+                        session_id=session.session_id,
+                        llm_provider=llm_provider,
+                        model=model,
+                        max_steps=max_steps,
+                        reasoning_effort=reasoning_effort,
+                        max_tokens=max_tokens,
+                        stream_output=stream_output,
+                    )
+                    run_agent(
+                        agent,
+                        session.task_description,
+                        timeout_sec=timeout_sec,
+                        report_mapper=report_mapper,
+                    )
             # Pull remote-written artifacts (e.g. submission.json) after the agent.
             pull_session_artifacts(session.session_id, session.session_dir)
         else:
@@ -223,27 +228,25 @@ def start_agent(
                         mcp_gateway_agent_url=gateway_agent_url,
                         gateway_port=gateway_manager.port,
                         stream_output=stream_output,
+                        report_mapper=report_mapper,
                     )
                 else:
-                    with provider_env_context(
-                        agent_type=agent_type,
-                        provider=llm_provider or "openai",
-                    ):
-                        agent = create_agent(
-                            agent_type,
-                            session_id=session.session_id,
-                            llm_provider=llm_provider,
-                            model=model,
-                            max_steps=max_steps,
-                            reasoning_effort=reasoning_effort,
-                            max_tokens=max_tokens,
-                            stream_output=stream_output,
-                        )
-                        run_agent(
-                            agent,
-                            session.task_description,
-                            timeout_sec=timeout_sec,
-                        )
+                    agent = create_agent(
+                        agent_type,
+                        session_id=session.session_id,
+                        llm_provider=llm_provider,
+                        model=model,
+                        max_steps=max_steps,
+                        reasoning_effort=reasoning_effort,
+                        max_tokens=max_tokens,
+                        stream_output=stream_output,
+                    )
+                    run_agent(
+                        agent,
+                        session.task_description,
+                        timeout_sec=timeout_sec,
+                        report_mapper=report_mapper,
+                    )
     except BaseException as exc:
         agent_exc = exc
         if not isinstance(exc, (KeyboardInterrupt, SystemExit)):

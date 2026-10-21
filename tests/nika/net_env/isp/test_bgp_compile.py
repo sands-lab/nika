@@ -23,7 +23,8 @@ from nika.net_env.isp.traffic import (
     TrafficMatrixSeries,
     attach_traffic_stubs,
 )
-from nika.topology import list_sndlib_topologies
+from nika.net_env.utils.kathara.frr_origin import BGP_ORIGIN_IFACE
+from nika.topology.catalog import SNDLIB_TOPOLOGY_NAMES
 from nika.topology.models import NetworkTopology, TopoLink, TopoNode
 
 pytestmark = pytest.mark.unit
@@ -268,7 +269,50 @@ def test_ebgp_as_regions_are_connected_and_boundaries_are_igp_passive() -> None:
     assert attachment.plan.inventory["igp_passive_boundary_links"]
 
 
-@pytest.mark.parametrize("topology", list_sndlib_topologies())
+def test_isis_ebgp_boundaries_render_isis_passive() -> None:
+    """isisd drops ``passive-interface``; boundaries need ``isis passive``."""
+    isp_plan = compile_isp_plan(IspConfig(topology="abilene", igp="isis"))
+    scoped = scope_igp_to_bgp_as(isp_plan, compile_bgp_plan(isp_plan, "ebgp"))
+    boundary = [
+        (node, iface)
+        for node in scoped.nodes
+        for iface in node.interfaces
+        if iface.passive
+    ]
+    assert boundary
+    for node, iface in boundary:
+        assert "passive-interface" not in node.frr_conf
+        stanza = node.frr_conf.split(f"interface {iface.name}\n", 1)[1]
+        assert " isis passive\n" in stanza.split("!", 1)[0]
+
+
+@pytest.mark.parametrize("igp", ["isis", "ospf"])
+@pytest.mark.parametrize("mode", ["ibgp_rr", "ebgp"])
+def test_business_prefixes_stay_out_of_the_igp(igp: str, mode: str) -> None:
+    """Only BGP carries originated prefixes, whatever the IGP."""
+    isp_plan = compile_isp_plan(IspConfig(topology="abilene", igp=igp))
+    bgp = compile_bgp_plan(isp_plan, mode)
+    nodes = {node.device_name: node for node in isp_plan.nodes}
+    for bgp_node in bgp.nodes:
+        if not bgp_node.originated:
+            continue
+        conf = merge_frr_conf(
+            nodes[bgp_node.device_name].frr_conf,
+            render_bgp_frr_fragment(bgp_node, bgp),
+        )
+        stanzas = {
+            block.split("\n", 1)[0]: block for block in conf.split("\ninterface ")[1:]
+        }
+        business = stanzas[BGP_ORIGIN_IFACE]
+        for pref in bgp_node.originated:
+            assert pref.ping_address in business
+            assert pref.ping_address not in stanzas["lo"]
+        assert "isis" not in business and "ospf" not in business
+        for pref in bgp_node.originated:
+            assert f"network {pref.prefix} area" not in conf
+
+
+@pytest.mark.parametrize("topology", sorted(SNDLIB_TOPOLOGY_NAMES))
 def test_catalog_ebgp_has_connected_as_scoped_igp_and_linear_sessions(
     topology: str,
 ) -> None:

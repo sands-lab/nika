@@ -121,7 +121,7 @@ def _hijack_reading(problem: Any, params: Any) -> dict[str, Any]:
         reading["error"] = "no_remote_observer_for_hijack"
         return reading
     hijacker_addrs = host_addresses(runtime, params.host_name)
-    # The hijacker also holds the target on lo; that address does not identify it.
+    # The hijacker also holds the target address; it does not identify the hijacker.
     net = ipaddress.ip_network(target, strict=False)
     hijacker_addrs = {a for a in hijacker_addrs if ipaddress.ip_address(a) not in net}
     paths = prefix_paths(runtime, observer, target)

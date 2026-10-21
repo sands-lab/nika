@@ -14,6 +14,10 @@ from nika.problems.support.benchmark_targets import (
     access_router_victim,
     require_role_member,
 )
+from nika.net_env.utils.kathara.frr_origin import (
+    BGP_ORIGIN_IFACE,
+    ENSURE_BGP_ORIGIN_IFACE_CMD,
+)
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
 
@@ -142,9 +146,19 @@ class BGPHijacking(ProblemBase):
                 )
             case "kathara":
                 asn_number = self.runtime.frr_get_bgp_asn_number(params.host_name)
+                # Off ``lo`` so the IGP does not carry it: only BGP spreads a hijack.
+                # The local-table route keeps answering every address in the
+                # prefix, as an address with that prefix on ``lo`` did.
+                self.runtime.exec(params.host_name, ENSURE_BGP_ORIGIN_IFACE_CMD)
                 self.runtime.exec(
                     params.host_name,
-                    f"vtysh -c 'configure terminal' -c 'interface lo' -c 'ip address {target_network}' ",
+                    f"vtysh -c 'configure terminal' -c 'interface {BGP_ORIGIN_IFACE}' "
+                    f"-c 'ip address {target_network}' ",
+                )
+                self.runtime.exec(
+                    params.host_name,
+                    f"ip route replace local {target_network} "
+                    f"dev {BGP_ORIGIN_IFACE} table local",
                 )
                 # Behind a prefix-list export policy the operator error includes
                 # admitting the prefix there, or the hijack never leaves the router.
@@ -203,12 +217,12 @@ class BGPHijacking(ProblemBase):
                     for path in entry.get("paths") or []
                 )
                 network_prefix = target_network.split("/")[0]
-                lo_output = self.runtime.exec(
-                    params.host_name, "ip addr show lo 2>/dev/null"
+                origin_output = self.runtime.exec(
+                    params.host_name, f"ip addr show {BGP_ORIGIN_IFACE} 2>/dev/null"
                 ).strip()
-                has_lo_ip = network_prefix in lo_output
+                has_origin_ip = network_prefix in origin_output
                 advertised_to = sorted(entry.get("advertisedTo") or {})
-                verified = originated and has_lo_ip and bool(advertised_to)
+                verified = originated and has_origin_ip and bool(advertised_to)
                 return build_verify_result(
                     fault_type=self.root_cause_name,
                     verified=verified,
@@ -217,7 +231,7 @@ class BGPHijacking(ProblemBase):
                         "target_network": target_network,
                         "originated_best": originated,
                         "advertised_to": advertised_to,
-                        "has_lo_ip": has_lo_ip,
+                        "has_origin_ip": has_origin_ip,
                     },
                 )
             case backend:

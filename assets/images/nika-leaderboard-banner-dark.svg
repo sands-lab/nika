@@ -1,0 +1,112 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="432" height="84" viewBox="0 0 432 84">
+  <defs>
+    <!-- Gold gradients for trophy, title, and button -->
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%"   stop-color="#fff3b0"/>
+      <stop offset="45%"  stop-color="#ffcc33"/>
+      <stop offset="100%" stop-color="#c8860a"/>
+    </linearGradient>
+    <linearGradient id="btn" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%"   stop-color="#ffd84d"/>
+      <stop offset="100%" stop-color="#e5a100"/>
+    </linearGradient>
+    <!-- Card background, matching the NIKA banner palette -->
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#0d1525"/>
+      <stop offset="100%" stop-color="#080d18"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="50%" cy="50%" r="50%">
+      <stop offset="0%"   stop-color="#ffcc33" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#ffcc33" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Moving shine across the card -->
+    <linearGradient id="shine" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%"   stop-color="#ffffff" stop-opacity="0"/>
+      <stop offset="50%"  stop-color="#ffffff" stop-opacity="0.07"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="card"><rect x="1" y="1" width="430" height="82" rx="10"/></clipPath>
+  </defs>
+
+  <!-- ── Card ─────────────────────────────────────────────────────────── -->
+  <rect x="1" y="1" width="430" height="82" rx="10" fill="url(#bg)" stroke="url(#gold)" stroke-width="1.5"/>
+  <g clip-path="url(#card)">
+    <rect x="-120" y="0" width="90" height="84" fill="url(#shine)" transform="skewX(-20)">
+      <animate attributeName="x" values="-120;560;560" keyTimes="0;0.6;1" dur="5s" repeatCount="indefinite"/>
+    </rect>
+  </g>
+
+  <!-- ── Trophy with laurel wreath ──────────────────────────────────── -->
+  <g transform="translate(46,42) scale(0.38)">
+    <circle r="85" fill="url(#halo)"/>
+
+    <!-- Laurel: left branch -->
+    <g fill="#ffcc33" opacity="0.9">
+      <path d="M-30 62 Q-70 30 -62 -40" fill="none" stroke="#ffcc33" stroke-width="3" stroke-linecap="round"/>
+      <ellipse cx="-44" cy="50"  rx="11" ry="5" transform="rotate(-35 -44 50)"/>
+      <ellipse cx="-56" cy="32"  rx="11" ry="5" transform="rotate(-60 -56 32)"/>
+      <ellipse cx="-63" cy="12"  rx="11" ry="5" transform="rotate(-75 -63 12)"/>
+      <ellipse cx="-65" cy="-9"  rx="11" ry="5" transform="rotate(-90 -65 -9)"/>
+      <ellipse cx="-63" cy="-29" rx="11" ry="5" transform="rotate(-105 -63 -29)"/>
+      <ellipse cx="-50" cy="-48" rx="10" ry="5" transform="rotate(-125 -50 -48)"/>
+      <ellipse cx="-30" cy="48"  rx="10" ry="4.5" transform="rotate(10 -30 48)"/>
+      <ellipse cx="-44" cy="26"  rx="10" ry="4.5" transform="rotate(-20 -44 26)"/>
+      <ellipse cx="-50" cy="4"   rx="10" ry="4.5" transform="rotate(-40 -50 4)"/>
+      <ellipse cx="-51" cy="-18" rx="10" ry="4.5" transform="rotate(-55 -51 -18)"/>
+    </g>
+    <!-- Laurel: right branch (mirror) -->
+    <g fill="#ffcc33" opacity="0.9" transform="scale(-1,1)">
+      <path d="M-30 62 Q-70 30 -62 -40" fill="none" stroke="#ffcc33" stroke-width="3" stroke-linecap="round"/>
+      <ellipse cx="-44" cy="50"  rx="11" ry="5" transform="rotate(-35 -44 50)"/>
+      <ellipse cx="-56" cy="32"  rx="11" ry="5" transform="rotate(-60 -56 32)"/>
+      <ellipse cx="-63" cy="12"  rx="11" ry="5" transform="rotate(-75 -63 12)"/>
+      <ellipse cx="-65" cy="-9"  rx="11" ry="5" transform="rotate(-90 -65 -9)"/>
+      <ellipse cx="-63" cy="-29" rx="11" ry="5" transform="rotate(-105 -63 -29)"/>
+      <ellipse cx="-50" cy="-48" rx="10" ry="5" transform="rotate(-125 -50 -48)"/>
+      <ellipse cx="-30" cy="48"  rx="10" ry="4.5" transform="rotate(10 -30 48)"/>
+      <ellipse cx="-44" cy="26"  rx="10" ry="4.5" transform="rotate(-20 -44 26)"/>
+      <ellipse cx="-50" cy="4"   rx="10" ry="4.5" transform="rotate(-40 -50 4)"/>
+      <ellipse cx="-51" cy="-18" rx="10" ry="4.5" transform="rotate(-55 -51 -18)"/>
+    </g>
+
+    <!-- Cup -->
+    <g stroke="#8a5a00" stroke-width="2" stroke-linejoin="round">
+      <!-- handles -->
+      <path d="M-26 -40 C-48 -40 -48 -8 -20 -4" fill="none" stroke="url(#gold)" stroke-width="7" stroke-linecap="round"/>
+      <path d="M26 -40 C48 -40 48 -8 20 -4"     fill="none" stroke="url(#gold)" stroke-width="7" stroke-linecap="round"/>
+      <!-- bowl -->
+      <path d="M-30 -48 H30 V-30 C30 0 14 12 0 14 C-14 12 -30 0 -30 -30 Z" fill="url(#gold)"/>
+      <!-- stem and base -->
+      <path d="M-6 14 H6 L9 32 H-9 Z" fill="url(#gold)"/>
+      <rect x="-22" y="32" width="44" height="10" rx="2" fill="url(#gold)"/>
+      <rect x="-28" y="42" width="56" height="9"  rx="2" fill="url(#gold)"/>
+    </g>
+    <!-- bowl highlight + star -->
+    <path d="M-20 -42 V-28 C-20 -14 -14 -4 -8 2" fill="none" stroke="#fffbe0" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
+    <path d="M0 -36 L4.1 -25.6 L15.2 -25.1 L6.6 -18.1 L9.4 -7.3 L0 -13.4 L-9.4 -7.3 L-6.6 -18.1 L-15.2 -25.1 L-4.1 -25.6 Z" fill="#fff8d6" stroke="#b37400" stroke-width="1.2"/>
+
+    <!-- sparkles -->
+    <g fill="#fff3b0">
+      <path d="M48 -66 l3 8 8 3 -8 3 -3 8 -3 -8 -8 -3 8 -3 z">
+        <animate attributeName="opacity" values="0.2;1;0.2" dur="2.4s" repeatCount="indefinite"/>
+      </path>
+      <path d="M-52 -70 l2 5 5 2 -5 2 -2 5 -2 -5 -5 -2 5 -2 z">
+        <animate attributeName="opacity" values="1;0.2;1" dur="2.4s" repeatCount="indefinite"/>
+      </path>
+    </g>
+  </g>
+
+  <!-- ── Text ─────────────────────────────────────────────────────────── -->
+  <g font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif">
+    <text x="92" y="39" font-size="18" font-weight="700" fill="#ffcc33">Leaderboard</text>
+    <text x="92" y="58" font-size="12.5" fill="#c9d4e5">Compare agents and submit your own</text>
+  </g>
+
+  <!-- ── Call to action ──────────────────────────────────────────────── -->
+  <g transform="translate(338,26)">
+    <rect width="76" height="32" rx="16" fill="url(#btn)" stroke="#fff3b0" stroke-opacity="0.6" stroke-width="1">
+      <animate attributeName="stroke-opacity" values="0.2;0.9;0.2" dur="2.4s" repeatCount="indefinite"/>
+    </rect>
+    <text x="38" y="20.5" text-anchor="middle" font-family="system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="13" font-weight="700" fill="#1a1200">View →</text>
+  </g>
+</svg>

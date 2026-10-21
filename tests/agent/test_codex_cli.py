@@ -2,10 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
-import subprocess
 import tomllib
-from types import SimpleNamespace
 
 import pytest
 
@@ -18,6 +15,7 @@ from agent.cli.codex.codex_worker import (
     _fatal_codex_error_message,
     _is_productive_codex_event,
     _reconnect_transport_failed,
+    write_codex_auth,
 )
 from agent.protocols import DIAGNOSIS
 from agent.protocols import SUBMISSION
@@ -76,16 +74,16 @@ class CodexMcpTomlTest:
     def test_registers_custom_model_provider(self, monkeypatch) -> None:
         monkeypatch.setenv("OPENAI_BASE_URL", "https://openrouter.ai/api/v1")
         toml = _build_mcp_toml({}, provider="custom")
-        assert 'model_provider = "nika_custom"' in toml
-        assert "[model_providers.nika_custom]" in toml
+        assert 'model_provider = "custom_llm"' in toml
+        assert "[model_providers.custom_llm]" in toml
         assert 'base_url = "https://openrouter.ai/api/v1"' in toml
         assert 'env_key = "OPENAI_API_KEY"' in toml
         assert 'wire_api = "responses"' in toml
 
     def test_registers_deepseek_model_provider(self) -> None:
         toml = _build_mcp_toml({}, provider="deepseek")
-        assert 'model_provider = "nika_deepseek"' in toml
-        assert "[model_providers.nika_deepseek]" in toml
+        assert 'model_provider = "deepseek_llm"' in toml
+        assert "[model_providers.deepseek_llm]" in toml
         assert "api.deepseek.com" in toml
 
     def test_openai_provider_skips_custom_block(self) -> None:
@@ -179,28 +177,23 @@ class CodexWorkerConfigTest:
     )
     @pytest.mark.parametrize("sandbox_provider", [False, True])
     def test_writes_only_phase_allowed_mcp_servers(
-        self, monkeypatch, tmp_path, phase, expected_servers, sandbox_provider
+        self,
+        monkeypatch,
+        tmp_path,
+        agent_task,
+        phase,
+        expected_servers,
+        sandbox_provider,
     ) -> None:
-        monkeypatch.setattr(
-            "agent.cli.codex.codex_worker.apply_codex_auth", lambda _path: None
-        )
+        agent_task()
         monkeypatch.setattr(
             "agent.cli.codex.codex_worker.prepare_codex_workspace", lambda _path: None
         )
-        monkeypatch.setattr(
-            "agent.utils.mcp_client._load_session_mcp_config",
-            lambda *_args, **_kwargs: {
-                "kathara_base_mcp_server": {"transport": "http", "url": "http://base"},
-                "task_mcp_server": {"transport": "http", "url": "http://task"},
-            },
-        )
-        monkeypatch.setattr(
-            "agent.cli.codex.codex_worker.sandbox_name_from_env",
-            lambda: "codex-config-test" if sandbox_provider else None,
-        )
+        native_home = tmp_path / "native_codex_home"
+        native_home.mkdir()
+        monkeypatch.setenv("CODEX_HOME", str(native_home))
         if sandbox_provider:
-            native_home = tmp_path / "native_codex_home"
-            native_home.mkdir()
+            # A sandbox runtime's own Codex config routes the subscription.
             (native_home / "config.toml").write_text(
                 'model_provider = "sandboxd"\n'
                 'forced_login_method = "api"\n'
@@ -211,17 +204,6 @@ class CodexWorkerConfigTest:
                 "requires_openai_auth = false\n"
                 "[mcp_servers.native_server]\n"
                 'url = "http://native"\n'
-            )
-            monkeypatch.setenv("CODEX_HOME", str(native_home))
-            monkeypatch.setattr(
-                "agent.cli.codex.codex_worker.active_sandbox_backend",
-                lambda _name: SimpleNamespace(name="sbx"),
-            )
-            monkeypatch.setattr(
-                "agent.cli.codex.codex_worker.run_sbx_checked",
-                lambda args: subprocess.run(
-                    args[2:], env=dict(os.environ), check=True, capture_output=True
-                ),
             )
         worker = CodexWorker(
             session_id="sess-123",
@@ -241,37 +223,20 @@ class CodexWorkerConfigTest:
                 "experimental_bearer_token": "test-proxy-placeholder",
                 "requires_openai_auth": False,
             }
+        else:
+            assert "model_provider" not in config
 
-    def test_e2b_sandbox_skips_sbx_provider_merge(self, monkeypatch, tmp_path) -> None:
-        """The sbx subscription route only exists in Docker Sandboxes."""
-        monkeypatch.setattr(
-            "agent.cli.codex.codex_worker.apply_codex_auth", lambda _path: None
-        )
-        monkeypatch.setattr(
-            "agent.cli.codex.codex_worker.prepare_codex_workspace", lambda _path: None
-        )
-        monkeypatch.setattr(
-            "agent.utils.mcp_client._load_session_mcp_config",
-            lambda *_args, **_kwargs: {},
-        )
-        monkeypatch.setattr(
-            "agent.cli.codex.codex_worker.sandbox_name_from_env", lambda: "e2b-id"
-        )
-        monkeypatch.setattr(
-            "agent.cli.codex.codex_worker.active_sandbox_backend",
-            lambda _name: SimpleNamespace(name="e2b"),
-        )
-
-        def _no_sbx(_args):
-            raise AssertionError("sbx exec on an e2b sandbox")
-
-        monkeypatch.setattr("agent.cli.codex.codex_worker.run_sbx_checked", _no_sbx)
-        CodexWorker(
-            session_id="sess-123",
-            session_dir=tmp_path,
-            phase=DIAGNOSIS,
-            llm_provider="openai",
-        )._setup_workspace()
+    def test_api_key_placeholder_becomes_codex_auth(
+        self, monkeypatch, tmp_path
+    ) -> None:
+        monkeypatch.setenv("OPENAI_API_KEY", "proxy-managed")
+        write_codex_auth(tmp_path / "home")
+        auth = json.loads((tmp_path / "home" / "auth.json").read_text())
+        assert auth == {"OPENAI_API_KEY": "proxy-managed", "auth_mode": "apikey"}
+        # A subscription leaves the key unset: no auth file.
+        monkeypatch.delenv("OPENAI_API_KEY")
+        write_codex_auth(tmp_path / "other")
+        assert not (tmp_path / "other" / "auth.json").exists()
 
 
 class CodexToolLoggingTest:

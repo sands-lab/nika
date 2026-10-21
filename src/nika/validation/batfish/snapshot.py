@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +14,15 @@ SNAPSHOT_DIRNAME = "batfish-snapshot"
 SNAPSHOT_METADATA_FILENAME = "batfish-snapshot-metadata.json"
 
 
+def prepare_snapshot(root: str | Path) -> Path:
+    """Replace this export's generated snapshot, including obsolete devices."""
+    snapshot_root = Path(root) / SNAPSHOT_DIRNAME
+    if snapshot_root.exists():
+        shutil.rmtree(snapshot_root)
+    snapshot_root.mkdir(parents=True)
+    return snapshot_root
+
+
 def build_isp_snapshot(
     *,
     root: str | Path,
@@ -22,7 +32,7 @@ def build_isp_snapshot(
     deployment_configs: dict[str, str],
 ) -> ValidationSnapshot:
     """Build a Batfish snapshot from the exact FRR deployment config strings."""
-    snapshot_root = Path(root) / SNAPSHOT_DIRNAME
+    snapshot_root = prepare_snapshot(root)
     configs_dir = snapshot_root / "configs"
     hosts_dir = snapshot_root / "hosts"
     batfish_dir = snapshot_root / "batfish"

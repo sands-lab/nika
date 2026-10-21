@@ -5,23 +5,23 @@ Writes every LLM and tool event as a JSON line to::
     {session_dir}/messages.jsonl
 
 Both diagnosis and submission pipeline phases are persisted. The final
-submission is also represented by ``submission.json``; system events live in
-``nika.jsonl``.
+submission is also represented by ``submission.json``; the host records
+system events separately.
 
 Lifecycle event contract
 ------------------------
 Two layers (keep names stable so inspect can match uniformly):
 
-* **Session** (``nika.jsonl``, written by NIKA workflows):
+* **Session** (written by the host):
   ``agent_start`` → ``agent_end`` | ``agent_error``
-  Covers the whole agent process for one trial.
+  Covers the whole agent run for one trial.
 
 * **Phase** (``messages.jsonl``, written by every agent implementation):
   ``agent_start`` → ``agent_done`` | ``agent_error``
   One pair per pipeline phase (diagnosis / submission).
 
 Every agent emits the phase bookends through
-:class:`~agent.utils.two_phase.TwoPhaseAgent` (which calls
+:class:`~agent.base.DiagnosisAgent` (which calls
 :meth:`MessageLogger.log_agent_start` / :meth:`MessageLogger.log_agent_done` /
 :meth:`MessageLogger.log_agent_error`), so inspect pairing stays agent-agnostic.
 Workers log one ``llm_end`` per model response (the ``max_steps`` unit).
@@ -54,8 +54,22 @@ MESSAGES_FILENAME = "messages.jsonl"
 # markers into the same messages.jsonl span (inspect splits them for display).
 _ActiveLlmLog = tuple["MessageLogger", str | None]
 _active_llm_log: ContextVar[_ActiveLlmLog | None] = ContextVar(
-    "nika_active_llm_log", default=None
+    "active_llm_log", default=None
 )
+
+
+def message_text(message: Any) -> str:
+    """Text content of a model message (text blocks joined by newlines)."""
+    content = getattr(message, "content", message)
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        return "\n".join(
+            str(block.get("text", "")) if isinstance(block, dict) else str(block)
+            for block in content
+            if not isinstance(block, dict) or block.get("type") == "text"
+        )
+    return str(content)
 
 
 def normalize_tool_input(value: Any) -> str:

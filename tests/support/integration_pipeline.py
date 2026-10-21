@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import importlib.util
 import json
 import os
-import shutil
 from pathlib import Path
 from typing import ClassVar
 
@@ -65,25 +63,43 @@ def live_codex_test_model() -> str:
     return os.environ.get("NIKA_TEST_CODEX_MODEL", "").strip() or "gpt-5-mini"
 
 
+def live_openai_test_config() -> tuple[str, str]:
+    """Provider/model pair for OpenAI-family E2E (Codex and BYO agents).
+
+    ``NIKA_TEST_OPENAI_PROVIDER`` selects ``openai`` (default), ``deepseek``,
+    or ``custom`` (``NIKA_TEST_CUSTOM_BASE_URL``); the model is
+    ``NIKA_TEST_CODEX_MODEL``.
+    """
+    provider = os.environ.get("NIKA_TEST_OPENAI_PROVIDER", "openai").strip().lower()
+    if provider not in {"openai", "deepseek", "custom"}:
+        raise ValueError(
+            "NIKA_TEST_OPENAI_PROVIDER must be openai, deepseek, or custom"
+        )
+    return provider, live_codex_test_model()
+
+
 def openai_api_key_available() -> bool:
     return bool(os.environ.get("OPENAI_API_KEY"))
 
 
 def codex_cli_available() -> bool:
-    if shutil.which("codex") is None:
-        return False
-    from agent.sandbox.sbx.credentials import sbx_openai_credential_available
+    """Codex-family agents: an OpenAI key or NIKA's Codex login on the host."""
+    from nika.agents.sandbox.subscription import CodexLogin
 
-    return (
-        sbx_openai_credential_available()
-        or (Path.home() / ".codex" / "auth.json").is_file()
-    )
+    return openai_api_key_available() or CodexLogin.load() is not None
 
 
 def claude_cli_available() -> bool:
-    from agent.cli.claude.config import claude_credentials_available
-
-    return claude_credentials_available()
+    """Claude-family agents: an Anthropic-compatible key or a Claude token."""
+    return any(
+        os.environ.get(key, "").strip()
+        for key in (
+            "ANTHROPIC_API_KEY",
+            "ANTHROPIC_AUTH_TOKEN",
+            "DEEPSEEK_API_KEY",
+            "CLAUDE_CODE_OAUTH_TOKEN",
+        )
+    )
 
 
 def deepseek_api_key_available() -> bool:
@@ -92,14 +108,6 @@ def deepseek_api_key_available() -> bool:
 
 def anthropic_api_key_available() -> bool:
     return bool(os.environ.get("ANTHROPIC_API_KEY"))
-
-
-def sade_available() -> bool:
-    if importlib.util.find_spec("claude_agent_sdk") is None:
-        return False
-    from agent.community.sade.config import sade_credentials_available
-
-    return sade_credentials_available()
 
 
 def tool_text_list(result: object) -> list[str]:

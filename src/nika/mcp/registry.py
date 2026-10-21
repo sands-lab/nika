@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from typing import Literal
 
@@ -10,7 +9,6 @@ Backend = Literal["kathara", "containerlab"]
 Role = Literal[
     "host", "routing", "switch", "telemetry", "task", "kubernetes", "observability"
 ]
-ENV_SESSION_BACKEND = "NIKA_SESSION_BACKEND"
 
 # Keyword tokens (from scenario name and net-env TAGS) that trigger optional servers.
 ROUTING_KEYWORDS = frozenset({"bgp", "ebgp", "ospf", "rip", "frr", "routing", "rpki"})
@@ -125,19 +123,14 @@ SUBMISSION_SERVER = "task_mcp_server"
 K8S_MCP_SERVER = "k8s_mcp_server"
 
 
-def _sandbox_execution() -> bool:
-    return os.environ.get("NIKA_SANDBOX_EXECUTION") == "1"
-
-
 def _scenario_tokens(scenario_name: str) -> set[str]:
     parts = [scenario_name.lower()]
-    if not _sandbox_execution():
-        try:
-            from nika.net_env.net_env_pool import scenario_tags
+    try:
+        from nika.net_env.net_env_pool import scenario_tags
 
-            parts.extend(tag.lower() for tag in scenario_tags(scenario_name))
-        except ValueError:
-            pass
+        parts.extend(tag.lower() for tag in scenario_tags(scenario_name))
+    except ValueError:
+        pass
     combined = " ".join(parts)
     return set(combined.replace("_", " ").replace("-", " ").split())
 
@@ -148,8 +141,6 @@ def _resolve_diagnosis_backend(
 ) -> str:
     if backend:
         return backend
-    if _sandbox_execution():
-        return os.environ.get(ENV_SESSION_BACKEND, "").strip() or "kathara"
     try:
         from nika.net_env.net_env_pool import scenario_supported_backends
 

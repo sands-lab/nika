@@ -11,9 +11,8 @@ from urllib.request import Request
 import pytest
 from starlette.testclient import TestClient
 
-from agent.sandbox.config import ENV_GATEWAY_URL, ENV_SANDBOX_EXECUTION
-from agent.sandbox.config import ENV_SANDBOX_NAME
-from agent.utils import mcp_client
+from nika.agents import mcp_config as mcp_client
+from nika.agents.sandbox.config import ENV_GATEWAY_URL
 from nika.mcp.gateway.app import create_gateway_app
 from nika.mcp.gateway.phase import phase_advance_token
 from nika.mcp.gateway.session_registry import (
@@ -58,8 +57,8 @@ def test_session_header_alone_cannot_advance_phase(registered_session: Path) -> 
     body = {"phase": "submission", "diagnosis_report": "pc1 eth0 down"}
 
     for headers in (
-        {"NIKA-Session-Id": "opaque-token"},
-        {"NIKA-Session-Id": "opaque-token", "NIKA-Phase-Token": "guess"},
+        {"X-Session-Id": "opaque-token"},
+        {"X-Session-Id": "opaque-token", "NIKA-Phase-Token": "guess"},
     ):
         response = client.post(url, headers=headers, json=body)
         assert response.status_code == 403
@@ -70,7 +69,7 @@ def test_session_header_alone_cannot_advance_phase(registered_session: Path) -> 
     token = phase_advance_token("sess-token")
     response = client.post(
         url,
-        headers={"NIKA-Session-Id": "opaque-token", "NIKA-Phase-Token": token},
+        headers={"X-Session-Id": "opaque-token", "NIKA-Phase-Token": token},
         json=body,
     )
     assert response.status_code == 200
@@ -97,17 +96,7 @@ def test_phase_token_is_reissued_after_reregistration(registered_session: Path) 
     assert phase_advance_token("sess-token") != token
 
 
-def test_begin_submission_refuses_inside_the_sandbox(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv(ENV_SANDBOX_EXECUTION, "1")
-    monkeypatch.delenv(ENV_SANDBOX_NAME, raising=False)
-    with pytest.raises(RuntimeError, match="runs on the host"):
-        mcp_client.begin_submission_mcp_phase("sess-vm", "report")
-
-
 def _remote(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv(ENV_SANDBOX_EXECUTION, raising=False)
     monkeypatch.setattr("nika.remote.config.is_remote_enabled", lambda: True)
     monkeypatch.setenv(ENV_GATEWAY_URL, "http://gateway.test")
 
@@ -174,3 +163,28 @@ def test_remote_advance_surfaces_gateway_errors(
     monkeypatch.setattr(mcp_client.urllib.request, "urlopen", fake_urlopen)
     with pytest.raises(RuntimeError, match="NIKA-Phase-Token"):
         mcp_client.begin_submission_mcp_phase("sess-remote", "report text")
+
+
+@pytest.mark.parametrize(
+    ("gateway_url", "expected"),
+    [
+        ("http://0.0.0.0:9100", "http://127.0.0.1:9100/mcp/task_mcp_server/mcp"),
+        ("http://lab-host:9100", "http://lab-host:9100/mcp/task_mcp_server/mcp"),
+    ],
+)
+def test_client_mcp_config_uses_host_facing_gateway(
+    monkeypatch: pytest.MonkeyPatch, gateway_url: str, expected: str
+) -> None:
+    """Host-side submission must not dial the sandbox-only gateway address."""
+    monkeypatch.setenv(ENV_GATEWAY_URL, gateway_url)
+    sandbox_view = {
+        "task_mcp_server": {
+            "url": "http://127.0.0.1:9099/mcp/task_mcp_server/mcp",
+            "headers": {"X-Session-Id": "s"},
+        }
+    }
+    config = mcp_client.client_mcp_config(sandbox_view)
+    assert config["task_mcp_server"] == {
+        "url": expected,
+        "headers": {"X-Session-Id": "s"},
+    }

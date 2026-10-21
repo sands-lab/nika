@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from agent.sandbox.model_proxy import (
+from nika.agents.sandbox.model_proxy import (
     _restore_stream,
     flatten_namespace_tools,
     fold_system_turns,
@@ -180,7 +180,7 @@ def test_proxy_swaps_the_agent_token_for_the_upstream_credential() -> None:
 
     from starlette.testclient import TestClient
 
-    from agent.sandbox.model_proxy import create_model_proxy_app
+    from nika.agents.sandbox.model_proxy import create_model_proxy_app
 
     seen: list[dict[str, str]] = []
 

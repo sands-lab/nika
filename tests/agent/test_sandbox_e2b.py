@@ -13,7 +13,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
-from agent.sandbox.config import resolve_sandbox_config
+from nika.agents.sandbox.config import resolve_sandbox_config
 from tests.agent.sandbox_support import e2b_runtime_available
 
 pytestmark = [pytest.mark.integration, pytest.mark.sandbox]
@@ -38,7 +38,7 @@ def test_e2b_sandbox_reaches_only_its_tunnel(tmp_path) -> None:
 
     Its tunnel recovers when the relay is lost.
     """
-    from agent.sandbox.e2b.backend import E2bBackend
+    from nika.agents.sandbox.e2b.backend import E2bBackend
 
     config = replace(resolve_sandbox_config(), backend="e2b", keep_container=False)
     backend = E2bBackend(config)
@@ -79,7 +79,7 @@ def test_e2b_sandbox_reaches_only_its_tunnel(tmp_path) -> None:
         # A lost relay restarts on the same port: after a short outage the
         # sandbox reaches its service again.
         proc = backend.exec_stream(
-            sandbox_id, "pkill -f '[n]ika_tunnel_relay'; echo killed=$?"
+            sandbox_id, "pkill -f '[t]unnel_relay.py'; echo killed=$?"
         )
         killed = "".join(proc.stdout)
         proc.wait()

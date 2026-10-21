@@ -71,6 +71,10 @@ def _ensure_bgp_inventory(problem_cls, ctx) -> tuple[dict, dict]:
 # ==================================================================
 
 
+# bgp_asn_misconfig moves the local ASN by this fixed offset.
+ASN_MISCONFIG_OFFSET = 600
+
+
 class BGPAsnMisconfigParams(BaseModel):
     """Parameters for injecting a BGP ASN misconfiguration fault."""
 
@@ -133,7 +137,7 @@ class BGPAsnMisconfig(ProblemBase):
 
     def _inject_asn_misconfig_containerlab(self, params: BGPAsnMisconfigParams) -> None:
         as_number = self.runtime.srl_get_bgp_as(params.host_name)
-        wrong_asn = as_number + 600
+        wrong_asn = as_number + ASN_MISCONFIG_OFFSET
         self.runtime.srl_set_bgp_as(params.host_name, wrong_asn)
         self._orig_asn = as_number
         self._wrong_asn = wrong_asn
@@ -147,7 +151,7 @@ class BGPAsnMisconfig(ProblemBase):
             self._inject_asn_misconfig_iosxr(params)
             return
         as_number = self.runtime.frr_get_bgp_asn_number(params.host_name)
-        wrong_asn = as_number + 600
+        wrong_asn = as_number + ASN_MISCONFIG_OFFSET
         # k8s_lab uses split FRR configs (/etc/frr/bgpd.conf); campus etc. use frr.conf.
         # Patch on-disk configs and bounce daemons so split-config labs reload.
         # Avoid shell "$vars" inside runtime.exec wrapping (quote escaping breaks loops).
@@ -208,7 +212,7 @@ class BGPAsnMisconfig(ProblemBase):
 
     def _inject_asn_misconfig_iosxr(self, params: BGPAsnMisconfigParams) -> None:
         as_number = self.runtime.iosxr_get_bgp_asn_number(params.host_name)
-        wrong_asn = as_number + 600
+        wrong_asn = as_number + ASN_MISCONFIG_OFFSET
         self.runtime.iosxr_set_bgp_asn(params.host_name, wrong_asn)
         wait_until(
             lambda: (
@@ -339,7 +343,7 @@ class BGPMissingAdvertiseParams(BaseModel):
 class BGPMissingAdvertise(ProblemBase):
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
     # Remote speakers lose the route. Reachability can survive when the IGP
-    # also carries the prefix (IS-IS advertises every loopback address).
+    # also carries the prefix (see INCOMPATIBLE_SCENARIOS).
     symptom_probe = "custom"
     symptom_class = "control_plane"
     root_cause_name: str = "bgp_missing_route_advertisement"
@@ -805,7 +809,7 @@ class BGPMissingAdvertise(ProblemBase):
 
 
 # Operator-style name for the customer prefix the misapplied policy matches.
-_RTBH_PREFIX_LIST = "CUSTOMER-PREFIXES"
+RTBH_PREFIX_LIST = "CUSTOMER-PREFIXES"
 
 
 def _profile_leaker(problem: ProblemBase, bgp: dict, host_name: str) -> str:
@@ -904,9 +908,9 @@ class BGPBlackholeCommunityLeak(ProblemBase):
             )
         cmd = (
             "vtysh -c 'configure terminal' "
-            f"-c 'ip prefix-list {_RTBH_PREFIX_LIST} seq 5 permit {target_prefix} le 24' "
+            f"-c 'ip prefix-list {RTBH_PREFIX_LIST} seq 5 permit {target_prefix} le 24' "
             f"-c 'route-map {route_map} permit 5' "
-            f"-c 'match ip address prefix-list {_RTBH_PREFIX_LIST}' "
+            f"-c 'match ip address prefix-list {RTBH_PREFIX_LIST}' "
             f"-c 'set community {community} additive' "
             "-c 'end' "
             "-c 'write memory'"
@@ -1074,7 +1078,7 @@ class BGPBlackholeCommunityLeak(ProblemBase):
         cmd = (
             "vtysh -c 'configure terminal' "
             f"-c 'no route-map {route_map} permit 5' "
-            f"-c 'no ip prefix-list {_RTBH_PREFIX_LIST} seq 5' "
+            f"-c 'no ip prefix-list {RTBH_PREFIX_LIST} seq 5' "
             "-c 'end' "
             "-c 'write memory'"
         )

@@ -31,6 +31,9 @@ class ProbePath:
 
 
 class NetworkEnvBase:
+    ROUTING_PARAMETER_KINDS: ClassVar[frozenset[str]] = frozenset()
+    ROUTING_MODELS: ClassVar[frozenset[str]] = frozenset()
+
     LAB_NAME: ClassVar[str | None] = None
     # Kubernetes labs (``NetEnvSpec.k8s_image_cache``): lab node images pulled
     # on the host, and in-cluster images cached as tars and loaded into k3s.
@@ -86,6 +89,25 @@ class NetworkEnvBase:
     def get_lab_spec(self) -> LabSpec | None:
         """Containerlab-native scenarios may override; Kathara scenarios return None."""
         return None
+
+    def bgp_import_peers(self):
+        """Neighbors in the fixed routing sketch available for policy completion."""
+        return ()
+
+    def bgp_origin_prefixes(self):
+        """Exact prefix ownership in the fixed BGP configuration sketch."""
+        import re
+
+        origins = {}
+        for node, machine in self.lab.machines.items():
+            if not machine.fs or not machine.fs.exists("etc/frr/frr.conf"):
+                continue
+            config = machine.fs.readtext("etc/frr/frr.conf")
+            for prefix in re.findall(r"^\s*network ([0-9./]+)$", config, re.MULTILINE):
+                if prefix in origins:
+                    raise ValueError("The BGP sketch requires one origin per prefix")
+                origins[prefix] = node
+        return origins
 
     def overlay_interfaces(self) -> list[tuple[str, str]]:
         """``(node, interface)`` pairs created at startup rather than by lab links.

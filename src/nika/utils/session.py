@@ -85,24 +85,7 @@ class Session:
         """Agent-facing session handle; falls back to canonical when legacy."""
         return resolve_agent_session_id(self)
 
-    def load_from_run_json(self, session_dir: str | Path) -> "Session":
-        """Load session metadata from a mounted ``run.json`` (sandbox execution)."""
-        session_path = Path(session_dir)
-        run_path = session_path / RUN_FILENAME
-        if not run_path.is_file():
-            raise FileNotFoundError(f"Missing session run metadata: {run_path}")
-        run_meta = json.loads(run_path.read_text(encoding="utf-8"))
-        self._apply_session_meta(run_meta)
-        self.session_dir = str(session_path.resolve())
-        return self
-
     def load_running_session(self, session_id: str | None = None):
-        if os.environ.get("NIKA_SANDBOX_EXECUTION") == "1":
-            session_dir = os.environ.get("NIKA_SESSION_DIR", "").strip()
-            if session_dir:
-                run_path = Path(session_dir) / RUN_FILENAME
-                if run_path.is_file():
-                    return self.load_from_run_json(session_dir)
         try:
             resolved_id = resolve_running_session_id(session_id, store=self.store)
             session_meta = self.store.get_session(resolved_id)
@@ -239,10 +222,6 @@ class Session:
         if not hasattr(self, "session_id"):
             raise ValueError("Session ID is not set.")
         payload = {k: v for k, v in self.__dict__.items() if k != "store"}
-        if os.environ.get("NIKA_SANDBOX_EXECUTION") == "1":
-            if getattr(self, "session_dir", None):
-                self._write_run_json(payload)
-            return self.session_id
         try:
             self.store.update_session(self.session_id, payload)
         except FileNotFoundError:

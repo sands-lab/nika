@@ -290,12 +290,13 @@ def gateway_route(sandbox_backend: str | None) -> tuple[str, str | None]:
     """
     if sandbox_backend is None:
         return "127.0.0.1", None
-    from agent.sandbox.backend import backend_class
+    from nika.agents.sandbox.backend import backend_class
 
-    host = backend_class(sandbox_backend).gateway_agent_host
+    backend = backend_class(sandbox_backend)
+    host = backend.gateway_agent_host
     if host in ("127.0.0.1", "localhost"):
         return "127.0.0.1", None
-    return "0.0.0.0", host
+    return backend.gateway_bind_host or "0.0.0.0", host
 
 
 def _record_trial_timings(

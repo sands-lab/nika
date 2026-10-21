@@ -6,79 +6,59 @@ import pytest
 
 from agent.byo.autogen.config import to_mcp_params
 from agent.byo.mcp_agent.config import _to_server_settings
-from agent.utils.mcp_servers import mcp_read_timeout_seconds
-from nika.run_config.loader import reset_run_config, set_run_config
-from nika.run_config.schema import RunConfig
+from agent.utils.mcp_client import mcp_read_timeout_seconds
 
 pytestmark = pytest.mark.unit
 
 
-def _set_mcp_timeout(seconds: float) -> None:
-    set_run_config(
-        RunConfig.model_validate({"nika": {"mcp": {"read_timeout_sec": seconds}}})
+def test_mcp_read_timeout_seconds_disabled(agent_task) -> None:
+    agent_task(mcp_read_timeout_sec=0)
+    assert mcp_read_timeout_seconds() is None
+
+
+def test_autogen_stdio_params_include_read_timeout(agent_task) -> None:
+    agent_task(mcp_read_timeout_sec=90)
+    params = to_mcp_params(
+        {
+            "transport": "stdio",
+            "command": "python",
+            "args": ["-m", "demo"],
+            "env": {},
+        }
     )
+    assert params.read_timeout_seconds == 90.0
 
 
-def test_mcp_read_timeout_seconds_disabled() -> None:
-    try:
-        _set_mcp_timeout(0)
-        assert mcp_read_timeout_seconds() is None
-    finally:
-        reset_run_config()
+def test_autogen_http_params_include_timeout(agent_task) -> None:
+    agent_task(mcp_read_timeout_sec=45)
+    params = to_mcp_params(
+        {
+            "transport": "http",
+            "url": "http://127.0.0.1:9/mcp",
+            "headers": {"X-Test": "1"},
+        }
+    )
+    assert params.timeout == 45.0
+    assert params.sse_read_timeout == 45.0
 
 
-def test_autogen_stdio_params_include_read_timeout() -> None:
-    try:
-        _set_mcp_timeout(90)
-        params = to_mcp_params(
-            {
-                "transport": "stdio",
-                "command": "python",
-                "args": ["-m", "demo"],
-                "env": {},
-            }
-        )
-        assert params.read_timeout_seconds == 90.0
-    finally:
-        reset_run_config()
-
-
-def test_autogen_http_params_include_timeout() -> None:
-    try:
-        _set_mcp_timeout(45)
-        params = to_mcp_params(
-            {
-                "transport": "http",
-                "url": "http://127.0.0.1:9/mcp",
-                "headers": {"X-Test": "1"},
-            }
-        )
-        assert params.timeout == 45.0
-        assert params.sse_read_timeout == 45.0
-    finally:
-        reset_run_config()
-
-
-def test_mcp_agent_settings_include_read_timeout() -> None:
-    try:
-        _set_mcp_timeout(75)
-        http = _to_server_settings(
-            {
-                "transport": "http",
-                "url": "http://127.0.0.1:9/mcp",
-                "headers": {},
-            }
-        )
-        assert http.read_timeout_seconds == 75
-        assert http.http_timeout_seconds == 75
-        stdio = _to_server_settings(
-            {
-                "transport": "stdio",
-                "command": "python",
-                "args": [],
-                "env": {},
-            }
-        )
-        assert stdio.read_timeout_seconds == 75
-    finally:
-        reset_run_config()
+def test_mcp_agent_settings_include_read_timeout(agent_task) -> None:
+    agent_task(mcp_read_timeout_sec=75)
+    http = _to_server_settings(
+        {
+            "transport": "http",
+            "url": "http://127.0.0.1:9/mcp",
+            "headers": {},
+        }
+    )
+    assert http.read_timeout_seconds == 75
+    assert http.http_timeout_seconds == 75
+    stdio = _to_server_settings(
+        {
+            "transport": "stdio",
+            "command": "python",
+            "args": [],
+            "env": {},
+        }
+    )
+    assert stdio.read_timeout_seconds == 75

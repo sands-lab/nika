@@ -158,7 +158,7 @@ def collect_verify_commands(
             )
         )
 
-    def collect(item: tuple[str, dict[str, VerifyCommand]]):
+    def collect_batch(item: tuple[str, dict[str, VerifyCommand]]):
         node, requests = item
         wanted = list(requests.values())
         nonce = "NIKA_VERIFY_" + uuid4().hex
@@ -233,6 +233,16 @@ def collect_verify_commands(
             results[(node, request.command)] = result
             if result.error:
                 note_exec_failure(node, request.command, result.error)
+        return results
+
+    def collect(item: tuple[str, dict[str, VerifyCommand]]):
+        node, requests = item
+        wanted = list(requests.items())
+        results = {}
+        # Bound shell argument size while retaining eight concurrent commands
+        # per node. Large anchor nodes can require hundreds of observations.
+        for offset in range(0, len(wanted), 64):
+            results.update(collect_batch((node, dict(wanted[offset : offset + 64]))))
         return results
 
     results = {}

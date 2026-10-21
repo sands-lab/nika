@@ -1141,8 +1141,8 @@ def _firecracker_trial_scope(trial: Trial, *, agent_type: str, result_dir: str |
     """Restore the trial's lab from a lab image with Firecracker execution."""
     if not firecracker_enabled():
         return nullcontext()
-    from agent.sandbox import SANDBOX_SUPPORTED_AGENTS
-    from agent.sandbox.config import resolve_sandbox_config
+    from nika.agents.registry import get_agent_spec
+    from nika.agents.sandbox.config import resolve_sandbox_config
 
     return TrialLab(
         variant_for_row(trial.row),
@@ -1151,7 +1151,7 @@ def _firecracker_trial_scope(trial: Trial, *, agent_type: str, result_dir: str |
         owner=str(resolve_results_root(result_dir)),
         sandbox_backend=(
             resolve_sandbox_config().backend
-            if agent_type in SANDBOX_SUPPORTED_AGENTS
+            if get_agent_spec(agent_type).template is not None
             else None
         ),
         case_row=trial.row if wants_case_image(trial.row) else None,
@@ -1802,7 +1802,7 @@ def run_benchmark_trials(
             model=job.get("model"),
         )
     if check_images:
-        from agent.sandbox.backend import prepare_sandbox_templates
+        from nika.agents.sandbox.backend import prepare_sandbox_templates
 
         images = prepare_sandbox_templates([agent_type])
         from nika.net_env.utils.kathara.docker_files.docker_images import (

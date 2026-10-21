@@ -2,11 +2,20 @@ from __future__ import annotations
 
 import functools
 import json
+import re
+import subprocess
 
 import pytest
 from agent.protocols import DIAGNOSIS
-from nika.run_config.loader import reset_run_config, set_run_config
+from nika.agents.registry import get_agent_spec
+from nika.agents.sandbox.sbx.policy import sanitize_sandbox_name
+from nika.run_config.loader import (
+    load_run_config,
+    reset_run_config,
+    set_run_config,
+)
 from nika.run_config.schema import RunConfig
+from nika.utils.agent_session_id import resolve_agent_session_id
 from nika.utils.session_store import SessionStore
 from tests.agent._assertions import (
     assert_phase_messages,
@@ -19,52 +28,70 @@ from tests.agent.sandbox_support import (
 from tests.support.integration_base import OrderedPipelineTestCase
 from tests.support.integration_pipeline import (
     CommonPipelineSteps,
-    claude_cli_available,
-    codex_cli_available,
     live_anthropic_test_config,
-    live_codex_test_model,
     live_custom_base_url,
+    live_openai_test_config,
     load_test_env,
-    sade_available,
 )
 
 pytestmark = [pytest.mark.e2e, pytest.mark.sandbox, pytest.mark.live]
 
 load_test_env()
 CLAUDE_PROVIDER, CLAUDE_MODEL = live_anthropic_test_config()
-# Codex CLI/SDK use OpenAI API keys or a ChatGPT login stored in sbx.
-CODEX_MODEL = live_codex_test_model()
+# Codex and BYO agents: OpenAI API keys, a ChatGPT login stored in sbx, or a
+# compatible custom endpoint.
+OPENAI_PROVIDER, OPENAI_MODEL = live_openai_test_config()
 MAX_STEPS = 20
 _backend_available = functools.cache(sandbox_backend_available)
 _SENSITIVE_NAMES = ("auth.json", ".credentials.json", ".host_auth")
+# Nothing the agent sees may name the benchmark that runs it.
+_HOST_NAME = re.compile(rb"nika", re.IGNORECASE)
 
 
 def _isolate_agent_run_config(
-    *, agent_type: str, provider: str, model: str, backend: str
+    *, agent_type: str, provider: str, model: str, backend: str, base_url: str
 ) -> None:
-    """Avoid host config/nika.yaml base_url leaking into provider env."""
+    """Avoid host config/nika.yaml base_url leaking into provider env.
+
+    Keeps the host's E2B service address (``nika.sandbox.url``), so the E2B
+    variants run against the configured service, such as AgentENV.
+    """
     reset_run_config()
+    sandbox: dict[str, object] = {
+        "backend": backend,
+        "offline_sdk_wheels": True,
+        # Inspected after the run; session close removes it.
+        "keep": backend == "sbx",
+    }
+    if backend == "e2b":
+        sandbox["url"] = load_run_config().nika.sandbox.url
     set_run_config(
         RunConfig.model_validate(
             {
                 "nika": {
                     "result_dir": "results/test",
-                    "sandbox": {
-                        "backend": backend,
-                        "offline_sdk_wheels": True,
-                    },
+                    "sandbox": sandbox,
                 },
                 "agent": {
                     "type": agent_type,
                     "provider": provider,
                     "model": model,
                     "max_steps": MAX_STEPS,
-                    "base_url": live_custom_base_url()
-                    if provider == "custom"
-                    else None,
+                    "base_url": base_url if provider == "custom" else None,
                 },
             }
         )
+    )
+
+
+def _host_name_mentions(texts: list[bytes]) -> list[str]:
+    """Distinct contexts of the places *texts* name the benchmark."""
+    return sorted(
+        {
+            text[max(match.start() - 80, 0) : match.end() + 80].decode(errors="replace")
+            for text in texts
+            for match in _HOST_NAME.finditer(text)
+        }
     )
 
 
@@ -74,6 +101,7 @@ class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
     llm_provider: str = CLAUDE_PROVIDER
     model: str = CLAUDE_MODEL
     _agent_run_failed: bool = False
+    # Request bodies the agent sent to a custom endpoint.
 
     def setup_method(self) -> None:
         backend = self.sandbox_backend
@@ -88,6 +116,7 @@ class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
             provider=self.llm_provider,
             model=self.model,
             backend=backend,
+            base_url=live_custom_base_url(),
         )
 
     def teardown_method(self) -> None:
@@ -103,26 +132,30 @@ class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
         assert self.session_id is not None
         type(self)._agent_run_failed = False
         try:
-            self._run_agent(
-                agent_type=self.agent_type,
-                llm_provider=self.llm_provider,
-                model=self.model,
-                max_steps=MAX_STEPS,
-                reasoning_effort="low" if "codex" in self.agent_type else None,
-            )
+            self._run_sandbox_agent()
             row = SessionStore().get_session(self.session_id)
             assert row.get("agent_type") == self.agent_type
         except FileNotFoundError as exc:
             type(self)._agent_run_failed = True
             pytest.skip(f"Session store missing during agent run: {exc}")
 
+    def _run_sandbox_agent(self) -> None:
+        self._run_agent(
+            agent_type=self.agent_type,
+            llm_provider=self.llm_provider,
+            model=self.model,
+            max_steps=MAX_STEPS,
+            reasoning_effort="low" if "codex" in self.agent_type else None,
+        )
+
     def _assert_sandbox_artifacts(self) -> None:
         assert self.session_dir is not None
         manifest = self.session_dir / "sandbox_manifest.json"
         assert manifest.is_file()
         data = json.loads(manifest.read_text(encoding="utf-8"))
-        assert data["agent_type"] == self.agent_type
+        assert data["agent_class"] == get_agent_spec(self.agent_type).class_path
         text = manifest.read_text(encoding="utf-8")
+        assert not _host_name_mentions([text.encode()])
         assert "OPENAI_API_KEY" not in text
         assert "ANTHROPIC_API_KEY" not in text
         assert not (self.session_dir / ".sandbox_run").exists()
@@ -151,20 +184,49 @@ class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
         phases = {e["phase"] for e in messages}
         assert DIAGNOSIS in phases
 
-    def test_step_05_session_close(self) -> None:
+    def test_step_05_agent_view_names_no_host(self) -> None:
+        """Neither the model traffic nor the sandbox names the benchmark."""
+        if type(self)._agent_run_failed:
+            pytest.skip("Skipping the agent view check due to agent-run failure")
+        # The host's record of every model request, as the agent sent it.
+        requests = [
+            json.dumps(call["request"]).encode()
+            for call in self._load_jsonl("model_calls.jsonl")
+        ]
+        assert requests, "the agent sent no model request"
+        assert _host_name_mentions(requests) == []
+        if self.sandbox_backend != "sbx":
+            return
+        row = SessionStore().get_session(self.session_id)
+        sandbox = sanitize_sandbox_name(resolve_agent_session_id(row))
+        probe = subprocess.run(
+            [
+                "sbx",
+                "exec",
+                sandbox,
+                "bash",
+                "-lc",
+                "hostname; pwd; env; ls -a ~ /tmp; cat /etc/hosts; pip3 list",
+            ],
+            capture_output=True,
+            check=False,
+            timeout=120,
+        )
+        assert probe.returncode == 0, probe.stderr
+        assert _host_name_mentions([probe.stdout]) == []
+
+    def test_step_06_session_close(self) -> None:
         if type(self)._agent_run_failed:
             pytest.skip("Skipping session close verification due to agent-run failure")
         self._step_close_and_verify(self.agent_type)
 
 
-@pytest.mark.skipif(not codex_cli_available(), reason="Codex CLI not available")
 class SandboxCodexCliPipelineTest(SandboxAgentPipelineBase):
     agent_type = "cli.codex"
-    llm_provider = "openai"
-    model = CODEX_MODEL
+    llm_provider = OPENAI_PROVIDER
+    model = OPENAI_MODEL
 
 
-@pytest.mark.skipif(not claude_cli_available(), reason="Claude CLI not available")
 class SandboxClaudeCliPipelineTest(SandboxAgentPipelineBase):
     agent_type = "cli.claude"
     model = CLAUDE_MODEL
@@ -172,8 +234,26 @@ class SandboxClaudeCliPipelineTest(SandboxAgentPipelineBase):
 
 class SandboxCodexSdkPipelineTest(SandboxAgentPipelineBase):
     agent_type = "sdk.codex_sdk"
-    llm_provider = "openai"
-    model = CODEX_MODEL
+    llm_provider = OPENAI_PROVIDER
+    model = OPENAI_MODEL
+
+
+class SandboxLangGraphPipelineTest(SandboxAgentPipelineBase):
+    agent_type = "byo.langgraph"
+    llm_provider = OPENAI_PROVIDER
+    model = OPENAI_MODEL
+
+
+class SandboxMcpAgentPipelineTest(SandboxAgentPipelineBase):
+    agent_type = "byo.mcp_agent"
+    llm_provider = OPENAI_PROVIDER
+    model = OPENAI_MODEL
+
+
+class SandboxAutogenPipelineTest(SandboxAgentPipelineBase):
+    agent_type = "byo.autogen"
+    llm_provider = OPENAI_PROVIDER
+    model = OPENAI_MODEL
 
 
 class SandboxClaudeSdkPipelineTest(SandboxAgentPipelineBase):
@@ -181,7 +261,6 @@ class SandboxClaudeSdkPipelineTest(SandboxAgentPipelineBase):
     model = CLAUDE_MODEL
 
 
-@pytest.mark.skipif(not sade_available(), reason="SADE not available")
 class SandboxSadePipelineTest(SandboxAgentPipelineBase):
     agent_type = "community.sade"
     model = CLAUDE_MODEL
@@ -223,4 +302,16 @@ class E2bClaudeSdkPipelineTest(_OnE2b, SandboxClaudeSdkPipelineTest):
 
 
 class E2bSadePipelineTest(_OnE2b, SandboxSadePipelineTest):
+    pass
+
+
+class E2bLangGraphPipelineTest(_OnE2b, SandboxLangGraphPipelineTest):
+    pass
+
+
+class E2bMcpAgentPipelineTest(_OnE2b, SandboxMcpAgentPipelineTest):
+    pass
+
+
+class E2bAutogenPipelineTest(_OnE2b, SandboxAutogenPipelineTest):
     pass

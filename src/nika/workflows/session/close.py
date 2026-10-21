@@ -259,7 +259,7 @@ def _cleanup_session_sandbox(session_meta: dict, *, session_id: str) -> None:
     Scoped to ``agent_session_id`` only — never wipes other concurrent sandboxes.
     """
     try:
-        from agent.sandbox.backend import cleanup_sandbox_for_session
+        from nika.agents.sandbox.backend import cleanup_sandbox_for_session
 
         result = cleanup_sandbox_for_session(session_meta)
     except Exception as exc:  # noqa: BLE001 - teardown must not block lab close
