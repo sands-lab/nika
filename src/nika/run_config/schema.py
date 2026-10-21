@@ -171,11 +171,13 @@ class NikaSettings(BaseModel):
         if not isinstance(data, dict) or "observability" not in data:
             return data
         data = dict(data)
-        if (data.pop("observability") or {}).get("langfuse_enabled"):
+        observability = data.pop("observability")
+        if isinstance(observability, dict) and observability.get("langfuse_enabled"):
+            # A UserWarning, because Python hides DeprecationWarning by default.
             warnings.warn(
                 "nika.observability is ignored: Langfuse tracing was removed; "
                 "model_calls.jsonl records every model call.",
-                DeprecationWarning,
+                UserWarning,
                 stacklevel=2,
             )
         return data
