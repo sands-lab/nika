@@ -18,11 +18,11 @@ from typing import ClassVar
 
 @dataclass(frozen=True)
 class NativeConversion:
-    """Native configuration per converted router, and original router commands
-    the platform does not reproduce (reported, never silently dropped)."""
+    """Native configuration per converted router, plus Linux commands (such as
+    egress shaping) that the native image cannot run itself."""
 
     configs: dict[str, str]
-    unreproduced: dict[str, tuple[str, ...]]
+    netns_commands: dict[str, tuple[str, ...]]
 
 
 @dataclass(frozen=True)
@@ -54,7 +54,7 @@ class NativeRouterEnv:
     NATIVE_PROFILE_SIZES: ClassVar[Mapping[str, tuple[str, ...]]] = MappingProxyType({})
     device_profile: str = "frr"
     native_routers: Mapping[str, str] = MappingProxyType({})
-    native_router_unreproduced: Mapping[str, tuple[str, ...]] = MappingProxyType({})
+    native_netns_commands: Mapping[str, tuple[str, ...]] = MappingProxyType({})
 
     def router_roles(self) -> Mapping[str, Sequence[str]]:
         """Return router names by role for profile eligibility."""
@@ -85,18 +85,7 @@ class NativeRouterEnv:
         names = self._eligible(roles)
         conversion = platform.convert(self, names)
         self.deployment_configs = conversion.configs
-        self.native_router_unreproduced = conversion.unreproduced
-        if conversion.unreproduced:
-            from nika.utils.logger import system_logger
-
-            system_logger.warning(
-                f"{self.LAB_NAME} on {profile}: commands not reproduced by native "
-                f"routers: {dict(conversion.unreproduced)}"
-            )
-            self.metadata["native_router_unreproduced"] = {
-                name: list(commands)
-                for name, commands in conversion.unreproduced.items()
-            }
+        self.native_netns_commands = MappingProxyType(conversion.netns_commands)
         self.device_profile = profile
         self.native_routers = MappingProxyType(dict.fromkeys(names, profile))
         # Native routers boot and apply configuration in minutes.
@@ -117,3 +106,24 @@ class NativeRouterEnv:
         if self.native_routers:
             native_platform(self.device_profile).check_deployable(self)
         super().deploy()
+        for node, commands in self.native_netns_commands.items():
+            run_in_network_namespace(self, node, commands)
+
+
+def run_in_network_namespace(env, node: str, commands: Sequence[str]) -> None:
+    """Run Linux commands in a Kathara node's network namespace.
+
+    A short-lived NIKA helper container joins the node's namespace, so images
+    without these tools (for example ``tc`` in XRd) keep their link setup.
+    """
+    from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
+    from nika.runtime.shared.containers import docker_client
+
+    container = env._build_runtime().get_container(node)
+    docker_client().containers.run(
+        nika_image("base"),
+        ["/bin/sh", "-ec", "\n".join(commands)],
+        network_mode=f"container:{container.id}",
+        cap_add=["NET_ADMIN"],
+        remove=True,
+    )

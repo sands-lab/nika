@@ -4,10 +4,11 @@ Ethernet environments describe each router with Linux startup commands and an
 FRR configuration. This translation keeps that design on XRd for the subset
 whose semantics map one to one: interface addresses, static routes, OSPF
 network-to-area bindings, and IPv4 BGP with network origins, eBGP multipath and
-FRR's eBGP policy default. Linux egress shaping (netem) is recorded as not
-reproduced: XRd transmits around the container's queueing disciplines. Any
-other statement is rejected, so an unsupported design cannot deploy with
-silently changed meaning.
+FRR's eBGP policy default. Linux egress shaping (netem) still applies to the
+traffic XR transmits; the XRd image has no ``tc``, so the commands are returned
+for the environment to run in the router's network namespace. Any other
+statement is rejected, so an unsupported design cannot deploy with silently
+changed meaning.
 """
 
 from __future__ import annotations
@@ -137,11 +138,11 @@ def _bgp_statement(bgp: _Bgp, line: str) -> bool:
 
 @dataclass(frozen=True)
 class XrRouter:
-    """A translated router and the original commands XR does not reproduce."""
+    """A translated router and the Linux commands its namespace still needs."""
 
     config: str
     interfaces: tuple[str, ...]
-    unreproduced: tuple[str, ...] = ()
+    netns_commands: tuple[str, ...] = ()
 
 
 def translate_frr_router(hostname: str, frr_conf: str, startup: str) -> XrRouter:
@@ -242,15 +243,15 @@ def convert_frr_routers(env, names) -> NativeConversion:
     """Redeploy the named routers of a built Kathara FRR environment as XRd.
 
     Links, addressing and every other node are unchanged. Returns the native
-    configuration per converted router and the original commands, per router,
-    that XR does not reproduce.
+    configuration per converted router and the Linux shaping commands, per
+    router, to run in its network namespace after deployment.
     """
     from dataclasses import replace
 
     from nika.net_env.utils.iosxr.common import configure_xrd_router
     from nika.runtime.spec import MachineInventory
 
-    configs, unreproduced = {}, {}
+    configs, netns_commands = {}, {}
     for name in names:
         machine = env.lab.machines[name]
         router = translate_frr_router(
@@ -266,10 +267,10 @@ def convert_frr_routers(env, names) -> NativeConversion:
             identity, capabilities=tuple(sorted(capabilities))
         )
         configs[name] = router.config
-        if router.unreproduced:
-            unreproduced[name] = router.unreproduced
+        if router.netns_commands:
+            netns_commands[name] = router.netns_commands
     env.metadata["machine_identities"] = MachineInventory(
         env.machine_identities
     ).to_dict()
     env.load_machines()
-    return NativeConversion(configs, unreproduced)
+    return NativeConversion(configs, netns_commands)

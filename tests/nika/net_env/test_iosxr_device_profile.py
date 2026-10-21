@@ -94,7 +94,7 @@ def test_translation_rejects_unmodeled_router_behavior() -> None:
         translate_frr_router("r1", "router bgp 1\n", startup + "brctl addbr br0\n")
 
 
-def test_translation_keeps_areas_and_static_routes_and_reports_shaping() -> None:
+def test_translation_keeps_areas_static_routes_and_underlay_delay() -> None:
     campus = get_net_env_instance("campus_lan", topo_size="s", device_profile="iosxr")
     core = campus.deployment_configs["router_core_1"]
     assert core.index(" area 0") < core.index(" area 1")
@@ -103,10 +103,10 @@ def test_translation_keeps_areas_and_static_routes_and_reports_shaping() -> None
     )
     provider = enterprise.deployment_configs["isp1_core"]
     assert "  198.18.1.10/32 100.64.0.17" in provider
-    # XRd transmits around Linux qdiscs: the provider's WAN delay is reported
-    # as not reproduced instead of being kept as an ineffective command.
+    # XR traffic still passes the container qdiscs, but the XRd image has no
+    # tc: the provider's WAN delay is applied from the router's namespace.
     assert (
         "tc qdisc replace dev eth0 root netem delay 20ms"
-        in (enterprise.native_router_unreproduced["isp1_core"])
+        in enterprise.native_netns_commands["isp1_core"]
     )
     assert "netem" not in enterprise.lab.fs.readtext("isp1_core.startup")
