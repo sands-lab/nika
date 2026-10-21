@@ -30,8 +30,8 @@ from nika.net_env.isp.igp import (
     compile_isp_plan,
 )
 from nika.net_env.utils.containerlab.mgmt_subnet import (
-    mgmt_ipv4_address,
-    mgmt_ipv4_subnet,
+    mgmt_ipv4_addresses,
+    mgmt_ipv4_network,
 )
 from nika.net_env.isp.igp.ifaces import srl_e1_name
 from nika.net_env.isp.igp.srl import render_srl_node_config
@@ -201,18 +201,12 @@ class Isp(ContainerlabNetworkEnv):
         self._populate_role_lists()
 
     def _assign_mgmt_ips(self) -> dict[str, str]:
-        mapping: dict[str, str] = {}
-        index = 2
-        lab = self.name or self.scenario_id
-        for node in sorted(self.plan.nodes, key=lambda n: n.device_name):
-            mapping[node.device_name] = mgmt_ipv4_address(lab, index)
-            index += 1
-        for host in sorted(self.traffic.hosts, key=lambda h: h.host_name):
-            mapping[host.host_name] = mgmt_ipv4_address(lab, index)
-            index += 1
-            if index > 254:
-                raise ValueError("Too many ISP nodes for mgmt /24.")
-        return mapping
+        names = [
+            *sorted(n.device_name for n in self.plan.nodes),
+            *sorted(h.host_name for h in self.traffic.hosts),
+        ]
+        addresses = mgmt_ipv4_addresses(self.name or self.scenario_id, len(names))
+        return dict(zip(names, addresses, strict=True))
 
     def _populate_role_lists(self) -> None:
         self.routers = sorted(n.device_name for n in self.plan.nodes)
@@ -242,7 +236,7 @@ class Isp(ContainerlabNetworkEnv):
     def _build_clab_document(self, *, lab_name: str) -> dict:
         if not getattr(self, "_mgmt_ipv4", None):
             self._mgmt_ipv4 = self._assign_mgmt_ips()
-        mgmt_subnet = mgmt_ipv4_subnet(lab_name)
+        mgmt_subnet = str(mgmt_ipv4_network(lab_name, len(self._mgmt_ipv4)))
         nodes: dict = {}
         for node in self.plan.nodes:
             nodes[node.device_name] = {
