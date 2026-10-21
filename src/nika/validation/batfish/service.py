@@ -30,11 +30,12 @@ def ensure_batfish_service(
     except NotFound:
         try:
             client.images.get(BATFISH_IMAGE)
-        except NotFound as exc:
-            raise RuntimeError(
-                "Build the pinned analyzer first: docker build -t "
-                f"{BATFISH_IMAGE} scripts/batfish"
-            ) from exc
+        except NotFound:
+            from nika.config import REPO_ROOT
+
+            client.images.build(
+                path=str(REPO_ROOT / "scripts" / "batfish"), tag=BATFISH_IMAGE, rm=True
+            )
         container = client.containers.run(
             BATFISH_IMAGE,
             name=BATFISH_CONTAINER_NAME,

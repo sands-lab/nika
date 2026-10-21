@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM python:2.7-slim
+FROM python:2.7-slim@sha256:6c1ffdff499e29ea663e6e67c9b6b9a3b401d554d2c9f061f9a45344e3992363
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONDONTWRITEBYTECODE=1 \

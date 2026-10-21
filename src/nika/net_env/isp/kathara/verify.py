@@ -354,7 +354,7 @@ def verify_isp_contract(
         _verify_intent(runtime, intent=intent, plan=plan, command_cache=command_cache)
         for intent in contract.intents
     ]
-    return ValidationReport.from_results(contract, "isp-runtime-v1", results)
+    return ValidationReport.from_results(contract, "isp-runtime", results)
 
 
 def _verify_intent(
@@ -487,7 +487,7 @@ def _verify_intent(
         reason = str(exc)
     return ValidationResult(
         intent=intent.id,
-        verifier="isp-runtime-v1",
+        verifier="isp-runtime",
         status=status,
         evidence=evidence,
         reason=reason,

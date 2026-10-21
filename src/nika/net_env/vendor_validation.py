@@ -166,7 +166,7 @@ def _supported_request(intent, platform: str) -> VerifyCommand | None:
 def _verify_contract(
     runtime, contract: ValidationContract, platform: str
 ) -> ValidationReport:
-    verifier = f"{platform}-runtime-v1"
+    verifier = f"{platform}-runtime"
     requests = {
         intent.id: _supported_request(intent, platform) for intent in contract.intents
     }

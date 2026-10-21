@@ -928,8 +928,8 @@ def build_benchmark_isp_experiment(
     announcement = f"network {prefix} area 0.0.0.0"
     old_announcement = " " + announcement
     context = ("router ospf",)
-    static_failed = tuple(sorted((destination_id, *withdrawn_ids)))
-    runtime_failed = tuple(
+    # Both oracles evaluate echo request and reply from the same specification.
+    failed_ids = tuple(
         sorted((destination_id, f"reach.{target}.{withdrawal_anchor}", *withdrawn_ids))
     )
     if env.bgp_plan:
@@ -957,16 +957,7 @@ def build_benchmark_isp_experiment(
                 )
             )
 
-        static_failed = tuple(
-            sorted(
-                i.id
-                for i in healthy.intents
-                if i.property == "reachability"
-                and i.source.name != target
-                and uses_origin(i.destination)
-            )
-        )
-        runtime_failed = tuple(
+        failed_ids = tuple(
             sorted(
                 i.id
                 for i in healthy.intents
@@ -1028,8 +1019,6 @@ def build_benchmark_isp_experiment(
                 expected_failed_ids=(role.id,),
             )
         )
-    # Both oracles evaluate echo request and reply from the same specification.
-    static_failed = runtime_failed
     if srl:
         # Mutate concrete native documents, retaining the original requirement IDs.
         documents = env.routing_documents
@@ -1125,8 +1114,7 @@ def build_benchmark_isp_experiment(
             for n in env.bgp_plan.nodes
             if n.asn == r.asn
         )
-        static_failed = tuple(sorted((*static_failed, *withdrawn_selections)))
-        runtime_failed = tuple(sorted((*runtime_failed, *withdrawn_selections)))
+        failed_ids = tuple(sorted((*failed_ids, *withdrawn_selections)))
     return RoutingExperiment(
         scenario=scenario,
         routing_model="srl-isp"
@@ -1156,7 +1144,7 @@ def build_benchmark_isp_experiment(
                 node=target,
                 old=old_announcement,
                 new=static_replacement,
-                expected_failed_ids=static_failed,
+                expected_failed_ids=failed_ids,
             ),
             *role_static,
         ),
@@ -1166,7 +1154,7 @@ def build_benchmark_isp_experiment(
                 node=target,
                 commands=withdraw_native,
                 recovery=recover_native,
-                expected_failed_ids=runtime_failed,
+                expected_failed_ids=failed_ids,
             ),
             *role_runtime,
         ),

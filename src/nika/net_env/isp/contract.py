@@ -126,15 +126,31 @@ def build_isp_validation_contract(
         node_by_name = {
             entity.name: entity for entity in catalog.entities if entity.kind == "node"
         }
+        origin_by_prefix = {item.prefix: item.device for item in bgp_plan.originated}
         for observer, prefix in sorted(bgp_plan.expect_reachable):
             destination = prefix_by_value[prefix]
+            source = node_by_name[observer]
+            # A loopback stays inside its own AS, so an eBGP observer probes
+            # from its peering link to the originator.
+            session = next(
+                (
+                    s
+                    for s in bgp_plan.sessions
+                    if s.session_type == "ebgp"
+                    and s.local_device == observer
+                    and s.remote_device == origin_by_prefix[prefix]
+                ),
+                None,
+            )
+            if session is not None:
+                source = source.model_copy(update={"address": session.local_ip})
             intents.append(
                 ValidationIntent(
                     id=f"reach.bgp.{observer}.{destination.name}.icmp",
                     description=f"BGP observer {observer} must reach designed prefix {prefix}.",
                     property="reachability",
                     expected="reachable",
-                    source=node_by_name[observer],
+                    source=source,
                     destination=destination,
                     traffic=TrafficSelector(protocol="icmp"),
                 )

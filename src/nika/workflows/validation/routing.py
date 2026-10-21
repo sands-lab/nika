@@ -3,7 +3,6 @@
 from __future__ import annotations
 import json
 import shlex
-import subprocess
 import time
 from pathlib import Path
 from ipaddress import IPv4Address, IPv4Interface
@@ -20,6 +19,7 @@ from nika.net_env.isp.kathara.verify import verify_isp_contract
 from nika.problems.link_interface.link import LinkFailure, LinkFailureParams
 from nika.runtime.factory import runtime_for_session
 from nika.utils.session import Session
+from nika.utils.logger import system_logger
 from nika.validation.batfish.kathara import (
     build_kathara_snapshot,
     startup_addresses,
@@ -333,7 +333,9 @@ def validate_routing_design(
             summary["static"][name] = accept(
                 verifier.verify(contract, snapshot), output / f"static-{name}.json"
             )
-            print("static", spec.scenario, name, summary["static"][name], flush=True)
+            system_logger.info(
+                "static %s %s %s", spec.scenario, name, summary["static"][name]
+            )
         for mutation in spec.counterexamples:
             configs = candidate_configs()
             if configs[mutation.node].count(mutation.old) != 1:
@@ -444,8 +446,8 @@ def validate_routing_design(
                         accept(report, output / f"runtime-{name}.json")
                     time.sleep(3)
                 summary["runtime"][name] = {"passed": len(report.results), "failed": 0}
-                print(
-                    "runtime", spec.scenario, name, summary["runtime"][name], flush=True
+                system_logger.info(
+                    "runtime %s %s %s", spec.scenario, name, summary["runtime"][name]
                 )
 
             def reject(name, expected_failed_ids):
@@ -612,20 +614,10 @@ def validate_routing_design(
             if native_vendor:
                 node = next(iter(env.BGP_ROUTERS))
             if node:
-                observed = subprocess.run(
-                    [
-                        "nika",
-                        "exec",
-                        "--session_id",
-                        session_id,
-                        node if isinstance(node, str) else node.name,
-                        inspection_command,
-                    ],
-                    capture_output=True,
-                    text=True,
-                    check=True,
+                observed = backend.exec(
+                    node if isinstance(node, str) else node.name, inspection_command
                 )
-                (output / "runtime-route-inspection.json").write_text(observed.stdout)
+                (output / "runtime-route-inspection.json").write_text(observed)
             for mutation in spec.runtime_counterexamples:
 
                 def configure(commands):

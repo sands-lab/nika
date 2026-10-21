@@ -89,7 +89,7 @@ The pinned Batfish image includes an [FRR next-hop correction](../../scripts/bat
 
 ## Reproduce regression checks
 
-The [coverage record](coverage.json) summarizes earlier executions and their limits. Current regressions exercise the shared implementation:
+These regressions exercise the shared implementation:
 
 ```bash
 uv run pytest tests/nika/validation -m 'unit or contract' -q
