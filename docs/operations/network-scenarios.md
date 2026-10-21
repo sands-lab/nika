@@ -341,6 +341,34 @@ uv run nika env run routeros_simple_bgp
 
 Boot is slower than the FRR and XRd scenarios because each router boots a nested VM; the scenario's verification window accounts for this, so a slow first boot is expected and not a failure.
 
+### Run other environments on RouterOS routers
+
+To compare an agent on a second network operating system, run an existing environment with RouterOS routers instead of FRR. Pass `--device-profile routeros`; hosts, services, addressing and routing protocols stay the same:
+
+```shell
+uv run nika env run isp_arpanet196912 --device-profile routeros --igp isis --bgp-mode ibgp_rr
+uv run nika env run dc_clos -s s --device-profile routeros
+uv run nika env run campus_lan -s s --device-profile routeros
+```
+
+| Environment | RouterOS support |
+| --- | --- |
+| `isp_<topology>` | IS-IS or OSPF, with `--bgp-mode none`, `ibgp_rr` or `ebgp`, business-prefix and infrastructure-prefix policies. Not RPKI or RTBH specials. |
+| `dc_clos` | Size `s`, eBGP fabric. |
+| `campus_lan` | Size `s`, multi-area OSPF, bridged gateways and DHCP relay. Access switches stay Linux bridges. |
+| `enterprise_branch` | Not supported. |
+
+Each router is a VM, so keep topologies small: ISP deployments check a memory estimate of 1 GiB per router before they start, and `dc_clos` and `campus_lan` reject sizes other than `s`. A router supports at most 30 data ports.
+
+Agents reach RouterOS through `kathara_routeros_mcp_server`, or run RouterOS commands with `nika exec` through the internal management hop that [`routeros_api.py`](../../src/nika/service/lab/routeros_api.py) uses. Inside the router, container interface `ethN` is RouterOS port `ether(N+1)`; `ether1` is vrnetlab's management port.
+
+Link failures behave as on FRR: QEMU does not pass a container interface's link state to the VM, so a watcher in each router container mirrors it to the RouterOS port, and routes over a downed link are withdrawn at once. Two routing behaviors differ from FRR:
+
+* RouterOS installs one best BGP path, so `dc_clos` traffic uses a single spine instead of FRR's equal-cost multipath.
+* RouterOS advertises passive IS-IS interfaces, such as host-facing links, with metric 0. Route selection is unchanged because each such prefix has one origin.
+
+If RouterOS rejects a startup command, the environment fails immediately with the router name and RouterOS's import error instead of waiting for the verification deadline.
+
 ## SNDlib ISP scenarios
 
 ### `isp_<topology>`

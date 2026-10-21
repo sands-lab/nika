@@ -181,8 +181,10 @@ A new compatible topology supplies different inputs to this workflow. A new prot
 selects its execution environment. The existing benchmark row identity includes
 both fields, so the same graph and protocol sketch can have distinct FRR, SR
 Linux, IOS XR and RouterOS tasks without adding a separate `vendor` field.
-IOS XR and RouterOS ISP deployments currently require explicit `igp: ospf` and
-support `bgp_mode: none`, `ibgp_rr` and `ebgp`; security overlays remain excluded.
+IOS XR and RouterOS ISP deployments support `bgp_mode: none`, `ibgp_rr` and
+`ebgp`; security overlays remain excluded. IOS XR requires `igp: ospf`. RouterOS
+deployments also run IS-IS, but this experiment's RouterOS configuration
+analysis covers OSPF only, so RouterOS IS-IS profiles are rejected here.
 
 With both vendor images installed, run the retained native matrix serially:
 

@@ -53,6 +53,9 @@ class NetEnvSpec:
     licensed_images: bool = False
     # Kubernetes lab whose workload images are host-cached and sideloaded into k3s.
     k8s_image_cache: bool = False
+    # Native router profiles the lab accepts through ``device_profile`` in
+    # addition to its default FRR routers (non-ISP scenarios).
+    device_profiles: tuple[str, ...] = ()
 
     @property
     def LAB_NAME(self) -> str:
@@ -130,6 +133,7 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         ),
         supported_backends=("kathara",),
         topo_size=["s", "m", "l"],
+        device_profiles=("routeros",),
     ),
     "campus_lan": NetEnvSpec(
         lab_name="campus_lan",
@@ -154,6 +158,7 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         ),
         supported_backends=("kathara",),
         topo_size=["s", "m", "l"],
+        device_profiles=("routeros",),
     ),
     "enterprise_branch": NetEnvSpec(
         lab_name="enterprise_branch",
@@ -567,6 +572,11 @@ def effective_tags(column: str) -> frozenset[str]:
             return _ISP_COVERAGE_BASE_TAGS | frozenset({"ospf", "bgp", "ebgp"})
         raise ValueError(f"Unknown isp config {config!r} for {scenario!r}")
     return frozenset(scenario_tags(scenario))
+
+
+def scenario_device_profiles(scenario_name: str) -> tuple[str, ...]:
+    """Return non-default router profiles accepted by a non-ISP scenario."""
+    return _require_scenario(scenario_name).device_profiles
 
 
 def scenario_supported_backends(scenario_name: str) -> list[str]:

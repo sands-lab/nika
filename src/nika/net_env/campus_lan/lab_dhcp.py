@@ -39,6 +39,10 @@ log file /var/log/frr/frr.log
 """
 
 
+DEVICE_PROFILES = ("frr", "routeros")
+NATIVE_TOPO_SIZES = ("s",)
+
+
 class RouterMeta:
     def __init__(self, name, machine: Machine, eth_index, cmd_list):
         self.name = name
@@ -49,6 +53,33 @@ class RouterMeta:
         self.frr_config = ""
         self.frr_ospf_configs = []
         self.host_network = None  # for dist nodes
+        # Profile-neutral intents rendered for native routers.
+        self.addresses: list[tuple[str, str]] = []
+        self.ospf_networks: dict[str, str] = {}
+        self.bridge_ports: list[str] | None = None
+        self.dhcp_relay: str | None = None
+        self.uplink = "eth0"
+
+    def add_address(self, cidr: str, iface: str) -> None:
+        self.cmd_list.append(f"ip addr add {cidr} dev {iface}")
+        self.addresses.append((iface, cidr))
+
+    def add_ospf_network(self, network, area: int) -> None:
+        self.frr_ospf_configs.append(f"network {network} area {area}")
+        self.ospf_networks[str(network)] = f"0.0.0.{area}"
+
+    def add_bridge(self) -> None:
+        self.cmd_list.append("brctl addbr br0")
+        self.cmd_list.append("ip link set br0 up")
+        self.bridge_ports = []
+
+    def add_bridge_port(self, iface: str) -> None:
+        self.cmd_list.append(f"brctl addif br0 {iface}")
+        self.bridge_ports.append(iface)
+
+    def add_dhcp_relay(self, server_ip: str, *, uplink: str) -> None:
+        self.cmd_list.append(f"dhcrelay  -i br0 -i {uplink} {server_ip}")
+        self.dhcp_relay = server_ip
 
 
 class SwitchMeta:
@@ -72,8 +103,26 @@ class CampusLanDhcp(NetworkEnvBase):
     LAB_NAME = "campus_lan"
     TOPO_LEVEL = "hard"
 
-    def __init__(self, topo_size: Literal["s", "m", "l"] = "s", **kwargs):
+    def __init__(
+        self,
+        topo_size: Literal["s", "m", "l"] = "s",
+        device_profile: Literal["frr", "routeros"] = "frr",
+        **kwargs,
+    ):
         super().__init__(**kwargs)
+        if device_profile not in DEVICE_PROFILES:
+            raise ValueError(
+                f"campus_lan supports device profiles {', '.join(DEVICE_PROFILES)}; "
+                f"got {device_profile!r}."
+            )
+        if device_profile != "frr" and topo_size not in NATIVE_TOPO_SIZES:
+            raise ValueError(
+                f"campus_lan with device_profile={device_profile!r} supports "
+                f"topo_size {', '.join(NATIVE_TOPO_SIZES)} only: each RouterOS "
+                "router boots a QEMU VM, so larger campuses exceed the supported "
+                "host budget."
+            )
+        self.device_profile = device_profile
         self.lab = Lab(self.LAB_NAME)
         self.name = self.LAB_NAME
         self.instance = Kathara.get_instance()
@@ -94,22 +143,11 @@ class CampusLanDhcp(NetworkEnvBase):
         # core layer, only core1 and core2 connect dist routers, core3 connect to server subnet
         core_routers = {}
         for core_id in range(1, 4):
-            router_core = self.lab.new_machine(
+            # Core 1 and 2 serve distribution routers; core 3 the server farm.
+            core_routers[core_id] = self._new_router(
                 f"router_core_{core_id}",
-                **{"image": nika_image("frr"), "cpus": 0.5, "mem": "256m"},
+                data_interfaces=2 + (DIST_SW_COUNT if core_id < 3 else 1),
             )
-            self.declare_machine(
-                router_core.name,
-                role=NodeRole.ROUTER,
-                capabilities=("linux", "frr", "ospf"),
-            )
-            router_core_meta = RouterMeta(
-                name=f"router_core_{core_id}",
-                machine=router_core,
-                eth_index=0,
-                cmd_list=[],
-            )
-            core_routers[core_id] = router_core_meta
 
         # distribution layer
         core_dists = {}
@@ -118,21 +156,9 @@ class CampusLanDhcp(NetworkEnvBase):
         for core_id in range(1, 3):  # core1 and core2
             core_dists[core_id] = []
             for dist_id in range(1, DIST_SW_COUNT + 1):
-                dist_name = f"router_dist_{core_id}_{dist_id}"
-                router_dist = self.lab.new_machine(
-                    dist_name,
-                    **{"image": nika_image("frr"), "cpus": 0.5, "mem": "256m"},
-                )
-                self.declare_machine(
-                    dist_name,
-                    role=NodeRole.ROUTER,
-                    capabilities=("linux", "frr", "ospf"),
-                )
-                dist_meta = RouterMeta(
-                    name=dist_name,
-                    machine=router_dist,
-                    eth_index=0,
-                    cmd_list=[],
+                dist_meta = self._new_router(
+                    f"router_dist_{core_id}_{dist_id}",
+                    data_interfaces=1 + ACCESS_SW_PER_DIST,
                 )
                 core_dists[core_id].append(dist_meta)
 
@@ -296,20 +322,9 @@ class CampusLanDhcp(NetworkEnvBase):
         servers[host_name] = host_meta
 
         # server access switch
-        server_router = self.lab.new_machine(
-            "server_access_router",
-            **{"image": nika_image("frr"), "cpus": 0.5, "mem": "256m"},
-        )
-        self.declare_machine(
-            server_router.name,
-            role=NodeRole.ROUTER,
-            capabilities=("linux", "frr", "ospf"),
-        )
-        server_router_meta = RouterMeta(
-            name="server_access_router",
-            machine=server_router,
-            eth_index=0,
-            cmd_list=[],
+        # Every server shares the bridge; one more port reaches core 3.
+        server_router_meta = self._new_router(
+            "server_access_router", data_interfaces=len(servers) + 1
         )
 
         # Now connect the layers and assign IPs and OSPF configs
@@ -332,16 +347,12 @@ class CampusLanDhcp(NetworkEnvBase):
                 )
                 subnet = subnets_infra.pop(0)
                 a_ip, b_ip = assign_p2p_ips(subnet)
-                core_meta1.cmd_list.append(
-                    f"ip addr add {a_ip} dev eth{core_meta1.eth_index}"
-                )
-                core_meta2.cmd_list.append(
-                    f"ip addr add {b_ip} dev eth{core_meta2.eth_index}"
-                )
+                core_meta1.add_address(a_ip, f"eth{core_meta1.eth_index}")
+                core_meta2.add_address(b_ip, f"eth{core_meta2.eth_index}")
 
                 # add OSPF area network
-                core_meta1.frr_ospf_configs.append(f"network {subnet} area 0")
-                core_meta2.frr_ospf_configs.append(f"network {subnet} area 0")
+                core_meta1.add_ospf_network(subnet, 0)
+                core_meta2.add_ospf_network(subnet, 0)
 
                 # add router ID
                 if core_meta1.router_id == "":
@@ -365,17 +376,14 @@ class CampusLanDhcp(NetworkEnvBase):
                 )
                 subnet = subnets_infra.pop(0)
                 a_ip, b_ip = assign_p2p_ips(subnet)
-                core_meta.cmd_list.append(
-                    f"ip addr add {a_ip} dev eth{core_meta.eth_index}"
-                )
+                core_meta.add_address(a_ip, f"eth{core_meta.eth_index}")
                 core_meta.eth_index += 1
-                dist_meta.cmd_list.append(
-                    f"ip addr add {b_ip} dev eth{dist_meta.eth_index}"
-                )
+                dist_meta.add_address(b_ip, f"eth{dist_meta.eth_index}")
+                dist_meta.uplink = f"eth{dist_meta.eth_index}"
 
                 # add OSPF area network
-                core_meta.frr_ospf_configs.append(f"network {subnet} area 1")
-                dist_meta.frr_ospf_configs.append(f"network {subnet} area 1")
+                core_meta.add_ospf_network(subnet, 1)
+                dist_meta.add_ospf_network(subnet, 1)
 
                 # add router ID
                 if core_meta.router_id == "":
@@ -389,8 +397,7 @@ class CampusLanDhcp(NetworkEnvBase):
             for dist_id in range(1, DIST_SW_COUNT + 1):
                 dist_key = f"{core_id}_{dist_id}"
                 dist_meta = core_dists[core_id][dist_id - 1]
-                dist_meta.cmd_list.append("brctl addbr br0")
-                dist_meta.cmd_list.append("ip link set br0 up")
+                dist_meta.add_bridge()
                 for access_meta in dist_accesses[dist_key]:
                     self.lab.connect_machine_to_link(
                         dist_meta.machine.name,
@@ -401,9 +408,7 @@ class CampusLanDhcp(NetworkEnvBase):
                         f"{dist_meta.machine.name}_{access_meta.machine.name}",
                     )
                     # add bridge setup command
-                    dist_meta.cmd_list.append(
-                        f"brctl addif br0 eth{dist_meta.eth_index}"
-                    )
+                    dist_meta.add_bridge_port(f"eth{dist_meta.eth_index}")
                     access_meta.cmd_list.append("brctl addbr br0")
                     access_meta.cmd_list.append("ip link set br0 up")
                     access_meta.cmd_list.append(
@@ -421,12 +426,12 @@ class CampusLanDhcp(NetworkEnvBase):
 
                 # add network to dist router OSPF config
                 dist_meta = core_dists[core_id][dist_id - 1]
-                dist_meta.frr_ospf_configs.append(f"network {dist_network} area 1")
+                dist_meta.add_ospf_network(dist_network, 1)
 
                 # add IP assignment to br0
                 default_gateway_ip = next(host_ip_gen)
-                dist_meta.cmd_list.append(
-                    f"ip addr add {default_gateway_ip}/{dist_network.prefixlen} dev br0"
+                dist_meta.add_address(
+                    f"{default_gateway_ip}/{dist_network.prefixlen}", "br0"
                 )
 
                 for access_id in range(1, ACCESS_SW_PER_DIST + 1):
@@ -450,14 +455,13 @@ class CampusLanDhcp(NetworkEnvBase):
                         )
                         access_meta.eth_index += 1
 
-        server_router_meta.cmd_list.append("brctl addbr br0")
-        server_router_meta.cmd_list.append("ip link set br0 up")
+        server_router_meta.add_bridge()
         # add ospf config
-        server_router_meta.frr_ospf_configs.append(f"network {server_network} area 0")
+        server_router_meta.add_ospf_network(server_network, 0)
 
         # add default gateway to server access switch
-        server_router_meta.cmd_list.append(
-            f"ip addr add {server_gateway_ip}/{server_network.prefixlen} dev br0"
+        server_router_meta.add_address(
+            f"{server_gateway_ip}/{server_network.prefixlen}", "br0"
         )
 
         # connect servers to access switch
@@ -471,9 +475,7 @@ class CampusLanDhcp(NetworkEnvBase):
                 f"{server_router_meta.machine.name}_{server_meta.machine.name}",
             )
             # add bridge setup command
-            server_router_meta.cmd_list.append(
-                f"brctl addif br0 eth{server_router_meta.eth_index}"
-            )
+            server_router_meta.add_bridge_port(f"eth{server_router_meta.eth_index}")
             # attach server side
             server_ip = next(server_ip_gen)
             server_meta.cmd_list.append(
@@ -492,9 +494,9 @@ class CampusLanDhcp(NetworkEnvBase):
                 for core_id in range(1, 3):
                     for dist_id in range(1, DIST_SW_COUNT + 1):
                         dist_meta = core_dists[core_id][dist_id - 1]
-                        dist_meta.cmd_list.append(
-                            f"dhcrelay  -i br0 -i eth0 {server_ip}"
-                        )  # make sure eth0 is connected to core router
+                        dist_meta.add_dhcp_relay(
+                            str(server_ip), uplink=dist_meta.uplink
+                        )
 
         # address assignment for load balancer backend servers
         lb_network = IPv4Network("20.200.0.0/24")
@@ -535,13 +537,11 @@ class CampusLanDhcp(NetworkEnvBase):
         )
         subnet = subnets_infra.pop(0)
         a_ip, b_ip = assign_p2p_ips(subnet)
-        core3_meta.cmd_list.append(f"ip addr add {a_ip} dev eth{core3_meta.eth_index}")
-        server_router_meta.cmd_list.append(
-            f"ip addr add {b_ip} dev eth{server_router_meta.eth_index}"
-        )
+        core3_meta.add_address(a_ip, f"eth{core3_meta.eth_index}")
+        server_router_meta.add_address(b_ip, f"eth{server_router_meta.eth_index}")
         # add OSPF area network
-        core3_meta.frr_ospf_configs.append(f"network {subnet} area 0")
-        server_router_meta.frr_ospf_configs.append(f"network {subnet} area 0")
+        core3_meta.add_ospf_network(subnet, 0)
+        server_router_meta.add_ospf_network(subnet, 0)
         # add router ID
         if core3_meta.router_id == "":
             core3_meta.router_id = a_ip.split("/")[0]
@@ -553,78 +553,13 @@ class CampusLanDhcp(NetworkEnvBase):
         """
         configure FRR and startup scripts for all routers, switches, and hosts
         """
-        # Add basic configuration to the core routers
-        for core_id, core_meta in core_routers.items():
-            # general conf for frr
-            core_meta.machine.create_file_from_path(
-                str(pkg_path("net_env/utils/kathara/ospf/daemons")), "/etc/frr/daemons"
-            )
-            core_meta.machine.create_file_from_path(
-                str(pkg_path("net_env/utils/kathara/ospf/vtysh.conf")),
-                "/etc/frr/vtysh.conf",
-            )
-            core_meta.frr_config = FRR_BASE_TEMPLATE.format(
-                router_id=core_meta.router_id,
-                ospf_networks="\n ".join(core_meta.frr_ospf_configs),
-            )
-            core_meta.machine.create_file_from_string(
-                core_meta.frr_config, "/etc/frr/frr.conf"
-            )
-
-            # startup file
-            core_meta.cmd_list.append("service frr start")
-            self.lab.create_file_from_list(
-                core_meta.cmd_list,
-                f"{core_meta.machine.name}.startup",
-            )
-
-        # add basic configuration to the dist switches
-        for core_id, dist_metas in core_dists.items():
-            for dist_meta in dist_metas:
-                # general conf for frr
-                dist_meta.machine.create_file_from_path(
-                    str(pkg_path("net_env/utils/kathara/ospf/daemons")),
-                    "/etc/frr/daemons",
-                )
-                dist_meta.machine.create_file_from_path(
-                    str(pkg_path("net_env/utils/kathara/ospf/vtysh.conf")),
-                    "/etc/frr/vtysh.conf",
-                )
-                dist_meta.frr_config = FRR_BASE_TEMPLATE.format(
-                    router_id=dist_meta.router_id,
-                    ospf_networks="\n ".join(dist_meta.frr_ospf_configs),
-                )
-                dist_meta.machine.create_file_from_string(
-                    dist_meta.frr_config, "/etc/frr/frr.conf"
-                )
-
-                # startup file
-                dist_meta.cmd_list.append("service frr start")
-                self.lab.create_file_from_list(
-                    dist_meta.cmd_list,
-                    f"{dist_meta.machine.name}.startup",
-                )
-
-        # add configurations for server switch
-        server_router_meta.machine.create_file_from_path(
-            str(pkg_path("net_env/utils/kathara/ospf/daemons")), "/etc/frr/daemons"
-        )
-        server_router_meta.machine.create_file_from_path(
-            str(pkg_path("net_env/utils/kathara/ospf/vtysh.conf")),
-            "/etc/frr/vtysh.conf",
-        )
-        server_router_meta.frr_config = FRR_BASE_TEMPLATE.format(
-            router_id=server_router_meta.router_id,
-            ospf_networks="\n ".join(server_router_meta.frr_ospf_configs),
-        )
-        server_router_meta.machine.create_file_from_string(
-            server_router_meta.frr_config, "/etc/frr/frr.conf"
-        )
-        server_router_meta.cmd_list.append("service frr start")
-        self.lab.create_file_from_list(
-            server_router_meta.cmd_list,
-            f"{server_router_meta.machine.name}.startup",
-        )
+        routers = [
+            *core_routers.values(),
+            *(meta for metas in core_dists.values() for meta in metas),
+            server_router_meta,
+        ]
+        for router_meta in routers:
+            self._write_router(router_meta)
 
         # add configurations for access switches
         for dist_key, access_metas in dist_accesses.items():
@@ -847,6 +782,69 @@ class CampusLanDhcp(NetworkEnvBase):
 
         # add DNS
         self.dns_servers = [dns.ip_address for dns in tot_dns]
+
+    def _new_router(self, name: str, *, data_interfaces: int) -> RouterMeta:
+        if self.device_profile == "routeros":
+            from nika.net_env.utils.routeros.common import add_routeros_router
+
+            machine = add_routeros_router(
+                self.lab, name, data_interfaces=data_interfaces
+            )
+            # Container eth0 is the VM's management port.
+            eth_index = 1
+        else:
+            machine = self.lab.new_machine(
+                name, **{"image": nika_image("frr"), "cpus": 0.5, "mem": "256m"}
+            )
+            eth_index = 0
+        self.declare_machine(
+            name,
+            role=NodeRole.ROUTER,
+            capabilities=("linux", self.device_profile, "ospf"),
+        )
+        return RouterMeta(name=name, machine=machine, eth_index=eth_index, cmd_list=[])
+
+    def _write_router(self, router_meta: RouterMeta) -> None:
+        if self.device_profile == "routeros":
+            from nika.net_env.utils.routeros.common import set_routeros_config
+            from nika.net_env.utils.routeros.render import (
+                render_base,
+                render_bridge,
+                render_dhcp_relay,
+                render_ospf,
+                render_script,
+            )
+
+            routed = [(i, a) for i, a in router_meta.addresses if i != "br0"]
+            bridged = [a for i, a in router_meta.addresses if i == "br0"]
+            sections = [render_base(router_meta.name, routed)]
+            if router_meta.bridge_ports is not None:
+                sections.append(render_bridge(router_meta.bridge_ports, bridged))
+            sections.append(
+                render_ospf(router_meta.router_id, router_meta.ospf_networks)
+            )
+            if router_meta.dhcp_relay is not None:
+                sections.append(render_dhcp_relay(router_meta.dhcp_relay, bridged[0]))
+            set_routeros_config(router_meta.machine, render_script(*sections))
+            return
+        router_meta.machine.create_file_from_path(
+            str(pkg_path("net_env/utils/kathara/ospf/daemons")), "/etc/frr/daemons"
+        )
+        router_meta.machine.create_file_from_path(
+            str(pkg_path("net_env/utils/kathara/ospf/vtysh.conf")),
+            "/etc/frr/vtysh.conf",
+        )
+        router_meta.frr_config = FRR_BASE_TEMPLATE.format(
+            router_id=router_meta.router_id,
+            ospf_networks="\n ".join(router_meta.frr_ospf_configs),
+        )
+        router_meta.machine.create_file_from_string(
+            router_meta.frr_config, "/etc/frr/frr.conf"
+        )
+        router_meta.cmd_list.append("service frr start")
+        self.lab.create_file_from_list(
+            router_meta.cmd_list, f"{router_meta.machine.name}.startup"
+        )
 
     def verify_lab(self) -> dict:
         from nika.net_env.campus_lan.verify import (

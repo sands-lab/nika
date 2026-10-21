@@ -16,6 +16,10 @@ from Kathara.model.Machine import Machine
 from nika.net_env.utils.kathara.docker_files.docker_images import image_exists
 from nika.service.lab.routeros_api import CLI_COMMAND
 
+BGP_PEERS_COMMAND = CLI_COMMAND.format(
+    command="/routing/bgp/session/print terse where established=yes"
+)
+
 # MikroTik licensing blocks redistributing / auto-building this image like nika/*.
 IMAGE = "vrnetlab/mikrotik_routeros:7.21.5"
 
@@ -60,8 +64,8 @@ def add_routeros_router(
     lab: Lab,
     name: str,
     *,
-    config: str,
     data_interfaces: int,
+    config: str | None = None,
     cpus: float = 1.0,
     mem: str = CONTAINER_MEMORY,
 ) -> Machine:
@@ -70,6 +74,7 @@ def add_routeros_router(
     ``data_interfaces`` must equal the number of links attached afterwards:
     vrnetlab waits, without a timeout, for that many container interfaces.
     Connect data links after this call so they receive ``eth1`` onwards.
+    Pass ``config`` here or write it later with ``set_routeros_config``.
     """
     if not 1 <= data_interfaces <= MAX_DATA_INTERFACES:
         raise ValueError(
@@ -83,9 +88,41 @@ def add_routeros_router(
     # (Containerlab's model). Kathara attaches them before the container
     # starts; macvtap wraps the interfaces that already exist.
     machine.add_meta("args", "--connection-mode macvtap")
-    machine.create_file_from_string(config, CONFIG_FILE_PATH)
+    if config is not None:
+        set_routeros_config(machine, config)
     lab.connect_machine_to_link(name, f"{name}_reserved0", machine_iface_number=0)
     return machine
+
+
+def set_routeros_config(machine: Machine, config: str) -> None:
+    """Install the startup script vrnetlab uploads after the VM boots."""
+    machine.create_file_from_string(config, CONFIG_FILE_PATH)
+
+
+def routeros_bgp_peer_query():
+    """Return the RouterOS ``BgpPeerQuery`` for Established-session checks."""
+    from nika.net_env.utils.routeros.parse import routeros_established_bgp_peers
+    from nika.net_env.verify import BgpPeerQuery
+
+    return BgpPeerQuery(BGP_PEERS_COMMAND, routeros_established_bgp_peers)
+
+
+def routeros_config_check(runtime, routers: Iterable[str]) -> bool:
+    """Read every router's import log; see ``routeros_config_applied``."""
+    from nika.net_env.verify import exec_or_empty
+
+    return routeros_config_applied(
+        (router, exec_or_empty(runtime, router, CONFIG_LOG_COMMAND, timeout=20))
+        for router in routers
+    )
+
+
+def with_routeros_config_check(runtime, routers: Iterable[str], result: dict) -> dict:
+    """Add the startup-import check to a lab verification result."""
+    applied = routeros_config_check(runtime, routers)
+    result["checks"] = {"routeros_config_applied": applied, **result["checks"]}
+    result["verified"] = bool(result["verified"] and applied)
+    return result
 
 
 def routeros_config_applied(outputs: Iterable[tuple[str, str]]) -> bool:

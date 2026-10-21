@@ -39,6 +39,7 @@ from nika.net_env.net_env_pool import (
     get_net_env_instance,
     resolve_scenario_backend,
     resolve_scenario_id,
+    scenario_device_profiles,
     scenario_fixed_topo_size,
     scenario_requires_topo_size,
 )
@@ -125,11 +126,23 @@ def _resolve_isp_kwargs(
         return {}
 
     if not is_isp_base_topology(scenario):
+        profiles = scenario_device_profiles(scenario)
+        profile = str(device_profile or "").strip().lower()
+        if profile and profile not in ("frr", *profiles):
+            raise ValueError(
+                f"Scenario '{scenario}' supports device profiles "
+                f"{', '.join(('frr', *profiles))}; got {device_profile!r}."
+            )
+        if profile and profiles:
+            provided.pop("device_profile")
+            if not any(value is not None for value in provided.values()):
+                return {} if profile == "frr" else {"device_profile": profile}
         if any_provided:
             raise ValueError(
                 f"Scenario '{scenario}' does not accept --topo/--igp/"
-                "--metric-strategy/--constant-metric/--bgp-mode/--rpki/"
-                "--device-profile; those flags are only valid for "
+                "--metric-strategy/--constant-metric/--bgp-mode/--rpki"
+                + ("" if profiles else "/--device-profile")
+                + "; those flags are only valid for "
                 "ISP topology scenarios (e.g. isp_abilene)."
             )
         return {}

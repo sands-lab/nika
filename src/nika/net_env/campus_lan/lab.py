@@ -55,18 +55,36 @@ class CampusLan(NetworkEnvBase):
             peer_host="pc_2_1_1_1",
         )
 
+    def _verify(self, verify) -> dict:
+        runtime = self._build_runtime()
+        if self.device_profile == "frr":
+            return verify(runtime, scenario_name=self.LAB_NAME)
+        from nika.net_env.campus_lan.verify import routeros_queries
+        from nika.net_env.utils.routeros.common import with_routeros_config_check
+
+        result = verify(
+            runtime, scenario_name=self.LAB_NAME, queries=routeros_queries()
+        )
+        routers = [
+            name
+            for name, identity in self.machine_identities.items()
+            if "routeros" in identity.capabilities
+        ]
+        return with_routeros_config_check(runtime, routers, result)
+
     def startup_verify_lab(self) -> dict:
         from nika.net_env.campus_lan.verify import verify_campus_lan_lab_startup
 
-        return verify_campus_lan_lab_startup(
-            self._build_runtime(),
-            scenario_name=self.LAB_NAME,
-        )
+        return self._verify(verify_campus_lan_lab_startup)
 
     def verify_lab(self) -> dict:
         from nika.net_env.campus_lan.verify import verify_campus_lan_lab
 
-        return verify_campus_lan_lab(
-            self._build_runtime(),
-            scenario_name=self.LAB_NAME,
-        )
+        return self._verify(verify_campus_lan_lab)
+
+    def deploy(self):
+        if self.device_profile == "routeros":
+            from nika.net_env.utils.routeros.common import require_routeros_image
+
+            require_routeros_image()
+        super().deploy()

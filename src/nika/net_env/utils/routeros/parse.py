@@ -32,3 +32,22 @@ def routeros_terse_rows(output: str) -> list[dict[str, str]]:
         for line in output.splitlines()
         if re.match(r"\s*\d+\s", line)
     ]
+
+
+def routeros_established_bgp_peers(output: str) -> set[str]:
+    """Return remote addresses from ``/routing/bgp/session/print terse``.
+
+    Run the command with ``where established=yes``; RouterOS shows the
+    session state as a flag, not as a property. Errors yield no peers.
+    """
+    try:
+        rows = routeros_terse_rows(output)
+    except ValueError:
+        return set()
+    return {row["remote.address"] for row in rows if "remote.address" in row}
+
+
+def routeros_count(output: str) -> int:
+    """Read ``print count-only`` output; errors and timeouts count as zero."""
+    value = output.strip()
+    return int(value) if value.isdigit() else 0
