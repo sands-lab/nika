@@ -33,7 +33,10 @@ from nika.validation.batfish.verifier import BatfishVerifier
 from nika.workflows.env.start import start_net_env
 from nika.workflows.failure.inject import inject_failure
 from nika.workflows.session.close import close_session
-from nika.workflows.validation.routing_spec import RoutingExperiment
+from nika.workflows.validation.routing_spec import (
+    ENV_ROUTING_MODELS,
+    RoutingExperiment,
+)
 from nika.workflows.validation.routing_build import routing_start_kwargs
 
 
@@ -86,7 +89,7 @@ def validate_routing_design(
     native_srl = spec.routing_model in {"srl-bgp", "srl-isp"}
     native_vendor = spec.routing_model in {"iosxr-bgp", "routeros-bgp"}
     deploy_options = spec.deployment.model_dump(exclude_none=True)
-    if (native_srl and spec.routing_model != "srl-isp") or native_vendor:
+    if spec.routing_model in ENV_ROUTING_MODELS:
         deploy_options["routing_model"] = spec.routing_model
     env = get_net_env_instance(
         spec.scenario, topo_size=spec.topo_size, **deploy_options

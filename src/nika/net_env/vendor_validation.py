@@ -50,22 +50,14 @@ def _parse_iosxr_bgp_summary(output: str) -> tuple[int | None, dict[str, _BgpPee
         ),
         None,
     )
-    if header is None or not any(field.lower() == "as" for field in header):
+    as_columns = [i for i, field in enumerate(header or ()) if field.lower() == "as"]
+    if not as_columns:
         raise ValueError("IOS XR returned no recognizable BGP summary header")
-    local_asn = int(local_match.group(1)) if local_match else None
+    local_asn = int(local_match.group(1))
+    remote_as_index = as_columns[0]
     peers: dict[str, _BgpPeer] = {}
-    remote_as_index = 1
     for line in output.splitlines():
         fields = line.split()
-        if (
-            fields
-            and fields[0].lower() == "neighbor"
-            and ("AS" in fields or "as" in fields)
-        ):
-            remote_as_index = (
-                fields.index("AS") if "AS" in fields else fields.index("as")
-            )
-            continue
         if not fields or not re.match(r"\d+\.\d+\.\d+\.\d+$", fields[0]):
             continue
         if len(fields) <= remote_as_index or not re.fullmatch(

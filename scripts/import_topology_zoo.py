@@ -28,7 +28,7 @@ from nika.topology.parse_graphml import parse_zoo_graphml
 
 ARCHIVE_URLS = (
     "http://www.topology-zoo.org/files/archive.zip",
-    # Wayback copy of the same archive (identical digest) when the site is down.
+    # Wayback copy of the same archive, used when the site is down.
     "http://web.archive.org/web/20260304173450id_/"
     "https://topology-zoo.org/files/archive.zip",
 )

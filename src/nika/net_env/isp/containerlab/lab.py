@@ -146,9 +146,15 @@ class Isp(ContainerlabNetworkEnv):
         base_plan = compile_isp_plan(config)
         self.bgp_plan: BgpPlan | None = compile_bgp_plan(base_plan, self.bgp_mode)
         base_plan = scope_igp_to_bgp_as(base_plan, self.bgp_plan)
-        from nika.net_env.synthesis.parameters import bind_isp_metrics, bind_isp_imports
+        from nika.net_env.synthesis.parameters import (
+            RoutingParameters,
+            bind_isp_imports,
+            bind_isp_metrics,
+        )
 
-        self.completed_metrics = routing_parameters is not None
+        solved = RoutingParameters.model_validate(routing_parameters or {})
+        # Only completed IGP metrics declare the all-shortest-path ECMP sketch.
+        self.completed_metrics = bool(solved.ospf_costs or solved.isis_metrics)
         base_plan = bind_isp_metrics(
             config,
             base_plan,

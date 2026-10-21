@@ -57,6 +57,10 @@ class RoutingDeployment(ContractModel):
     rpki: bool | None = None
 
 
+# Routing models whose scenario constructor takes ``routing_model`` directly.
+ENV_ROUTING_MODELS = frozenset({"srl-bgp", "iosxr-bgp", "routeros-bgp"})
+
+
 class RoutingExperiment(ContractModel):
     scenario: str
     routing_model: Literal[

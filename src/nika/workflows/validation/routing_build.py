@@ -5,7 +5,10 @@ from pathlib import Path
 
 from nika.net_env.isp.identity import is_isp_named_special
 from nika.net_env.synthesis.parameters import RoutingParameters
-from nika.workflows.validation.routing_spec import RoutingExperiment
+from nika.workflows.validation.routing_spec import (
+    ENV_ROUTING_MODELS,
+    RoutingExperiment,
+)
 
 
 def routing_start_kwargs(
@@ -13,7 +16,7 @@ def routing_start_kwargs(
 ) -> dict:
     """Bind the same deployment choices during verification and later execution."""
     options = spec.deployment.model_dump(exclude_none=True)
-    if spec.routing_model in {"srl-bgp", "iosxr-bgp", "routeros-bgp"}:
+    if spec.routing_model in ENV_ROUTING_MODELS:
         options["routing_model"] = spec.routing_model
     if is_isp_named_special(spec.scenario):
         # These constructors retain their registered protocol stack.
