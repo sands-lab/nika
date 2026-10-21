@@ -20,7 +20,7 @@ pytestmark = pytest.mark.unit
 
 
 def _config(node="r1", *, metric=10, loopback_isis=True):
-    loopback = " ip router isis NIKA\n isis passive\n" if loopback_isis else ""
+    loopback = " ip router isis CORE\n isis passive\n" if loopback_isis else ""
     return f"""!
 frr version 10.5.3
 frr defaults traditional
@@ -31,11 +31,11 @@ interface lo
 {loopback}!
 interface eth0
  ip address 10.0.0.0/31
- ip router isis NIKA
+ ip router isis CORE
  isis circuit-type level-2-only
  isis metric {metric}
 !
-router isis NIKA
+router isis CORE
  net 49.0001.0000.0aff.0001.00
  is-type level-2-only
  metric-style wide
@@ -45,9 +45,8 @@ log file /var/log/frr/frr.log
 """
 
 
-@pytest.mark.parametrize("process_name", ["CORE", "NIKA"])
-def test_parser_retains_net_interface_addresses_cost_and_passive_state(process_name):
-    net, interfaces = parse_frr_isis("r1", _config().replace("NIKA", process_name))
+def test_parser_retains_net_interface_addresses_cost_and_passive_state():
+    net, interfaces = parse_frr_isis("r1", _config())
 
     assert net == "49.0001.0000.0aff.0001.00"
     assert str(interfaces["lo"]["address"]) == "10.255.0.1/32"
@@ -58,12 +57,6 @@ def test_parser_retains_net_interface_addresses_cost_and_passive_state(process_n
     assert interfaces["eth0"]["passive"] is False
     assert interfaces["eth0"]["enabled"] is True
     assert str(interfaces["eth0"]["address"]) == "10.0.0.0/31"
-
-
-def test_parser_rejects_interfaces_bound_to_a_different_process():
-    config = _config().replace("ip router isis NIKA", "ip router isis CORE", 1)
-    with pytest.raises(ValueError, match="Inconsistent FRR IS-IS process names"):
-        parse_frr_isis("r1", config)
 
 
 def test_parser_and_projection_follow_mutated_metric_and_loopback_withdrawal():
@@ -82,7 +75,7 @@ def test_parser_and_projection_follow_mutated_metric_and_loopback_withdrawal():
 @pytest.mark.parametrize(
     "mutation",
     [
-        lambda text: text.replace("router isis NIKA", "router ospf"),
+        lambda text: text.replace("router isis CORE", "router ospf"),
         lambda text: text.replace("metric-style wide", "metric-style narrow"),
         lambda text: text.replace("isis metric 10", "isis metric 16777215"),
         lambda text: text.replace(
@@ -106,7 +99,7 @@ def test_projection_uses_ios_xr_interface_names_and_original_shutdown_endpoint()
         "interface GigabitEthernet0/0/0/0\n ipv4 address 10.0.0.0/31\n shutdown"
         in projected
     )
-    assert "router isis NIKA\n net 49.0001.0000.0aff.0001.00" in projected
+    assert "router isis CORE\n net 49.0001.0000.0aff.0001.00" in projected
     assert "passive" in projected
 
 

@@ -468,3 +468,25 @@ def test_mcp_session_meta_falls_back_to_run_json(tmp_path: Path, monkeypatch) ->
     meta = get_session_meta()
     assert meta["lab_name"] == lab_name
     assert meta["session_dir"] == str(session_dir)
+
+
+@pytest.mark.unit
+def test_wipe_does_not_follow_a_foreign_containerlab_root(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The predictable /tmp root is only used when it is this user's directory."""
+    from nika.workflows.session.close import wipe_runtime_artifacts
+
+    for name in ("RUNTIME_DIR", "SESSIONS_DIR", "SESSIONS_DB"):
+        monkeypatch.setattr(
+            f"nika.workflows.session.close.{name}", tmp_path / "runtime" / name
+        )
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    (elsewhere / "keep").write_text("x")
+    root = tmp_path / "labs"
+    root.symlink_to(elsewhere)
+    monkeypatch.setattr("nika.config.CLAB_RUNTIME_DIR", root)
+
+    wipe_runtime_artifacts()
+    assert (elsewhere / "keep").exists()

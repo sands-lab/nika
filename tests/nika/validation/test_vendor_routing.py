@@ -67,7 +67,7 @@ def test_original_vendor_requirements_are_platform_independent(scenario, model):
     # Original unsolved startup configuration and failure endpoints are retained.
     env = get_net_env_instance(scenario)
     configs = vendor_configs(env)
-    assert all("NIKA-OUT" not in config for config in configs.values())
+    assert all("EXPORT-" not in config for config in configs.values())
     assert (
         env.BGP_INTERFACE_MAP[spec.incidents[0].intf_name] == env.BGP_PEERING_INTERFACE
     )
