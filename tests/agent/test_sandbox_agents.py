@@ -33,7 +33,6 @@ from tests.support.integration_pipeline import (
     live_openai_test_config,
     load_test_env,
 )
-from tests.support.model_recorder import ModelRecorder
 
 pytestmark = [pytest.mark.e2e, pytest.mark.sandbox, pytest.mark.live]
 
@@ -103,7 +102,6 @@ class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
     model: str = CLAUDE_MODEL
     _agent_run_failed: bool = False
     # Request bodies the agent sent to a custom endpoint.
-    _model_requests: list[bytes] = []
 
     def setup_method(self) -> None:
         backend = self.sandbox_backend
@@ -134,22 +132,7 @@ class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
         assert self.session_id is not None
         type(self)._agent_run_failed = False
         try:
-            if self.llm_provider == "custom":
-                # Record what the agent sends to its model on the way.
-                with ModelRecorder(live_custom_base_url()) as recorder:
-                    _isolate_agent_run_config(
-                        agent_type=self.agent_type,
-                        provider=self.llm_provider,
-                        model=self.model,
-                        backend=self.sandbox_backend,
-                        base_url=recorder.base_url,
-                    )
-                    try:
-                        self._run_sandbox_agent()
-                    finally:
-                        type(self)._model_requests = recorder.bodies()
-            else:
-                self._run_sandbox_agent()
+            self._run_sandbox_agent()
             row = SessionStore().get_session(self.session_id)
             assert row.get("agent_type") == self.agent_type
         except FileNotFoundError as exc:
@@ -205,10 +188,13 @@ class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
         """Neither the model traffic nor the sandbox names the benchmark."""
         if type(self)._agent_run_failed:
             pytest.skip("Skipping the agent view check due to agent-run failure")
-        if self.llm_provider == "custom":
-            requests = type(self)._model_requests
-            assert requests, "the agent sent no model request"
-            assert _host_name_mentions(requests) == []
+        # The host's record of every model request, as the agent sent it.
+        requests = [
+            json.dumps(call["request"]).encode()
+            for call in self._load_jsonl("model_calls.jsonl")
+        ]
+        assert requests, "the agent sent no model request"
+        assert _host_name_mentions(requests) == []
         if self.sandbox_backend != "sbx":
             return
         row = SessionStore().get_session(self.session_id)

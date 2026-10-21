@@ -128,7 +128,7 @@ Run agent unit tests to check configuration, authentication mapping, and output 
 | `test_agent_isolation_contract.py` | sandbox | no file copied into a sandbox names NIKA | None |
 | `test_diagnosis_agent.py` | shared contract | phase bookends, report freeze, in-sandbox phase runner | None |
 | `test_model_proxy.py` | sandbox | model proxy request adaptation and credential swap | None |
-| `test_subscription.py` | sandbox | E2B subscription logins, Codex login refresh, sandbox placeholders | None |
+| `test_subscription.py` | sandbox | Host subscription logins, Codex login refresh, sandbox placeholders | None |
 | `test_sandbox_tunnel.py` | sandbox | host tunnel for E2B sandboxes | None |
 | `test_sandbox_security.py` | sandbox | microVM security probe | sbx + Docker |
 | `test_sandbox_isolation.py` | sandbox | distinct gateway ports + cross-sandbox MCP policy isolation | unit; sbx for peer-gateway probe |
@@ -164,7 +164,7 @@ Use these test-only overrides to select a model your account can access. Selecti
 | `NIKA_TEST_OPENAI_PROVIDER` | `openai` | Codex CLI/SDK and BYO sandbox agents; accepts `openai`, `deepseek`, or `custom` (with `NIKA_TEST_CUSTOM_BASE_URL`) |
 | `NIKA_TEST_CODEX_MODEL` | `gpt-5-mini` | The same OpenAI-family sandbox agents, and the Codex sandbox benchmark |
 
-For example, with an Anthropic API key or sbx subscription login configured, replace `YOUR_CLAUDE_MODEL` with a model available to that account:
+For example, with an Anthropic API key or Claude subscription login configured, replace `YOUR_CLAUDE_MODEL` with a model available to that account:
 
 ```bash
 NIKA_TEST_ANTHROPIC_PROVIDER=anthropic \
