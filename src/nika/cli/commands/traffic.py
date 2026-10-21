@@ -44,6 +44,7 @@ def _net_env_kwargs_for_scenario(scenario: str, size: str | None) -> dict[str, A
 def _resolve_lab_and_size(
     lab: str | None,
     size: str | None,
+    session_id: str | None = None,
 ) -> tuple[str, str | None]:
     store = SessionStore()
     if lab:
@@ -64,7 +65,7 @@ def _resolve_lab_and_size(
         except (OSError, KeyError, TypeError, json.JSONDecodeError):
             pass
     try:
-        resolved_id = resolve_running_session_id()
+        resolved_id = resolve_running_session_id(session_id)
         meta = store.get_session(resolved_id)
     except (
         FileNotFoundError,
@@ -101,11 +102,10 @@ def _normalize_size(raw: str | None) -> str | None:
     return raw
 
 
-def _active_runtime_lab_name(scenario: str) -> str | None:
+def _active_runtime_lab_name(scenario: str, session_id: str | None) -> str | None:
     """Return the concrete lab name when the current session matches a scenario."""
     try:
-        session_id = resolve_running_session_id()
-        meta = SessionStore().get_session(session_id)
+        meta = SessionStore().get_session(resolve_running_session_id(session_id))
     except (FileNotFoundError, ValueError, OSError, KeyError, TypeError):
         return None
     if meta.get("scenario_name") != scenario:
@@ -157,6 +157,11 @@ def traffic_run(
     ),
     lab: str | None = typer.Option(
         None, "--lab", help="Kathará lab name (defaults to current session scenario)."
+    ),
+    session_id: str | None = typer.Option(
+        None,
+        "--session_id",
+        help="Target session id. Auto-selects when only one session is running.",
     ),
     size: str | None = typer.Option(
         None,
@@ -256,7 +261,9 @@ def traffic_run(
         )
 
     size_n = _normalize_size(size)
-    scenario, size_resolved = _resolve_lab_and_size(lab=lab, size=size_n)
+    scenario, size_resolved = _resolve_lab_and_size(
+        lab=lab, size=size_n, session_id=session_id
+    )
 
     if t == "burst":
         from nika.traffic.burst import BurstTrafficGenerator
@@ -269,7 +276,7 @@ def traffic_run(
         if packet_size <= 0 or duration <= 0:
             raise typer.BadParameter("--packet-size and --duration must be positive.")
         kwargs = _net_env_kwargs_for_scenario(scenario, size_resolved)
-        runtime_lab_name = lab or _active_runtime_lab_name(scenario)
+        runtime_lab_name = lab or _active_runtime_lab_name(scenario, session_id)
         if runtime_lab_name:
             kwargs["lab_name"] = runtime_lab_name
         net_env = get_net_env_instance(scenario, **kwargs)
@@ -294,6 +301,7 @@ def traffic_run(
     if t == "matrix-replay":
         _run_matrix_replay(
             scenario=scenario,
+            session_id=session_id,
             size_resolved=size_resolved,
             unit=unit_lit,
             udp=udp,
@@ -312,7 +320,7 @@ def traffic_run(
                 "`web` traffic always blocks this CLI until interrupted; do not pass `--background`."
             )
         kwargs = _net_env_kwargs_for_scenario(scenario, size_resolved)
-        runtime_lab_name = lab or _active_runtime_lab_name(scenario)
+        runtime_lab_name = lab or _active_runtime_lab_name(scenario, session_id)
         if runtime_lab_name:
             kwargs["lab_name"] = runtime_lab_name
         gen = WebBrowsingTrafficGenerator(
@@ -327,7 +335,7 @@ def traffic_run(
 
     if t == "od":
         kwargs = _net_env_kwargs_for_scenario(scenario, size_resolved)
-        runtime_lab_name = lab or _active_runtime_lab_name(scenario)
+        runtime_lab_name = lab or _active_runtime_lab_name(scenario, session_id)
         if runtime_lab_name:
             kwargs["lab_name"] = runtime_lab_name
         net_env = get_net_env_instance(scenario, **kwargs)
@@ -405,6 +413,7 @@ def traffic_run(
 def _run_matrix_replay(
     *,
     scenario: str,
+    session_id: str | None,
     size_resolved: str | None,
     unit: Literal["K", "M"],
     udp: bool,
@@ -435,7 +444,7 @@ def _run_matrix_replay(
     if traffic_scale <= 0:
         raise typer.BadParameter("--scale must be > 0.")
 
-    resolved_id = resolve_running_session_id()
+    resolved_id = resolve_running_session_id(session_id)
     meta = SessionStore().get_session(resolved_id)
     params = dict(meta.get("scenario_params") or {})
     lab_name = meta.get("lab_name") or params.get("lab_name")

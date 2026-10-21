@@ -568,7 +568,7 @@ When `nika.remote.enabled` and `nika.remote.url` are set in `config/nika.yaml` o
 
 ## `nika traffic`
 
-Requires a deployed lab. By default the **current session** supplies the deployed lab name and size; override with **`--lab`** (and **`-s`** when the scenario needs a size).
+Requires a deployed lab. By default the **current session** supplies the deployed lab name and size. Select a session with **`--session_id`** when several are running, or override with **`--lab`** (and **`-s`** when the scenario needs a size).
 
 - **`nika traffic list`**: supported **`TYPE`** values for `run` (`burst`, `matrix-replay`, `od`, `web`).
 - **`nika traffic fetch sndlib --topo NAME [--force]`**: fetch dynamic SNDlib traffic.
