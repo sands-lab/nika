@@ -2,26 +2,26 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
+from agent.runtime.task import current_task, workspace_dir
 from agent.utils.template import (
     SKILLS_PROMPT_SUFFIX,
     TEST_SKILLS_PROMPT_SUFFIX,
 )
 
 
-TEST_SKILL_NAME = "nika-test-skill"
+TEST_SKILL_NAME = "skill-loading-check"
 
 # Default package: src/agent/skills/
-_DEFAULT_SKILLS_ROOT = Path(__file__).resolve().parent.parent / "skills"
-# Sandbox copies that package to $NIKA_SESSION_DIR/skills (see sandbox/workspace.py).
-_SANDBOX_SKILLS_DIRNAME = "skills"
+DEFAULT_SKILLS_ROOT = Path(__file__).resolve().parent.parent / "skills"
+# The host copies that package to <workspace>/skills.
+SKILLS_DIRNAME = "skills"
 
 CLAUDE_SETTING_SOURCES = ["project"]
 
 _CLAUDE_MD = """\
-# NIKA Shared Skill Index
+# Shared Skill Index
 
 Skills live under `.claude/skills/`. Each directory contains a `SKILL.md` with
 YAML frontmatter (`name`, `description`) and workflow instructions.
@@ -34,69 +34,50 @@ YAML frontmatter (`name`, `description`) and workflow instructions.
 
 Add a directory under `skills/` with a `SKILL.md` file. Symlinks under
 `.claude/skills/` and `.agents/skills/` point at the same source tree.
-See `docs/agents/agent-skills.md` for full instructions.
 """
 
 _CODEX_AGENTS_MD = """\
-# NIKA Agent Skills
+# Agent Skills
 
 This workspace includes reusable troubleshooting skills under `.agents/skills/`.
 Invoke a skill when its description matches the symptoms you observe.
 """
 
 _CODEX_AGENTS_MD_WITH_TEST = """\
-# NIKA Agent Skills
+# Agent Skills
 
 This workspace includes reusable troubleshooting skills under `.agents/skills/`.
 
-At the start of every troubleshooting session, invoke `$nika-test-skill` and follow
-the marker-first workflow in `.agents/skills/nika-test-skill/SKILL.md` before other
+At the start of every troubleshooting session, invoke `$skill-loading-check` and follow
+the marker-first workflow in `.agents/skills/skill-loading-check/SKILL.md` before other
 MCP tools.
 """
 
 
 def resolve_skills_root() -> Path:
-    """Return the root directory of the NIKA skill library."""
-    if os.environ.get("NIKA_SANDBOX_EXECUTION", "").strip() == "1":
-        session_dir = os.environ.get("NIKA_SESSION_DIR", "").strip()
-        if session_dir:
-            candidate = (
-                Path(session_dir).expanduser().resolve() / _SANDBOX_SKILLS_DIRNAME
-            )
-            if candidate.is_dir():
-                return candidate
-    return _DEFAULT_SKILLS_ROOT
+    """Return the root directory of the skill library.
 
-
-ENV_ENABLE_SKILLS = "NIKA_ENABLE_SKILLS"
+    The workspace copy when the host staged one, else the package default.
+    """
+    candidate = workspace_dir() / SKILLS_DIRNAME
+    if candidate.is_dir():
+        return candidate
+    return DEFAULT_SKILLS_ROOT
 
 
 def skills_enabled() -> bool:
-    """Whether agents should load the shared skill library.
-
-    Sandboxed SDK agents cannot import the run config, so the host passes the
-    resolved setting as ``NIKA_ENABLE_SKILLS``.
-    """
-    override = os.environ.get(ENV_ENABLE_SKILLS, "").strip()
-    if override:
-        return override == "1"
-    try:
-        from nika.run_config.loader import get_run_config
-
-        return bool(get_run_config().agent.enable_skills)
-    except Exception:
-        return True
+    """Whether the agent loads the shared skill library (set by the task)."""
+    return current_task().enable_skills
 
 
 def resolve_test_skill_dir() -> Path | None:
     """Return the integration-test skill fixture when present.
 
     Lives under ``tests/agent/fixtures/skills/`` — never under the production
-    skill package, so sandbox ``copytree`` of the skills root cannot ship it.
+    skill package, so the workspace copy of the skills root cannot ship it.
     """
-    from nika.config import REPO_ROOT
-
-    path = REPO_ROOT / "tests" / "agent" / "fixtures" / "skills" / TEST_SKILL_NAME
+    repo_root = Path(__file__).resolve().parents[3]
+    path = repo_root / "tests" / "agent" / "fixtures" / "skills" / TEST_SKILL_NAME
     return path if path.is_dir() else None
 
 
@@ -192,7 +173,7 @@ def prepare_claude_workspace(
 ) -> None:
     """Materialize `.claude/` into a per-session Claude CLI workspace.
 
-    Pass ``include_test_skill=True`` from tests to also link ``nika-test-skill``.
+    Pass ``include_test_skill=True`` from tests to also link the test skill.
     """
     if not skills_enabled():
         return
@@ -213,7 +194,7 @@ def prepare_codex_workspace(
 ) -> None:
     """Link Codex skills and write a minimal AGENTS.md into the workspace.
 
-    Pass ``include_test_skill=True`` from tests to also link ``nika-test-skill``.
+    Pass ``include_test_skill=True`` from tests to also link the test skill.
     """
     if not skills_enabled():
         return

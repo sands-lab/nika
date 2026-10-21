@@ -17,7 +17,7 @@ class CodexCliDiagnosisPhase:
     Parameters
     ----------
     session_id:
-        NIKA session identifier.
+        Opaque session handle of the run.
     session_dir:
         Absolute path to the session results directory.
     model:

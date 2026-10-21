@@ -1,4 +1,4 @@
-# NIKA Shared Skill Index
+# Shared Skill Index
 
 Skills live under `.claude/skills/`. Each directory contains a `SKILL.md` with
 YAML frontmatter (`name`, `description`) and workflow instructions.
@@ -13,4 +13,3 @@ YAML frontmatter (`name`, `description`) and workflow instructions.
 
 Add a directory under `skills/` with a `SKILL.md` file. Symlinks under
 `.claude/skills/` and `.agents/skills/` point at the same source tree.
-See `docs/agents/agent-skills.md` for full instructions.

@@ -33,10 +33,6 @@ description: Distinguish OSPF and FRR routing faults - ospf_neighbor_missing, os
 - If you are unsure of the FRR helper schema, use `exec_shell(host_name="<router>", command="vtysh -c '...'")`.
 - `frr_show_running_config` and `frr_show_ip_route` are secondary evidence only; they can look healthy when FRR is down.
 
-## One-Pass Coverage
-
-- `python diagnosis-methodology-skill/scripts/ospf_snapshot.py`
-
 ## Submit on match
 
 When direct evidence on a router (process state, OSPF config, area assignment, or `nft` rule) is sufficient to identify the fault, submit. Do not chain extra probes once the family is confirmed.
@@ -47,4 +43,4 @@ When direct evidence on a router (process state, OSPF config, area assignment, o
 - You need direct config evidence for the wrong area on a specific link.
 - Clean service checks do not clear silent OSPF faults on redundant topologies.
 - If hosts lose DHCP renewal behind one router, keep OSPF in play.
-- A clean `ospf_snapshot` does not clear L2 identity faults: duplicate MACs can create intermittent or `status=unknown` routed symptoms while FRR and routes still look healthy, so verify `l2_snapshot` has run before concluding no anomaly.
+- Healthy OSPF state does not clear L2 identity faults: duplicate MACs can create intermittent or `status=unknown` routed symptoms while FRR and routes still look healthy, so compare device MAC addresses through MCP before concluding no anomaly.

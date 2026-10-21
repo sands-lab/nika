@@ -1,7 +1,3 @@
-from collections.abc import Sequence
-from typing import Any
-
-from dotenv import load_dotenv
 from langchain.agents import create_agent
 from langchain.agents.middleware import ModelCallLimitMiddleware
 from langchain_core.messages import HumanMessage
@@ -19,11 +15,8 @@ from agent.utils.loggers import AgentCallbackLogger, MessageLogger
 from agent.utils.submission_context import submission_user_prompt
 from agent.utils.template import SUBMIT_PROMPT_TEMPLATE
 from agent.llm.model_factory import load_model
-from agent.utils.mcp_client import load_session_mcp_config
-from agent.utils.mcp_servers import harden_mcp_tools
+from agent.utils.mcp_client import harden_mcp_tools, session_mcp_config
 from agent.protocols import SUBMISSION
-
-load_dotenv()
 
 
 class SubmissionPhase:
@@ -31,17 +24,13 @@ class SubmissionPhase:
 
     def __init__(
         self,
-        session_id: str,
         llm_provider: str = "openai",
         model: str = "gpt-5-mini",
-        scenario_name: str = "",
         reasoning_effort: str | None = None,
         max_tokens: int | None = None,
         max_steps: int = 20,
     ):
-        mcp_server_config = load_session_mcp_config(
-            session_id, scenario_name, phase=SUBMISSION
-        )
+        mcp_server_config = session_mcp_config(SUBMISSION)
         self.client = MultiServerMCPClient(connections=mcp_server_config)
         self.tools = None
         self.max_steps = max_steps
@@ -84,7 +73,6 @@ class SubmissionPhase:
         context: dict,
         *,
         trace_dir: str,
-        callbacks: Sequence[Any] = (),
     ) -> str:
         """Answer from the frozen report with the task MCP ``submit`` tool."""
         await self.load_tools()
@@ -99,7 +87,7 @@ class SubmissionPhase:
                     ]
                 },
                 config={
-                    "callbacks": [cb, *callbacks],
+                    "callbacks": [cb],
                     "recursion_limit": react_recursion_limit(self.max_steps),
                 },
                 debug=False,

@@ -24,6 +24,15 @@ CHR_BASE_URL="${CHR_BASE_URL:-https://download.mikrotik.com/routeros/${ROUTEROS_
 TRACK=""
 WITH_VENDOR_IMAGES=0
 WITH_SBX=0
+WITH_AGENTENV=0
+# AgentENV, the recommended sandbox runtime: an open-source E2B-compatible
+# service. Pinned by digest so every host runs the same sandbox server.
+AGENTENV_IMAGE="${AGENTENV_IMAGE:-ghcr.io/kvcache-ai/aenv-server@sha256:d1a656f3a1dea2464589ada0bc9f7223cff210cfc0865bd920d14f1bf5361978}"
+AGENTENV_CONTAINER="${AGENTENV_CONTAINER:-nika-agentenv}"
+# Host port of the AgentENV API; 8000 is left to local model servers (vLLM).
+AGENTENV_PORT="${AGENTENV_PORT:-8800}"
+UBLK_MODULES_CONF=/etc/modules-load.d/nika-agentenv-ublk.conf
+UBLK_MODPROBE_CONF=/etc/modprobe.d/nika-agentenv-ublk.conf
 SKIP_IMAGES=0
 XRD_TARBALL="${NIKA_XRD_TARBALL:-}"
 ORIG_ARGS=("$@")
@@ -67,11 +76,18 @@ Options:
       Path to a Cisco XRd Control Plane container .tgz (no public URL).
       Or set NIKA_XRD_TARBALL, or put .nika_cache/vendor/xrd-*.tgz under the repo.
 
+  --with-agentenv
+      Recommended. Every agent runs in a sandbox; this runs AgentENV, an
+      open-source E2B-compatible sandbox service, as a Docker container
+      (${AGENTENV_CONTAINER}, 127.0.0.1:${AGENTENV_PORT}) and points NIKA at it.
+      Needs KVM (/dev/kvm) and kernel 6.8+; loads and persists the ublk_drv
+      kernel module and runs the container privileged.
+
   --with-sbx
-      Install Docker Sandboxes (sbx) for sandboxed agents (cli.*, sdk.*,
-      community.sade) and give your user read/write access to /dev/kvm,
-      which the sbx microVMs need. sbx ships only as a package, so this is
-      the one step that uses apt. Run 'sbx login' afterwards.
+      Alternative sandbox runtime: install Docker Sandboxes (sbx) and give
+      your user read/write access to /dev/kvm, which the sbx microVMs need.
+      sbx ships only as a package, so this step uses apt. Run 'sbx login'
+      afterwards.
 
   --skip-images
       Skip building/pulling runtime images (labs then prepare them on first deploy).
@@ -81,6 +97,7 @@ Options:
 Examples:
   ./scripts/install.sh
   ./scripts/install.sh --track stable
+  ./scripts/install.sh --with-agentenv
   ./scripts/install.sh --with-sbx
   ./scripts/install.sh --track latest --with-vendor-images
   ./scripts/install.sh --with-vendor-images --xrd-tarball ~/xrd-control-plane-container-x86_64-26.2.1.tgz
@@ -101,6 +118,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     --with-vendor-images) WITH_VENDOR_IMAGES=1; shift ;;
     --with-sbx) WITH_SBX=1; shift ;;
+    --with-agentenv) WITH_AGENTENV=1; shift ;;
     --skip-images) SKIP_IMAGES=1; shift ;;
     --xrd-tarball)
       [[ $# -ge 2 ]] || { echo "error: --xrd-tarball requires a path" >&2; exit 2; }
@@ -623,6 +641,65 @@ ensure_kvm_access() {
   warn "so the next NIKA run starts sandboxd with the new group"
 }
 
+ensure_ublk_module() {
+  # AgentENV serves sandbox disks through ublk; containers cannot load modules.
+  local sudo=""
+  if [[ "$(id -u)" -ne 0 ]]; then
+    need_cmd sudo
+    sudo=sudo
+  fi
+  printf 'options ublk_drv ublks_max=4096\n' | ${sudo} tee "${UBLK_MODPROBE_CONF}" >/dev/null
+  if [[ ! -d /sys/module/ublk_drv ]]; then
+    ${sudo} modprobe ublk_drv ublks_max=4096 \
+      || die "could not load ublk_drv; AgentENV needs kernel 6.8+ (linux-modules-extra on Ubuntu)"
+  fi
+  printf 'ublk_drv\n' | ${sudo} tee "${UBLK_MODULES_CONF}" >/dev/null
+  log "Loaded ublk_drv kernel module (persisted in ${UBLK_MODULES_CONF})"
+}
+
+install_agentenv() {
+  [[ -e /dev/kvm ]] || die "AgentENV needs KVM, but /dev/kvm is missing; enable hardware or nested virtualization, or use E2B cloud (docs/operations/agent-sandbox.md)"
+  ensure_ublk_module
+  local current
+  current="$(docker inspect -f '{{.Config.Image}}' "${AGENTENV_CONTAINER}" 2>/dev/null || true)"
+  if [[ -n "${current}" && "${current}" != "${AGENTENV_IMAGE}" ]]; then
+    log "Replacing AgentENV container ${AGENTENV_CONTAINER} (image ${current})"
+    docker rm -f "${AGENTENV_CONTAINER}" >/dev/null
+    current=""
+  fi
+  if [[ -z "${current}" ]]; then
+    if curl -s -o /dev/null --max-time 2 "http://127.0.0.1:${AGENTENV_PORT}/"; then
+      die "port ${AGENTENV_PORT} is in use; rerun with AGENTENV_PORT=<free port>"
+    fi
+    log "Starting AgentENV (${AGENTENV_IMAGE})"
+    docker run -d --name "${AGENTENV_CONTAINER}" --restart unless-stopped \
+      --privileged -v /dev:/dev -p "127.0.0.1:${AGENTENV_PORT}:8000" \
+      "${AGENTENV_IMAGE}" >/dev/null
+  else
+    docker start "${AGENTENV_CONTAINER}" >/dev/null
+    log "AgentENV container ${AGENTENV_CONTAINER} already present"
+  fi
+  local key="" healthy=0 attempt
+  for attempt in $(seq 1 60); do
+    key="$(docker exec "${AGENTENV_CONTAINER}" cat /workspace/env/secrets/api-key 2>/dev/null || true)"
+    if [[ -n "${key}" ]] && curl -fsS -o /dev/null "http://127.0.0.1:${AGENTENV_PORT}/health" 2>/dev/null; then
+      healthy=1
+      break
+    fi
+    sleep 2
+  done
+  [[ "${healthy}" -eq 1 ]] || die "AgentENV did not start; see: docker logs ${AGENTENV_CONTAINER}"
+  # The key lives in the repository-root .env with the other credentials.
+  if grep -q '^E2B_API_KEY=' .env 2>/dev/null; then
+    sed -i "s|^E2B_API_KEY=.*|E2B_API_KEY=${key}|" .env
+  else
+    printf '\n# AgentENV sandbox service (scripts/install.sh --with-agentenv)\nE2B_API_KEY=%s\n' "${key}" >> .env
+  fi
+  uv run nika config set nika.sandbox.backend=e2b \
+    "nika.sandbox.url=http://127.0.0.1:${AGENTENV_PORT}" >/dev/null
+  log "AgentENV ready at http://127.0.0.1:${AGENTENV_PORT}; config/nika.yaml now uses it"
+}
+
 ensure_xrd_image() {
   if docker_image_exists "${XRD_IMAGE}"; then
     log "XRd image already present: ${XRD_IMAGE}"
@@ -765,7 +842,8 @@ Vendor labs (after --with-vendor-images):
 
 ${uv_note}New docker or clab_admins group membership: open a new login shell.
 Remote install: docs/operations/remote.md
-Sandboxed agents (after --with-sbx): sbx login, then see docs/operations/agent-sandbox.md
+Every agent runs in a sandbox: install a runtime with --with-agentenv (recommended)
+or --with-sbx (then sbx login). See docs/operations/agent-sandbox.md
 Remove NIKA again: ./scripts/uninstall.sh
 EOF
 }
@@ -791,6 +869,9 @@ main() {
   validate_config
   check_host_tools
   ensure_inotify_limits
+  if [[ "${WITH_AGENTENV}" -eq 1 ]]; then
+    install_agentenv
+  fi
   if [[ "${WITH_SBX}" -eq 1 ]]; then
     install_sbx
     ensure_kvm_access

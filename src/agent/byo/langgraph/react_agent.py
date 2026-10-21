@@ -1,20 +1,15 @@
 """LangGraph ReAct troubleshooting agent (``byo.langgraph``).
 
 Diagnosis and submission each run a LangChain ``create_agent`` graph; the
-shared :class:`~agent.base.NikaAgent` freezes the report and
-advances the MCP gateway between them.
+host freezes the report and advances the MCP gateway between them.
 """
 
-import asyncio
 import logging
-import os
-from typing import Any
 
-from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage
 from pydantic import ValidationError
 
-from agent.base import NikaAgent, max_steps_report
+from agent.base import DiagnosisAgent, max_steps_report
 from agent.byo.langgraph.middleware import (
     MAX_STEPS_EXCEEDED,
     message_text,
@@ -22,17 +17,12 @@ from agent.byo.langgraph.middleware import (
 )
 from agent.byo.langgraph.phases.diagnosis import DiagnosisPhase
 from agent.protocols import DIAGNOSIS
-from agent.submission import submit_with_agent_model
 from agent.utils.loggers import AgentCallbackLogger, MessageLogger
-from nika.utils.logger import system_logger
 
-load_dotenv()
-
-
-logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
-class BasicReActAgent(NikaAgent):
+class BasicReActAgent(DiagnosisAgent):
     def __init__(
         self,
         session_id: str,
@@ -52,68 +42,22 @@ class BasicReActAgent(NikaAgent):
             max_tokens=max_tokens,
             stream_output=stream_output,
         )
-        self.langfuse_handler = self._load_langfuse_handler()
-
-        diagnosis_phase = DiagnosisPhase(
-            session_id=session_id,
-            llm_provider=llm_provider,
-            model=model,
-            scenario_name=self.scenario_name,
-            reasoning_effort=reasoning_effort,
-            max_tokens=max_tokens,
-            max_steps=max_steps,
-        )
-        asyncio.run(diagnosis_phase.load_tools())
-        self._diagnosis_runner = diagnosis_phase.get_agent()
-
-    def _diagnosis_callbacks(self) -> tuple[AgentCallbackLogger, list[Any]]:
-        cb = AgentCallbackLogger(phase=DIAGNOSIS, session_dir=self.trace_dir)
-        callbacks: list[Any] = [cb]
-        if self.langfuse_handler is not None:
-            callbacks.append(self.langfuse_handler)
-        return cb, callbacks
-
-    def _load_langfuse_handler(self) -> Any | None:
-        enabled = False
-        try:
-            from nika.run_config.loader import get_run_config
-
-            obs = get_run_config().nika.observability
-            enabled = bool(obs.langfuse_enabled)
-            if obs.langfuse_host:
-                os.environ.setdefault("LANGFUSE_HOST", obs.langfuse_host)
-        except Exception:
-            enabled = False
-        if not enabled:
-            return None
-
-        try:
-            from langfuse import get_client
-            from langfuse.langchain import CallbackHandler
-        except ImportError as exc:
-            raise RuntimeError(
-                "Observability langfuse is enabled, but langfuse is not installed. "
-                "Install the observability extra or set nika.observability.langfuse_enabled: false."
-            ) from exc
-
-        langfuse = get_client()
-        handler = CallbackHandler()
-
-        if langfuse.auth_check():
-            system_logger.info("Authentication to Langfuse successful.")
-        else:
-            system_logger.warning(
-                "Authentication to Langfuse failed. Please check your LANGFUSE_API_KEY."
-            )
-        return handler
 
     async def diagnose(self, task_description: str) -> str:
-        cb, callbacks = self._diagnosis_callbacks()
+        diagnosis_phase = DiagnosisPhase(
+            llm_provider=self.llm_provider,
+            model=self.model,
+            reasoning_effort=self.reasoning_effort,
+            max_tokens=self.max_tokens,
+            max_steps=self.max_steps,
+        )
+        await diagnosis_phase.load_tools()
+        cb = AgentCallbackLogger(phase=DIAGNOSIS, session_dir=self.trace_dir)
         try:
-            result = await self._diagnosis_runner.ainvoke(
+            result = await diagnosis_phase.get_agent().ainvoke(
                 {"messages": [HumanMessage(content=task_description)]},
                 config={
-                    "callbacks": callbacks,
+                    "callbacks": [cb],
                     "recursion_limit": react_recursion_limit(self.max_steps),
                 },
                 # debug=True dumps every graph update (huge tool payloads) to
@@ -129,9 +73,3 @@ class BasicReActAgent(NikaAgent):
                 latest_text=cb.last_text,
             )
         return message_text(result["messages"][-1])
-
-    async def submit(self, diagnosis_report: str, context: dict) -> str:
-        callbacks = [self.langfuse_handler] if self.langfuse_handler else []
-        return await submit_with_agent_model(
-            self, diagnosis_report, context, callbacks=callbacks
-        )

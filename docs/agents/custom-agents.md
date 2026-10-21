@@ -28,7 +28,7 @@ Your agent implements **Diagnose**. NIKA handles the other steps.
 
 ## 1. Write your agent
 
-Your agent is a Python class. Inherit `NikaAgent` and implement `diagnose`: it receives the incident description and returns the diagnosis report. `NikaAgent` loads the running session and the run settings, such as `self.model` and `self.max_steps`, and its `diagnosis_mcp_config()` returns the MCP servers your agent may use.
+Your agent is a Python class. Inherit `DiagnosisAgent` and implement `diagnose`: it receives the incident description and returns the diagnosis report. `DiagnosisAgent` holds the run settings, such as `self.model` and `self.max_steps`, and its `diagnosis_mcp_config()` returns the MCP servers your agent may use. Create model clients from the standard `OPENAI_BASE_URL` and `OPENAI_API_KEY` variables (or `ANTHROPIC_*`): NIKA runs your agent in an isolated sandbox and points them at your provider.
 
 The example has two classes. `NetworkInvestigator` is the NOOA agent that reasons about the network. `NooaAgent` is the class NIKA runs: it connects the investigator to the lab's MCP tools and returns its report.
 
@@ -37,7 +37,7 @@ from nooa import Agent
 from nooa.mcp import MCPManager, MCPTool
 from nooa.unifiedllm.registry import get_llm_client
 
-from agent.base import NikaAgent
+from agent.base import DiagnosisAgent
 
 
 class NetworkInvestigator(Agent):
@@ -56,7 +56,7 @@ class NetworkInvestigator(Agent):
         ...  # NOOA's model writes and runs Python here
 
 
-class NooaAgent(NikaAgent):
+class NooaAgent(DiagnosisAgent):
     async def diagnose(self, task_description: str) -> str:
         servers = {
             name: await MCPManager.create_url_server(
@@ -71,14 +71,13 @@ class NooaAgent(NikaAgent):
 
 ## 2. Run it
 
-Install your framework into NIKA's environment, then run the agent by its import path:
+List your framework in your project's `pyproject.toml`, then run the agent by its import path:
 
 ```shell
-uv pip install 'nooa[mcp]==0.0.10' 'litellm<1.106'
-PYTHONPATH=../nika-nooa-agent uv run nika agent run -a nooa_nika.agent:NooaAgent --problem dc_clos_s_link_down
+PYTHONPATH=../nooa-agent uv run nika agent run -a nooa_agent.agent:NooaAgent --problem dc_clos_s_link_down
 ```
 
-NIKA runs every step above and prints the score. The provider, model, and limits come from `config/nika.yaml`, as in the [LangGraph example configuration](../../config/byo.langgraph.example.yaml).
+NIKA copies your project into the agent's sandbox, installs its `[project].dependencies` there, and runs every step above. Your framework never enters NIKA's environment, so the two cannot break each other. NIKA prints the score at the end. The provider, model, and limits come from `config/nika.yaml`, as in the [LangGraph example configuration](../../config/byo.langgraph.example.yaml).
 
 ## 3. Register it
 
@@ -89,29 +88,27 @@ Registering gives the agent a short name, such as `nooa`, that works like a buil
 Describe the agent in a `nika-agent.yaml` next to its `pyproject.toml`:
 
 ```text
-nika-nooa-agent/
+nooa-agent/
 ├── pyproject.toml        # dependencies = ["nooa[mcp]==0.0.10"]
 ├── nika-agent.yaml
-└── nooa_nika/
+└── nooa_agent/
     └── agent.py
 ```
 
 ```yaml
 id: nooa                              # the name you run it by
-class: nooa_nika.agent:NooaAgent      # the class from step 1
+class: nooa_agent.agent:NooaAgent      # the class from step 1
 providers: [openai, custom]           # providers your model client supports
 ```
 
 Then register it once:
 
 ```shell
-uv run nika agent add ../nika-nooa-agent
+uv run nika agent add ../nooa-agent
 uv run nika agent run -a nooa --problem dc_clos_s_link_down
 ```
 
-NIKA records the project directory in `config/agents.yaml` and imports the agent from there on every run, so your edits apply immediately. `nika agent remove nooa` unregisters it.
-
-`nika agent add` names any dependency from `pyproject.toml` that is not installed. A plain `uv sync` uninstalls packages NIKA does not declare, so use `uv sync --inexact` to keep them.
+NIKA records the project directory in `config/agents.yaml` and copies it into the sandbox on every run, so your edits apply immediately. `nika agent remove nooa` unregisters it. Pin dependency versions so every run installs the same packages.
 
 Other manifest fields, such as a default model, are listed in the [registration reference](agent-reference.md#custom-agent-registration).
 

@@ -1706,7 +1706,7 @@ def run_benchmark_trials(
             model=job.get("model"),
         )
     if check_images:
-        from agent.sandbox.backend import prepare_sandbox_templates
+        from nika.agents.sandbox.backend import prepare_sandbox_templates
 
         images = prepare_sandbox_templates([agent_type])
         from nika.net_env.utils.kathara.docker_files.docker_images import (

@@ -7,7 +7,7 @@ description: Identify per-host resource and load faults — sender or receiver r
 
 ## What counts as direct evidence
 
-A `stress_tool` / `http_flood_tool` entry means a RUNNING process surfaced by `pressure_sweep`. Installed binaries without a running process do not count.
+Use `exec_shell` with `ps` or `pgrep` to identify running stress or HTTP flood processes. Installed binaries without a running process do not count.
 
 One direct probe on the candidate to confirm ownership is enough — do not chain extra investigations once the family is confirmed.
 

@@ -1,23 +1,19 @@
 from __future__ import annotations
 
-import os
-from unittest.mock import patch
 
 import pytest
 
-from agent.registry import create_agent
+from nika.agents.registry import create_agent
 
 pytestmark = pytest.mark.unit
 
 
-def test_non_byo_agent_cannot_run_on_host() -> None:
-    with patch.dict(os.environ, {}, clear=True):
-        with pytest.raises(RuntimeError, match="only run inside the Docker sandbox"):
-            create_agent(
-                "cli.codex",
-                session_id="test-session",
-                model="test-model",
-            )
+@pytest.mark.parametrize(
+    "agent_type", ["cli.codex", "byo.langgraph", "sdk.claude_sdk", "community.sade"]
+)
+def test_sandboxed_agents_cannot_run_on_host(agent_type: str) -> None:
+    with pytest.raises(RuntimeError, match="runs only inside its sandbox"):
+        create_agent(agent_type, session_id="test-session", model="test-model")
 
 
 def test_unknown_agent_still_reports_unsupported_type() -> None:

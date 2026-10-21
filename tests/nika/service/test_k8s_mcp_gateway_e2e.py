@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
-from agent.utils.mcp_servers import MCPServerConfig, SESSION_HEADER
+from nika.agents.mcp_config import MCPServerConfig, SESSION_HEADER
 from nika.mcp.k8s.client import reset_client
 from nika.mcp.gateway.lifecycle import mcp_gateway_for_session
 from nika.mcp.registry import K8S_MCP_SERVER

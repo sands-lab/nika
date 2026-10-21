@@ -23,7 +23,7 @@ _transport_owners: dict[str, str] = {}
 class GatewaySession:
     """Gateway binding for one lab session.
 
-    ``agent_session_id`` is what agents send in ``NIKA-Session-Id`` (opaque when
+    ``agent_session_id`` is what agents send in ``X-Session-Id`` (opaque when
     set). ``canonical_session_id`` keys SessionStore / trial dirs. Both map to
     the same entry when they differ (dual-key register).
     """
@@ -38,7 +38,7 @@ class GatewaySession:
     # Diagnosis servers selected for the scenario; ``None`` allows every
     # mounted diagnosis server.
     diagnosis_servers: frozenset[str] | None = None
-    # Secret that MCP clients send in ``NIKA-Session-Token``. The session id
+    # Secret that MCP clients send in ``X-Session-Token``. The session id
     # alone is guessable, and the gateway may be reachable from other hosts.
     access_token: str = field(default_factory=lambda: secrets.token_urlsafe(32))
 

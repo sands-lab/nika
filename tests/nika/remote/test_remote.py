@@ -231,13 +231,13 @@ def test_remote_client_rewrites_gateway_host(
 def test_remote_gateway_token_reaches_mcp_headers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from agent.utils.mcp_servers import session_http_headers
+    from nika.agents.mcp_config import session_http_headers
 
     # The remote server's gateway holds the session; its attach response
     # token is exported for local MCP clients.
     monkeypatch.setenv("NIKA_MCP_GATEWAY_SESSION_TOKEN", "remote-token")
     headers = session_http_headers("remote-sess")
-    assert headers["NIKA-Session-Token"] == "remote-token"
+    assert headers["X-Session-Token"] == "remote-token"
 
 
 def test_start_net_env_remote_branch() -> None:
@@ -254,6 +254,6 @@ def test_start_net_env_remote_branch() -> None:
 
 
 def test_mcp_policy_resource_from_url() -> None:
-    from agent.sandbox.sbx.policy import mcp_policy_resource_from_url
+    from nika.agents.sandbox.sbx.policy import mcp_policy_resource_from_url
 
     assert mcp_policy_resource_from_url("http://10.1.2.3:9444/mcp") == "10.1.2.3:9444"

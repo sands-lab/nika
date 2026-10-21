@@ -1,4 +1,4 @@
-"""Augmented LLMs with NIKA messages.jsonl logging."""
+"""Augmented LLMs with messages.jsonl logging."""
 
 from __future__ import annotations
 
@@ -14,58 +14,56 @@ from agent.utils.loggers import (
     PendingToolCallTracker,
     tool_event_payload,
 )
-from agent.utils.provider_env import require_provider
+from agent.llm.endpoints import require_provider
 from agent.utils.reasoning_capture import reasoning_fields_for_log
 from agent.utils.usage import normalize_usage
-from nika.mcp.registry import MCP_SERVER_PREFIXES
-
-_SERVER_PREFIXES = MCP_SERVER_PREFIXES + ("task_mcp_server_",)
+from agent.runtime.task import current_task
 
 
 def _short_tool_name(name: str) -> str:
     """Strip mcp-agent server namespace prefix for messages.jsonl parity."""
-    for prefix in _SERVER_PREFIXES:
+    for prefix in (f"{server}_" for server in current_task().mcp_servers):
         if name.startswith(prefix):
             return name.removeprefix(prefix)
     return name
 
 
-def create_nika_augmented_llm(
+def create_logged_augmented_llm(
     *,
     agent,
-    nika_logger: MessageLogger | None,
+    trace_logger: MessageLogger | None,
     default_request_params: RequestParams,
     provider: str,
 ):
     """Return the OpenAI or Anthropic AugmentedLLM for the active provider."""
     if require_provider(provider) == "anthropic":
-        return NikaAnthropicAugmentedLLM(
+        return LoggedAnthropicAugmentedLLM(
             agent=agent,
-            nika_logger=nika_logger,
+            trace_logger=trace_logger,
             default_request_params=default_request_params,
         )
-    return NikaOpenAIAugmentedLLM(
+    return LoggedOpenAIAugmentedLLM(
         agent=agent,
-        nika_logger=nika_logger,
+        trace_logger=trace_logger,
         default_request_params=default_request_params,
     )
 
 
-class _NikaToolLoggingMixin:
-    """Shared MCP tool / max-iteration logging for NIKA message logs."""
+class _ToolLoggingMixin:
+    """Shared MCP tool / max-iteration logging for the message trace."""
 
-    _nika_logger: MessageLogger | None
+    _trace_logger: MessageLogger | None
     _max_iterations_reached: bool
 
     def __init__(
-        self, *args, nika_logger: MessageLogger | None = None, **kwargs
+        self, *args, trace_logger: MessageLogger | None = None, **kwargs
     ) -> None:
         super().__init__(*args, **kwargs)
-        self._nika_logger = nika_logger
+        self._trace_logger = trace_logger
         self._max_iterations_reached = False
         self._last_text = ""
         self._pending_tool_calls: PendingToolCallTracker | None = (
-            PendingToolCallTracker() if nika_logger is not None else None
+            PendingToolCallTracker() if trace_logger is not None else None
         )
 
     @property
@@ -80,13 +78,13 @@ class _NikaToolLoggingMixin:
     async def pre_tool_call(
         self, tool_call_id: str | None, request: CallToolRequest
     ) -> CallToolRequest | bool:
-        if self._nika_logger is not None and self._pending_tool_calls is not None:
+        if self._trace_logger is not None and self._pending_tool_calls is not None:
             payload = self._pending_tool_calls.register(
                 name=_short_tool_name(request.params.name),
                 input=request.params.arguments,
                 tool_call_id=tool_call_id,
             )
-            self._nika_logger.log("tool_start", payload)
+            self._trace_logger.log("tool_start", payload)
         return await super().pre_tool_call(tool_call_id=tool_call_id, request=request)
 
     async def post_tool_call(
@@ -95,7 +93,7 @@ class _NikaToolLoggingMixin:
         request: CallToolRequest,
         result: CallToolResult,
     ) -> CallToolResult:
-        if self._nika_logger is not None and self._pending_tool_calls is not None:
+        if self._trace_logger is not None and self._pending_tool_calls is not None:
             tool_name = _short_tool_name(request.params.name)
             resolved = self._pending_tool_calls.resolve(
                 name=tool_name,
@@ -108,12 +106,12 @@ class _NikaToolLoggingMixin:
                 tool_call_id=tool_call_id,
             )
             if result.isError:
-                self._nika_logger.log(
+                self._trace_logger.log(
                     "tool_error",
                     {**correlation, "error": str(result.content)},
                 )
             else:
-                self._nika_logger.log(
+                self._trace_logger.log(
                     "tool_end",
                     {
                         **correlation,
@@ -126,7 +124,7 @@ class _NikaToolLoggingMixin:
         )
 
 
-class NikaOpenAIAugmentedLLM(_NikaToolLoggingMixin, OpenAIAugmentedLLM):
+class LoggedOpenAIAugmentedLLM(_ToolLoggingMixin, OpenAIAugmentedLLM):
     """OpenAIAugmentedLLM that writes tool events to ``messages.jsonl``."""
 
     async def generate_str(self, message, request_params: RequestParams | None = None):
@@ -152,7 +150,7 @@ class NikaOpenAIAugmentedLLM(_NikaToolLoggingMixin, OpenAIAugmentedLLM):
 
     def _annotate_span_for_completion_response(self, span, response, turn):
         """Log one ``llm_end`` per ChatCompletion, then keep mcp-agent tracing."""
-        if self._nika_logger is not None:
+        if self._trace_logger is not None:
             choices = getattr(response, "choices", None) or []
             message = getattr(choices[0], "message", None) if choices else None
             payload = {
@@ -160,11 +158,11 @@ class NikaOpenAIAugmentedLLM(_NikaToolLoggingMixin, OpenAIAugmentedLLM):
                 "usage_metadata": normalize_usage(getattr(response, "usage", None)),
             }
             payload.update(reasoning_fields_for_log(message))
-            self._nika_logger.log("llm_end", payload)
+            self._trace_logger.log("llm_end", payload)
         return super()._annotate_span_for_completion_response(span, response, turn)
 
 
-class NikaAnthropicAugmentedLLM(_NikaToolLoggingMixin, AnthropicAugmentedLLM):
+class LoggedAnthropicAugmentedLLM(_ToolLoggingMixin, AnthropicAugmentedLLM):
     """AnthropicAugmentedLLM that writes tool events to ``messages.jsonl``."""
 
     async def generate_str(self, message, request_params: RequestParams | None = None):
@@ -190,7 +188,7 @@ class NikaAnthropicAugmentedLLM(_NikaToolLoggingMixin, AnthropicAugmentedLLM):
 
     def _annotate_span_for_completion_response(self, span, response, turn):
         """Log one ``llm_end`` per Anthropic Message, then keep mcp-agent tracing."""
-        if self._nika_logger is not None:
+        if self._trace_logger is not None:
             texts: list[str] = []
             for block in getattr(response, "content", None) or []:
                 if getattr(block, "type", None) == "text" and getattr(
@@ -202,5 +200,5 @@ class NikaAnthropicAugmentedLLM(_NikaToolLoggingMixin, AnthropicAugmentedLLM):
                 "usage_metadata": normalize_usage(getattr(response, "usage", None)),
             }
             payload.update(reasoning_fields_for_log(response))
-            self._nika_logger.log("llm_end", payload)
+            self._trace_logger.log("llm_end", payload)
         return super()._annotate_span_for_completion_response(span, response, turn)
