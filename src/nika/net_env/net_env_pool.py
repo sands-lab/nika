@@ -53,6 +53,10 @@ class NetEnvSpec:
     licensed_images: bool = False
     # Kubernetes lab whose workload images are host-cached and sideloaded into k3s.
     k8s_image_cache: bool = False
+    # Native router profiles selected with ``device_profile`` on Kathara. Each
+    # binding names the class that deploys the same scenario on that platform;
+    # the scenario default remains the class bound above.
+    device_profiles: Mapping[str, BackendEnvBinding] | None = None
 
     @property
     def LAB_NAME(self) -> str:
@@ -94,6 +98,14 @@ _ISP_BASE_TAGS: tuple[str, ...] = (
     "srl",
     "containerlab",
 )
+
+_ISP_NATIVE_BINDING = BackendEnvBinding(
+    module="nika.net_env.isp.kathara.vendor", class_name="IspVendor"
+)
+_ISP_DEVICE_PROFILES: dict[str, BackendEnvBinding] = {
+    "iosxr": _ISP_NATIVE_BINDING,
+    "routeros": _ISP_NATIVE_BINDING,
+}
 
 _ISP_BACKEND_BINDINGS: dict[str, BackendEnvBinding] = {
     "kathara": BackendEnvBinding(
@@ -418,6 +430,7 @@ for _topo_name in SNDLIB_TOPOLOGY_NAMES:
         supported_backends=("kathara", "containerlab"),
         topo_size=isp_topology_size(_topo_name),
         backend_bindings=_ISP_BACKEND_BINDINGS,
+        device_profiles=_ISP_DEVICE_PROFILES,
         deploy_defaults={"topo": _topo_name, "scenario_id": _scenario_id},
         family="isp",
         coverage_major=_scenario_id in _ISP_COVERAGE_SCENARIOS,
@@ -445,6 +458,7 @@ for _topo_name in ZOO_TOPOLOGY_NAMES:
         tags=_ISP_ZOO_TAGS,
         supported_backends=("kathara",),
         topo_size=isp_topology_size(_topo_name),
+        device_profiles=_ISP_DEVICE_PROFILES,
         deploy_defaults={"topo": _topo_name, "scenario_id": _scenario_id},
         family="isp",
         benchmark_excluded=True,
@@ -569,6 +583,11 @@ def effective_tags(column: str) -> frozenset[str]:
     return frozenset(scenario_tags(scenario))
 
 
+def scenario_device_profiles(scenario_name: str) -> tuple[str, ...]:
+    """Return native router profiles selectable for ``scenario_name`` on Kathara."""
+    return tuple(sorted(_require_scenario(scenario_name).device_profiles or {}))
+
+
 def scenario_supported_backends(scenario_name: str) -> list[str]:
     """Return backends supported by ``scenario_name``."""
     return list(_require_scenario(scenario_name).supported_backends)
@@ -631,16 +650,9 @@ def get_net_env_instance(
     cls = _load_net_env_class(canonical, backend=resolved)
     spec = _require_scenario(canonical)
     merged: dict[str, Any] = {**(spec.deploy_defaults or {}), **kwargs}
-    from nika.net_env.isp.identity import is_isp_base_topology
-
-    if (
-        resolved == "kathara"
-        and is_isp_base_topology(canonical)
-        and merged.get("device_profile") in {"iosxr", "routeros"}
-    ):
-        from nika.net_env.isp.kathara.vendor import IspVendor
-
-        cls = IspVendor
+    native = (spec.device_profiles or {}).get(merged.get("device_profile"))
+    if resolved == "kathara" and native is not None:
+        cls = getattr(import_module(native.module), native.class_name)
     lab_name = merged.pop("lab_name", None)
     topology_file = merged.pop("topology_file", None)
     runtime_workdir = merged.pop("runtime_workdir", None)

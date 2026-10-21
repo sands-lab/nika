@@ -12,14 +12,21 @@ from nika.workflows.validation.benchmark_routing import (
 )
 
 
+NATIVE_ISP_CASES = [
+    (vendor, topology, bgp_mode, "ospf")
+    for vendor in ("iosxr", "routeros")
+    for topology, bgp_mode in (
+        ("arpanet196912", "none"),
+        ("arpanet196912", "ibgp_rr"),
+        ("dataxchange", "ebgp"),
+    )
+] + [("iosxr", "arpanet196912", "ibgp_rr", "isis")]
+
+
 @pytest.mark.e2e
-@pytest.mark.parametrize("vendor", ["iosxr", "routeros"])
-@pytest.mark.parametrize(
-    "topology,bgp_mode",
-    [("arpanet196912", "none"), ("arpanet196912", "ibgp_rr"), ("dataxchange", "ebgp")],
-)
+@pytest.mark.parametrize("vendor,topology,bgp_mode,igp", NATIVE_ISP_CASES)
 def test_native_isp_synthesis_execution_and_recovery(
-    vendor, topology, bgp_mode, tmp_path, netcomplete_image, batfish_verifier
+    vendor, topology, bgp_mode, igp, tmp_path, netcomplete_image, batfish_verifier
 ):
     import docker
     from docker.errors import ImageNotFound
@@ -43,7 +50,7 @@ def test_native_isp_synthesis_execution_and_recovery(
             if p["scenario"] == f"isp_{topology}"
         )
     )
-    profile["deployment"].update(igp="ospf", bgp_mode=bgp_mode, device_profile=vendor)
+    profile["deployment"].update(igp=igp, bgp_mode=bgp_mode, device_profile=vendor)
     spec = build_benchmark_isp_experiment(profile)
     summary = validate_scenario_design(
         spec,
