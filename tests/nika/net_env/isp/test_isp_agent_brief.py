@@ -23,7 +23,7 @@ _REQUIRED = (
     "BGP mode:",
     "device_profile:",
     "Inventory nodes:",
-    "traffic matrix chosen at `nika traffic run sndlib`",
+    "Edge stubs:",
 )
 
 

@@ -401,6 +401,8 @@ def test_update_session_keeps_document_on_lookup_path(tmp_path: Path) -> None:
 def test_resolve_runtime_workdir_uses_backend_root(tmp_path: Path, monkeypatch) -> None:
     runtime_dir = tmp_path / "runtime"
     monkeypatch.setattr("nika.workflows.session.close.RUNTIME_DIR", runtime_dir)
+    clab_dir = tmp_path / "labs"
+    monkeypatch.setattr("nika.workflows.session.close.CLAB_RUNTIME_DIR", clab_dir)
 
     kathara_meta = {
         "lab_name": "k8s_lab__abc",
@@ -417,10 +419,7 @@ def test_resolve_runtime_workdir_uses_backend_root(tmp_path: Path, monkeypatch) 
         _resolve_runtime_workdir(kathara_meta)
         == runtime_dir / "kathara" / "k8s_lab__abc"
     )
-    assert (
-        _resolve_runtime_workdir(clab_meta)
-        == runtime_dir / "containerlab" / "dc_clos__abc"
-    )
+    assert _resolve_runtime_workdir(clab_meta) == clab_dir / "dc_clos__abc"
 
 
 @pytest.mark.unit
