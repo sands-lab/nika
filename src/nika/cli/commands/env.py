@@ -87,7 +87,7 @@ def env_run(
         help=(
             "Router platform. ISP: frr, iosxr or routeros (kathara), "
             "nokia_srlinux (containerlab); defaults from --backend. "
-            "dc_clos: frr (default) or iosxr (size s)."
+            "dc_clos (size s), campus_lan, enterprise_branch: frr (default) or iosxr."
         ),
     ),
     no_redeploy: bool = typer.Option(

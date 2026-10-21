@@ -5,17 +5,22 @@ from __future__ import annotations
 from typing import Literal
 
 from nika.net_env.base import NetworkEnvBase, ProbePath
+from nika.net_env.native_routers import NativeRouterEnv
 
 
-class CampusLan(NetworkEnvBase):
+class CampusLan(NativeRouterEnv, NetworkEnvBase):
     ROUTING_PARAMETER_KINDS = frozenset({"ospf_costs"})
     LAB_NAME = "campus_lan"
     TOPO_LEVEL = "medium"
+    # Distribution and server gateways bridge access ports and relay DHCP;
+    # XRd Control Plane cannot route a bridged interface, so they stay FRR.
+    NATIVE_PROFILE_ROLES = {"iosxr": frozenset({"core"})}
 
     def __init__(
         self,
         topo_size: Literal["s", "m", "l"] = "s",
         routing_parameters: dict | None = None,
+        device_profile: str | None = None,
         **kwargs,
     ):
         from nika.net_env.campus_lan.lab_dhcp import (
@@ -32,6 +37,35 @@ class CampusLan(NetworkEnvBase):
         self.name = self.LAB_NAME
         if getattr(self, "lab", None) is not None:
             self.lab.name = self.LAB_NAME
+        self.apply_device_profile(device_profile, routing_parameters=routing_parameters)
+
+    def router_roles(self) -> dict[str, list[str]]:
+        roles = {"core": [], "distribution": [], "server_gateway": []}
+        for name in self.routers:
+            if name.startswith("router_core_"):
+                roles["core"].append(name)
+            elif name.startswith("router_dist_"):
+                roles["distribution"].append(name)
+            else:
+                roles["server_gateway"].append(name)
+        return roles
+
+    def _router_queries(self):
+        from nika.net_env.campus_lan.verify import CORE_ROUTER, FRR_QUERIES
+
+        if self.native_routers.get(CORE_ROUTER) != "iosxr":
+            return FRR_QUERIES
+        from dataclasses import replace
+
+        from nika.net_env.utils.iosxr import platform
+
+        return replace(
+            FRR_QUERIES,
+            ospf_process=platform.IOSXR_OSPF_PROCESS,
+            ospf_running=platform.iosxr_ospf_running,
+            ospf_neighbors=platform.IOSXR_OSPF_NEIGHBORS,
+            ospf_full_count=platform.iosxr_ospf_full_count,
+        )
 
     def target_roles(self) -> dict[str, list[str]]:
         hosts = list(self.hosts or [])
@@ -61,6 +95,7 @@ class CampusLan(NetworkEnvBase):
         return verify_campus_lan_lab_startup(
             self._build_runtime(),
             scenario_name=self.LAB_NAME,
+            queries=self._router_queries(),
         )
 
     def verify_lab(self) -> dict:
@@ -69,4 +104,5 @@ class CampusLan(NetworkEnvBase):
         return verify_campus_lan_lab(
             self._build_runtime(),
             scenario_name=self.LAB_NAME,
+            queries=self._router_queries(),
         )

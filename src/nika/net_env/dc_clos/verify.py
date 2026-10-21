@@ -7,13 +7,14 @@ reaches every pod's DNS server and fetches every web service by name.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from nika.net_env.verify import (
+    FRR_BGP_PEERS,
+    BgpPeerQuery,
     build_lab_verify_result,
     exec_or_empty,
-    frr_bgp_established_peers,
     host_has_ipv4,
     nodes_deployed,
     ping_unreachable,
@@ -26,27 +27,18 @@ from nika.net_env.verify_collection import (
 )
 from nika.utils.parallel import bounded_parallel_map
 
-# How to observe established BGP sessions: a router command and its parser.
-# Native router profiles supply their own; FRR is the scenario default.
-BgpSessionObserver = tuple[str, Callable[[str], set[str]]]
-FRR_BGP_SESSIONS: BgpSessionObserver = (
-    "vtysh -c 'show bgp summary json'",
-    frr_bgp_established_peers,
-)
-
 
 def _bgp_failures(
     runtime: LabRuntime,
     bgp_neighbors: Mapping[str, Sequence[str]],
-    bgp_sessions: BgpSessionObserver,
+    bgp_peers: BgpPeerQuery,
 ) -> dict[str, list[str]]:
     """Return planned peers that are not Established, by router."""
-    command, established = bgp_sessions
 
     def missing(item: tuple[str, Sequence[str]]) -> list[str]:
         router, peers = item
-        summary = exec_or_empty(runtime, router, command, timeout=20)
-        return sorted(set(peers) - established(summary))
+        summary = exec_or_empty(runtime, router, bgp_peers.command, timeout=20)
+        return sorted(set(peers) - bgp_peers.established_peers(summary))
 
     items = sorted(bgp_neighbors.items())
     return {
@@ -86,11 +78,11 @@ def _collect(
     runtime,
     bgp_neighbors,
     client_addresses,
-    bgp_sessions,
+    bgp_peers,
     dns_servers=(),
     web_urls=(),
 ):
-    commands = [VerifyCommand(router, bgp_sessions[0]) for router in bgp_neighbors]
+    commands = [VerifyCommand(router, bgp_peers.command) for router in bgp_neighbors]
     for client in client_addresses:
         commands.append(VerifyCommand(client, "ip -4 -o addr show dev eth0", 10))
         commands.extend(
@@ -145,11 +137,11 @@ def verify_dc_clos_lab_startup(
     nodes: Sequence[str],
     bgp_neighbors: Mapping[str, Sequence[str]],
     client_addresses: Mapping[str, str],
-    bgp_sessions: BgpSessionObserver = FRR_BGP_SESSIONS,
+    bgp_peers: BgpPeerQuery = FRR_BGP_PEERS,
 ) -> dict[str, Any]:
     """Readiness: all nodes deployed, all eBGP sessions up, clients addressed."""
-    runtime = _collect(runtime, bgp_neighbors, client_addresses, bgp_sessions)
-    bgp_failures = _bgp_failures(runtime, bgp_neighbors, bgp_sessions)
+    runtime = _collect(runtime, bgp_neighbors, client_addresses, bgp_peers)
+    bgp_failures = _bgp_failures(runtime, bgp_neighbors, bgp_peers)
     ipv4_failures = _client_ipv4_failures(runtime, client_addresses)
     checks = {
         "nodes_deployed": nodes_deployed(runtime, nodes),
@@ -184,13 +176,13 @@ def verify_dc_clos_lab(
     client_addresses: Mapping[str, str],
     dns_servers: Sequence[tuple[str, str]],
     web_urls: Sequence[str],
-    bgp_sessions: BgpSessionObserver = FRR_BGP_SESSIONS,
+    bgp_peers: BgpPeerQuery = FRR_BGP_PEERS,
 ) -> dict[str, Any]:
     """Startup checks plus every client reaching every pod's services."""
     runtime = _collect(
-        runtime, bgp_neighbors, client_addresses, bgp_sessions, dns_servers, web_urls
+        runtime, bgp_neighbors, client_addresses, bgp_peers, dns_servers, web_urls
     )
-    bgp_failures = _bgp_failures(runtime, bgp_neighbors, bgp_sessions)
+    bgp_failures = _bgp_failures(runtime, bgp_neighbors, bgp_peers)
     ipv4_failures = _client_ipv4_failures(runtime, client_addresses)
     service_failures = _client_service_failures(
         runtime, client_addresses, dns_servers, web_urls

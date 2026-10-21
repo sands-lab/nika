@@ -61,7 +61,10 @@ _KATHARA_CASES = tuple(
         env_run_args=(),
         topo_size=None,
     ),
-    ScenarioE2ECase("dc_clos", env_run_args=("-s", "s", "--device-profile", "iosxr")),
+    *(
+        ScenarioE2ECase(scenario, env_run_args=("-s", "s", "--device-profile", "iosxr"))
+        for scenario in ("dc_clos", "campus_lan", "enterprise_branch")
+    ),
 )
 
 _K8S_CASES = (

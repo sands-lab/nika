@@ -44,7 +44,10 @@ def iosxr_interface(name: str) -> str:
 
 
 def configure_xrd_router(
-    lab, machine, config: str, linux_interfaces: Sequence[str]
+    lab,
+    machine,
+    config: str,
+    linux_interfaces: Sequence[str],
 ) -> None:
     """Make a Kathara machine boot XRd and apply ``config`` once XR is up.
 

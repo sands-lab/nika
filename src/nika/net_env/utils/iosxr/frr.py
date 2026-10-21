@@ -1,10 +1,13 @@
-"""Translate a Kathara FRR router sketch to native IOS XR configuration.
+"""Translate Kathara FRR router sketches to native IOS XR configuration.
 
-Ethernet scenarios describe each router with Linux address commands and an FRR
-configuration. This translation preserves that design on XRd for the subset
-whose semantics map one to one: interface addresses and IPv4 BGP with network
-origins, eBGP multipath and FRR's eBGP policy default. Any other statement is
-rejected, so an unsupported design cannot deploy with silently changed meaning.
+Ethernet environments describe each router with Linux startup commands and an
+FRR configuration. This translation keeps that design on XRd for the subset
+whose semantics map one to one: interface addresses, static routes, OSPF
+network-to-area bindings, and IPv4 BGP with network origins, eBGP multipath and
+FRR's eBGP policy default. Linux egress shaping (netem) is recorded as not
+reproduced: XRd transmits around the container's queueing disciplines. Any
+other statement is rejected, so an unsupported design cannot deploy with
+silently changed meaning.
 """
 
 from __future__ import annotations
@@ -13,12 +16,16 @@ import re
 from dataclasses import dataclass, field
 from ipaddress import IPv4Address, IPv4Interface, IPv4Network
 
+from nika.net_env.native_routers import NativeConversion
 from nika.net_env.utils.iosxr.common import iosxr_interface
 
 # FRR statements without forwarding semantics (logging and the vty shell).
 _IGNORED = re.compile(r"^(?:!.*|log .*|debug .*|line vty|frr (?:version|defaults) .*)$")
-_STARTUP_ADDRESS = re.compile(r"^ip addr add (\S+) dev (eth\d+)$")
-_FRR_START = {"service frr start", "/etc/init.d/frr start"}
+_ADDRESS = re.compile(r"ip addr add (\S+) dev (eth\d+)")
+_STATIC = re.compile(r"ip route add (default|[0-9./]+) via ([0-9.]+)(?: dev eth\d+)?")
+_SHAPING = re.compile(r"tc qdisc (?:add|replace) dev (eth\d+) root netem .*")
+# Linux forwarding is irrelevant once XR forwards the router's traffic.
+_LINUX_ONLY = {"service frr start", "sysctl -w net.ipv4.ip_forward=1"}
 PASS_POLICY = "PASS"
 
 
@@ -33,33 +40,54 @@ class _Bgp:
     neighbors: dict[str, int] = field(default_factory=dict)
 
 
-def startup_interfaces(startup: str) -> list[tuple[str, str]]:
-    """Return ``(linux interface, address/len)`` from a router startup file."""
-    addresses = []
+@dataclass
+class _Ospf:
+    router_id: str | None = None
+    networks: list[tuple[IPv4Network, str]] = field(default_factory=list)
+
+
+@dataclass
+class _Startup:
+    interfaces: list[tuple[str, str]] = field(default_factory=list)
+    static_routes: list[tuple[str, str]] = field(default_factory=list)
+    shaping: list[str] = field(default_factory=list)
+
+
+def _parse_startup(startup: str) -> _Startup:
+    parsed = _Startup()
     for line in startup.splitlines():
-        line = line.strip()
-        if not line or line in _FRR_START:
+        line = line.strip().removesuffix(" || true")
+        if not line or line in _LINUX_ONLY:
             continue
-        match = _STARTUP_ADDRESS.fullmatch(line)
-        if match is None:
+        if match := _ADDRESS.fullmatch(line):
+            IPv4Interface(match[1])
+            parsed.interfaces.append((match[2], match[1]))
+        elif match := _STATIC.fullmatch(line):
+            prefix = "0.0.0.0/0" if match[1] == "default" else match[1]
+            parsed.static_routes.append((str(IPv4Network(prefix)), match[2]))
+        elif _SHAPING.fullmatch(line):
+            parsed.shaping.append(line)
+        else:
             raise ValueError(f"Unsupported IOS XR router startup command: {line!r}")
-        IPv4Interface(match[1])
-        addresses.append((match[2], match[1]))
-    if len({name for name, _ in addresses}) != len(addresses):
+    names = [name for name, _ in parsed.interfaces]
+    if len(set(names)) != len(names):
         raise ValueError("IOS XR translation needs one address per interface")
-    return addresses
+    if any(_SHAPING.fullmatch(line)[1] not in names for line in parsed.shaping):
+        raise ValueError("Linux shaping must target an addressed router interface")
+    return parsed
 
 
-def _parse_bgp(frr_conf: str, hostname: str) -> _Bgp | None:
-    bgp = None
-    in_bgp = False
+def _parse_frr(frr_conf: str, hostname: str) -> tuple[_Bgp | None, _Ospf | None]:
+    bgp = ospf = None
+    block = None
     for raw in frr_conf.splitlines():
         line = raw.strip()
+        indented = raw[:1].isspace()
         if not line or _IGNORED.fullmatch(line):
-            in_bgp = in_bgp and raw[:1].isspace()
+            block = block if indented else None
             continue
-        if not raw[:1].isspace():
-            in_bgp = False
+        if not indented:
+            block = None
             if match := re.fullmatch(r"hostname (\S+)", line):
                 if match[1] != hostname:
                     raise ValueError(f"FRR hostname {match[1]!r} != {hostname!r}")
@@ -67,43 +95,65 @@ def _parse_bgp(frr_conf: str, hostname: str) -> _Bgp | None:
             if match := re.fullmatch(r"router bgp (\d+)", line):
                 if bgp is not None:
                     raise ValueError("IOS XR translation needs one BGP instance")
-                bgp, in_bgp = _Bgp(int(match[1])), True
+                bgp, block = _Bgp(int(match[1])), "bgp"
                 continue
-        elif in_bgp and bgp is not None:
-            if match := re.fullmatch(r"bgp router-id (\S+)", line):
-                bgp.router_id = str(IPv4Address(match[1]))
+            if line == "router ospf":
+                if ospf is not None:
+                    raise ValueError("IOS XR translation needs one OSPF instance")
+                ospf, block = _Ospf(), "ospf"
                 continue
-            if line == "bgp bestpath as-path multipath-relax":
-                bgp.multipath_relax = True
+        elif block == "bgp" and _bgp_statement(bgp, line):
+            continue
+        elif block == "ospf":
+            if match := re.fullmatch(r"(?:ospf )?router-id (\S+)", line):
+                ospf.router_id = str(IPv4Address(match[1]))
                 continue
-            if match := re.fullmatch(r"maximum-paths (\d+)", line):
-                bgp.maximum_paths = int(match[1])
-                continue
-            if line == "no bgp ebgp-requires-policy":
-                bgp.requires_policy = False
-                continue
-            if match := re.fullmatch(r"network (\S+)", line):
-                bgp.networks.append(str(IPv4Network(match[1])))
-                continue
-            if match := re.fullmatch(r"neighbor (\S+) remote-as (\d+)", line):
-                bgp.neighbors[str(IPv4Address(match[1]))] = int(match[2])
+            if match := re.fullmatch(r"network (\S+) area (\S+)", line):
+                area = match[2]
+                area = str(IPv4Address(int(area))) if area.isdigit() else area
+                ospf.networks.append((IPv4Network(match[1]), str(IPv4Address(area))))
                 continue
         raise ValueError(f"Unsupported FRR statement for IOS XR: {line!r}")
-    return bgp
+    return bgp, ospf
 
 
-def translate_frr_router(
-    hostname: str, frr_conf: str, startup: str
-) -> tuple[str, list[str]]:
-    """Return IOS XR configuration and the Linux interfaces XR takes over."""
-    interfaces = startup_interfaces(startup)
-    if not interfaces:
+def _bgp_statement(bgp: _Bgp, line: str) -> bool:
+    if match := re.fullmatch(r"bgp router-id (\S+)", line):
+        bgp.router_id = str(IPv4Address(match[1]))
+    elif line == "bgp bestpath as-path multipath-relax":
+        bgp.multipath_relax = True
+    elif match := re.fullmatch(r"maximum-paths (\d+)", line):
+        bgp.maximum_paths = int(match[1])
+    elif line == "no bgp ebgp-requires-policy":
+        bgp.requires_policy = False
+    elif match := re.fullmatch(r"network (\S+)", line):
+        bgp.networks.append(str(IPv4Network(match[1])))
+    elif match := re.fullmatch(r"neighbor (\S+) remote-as (\d+)", line):
+        bgp.neighbors[str(IPv4Address(match[1]))] = int(match[2])
+    else:
+        return False
+    return True
+
+
+@dataclass(frozen=True)
+class XrRouter:
+    """A translated router and the original commands XR does not reproduce."""
+
+    config: str
+    interfaces: tuple[str, ...]
+    unreproduced: tuple[str, ...] = ()
+
+
+def translate_frr_router(hostname: str, frr_conf: str, startup: str) -> XrRouter:
+    """Translate one router; raise ``ValueError`` for unmapped statements."""
+    parsed = _parse_startup(startup)
+    if not parsed.interfaces:
         raise ValueError(f"Router {hostname!r} has no addressed interfaces")
-    bgp = _parse_bgp(frr_conf, hostname)
+    bgp, ospf = _parse_frr(frr_conf, hostname)
     lines = [f"hostname {hostname}", "!"]
     # Interfaces precede routing blocks: XR resolves a command in the innermost
     # mode that accepts it.
-    for name, address in interfaces:
+    for name, address in parsed.interfaces:
         lines.extend(
             [
                 f"interface {iosxr_interface(name)}",
@@ -112,10 +162,46 @@ def translate_frr_router(
                 "!",
             ]
         )
+    if parsed.static_routes:
+        lines.extend(["router static", " address-family ipv4 unicast"])
+        lines.extend(f"  {prefix} {hop}" for prefix, hop in parsed.static_routes)
+        lines.extend([" !", "!"])
+    if ospf is not None:
+        lines.extend(_render_ospf(ospf, parsed.interfaces))
     if bgp is not None:
         lines.extend(_render_bgp(bgp))
     lines.extend(["end", ""])
-    return "\n".join(lines), [name for name, _ in interfaces]
+    return XrRouter(
+        "\n".join(lines),
+        tuple(name for name, _ in parsed.interfaces),
+        tuple(parsed.shaping),
+    )
+
+
+def _render_ospf(ospf: _Ospf, interfaces: list[tuple[str, str]]) -> list[str]:
+    # FRR enables OSPF on each interface whose primary address falls in a
+    # ``network`` statement; XR names those interfaces under their area.
+    areas: dict[str, list[str]] = {}
+    for name, address in interfaces:
+        matches = {
+            area
+            for network, area in ospf.networks
+            if IPv4Interface(address).ip in network
+        }
+        if len(matches) > 1:
+            raise ValueError("Overlapping OSPF area bindings are not translated")
+        if matches:
+            areas.setdefault(matches.pop(), []).append(name)
+    lines = ["router ospf NIKA"]
+    if ospf.router_id:
+        lines.append(f" router-id {ospf.router_id}")
+    for area in sorted(areas, key=lambda value: int(IPv4Address(value))):
+        lines.append(f" area {int(IPv4Address(area))}")
+        for name in areas[area]:
+            lines.extend([f"  interface {iosxr_interface(name)}", "  !"])
+        lines.append(" !")
+    lines.append("!")
+    return lines
 
 
 def _render_bgp(bgp: _Bgp) -> list[str]:
@@ -152,33 +238,38 @@ def _render_bgp(bgp: _Bgp) -> list[str]:
     return lines
 
 
-def convert_frr_routers(env) -> dict[str, str]:
-    """Redeploy every router of a built Kathara FRR scenario as XRd.
+def convert_frr_routers(env, names) -> NativeConversion:
+    """Redeploy the named routers of a built Kathara FRR environment as XRd.
 
-    Topology, links, hosts and services are unchanged. Returns the native
-    configuration per router; unsupported router designs raise ``ValueError``.
+    Links, addressing and every other node are unchanged. Returns the native
+    configuration per converted router and the original commands, per router,
+    that XR does not reproduce.
     """
     from dataclasses import replace
 
     from nika.net_env.utils.iosxr.common import configure_xrd_router
     from nika.runtime.spec import MachineInventory
 
-    configs = {}
-    for name in env.routers:
+    configs, unreproduced = {}, {}
+    for name in names:
         machine = env.lab.machines[name]
-        frr_conf = machine.fs.readtext("etc/frr/frr.conf")
-        startup = env.lab.fs.readtext(f"{name}.startup")
-        config, interfaces = translate_frr_router(name, frr_conf, startup)
+        router = translate_frr_router(
+            name,
+            machine.fs.readtext("etc/frr/frr.conf"),
+            env.lab.fs.readtext(f"{name}.startup"),
+        )
         machine.fs.removetree("etc/frr")
-        configure_xrd_router(env.lab, machine, config, interfaces)
+        configure_xrd_router(env.lab, machine, router.config, router.interfaces)
         identity = env.machine_identities[name]
         capabilities = {*identity.capabilities, "iosxr"} - {"frr"}
         env.machine_identities[name] = replace(
             identity, capabilities=tuple(sorted(capabilities))
         )
-        configs[name] = config
+        configs[name] = router.config
+        if router.unreproduced:
+            unreproduced[name] = router.unreproduced
     env.metadata["machine_identities"] = MachineInventory(
         env.machine_identities
     ).to_dict()
     env.load_machines()
-    return configs
+    return NativeConversion(configs, unreproduced)

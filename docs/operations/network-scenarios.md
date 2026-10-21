@@ -40,8 +40,8 @@ Why heavy labs need a separate cap:
 | Scenario ID | Backend | Scale control | Options | Network |
 | --- | --- | --- | --- | --- |
 | `dc_clos` | Kathara | `-s s\|m\|l` | `--device-profile iosxr` (`s`) | FRR eBGP Clos with DNS/HTTP leaf services |
-| `campus_lan` | Kathara | `-s s\|m\|l` | — | Hierarchical campus LAN with DHCP/DNS/LB farm |
-| `enterprise_branch` | Kathara | `-s s\|m\|l` |  | Hub-and-spoke enterprise WAN: provider underlay + WireGuard + eBGP overlay with per-role VRFs |
+| `campus_lan` | Kathara | `-s s\|m\|l` | `--device-profile iosxr` | Hierarchical campus LAN with DHCP/DNS/LB farm |
+| `enterprise_branch` | Kathara | `-s s\|m\|l` | `--device-profile iosxr` | Hub-and-spoke enterprise WAN: provider underlay + WireGuard + eBGP overlay with per-role VRFs |
 | `sdn_l3_clos` | Kathara | `-s s\|m\|l` |  | ONOS + OVS L3 Clos with SELECT ECMP |
 | `p4_dc_fabric` | Kathara | `-s s\|m\|l` |  | BMv2 `simple_switch_grpc` L3 Clos under P4Runtime; ActionSelector ECMP |
 | `p4_dc_gateway` | Kathara | `-s s\|m\|l` |  | Gateway-spine-leaf BMv2 fabric with ECMP, INT-MX, ECN, queues, and flow tracking |
@@ -296,22 +296,27 @@ Each router runs privileged with IPv6 enabled (Kathara device metadata in `lab.p
 
 ## Native IOS XR routers
 
-To study the same routing design on Cisco IOS XR, pass `--device-profile iosxr`. NIKA keeps the environment's topology, addressing, hosts and services, and runs every router as an XRd Control Plane container with native IOS XR configuration. Readiness and verification read XR's own `show` output.
+To study the same routing design on Cisco IOS XR, pass `--device-profile iosxr`. NIKA keeps the environment's topology, addressing, hosts and services, and runs the routers of the eligible roles as XRd Control Plane containers with native IOS XR configuration. Nodes in other roles keep their FRR/Linux design, so tasks and ground truth are unchanged. Readiness and verification read XR's own `show` output on the XR routers.
 
 ```shell
 uv run nika env run isp_arpanet196912 --device-profile iosxr --igp isis --bgp-mode ibgp_rr
 uv run nika env run dc_clos -s s --device-profile iosxr
+uv run nika env run campus_lan -s s --device-profile iosxr
+uv run nika env run enterprise_branch -s s --device-profile iosxr
 ```
 
-| Environment | Routing on IOS XR | Sizes |
-| --- | --- | --- |
-| `isp_<topology>` (SNDlib and Topology Zoo) | OSPF or Level-2 IS-IS; BGP `none`, `ibgp_rr` or `ebgp` with the business-prefix allow-list | Graphs that pass memory admission |
-| `dc_clos` | eBGP with multipath across spines | `s` |
-| `campus_lan`, `enterprise_branch` | Not supported | — |
+| Environment | Routers on IOS XR | Routing on IOS XR | Sizes |
+| --- | --- | --- | --- |
+| `isp_<topology>` (SNDlib and Topology Zoo) | All | OSPF or Level-2 IS-IS; BGP `none`, `ibgp_rr` or `ebgp` with the business-prefix allow-list | Graphs that pass memory admission |
+| `dc_clos` | All | eBGP with multipath across spines | `s` |
+| `campus_lan` | Core routers | Multi-area OSPF with the FRR distribution and server gateways | `s`, `m`, `l` |
+| `enterprise_branch` | Provider routers | Static underlay routes; the provider egress delay is not reproduced | `s`, `m`, `l` |
 
-Each XRd router uses about 2 GiB of memory and has a 3 GiB limit, so NIKA checks available memory before it creates any container and rejects larger `dc_clos` sizes. Campus routers bridge access ports into a routed interface, which XRd Control Plane cannot route, and enterprise branch routers need WireGuard and NAT, which XRd does not provide. The RPKI and RTBH ISP specials remain FRR only.
+Campus distribution and server gateways stay FRR because they bridge access ports into a routed interface and relay DHCP; XRd Control Plane cannot route a bridged interface. Enterprise site edges stay FRR because they terminate WireGuard, VRFs and NAT, which XRd does not provide. The RPKI and RTBH ISP specials remain FRR only.
 
-Install the image and raise inotify limits as described for [`iosxr_simple_bgp`](#ios-xr-simple-bgp-scenario). XR boots and applies its configuration in three to five minutes, which the readiness check waits for.
+Each XRd router uses about 2 GiB of memory and has a 3 GiB limit, so NIKA checks available memory before it creates any container and rejects larger `dc_clos` sizes. Install the image and raise inotify limits as described for [`iosxr_simple_bgp`](#ios-xr-simple-bgp-scenario). XR boots and applies its configuration in three to five minutes, which the readiness check waits for.
+
+XRd transmits around the Linux queueing disciplines of its container interfaces, so `tc` shaping on an XR router port has no effect on the traffic XR forwards. The enterprise provider routers therefore do not add their 20 ms egress delay (NIKA logs the dropped commands and records them in the session metadata), and link-quality failures that shape an XR router port do not take effect; target the FRR/Linux side of the link instead.
 
 XRd does not observe the carrier state of its Linux interfaces. After `link_down`, `show interfaces` in XR still reports the port as up; the IGP or BGP session fails when its hold time expires (40 seconds for OSPF, 30 seconds for IS-IS, 180 seconds for BGP). Use `ip link` in the router container to see the carrier state.
 
