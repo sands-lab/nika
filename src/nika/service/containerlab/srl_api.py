@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+import json
 import re
 
 from nika.service.containerlab.protocols import SupportsSRL
@@ -10,7 +11,6 @@ from nika.service.containerlab.protocols import SupportsSRL
 NIKA_BGP_ACL = "nika_bgp_block"
 NIKA_BGP_WITHDRAW = "nika_bgp_withdraw"
 NIKA_BGP_WITHDRAW_PFX = "nika_bgp_withdraw_pfx"
-NIKA_BGP_EXPORT_GROUP = "clos01"
 NIKA_BLACKHOLE_NHG = "nika_blackhole"
 # Transport port fields matched against TCP/179, in drop-entry order.
 _NIKA_BGP_ACL_PORTS = ("destination-port", "source-port")
@@ -285,14 +285,32 @@ class SRLAPIMixin:
         """Stop exporting ``prefix`` to BGP peers via an export routing-policy."""
         network = ipaddress.ip_network(prefix, strict=False)
         prefix_str = str(network)
-        self._srl_candidate(
-            device_name,
+        state = json.loads(
+            self.srl_exec_cli(
+                device_name,
+                "info from state network-instance default protocols bgp | as json",
+            )
+        )
+        bgp = state["network-instance"][0]["protocols"]["bgp"]
+        commands = [
             f"/routing-policy prefix-set {NIKA_BGP_WITHDRAW_PFX} prefix {prefix_str} mask-length-range exact",
-            f"/routing-policy policy {NIKA_BGP_WITHDRAW} default-action policy-result accept",
+            f"/routing-policy policy {NIKA_BGP_WITHDRAW} default-action policy-result next-policy",
             f"/routing-policy policy {NIKA_BGP_WITHDRAW} statement 10 match prefix-set {NIKA_BGP_WITHDRAW_PFX}",
             f"/routing-policy policy {NIKA_BGP_WITHDRAW} statement 10 action policy-result reject",
-            f"/network-instance default protocols bgp group {NIKA_BGP_EXPORT_GROUP} export-policy [{NIKA_BGP_WITHDRAW}]",
-        )
+        ]
+        if not bgp.get("neighbor"):
+            raise ValueError("BGP withdrawal requires actual configured peers")
+        for neighbor in bgp["neighbor"]:
+            family = next(
+                af
+                for af in neighbor["afi-safi"]
+                if af["afi-safi-name"] == "ipv4-unicast"
+            )
+            policies = [NIKA_BGP_WITHDRAW, *family.get("export-policy", [])]
+            commands.append(
+                f"/network-instance default protocols bgp neighbor {neighbor['peer-address']} afi-safi ipv4-unicast export-policy [{' '.join(policies)}]"
+            )
+        self._srl_candidate(device_name, *commands)
 
     def srl_bgp_prefix_withdrawn(
         self: SupportsSRL, device_name: str, prefix: str

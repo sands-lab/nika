@@ -113,7 +113,7 @@ uv run nika env run isp_abilene --bgp-mode ebgp
 uv run nika env run isp_france --backend containerlab --device-profile nokia_srlinux
 uv run nika env run isp_abilene_ebgp_rpki
 uv run nika env run isp_abilene_ebgp_rtbh
-uv run nika traffic run sndlib --mode demands --max-intervals 1 --unit K --background
+uv run nika traffic run matrix-replay --mode demands --max-intervals 1 --unit K --background
 ```
 
 See the [SNDlib ISP scenarios reference](../operations/network-scenarios.md#sndlib-isp-scenarios) for the shared compiler, backend bindings, and control knobs.

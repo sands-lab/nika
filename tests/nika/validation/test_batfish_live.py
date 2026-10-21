@@ -33,6 +33,72 @@ def _verify(env: Isp, root: Path, configs: dict[str, str] | None = None):
     return BatfishVerifier().verify(env.validation_contract, snapshot)
 
 
+def test_routing_workflow_rejects_unsupported_required_analysis(tmp_path):
+    from nika.workflows.validation.routing import validate_routing_design
+    from nika.workflows.validation.routing_spec import RoutingExperiment
+
+    env = Isp(topo="abilene", igp="ospf", bgp_mode="none")
+    # The RPKI design marker declares semantics outside this snapshot's
+    # model. The report may retain partial observations, but is not acceptance.
+    contract = env.validation_contract.model_copy(
+        update={
+            "contract_id": "unsupported-model.routing-workflow",
+            "design_source": {"rpki": True},
+            "intents": tuple(
+                i
+                for i in env.validation_contract.intents
+                if i.property == "reachability" and i.level == "required"
+            ),
+        }
+    )
+    spec = RoutingExperiment(
+        scenario="isp_abilene",
+        deployment={"igp": "ospf", "bgp_mode": "none"},
+        healthy=contract,
+        incidents=(),
+    )
+    # A failed rerun must replace the acceptance of an earlier candidate.
+    (tmp_path / "summary.json").write_text(
+        '{"status": "passed", "validation_scope": "static-and-runtime"}\n'
+    )
+    with pytest.raises(RuntimeError, match="Requirements did not pass"):
+        validate_routing_design(spec, tmp_path)
+    report = ValidationReport.model_validate_json(
+        (tmp_path / "static-healthy.json").read_text()
+    )
+    assert any(row.status == "unsupported" for row in report.results)
+    assert not (tmp_path / "summary.json").exists()
+
+
+def test_live_batfish_node_name_with_reserved_location_prefix(tmp_path):
+    from nika.workflows.validation.benchmark_routing import (
+        build_benchmark_isp_experiment,
+        isp_catalog_profiles,
+    )
+
+    env = Isp(topo="istar", igp="ospf", bgp_mode="none")
+    profile = isp_catalog_profiles()["isp_istar--isis--none--kathara"]
+    profile["deployment"]["igp"] = "ospf"
+    original = build_benchmark_isp_experiment(profile).healthy
+    intent = next(
+        i
+        for i in original.intents
+        if i.property == "reachability" and i.source.name.startswith("internet")
+    )
+    contract = original.model_copy(update={"intents": (intent,)})
+    ensure_batfish_service()
+    snapshot = build_isp_snapshot(
+        root=tmp_path,
+        contract=contract,
+        plan=env.plan,
+        traffic=env.traffic,
+        deployment_configs=env.deployment_configs,
+    )
+    report = BatfishVerifier().verify(contract, snapshot)
+    assert report.status == "passed"
+    assert report.results[0].status == "passed"
+
+
 def test_live_batfish_ospf_healthy_and_area_mutation(tmp_path) -> None:
     env = Isp(topo="abilene", igp="ospf", bgp_mode="none")
     healthy = _verify(env, tmp_path / "healthy")

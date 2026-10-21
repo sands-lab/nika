@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from nika.net_env.isp.bgp.plan import BgpNodePlan, BgpPlan
+from nika.net_env.utils.kathara.frr_origin import BGP_ORIGIN_IFACE
 
 # Prefix-list of routes a router must not export to eBGP peers (RPKI profile).
 EXPORT_DENY_PREFIX_LIST = "EXPORT-DENY"
@@ -177,12 +178,16 @@ def _rpki_stanza(cache: tuple[str, int] | None) -> list[str]:
 def _render_ibgp(node: BgpNodePlan, plan: BgpPlan) -> str:
     lines = ["!", "! ISP BGP (iBGP RR)", "!"]
     if node.originated:
-        lines.extend(["interface lo"])
+        lines.append(f"interface {BGP_ORIGIN_IFACE}")
         for prefix in sorted(node.originated, key=lambda item: item.prefix):
             prefixlen = prefix.prefix.rsplit("/", 1)[1]
             lines.append(f" ip address {prefix.ping_address}/{prefixlen}")
         lines.append("!")
-    lines.extend(_common_prefix_lists())
+    lines.extend(
+        _common_prefix_lists(
+            extra_business=tuple(origin.prefix for origin in plan.originated)
+        )
+    )
     lines.extend(_route_maps(rov_reject_invalid=False, export_deny_prefixes=()))
     lines.extend(
         [
@@ -226,13 +231,15 @@ def _render_ebgp(node: BgpNodePlan, plan: BgpPlan) -> str:
         title = "eBGP"
     lines = ["!", f"! ISP BGP ({title})", "!"]
     if node.originated:
-        lines.extend(["interface lo"])
+        lines.append(f"interface {BGP_ORIGIN_IFACE}")
         for prefix in sorted(node.originated, key=lambda item: item.prefix):
             prefixlen = prefix.prefix.rsplit("/", 1)[1]
             lines.append(f" ip address {prefix.ping_address}/{prefixlen}")
         lines.append("!")
     lines.extend(_rpki_stanza(node.rpki_cache))
-    extra = tuple(plan.inventory.get("leak_prefixes") or ())
+    extra = tuple(plan.inventory.get("leak_prefixes") or ()) + tuple(
+        origin.prefix for origin in plan.originated
+    )
     lines.extend(_common_prefix_lists(extra_business=extra))
     lines.extend(_leak_prefix_list(node.export_deny_prefixes))
     discard_nh = str(plan.inventory.get("discard_next_hop") or "") or None
@@ -249,6 +256,26 @@ def _render_ebgp(node: BgpNodePlan, plan: BgpPlan) -> str:
         )
     )
     outbound_by_neighbor = dict(node.ebgp_outbound_route_maps)
+    inbound_by_neighbor = {}
+    for index, (neighbor, terms) in enumerate(node.import_policies):
+        name = f"NC-IN-{index}"
+        inbound_by_neighbor[neighbor] = name
+        for seq, term in enumerate(terms, 1):
+            plist = f"{name}-P{seq}"
+            lines.extend(
+                [
+                    f"ip prefix-list {plist} permit {term.prefix}",
+                    f"route-map {name} {'permit' if term.permit else 'deny'} {seq * 10}",
+                    f" match ip address prefix-list {plist}",
+                ]
+            )
+            if term.permit:
+                lines.extend(
+                    [f" set local-preference {term.local_preference}", " call BGP-IN"]
+                )
+            lines.append("!")
+        # Preserve the original policy for all prefixes outside the sketch.
+        lines.extend([f"route-map {name} permit 65535", " call BGP-IN", "!"])
     lines.extend(
         [
             f"router bgp {node.asn}",
@@ -272,8 +299,9 @@ def _render_ebgp(node: BgpNodePlan, plan: BgpPlan) -> str:
         lines.append(f"  neighbor {sess.remote_ip} activate")
         if sess.session_type == "ebgp":
             lines.append(f"  neighbor {sess.remote_ip} next-hop-self")
-            lines.append(f"  neighbor {sess.remote_ip} route-map BGP-IN in")
+            in_map = inbound_by_neighbor.get(sess.remote_ip, "BGP-IN")
             out_map = outbound_by_neighbor.get(sess.remote_ip, "BGP-OUT")
+            lines.append(f"  neighbor {sess.remote_ip} route-map {in_map} in")
             lines.append(f"  neighbor {sess.remote_ip} route-map {out_map} out")
         else:
             # Intra-AS iBGP: flood without the export deny so borders can

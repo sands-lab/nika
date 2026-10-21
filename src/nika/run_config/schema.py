@@ -151,6 +151,8 @@ class StaticValidationSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     enabled: bool = False
+    # Java heap for the Batfish container; applies when NIKA creates it.
+    batfish_heap: str = Field(default="8g", pattern=r"^[1-9][0-9]*[mMgG]$")
 
 
 class RuntimeValidationSettings(BaseModel):
