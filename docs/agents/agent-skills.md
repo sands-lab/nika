@@ -43,7 +43,7 @@ agent:
   enable_skills: true
 ```
 
-Set `agent.enable_skills` in `config/nika.yaml`. Host-side agents read that setting at runtime. Sandboxed agents cannot read the host config, so NIKA passes the resolved value into the sandbox as `NIKA_ENABLE_SKILLS` and skips copying the skills tree when skills are off. Change `agent.enable_skills` instead of setting `NIKA_ENABLE_SKILLS` yourself.
+Set `agent.enable_skills` in `config/nika.yaml` to load or disable the shared skill library.
 
 ## Writing a custom skill
 
