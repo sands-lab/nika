@@ -13,7 +13,7 @@ BGP_EXPORT_POLICY = "CLOS01-OUT"
 BGP_EXPORT_PREFIX_SET = "CLOS01-OUT-PFX"
 STATIC_NHG = "static-nhg-1"
 # Transport port fields matched against TCP/179, in drop-entry order.
-_BGP_ACL_DESCRIPTION_PORTS = ("destination-port", "source-port")
+_BGP_ACL_PORTS = ("destination-port", "source-port")
 _CPM_IPV4_ENTRY_RE = re.compile(
     r"^set / acl acl-filter cpm type ipv4 entry (\d+) (.+)$", re.MULTILINE
 )
@@ -120,9 +120,7 @@ class SRLAPIMixin:
         entries = self._srl_cpm_ipv4_entries(device_name)
         if not entries:
             raise ValueError(f"SRL node {device_name!r} has no CPM IPv4 filter entries")
-        bgp_matches = {
-            f"match transport {port} value 179" for port in _BGP_ACL_DESCRIPTION_PORTS
-        }
+        bgp_matches = {f"match transport {port} value 179" for port in _BGP_ACL_PORTS}
         bgp_accepts = [
             seq
             for seq, lines in entries.items()
@@ -134,7 +132,7 @@ class SRLAPIMixin:
         for lo in [*sorted((seq for seq in entries if seq < anchor), reverse=True), 0]:
             if hi - lo > 2:
                 first = min((lo + hi) // 2, hi - 2)
-                return dict(zip((first, first + 1), _BGP_ACL_DESCRIPTION_PORTS))
+                return dict(zip((first, first + 1), _BGP_ACL_PORTS))
             hi = lo
         raise ValueError(
             f"No two adjacent free CPM IPv4 filter sequence IDs before entry "

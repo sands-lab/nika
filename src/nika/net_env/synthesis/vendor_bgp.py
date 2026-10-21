@@ -46,7 +46,7 @@ def render_iosxr_bgp_exports(config: str, node: str, parameters) -> str:
     additions = []
     for policy in policies:
         neighbor = policy.neighbor
-        name = f"NIKA-OUT-{node}-{neighbor.replace('.', '-')}"
+        name = f"EXPORT-{node}-{neighbor.replace('.', '-')}"
         statements = []
         terms = sorted(policy.terms, key=lambda item: item.prefix)
         for index, term in enumerate(terms, 1):
@@ -119,7 +119,7 @@ def render_routeros_bgp_exports(config: str, node: str, parameters) -> str:
         line = match.group(1)
         if re.search(r"(?:^|\s)output\.filter-chain=", line):
             raise ValueError("Cannot replace an unknown RouterOS export filter")
-        name = f"NIKA-OUT-{node}-{policy.neighbor.replace('.', '-')}"
+        name = f"EXPORT-{node}-{policy.neighbor.replace('.', '-')}"
         replacement = line + f" output.filter-chain={name}"
         rendered = rendered.replace(line, replacement, 1)
         for term in sorted(policy.terms, key=lambda item: item.prefix):

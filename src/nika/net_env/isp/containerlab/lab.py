@@ -9,7 +9,7 @@ from typing import ClassVar, Literal
 
 import yaml
 
-from nika.config import CLAB_RUNTIME_DIR
+from nika.config import clab_workdir
 from nika.net_env.utils.containerlab.base import ContainerlabNetworkEnv
 from nika.utils.dependencies import require_gnmic
 from nika.net_env.isp.bgp import (
@@ -310,8 +310,7 @@ class Isp(ContainerlabNetworkEnv):
         lab_name = self.name
         if not lab_name:
             raise ValueError("Lab name is required before deploy.")
-        self.runtime_workdir = CLAB_RUNTIME_DIR / lab_name
-        self.runtime_workdir.mkdir(parents=True, exist_ok=True)
+        self.runtime_workdir = clab_workdir(lab_name)
         self.topology_file = self.runtime_workdir / f"{self.scenario_id}.clab.yml"
 
         self._mgmt_ipv4 = self._assign_mgmt_ips()

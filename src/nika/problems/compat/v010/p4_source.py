@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import shlex
 
 from pydantic import BaseModel, Field
@@ -32,10 +31,10 @@ class _LegacyP4SourceFault(ProblemBase):
             raise RuntimeError(f"Expected one P4 program on {host}: {program!r}")
         return program
 
-    def _backup_path(self, source: str) -> str:
-        # One backup per fault, named without revealing it.
-        digest = hashlib.sha1(self.root_cause_name.encode()).hexdigest()[:8]
-        return f"/tmp{source}.{digest}.orig"
+    @staticmethod
+    def _backup_path(source: str) -> str:
+        # Each legacy P4 source fault edits its own program file.
+        return f"/tmp{source}.orig"
 
     def _is_edited(self, host: str, source: str) -> bool:
         if self.new_text.startswith("#define"):
