@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 import shlex
 from dataclasses import dataclass
-from ipaddress import IPv4Address
+from ipaddress import IPv4Address, IPv4Network
 from time import perf_counter
 
 from nika.net_env.contract import (
@@ -345,6 +345,13 @@ def _native_ping_status(output: str, platform: str) -> bool:
     raise ValueError("Unable to determine reachability from native probe output")
 
 
+def _probe_address(entity) -> str:
+    """Probe a prefix through its first host address, as the FRR verifier does."""
+    if entity.kind == "prefix":
+        return str(IPv4Network(entity.address).network_address + 1)
+    return entity.address.split("/", 1)[0]
+
+
 def _supported_request(intent, platform: str, plan=None) -> VerifyCommand | None:
     if intent.property == "adjacency" and intent.adjacency.protocol == "bgp":
         adjacency = intent.adjacency
@@ -385,24 +392,27 @@ def _supported_request(intent, platform: str, plan=None) -> VerifyCommand | None
                 if intent.bgp_route:
                     command += " bgp=yes"
             return VerifyCommand(expected.node, _native_command(platform, command), 30)
-    if (
-        intent.property in {"reachability", "isolation"}
-        and intent.traffic.protocol == "icmp"
+    if intent.property in {"reachability", "isolation"} and (
+        intent.traffic.protocol == "icmp"
+        # An IPv4 isolation requirement is violated by any delivered packet,
+        # so an ICMP probe is a sufficient counterexample search.
+        or (intent.property == "isolation" and intent.traffic.protocol == "ipv4")
     ):
         if (
             intent.source.kind not in {"node", "endpoint"}
-            or intent.destination.kind not in {"node", "endpoint"}
+            or intent.destination.kind not in {"node", "endpoint", "prefix"}
             or not intent.source.address
             or not intent.destination.address
         ):
             return None
+        target = _probe_address(intent.destination)
         if plan is not None and intent.source.name in {
             node.device_name for node in plan.nodes
         }:
             command = (
-                f"ping {intent.destination.address} source {intent.source.address} repeat 3 timeout 2"
+                f"ping {target} source {intent.source.address} repeat 3 timeout 2"
                 if platform == "iosxr"
-                else f"/ping address={intent.destination.address} src-address={intent.source.address} count=3 interval=1s"
+                else f"/ping address={target} src-address={intent.source.address} count=3 interval=1s"
             )
             return VerifyCommand(
                 intent.source.name,
@@ -422,7 +432,7 @@ def _supported_request(intent, platform: str, plan=None) -> VerifyCommand | None
                     "2",
                     "-I",
                     intent.source.address,
-                    intent.destination.address,
+                    target,
                 ]
             ),
             15,

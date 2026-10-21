@@ -59,9 +59,10 @@ class IspVendor(NetworkEnvBase):
         validate_backend_profile(self.backend, self.device_profile)
         if self.device_profile not in {"iosxr", "routeros"}:
             raise ValueError("Native ISP requires iosxr or routeros")
-        if igp != "ospf" or rpki or rtbh or topo_size is not None:
+        # The vendor renderer checks its IGP; overlays need native policies.
+        if rpki or rtbh or topo_size is not None:
             raise ValueError(
-                "Native ISP supports OSPF with optional BGP, without security overlays or topo_size"
+                "Native ISP supports optional BGP without security overlays or topo_size"
             )
         model = f"{self.device_profile}-isp"
         if routing_model is not None and routing_model != model:
@@ -151,7 +152,10 @@ class IspVendor(NetworkEnvBase):
         self.lab = Lab(scenario_id)
         self.name = scenario_id
         self.instance = Kathara.get_instance()
-        self.desc = f"ISP {self.plan.topology_name}: {self.device_profile}, OSPF, BGP={self.bgp_mode}"
+        self.desc = (
+            f"ISP {self.plan.topology_name}: {self.device_profile}, "
+            f"{self.plan.igp.upper()}, BGP={self.bgp_mode}"
+        )
         for node in self.plan.nodes:
             machine = self.lab.new_machine(
                 node.device_name,
@@ -163,7 +167,7 @@ class IspVendor(NetworkEnvBase):
             machine.create_file_from_string(
                 self.deployment_configs[node.device_name], CONFIG_FILE_PATH
             )
-            capabilities = ("linux", self.device_profile, "ospf")
+            capabilities = ("linux", self.device_profile, self.plan.igp)
             if self.bgp_plan is not None:
                 capabilities += ("bgp",)
             self.declare_machine(
@@ -282,8 +286,27 @@ class IspVendor(NetworkEnvBase):
         )
 
     def startup_verify_lab(self):
-        # Readiness checks adjacencies and edge-host ICMP; the experiment checks
-        # the complete original behavior and exact forwarding requirements.
+        # Readiness covers adjacencies, edge-host ICMP and BGP propagation to
+        # the designed prefixes (as FRR readiness does). The full verification
+        # adds the remaining required predicates, such as prefix isolation.
+        return self._verify_contract(
+            lambda i: (
+                i.adjacency is not None
+                or (
+                    i.property == "reachability"
+                    and i.traffic.protocol == "icmp"
+                    and i.source.kind in {"endpoint", "node"}
+                    and i.destination.kind in {"endpoint", "prefix"}
+                )
+            )
+        )
+
+    def verify_lab(self):
+        return self._verify_contract(
+            lambda i: i.adjacency is not None or i.level == "required"
+        )
+
+    def _verify_contract(self, selected):
         from nika.net_env.vendor_validation import (
             verify_iosxr_contract,
             verify_routeros_contract,
@@ -293,15 +316,7 @@ class IspVendor(NetworkEnvBase):
         contract = self.validation_contract.model_copy(
             update={
                 "intents": tuple(
-                    i
-                    for i in self.validation_contract.intents
-                    if i.adjacency is not None
-                    or (
-                        i.property == "reachability"
-                        and i.traffic.protocol == "icmp"
-                        and i.source.kind == "endpoint"
-                        and i.destination.kind == "endpoint"
-                    )
+                    i for i in self.validation_contract.intents if selected(i)
                 )
             }
         )
@@ -310,14 +325,32 @@ class IspVendor(NetworkEnvBase):
             if self.device_profile == "iosxr"
             else verify_routeros_contract
         )
-        report = verifier(self._build_runtime(), contract=contract, plan=self.plan)
+        runtime = self._build_runtime()
+        report = verifier(runtime, contract=contract, plan=self.plan)
         checks = {row.intent: row.status == "passed" for row in report.results}
+        details = report.model_dump(mode="json")
+        if self.plan.igp == "isis":
+            # ISP contracts declare OSPF adjacencies only; check IS-IS natively.
+            from nika.net_env.isp.iosxr import (
+                ISIS_ADJACENCY_COMMAND,
+                iosxr_isis_adjacency_checks,
+            )
+            from nika.net_env.verify_collection import (
+                VerifyCommand,
+                collect_verify_commands,
+            )
+
+            observed = collect_verify_commands(
+                runtime,
+                [
+                    VerifyCommand(node.device_name, ISIS_ADJACENCY_COMMAND, 30)
+                    for node in self.plan.nodes
+                ],
+            )
+            checks.update(iosxr_isis_adjacency_checks(observed, self.plan))
         return build_lab_verify_result(
             scenario_name=self.scenario_id,
             verified=bool(checks) and all(checks.values()),
             checks=checks,
-            details=report.model_dump(mode="json"),
+            details=details,
         )
-
-    def verify_lab(self):
-        return self.startup_verify_lab()

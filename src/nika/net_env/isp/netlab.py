@@ -33,7 +33,7 @@ def netlab_topology(plan: IspPlan, bgp: BgpPlan | None, device_profile: str) -> 
             "netlab construction currently supports FRR, IOS XR, Nokia SR Linux and RouterOS"
         )
     if plan.igp not in {"ospf", "isis"} or (
-        plan.igp == "isis" and device_profile not in {"frr", "nokia_srlinux"}
+        plan.igp == "isis" and device_profile not in {"frr", "iosxr", "nokia_srlinux"}
     ):
         raise ValueError("netlab ISP construction requires OSPF or supported L2 IS-IS")
     if bgp and bgp.mode not in {"ibgp_rr", "ebgp"}:
