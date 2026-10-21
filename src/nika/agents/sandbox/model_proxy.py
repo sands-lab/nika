@@ -486,6 +486,46 @@ def require_anthropic_messages_route(base_url: str, *, api_key: str = "") -> Non
         )
 
 
+def require_agent_credentials(
+    agent_type: str, provider: str, *, env_file: Path | None = None
+) -> None:
+    """Fail when *agent_type* can reach *provider* with neither a key nor a login.
+
+    Without an API key, only agents whose spec allows ``subscription`` fall
+    back to the host's Claude or ChatGPT login.
+    """
+    from nika.agents.provider_env import has_provider_credentials
+    from nika.agents.registry import get_agent_spec
+    from nika.agents.sandbox.config import (
+        load_credential_sources,
+        project_credentials_env_file,
+    )
+
+    if provider not in ("anthropic", "openai"):
+        return
+    env_file = env_file or project_credentials_env_file()
+    sources = load_credential_sources(
+        env_file, provider=provider, agent_type=agent_type
+    )
+    if has_provider_credentials(provider, sources):
+        return
+    spec = get_agent_spec(agent_type)
+    if not spec.subscription:
+        raise ValueError(
+            f"{agent_type} needs an API key for provider {provider!r} in "
+            f"{env_file}; subscription logins work only with Codex and Claude "
+            "agents."
+        )
+    try:
+        _subscription_upstream(
+            anthropic=spec.client_family(provider) == "anthropic",
+            provider=provider,
+            env_file=env_file,
+        )
+    except RuntimeError as exc:
+        raise ValueError(str(exc)) from exc
+
+
 def start_model_proxy(
     stack: ExitStack,
     *,
@@ -515,6 +555,7 @@ def start_model_proxy(
         ENV_OPENAI_BASE_URL,
     )
 
+    require_agent_credentials(agent_type, provider, env_file=env_file)
     sources = load_credential_sources(
         env_file, provider=provider, agent_type=agent_type
     )
@@ -556,7 +597,14 @@ def start_model_proxy(
     url = f"http://{agent_host}:{port}"
     if anthropic and subscription:
         # Claude Code runs in subscription mode and sends it as its bearer.
-        env = {ENV_ANTHROPIC_BASE_URL: url, ENV_CLAUDE_CODE_OAUTH_TOKEN: token}
+        # It prefers an API key over the login, so clear any the sandbox
+        # runtime injects (sbx custom secrets set ANTHROPIC_API_KEY globally).
+        env = {
+            ENV_ANTHROPIC_BASE_URL: url,
+            ENV_CLAUDE_CODE_OAUTH_TOKEN: token,
+            ENV_ANTHROPIC_API_KEY: "",
+            ENV_ANTHROPIC_AUTH_TOKEN: "",
+        }
     elif anthropic:
         env = {
             ENV_ANTHROPIC_BASE_URL: url,

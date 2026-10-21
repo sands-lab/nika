@@ -36,6 +36,10 @@ class AgentSpec:
     # follows the provider (Anthropic clients for ``anthropic``, else OpenAI).
     credential_family: Literal["openai", "anthropic", "provider"] = "openai"
     requires_provider: bool = True
+    # Whether a Claude or ChatGPT subscription login on the host can stand in
+    # for the provider's API key. Only the Codex and Claude harnesses support
+    # it; every other agent needs an API key.
+    subscription: bool = False
     supports_max_tokens: bool = True
     # Model used when neither the CLI nor agent.model sets one.
     default_model: str | None = None
@@ -93,6 +97,7 @@ BUILTIN_AGENTS: tuple[AgentSpec, ...] = (
     ),
     AgentSpec(
         id="cli.codex",
+        subscription=True,
         class_path="agent.cli.codex.agent:CodexCliAgent",
         providers=frozenset({"openai", "deepseek", "custom"}),
         supports_max_tokens=False,
@@ -100,6 +105,7 @@ BUILTIN_AGENTS: tuple[AgentSpec, ...] = (
     ),
     AgentSpec(
         id="cli.claude",
+        subscription=True,
         class_path="agent.cli.claude.agent:ClaudeAgent",
         providers=frozenset({"anthropic", "deepseek", "custom"}),
         credential_family="anthropic",
@@ -107,6 +113,7 @@ BUILTIN_AGENTS: tuple[AgentSpec, ...] = (
     ),
     AgentSpec(
         id="sdk.codex_sdk",
+        subscription=True,
         class_path="agent.sdk.codex_sdk.agent:CodexSdkAgent",
         providers=frozenset({"openai", "deepseek", "custom"}),
         supports_max_tokens=False,
@@ -114,6 +121,7 @@ BUILTIN_AGENTS: tuple[AgentSpec, ...] = (
     ),
     AgentSpec(
         id="sdk.claude_sdk",
+        subscription=True,
         class_path="agent.sdk.claude_sdk.agent:ClaudeSdkAgent",
         providers=frozenset({"anthropic", "deepseek", "custom"}),
         credential_family="anthropic",
@@ -121,6 +129,7 @@ BUILTIN_AGENTS: tuple[AgentSpec, ...] = (
     ),
     AgentSpec(
         id="community.sade",
+        subscription=True,
         class_path="agent.community.sade.agent:SadeAgent",
         providers=frozenset({"anthropic", "deepseek", "custom"}),
         credential_family="anthropic",

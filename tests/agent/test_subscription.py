@@ -1,4 +1,4 @@
-"""Subscription logins held on the host for the e2b backend's model proxy."""
+"""Subscription logins held on the host for the model proxy."""
 
 from __future__ import annotations
 
@@ -115,21 +115,27 @@ def test_model_proxy_uses_a_subscription_only_without_api_key(
         return env
 
     env_file.write_text("")
-    with pytest.raises(RuntimeError, match="claude setup-token"):
+    with pytest.raises(ValueError, match="claude setup-token"):
         start("cli.claude", "anthropic")
-    with pytest.raises(RuntimeError, match="codex login"):
+    with pytest.raises(ValueError, match="codex login"):
         start("cli.codex", "openai")
 
     # The sandbox only gets the proxy token, as Claude Code's OAuth bearer.
     env_file.write_text("CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-real\n")
     env = start("cli.claude", "anthropic")
-    assert set(env) == {"ANTHROPIC_BASE_URL", "CLAUDE_CODE_OAUTH_TOKEN"}
     assert env["CLAUDE_CODE_OAUTH_TOKEN"].startswith("proxy-token-")
+    # Claude Code prefers an API key, so one the runtime injects is cleared.
+    assert env["ANTHROPIC_API_KEY"] == env["ANTHROPIC_AUTH_TOKEN"] == ""
 
     _write_login(tmp_path / "codex", expires_in=3600)
     env = start("cli.codex", "openai")
     assert set(env) == {"OPENAI_BASE_URL", "OPENAI_API_KEY"}
     assert env["OPENAI_API_KEY"].startswith("proxy-token-")
+
+    # BYO agents need an API key even when a login is present.
+    for provider in ("openai", "anthropic"):
+        with pytest.raises(ValueError, match="needs an API key"):
+            start("byo.langgraph", provider)
 
     # An API key still wins over the subscription.
     env_file.write_text(
