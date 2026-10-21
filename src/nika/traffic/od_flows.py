@@ -12,6 +12,12 @@ OD_START_PORT = 5201
 # Per-host scratch directory for iperf3 reports and server PID files.
 OD_WORKDIR = "/tmp/nika-od"
 _MARKER = "@@NIKA_OD"
+# Signal a recorded server only while its PID still belongs to our ``timeout``
+# wrapper, so a recycled PID never hits an unrelated process on the host.
+_KILL_OWN = (
+    'kill_own() { kp=$(cat "$1" 2>/dev/null) && '
+    '[ "$(cat /proc/$kp/comm 2>/dev/null)" = timeout ] && kill "$kp"; }; '
+)
 # iperf3 3.12 waits 30 s for a UDP setup reply lost to congestion; stop such
 # clients shortly after the transfer would have ended instead.
 _CLIENT_GRACE_SEC = 10
@@ -69,8 +75,8 @@ def _server_start_cmd(
     plist = " ".join(str(p) for p in ports)
     report = f">{d}/{run}_s_$p.json 2>/dev/null" if run else ">/dev/null 2>&1"
     return (
-        f"mkdir -p {d}; k=0; for p in {plist}; do "
-        f'[ -s {d}/s_$p.pid ] && kill "$(cat {d}/s_$p.pid)" 2>/dev/null && k=1; '
+        f"{_KILL_OWN}mkdir -p {d}; k=0; for p in {plist}; do "
+        f"kill_own {d}/s_$p.pid 2>/dev/null && k=1; "
         'done; [ "$k" = 1 ] && sleep 0.5; '
         f"for p in {plist}; do timeout {lifetime} iperf3 -s -1 -p $p {server_args} "
         f"-J {report} & echo $! >{d}/s_$p.pid; done; "
@@ -85,11 +91,11 @@ def _server_collect_cmd(ports: list[int], run: str) -> str:
     d = OD_WORKDIR
     plist = " ".join(str(p) for p in ports)
     return (
-        "i=0; while [ $i -lt 50 ]; do alive=0; "
+        f"{_KILL_OWN}i=0; while [ $i -lt 50 ]; do alive=0; "
         f'for p in {plist}; do kill -0 "$(cat {d}/s_$p.pid 2>/dev/null)" '
         "2>/dev/null && alive=1; done; "
         '[ "$alive" = 0 ] && break; i=$((i+1)); sleep 0.1; done; '
-        f'for p in {plist}; do kill "$(cat {d}/s_$p.pid 2>/dev/null)" 2>/dev/null; '
+        f"for p in {plist}; do kill_own {d}/s_$p.pid 2>/dev/null; "
         f"echo {_MARKER} $p; cat {d}/{run}_s_$p.json 2>/dev/null; echo; "
         f"rm -f {d}/{run}_s_$p.json {d}/s_$p.pid; done"
     )
