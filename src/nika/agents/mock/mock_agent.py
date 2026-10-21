@@ -51,59 +51,6 @@ def _preferred_devices_from_gt(gt: dict[str, Any]) -> list[str]:
     return preferred
 
 
-def _catalog_ids_from_tool(result: object) -> list[str]:
-    payload: object = result
-    if isinstance(result, str):
-        try:
-            payload = json.loads(result)
-        except json.JSONDecodeError:
-            payload = [result]
-    ids: list[str] = []
-
-    def _take(item: object) -> None:
-        if isinstance(item, dict) and "text" in item:
-            try:
-                inner = json.loads(str(item["text"]))
-            except json.JSONDecodeError:
-                return
-            if isinstance(inner, list):
-                for entry in inner:
-                    _take(entry)
-            else:
-                _take(inner)
-            return
-        if isinstance(item, dict) and item.get("id"):
-            resource_id = str(item["id"])
-            if "/" in resource_id:
-                ids.append(resource_id)
-
-    if isinstance(payload, list):
-        for item in payload:
-            _take(item)
-    else:
-        _take(payload)
-    return ids
-
-
-def _tool_text_list(result: object) -> list[str]:
-    """Normalize MCP tool output into plain strings."""
-    if isinstance(result, str):
-        try:
-            result = json.loads(result)
-        except json.JSONDecodeError:
-            return [result]
-    if not isinstance(result, list):
-        return [str(result)]
-
-    texts: list[str] = []
-    for item in result:
-        if isinstance(item, dict) and "text" in item:
-            texts.append(str(item["text"]))
-        else:
-            texts.append(str(item))
-    return texts
-
-
 def _load_ground_truth(session_dir: str | None) -> dict[str, Any]:
     if not session_dir:
         return {}

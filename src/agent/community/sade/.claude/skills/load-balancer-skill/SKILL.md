@@ -7,9 +7,9 @@ description: Identify load-balancer-side service faults. Use when the topology i
 
 ## Fingerprint (any 2 → submit)
 
-- ICMP to the LB known IP succeeds. Use an IP from `safe_reachability` or a host's resolver; do not rely on a name lookup that itself depends on the LB.
+- ICMP to the LB known IP succeeds. Use an IP from the task description, MCP inventory, or a host's resolver; do not rely on a name lookup that itself depends on the LB.
 - HTTP/VIP probe from a client fails, times out, or returns an empty body.
-- Shell command on the LB times out — `exec_shell` hangs, `infra_sweep` reports `exec_failed` on the LB, `safe_reachability` IP lookup fails on the LB, or `pressure_sweep` times out on the LB.
+- Shell command on the LB times out — `exec_shell` hangs or times out on the LB.
 
 ## Submit
 
