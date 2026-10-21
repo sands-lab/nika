@@ -273,7 +273,7 @@ _TABLE_FULL_CODES = {"RESOURCE_EXHAUSTED"}
 _TABLE_FULL_MESSAGE = "Error when adding match entry to target"
 _TRY_INSERT = r"""
 import json, sys
-sys.path.insert(0, "/opt/nika")
+sys.path.insert(0, "/opt/p4rt")
 import grpc
 import p4rt_manager as m
 from google.rpc import code_pb2, status_pb2

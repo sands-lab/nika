@@ -80,7 +80,7 @@ def intent_command(intent: ValidationIntent) -> VerifyCommand:
         flag = "-u " if intent.traffic.protocol == "udp" else ""
         return VerifyCommand(
             source,
-            f"nc -z {flag}-w 2 {target} {intent.traffic.destination_port} && echo NIKA_OPEN",
+            f"nc -z {flag}-w 2 {target} {intent.traffic.destination_port} && echo PORT_OPEN",
             10,
             required=required,
         )

@@ -424,10 +424,10 @@ def _verify_connectivity(
         udp_flag = "-u " if protocol == "udp" else ""
         command = (
             f"nc -z {udp_flag}-w 2 {target} {intent.traffic.destination_port} "
-            "&& echo NIKA_OPEN"
+            "&& echo PORT_OPEN"
         )
         output = exec_or_empty(runtime, source, command, timeout=10)
-        reachable = "NIKA_OPEN" in output
+        reachable = "PORT_OPEN" in output
     else:
         command = f"ping -c 1 -W 2 {target}"
         output = exec_or_empty(runtime, source, command, timeout=15)

@@ -77,7 +77,7 @@ def _collector_telemetry(
     raw = exec_or_empty(
         runtime,
         "collector",
-        "tail -n 2000 /var/lib/nika/int_reports.jsonl 2>/dev/null || true",
+        "tail -n 2000 /var/lib/int-collector/int_reports.jsonl 2>/dev/null || true",
         timeout=20,
     )
     candidates: list[dict] = []
@@ -215,7 +215,7 @@ def verify_p4_dc_gateway_lab(
             [
                 VerifyCommand(
                     "collector",
-                    "tail -n 2000 /var/lib/nika/int_reports.jsonl 2>/dev/null || true",
+                    "tail -n 2000 /var/lib/int-collector/int_reports.jsonl 2>/dev/null || true",
                 )
             ],
             nodes=runtime.nodes,

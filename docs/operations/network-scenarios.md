@@ -434,7 +434,7 @@ The fabric uses eBGP (leaf AS 65001 and 65002, spine AS 65056). Its SR Linux con
 
 ## Kubernetes scenarios
 
-Both fixed Kathara scenarios run one k3s server and five workers on the pinned image `rancher/k3s:v1.34.1-k3s1`. Each k3s device starts with a shell entrypoint that waits for `/var/run/nika-net-ready`, which device startup creates after interfaces and default routes are configured; the entrypoint then `exec`s k3s as PID1 so the control plane does not race Kathara bridge attachment. NIKA exports a session-specific kubeconfig after verification. Kubernetes MCP tools are documented under [MCP servers](../agents/mcp-servers.md#kubernetes-k8s_mcp_server).
+Both fixed Kathara scenarios run one k3s server and five workers on the pinned image `rancher/k3s:v1.34.1-k3s1`. Each k3s device starts with a shell entrypoint that waits for `/var/run/net-ready`, which device startup creates after interfaces and default routes are configured; the entrypoint then `exec`s k3s as PID1 so the control plane does not race Kathara bridge attachment. NIKA exports a session-specific kubeconfig after verification. Kubernetes MCP tools are documented under [MCP servers](../agents/mcp-servers.md#kubernetes-k8s_mcp_server).
 
 If startup reports an exited k3s node, inspect the reported container state and log tail. For inotify exhaustion, follow [Host inotify limits too low](troubleshooting.md#host-inotify-limits-too-low-k3s--xrd).
 
@@ -448,7 +448,7 @@ Controller bootstrap has bounded API/component waits. Failed manifest applies, H
 
 - stderr: `[k8s-cache]` (host preparation + node import) and, for interactive commands, `[env_verify_progress]` / `[env_verify]` (readiness checks)
 - session `nika.jsonl` (`env_preload_progress`, `env_verify_progress`)
-- controller bootstrap: `docker exec <controller> tail -f /var/log/startup.log` (`[nika-startup]` stages)
+- controller bootstrap: `docker exec <controller> tail -f /var/log/startup.log` (`[startup]` stages)
 
 During iterative work, `nika env run <scenario> --no-redeploy` skips tearing down an existing lab instance when you only need a new session.
 

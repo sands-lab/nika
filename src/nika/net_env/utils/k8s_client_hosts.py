@@ -43,9 +43,9 @@ def sync_llmd_client_hosts(
         return None
     runtime.exec(
         "client",
-        "grep -v '[[:space:]]llmd$' /etc/hosts > /tmp/hosts.nika "
-        f"&& echo '{gateway_addr} llmd' >> /tmp/hosts.nika "
-        "&& cat /tmp/hosts.nika > /etc/hosts",
+        "grep -v '[[:space:]]llmd$' /etc/hosts > /tmp/hosts.new "
+        f"&& echo '{gateway_addr} llmd' >> /tmp/hosts.new "
+        "&& cat /tmp/hosts.new > /etc/hosts",
         timeout=15.0,
     )
     return gateway_addr
@@ -70,9 +70,9 @@ def sync_k8s_client_hosts(
         return None
     runtime.exec(
         "client",
-        "grep -v datacenter.com /etc/hosts > /tmp/hosts.nika "
-        f"&& echo '{ingress_ip} datacenter.com' >> /tmp/hosts.nika "
-        "&& cat /tmp/hosts.nika > /etc/hosts",
+        "grep -v datacenter.com /etc/hosts > /tmp/hosts.new "
+        f"&& echo '{ingress_ip} datacenter.com' >> /tmp/hosts.new "
+        "&& cat /tmp/hosts.new > /etc/hosts",
         timeout=15.0,
     )
     return ingress_ip
