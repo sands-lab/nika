@@ -13,40 +13,18 @@ Start from the [documentation index](docs/README.md). It maps each contract to i
 * Write human-facing documentation with the [NIKA documentation skill](.agents/skills/nika-docs/SKILL.md), and use the terms in the [glossary](GLOSSARY.md).
 * When the user repeatedly asks for the same reusable coding or workflow practice, add it to the matching section of this file. Do not record task-specific decisions.
 
-## Git and pull requests
+## Commit and pull request messages
 
-Each piece of work lands on `dev` as one pull request whose merge commit keeps the branch history, so `git log --graph` shows what each worktree contributed.
-
-1. Before new work, run `git fetch origin dev` and branch from the fetched `origin/dev`, not from a possibly stale local `dev`. Preserve uncommitted work, and do not reset or overwrite diverged local branches. If the fetch fails, report it instead of continuing from a stale base.
-2. Name the branch `<type>/<slug>`, where `<type>` is the Conventional Commit type of the change, such as `feat`, `fix`, `docs`, `refactor`, `test`, or `ci`. For a GitHub issue, use `<type>/<issue>-<slug>`, such as `fix/54-onos-rest-group-install`. Do not invent placeholders such as `noissue`.
-3. Before each task on an existing branch, sync it with its upstream: merge `origin/dev` into a work branch, or `origin/main` into `dev`. Merge instead of rebasing, because a rebase of a pushed branch needs a force-push.
-4. Run `git status` before merging or resolving conflicts. In a clean worktree, merge in place and back out with `git merge --abort`. Use a scratch worktree only when uncommitted work must be protected.
-5. Open the pull request against `dev`. Merge it with a merge commit; squash merging is disabled, and do not use rebase merging. Delete the branch afterward.
-
-```shell
-gh pr merge <PR> --merge --delete-branch \
-  --subject "fix(benchmark): resolve serial batching race in run scheduler (#<PR>)" \
-  --body "<summary>
-
-Fixes #<issue>"
-```
-
-Pass `--subject` and `--body` explicitly; otherwise GitHub writes `Merge pull request #N from <branch>` and the PR description. Never merge into `dev` with a local `git merge` and push, because that bypasses review. After merging, check the merge commit on `dev`.
-
-Humans own `dev` → `main`: opening and merging that pull request, and testing from `dev` in the meantime. Agents never touch it.
-
-### Commit and pull request messages
-
-Use Conventional Commits: `type(scope): imperative summary`, where the type is one of `feat`, `fix`, `docs`, `refactor`, `perf`, `test`, `chore`, `ci`, `build`, or `revert`.
+Commit subjects and pull request titles follow Conventional Commits: `type(scope): imperative summary`, where the type is one of `feat`, `fix`, `docs`, `refactor`, `perf`, `test`, `chore`, `ci`, `build`, or `revert`. The [`commit-msg` hook](scripts/git-hooks/commit-msg) rejects other subjects (`./scripts/install.sh` enables it), and the `Commit messages` CI check applies the same rule to every pull request commit and title.
 
 * The pull request title is the Conventional Commit line without a PR number. The merge commit subject is that line followed by `(#<PR number>)`.
 * The body is a short summary followed by `Fixes #<issue>` (or `Closes` or `Resolves`) so the merge closes the issue. Use one keyword per issue. When the work only contributes to an issue, write `Refs #<issue>` instead; it links the issue without closing it. Omit both when there is no issue.
 
-### Labels
+## Labels
 
 Label every issue and pull request you open with the repository's existing labels (`gh label list`); do not create new ones. Use `bug` for defects, `enhancement` for features, and `documentation` for docs. Add `bug-from-audit` for bugs that could bias agent diagnosis, `agent-ready` for well-scoped issues an agent can implement, and `needs-human` for issues that need a human design decision. Pass them with `--label` on `gh issue create` and `gh pr create`.
 
-### Leaderboard submissions
+## Leaderboard submissions
 
 Submit with the [leaderboard submission skill](.agents/skills/nika-leaderboard-submit/SKILL.md). Name package directories `YYYYMMDD_<framework>_<model>`, with normalized public harness names, for both scores and Hugging Face trajectories. Do not add model release dates or prices; the leaderboard repository resolves them after merge. Confirm that the `model-metadata` and `validate` checks pass.
 
