@@ -13,6 +13,16 @@ Every current scenario uses a **two-layer** healthy baseline, aligned with failu
 
 Base `isp_<topology>` scenarios on Kathara with FRR also create a design-time validation contract and can run Batfish static validation. Static and runtime evidence remain separate because they answer different questions.
 
+## Declared ISP requirements
+
+The developer script `uv run python experiment/routing_validation/experiment.py SPEC --output DIR --runtime` completes supported routing parameters with NetComplete and applies the same typed requirements and predicate evaluation to Clos, campus and enterprise designs. The original specification declares which requirements need execution evidence in addition to supported static analysis. In the evaluated Clos design, the pinned Batfish model does not enforce the numeric FRR multipath limit; ECMP installation is therefore a mandatory execution requirement. Enterprise analysis covers an explicit static-underlay projection, with overlay routing and isolation required in execution.
+
+Clos completes device-level BGP export policies; campus completes intra-area OSPF costs while preserving area boundaries; enterprise completes per-prefix BGP import admission and ordering. Campus paths and enterprise selections have one original `behavior` definition: completion references its IDs, and fixed lowering derives the verification predicates for every declared state. Existing generators render the solved values and preserve failure targets. Enterprise tunnel and VRF behavior remains outside the synthesis model.
+
+Synthesis and full verification are explicit construction experiments. Their entry points and specimens live in `experiment/routing_validation`; reusable orchestration lives in `nika.workflows.validation`. Normal benchmark runs retain their deployment defaults and do not invoke NetComplete or the experiment's verification sequence. The workflow saves completed parameters for explicit reuse through `load_routing_build` and the existing `start_net_env` API. This does not automatically switch benchmark manifests to those parameters.
+
+See the [cross-domain routing workflow](../../experiment/routing_validation/README.md) for exact scopes, negative controls, reproduction commands and results. Normal scenario startup retains its existing readiness procedure.
+
 ## Validation flow and artifacts
 
 Scenario construction derives topology, addressing, routing, endpoints, and policy from design inputs. A scenario that implements `get_validation_contract()` creates concrete expected intents from those inputs. Do not derive expected behavior from generated configuration, probe output, or runtime forwarding state.
@@ -68,7 +78,7 @@ The scenario registry in [`net_env_pool.py`](../../src/nika/net_env/net_env_pool
 | `sdn_l3_clos` | Kathara | ONOS-controlled OVS L3 Clos and ECMP |  | [`sdn_l3_clos/verify.py`](../../src/nika/net_env/sdn_l3_clos/verify.py) |
 | `p4_dc_fabric` | Kathara | P4Runtime-programmed Clos forwarding and ECMP |  | [`p4_dc_fabric/verify.py`](../../src/nika/net_env/p4_dc_fabric/verify.py) |
 | `p4_dc_gateway` | Kathara | P4 gateway-spine-leaf service path and complete INT-MX telemetry |  | [`p4_dc_gateway/verify.py`](../../src/nika/net_env/p4_dc_gateway/verify.py) |
-| `isp_<topology>` | Kathara or Containerlab | SNDlib IGP/BGP forwarding, adjacency, and policy | Kathara + FRR only | [`kathara/verify.py`](../../src/nika/net_env/isp/kathara/verify.py), [`containerlab/verify.py`](../../src/nika/net_env/isp/containerlab/verify.py) |
+| `isp_<topology>` | Kathara or Containerlab | SNDlib or Topology Zoo IGP/BGP forwarding, adjacency, and policy | Kathara + FRR only | [`kathara/verify.py`](../../src/nika/net_env/isp/kathara/verify.py), [`containerlab/verify.py`](../../src/nika/net_env/isp/containerlab/verify.py) |
 | `min3clos` | Containerlab | SR Linux eBGP Clos client connectivity |  | [`min3clos/verify.py`](../../src/nika/net_env/min3clos/verify.py) |
 | `k8s_lab` | Kathara | BGP fat-tree and k3s Word application |  | [`k8s_lab/verify.py`](../../src/nika/net_env/k8s_lab/verify.py) |
 | `llmd_lab` | Kathara | L2 k3s inference cluster and gateway API |  | [`llmd_lab/verify.py`](../../src/nika/net_env/llmd_lab/verify.py) |
@@ -173,11 +183,11 @@ Each row below corresponds to one runtime check or one generated family of check
 
 ### `isp_<topology>`
 
-Each `isp_<topology>` ID deploys one SNDlib graph with IS-IS or OSPF, optional BGP, deterministic edge traffic attachments, and the routing policy selected by its design options. Named specials (`isp_abilene_ebgp_rpki`, `isp_geant_ebgp_rpki`, `isp_abilene_ebgp_rtbh`, `isp_dfn-bwin_ebgp_rtbh`) add fixed RPKI or RTBH overlays. The Kathara FRR implementation adds a validation contract. Its contract can contain edge reachability, explicit external-prefix isolation, OSPF adjacency, BGP adjacency, BGP observer-prefix reachability, and an optional IGP metric waypoint constraint. It has no IS-IS adjacency intent type.
+Each `isp_<topology>` ID deploys one SNDlib or Topology Zoo graph with IS-IS or OSPF, optional BGP, deterministic edge traffic attachments, and the routing policy selected by its design options. Named specials (`isp_abilene_ebgp_rpki`, `isp_geant_ebgp_rpki`, `isp_abilene_ebgp_rtbh`, `isp_dfn-bwin_ebgp_rtbh`) add fixed RPKI or RTBH overlays. The Kathara FRR implementation adds a validation contract. Its contract can contain edge reachability, explicit external-prefix isolation, OSPF adjacency, BGP adjacency, BGP observer-prefix reachability, and an optional IGP metric waypoint constraint. The completion workflow also supports directed, physical-interface IS-IS Level-2 adjacency predicates for its restricted single-level model.
 
 | Target | Measurement | Purpose | Expected result |
 | --- | --- | --- | --- |
-| All planned routers and hosts | Compare planned names with deployed nodes | Confirm SNDlib topology deployment | Every planned node exists |
+| All planned routers and hosts | Compare planned names with deployed nodes | Confirm topology deployment | Every planned node exists |
 | Every active IGP link | Inspect IS-IS or OSPF neighbor state | Confirm selected IGP convergence | Each planned adjacency is Up or Full |
 | Planned loopbacks and inventory addresses | Ping every component loopback from its deterministic representative source; inspect configured addresses | Confirm packet delivery and addressing | Required pings reply; inventory addresses are present |
 | All ordered router-to-loopback pairs within each IGP component, full verification | Longest-prefix lookup and traversal of observed FIB branches | Detect missing routes, discard, loops, unknown exits, and partial ECMP failure | `fib_all_pairs_reachable` passes for every pair and installed branch |
@@ -237,7 +247,7 @@ ISP stub checks select the first and last host in each IGP component, plus contr
 
 ## ISP Batfish static validation
 
-Batfish static validation applies only when an `isp_<topology>` scenario uses the Kathara backend, the FRR device profile, and a contract-bearing deployment. Enable it with `nika.static_validation.enabled: true` in `config/nika.yaml` or with `--static-validation` for a run.
+Batfish static validation applies only when an `isp_<topology>` scenario uses the Kathara backend, the FRR device profile, and a contract-bearing deployment. Enable it with `nika.static_validation.enabled: true` in `config/nika.yaml` or with `--static-validation` for a run. The first run builds the pinned Batfish image from `scripts/batfish`.
 
 ```shell
 uv sync --extra batfish
@@ -272,7 +282,7 @@ The pinned Batfish version does not model FRR `match rpki invalid`. An RPKI ISP 
 | `NetworkEntity` | Concrete node, endpoint, prefix, or service with optional address and hosting node |
 | `TrafficSelector` | IPv4 protocol; TCP and UDP require a destination port |
 | `PathConstraint` | Nodes that traffic must traverse or avoid |
-| `AdjacencyExpectation` | BGP or OSPF endpoints and protocol-specific fields |
+| `AdjacencyExpectation` | BGP, OSPF, or IS-IS endpoints and protocol-specific fields |
 | `ValidationResult` | Intent ID, verifier, support, status, evidence, reason, and duration |
 | `ValidationReport` | Aggregate status, coverage, sanity checks, metadata, and one result per intent |
 
@@ -317,3 +327,7 @@ Failure-effect validation compares the healthy contract with the lab after a rea
 uv run pytest -q tests/nika/net_env/test_validation_contract.py tests/nika/net_env/isp/test_isp_contract.py
 uv run pytest -q tests/nika/validation -k 'not live'
 ```
+
+The `min3clos` experiment also completes IPv4 BGP exports for Nokia SR Linux using the same NetComplete model and typed parameters. Batfish checks a restricted projection of the concrete update documents; native SR Linux execution checks the original adjacency, communication and isolation requirements, export withdrawal, and link recovery. See the [SR Linux experiment scope](../../experiment/routing_validation/README.md#tool-responsibilities-and-model-scope) before interpreting its static results as device evidence.
+
+The [benchmark-selected ISP adapter](../../experiment/routing_validation/README.md#cover-benchmark-isp-deployments) reads actual manifest profiles and preserves their protocol/backend choices. The FRR OSPF and single-level IS-IS subsets declare original anchored shortest-path and ECMP requirements and make active link-state metrics symbolic. Its multi-AS eBGP profiles preserve the BGP design and solve only the intra-AS costs, with one anchor per original IGP component. Shared BGP predicates additionally check sessions, RR roles, cross-AS business communication and the selected maximum-prefix fault. The shared NetComplete adapter jointly solves healthy and declared fault states; the existing ISP compiler renders the result. For IS-IS, the workflow reuses NetComplete’s shortest-path encoding under an explicit Level-2, wide-metric, no-BGP scope. A strict projection of the resulting FRR configuration supplies Batfish’s IOS XR IS-IS model; native FRR checks the same predicates. This is a scoped model reduction, not a claim that NetComplete supports native IS-IS synthesis or that Batfish proves full FRR equivalence. Batfish and runtime evaluate the same original next-hop predicates, alongside physical adjacencies and loopback communication. Normal failure injection and recovery exercise the selected benchmark root causes. Unsupported combinations remain explicit in the coverage inventory.

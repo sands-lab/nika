@@ -125,6 +125,8 @@ nika:
   static_validation:
     # Run supported topology checks with Batfish before deployment.
     enabled: false
+    # Java heap for the Batfish container NIKA creates (recreate it to apply).
+    batfish_heap: 8g
   runtime_validation:
     # light checks readiness. full runs each scenario's deeper verification.
     depth: light

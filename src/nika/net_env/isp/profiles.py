@@ -13,7 +13,7 @@ SUPPORTED_DEVICE_PROFILES: tuple[IspDeviceProfile, ...] = (
 )
 
 # Allowed (backend, device_profile) pairs. ISP Kathara + iosxr is accepted by
-# the type system but rejected at lab construct (no SNDlib→XR renderer yet).
+# the type system but rejected at lab construct (no ISP→XR renderer yet).
 SUPPORTED_BACKEND_PROFILE_PAIRS: frozenset[tuple[str, IspDeviceProfile]] = frozenset(
     {
         ("kathara", "frr"),

@@ -32,7 +32,15 @@ class BatfishQueryClient(Protocol):
 class BatfishVerifier:
     name = "batfish"
     supported_properties = frozenset(
-        {"reachability", "isolation", "waypoint", "adjacency"}
+        {
+            "reachability",
+            "isolation",
+            "waypoint",
+            "adjacency",
+            "bgp_route",
+            "route_policy",
+            "route_next_hops",
+        }
     )
 
     def __init__(
@@ -181,6 +189,73 @@ class BatfishVerifier:
                         "observed_sessions": matched[:4],
                     }
                 ]
+            elif intent.property == "route_next_hops":
+                expected = intent.route_next_hops
+                relevant = [
+                    row
+                    for row in answers[0]["counterexamples"]
+                    if _node(row.get("Node")) == expected.node
+                    and str(row.get("Network")) == expected.prefix
+                    and str(row.get("VRF")) == expected.vrf
+                ]
+                actual = {str(row.get("Next_Hop_IP")) for row in relevant}
+                passed = bool(relevant) and actual == set(expected.next_hops)
+                violations = (
+                    []
+                    if passed
+                    else [
+                        {
+                            "observed_next_hops": sorted(actual),
+                            "expected_next_hops": list(expected.next_hops),
+                        }
+                    ]
+                )
+                observed = (
+                    "routing next hops match" if passed else "routing next hops differ"
+                )
+                evidence["queries"] = [{"observations": relevant}]
+            elif intent.property in {"bgp_route", "route_policy"}:
+                rows = answers[0]["counterexamples"]
+                if intent.bgp_route is not None:
+                    expected = intent.bgp_route
+                    relevant = [
+                        row
+                        for row in rows
+                        if _node(row.get("Node")) == expected.node
+                        and str(row.get("Network")) == expected.prefix
+                        and "BEST" in str(row.get("Status", "")).upper()
+                    ]
+                    paths = [str(row.get("AS_Path", "")).split() for row in relevant]
+                    passed = bool(relevant) == expected.present and all(
+                        (
+                            expected.exit_asn is None
+                            or path[:1] == [str(expected.exit_asn)]
+                        )
+                        and (
+                            expected.origin_asn is None
+                            or path[-1:] == [str(expected.origin_asn)]
+                        )
+                        for path in paths
+                    )
+                else:
+                    relevant = rows
+                    expected_action = "PERMIT" if intent.route_policy.permit else "DENY"
+                    passed = bool(relevant) and all(
+                        row.get("Action") == expected_action for row in relevant
+                    )
+                violations = (
+                    []
+                    if passed
+                    else relevant or [{"missing_expected_route_or_policy": True}]
+                )
+                observed = (
+                    "declared routing behavior holds"
+                    if passed
+                    else "routing behavior differs from the original requirement"
+                )
+                evidence["queries"] = [
+                    {"purpose": answers[0]["purpose"], "observations": relevant}
+                ]
             else:
                 violations = [
                     {
@@ -241,6 +316,34 @@ def _evaluate_adjacency(
     expected: AdjacencyExpectation | None, rows: list[dict[str, Any]]
 ) -> tuple[bool, str, list[dict[str, Any]], list[dict[str, Any]]]:
     assert expected is not None
+    if expected.protocol == "isis":
+        relevant = [
+            row
+            for row in rows
+            if _interface_endpoint_matches(
+                row.get("Interface"), expected.local_node, expected.local_interface
+            )
+            and _interface_endpoint_matches(
+                row.get("Remote_Interface"),
+                expected.remote_node,
+                expected.remote_interface,
+            )
+        ]
+        passed = bool(relevant)
+        return (
+            passed,
+            "expected IS-IS link is present in the modeled topology"
+            if passed
+            else "expected IS-IS link is absent from the modeled topology",
+            []
+            if passed
+            else [
+                row
+                for row in rows
+                if _node(row.get("Interface")) == expected.local_node
+            ][:10],
+            relevant,
+        )
     if expected.protocol == "bgp":
         compatibility = [
             row
@@ -270,8 +373,19 @@ def _evaluate_adjacency(
         modeled_up = any(
             str(row.get("Established_Status")) == "ESTABLISHED" for row in established
         )
-        passed = compatible and modeled_up
-        relevant = compatibility + established
+        configured = [
+            row
+            for row in rows
+            if row.get("analysis") == "configuration"
+            and _node(row.get("Node")) == expected.local_node
+            and _ip_equal(row.get("Remote_IP"), expected.remote_address)
+        ]
+        role_matches = expected.route_reflector_client is None or any(
+            row.get("Route_Reflector_Client") == expected.route_reflector_client
+            for row in configured
+        )
+        passed = compatible and modeled_up and role_matches
+        relevant = compatibility + established + configured
         candidates = [
             row for row in rows if _node(row.get("Node")) == expected.local_node
         ][:10]
@@ -279,6 +393,8 @@ def _evaluate_adjacency(
             passed,
             "expected BGP session is compatible and predicted established"
             if passed
+            else "expected BGP route-reflector-client role differs from the specification"
+            if not role_matches
             else "expected BGP session is absent, incompatible, or not predicted established",
             [] if passed else relevant or candidates,
             relevant,
@@ -318,6 +434,14 @@ def _evaluate_adjacency(
 def _node(value: Any) -> str:
     text = str(value or "")
     return text.split("[")[0]
+
+
+def _interface_endpoint_matches(value: Any, node: str, interface: str) -> bool:
+    text = str(value or "")
+    if "[" not in text or not text.endswith("]"):
+        return False
+    actual_node, actual_interface = text[:-1].split("[", 1)
+    return actual_node == node and actual_interface == interface
 
 
 def _ip_equal(value: Any, expected: str) -> bool:

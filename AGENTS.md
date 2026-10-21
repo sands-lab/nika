@@ -8,6 +8,8 @@ Start from the [documentation index](docs/README.md). It maps each contract to i
 
 * Read the relevant code before you change behavior, and make the smallest change that works.
 * Reuse existing NIKA abstractions instead of building parallel implementations. Add helpers, wrappers, or abstractions only when they have clear reuse value.
+* Drive synthesis and verification by declared capabilities and specifications, without scenario-name branches. Cover all applicable deployment profiles in the selected benchmark inventory and report unsupported capabilities explicitly.
+* Prefer established deterministic synthesis and verification tools for configuration decisions; keep authored requirements independent of generated outputs.
 * Preserve benchmark reproducibility, ground truth, telemetry semantics, and backend neutrality.
 * Do not weaken tests to make a change pass.
 * Write human-facing documentation with the [NIKA documentation skill](.agents/skills/nika-docs/SKILL.md), and use the terms in the [glossary](GLOSSARY.md).

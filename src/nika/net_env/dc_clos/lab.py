@@ -86,12 +86,14 @@ class HostMeta:
 
 
 class DCClos(NetworkEnvBase):
+    ROUTING_PARAMETER_KINDS = frozenset({"bgp_exports"})
     LAB_NAME = "dc_clos"
     TOPO_LEVEL = "medium"
 
     def __init__(
         self,
         topo_size: Literal["s", "m", "l"] = "s",
+        routing_parameters: dict | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -131,7 +133,7 @@ class DCClos(NetworkEnvBase):
                     machine=router_ss,
                     eth_index=0,
                     cmd_list=[],
-                    AS_number=65000,
+                    AS_number=65000 + ss,
                 )
             )
 
@@ -286,6 +288,10 @@ class DCClos(NetworkEnvBase):
                 else ""
             )
             self._write_frr_router(router_meta, network=network)
+
+        from nika.net_env.synthesis.parameters import apply_routing_parameters
+
+        apply_routing_parameters(self, routing_parameters)
 
         self.load_machines()
         self.desc = (

@@ -155,15 +155,15 @@ def test_compare_effect_requires_static_and_runtime_agreement() -> None:
         contract,
         healthy_static=_report(contract, "batfish", "passed"),
         faulty_static=_report(contract, "batfish", "failed"),
-        healthy_runtime=_report(contract, "isp-runtime-v1", "passed"),
-        faulty_runtime=_report(contract, "isp-runtime-v1", "failed"),
+        healthy_runtime=_report(contract, "isp-runtime", "passed"),
+        faulty_runtime=_report(contract, "isp-runtime", "failed"),
     )
     assert report.status == "PASS"
     intent_evidence = report.evidence["intents"]["adj.ospf.r1.r2"]
     assert intent_evidence["expected"]["faulty"] == "not_established"
     assert intent_evidence["batfish"]["faulty"]["state"] == "not_established"
     assert intent_evidence["runtime"]["faulty"]["evidence"] == (
-        {"command": "isp-runtime-v1 probe", "output": "failed"}
+        {"command": "isp-runtime probe", "output": "failed"}
     )
 
     mismatch = compare_failure_effect(
@@ -171,8 +171,8 @@ def test_compare_effect_requires_static_and_runtime_agreement() -> None:
         contract,
         healthy_static=_report(contract, "batfish", "passed"),
         faulty_static=_report(contract, "batfish", "failed"),
-        healthy_runtime=_report(contract, "isp-runtime-v1", "passed"),
-        faulty_runtime=_report(contract, "isp-runtime-v1", "passed"),
+        healthy_runtime=_report(contract, "isp-runtime", "passed"),
+        faulty_runtime=_report(contract, "isp-runtime", "passed"),
     )
     assert mismatch.status == "STATIC_RUNTIME_MISMATCH"
 

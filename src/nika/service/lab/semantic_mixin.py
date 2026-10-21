@@ -92,7 +92,7 @@ class SemanticOpsMixin:
                 continue
             bare = ip.split("/", 1)[0]
             # Containerlab mgmt bridge ranges used by NIKA labs.
-            if bare.startswith(("172.100.", "172.20.", "172.18.")):
+            if bare.startswith(("172.100.", "172.101.", "172.20.", "172.18.")):
                 candidates.append(ip)
                 continue
             return ip

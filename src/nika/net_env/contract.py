@@ -10,7 +10,15 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-PropertyType = Literal["reachability", "isolation", "waypoint", "adjacency"]
+PropertyType = Literal[
+    "reachability",
+    "isolation",
+    "waypoint",
+    "adjacency",
+    "bgp_route",
+    "route_policy",
+    "route_next_hops",
+]
 IntentLevel = Literal["required", "optional"]
 ResultStatus = Literal["passed", "failed", "skipped", "unsupported", "error"]
 
@@ -84,10 +92,13 @@ class SelectorCatalog(ContractModel):
 class TrafficSelector(ContractModel):
     ip_version: Literal[4] = 4
     protocol: Literal["ipv4", "icmp", "tcp", "udp"] = "ipv4"
+    round_trip: bool = False
     destination_port: int | None = Field(default=None, ge=1, le=65535)
 
     @model_validator(mode="after")
     def validate_port(self) -> "TrafficSelector":
+        if self.round_trip and self.protocol != "icmp":
+            raise ValueError("Round-trip packet checks currently require ICMP")
         if self.protocol in {"tcp", "udp"} and self.destination_port is None:
             raise ValueError("TCP and UDP selectors require destination_port")
         if self.destination_port is not None and self.protocol not in {"tcp", "udp"}:
@@ -112,7 +123,7 @@ class PathConstraint(ContractModel):
 
 
 class AdjacencyExpectation(ContractModel):
-    protocol: Literal["bgp", "ospf"]
+    protocol: Literal["bgp", "ospf", "isis"]
     local_node: str
     remote_node: str
     local_address: str
@@ -121,9 +132,24 @@ class AdjacencyExpectation(ContractModel):
     remote_asn: int | None = Field(default=None, ge=1, le=4_294_967_295)
     update_source: str | None = None
     session_type: Literal["ibgp", "ebgp"] | None = None
+    route_reflector_client: bool | None = None
     ospf_area: str | None = None
+    isis_level: Literal[2] | None = None
+    local_interface: str | None = None
+    remote_interface: str | None = None
     local_router_id: str | None = None
     remote_router_id: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def default_isis_level(cls, values):
+        if (
+            isinstance(values, dict)
+            and values.get("protocol") == "isis"
+            and "isis_level" not in values
+        ):
+            return {**values, "isis_level": 2}
+        return values
 
     @model_validator(mode="after")
     def validate_protocol_fields(self) -> "AdjacencyExpectation":
@@ -141,14 +167,76 @@ class AdjacencyExpectation(ContractModel):
                 self.remote_asn,
                 self.update_source,
                 self.session_type,
+                self.route_reflector_client,
             )
         ):
-            raise ValueError("OSPF adjacency cannot define BGP fields")
-        if self.protocol == "ospf":
+            raise ValueError("Link-state adjacency cannot define BGP fields")
+        if self.protocol == "isis" and self.isis_level != 2:
+            raise ValueError("IS-IS adjacency requires the supported explicit Level 2")
+        if self.protocol != "isis" and self.isis_level is not None:
+            raise ValueError("Only IS-IS adjacency may define isis_level")
+        if self.protocol == "isis" and self.ospf_area is not None:
+            raise ValueError("IS-IS adjacency cannot define ospf_area")
+        if self.protocol == "isis" and (
+            not self.local_interface or not self.remote_interface
+        ):
+            raise ValueError(
+                "IS-IS adjacency requires both physical interface identities"
+            )
+        if self.protocol in {"ospf", "isis"}:
             if self.local_router_id is None or self.remote_router_id is None:
-                raise ValueError("OSPF adjacency requires local and remote router IDs")
+                raise ValueError(
+                    "Link-state adjacency requires local and remote router IDs"
+                )
             IPv4Address(self.local_router_id)
             IPv4Address(self.remote_router_id)
+        return self
+
+
+class BgpRouteExpectation(ContractModel):
+    node: str
+    prefix: str
+    exit_asn: int | None = Field(default=None, ge=1, le=4294967295)
+    origin_asn: int | None = Field(default=None, ge=1, le=4294967295)
+    present: bool = True
+
+    @model_validator(mode="after")
+    def validate_prefix(self) -> BgpRouteExpectation:
+        IPv4Network(self.prefix)
+        if not self.present and (
+            self.exit_asn is not None or self.origin_asn is not None
+        ):
+            raise ValueError("An absent BGP route cannot constrain AS attributes")
+        return self
+
+
+class RoutePolicyExpectation(ContractModel):
+    node: str
+    peer: str
+    remote_address: str
+    prefix: str
+    permit: bool
+
+    @model_validator(mode="after")
+    def validate_addresses(self) -> RoutePolicyExpectation:
+        IPv4Network(self.prefix)
+        IPv4Address(self.remote_address)
+        return self
+
+
+class RouteNextHopsExpectation(ContractModel):
+    vrf: str = Field(default="default", pattern=r"^[a-zA-Z0-9_][a-zA-Z0-9_.-]*$")
+    node: str
+    prefix: str
+    next_hops: tuple[str, ...] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_routes(self):
+        IPv4Network(self.prefix)
+        for address in self.next_hops:
+            IPv4Address(address)
+        if len(set(self.next_hops)) != len(self.next_hops):
+            raise ValueError("Expected next hops must be distinct")
         return self
 
 
@@ -156,13 +244,25 @@ class ValidationIntent(ContractModel):
     id: str = Field(pattern=r"^[a-z0-9][a-z0-9._-]*$")
     description: str = Field(min_length=1)
     property: PropertyType
-    expected: Literal["reachable", "unreachable", "path_compliant", "established"]
+    expected: Literal[
+        "reachable",
+        "unreachable",
+        "path_compliant",
+        "established",
+        "selected",
+        "absent",
+        "policy_compliant",
+        "next_hops_match",
+    ]
     level: IntentLevel = "required"
     source: NetworkEntity | None = None
     destination: NetworkEntity | None = None
     traffic: TrafficSelector | None = None
     path: PathConstraint | None = None
     adjacency: AdjacencyExpectation | None = None
+    bgp_route: BgpRouteExpectation | None = None
+    route_policy: RoutePolicyExpectation | None = None
+    route_next_hops: RouteNextHopsExpectation | None = None
 
     @model_validator(mode="after")
     def validate_property_shape(self) -> "ValidationIntent":
@@ -171,9 +271,48 @@ class ValidationIntent(ContractModel):
             "isolation": "unreachable",
             "waypoint": "path_compliant",
             "adjacency": "established",
+            "bgp_route": "absent"
+            if self.bgp_route and not self.bgp_route.present
+            else "selected",
+            "route_policy": "policy_compliant",
+            "route_next_hops": "next_hops_match",
         }
         if self.expected != expected_by_property[self.property]:
             raise ValueError(f"expected state does not match {self.property}")
+        if self.property in {"bgp_route", "route_policy", "route_next_hops"}:
+            if getattr(self, self.property) is None or any(
+                value is not None
+                for value in (
+                    self.source,
+                    self.destination,
+                    self.traffic,
+                    self.path,
+                    self.adjacency,
+                )
+            ):
+                raise ValueError(
+                    "Routing requirements need only their typed routing expectation."
+                )
+            if (
+                sum(
+                    value is not None
+                    for value in (
+                        self.bgp_route,
+                        self.route_policy,
+                        self.route_next_hops,
+                    )
+                )
+                != 1
+            ):
+                raise ValueError("A routing requirement has exactly one expectation.")
+            return self
+        if any(
+            value is not None
+            for value in (self.bgp_route, self.route_policy, self.route_next_hops)
+        ):
+            raise ValueError(
+                "Flow and adjacency requirements cannot contain routing expectations."
+            )
         if self.property == "adjacency":
             if self.adjacency is None or any(
                 value is not None
