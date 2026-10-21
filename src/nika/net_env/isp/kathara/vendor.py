@@ -31,7 +31,7 @@ from nika.runtime.spec import NodeRole
 class IspVendor(NetworkEnvBase):
     """Compile any catalog ISP graph to a supported native OSPF/BGP platform."""
 
-    ROUTING_PARAMETER_KINDS = frozenset({"ospf_costs", "bgp_imports"})
+    ROUTING_PARAMETER_KINDS = frozenset({"ospf_costs", "isis_metrics", "bgp_imports"})
     LAB_NAME = "isp"
     TOPO_LEVEL = "medium"
     VERIFY_MAX_WAIT_SEC = 900

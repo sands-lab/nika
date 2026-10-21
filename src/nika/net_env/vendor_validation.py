@@ -375,6 +375,14 @@ def _supported_request(intent, platform: str, plan=None) -> VerifyCommand | None
             )
         return VerifyCommand(adjacency.local_node, command, 30)
     if plan is not None:
+        if intent.adjacency and intent.adjacency.protocol == "isis":
+            if platform != "iosxr" or intent.adjacency.local_interface is None:
+                return None
+            from nika.net_env.isp.iosxr import ISIS_ADJACENCY_COMMAND
+
+            return VerifyCommand(
+                intent.adjacency.local_node, ISIS_ADJACENCY_COMMAND, 30
+            )
         if intent.adjacency and intent.adjacency.protocol == "ospf":
             if intent.adjacency.ospf_area not in {None, "0", "0.0.0.0"}:
                 return None
@@ -519,6 +527,21 @@ def _verify_contract(
                     for path in paths
                 )
                 evidence.update(selected_as_paths=paths, expected=expected.model_dump())
+            elif intent.adjacency and intent.adjacency.protocol == "isis":
+                from nika.net_env.isp.iosxr import parse_iosxr_isis_adjacencies
+                from nika.net_env.utils.iosxr.common import iosxr_interface
+
+                adjacency = intent.adjacency
+                observed = parse_iosxr_isis_adjacencies(result.output)
+                expected = (
+                    adjacency.remote_node,
+                    iosxr_interface(adjacency.local_interface),
+                )
+                passed = expected in observed
+                evidence.update(
+                    expected_adjacency=list(expected),
+                    observed_adjacencies=sorted(map(list, observed)),
+                )
             elif intent.adjacency and intent.adjacency.protocol == "ospf":
                 identity = {}
                 if platform == "routeros":
