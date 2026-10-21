@@ -349,6 +349,15 @@ class TestTrialHelpers:
         assert second["run_id"] == "newid"
         assert second["updated_at"] != first["created_at"] or True
 
+    def test_resume_treats_runs_without_submission_as_structured(self) -> None:
+        existing = {"agent_type": "mock", "run_id": "keep", "job_id": "keep"}
+        structured = dict(existing, submission={"mode": "structured"})
+        merged = merge_run_config(existing=existing, proposed=structured)
+        assert merged["submission"] == {"mode": "structured"}
+        unstructured = dict(existing, submission={"mode": "unstructured"})
+        with pytest.raises(ValueError, match="submission"):
+            merge_run_config(existing=existing, proposed=unstructured)
+
     def test_merge_run_config_rejects_mismatch(self) -> None:
         existing = {
             "benchmark_id": "nika-bench",

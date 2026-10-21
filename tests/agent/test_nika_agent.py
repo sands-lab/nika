@@ -1,4 +1,4 @@
-"""Shared two-phase contract: bookends, ERROR policy, and max-steps report."""
+"""NikaAgent contract: bookends, ERROR policy, submission modes, max-steps report."""
 
 from __future__ import annotations
 
@@ -9,14 +9,15 @@ from pathlib import Path
 import pytest
 
 from agent.utils.loggers import MessageLogger
-from agent.utils.two_phase import TwoPhaseAgent, max_steps_report
+from agent.base import NikaAgent, max_steps_report
 
 pytestmark = pytest.mark.unit
 
 
-class _Agent(TwoPhaseAgent):
+class _Agent(NikaAgent):
     def __init__(self, trace_dir: Path, report: str) -> None:
         self.session_id = "sess"
+        self.scenario_name = "scenario"
         self.trace_dir = str(trace_dir)
         self.stream_output = False
         self.report = report
@@ -76,6 +77,33 @@ def test_run_freezes_report_then_submits(tmp_path: Path, monkeypatch) -> None:
         ("submission", "agent_start"),
         ("submission", "agent_done"),
     ]
+
+
+class _Mapper:
+    async def submit(self, report: str, context: dict, **_: str) -> str:
+        return f"Submitted: {report}"
+
+    def trace_fields(self) -> dict:
+        return {"submission_mode": "unstructured", "model": "m"}
+
+
+def test_report_mapper_replaces_agent_submit(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(
+        "agent.utils.mcp_client.begin_submission_mcp_phase",
+        lambda sid, report: {"resources": []},
+    )
+    agent = _Agent(tmp_path, "pc1 eth0 down")
+    agent.report_mapper = _Mapper()
+    result = asyncio.run(agent.run("task"))
+    assert not agent.submitted
+    assert result["submission_result"] == "Submitted: pc1 eth0 down"
+    rows = [
+        json.loads(r) for r in (tmp_path / "messages.jsonl").read_text().splitlines()
+    ]
+    start = next(r for r in rows if r["phase"] == "submission")
+    assert (
+        start["event"] == "agent_start" and start["submission_mode"] == "unstructured"
+    )
 
 
 def test_max_steps_report_keeps_latest_text_or_fails(tmp_path: Path) -> None:

@@ -3,7 +3,7 @@
 Selected via ``nika agent run -a community.sade``. SADE drives Claude Code
 sessions (``claude-agent-sdk``) with a phase-gated system prompt and a
 15-skill library loaded from this package's ``.claude/`` directory. It follows
-the shared two-phase contract (:class:`~agent.utils.two_phase.TwoPhaseAgent`):
+the shared two-phase contract (:class:`~agent.base.NikaAgent`):
 a diagnosis session with the lab MCP servers, then a submission session with
 only the task MCP server.
 
@@ -19,7 +19,6 @@ from typing import Any
 from dotenv import load_dotenv
 
 from agent.protocols import DIAGNOSIS, SUBMISSION
-from agent.sandbox.sdk_context import resolve_sdk_session_fields
 from agent.sdk.claude_sdk.transcript import ClaudeSdkTranscript, run_claude_sdk_query
 from agent.sdk.mcp import to_sdk_mcp_servers
 from agent.utils.loggers import MessageLogger
@@ -27,7 +26,7 @@ from agent.utils.mcp_client import load_session_mcp_config
 from agent.utils.skills import CLAUDE_SETTING_SOURCES, skills_enabled
 from agent.utils.submission_context import submission_user_prompt
 from agent.utils.template import SUBMIT_PROMPT_TEMPLATE
-from agent.utils.two_phase import TwoPhaseAgent
+from agent.base import NikaAgent
 
 from .config import prepare_sade_sdk_env
 from .prompts.sade_prompt import SADE_PROMPT
@@ -56,7 +55,7 @@ SADE_REMINDER = (
 )
 
 
-class SadeAgent(TwoPhaseAgent):
+class SadeAgent(NikaAgent):
     """SADE: phase-gated Claude Code agent with the 15-skill library."""
 
     def __init__(
@@ -68,17 +67,17 @@ class SadeAgent(TwoPhaseAgent):
         llm_provider: str,
         stream_output: bool = True,
     ) -> None:
-        self.session_id = session_id
-        self.model = model
-        self.max_steps = max_steps
-        self.llm_provider = llm_provider
-        self.stream_output = stream_output
-        self.session_dir, self._scenario_name = resolve_sdk_session_fields(session_id)
-        self.trace_dir = self.session_dir
+        super().__init__(
+            session_id,
+            model=model,
+            llm_provider=llm_provider,
+            max_steps=max_steps,
+            stream_output=stream_output,
+        )
 
     def _mcp_servers(self, phase: str) -> dict[str, Any]:
         return to_sdk_mcp_servers(
-            load_session_mcp_config(self.session_id, self._scenario_name, phase=phase)
+            load_session_mcp_config(self.session_id, self.scenario_name, phase=phase)
         )
 
     def _reminder_hook(self, transcript: ClaudeSdkTranscript):

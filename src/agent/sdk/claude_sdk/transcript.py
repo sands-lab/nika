@@ -17,7 +17,7 @@ from typing import Any
 
 from agent.utils.display import display_agent_event
 from agent.utils.loggers import MessageLogger, tool_event_payload
-from agent.utils.two_phase import ERROR_PREFIX, max_steps_report
+from agent.base import ERROR_PREFIX, max_steps_report
 from agent.utils.usage import normalize_usage
 
 

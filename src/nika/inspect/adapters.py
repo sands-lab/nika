@@ -521,6 +521,8 @@ def _agent_kind_and_title(entry: dict[str, Any]) -> tuple[EventKind, str, str]:
         return "phase", label, _truncate(entry.get("message"))
     if event == "diagnosis_frozen":
         return "submission", "diagnosis frozen", _truncate(entry.get("report"))
+    if event in {"submission_sample", "submission_vote"}:
+        return "submission", event.replace("_", " "), _truncate(entry.get("message"))
     if event == "result":
         claude = _claude_event(entry) or {}
         return (
