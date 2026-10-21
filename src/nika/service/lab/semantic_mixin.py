@@ -303,43 +303,16 @@ class SemanticOpsMixin:
         client_args: str = "",
         host_ips: dict[str, str] | None = None,
     ) -> list[str]:
-        started_server_ports: dict[str, int] = {}
-        server_port_assign: dict[str, dict[str, int]] = {}
-        labels: list[str] = []
-        start_port_id = 5201
-        ip_overrides = dict(host_ips or {})
+        from nika.traffic.od_flows import start_od_flows_background
 
-        for src_host, dests in od_dicts.items():
-            for dst_host in dests:
-                if src_host == dst_host:
-                    continue
-                labels.append(f"{src_host}_to_{dst_host}")
-                if dst_host in started_server_ports:
-                    started_server_ports[dst_host] += 1
-                    dst_port = started_server_ports[dst_host]
-                    server_port_assign[dst_host][src_host] = dst_port
-                else:
-                    dst_port = start_port_id
-                    started_server_ports[dst_host] = start_port_id
-                    server_port_assign[dst_host] = {src_host: start_port_id}
-                server_cmd = f"iperf3 -s -p {dst_port} {server_args} -J &"
-                self.exec_cmd(dst_host, server_cmd)
-
-        for src_host, dests in od_dicts.items():
-            for dst_host, volume in dests.items():
-                if src_host == dst_host:
-                    continue
-                dst_ip = ip_overrides.get(dst_host) or self.get_data_plane_host_ip(
-                    dst_host
-                )
-                if not dst_ip:
-                    raise ValueError(f"Cannot resolve IP for host {dst_host!r}")
-                dst_port = server_port_assign[dst_host][src_host]
-                client_udp = " -u" if udp else ""
-                client_cmd = (
-                    f"iperf3 -c {dst_ip} -p {dst_port} -b {volume}{unit} "
-                    f"-t {interval}{client_udp} {client_args} -l 1472 -J &"
-                )
-                self.exec_cmd(src_host, client_cmd)
-
-        return labels
+        return start_od_flows_background(
+            self.exec_cmd,
+            od_dicts,
+            resolve_ip=self.get_data_plane_host_ip,
+            interval=interval,
+            unit=unit,
+            udp=udp,
+            server_args=server_args,
+            client_args=client_args,
+            host_ips=host_ips,
+        )
