@@ -21,6 +21,7 @@ from nika.agents.sandbox.config import (
     ENV_GATEWAY_URL,
     SANDBOX_GATEWAY_HOST_BRIDGE,
 )
+from nika.mcp.registry import select_diagnosis_servers
 
 __all__ = [
     "MCPServerConfig",
@@ -58,16 +59,6 @@ def agent_facing_mcp_session_id(session_id: str) -> str:
         return resolve_agent_session_id(SessionStore().get_session(sid))
     except FileNotFoundError:
         return sid
-
-
-def select_diagnosis_servers(
-    scenario_name: str,
-    *,
-    backend: str | None = None,
-) -> list[str]:
-    from nika.mcp.registry import select_diagnosis_servers as _select
-
-    return _select(scenario_name, backend=backend)
 
 
 def select_session_servers(
@@ -128,17 +119,6 @@ class MCPServerConfig:
             raise ValueError("session_id is required to start MCP servers.")
         self.session_id = session_id
 
-    def _build_http_entry(self, name: str, base: str) -> dict:
-        from nika.mcp.registry import MCP_SERVER_SPECS
-
-        if name not in MCP_SERVER_SPECS:
-            raise KeyError(f"Unknown MCP server: {name!r}")
-        return {
-            "transport": "http",
-            "url": f"{base}/mcp/{name}/mcp",
-            "headers": session_http_headers(self.session_id),
-        }
-
     def load_http_config(
         self, server_names: list[str], *, base_url: str | None = None
     ) -> dict:
@@ -151,7 +131,11 @@ class MCPServerConfig:
 
         base = (base_url or _gateway_base_url()).rstrip("/")
         return {
-            name: self._build_http_entry(name, base)
+            name: {
+                "transport": "http",
+                "url": f"{base}/mcp/{name}/mcp",
+                "headers": session_http_headers(self.session_id),
+            }
             for name in server_names
             if name in MCP_SERVER_SPECS
         }

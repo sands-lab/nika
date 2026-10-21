@@ -18,20 +18,17 @@ description: Identify duplicate hardware (MAC) addresses on the same network seg
 
 ## Exact Calls
 
-- `python diagnosis-methodology-skill/scripts/l2_snapshot.py`
-- `python diagnosis-methodology-skill/scripts/network_inventory.py summary`
-- `python diagnosis-methodology-skill/scripts/network_inventory.py connected <device>`
 - `exec_shell(host_name="<host>", command="ip link show")`
 - `exec_shell(host_name="<witness_host>", command="arp -n")`
 
 ## Required Tool Usage
 
-- `l2_snapshot` is the MAC-inventory and duplicate-MAC proof tool; `network_inventory` only exposes topology views (`summary`, `connected`).
+- Use MCP inventory and direct `ip link show` output to compare devices on the affected segment.
 - Direct `link/ether` comparison is stronger than ARP-table symptoms.
 
 ## Sweep Rules
 
-- If the affected segment is unknown, start with the broad MAC inventory helper.
+- If the affected segment is unknown, collect interface MAC addresses through MCP.
 - The default MAC and L2 sweeps must include server-side devices (for example load balancers and application servers), not only hosts, routers, and switches.
 - Compare one full Layer 2 domain at a time: hosts, gateway, switch/bridge, then adjacent infrastructure if needed.
 - Clean L3-L7 checks increase the priority of direct MAC comparison; they do not clear this fault.
