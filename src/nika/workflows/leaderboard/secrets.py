@@ -48,9 +48,18 @@ _SECRET_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ),
 )
 
-_ABS_PATH_RE = re.compile(
-    r"(?:^|[\s\"'=])(/home/|/Users/|/tmp/|/var/|/etc/|[A-Za-z]:\\)"
+# Host-local paths: user home trees and Windows drive paths. System paths such
+# as /etc, /var and /tmp are lab-container state the agent inspects, not host
+# leakage. Text may hold JSON-escaped strings, so a path may follow a literal
+# ``\n``/``\r``/``\t`` escape, and ``x:\n`` (``Summary:\nBGP``) is not a drive.
+_ESCAPE_BEFORE = r"(?<=\\[nrt])"
+_NOT_ESCAPE_AFTER = r"(?![nrt\s\"'\\]|u[0-9a-fA-F]{4})"
+HOST_PATH_PATTERN = (
+    rf"(?:{_ESCAPE_BEFORE}|(?<![\w.~/-]))/(?:home|Users)/[^\s\"'\\]*"
+    rf"|(?:{_ESCAPE_BEFORE}|(?<![\w\\]))[A-Za-z]:\\\\?{_NOT_ESCAPE_AFTER}"
+    rf"(?:[^\s\"'\\]|\\\\?{_NOT_ESCAPE_AFTER})*"
 )
+_ABS_PATH_RE = re.compile(HOST_PATH_PATTERN)
 
 
 def _walk_strings(value: Any, *, path: str = "") -> list[tuple[str, str]]:

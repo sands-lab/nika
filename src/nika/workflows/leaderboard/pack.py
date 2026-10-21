@@ -7,6 +7,7 @@ import re
 import shutil
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -52,7 +53,7 @@ from nika.workflows.leaderboard.schema import (
     SubmissionMetadata,
     TrialResult,
 )
-from nika.workflows.leaderboard.secrets import scan_value_for_issues
+from nika.workflows.leaderboard.secrets import HOST_PATH_PATTERN, scan_value_for_issues
 from nika.workflows.leaderboard.trial_results import (
     TrialResultError,
     trial_result_from_dir,
@@ -71,10 +72,18 @@ class PackResult:
     trajectories_dir: Path
 
 
-# Machine-local absolute paths are redacted when packing trajectories.
-_ABS_PATH_REDACT = re.compile(
-    r"(?:/home/|/Users/|/tmp/|/var/|/etc/|[A-Za-z]:\\)[^\s\"']*"
-)
+@lru_cache(maxsize=1)
+def _host_path_redact() -> re.Pattern[str]:
+    """Match host-local paths: the validator's rule plus this checkout's roots."""
+    roots = {
+        str(root)
+        for root in (REPO_ROOT, REPO_ROOT.resolve(), resolve_results_root())
+        if root.parent != root
+    }
+    local = "|".join(re.escape(r) for r in sorted(roots, key=len, reverse=True))
+    start = r"(?:(?<=\\[nrt])|(?<![\w.~/-]))"
+    checkout = rf"{start}(?:{local})(?![\w.-])[^\s\"'\\]*"
+    return re.compile(rf"{checkout}|{HOST_PATH_PATTERN}")
 
 
 # Agents can print private keys found on lab devices (e.g. a lab's TLS key).
@@ -90,7 +99,7 @@ _PEM_HEAD_REDACT = re.compile(
 
 
 def _redact_absolute_paths(text: str) -> str:
-    return _ABS_PATH_REDACT.sub("<REDACTED_PATH>", text)
+    return _host_path_redact().sub("<REDACTED_PATH>", text)
 
 
 def _redact_private_keys(text: str) -> str:
