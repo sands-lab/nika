@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from typing import Any
+from copy import deepcopy
+from ipaddress import IPv4Network
 
 from nika.net_env.isp.bgp.plan import BgpNodePlan, BgpPlan
 
@@ -16,7 +18,7 @@ def render_bgp_srl_block(node: BgpNodePlan, plan: BgpPlan) -> dict[str, Any]:
     return {}
 
 
-def routing_policy_document() -> dict[str, Any]:
+def routing_policy_document(node: BgpNodePlan | None = None) -> dict[str, Any]:
     """Shared BUSINESS prefix-set and BGP-IN/OUT policies.
 
     SRL has no BGP ``network`` statement; local/connected prefixes are advertised
@@ -32,7 +34,7 @@ def routing_policy_document() -> dict[str, Any]:
         "198.51.101.0/24",
         "198.51.102.0/24",
     ]
-    return {
+    document = {
         "srl_nokia-routing-policy:routing-policy": {
             "prefix-set": [
                 {
@@ -77,6 +79,46 @@ def routing_policy_document() -> dict[str, Any]:
             ],
         }
     }
+    if node:
+        routing = document["srl_nokia-routing-policy:routing-policy"]
+        base = next(p for p in routing["policy"] if p["name"] == "BGP-IN")
+        for index, (_, terms) in enumerate(node.import_policies):
+            name = f"NC-IN-{index}"
+            statements = []
+            for seq, term in enumerate(terms, 1):
+                prefix_set = f"{name}-P{seq}"
+                plen = IPv4Network(term.prefix).prefixlen
+                routing["prefix-set"].append(
+                    {
+                        "name": prefix_set,
+                        "prefix": [
+                            {
+                                "ip-prefix": term.prefix,
+                                "mask-length-range": f"{plen}..{plen}",
+                            }
+                        ],
+                    }
+                )
+                action = {"policy-result": "reject"}
+                if term.permit:
+                    action = {
+                        "policy-result": "next-statement",
+                        "bgp": {"local-preference": {"set": term.local_preference}},
+                    }
+                statements.append(
+                    {
+                        "name": str(seq * 10),
+                        "match": {"prefix-set": prefix_set},
+                        "action": action,
+                    }
+                )
+            fallback = deepcopy(base["statement"])
+            for seq, statement in enumerate(fallback, 10000):
+                statement["name"] = str(seq)
+            routing["policy"].append(
+                {"name": name, "statement": [*statements, *fallback]}
+            )
+    return document
 
 
 def _neighbors(
@@ -92,6 +134,15 @@ def _neighbors(
         }
         if rr_clients and sess.route_reflector_client:
             nb["route-reflector"] = {"client": True}
+        for index, (neighbor, _) in enumerate(node.import_policies):
+            if neighbor == sess.remote_ip:
+                nb["afi-safi"] = [
+                    {
+                        "afi-safi-name": "ipv4-unicast",
+                        "admin-state": "enable",
+                        "import-policy": [f"NC-IN-{index}"],
+                    }
+                ]
         neighbors.append(nb)
     return neighbors
 

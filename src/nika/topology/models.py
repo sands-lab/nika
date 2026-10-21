@@ -1,4 +1,4 @@
-"""Backend-neutral network topology IR (SNDlib import and future lab builders)."""
+"""Backend-neutral network topology IR (SNDlib and Topology Zoo imports)."""
 
 from __future__ import annotations
 
@@ -51,7 +51,7 @@ class TopoDemand:
 @dataclass(frozen=True)
 class NetworkTopology:
     name: str
-    source_format: Literal["sndlib-xml"]
+    source_format: Literal["sndlib-xml", "topology-zoo-graphml"]
     meta: Mapping[str, str]
     nodes: tuple[TopoNode, ...]
     links: tuple[TopoLink, ...]

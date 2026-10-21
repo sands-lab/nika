@@ -26,7 +26,8 @@ def _network():
         demands=(),
     )
     plan = compile_isp_plan(
-        IspConfig(topology="polska", metric_strategy="routing_cost"), topology=topology
+        IspConfig(topology="polska", igp="ospf", metric_strategy="routing_cost"),
+        topology=topology,
     )
     fibs = {}
     for node in plan.nodes:

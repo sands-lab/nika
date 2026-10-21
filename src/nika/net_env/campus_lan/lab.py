@@ -8,12 +8,14 @@ from nika.net_env.base import NetworkEnvBase, ProbePath
 
 
 class CampusLan(NetworkEnvBase):
+    ROUTING_PARAMETER_KINDS = frozenset({"ospf_costs"})
     LAB_NAME = "campus_lan"
     TOPO_LEVEL = "medium"
 
     def __init__(
         self,
         topo_size: Literal["s", "m", "l"] = "s",
+        routing_parameters: dict | None = None,
         **kwargs,
     ):
         from nika.net_env.campus_lan.lab_dhcp import (
@@ -23,6 +25,10 @@ class CampusLan(NetworkEnvBase):
         donor = CampusLanDhcp(topo_size=topo_size, **kwargs)
 
         self.__dict__.update(donor.__dict__)
+        from nika.net_env.synthesis.parameters import apply_routing_parameters
+
+        apply_routing_parameters(self, routing_parameters)
+
         self.name = self.LAB_NAME
         if getattr(self, "lab", None) is not None:
             self.lab.name = self.LAB_NAME

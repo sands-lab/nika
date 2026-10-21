@@ -1,0 +1,23 @@
+--- FrrConversions.java
++++ FrrConversions.java
+@@ -882,6 +882,20 @@
+ 
+     if (setNextHop != null) {
+       acceptStatements.add(setNextHop);
++    } else {
++      BgpNeighborIpv4UnicastAddressFamily ipv4u =
++          bgpVrf.getIpv4UnicastConfiguration(neighbor.getName());
++      if (localAs != null
++          && neighbor.getRemoteAs() != null
++          && neighbor.getRemoteAs().isKnownIbgp(localAs)
++          && ipv4u != null
++          && Boolean.TRUE.equals(ipv4u.getNextHopSelf())) {
++        acceptStatements.add(
++            new If(
++                new MatchProtocol(RoutingProtocol.BGP),
++                ImmutableList.of(new SetNextHop(SelfNextHop.getInstance())),
++                ImmutableList.of()));
++      }
+     }
+     if (setMaxMedMetric != null) {
+       acceptStatements.add(setMaxMedMetric);

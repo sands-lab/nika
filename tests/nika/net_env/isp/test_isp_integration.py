@@ -27,7 +27,8 @@ from nika.net_env.isp.kathara.lab import Isp
 from nika.net_env.net_env_pool import get_net_env_instance
 from nika.net_env.verify import build_lab_verify_result
 from nika.runtime.factory import resolve_backend, runtime_for_session
-from nika.topology import list_sndlib_topologies, load_sndlib_topology
+from nika.topology import load_topology
+from nika.topology.catalog import SNDLIB_TOPOLOGY_NAMES
 from nika.utils.session_id import resolve_session_tag
 from nika.workflows.benchmark.release import (
     is_deprecated_release,
@@ -63,7 +64,7 @@ def _release_isp_variants() -> dict[str, set[tuple[str, str, str]]]:
     Only plain ``isp_<topo>`` scenarios; derived scenarios (RPKI, RTBH) have
     their own tests.
     """
-    topos = set(list_sndlib_topologies())
+    topos = set(SNDLIB_TOPOLOGY_NAMES)
     variants: dict[str, set[tuple[str, str, str]]] = {}
     for version in list_releases():
         if is_deprecated_release(version):
@@ -80,7 +81,7 @@ def _release_isp_variants() -> dict[str, set[tuple[str, str, str]]]:
 
 
 _RELEASE_VARIANTS = _release_isp_variants()
-_CI_TOPO_SET = _env_subset("NIKA_CI_ISP_TOPOS", set(list_sndlib_topologies()))
+_CI_TOPO_SET = _env_subset("NIKA_CI_ISP_TOPOS", set(SNDLIB_TOPOLOGY_NAMES))
 _CI_BGP_MODES = _env_subset("NIKA_CI_ISP_BGP_MODES", {"ibgp_rr", "ebgp"})
 KATHARA_VARIANTS = sorted(
     variant
@@ -159,7 +160,7 @@ class IspDockerTest(IntegrationTestCase):
         ("topo_name", "igp"), IGP_VARIANTS, ids=[f"{t}-{i}" for t, i in IGP_VARIANTS]
     )
     def test_topo_starts_verifies_and_destroys(self, topo_name: str, igp: str) -> None:
-        ir = load_sndlib_topology(topo_name)
+        ir = load_topology(topo_name)
         plan = compile_isp_plan(
             IspConfig(topology=topo_name, igp=igp)  # type: ignore[arg-type]
         )
@@ -499,9 +500,9 @@ class IspTrafficCompatDockerTest(IntegrationTestCase):
             write_normalized_series,
         )
         from nika.net_env.isp.traffic.models import TrafficInterval, TrafficMatrixSeries
-        from nika.topology import load_sndlib_topology
+        from nika.topology import load_topology
 
-        base = series_from_demands(load_sndlib_topology(topo), duration_sec=5)
+        base = series_from_demands(load_topology(topo), duration_sec=5)
         flows = base.intervals[0].flows[:4]
         series = TrafficMatrixSeries(
             topology=topo,
@@ -625,7 +626,7 @@ class IspClabReprSmokeTest(CliIntegrationTestCase):
             [
                 "traffic",
                 "run",
-                "sndlib",
+                "matrix-replay",
                 "--mode",
                 "demands",
                 "--unit",

@@ -32,7 +32,7 @@ from nika.net_env.isp.profiles import (
     normalize_device_profile,
     validate_backend_profile,
 )
-from nika.topology.sndlib.catalog import topology_size_for_name
+from nika.topology.catalog import isp_topology_size
 
 
 __all__ = [
@@ -209,7 +209,7 @@ def validate_and_resolve_isp_options(
         )
 
     baked_topo = isp_topo_from_scenario(scenario)
-    expected_size = topology_size_for_name(baked_topo)
+    expected_size = isp_topology_size(baked_topo)
     if topo_size and topo_size != expected_size:
         raise ValueError(
             f"Scenario {scenario!r} has fixed topo_size {expected_size!r}; "
