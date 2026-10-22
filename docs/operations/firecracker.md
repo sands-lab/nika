@@ -383,9 +383,10 @@ that is itself a VM, with huge pages:
 | Measured wall time, 85 trials 8 at a time | 5 h 55 min | 1 h 55 min, plus 35 min of builds | — |
 
 *Time outside the agent* covers deploy or restore, verification, injection and
-teardown; agent time is the same in all modes. A *run* is every task of the
-split with 3 trials each. [Case images](#case-images-optional) are optional and
-pay off only when the same tasks run again.
+teardown. It excludes the agent's own run, which can take longer with many
+copies at once (see below). A *run* is every task of the split with 3 trials
+each. [Case images](#case-images-optional) are optional and pay off only when
+the same tasks run again.
 
 Native runs also take longer in wall time because heavy labs (k8s, Containerlab,
 size `l`) run alone; Firecracker trials run side by side. With 6–8 copies at
