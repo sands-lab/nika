@@ -32,9 +32,9 @@ For benchmark automation, `nika benchmark run` performs env deploy, fault inject
 
 Network environments implement `NetworkEnvBase` and bind to Kathara or Containerlab through the runtime layer. Read the [network scenario reference](../operations/network-scenarios.md) before adding another environment ID; an existing parameterized environment may already cover the topology.
 
-1. Add a single-backend lab under `src/nika/net_env/<scenario>/`. Only multi-backend scenarios use backend subdirectories, such as `src/nika/net_env/isp/kathara/` and `src/nika/net_env/isp/containerlab/`. Shared backend helpers belong in `src/nika/net_env/utils/kathara/` or `src/nika/net_env/utils/containerlab/`.
+1. Add a single-backend environment as `src/nika/net_env/<scenario>/lab.py`. Only multi-backend environments use backend subdirectories, such as `src/nika/net_env/isp/kathara/` and `src/nika/net_env/isp/containerlab/`. Shared backend helpers belong in `src/nika/net_env/utils/kathara/` or `src/nika/net_env/utils/containerlab/`.
 2. Implement a class that sets `LAB_NAME`, initializes the backend lab/topology, sets `self.name`, `self.desc`, and declares useful host lists through `load_machines()`.
-3. If the scenario has sizes, expose `TOPO_SIZE = ["s", "m", "l"]` and accept `topo_size` in `__init__`.
+3. If the environment has sizes, declare them on `NetEnvSpec.topo_size` and accept `topo_size` in `__init__`.
 4. Add import-safe metadata and a lazy module/class binding to `src/nika/net_env/net_env_pool.py`.
 5. Reference images by a pinned name: `nika_image("<name>")` for local `nika/*` builds (tagged with the benchmark version), and a `repo:tag@sha256:<digest>` reference for upstream images. Never use a floating tag such as `latest` on its own.
 
@@ -71,7 +71,7 @@ Register metadata without importing the backend package:
 ```python
 "my_scenario": NetEnvSpec(
     lab_name="my_scenario",
-    module="nika.net_env.kathara.example.my_scenario.lab",
+    module="nika.net_env.my_scenario.lab",
     class_name="MyScenario",
     tags=("link", "icmp", "pc"),
     supported_backends=("kathara",),
@@ -282,7 +282,7 @@ uv run nika benchmark run --config benchmark/my_cases.yaml \
 - `uv run nika failure describe <problem>` shows the expected schema.
 - `uv run nika failure inject <problem> --set ...` verifies successfully.
 - `uv run nika benchmark run ... -a mock -m mock-v1` completes without external LLM credentials.
-- The session directory contains `ground_truth.json`, `run.json`, `events.jsonl`, and evaluation artifacts.
+- The session directory contains `ground_truth.json`, `run.json`, `nika.jsonl`, and evaluation artifacts.
 - If compatibility or target enumeration changes, regenerate the candidate pool (`nika benchmark generate`) and the coverage tables in [Benchmark configuration](../benchmarks/benchmark-configuration.md).
 
 Update the [failure reference](../operations/failures.md) or [network scenario reference](../operations/network-scenarios.md) in the same change when the registry or runtime behavior changes.
