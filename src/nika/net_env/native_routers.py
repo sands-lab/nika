@@ -33,6 +33,9 @@ class NativeRouterPlatform:
     # Raises before any container is created (image, memory admission).
     check_deployable: Callable[[object], None]
     verify_max_wait_sec: int
+    # (runtime, node) -> provider of failure operations; see
+    # ``nika.problems.support.router_ops``. None when no failure is supported.
+    fault_ops: Callable[[object, str], object] | None = None
 
 
 # Vendor modules exposing ``PLATFORM``; add a profile here to support it.
@@ -40,6 +43,11 @@ _PLATFORMS = {
     "iosxr": "nika.net_env.utils.iosxr.platform",
     "routeros": "nika.net_env.utils.routeros.platform",
 }
+
+
+def native_profiles() -> frozenset[str]:
+    """Return the device profiles that run native router images."""
+    return frozenset(_PLATFORMS)
 
 
 def native_platform(profile: str) -> NativeRouterPlatform:

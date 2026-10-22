@@ -23,7 +23,7 @@ from nika.problems.base import (
 )
 from nika.problems.rca import interface_resource
 from nika.problems.support.benchmark_targets import replace
-from nika.problems.support.routeros import is_routeros, ros, ros_count, ros_rows
+from nika.problems.support.router_ops import native_fault_ops
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
 
@@ -230,39 +230,15 @@ class VrfDscpRemarking(ProblemBase):
         self._install_remark(params, self._corp_prefix)
         time.sleep(_SETTLE_SEC)
 
-    def _routeros(self, params: VrfDscpRemarkingParams) -> bool:
-        return is_routeros(self.net_env, params.host_name)
-
-    def _routeros_remarks(self, params: VrfDscpRemarkingParams) -> list[dict]:
-        # RouterOS does not filter mangle rows by out-interface; select here.
-        return [
-            row
-            for row in ros_rows(
-                self.runtime,
-                params.host_name,
-                "/ip/firewall/mangle/print terse where action=change-dscp",
-            )
-            if row.get("out-interface") == params.intf_name
-            and row.get("dscp") == str(DSCP_EF)
-            and row.get("new-dscp") == str(DSCP_CS0)
-        ]
-
     def _install_remark(self, params: VrfDscpRemarkingParams, corp_prefix: str) -> None:
         edge = params.host_name
         iface = params.intf_name
-        if self._routeros(params):
-            # Postrouting mangle runs before the queue-tree marks, as nft's
-            # mangle hook runs before tc classification on FRR edges.
-            ros(
-                self.runtime,
-                edge,
-                f"/ip firewall mangle add chain=postrouting src-address={corp_prefix} "
-                f"out-interface={iface} dscp={DSCP_EF} action=change-dscp "
-                f"new-dscp={DSCP_CS0} passthrough=yes "
-                "place-before=[:pick [/ip firewall mangle find chain=postrouting] 0]",
-            )
+        ops = native_fault_ops(self, edge, "add_dscp_remark")
+        if ops is not None:
+            ops.add_dscp_remark(iface, corp_prefix, DSCP_EF, DSCP_CS0)
             self.logger.info(
-                f"Injected DSCP EF→CS0 remark on {edge} oif={iface} saddr={corp_prefix}"
+                f"Injected DSCP EF→CS0 remark on {edge} oif={iface} "
+                f"saddr={corp_prefix} ({ops.profile})"
             )
             return
         # Ensure mangle table/chain, then EF→CS0 on CORP traffic leaving overlay.
@@ -282,8 +258,9 @@ class VrfDscpRemarking(ProblemBase):
         )
 
     def _remark_present(self, params: VrfDscpRemarkingParams) -> bool:
-        if self._routeros(params):
-            return bool(self._routeros_remarks(params))
+        ops = native_fault_ops(self, params.host_name, "dscp_remark_present")
+        if ops is not None:
+            return ops.dscp_remark_present(params.intf_name, DSCP_EF, DSCP_CS0)
         out = self.runtime.exec(
             params.host_name,
             f"nft list chain ip {_NFT_TABLE} {_NFT_CHAIN} 2>/dev/null || true",
@@ -295,14 +272,9 @@ class VrfDscpRemarking(ProblemBase):
         )
 
     def _remove_remark(self, params: VrfDscpRemarkingParams) -> None:
-        if self._routeros(params):
-            for row in self._routeros_remarks(params):
-                ros(
-                    self.runtime,
-                    params.host_name,
-                    "/ip firewall mangle remove [find action=change-dscp "
-                    f'src-address="{row.get("src-address")}"]',
-                )
+        ops = native_fault_ops(self, params.host_name, "remove_dscp_remark")
+        if ops is not None:
+            ops.remove_dscp_remark(params.intf_name, DSCP_EF, DSCP_CS0)
             return
         self.runtime.exec(
             params.host_name,
@@ -312,22 +284,14 @@ class VrfDscpRemarking(ProblemBase):
         )
 
     def _smoke_ok(self, params: VrfDscpRemarkingParams) -> dict[str, bool]:
+        ops = native_fault_ops(self, params.host_name, "vrf_routes")
+        if ops is not None:
+            return self._native_smoke(params, ops)
         checks: dict[str, bool] = {}
-        if self._routeros(params):
-            checks["wg_iface_up"] = (
-                ros_count(
-                    self.runtime,
-                    params.host_name,
-                    f"/interface/print count-only where name={params.intf_name} "
-                    "and running",
-                )
-                > 0
-            )
-        else:
-            link = self.runtime.exec(
-                params.host_name, f"ip -o link show {params.intf_name}"
-            ).strip()
-            checks["wg_iface_up"] = bool(link) and "state DOWN" not in link
+        link = self.runtime.exec(
+            params.host_name, f"ip -o link show {params.intf_name}"
+        ).strip()
+        checks["wg_iface_up"] = bool(link) and "state DOWN" not in link
         # The fault itself drops much of the EF traffic; any reply shows the path is up.
         checks["ef_path_ping"] = (
             ping_stats(
@@ -341,22 +305,6 @@ class VrfDscpRemarking(ProblemBase):
         checks["hq_server_http"] = http_ok(
             self.runtime, params.src_host, "http://10.0.20.2/"
         ) or http_ok(self.runtime, "br1_corp_pc", "http://10.0.20.2/")
-        if self._routeros(params):
-            checks["bgp_alive"] = (
-                ros_count(
-                    self.runtime,
-                    params.host_name,
-                    "/routing/bgp/session/print count-only where established",
-                )
-                > 0
-            )
-            corp_rib = ros(
-                self.runtime,
-                params.host_name,
-                "/routing/route/print terse where routing-table=vrf_corp and afi=ip",
-            )
-            checks["vrf_corp_rib"] = "dst-address=10." in corp_rib
-            return checks
         bgp = self.runtime.exec(params.host_name, "vtysh -c 'show bgp summary'")
         checks["bgp_alive"] = any(
             len(line.split()) >= 10 and line.split()[9].isdigit()
@@ -373,10 +321,31 @@ class VrfDscpRemarking(ProblemBase):
         checks["vrf_corp_rib"] = "10." in corp_rib
         return checks
 
+    def _native_smoke(self, params: VrfDscpRemarkingParams, ops) -> dict[str, bool]:
+        return {
+            "wg_iface_up": ops.interface_up(params.intf_name),
+            # The fault itself drops much of the EF traffic; any reply shows the path is up.
+            "ef_path_ping": ping_stats(
+                self.runtime,
+                params.src_host,
+                qos_traffic.host_ip(self.runtime, params.dst_host),
+                count=5,
+            ).received
+            > 0,
+            "hq_server_http": http_ok(
+                self.runtime, params.src_host, "http://10.0.20.2/"
+            )
+            or http_ok(self.runtime, "br1_corp_pc", "http://10.0.20.2/"),
+            "bgp_alive": bool(ops.bgp_established_peers()),
+            "vrf_corp_rib": any(
+                p.startswith("10.") for p in ops.vrf_routes("vrf_corp")
+            ),
+        }
+
     def _edge_tos(self, params: VrfDscpRemarkingParams, dst_ip: str) -> int | None:
-        # A RouterOS tunnel lives inside the VM, out of the container's reach;
+        # A native router's tunnel is out of the container's capture reach;
         # the source and destination samples still bound the remark.
-        if self._routeros(params):
+        if native_fault_ops(self, params.host_name, "add_dscp_remark") is not None:
             return None
         return qos_traffic.sample_dscp_tos(
             self.runtime,

@@ -30,6 +30,8 @@ from datetime import datetime, UTC
 from pathlib import Path
 from typing import Any
 
+from nika.remote.config import event_origin
+
 # Per-context binding: concurrent trials finalized from parent threads (or
 # remote API request threads) each write to their own ``nika.jsonl``.
 _bound_events_path: ContextVar[str | None] = ContextVar(
@@ -60,6 +62,7 @@ def event_entry(record: logging.LogRecord) -> dict[str, Any]:
     extra = getattr(record, "data", None)
     if extra:
         entry["data"] = extra
+    entry.update(event_origin())
     return entry
 
 

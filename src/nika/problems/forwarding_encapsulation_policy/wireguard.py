@@ -16,7 +16,7 @@ from nika.problems.base import (
 from nika.problems.rca import interface_resource
 from nika.problems.support.benchmark_targets import replace
 from nika.problems.support.polling import wait_until
-from nika.problems.support.routeros import is_routeros, ros, ros_count, ros_rows
+from nika.problems.support.router_ops import RouterFaultOps, native_fault_ops
 from nika.utils.logger import system_logger
 
 # Upper bound for overlay BGP to drop after peer-key change + neighbor clear.
@@ -74,40 +74,6 @@ def _bgp_neighbor_established(summary: str, peer_ip: str) -> bool:
         if peer_ip in line and len(fields) >= 10 and fields[9].isdigit():
             return True
     return False
-
-
-def _routeros_peer(runtime: Any, edge: str, iface: str) -> dict[str, str]:
-    rows = ros_rows(
-        runtime, edge, f"/interface/wireguard/peers/print terse where interface={iface}"
-    )
-    return rows[0] if rows else {}
-
-
-def _routeros_handshake_age(peer: dict[str, str]) -> float | None:
-    """Seconds since the last handshake, or None when none succeeded."""
-    import re
-
-    value = peer.get("last-handshake")
-    if not value:
-        return None
-    units = {"w": 604800, "d": 86400, "h": 3600, "m": 60, "s": 1, "ms": 0.001}
-    return sum(
-        float(amount) * units[unit]
-        for amount, unit in re.findall(r"(\d+)(ms|w|d|h|m|s)", value)
-    )
-
-
-def _routeros_session_established(runtime: Any, edge: str, peer_ip: str) -> bool:
-    from nika.net_env.utils.routeros.parse import routeros_established_bgp_peers
-    from nika.service.lab.routeros_api import CLI_COMMAND
-
-    output = runtime.exec(
-        edge,
-        CLI_COMMAND.format(
-            command="/routing/bgp/session/print terse where established=yes"
-        ),
-    )
-    return peer_ip in routeros_established_bgp_peers(output)
 
 
 def _hq_peer_targets(net_env: Any, scenario: str) -> list[tuple[str, str]]:
@@ -269,8 +235,9 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
                 f"Primary intf_name {params.intf_name!r} not among {ifaces} on {edge}"
             )
 
-        if is_routeros(self.net_env, edge):
-            self._inject_routeros(edge, ifaces, wrong_key)
+        ops = native_fault_ops(self, edge, "set_tunnel_peer_public_key")
+        if ops is not None:
+            self._inject_native(ops, edge, ifaces, wrong_key)
             return
         cleared: list[str] = []
         for iface in ifaces:
@@ -307,66 +274,43 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
             _SETTLE_SEC,
         )
 
-    def _inject_routeros(self, edge: str, ifaces: list[str], wrong_key: str) -> None:
+    def _inject_native(
+        self, ops: RouterFaultOps, edge: str, ifaces: list[str], wrong_key: str
+    ) -> None:
         cleared = []
         for iface in ifaces:
-            ros(
-                self.runtime,
-                edge,
-                f'/interface wireguard peers set [find interface={iface}] public-key="{wrong_key}"',
-            )
-            # Reset the overlay session, as FRR's ``clear ip bgp`` does; the
-            # renderer names each connection after its tunnel.
-            ros(
-                self.runtime,
-                edge,
-                f"/routing bgp connection disable [find name={iface}]; :delay 2s; "
-                f"/routing bgp connection enable [find name={iface}]",
-            )
-            cleared.append(self._resolve_hub_tunnel_ip(edge, iface))
+            hub_tun_ip = self._resolve_hub_tunnel_ip(edge, iface)
+            ops.set_tunnel_peer_public_key(iface, wrong_key)
+            ops.reset_bgp_session(hub_tun_ip)
+            cleared.append(hub_tun_ip)
         self._hub_tunnel_ips = cleared
         self.logger.info(
             f"Injected wrong WireGuard Hub peer public key on {edge} "
-            f"({', '.join(ifaces)}); reset BGP sessions {cleared}."
+            f"({', '.join(ifaces)}, {ops.profile}); reset BGP sessions {cleared}."
         )
-        wait_until(
-            lambda: (
-                not any(
-                    _routeros_session_established(self.runtime, edge, ip)
-                    for ip in cleared
-                )
-            ),
-            _SETTLE_SEC,
-        )
+        wait_until(lambda: not set(cleared) & ops.bgp_established_peers(), _SETTLE_SEC)
 
-    def _verify_routeros(self, params: WireGuardPeerKeyMisconfigParams) -> dict:
-        edge = params.host_name
-        expected = WRONG_HUB_PEER_PUBLIC_KEY
+    def _verify_native(
+        self, ops: RouterFaultOps, params: WireGuardPeerKeyMisconfigParams
+    ) -> dict:
+        edge, expected = params.host_name, WRONG_HUB_PEER_PUBLIC_KEY
         ifaces = self._wg_ifaces_on_edge(edge)
         all_ok = bool(ifaces) and params.intf_name in ifaces
         per_iface: dict[str, dict[str, Any]] = {}
         for iface in ifaces:
-            peer = _routeros_peer(self.runtime, edge, iface)
-            iface_up = (
-                ros_count(
-                    self.runtime,
-                    edge,
-                    f"/interface/print count-only where name={iface} and running",
-                )
-                > 0
+            peer = ops.tunnel_peer(iface)
+            iface_up = ops.interface_up(iface)
+            # A new key starts a new peer session; a handshake would need the
+            # wrong key to match the Hub, which it cannot.
+            no_handshake = (
+                peer.handshake_age_sec is None or peer.handshake_age_sec > _SETTLE_SEC
             )
-            key_ok = peer.get("public-key") == expected
-            # Changing the key starts a new peer session; a fresh handshake
-            # would need the wrong key to match the Hub, which it cannot.
-            age = _routeros_handshake_age(peer)
-            no_handshake = age is None or age > _SETTLE_SEC
-            iface_ok = key_ok and iface_up and no_handshake
-            all_ok = all_ok and iface_ok
+            key_ok = peer.public_key == expected
+            all_ok = all_ok and key_ok and iface_up and no_handshake
             per_iface[iface] = {
-                "peer": peer,
                 "public_key_ok": key_ok,
                 "iface_up": iface_up,
-                "handshake_age_sec": age,
+                "handshake_age_sec": peer.handshake_age_sec,
                 "no_successful_handshake": no_handshake,
             }
         return build_verify_result(
@@ -382,9 +326,10 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
         )
 
     def verify_fault(self, params: WireGuardPeerKeyMisconfigParams) -> dict:
+        ops = native_fault_ops(self, params.host_name, "tunnel_peer")
+        if ops is not None:
+            return self._verify_native(ops, params)
         edge = params.host_name
-        if is_routeros(self.net_env, edge):
-            return self._verify_routeros(params)
         expected = WRONG_HUB_PEER_PUBLIC_KEY
         ifaces = self._wg_ifaces_on_edge(edge)
         per_iface: dict[str, dict[str, Any]] = {}
@@ -589,13 +534,9 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
                 f"target_prefix {params.target_prefix} still present in allowlist"
             )
 
-        if is_routeros(self.net_env, edge):
-            ros(
-                self.runtime,
-                edge,
-                f"/interface wireguard peers set [find interface={iface}] "
-                f"allowed-address={allowlist.replace(', ', ',')}",
-            )
+        ops = native_fault_ops(self, edge, "set_tunnel_peer_allowed_addresses")
+        if ops is not None:
+            ops.set_tunnel_peer_allowed_addresses(iface, allowlist.split(", "))
         else:
             conf_path = f"/etc/wireguard/{iface}.conf"
             self.runtime.exec(
@@ -618,8 +559,9 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
         # First host in the target /24 for route lookup (LAN host is typically .2).
         target_net = ip_network(params.target_prefix, strict=False)
         target_host = str(target_net.network_address + 2)
-        if is_routeros(self.net_env, edge):
-            return self._verify_routeros(params, target, hub_tun_ip)
+        ops = native_fault_ops(self, edge, "tunnel_peer")
+        if ops is not None:
+            return self._verify_native(ops, params, target, hub_tun_ip)
 
         conf_line = self.runtime.exec(
             edge, f"grep -E '^AllowedIPs = ' /etc/wireguard/{iface}.conf || true"
@@ -685,26 +627,24 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
             },
         )
 
-    def _verify_routeros(
-        self, params: WireGuardAllowedIpsMisconfigParams, target: str, hub_tun_ip: str
+    def _verify_native(
+        self,
+        ops: RouterFaultOps,
+        params: WireGuardAllowedIpsMisconfigParams,
+        target: str,
+        hub_tun_ip: str,
     ) -> dict:
-        from nika.net_env.enterprise_branch.routeros import OVERLAY_VRF
-
         edge, iface = params.host_name, params.intf_name
-        peer = _routeros_peer(self.runtime, edge, iface)
-        entries = [e for e in peer.get("allowed-address", "").split(",") if e]
-        conf_omits_target = target not in entries
-        conf_keeps_tunnel = f"{hub_tun_ip}/32" in entries
-        age = _routeros_handshake_age(peer)
-        handshake_ok = age is not None and age < 180
-        bgp_ok = _routeros_session_established(self.runtime, edge, hub_tun_ip)
-        route = ros(
-            self.runtime,
-            edge,
-            f"/routing/route/print terse where routing-table={OVERLAY_VRF} "
-            f"and active and dst-address={target}",
+        peer = ops.tunnel_peer(iface)
+        conf_omits_target = target not in peer.allowed_addresses
+        conf_keeps_tunnel = f"{hub_tun_ip}/32" in peer.allowed_addresses
+        # Peers rekey at least every two minutes while the tunnel is healthy.
+        handshake_ok = (
+            peer.handshake_age_sec is not None and peer.handshake_age_sec < 180
         )
-        route_ok = f"%{iface}" in route
+        bgp_ok = hub_tun_ip in ops.bgp_established_peers()
+        route_interface = ops.route_interface(target)
+        route_ok = route_interface == iface
         verified = (
             conf_omits_target
             and conf_keeps_tunnel
@@ -720,13 +660,13 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
                 "intf_name": iface,
                 "target_prefix": params.target_prefix,
                 "hub_tunnel_ip": hub_tun_ip,
-                "peer": peer,
+                "allowed_addresses": list(peer.allowed_addresses),
                 "conf_omits_target": conf_omits_target,
                 "conf_keeps_tunnel": conf_keeps_tunnel,
-                "handshake_age_sec": age,
+                "handshake_age_sec": peer.handshake_age_sec,
                 "handshake_ok": handshake_ok,
                 "bgp_established": bgp_ok,
-                "route": route,
+                "route_interface": route_interface,
                 "route_ok": route_ok,
             },
         )

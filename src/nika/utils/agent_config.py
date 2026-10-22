@@ -64,11 +64,20 @@ def resolve_submission_settings(
 
 
 def resolve_reasoning_effort(
-    value: str | None = None, *, config: RunConfig | None = None
+    agent_type: str | None,
+    value: str | None = None,
+    *,
+    config: RunConfig | None = None,
 ) -> str | None:
+    """Effective reasoning effort: CLI, then ``agent.reasoning_effort``, then the
+    agent's built-in default."""
     if value is not None:
         return value
-    return _cfg(config).agent.reasoning_effort
+    configured = _cfg(config).agent.reasoning_effort
+    if configured is not None or agent_type is None:
+        return configured
+    spec = find_agent_spec(agent_type)
+    return spec.default_reasoning_effort if spec is not None else None
 
 
 def resolve_max_tokens(

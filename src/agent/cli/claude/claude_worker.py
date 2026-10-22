@@ -33,6 +33,7 @@ from agent.cli.claude.config import (
 from agent.protocols import PHASES
 from agent.utils.loggers import MessageLogger
 from agent.utils.mcp_client import session_mcp_config
+from agent.utils.reasoning_effort import map_anthropic_effort
 from agent.utils.skills import prepare_claude_workspace, skills_enabled
 
 
@@ -86,6 +87,9 @@ class ClaudeWorker:
         Directory for ``messages.jsonl`` (default: *session_dir*).
     max_tokens:
         Output-token cap per model response (``CLAUDE_CODE_MAX_OUTPUT_TOKENS``).
+    reasoning_effort:
+        Run reasoning effort, mapped to ``claude --effort``; omitted when unset
+        or ``none``.
     """
 
     def __init__(
@@ -101,6 +105,7 @@ class ClaudeWorker:
         stream_output: bool = True,
         trace_dir: str | None = None,
         max_tokens: int | None = None,
+        reasoning_effort: str | None = None,
     ) -> None:
         if phase not in PHASES:
             raise ValueError(f"phase must be one of {PHASES}, got {phase!r}")
@@ -112,6 +117,7 @@ class ClaudeWorker:
         self.max_steps = max_steps
         self.scenario_name = scenario_name
         self.max_tokens = max_tokens
+        self.reasoning_effort = reasoning_effort
 
         self.session_dir = Path(session_dir)
         self.workspace = self.session_dir / "claude_workspace"
@@ -178,6 +184,9 @@ class ClaudeWorker:
             "stream-json",
             "--verbose",
         ]
+        effort = map_anthropic_effort(self.reasoning_effort)
+        if effort is not None:
+            cmd += ["--effort", effort]
         if skills_enabled():
             cmd += ["--setting-sources", "project"]
         cmd.append(prompt)

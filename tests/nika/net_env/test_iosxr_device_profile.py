@@ -110,3 +110,16 @@ def test_translation_keeps_areas_static_routes_and_underlay_delay() -> None:
         in enterprise.native_netns_commands["isp1_core"]
     )
     assert "netem" not in enterprise.lab.fs.readtext("isp1_core.startup")
+
+
+def test_routing_experiments_reject_mixed_vendor_deployments(tmp_path) -> None:
+    # Their FRR projections would silently omit the IOS XR routers.
+    from nika.workflows.validation.consistency import compare_config_generators
+
+    with pytest.raises(ValueError, match="mixed-vendor"):
+        compare_config_generators(
+            "campus_lan",
+            tmp_path,
+            topo_size="s",
+            deployment={"device_profile": "iosxr"},
+        )

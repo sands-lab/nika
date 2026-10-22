@@ -163,9 +163,6 @@ class ExecSemanticOpsMixin:
     def uses_srl_router(self, node: str) -> bool:
         return self._api().uses_srl_router(node)
 
-    def uses_iosxr_router(self, node: str) -> bool:
-        return self._api().uses_iosxr_router(node)
-
     def iosxr_get_bgp_asn_number(self, node: str) -> int:
         return self._api().iosxr_get_bgp_asn_number(node)
 
@@ -177,9 +174,6 @@ class ExecSemanticOpsMixin:
 
     def iosxr_withdraw_bgp_prefix(self, node: str, prefix: str) -> None:
         self._api().iosxr_withdraw_bgp_prefix(node, prefix)
-
-    def iosxr_bgp_prefix_withdrawn(self, node: str, prefix: str) -> bool:
-        return self._api().iosxr_bgp_prefix_withdrawn(node, prefix)
 
     def iosxr_apply_config(self, node: str, config_lines: list[str]) -> str:
         return self._api().iosxr_apply_config(node, config_lines)

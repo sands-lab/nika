@@ -76,17 +76,51 @@ to either experiment runner. The Python workflow accepts
 netlab generates protocol and policy configuration; Batfish and native execution
 check the original requirements.
 
-This path supports the existing ISP, Clos, campus, enterprise and direct-BGP
-routing sketches. ISP devices include FRR, IOS XR, SR Linux and RouterOS within
-their supported protocol scopes. NIKA retains the configuration features missing
-from upstream templates, such as RouterOS filters and enterprise VRF imports;
-the result summary lists these responsibilities. See the
-[configuration generation scope](../../docs/development/scenario-verification.md#delegate-configuration-generation-to-netlab)
-for protocol limits and model assumptions.
+This path supports the existing ISP, Clos, campus, enterprise and direct-BGP routing sketches. ISP devices include FRR, IOS XR, SR Linux and RouterOS within their supported protocol scopes. NIKA retains the configuration features missing from upstream templates, such as RouterOS filters and enterprise VRF imports; the result summary lists these responsibilities. See the [configuration-generation example](../../docs/development/scenario-verification.md#4-generate-the-target-device-configuration) and the [protocol limits and model assumptions](../../docs/development/scenario-verification.md#acceptance-scope-and-reproduction).
 
 Omitting the option keeps the existing construction path. Normal benchmark
 startup can reuse saved candidates; it does not run NetComplete, netlab or
 Batfish. This option adds no NIKA CLI command and changes no published tasks.
+
+## Compare native and netlab configurations
+
+Check that netlab and NIKA's native renderers produce the same routing for one
+environment design before relying on netlab candidates. The comparison needs a
+running Batfish service at `127.0.0.1:9996`. Start the pinned image built above
+and wait until it answers; this reuses an analyzer that is already running:
+
+```bash
+uv run python -c "from nika.validation.batfish.service import ensure_batfish_service; print(ensure_batfish_service())"
+```
+
+Then compare one design:
+
+```bash
+uv run python experiment/scenario_validation/generator_consistency.py isp_abilene \
+  --backend kathara --igp ospf --bgp-mode ebgp --device-profile frr \
+  --output /tmp/consistency-abilene
+```
+
+The script renders both candidates, analyzes each with the platform's Batfish
+export from the table below and exits nonzero on any difference. It neither
+starts nor stops Batfish. If you started the analyzer only for this example, stop
+it afterwards with `docker rm -f nika-batfish-2025-07-07-2423-frr-next-hop-self`;
+leave it running when other experiments share it. From Python, call
+`compare_config_generators(scenario, output, topo_size=..., deployment={...})`
+in `nika.workflows.validation.consistency`. Pass `routing_model` to select another
+projection, and `batfish_host`/`batfish_port` for another analyzer.
+
+`report.json` lists each difference as `kind`, `node`, `key`, `native` and
+`candidate`, and records each candidate's Batfish parse status under `scope`.
+The script fails if either candidate yields no interface or RIB facts. The compared facts are interface addresses, OSPF areas, passivity and costs,
+OSPF or IS-IS adjacencies, BGP sessions, ASNs and RR roles, main RIB and resolved
+FIB entries, selected BGP paths, and per-neighbor import and export outcomes. Both
+candidates see the same probe routes: every path either candidate advertises,
+the design's business, leak and policy prefixes, the RTBH community and a
+TEST-NET-1 canary. Enterprise uses a restricted tunnel projection; it lowers
+business VRF imports into default-table origins and leaves VRF-local tables
+unmodeled. The comparison covers only what the projection models; OSPF network
+type, timers and the community types sent to peers are not compared.
 
 ## Reuse a saved construction
 

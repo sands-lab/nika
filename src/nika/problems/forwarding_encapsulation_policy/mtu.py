@@ -16,7 +16,7 @@ from nika.problems.rca.inventory import (
 )
 from nika.problems.support.benchmark_targets import resolve_path_mtu_target
 from nika.problems.support.compatible_columns import LINUX_PMTU_COLUMNS
-from nika.problems.support.routeros import is_routeros, ros, ros_rows
+from nika.problems.support.router_ops import native_fault_ops
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
 
@@ -112,17 +112,11 @@ class MtuMismatch(ProblemBase):
 
     def _set_mtu(self, host: str, intf: str, mtu: int) -> None:
         self.runtime.exec(host, f"ip link set dev {intf} mtu {int(mtu)}")
-        if is_routeros(self.net_env, host):
-            # The container port only carries the VM's frames; RouterOS must
+        ops = native_fault_ops(self, host, "set_interface_mtu")
+        if ops is not None:
+            # The container link only carries a VM's frames; the router must
             # know the MTU to fragment or send ICMP Fragmentation Needed.
-            from nika.net_env.utils.routeros.common import routeros_port
-
-            ros(
-                self.runtime,
-                host,
-                f"/interface ethernet set [find name={routeros_port(self.net_env, host, intf)}] "
-                f"mtu={int(mtu)}",
-            )
+            ops.set_interface_mtu(intf, mtu)
 
     @staticmethod
     def _skip_peer_mtu(peer_host: str) -> bool:
@@ -156,21 +150,13 @@ class MtuMismatch(ProblemBase):
                 )
 
     def _read_mtu(self, host: str, intf: str) -> int | None:
-        if is_routeros(self.net_env, host):
-            from nika.net_env.utils.routeros.common import routeros_port
-
-            rows = ros_rows(
-                self.runtime,
-                host,
-                f"/interface/print terse where name={routeros_port(self.net_env, host, intf)}",
-            )
-            container = self.runtime.exec(host, f"ip -o link show dev {intf}")
-            match = _MTU_RE.search(container)
-            native = rows[0].get("mtu") if rows else None
-            # Both the VM port and its container attachment must carry it.
-            if match and native and native == match.group(1):
-                return int(native)
-            return None
+        ops = native_fault_ops(self, host, "interface_mtu")
+        if ops is not None:
+            # Both the router port and its container link must carry it.
+            native = ops.interface_mtu(intf)
+            link = self.runtime.exec(host, f"ip -o link show dev {intf}")
+            match = _MTU_RE.search(link)
+            return native if match and native == int(match.group(1)) else None
         output = self.runtime.exec(
             host, f"ip -o link show dev {intf} 2>/dev/null || true"
         ).strip()

@@ -32,10 +32,17 @@ def _check_deployable(env) -> None:
     )
 
 
+def _fault_ops(runtime, node: str):
+    from nika.net_env.utils.routeros.fault_ops import RouterOsFaultOps
+
+    return RouterOsFaultOps(runtime, node)
+
+
 PLATFORM = NativeRouterPlatform(
     convert=convert_frr_routers,
     check_deployable=_check_deployable,
     verify_max_wait_sec=600,
+    fault_ops=_fault_ops,
 )
 
 
