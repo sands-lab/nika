@@ -27,7 +27,8 @@ AgentENV needs no account and keeps everything on your host. Docker Sandboxes al
 | `sdk.codex_sdk` | `shell` | `codex_sdk` |
 | `sdk.claude_sdk` | `shell` | `claude_sdk` |
 | `community.sade` | `shell` | `claude_sdk` |
-| [Added agents](../agents/custom-agents.md) | `shell`, or the manifest's `sandbox.base` | `langgraph`, plus the agent's own dependencies |
+| [Custom agents](../agents/custom-agents.md) (`custom.<name>`) | `shell` | `langgraph`, plus the class's `dependencies` |
+| [Added agents](../agents/agent-reference.md#custom-agent-registration) | `shell`, or the manifest's `sandbox.base` | `langgraph`, plus the agent's own dependencies |
 
 The templates are Docker's `docker/sandbox-templates` images. sbx runs them directly; E2B runs templates that NIKA builds from them (see [E2B templates](#e2b-templates)). Each package set is pinned in [`src/nika/agents/sandbox/requirements/`](../../src/nika/agents/sandbox/requirements/), so agents need nothing installed in NIKA's environment. Only the `mock` test agent runs in the NIKA process, because it reads the ground truth.
 
@@ -174,7 +175,7 @@ With sbx, NIKA preloads the matching `docker/sandbox-templates:*` image when ens
 
 ### Agent packages (optional offline wheels)
 
-To reuse pinned packages without downloading them for each evaluation, sbx sandboxes install host-cached wheels by default. NIKA caches each package set under `.nika_cache/agent-wheels/<set>/`, stages it in the sandbox workspace, and installs it with `pip --no-index`. The host downloads the wheels with `python3 -m pip`, or with `uvx` when the system Python has no pip. An added agent's own dependencies always come from PyPI. E2B templates already contain the packages.
+To reuse pinned packages without downloading them for each evaluation, sbx sandboxes install host-cached wheels by default. NIKA caches each package set under `.nika_cache/agent-wheels/<set>/`, stages it in the sandbox workspace, and installs it with `pip --no-index`. The host downloads the wheels with `python3 -m pip`, or with `uvx` when the system Python has no pip. A custom or added agent's own dependencies always come from PyPI, and so does everything for an agent whose `requires_python` excludes the sandbox's Python. E2B templates already contain the packages.
 
 If the host cannot cache the wheels, disable offline installation to download packages from PyPI inside the microVM:
 

@@ -191,7 +191,7 @@ class LLMDInferenceCluster(NetworkEnvBase):
 
         # Keepalive until device startup signals networking is ready, then exec
         # k3s as PID1 (avoids bridge/default-route race and cgroupv2 issues; #38).
-        _k3s_wait = "while [ ! -f /var/run/nika-net-ready ]; do sleep 1; done; "
+        _k3s_wait = "while [ ! -f /var/run/net-ready ]; do sleep 1; done; "
         _k3s_server = (
             "server --disable servicelb --disable traefik --write-kubeconfig-mode 644 "
             "--disable-default-registry-endpoint"
@@ -265,7 +265,7 @@ class LLMDInferenceCluster(NetworkEnvBase):
 
         all_machines["controller"].create_file_from_path(
             str(Path(__file__).resolve().parent.parent / "utils" / "k8s_bootstrap.sh"),
-            "/nika-bootstrap.sh",
+            "/lab-bootstrap.sh",
         )
 
         # Load per-machine configuration directories and startup scripts

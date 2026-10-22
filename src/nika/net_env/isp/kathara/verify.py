@@ -509,7 +509,7 @@ def _verify_connectivity(
         assert intent.traffic.destination_port is not None
         command = request.command
         output = exec_or_empty(runtime, source, command, timeout=10)
-        reachable = "NIKA_OPEN" in output
+        reachable = "PORT_OPEN" in output
     else:
         command = request.command
         output = exec_or_empty(runtime, source, command, timeout=15)
