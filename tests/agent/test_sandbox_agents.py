@@ -214,6 +214,25 @@ class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
         )
         assert probe.returncode == 0, probe.stderr
         assert _host_name_mentions([probe.stdout]) == []
+        # The agent reaches only the MCP gateway and the model proxy: not the
+        # benchmark's public source, package indexes, or model APIs.
+        egress = subprocess.run(
+            [
+                "sbx",
+                "exec",
+                sandbox,
+                "bash",
+                "-lc",
+                "for url in https://github.com https://pypi.org/simple/ "
+                "https://api.anthropic.com; do "
+                "curl -s -o /dev/null -w '%{http_code} ' -m 10 $url; done",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=120,
+        )
+        assert egress.stdout.split() == ["403", "403", "403"], egress.stdout
 
     def test_step_06_session_close(self) -> None:
         if type(self)._agent_run_failed:
