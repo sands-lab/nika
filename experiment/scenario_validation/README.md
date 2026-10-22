@@ -88,6 +88,36 @@ Omitting the option keeps the existing construction path. Normal benchmark
 startup can reuse saved candidates; it does not run NetComplete, netlab or
 Batfish. This option adds no NIKA CLI command and changes no published tasks.
 
+## Compare native and netlab configurations
+
+Check that netlab and NIKA's native renderers produce the same routing for one
+environment design before relying on netlab candidates:
+
+```bash
+uv run python experiment/scenario_validation/generator_consistency.py isp_abilene \
+  --backend kathara --igp ospf --bgp-mode ebgp --device-profile frr \
+  --output /tmp/consistency-abilene
+```
+
+The script renders both candidates, analyzes each with the platform's Batfish
+export from the table below and exits nonzero on any difference. Batfish must be
+running; the script neither starts nor stops it. From Python, call
+`compare_config_generators(scenario, output, topo_size=..., deployment={...})`
+in `nika.workflows.validation.consistency`. Pass `routing_model` to select another
+projection, and `batfish_host`/`batfish_port` for another analyzer.
+
+`report.json` lists each difference as `kind`, `node`, `key`, `native` and
+`candidate`. The compared facts are interface addresses, OSPF areas, passivity and costs,
+OSPF or IS-IS adjacencies, BGP sessions, ASNs and RR roles, main RIB and resolved
+FIB entries, selected BGP paths, and per-neighbor import and export outcomes. Both
+candidates see the same probe routes: every path either candidate advertises,
+the design's business, leak and policy prefixes, the RTBH community and a
+TEST-NET-1 canary. Enterprise uses a restricted tunnel projection; it lowers
+business VRF imports into default-table origins and leaves VRF-local tables
+unmodeled. The comparison covers what the projection models: OSPF network type,
+timers, communities sent to peers and FRR `maximum-paths` defaults are not
+compared.
+
 ## Reuse a saved construction
 
 Load the original deployment choices and completed parameters into the normal startup API:

@@ -9,6 +9,18 @@ from ipaddress import IPv4Network
 from nika.net_env.isp.bgp.plan import BgpNodePlan, BgpPlan
 
 
+# SR Linux business allow-list. The Kathara-only bgp_hijacking target
+# (198.18.0.0/24) is not part of the SR Linux design.
+SRL_BUSINESS_PREFIXES = (
+    "203.0.113.0/24",
+    "203.0.114.0/24",
+    "203.0.115.0/24",
+    "198.51.100.0/24",
+    "198.51.101.0/24",
+    "198.51.102.0/24",
+)
+
+
 def render_bgp_srl_block(node: BgpNodePlan, plan: BgpPlan) -> dict[str, Any]:
     """Return an SRL ``srl_nokia-bgp:bgp`` dict for one router."""
     if plan.mode == "ibgp_rr":
@@ -26,14 +38,7 @@ def routing_policy_document(node: BgpNodePlan | None = None) -> dict[str, Any]:
     protocol local). BGP-learned BUSINESS routes must also be accepted so RR
     reflection works.
     """
-    prefixes = [
-        "203.0.113.0/24",
-        "203.0.114.0/24",
-        "203.0.115.0/24",
-        "198.51.100.0/24",
-        "198.51.101.0/24",
-        "198.51.102.0/24",
-    ]
+    prefixes = list(SRL_BUSINESS_PREFIXES)
     document = {
         "srl_nokia-routing-policy:routing-policy": {
             "prefix-set": [
