@@ -10,6 +10,7 @@ from nika.problems.base import (
     build_verify_result,
     ProblemBase,
 )
+from nika.problems.support.routeros import is_routeros, ros, ros_rows
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
 
@@ -96,7 +97,50 @@ class OSPFAreaMisconfig(ProblemBase):
     def root_cause_resources(self, params: OSPFAreaMisconfigParams):
         return [node_resource(params.host_name)]
 
+    def _routeros_template_areas(self, host: str) -> list[str]:
+        """Area IDs of the router's OSPF interface templates, in order."""
+        areas = {
+            row["name"]: row["area-id"]
+            for row in ros_rows(self.runtime, host, "/routing/ospf/area/print terse")
+            if "name" in row and "area-id" in row
+        }
+        return [
+            areas.get(row.get("area", ""), row.get("area", ""))
+            for row in ros_rows(
+                self.runtime, host, "/routing/ospf/interface-template/print terse"
+            )
+        ]
+
+    def _inject_routeros(self, params: OSPFAreaMisconfigParams) -> None:
+        # Move the interface templates of the first area to a new area, the
+        # RouterOS form of rewriting FRR ``network ... area`` statements.
+        host = params.host_name
+        rows = ros_rows(self.runtime, host, "/routing/ospf/area/print terse")
+        templates = self._routeros_template_areas(host)
+        if not templates:
+            raise RuntimeError(f"Could not find OSPF area on {host}")
+        self._orig_areas = set(templates)
+        correct_id = templates[0]
+        (area,) = [row for row in rows if row.get("area-id") == correct_id]
+        wrong_id = "0.0.0.66" if correct_id != "0.0.0.66" else "0.0.0.99"
+        wrong = f"area-{wrong_id}"
+        ros(
+            self.runtime,
+            host,
+            f"/routing ospf area add name={wrong} instance={area['instance']} "
+            f"area-id={wrong_id}; "
+            f"/routing ospf interface-template set [find where area={area['name']}] "
+            f"area={wrong}",
+        )
+        self.logger.info(
+            f"Injected OSPF area misconfiguration on {host} from area "
+            f"{correct_id} to {wrong_id} (RouterOS)."
+        )
+
     def inject_fault(self, params: OSPFAreaMisconfigParams):
+        if is_routeros(self.net_env, params.host_name):
+            self._inject_routeros(params)
+            return
         running_cfg = self.runtime.exec(
             params.host_name, "vtysh -c 'show running-config'"
         )
@@ -145,6 +189,18 @@ class OSPFAreaMisconfig(ProblemBase):
 
     def verify_fault(self, params: OSPFAreaMisconfigParams) -> dict:
         """Verify the OSPF area in frr.conf and in the running daemon was changed."""
+        if is_routeros(self.net_env, params.host_name):
+            orig_areas = set(getattr(self, "_orig_areas", None) or ())
+            running_areas = set(self._routeros_template_areas(params.host_name))
+            return build_verify_result(
+                fault_type=self.root_cause_name,
+                verified=bool(running_areas) and running_areas != orig_areas,
+                details={
+                    "host": params.host_name,
+                    "orig_areas": sorted(orig_areas),
+                    "running_areas": sorted(running_areas),
+                },
+            )
         file_config = self.runtime.exec(params.host_name, "cat /etc/frr/frr.conf")
         running_config = self.runtime.exec(
             params.host_name, "vtysh -c 'show running-config' 2>/dev/null"
