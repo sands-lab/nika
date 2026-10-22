@@ -1,4 +1,4 @@
-"""Authored routing requirements, completion choices and operating conditions."""
+"""Authored scenario requirements, routing completion choices and operating conditions."""
 
 from typing import Literal
 
@@ -9,7 +9,7 @@ from nika.net_env.synthesis.completion import RoutingCompletion
 from nika.net_env.synthesis.requirements import RoutingRequirement
 
 
-class RoutingIncident(ContractModel):
+class ScenarioIncident(ContractModel):
     name: str = Field(pattern=r"^[a-z][a-z0-9_-]{0,40}$")
     host_name: str
     intf_name: str
@@ -47,8 +47,8 @@ class RoutingFailureCheck(ContractModel):
     static_edits: dict[str, tuple[str, str]] = Field(default_factory=dict)
 
 
-class RoutingDeployment(ContractModel):
-    """Existing deployment choices retained by a routing experiment."""
+class ScenarioDeployment(ContractModel):
+    """Existing deployment choices retained by a scenario experiment."""
 
     backend: Literal["kathara", "containerlab"] | None = None
     igp: Literal["ospf", "isis"] | None = None
@@ -58,10 +58,12 @@ class RoutingDeployment(ContractModel):
 
 
 # Routing models whose scenario constructor takes ``routing_model`` directly.
-ENV_ROUTING_MODELS = frozenset({"srl-bgp", "iosxr-bgp", "routeros-bgp"})
+ENV_ROUTING_MODELS = frozenset(
+    {"srl-bgp", "iosxr-bgp", "routeros-bgp", "iosxr-isp", "routeros-isp"}
+)
 
 
-class RoutingExperiment(ContractModel):
+class ScenarioExperiment(ContractModel):
     scenario: str
     routing_model: Literal[
         "frr",
@@ -71,9 +73,12 @@ class RoutingExperiment(ContractModel):
         "routeros-bgp",
         "frr-isis",
         "srl-isp",
+        "iosxr-isp",
+        "routeros-isp",
+        "netkat",
     ] = "frr"
     topo_size: Literal["s", "m", "l"] | None = None
-    deployment: RoutingDeployment = Field(default_factory=RoutingDeployment)
+    deployment: ScenarioDeployment = Field(default_factory=ScenarioDeployment)
     healthy: ValidationContract
     completion: RoutingCompletion | tuple[RoutingCompletion, ...] | None = None
     behavior: tuple[RoutingRequirement, ...] = ()
@@ -83,4 +88,4 @@ class RoutingExperiment(ContractModel):
     failure_checks: tuple[RoutingFailureCheck, ...] = ()
     solver_timeout_sec: float = Field(default=300, ge=1, le=3600)
     convergence_timeout_sec: float = Field(default=300, ge=1, le=3600)
-    incidents: tuple[RoutingIncident, ...]
+    incidents: tuple[ScenarioIncident, ...]

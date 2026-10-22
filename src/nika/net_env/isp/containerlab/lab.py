@@ -342,6 +342,8 @@ class Isp(ContainerlabNetworkEnv):
 
     @property
     def routing_documents(self):
+        if hasattr(self, "_completed_routing_documents"):
+            return self._completed_routing_documents
         documents = {}
         bgp_by_device = {}
         if self.bgp_plan is not None:

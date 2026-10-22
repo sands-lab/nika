@@ -212,8 +212,12 @@ def compile_isp_plan(
 
         left_addr, right_addr, subnet = link_addrs[link.id]
         cd = cd_by_link[link.id]
-        left_iface_name = f"eth{len(ifaces_by_device[left_dev])}"
-        right_iface_name = f"eth{len(ifaces_by_device[right_dev])}"
+        left_iface_name = (
+            f"eth{cfg.first_interface_index + len(ifaces_by_device[left_dev])}"
+        )
+        right_iface_name = (
+            f"eth{cfg.first_interface_index + len(ifaces_by_device[right_dev])}"
+        )
         prefixlen = subnet.prefixlen
 
         left_iface = PlannedInterface(

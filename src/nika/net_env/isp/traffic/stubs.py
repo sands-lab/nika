@@ -105,7 +105,8 @@ def attach_traffic_stubs(
         subnet = IPv4Network(f"{net_addr}/30")
         router_ip = subnet.network_address + 1
         host_ip = subnet.network_address + 2
-        iface_name = f"eth{len(node.interfaces) + len(edge_ifaces_by_device[device])}"
+        next_index = max((int(i.name[3:]) for i in node.interfaces), default=-1) + 1
+        iface_name = f"eth{next_index + len(edge_ifaces_by_device[device])}"
         cd = f"cd_edge_{slugify(device, kind='node')}"
         host_name = stub_host_name(device)
 

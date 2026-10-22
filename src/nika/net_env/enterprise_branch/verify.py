@@ -21,6 +21,7 @@ from nika.net_env.enterprise_branch.topology import (
 from nika.net_env.verify import (
     build_lab_verify_result,
     exec_or_empty,
+    frr_bgp_established_peers,
     host_has_ipv4,
     http_ok,
     nodes_deployed,
@@ -34,22 +35,6 @@ from nika.net_env.verify_collection import (
     ping_command,
     http_command,
 )
-
-
-def _bgp_neighbor_established(line: str) -> bool:
-    """Return True when a BGP summary neighbor line shows prefixes received."""
-    fields = line.split()
-    if len(fields) < 10:
-        return False
-    # Modern FRR: Neighbor V AS MsgRcvd MsgSent TblVer InQ OutQ Up/Down State/PfxRcd ...
-    return fields[9].isdigit()
-
-
-def _peer_established(summary: str, peer_ip: str) -> bool:
-    for line in summary.splitlines():
-        if peer_ip in line and _bgp_neighbor_established(line):
-            return True
-    return False
 
 
 def _lan_host_ip(lan: LanSpec, host_index: int = 0) -> str:
@@ -119,7 +104,7 @@ def _collect(runtime, spec, tunnels, *, full):
         ping(right, tunnel.spoke_wan_ip)
         for edge, interface in ((left, tunnel.spoke_iface), (right, tunnel.hub_iface)):
             add(edge, f"wg show {interface}", 15)
-            add(edge, "vtysh -c 'show bgp summary'")
+            add(edge, "vtysh -c 'show bgp summary json'")
             if (edge, interface) not in seen:
                 seen.add((edge, interface))
                 add(edge, f"tc qdisc show dev {interface}", 15)
@@ -265,13 +250,17 @@ def verify_enterprise_branch_lab(
         }
 
         spoke_sum = exec_or_empty(
-            runtime, spoke_edge, "vtysh -c 'show bgp summary'", timeout=20
+            runtime, spoke_edge, "vtysh -c 'show bgp summary json'", timeout=20
         )
         hub_sum = exec_or_empty(
-            runtime, hub_edge, "vtysh -c 'show bgp summary'", timeout=20
+            runtime, hub_edge, "vtysh -c 'show bgp summary json'", timeout=20
         )
-        result[f"bgp_{tag}_spoke"] = _peer_established(spoke_sum, bt.hub_tunnel_ip)
-        result[f"bgp_{tag}_hub"] = _peer_established(hub_sum, bt.spoke_tunnel_ip)
+        result[f"bgp_{tag}_spoke"] = bt.hub_tunnel_ip in frr_bgp_established_peers(
+            spoke_sum
+        )
+        result[f"bgp_{tag}_hub"] = bt.spoke_tunnel_ip in frr_bgp_established_peers(
+            hub_sum
+        )
         return result
 
     for tunnel_result in bounded_parallel_map(tunnel_checks, tunnels):
@@ -481,11 +470,14 @@ def verify_enterprise_branch_lab(
 
     def backup_check(bt: BuiltTunnel) -> tuple[str, bool]:
         summary = exec_or_empty(
-            runtime, edge_name_for(bt.spoke), "vtysh -c 'show bgp summary'", timeout=20
+            runtime,
+            edge_name_for(bt.spoke),
+            "vtysh -c 'show bgp summary json'",
+            timeout=20,
         )
         return (
             f"backup_bgp_{bt.spoke}_{bt.hub}_{bt.provider}",
-            _peer_established(summary, bt.hub_tunnel_ip),
+            bt.hub_tunnel_ip in frr_bgp_established_peers(summary),
         )
 
     for key, value in bounded_parallel_map(backup_check, backups):
