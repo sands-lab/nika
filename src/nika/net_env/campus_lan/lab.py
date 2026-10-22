@@ -43,7 +43,7 @@ class CampusLan(NativeRouterEnv, NetworkEnvBase):
         self.name = self.LAB_NAME
         if getattr(self, "lab", None) is not None:
             self.lab.name = self.LAB_NAME
-        self.apply_device_profile(device_profile, routing_parameters=routing_parameters)
+        self.apply_device_profile(device_profile)
 
     def router_roles(self) -> dict[str, list[str]]:
         roles = {"core": [], "distribution": [], "server_gateway": []}

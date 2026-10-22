@@ -35,12 +35,29 @@ class Bgp:
     requires_policy: bool = True
     networks: list[str] = field(default_factory=list)
     neighbors: dict[str, int] = field(default_factory=dict)
+    # (neighbor, direction) -> route-map name
+    route_maps: dict[tuple[str, str], str] = field(default_factory=dict)
 
 
 @dataclass
 class Ospf:
     router_id: str | None = None
     networks: list[tuple[IPv4Network, str]] = field(default_factory=list)
+
+
+@dataclass
+class Policy:
+    """Exact-prefix lists, route maps and interface costs outside routing blocks.
+
+    These are the forms that solved routing parameters take in the sketch.
+    """
+
+    prefix_lists: dict[str, list[str]] = field(default_factory=dict)
+    # route-map -> [(seq, permit, prefix-list)]
+    route_maps: dict[str, list[tuple[int, bool, str | None]]] = field(
+        default_factory=dict
+    )
+    ospf_costs: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -88,9 +105,10 @@ def parse_startup(startup: str) -> Startup:
     return parsed
 
 
-def parse_frr(frr_conf: str, hostname: str) -> tuple[Bgp | None, Ospf | None]:
+def parse_frr(frr_conf: str, hostname: str) -> tuple[Bgp | None, Ospf | None, Policy]:
     bgp = ospf = None
-    block = None
+    policy = Policy()
+    block = entry = None
     for raw in frr_conf.splitlines():
         line = raw.strip()
         indented = raw[:1].isspace()
@@ -104,14 +122,29 @@ def parse_frr(frr_conf: str, hostname: str) -> tuple[Bgp | None, Ospf | None]:
                     raise ValueError(f"FRR hostname {match[1]!r} != {hostname!r}")
                 continue
             if match := re.fullmatch(r"router bgp (\d+)", line):
-                if bgp is not None:
+                # Later blocks of the same instance add statements, as in FRR.
+                if bgp is not None and bgp.asn != int(match[1]):
                     raise ValueError("Native translation needs one BGP instance")
-                bgp, block = Bgp(int(match[1])), "bgp"
+                bgp, block = bgp or Bgp(int(match[1])), "bgp"
                 continue
             if line == "router ospf":
                 if ospf is not None:
                     raise ValueError("Native translation needs one OSPF instance")
                 ospf, block = Ospf(), "ospf"
+                continue
+            if match := re.fullmatch(
+                r"ip prefix-list (\S+) seq \d+ permit ([0-9./]+)", line
+            ):
+                prefix = IPv4Network(match[2])
+                policy.prefix_lists.setdefault(match[1], []).append(str(prefix))
+                continue
+            if match := re.fullmatch(r"route-map (\S+) (permit|deny) (\d+)", line):
+                entry = [int(match[3]), match[2] == "permit", None]
+                policy.route_maps.setdefault(match[1], []).append(entry)
+                block = "route-map"
+                continue
+            if match := re.fullmatch(r"interface (eth\d+)", line):
+                block, entry = "interface", match[1]
                 continue
         elif block == "bgp" and _bgp_statement(bgp, line):
             continue
@@ -124,8 +157,27 @@ def parse_frr(frr_conf: str, hostname: str) -> tuple[Bgp | None, Ospf | None]:
                 area = str(IPv4Address(int(area))) if area.isdigit() else area
                 ospf.networks.append((IPv4Network(match[1]), str(IPv4Address(area))))
                 continue
+        elif block == "route-map":
+            match = re.fullmatch(r"match ip address prefix-list (\S+)", line)
+            if match and entry[2] is None:
+                entry[2] = match[1]
+                continue
+        elif block == "interface":
+            if match := re.fullmatch(r"ip ospf cost (\d+)", line):
+                policy.ospf_costs[entry] = int(match[1])
+                continue
         raise ValueError(f"Unsupported FRR statement: {line!r}")
-    return bgp, ospf
+    for name, entries in policy.route_maps.items():
+        for _, _, plist in entries:
+            if plist is None or plist not in policy.prefix_lists:
+                raise ValueError(f"Route map {name} needs a defined exact prefix list")
+    if bgp is not None:
+        for name in bgp.route_maps.values():
+            if name not in policy.route_maps:
+                raise ValueError(f"Undefined route map {name!r}")
+    if policy.ospf_costs and ospf is None:
+        raise ValueError("OSPF costs need an OSPF instance")
+    return bgp, ospf, policy
 
 
 def _bgp_statement(bgp: Bgp, line: str) -> bool:
@@ -141,6 +193,11 @@ def _bgp_statement(bgp: Bgp, line: str) -> bool:
         bgp.networks.append(str(IPv4Network(match[1])))
     elif match := re.fullmatch(r"neighbor (\S+) remote-as (\d+)", line):
         bgp.neighbors[str(IPv4Address(match[1]))] = int(match[2])
+    elif match := re.fullmatch(r"neighbor (\S+) route-map (\S+) (in|out)", line):
+        peer = str(IPv4Address(match[1]))
+        if peer not in bgp.neighbors or (peer, match[3]) in bgp.route_maps:
+            raise ValueError(f"Unsupported route map binding for {peer}")
+        bgp.route_maps[peer, match[3]] = match[2]
     else:
         return False
     return True

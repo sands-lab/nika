@@ -1147,6 +1147,29 @@ def build_benchmark_isp_experiment(
                     "commit",
                     "end",
                 )
+            elif plan.igp == "isis":
+                static_replacement = ""
+                old_announcement = (
+                    " interface Loopback0\n  passive\n"
+                    "  address-family ipv4 unicast\n  !\n !\n"
+                )
+                context = (f"router isis {ISIS_PROCESS}",)
+                withdraw_native = (
+                    "configure terminal",
+                    *context,
+                    "no interface Loopback0",
+                    "commit",
+                    "end",
+                )
+                recover_native = (
+                    "configure terminal",
+                    *context,
+                    "interface Loopback0",
+                    "passive",
+                    "address-family ipv4 unicast",
+                    "commit",
+                    "end",
+                )
             else:
                 old_announcement = "  interface Loopback0\n   passive enable\n  !\n"
                 context = ("router ospf CORE", "area 0")

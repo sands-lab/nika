@@ -37,7 +37,9 @@ class RouterOsRouter:
 def translate_frr_router(hostname: str, frr_conf: str, startup: str) -> RouterOsRouter:
     """Translate one router; raise ``ValueError`` for unmapped statements."""
     parsed = parse_startup(startup)
-    bgp, ospf = parse_frr(frr_conf, hostname)
+    bgp, ospf, policy = parse_frr(frr_conf, hostname)
+    if policy.prefix_lists or policy.route_maps or policy.ospf_costs:
+        raise ValueError("RouterOS translation does not support FRR route policies")
     routed = [(name, cidr) for name, cidr in parsed.interfaces if name != "br0"]
     bridged = [cidr for name, cidr in parsed.interfaces if name == "br0"]
     data = [name for name, _ in routed] + list(parsed.bridge_ports or ())

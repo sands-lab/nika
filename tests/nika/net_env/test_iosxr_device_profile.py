@@ -110,3 +110,75 @@ def test_translation_keeps_areas_static_routes_and_underlay_delay() -> None:
         in enterprise.native_netns_commands["isp1_core"]
     )
     assert "netem" not in enterprise.lab.fs.readtext("isp1_core.startup")
+
+
+def test_solved_parameters_translate_with_the_router_design() -> None:
+    exports = {
+        "bgp_exports": [
+            {
+                "node": "leaf_router_0_0",
+                "neighbor": "172.16.0.4",
+                "terms": [
+                    {"prefix": "10.0.0.0/24", "permit": True},
+                    {"prefix": "10.0.1.0/24", "permit": False},
+                ],
+            }
+        ]
+    }
+    leaf = get_net_env_instance(
+        "dc_clos", topo_size="s", device_profile="iosxr", routing_parameters=exports
+    ).deployment_configs["leaf_router_0_0"]
+    # First matching route-map entry applies; unmatched routes are denied.
+    assert (
+        "route-policy NC-OUT-0\n"
+        "  if destination in NC-0-1 then\n    pass\n"
+        "  elseif destination in NC-0-2 then\n    drop\n"
+        "  else\n    drop\n  endif\nend-policy"
+    ) in leaf
+    assert "prefix-set NC-0-1\n  10.0.0.0/24\nend-set" in leaf
+    peer = leaf.split(" neighbor 172.16.0.4\n", 1)[1].split(" !\n", 2)[0]
+    assert "route-policy PASS in" in peer and "route-policy NC-OUT-0 out" in peer
+    costs = {"ospf_costs": [{"node": "router_core_1", "interface": "eth0", "cost": 7}]}
+    core = get_net_env_instance(
+        "campus_lan", topo_size="s", device_profile="iosxr", routing_parameters=costs
+    ).deployment_configs["router_core_1"]
+    assert "  interface GigabitEthernet0/0/0/0\n   cost 7\n  !" in core
+
+
+def test_mixed_snapshot_exports_native_and_frr_routers(tmp_path) -> None:
+    import json
+
+    from nika.net_env.contract import ValidationContract
+    from nika.validation.batfish.kathara import build_kathara_snapshot
+
+    env = get_net_env_instance("campus_lan", topo_size="s", device_profile="iosxr")
+    contract = ValidationContract.model_validate(
+        {
+            "scenario": "campus_lan",
+            "contract_id": "mixed",
+            "design_source": {"basis": "test"},
+            "intents": [],
+        }
+    )
+    snapshot = build_kathara_snapshot(
+        env, contract, tmp_path, shutdown=[("router_core_1", "eth0")]
+    )
+    configs = snapshot.path / "configs"
+    core = (configs / "router_core_1.cfg").read_text()
+    assert core.startswith("!! IOS XR Configuration")
+    disabled = core.split("interface GigabitEthernet0/0/0/0\n", 1)[1].split("!", 1)[0]
+    assert " shutdown" in disabled and "no shutdown" not in disabled
+    assert "frr version" in (configs / "router_dist_1_1.cfg").read_text()
+    assert snapshot.metadata["interface_aliases"]["router_core_1"] == {
+        "GigabitEthernet0/0/0/0": "eth0",
+        "GigabitEthernet0/0/0/1": "eth1",
+        "GigabitEthernet0/0/0/2": "eth2",
+    }
+    edges = json.loads((snapshot.path / "batfish/layer1_topology.json").read_text())
+    names = {
+        (end["hostname"], end["interfaceName"])
+        for edge in edges["edges"]
+        for end in (edge["interface1"], edge["interface2"])
+    }
+    assert ("router_core_1", "GigabitEthernet0/0/0/2") in names
+    assert ("router_dist_1_1", "eth0") in names
