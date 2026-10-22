@@ -174,3 +174,94 @@ def test_frr_passive_import_reads_concrete_candidate_not_original_plan(
     imported = (snapshot.path / "configs" / f"{node.device_name}.cfg").read_text()
     assert (f" passive-interface {iface.name}\n" in imported) == enabled
     assert "ip ospf passive" not in imported
+
+
+@pytest.mark.contract
+def test_routeros_isis_projects_p2p_metrics_and_passive_prefixes():
+    from nika.validation.batfish.routeros_isp import project_routeros_isis
+
+    plan = compile_isp_plan(
+        IspConfig(topology="abilene", igp="isis", first_interface_index=1)
+    )
+    configs = render_routeros_isp(plan)
+    node = plan.nodes[0]
+    projected = project_routeros_isis(node.device_name, configs[node.device_name])
+    active = next(i for i in node.interfaces if not i.passive)
+    port = "GigabitEthernet0/0/0/" + active.name.removeprefix("eth")
+    block = projected.split(f" interface {port}\n", 1)[1].split(" !\n", 1)[0]
+    assert "point-to-point" in block and f"metric {active.metric} level 2" in block
+    loopback = projected.split(" interface Loopback0\n", 1)[1].split(" !\n", 1)[0]
+    # RouterOS advertises passive circuits with metric 0.
+    assert "passive" in loopback and "metric 0 level 2" in loopback
+    with pytest.raises(ValueError, match="excludes OSPF"):
+        project_routeros_isis(
+            node.device_name,
+            configs[node.device_name]
+            + "/routing ospf instance add name=X version=2 router-id=1.1.1.1\n",
+        )
+
+
+@pytest.mark.contract
+def test_converted_routeros_routers_project_solved_policy_and_main_table():
+    from nika.net_env.net_env_pool import get_net_env_instance
+    from nika.validation.batfish.routeros_isp import (
+        project_routeros_router,
+        project_routeros_static_underlay,
+    )
+
+    exports = {
+        "bgp_exports": [
+            {
+                "node": "leaf_router_0_0",
+                "neighbor": "172.16.0.4",
+                "terms": [
+                    {"prefix": "10.0.0.0/24", "permit": True},
+                    {"prefix": "10.0.1.0/24", "permit": False},
+                ],
+            }
+        ]
+    }
+    clos = get_net_env_instance(
+        "dc_clos", topo_size="s", device_profile="routeros", routing_parameters=exports
+    )
+    leaf = project_routeros_router(
+        "leaf_router_0_0",
+        clos.deployment_configs["leaf_router_0_0"],
+        shutdown=("eth0",),
+    )
+    assert "interface eth0\n ip address 172.16.0.5/31\n shutdown\n" in leaf
+    assert "route-map NC-OUT-0 permit 10\n match ip address prefix-list" in leaf
+    assert "route-map NC-OUT-0 deny 20\n" in leaf
+    assert "  neighbor 172.16.0.4 route-map NC-OUT-0 out\n" in leaf
+    assert "maximum-paths" not in leaf  # RouterOS installs one best BGP path.
+    with pytest.raises(ValueError, match="Unsupported RouterOS router statement"):
+        project_routeros_router(
+            "leaf_router_0_0",
+            clos.deployment_configs["leaf_router_0_0"]
+            + "/ip firewall filter add chain=forward action=drop\n",
+        )
+    campus = get_net_env_instance(
+        "campus_lan",
+        topo_size="s",
+        device_profile="routeros",
+        routing_parameters={
+            "ospf_costs": [{"node": "router_core_1", "interface": "eth0", "cost": 7}]
+        },
+    )
+    core = project_routeros_router(
+        "router_core_1", campus.deployment_configs["router_core_1"]
+    )
+    assert "interface eth0\n ip address 172.16.0.0/31\n ip ospf cost 7\n" in core
+    # RouterOS templates default to cost 1.
+    assert "interface eth1\n ip address 172.16.0.2/31\n ip ospf cost 1\n" in core
+    assert " network 172.16.0.6/31 area 0.0.0.1\n" in core
+    edge = project_routeros_static_underlay(
+        "br1_edge",
+        get_net_env_instance(
+            "enterprise_branch", topo_size="s", device_profile="routeros"
+        ).deployment_configs["br1_edge"],
+    )
+    # VRF ports, tunnels and BGP stay with the runtime requirements.
+    assert "10.1.10.1" not in edge and "172.30." not in edge
+    assert "interface eth2\n ip address 100.64.0.17/30\n" in edge
+    assert "ip route 100.64.0.1/32 100.64.0.18" in edge

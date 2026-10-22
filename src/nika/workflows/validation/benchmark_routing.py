@@ -1209,6 +1209,8 @@ def build_benchmark_isp_experiment(
                     f"/routing {plan.igp} interface-template remove "
                     "[find where interfaces=lo0]",
                 )
+                # The loopback keeps its address; only its IGP circuit goes.
+                static_replacement = ""
                 recover_native = (old_announcement,)
         role_static, role_runtime = [], []
         if env.bgp_mode == "ibgp_rr":

@@ -98,3 +98,65 @@ def test_translation_rejects_policies_routeros_cannot_keep():
         )
     with pytest.raises(ValueError, match="Unsupported FRR statement"):
         translate_frr_router("r1", "router ospf\n redistribute connected\n", startup)
+
+
+@pytest.mark.unit
+def test_solved_parameters_translate_to_routeros_routers():
+    from nika.net_env.net_env_pool import get_net_env_instance
+
+    exports = {
+        "bgp_exports": [
+            {
+                "node": "leaf_router_0_0",
+                "neighbor": "172.16.0.4",
+                "terms": [
+                    {"prefix": "10.0.0.0/24", "permit": True},
+                    {"prefix": "10.0.1.0/24", "permit": False},
+                ],
+            }
+        ]
+    }
+    leaf = get_net_env_instance(
+        "dc_clos", topo_size="s", device_profile="routeros", routing_parameters=exports
+    ).deployment_configs["leaf_router_0_0"]
+    # First exact-prefix match applies; unmatched routes are rejected.
+    rules = [line for line in leaf.splitlines() if "chain=NC-OUT-0 " in line]
+    assert rules == [
+        '/routing filter rule add chain=NC-OUT-0 rule="if (dst == 10.0.0.0/24 && dst-len == 24) { accept; }"',
+        '/routing filter rule add chain=NC-OUT-0 rule="if (dst == 10.0.1.0/24 && dst-len == 24) { reject; }"',
+        '/routing filter rule add chain=NC-OUT-0 rule="reject;"',
+    ]
+    assert (
+        "remote.address=172.16.0.4 " in leaf and "output.filter-chain=NC-OUT-0" in leaf
+    )
+    core = get_net_env_instance(
+        "campus_lan",
+        topo_size="s",
+        device_profile="routeros",
+        routing_parameters={
+            "ospf_costs": [{"node": "router_core_1", "interface": "eth0", "cost": 7}]
+        },
+    ).deployment_configs["router_core_1"]
+    assert "area=area-0.0.0.0 networks=172.16.0.0/31 cost=7" in core
+    edge = get_net_env_instance(
+        "enterprise_branch",
+        topo_size="s",
+        device_profile="routeros",
+        routing_parameters={
+            "import_preferences": [
+                {
+                    "node": "br1_edge",
+                    "interface": "wg_hq",
+                    "prefix": "10.0.10.0/24",
+                    "permit": True,
+                    "local_preference": 300,
+                }
+            ]
+        },
+    ).deployment_configs["br1_edge"]
+    chain = [line for line in edge.splitlines() if "chain=POLICY-IN-wg_hq " in line]
+    assert chain == [
+        '/routing filter rule add chain=POLICY-IN-wg_hq rule="if (dst == 10.0.10.0/24 && dst-len == 24) { set bgp-local-pref 300; accept; }"',
+        '/routing filter rule add chain=POLICY-IN-wg_hq rule="if (dst in 10.0.0.0/8 && dst-len <= 24) { set bgp-local-pref 200; accept; }"',
+        '/routing filter rule add chain=POLICY-IN-wg_hq rule="reject;"',
+    ]
