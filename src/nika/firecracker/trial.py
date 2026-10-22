@@ -157,11 +157,11 @@ class TrialLab:
                     and pid_alive(int(vm.pid_file.read_text()))
                 ),
             )
-        except VmmError:
+        except VmmError as err:
+            if server is None:  # no page server, so no uffd.log
+                raise
             log = (self.dir / "uffd.log").read_text(errors="replace").strip()
-            raise VmmError(
-                f"VM or page server exited during restore: {log.splitlines()[-1:]}"
-            ) from None
+            raise VmmError(f"{err}; page server log: {log.splitlines()[-1:]}") from err
         self.timings["ready_sec"] = round(time.monotonic() - started, 2)
         if server is not None:
             _watch_page_server(server, vm, self.trial_key, self._released)
