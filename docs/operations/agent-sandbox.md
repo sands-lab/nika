@@ -27,7 +27,8 @@ AgentENV needs no account and keeps everything on your host. Docker Sandboxes al
 | `sdk.codex_sdk` | `shell` | `codex_sdk` |
 | `sdk.claude_sdk` | `shell` | `claude_sdk` |
 | `community.sade` | `shell` | `claude_sdk` |
-| [Added agents](../agents/custom-agents.md) | `shell`, or the manifest's `sandbox.base` | `langgraph`, plus the agent's own dependencies |
+| [Custom agents](../agents/custom-agents.md) (`custom.<name>`) | `shell` | `langgraph`, plus the class's `dependencies` |
+| [Added agents](../agents/agent-reference.md#custom-agent-registration) | `shell`, or the manifest's `sandbox.base` | `langgraph`, plus the agent's own dependencies |
 
 The templates are Docker's `docker/sandbox-templates` images. sbx runs them directly; E2B runs templates that NIKA builds from them (see [E2B templates](#e2b-templates)). Each package set is pinned in [`src/nika/agents/sandbox/requirements/`](../../src/nika/agents/sandbox/requirements/), so agents need nothing installed in NIKA's environment. Only the `mock` test agent runs in the NIKA process, because it reads the ground truth.
 
@@ -174,7 +175,7 @@ With sbx, NIKA preloads the matching `docker/sandbox-templates:*` image when ens
 
 ### Agent packages (optional offline wheels)
 
-To reuse pinned packages without downloading them for each evaluation, sbx sandboxes install host-cached wheels by default. NIKA caches each package set under `.nika_cache/agent-wheels/<set>/`, stages it in the sandbox workspace, and installs it with `pip --no-index`. The host downloads the wheels with `python3 -m pip`, or with `uvx` when the system Python has no pip. An added agent's own dependencies always come from PyPI. E2B templates already contain the packages.
+To reuse pinned packages without downloading them for each evaluation, sbx sandboxes install host-cached wheels by default. NIKA caches each package set under `.nika_cache/agent-wheels/<set>/`, stages it in the sandbox workspace, and installs it with `pip --no-index`. The host downloads the wheels with `python3 -m pip`, or with `uvx` when the system Python has no pip. A custom or added agent's own dependencies always come from PyPI, and so does everything for an agent whose `requires_python` excludes the sandbox's Python. E2B templates already contain the packages.
 
 If the host cannot cache the wheels, disable offline installation to download packages from PyPI inside the microVM:
 
@@ -256,7 +257,7 @@ During diagnosis, the agent cannot reach the submission context (fault ontology 
 
 Each agent run gets its own sandbox, workspace, and host MCP gateway on an ephemeral port. Every MCP request must carry the session's access token (`X-Session-Token`) as well as its `X-Session-Id`, so a client that knows or guesses a session ID still cannot use that session's gateway. Model credentials stay on the host: the sandbox receives a placeholder or a per-session proxy token.
 
-**Docker Sandboxes:** each run uses its own sbx microVM (`agent-{agent_session_id}`). The sandbox network policy allows that session's `localhost:{port}` and blocks peer gateway ports. Parallel benchmark runs (`--batch-size N`) keep up to N trials concurrent (sliding window) and use one subprocess per active trial, so gateways do not share a process. Those processes share one host `sandboxd`. NIKA starts that daemon with `upstream_proxy` when it is down, and does not restart it while it is up. If you change the proxy, stop the daemon when no sandboxes are running (`sbx daemon stop`) and start the next NIKA run.
+**Docker Sandboxes:** each run uses its own sbx microVM (`agent-{agent_session_id}`). The sandbox network policy allows that session's `localhost:{port}` and blocks peer gateway ports. The host's global sbx rules stay as they are; NIKA denies each of them for the sandbox, so the agent reaches its MCP gateway and the model proxy but not, for example, GitHub, package indexes, or model APIs. Package indexes stay reachable only while NIKA installs the agent's packages. An added agent's declared [`egress`](../agents/agent-reference.md#custom-agent-registration) hosts stay reachable too. When a global rule covers such a host, NIKA keeps that whole rule, because sbx lets a wildcard deny override a narrower allow: declaring `api.openai.com` under a global `**.openai.com` rule also leaves the other `openai.com` subdomains reachable. Parallel benchmark runs (`--batch-size N`) keep up to N trials concurrent (sliding window) and use one subprocess per active trial, so gateways do not share a process. Those processes share one host `sandboxd`. NIKA starts that daemon with `upstream_proxy` when it is down, and does not restart it while it is up. If you change the proxy, stop the daemon when no sandboxes are running (`sbx daemon stop`) and start the next NIKA run.
 
 **E2B:** sandboxes have no internet access. NIKA connects each sandbox to the host through a tunnel over E2B's command channel, which reaches only that session's MCP gateway and model proxy. Both listen on the host's loopback interface, except that a [remote lab host](remote.md) serves the gateway. An E2B sandbox expires `agent.timeout_sec` plus 30 minutes after it starts, or after 6.5 hours when `agent.timeout_sec` is `0`. NIKA removes it when the run ends, and `nika session close` removes it after an interrupted run.
 

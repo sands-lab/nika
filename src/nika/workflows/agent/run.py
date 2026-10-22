@@ -153,11 +153,19 @@ def start_agent(
         from nika.remote.config import is_remote_enabled
 
         if is_remote_enabled():
-            from nika.remote.workflows import pull_session_artifacts, remote_mcp_gateway
+            from nika.remote.workflows import (
+                follow_remote_logs,
+                pull_session_artifacts,
+                remote_mcp_gateway,
+            )
 
-            with remote_mcp_gateway(
-                session.session_id,
-            ) as (gateway_base_url, gateway_port):
+            with (
+                remote_mcp_gateway(session.session_id) as (
+                    gateway_base_url,
+                    gateway_port,
+                ),
+                follow_remote_logs(session.session_id, session.session_dir),
+            ):
                 if use_sandbox:
                     SandboxManager(sandbox_config).run(
                         session=session,

@@ -133,7 +133,7 @@ The logger supplies timestamp and phase. Preserve real usage and errors; do not 
 
 ## Custom agent integration
 
-Subclass [`DiagnosisAgent`](../../src/agent/base.py) and implement `diagnose(task_description) -> str`. The agent runs in its sandbox, one phase per process. The constructor reads the task from the sandbox workspace and keeps the run settings: `self.model`, `self.llm_provider`, `self.max_steps`, `self.max_tokens`, `self.reasoning_effort`, `self.session_id`, `self.scenario_name`, and `self.trace_dir` (where `messages.jsonl` lives). `self.diagnosis_mcp_config()` returns the diagnosis MCP servers. Model clients read the standard variables `OPENAI_BASE_URL`/`OPENAI_API_KEY` (or `ANTHROPIC_*`), which NIKA points at its host model proxy. A subclass that needs its own constructor calls `super().__init__(session_id, ...)` first.
+Subclass [`DiagnosisAgent`](../../src/agent/base.py) and implement `diagnose(task_description) -> str`. The shortest path is one file, `src/agent/custom/<name>.py`, which runs as agent type `custom.<name>`; [Integrate a custom agent](custom-agents.md) describes it and its class attributes. The agent runs in its sandbox, one phase per process. The constructor reads the task from the sandbox workspace and keeps the run settings: `self.model`, `self.llm_provider`, `self.max_steps`, `self.max_tokens`, `self.reasoning_effort`, `self.session_id`, `self.scenario_name`, and `self.trace_dir` (where `messages.jsonl` lives). `self.diagnosis_mcp_config()` returns the diagnosis MCP servers. Model clients read the standard variables `OPENAI_BASE_URL`/`OPENAI_API_KEY` (or `ANTHROPIC_*`), which NIKA points at its host model proxy. A subclass that needs its own constructor calls `super().__init__(session_id, ...)` first.
 
 Submission needs no code: NIKA answers from the frozen report as described in [the shared run contract](#shared-run-contract). The default `submit(diagnosis_report, context)` uses the agent's `model` and `llm_provider`, so an agent without a provider must override `submit` or run in `unstructured` mode. Override `submit` only to keep a framework's own submission worker; it must answer from the report and context alone, through the task MCP `submit` tool ([Python MCP client](#python-mcp-client)).
 
@@ -146,8 +146,11 @@ NIKA describes every agent with one [`AgentSpec`](../../src/nika/agents/registry
 NIKA resolves `-a <name>` in this order:
 
 1. Built-in harnesses in `BUILTIN_AGENTS`.
-2. Agents registered with `nika agent add <project>` and recorded in `config/agents.yaml`.
-3. A `module.path:ClassName` import path, with default settings. NIKA finds the module on its own `sys.path`, for example through `PYTHONPATH`.
+2. `custom.<name>`: the one-file agent `src/agent/custom/<name>.py`. NIKA builds its spec from the class attributes `dependencies`, `requires_python`, and `providers`, read from the source without importing it ([Integrate a custom agent](custom-agents.md#1-write-your-agent)).
+3. Agents registered with `nika agent add <project>` and recorded in `config/agents.yaml`.
+4. A `module.path:ClassName` import path, with default settings. NIKA finds the module on its own `sys.path`, for example through `PYTHONPATH`.
+
+The rest of this section covers agents kept in their own project (3 and 4).
 
 For an added agent, NIKA copies the project directory, or its `src/` directory, into the sandbox and puts it on `PYTHONPATH`; the project is never imported or installed in NIKA's environment.
 
@@ -180,7 +183,7 @@ sandbox:
   egress: [integrate.api.nvidia.com]
 ```
 
-The sandbox installs NIKA's pinned `langgraph` package set first, then `install` from PyPI. Pin versions in `install` or in `pyproject.toml` so runs stay reproducible. `egress` applies on Docker Sandboxes; E2B sandboxes have no internet access. Files named `nika-agent.yaml` stay on the host.
+The sandbox installs NIKA's pinned `langgraph` package set first, then `install` from PyPI. When `[project].requires-python` excludes the sandbox's Python, both go into an environment with a matching interpreter, as for [custom agents](custom-agents.md). Pin versions in `install` or in `pyproject.toml` so runs stay reproducible. `egress` applies on Docker Sandboxes; E2B sandboxes have no internet access. Files named `nika-agent.yaml` stay on the host.
 
 ## Python MCP client
 

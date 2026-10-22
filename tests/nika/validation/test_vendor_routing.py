@@ -2,10 +2,12 @@
 
 import pytest
 
+from tests.support.scenario_validation import assert_scenario_acceptance
+
 from nika.net_env.net_env_pool import get_net_env_instance
 from nika.validation.batfish.vendor_bgp import project_routeros_bgp, vendor_configs
 from nika.workflows.validation.direct_bgp import build_direct_bgp_experiment
-from nika.workflows.validation.routing import validate_routing_design
+from nika.workflows.validation.scenario import validate_scenario_design
 
 PLATFORMS = [("iosxr_simple_bgp", "iosxr-bgp"), ("routeros_simple_bgp", "routeros-bgp")]
 
@@ -67,7 +69,7 @@ def test_original_vendor_requirements_are_platform_independent(scenario, model):
     # Original unsolved startup configuration and failure endpoints are retained.
     env = get_net_env_instance(scenario)
     configs = vendor_configs(env)
-    assert all("NIKA-OUT" not in config for config in configs.values())
+    assert all("EXPORT-" not in config for config in configs.values())
     assert (
         env.BGP_INTERFACE_MAP[spec.incidents[0].intf_name] == env.BGP_PEERING_INTERFACE
     )
@@ -80,12 +82,20 @@ def test_routeros_projection_rejects_unmodeled_forwarding():
 
 
 @pytest.mark.integration
+@pytest.mark.parametrize("config_generator", [None, "netlab"])
 @pytest.mark.parametrize("scenario,model", PLATFORMS)
-def test_vendor_netcomplete_and_batfish(scenario, model, tmp_path, netcomplete_image):
+def test_vendor_netcomplete_and_batfish(
+    scenario, model, config_generator, tmp_path, netcomplete_image, batfish_verifier
+):
     spec = build_direct_bgp_experiment(scenario, routing_model=model)
-    summary = validate_routing_design(spec, tmp_path, image=netcomplete_image)
-    assert summary["status"] == "passed"
-    assert summary["validation_scope"] == "static-only"
+    summary = validate_scenario_design(
+        spec,
+        tmp_path,
+        image=netcomplete_image,
+        config_generator=config_generator,
+        batfish_verifier=batfish_verifier,
+    )
+    assert_scenario_acceptance(spec, summary, tmp_path, runtime=False)
     assert summary["synthesis"]["parameters"] == {"bgp_exports": 2}
     assert summary["static"] == {
         "healthy": {"passed": 4, "failed": 0},
@@ -95,9 +105,10 @@ def test_vendor_netcomplete_and_batfish(scenario, model, tmp_path, netcomplete_i
 
 
 @pytest.mark.e2e
+@pytest.mark.parametrize("config_generator", [None, "netlab"])
 @pytest.mark.parametrize("scenario,model", PLATFORMS)
 def test_native_vendor_completion_execution_and_link_recovery(
-    scenario, model, tmp_path, netcomplete_image
+    scenario, model, config_generator, tmp_path, netcomplete_image, batfish_verifier
 ):
     import docker
     from docker.errors import ImageNotFound
@@ -113,9 +124,15 @@ def test_native_vendor_completion_execution_and_link_recovery(
     finally:
         client.close()
     spec = build_direct_bgp_experiment(scenario, routing_model=model)
-    summary = validate_routing_design(
-        spec, tmp_path, runtime=True, image=netcomplete_image
+    summary = validate_scenario_design(
+        spec,
+        tmp_path,
+        runtime=True,
+        image=netcomplete_image,
+        config_generator=config_generator,
+        batfish_verifier=batfish_verifier,
     )
+    assert_scenario_acceptance(spec, summary, tmp_path, runtime=True)
     assert summary["runtime"]["healthy"]["passed"] == 4
     assert summary["runtime"]["transit-down"]["passed"] == 2
     assert summary["runtime"]["transit-down-recovered"]["passed"] == 4

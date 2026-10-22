@@ -749,18 +749,34 @@ def http_ok(runtime: "LabRuntime", host: str, url: str) -> bool:
 def frr_bgp_established(
     runtime: "LabRuntime", router: str, *, min_neighbors: int = 1
 ) -> bool:
-    output = exec_or_empty(runtime, router, "vtysh -c 'show bgp summary'", timeout=20)
+    output = exec_or_empty(
+        runtime, router, "vtysh -c 'show bgp summary json'", timeout=20
+    )
     return len(frr_bgp_established_peers(output)) >= min_neighbors
 
 
 def frr_bgp_established_peers(summary: str) -> set[str]:
-    """Parse FRR ``show bgp summary`` neighbor lines for Established peers.
+    """Read established peer identities from FRR summary JSON or legacy text.
 
     FRR columns: Neighbor V AS MsgRcvd MsgSent TblVer InQ OutQ Up/Down
     State/PfxRcd PfxSnt [Desc]. Established peers show a numeric PfxRcd;
     other sessions show their FSM state (Idle, Active, Connect, ...).
     Numbered and unnumbered (interface or hostname) neighbors both count.
     """
+    if summary.lstrip().startswith("{"):
+        try:
+            families = json.loads(summary)
+        except ValueError:
+            return set()
+        if not isinstance(families, dict):
+            return set()
+        return {
+            peer
+            for family in families.values()
+            if isinstance(family, dict) and isinstance(family.get("peers"), dict)
+            for peer, row in family["peers"].items()
+            if isinstance(row, dict) and row.get("state") == "Established"
+        }
     peers: set[str] = set()
     for line in summary.splitlines():
         fields = line.split()
@@ -856,7 +872,7 @@ def raise_for_k8s_startup_failure(
                 f"{container.logs(tail=30).decode(errors='replace')[-4000:]}"
             )
     failure = exec_or_empty(
-        runtime, "controller", "cat /var/run/nika-startup-failed 2>/dev/null || true"
+        runtime, "controller", "cat /var/run/startup-failed 2>/dev/null || true"
     ).strip()
     # A busy controller can time out the read; only the marker itself is a failure.
     if failure and not failure.startswith("[TIMEOUT]"):
@@ -965,7 +981,7 @@ def verify_lab_with_retry(net_env: NetworkEnvBase) -> dict[str, Any] | None:
                 exec_or_empty(
                     runtime,
                     "controller",
-                    "test -f /var/run/nika-startup-complete && echo complete",
+                    "test -f /var/run/startup-complete && echo complete",
                 ).strip()
                 == "complete"
             )

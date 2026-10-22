@@ -8,6 +8,8 @@ from datetime import datetime
 from pathlib import Path
 
 from nika.config import (
+    CLAB_RUNTIME_DIR,
+    clab_runtime_root,
     RESULTS_DIR,
     RUNTIME_DIR,
     SESSIONS_DB,
@@ -41,19 +43,22 @@ def _resolve_runtime_workdir(session_meta: dict) -> Path | None:
         return topology_file.parent
     lab_name = meta_get(session_meta, "lab_name", scenario_params=True)
     if lab_name:
-        backend = resolve_backend(session_meta)
-        backend_root = "containerlab" if backend == "containerlab" else "kathara"
-        return Path(RUNTIME_DIR) / backend_root / str(lab_name)
+        if resolve_backend(session_meta) == "containerlab":
+            return Path(CLAB_RUNTIME_DIR) / str(lab_name)
+        return Path(RUNTIME_DIR) / "kathara" / str(lab_name)
     return None
 
 
 def _is_safe_runtime_removal(path: Path, session_meta: dict) -> bool:
-    """Only delete paths under ``runtime/`` and never under ``results/``."""
+    """Only delete lab workdirs under ``runtime/`` or the Containerlab root.
+
+    Never under ``results/``.
+    """
     resolved = path.resolve()
-    runtime_root = Path(RUNTIME_DIR).resolve()
-    if not resolved.is_relative_to(runtime_root):
-        return False
-    if resolved == runtime_root:
+    roots = [Path(RUNTIME_DIR).resolve()]
+    if (clab_root := clab_runtime_root()) is not None:
+        roots.append(clab_root.resolve())
+    if not any(resolved.is_relative_to(root) and resolved != root for root in roots):
         return False
     sessions_root = Path(SESSIONS_DIR).resolve()
     if resolved == sessions_root or resolved.is_relative_to(sessions_root):
@@ -95,11 +100,8 @@ def wipe_runtime_artifacts(
     sessions_root = Path(sessions_dir or SESSIONS_DIR)
     db_file = Path(db_path or SESSIONS_DB).resolve()
     removed = 0
-    if not runtime_root.exists():
-        return removed
-
     sessions_resolved = sessions_root.resolve()
-    for path in runtime_root.iterdir():
+    for path in runtime_root.iterdir() if runtime_root.exists() else ():
         resolved = path.resolve()
         if resolved == sessions_resolved or resolved == db_file:
             continue
@@ -107,6 +109,11 @@ def wipe_runtime_artifacts(
             continue
         _remove_path(path)
         removed += 1
+    clab_root = clab_runtime_root()
+    if runtime_dir is None and clab_root is not None:
+        for path in clab_root.iterdir():
+            _remove_path(path)
+            removed += 1
     return removed
 
 
@@ -341,66 +348,17 @@ def _destroy_kathara_lab(lab_name: str) -> None:
     KatharaRuntime(SimpleNamespace(instance=None, name=lab_name, lab=None)).destroy()
 
 
-def _stop_session_record(
-    session_meta: dict,
-    *,
-    undeploy: bool = True,
-    session_id: str | None = None,
-    status: SessionStatus = "finished",
-) -> None:
-    session = Session()
-    session._apply_session_meta(session_meta)
-    if session_id:
-        session.session_id = session_id
-    scenario = getattr(session, "scenario_name", None)
-    if not scenario:
-        # Orphan index rows / job-folder run.json mistaken for sessions have no
-        # lab to undeploy. Clear runtime state without rewriting job metadata.
-        sid = session_id or getattr(session, "session_id", None)
-        if not sid:
-            raise ValueError(
-                "Session has no scenario_name; cannot determine which lab to stop."
-            )
-        _clear_orphan_session_record(
-            session_meta, session_id=str(sid), store=session.store
-        )
-        return
+def session_net_env(session_meta: dict, *, session: Session | None = None):
+    """Rebuild the network environment of a recorded session (lab not touched).
 
-    if session_meta.get("session_dir"):
-        # Bind first so every event below lands in this session's nika.jsonl.
-        bind_session_dir(session_meta["session_dir"])
-    # Drop this session's sandbox before lab undeploy so a slow/failed undeploy
-    # cannot leave a hard-killed worker's microVM behind. Scoped by
-    # agent_session_id only (safe with concurrent benchmarks).
-    _cleanup_session_sandbox(session_meta, session_id=session.session_id)
+    Matches the deploy-time variant: topology size, ISP parameters and the
+    Containerlab topology/workdir recorded with the session.
+    """
+    if session is None:
+        session = Session()
+        session._apply_session_meta(session_meta)
+    scenario = session.scenario_name
     backend = resolve_backend(session_meta)
-    lab_name = getattr(session, "lab_name", None)
-    try:
-        resolve_scenario_id(scenario)
-    except ValueError:
-        # Test-only, renamed, or removed scenarios cannot rebuild their NetEnv,
-        # but a Kathara lab is torn down by name alone.
-        if backend != "kathara" or not lab_name:
-            raise
-        if undeploy:
-            _destroy_kathara_lab(str(lab_name))
-            log_event(
-                "env_stop",
-                f"Stopped unregistered network environment: {scenario} "
-                f"({session.session_id})",
-                scenario=scenario,
-                session_id=session.session_id,
-                backend=backend,
-            )
-        _clear_session_record(
-            session_meta,
-            session_id=session.session_id,
-            backend=backend,
-            store=session.store,
-            status=status,
-        )
-        return
-
     net_env_kwargs: dict = {"backend": backend}
     from nika.net_env.isp.identity import is_isp_named_special, is_isp_scenario
     from nika.net_env.isp.identity import ISP_NET_ENV_PARAM_KEYS
@@ -441,6 +399,81 @@ def _stop_session_record(
         and meta_path(session_meta, "topology_file", scenario_params=True)
     ):
         net_env.runtime = runtime_for_session(session_meta)
+    return net_env
+
+
+def _stop_session_record(
+    session_meta: dict,
+    *,
+    undeploy: bool = True,
+    session_id: str | None = None,
+    status: SessionStatus = "finished",
+) -> None:
+    session = Session()
+    session._apply_session_meta(session_meta)
+    if session_id:
+        session.session_id = session_id
+    scenario = getattr(session, "scenario_name", None)
+    if not scenario:
+        # Orphan index rows / job-folder run.json mistaken for sessions have no
+        # lab to undeploy. Clear runtime state without rewriting job metadata.
+        sid = session_id or getattr(session, "session_id", None)
+        if not sid:
+            raise ValueError(
+                "Session has no scenario_name; cannot determine which lab to stop."
+            )
+        _clear_orphan_session_record(
+            session_meta, session_id=str(sid), store=session.store
+        )
+        return
+
+    if session_meta.get("session_dir"):
+        # Bind first so every event below lands in this session's nika.jsonl.
+        bind_session_dir(session_meta["session_dir"])
+    # Drop this session's sandbox before lab undeploy so a slow/failed undeploy
+    # cannot leave a hard-killed worker's microVM behind. Scoped by
+    # agent_session_id only (safe with concurrent benchmarks).
+    _cleanup_session_sandbox(session_meta, session_id=session.session_id)
+    backend = resolve_backend(session_meta)
+    if session_meta.get("remote"):
+        # A remote-mode session whose lab host this process is not connected
+        # to, e.g. a Firecracker trial copy, which the trial's worker discards.
+        _clear_session_record(
+            session_meta,
+            session_id=session.session_id,
+            backend=backend,
+            store=session.store,
+            status=status,
+        )
+        return
+    lab_name = getattr(session, "lab_name", None)
+    try:
+        resolve_scenario_id(scenario)
+    except ValueError:
+        # Test-only, renamed, or removed scenarios cannot rebuild their NetEnv,
+        # but a Kathara lab is torn down by name alone.
+        if backend != "kathara" or not lab_name:
+            raise
+        if undeploy:
+            _destroy_kathara_lab(str(lab_name))
+            log_event(
+                "env_stop",
+                f"Stopped unregistered network environment: {scenario} "
+                f"({session.session_id})",
+                scenario=scenario,
+                session_id=session.session_id,
+                backend=backend,
+            )
+        _clear_session_record(
+            session_meta,
+            session_id=session.session_id,
+            backend=backend,
+            store=session.store,
+            status=status,
+        )
+        return
+
+    net_env = session_net_env(session_meta, session=session)
 
     session_dir = session_meta.get("session_dir")
     if not session_dir:

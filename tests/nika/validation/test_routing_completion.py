@@ -3,14 +3,16 @@
 from pathlib import Path
 
 import pytest
+
+from tests.support.scenario_validation import assert_scenario_acceptance
 from pydantic import ValidationError
 
 from nika.net_env.net_env_pool import get_net_env_instance
 from nika.net_env.synthesis.parameters import RoutingParameters
-from nika.workflows.validation.routing import validate_routing_design
-from nika.workflows.validation.routing_spec import RoutingExperiment
+from nika.workflows.validation.scenario import validate_scenario_design
+from nika.workflows.validation.scenario_spec import ScenarioExperiment
 
-SPECIMENS = Path(__file__).resolve().parents[3] / "experiment/routing_validation"
+SPECIMENS = Path(__file__).resolve().parents[3] / "experiment/scenario_validation"
 
 
 @pytest.mark.contract
@@ -76,7 +78,7 @@ def test_isp_as_policy_rejects_partial_border_binding_and_unsupported_vendor():
 def test_original_path_generates_checks_for_every_hop():
     from nika.net_env.synthesis.requirements import resolve_routing_requirements
 
-    spec = RoutingExperiment.model_validate_json(
+    spec = ScenarioExperiment.model_validate_json(
         (SPECIMENS / "campus.json").read_text()
     )
     resolved = resolve_routing_requirements(
@@ -111,7 +113,7 @@ def test_original_path_generates_checks_for_every_hop():
 def test_original_bgp_order_drives_healthy_and_failed_selection():
     from nika.net_env.synthesis.requirements import resolve_routing_requirements
 
-    spec = RoutingExperiment.model_validate_json(
+    spec = ScenarioExperiment.model_validate_json(
         (SPECIMENS / "enterprise.json").read_text()
     )
     env = get_net_env_instance(spec.scenario, topo_size=spec.topo_size)
@@ -159,20 +161,20 @@ def test_state_path_preserves_original_endpoints():
 
 @pytest.mark.contract
 def test_static_counterexample_references_original_requirements(tmp_path):
-    spec = RoutingExperiment.model_validate_json((SPECIMENS / "clos.json").read_text())
+    spec = ScenarioExperiment.model_validate_json((SPECIMENS / "clos.json").read_text())
     counterexample = spec.counterexamples[0].model_copy(
         update={"expected_failed_ids": ("undeclared-requirement",)}
     )
     spec = spec.model_copy(update={"counterexamples": (counterexample,)})
     with pytest.raises(ValueError, match="original static requirement IDs"):
-        validate_routing_design(spec, tmp_path)
+        validate_scenario_design(spec, tmp_path)
     assert not (tmp_path / "netcomplete").exists()
     assert not (tmp_path / "summary.json").exists()
 
 
 @pytest.mark.contract
 def test_runtime_requirements_cannot_redefine_a_static_predicate(tmp_path):
-    spec = RoutingExperiment.model_validate_json((SPECIMENS / "clos.json").read_text())
+    spec = ScenarioExperiment.model_validate_json((SPECIMENS / "clos.json").read_text())
     extra = spec.runtime_requirements.intents[0].model_copy(
         update={"id": spec.healthy.intents[0].id}
     )
@@ -184,30 +186,36 @@ def test_runtime_requirements_cannot_redefine_a_static_predicate(tmp_path):
         }
     )
     with pytest.raises(ValueError, match="distinct original IDs"):
-        validate_routing_design(spec, tmp_path)
+        validate_scenario_design(spec, tmp_path)
     assert not (tmp_path / "summary.json").exists()
 
 
 @pytest.mark.e2e
+@pytest.mark.parametrize("config_generator", [None, "netlab"])
 @pytest.mark.parametrize(
     "specimen", ["clos", "clos-m", "campus", "enterprise", "min3clos"]
 )
 def test_completion_configuration_execution_and_registered_failures(
-    specimen, tmp_path, netcomplete_image
+    specimen, config_generator, tmp_path, netcomplete_image, batfish_verifier
 ):
-    spec = RoutingExperiment.model_validate_json(
+    if config_generator:
+        from importlib.util import find_spec
+
+        if find_spec("netsim") is None:
+            pytest.skip("Install the netlab extra for upstream construction")
+    spec = ScenarioExperiment.model_validate_json(
         (SPECIMENS / f"{specimen}.json").read_text()
     )
-    summary = validate_routing_design(
-        spec, tmp_path, runtime=True, image=netcomplete_image
+    summary = validate_scenario_design(
+        spec,
+        tmp_path,
+        runtime=True,
+        image=netcomplete_image,
+        config_generator=config_generator,
+        batfish_verifier=batfish_verifier,
     )
-    assert summary["status"] == "passed"
-    assert summary["validation_scope"] == "static-and-runtime"
+    assert_scenario_acceptance(spec, summary, tmp_path, runtime=True)
     assert summary["synthesis"]["backend"] == "netcomplete"
-    assert summary["static"] and summary["runtime"]
-    assert set(summary.get("failure_compatibility", {})) == {
-        f.name for f in spec.failure_checks
-    }
 
 
 @pytest.mark.integration
@@ -235,7 +243,7 @@ def test_inconsistent_paths_receive_explicit_solver_unsat(tmp_path, netcomplete_
 def test_reject_duplicate_authored_and_derived_routing_predicates():
     from nika.net_env.synthesis.requirements import resolve_routing_requirements
 
-    spec = RoutingExperiment.model_validate_json(
+    spec = ScenarioExperiment.model_validate_json(
         (SPECIMENS / "campus.json").read_text()
     )
     env = get_net_env_instance(spec.scenario, topo_size=spec.topo_size)
@@ -249,7 +257,7 @@ def test_reject_duplicate_authored_and_derived_routing_predicates():
 def test_reject_unknown_candidate_in_original_bgp_order():
     from nika.net_env.synthesis.requirements import resolve_routing_requirements
 
-    spec = RoutingExperiment.model_validate_json(
+    spec = ScenarioExperiment.model_validate_json(
         (SPECIMENS / "enterprise.json").read_text()
     )
     original = spec.behavior[0]

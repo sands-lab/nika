@@ -1,18 +1,21 @@
-"""Reuse completed routing parameters through normal NIKA session startup."""
+"""Reuse verified scenario deployment choices and configurations at session startup."""
 
 import json
 from pathlib import Path
 
 from nika.net_env.isp.identity import is_isp_named_special
 from nika.net_env.synthesis.parameters import RoutingParameters
-from nika.workflows.validation.routing_spec import (
+from nika.workflows.validation.scenario_spec import (
     ENV_ROUTING_MODELS,
-    RoutingExperiment,
+    ScenarioExperiment,
 )
 
 
-def routing_start_kwargs(
-    spec: RoutingExperiment, parameters: RoutingParameters | None
+def scenario_start_kwargs(
+    spec: ScenarioExperiment,
+    parameters: RoutingParameters | None,
+    *,
+    configs: dict[str, str] | None = None,
 ) -> dict:
     """Bind the same deployment choices during verification and later execution."""
     options = spec.deployment.model_dump(exclude_none=True)
@@ -23,6 +26,7 @@ def routing_start_kwargs(
         for key in ("igp", "bgp_mode", "rpki", "device_profile"):
             options.pop(key, None)
     return {
+        **({"routing_configs": configs} if configs is not None else {}),
         "scenario": spec.scenario,
         "topo_size": spec.topo_size,
         **options,
@@ -33,7 +37,7 @@ def routing_start_kwargs(
     }
 
 
-def load_routing_build(directory: Path) -> dict:
+def load_scenario_build(directory: Path) -> dict:
     """Read a successful construction's startup arguments without running tools.
 
     The saved summary retains whether acceptance was static-only or also covered
@@ -41,8 +45,8 @@ def load_routing_build(directory: Path) -> dict:
     """
     summary = json.loads((directory / "summary.json").read_text())
     if summary.get("status") != "passed":
-        raise ValueError("Routing build requires a successful validation summary")
-    spec = RoutingExperiment.model_validate_json(
+        raise ValueError("Scenario build requires a successful validation summary")
+    spec = ScenarioExperiment.model_validate_json(
         (directory / "original-spec.json").read_text()
     )
     parameters = (
@@ -52,4 +56,15 @@ def load_routing_build(directory: Path) -> dict:
         if spec.completion is not None
         else None
     )
-    return routing_start_kwargs(spec, parameters)
+    configs = None
+    if summary.get("configuration", {}).get("generator") == "netlab":
+        configs = {
+            p.stem: p.read_text()
+            for p in (directory / "candidate-configs").glob("*")
+            if p.suffix in {".conf", ".yaml"}
+        }
+    if configs == {}:
+        raise FileNotFoundError(
+            "Saved netlab construction is missing candidate configurations"
+        )
+    return scenario_start_kwargs(spec, parameters, configs=configs)

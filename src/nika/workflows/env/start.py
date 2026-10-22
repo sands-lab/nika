@@ -220,6 +220,7 @@ def start_net_env(
     static_validation: bool | None = None,
     routing_parameters: dict | None = None,
     routing_model: str | None = None,
+    routing_configs: dict[str, str] | None = None,
 ) -> str:
     """Deploy the lab for ``scenario`` and create a new runtime session."""
     from nika.remote.config import is_remote_enabled
@@ -232,7 +233,11 @@ def start_net_env(
     )
 
     if is_remote_enabled():
-        if routing_parameters is not None or routing_model is not None:
+        if (
+            routing_parameters is not None
+            or routing_model is not None
+            or routing_configs is not None
+        ):
             raise ValueError(
                 "Routing-specification deployment currently requires a local session."
             )
@@ -300,6 +305,8 @@ def start_net_env(
         ).model_dump(mode="json")
     if routing_model is not None:
         isp_kwargs["routing_model"] = routing_model
+    if routing_configs is not None:
+        isp_kwargs["routing_configs"] = routing_configs
 
     refresh_logger()
     suffix = uuid4().hex[:6]
@@ -419,10 +426,14 @@ def start_net_env(
             cache_scenario(canonical)
         if redeploy or not lab_exists:
             # When run config selects a sandbox agent, prepare its sandbox
-            # template alongside lab images (not at per-case agent start).
+            # template alongside lab images (not at per-case agent start). A
+            # lab-host daemon has no agents: they run on the client's host.
             from nika.agents.sandbox.backend import prepare_configured_sandbox_templates
+            from nika.remote.config import is_remote_server
 
-            images = prepare_configured_sandbox_templates()
+            images = (
+                [] if is_remote_server() else prepare_configured_sandbox_templates()
+            )
             from nika.net_env.utils.kathara.docker_files.docker_images import (
                 ensure_nika_docker_images,
             )

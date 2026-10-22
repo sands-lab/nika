@@ -6,4 +6,4 @@ ip route add default via 201.1.3.1 dev eth0
 
 # Signal the container entrypoint to exec k3s as PID1 (see issue #38).
 mkdir -p /var/run
-touch /var/run/nika-net-ready
+touch /var/run/net-ready

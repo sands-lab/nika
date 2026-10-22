@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.support.scenario_validation import assert_scenario_acceptance
+
 from nika.workflows.validation.benchmark_routing import (
     benchmark_isp_profiles,
     build_benchmark_isp_experiment,
@@ -14,10 +16,12 @@ ROOT = Path(__file__).resolve().parents[3]
 
 @pytest.mark.e2e
 @pytest.mark.parametrize("scenario", ["isp_dfn-bwin", "isp_di-yuan", "isp_pdh"])
-def test_srl_isis_and_as_import_completion(scenario, tmp_path, netcomplete_image):
+def test_srl_isis_and_as_import_completion(
+    scenario, tmp_path, netcomplete_image, batfish_verifier
+):
     from copy import deepcopy
 
-    from nika.workflows.validation.routing import validate_routing_design
+    from nika.workflows.validation.scenario import validate_scenario_design
 
     profile = deepcopy(
         benchmark_isp_profiles(
@@ -36,14 +40,15 @@ def test_srl_isis_and_as_import_completion(scenario, tmp_path, netcomplete_image
         "isis_level",
         "bgp_as_imports",
     )
-    summary = validate_routing_design(
-        spec, tmp_path, runtime=True, image=netcomplete_image
+    summary = validate_scenario_design(
+        spec,
+        tmp_path,
+        runtime=True,
+        image=netcomplete_image,
+        batfish_verifier=batfish_verifier,
     )
+    assert_scenario_acceptance(spec, summary, tmp_path, runtime=True)
     assert set(summary["synthesis"]["parameters"]) == {"isis_metrics", "bgp_imports"}
-    assert (
-        summary["runtime"]["healthy"]
-        == summary["runtime"]["backbone-link-down-recovered"]
-    )
     assert summary["counterexamples"]["business-withdrawal"]["status"] == (
         "rejected-in-runtime"
     )
@@ -51,20 +56,48 @@ def test_srl_isis_and_as_import_completion(scenario, tmp_path, netcomplete_image
 
 @pytest.mark.e2e
 @pytest.mark.parametrize(
-    "scenario,backend",
+    "scenario,backend,suffixes,as65001_order,as65002_order",
     [
-        ("isp_abilene", "kathara"),
-        ("isp_geant", "kathara"),
-        ("isp_dfn-bwin", "containerlab"),
+        pytest.param(
+            "isp_abilene",
+            "kathara",
+            (101, 102),
+            (65002, 65003),
+            (65001, 65003),
+            id="isp_abilene-kathara",
+        ),
+        pytest.param(
+            "isp_geant",
+            "kathara",
+            (101,),
+            (65002,),
+            (65001,),
+            id="isp_geant-kathara",
+        ),
+        pytest.param(
+            "isp_dfn-bwin",
+            "containerlab",
+            (101, 102),
+            (65002, 65003),
+            (65001, 65003),
+            id="isp_dfn-bwin-containerlab",
+        ),
     ],
 )
 def test_as_import_and_igp_completion_preserve_benchmark_failures(
-    scenario, backend, tmp_path, netcomplete_image
+    scenario,
+    backend,
+    suffixes,
+    as65001_order,
+    as65002_order,
+    tmp_path,
+    netcomplete_image,
+    batfish_verifier,
 ):
     import json
 
     from nika.net_env.synthesis.requirements import BgpAsSelectionRequirement
-    from nika.workflows.validation.routing import validate_routing_design
+    from nika.workflows.validation.scenario import validate_scenario_design
 
     profile = benchmark_isp_profiles(
         [
@@ -81,9 +114,9 @@ def test_as_import_and_igp_completion_preserve_benchmark_failures(
             id=f"exit.as65001.prefix{suffix}",
             asn=65001,
             prefix=f"198.51.{suffix}.0/24",
-            candidates=(65002, 65003) if scenario != "isp_geant" else (65002,),
+            candidates=as65001_order,
         )
-        for suffix in ([101, 102] if scenario != "isp_geant" else [101])
+        for suffix in suffixes
     )
     selections += (
         BgpAsSelectionRequirement(
@@ -91,24 +124,22 @@ def test_as_import_and_igp_completion_preserve_benchmark_failures(
             id="exit.as65002.prefix100",
             asn=65002,
             prefix="198.51.100.0/24",
-            candidates=(65001, 65003) if scenario != "isp_geant" else (65001,),
+            candidates=as65002_order,
         ),
     )
     spec = build_benchmark_isp_experiment(profile, bgp_selections=selections)
     # Composition and the new behavior survive persisted experiment inputs.
     spec = type(spec).model_validate_json(spec.model_dump_json())
-    summary = validate_routing_design(
-        spec, tmp_path, runtime=True, image=netcomplete_image
+    summary = validate_scenario_design(
+        spec,
+        tmp_path,
+        runtime=True,
+        image=netcomplete_image,
+        batfish_verifier=batfish_verifier,
     )
+    assert_scenario_acceptance(spec, summary, tmp_path, runtime=True)
     assert summary["synthesis"]["kind"] == "composite"
     assert summary["synthesis"]["parameters"]["bgp_imports"] > 1
-    assert (
-        summary["runtime"]["backbone-link-down-recovered"]
-        == summary["runtime"]["healthy"]
-    )
-    assert set(summary.get("failure_compatibility", {})) == {
-        f.name for f in spec.failure_checks
-    }
     assert (
         summary["counterexamples"]["business-withdrawal"]["status"]
         == "rejected-in-runtime"
@@ -409,9 +440,9 @@ def test_rtbh_echo_requirement_names_the_original_active_endpoint(scenario):
     ],
 )
 def test_benchmark_isp_configuration_execution_and_recovery(
-    profile_key, tmp_path, netcomplete_image
+    profile_key, tmp_path, netcomplete_image, batfish_verifier
 ):
-    from nika.workflows.validation.routing import validate_routing_design
+    from nika.workflows.validation.scenario import validate_scenario_design
 
     manifests = [
         ROOT / "benchmark/working/cases.yaml",
@@ -420,9 +451,14 @@ def test_benchmark_isp_configuration_execution_and_recovery(
     ]
     profile = benchmark_isp_profiles(manifests)[profile_key]
     spec = build_benchmark_isp_experiment(profile)
-    summary = validate_routing_design(
-        spec, tmp_path, runtime=True, image=netcomplete_image
+    summary = validate_scenario_design(
+        spec,
+        tmp_path,
+        runtime=True,
+        image=netcomplete_image,
+        batfish_verifier=batfish_verifier,
     )
+    assert_scenario_acceptance(spec, summary, tmp_path, runtime=True)
     assert summary["synthesis"]["backend"] == "netcomplete"
     assert summary["synthesis"]["parameters"][
         "isis_metrics" if spec.deployment.igp == "isis" else "ospf_costs"
@@ -431,13 +467,6 @@ def test_benchmark_isp_configuration_execution_and_recovery(
         for i in spec.healthy.intents
         if i.adjacency and i.adjacency.protocol == spec.deployment.igp
     )
-    assert (
-        summary["runtime"]["backbone-link-down-recovered"]
-        == summary["runtime"]["healthy"]
-    )
-    assert set(summary.get("failure_compatibility", {})) == {
-        f.name for f in spec.failure_checks
-    }
     assert (
         summary["counterexamples"][spec.runtime_counterexamples[0].name]["status"]
         == "rejected-in-runtime"
@@ -610,7 +639,7 @@ def test_single_level_isis_completion_preserves_original_sketch(scenario):
     }
     assert all(e.metric == 1 for e in active_igp_links(completed.plan))
     assert all(
-        "router isis NIKA" in c and "router ospf" not in c
+        "router isis CORE" in c and "router ospf" not in c
         for c in completed.deployment_configs.values()
     )
     resolved = resolve_routing_requirements(spec, original)

@@ -50,7 +50,7 @@ RUN set -eux; \
 
 WORKDIR /root/onos
 
-COPY onos-entrypoint.sh /nika/onos-entrypoint.sh
-RUN chmod +x /nika/onos-entrypoint.sh
+COPY onos-entrypoint.sh /usr/local/bin/onos-entrypoint.sh
+RUN chmod +x /usr/local/bin/onos-entrypoint.sh
 
-ENTRYPOINT ["/nika/onos-entrypoint.sh"]
+ENTRYPOINT ["/usr/local/bin/onos-entrypoint.sh"]

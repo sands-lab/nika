@@ -46,6 +46,15 @@ from nika.net_env.verify_collection import (
 )
 
 
+def _selected_bgp_path(path):
+    best = path.get("bestpath")
+    return (
+        (isinstance(best, dict) and best.get("overall") is True)
+        or best is True
+        or path.get("multipath") is True
+    )
+
+
 def _collect(runtime, plan, bgp_plan, traffic, contract, healed, *, full):
     commands = []
     for node in plan.nodes:
@@ -74,7 +83,7 @@ def _collect(runtime, plan, bgp_plan, traffic, contract, healed, *, full):
         if bgp_plan:
             commands.extend(
                 [
-                    VerifyCommand(device, "vtysh -c 'show bgp summary'"),
+                    VerifyCommand(device, "vtysh -c 'show bgp summary json'"),
                     VerifyCommand(device, _BGP_TABLE),
                 ]
             )
@@ -403,9 +412,7 @@ def _verify_intent(
             if intent.bgp_route is not None:
                 expected = intent.bgp_route
                 selected = [
-                    path
-                    for path in output.get("paths", [])
-                    if path.get("bestpath") or path.get("multipath")
+                    path for path in output.get("paths", []) if _selected_bgp_path(path)
                 ]
                 paths = [
                     path.get("aspath", {}).get("string", path.get("path", ""))
@@ -437,8 +444,7 @@ def _verify_intent(
                     f"vtysh -c 'show bgp ipv4 unicast {expected.prefix} json'",
                 )
                 if not any(
-                    path.get("valid")
-                    and (path.get("bestpath") or path.get("multipath"))
+                    path.get("valid") and _selected_bgp_path(path)
                     for path in available.get("paths", [])
                 ):
                     raise ValueError(
@@ -509,7 +515,7 @@ def _verify_connectivity(
         assert intent.traffic.destination_port is not None
         command = request.command
         output = exec_or_empty(runtime, source, command, timeout=10)
-        reachable = "NIKA_OPEN" in output
+        reachable = "PORT_OPEN" in output
     else:
         command = request.command
         output = exec_or_empty(runtime, source, command, timeout=15)
@@ -539,7 +545,7 @@ def _verify_adjacency(
     assert intent.adjacency is not None
     adjacency = intent.adjacency
     if adjacency.protocol == "bgp":
-        command = "vtysh -c 'show bgp summary'"
+        command = "vtysh -c 'show bgp summary json'"
         output = _cached_exec(
             runtime,
             adjacency.local_node,
@@ -938,7 +944,7 @@ def _bgp_sessions_ok(runtime: LabRuntime, bgp_plan: BgpPlan) -> bool:
     def device_ok(item: tuple[str, set[str]]) -> bool:
         device, peers = item
         output = exec_or_empty(
-            runtime, device, "vtysh -c 'show bgp summary'", timeout=20
+            runtime, device, "vtysh -c 'show bgp summary json'", timeout=20
         )
         established = frr_bgp_established_peers(output)
         return peers.issubset(established)
@@ -973,7 +979,7 @@ def _bgp_prefixes_propagated_ok(runtime, bgp_plan):
     try:
         return all(
             any(
-                path.get("valid") and path.get("bestpath")
+                path.get("valid") and _selected_bgp_path(path)
                 for path in _bgp_routes(runtime, observer).get(prefix, [])
             )
             for observer, prefix in bgp_plan.expect_reachable

@@ -69,7 +69,7 @@ def intent_command(intent: ValidationIntent) -> VerifyCommand:
     if intent.property == "adjacency":
         assert intent.adjacency is not None
         command = (
-            "vtysh -c 'show bgp summary'"
+            "vtysh -c 'show bgp summary json'"
             if intent.adjacency.protocol == "bgp"
             else (
                 "vtysh -c 'show isis neighbor'"
@@ -110,7 +110,7 @@ def intent_command(intent: ValidationIntent) -> VerifyCommand:
         flag = "-u " if intent.traffic.protocol == "udp" else ""
         return VerifyCommand(
             source,
-            f"nc -z {flag}-w 2 {target} {intent.traffic.destination_port} && echo NIKA_OPEN",
+            f"nc -z {flag}-w 2 {target} {intent.traffic.destination_port} && echo PORT_OPEN",
             10,
             required=required,
         )

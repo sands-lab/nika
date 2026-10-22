@@ -64,6 +64,30 @@ nika:
     url: null
     # Reserved for remote artifact storage. Keep null.
     artifact_root: null
+  execution:
+    # Where benchmark trials run their labs: native (this host) or firecracker
+    # (microVMs restored from lab images; docs/operations/firecracker.md).
+    mode: native
+    firecracker:
+      # btrfs or XFS directory for the base image, lab and case images and
+      # trial copies (relative to the NIKA checkout; uninstall removes it).
+      root: runtime/firecracker
+      vm_cpus: 4
+      vm_memory: 4GiB
+      # Scenario id -> VM memory for large labs, e.g. {k8s_lab: 8GiB, isp_pdh: 20GiB}.
+      vm_memory_overrides: {}
+      # 2 MiB huge pages (reserved at boot, see the docs): full speed right
+      # after a restore, but copies do not share memory.
+      huge_pages: false
+      # Verify the lab again after each restore, as a native deploy does.
+      verify_after_restore: true
+      # Also keep each failure task as a case image (snapshot right after
+      # injection, tens of MiB each): trials skip verification and injection,
+      # and all trials of a task start from the same injected state.
+      case_images: false
+      # Delete the lab and case images a run used when it ends. Keeping them
+      # (false) takes disk but makes later runs much faster.
+      clean_after_run: false
   sandbox:
     # Sandbox runtime: sbx (Docker Sandboxes) or e2b (E2B-compatible service).
     backend: sbx

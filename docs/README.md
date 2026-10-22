@@ -19,6 +19,7 @@ Join the [NIKA Slack community](https://sands-lab.github.io/nika/community/) for
 | Recover from common lab, host, and run failures | [Troubleshooting](operations/troubleshooting.md) | How-to |
 | Select, inspect, and inject a failure | [Failure taxonomy and reference](operations/failures.md) | Reference |
 | Run the lab host and agent host separately | [Remote lab execution](operations/remote.md) | How-to |
+| Run benchmark labs in Firecracker microVMs restored from lab images (advanced) | [Firecracker execution](operations/firecracker.md) | How-to |
 | Run a supported agent in a sandbox, on Docker Sandboxes or E2B | [Run agents in sandboxes](operations/agent-sandbox.md) | How-to |
 
 ## Choose or integrate an agent
@@ -27,7 +28,7 @@ Join the [NIKA Slack community](https://sands-lab.github.io/nika/community/) for
 | --- | --- | --- |
 | Choose an agent and run hosted or self-hosted models | [Choose and run an agent](agents/agent-implementations.md) | How-to |
 | Check provider support, limits, and telemetry semantics | [Agent reference](agents/agent-reference.md) | Reference |
-| Build and register your own agent | [Custom agent integration](agents/custom-agents.md) | How-to |
+| Build your own agent | [Custom agent integration](agents/custom-agents.md) | How-to |
 | Start from a complete agent built on another framework | [NOOA agent example](agents/nooa-example.md) | Example |
 | Find Pingmesh, INT, packet capture, and other agent tools | [MCP servers](agents/mcp-servers.md) | Reference |
 | Add reusable instructions for Claude or Codex agents | [Configure agent skills](agents/agent-skills.md) | How-to |
@@ -49,7 +50,7 @@ Join the [NIKA Slack community](https://sands-lab.github.io/nika/community/) for
 | --- | --- | --- |
 | Add a scenario, failure, traffic source, or candidate case | [Create benchmark tasks](development/creating-benchmark-tasks.md) | How-to |
 | Define healthy-network intents or implement a verifier | [Scenario validation](development/scenario-validation.md) | Reference |
-| Construct and verify routing environments | [Routing construction and verification](development/routing-verification.md) | Explanation |
+| Construct and verify routing, SDN and P4 environments | [Environment construction and verification](development/scenario-verification.md) | Explanation |
 | Check which release 0.2.0 cases passed the benchmark audit, and how to rerun it | [Benchmark audit](benchmarks/benchmark-audit.md) | Reference |
 | Select and run the smallest relevant test suite | [Testing](development/testing.md) | Guide |
 

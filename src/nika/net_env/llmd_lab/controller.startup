@@ -1,33 +1,34 @@
-. /nika-bootstrap.sh
+. /lab-bootstrap.sh
 
 ip address add 200.0.0.1/24 dev eth0
-nika_wait "default route" 60 sh -c 'ip route show default | grep -q .'
+stage_wait "default route" 60 sh -c 'ip route show default | grep -q .'
 mkdir -p /var/run
-touch /var/run/nika-net-ready
-nika_wait "k3s API" 600 kubectl --request-timeout=5s get --raw=/readyz
-nika_wait "host image preload" 900 test -f /var/run/nika-images-preloaded
+touch /var/run/net-ready
+stage_wait "k3s API" 600 kubectl --request-timeout=5s get --raw=/readyz
+stage_wait "host image preload" 900 test -f /var/run/images-preloaded
 
 chmod +x /usr/local/bin/helm
-nika_run "apply MetalLB" kubectl --request-timeout=30s apply -f /k8s/metallb.yaml
-nika_ready "MetalLB controller" -n metallb-system --selector component=controller
-nika_ready "MetalLB speakers" -n metallb-system --selector component=speaker
-nika_run "apply MetalLB addresses" kubectl --request-timeout=30s apply -f /k8s/metallb-l2.yaml
-nika_run "apply Gateway API" kubectl --request-timeout=30s apply -f /k8s/gateway-api-base.yaml
-nika_run "apply Inference API" kubectl --request-timeout=30s apply -f /k8s/gateway-api-inference.yaml
+stage_run "apply MetalLB" kubectl --request-timeout=30s apply -f /k8s/metallb.yaml
+stage_ready "MetalLB controller" -n metallb-system --selector component=controller
+stage_ready "MetalLB speakers" -n metallb-system --selector component=speaker
+# The webhook serves shortly after the controller pod is Ready; retry until it admits.
+stage_wait "apply MetalLB addresses" 120 kubectl --request-timeout=30s apply -f /k8s/metallb-l2.yaml
+stage_run "apply Gateway API" kubectl --request-timeout=30s apply -f /k8s/gateway-api-base.yaml
+stage_run "apply Inference API" kubectl --request-timeout=30s apply -f /k8s/gateway-api-inference.yaml
 
 AGENTGATEWAY_VERSION=v1.1.0
-nika_run "install AgentGateway CRDs" helm upgrade --install agentgateway-crds \
+stage_run "install AgentGateway CRDs" helm upgrade --install agentgateway-crds \
   "/helm-charts/agentgateway-crds-${AGENTGATEWAY_VERSION}.tgz" \
   --namespace agentgateway-system --create-namespace --timeout 120s
-nika_run "install AgentGateway" helm upgrade --install agentgateway \
+stage_run "install AgentGateway" helm upgrade --install agentgateway \
   "/helm-charts/agentgateway-${AGENTGATEWAY_VERSION}.tgz" \
   --namespace agentgateway-system --create-namespace --timeout 120s \
   --values /helm-charts/values.yaml
-nika_ready "AgentGateway controller" -n agentgateway-system --all
+stage_ready "AgentGateway controller" -n agentgateway-system --all
 
 for f in /k8s/pd-*.yaml; do
-  nika_run "apply $f" kubectl --request-timeout=30s apply -f "$f"
+  stage_run "apply $f" kubectl --request-timeout=30s apply -f "$f"
 done
-nika_ready "endpoint picker" -n llm-d -l app=llm-d-epp
-nika_ready "inference workloads" -n llm-d -l app=llm-d-pd
-touch /var/run/nika-startup-complete
+stage_ready "endpoint picker" -n llm-d -l app=llm-d-epp
+stage_ready "inference workloads" -n llm-d -l app=llm-d-pd
+touch /var/run/startup-complete

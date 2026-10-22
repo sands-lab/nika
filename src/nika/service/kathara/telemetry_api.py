@@ -37,7 +37,7 @@ class TelemetryAPIMixin:
         end_ns = self._time_bound_ns(end_time) if end_time is not None else None
         raw = self.exec_cmd(
             "collector",
-            "tail -n 10000 /var/lib/nika/int_reports.jsonl 2>/dev/null || true",
+            "tail -n 10000 /var/lib/int-collector/int_reports.jsonl 2>/dev/null || true",
             timeout=20,
         )
         rows: list[dict] = []

@@ -49,10 +49,10 @@ def test_iosxr_export_replaces_only_outbound_pass_and_ends_with_drop():
 
     assert "route-policy PASS in" in rendered
     assert "route-policy PASS out" not in rendered
-    assert "route-policy NIKA-OUT-router1-193-10-11-2 out" in rendered
-    assert "if destination in NIKA-OUT-router1-193-10-11-2-P1 then\n  done" in rendered
-    assert "if destination in NIKA-OUT-router1-193-10-11-2-P2 then\n  drop" in rendered
-    permit = rendered.index("if destination in NIKA-OUT-router1-193-10-11-2-P1 then")
+    assert "route-policy EXPORT-router1-193-10-11-2 out" in rendered
+    assert "if destination in EXPORT-router1-193-10-11-2-P1 then\n  done" in rendered
+    assert "if destination in EXPORT-router1-193-10-11-2-P2 then\n  drop" in rendered
+    permit = rendered.index("if destination in EXPORT-router1-193-10-11-2-P1 then")
     drop = rendered.index(" drop\nend-policy", permit)
     done = rendered.index("  done", permit)
     assert permit < done < drop
@@ -62,7 +62,7 @@ def test_routeros_export_chain_matches_exact_prefix_and_preserves_connected():
     rendered = render_routeros_bgp_exports(ROS_CONFIG, "router1", PARAMETERS)
 
     assert "output.redistribute=connected" in rendered
-    assert "output.filter-chain=NIKA-OUT-router1-193-10-11-2" in rendered
+    assert "output.filter-chain=EXPORT-router1-193-10-11-2" in rendered
     assert "dst == 195.11.14.0/24 && dst-len == 24) { accept; }" in rendered
     assert "dst == 198.51.100.0/24 && dst-len == 24) { reject; }" in rendered
     assert rendered.startswith("/routing filter rule add chain=")

@@ -7,6 +7,7 @@ state changes through the runtime and collect fresh observations afterwards.
 from __future__ import annotations
 
 import json
+import os
 import re
 import shlex
 from collections import defaultdict
@@ -160,10 +161,10 @@ def collect_verify_commands(
     def collect_batch(item: tuple[str, dict[str, VerifyCommand]]):
         node, requests = item
         wanted = list(requests.values())
-        nonce = "NIKA_VERIFY_" + uuid4().hex
+        nonce = "BATCH_" + uuid4().hex
         lines = [
-            "nika_verify_dir=$(mktemp -d /tmp/nika-verify.XXXXXX) || exit 1",
-            "trap 'rm -rf -- \"$nika_verify_dir\"' EXIT HUP INT TERM",
+            "probe_dir=$(mktemp -d) || exit 1",
+            "trap 'rm -rf -- \"$probe_dir\"' EXIT HUP INT TERM",
         ]
         budget = 10.0
         for offset in range(0, len(wanted), 8):
@@ -172,18 +173,18 @@ def collect_verify_commands(
             for index, request in enumerate(batch, offset):
                 command = shlex.quote(request.command)
                 lines.append(
-                    f"(nika_verify_start=$(date +%s%N); timeout -k 1 {request.timeout:g} sh -c {command} "
-                    f'>"$nika_verify_dir/{index}.out" 2>&1; '
-                    "nika_verify_rc=$?; nika_verify_end=$(date +%s%N); "
-                    f'echo "$nika_verify_rc $(((nika_verify_end - nika_verify_start) / 1000000))" >"$nika_verify_dir/{index}.rc") &'
+                    f"(probe_start=$(date +%s%N); timeout -k 1 {request.timeout:g} sh -c {command} "
+                    f'>"$probe_dir/{index}.out" 2>&1; '
+                    "probe_rc=$?; probe_end=$(date +%s%N); "
+                    f'echo "$probe_rc $(((probe_end - probe_start) / 1000000))" >"$probe_dir/{index}.rc") &'
                 )
             lines.append("wait")
         for index in range(len(wanted)):
             lines.extend(
                 [
                     f"printf '\\n{nonce} BEGIN {index} '",
-                    f'cat "$nika_verify_dir/{index}.rc"',
-                    f'cat "$nika_verify_dir/{index}.out"',
+                    f'cat "$probe_dir/{index}.rc"',
+                    f'cat "$probe_dir/{index}.out"',
                     f"printf '\\n{nonce} END {index}\\n'",
                 ]
             )
@@ -245,7 +246,12 @@ def collect_verify_commands(
         return results
 
     results = {}
-    for node_results in bounded_parallel_map(collect, grouped.items()):
+    # Commands on a node run concurrently; on small hosts (or lab VMs) limit the
+    # nodes collected at once so heavy CLIs (e.g. sr_cli) do not hit timeouts.
+    workers = min(8, os.cpu_count() or 1)
+    for node_results in bounded_parallel_map(
+        collect, grouped.items(), max_workers=workers
+    ):
         results.update(node_results)
     return VerifyCollection(
         results,

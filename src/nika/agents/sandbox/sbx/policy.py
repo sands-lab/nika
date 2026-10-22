@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import re
 import subprocess
+from collections.abc import Iterable, Sequence
+from fnmatch import fnmatchcase
+from typing import Any
 from urllib.parse import urlparse
 
 from nika.agents.sandbox.config import SANDBOX_GATEWAY_HOST_BRIDGE
@@ -25,6 +29,12 @@ _PYPI_NETWORK_HOSTS = (
     "pypi.org",
     "files.pythonhosted.org",
     "pypi.python.org",
+)
+# Where ``uv venv --python`` downloads a managed interpreter.
+_PYTHON_DOWNLOAD_HOSTS = (
+    "github.com",
+    "objects.githubusercontent.com",
+    "release-assets.githubusercontent.com",
 )
 
 
@@ -52,38 +62,131 @@ def mcp_policy_resource_from_url(url: str, *, fallback_port: int | None = None) 
     return mcp_policy_resource(port, host=host)
 
 
-def allow_network_hosts(*hosts: str) -> None:
-    """Allow outbound traffic to *hosts* (an added agent's declared egress)."""
-    if not any((host or "").strip() for host in hosts):
-        return
-    ensure_sbx_ready()
-    for host in dict.fromkeys(h.strip().lower() for h in hosts if h.strip()):
-        proc = run_sbx_optional(["policy", "allow", "network", host])
-        if proc.returncode != 0:
-            combined = f"{proc.stdout}\n{proc.stderr}".lower()
-            if "already" in combined:
-                continue
-            logger.warning(
-                "Failed to allow sbx network host %s: %s",
-                host,
-                (proc.stderr or proc.stdout).strip(),
-            )
+def _clean_hosts(hosts: Iterable[str]) -> list[str]:
+    return list(dict.fromkeys(h.strip().lower() for h in hosts if (h or "").strip()))
 
 
-def ensure_pypi_network_policy() -> None:
-    """Allow PyPI hosts for in-sandbox SDK package installs."""
-    ensure_sbx_ready()
-    for host in _PYPI_NETWORK_HOSTS:
-        proc = run_sbx_optional(["policy", "allow", "network", host])
-        if proc.returncode != 0:
-            combined = f"{proc.stdout}\n{proc.stderr}".lower()
-            if "already" in combined:
-                continue
-            logger.warning(
-                "Failed to allow sbx network host %s: %s",
+def allow_network_hosts(sandbox_name: str, *hosts: str) -> None:
+    """Allow *sandbox_name* outbound traffic to *hosts* (agent egress, PyPI)."""
+    for host in _clean_hosts(hosts):
+        run_sbx_checked(["policy", "allow", "network", "--sandbox", sandbox_name, host])
+
+
+def revoke_network_hosts(sandbox_name: str, *hosts: str) -> None:
+    """Remove per-sandbox allow rules added by :func:`allow_network_hosts`."""
+    for host in _clean_hosts(hosts):
+        run_sbx_optional(
+            [
+                "policy",
+                "rm",
+                "network",
+                "--force",
+                "--sandbox",
+                sandbox_name,
+                "--resource",
                 host,
-                (proc.stderr or proc.stdout).strip(),
-            )
+            ]
+        )
+
+
+def ensure_pypi_network_policy(sandbox_name: str) -> None:
+    """Allow PyPI hosts in *sandbox_name* for in-sandbox SDK package installs."""
+    allow_network_hosts(sandbox_name, *_PYPI_NETWORK_HOSTS)
+
+
+def revoke_pypi_network_policy(sandbox_name: str) -> None:
+    revoke_network_hosts(sandbox_name, *_PYPI_NETWORK_HOSTS)
+
+
+def _resource_host(resource: str) -> str:
+    host, sep, port = resource.strip().lower().rpartition(":")
+    return host if sep and port.isdigit() else resource.strip().lower()
+
+
+def resource_matches_host(resource: str, hosts: Iterable[str]) -> bool:
+    """True when sbx network *resource* (``**.``/``*`` patterns, port) covers a host.
+
+    As in sbx, ``**.example.com`` also covers ``example.com`` itself.
+    """
+    pattern = _resource_host(resource).replace("**", "*")
+    apex = pattern[2:] if pattern.startswith("*.") else None
+    return any(
+        fnmatchcase(host, pattern) or host == apex
+        for host in map(_resource_host, hosts)
+    )
+
+
+def allowed_network_resources(policy: Any, sandbox_name: str) -> list[str]:
+    """Network resources allowed to *sandbox_name* by ``sbx policy ls --json``.
+
+    Covers global rules (``applies_to == "all"``) and rules sbx provisioned for
+    this sandbox, such as the template's model API hosts.
+    """
+    scopes = {"all", f"sandbox:{sandbox_name}"}
+    found: list[str] = []
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            if (
+                node.get("resource_type") == "network"
+                and node.get("decision") == "allow"
+                and node.get("applies_to") in scopes
+            ):
+                found.extend(str(r) for r in node.get("resources") or ())
+                return
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for value in node:
+                walk(value)
+
+    walk(policy)
+    return list(dict.fromkeys(r.strip() for r in found if r.strip()))
+
+
+def sandbox_network_lockdown(
+    sandbox_name: str,
+    *,
+    keep_hosts: Sequence[str] = (),
+    keep_resources: Sequence[str] = (),
+    install_pypi: bool = False,
+    install_python: bool = False,
+) -> tuple[list[str], list[str]]:
+    """Return ``(rest, install)`` resources to deny for *sandbox_name*.
+
+    Resources covering *keep_hosts* (an added agent's egress) or equal to
+    *keep_resources* stay allowed. With *install_pypi*, resources covering the
+    package index hosts form the second list, denied once installs finish;
+    with *install_python*, so do those covering uv's interpreter downloads.
+    """
+    proc = run_sbx_checked(["policy", "ls", "--json"], timeout=120)
+    resources = [
+        r
+        for r in allowed_network_resources(json.loads(proc.stdout), sandbox_name)
+        if r not in keep_resources and not resource_matches_host(r, keep_hosts)
+    ]
+    install_hosts = (_PYPI_NETWORK_HOSTS if install_pypi else ()) + (
+        _PYTHON_DOWNLOAD_HOSTS if install_python else ()
+    )
+    install = [r for r in resources if resource_matches_host(r, install_hosts)]
+    rest = [r for r in resources if r not in install]
+    return rest, install
+
+
+def deny_network_resources(sandbox_name: str, resources: Sequence[str]) -> None:
+    """Deny *resources* for *sandbox_name*; deny wins over a global allow."""
+    if resources:
+        run_sbx_checked(
+            [
+                "policy",
+                "deny",
+                "network",
+                "--sandbox",
+                sandbox_name,
+                ",".join(resources),
+            ],
+            timeout=600,
+        )
 
 
 def allow_mcp_gateway(
@@ -102,6 +205,9 @@ def allow_mcp_gateway(
         resource = mcp_policy_resource_from_url(gateway_url, fallback_port=port)
     else:
         resource = mcp_policy_resource(port, host=host)
+    # The lockdown may have denied this resource (a stale global allow for the
+    # same port); a deny would win over the allow.
+    revoke_network_hosts(sandbox_name, resource)
     run_sbx_checked(
         [
             "policy",
