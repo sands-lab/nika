@@ -15,7 +15,7 @@ from nika.mcp.k8s.client import (
     reset_client,
     resolve_kubeconfig_path,
 )
-from nika.mcp.k8s.server import dump_events_json
+from nika.mcp.k8s.server import _dump_events_json
 from nika.run_config.loader import reset_run_config, set_run_config
 from nika.run_config.schema import RunConfig
 from nika.mcp.registry import (
@@ -179,7 +179,7 @@ class TestK8sClientHelpers:
 
 def test_dump_events_json_stays_parseable_within_budget() -> None:
     events = [{"name": f"event-{index}", "message": "x" * 2000} for index in range(20)]
-    text = dump_events_json(events, max_chars=2000)
+    text = _dump_events_json(events, max_chars=2000)
     assert len(text) <= 2000
     parsed = json.loads(text)
     assert isinstance(parsed, list)

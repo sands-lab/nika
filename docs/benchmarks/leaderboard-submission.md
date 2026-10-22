@@ -9,7 +9,7 @@ Implementation: [`workflows/leaderboard/`](../../src/nika/workflows/leaderboard/
 
 **Prerequisites:**
 
-- A finished official `nika benchmark run --release …` against a current (non-deprecated) benchmark release
+- A finished official `nika benchmark run --release …` against a current (non-deprecated) frozen release
 - Authenticated [`gh`](https://cli.github.com/) access (`gh auth login` or `GH_TOKEN` with `repo` scope)
 - Hugging Face authentication through `hf auth login`, or `HF_TOKEN` in the environment / repo-root `.env`. Use a token that permits proposing dataset changes. You do not need collaborator access to the public dataset to open a PR. `uv sync` installs `huggingface_hub` and `hf`.
 
@@ -28,16 +28,20 @@ To inspect packages before uploading, add `--dry-run` to the same command. This 
 
 The GitHub PR carries the `leaderboard-submit` label, which the leaderboard repository requires on submission PRs. Success prints both PR URLs. Maintainers still review and merge the two PRs before publishing the entry. The command does not merge PRs.
 
-The one-command form creates minimal metadata. Before publishing, review the entry's code link, project links, and harness display name. Use custom metadata below when you need to supply these details.
+The one-command form creates minimal metadata. Before publishing, review the
+entry's code link, project links, and harness display name. Use custom metadata
+below when you need to supply these details.
 
-For an open-weight model, `submit` also records which Hugging Face model the run served, so the leaderboard can find its release date and price. See [the open-weight model record](#record-the-open-weight-model).
+For an open-weight model, `submit` also records which Hugging Face model the run
+served, so the leaderboard can find its release date and price. See
+[the open-weight model record](#record-the-open-weight-model).
 
 ## Submit with custom metadata
 
 Use a template when you want to supply a longer README, code links, tools, skills, or other metadata. Pass `--submission` instead of `--name` and `--authors`.
 
 ```shell
-# Use the current benchmark release.
+# Use the current frozen release.
 nika benchmark run --release 0.2.0 --split test --result_dir results/my-run -a <agent> -m <model>
 
 nika leaderboard template -o results/my-run/submission
@@ -104,7 +108,8 @@ In addition to metrics, each trial records fault-type labels for confusion-matri
     submission.json                      # required when outcome=success
 ```
 
-Remote path (same slug, no `_trajectories` suffix): `trajectories/<release_version>/{YYYYMMDD}_{slug}/`.
+Remote path (same slug, no `_trajectories` suffix):
+`trajectories/<release_version>/{YYYYMMDD}_{slug}/`.
 
 `submit` packs only these per-trial files from each session directory:
 
@@ -158,11 +163,18 @@ Field notes:
 
 ## Model release dates, prices, and display names
 
-You do not supply release dates or prices. After your scores PR merges, the [leaderboard repository](https://github.com/sands-lab/nika-leaderboard) looks up the model's release date and reference price from public catalogs and opens a catalog PR for its maintainers to review. Until that PR merges, the website shows the entry's cost as `pending`; models with no public quote show `n/a`. Neither blocks your submission. See the leaderboard README for the catalog format and sources.
+You do not supply release dates or prices. After your scores PR merges, the
+[leaderboard repository](https://github.com/sands-lab/nika-leaderboard) looks
+up the model's release date and reference price from public catalogs and opens a
+catalog PR for its maintainers to review. Until that PR merges, the website shows
+the entry's cost as `pending`; models with no public quote show `n/a`. Neither
+blocks your submission. See the leaderboard README for the catalog format and
+sources.
 
 ### Record the open-weight model
 
-Open-weight prices and release dates come from the model's Hugging Face repo, so `submit` writes the repo and a pinned commit to `agent.extra`:
+Open-weight prices and release dates come from the model's Hugging Face repo, so
+`submit` writes the repo and a pinned commit to `agent.extra`:
 
 ```yaml
 agent:
@@ -172,9 +184,16 @@ agent:
     hf_revision_source: latest   # or: specified
 ```
 
-When a custom endpoint served the model under its Hugging Face ID, as vLLM does by default, `submit` finds the repo from the run's `model` and needs no extra flags. Unless you pass `--hf-revision`, it records the repo's latest revision at submit time and prints it. Pass `--hf-revision` when the run served an older commit, branch, or tag; `submit` stores its commit SHA.
+When a custom endpoint served the model under its Hugging Face ID, as vLLM does
+by default, `submit` finds the repo from the run's `model` and needs no extra
+flags. Unless you pass `--hf-revision`, it records the repo's latest revision at
+submit time and prints it. Pass `--hf-revision` when the run served an older
+commit, branch, or tag; `submit` stores its commit SHA.
 
-`submit` stops before packing when it cannot identify the model, for example when vLLM used `--served-model-name` or Ollama served a library model such as `gpt-oss:120b`. Pass the repo explicitly, or mark a proprietary model behind a custom endpoint:
+`submit` stops before packing when it cannot identify the model, for example
+when vLLM used `--served-model-name` or Ollama served a library model such as
+`gpt-oss:120b`. Pass the repo explicitly, or mark a proprietary model behind a
+custom endpoint:
 
 ```shell
 uv run nika leaderboard submit --result_dir results/my-run \
@@ -186,11 +205,25 @@ Runs against a vendor API (`openai`, `anthropic`, `deepseek`) record nothing.
 
 ### How the website prices runs
 
-The leaderboard uses vendor API list prices for proprietary models and public hosted-inference quotes for open weights. For open weights, this is a reference estimate for hosted inference, not the submitter's self-hosted GPU bill. Each run uses the quote that was current on its package date; a **Current prices** toggle re-prices every run at the latest quote.
+The leaderboard uses vendor API list prices for proprietary models and public
+hosted-inference quotes for open weights. For open weights, this is a reference
+estimate for hosted inference, not the submitter's self-hosted GPU bill. Each
+run uses the quote that was current on its package date; a **Current prices**
+toggle re-prices every run at the latest quote.
 
-The website computes the token-priced total as `(input_tokens × input_rate + output_tokens × output_rate) / 1,000,000`. Cost per run means one attempt at every case: `total_cost / reported_trials × case_count`. Token counts come from the packed run. The reference calculation does not apply cache discounts or add network emulation and GPU allocation costs.
+The website computes the token-priced total as
+`(input_tokens × input_rate + output_tokens × output_rate) / 1,000,000`.
+Cost per run means one attempt at every case:
+`total_cost / reported_trials × case_count`. Token counts come from the packed
+run. The reference calculation does not apply cache discounts or add network
+emulation and GPU allocation costs.
 
-Chart names use the model, normalized harness name, optimization methods, and skills. An optimization's `agent.extra.<method>_variant` field adds its variant, such as `gepa_variant: d+s`. Repeated configurations include the split and run identity to distinguish them. The submission detail page retains your original `info.name`. Packages use `YYYYMMDD_<framework>_<model>`; for example, `20261012_claude_code_gemma_4_31b_it`.
+Chart names use the model, normalized harness name, optimization methods, and
+skills. An optimization's `agent.extra.<method>_variant` field adds its variant,
+such as `gepa_variant: d+s`. Repeated configurations include the split and run
+identity to distinguish them. The submission detail page retains your original
+`info.name`. Packages use `YYYYMMDD_<framework>_<model>`; for example,
+`20261012_claude_code_gemma_4_31b_it`.
 
 ## `README.md`
 
