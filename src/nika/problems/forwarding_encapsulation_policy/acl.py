@@ -79,6 +79,15 @@ class BGPAclBlock(ProblemBase):
     def benchmark_inject_params(cls, ctx):
         return {"host_name": ctx.router0}
 
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        from nika.problems.support.benchmark_targets import require_node_capability
+
+        # Transit routers without BGP (enterprise ISP cores) have no session.
+        require_node_capability(
+            ctx, cls.root_cause_name, inject.get("host_name"), "bgp"
+        )
+
     def root_cause_resources(self, params: BGPAclBlockParams):
         return [node_resource(params.host_name)]
 

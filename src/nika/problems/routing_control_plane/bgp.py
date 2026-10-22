@@ -105,6 +105,15 @@ class BGPAsnMisconfig(ProblemBase):
         return {"host_name": ctx.router0}
 
     @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        from nika.problems.support.benchmark_targets import require_node_capability
+
+        # Transit routers without BGP (enterprise ISP cores) have no session.
+        require_node_capability(
+            ctx, cls.root_cause_name, inject.get("host_name"), "bgp"
+        )
+
+    @classmethod
     def coordinate_benchmark_inject(cls, ctx, params_by_problem):
         # Misconfigure a router other than the ACL-blocked one.
         acl = dict(params_by_problem["bgp_acl_block"])
