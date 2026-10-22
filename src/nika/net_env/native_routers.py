@@ -26,6 +26,49 @@ class NativeConversion:
 
 
 @dataclass(frozen=True)
+class NativeInterface:
+    """A native router interface under its Kathara (Linux) name."""
+
+    name: str
+    address: str
+    ospf_area: str | None = None
+
+
+@dataclass(frozen=True)
+class NativeRouterNode:
+    device_name: str
+    interfaces: tuple[NativeInterface, ...]
+    loopback: str | None = None
+
+
+@dataclass(frozen=True)
+class NativeRouterPlan:
+    """Concrete native routers, as the vendor runtime verifiers address them."""
+
+    nodes: tuple[NativeRouterNode, ...]
+
+
+@dataclass(frozen=True)
+class NativeRouterValidation:
+    """Vendor projection used by specification-driven validation."""
+
+    # Linux interface name -> native interface name.
+    interface: Callable[[str], str]
+    # (config, native interfaces shut down) -> Batfish snapshot file content.
+    batfish_config: Callable[[str, Sequence[str]], str]
+    # (node, config) -> concrete interfaces for the runtime verifier.
+    node: Callable[[str, str], NativeRouterNode]
+    # (runtime, contract, plan) -> ValidationReport for native observations.
+    verify_contract: Callable[..., object]
+    # Shell commands that apply configuration lines, read the running
+    # configuration, and replace it with a previously read one.
+    config_command: Callable[[Sequence[str]], str]
+    running_config_command: str
+    restore_command: Callable[[str], str]
+    route_inspection_command: str
+
+
+@dataclass(frozen=True)
 class NativeRouterPlatform:
     """How a vendor module converts declared FRR routers and admits the lab."""
 
@@ -33,6 +76,7 @@ class NativeRouterPlatform:
     # Raises before any container is created (image, memory admission).
     check_deployable: Callable[[object], None]
     verify_max_wait_sec: int
+    validation: NativeRouterValidation | None = None
 
 
 # Vendor modules exposing ``PLATFORM``; add a profile here to support it.
@@ -60,9 +104,7 @@ class NativeRouterEnv:
         """Return router names by role for profile eligibility."""
         raise NotImplementedError
 
-    def apply_device_profile(
-        self, profile: str | None, *, routing_parameters=None
-    ) -> None:
+    def apply_device_profile(self, profile: str | None) -> None:
         """Convert the routers of the eligible roles to ``profile``."""
         if profile in (None, "frr"):
             return
@@ -79,8 +121,8 @@ class NativeRouterEnv:
                 f"{', '.join(sizes)} only; size {size!r} has "
                 f"{len(self._eligible(roles))} eligible routers."
             )
-        if routing_parameters is not None:
-            raise ValueError("Native router profiles do not bind solved parameters")
+        # Solved parameters are already bound into the FRR sketch; the
+        # platform translates them with the rest of each router's design.
         platform = native_platform(profile)
         names = self._eligible(roles)
         conversion = platform.convert(self, names)
@@ -108,6 +150,57 @@ class NativeRouterEnv:
         super().deploy()
         for node, commands in self.native_netns_commands.items():
             run_in_network_namespace(self, node, commands)
+
+
+def native_router_plan(env) -> NativeRouterPlan:
+    """Describe the environment's native routers from their concrete configs."""
+    nodes = []
+    for name, profile in sorted(env.native_routers.items()):
+        validation = native_platform(profile).validation
+        nodes.append(validation.node(name, env.deployment_configs[name]))
+    return NativeRouterPlan(tuple(nodes))
+
+
+def verify_native_router_contract(env, fallback):
+    """Return a runtime verifier that observes each intent on its own platform.
+
+    Intents observed on a native router (the adjacency's local node, the
+    route's node or the probe source) use that vendor's verifier; all others
+    use ``fallback``, the environment's FRR/Linux verifier. Results keep the
+    contract's order, so reports compare across vendors.
+    """
+    from nika.net_env.contract import ValidationReport
+
+    routers = native_router_plan(env)
+
+    def observer(intent):
+        for candidate in (intent.adjacency, intent.route_next_hops, intent.bgp_route):
+            if candidate is not None:
+                return getattr(candidate, "local_node", None) or candidate.node
+        return intent.source.name if intent.source is not None else None
+
+    def verify(runtime, *, contract, plan=None):
+        groups = {}
+        for intent in contract.intents:
+            profile = env.native_routers.get(observer(intent))
+            groups.setdefault(profile, []).append(intent)
+        rows = {}
+        for profile, intents in groups.items():
+            part = contract.model_copy(update={"intents": tuple(intents)})
+            if profile is None:
+                report = fallback(runtime, contract=part, plan=None)
+            else:
+                report = native_platform(profile).validation.verify_contract(
+                    runtime, part, routers
+                )
+            rows.update({row.intent: row for row in report.results})
+        return ValidationReport.from_results(
+            contract,
+            "+".join(sorted(p or "frr" for p in groups)) + "-runtime",
+            [rows[intent.id] for intent in contract.intents],
+        )
+
+    return verify
 
 
 def run_in_network_namespace(env, node: str, commands: Sequence[str]) -> None:

@@ -3,8 +3,9 @@
 Ethernet environments describe each router with Linux startup commands and an
 FRR configuration. This translation keeps that design on XRd for the subset
 whose semantics map one to one: interface addresses, static routes, OSPF
-network-to-area bindings, and IPv4 BGP with network origins, eBGP multipath and
-FRR's eBGP policy default. Linux egress shaping (netem) still applies to the
+network-to-area bindings with interface costs, and IPv4 BGP with network
+origins, eBGP multipath, FRR's eBGP policy default and per-neighbor route maps
+over exact-prefix lists (the form solved routing parameters take). Linux egress shaping (netem) still applies to the
 traffic XR transmits; the XRd image has no ``tc``, so the commands are returned
 for the environment to run in the router's network namespace. Any other
 statement is rejected, so an unsupported design cannot deploy with silently
@@ -39,12 +40,26 @@ class _Bgp:
     requires_policy: bool = True
     networks: list[str] = field(default_factory=list)
     neighbors: dict[str, int] = field(default_factory=dict)
+    # (neighbor, direction) -> route-map name
+    route_maps: dict[tuple[str, str], str] = field(default_factory=dict)
 
 
 @dataclass
 class _Ospf:
     router_id: str | None = None
     networks: list[tuple[IPv4Network, str]] = field(default_factory=list)
+
+
+@dataclass
+class _Policy:
+    """Exact-prefix lists, route maps and interface costs outside routing blocks."""
+
+    prefix_lists: dict[str, list[str]] = field(default_factory=dict)
+    # route-map -> [(seq, permit, prefix-list)]
+    route_maps: dict[str, list[tuple[int, bool, str | None]]] = field(
+        default_factory=dict
+    )
+    ospf_costs: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -78,9 +93,12 @@ def _parse_startup(startup: str) -> _Startup:
     return parsed
 
 
-def _parse_frr(frr_conf: str, hostname: str) -> tuple[_Bgp | None, _Ospf | None]:
+def _parse_frr(
+    frr_conf: str, hostname: str
+) -> tuple[_Bgp | None, _Ospf | None, _Policy]:
     bgp = ospf = None
-    block = None
+    policy = _Policy()
+    block = entry = None
     for raw in frr_conf.splitlines():
         line = raw.strip()
         indented = raw[:1].isspace()
@@ -94,14 +112,29 @@ def _parse_frr(frr_conf: str, hostname: str) -> tuple[_Bgp | None, _Ospf | None]
                     raise ValueError(f"FRR hostname {match[1]!r} != {hostname!r}")
                 continue
             if match := re.fullmatch(r"router bgp (\d+)", line):
-                if bgp is not None:
+                # Later blocks of the same instance add statements, as in FRR.
+                if bgp is not None and bgp.asn != int(match[1]):
                     raise ValueError("IOS XR translation needs one BGP instance")
-                bgp, block = _Bgp(int(match[1])), "bgp"
+                bgp, block = bgp or _Bgp(int(match[1])), "bgp"
                 continue
             if line == "router ospf":
                 if ospf is not None:
                     raise ValueError("IOS XR translation needs one OSPF instance")
                 ospf, block = _Ospf(), "ospf"
+                continue
+            if match := re.fullmatch(
+                r"ip prefix-list (\S+) seq \d+ permit ([0-9./]+)", line
+            ):
+                prefix = IPv4Network(match[2])
+                policy.prefix_lists.setdefault(match[1], []).append(str(prefix))
+                continue
+            if match := re.fullmatch(r"route-map (\S+) (permit|deny) (\d+)", line):
+                entry = [int(match[3]), match[2] == "permit", None]
+                policy.route_maps.setdefault(match[1], []).append(entry)
+                block = "route-map"
+                continue
+            if match := re.fullmatch(r"interface (eth\d+)", line):
+                block, entry = "interface", match[1]
                 continue
         elif block == "bgp" and _bgp_statement(bgp, line):
             continue
@@ -114,8 +147,25 @@ def _parse_frr(frr_conf: str, hostname: str) -> tuple[_Bgp | None, _Ospf | None]
                 area = str(IPv4Address(int(area))) if area.isdigit() else area
                 ospf.networks.append((IPv4Network(match[1]), str(IPv4Address(area))))
                 continue
+        elif block == "route-map":
+            match = re.fullmatch(r"match ip address prefix-list (\S+)", line)
+            if match and entry[2] is None:
+                entry[2] = match[1]
+                continue
+        elif block == "interface":
+            if match := re.fullmatch(r"ip ospf cost (\d+)", line):
+                policy.ospf_costs[entry] = int(match[1])
+                continue
         raise ValueError(f"Unsupported FRR statement for IOS XR: {line!r}")
-    return bgp, ospf
+    for name, entries in policy.route_maps.items():
+        for _, _, plist in entries:
+            if plist is None or plist not in policy.prefix_lists:
+                raise ValueError(f"Route map {name} needs a defined exact prefix list")
+    if bgp is not None:
+        for name in bgp.route_maps.values():
+            if name not in policy.route_maps:
+                raise ValueError(f"Undefined route map {name!r}")
+    return bgp, ospf, policy
 
 
 def _bgp_statement(bgp: _Bgp, line: str) -> bool:
@@ -131,6 +181,11 @@ def _bgp_statement(bgp: _Bgp, line: str) -> bool:
         bgp.networks.append(str(IPv4Network(match[1])))
     elif match := re.fullmatch(r"neighbor (\S+) remote-as (\d+)", line):
         bgp.neighbors[str(IPv4Address(match[1]))] = int(match[2])
+    elif match := re.fullmatch(r"neighbor (\S+) route-map (\S+) (in|out)", line):
+        peer = str(IPv4Address(match[1]))
+        if peer not in bgp.neighbors or (peer, match[3]) in bgp.route_maps:
+            raise ValueError(f"Unsupported route map binding for {peer}")
+        bgp.route_maps[peer, match[3]] = match[2]
     else:
         return False
     return True
@@ -150,7 +205,10 @@ def translate_frr_router(hostname: str, frr_conf: str, startup: str) -> XrRouter
     parsed = _parse_startup(startup)
     if not parsed.interfaces:
         raise ValueError(f"Router {hostname!r} has no addressed interfaces")
-    bgp, ospf = _parse_frr(frr_conf, hostname)
+    bgp, ospf, policy = _parse_frr(frr_conf, hostname)
+    names = {name for name, _ in parsed.interfaces}
+    if not set(policy.ospf_costs) <= names or (policy.ospf_costs and ospf is None):
+        raise ValueError("OSPF costs must name addressed OSPF interfaces")
     lines = [f"hostname {hostname}", "!"]
     # Interfaces precede routing blocks: XR resolves a command in the innermost
     # mode that accepts it.
@@ -168,8 +226,9 @@ def translate_frr_router(hostname: str, frr_conf: str, startup: str) -> XrRouter
         lines.extend(f"  {prefix} {hop}" for prefix, hop in parsed.static_routes)
         lines.extend([" !", "!"])
     if ospf is not None:
-        lines.extend(_render_ospf(ospf, parsed.interfaces))
+        lines.extend(_render_ospf(ospf, parsed.interfaces, policy.ospf_costs))
     if bgp is not None:
+        lines.extend(_render_policies(policy, set(bgp.route_maps.values())))
         lines.extend(_render_bgp(bgp))
     lines.extend(["end", ""])
     return XrRouter(
@@ -179,7 +238,9 @@ def translate_frr_router(hostname: str, frr_conf: str, startup: str) -> XrRouter
     )
 
 
-def _render_ospf(ospf: _Ospf, interfaces: list[tuple[str, str]]) -> list[str]:
+def _render_ospf(
+    ospf: _Ospf, interfaces: list[tuple[str, str]], costs: dict[str, int]
+) -> list[str]:
     # FRR enables OSPF on each interface whose primary address falls in a
     # ``network`` statement; XR names those interfaces under their area.
     areas: dict[str, list[str]] = {}
@@ -199,9 +260,44 @@ def _render_ospf(ospf: _Ospf, interfaces: list[tuple[str, str]]) -> list[str]:
     for area in sorted(areas, key=lambda value: int(IPv4Address(value))):
         lines.append(f" area {int(IPv4Address(area))}")
         for name in areas[area]:
-            lines.extend([f"  interface {iosxr_interface(name)}", "  !"])
+            lines.append(f"  interface {iosxr_interface(name)}")
+            if name in costs:
+                lines.append(f"   cost {costs[name]}")
+            lines.append("  !")
         lines.append(" !")
     lines.append("!")
+    if not set(costs) <= {name for names in areas.values() for name in names}:
+        raise ValueError("OSPF costs must name interfaces enabled for OSPF")
+    return lines
+
+
+def _render_policies(policy: _Policy, used: set[str]) -> list[str]:
+    """Render FRR route maps as XR route policies with the same semantics.
+
+    An FRR route map applies its first matching entry, and denies a route
+    that no entry matches; an exact-prefix list matches only that prefix.
+    """
+    lines = []
+    lists = sorted({plist for name in used for _, _, plist in policy.route_maps[name]})
+    for plist in lists:
+        prefixes = policy.prefix_lists[plist]
+        lines.append(f"prefix-set {plist}")
+        lines.extend(
+            f"  {prefix}{',' if index < len(prefixes) - 1 else ''}"
+            for index, prefix in enumerate(prefixes)
+        )
+        lines.extend(["end-set", "!"])
+    for name in sorted(used):
+        lines.append(f"route-policy {name}")
+        for index, (_, permit, plist) in enumerate(sorted(policy.route_maps[name])):
+            keyword = "if" if index == 0 else "elseif"
+            lines.extend(
+                [
+                    f"  {keyword} destination in {plist} then",
+                    f"    {'pass' if permit else 'drop'}",
+                ]
+            )
+        lines.extend(["  else", "    drop", "  endif", "end-policy", "!"])
     return lines
 
 
@@ -227,13 +323,12 @@ def _render_bgp(bgp: _Bgp) -> list[str]:
     for peer, asn in bgp.neighbors.items():
         lines.extend([f" neighbor {peer}", f"  remote-as {asn}"])
         lines.append("  address-family ipv4 unicast")
-        if open_policy and peer in external:
-            lines.extend(
-                [
-                    f"   route-policy {PASS_POLICY} in",
-                    f"   route-policy {PASS_POLICY} out",
-                ]
-            )
+        for direction in ("in", "out"):
+            name = bgp.route_maps.get((peer, direction))
+            if name is None and open_policy and peer in external:
+                name = PASS_POLICY
+            if name is not None:
+                lines.append(f"   route-policy {name} {direction}")
         lines.extend(["  !", " !"])
     lines.append("!")
     return lines
