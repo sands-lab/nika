@@ -310,9 +310,10 @@ area templates to a new area natively.
 
 RouterOS installs one best BGP path, so the Clos specimen omits the FRR
 specimen's healthy ECMP predicates and its `maximum-paths` counterexample; it
-disables one BGP session natively instead. netlab does not generate these
-environments for RouterOS: NIKA's Ethernet netlab adapters hand FRR sketches to
-netlab, and netlab's RouterOS device has no IS-IS module.
+disables one BGP session natively instead. The RouterOS platform declares no
+netlab device for these environments, so `--config-generator netlab` rejects
+them; netlab's RouterOS device also has no IS-IS module, so RouterOS IS-IS ISP
+profiles use NIKA's renderer only.
 
 ## Delegate configuration generation to netlab
 
