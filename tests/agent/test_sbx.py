@@ -414,6 +414,11 @@ def test_open_session_collects_artifacts_when_policy_cleanup_fails(
         ),
         patch("nika.agents.sandbox.sbx.backend.run_sbx_checked"),
         patch("nika.agents.sandbox.sbx.backend.run_sbx_optional"),
+        patch(
+            "nika.agents.sandbox.sbx.policy.run_sbx_checked",
+            return_value=SimpleNamespace(stdout='{"rules": []}'),
+        ),
+        patch("nika.agents.sandbox.sbx.policy.run_sbx_optional"),
         patch("nika.agents.sandbox.sbx.backend.stage_wheels"),
         patch("nika.agents.sandbox.sbx.backend.install_agent_packages_in_sandbox"),
         patch("nika.agents.sandbox.sbx.backend.allow_mcp_gateway"),
@@ -492,6 +497,11 @@ def test_open_session_preserves_host_submission_on_collect(tmp_path) -> None:
         ),
         patch("nika.agents.sandbox.sbx.backend.run_sbx_checked"),
         patch("nika.agents.sandbox.sbx.backend.run_sbx_optional"),
+        patch(
+            "nika.agents.sandbox.sbx.policy.run_sbx_checked",
+            return_value=SimpleNamespace(stdout='{"rules": []}'),
+        ),
+        patch("nika.agents.sandbox.sbx.policy.run_sbx_optional"),
         patch("nika.agents.sandbox.sbx.backend.stage_wheels"),
         patch("nika.agents.sandbox.sbx.backend.install_agent_packages_in_sandbox"),
         patch("nika.agents.sandbox.sbx.backend.allow_mcp_gateway"),

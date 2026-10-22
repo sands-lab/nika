@@ -212,3 +212,19 @@ def test_netlab_sketch_runs_eligible_routers_as_xr() -> None:
     fragment = retained_netlab_fragment("leaf_router_0_0", *leaf)
     assert "maximum-paths ebgp 32" in fragment
     assert "route-policy PASS in" in fragment
+
+
+def test_routing_experiments_reject_uncovered_mixed_vendor_projections(
+    tmp_path,
+) -> None:
+    # Only projections that export native routers may analyze them.
+    from nika.workflows.validation.consistency import compare_config_generators
+
+    with pytest.raises(ValueError, match="mixed-vendor"):
+        compare_config_generators(
+            "campus_lan",
+            tmp_path,
+            topo_size="s",
+            deployment={"device_profile": "iosxr"},
+            routing_model="frr-isis",
+        )

@@ -21,6 +21,9 @@ from nika.remote.protocol import (
     PolicyMode,
     SessionCloseRequest,
     SessionContainersResponse,
+    SessionLogResponse,
+    SessionRebindRequest,
+    SessionRebindResponse,
 )
 
 
@@ -99,10 +102,12 @@ class RemoteClient:
     # Deploy + verify and inject + verify block server-side for as long as the
     # scenario's verify budget allows (up to 30 min for large labs), so these
     # calls wait for the server's answer instead of a fixed client timeout.
-    def env_start(self, request: EnvStartRequest) -> EnvStartResponse:
+    def env_start(
+        self, request: EnvStartRequest, *, timeout: float | None = None
+    ) -> EnvStartResponse:
         return EnvStartResponse.model_validate(
             self._request(
-                "POST", "/v1/env/start", body=request.model_dump(), timeout=None
+                "POST", "/v1/env/start", body=request.model_dump(), timeout=timeout
             )
         )
 
@@ -113,10 +118,12 @@ class RemoteClient:
             )
         )
 
-    def fault_artifact(self, session_id: str) -> dict[str, Any]:
+    def fault_artifact(
+        self, session_id: str, *, timeout: float = 30.0
+    ) -> dict[str, Any]:
         """Bound the network wait for a benchmark artifact recheck."""
         payload = self._request(
-            "GET", f"/v1/sessions/{session_id}/fault-artifact", timeout=30.0
+            "GET", f"/v1/sessions/{session_id}/fault-artifact", timeout=timeout
         )
         if not isinstance(payload, dict):
             raise RemoteError("Unexpected fault-artifact response shape")
@@ -162,6 +169,34 @@ class RemoteClient:
         if not session_id:
             raise ValueError("session_id is required unless stop_all=True")
         self._request("POST", f"/v1/sessions/{session_id}/close", body=body)
+
+    def rebind_session(
+        self,
+        session_id: str,
+        new_session_id: str,
+        *,
+        agent_session_id: str | None = None,
+    ) -> SessionRebindResponse:
+        body = SessionRebindRequest(
+            session_id=new_session_id, agent_session_id=agent_session_id
+        ).model_dump()
+        return SessionRebindResponse.model_validate(
+            self._request("POST", f"/v1/sessions/{session_id}/rebind", body=body)
+        )
+
+    def verify_session(self, session_id: str) -> dict[str, Any]:
+        return self._request(
+            "POST", f"/v1/sessions/{session_id}/verify", body={}, timeout=None
+        )
+
+    def read_log(self, session_id: str, name: str, offset: int) -> SessionLogResponse:
+        return SessionLogResponse.model_validate(
+            self._request(
+                "GET",
+                f"/v1/sessions/{session_id}/logs/{name}?offset={int(offset)}",
+                timeout=30.0,
+            )
+        )
 
     def get_session(self, session_id: str) -> dict[str, Any]:
         return self._request("GET", f"/v1/sessions/{session_id}")

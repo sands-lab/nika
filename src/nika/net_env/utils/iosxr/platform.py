@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-import shlex
 from ipaddress import IPv4Address, IPv4Interface
 
 from nika.net_env.native_routers import (
@@ -78,22 +77,10 @@ def _verify_contract(runtime, contract, plan):
     return verify_iosxr_contract(runtime, contract, plan)
 
 
-def _restore_command(running: str) -> str:
-    """Replace the running configuration with one read by ``show running-config``."""
-    lines = running.splitlines()
-    start = next(
-        (i for i, line in enumerate(lines) if line.startswith("!! IOS XR")), None
-    )
-    if start is None or not any(line == "end" for line in lines[start:]):
-        raise ValueError("Unrecognized IOS XR running configuration")
-    config = "\n".join(lines[start:]) + "\n"
-    script = (
-        "source /pkg/bin/ztp_helper.sh; "
-        "xr_config_file=$(mktemp); trap 'rm -f \"$xr_config_file\"' EXIT; "
-        f'printf %s {shlex.quote(config)} > "$xr_config_file"; '
-        'xrreplace "$xr_config_file"'
-    )
-    return shlex.join(["/bin/bash", "-c", script])
+def _fault_ops(runtime, node: str):
+    from nika.net_env.utils.iosxr.fault_ops import IosxrFaultOps
+
+    return IosxrFaultOps(runtime, node)
 
 
 PLATFORM = NativeRouterPlatform(
@@ -106,13 +93,12 @@ PLATFORM = NativeRouterPlatform(
         node=_node,
         verify_contract=_verify_contract,
         config_command=build_xr_config_command,
-        running_config_command="/pkg/bin/xr_cli 'show running-config'",
-        restore_command=_restore_command,
         route_inspection_command="/pkg/bin/xr_cli 'show route'",
         config_file=CONFIG_FILE_PATH,
         netlab_device="iosxr",
         netlab_retained=retained_netlab_fragment,
     ),
+    fault_ops=_fault_ops,
 )
 
 

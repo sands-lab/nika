@@ -119,6 +119,16 @@ def validate_scenario_design(
     env = get_net_env_instance(
         spec.scenario, topo_size=spec.topo_size, **deploy_options
     )
+    if getattr(env, "native_routers", None):
+        from nika.net_env.native_routers import require_native_validation
+
+        # Only the Ethernet FRR/Linux projections export native routers.
+        if spec.routing_model not in {"frr", "linux-static"}:
+            raise ValueError(
+                "Scenario experiments cover mixed-vendor deployments only with "
+                "the frr or linux-static routing model"
+            )
+        require_native_validation(env)
     if config_generator == "netlab":
         from nika.workflows.validation.netlab import check_netlab_scope
 
@@ -639,12 +649,13 @@ def validate_scenario_design(
                 )
                 # Native routers restore the running configuration read before
                 # injection, like FRR restores its candidate file.
-                native_originals = {
-                    node: run_config(
-                        node, native_validation(node).running_config_command
-                    )
+                native_ops = {
+                    node: native_platform(native_routers[node]).fault_ops(backend, node)
                     for node in failure.restore_nodes
                     if node in native_routers
+                }
+                native_originals = {
+                    node: ops.save_config() for node, ops in native_ops.items()
                 }
                 nft_rules = {
                     node: backend.list_nft_ruleset(node)
@@ -759,9 +770,7 @@ def validate_scenario_design(
                             f"printf %s {shlex.quote(config)} > /etc/frr/frr.conf && service frr restart",
                         )
                     for node, running in native_originals.items():
-                        run_config(
-                            node, native_validation(node).restore_command(running)
-                        )
+                        native_ops[node].restore_config(running)
                 check(failure.name + "-restored", spec.healthy)
                 if spec.runtime_requirements:
                     check(

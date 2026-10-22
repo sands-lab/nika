@@ -59,7 +59,7 @@ def start_agent(
     agent_type = resolve_agent_type(agent_type)
     max_steps = resolve_max_steps(max_steps)
     timeout_sec = resolve_agent_timeout()
-    reasoning_effort = resolve_reasoning_effort(reasoning_effort)
+    reasoning_effort = resolve_reasoning_effort(agent_type, reasoning_effort)
     max_tokens = resolve_max_tokens(agent_type)
     llm_provider = resolve_llm_provider(llm_provider, agent_type=agent_type)
     model = resolve_agent_model(agent_type, model)
@@ -153,11 +153,19 @@ def start_agent(
         from nika.remote.config import is_remote_enabled
 
         if is_remote_enabled():
-            from nika.remote.workflows import pull_session_artifacts, remote_mcp_gateway
+            from nika.remote.workflows import (
+                follow_remote_logs,
+                pull_session_artifacts,
+                remote_mcp_gateway,
+            )
 
-            with remote_mcp_gateway(
-                session.session_id,
-            ) as (gateway_base_url, gateway_port):
+            with (
+                remote_mcp_gateway(session.session_id) as (
+                    gateway_base_url,
+                    gateway_port,
+                ),
+                follow_remote_logs(session.session_id, session.session_dir),
+            ):
                 if use_sandbox:
                     SandboxManager(sandbox_config).run(
                         session=session,

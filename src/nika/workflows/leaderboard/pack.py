@@ -415,6 +415,7 @@ def pack_leaderboard_submission(
             model=run_cfg.get("model"),
             llm_provider=run_cfg.get("llm_provider"),
             max_steps=run_cfg.get("max_steps"),
+            reasoning_effort=run_cfg.get("reasoning_effort"),
             case_timeout_sec=int(
                 run_cfg.get("case_timeout_sec")
                 if run_cfg.get("case_timeout_sec") is not None
