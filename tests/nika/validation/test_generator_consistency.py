@@ -7,6 +7,7 @@ import pytest
 from nika.validation.consistency import (
     CANARY_PREFIX,
     diff_facts,
+    ospf_adjacency_facts,
     policy_outcome,
     probe_routes,
     resolve_fib,
@@ -40,6 +41,23 @@ def test_fib_resolves_recursive_bgp_next_hops_through_logical_interfaces():
     ]
     assert facts["fib", "r1", "default 10.0.0.0/31"] == [["eth0", None]]
     assert facts["fib", "r1", "default 192.0.2.1/32"] == [["null", None]]
+
+
+@pytest.mark.unit
+def test_ospf_adjacencies_keep_every_neighbor_on_a_shared_segment():
+    rows = [
+        {
+            "Interface": "r1[e1]",
+            "Remote_Interface": f"{peer}[e0]",
+            "Session_Status": "ESTABLISHED",
+        }
+        for peer in ("r2", "r3")
+    ]
+    facts = ospf_adjacency_facts(rows, {"r1": {"e1": "eth1"}})
+    assert set(facts) == {
+        ("igp_adjacency", "r1", "ospf eth1 r2[e0]"),
+        ("igp_adjacency", "r1", "ospf eth1 r3[e0]"),
+    }
 
 
 @pytest.mark.unit

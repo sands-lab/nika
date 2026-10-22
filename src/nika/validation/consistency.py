@@ -154,11 +154,10 @@ def ospf_adjacency_facts(rows, aliases) -> Facts:
     facts: Facts = {}
     for row in rows:
         node, interface = _split_interface(row["Interface"])
-        key = f"ospf {_alias(aliases, node, interface)}"
-        facts["igp_adjacency", node, key] = {
-            "remote": _remote(aliases, row["Remote_Interface"]),
-            "status": row.get("Session_Status"),
-        }
+        # Multi-access segments yield one session per neighbor on an interface.
+        remote = _remote(aliases, row["Remote_Interface"])
+        key = f"ospf {_alias(aliases, node, interface)} {remote}"
+        facts["igp_adjacency", node, key] = row.get("Session_Status")
     return facts
 
 
@@ -166,11 +165,9 @@ def isis_adjacency_facts(rows, aliases) -> Facts:
     facts: Facts = {}
     for row in rows:
         node, interface = _split_interface(row["Interface"])
-        key = f"isis {_alias(aliases, node, interface)}"
-        facts["igp_adjacency", node, key] = {
-            "remote": _remote(aliases, row["Remote_Interface"]),
-            "status": "ESTABLISHED",
-        }
+        remote = _remote(aliases, row["Remote_Interface"])
+        key = f"isis {_alias(aliases, node, interface)} {remote}"
+        facts["igp_adjacency", node, key] = "ESTABLISHED"
     return facts
 
 

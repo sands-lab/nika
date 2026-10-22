@@ -174,6 +174,10 @@ def compare_config_generators(
         for name in snapshots:
             collector.use(name)
             facts[name] = collector.collect(probes)
+            counts = fact_counts(facts[name])
+            if not counts["interface"] or not counts["rib"]:
+                # Two empty projections would otherwise compare as consistent.
+                raise RuntimeError(f"The {name} candidate yielded no routing facts")
             (output / f"facts-{name}.json").write_text(
                 json.dumps(
                     [
@@ -199,6 +203,7 @@ def compare_config_generators(
                     if k in {"scope", "native_config_analysis", "routing_model"}
                 },
                 "batfish": loaded[name]["components"],
+                "parse_status": loaded[name]["parse_status"],
             }
             for name, snapshot in snapshots.items()
         }
