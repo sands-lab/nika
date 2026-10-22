@@ -274,6 +274,7 @@ class OpenCodeWorker:
         self._logger = MessageLogger(phase=phase, session_dir=trace_dir or session_dir)
         self._stream_output = stream_output
         self._pending_tool_calls = PendingToolCallTracker()
+        self._started_tool_ids: set[str] = set()
         self._assistant_texts: list[str] = []
         self._response_count = 0
         self._response_open = False
@@ -359,6 +360,7 @@ class OpenCodeWorker:
         self._response_reasoning = []
         self._session_error = ""
         self._pending_tool_calls = PendingToolCallTracker()
+        self._started_tool_ids = set()
 
         env = self._opencode_env()
         if shutil.which("opencode", path=env.get("PATH")) is None:
@@ -508,7 +510,6 @@ class OpenCodeWorker:
             return
         if not isinstance(event, dict):
             return
-        self._logger.log(event.get("type", "opencode_event"), {"opencode_event": event})
         self._observe_event(event)
 
     def _observe_event(self, event: dict) -> None:
@@ -530,6 +531,8 @@ class OpenCodeWorker:
             return
         if event_type == "error":
             self._on_error(event)
+            return
+        self._logger.log(event_type or "opencode_event", {"opencode_event": event})
 
     def _on_step_start(self, event: dict) -> None:
         self._flush_response()
@@ -573,15 +576,20 @@ class OpenCodeWorker:
         error = event.get("error") or {}
         if isinstance(error, str) and error.strip():
             self._session_error = error.strip()
-            return
-        data = error.get("data") if isinstance(error, dict) else None
-        message = ""
-        if isinstance(data, dict):
-            message = str(data.get("message") or "")
-        if not message and isinstance(error, dict):
-            message = str(error.get("message") or error.get("name") or "")
-        if message:
-            self._session_error = message
+        else:
+            data = error.get("data") if isinstance(error, dict) else None
+            message = ""
+            if isinstance(data, dict):
+                message = str(data.get("message") or "")
+            if not message and isinstance(error, dict):
+                message = str(error.get("message") or error.get("name") or "")
+            if message:
+                self._session_error = message
+        if self._session_error:
+            self._logger.log(
+                "error",
+                {"error": self._session_error, "opencode_event": event},
+            )
 
     def _on_tool_use(self, event: dict) -> None:
         part = event.get("part") or {}
@@ -590,19 +598,33 @@ class OpenCodeWorker:
         state = part.get("state") or {}
         tool_input = state.get("input")
         status = str(state.get("status") or "")
-        start_payload = self._pending_tool_calls.register(
-            name=tool,
-            input=tool_input,
-            tool_call_id=call_id,
+        output = state.get("output")
+        failed = status == "error" or state.get("error") is not None
+        call_key = str(call_id) if call_id else ""
+        if not call_key or call_key not in self._started_tool_ids:
+            self._logger.log(
+                "tool_start",
+                self._pending_tool_calls.register(
+                    name=tool,
+                    input=tool_input,
+                    tool_call_id=call_id,
+                ),
+            )
+            if call_key:
+                self._started_tool_ids.add(call_key)
+        in_progress = (
+            not failed
+            and output is None
+            and status in {"", "pending", "running", "start"}
         )
-        self._logger.log("tool_start", start_payload)
+        if in_progress:
+            return
 
         resolved = self._pending_tool_calls.resolve(
             name=tool,
             tool_call_id=call_id,
             input=tool_input,
         )
-        output = state.get("output")
         if output is None and state.get("error") is not None:
             output = str(state.get("error"))
         payload = tool_event_payload(
@@ -612,7 +634,6 @@ class OpenCodeWorker:
             output=output if output is not None else "",
             output_type="tool_result",
         )
-        failed = status == "error" or state.get("error") is not None
         if not failed:
             metadata = state.get("metadata") or {}
             exit_code = metadata.get("exit")

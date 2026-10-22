@@ -243,12 +243,11 @@ class OpenCodeStepBudgetTest:
             json.loads(line)
             for line in (tmp_path / "messages.jsonl").read_text().splitlines()
         ]
-        ends = [r for r in rows if r["event"] == "llm_end"]
-        assert len(ends) == 1
-        assert [r["event"] for r in rows].count("llm_start") == 1
-        assert ends[0]["text"] == "checking bgp"
-        assert ends[0]["usage_metadata"]["input_tokens"] == 10
-        assert ends[0]["usage_metadata"]["output_tokens"] == 4
+        events = [r["event"] for r in rows]
+        assert events == ["llm_start", "llm_end"]
+        assert rows[1]["text"] == "checking bgp"
+        assert rows[1]["usage_metadata"]["input_tokens"] == 10
+        assert rows[1]["usage_metadata"]["output_tokens"] == 4
 
     def test_response_past_max_steps_stops_opencode(self, tmp_path) -> None:
         worker = OpenCodeWorker(
@@ -301,9 +300,56 @@ class OpenCodeStepBudgetTest:
             if line.strip()
         ]
         events = [r["event"] for r in rows]
-        assert "tool_start" in events
-        assert "tool_end" in events
-        start = next(r for r in rows if r["event"] == "tool_start")
-        end = next(r for r in rows if r["event"] == "tool_end")
-        assert start["tool"]["name"] == "show_bgp_summary"
-        assert "neighbor down" in str(end.get("output"))
+        assert events == ["tool_start", "tool_end"]
+        assert rows[0]["tool"]["name"] == "show_bgp_summary"
+        assert "neighbor down" in str(rows[1].get("output"))
+
+    def test_tool_use_running_then_completed_is_one_call(self, tmp_path) -> None:
+        worker = OpenCodeWorker(
+            session_id="sess-tools-stream",
+            session_dir=str(tmp_path),
+            phase=DIAGNOSIS,
+            llm_provider="openai",
+            model="m1",
+            stream_output=False,
+        )
+        part = {
+            "type": "tool",
+            "tool": "show_bgp_summary",
+            "callID": "call_1",
+        }
+        worker._handle_stdout_line(
+            json.dumps(
+                {
+                    "type": "tool_use",
+                    "part": {
+                        **part,
+                        "state": {
+                            "status": "running",
+                            "input": {"device": "router1"},
+                        },
+                    },
+                }
+            )
+        )
+        worker._handle_stdout_line(
+            json.dumps(
+                {
+                    "type": "tool_use",
+                    "part": {
+                        **part,
+                        "state": {
+                            "status": "completed",
+                            "input": {"device": "router1"},
+                            "output": "neighbor down",
+                        },
+                    },
+                }
+            )
+        )
+        events = [
+            json.loads(line)["event"]
+            for line in (tmp_path / "messages.jsonl").read_text().splitlines()
+            if line.strip()
+        ]
+        assert events == ["tool_start", "tool_end"]

@@ -540,26 +540,21 @@ class DshWorker:
             if text:
                 self._response_text.append(text)
                 self._last_assistant_text = "\n".join(self._response_text)
-            self._logger.log(event_type, {"dsh_event": event})
             return
         if event_type == "thinking":
             text = str(event.get("text") or "")
             if text:
                 self._response_reasoning.append(text)
-            self._logger.log(event_type, {"dsh_event": event})
             return
-        if event_type == "status" and event.get("phase") in {
-            "step_end",
-            "turn_end",
-        }:
-            self._flush_response(event.get("usage"))
+        if event_type == "status":
+            if event.get("phase") in {"step_end", "turn_end"}:
+                self._flush_response(event.get("usage"))
             return
         if event_type == "final":
             text = str(event.get("text") or "").strip()
             if text:
                 self._final_text = text
                 self._last_assistant_text = text
-            self._logger.log(event_type, {"dsh_event": event})
             return
         if event_type == "error":
             self._error_message = str(event.get("message") or event.get("error") or "")

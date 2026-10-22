@@ -45,6 +45,24 @@ def assert_submission_fields(session_dir: Path) -> None:
         assert item.get("fault_type")
 
 
+def assert_no_cli_native_mirrors(messages: list[dict]) -> None:
+    """OpenCode/dsh mapped stream events must not appear beside tool_*/llm_*."""
+    native = {
+        "step_start",
+        "step_finish",
+        "tool_use",
+        "text",
+        "thinking",
+        "status",
+        "final",
+    }
+    found = [e.get("event") for e in messages if e.get("event") in native]
+    assert not found, (
+        f"found native CLI stream events {found}; workers should emit "
+        "canonical llm_start/llm_end/tool_start/tool_end only"
+    )
+
+
 def assert_no_codex_tool_item_mirrors(messages: list[dict]) -> None:
     """Codex tools must be tool_* only — not also item.started/completed rows."""
     has_tool_start = any(e.get("event") == "tool_start" for e in messages)

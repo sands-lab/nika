@@ -19,6 +19,7 @@ from nika.utils.agent_session_id import resolve_agent_session_id
 from nika.utils.session_store import SessionStore
 from tests.agent._assertions import (
     assert_phase_messages,
+    assert_no_cli_native_mirrors,
     assert_no_codex_tool_item_mirrors,
 )
 from tests.agent.sandbox_support import (
@@ -162,6 +163,8 @@ class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
         for dirname in (
             "codex_workspace",
             "claude_workspace",
+            "opencode_workspace",
+            "dsh_workspace",
             "codex_sdk_workspace",
             "claude_sdk_workspace",
         ):
@@ -181,6 +184,7 @@ class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
             require_submission_tools=False,
         )
         assert_no_codex_tool_item_mirrors(messages)
+        assert_no_cli_native_mirrors(messages)
         phases = {e["phase"] for e in messages}
         assert DIAGNOSIS in phases
 
@@ -251,6 +255,18 @@ class SandboxClaudeCliPipelineTest(SandboxAgentPipelineBase):
     model = CLAUDE_MODEL
 
 
+class SandboxOpenCodeCliPipelineTest(SandboxAgentPipelineBase):
+    agent_type = "cli.opencode"
+    llm_provider = OPENAI_PROVIDER
+    model = OPENAI_MODEL
+
+
+class SandboxDshCliPipelineTest(SandboxAgentPipelineBase):
+    agent_type = "cli.dsh"
+    llm_provider = OPENAI_PROVIDER
+    model = OPENAI_MODEL
+
+
 class SandboxCodexSdkPipelineTest(SandboxAgentPipelineBase):
     agent_type = "sdk.codex_sdk"
     llm_provider = OPENAI_PROVIDER
@@ -309,6 +325,14 @@ class E2bCodexCliPipelineTest(_OnE2b, SandboxCodexCliPipelineTest):
 
 
 class E2bClaudeCliPipelineTest(_OnE2b, SandboxClaudeCliPipelineTest):
+    pass
+
+
+class E2bOpenCodeCliPipelineTest(_OnE2b, SandboxOpenCodeCliPipelineTest):
+    pass
+
+
+class E2bDshCliPipelineTest(_OnE2b, SandboxDshCliPipelineTest):
     pass
 
 

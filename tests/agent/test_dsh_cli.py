@@ -281,14 +281,15 @@ class DshStepBudgetTest:
             json.loads(line)
             for line in (tmp_path / "messages.jsonl").read_text().splitlines()
         ]
-        assert [r["event"] for r in rows if r["event"] in {"llm_start", "llm_end"}] == [
+        assert [r["event"] for r in rows] == [
             "llm_start",
+            "tool_start",
+            "tool_end",
             "llm_end",
             "llm_start",
             "llm_end",
         ]
         tools = [r for r in rows if r["event"] in {"tool_start", "tool_end"}]
-        assert [r["event"] for r in tools] == ["tool_start", "tool_end"]
         assert tools[0]["tool"]["name"] == "show_bgp_summary"
         ends = [r for r in rows if r["event"] == "llm_end"]
         assert ends[-1]["text"] == "BGP is down."
