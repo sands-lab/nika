@@ -46,8 +46,8 @@ def render_routeros_isp(
             f"/system identity set name={node.device_name}",
             "/interface bridge add name=lo0 protocol-mode=none",
             f"/ip address add address={node.loopback}/32 interface=lo0",
-            f"/routing ospf instance add name=NIKA version=2 router-id={node.router_id}",
-            "/routing ospf area add name=backbone instance=NIKA area-id=0.0.0.0",
+            f"/routing ospf instance add name=CORE version=2 router-id={node.router_id}",
+            "/routing ospf area add name=backbone instance=CORE area-id=0.0.0.0",
             "/routing ospf interface-template add area=backbone interfaces=lo0 "
             f"networks={node.loopback}/32 type=broadcast passive cost=1",
         ]
@@ -115,7 +115,7 @@ def _render_bgp(node: BgpNodePlan, plan: BgpPlan) -> list[str]:
             )
         lines.append(_filter_rule(chain, "jump BGP-IN;"))
     instance = (
-        f"/routing bgp instance add name=NIKA as={node.asn} router-id={node.router_id}"
+        f"/routing bgp instance add name=CORE as={node.asn} router-id={node.router_id}"
     )
     if node.cluster_id:
         instance += f" cluster-id={node.cluster_id}"
@@ -127,7 +127,7 @@ def _render_bgp(node: BgpNodePlan, plan: BgpPlan) -> list[str]:
         if session.route_reflector_client:
             role = "ibgp-rr"
         command = (
-            f"/routing bgp connection add name=peer-{index} instance=NIKA "
+            f"/routing bgp connection add name=peer-{index} instance=CORE "
             f"local.role={role} local.address={session.local_ip} "
             f"remote.address={session.remote_ip} remote.as={session.remote_asn} "
             "afi=ip connect=yes listen=yes "

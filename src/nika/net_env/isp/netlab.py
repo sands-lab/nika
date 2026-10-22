@@ -15,7 +15,7 @@ from pathlib import Path
 from nika.net_env.isp.bgp.plan import BgpPlan
 from nika.net_env.isp.bgp.policy import business_prefixes
 from nika.net_env.isp.igp.plan import IspPlan
-from nika.net_env.isp.igp.frr import isis_net_from_router_id
+from nika.net_env.isp.igp.frr import ISIS_PROCESS, isis_net_from_router_id
 from nika.net_env.isp.igp.ifaces import srl_ethernet_name
 from nika.net_env.isp.containerlab.lab import SRL_IMAGE, SRL_TYPE
 from nika.net_env.synthesis.netlab import run_netlab
@@ -88,7 +88,9 @@ def netlab_topology(plan: IspPlan, bgp: BgpPlan | None, device_profile: str) -> 
         plan.igp: {"process": 1, "area": "0.0.0.0"}
         if plan.igp == "ospf"
         else {
-            "instance": "default" if device_profile == "nokia_srlinux" else "NIKA",
+            "instance": "default"
+            if device_profile == "nokia_srlinux"
+            else ISIS_PROCESS,
             "type": "level-2",
             "af": {"ipv4": True},
         },
@@ -347,7 +349,7 @@ def _routeros_policy_fragments(configs, transformed, plan, bgp):
     business = business_prefixes(o.prefix for o in bgp.originated)
     for name, node in transformed["nodes"].items():
         bnode = bgp_nodes[name]
-        lines = ["# NIKA RouterOS policy bindings and business origins"]
+        lines = ["# Policy bindings and business origins"]
         origins = sorted({o.prefix for o in bnode.originated})
         current = configs[name]
         if origins and "name=lo1 protocol-mode=none" not in current:
@@ -365,33 +367,33 @@ def _routeros_policy_fragments(configs, transformed, plan, bgp):
                 )
         for prefix in business:
             lines.append(
-                _filter_rule("NIKA-BGP-IN", f"if (dst == {prefix}) {{ accept; }}")
+                _filter_rule("POLICY-BGP-IN", f"if (dst == {prefix}) {{ accept; }}")
             )
             lines.append(
-                _filter_rule("NIKA-BGP-OUT", f"if (dst == {prefix}) {{ accept; }}")
+                _filter_rule("POLICY-BGP-OUT", f"if (dst == {prefix}) {{ accept; }}")
             )
-        for chain in ("NIKA-BGP-IN", "NIKA-BGP-OUT"):
+        for chain in ("POLICY-BGP-IN", "POLICY-BGP-OUT"):
             lines.append(_filter_rule(chain, "reject;"))
         imports = dict(bnode.import_policies)
         for index, session in enumerate(
             sorted(bnode.sessions, key=lambda s: (s.remote_ip, s.remote_device))
         ):
-            chain = f"NIKA-NC-IN-{index}"
+            chain = f"POLICY-NC-IN-{index}"
             if session.remote_ip in imports:
                 for term in imports[session.remote_ip]:
-                    action = "jump NIKA-BGP-IN;" if term.permit else "reject;"
+                    action = "jump POLICY-BGP-IN;" if term.permit else "reject;"
                     if term.permit and term.local_preference is not None:
                         action = f"set bgp-local-pref {term.local_preference}; {action}"
                     lines.append(
                         _filter_rule(chain, f"if (dst == {term.prefix}) {{ {action} }}")
                     )
-                lines.append(_filter_rule(chain, "jump NIKA-BGP-IN;"))
+                lines.append(_filter_rule(chain, "jump POLICY-BGP-IN;"))
             else:
-                chain = "NIKA-BGP-IN"
+                chain = "POLICY-BGP-IN"
             peer = session.remote_ip.replace(".", "_")
             lines.append(
                 f"/routing/bgp/connection set [/routing/bgp/connection find name={peer}] "
-                f"input.filter={chain} output.filter-chain=NIKA-BGP-OUT local.address={session.local_ip}"
+                f"input.filter={chain} output.filter-chain=POLICY-BGP-OUT local.address={session.local_ip}"
             )
         result[name] += "\n" + "\n".join(lines) + "\n"
     return result

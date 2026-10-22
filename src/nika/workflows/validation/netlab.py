@@ -3,6 +3,8 @@
 import re
 from ipaddress import IPv4Address, IPv4Interface, IPv4Network
 
+from nika.net_env.isp.igp.frr import ISIS_PROCESS
+
 
 def _ospf_binding(config, old, new):
     """Bind a network-statement edit to its emitted interface declaration."""
@@ -340,7 +342,7 @@ def bind_netlab_controls(spec, configs, device_profile):
             if device_profile == "iosxr":
                 old, new = "  interface Loopback0\n", ""
                 context = {
-                    "router ospf NIKA": "router ospf 1",
+                    "router ospf CORE": "router ospf 1",
                     "area 0": "area 0.0.0.0",
                 }
                 for i, control in enumerate(runtime):
@@ -359,11 +361,14 @@ def bind_netlab_controls(spec, configs, device_profile):
                 blocks = re.findall(
                     r"^interface lo\n(?:(?: [^\n]*|![^\n]*|)\n)*", config, re.M
                 )
-                isis = [b for b in blocks if " ip router isis NIKA\n" in b]
+                isis = [b for b in blocks if f" ip router isis {ISIS_PROCESS}\n" in b]
                 if isis:
                     (old,) = isis
                     new = re.sub(
-                        r"^ (?:ip router isis NIKA|isis passive)\n", "", old, flags=re.M
+                        rf"^ (?:ip router isis {ISIS_PROCESS}|isis passive)\n",
+                        "",
+                        old,
+                        flags=re.M,
                     )
                     static.append(mutation.model_copy(update={"old": old, "new": new}))
                     continue

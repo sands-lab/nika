@@ -1147,7 +1147,7 @@ def build_benchmark_isp_experiment(
                 )
             else:
                 old_announcement = "  interface Loopback0\n   passive enable\n  !\n"
-                context = ("router ospf NIKA", "area 0")
+                context = ("router ospf CORE", "area 0")
                 withdraw_native = (
                     "configure terminal",
                     *context,

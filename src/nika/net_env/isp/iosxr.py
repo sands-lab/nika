@@ -71,7 +71,7 @@ def render_iosxr_isp(plan: IspPlan, bgp_plan: BgpPlan | None = None) -> dict[str
             )
         lines.extend(
             [
-                "router ospf NIKA",
+                "router ospf CORE",
                 f" router-id {node.router_id}",
                 " area 0",
                 "  interface Loopback0",
