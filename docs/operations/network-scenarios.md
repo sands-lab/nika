@@ -356,7 +356,7 @@ uv run nika env run campus_lan -s s --device-profile routeros
 | `isp_<topology>` | IS-IS or OSPF, with `--bgp-mode none`, `ibgp_rr` or `ebgp`, business-prefix and infrastructure-prefix policies. Not RPKI or RTBH specials. |
 | `dc_clos` | Size `s`, eBGP fabric. |
 | `campus_lan` | Size `s`, multi-area OSPF, bridged gateways and DHCP relay. Access switches stay Linux bridges. |
-| `enterprise_branch` | Not supported. |
+| `enterprise_branch` | Size `s`. Site Edges run per-role VRFs, WireGuard, overlay eBGP, guest NAT and EF/BE overlay QoS natively; provider routers stay FRR. |
 
 Each router is a VM, so keep topologies small: ISP deployments check a memory estimate of 1 GiB per router before they start, and `dc_clos` and `campus_lan` reject sizes other than `s`. A router supports at most 30 data ports.
 
@@ -368,6 +368,10 @@ Link failures behave as on FRR: QEMU does not pass a container interface's link 
 * RouterOS advertises passive IS-IS interfaces, such as host-facing links, with metric 0. Route selection is unchanged because each such prefix has one origin.
 
 If RouterOS rejects a startup command, the environment fails immediately with the router name and RouterOS's import error instead of waiting for the verification deadline.
+
+On a RouterOS Site Edge, the WAN stays in `main`, and the WireGuard tunnels and their eBGP sessions run in an `overlay` VRF. BGP VPN route targets leak overlay routes into `vrf_corp` and `vrf_server` and export their LANs back. This matches the FRR edge, where business VRFs import the default VRF's BGP routes but not each other's LANs, and guest VRFs import nothing. Overlay QoS uses mangle packet marks and a queue tree with the same EF and BE rates as the FRR edge's HTB classes.
+
+Failures that change router state apply the same root cause with RouterOS commands: WireGuard keys and allowed addresses, DSCP remarking, source NAT, BGP filters, AS numbers, advertisements and hijacks, blackhole routes, interface MTU and ICMP filters. `frr_service_down` is rejected on RouterOS routers, which have no separate routing daemon to stop.
 
 ## SNDlib ISP scenarios
 

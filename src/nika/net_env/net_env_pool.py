@@ -180,6 +180,7 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         ),
         supported_backends=("kathara",),
         topo_size=["s", "m", "l"],
+        device_profiles=("routeros",),
     ),
     "sdn_l3_clos": NetEnvSpec(
         lab_name="sdn_l3_clos",

@@ -35,9 +35,9 @@ def render_ospf(
     areas = sorted(
         set(networks.values()), key=lambda area: tuple(map(int, area.split(".")))
     )
-    lines = [f"/routing ospf instance add name=NIKA version=2 router-id={router_id}"]
+    lines = [f"/routing ospf instance add name=CORE version=2 router-id={router_id}"]
     lines.extend(
-        f"/routing ospf area add name=area-{area} instance=NIKA area-id={area}"
+        f"/routing ospf area add name=area-{area} instance=CORE area-id={area}"
         for area in areas
     )
     for network, area in sorted(networks.items()):
@@ -65,10 +65,10 @@ def render_ebgp(
         f"/ip firewall address-list add list=BGP-NETWORKS address={network}"
         for network in networks
     ]
-    lines.append(f"/routing bgp instance add name=NIKA as={asn} router-id={router_id}")
+    lines.append(f"/routing bgp instance add name=CORE as={asn} router-id={router_id}")
     for index, (address, remote_asn) in enumerate(sorted(peers)):
         command = (
-            f"/routing bgp connection add name=peer-{index} instance=NIKA "
+            f"/routing bgp connection add name=peer-{index} instance=CORE "
             f"local.role=ebgp remote.address={address} remote.as={remote_asn} "
             "afi=ip connect=yes listen=yes"
         )

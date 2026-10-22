@@ -27,10 +27,11 @@ def routeros_terse_rows(output: str) -> list[dict[str, str]]:
     """
     if _CLI_ERROR.search(output):
         raise ValueError(f"RouterOS CLI error: {output.strip()}")
+    # Most menus number their items; /routing/route prints only flags.
     return [
         routeros_properties(line)
         for line in output.splitlines()
-        if re.match(r"\s*\d+\s", line)
+        if "=" in line and not line.lstrip().startswith(("Flags:", "Columns:"))
     ]
 
 
@@ -44,7 +45,12 @@ def routeros_established_bgp_peers(output: str) -> set[str]:
         rows = routeros_terse_rows(output)
     except ValueError:
         return set()
-    return {row["remote.address"] for row in rows if "remote.address" in row}
+    # Sessions in a VRF report ``address@vrf``.
+    return {
+        row["remote.address"].split("@", 1)[0]
+        for row in rows
+        if "remote.address" in row
+    }
 
 
 def routeros_count(output: str) -> int:

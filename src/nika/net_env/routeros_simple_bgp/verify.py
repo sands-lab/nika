@@ -4,12 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from nika.net_env.routeros_simple_bgp.lab import (
-    LINK_IFACE,
-    MGMT_ADDR,
-    MGMT_PASSWORD,
-    MGMT_USER,
-)
+from nika.net_env.routeros_simple_bgp.lab import LINK_IFACE
 from nika.net_env.verify import (
     build_lab_verify_result,
     default_route_via,
@@ -19,20 +14,12 @@ from nika.net_env.verify import (
     ping_ok,
 )
 from nika.runtime.base import LabRuntime
+
+from nika.service.lab.routeros_api import CLI_COMMAND
 from nika.net_env.verify_collection import (
     VerifyCommand,
     collect_verify_commands,
     ping_command,
-)
-
-# RouterOS's mgmt IP lives on vrnetlab's internal bridge, reachable only from
-# inside the container's network namespace. Commands stay free of embedded
-# double quotes: nika's exec wrapping (ShellResolver.wrap_shell_command)
-# mis-escapes them, the same issue IOSXRAPIMixin works around with single
-# quotes only.
-CLI_COMMAND = (
-    f"sshpass -p {MGMT_PASSWORD} ssh -q -oStrictHostKeyChecking=no "
-    f"-oConnectTimeout=1 {MGMT_USER}@{MGMT_ADDR} '{{command}}'"
 )
 
 

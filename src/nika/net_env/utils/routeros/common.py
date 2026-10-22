@@ -116,14 +116,28 @@ def add_routeros_router(
         f"-monitor tcp:127.0.0.1:{LINK_MONITOR_PORT},server,nowait",
     )
     machine.create_file_from_string(_LINK_WATCHER, LINK_WATCHER_PATH)
-    lab.create_file_from_list(
-        [f"nohup bash {LINK_WATCHER_PATH} {data_interfaces} >/dev/null 2>&1 &"],
-        f"{name}.startup",
-    )
+    set_routeros_startup(lab, name, data_interfaces=data_interfaces)
     if config is not None:
         set_routeros_config(machine, config)
     lab.connect_machine_to_link(name, f"{name}_reserved0", machine_iface_number=0)
     return machine
+
+
+def set_routeros_startup(
+    lab: Lab, name: str, *, data_interfaces: int, link_commands: Iterable[str] = ()
+) -> None:
+    """Write the container startup: the carrier watcher plus link-level commands.
+
+    ``link_commands`` run in the container on its ``ethN`` devices, such as
+    ``tc netem`` propagation delay; they shape the VM's traffic like a cable.
+    """
+    lab.create_file_from_list(
+        [
+            *link_commands,
+            f"nohup bash {LINK_WATCHER_PATH} {data_interfaces} >/dev/null 2>&1 &",
+        ],
+        f"{name}.startup",
+    )
 
 
 def set_routeros_config(machine: Machine, config: str) -> None:

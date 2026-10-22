@@ -1,4 +1,4 @@
-"""RouterOS profiles keep each lab's addressing and protocol intents."""
+"""RouterOS profiles keep each environment's addressing and protocol intents."""
 
 import pytest
 
@@ -58,6 +58,32 @@ def test_campus_routeros_keeps_areas_bridges_and_dhcp_relay():
         CampusLan(topo_size="m", device_profile="routeros")
 
 
+@pytest.mark.unit
+def test_enterprise_routeros_keeps_vrf_leaking_tunnels_and_guest_nat():
+    from nika.net_env.enterprise_branch.lab import EnterpriseBranch
+
+    env = EnterpriseBranch(topo_size="s", device_profile="routeros")
+    routers = _assert_vrnetlab_wiring(env)
+    assert set(routers) == {"hq_edge", "dc2_edge", "br1_edge", "br2_edge"}
+    branch = routers["br1_edge"].fs.readtext(CONFIG_FILE_PATH)
+    # Business VRFs import only overlay BGP routes; guest imports nothing.
+    assert "/routing bgp vpn add name=vrf_corp vrf=vrf_corp" in branch
+    assert "import.route-targets=65001:1 export.route-targets=65001:10" in branch
+    assert "vrf=vrf_guest" not in branch
+    assert "routing-table=vrf_guest" in branch
+    assert "to-addresses=198.18.1.10" in branch
+    # A spoke advertises only its own business LAN.
+    assert 'chain=POLICY-OUT rule="if (dst == 10.1.10.0/24) { accept; }"' in branch
+    assert "allowed-address=0.0.0.0/0" in branch
+    hub = routers["hq_edge"].fs.readtext(CONFIG_FILE_PATH)
+    assert "nexthop-choice=force-self" in hub
+    assert "queue tree add name=wg_br1-ef parent=wg_br1" in hub
+    # WAN propagation delay stays on the container link.
+    assert "netem delay" in env.lab.fs.readtext("br1_edge.startup")
+    with pytest.raises(ValueError, match="supports topo_size s only"):
+        EnterpriseBranch(topo_size="m", device_profile="routeros")
+
+
 @pytest.mark.contract
 def test_start_accepts_only_registered_profiles_outside_isp():
     from nika.workflows.env.start import _resolve_isp_kwargs
@@ -77,7 +103,7 @@ def test_start_accepts_only_registered_profiles_outside_isp():
         "device_profile": "routeros"
     }
     with pytest.raises(ValueError, match="supports device profiles frr; got"):
-        _resolve_isp_kwargs("enterprise_branch", device_profile="routeros", **flags)
+        _resolve_isp_kwargs("k8s_lab", device_profile="routeros", **flags)
     with pytest.raises(ValueError, match="does not accept"):
         _resolve_isp_kwargs(
             "dc_clos", device_profile="routeros", **{**flags, "igp": "ospf"}

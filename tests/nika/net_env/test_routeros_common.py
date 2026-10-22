@@ -30,3 +30,20 @@ def test_first_container_interface_is_reserved_for_management():
     assert routeros_interface("lo") == "lo0"
     with pytest.raises(ValueError):
         routeros_interface("wg0")
+
+
+def test_terse_rows_read_numbered_items_and_flag_only_routes():
+    from nika.net_env.utils.routeros.parse import routeros_terse_rows
+
+    output = (
+        "Flags: D - dynamic; X - disabled\n"
+        "0 D instance=NIKA interface=ether2 srcid=0000.0aff.0003 state=up\n"
+        "Ab afi=ip contribution=active dst-address=10.0.10.0/24 "
+        "routing-table=overlay gateway=172.30.0.9@overlay\n"
+    )
+    rows = routeros_terse_rows(output)
+    assert [row.get("interface") for row in rows] == ["ether2", None]
+    assert rows[1]["dst-address"] == "10.0.10.0/24"
+    assert rows[1]["routing-table"] == "overlay"
+    with pytest.raises(ValueError):
+        routeros_terse_rows("syntax error (line 1 column 5)")

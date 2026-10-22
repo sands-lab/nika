@@ -108,6 +108,13 @@ def overlay_qos_for(topo_size: TopoSize) -> OverlayQosSpec:
     return OVERLAY_QOS[topo_size]
 
 
+def overlay_be_class(qos: OverlayQosSpec) -> tuple[int, int]:
+    """Return the BE class ceiling (mbit) and its byte-FIFO depth."""
+    be_mbit = max(qos.rate_mbit - qos.ef_mbit, 1)
+    # ~500ms of standing queue at the BE ceil (bytes = rate_bps * 0.5 / 8).
+    return be_mbit, max(int(be_mbit * 1_000_000 * 0.5 / 8), 64_000)
+
+
 def overlay_qos_startup_cmds(iface: str, qos: OverlayQosSpec) -> list[str]:
     """HTB dual-class QoS on a WireGuard overlay egress (EF vs default/BE).
 
@@ -116,9 +123,7 @@ def overlay_qos_startup_cmds(iface: str, qos: OverlayQosSpec) -> list[str]:
     demoted EF then sees clear latency (and loss under overload), not just
     fq_codel jitter on an otherwise empty sparse-flow queue.
     """
-    be_mbit = max(qos.rate_mbit - qos.ef_mbit, 1)
-    # ~500ms of standing queue at the BE ceil (bytes = rate_bps * 0.5 / 8).
-    be_bfifo_bytes = max(int(be_mbit * 1_000_000 * 0.5 / 8), 64_000)
+    be_mbit, be_bfifo_bytes = overlay_be_class(qos)
     return [
         f"tc qdisc add dev {iface} root handle 1: htb default 20 || true",
         f"tc class add dev {iface} parent 1: classid 1:1 "

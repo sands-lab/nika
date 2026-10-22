@@ -57,7 +57,7 @@ def test_bgp_keeps_origins_outside_ospf_and_preserves_sessions(mode):
     rendered = render_routeros_isp(plan, bgp)
     for node in bgp.nodes:
         config = rendered[node.device_name]
-        assert f"name=NIKA as={node.asn} router-id={node.router_id}" in config
+        assert f"name=CORE as={node.asn} router-id={node.router_id}" in config
         for origin in node.originated:
             assert f"address={origin.ping_address}/24 interface=lo1" in config
             assert f"list=BGP-ORIGINS address={origin.prefix}" in config

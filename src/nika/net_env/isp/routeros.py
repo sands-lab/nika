@@ -67,8 +67,8 @@ def render_routeros_isp(
 
 def _render_ospf(node: PlannedNode) -> list[str]:
     lines = [
-        f"/routing ospf instance add name=NIKA version=2 router-id={node.router_id}",
-        "/routing ospf area add name=backbone instance=NIKA area-id=0.0.0.0",
+        f"/routing ospf instance add name=CORE version=2 router-id={node.router_id}",
+        "/routing ospf area add name=backbone instance=CORE area-id=0.0.0.0",
         "/routing ospf interface-template add area=backbone interfaces=lo0 "
         f"networks={node.loopback}/32 type=broadcast passive cost=1",
     ]
@@ -93,9 +93,9 @@ def _render_isis(node: PlannedNode) -> list[str]:
     # circuits, and passive loopback, edge and AS-boundary interfaces.
     area, system_id = isis_identity(node.router_id)
     lines = [
-        f"/routing isis instance add name=NIKA afi=ip areas={area} "
+        f"/routing isis instance add name=CORE afi=ip areas={area} "
         f"system-id={system_id} metric-type=wide",
-        "/routing isis interface-template add instance=NIKA interfaces=lo0 "
+        "/routing isis interface-template add instance=CORE interfaces=lo0 "
         "levels=l2 passive",
     ]
     for iface in node.interfaces:
@@ -105,7 +105,7 @@ def _render_isis(node: PlannedNode) -> list[str]:
         # selection matches FRR; only the reported route metric differs.
         circuit = "passive" if iface.passive else f"ptp ptp.l2.metric={iface.metric}"
         lines.append(
-            "/routing isis interface-template add instance=NIKA "
+            "/routing isis interface-template add instance=CORE "
             f"interfaces={name} levels=l2 {circuit}"
         )
     return lines
@@ -160,7 +160,7 @@ def _render_bgp(node: BgpNodePlan, plan: BgpPlan) -> list[str]:
             )
         lines.append(_filter_rule(chain, "jump BGP-IN;"))
     instance = (
-        f"/routing bgp instance add name=NIKA as={node.asn} router-id={node.router_id}"
+        f"/routing bgp instance add name=CORE as={node.asn} router-id={node.router_id}"
     )
     if node.cluster_id:
         instance += f" cluster-id={node.cluster_id}"
@@ -172,7 +172,7 @@ def _render_bgp(node: BgpNodePlan, plan: BgpPlan) -> list[str]:
         if session.route_reflector_client:
             role = "ibgp-rr"
         command = (
-            f"/routing bgp connection add name=peer-{index} instance=NIKA "
+            f"/routing bgp connection add name=peer-{index} instance=CORE "
             f"local.role={role} local.address={session.local_ip} "
             f"remote.address={session.remote_ip} remote.as={session.remote_asn} "
             "afi=ip connect=yes listen=yes "
