@@ -26,8 +26,10 @@ Use Firecracker execution when you run a benchmark release more than once on a
 host, such as several agents or models on the same tasks, or when its
 environments take minutes to deploy. On release 0.2.0's test split, the time
 trials spend outside the agent drops from 10.8 h to 0.9 h per run, and 85 tasks
-ran in 2 h 30 min including the one-time builds instead of 5 h 55 min. Scores do
-not change (see [Compatibility and scores](#compatibility-and-scores)).
+ran in 2 h 30 min including the one-time builds instead of 5 h 55 min. Restored
+labs give the same scores as native ones with the mock agent; with real agents,
+scores varied between the modes as much as between any two runs (see
+[Compatibility and scores](#compatibility-and-scores)).
 
 Firecracker execution needs:
 
@@ -41,93 +43,8 @@ Firecracker execution needs:
 
 Stay with native execution for a single run of a few tasks, where each
 environment would be deployed once anyway, or on a host without KVM or the
-disk.
-
-## When it pays off
-
-Firecracker execution makes each trial cheaper in exchange for a one-time
-build per environment variant and the disk to keep the result. A lab image
-build costs about one native deploy and holds 0.3–4 GiB; after that, a trial
-restores its lab in seconds instead of deploying and undeploying it.
-
-For release 0.2.0 (test split, 85 tasks × 3 trials), measured on a 16 vCPU host
-that is itself a VM, with huge pages:
-
-| | Native | Lab images | Lab and case images |
-|---|---:|---:|---:|
-| One-time builds (VM time) | — | 1.5 h | 1.5 h + 2.0 h |
-| Disk | — | 12 GiB base + 23 GiB | 12 GiB base + 23 GiB + 3.5 GiB |
-| Time outside the agent per run (255 trials) | 10.8 h | 0.9 h | 0.1 h |
-| Builds pay for themselves after | — | the first run | about 2.4 more runs |
-| Measured wall time, 85 trials 8 at a time | 5 h 55 min | 1 h 55 min, plus 35 min of builds | — |
-
-*Time outside the agent* covers deploy or restore, verification, injection and
-teardown; agent time is the same in all modes. A *run* is every task of the
-split with 3 trials each. [Case images](#case-images-optional) are optional and
-pay off only when the same tasks run again.
-
-Native runs also take longer in wall time because heavy labs (k8s, Containerlab,
-size `l`) run alone; Firecracker trials run side by side. With 6–8 copies at
-once, tools that probe the network (ping meshes, HTTP tests) took 20–150%
-longer in their median than in the native run, which ran fewer trials at once.
-
-While a lab image is built, its snapshot temporarily needs the VM's whole
-`vm_memory` (4–20 GiB) of free disk. Disk sizes are with btrfs, where NIKA stores
-images zstd-compressed (about 3.5× smaller); on XFS they are uncompressed. See
-[host setup](#set-up-the-host-once) step 3 for sizing the Firecracker root.
-
-### Compatibility and scores
-
-Restored labs behave like freshly deployed ones:
-
-* All 29 environment variants of release 0.2.0 ran from lab images with the
-  mock agent, with the same scores as native runs.
-* Full test-split runs (85 tasks × 3 trials) with Claude Code and with Codex,
-  each agent in its sandbox, finished all 255 trials; on the 85 tasks run in
-  both modes, Firecracker scored higher on 11, lower on 11 and the same on 63.
-* RouterOS and Cisco XRd labs restored with their BGP sessions up and scored as
-  in native runs; their agents started 2.3 s and 3.4 s after the trial began,
-  instead of 70 s and 120 s.
-
-### Per environment
-
-*Per trial* is the median time outside the agent. *Pays off after* is the number
-of runs of that environment's tasks after which its builds have cost less than
-the time they saved. Case images count failure tasks only; healthy tasks
-restore the lab image.
-
-| Environment | Tasks | Native, per trial | Lab image: build, disk | Firecracker, per trial | Pays off after (runs) | Case images: builds, disk | With case images, per trial | Case images pay off after (more runs) |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| `campus_lan` l | 6 | 196 s | 241 s, 973 MiB | 27 s | 0.08 | 702 s, 417 MiB | 2 s | 1.6 |
-| `campus_lan` m | 6 | 103 s | 154 s, 655 MiB | 5 s | 0.09 | 280 s, 134 MiB | 2 s | 5.8 |
-| `campus_lan` s | 4 | 87 s | 106 s, 379 MiB | 10 s | 0.12 | 267 s, 81 MiB | 2 s | 2.7 |
-| `dc_clos` l | 2 | 296 s | 280 s, 573 MiB | 11 s | 0.16 | 98 s, 60 MiB | 2 s | 3.3 |
-| `dc_clos` m | 3 | 67 s | 91 s, 358 MiB | 7 s | 0.17 | 151 s, 52 MiB | 2 s | 3.8 |
-| `dc_clos` s | 2 | 36 s | 61 s, 358 MiB | 3 s | 0.31 | 139 s, 31 MiB | 3 s | 0.5 |
-| `enterprise_branch` l | 5 | 81 s | 169 s, 399 MiB | 6 s | 0.15 | 388 s, 164 MiB | 2 s | 5.9 |
-| `enterprise_branch` m | 4 | 64 s | 89 s, 317 MiB | 11 s | 0.14 | 318 s, 86 MiB | 2 s | 2.3 |
-| `enterprise_branch` s | 3 | 43 s | 61 s, 287 MiB | 9 s | 0.20 | 133 s, 54 MiB | 2 s | 2.1 |
-| `isp_abilene` s | 1 | 80 s | 152 s, 338 MiB | 6 s | 0.69 | 66 s, 40 MiB | 2 s | 5.3 |
-| `isp_dfn-bwin_ebgp_rtbh` s | 1 | 97 s | 113 s, 328 MiB | 6 s | 0.41 | 40 s, 42 MiB | 3 s | 4.5 |
-| `isp_di-yuan` s | 1 | 92 s | 145 s, 328 MiB | 18 s | 0.66 | 171 s, 42 MiB | 2 s | 3.4 |
-| `isp_geant_ebgp_rpki` m | 2 | 640 s | 661 s, 430 MiB | 7 s | 0.17 | 201 s, 106 MiB | 2 s | 6.4 |
-| `isp_germany50` l | 1 | 111 s | 126 s, 512 MiB | 12 s | 0.42 | 141 s, 73 MiB | 2 s | 4.7 |
-| `isp_pdh` s | 1 | 237 s | 574 s, 2.8 GiB | 117 s | 1.59 | 449 s, 179 MiB | 5 s | 1.3 |
-| `k8s_lab` | 6 | 344 s | 460 s, 4.2 GiB | 23 s | 0.08 | 924 s, 506 MiB | 2 s | 2.8 |
-| `llmd_lab` | 5 | 207 s | 258 s, 4.3 GiB | 20 s | 0.09 | 859 s, 457 MiB | 3 s | 3.2 |
-| `min3clos` | 1 | 115 s | 207 s, 1.4 GiB | 10 s | 0.66 | 151 s, 64 MiB | 3 s | 7.2 |
-| `p4_dc_fabric` l | 1 | 187 s | 192 s, 389 MiB | 9 s | 0.36 | 56 s, 34 MiB | 2 s | 2.8 |
-| `p4_dc_fabric` m | 1 | 106 s | 123 s, 328 MiB | 12 s | 0.44 | 48 s, 23 MiB | 5 s | 2.2 |
-| `p4_dc_gateway` l | 5 | 173 s | 193 s, 471 MiB | 17 s | 0.08 | 350 s, 185 MiB | 3 s | 1.7 |
-| `p4_dc_gateway` m | 7 | 88 s | 118 s, 379 MiB | 8 s | 0.07 | 281 s, 143 MiB | 2 s | 2.7 |
-| `p4_dc_gateway` s | 7 | 70 s | 89 s, 338 MiB | 11 s | 0.07 | 391 s, 139 MiB | 3 s | 2.2 |
-| `sdn_l3_clos` l | 4 | 298 s | 283 s, 860 MiB | 8 s | 0.08 | 237 s, 262 MiB | 2 s | 4.0 |
-| `sdn_l3_clos` m | 2 | 130 s | 168 s, 840 MiB | 4 s | 0.22 | 50 s, 38 MiB | 2 s | 6.4 |
-| `sdn_l3_clos` s | 4 | 82 s | 114 s, 901 MiB | 10 s | 0.13 | 248 s, 123 MiB | 2 s | 2.4 |
-
-Lab images pay off within the first run for every environment except
-`isp_pdh`, whose SR Linux lab takes longer to build than to deploy.
-Case images pay off after 0.5–7 more runs, depending on how long injection takes.
+disk. [Performance reference](#performance-reference) has the measurements per
+environment, including build time, disk use and break-even point.
 
 ## Set up the host (once)
 
@@ -259,7 +176,8 @@ the host, over vsock.
 
 ## Enable Firecracker runs
 
-In `config/nika.yaml`:
+In `config/nika.yaml`, for release 0.2.0 (its larger labs need more than the
+default 4 GiB of [VM memory](#vm-size)):
 
 ```yaml
 nika:
@@ -267,6 +185,13 @@ nika:
     mode: firecracker
     firecracker:
       huge_pages: true
+      vm_memory_overrides:
+        k8s_lab: 8GiB
+        llmd_lab: 8GiB
+        min3clos: 8GiB
+        isp_pdh: 20GiB
+        isp_di-yuan: 20GiB
+        isp_dfn-gwin: 20GiB
 ```
 
 Then run benchmarks as usual:
@@ -312,18 +237,15 @@ Every running copy needs its own huge pages for the memory its lab uses.
 Each VM gets `vm_cpus` vCPUs (default 4) and `vm_memory` (default 4 GiB), which
 fits most Kathara labs. Give larger labs more with `vm_memory_overrides`; an
 image build warns when a lab leaves less than a quarter of its VM memory free.
-For release 0.2.0, plus Cisco XRd (`iosxr_simple_bgp`), whose build otherwise
-runs out of memory:
+The [example above](#enable-firecracker-runs) covers release 0.2.0. Cisco XRd
+(`iosxr_simple_bgp`) needs 8 GiB as well; its build otherwise runs out of memory:
 
 ```yaml
-vm_memory_overrides:
-  k8s_lab: 8GiB
-  llmd_lab: 8GiB
-  min3clos: 8GiB
-  iosxr_simple_bgp: 8GiB
-  isp_pdh: 20GiB
-  isp_di-yuan: 20GiB
-  isp_dfn-gwin: 20GiB
+nika:
+  execution:
+    firecracker:
+      vm_memory_overrides:
+        iosxr_simple_bgp: 8GiB
 ```
 
 Few vCPUs per VM keep one copy's bursts (verification, injection, the agent's
@@ -441,6 +363,92 @@ Stale images are not deleted automatically, because another checkout may still
 use them. Run `nika firecracker clean` after updating NIKA. A build that would
 leave the Firecracker root without room for its snapshot fails at once and asks
 you to clean up.
+
+## Performance reference
+
+Firecracker execution makes each trial cheaper in exchange for a one-time
+build per environment variant and the disk to keep the result. A lab image
+build costs about one native deploy and holds 0.3–4 GiB; after that, a trial
+restores its lab in seconds instead of deploying and undeploying it.
+
+For release 0.2.0 (test split, 85 tasks × 3 trials), measured on a 16 vCPU host
+that is itself a VM, with huge pages:
+
+| | Native | Lab images | Lab and case images |
+|---|---:|---:|---:|
+| One-time builds (VM time) | — | 1.5 h | 1.5 h + 2.0 h |
+| Disk | — | 12 GiB base + 23 GiB | 12 GiB base + 23 GiB + 3.5 GiB |
+| Time outside the agent per run (255 trials) | 10.8 h | 0.9 h | 0.1 h |
+| Builds pay for themselves after | — | the first run | about 2.4 more runs |
+| Measured wall time, 85 trials 8 at a time | 5 h 55 min | 1 h 55 min, plus 35 min of builds | — |
+
+*Time outside the agent* covers deploy or restore, verification, injection and
+teardown; agent time is the same in all modes. A *run* is every task of the
+split with 3 trials each. [Case images](#case-images-optional) are optional and
+pay off only when the same tasks run again.
+
+Native runs also take longer in wall time because heavy labs (k8s, Containerlab,
+size `l`) run alone; Firecracker trials run side by side. With 6–8 copies at
+once, tools that probe the network (ping meshes, HTTP tests) took 20–150%
+longer in their median than in the native run, which ran fewer trials at once.
+
+While a lab image is built, its snapshot temporarily needs the VM's whole
+`vm_memory` (4–20 GiB) of free disk. Disk sizes are with btrfs, where NIKA stores
+images zstd-compressed (about 3.5× smaller); on XFS they are uncompressed. See
+[host setup](#set-up-the-host-once) step 3 for sizing the Firecracker root.
+
+### Compatibility and scores
+
+Restored labs behave like freshly deployed ones:
+
+* All 29 environment variants of release 0.2.0 ran from lab images with the
+  mock agent, with the same scores as native runs.
+* Full test-split runs (85 tasks × 3 trials) with Claude Code and with Codex,
+  each agent in its sandbox, finished all 255 trials; on the 85 tasks run in
+  both modes, Firecracker scored higher on 11, lower on 11 and the same on 63.
+* RouterOS and Cisco XRd labs restored with their BGP sessions up and scored as
+  in native runs; their agents started 2.3 s and 3.4 s after the trial began,
+  instead of 70 s and 120 s.
+
+### Per environment
+
+*Per trial* is the median time outside the agent. *Pays off after* is the number
+of runs of that environment's tasks after which its builds have cost less than
+the time they saved. Case images count failure tasks only; healthy tasks
+restore the lab image.
+
+| Environment | Tasks | Native, per trial | Lab image: build, disk | Firecracker, per trial | Pays off after (runs) | Case images: builds, disk | With case images, per trial | Case images pay off after (more runs) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| `campus_lan` l | 6 | 196 s | 241 s, 973 MiB | 27 s | 0.08 | 702 s, 417 MiB | 2 s | 1.6 |
+| `campus_lan` m | 6 | 103 s | 154 s, 655 MiB | 5 s | 0.09 | 280 s, 134 MiB | 2 s | 5.8 |
+| `campus_lan` s | 4 | 87 s | 106 s, 379 MiB | 10 s | 0.12 | 267 s, 81 MiB | 2 s | 2.7 |
+| `dc_clos` l | 2 | 296 s | 280 s, 573 MiB | 11 s | 0.16 | 98 s, 60 MiB | 2 s | 3.3 |
+| `dc_clos` m | 3 | 67 s | 91 s, 358 MiB | 7 s | 0.17 | 151 s, 52 MiB | 2 s | 3.8 |
+| `dc_clos` s | 2 | 36 s | 61 s, 358 MiB | 3 s | 0.31 | 139 s, 31 MiB | 3 s | 0.5 |
+| `enterprise_branch` l | 5 | 81 s | 169 s, 399 MiB | 6 s | 0.15 | 388 s, 164 MiB | 2 s | 5.9 |
+| `enterprise_branch` m | 4 | 64 s | 89 s, 317 MiB | 11 s | 0.14 | 318 s, 86 MiB | 2 s | 2.3 |
+| `enterprise_branch` s | 3 | 43 s | 61 s, 287 MiB | 9 s | 0.20 | 133 s, 54 MiB | 2 s | 2.1 |
+| `isp_abilene` s | 1 | 80 s | 152 s, 338 MiB | 6 s | 0.69 | 66 s, 40 MiB | 2 s | 5.3 |
+| `isp_dfn-bwin_ebgp_rtbh` s | 1 | 97 s | 113 s, 328 MiB | 6 s | 0.41 | 40 s, 42 MiB | 3 s | 4.5 |
+| `isp_di-yuan` s | 1 | 92 s | 145 s, 328 MiB | 18 s | 0.66 | 171 s, 42 MiB | 2 s | 3.4 |
+| `isp_geant_ebgp_rpki` m | 2 | 640 s | 661 s, 430 MiB | 7 s | 0.17 | 201 s, 106 MiB | 2 s | 6.4 |
+| `isp_germany50` l | 1 | 111 s | 126 s, 512 MiB | 12 s | 0.42 | 141 s, 73 MiB | 2 s | 4.7 |
+| `isp_pdh` s | 1 | 237 s | 574 s, 2.8 GiB | 117 s | 1.59 | 449 s, 179 MiB | 5 s | 1.3 |
+| `k8s_lab` | 6 | 344 s | 460 s, 4.2 GiB | 23 s | 0.08 | 924 s, 506 MiB | 2 s | 2.8 |
+| `llmd_lab` | 5 | 207 s | 258 s, 4.3 GiB | 20 s | 0.09 | 859 s, 457 MiB | 3 s | 3.2 |
+| `min3clos` | 1 | 115 s | 207 s, 1.4 GiB | 10 s | 0.66 | 151 s, 64 MiB | 3 s | 7.2 |
+| `p4_dc_fabric` l | 1 | 187 s | 192 s, 389 MiB | 9 s | 0.36 | 56 s, 34 MiB | 2 s | 2.8 |
+| `p4_dc_fabric` m | 1 | 106 s | 123 s, 328 MiB | 12 s | 0.44 | 48 s, 23 MiB | 5 s | 2.2 |
+| `p4_dc_gateway` l | 5 | 173 s | 193 s, 471 MiB | 17 s | 0.08 | 350 s, 185 MiB | 3 s | 1.7 |
+| `p4_dc_gateway` m | 7 | 88 s | 118 s, 379 MiB | 8 s | 0.07 | 281 s, 143 MiB | 2 s | 2.7 |
+| `p4_dc_gateway` s | 7 | 70 s | 89 s, 338 MiB | 11 s | 0.07 | 391 s, 139 MiB | 3 s | 2.2 |
+| `sdn_l3_clos` l | 4 | 298 s | 283 s, 860 MiB | 8 s | 0.08 | 237 s, 262 MiB | 2 s | 4.0 |
+| `sdn_l3_clos` m | 2 | 130 s | 168 s, 840 MiB | 4 s | 0.22 | 50 s, 38 MiB | 2 s | 6.4 |
+| `sdn_l3_clos` s | 4 | 82 s | 114 s, 901 MiB | 10 s | 0.13 | 248 s, 123 MiB | 2 s | 2.4 |
+
+Lab images pay off within the first run for every environment except
+`isp_pdh`, whose SR Linux lab takes longer to build than to deploy.
+Case images pay off after 0.5–7 more runs, depending on how long injection takes.
 
 ## Limitations
 
