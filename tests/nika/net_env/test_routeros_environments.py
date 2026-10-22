@@ -160,3 +160,63 @@ def test_solved_parameters_translate_to_routeros_routers():
         '/routing filter rule add chain=POLICY-IN-wg_hq rule="if (dst in 10.0.0.0/8 && dst-len <= 24) { set bgp-local-pref 200; accept; }"',
         '/routing filter rule add chain=POLICY-IN-wg_hq rule="reject;"',
     ]
+
+
+@pytest.mark.unit
+def test_mixed_platform_runtime_report_keeps_each_row(monkeypatch):
+    from types import SimpleNamespace
+
+    from nika.net_env import native_routers
+    from pathlib import Path
+
+    from nika.net_env.contract import ValidationReport, ValidationResult
+    from nika.net_env.synthesis.requirements import resolve_routing_requirements
+    from nika.workflows.validation.scenario_spec import ScenarioExperiment
+
+    spec = ScenarioExperiment.model_validate_json(
+        (
+            Path(__file__).resolve().parents[3]
+            / "experiment/scenario_validation/enterprise-routeros.json"
+        ).read_text()
+    )
+    env = _build("enterprise_branch", "routeros")
+    contract = resolve_routing_requirements(spec, env).runtime_requirements
+
+    def platform_report(name):
+        def verify(runtime, contract, plan=None):
+            return ValidationReport.from_results(
+                contract,
+                name,
+                [
+                    ValidationResult(
+                        intent=i.id,
+                        verifier=name,
+                        status="passed",
+                        supported=True,
+                        evidence={},
+                        duration_ms=0,
+                    )
+                    for i in contract.intents
+                ],
+            )
+
+        return verify
+
+    monkeypatch.setattr(
+        native_routers,
+        "native_platform",
+        lambda profile: SimpleNamespace(
+            validation=SimpleNamespace(
+                verify_contract=platform_report("routeros-runtime"),
+                node=lambda name, config: native_routers.NativeRouterNode(name, ()),
+            )
+        ),
+    )
+    fallback = platform_report("frr-runtime")
+    verify = native_routers.verify_native_router_contract(
+        env, lambda runtime, contract, plan: fallback(runtime, contract)
+    )
+    report = verify(None, contract=contract)
+    platforms = {row.evidence["platform_verifier"] for row in report.results}
+    assert platforms == {"frr-runtime", "routeros-runtime"}
+    assert report.status == "passed"
