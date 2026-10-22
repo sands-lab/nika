@@ -230,10 +230,23 @@ def verify_native_router_contract(env, fallback):
                     runtime, part, routers
                 )
             rows.update({row.intent: row for row in report.results})
+        name = "+".join(sorted(p or "frr" for p in groups)) + "-runtime"
+        # Each row keeps the platform verifier that observed it as evidence.
         return ValidationReport.from_results(
             contract,
-            "+".join(sorted(p or "frr" for p in groups)) + "-runtime",
-            [rows[intent.id] for intent in contract.intents],
+            name,
+            [
+                rows[intent.id].model_copy(
+                    update={
+                        "verifier": name,
+                        "evidence": {
+                            **rows[intent.id].evidence,
+                            "platform_verifier": rows[intent.id].verifier,
+                        },
+                    }
+                )
+                for intent in contract.intents
+            ],
         )
 
     return verify
