@@ -112,25 +112,23 @@ class OSPFAreaMisconfig(ProblemBase):
         ]
 
     def _inject_routeros(self, params: OSPFAreaMisconfigParams) -> None:
-        # Move the interface templates of the first area to a new area, the
-        # RouterOS form of rewriting FRR ``network ... area`` statements.
+        # Renumber the router's first area, the RouterOS form of rewriting
+        # FRR ``network ... area`` statements. RouterOS keeps established
+        # neighbors of a reconfigured area, so the OSPF instance restarts to
+        # run the new area ID, as a restarted FRR daemon would.
         host = params.host_name
-        rows = ros_rows(self.runtime, host, "/routing/ospf/area/print terse")
         templates = self._routeros_template_areas(host)
         if not templates:
             raise RuntimeError(f"Could not find OSPF area on {host}")
         self._orig_areas = set(templates)
         correct_id = templates[0]
-        (area,) = [row for row in rows if row.get("area-id") == correct_id]
         wrong_id = "0.0.0.66" if correct_id != "0.0.0.66" else "0.0.0.99"
-        wrong = f"area-{wrong_id}"
         ros(
             self.runtime,
             host,
-            f"/routing ospf area add name={wrong} instance={area['instance']} "
-            f"area-id={wrong_id}; "
-            f"/routing ospf interface-template set [find where area={area['name']}] "
-            f"area={wrong}",
+            f"/routing ospf area set [find where area-id={correct_id}] "
+            f"area-id={wrong_id}; /routing ospf instance disable [find]; "
+            ":delay 2s; /routing ospf instance enable [find]",
         )
         self.logger.info(
             f"Injected OSPF area misconfiguration on {host} from area "
