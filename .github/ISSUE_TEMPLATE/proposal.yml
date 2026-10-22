@@ -35,3 +35,22 @@ body:
       description: Optional. Which decisions are needed before implementation can begin? Leave this empty if the request is already clear.
     validations:
       required: false
+  - type: dropdown
+    id: ai-disclosure
+    attributes:
+      label: AI disclosure
+      description: How was this issue written?
+      options:
+        - Written entirely by a human
+        - Written with AI assistance, then reviewed and edited by a human
+        - Written by an AI agent
+    validations:
+      required: true
+  - type: input
+    id: ai-tools
+    attributes:
+      label: AI tools used
+      description: List every AI tool or agent used to research or write this issue, or enter `None`.
+      placeholder: e.g. Claude Code and ChatGPT, or None
+    validations:
+      required: true
