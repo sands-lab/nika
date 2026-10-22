@@ -114,9 +114,8 @@ candidates see the same probe routes: every path either candidate advertises,
 the design's business, leak and policy prefixes, the RTBH community and a
 TEST-NET-1 canary. Enterprise uses a restricted tunnel projection; it lowers
 business VRF imports into default-table origins and leaves VRF-local tables
-unmodeled. The comparison covers what the projection models: OSPF network type,
-timers, communities sent to peers and FRR `maximum-paths` defaults are not
-compared.
+unmodeled. The comparison covers only what the projection models; OSPF network
+type, timers and the community types sent to peers are not compared.
 
 ## Reuse a saved construction
 

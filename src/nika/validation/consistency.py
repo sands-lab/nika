@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import json
 from collections import defaultdict
-from ipaddress import IPv4Address, IPv4Network
+from ipaddress import IPv4Network
 from pathlib import Path
 from typing import Any
 
@@ -263,23 +263,20 @@ def resolve_fib(rows, aliases, *, max_depth: int = 8) -> Facts:
     Recursive next hops use longest-prefix match in the same node and VRF, as a
     FIB does. Discard routes resolve to ``null``; unresolvable ones to nothing.
     """
-    table: dict[tuple[str, str], list[tuple[IPv4Network, dict]]] = defaultdict(list)
+    table: dict[tuple[str, str], dict[IPv4Network, list[dict]]] = defaultdict(
+        lambda: defaultdict(list)
+    )
     for row in rows:
         vrf = row.get("VRF") or "default"
-        table[row["Node"], vrf].append((IPv4Network(row["Network"]), row))
-    for entries in table.values():
-        entries.sort(key=lambda item: -item[0].prefixlen)
+        table[row["Node"], vrf][IPv4Network(row["Network"])].append(row)
 
     def lookup(node, vrf, address):
-        target = IPv4Address(address)
-        best = None
-        for network, row in table[node, vrf]:
-            if target in network:
-                if best is None:
-                    best = network
-                if network != best:
-                    break
-                yield row
+        routes = table[node, vrf]
+        for length in range(32, -1, -1):
+            network = IPv4Network(f"{address}/{length}", strict=False)
+            if network in routes:
+                return routes[network]
+        return []
 
     def resolve(node, vrf, row, depth):
         interface = row.get("Next_Hop_Interface")
@@ -301,12 +298,10 @@ def resolve_fib(rows, aliases, *, max_depth: int = 8) -> Facts:
         return result
 
     facts: Facts = {}
-    for (node, vrf), entries in table.items():
-        by_prefix: dict[str, set] = defaultdict(set)
-        for network, row in entries:
-            by_prefix[str(network)] |= resolve(node, vrf, row, 0)
-        for prefix, hops in by_prefix.items():
-            facts["fib", node, f"{vrf} {prefix}"] = sorted(
+    for (node, vrf), routes in table.items():
+        for network, entries in routes.items():
+            hops = set().union(*(resolve(node, vrf, row, 0) for row in entries))
+            facts["fib", node, f"{vrf} {network}"] = sorted(
                 [list(hop) for hop in hops], key=lambda hop: (hop[0], hop[1] or "")
             )
     return facts
@@ -396,21 +391,33 @@ def fact_counts(facts: Facts) -> dict[str, int]:
 
 
 class BatfishFactCollector:
-    """Derive routing facts from one Batfish snapshot through pybatfish."""
+    """Derive routing facts from candidate snapshots in one private network.
 
-    def __init__(self, *, host: str = "127.0.0.1", port: int = 9996) -> None:
-        from nika.validation.batfish.client import BatfishClient
+    Each comparison owns a uniquely named Batfish network, so concurrent
+    comparisons on a shared analyzer do not overwrite each other. ``close``
+    deletes that network; the analyzer itself is left running.
+    """
 
-        self._client = BatfishClient(host=host, port=port)
+    def __init__(
+        self, network: str, *, host: str = "127.0.0.1", port: int = 9996
+    ) -> None:
+        try:
+            from pybatfish.client.session import Session
+        except ImportError as exc:
+            raise RuntimeError(
+                "Batfish validation requires `uv sync --extra batfish`."
+            ) from exc
+        self._session = Session(host=host, port_v2=port)
+        self._network = network
+        self._session.set_network(network)
+        self._aliases: dict[str, dict] = {}
+        self._snapshot = ""
 
-    @property
-    def _session(self):
-        return self._client._session
-
-    def load(self, snapshot) -> dict[str, Any]:
-        info = self._client.initialize(snapshot)
-        self._aliases = snapshot.metadata.get("interface_aliases", {})
-        self._snapshot = info["snapshot"]
+    def load(self, name: str, snapshot) -> dict[str, Any]:
+        """Initialize and parse-check one candidate; later queries use it."""
+        self._session.init_snapshot(str(snapshot.path), name=name, overwrite=True)
+        self._aliases[name] = snapshot.metadata.get("interface_aliases", {})
+        self.use(name)
         status = self._frame(self._session.q.fileParseStatus())
         bad = [
             row
@@ -420,10 +427,20 @@ class BatfishFactCollector:
         ]
         if bad:
             raise RuntimeError(f"Batfish could not parse candidate files: {bad}")
-        info["parse_status"] = {
-            row["File_Name"]: row["Status"] for row in status if row.get("File_Name")
+        return {
+            "components": dict(self._session.get_component_versions()),
+            "parse_status": {
+                row["File_Name"]: row["Status"]
+                for row in status
+                if row.get("File_Name")
+            },
         }
-        return info
+
+    def use(self, name: str) -> None:
+        self._snapshot = name
+
+    def close(self) -> None:
+        self._session.delete_network(self._network)
 
     def _frame(self, question) -> list[dict[str, Any]]:
         from nika.validation.batfish.client import _records
@@ -435,7 +452,7 @@ class BatfishFactCollector:
 
     def collect(self, probes) -> Facts:
         q = self._session.q
-        aliases = self._aliases
+        aliases = self._aliases[self._snapshot]
         facts: Facts = {}
         facts.update(
             interface_facts(

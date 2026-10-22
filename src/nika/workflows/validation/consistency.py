@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 from functools import partial
+from uuid import uuid4
 from pathlib import Path
 from typing import Any
 
@@ -103,6 +104,7 @@ def declared_routing_inputs(env) -> tuple[set[str], tuple[str, ...]]:
 
 
 def _contract(scenario: str, name: str) -> ValidationContract:
+    # Snapshot builders require a contract; the comparison declares no intents.
     return ValidationContract(
         contract_id=f"consistency-{scenario}-{name}",
         scenario=scenario,
@@ -155,27 +157,35 @@ def compare_config_generators(
         name: builder(env, _contract(scenario, name), output / name)
         for name, env in (("native", native_env), ("netlab", candidate_env))
     }
-    collector = BatfishFactCollector(host=batfish_host, port=batfish_port)
-    ribs, loaded = {}, {}
-    for name, snapshot in snapshots.items():
-        loaded[name] = collector.load(snapshot)
-        ribs[name] = collector.bgp_rib()
-    prefixes, communities = declared_routing_inputs(native_env)
-    probes = probe_routes(ribs.values(), prefixes, communities)
-    facts = {}
-    for name, snapshot in snapshots.items():
-        collector.load(snapshot)
-        facts[name] = collector.collect(probes)
-        (output / f"facts-{name}.json").write_text(
-            json.dumps(
-                [
-                    {"kind": k, "node": n, "key": d, "value": v}
-                    for (k, n, d), v in sorted(facts[name].items())
-                ],
-                indent=2,
+    collector = BatfishFactCollector(
+        f"nika_consistency_{uuid4().hex[:12]}", host=batfish_host, port=batfish_port
+    )
+    try:
+        loaded = {
+            name: collector.load(name, snapshot) for name, snapshot in snapshots.items()
+        }
+        ribs = []
+        for name in snapshots:
+            collector.use(name)
+            ribs.append(collector.bgp_rib())
+        prefixes, communities = declared_routing_inputs(native_env)
+        probes = probe_routes(ribs, prefixes, communities)
+        facts = {}
+        for name in snapshots:
+            collector.use(name)
+            facts[name] = collector.collect(probes)
+            (output / f"facts-{name}.json").write_text(
+                json.dumps(
+                    [
+                        {"kind": k, "node": n, "key": d, "value": v}
+                        for (k, n, d), v in sorted(facts[name].items())
+                    ],
+                    indent=2,
+                )
+                + "\n"
             )
-            + "\n"
-        )
+    finally:
+        collector.close()
     report = ConsistencyReport(
         scenario=scenario,
         deployment={**deployment, **({"topo_size": topo_size} if topo_size else {})},
