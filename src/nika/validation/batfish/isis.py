@@ -40,21 +40,25 @@ def parse_frr_isis(node: str, config: str) -> tuple[str, dict[str, dict]]:
 
     for raw in config.splitlines():
         line = raw.strip()
-        if not line or line.startswith("!"):
+        if not line or line.startswith(("!", "#")):
             continue
         if line.startswith("interface "):
             name = line.removeprefix("interface ")
-            if not _IFACE_RE.fullmatch(name) or name in interfaces:
+            if not _IFACE_RE.fullmatch(name):
                 reject(line)
             current_iface = name
-            interfaces[name] = {
-                "address": None,
-                "metric": 10,
-                "passive": False,
-                "isis_enabled": False,
-                "circuit_type": None,
-                "metric_explicit": False,
-            }
+            interfaces.setdefault(
+                name,
+                {
+                    "address": None,
+                    "metric": 10,
+                    "passive": False,
+                    "isis_enabled": False,
+                    "circuit_type": None,
+                    "metric_explicit": False,
+                    "point_to_point": False,
+                },
+            )
             section = "interface"
             continue
         if line == f"router isis {ISIS_PROCESS}":
@@ -64,7 +68,10 @@ def parse_frr_isis(node: str, config: str) -> tuple[str, dict[str, dict]]:
             section = "router"
             current_iface = None
             continue
-        if line == "log file /var/log/frr/frr.log":
+        if line in {
+            "log file /var/log/frr/frr.log",
+            "log file /var/log/frr/frr.log informational",
+        }:
             if line in seen_global:
                 reject(line)
             seen_global.add(line)
@@ -74,6 +81,7 @@ def parse_frr_isis(node: str, config: str) -> tuple[str, dict[str, dict]]:
                 "frr version 10.5.3",
                 "frr defaults traditional",
                 "log file /var/log/frr/frr.log",
+                "ip forwarding",
             }:
                 if line in seen_global:
                     reject(line)
@@ -99,7 +107,10 @@ def parse_frr_isis(node: str, config: str) -> tuple[str, dict[str, dict]]:
                 if iface["isis_enabled"]:
                     reject(line)
                 iface["isis_enabled"] = True
-            elif line == "isis circuit-type level-2-only":
+            elif line in {
+                "isis circuit-type level-2-only",
+                "isis circuit-type level-2",
+            }:
                 if iface["circuit_type"] is not None:
                     reject(line)
                 iface["circuit_type"] = "level-2-only"
@@ -107,6 +118,14 @@ def parse_frr_isis(node: str, config: str) -> tuple[str, dict[str, dict]]:
                 if iface["passive"]:
                     reject(line)
                 iface["passive"] = True
+            elif line == "isis network point-to-point":
+                if iface["point_to_point"]:
+                    reject(line)
+                iface["point_to_point"] = True
+            elif line == "no shutdown" or line.startswith("description "):
+                # Cosmetic descriptions and explicit enabled defaults do not
+                # alter the modeled forwarding behavior.
+                continue
             else:
                 match = _METRIC_RE.fullmatch(line)
                 if not match or iface["metric_explicit"]:
@@ -129,11 +148,23 @@ def parse_frr_isis(node: str, config: str) -> tuple[str, dict[str, dict]]:
                     reject(line)
                 net = candidate
                 router_values["net"] = candidate
-            elif line in {"is-type level-2-only", "metric-style wide"}:
+            elif line in {
+                "is-type level-2-only",
+                "is-type level-2",
+                "metric-style wide",
+            }:
                 key, value = line.split(" ", 1)
                 if key in router_values:
                     reject(line)
-                router_values[key] = value
+                router_values[key] = "level-2-only" if value == "level-2" else value
+            elif line in {
+                "log-adjacency-changes",
+                "hostname dynamic",
+                "lsp-timers gen-interval 1 refresh-interval 900 max-lifetime 1800",
+            }:
+                # Logging, dynamic hostnames and LSP scheduling are outside
+                # the steady-state route model. Runtime checks cover execution.
+                continue
             else:
                 reject(line)
 
@@ -143,10 +174,7 @@ def parse_frr_isis(node: str, config: str) -> tuple[str, dict[str, dict]]:
         or router_values.get("metric-style") != "wide"
     ):
         raise ValueError(f"Incomplete FRR IS-IS configuration on {node}")
-    if (
-        not {"frr version 10.5.3", "frr defaults traditional", "hostname"}
-        <= seen_global
-    ):
+    if not {"frr defaults traditional", "hostname"} <= seen_global:
         raise ValueError(f"Incomplete FRR configuration header on {node}")
     if not interfaces:
         raise ValueError(f"FRR IS-IS config on {node} has no interfaces")
@@ -156,6 +184,7 @@ def parse_frr_isis(node: str, config: str) -> tuple[str, dict[str, dict]]:
                 iface["passive"]
                 or iface["circuit_type"] is not None
                 or iface["metric_explicit"]
+                or iface["point_to_point"]
             ):
                 raise ValueError(
                     f"Incomplete disabled FRR IS-IS interface on {node}:{name}"
@@ -165,6 +194,7 @@ def parse_frr_isis(node: str, config: str) -> tuple[str, dict[str, dict]]:
                 not iface["passive"]
                 or iface["circuit_type"] is not None
                 or iface["metric_explicit"]
+                or iface["point_to_point"]
             ):
                 raise ValueError(f"Unsupported FRR IS-IS loopback config on {node}")
         elif iface["circuit_type"] != "level-2-only" or not iface["metric_explicit"]:
@@ -178,7 +208,7 @@ def parse_frr_isis(node: str, config: str) -> tuple[str, dict[str, dict]]:
     return net, interfaces
 
 
-def project_frr_isis(node: str, config: str, *, shutdown=()) -> str:
+def project_frr_isis(node: str, config: str, *, shutdown=(), allow_ebgp=False) -> str:
     """Translate one supported FRR config to native IOS XR IS-IS syntax."""
     igp_config, bgp_fragment = split_frr_ibgp(config)
     net, interfaces = parse_frr_isis(node, igp_config)
@@ -207,6 +237,8 @@ def project_frr_isis(node: str, config: str, *, shutdown=()) -> str:
         lines.extend([f" interface {_native_interface(original)}"])
         if original != "lo":
             lines.append("  circuit-type level-2-only")
+        if details["point_to_point"]:
+            lines.append("  point-to-point")
         if details["passive"]:
             lines.append("  passive")
         lines.extend(
@@ -218,7 +250,9 @@ def project_frr_isis(node: str, config: str, *, shutdown=()) -> str:
             ]
         )
     lines.append("!")
-    return "\n".join(lines) + "\n" + project_frr_ibgp(bgp_fragment)
+    return (
+        "\n".join(lines) + "\n" + project_frr_ibgp(bgp_fragment, allow_ebgp=allow_ebgp)
+    )
 
 
 def build_isis_snapshot(
@@ -236,12 +270,12 @@ def build_isis_snapshot(
     plan = env.plan
     if (
         plan.igp != "isis"
-        or (env.bgp_plan is not None and env.bgp_plan.mode != "ibgp_rr")
+        or (env.bgp_plan is not None and env.bgp_plan.mode not in {"ibgp_rr", "ebgp"})
         or env.rpki
         or env.rtbh
     ):
         raise ValueError(
-            "IS-IS projection requires an ordinary no-BGP or iBGP RR ISP profile"
+            "IS-IS projection requires an ordinary no-BGP, iBGP RR, or eBGP ISP profile"
         )
     deployment_configs = env.deployment_configs if configs is None else configs
     expected = {node.device_name for node in plan.nodes}
@@ -264,7 +298,15 @@ def build_isis_snapshot(
         _validate_startup_addresses(node, plan_nodes[node].startup_commands, interfaces)
         native_map = {_native_interface(name): name for name in interfaces}
         aliases[node] = native_map
-        projected = project_frr_isis(node, config, shutdown=shutdown)
+        projected = project_frr_isis(
+            node,
+            config,
+            shutdown=shutdown,
+            # A registered ASN fault can turn an intended iBGP peer into a
+            # mismatched external peer. Analyze the concrete ASN rather than
+            # assuming the original sketch remained same-AS.
+            allow_ebgp=env.bgp_plan is not None,
+        )
         (configs_dir / f"{node}.cfg").write_text(projected, encoding="utf-8")
 
     edges = []
@@ -289,7 +331,7 @@ def build_isis_snapshot(
         "routing_model": routing_model,
         "native_config_analysis": False,
         "interface_aliases": aliases,
-        "scope": "FRR IPv4 IS-IS L2-only wide metrics and optional ordinary iBGP RR projected to IOS XR; connected router interfaces only",
+        "scope": "FRR IPv4 IS-IS L2-only wide metrics and optional ordinary iBGP RR or direct eBGP projected to IOS XR; connected router interfaces only",
     }
     Path(root).mkdir(parents=True, exist_ok=True)
     (Path(root) / "batfish-snapshot-metadata.json").write_text(

@@ -60,6 +60,8 @@ Submit with the [leaderboard submission skill](.agents/skills/nika-leaderboard-s
 * Do not add telemetry, metadata, or interfaces that leak ground truth.
 * Follow the `ProblemBase` model, failure taxonomy, registry, and RCA conventions in [Create benchmark tasks](docs/development/creating-benchmark-tasks.md).
 * Put failure logic shared across domains in `src/nika/problems/support/`, not in a concrete registered failure.
+* Keep environment synthesis and formal-validation experiments opt-in during development, and leave the normal benchmark startup path unchanged unless asked.
+* Use established synthesis and verification tools within their supported semantics. Document the original requirements, the responsibilities NIKA keeps, and the verification limits, and keep the workflow capability-based across environments.
 
 ## Benchmark contracts
 
@@ -77,6 +79,8 @@ Executable network behavior needs real Docker-backed NIKA end-to-end runs; unit 
 Run independent end-to-end tests in parallel when it is safe. The benchmark runner already runs heavy environments (Containerlab, k8s/llmd/XRd, and topology size `l`) one at a time through `heavy_batch_size: 1`; do not stack several heavy environments by hand in ad-hoc scripts.
 
 Use unit tests for stable, isolated logic such as parsing, schemas, deterministic transformations, compatibility rules, and pure algorithms. [Testing](docs/development/testing.md) describes the suite layout, the required pytest tier markers, and the CI jobs.
+
+Share acceptance assertions across specification-driven experiments. Keep environment differences in declared specifications and deployment parameters, not in separate test workflows.
 
 Keep a small durable regression set that covers user-visible behavior, important failure modes, benchmark contracts, and reusable core logic. Do not add permanent tests that only mirror implementation details or raise coverage. Temporary tests and helpers are fine during development; remove them when the feature is done.
 

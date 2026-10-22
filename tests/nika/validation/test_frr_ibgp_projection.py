@@ -137,6 +137,68 @@ def test_projection_rejects_non_connected_network_origin(janos_ibgp_configs):
         project_frr_ibgp(mutated)
 
 
+@pytest.mark.unit
+def test_projection_keeps_both_protocols_when_bgp_precedes_isis(janos_ibgp_configs):
+    from nika.validation.batfish.isis import project_frr_isis
+
+    _, configs = janos_ibgp_configs
+    igp, bgp = split_frr_ibgp(configs["albany"])
+    assert project_frr_isis("albany", bgp + igp) == project_frr_isis(
+        "albany", configs["albany"]
+    )
+
+
+@pytest.mark.unit
+def test_upstream_multipath_defaults_require_same_as_peers(janos_ibgp_configs):
+    _, configs = janos_ibgp_configs
+    _, fragment = split_frr_ibgp(configs["albany"])
+    fragment = fragment.replace(
+        "router bgp 65000\n",
+        "router bgp 65000\n bgp bestpath as-path multipath-relax\n",
+    )
+    assert "router bgp 65000" in project_frr_ibgp(fragment)
+    fragment = fragment.replace("remote-as 65000", "remote-as 65001", 1)
+    with pytest.raises(ValueError, match="same-AS iBGP"):
+        project_frr_ibgp(fragment)
+
+
+@pytest.mark.unit
+def test_ebgp_projection_preserves_policy_localpref_and_global_controls():
+    fragment = """router bgp 65000
+ bgp router-id 10.0.0.1
+ no bgp default ipv4-unicast
+ no bgp ebgp-requires-policy
+ bgp bestpath as-path multipath-relax
+ neighbor 192.0.2.2 remote-as 65001
+ address-family ipv4 unicast
+  neighbor 192.0.2.2 activate
+ exit-address-family
+router bgp 65000
+ address-family ipv4
+  neighbor 192.0.2.2 route-map IMPORT in
+ exit-address-family
+ip prefix-list CUSTOMER seq 5 permit 198.51.100.0/24
+route-map IMPORT permit 10
+ match ip address prefix-list CUSTOMER
+ set local-preference 231
+ call BGP-IN
+route-map BGP-IN permit 10
+ match ip address prefix-list CUSTOMER
+"""
+
+    with pytest.raises(ValueError, match="external peers"):
+        project_frr_ibgp(fragment)
+    projected = project_frr_ibgp(fragment, allow_ebgp=True)
+
+    assert "bgp unsafe-ebgp-policy" in projected
+    assert "bgp bestpath as-path multipath-relax" in projected
+    assert (
+        "route-policy IMPORT\n if destination in CUSTOMER then\n  set local-preference 231\n  apply BGP-IN\n  done\n endif"
+        in projected
+    )
+    assert "route-policy IMPORT in" in projected
+
+
 @pytest.mark.contract
 def test_selected_isis_ibgp_benchmark_failures_preserve_original_design():
     from nika.net_env.isp.igp.plan import active_igp_links

@@ -13,15 +13,14 @@ Every current scenario uses a **two-layer** healthy baseline, aligned with failu
 
 Base `isp_<topology>` scenarios on Kathara with FRR also create a design-time validation contract and can run Batfish static validation. Static and runtime evidence remain separate because they answer different questions.
 
-## Declared ISP requirements
+## Specification-driven experiments
 
-The developer script `uv run python experiment/routing_validation/experiment.py SPEC --output DIR --runtime` completes supported routing parameters with NetComplete and applies the same typed requirements and predicate evaluation to Clos, campus and enterprise designs. The original specification declares which requirements need execution evidence in addition to supported static analysis. In the evaluated Clos design, the pinned Batfish model does not enforce the numeric FRR multipath limit; ECMP installation is therefore a mandatory execution requirement. Enterprise analysis covers an explicit static-underlay projection, with overlay routing and isolation required in execution.
-
-Clos completes device-level BGP export policies; campus completes intra-area OSPF costs while preserving area boundaries; enterprise completes per-prefix BGP import admission and ordering. Campus paths and enterprise selections have one original `behavior` definition: completion references its IDs, and fixed lowering derives the verification predicates for every declared state. Existing generators render the solved values and preserve failure targets. Enterprise tunnel and VRF behavior remains outside the synthesis model.
-
-Synthesis and full verification are explicit construction experiments. Their entry points and specimens live in `experiment/routing_validation`; reusable orchestration lives in `nika.workflows.validation`. Normal benchmark runs retain their deployment defaults and do not invoke NetComplete or the experiment's verification sequence. The workflow saves completed parameters for explicit reuse through `load_routing_build` and the existing `start_net_env` API. This does not automatically switch benchmark manifests to those parameters.
-
-See the [cross-domain routing workflow](../../experiment/routing_validation/README.md) for exact scopes, negative controls, reproduction commands and results. Normal scenario startup retains its existing readiness procedure.
+To construct and verify an environment before using it in a benchmark, follow
+[scenario construction and verification](scenario-verification.md) and the
+[experiment guide](../../experiment/scenario_validation/README.md).
+The shared workflow checks original requirements through NetComplete, netlab,
+Batfish or NetKAT where supported, followed by native execution and recovery.
+These experiments are opt-in; normal benchmark startup keeps its existing defaults.
 
 ## Validation flow and artifacts
 
@@ -327,7 +326,3 @@ Failure-effect validation compares the healthy contract with the lab after a rea
 uv run pytest -q tests/nika/net_env/test_validation_contract.py tests/nika/net_env/isp/test_isp_contract.py
 uv run pytest -q tests/nika/validation -k 'not live'
 ```
-
-The `min3clos` experiment also completes IPv4 BGP exports for Nokia SR Linux using the same NetComplete model and typed parameters. Batfish checks a restricted projection of the concrete update documents; native SR Linux execution checks the original adjacency, communication and isolation requirements, export withdrawal, and link recovery. See the [SR Linux experiment scope](../../experiment/routing_validation/README.md#tool-responsibilities-and-model-scope) before interpreting its static results as device evidence.
-
-The [benchmark-selected ISP adapter](../../experiment/routing_validation/README.md#cover-benchmark-isp-deployments) reads actual manifest profiles and preserves their protocol/backend choices. The FRR OSPF and single-level IS-IS subsets declare original anchored shortest-path and ECMP requirements and make active link-state metrics symbolic. Its multi-AS eBGP profiles preserve the BGP design and solve only the intra-AS costs, with one anchor per original IGP component. Shared BGP predicates additionally check sessions, RR roles, cross-AS business communication and the selected maximum-prefix fault. The shared NetComplete adapter jointly solves healthy and declared fault states; the existing ISP compiler renders the result. For IS-IS, the workflow reuses NetComplete’s shortest-path encoding under an explicit Level-2, wide-metric, no-BGP scope. A strict projection of the resulting FRR configuration supplies Batfish’s IOS XR IS-IS model; native FRR checks the same predicates. This is a scoped model reduction, not a claim that NetComplete supports native IS-IS synthesis or that Batfish proves full FRR equivalence. Batfish and runtime evaluate the same original next-hop predicates, alongside physical adjacencies and loopback communication. Normal failure injection and recovery exercise the selected benchmark root causes. Unsupported combinations remain explicit in the coverage inventory.

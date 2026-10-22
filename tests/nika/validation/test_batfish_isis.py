@@ -12,7 +12,7 @@ from nika.validation.batfish.isis import (
     project_frr_isis,
 )
 from nika.net_env.contract import AdjacencyExpectation, ValidationIntent
-from nika.validation.batfish.client import _normalize_isis_interfaces
+from nika.validation.batfish.client import _normalize_interfaces
 from nika.validation.batfish.compiler import compile_intent
 from nika.validation.batfish.verifier import _evaluate_adjacency
 
@@ -120,6 +120,30 @@ def test_snapshot_writes_router_only_edges_and_interface_aliases(tmp_path):
     }
 
 
+def test_snapshot_projects_ordinary_isis_ebgp_configs(tmp_path):
+    from nika.net_env.isp.bgp.frr import merge_frr_conf, render_bgp_frr_fragment
+
+    env = load_offline_net_env(
+        "isp_abilene", igp="isis", bgp_mode="ebgp", backend="kathara"
+    )
+    bgp_nodes = {node.device_name: node for node in env.bgp_plan.nodes}
+    configs = {
+        node.device_name: merge_frr_conf(
+            node.frr_conf,
+            render_bgp_frr_fragment(bgp_nodes[node.device_name], env.bgp_plan),
+        )
+        for node in env.plan.nodes
+    }
+
+    snapshot = build_isis_snapshot(
+        env, env.validation_contract, tmp_path, configs=configs
+    )
+
+    projected = (snapshot.path / "configs" / "atlam5.cfg").read_text()
+    assert "router bgp " in projected
+    assert "next-hop-self" in projected
+
+
 def test_snapshot_rejects_static_route_startup(tmp_path):
     env = load_offline_net_env(
         "isp_abilene", igp="isis", bgp_mode="none", backend="kathara"
@@ -163,19 +187,20 @@ def test_compiles_isis_adjacency_as_topology_edge_query():
     assert question.parameters["remote_interface"] == "eth0"
 
 
-def test_batfish_edge_aliases_normalize_to_original_interfaces():
+@pytest.mark.parametrize("native", ["GigabitEthernet0/0/0/0", "ether2"])
+def test_batfish_edge_aliases_normalize_to_original_interfaces(native):
     rows = [
         {
-            "Interface": "r1[GigabitEthernet0/0/0/0]",
-            "Remote_Interface": "r2[GigabitEthernet0/0/0/0]",
+            "Interface": f"r1[{native}]",
+            "Remote_Interface": f"r2[{native}]",
         }
     ]
 
-    normalized = _normalize_isis_interfaces(
+    normalized = _normalize_interfaces(
         rows,
         {
-            "r1": {"GigabitEthernet0/0/0/0": "eth0"},
-            "r2": {"GigabitEthernet0/0/0/0": "eth0"},
+            "r1": {native: "eth0"},
+            "r2": {native: "eth0"},
         },
     )
 
@@ -211,3 +236,20 @@ def test_isis_evaluator_rejects_wrong_parallel_counterpart():
     assert not passed
     assert matched == []
     assert violations == edges
+
+
+def test_isis_snapshot_preserves_a_registered_local_asn_fault(tmp_path):
+    env = load_offline_net_env(
+        "isp_abilene", igp="isis", bgp_mode="ibgp_rr", backend="kathara"
+    )
+    configs = dict(env.deployment_configs)
+    node = env.bgp_plan.nodes[0]
+    configs[node.device_name] = configs[node.device_name].replace(
+        f"router bgp {node.asn}\n", f"router bgp {node.asn + 600}\n"
+    )
+    snapshot = build_isis_snapshot(
+        env, env.validation_contract, tmp_path, configs=configs
+    )
+    projected = (snapshot.path / "configs" / f"{node.device_name}.cfg").read_text()
+    assert f"router bgp {node.asn + 600}" in projected
+    assert f"remote-as {node.asn}" in projected

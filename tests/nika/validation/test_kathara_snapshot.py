@@ -4,16 +4,16 @@ from pathlib import Path
 import pytest
 from nika.net_env.enterprise_branch.lab import EnterpriseBranch
 from nika.validation.batfish.kathara import build_kathara_snapshot
-from nika.workflows.validation.routing_spec import RoutingExperiment
+from nika.workflows.validation.scenario_spec import ScenarioExperiment
 
 pytestmark = pytest.mark.contract
 
 
 def test_vrf_requires_explicit_static_underlay_scope(tmp_path):
-    spec = RoutingExperiment.model_validate_json(
+    spec = ScenarioExperiment.model_validate_json(
         (
             Path(__file__).resolve().parents[3]
-            / "experiment/routing_validation/enterprise.json"
+            / "experiment/scenario_validation/enterprise.json"
         ).read_text()
     )
     env = EnterpriseBranch()
@@ -39,7 +39,7 @@ def test_vrf_requires_explicit_static_underlay_scope(tmp_path):
 
 def test_runtime_counterexample_requires_a_real_expected_violation():
     from pydantic import ValidationError
-    from nika.workflows.validation.routing_spec import RoutingRuntimeMutation
+    from nika.workflows.validation.scenario_spec import RoutingRuntimeMutation
 
     with pytest.raises(ValidationError):
         RoutingRuntimeMutation(
@@ -64,10 +64,10 @@ def test_concrete_host_default_route_preserves_gateway():
 def test_snapshot_rebuild_removes_obsolete_devices(tmp_path):
     from nika.net_env.net_env_pool import get_net_env_instance
 
-    spec = RoutingExperiment.model_validate_json(
+    spec = ScenarioExperiment.model_validate_json(
         (
             Path(__file__).resolve().parents[3]
-            / "experiment/routing_validation/clos.json"
+            / "experiment/scenario_validation/clos.json"
         ).read_text()
     )
     env = get_net_env_instance(spec.scenario, topo_size=spec.topo_size)

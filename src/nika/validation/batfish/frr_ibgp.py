@@ -1,4 +1,4 @@
-"""Concrete FRR IPv4 iBGP/RR subset projected to IOS XR for Batfish."""
+"""Concrete FRR IPv4 BGP subset projected to IOS XR for Batfish."""
 
 from __future__ import annotations
 
@@ -9,21 +9,35 @@ from nika.net_env.utils.kathara.frr_origin import BGP_ORIGIN_IFACE
 
 
 def split_frr_ibgp(config: str) -> tuple[str, str]:
-    """Separate the appended BGP fragment from the original IGP config."""
-    match = re.search(
-        rf"^(?:interface {re.escape(BGP_ORIGIN_IFACE)}\b|ip prefix-list |route-map |router bgp )",
-        config,
-        re.MULTILINE,
-    )
-    return (config[: match.start()], config[match.start() :]) if match else (config, "")
+    """Separate concrete protocol blocks, including interleaved tool fragments."""
+    igp, bgp = [], []
+    target = igp
+    for line in config.splitlines(keepends=True):
+        if line and not line[0].isspace() and not line.startswith(("!", "#")):
+            if line.startswith(("interface ", "router ")):
+                target = (
+                    bgp
+                    if (
+                        line.strip() == f"interface {BGP_ORIGIN_IFACE}"
+                        or line.startswith("router bgp ")
+                    )
+                    else igp
+                )
+            elif line.startswith(("ip prefix-list ", "route-map ")):
+                target = bgp
+            elif line.startswith(("hostname ", "log file ", "frr ", "ip forwarding")):
+                target = igp
+        target.append(line)
+    return "".join(igp), "".join(bgp)
 
 
-def project_frr_ibgp(fragment: str) -> str:
-    """Preserve concrete origins, sessions, RR flags and admission policies.
+def project_frr_ibgp(fragment: str, *, allow_ebgp: bool = False) -> str:
+    """Preserve concrete origins, sessions and supported route-map policies.
 
-    This accepts the ordinary IPv4 iBGP sketch, including counterexamples that
-    change its ASN or remove announcements/policy clauses. It rejects features
-    outside that subset rather than reconstructing policies from the design.
+    This accepts the ordinary IPv4 iBGP sketch and the restricted direct-eBGP
+    subset used with IS-IS, including counterexamples that change concrete
+    attributes. It rejects features outside that subset rather than rebuilding
+    policies from the design.
     """
     if not fragment.strip():
         return ""
@@ -37,7 +51,7 @@ def project_frr_ibgp(fragment: str) -> str:
     section, clause, af = None, None, False
 
     def reject(line):
-        raise ValueError(f"Unsupported FRR iBGP configuration: {line!r}")
+        raise ValueError(f"Unsupported FRR BGP configuration: {line!r}")
 
     def assign(target, key, value):
         if key in target:
@@ -46,7 +60,7 @@ def project_frr_ibgp(fragment: str) -> str:
 
     for raw in fragment.splitlines():
         line = raw.strip()
-        if not line or line.startswith("!"):
+        if not line or line.startswith(("!", "#")):
             continue
         if line == f"interface {BGP_ORIGIN_IFACE}":
             if addresses or section == "origin":
@@ -57,6 +71,10 @@ def project_frr_ibgp(fragment: str) -> str:
             if address in addresses:
                 reject(line)
             addresses.append(address)
+        elif section == "origin" and (
+            line == "no shutdown" or line.startswith("description ")
+        ):
+            continue
         elif match := re.fullmatch(
             r"ip prefix-list (\S+) seq ([0-9]+) permit ([0-9./]+)(?: le ([0-9]+))?",
             line,
@@ -77,12 +95,24 @@ def project_frr_ibgp(fragment: str) -> str:
             if section != "policy":
                 reject(line)
             assign(clause, "prefix_list", match[1])
+        elif match := re.fullmatch(r"set local-preference ([0-9]+)", line):
+            value = int(match[1])
+            if section != "policy" or not 0 <= value <= 4294967295:
+                reject(line)
+            assign(clause, "local_preference", value)
+        elif match := re.fullmatch(r"call (\S+)", line):
+            if section != "policy":
+                reject(line)
+            assign(clause, "call", match[1])
         elif match := re.fullmatch(r"router bgp ([0-9]+)", line):
             asn = int(match[1])
             if not 1 <= asn <= 4294967295:
                 reject(line)
-            assign(router, "asn", asn)
+            if "asn" in router and router["asn"] != asn:
+                reject("multiple BGP instances are outside the projection")
+            router["asn"] = asn
             section = "router"
+            af = False
         elif section == "router":
             if match := re.fullmatch(r"bgp (router-id|cluster-id) ([0-9.]+)", line):
                 assign(router, match[1], str(IPv4Address(match[2])))
@@ -90,7 +120,20 @@ def project_frr_ibgp(fragment: str) -> str:
                 if line in flags:
                     reject(line)
                 flags.add(line)
-            elif line == "address-family ipv4 unicast" and not af:
+            elif line in {
+                "no bgp ebgp-requires-policy",
+                "bgp default show-hostname",
+                "bgp default show-nexthop-hostname",
+                "bgp bestpath as-path multipath-relax",
+            }:
+                if line in flags:
+                    reject(line)
+                flags.add(line)
+                continue
+            elif (
+                line in {"address-family ipv4", "address-family ipv4 unicast"}
+                and not af
+            ):
                 af = True
             elif line == "exit-address-family" and af:
                 af = False
@@ -99,6 +142,11 @@ def project_frr_ibgp(fragment: str) -> str:
                 if prefix in networks:
                     reject(line)
                 networks.append(prefix)
+            elif match := re.fullmatch(
+                r"no neighbor ([0-9.]+) send-community all", line
+            ):
+                if not af or str(IPv4Address(match[1])) not in peers:
+                    reject(line)
             elif match := re.fullmatch(r"neighbor ([0-9.]+) (.+)", line):
                 peer = peers.setdefault(str(IPv4Address(match[1])), {})
                 attribute = match[2]
@@ -109,8 +157,28 @@ def project_frr_ibgp(fragment: str) -> str:
                     assign(peer, "asn", asn)
                 elif attribute == "update-source lo" and not af:
                     assign(peer, "source", "Loopback0")
-                elif attribute in {"activate", "route-reflector-client"} and af:
+                elif (
+                    attribute
+                    in {
+                        "activate",
+                        "route-reflector-client",
+                        "next-hop-self",
+                    }
+                    and af
+                ):
                     assign(peer, attribute, True)
+                elif attribute.startswith("description ") and not af:
+                    continue
+                elif (
+                    attribute
+                    in {
+                        "send-community standard",
+                        "send-community large",
+                        "send-community extended",
+                    }
+                    and af
+                ):
+                    continue
                 elif value := re.fullmatch(r"route-map (\S+) (in|out)", attribute):
                     if not af:
                         reject(line)
@@ -121,12 +189,19 @@ def project_frr_ibgp(fragment: str) -> str:
                 reject(line)
         else:
             reject(line)
-    if af or not {"asn", "router-id"} <= router.keys() or len(flags) != 2:
+    # FRR also accepts an address family ending at configuration-file EOF.
+    if (
+        not {"asn", "router-id"} <= router.keys()
+        or "no bgp default ipv4-unicast" not in flags
+    ):
         reject("incomplete BGP instance")
     if any(prefix not in {a.network for a in addresses} for prefix in networks):
-        reject("non-connected origin with disabled FRR import-check")
+        reject("non-connected origin in the connected-prefix subset")
     if any("asn" not in peer for peer in peers.values()):
         reject("incomplete BGP peer")
+    external_peers = any(peer["asn"] != router["asn"] for peer in peers.values())
+    if external_peers and not allow_ebgp:
+        reject("external peers require the eBGP projection; same-AS iBGP peers only")
 
     lines = []
     if addresses:
@@ -154,6 +229,12 @@ def project_frr_ibgp(fragment: str) -> str:
                 if selector not in prefixes:
                     reject(f"undefined prefix-list {selector}")
                 lines.append(f" if destination in {selector} then")
+            if "local_preference" in entry:
+                lines.append(f"  set local-preference {entry['local_preference']}")
+            if "call" in entry:
+                if entry["call"] not in policies:
+                    reject(f"undefined route-map {entry['call']}")
+                lines.append(f"  apply {entry['call']}")
             lines.append("  done" if entry["action"] == "permit" else "  drop")
             if selector is not None:
                 lines.append(" endif")
@@ -161,6 +242,10 @@ def project_frr_ibgp(fragment: str) -> str:
     lines.extend(
         [f"router bgp {router['asn']}", f" bgp router-id {router['router-id']}"]
     )
+    if allow_ebgp and "no bgp ebgp-requires-policy" in flags:
+        lines.append(" bgp unsafe-ebgp-policy")
+    if allow_ebgp and "bgp bestpath as-path multipath-relax" in flags:
+        lines.append(" bgp bestpath as-path multipath-relax")
     if "cluster-id" in router:
         lines.append(f" bgp cluster-id {router['cluster-id']}")
     lines.append(" address-family ipv4 unicast")
@@ -174,6 +259,8 @@ def project_frr_ibgp(fragment: str) -> str:
             lines.append("  address-family ipv4 unicast")
             if peer.get("route-reflector-client"):
                 lines.append("   route-reflector-client")
+            if peer.get("next-hop-self"):
+                lines.append("   next-hop-self")
             for direction in ("in", "out"):
                 if direction in peer:
                     if peer[direction] not in policies:
