@@ -24,6 +24,8 @@ AgentENV needs no account and keeps everything on your host. Docker Sandboxes al
 | `byo.autogen` | `shell` | `autogen` |
 | `cli.codex` | `codex` | `runtime` |
 | `cli.claude` | `claude` | `runtime` |
+| `cli.opencode` | `shell` | `runtime`, plus the pinned OpenCode CLI |
+| `cli.dsh` | `shell` | `runtime`, plus the pinned DeepSeek Harness CLI |
 | `sdk.codex_sdk` | `shell` | `codex_sdk` |
 | `sdk.claude_sdk` | `shell` | `claude_sdk` |
 | `community.sade` | `shell` | `claude_sdk` |
@@ -99,11 +101,11 @@ For example, to use an OpenAI API key:
 OPENAI_API_KEY=YOUR_API_KEY
 ```
 
-Select the matching `agent.provider` in `config/nika.yaml` or pass `-p` on the CLI. For a custom endpoint, also set `agent.base_url`; see [Endpoint compatibility](../agents/agent-reference.md#custom-endpoint-compatibility).
+Select the matching `agent.provider` in `config/nika.yaml` or pass `-p` on the CLI. For a custom endpoint, also set `agent.base_url`; see [Endpoint compatibility](../agents/agent-reference.md#custom-endpoint-compatibility). To send `openai`, `anthropic`, or `deepseek` through a compatible gateway instead of the official API, also set `OPENAI_BASE_URL`, `ANTHROPIC_BASE_URL`, or `DEEPSEEK_BASE_URL`.
 
 ### Subscriptions
 
-Subscriptions work with Codex and Claude agents only; BYO agents and agents you add need an API key. Your local Claude or Codex login does not authenticate a NIKA sandbox, and NIKA never copies host auth files into a sandbox. To evaluate with a Claude or ChatGPT subscription, sign in once on the NIKA host; NIKA's model proxy adds the login to the agent's model requests. If `.env` also holds an API key for the provider, NIKA uses the API key.
+Subscriptions work with Codex and Claude agents only. OpenCode, DeepSeek Harness, BYO agents, and agents you add need an API key. Your local Claude or Codex login does not authenticate a NIKA sandbox, and NIKA never copies host auth files into a sandbox. To evaluate with a Claude or ChatGPT subscription, sign in once on the NIKA host; NIKA's model proxy adds the login to the agent's model requests. If `.env` also holds an API key for the provider, NIKA uses the API key.
 
 - **Claude subscription:** create a long-lived token and add it to the repository-root `.env`:
 
@@ -193,6 +195,8 @@ uv run nika agent run -a sdk.claude_sdk --no-sandbox-offline-sdk-wheels \
 ```
 
 The committed pins are the source of truth for sandboxes. Top-level packages match the exact pins in `pyproject.toml`; after changing a set's `.in` file or those pins, regenerate the sets with `scripts/compile_agent_requirements.sh`, which resolves them against the local `uv.lock`. A changed set invalidates its wheel cache.
+
+OpenCode and DeepSeek Harness need their Node CLIs inside the sandbox. The sandbox cannot reach the npm registry, so the NIKA host installs each pinned package once (Node.js 22+ on the host), copies it into the workspace as `.npm-prefix/`, and the agent runs the binary from there.
 
 ### E2B templates
 

@@ -126,6 +126,9 @@ Run agent unit tests to check configuration, authentication mapping, and output 
 | `test_agent_config.py` | shared config | agent model/env resolution, judge env | None |
 | `test_codex_cli.py` | `cli.codex` | Codex TOML/display/worker config | None (unit tests) |
 | `test_claude_cli.py` | `cli.claude` | Claude JSON/display/auth helpers | None (unit tests) |
+| `test_opencode_cli.py` | `cli.opencode` | OpenCode MCP/provider/max_steps helpers | None (unit tests) |
+| `test_dsh_cli.py` | `cli.dsh` | DeepSeek Harness MCP/env/max_steps helpers | None (unit tests) |
+| `test_npm_stage.py` | `cli.opencode`, `cli.dsh` | Host npm prefix staging for sandbox CLIs | None (unit tests) |
 | `test_langgraph_max_steps.py` | `byo.langgraph` | `max_steps` counts LLM turns | None |
 | `test_mcp_agent_bootstrap.py` | `byo.mcp_agent` | import hygiene regression | None |
 | `test_sade.py` | `community.sade` | SDK env + MCP adapter | None (unit tests) |

@@ -35,6 +35,8 @@ For a Claude or ChatGPT subscription, complete the [subscription login](../opera
 
 - [Codex CLI](../../config/cli.codex.example.yaml) (`cli.codex`)
 - [Claude Code](../../config/cli.claude.example.yaml) (`cli.claude`)
+- [OpenCode](../../config/cli.opencode.example.yaml) (`cli.opencode`)
+- [DeepSeek Harness](../../config/cli.dsh.example.yaml) (`cli.dsh`)
 - [Codex SDK](../../config/sdk.codex_sdk.example.yaml) (`sdk.codex_sdk`)
 - [Claude Agent SDK](../../config/sdk.claude_sdk.example.yaml) (`sdk.claude_sdk`)
 

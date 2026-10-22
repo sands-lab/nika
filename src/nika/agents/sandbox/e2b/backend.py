@@ -50,6 +50,7 @@ from nika.agents.sandbox.e2b.image_config import image_config
 from nika.agents.sandbox.locks import host_file_lock
 from nika.agents.sandbox.templates import TEMPLATE_IMAGES, agent_template
 from nika.agents.sandbox.tunnel import RELAY_SCRIPT, TunnelBridge
+from nika.agents.sandbox.npm import stage_npm
 from nika.agents.sandbox.wheels import (
     load_requirements,
     needs_agent_venv,
@@ -572,6 +573,10 @@ class E2bBackend(SandboxBackend):
     def stage_workspace(self, workspace_dir: Path, *, agent_type: str) -> None:
         # Agent packages come with the template (see ensure_agent_template).
         shutil.copyfile(RELAY_SCRIPT, workspace_dir / _RELAY_NAME)
+        from nika.agents.registry import get_agent_spec
+
+        spec = get_agent_spec(agent_type)
+        stage_npm(workspace_dir, spec.npm_packages)
 
     def _lifetime_sec(self) -> int:
         from nika.utils.agent_config import resolve_agent_timeout
