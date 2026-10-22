@@ -108,7 +108,9 @@ def test_allowed_network_resources_covers_global_and_own_rules() -> None:
     ("resource", "host", "expected"),
     [
         ("**.githubusercontent.com:443", "objects.githubusercontent.com", True),
-        ("**.githubusercontent.com:443", "githubusercontent.com", False),
+        # As in sbx, "**." also covers the domain itself.
+        ("**.githubusercontent.com:443", "githubusercontent.com", True),
+        ("**.github.com:443", "github.com", True),
         ("github.com:443", "github.com", True),
         ("github.com:443", "api.github.com", False),
         ("crl*.digicert.com:80", "crl3.digicert.com", True),

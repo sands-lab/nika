@@ -104,9 +104,16 @@ def _resource_host(resource: str) -> str:
 
 
 def resource_matches_host(resource: str, hosts: Iterable[str]) -> bool:
-    """True when sbx network *resource* (``**.``/``*`` patterns, port) covers a host."""
+    """True when sbx network *resource* (``**.``/``*`` patterns, port) covers a host.
+
+    As in sbx, ``**.example.com`` also covers ``example.com`` itself.
+    """
     pattern = _resource_host(resource).replace("**", "*")
-    return any(fnmatchcase(_resource_host(host), pattern) for host in hosts)
+    apex = pattern[2:] if pattern.startswith("*.") else None
+    return any(
+        fnmatchcase(host, pattern) or host == apex
+        for host in map(_resource_host, hosts)
+    )
 
 
 def allowed_network_resources(policy: Any, sandbox_name: str) -> list[str]:
