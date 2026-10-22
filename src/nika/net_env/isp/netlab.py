@@ -155,9 +155,7 @@ def netlab_topology(plan: IspPlan, bgp: BgpPlan | None, device_profile: str) -> 
                 # Keep the native SR Linux allow-list.
                 from nika.net_env.isp.bgp.srl import SRL_BUSINESS_PREFIXES
 
-                business = sorted(
-                    {*SRL_BUSINESS_PREFIXES, *(o.prefix for o in bgp.originated)}
-                )
+                business = list(SRL_BUSINESS_PREFIXES)
             prefixes = {"BUSINESS": [{"ipv4": p} for p in business]}
             policies = {
                 name: [{"action": "permit", "match": {"prefix": "BUSINESS"}}]

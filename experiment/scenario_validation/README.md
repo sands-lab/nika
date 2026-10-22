@@ -107,7 +107,8 @@ in `nika.workflows.validation.consistency`. Pass `routing_model` to select anoth
 projection, and `batfish_host`/`batfish_port` for another analyzer.
 
 `report.json` lists each difference as `kind`, `node`, `key`, `native` and
-`candidate`. The compared facts are interface addresses, OSPF areas, passivity and costs,
+`candidate`, and records each candidate's Batfish parse status under `scope`.
+The script fails if either candidate yields no interface or RIB facts. The compared facts are interface addresses, OSPF areas, passivity and costs,
 OSPF or IS-IS adjacencies, BGP sessions, ASNs and RR roles, main RIB and resolved
 FIB entries, selected BGP paths, and per-neighbor import and export outcomes. Both
 candidates see the same probe routes: every path either candidate advertises,
