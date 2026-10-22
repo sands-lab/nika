@@ -158,6 +158,21 @@ def test_e2b_template_name_tracks_pin_and_sizing() -> None:
         != sdk
     )
 
+    # A Python the template lacks builds a venv, so another template; one it
+    # has keeps the same name.
+    def py(spec: str) -> str:
+        return e2b_template_name(
+            "shell",
+            pinned,
+            cpus=2,
+            memory=4096,
+            packages=["a==1"],
+            requires_python=spec,
+        )
+
+    assert py(">=3.10") == sdk
+    assert py(">=3.12,<3.14") != sdk
+
 
 def test_e2b_connection_uses_url_then_domain_then_cloud(tmp_path, monkeypatch) -> None:
     """A service URL takes every request; otherwise E2B_DOMAIN; else E2B cloud."""

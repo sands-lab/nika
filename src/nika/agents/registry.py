@@ -1,7 +1,8 @@
 """Agent type registry used by ``nika agent run``.
 
 Every agent is described by one :class:`AgentSpec`. Built-in agents are listed
-in :data:`BUILTIN_AGENTS`; agents developed outside NIKA are resolved by
+in :data:`BUILTIN_AGENTS`; one-file agents under ``src/agent/custom`` by
+:mod:`nika.agents.custom`; agents developed outside NIKA by
 :mod:`nika.agents.plugins` (``nika agent add`` or a ``module:Class`` import path).
 """
 
@@ -51,9 +52,12 @@ class AgentSpec:
     # added agent, installed from PyPI.
     requirements: str = "runtime"
     packages: tuple[str, ...] = ()
+    # Python version specifier the agent's interpreter must satisfy (PEP 440,
+    # e.g. ">=3.12,<3.14"); ``None`` accepts the sandbox template's Python.
+    requires_python: str | None = None
     # Extra hosts the sandbox may reach (an added agent's LLM endpoint).
     egress: tuple[str, ...] = ()
-    # builtin, user (nika agent add), or import path.
+    # builtin, custom (src/agent/custom), user (nika agent add), or import path.
     source: str = "builtin"
     # Added project directory, copied into the sandbox next to the agent package.
     import_root: str | None = None
@@ -152,13 +156,17 @@ _BUILTINS_BY_ID = {spec.id: spec for spec in BUILTIN_AGENTS}
 def find_agent_spec(agent_type: str) -> AgentSpec | None:
     """Return the spec for *agent_type*, or ``None`` when it is unknown.
 
-    Built-in IDs win, then agents registered with ``nika agent add``, then
-    ``module:Class`` import paths.
+    Built-in IDs win, then ``custom.<name>`` files, then agents registered
+    with ``nika agent add``, then ``module:Class`` import paths.
     """
     name = agent_type.strip()
     if spec := _BUILTINS_BY_ID.get(name.lower()):
         return spec
+    from nika.agents.custom import find_custom_agent_spec
     from nika.agents.plugins import find_external_agent_spec
+
+    if spec := find_custom_agent_spec(name):
+        return spec
 
     return find_external_agent_spec(name)
 

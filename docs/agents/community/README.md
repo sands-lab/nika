@@ -6,4 +6,4 @@ This index lists community-maintained troubleshooting agents that subclass `agen
 | --- | --- | --- | --- |
 | SADE | `community.sade` | [Configure SADE](sade.md) | [`src/agent/community/sade/`](../../../src/agent/community/sade/) |
 
-See [Custom agent integration](../custom-agents.md) for the registration contract and required artifacts.
+See [Custom agent integration](../custom-agents.md) for the agent contract.

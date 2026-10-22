@@ -38,6 +38,7 @@ from nika.agents.sandbox.config import SandboxConfig
 from nika.agents.sandbox.env import format_env_for_log
 from nika.agents.sandbox.mcp_manifest import build_sandbox_mcp_servers
 from nika.agents.sandbox.model_calls import MODEL_CALLS_FILENAME, ModelCallLog
+from nika.agents.sandbox.wheels import runner_path_prefix
 from nika.agents.sandbox.workspace import (
     TraceMirror,
     cleanup_workspace,
@@ -113,6 +114,8 @@ class SandboxSession:
     trace_mirror: TraceMirror | None = None
     # Host record of the agent's model calls; enforces the LLM request budget.
     call_log: ModelCallLog | None = None
+    # Shell prefix that selects the agent's Python (its venv, if it has one).
+    python_prefix: str = ""
 
 
 def _run_settings() -> tuple[LlmClientSettings, float, bool]:
@@ -341,6 +344,7 @@ class SandboxManager:
                     agent_session_id=agent_sid,
                     trace_mirror=mirror,
                     call_log=call_log,
+                    python_prefix=runner_path_prefix(spec.requires_python),
                 )
             finally:
                 try:
@@ -411,7 +415,7 @@ class SandboxManager:
         workspace = self.backend.workspace_path(sandbox_session.workspace_dir)
         inner = (
             f"cd {shlex.quote(workspace)} && echo $$ > {_RUNNER_PID_FILE} && "
-            f"PYTHONPATH={shlex.quote(workspace)} "
+            f"{sandbox_session.python_prefix}PYTHONPATH={shlex.quote(workspace)} "
             f"exec python3 -m agent.runtime {phase}"
         )
         sandbox_name = sandbox_session.sandbox_name

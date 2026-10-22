@@ -50,7 +50,11 @@ from nika.agents.sandbox.e2b.image_config import image_config
 from nika.agents.sandbox.locks import host_file_lock
 from nika.agents.sandbox.templates import TEMPLATE_IMAGES, agent_template
 from nika.agents.sandbox.tunnel import RELAY_SCRIPT, TunnelBridge
-from nika.agents.sandbox.wheels import load_requirements
+from nika.agents.sandbox.wheels import (
+    load_requirements,
+    needs_agent_venv,
+    venv_install_commands,
+)
 from nika.agents.sandbox.workspace import write_workspace_bytes
 from nika.utils.logger import elapsed_ms, log_event
 
@@ -135,17 +139,21 @@ def e2b_template_name(
     cpus: int | None,
     memory: int | None,
     packages: Sequence[str] = (),
+    requires_python: str | None = None,
 ) -> str:
     """Template name for *image* at this sizing, with these Python *packages*.
 
-    The name changes with the pinned digest, the sizing and the package pins,
-    which E2B fixes when it builds a template, so a template built for other
-    pins or another size is never reused.
+    The name changes with the pinned digest, the sizing, the package pins and
+    the Python they need, which E2B fixes when it builds a template, so a
+    template built for other pins or another size is never reused.
     """
     digest = image.rsplit("@sha256:", 1)[-1][:12]
     name = f"nika-{template}-{digest}"
     if packages:
-        pins = hashlib.sha256("\n".join(packages).encode()).hexdigest()[:8]
+        lines = list(packages)
+        if needs_agent_venv(requires_python):
+            lines.append(f"python{requires_python}")
+        pins = hashlib.sha256("\n".join(lines).encode()).hexdigest()[:8]
         name = f"{name}-py{pins}"
     return f"{name}-c{cpus or 'auto'}-m{memory or 'auto'}"
 
@@ -447,9 +455,16 @@ class E2bBackend(SandboxBackend):
         return self.ensure_template(
             spec.template,
             packages=load_requirements(spec.requirements) + spec.packages,
+            requires_python=spec.requires_python,
         )
 
-    def ensure_template(self, template: str, *, packages: Sequence[str] = ()) -> str:
+    def ensure_template(
+        self,
+        template: str,
+        *,
+        packages: Sequence[str] = (),
+        requires_python: str | None = None,
+    ) -> str:
         """Return the E2B template for *template*, built from its pinned image.
 
         Requires a service that implements the E2B template build API.
@@ -462,7 +477,12 @@ class E2bBackend(SandboxBackend):
         cpus = self.config.cpus
         memory = memory_mb(self.config.memory)
         name = e2b_template_name(
-            template, image, cpus=cpus, memory=memory, packages=packages
+            template,
+            image,
+            cpus=cpus,
+            memory=memory,
+            packages=packages,
+            requires_python=requires_python,
         )
         opts = _connection_opts(self.config)
         api = get_api_client(ConnectionConfig(**opts)).get_httpx_client()
@@ -476,7 +496,14 @@ class E2bBackend(SandboxBackend):
                 api.delete(f"/templates/{entry['templateID']}").raise_for_status()
             config = image_config(image)
             builder = Template().from_image(image)
-            if packages:
+            if packages and needs_agent_venv(requires_python):
+                assert requires_python is not None
+                # The template's Python does not fit: a uv venv with one that does.
+                for command in venv_install_commands(
+                    requires_python, packages=packages, no_cache=True
+                ):
+                    builder = builder.run_cmd(command, user=config.user)
+            elif packages:
                 # The service downloads the packages while it builds, so
                 # sandboxes start ready and this host uploads nothing large.
                 # As the image user, as on sbx: root cannot replace packages
