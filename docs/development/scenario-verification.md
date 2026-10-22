@@ -184,8 +184,8 @@ Linux, IOS XR and RouterOS tasks without adding a separate `vendor` field.
 IOS XR and RouterOS ISP deployments support `igp: ospf` or `isis` (Level 2) and
 `bgp_mode: none`, `ibgp_rr` and `ebgp`; security overlays remain excluded. ISP
 contracts declare OSPF adjacencies only, so readiness checks IS-IS Level-2
-adjacencies natively on both. This experiment's RouterOS configuration analysis
-covers OSPF only, so it rejects RouterOS IS-IS profiles.
+adjacencies natively on both. RouterOS IS-IS analysis projects the concrete
+RouterOS circuits to the same IOS XR form used for FRR IS-IS.
 
 With both vendor images installed, run the retained native matrix serially:
 
@@ -194,7 +194,8 @@ uv run pytest tests/nika/validation/test_vendor_isp_workflow.py -m e2e -x -q
 ```
 
 The matrix uses ARPANET196912 for OSPF and iBGP route reflection, and DataXchange
-for multi-AS BGP. IOS XR also runs iBGP route reflection over IS-IS. Each profile follows NetComplete, Batfish, native checks,
+for multi-AS BGP. IOS XR also runs iBGP route reflection over IS-IS, and RouterOS
+runs all three BGP sketches over IS-IS. Each profile follows NetComplete, Batfish, native checks,
 configuration negative controls, link failure and recovery. Keep native
 acceptance results separate from offline configuration compilation.
 
@@ -237,6 +238,10 @@ NetComplete parameter types. IOS XR configurations go directly to Batfish.
 RouterOS configurations pass through a restricted, concrete-command projection:
 explicit IPv4 addresses, point-to-point OSPF in area 0, passive interfaces,
 BGP sessions and reflector roles, exact-prefix filters and local preference.
+RouterOS IS-IS becomes the FRR Level-2 wide-metric form and then IOS XR, as FRR
+IS-IS does: point-to-point circuits keep their Level-2 metric, and passive
+circuits, including the loopback, advertise their prefix with metric 0, as
+RouterOS does.
 The projection reads the final candidate, including counterexamples; unknown
 commands or policy actions are rejected. Native forwarding and protocol
 observations remain required to validate this model's assumptions.
@@ -270,6 +275,39 @@ validated.
 
 Per-node mixed-vendor deployments are not supported: one `device_profile`
 applies to every router in a deployment.
+
+### RouterOS routers in Ethernet environments
+
+`dc_clos`, `campus_lan` and `enterprise_branch` at size `s` run their eligible
+router roles on RouterOS with `device_profile: routeros`. The specimens
+`clos-routeros.json`, `campus-routeros.json` and `enterprise-routeros.json`
+keep the FRR specimens' original requirements, completion sketches, incidents
+and registered failures; counterexamples use RouterOS commands.
+
+NetComplete completes the FRR sketch. The RouterOS translation keeps the
+solved values: export route maps become filter chains that apply the first
+exact-prefix match and reject the rest, OSPF costs set the network template's
+cost, and Site Edge import preferences become the tunnel's import chain.
+Batfish analyzes the final RouterOS candidates together with the FRR routers.
+Each converted router is projected back to FRR under its container interface
+names: addresses, static and blackhole routes, OSPF network templates with
+their costs (RouterOS default 1) and passive flags, and BGP with connected
+origins and exact-prefix chains. Enterprise Site Edges, analyzed with the Linux
+static model, contribute only their `main` table, as FRR edges do; VRFs,
+WireGuard, BGP, NAT and QoS stay runtime requirements. The projections reject
+any other statement.
+
+Native checks observe intents on the router that holds them, including
+non-backbone OSPF areas and the Site Edge's overlay BGP table. After a
+registered failure, restoration re-adds only the RouterOS menu groups whose
+configuration changed. `ospf_area_misconfiguration` moves the router's first
+area templates to a new area natively.
+
+RouterOS installs one best BGP path, so the Clos specimen omits the FRR
+specimen's healthy ECMP predicates and its `maximum-paths` counterexample; it
+disables one BGP session natively instead. netlab does not generate these
+environments for RouterOS: NIKA's Ethernet netlab adapters hand FRR sketches to
+netlab, and netlab's RouterOS device has no IS-IS module.
 
 ## Delegate configuration generation to netlab
 
@@ -311,7 +349,7 @@ The same construction path covers these existing routing sketches:
 | --- | --- | --- |
 | ISP FRR and SR Linux | OSPF or Level-2 IS-IS; no BGP, iBGP RR or ordinary eBGP | Fixed topology and protocol choices; SR Linux IGP ECMP capacity |
 | ISP IOS XR | OSPF or Level-2 IS-IS; no BGP, iBGP RR or eBGP | None beyond the fixed sketch |
-| ISP RouterOS | OSPF; no BGP, iBGP RR or eBGP | RouterOS exact-prefix filters and local preference |
+| ISP RouterOS | OSPF; no BGP, iBGP RR or eBGP (netlab has no RouterOS IS-IS) | RouterOS exact-prefix filters and local preference |
 | Clos and campus FRR | Ethernet OSPF or eBGP, including solved export policies | Linux addressing, switching and services |
 | Enterprise FRR | Tunnel-endpoint BGP and prefix/preference policies | WireGuard lifecycle and existing default-to-business VRF imports |
 | SR Linux BGP fabric | IPv4 BGP and solved export policies | Existing IPv6 interface addressing |
