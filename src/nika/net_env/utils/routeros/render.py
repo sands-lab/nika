@@ -6,8 +6,8 @@ container interfaces of the router's attachment layout.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
-from ipaddress import IPv4Interface
+from collections.abc import Iterable, Mapping, Sequence
+from ipaddress import IPv4Interface, IPv4Network
 
 
 def render_base(name: str, addresses: Iterable[tuple[str, str]]) -> list[str]:
@@ -23,12 +23,15 @@ def render_ospf(
     networks: Mapping[str, str],
     *,
     passive: Iterable[str] = (),
+    costs: Mapping[str, int] | None = None,
 ) -> list[str]:
     """Render OSPFv2 with ``network -> area`` statements, like FRR ``network``.
 
-    ``passive`` lists networks advertised without forming adjacencies.
+    ``passive`` lists networks advertised without forming adjacencies;
+    ``costs`` sets the interface cost of the template for a network.
     """
     passive = set(passive)
+    costs = costs or {}
     areas = sorted(
         set(networks.values()), key=lambda area: tuple(map(int, area.split(".")))
     )
@@ -40,7 +43,9 @@ def render_ospf(
     for network, area in sorted(networks.items()):
         lines.append(
             f"/routing ospf interface-template add area=area-{area} "
-            f"networks={network}" + (" passive" if network in passive else "")
+            f"networks={network}"
+            + (f" cost={costs[network]}" if network in costs else "")
+            + (" passive" if network in passive else "")
         )
     return lines
 
@@ -51,17 +56,32 @@ def render_ebgp(
     peers: Iterable[tuple[str, int]],
     *,
     networks: Iterable[str] = (),
+    filters: Mapping[tuple[str, str], str] | None = None,
+    chains: Mapping[str, Sequence[tuple[str, bool]]] | None = None,
 ) -> list[str]:
-    """Render unfiltered BGP sessions that originate ``networks``.
+    """Render BGP sessions that originate ``networks``.
 
-    Like FRR with ``no bgp ebgp-requires-policy``, sessions accept and
-    re-advertise every route. Each network must be a connected prefix.
+    Like FRR with ``no bgp ebgp-requires-policy``, a session without a filter
+    accepts and re-advertises every route. ``filters`` binds a
+    ``(peer, "in" | "out")`` to a chain in ``chains``; a chain applies its
+    first exact-prefix match and rejects every unmatched route, like an FRR
+    route map over exact prefix lists. Each network must be a connected prefix.
     """
     networks = sorted(networks)
+    filters, chains = filters or {}, chains or {}
     lines = [
         f"/ip firewall address-list add list=BGP-NETWORKS address={network}"
         for network in networks
     ]
+    for chain in sorted(set(filters.values())):
+        for prefix, permit in chains[chain]:
+            network = IPv4Network(prefix)
+            lines.append(
+                f"/routing filter rule add chain={chain} "
+                f'rule="if (dst == {network} && dst-len == {network.prefixlen}) '
+                f'{{ {"accept" if permit else "reject"}; }}"'
+            )
+        lines.append(f'/routing filter rule add chain={chain} rule="reject;"')
     lines.append(f"/routing bgp instance add name=CORE as={asn} router-id={router_id}")
     for index, (address, remote_asn) in enumerate(sorted(peers)):
         command = (
@@ -72,6 +92,10 @@ def render_ebgp(
         )
         if networks:
             command += " output.network=BGP-NETWORKS"
+        if chain := filters.get((address, "in")):
+            command += f" input.filter={chain}"
+        if chain := filters.get((address, "out")):
+            command += f" output.filter-chain={chain}"
         lines.append(command)
     return lines
 

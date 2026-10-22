@@ -1,8 +1,9 @@
 """Translate Kathara FRR router sketches to RouterOS configuration.
 
 The translation keeps each router's design: interface addresses, static
-routes, OSPF network-to-area bindings, BGP sessions with network origins and
-FRR's open eBGP default, Linux bridged gateways and their DHCP relay. Linux
+routes, OSPF network-to-area bindings with interface costs, BGP sessions with
+network origins, FRR's open eBGP default and per-neighbor route maps over
+exact-prefix lists (the form solved routing parameters take), Linux bridged gateways and their DHCP relay. Linux
 egress shaping (netem) stays on the container links. RouterOS installs one
 best BGP path, so FRR's eBGP multipath has no equivalent; unsupported
 statements are rejected rather than deployed with changed meaning.
@@ -11,6 +12,7 @@ statements are rejected rather than deployed with changed meaning.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from ipaddress import IPv4Interface
 
 from nika.net_env.native_routers import NativeConversion
 from nika.net_env.utils.frr_sketch import parse_frr, parse_startup
@@ -38,8 +40,6 @@ def translate_frr_router(hostname: str, frr_conf: str, startup: str) -> RouterOs
     """Translate one router; raise ``ValueError`` for unmapped statements."""
     parsed = parse_startup(startup)
     bgp, ospf, policy = parse_frr(frr_conf, hostname)
-    if policy.prefix_lists or policy.route_maps or policy.ospf_costs:
-        raise ValueError("RouterOS translation does not support FRR route policies")
     routed = [(name, cidr) for name, cidr in parsed.interfaces if name != "br0"]
     bridged = [cidr for name, cidr in parsed.interfaces if name == "br0"]
     data = [name for name, _ in routed] + list(parsed.bridge_ports or ())
@@ -68,8 +68,11 @@ def translate_frr_router(hostname: str, frr_conf: str, startup: str) -> RouterOs
             render_ospf(
                 ospf.router_id or first_address,
                 {str(network): area for network, area in ospf.networks},
+                costs=_template_costs(ospf, parsed.interfaces, policy.ospf_costs),
             )
         )
+    elif policy.ospf_costs:
+        raise ValueError("OSPF costs need an OSPF instance")
     if bgp is not None:
         sections.append(
             render_ebgp(
@@ -77,13 +80,51 @@ def translate_frr_router(hostname: str, frr_conf: str, startup: str) -> RouterOs
                 bgp.router_id or first_address,
                 bgp.neighbors.items(),
                 networks=bgp.networks,
+                filters=bgp.route_maps,
+                chains=_route_map_chains(policy, set(bgp.route_maps.values())),
             )
         )
+    elif policy.route_maps:
+        raise ValueError("Route maps need a BGP instance")
     if parsed.dhcp_relay is not None:
         if not bridged:
             raise ValueError("A DHCP relay needs the bridged gateway address")
         sections.append(render_dhcp_relay(parsed.dhcp_relay[1], bridged[0]))
     return RouterOsRouter(render_script(*sections), tuple(data), tuple(parsed.shaping))
+
+
+def _template_costs(ospf, interfaces, costs) -> dict[str, int]:
+    """Map interface costs to the OSPF template of the interface's network.
+
+    RouterOS sets cost per interface template. A cost translates only when its
+    interface is the sole interface in exactly one ``network`` statement.
+    """
+    result = {}
+    for name, cost in costs.items():
+        cidr = dict(interfaces).get(name)
+        if cidr is None:
+            raise ValueError("OSPF costs must name addressed OSPF interfaces")
+        subnet = IPv4Interface(cidr).network
+        if [network for network, _ in ospf.networks if subnet.subnet_of(network)] != [
+            subnet
+        ]:
+            raise ValueError(
+                "RouterOS OSPF costs need one network statement per costed interface"
+            )
+        result[str(subnet)] = cost
+    return result
+
+
+def _route_map_chains(policy, used) -> dict[str, list[tuple[str, bool]]]:
+    """Flatten route maps over exact prefix lists into ordered prefix actions."""
+    chains = {}
+    for name in sorted(used):
+        chains[name] = [
+            (prefix, permit)
+            for _, permit, plist in sorted(policy.route_maps[name])
+            for prefix in policy.prefix_lists[plist]
+        ]
+    return chains
 
 
 def convert_frr_routers(env, names) -> NativeConversion:
