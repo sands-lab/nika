@@ -634,7 +634,7 @@ def build_run_identity(
         "max_steps": max_steps,
         "max_tokens": resolve_max_tokens(agent_type) if agent_type else None,
         "agent_timeout_sec": resolve_agent_timeout(),
-        "reasoning_effort": resolve_reasoning_effort(),
+        "reasoning_effort": resolve_reasoning_effort(agent_type),
         "access_role": get_run_config().agent.access.role,
         "submission": get_run_config().agent.submission.identity(),
         "n_trials": int(n_trials),

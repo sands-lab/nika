@@ -59,7 +59,7 @@ def start_agent(
     agent_type = resolve_agent_type(agent_type)
     max_steps = resolve_max_steps(max_steps)
     timeout_sec = resolve_agent_timeout()
-    reasoning_effort = resolve_reasoning_effort(reasoning_effort)
+    reasoning_effort = resolve_reasoning_effort(agent_type, reasoning_effort)
     max_tokens = resolve_max_tokens(agent_type)
     llm_provider = resolve_llm_provider(llm_provider, agent_type=agent_type)
     model = resolve_agent_model(agent_type, model)

@@ -41,6 +41,10 @@ class AgentSpec:
     # it; every other agent needs an API key.
     subscription: bool = False
     supports_max_tokens: bool = True
+    # ``agent.reasoning_effort`` used when neither the CLI nor the run config
+    # sets one. Built-in harnesses that apply the setting default to
+    # ``medium``; added agents configure their own.
+    default_reasoning_effort: str | None = None
     # Model used when neither the CLI nor agent.model sets one.
     default_model: str | None = None
     # Sandbox template (``codex``, ``claude``, ``shell``); ``None`` runs the
@@ -79,24 +83,28 @@ class AgentSpec:
 BUILTIN_AGENTS: tuple[AgentSpec, ...] = (
     AgentSpec(
         id="byo.langgraph",
+        default_reasoning_effort="medium",
         class_path="agent.byo.langgraph.react_agent:BasicReActAgent",
         credential_family="provider",
         requirements="langgraph",
     ),
     AgentSpec(
         id="byo.mcp_agent",
+        default_reasoning_effort="medium",
         class_path="agent.byo.mcp_agent.agent:McpAgent",
         credential_family="provider",
         requirements="mcp_agent",
     ),
     AgentSpec(
         id="byo.autogen",
+        default_reasoning_effort="medium",
         class_path="agent.byo.autogen.agent:AutogenAgent",
         credential_family="provider",
         requirements="autogen",
     ),
     AgentSpec(
         id="cli.codex",
+        default_reasoning_effort="medium",
         subscription=True,
         class_path="agent.cli.codex.agent:CodexCliAgent",
         providers=frozenset({"openai", "deepseek", "custom"}),
@@ -105,6 +113,7 @@ BUILTIN_AGENTS: tuple[AgentSpec, ...] = (
     ),
     AgentSpec(
         id="cli.claude",
+        default_reasoning_effort="medium",
         subscription=True,
         class_path="agent.cli.claude.agent:ClaudeAgent",
         providers=frozenset({"anthropic", "deepseek", "custom"}),
@@ -113,6 +122,7 @@ BUILTIN_AGENTS: tuple[AgentSpec, ...] = (
     ),
     AgentSpec(
         id="sdk.codex_sdk",
+        default_reasoning_effort="medium",
         subscription=True,
         class_path="agent.sdk.codex_sdk.agent:CodexSdkAgent",
         providers=frozenset({"openai", "deepseek", "custom"}),
@@ -121,6 +131,7 @@ BUILTIN_AGENTS: tuple[AgentSpec, ...] = (
     ),
     AgentSpec(
         id="sdk.claude_sdk",
+        default_reasoning_effort="medium",
         subscription=True,
         class_path="agent.sdk.claude_sdk.agent:ClaudeSdkAgent",
         providers=frozenset({"anthropic", "deepseek", "custom"}),
