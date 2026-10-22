@@ -74,10 +74,20 @@ Workflows live under [`.github/workflows/`](../../.github/workflows/):
 
 | Workflow | When | Runners | What |
 |----------|------|---------|------|
-| [`ci.yml`](../../.github/workflows/ci.yml) | PR / push (code and benchmark paths) | `ubuntu-24.04` and `ubuntu-24.04-arm` | `unit`+`contract` (including the published release preflight); dual-arch `nika/*` images; Kathara light startups; one-shot install through user CLI benchmark completion; `dc_clos` and Containerlab `min3clos` mock-agent pipelines |
+| [`ci.yml`](../../.github/workflows/ci.yml) | PR, push to `main`, manual | `ubuntu-24.04` and `ubuntu-24.04-arm` | `unit`+`contract` (including the published release preflight); dual-arch `nika/*` images; Kathara light startups; one-shot install through user CLI benchmark completion; `dc_clos` and Containerlab `min3clos` mock-agent pipelines |
 | [`nightly.yml`](../../.github/workflows/nightly.yml) | schedule + manual | same dual-arch (k8s/llmd amd64 serial) | Artifact/boot checks (`NIKA_CI_VERIFY_DEPTH=artifact`): light scenario startup, inject contract + artifact `verify_fault`, ISP light matrix, k8s/llmd startup. Deep `evaluate_scenario` / symptom / recover stay local. |
 
-PR jobs shard one lab or image per runner (containerlab-style). amd64 and arm64 use the **same** scenario and image lists. There is **no** per-job path filtering: any change under the workflow `paths` runs the full PR job set; docs-only changes skip CI. Light startup uses default `nika.runtime_validation.depth: light` inside `nika env run`. Curated cases use published net-env pool scenarios (not test-only fixtures).
+PR jobs shard one lab or image per runner (containerlab-style). amd64 and arm64 use the **same** scenario and image lists. On PRs, the `changes` job picks jobs from the changed paths:
+
+| Changed paths | Jobs that run |
+|---------------|---------------|
+| `src/`, `benchmark/`, `config/`, `pyproject.toml`, `uv.lock`, `.python-version`, `ci.yml` | all |
+| `tests/ci/`, `tests/support/`, `tests/benchmark/`, `tests/nika/workflows/integration/`, `tests/conftest.py` | all |
+| other `tests/` | `unit`+`contract` |
+| `scripts/install.sh`, `.env.example` | install through benchmark |
+| anything else (docs, other workflows, other scripts) | none |
+
+Pushes and manual runs run every job. `ci-ok` passes when every job passed or was skipped; make it the required check instead of individual jobs. Light startup uses default `nika.runtime_validation.depth: light` inside `nika env run`. Curated cases use published net-env pool scenarios (not test-only fixtures).
 
 Shard locally the same way Actions does:
 
