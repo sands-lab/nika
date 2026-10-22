@@ -5,12 +5,14 @@ from pathlib import Path
 
 import pytest
 
+from agent.cli.opencode.opencode_worker import SKILLS_DEST as OPENCODE_SKILLS_DEST
 from agent.utils.skills import (
     TEST_SKILL_NAME,
     claude_skills_package_dir,
     diagnosis_prompt_with_skills,
     prepare_claude_workspace,
     prepare_codex_workspace,
+    prepare_skill_workspace,
     resolve_skills_root,
     resolve_test_skill_dir,
     skills_enabled,
@@ -123,6 +125,34 @@ class SkillsWorkspaceTest:
             assert TEST_SKILL_NAME in (workspace / "AGENTS.md").read_text(
                 encoding="utf-8"
             )
+
+    def test_prepare_opencode_workspace_excludes_test_skill_by_default(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            prepare_skill_workspace(workspace, OPENCODE_SKILLS_DEST)
+            skills = workspace / OPENCODE_SKILLS_DEST
+            assert skills.is_dir()
+            assert not (skills / TEST_SKILL_NAME).exists()
+            assert not (workspace / "AGENTS.md").exists()
+
+    def test_prepare_opencode_workspace_includes_test_skill_when_requested(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            prepare_skill_workspace(
+                workspace, OPENCODE_SKILLS_DEST, include_test_skill=True
+            )
+            assert (
+                workspace / OPENCODE_SKILLS_DEST / TEST_SKILL_NAME / "SKILL.md"
+            ).exists()
+
+    def test_prepare_skill_workspace_noop_when_disabled(self, set_skills) -> None:
+        set_skills(False)
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            prepare_skill_workspace(workspace, OPENCODE_SKILLS_DEST)
+            assert not (workspace / OPENCODE_SKILLS_DEST).exists()
 
 
 class SkillAssertionTest:

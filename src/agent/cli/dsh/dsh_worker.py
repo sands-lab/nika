@@ -45,7 +45,7 @@ from agent.utils.loggers import (
     tool_event_payload,
 )
 from agent.utils.mcp_client import session_mcp_config
-from agent.utils.skills import prepare_skill_workspace
+from agent.utils.skills import prepare_codex_workspace
 from agent.utils.usage import normalize_usage
 
 MCP_CLIENT_PLUGIN = "@deepseek-ai/dsh-mcp-client"
@@ -53,7 +53,8 @@ MCP_SERVER_NAME_RE = re.compile(r"[^A-Za-z0-9_-]+")
 MCP_SERVER_NAME_MAX = 32
 # Route name registered on ``dsh-llm-pi-ai`` for the sandbox model proxy.
 PROXY_PROVIDER = "proxy"
-SKILLS_DEST = Path(".agents/skills")
+# Match the host MCP read timeout and OpenCode's remote MCP timeout (120 s).
+MCP_TOOL_TIMEOUT_MS = 120_000
 
 
 class DshMaxStepsReached(Exception):
@@ -156,6 +157,7 @@ def _mcp_entries(servers: dict) -> list[dict[str, Any]]:
             "serverName": server_name,
             "transport": "streamable-http",
             "url": srv["url"],
+            "toolCallTimeoutMs": MCP_TOOL_TIMEOUT_MS,
             "failOnStartupError": True,
         }
         headers = srv.get("headers") or {}
@@ -297,7 +299,7 @@ class DshWorker:
     def _setup_workspace(self) -> None:
         self.workspace.mkdir(parents=True, exist_ok=True)
         self._dsh_home.mkdir(parents=True, exist_ok=True)
-        prepare_skill_workspace(self.workspace, SKILLS_DEST)
+        prepare_codex_workspace(self.workspace)
 
     def _write_profile_patch(self) -> None:
         servers = session_mcp_config(self.phase)

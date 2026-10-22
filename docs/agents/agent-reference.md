@@ -14,7 +14,7 @@ Use [Choose and run an agent](agent-implementations.md) for setup walkthroughs a
 | `cli.codex` | Codex CLI, two phases | Sandbox, `codex` template | Shared Codex skills |
 | `cli.claude` | Claude Code CLI, two phases | Sandbox, `claude` template | Shared Claude skills |
 | `cli.opencode` | OpenCode CLI, two phases | Sandbox, `shell` template | Shared skills under `.opencode/skills/` |
-| `cli.dsh` | DeepSeek Harness `dsh --profile headless`, two phases | Sandbox, `shell` template | Shared skills under `.agents/skills/` |
+| `cli.dsh` | DeepSeek Harness `dsh --profile headless`, two phases | Sandbox, `shell` template | Shared skills under `.agents/skills/` + `AGENTS.md` |
 | `sdk.codex_sdk` | `openai-codex`, two threads | Sandbox, `shell` template | Shared Codex skills |
 | `sdk.claude_sdk` | `claude-agent-sdk`, two sessions | Sandbox, `shell` template | Shared Claude skills |
 | `community.sade` | Claude Agent SDK with a 15-skill library | Sandbox, `shell` template | SADE library |

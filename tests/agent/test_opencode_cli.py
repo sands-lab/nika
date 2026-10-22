@@ -197,6 +197,23 @@ class OpenCodeWorkerConfigTest:
             assert srv["enabled"] is True
             assert "url" in srv
             assert "headers" in srv
+            assert srv["timeout"] == 120_000
+
+    def test_setup_workspace_installs_opencode_skills(
+        self, tmp_path, agent_task
+    ) -> None:
+        agent_task(enable_skills=True)
+        worker = OpenCodeWorker(
+            session_id="sess-123",
+            session_dir=str(tmp_path),
+            phase=DIAGNOSIS,
+            model="test-model",
+            llm_provider="openai",
+        )
+        worker._setup_workspace()
+        skills = tmp_path / "opencode_workspace" / ".opencode" / "skills"
+        assert skills.is_dir()
+        assert not (tmp_path / "opencode_workspace" / "AGENTS.md").exists()
 
 
 class OpenCodeStepBudgetTest:
@@ -359,3 +376,58 @@ class OpenCodeStepBudgetTest:
             if line.strip()
         ]
         assert events == ["tool_start", "tool_end"]
+
+    def test_stream_error_recovers_assistant_text(self, tmp_path) -> None:
+        worker = OpenCodeWorker(
+            session_id="sess-recover",
+            session_dir=str(tmp_path),
+            phase=DIAGNOSIS,
+            llm_provider="openai",
+            model="m1",
+            stream_output=False,
+        )
+        worker._handle_stdout_line(json.dumps(self._step_start("msg_a")))
+        worker._handle_stdout_line(
+            json.dumps(
+                {"type": "text", "part": {"type": "text", "text": "BGP is down."}}
+            )
+        )
+        worker._handle_stdout_line(
+            json.dumps(
+                {
+                    "type": "error",
+                    "error": {"message": "No healthy backend"},
+                }
+            )
+        )
+        worker._flush_response()
+        result = worker._phase_result(1, "No healthy backend")
+        assert result == "BGP is down."
+        events = [
+            json.loads(line)["event"]
+            for line in (tmp_path / "messages.jsonl").read_text().splitlines()
+            if line.strip()
+        ]
+        assert "subprocess_nonzero_recovered" in events
+        assert "subprocess_error" not in events
+
+    def test_stream_error_without_text_is_failure(self, tmp_path) -> None:
+        worker = OpenCodeWorker(
+            session_id="sess-error",
+            session_dir=str(tmp_path),
+            phase=DIAGNOSIS,
+            llm_provider="openai",
+            model="m1",
+            stream_output=False,
+        )
+        worker._handle_stdout_line(
+            json.dumps(
+                {
+                    "type": "error",
+                    "error": {"message": "No healthy backend"},
+                }
+            )
+        )
+        result = worker._phase_result(1, "No healthy backend")
+        assert result.startswith("ERROR:")
+        assert "No healthy backend" in result

@@ -401,6 +401,30 @@ class OpenCodeWorker:
             return OPENCODE_NOT_FOUND
 
         self._flush_response()
+        return self._phase_result(returncode, stderr_text)
+
+    def _phase_result(self, returncode: int, stderr_text: str) -> str:
+        """Return captured text, recovering a report after a failed process."""
+        recovered = self._latest_assistant_text()
+        if recovered:
+            if returncode != 0 or self._session_error:
+                payload: dict[str, Any] = {
+                    "phase": self.phase,
+                    "returncode": returncode,
+                    "output_length": len(recovered),
+                    "stderr": stderr_text[:500],
+                }
+                if self._session_error:
+                    payload["error"] = self._session_error
+                self._logger.log("subprocess_nonzero_recovered", payload)
+                if self._stream_output and stderr_text.strip():
+                    print(stderr_text, file=sys.stderr, flush=True)
+            else:
+                self._logger.log(
+                    "subprocess_done",
+                    {"phase": self.phase, "output_length": len(recovered)},
+                )
+            return recovered
 
         if self._session_error:
             self._logger.log(
@@ -410,20 +434,6 @@ class OpenCodeWorker:
             return f"ERROR: {self.phase} phase {self._session_error}"
 
         if returncode != 0:
-            recovered = self._latest_assistant_text()
-            if recovered:
-                self._logger.log(
-                    "subprocess_nonzero_recovered",
-                    {
-                        "phase": self.phase,
-                        "returncode": returncode,
-                        "output_length": len(recovered),
-                        "stderr": stderr_text[:500],
-                    },
-                )
-                if self._stream_output and stderr_text.strip():
-                    print(stderr_text, file=sys.stderr, flush=True)
-                return recovered
             self._logger.log(
                 "subprocess_error",
                 {"returncode": returncode, "stderr": stderr_text[:2000]},
@@ -434,14 +444,6 @@ class OpenCodeWorker:
                 f"ERROR: {self.phase} phase exited with code {returncode}. "
                 f"stderr: {stderr_text[:400]}"
             )
-
-        result = self._latest_assistant_text()
-        if result:
-            self._logger.log(
-                "subprocess_done",
-                {"phase": self.phase, "output_length": len(result)},
-            )
-            return result
 
         self._logger.log("subprocess_error", {"error": "no assistant text captured"})
         return f"ERROR: {self.phase} phase produced no output"

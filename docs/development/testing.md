@@ -155,6 +155,7 @@ Choose the agent tests that match your available credentials. Set API keys and t
 | Live E2E coverage | Provider and model | Required credentials |
 |-------------------|--------------------|----------------------|
 | Codex CLI/SDK sandbox agents; Codex sandbox benchmark | `openai`, default `gpt-5-mini` (or the OpenAI-family override below) | `OPENAI_API_KEY`; or NIKA's [Codex login](../operations/agent-sandbox.md#subscriptions) with Codex access |
+| OpenCode and DeepSeek Harness sandbox agents and sandbox benchmark | Same OpenAI-family provider/model as Codex | Selected provider's API key. Subscriptions do not authenticate these CLIs. |
 | BYO sandbox agents | `openai`, default `gpt-5-mini` (or the OpenAI-family override below) | Selected provider's API key; for `custom`, `NIKA_TEST_CUSTOM_BASE_URL` and `NIKA_CUSTOM_API_KEY` if required. Subscriptions do not authenticate BYO agents. |
 | Claude CLI/SDK and SADE sandbox agents; Claude sandbox benchmark; Kubernetes Claude agent E2E | Default `deepseek` / `deepseek-v4-flash` | `DEEPSEEK_API_KEY`; no Claude subscription required |
 | The same Claude-family tests with the Anthropic override below | `anthropic`, explicit account-accessible Claude model | `ANTHROPIC_API_KEY` (legacy `ANTHROPIC_AUTH_TOKEN` also works); or a Claude subscription with Claude Code access as `CLAUDE_CODE_OAUTH_TOKEN` |
@@ -175,8 +176,8 @@ Use these test-only overrides to select a model your account can access. Selecti
 | `NIKA_TEST_ANTHROPIC_PROVIDER` | `deepseek` | Claude CLI/SDK, SADE, Claude sandbox benchmark, Kubernetes Claude E2E; accepts `deepseek`, `anthropic`, or `custom` |
 | `NIKA_TEST_ANTHROPIC_MODEL` | `deepseek-v4-flash` for DeepSeek; required for Anthropic and custom | The same Claude-family tests |
 | `NIKA_TEST_CUSTOM_BASE_URL` | None | Endpoint (`agent.base_url`) for the custom override; the endpoint must serve the Anthropic `/v1/messages` route |
-| `NIKA_TEST_OPENAI_PROVIDER` | `openai` | Codex CLI/SDK and BYO sandbox agents; accepts `openai`, `deepseek`, or `custom` (with `NIKA_TEST_CUSTOM_BASE_URL`) |
-| `NIKA_TEST_CODEX_MODEL` | `gpt-5-mini` | The same OpenAI-family sandbox agents, and the Codex sandbox benchmark |
+| `NIKA_TEST_OPENAI_PROVIDER` | `openai` | Codex CLI/SDK, OpenCode, DeepSeek Harness, and BYO sandbox agents; accepts `openai`, `deepseek`, or `custom` (with `NIKA_TEST_CUSTOM_BASE_URL`) |
+| `NIKA_TEST_CODEX_MODEL` | `gpt-5-mini` | The same OpenAI-family sandbox agents, and the Codex, OpenCode, and DeepSeek Harness sandbox benchmarks |
 
 For example, with an Anthropic API key or Claude subscription login configured, replace `YOUR_CLAUDE_MODEL` with a model available to that account:
 
@@ -242,7 +243,7 @@ Covers `nika benchmark run` / resume / release orchestration and runner YAML loa
 | `test_release.py` | Freeze/preflight/job metadata on mini releases |
 | `test_trials.py` | Trial / release runs: cases×K trials, resume, agent_failed retain, isolation, `runtime/benchmark_runs` progress; Docker E2E mini-release run |
 | `test_batch.py` | Parallel mock batch under shared `trials/` layout (`--config`, `n_trials=1`) |
-| `test_sandbox_benchmark.py` | Claude + Codex sandbox single/parallel (`--batch-size 2`), on sbx and E2B |
+| `test_sandbox_benchmark.py` | Claude, Codex, OpenCode, and DeepSeek Harness sandbox single/parallel (`--batch-size 2`), on sbx and E2B |
 | `test_curated_release_contract.py` | Test-only curated rows from `0.2.0` `test` split: subset contract, mock pack/validate, timeout+continue |
 | `test_curated_release_e2e.py` | Live Docker + `byo.langgraph` / DeepSeek on the curated subset (batch, resume, summary, pack/validate) |
 | `test_alias_load.py` | Reject legacy scenario aliases / invalid workload columns |

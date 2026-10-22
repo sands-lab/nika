@@ -11,6 +11,7 @@ from agent.cli.dsh.config import dsh_env, map_dsh_effort, resolve_dsh_model
 from agent.cli.dsh.dsh_worker import (
     DshMaxStepsReached,
     DshWorker,
+    MCP_TOOL_TIMEOUT_MS,
     build_headless_patch,
     is_model_response_start,
     sanitize_mcp_server_name,
@@ -46,6 +47,7 @@ class DshMcpPatchTest:
         assert row["config"]["transport"] == "streamable-http"
         assert row["config"]["url"] == "http://gw:9000/mcp/kathara_base_mcp_server/mcp"
         assert row["config"]["headers"]["X-Session-Id"] == "sess"
+        assert row["config"]["toolCallTimeoutMs"] == MCP_TOOL_TIMEOUT_MS
         assert row["config"]["failOnStartupError"] is True
 
     def test_shortens_task_server_name(self) -> None:
@@ -178,6 +180,22 @@ class DshWorkerConfigTest:
         inserted = next(op["insert"] for op in ops if "insert" in op)
         names = {row["config"]["serverName"] for row in inserted}
         assert names == {expected_server_name}
+
+    def test_setup_workspace_installs_codex_skill_layout(
+        self, tmp_path, agent_task
+    ) -> None:
+        agent_task(enable_skills=True)
+        worker = DshWorker(
+            session_id="sess-123",
+            session_dir=str(tmp_path),
+            phase=DIAGNOSIS,
+            model="deepseek-v4-flash",
+            llm_provider="deepseek",
+        )
+        worker._setup_workspace()
+        workspace = tmp_path / "dsh_workspace"
+        assert (workspace / ".agents" / "skills").is_dir()
+        assert (workspace / "AGENTS.md").is_file()
 
 
 class DshStepBudgetTest:
