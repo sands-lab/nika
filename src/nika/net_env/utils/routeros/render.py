@@ -1,7 +1,7 @@
-"""Render lab router intents as RouterOS 7 auto-import scripts.
+"""Render router intents as RouterOS 7 auto-import scripts.
 
-The non-ISP labs declare the same addresses, OSPF areas and eBGP sessions for
-every router profile; this module expresses them as RouterOS commands.
+Callers pass RouterOS port names (``ether2``…), already mapped from the
+container interfaces of the router's attachment layout.
 """
 
 from __future__ import annotations
@@ -9,15 +9,12 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from ipaddress import IPv4Interface
 
-from nika.net_env.utils.routeros.common import routeros_interface
-
 
 def render_base(name: str, addresses: Iterable[tuple[str, str]]) -> list[str]:
-    """Set the identity and ``(container interface, CIDR)`` addresses."""
+    """Set the identity and ``(RouterOS port, CIDR)`` addresses."""
     return [f"/system identity set name={name}"] + [
-        f"/ip address add address={IPv4Interface(cidr)} "
-        f"interface={routeros_interface(iface)}"
-        for iface, cidr in addresses
+        f"/ip address add address={IPv4Interface(cidr)} interface={port}"
+        for port, cidr in addresses
     ]
 
 
@@ -55,7 +52,7 @@ def render_ebgp(
     *,
     networks: Iterable[str] = (),
 ) -> list[str]:
-    """Render unfiltered eBGP sessions that originate ``networks``.
+    """Render unfiltered BGP sessions that originate ``networks``.
 
     Like FRR with ``no bgp ebgp-requires-policy``, sessions accept and
     re-advertise every route. Each network must be a connected prefix.
@@ -69,7 +66,8 @@ def render_ebgp(
     for index, (address, remote_asn) in enumerate(sorted(peers)):
         command = (
             f"/routing bgp connection add name=peer-{index} instance=CORE "
-            f"local.role=ebgp remote.address={address} remote.as={remote_asn} "
+            f"local.role={'ibgp' if remote_asn == asn else 'ebgp'} "
+            f"remote.address={address} remote.as={remote_asn} "
             "afi=ip connect=yes listen=yes"
         )
         if networks:
@@ -83,11 +81,10 @@ def render_script(*sections: Iterable[str]) -> str:
 
 
 def render_bridge(ports: Iterable[str], addresses: Iterable[str]) -> list[str]:
-    """Bridge container ``ports`` as ``br0`` and assign its gateway addresses."""
+    """Bridge RouterOS ``ports`` as ``br0`` and assign its gateway addresses."""
     lines = ["/interface bridge add name=br0 protocol-mode=none"]
     lines.extend(
-        f"/interface bridge port add bridge=br0 interface={routeros_interface(port)}"
-        for port in ports
+        f"/interface bridge port add bridge=br0 interface={port}" for port in ports
     )
     lines.extend(
         f"/ip address add address={IPv4Interface(cidr)} interface=br0"

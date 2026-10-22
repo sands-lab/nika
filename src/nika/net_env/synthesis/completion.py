@@ -351,9 +351,17 @@ def complete_routing(spec, env, directory: Path, *, image: str):
                 ]
                 if row.get("passive"):
                     raise ValueError("Link-state completion requires active interfaces")
+            elif vendor and isis:
+                from nika.validation.batfish.vendor_bgp import vendor_isis_interfaces
+
+                passive = vendor_isis_interfaces(config, env.device_profile).get(
+                    env.BGP_INTERFACE_MAP[interface]
+                )
+                if passive is not False:
+                    raise ValueError(
+                        "IS-IS completion requires active native L2 interfaces"
+                    )
             elif vendor:
-                if isis:
-                    raise ValueError("Native ISP completion supports OSPF only")
                 binding = vendor_ospf_interfaces(
                     a.local_node, config, env.device_profile
                 ).get(env.BGP_INTERFACE_MAP[interface])

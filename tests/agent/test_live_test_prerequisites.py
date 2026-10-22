@@ -16,27 +16,24 @@ pytestmark = pytest.mark.unit
 
 
 @pytest.mark.parametrize(
-    ("provider", "credentials", "secret_listing", "available"),
+    ("provider", "credentials", "available"),
     [
-        ("deepseek", {"ANTHROPIC_API_KEY": "test-key"}, "", False),
-        ("deepseek", {"NIKA_CUSTOM_API_KEY": "test-key"}, "", False),
-        ("deepseek", {}, "(global) service anthropic ***", False),
-        ("deepseek", {"DEEPSEEK_API_KEY": "   "}, "", False),
-        ("deepseek", {"DEEPSEEK_API_KEY": "test-key"}, "", True),
-        ("openai", {"DEEPSEEK_API_KEY": "test-key"}, "", False),
-        ("openai", {"OPENAI_API_KEY": "test-key"}, "", True),
-        ("openai", {}, "(global) service openai ***", True),
-        ("openai", {}, "other-sandbox service openai ***", False),
-        ("anthropic", {"NIKA_CUSTOM_API_KEY": "test-key"}, "", False),
-        ("anthropic", {"ANTHROPIC_AUTH_TOKEN": "test-token"}, "", True),
-        ("anthropic", {}, "(global) service anthropic ***", True),
+        ("deepseek", {"ANTHROPIC_API_KEY": "test-key"}, False),
+        ("deepseek", {"NIKA_CUSTOM_API_KEY": "test-key"}, False),
+        ("deepseek", {"DEEPSEEK_API_KEY": "   "}, False),
+        ("deepseek", {"DEEPSEEK_API_KEY": "test-key"}, True),
+        ("openai", {"DEEPSEEK_API_KEY": "test-key"}, False),
+        ("openai", {"OPENAI_API_KEY": "test-key"}, True),
+        ("anthropic", {"NIKA_CUSTOM_API_KEY": "test-key"}, False),
+        ("anthropic", {"ANTHROPIC_AUTH_TOKEN": "test-token"}, True),
+        ("anthropic", {"CLAUDE_CODE_OAUTH_TOKEN": "sk-ant-oat01-x"}, True),
     ],
 )
-def test_live_credentials_match_provider_and_global_scope(
+def test_live_credentials_match_provider(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
     provider: str,
     credentials: dict[str, str],
-    secret_listing: str,
     available: bool,
 ) -> None:
     for key in (
@@ -45,34 +42,28 @@ def test_live_credentials_match_provider_and_global_scope(
         "ANTHROPIC_AUTH_TOKEN",
         "NIKA_CUSTOM_API_KEY",
         "OPENAI_API_KEY",
+        "CLAUDE_CODE_OAUTH_TOKEN",
     ):
         monkeypatch.delenv(key, raising=False)
     for key, value in credentials.items():
         monkeypatch.setenv(key, value)
-    monkeypatch.setattr("tests.agent.sandbox_support.sbx_available", lambda: True)
+    monkeypatch.setattr("nika.agents.sandbox.subscription.CODEX_LOGIN_HOME", tmp_path)
     monkeypatch.setattr(
-        "agent.sandbox.sbx.client.run_sbx_optional",
-        lambda _args: SimpleNamespace(returncode=0, stdout=secret_listing, stderr=""),
+        "tests.agent.sandbox_support.resolve_sandbox_config",
+        lambda: SimpleNamespace(env_file=tmp_path / ".env"),
     )
     assert sandbox_provider_credential_available(provider) is available
 
 
-def test_live_credentials_follow_the_sandbox_backend(
+def test_live_credentials_use_the_host_login(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """Each runtime counts its own logins; the custom provider needs its endpoint."""
-    monkeypatch.setattr("agent.sandbox.subscription.CODEX_LOGIN_HOME", tmp_path)
+    """Every runtime uses NIKA's host login; the custom provider needs its endpoint."""
+    monkeypatch.setattr("nika.agents.sandbox.subscription.CODEX_LOGIN_HOME", tmp_path)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("NIKA_TEST_CUSTOM_BASE_URL", raising=False)
-    monkeypatch.setattr("tests.agent.sandbox_support.sbx_available", lambda: True)
-    monkeypatch.setattr(
-        "agent.sandbox.sbx.client.run_sbx_optional",
-        lambda _args: SimpleNamespace(
-            returncode=0, stdout="(global) service openai ***", stderr=""
-        ),
-    )
-    assert sandbox_provider_credential_available("openai", backend="sbx")
-    assert not sandbox_provider_credential_available("openai", backend="e2b")
+    for backend in ("sbx", "e2b"):
+        assert not sandbox_provider_credential_available("openai", backend=backend)
     tokens = {
         "access_token": "a",
         "refresh_token": "r",
@@ -80,10 +71,11 @@ def test_live_credentials_follow_the_sandbox_backend(
         "account_id": "x",
     }
     (tmp_path / "auth.json").write_text(json.dumps({"tokens": tokens}))
-    assert sandbox_provider_credential_available("openai", backend="e2b")
-    assert not sandbox_provider_credential_available("custom", backend="e2b")
+    for backend in ("sbx", "e2b"):
+        assert sandbox_provider_credential_available("openai", backend=backend)
+    assert not sandbox_provider_credential_available("custom", backend="sbx")
     monkeypatch.setenv("NIKA_TEST_CUSTOM_BASE_URL", "http://model.example/v1")
-    assert sandbox_provider_credential_available("custom", backend="e2b")
+    assert sandbox_provider_credential_available("custom", backend="sbx")
 
 
 def test_live_model_defaults_and_anthropic_override(

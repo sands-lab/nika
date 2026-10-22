@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
 from ipaddress import IPv4Interface, IPv4Network
 
 from Kathara.manager.Kathara import Kathara, Machine
@@ -11,6 +10,7 @@ from Kathara.model.Lab import Lab
 
 from nika.config import pkg_path
 from nika.net_env.base import NetworkEnvBase, ProbePath
+from nika.net_env.native_routers import NativeRouterEnv
 from nika.net_env.enterprise_branch.addressing import (
     VRF_TABLE,
     edge_name_for,
@@ -83,11 +83,6 @@ class EdgeRuntime:
         default_factory=dict
     )
     key_idx: int = 0
-    # LAN role -> container interface; profile-neutral input for native edges.
-    lan_ifaces: dict[str, str] = field(default_factory=dict)
-    # Container link-level commands (propagation delay) kept on every profile.
-    link_commands: list[str] = field(default_factory=list)
-    public_addresses: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
 
 @dataclass
@@ -235,41 +230,27 @@ def _render_edge_frr(
     return "\n".join(lines)
 
 
-DEVICE_PROFILES = ("frr", "routeros")
-NATIVE_TOPO_SIZES = ("s",)
-
-
-class EnterpriseBranch(NetworkEnvBase):
+class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
     ROUTING_PARAMETER_KINDS = frozenset({"import_preferences"})
     LAB_NAME = "enterprise_branch"
     TOPO_LEVEL = "medium"
     VERIFY_MAX_WAIT_SEC = 240
+    # Site edges terminate WireGuard, VRFs and NAT, which XRd does not
+    # provide; RouterOS runs them natively, while providers stay FRR.
+    NATIVE_PROFILE_ROLES = {
+        "iosxr": frozenset({"provider"}),
+        "routeros": frozenset({"edge"}),
+    }
+    NATIVE_PROFILE_SIZES = {"routeros": ("s",)}
 
     def __init__(
         self,
         topo_size: TopoSize = "s",
         routing_parameters: dict | None = None,
-        device_profile: Literal["frr", "routeros"] = "frr",
+        device_profile: str | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
-        if device_profile not in DEVICE_PROFILES:
-            raise ValueError(
-                "enterprise_branch supports device profiles "
-                f"{', '.join(DEVICE_PROFILES)}; got {device_profile!r}."
-            )
-        if device_profile != "frr" and topo_size not in NATIVE_TOPO_SIZES:
-            raise ValueError(
-                f"enterprise_branch with device_profile={device_profile!r} supports "
-                f"topo_size {', '.join(NATIVE_TOPO_SIZES)} only: each RouterOS Site "
-                "Edge boots a QEMU VM, so larger deployments exceed the supported "
-                "host budget."
-            )
-        if device_profile != "frr" and routing_parameters is not None:
-            raise ValueError(
-                "Solved routing parameters are supported only for FRR Site Edges."
-            )
-        self.device_profile = device_profile
         self.topo_size: TopoSize = topo_size
         self.spec: TopoSpec = build_topo_spec(topo_size)
         self.lab = Lab(self.LAB_NAME)
@@ -304,6 +285,32 @@ class EnterpriseBranch(NetworkEnvBase):
             "authorized business prefixes in per-role VRFs. Providers only "
             "forward tunnel endpoint reachability."
         )
+        self.apply_device_profile(device_profile, routing_parameters=routing_parameters)
+
+    def router_roles(self) -> dict[str, list[str]]:
+        providers = {isp_name_for(provider) for provider in self.spec.providers}
+        roles = {"provider": [], "edge": []}
+        for name, identity in self.machine_identities.items():
+            if identity.role is NodeRole.ROUTER:
+                roles["provider" if name in providers else "edge"].append(name)
+        return roles
+
+    def native_router_config(self, profile: str, name: str):
+        """Render RouterOS Site Edges from their design, not the FRR sketch."""
+        if profile != "routeros":
+            return None
+        from nika.net_env.enterprise_branch.routeros import edge_router
+
+        return edge_router(self, name)
+
+    def _provider_routes(self) -> str:
+        from nika.net_env.enterprise_branch.verify import FRR_PROVIDER_ROUTES
+
+        if self.device_profile == "iosxr":
+            from nika.net_env.utils.iosxr.platform import IOSXR_ROUTES
+
+            return IOSXR_ROUTES
+        return FRR_PROVIDER_ROUTES
 
     def bgp_import_peers(self):
         from nika.net_env.synthesis.requirements import BgpImportPeer
@@ -343,33 +350,16 @@ class EnterpriseBranch(NetworkEnvBase):
         key_i = 0
         for site_name in self.spec.sites:
             ename = edge_name_for(site_name)
-            eth_index = 0
-            if self.device_profile == "routeros":
-                from nika.net_env.utils.routeros.common import add_routeros_router
-
-                site = self.spec.sites[site_name]
-                machine = add_routeros_router(
-                    self.lab,
-                    ename,
-                    data_interfaces=len(site.lans) + len(site.wan_providers),
-                )
-                # Container eth0 is the VM's management port.
-                eth_index = 1
-            else:
-                machine = self.lab.new_machine(
-                    ename, **{"image": nika_image("frr"), "cpus": 0.5, "mem": "256m"}
-                )
+            machine = self.lab.new_machine(
+                ename, **{"image": nika_image("frr"), "cpus": 0.5, "mem": "256m"}
+            )
             self.declare_machine(
                 ename,
                 role=NodeRole.ROUTER,
-                capabilities=("linux", self.device_profile, "bgp", "wireguard"),
+                capabilities=("linux", "frr", "bgp", "wireguard"),
             )
             self._edges[site_name] = EdgeRuntime(
-                name=ename,
-                site=site_name,
-                machine=machine,
-                eth_index=eth_index,
-                key_idx=key_i,
+                name=ename, site=site_name, machine=machine, key_idx=key_i
             )
             key_i += 1
 
@@ -433,7 +423,6 @@ class EnterpriseBranch(NetworkEnvBase):
                 link = f"{edge.name}_{site.name}_{lan.role}"
                 self.lab.connect_machine_to_link(edge.name, link)
                 eth = f"eth{edge.eth_index}"
-                edge.lan_ifaces[lan.role] = eth
                 e_ip = lan_edge_ip(site.site_id, lan.role)
                 edge.cmd_list.append(f"ip link set dev {eth} master {lan.vrf}")
                 edge.cmd_list.append(f"ip addr add {e_ip} dev {eth}")
@@ -489,11 +478,9 @@ class EnterpriseBranch(NetworkEnvBase):
                 # case study). Applied on both ends of each PE attachment so
                 # branch→HQ one-way ≈ 40 ms and RTT ≈ 80 ms.
                 delay = UNDERLAY_ONE_WAY_DELAY_MS
-                netem = (
+                edge.cmd_list.append(
                     f"tc qdisc replace dev {wan_dev} root netem delay {delay}ms || true"
                 )
-                edge.cmd_list.append(netem)
-                edge.link_commands.append(netem)
                 isp.cmd_list.append(
                     f"tc qdisc replace dev {isp_dev} root netem delay {delay}ms || true"
                 )
@@ -501,7 +488,6 @@ class EnterpriseBranch(NetworkEnvBase):
                 # NAT pool while keeping address withdrawal independent from
                 # the provider-facing /30 that carries the underlay.
                 if provider == site.wan_providers[0] and site.name == "br1":
-                    edge.public_addresses[wan_dev] = ("198.18.1.10", "198.18.1.11")
                     for suffix in ("10", "11"):
                         public_ip = f"198.18.1.{suffix}"
                         edge.cmd_list.append(
@@ -582,9 +568,6 @@ class EnterpriseBranch(NetworkEnvBase):
         )
 
     def _write_edge_configs(self) -> None:
-        if self.device_profile == "routeros":
-            self._write_routeros_edges()
-            return
         for site_name, edge in self._edges.items():
             site = self.spec.sites[site_name]
             edge.cmd_list.insert(0, "sysctl -w net.ipv4.ip_forward=1")
@@ -688,86 +671,6 @@ class EnterpriseBranch(NetworkEnvBase):
             edge.cmd_list.append("service frr start")
             self.lab.create_file_from_list(edge.cmd_list, f"{edge.name}.startup")
 
-    def _write_routeros_edges(self) -> None:
-        from nika.net_env.enterprise_branch.routeros import (
-            RouterOsEdge,
-            RouterOsLan,
-            RouterOsTunnel,
-            render_routeros_edge,
-        )
-        from nika.net_env.utils.routeros.common import (
-            set_routeros_config,
-            set_routeros_startup,
-        )
-
-        peer_asns = {name: s.asn for name, s in self.spec.sites.items()}
-        qos = overlay_qos_for(self.spec.size)
-        for site_name, edge in self._edges.items():
-            site = self.spec.sites[site_name]
-            underlay = []
-            tunnels = []
-            for bt in self.built_tunnels:
-                if site_name == bt.spoke:
-                    iface, remote = bt.spoke_iface, bt.hub
-                    endpoint, port = bt.hub_wan_ip, bt.listen_port_hub
-                elif site_name == bt.hub:
-                    iface, remote = bt.hub_iface, bt.spoke
-                    endpoint, port = bt.spoke_wan_ip, bt.listen_port_spoke
-                else:
-                    continue
-                underlay.append((endpoint, edge.wan[bt.provider][1]))
-                local_cidr, peer_ip, listen_port, _, _, local_pref, _ = edge.tunnels[
-                    iface
-                ]
-                tunnels.append(
-                    RouterOsTunnel(
-                        iface=iface,
-                        address=local_cidr,
-                        peer_address=peer_ip,
-                        listen_port=listen_port,
-                        peer_public_key=self._key_pairs[self._edges[remote].key_idx][1],
-                        peer_endpoint=endpoint,
-                        peer_port=port,
-                        remote_asn=peer_asns[remote],
-                        local_pref=local_pref,
-                    )
-                )
-            config = render_routeros_edge(
-                RouterOsEdge(
-                    name=edge.name,
-                    asn=site.asn,
-                    router_id=next(iter(edge.wan.values()))[2],
-                    is_hub=site.is_hub,
-                    private_key=self._key_pairs[edge.key_idx][0],
-                    lans=tuple(
-                        RouterOsLan(
-                            role=lan.role,
-                            vrf=lan.vrf,
-                            prefix=lan.prefix,
-                            gateway=str(lan_edge_ip(site.site_id, lan.role)),
-                            iface=edge.lan_ifaces[lan.role],
-                        )
-                        for lan in site.lans
-                    ),
-                    wans=tuple(
-                        (edge.wan[p][3], edge.wan[p][0], edge.wan[p][1])
-                        for p in site.wan_providers
-                    ),
-                    public_addresses=edge.public_addresses,
-                    underlay_routes=tuple(dict.fromkeys(underlay)),
-                    tunnels=tuple(tunnels),
-                    advertised=tuple(lan.prefix for lan in site.lans if lan.advertise),
-                ),
-                qos,
-            )
-            set_routeros_config(edge.machine, config)
-            set_routeros_startup(
-                self.lab,
-                edge.name,
-                data_interfaces=len(site.lans) + len(site.wan_providers),
-                link_commands=edge.link_commands,
-            )
-
     def _write_isp_configs(self) -> None:
         for isp in self._isps.values():
             isp.cmd_list.insert(0, "sysctl -w net.ipv4.ip_forward=1")
@@ -827,9 +730,8 @@ class EnterpriseBranch(NetworkEnvBase):
 
     def primary_wan_interface(self) -> str:
         """Primary ISP WAN on ``br1_edge`` (hosts GUEST NAT /32 aliases)."""
-        # LANs occupy the first data ports; the first WAN follows them.
-        first = 1 if self.device_profile == "routeros" else 0
-        return f"eth{first + len(SCALE[self._target_size()].branch_roles)}"
+        # LANs occupy eth0..ethN-1; first WAN is ethN.
+        return f"eth{len(SCALE[self._target_size()].branch_roles)}"
 
     @classmethod
     def default_probe_path(cls, *, topo_size: str = "s", **deploy_kwargs) -> ProbePath:
@@ -841,15 +743,32 @@ class EnterpriseBranch(NetworkEnvBase):
             peer_host="hq_corp_pc",
         )
 
-    def _verify(self, verify) -> dict:
+    def startup_verify_lab(self) -> dict:
+        from nika.net_env.enterprise_branch.verify import (
+            verify_enterprise_branch_lab_startup,
+        )
+
+        return self._verify(verify_enterprise_branch_lab_startup, startup=True)
+
+    def verify_lab(self) -> dict:
+        from nika.net_env.enterprise_branch.verify import (
+            verify_enterprise_branch_lab,
+        )
+
+        return self._verify(
+            verify_enterprise_branch_lab, provider_routes=self._provider_routes()
+        )
+
+    def _verify(self, verify, *, startup: bool = False, **extra) -> dict:
         runtime = self._build_runtime()
         kwargs = dict(
             scenario_name=self.LAB_NAME,
             topo_size=self.topo_size,
             built_tunnels=self.built_tunnels,
             spec=self.spec,
+            **extra,
         )
-        if self.device_profile == "frr":
+        if self.device_profile != "routeros":
             return verify(runtime, **kwargs)
         from nika.net_env.enterprise_branch.routeros import RouterOsEdgeView
         from nika.net_env.utils.routeros.common import with_routeros_config_check
@@ -857,44 +776,18 @@ class EnterpriseBranch(NetworkEnvBase):
 
         view = RouterOsEdgeView()
         result = verify(runtime, edge_view=view, **kwargs)
-        # RouterOS edges import their configs at different times after boot,
-        # so readiness also waits for every planned overlay session.
-        result["checks"]["overlay_sessions_established"] = all(
-            set(peers)
-            <= view.bgp_peers.established_peers(
-                exec_or_empty(runtime, edge, view.bgp_peers.command, timeout=20)
+        if startup:
+            # RouterOS edges import their configs at different times after
+            # boot, so readiness also waits for every planned overlay session.
+            established = all(
+                {tunnel[1] for tunnel in edge.tunnels.values()}
+                <= view.bgp_peers.established_peers(
+                    exec_or_empty(
+                        runtime, edge.name, view.bgp_peers.command, timeout=20
+                    )
+                )
+                for edge in self._edges.values()
             )
-            for edge, peers in self._overlay_peers().items()
-        )
-        result["verified"] = bool(
-            result["verified"] and result["checks"]["overlay_sessions_established"]
-        )
-        edges = [edge.name for edge in self._edges.values()]
-        return with_routeros_config_check(runtime, edges, result)
-
-    def _overlay_peers(self) -> dict[str, list[str]]:
-        return {
-            edge.name: [tunnel[1] for tunnel in edge.tunnels.values()]
-            for edge in self._edges.values()
-        }
-
-    def startup_verify_lab(self) -> dict:
-        from nika.net_env.enterprise_branch.verify import (
-            verify_enterprise_branch_lab_startup,
-        )
-
-        return self._verify(verify_enterprise_branch_lab_startup)
-
-    def verify_lab(self) -> dict:
-        from nika.net_env.enterprise_branch.verify import (
-            verify_enterprise_branch_lab,
-        )
-
-        return self._verify(verify_enterprise_branch_lab)
-
-    def deploy(self):
-        if self.device_profile == "routeros":
-            from nika.net_env.utils.routeros.common import require_routeros_image
-
-            require_routeros_image()
-        super().deploy()
+            result["checks"]["overlay_sessions_established"] = established
+            result["verified"] = bool(result["verified"] and established)
+        return with_routeros_config_check(runtime, sorted(self.native_routers), result)

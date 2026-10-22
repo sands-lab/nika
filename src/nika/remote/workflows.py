@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Iterator
 from uuid import uuid4
 
-from agent.sandbox.config import ENV_GATEWAY_SESSION_TOKEN
+from nika.agents.sandbox.config import ENV_GATEWAY_SESSION_TOKEN
 from nika.config import resolve_results_root
 from nika.remote.client import RemoteClient
 from nika.remote.config import load_remote_config

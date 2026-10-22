@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from ipaddress import IPv4Network
 
 from pydantic import Field, StrictInt, model_validator
@@ -19,6 +20,11 @@ BUSINESS_PREFIXES = (
     "198.51.102.0/24",
     "198.18.0.0/24",
 )
+
+
+def business_prefixes(originated: Iterable[str] = ()) -> list[str]:
+    """Return the sorted business allow-list extended with planned origins."""
+    return sorted({*BUSINESS_PREFIXES, *originated})
 
 
 class BgpPolicyTerm(ContractModel):

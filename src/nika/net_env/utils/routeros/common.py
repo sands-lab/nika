@@ -1,24 +1,26 @@
 """MikroTik RouterOS (vrnetlab) image, interface naming and Kathara machine helpers.
 
-vrnetlab boots a RouterOS CHR QEMU VM inside each container. It reserves the
-first container interface (``eth0``, RouterOS ``ether1``) for its internal
-management bridge, so data interfaces start at ``eth1`` (``ether2``).
+vrnetlab boots a RouterOS CHR QEMU VM inside each container. Its data NICs map
+to container interfaces ``<prefix>1`` onwards (RouterOS ``ether2``…), and
+RouterOS ``ether1`` is vrnetlab's internal management port. Two layouts use it:
+
+* A router built for RouterOS (ISP, ``routeros_simple_bgp``) reserves
+  container ``eth0``, so container ``ethN`` is RouterOS ``ether{N+1}``.
+* A router converted from an FRR sketch keeps the environment's ``ethN``
+  names, which tasks and failures address. Each ``ethN`` is bridged to a
+  ``dp{N+1}`` veth that vrnetlab attaches, so ``ethN`` is ``ether{N+2}``.
 """
 
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 
 from Kathara.model.Lab import Lab
 from Kathara.model.Machine import Machine
 
 from nika.net_env.utils.kathara.docker_files.docker_images import image_exists
 from nika.service.lab.routeros_api import CLI_COMMAND
-
-BGP_PEERS_COMMAND = CLI_COMMAND.format(
-    command="/routing/bgp/session/print terse where established=yes"
-)
 
 # MikroTik licensing blocks redistributing / auto-building this image like nika/*.
 IMAGE = "vrnetlab/mikrotik_routeros:7.21.5"
@@ -41,31 +43,49 @@ MAX_DATA_INTERFACES = 30
 LINK_MONITOR_PORT = 4100
 LINK_WATCHER_PATH = "/usr/local/bin/nika-link-carrier"
 _LINK_WATCHER = rf"""#!/bin/bash
-# Mirror container data-interface state into the RouterOS VM NIC carrier.
+# Mirror container interface state into RouterOS VM NIC carriers.
+# Arguments: <container interface>:<vrnetlab NIC index> ...
 declare -A applied
 while true; do
-  for i in $(seq 1 "$1"); do
-    [ "$(cat /sys/class/net/eth$i/operstate 2>/dev/null)" = down ] && link=off || link=on
-    [ "${{applied[$i]}}" = "$link" ] && continue
-    # vrnetlab names the QEMU netdev of container interface ethN pNN.
-    printf 'set_link p%02d %s\n' "$i" "$link" \
+  for pair in "$@"; do
+    iface=${{pair%%:*}}; nic=${{pair##*:}}
+    [ "$(cat /sys/class/net/$iface/operstate 2>/dev/null)" = down ] && link=off || link=on
+    [ "${{applied[$nic]}}" = "$link" ] && continue
+    # vrnetlab names the QEMU netdev of data NIC N pNN.
+    printf 'set_link p%02d %s\n' "$nic" "$link" \
       | socat -t1 - TCP:127.0.0.1:{LINK_MONITOR_PORT} >/dev/null 2>&1 \
-      && applied[$i]=$link
+      && applied[$nic]=$link
   done
   sleep 1
 done
 """
 # The VM itself uses 256 MiB; the remainder covers QEMU and vrnetlab.
 CONTAINER_MEMORY = "1g"
+# Prefix of the veths a converted router hands to vrnetlab.
+_BRIDGED_PREFIX = "dp"
 
 
 def routeros_interface(name: str) -> str:
-    """Translate a container interface name to its RouterOS port name."""
+    """Translate a reserved-layout container interface to its RouterOS port."""
     if name == "lo":
         return "lo0"
     if re.fullmatch(r"eth[0-9]+", name):
         return f"ether{int(name[3:]) + 1}"
     raise ValueError(f"Unsupported RouterOS interface {name!r}")
+
+
+def bridged_interface(name: str) -> str:
+    """Translate a converted router's container interface to its RouterOS port."""
+    if re.fullmatch(r"eth[0-9]+", name):
+        return f"ether{int(name[3:]) + 2}"
+    raise ValueError(f"Unsupported RouterOS interface {name!r}")
+
+
+def routeros_port(net_env, node: str, name: str) -> str:
+    """Return the RouterOS port behind container interface ``name`` of ``node``."""
+    if node in (getattr(net_env, "native_routers", None) or {}):
+        return bridged_interface(name)
+    return routeros_interface(name)
 
 
 def require_routeros_image(image: str = IMAGE) -> None:
@@ -104,8 +124,76 @@ def add_routeros_router(
             f"vrnetlab supports 1 to {MAX_DATA_INTERFACES}."
         )
     machine = lab.new_machine(name, image=IMAGE, cpus=cpus, mem=mem)
+    _boot_meta(machine, data_interfaces)
+    set_routeros_startup(
+        lab, name, links=[(f"eth{i}", i) for i in range(1, data_interfaces + 1)]
+    )
+    if config is not None:
+        set_routeros_config(machine, config)
+    lab.connect_machine_to_link(name, f"{name}_reserved0", machine_iface_number=0)
+    return machine
+
+
+def configure_routeros_router(
+    lab: Lab,
+    machine: Machine,
+    config: str,
+    interfaces: Sequence[str],
+    *,
+    link_commands: Iterable[str] = (),
+) -> None:
+    """Make an existing machine boot RouterOS behind its unchanged ``ethN`` links.
+
+    ``interfaces`` are the machine's container interfaces in use; each becomes
+    RouterOS ``ether{N+2}``. ``link_commands`` (such as ``tc netem`` on
+    ``ethN``) keep shaping the traffic that leaves through those links.
+    """
+    if not 1 <= len(interfaces) <= MAX_DATA_INTERFACES:
+        raise ValueError(
+            f"RouterOS router {machine.name!r} needs {len(interfaces)} data "
+            f"interfaces; vrnetlab supports 1 to {MAX_DATA_INTERFACES}."
+        )
+    machine.update_meta({"image": IMAGE, "mem": CONTAINER_MEMORY, "cpus": 1.0})
+    indices = [int(name[3:]) + 1 for name in interfaces]
+    if max(indices) > MAX_DATA_INTERFACES:
+        raise ValueError(f"RouterOS router {machine.name!r} uses ports beyond eth29")
+    _boot_meta(machine, max(indices))
+    machine.add_meta("env", f"CLAB_INTF_PREFIX={_BRIDGED_PREFIX}")
+    if machine.fs.exists("etc/frr"):
+        machine.fs.removetree("etc/frr")
+    set_routeros_config(machine, config)
+    # vrnetlab counts every ``dp*`` link, including one standing in for the
+    # management interface it expects, before it starts the VM.
+    setup = [
+        f"ip link add {_BRIDGED_PREFIX}0 type dummy",
+        f"ip link set {_BRIDGED_PREFIX}0 up",
+    ]
+    for name, index in zip(interfaces, indices):
+        veth, peer, bridge = f"{_BRIDGED_PREFIX}{index}", f"vp{index}", f"bp{index}"
+        setup.extend(
+            [
+                f"ip link add {veth} type veth peer name {peer}",
+                f"ip link add {bridge} type bridge",
+                f"ip link set {name} master {bridge}",
+                f"ip link set {peer} master {bridge}",
+                f"ip link set {name} up",
+                f"ip link set {peer} up",
+                f"ip link set {veth} up",
+                f"ip link set {bridge} up",
+            ]
+        )
+    set_routeros_startup(
+        lab,
+        machine.name,
+        links=list(zip(interfaces, indices)),
+        setup=setup,
+        link_commands=link_commands,
+    )
+
+
+def _boot_meta(machine: Machine, data_nics: int) -> None:
     machine.add_meta("privileged", True)
-    machine.add_meta("env", f"CLAB_INTFS={data_interfaces}")
+    machine.add_meta("env", f"CLAB_INTFS={data_nics}")
     # vrnetlab's default datapath expects interfaces to appear after boot
     # (Containerlab's model). Kathara attaches them before the container
     # starts; macvtap wraps the interfaces that already exist.
@@ -116,25 +204,28 @@ def add_routeros_router(
         f"-monitor tcp:127.0.0.1:{LINK_MONITOR_PORT},server,nowait",
     )
     machine.create_file_from_string(_LINK_WATCHER, LINK_WATCHER_PATH)
-    set_routeros_startup(lab, name, data_interfaces=data_interfaces)
-    if config is not None:
-        set_routeros_config(machine, config)
-    lab.connect_machine_to_link(name, f"{name}_reserved0", machine_iface_number=0)
-    return machine
 
 
 def set_routeros_startup(
-    lab: Lab, name: str, *, data_interfaces: int, link_commands: Iterable[str] = ()
+    lab: Lab,
+    name: str,
+    *,
+    links: Sequence[tuple[str, int]],
+    setup: Iterable[str] = (),
+    link_commands: Iterable[str] = (),
 ) -> None:
-    """Write the container startup: the carrier watcher plus link-level commands.
+    """Write the container startup: link setup, link-level commands, carrier watcher.
 
+    ``links`` pairs each container interface with its vrnetlab NIC index.
     ``link_commands`` run in the container on its ``ethN`` devices, such as
     ``tc netem`` propagation delay; they shape the VM's traffic like a cable.
     """
+    pairs = " ".join(f"{iface}:{index}" for iface, index in links)
     lab.create_file_from_list(
         [
+            *setup,
             *link_commands,
-            f"nohup bash {LINK_WATCHER_PATH} {data_interfaces} >/dev/null 2>&1 &",
+            f"nohup bash {LINK_WATCHER_PATH} {pairs} >/dev/null 2>&1 &",
         ],
         f"{name}.startup",
     )
@@ -143,14 +234,6 @@ def set_routeros_startup(
 def set_routeros_config(machine: Machine, config: str) -> None:
     """Install the startup script vrnetlab uploads after the VM boots."""
     machine.create_file_from_string(config, CONFIG_FILE_PATH)
-
-
-def routeros_bgp_peer_query():
-    """Return the RouterOS ``BgpPeerQuery`` for Established-session checks."""
-    from nika.net_env.utils.routeros.parse import routeros_established_bgp_peers
-    from nika.net_env.verify import BgpPeerQuery
-
-    return BgpPeerQuery(BGP_PEERS_COMMAND, routeros_established_bgp_peers)
 
 
 def routeros_config_check(runtime, routers: Iterable[str]) -> bool:

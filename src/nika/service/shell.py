@@ -35,7 +35,7 @@ def iperf_server_commands(server_args: str = "") -> tuple[str, str]:
     The daemon records its PID so ``stop`` kills only this server, never
     iperf3 processes that scenario traffic generators run in the background.
     """
-    pidfile = f"/tmp/nika-iperf3-{uuid.uuid4().hex[:12]}.pid"
+    pidfile = f"/tmp/iperf3-{uuid.uuid4().hex[:12]}.pid"
     start = f"iperf3 -s -D -I {pidfile} {server_args}".rstrip()
     stop = (
         f'[ -s {pidfile} ] && kill "$(cat {pidfile})" 2>/dev/null; '

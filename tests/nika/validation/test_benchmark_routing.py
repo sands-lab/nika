@@ -639,7 +639,7 @@ def test_single_level_isis_completion_preserves_original_sketch(scenario):
     }
     assert all(e.metric == 1 for e in active_igp_links(completed.plan))
     assert all(
-        "router isis NIKA" in c and "router ospf" not in c
+        "router isis CORE" in c and "router ospf" not in c
         for c in completed.deployment_configs.values()
     )
     resolved = resolve_routing_requirements(spec, original)

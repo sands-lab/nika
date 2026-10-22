@@ -32,7 +32,7 @@ def read_runtime_config_value(
     """Read the live action parameter of ``table``'s entry for ``port`` via P4Runtime."""
     output = runtime.exec(
         "fabric_mgr",
-        f"python3 /opt/nika/p4rt_manager.py read --switch {shlex.quote(switch)}",
+        f"python3 /opt/p4rt/p4rt_manager.py read --switch {shlex.quote(switch)}",
         timeout=30,
     )
     try:
@@ -134,7 +134,7 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
             # Read the switch's live ACL: a (type 3, code 4) entry must be installed.
             output = self.runtime.exec(
                 "fabric_mgr",
-                "python3 /opt/nika/p4rt_manager.py read "
+                "python3 /opt/p4rt/p4rt_manager.py read "
                 f"--switch {shlex.quote(params.host_name)}",
                 timeout=30,
             )

@@ -1693,10 +1693,12 @@ class BGPMaxPrefixExceeded(ProblemBase):
         return [f"{_FLOOD_PREFIX_BASE}.{i}.0/24" for i in range(count)]
 
     def _advertise_flood(self, peer: str, asn: int, prefixes: list[str]) -> None:
-        # Back each test announcement with a route so origination works with
-        # FRR's network import check enabled as well as legacy configurations.
         parts = ["vtysh -c 'configure terminal'"]
-        parts.extend(f"-c 'ip route {prefix} Null0'" for prefix in prefixes)
+        config = self.runtime.exec(peer, "vtysh -c 'show running-config'")
+        if "no bgp network import-check" not in config:
+            # FRR originates a ``network`` only when a matching route exists,
+            # so back the announcements with discard routes under import check.
+            parts.extend(f"-c 'ip route {prefix} Null0'" for prefix in prefixes)
         parts += [f"-c 'router bgp {asn}'", "-c 'address-family ipv4 unicast'"]
         for prefix in prefixes:
             parts.append(f"-c 'network {prefix}'")
@@ -1714,8 +1716,11 @@ class BGPMaxPrefixExceeded(ProblemBase):
         ]
         for prefix in prefixes:
             parts.append(f"-c 'no network {prefix}'")
-        parts += ["-c 'exit-address-family'", "-c 'exit'"]
-        parts.extend(f"-c 'no ip route {prefix} Null0'" for prefix in prefixes)
+        config = self.runtime.exec(peer, "vtysh -c 'show running-config'")
+        statics = [p for p in prefixes if f"ip route {p} Null0" in config]
+        if statics:
+            parts += ["-c 'exit-address-family'", "-c 'exit'"]
+            parts.extend(f"-c 'no ip route {prefix} Null0'" for prefix in statics)
         parts.extend(["-c 'end'", "-c 'write memory'"])
         self.runtime.exec(peer, " ".join(parts))
 

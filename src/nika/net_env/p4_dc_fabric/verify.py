@@ -166,7 +166,7 @@ def _ecmp_multi_path(
         "for port in range(20000, 20000 + n):\n"
         "    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)\n"
         "    s.bind(('', port))\n"
-        "    s.sendto(b'nika-ecmp', (dst, 9))\n"
+        "    s.sendto(b'ecmp-probe', (dst, 9))\n"
         "    s.close()\n"
         "PY"
     )

@@ -65,32 +65,6 @@ FRR_QUERIES = CampusRouterQueries(
 )
 
 
-def routeros_queries() -> CampusRouterQueries:
-    """Return the campus observations for RouterOS routers."""
-    from nika.net_env.utils.routeros.parse import routeros_count
-    from nika.service.lab.routeros_api import CLI_COMMAND
-
-    return CampusRouterQueries(
-        ospf_process=CLI_COMMAND.format(
-            command="/routing/ospf/instance/print count-only where !disabled"
-        ),
-        ospf_running=lambda output: routeros_count(output) > 0,
-        ospf_neighbors=CLI_COMMAND.format(
-            command="/routing/ospf/neighbor/print count-only where state=Full"
-        ),
-        ospf_full_count=routeros_count,
-        gateway_addresses=CLI_COMMAND.format(
-            command="/ip/address/print terse where interface=br0"
-        ),
-        dhcp_relay=CLI_COMMAND.format(
-            command="/ip/dhcp-relay/print count-only where !disabled and !invalid"
-        ),
-        dhcp_relay_running=lambda output: routeros_count(output) > 0,
-        # Container eth0 is the VM's management port.
-        core_interface="eth1",
-    )
-
-
 def _ping_ok(runtime: LabRuntime, host: str, target: str) -> bool:
     output = runtime.exec(host, ping_command(target), timeout=10)
     return "1 received" in output

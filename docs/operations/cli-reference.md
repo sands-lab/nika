@@ -203,7 +203,7 @@ nika inspect [--result-dir PATH] [--host 127.0.0.1] [--port 7580] [--no-open]
   | `--bgp-mode none\|ibgp_rr\|ebgp` | BGP preset for ISP topology scenarios (default `none`) |
   | `--rpki` / `--no-rpki` | Deprecated for base ISP scenarios. Use the named scenarios `isp_abilene_ebgp_rpki` or `isp_geant_ebgp_rpki` |
   | `--backend kathara\|containerlab` | Lab backend. Required when a scenario supports both; ISP defaults to `kathara` |
-  | `--device-profile frr\|iosxr\|nokia_srlinux` | ISP device profile. `frr` and `iosxr` run on Kathara, `nokia_srlinux` on Containerlab. The default follows `--backend`. For IOS-XR, use the `iosxr_simple_bgp` scenario |
+  | `--device-profile frr\|iosxr\|routeros\|nokia_srlinux` | Router platform. For ISP scenarios, `frr`, `iosxr` and `routeros` run on Kathara and `nokia_srlinux` on Containerlab; the default follows `--backend`. `dc_clos`, `campus_lan` and `enterprise_branch` accept `iosxr` and `routeros` (size `s` for `routeros` and for `dc_clos` on `iosxr`). See [native IOS XR routers](network-scenarios.md#native-ios-xr-routers) and [RouterOS routers](network-scenarios.md#run-other-environments-on-routeros-routers) |
 - **`nika env ps`**: list running lab instances (one row per deployed lab). Columns: env id, size, status, age, active session count, endpoint.
 
 ---
@@ -252,8 +252,8 @@ Lab deployment and verification timings live under `nika.lab`. MCP client and ga
 
 ## `nika agent`
 
-- **`nika agent list`**: built-in harnesses (`byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `cli.codex`, `cli.claude`, `community.sade`, `sdk.claude_sdk`, `sdk.codex_sdk`) and added agents, with their providers and sandbox support, plus LLM providers and reasoning-effort levels.
-- **`nika agent add PATH`** / **`nika agent remove ID`**: register an agent project developed outside NIKA from its `nika-agent.yaml`, or unregister it. NIKA imports the project from its directory and installs nothing. See [Integrate a custom agent](../agents/custom-agents.md#3-register-it).
+- **`nika agent list`**: built-in harnesses (`byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `cli.codex`, `cli.claude`, `community.sade`, `sdk.claude_sdk`, `sdk.codex_sdk`), custom agents from `src/agent/custom/`, and added agents, with their providers and sandbox support, plus LLM providers and reasoning-effort levels.
+- **`nika agent add PATH`** / **`nika agent remove ID`**: register an agent project developed outside NIKA from its `nika-agent.yaml`, or unregister it. NIKA copies the project into the agent's sandbox on every run and installs its dependencies there. See [Custom agent registration](../agents/agent-reference.md#custom-agent-registration); an agent in `src/agent/custom/` needs no registration ([Integrate a custom agent](../agents/custom-agents.md)).
 - **`nika agent check`**: lists models at the configured LLM endpoint and reports whether it is reachable, accepts the credentials, and serves `agent.model`. Takes `--run-config`, `-p`, `-m`, `--base-url`, and `--json`; exits non-zero when the endpoint is not usable. No tokens are spent.
 - **`nika agent run`**: two modes:
 

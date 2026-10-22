@@ -115,12 +115,12 @@ class MtuMismatch(ProblemBase):
         if is_routeros(self.net_env, host):
             # The container port only carries the VM's frames; RouterOS must
             # know the MTU to fragment or send ICMP Fragmentation Needed.
-            from nika.net_env.utils.routeros.common import routeros_interface
+            from nika.net_env.utils.routeros.common import routeros_port
 
             ros(
                 self.runtime,
                 host,
-                f"/interface ethernet set [find name={routeros_interface(intf)}] "
+                f"/interface ethernet set [find name={routeros_port(self.net_env, host, intf)}] "
                 f"mtu={int(mtu)}",
             )
 
@@ -157,12 +157,12 @@ class MtuMismatch(ProblemBase):
 
     def _read_mtu(self, host: str, intf: str) -> int | None:
         if is_routeros(self.net_env, host):
-            from nika.net_env.utils.routeros.common import routeros_interface
+            from nika.net_env.utils.routeros.common import routeros_port
 
             rows = ros_rows(
                 self.runtime,
                 host,
-                f"/interface/print terse where name={routeros_interface(intf)}",
+                f"/interface/print terse where name={routeros_port(self.net_env, host, intf)}",
             )
             container = self.runtime.exec(host, f"ip -o link show dev {intf}")
             match = _MTU_RE.search(container)

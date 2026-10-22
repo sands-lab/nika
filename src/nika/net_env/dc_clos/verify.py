@@ -75,7 +75,12 @@ def _service_commands(dns_servers, web_urls):
 
 
 def _collect(
-    runtime, bgp_neighbors, client_addresses, bgp_peers, dns_servers=(), web_urls=()
+    runtime,
+    bgp_neighbors,
+    client_addresses,
+    bgp_peers,
+    dns_servers=(),
+    web_urls=(),
 ):
     commands = [VerifyCommand(router, bgp_peers.command) for router in bgp_neighbors]
     for client in client_addresses:

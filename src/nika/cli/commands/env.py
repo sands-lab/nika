@@ -85,9 +85,10 @@ def env_run(
         None,
         "--device-profile",
         help=(
-            "Router profile: frr, iosxr or routeros (kathara), nokia_srlinux "
-            "(containerlab). Defaults from --backend. Non-ISP scenarios accept "
-            "the native profiles they list in their registration."
+            "Router platform. ISP: frr, iosxr or routeros (kathara), "
+            "nokia_srlinux (containerlab); defaults from --backend. "
+            "dc_clos, campus_lan, enterprise_branch: frr (default), iosxr or "
+            "routeros (size s for routeros)."
         ),
     ),
     no_redeploy: bool = typer.Option(

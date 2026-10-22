@@ -64,7 +64,7 @@ class LLMDLabUnitTest:
             machine = inst.lab.machines[node_name]
             args = str(machine.meta.get("args") or "")
             assert machine.meta.get("entrypoint") == "/bin/sh"
-            assert "/var/run/nika-net-ready" in args
+            assert "/var/run/net-ready" in args
             assert "exec /bin/k3s" in args
             assert machine.get_image() == K3S_IMAGE
             if node_name == "controller":

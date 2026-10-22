@@ -31,7 +31,7 @@ from nika.runtime.spec import NodeRole
 class IspVendor(NetworkEnvBase):
     """Compile any catalog ISP graph to a supported native OSPF/BGP platform."""
 
-    ROUTING_PARAMETER_KINDS = frozenset({"ospf_costs", "bgp_imports"})
+    ROUTING_PARAMETER_KINDS = frozenset({"ospf_costs", "isis_metrics", "bgp_imports"})
     LAB_NAME = "isp"
     TOPO_LEVEL = "medium"
     VERIFY_MAX_WAIT_SEC = 900
@@ -59,10 +59,10 @@ class IspVendor(NetworkEnvBase):
         validate_backend_profile(self.backend, self.device_profile)
         if self.device_profile not in {"iosxr", "routeros"}:
             raise ValueError("Native ISP requires iosxr or routeros")
-        # Each vendor renderer rejects the IGPs it does not support.
+        # The vendor renderer checks its IGP; overlays need native policies.
         if rpki or rtbh or topo_size is not None:
             raise ValueError(
-                "Native ISP supports an IGP with optional BGP, without security overlays or topo_size"
+                "Native ISP supports optional BGP without security overlays or topo_size"
             )
         model = f"{self.device_profile}-isp"
         if routing_model is not None and routing_model != model:
@@ -136,7 +136,7 @@ class IspVendor(NetworkEnvBase):
                 render_routeros_isp,
                 routeros_interface,
             )
-            from nika.net_env.utils.routeros.common import CONFIG_FILE_PATH, IMAGE
+            from nika.net_env.routeros_simple_bgp.lab import CONFIG_FILE_PATH, IMAGE
 
             native_interface = routeros_interface
             self.deployment_configs = render_routeros_isp(self.plan, self.bgp_plan)
@@ -154,7 +154,7 @@ class IspVendor(NetworkEnvBase):
         self.instance = Kathara.get_instance()
         self.desc = (
             f"ISP {self.plan.topology_name}: {self.device_profile}, "
-            f"{igp.upper()}, BGP={self.bgp_mode}"
+            f"{self.plan.igp.upper()}, BGP={self.bgp_mode}"
         )
         for node in self.plan.nodes:
             if self.device_profile == "routeros":
@@ -174,38 +174,20 @@ class IspVendor(NetworkEnvBase):
                 machine.create_file_from_string(
                     self.deployment_configs[node.device_name], CONFIG_FILE_PATH
                 )
-            capabilities = ("linux", self.device_profile, igp)
+            capabilities = ("linux", self.device_profile, self.plan.igp)
             if self.bgp_plan is not None:
                 capabilities += ("bgp",)
             self.declare_machine(
                 node.device_name, role=NodeRole.ROUTER, capabilities=capabilities
             )
             if self.device_profile == "iosxr":
-                from nika.net_env.utils.iosxr.common import (
-                    XR_ENTRYPOINT,
-                    XR_ZTP_DISABLE_ENV,
-                    build_xr_interfaces_env,
-                    build_xr_startup_script,
-                )
+                from nika.net_env.utils.iosxr.common import configure_xrd_router
 
-                machine.add_meta("ipv6", True)
-                machine.add_meta("entrypoint", XR_ENTRYPOINT)
-                machine.add_meta(
-                    "env",
-                    build_xr_interfaces_env(
-                        *(
-                            (iface.name, native_interface(iface.name))
-                            for iface in node.interfaces
-                        )
-                    ),
-                )
-                machine.add_meta("env", XR_ZTP_DISABLE_ENV)
-                self.lab.create_file_from_list(
-                    build_xr_startup_script(
-                        CONFIG_FILE_PATH,
-                        wait_iface=native_interface(node.interfaces[0].name),
-                    ),
-                    f"{node.device_name}.startup",
+                configure_xrd_router(
+                    self.lab,
+                    machine,
+                    self.deployment_configs[node.device_name],
+                    [iface.name for iface in node.interfaces],
                 )
         for link in self.plan.links:
             self.lab.connect_machine_to_link(
@@ -251,27 +233,17 @@ class IspVendor(NetworkEnvBase):
             raise RuntimeError(
                 f"Native ISP image {self._image!r} must be installed locally"
             )
-        # Conservative admission estimate, not a bound on vendor process usage.
-        # Reject oversized native deployments before creating any containers.
-        available = next(
-            int(line.split()[1]) * 1024
-            for line in Path("/proc/meminfo").read_text().splitlines()
-            if line.startswith("MemAvailable:")
+        from nika.net_env.utils.native_admission import (
+            GIB,
+            require_native_lab_memory,
         )
-        gib = 1024**3
-        per_router = 3 * gib if self.device_profile == "iosxr" else gib
-        required = (
-            2 * gib
-            + len(self.plan.nodes) * per_router
-            + len(self.traffic.hosts) * (gib // 4)
+
+        require_native_lab_memory(
+            f"Native ISP {self.device_profile}",
+            routers=len(self.plan.nodes),
+            per_router=3 * GIB if self.device_profile == "iosxr" else GIB,
+            hosts=len(self.traffic.hosts),
         )
-        if required > available:
-            raise RuntimeError(
-                f"Native ISP {self.device_profile} with {len(self.plan.nodes)} routers "
-                f"needs an estimated {required / gib:.1f} GiB including headroom; "
-                f"only {available / gib:.1f} GiB is available. Use a smaller topology "
-                "or a host with more memory."
-            )
         super().deploy()
 
     def get_info(self):
@@ -284,9 +256,28 @@ class IspVendor(NetworkEnvBase):
             device_profile=self.device_profile,
         )
 
-    def startup_verify_lab(self, *, full: bool = False):
-        # Readiness checks adjacencies and edge-host ICMP; the experiment checks
-        # the complete original behavior and exact forwarding requirements.
+    def startup_verify_lab(self):
+        # Readiness covers adjacencies, edge-host ICMP and BGP propagation to
+        # the designed prefixes (as FRR readiness does). The full verification
+        # adds the remaining required predicates, such as prefix isolation.
+        return self._verify_contract(
+            lambda i: (
+                i.adjacency is not None
+                or (
+                    i.property == "reachability"
+                    and i.traffic.protocol == "icmp"
+                    and i.source.kind in {"endpoint", "node"}
+                    and i.destination.kind in {"endpoint", "prefix"}
+                )
+            )
+        )
+
+    def verify_lab(self):
+        return self._verify_contract(
+            lambda i: i.adjacency is not None or i.level == "required", full=True
+        )
+
+    def _verify_contract(self, selected, *, full: bool = False):
         from nika.net_env.vendor_validation import (
             verify_iosxr_contract,
             verify_routeros_contract,
@@ -296,15 +287,7 @@ class IspVendor(NetworkEnvBase):
         contract = self.validation_contract.model_copy(
             update={
                 "intents": tuple(
-                    i
-                    for i in self.validation_contract.intents
-                    if i.adjacency is not None
-                    or (
-                        i.property == "reachability"
-                        and i.traffic.protocol == "icmp"
-                        and i.source.kind == "endpoint"
-                        and i.destination.kind == "endpoint"
-                    )
+                    i for i in self.validation_contract.intents if selected(i)
                 )
             }
         )
@@ -314,22 +297,38 @@ class IspVendor(NetworkEnvBase):
             else verify_routeros_contract
         )
         runtime = self._build_runtime()
-        native = {}
-        if self.device_profile == "routeros":
-            from nika.net_env.isp.routeros import routeros_isp_readiness
-
-            native = routeros_isp_readiness(
-                runtime, self.plan, self.bgp_plan, full=full
-            )
         report = verifier(runtime, contract=contract, plan=self.plan)
         checks = {row.intent: row.status == "passed" for row in report.results}
-        checks.update(native)
+        details = report.model_dump(mode="json")
+        if self.device_profile == "routeros":
+            # Startup-import errors, IS-IS adjacencies and BGP policy natively.
+            from nika.net_env.isp.routeros import routeros_isp_readiness
+
+            checks.update(
+                routeros_isp_readiness(runtime, self.plan, self.bgp_plan, full=full)
+            )
+        elif self.plan.igp == "isis":
+            # ISP contracts declare OSPF adjacencies only; check IS-IS natively.
+            from nika.net_env.isp.iosxr import (
+                ISIS_ADJACENCY_COMMAND,
+                iosxr_isis_adjacency_checks,
+            )
+            from nika.net_env.verify_collection import (
+                VerifyCommand,
+                collect_verify_commands,
+            )
+
+            observed = collect_verify_commands(
+                runtime,
+                [
+                    VerifyCommand(node.device_name, ISIS_ADJACENCY_COMMAND, 30)
+                    for node in self.plan.nodes
+                ],
+            )
+            checks.update(iosxr_isis_adjacency_checks(observed, self.plan))
         return build_lab_verify_result(
             scenario_name=self.scenario_id,
             verified=bool(checks) and all(checks.values()),
             checks=checks,
-            details=report.model_dump(mode="json"),
+            details=details,
         )
-
-    def verify_lab(self):
-        return self.startup_verify_lab(full=True)

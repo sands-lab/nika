@@ -5,9 +5,10 @@ from __future__ import annotations
 import json
 from typing import Any
 
+# Agents read this note, so it names no host configuration.
 _DESC_NOTE = (
-    " Oversized outputs keep the first and last halves of "
-    "nika.mcp.tool_output_max_chars (default 10000) and elide the middle."
+    " Oversized outputs keep the first and last halves of the output budget "
+    "(10000 characters by default) and elide the middle."
 )
 
 _TOO_LONG_WARNING = (

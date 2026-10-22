@@ -8,8 +8,8 @@ import json
 import httpx
 import pytest
 
-from agent.sandbox.e2b import image_config as module
-from agent.sandbox.e2b.image_config import ImageConfig, image_config
+from nika.agents.sandbox.e2b import image_config as module
+from nika.agents.sandbox.e2b.image_config import ImageConfig, image_config
 
 pytestmark = pytest.mark.unit
 

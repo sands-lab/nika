@@ -261,12 +261,12 @@ def test_ospf_neighbor_requires_exact_peer_address_interface_and_full_state() ->
     In the area 0 via interface GigabitEthernet0/0/0/1
     State is FULL, 6 state changes
 """
-    ros = '0 instance=NIKA area=backbone interface=ether2 address=192.0.2.2 router-id=10.0.0.2 state="Full"'
+    ros = '0 instance=CORE area=backbone interface=ether2 address=192.0.2.2 router-id=10.0.0.2 state="Full"'
     for platform, output in (("iosxr", xr), ("routeros", ros)):
         identity = (
             {
-                "instances": "0 name=NIKA router-id=10.0.0.1",
-                "areas": "0 name=backbone instance=NIKA area-id=0.0.0.0",
+                "instances": "0 name=CORE router-id=10.0.0.1",
+                "areas": "0 name=backbone instance=CORE area-id=0.0.0.0",
             }
             if platform == "routeros"
             else {}
@@ -296,16 +296,16 @@ def test_ospf_neighbor_requires_exact_peer_address_interface_and_full_state() ->
         "routeros",
         adjacency,
         plan,
-        instances="0 name=NIKA router-id=10.0.0.1",
-        areas="0 name=backbone instance=NIKA area-id=0.0.0.1",
+        instances="0 name=CORE router-id=10.0.0.1",
+        areas="0 name=backbone instance=CORE area-id=0.0.0.1",
     )
     assert not _ospf_established(
         ros,
         "routeros",
         adjacency,
         plan,
-        instances="0 name=NIKA router-id=10.0.0.9",
-        areas="0 name=backbone instance=NIKA area-id=0.0.0.0",
+        instances="0 name=CORE router-id=10.0.0.9",
+        areas="0 name=backbone instance=CORE area-id=0.0.0.0",
     )
 
 

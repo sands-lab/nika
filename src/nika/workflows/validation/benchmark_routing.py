@@ -12,6 +12,7 @@ from copy import deepcopy
 from textwrap import indent
 
 import yaml
+from nika.net_env.isp.igp.frr import ISIS_PROCESS
 from nika.net_env.isp.igp.ifaces import srl_e1_name
 from ipaddress import IPv4Network
 
@@ -60,6 +61,11 @@ from nika.workflows.validation.scenario_spec import (
 )
 
 
+_NATIVE_FAULT_LIMITATION = (
+    "Native ISP vendor profiles have native fault bindings only for link_down"
+)
+
+
 def _profile_limitations(deployment, features):
     reasons = []
     if (deployment["backend"], deployment["device_profile"]) not in {
@@ -71,12 +77,14 @@ def _profile_limitations(deployment, features):
         reasons.append(
             "Native ISP vendor observation and configuration analysis remain required"
         )
-    if deployment["device_profile"] in {"iosxr", "routeros"} and (
-        deployment["igp"] != "ospf"
+    native_igps = {"iosxr": {"ospf", "isis"}, "routeros": {"ospf"}}
+    if deployment["device_profile"] in native_igps and (
+        deployment["igp"] not in native_igps[deployment["device_profile"]]
         or deployment["bgp_mode"] not in {"none", "ibgp_rr", "ebgp"}
     ):
         reasons.append(
-            "Native ISP vendor profiles require IPv4 OSPF and supported BGP modes"
+            "Native ISP vendor profiles require a supported IGP (IOS XR: OSPF or "
+            "IS-IS; RouterOS: OSPF) and BGP mode"
         )
     if features and (
         not set(features) <= {"rpki", "rtbh"}
@@ -207,6 +215,14 @@ def benchmark_isp_profiles(manifests: list[Path]):
             }
             if provenance not in profiles[key]["benchmark_cases"]:
                 profiles[key]["benchmark_cases"].append(provenance)
+            reason = _NATIVE_FAULT_LIMITATION
+            if (
+                deployment["device_profile"] in {"iosxr", "routeros"}
+                and row["problem"] != "link_down"
+                and reason not in profiles[key]["limitations"]
+            ):
+                profiles[key]["limitations"].append(reason)
+                profiles[key]["supported"] = False
     return dict(sorted(profiles.items()))
 
 
@@ -994,12 +1010,10 @@ def build_benchmark_isp_experiment(
     recovery = (announcement,)
     if plan.igp == "isis" and not env.bgp_plan:
         context = ("interface lo",)
-        old_announcement = (
-            f"interface lo\n ip address {prefix}\n ip router isis NIKA\n isis passive"
-        )
+        old_announcement = f"interface lo\n ip address {prefix}\n ip router isis {ISIS_PROCESS}\n isis passive"
         static_replacement = f"interface lo\n ip address {prefix}"
-        withdrawal = ("no ip router isis NIKA",)
-        recovery = ("ip router isis NIKA", "isis passive")
+        withdrawal = (f"no ip router isis {ISIS_PROCESS}",)
+        recovery = (f"ip router isis {ISIS_PROCESS}", "isis passive")
     role_static, role_runtime = [], []
     if env.bgp_mode == "ibgp_rr":
         role = next(
@@ -1135,7 +1149,7 @@ def build_benchmark_isp_experiment(
                 )
             else:
                 old_announcement = "  interface Loopback0\n   passive enable\n  !\n"
-                context = ("router ospf NIKA", "area 0")
+                context = ("router ospf CORE", "area 0")
                 withdraw_native = (
                     "configure terminal",
                     *context,

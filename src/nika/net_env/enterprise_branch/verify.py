@@ -67,7 +67,13 @@ def _rib_has_prefix(rib: str, prefix: str) -> bool:
     return net in rib
 
 
-def _collect(runtime, spec, tunnels, view, *, full):
+# Provider routing-table query; native provider routers supply their own.
+FRR_PROVIDER_ROUTES = "vtysh -c 'show ip route'"
+
+
+def _collect(
+    runtime, spec, tunnels, view, *, full, provider_routes=FRR_PROVIDER_ROUTES
+):
     commands = []
 
     def add(node, command, timeout=20):
@@ -143,7 +149,7 @@ def _collect(runtime, spec, tunnels, view, *, full):
             )
     for provider in spec.providers:
         add(isp_name_for(provider), "ip route", 15)
-        add(isp_name_for(provider), "vtysh -c 'show ip route'", 15)
+        add(isp_name_for(provider), provider_routes, 15)
     return collect_verify_commands(runtime, commands)
 
 
@@ -204,11 +210,19 @@ def verify_enterprise_branch_lab(
     built_tunnels: list[BuiltTunnel] | None = None,
     spec: TopoSpec | None = None,
     edge_view: FrrEdgeView = FRR_EDGES,
+    provider_routes: str = FRR_PROVIDER_ROUTES,
     **_kwargs: Any,
 ) -> dict[str, Any]:
     spec = spec or build_topo_spec(topo_size)
     view = edge_view
-    runtime = _collect(runtime, spec, list(built_tunnels or []), view, full=True)
+    runtime = _collect(
+        runtime,
+        spec,
+        list(built_tunnels or []),
+        view,
+        full=True,
+        provider_routes=provider_routes,
+    )
     checks: dict[str, bool] = {}
     details: dict[str, Any] = {"topo_size": topo_size}
     tunnels = list(built_tunnels or [])
@@ -383,7 +397,7 @@ def verify_enterprise_branch_lab(
     def provider_checks(provider: str) -> tuple[str, bool]:
         isp = isp_name_for(provider)
         isp_routes = exec_or_empty(runtime, isp, "ip route", timeout=15)
-        isp_frr = exec_or_empty(runtime, isp, "vtysh -c 'show ip route'", timeout=15)
+        isp_frr = exec_or_empty(runtime, isp, provider_routes, timeout=15)
         leaked = any(
             p.split("/")[0] in isp_routes or p.split("/")[0] in isp_frr
             for p in spec.advertised_prefixes()

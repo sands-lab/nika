@@ -3,7 +3,7 @@
 # CLI flags override this file. This file overrides built-in defaults.
 # Keep API keys and other credentials in the repo-root .env file.
 #
-# Per-agent templates (copy one and pass --run-config):
+# Per-agent templates (use their agent settings in a copy of config/nika.yaml):
 #   config/byo.langgraph.example.yaml
 #   config/byo.mcp_agent.example.yaml
 #   config/byo.autogen.example.yaml
@@ -13,7 +13,7 @@
 #   config/sdk.claude_sdk.example.yaml
 # List registered names with: uv run nika agent list
 
-# Default profile: LangGraph ReAct on the host.
+# Default profile: LangGraph ReAct (every agent runs in a sandbox).
 agent:
   type: byo.langgraph
   provider: deepseek
@@ -82,11 +82,6 @@ nika:
     offline_sdk_wheels: true
     # sbx: route sandboxd and sbx traffic through this proxy.
     upstream_proxy: null
-  observability:
-    # Send byo.langgraph traces to Langfuse.
-    langfuse_enabled: false
-    # Langfuse API base URL.
-    langfuse_host: https://cloud.langfuse.com
   judge:
     # Provider used by `nika eval judge`.
     provider: openai

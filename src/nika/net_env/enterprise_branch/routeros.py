@@ -19,6 +19,7 @@ The RouterOS edge keeps the FRR edge's forwarding and isolation model:
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from ipaddress import IPv4Interface
@@ -32,7 +33,7 @@ from nika.net_env.enterprise_branch.topology import (
     overlay_be_class,
 )
 from nika.net_env.isp.routeros import _filter_rule
-from nika.net_env.utils.routeros.common import routeros_interface
+from nika.net_env.utils.routeros.common import bridged_interface
 
 OVERLAY_VRF = "overlay"
 GUEST_NAT_ADDRESS = "198.18.1.10"
@@ -108,7 +109,7 @@ def render_routeros_edge(edge: RouterOsEdge, qos: OverlayQosSpec) -> str:
     lines = [f"/system identity set name={edge.name}"]
     for lan in edge.lans:
         lines.append(
-            f"/ip vrf add name={lan.vrf} interfaces={routeros_interface(lan.iface)}"
+            f"/ip vrf add name={lan.vrf} interfaces={bridged_interface(lan.iface)}"
         )
     # RouterOS creates each VRF's routing table asynchronously; later
     # commands reference the tables by name.
@@ -116,16 +117,16 @@ def render_routeros_edge(edge: RouterOsEdge, qos: OverlayQosSpec) -> str:
     for lan in edge.lans:
         lines.append(
             f"/ip address add address={lan.gateway} "
-            f"interface={routeros_interface(lan.iface)}"
+            f"interface={bridged_interface(lan.iface)}"
         )
     for iface, cidr, _gateway in edge.wans:
         lines.append(
-            f"/ip address add address={cidr} interface={routeros_interface(iface)}"
+            f"/ip address add address={cidr} interface={bridged_interface(iface)}"
         )
         for address in edge.public_addresses.get(iface, ()):
             lines.append(
                 f"/ip address add address={address}/32 "
-                f"interface={routeros_interface(iface)}"
+                f"interface={bridged_interface(iface)}"
             )
     lines.extend(
         f"/ip route add dst-address={dst}/32 gateway={gateway}"
@@ -182,7 +183,7 @@ def _render_local_only(edge: RouterOsEdge) -> list[str]:
     primary_gateway = edge.wans[0][2]
     lines = []
     for lan in local:
-        iface = routeros_interface(lan.iface)
+        iface = bridged_interface(lan.iface)
         lines.extend(
             [
                 f"/ip route add dst-address=0.0.0.0/0 gateway={primary_gateway}@main "
@@ -284,14 +285,96 @@ def _render_vrf_leaking(edge: RouterOsEdge) -> list[str]:
     return lines
 
 
+_VRF_PORT = re.compile(r"ip link set dev (eth\d+) master (\S+)")
+_PUBLIC_ADDRESS = re.compile(r"ip addr add ([0-9.]+)/32 dev (eth\d+)")
+_SHAPING = re.compile(r"tc qdisc (?:add|replace) dev eth\d+ root netem .*")
+
+
+def edge_router(env, name: str):
+    """Return the RouterOS rendering of Site Edge ``name`` of a built lab."""
+    from nika.net_env.enterprise_branch.addressing import lan_edge_ip
+    from nika.net_env.enterprise_branch.topology import overlay_qos_for
+    from nika.net_env.utils.routeros.frr import RouterOsRouter
+
+    edge = next((e for e in env._edges.values() if e.name == name), None)
+    if edge is None:
+        return None
+    site = env.spec.sites[edge.site]
+    # The FRR edge sketch names the port of each VRF and provider address.
+    commands = [line.removesuffix(" || true") for line in edge.cmd_list]
+    vrf_ports = {m[2]: m[1] for line in commands if (m := _VRF_PORT.fullmatch(line))}
+    public: dict[str, list[str]] = {}
+    for line in commands:
+        if match := _PUBLIC_ADDRESS.fullmatch(line):
+            public.setdefault(match[2], []).append(match[1])
+    peer_asns = {site_name: spec.asn for site_name, spec in env.spec.sites.items()}
+    underlay, tunnels = [], []
+    for bt in env.built_tunnels:
+        if edge.site == bt.spoke:
+            iface, remote = bt.spoke_iface, bt.hub
+            endpoint, port = bt.hub_wan_ip, bt.listen_port_hub
+        elif edge.site == bt.hub:
+            iface, remote = bt.hub_iface, bt.spoke
+            endpoint, port = bt.spoke_wan_ip, bt.listen_port_spoke
+        else:
+            continue
+        underlay.append((endpoint, edge.wan[bt.provider][1]))
+        local_cidr, peer_ip, listen_port, _, _, local_pref, _ = edge.tunnels[iface]
+        tunnels.append(
+            RouterOsTunnel(
+                iface=iface,
+                address=local_cidr,
+                peer_address=peer_ip,
+                listen_port=listen_port,
+                peer_public_key=env._key_pairs[env._edges[remote].key_idx][1],
+                peer_endpoint=endpoint,
+                peer_port=port,
+                remote_asn=peer_asns[remote],
+                local_pref=local_pref,
+            )
+        )
+    lans = tuple(
+        RouterOsLan(
+            role=lan.role,
+            vrf=lan.vrf,
+            prefix=lan.prefix,
+            gateway=str(lan_edge_ip(site.site_id, lan.role)),
+            iface=vrf_ports[lan.vrf],
+        )
+        for lan in site.lans
+    )
+    wans = tuple(
+        (edge.wan[p][3], edge.wan[p][0], edge.wan[p][1]) for p in site.wan_providers
+    )
+    config = render_routeros_edge(
+        RouterOsEdge(
+            name=edge.name,
+            asn=site.asn,
+            router_id=next(iter(edge.wan.values()))[2],
+            is_hub=site.is_hub,
+            private_key=env._key_pairs[edge.key_idx][0],
+            lans=lans,
+            wans=wans,
+            public_addresses={k: tuple(v) for k, v in public.items()},
+            underlay_routes=tuple(dict.fromkeys(underlay)),
+            tunnels=tuple(tunnels),
+            advertised=tuple(lan.prefix for lan in site.lans if lan.advertise),
+        ),
+        overlay_qos_for(env.spec.size),
+    )
+    return RouterOsRouter(
+        config,
+        tuple(lan.iface for lan in lans) + tuple(wan[0] for wan in wans),
+        tuple(line for line in commands if _SHAPING.fullmatch(line)),
+    )
+
+
 class RouterOsEdgeView(FrrEdgeView):
     """Native RouterOS observations for the same enterprise_branch checks."""
 
     def __init__(self) -> None:
-        from nika.net_env.utils.routeros.common import (
-            CONFIG_LOG_COMMAND,
-            routeros_bgp_peer_query,
-        )
+        from nika.net_env.utils.routeros.common import CONFIG_LOG_COMMAND
+        from nika.net_env.utils.routeros.platform import routeros_bgp_peer_query
 
         self.bgp_peers = routeros_bgp_peer_query()
         self.routing_process = CONFIG_LOG_COMMAND

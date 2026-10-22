@@ -12,6 +12,11 @@ from agent.llm.model_factory import load_model
 pytestmark = pytest.mark.unit
 
 
+@pytest.fixture(autouse=True)
+def _task(agent_task) -> None:
+    agent_task()
+
+
 def test_provider_chat_classes_are_lazily_imported() -> None:
     assert not hasattr(model_factory, "ChatAnthropic")
     assert not hasattr(model_factory, "ChatDeepSeek")
@@ -50,8 +55,6 @@ def test_load_model_anthropic_omits_empty_base_url() -> None:
             {
                 "ANTHROPIC_API_KEY": "sk-ant",
                 "ANTHROPIC_BASE_URL": "",
-                "NIKA_CUSTOM_BASE_URL": "",
-                "CUSTOM_API_BASE": "",
             },
             clear=False,
         ),
@@ -78,9 +81,9 @@ def test_load_model_openai_passes_reasoning_effort() -> None:
     kwargs = ctor.call_args.kwargs
     assert kwargs["model_name"] == "gpt-5.6"
     assert kwargs["reasoning_effort"] == "medium"
-    # Client-side retries off; NIKA logs each attempt via ``llm_retry``.
+    # Client-side retries off; the factory logs each attempt via ``llm_retry``.
     assert kwargs["max_retries"] == 0
-    assert fake._nika_max_retries == 2
+    assert fake._attempt_retries == 2
 
 
 def test_load_model_openai_omits_reasoning_effort_when_unset() -> None:
@@ -105,11 +108,9 @@ def test_load_model_openai_passes_max_tokens() -> None:
 def test_load_model_custom_enables_thinking_extra_body() -> None:
     fake = MagicMock(name="ReasoningChatOpenAI")
     with (
-        patch(
-            "agent.llm.model_factory.resolve_custom_base_url",
-            return_value="http://example:8000/v1",
+        patch.dict(
+            "os.environ", {"OPENAI_BASE_URL": "http://example:8000/v1"}, clear=False
         ),
-        patch("agent.llm.model_factory.resolve_custom_api_key", return_value=None),
         patch("agent.llm.model_factory.ReasoningChatOpenAI", return_value=fake) as ctor,
     ):
         load_model(
@@ -123,17 +124,15 @@ def test_load_model_custom_enables_thinking_extra_body() -> None:
     assert kwargs["extra_body"] == {"chat_template_kwargs": {"enable_thinking": True}}
     assert "reasoning_effort" not in kwargs
     assert kwargs["max_retries"] == 0
-    assert fake._nika_max_retries == 3
+    assert fake._attempt_retries == 3
 
 
 def test_load_model_custom_skips_thinking_extra_body_when_none() -> None:
     fake = MagicMock(name="ReasoningChatOpenAI")
     with (
-        patch(
-            "agent.llm.model_factory.resolve_custom_base_url",
-            return_value="http://example:8000/v1",
+        patch.dict(
+            "os.environ", {"OPENAI_BASE_URL": "http://example:8000/v1"}, clear=False
         ),
-        patch("agent.llm.model_factory.resolve_custom_api_key", return_value=None),
         patch("agent.llm.model_factory.ReasoningChatOpenAI", return_value=fake) as ctor,
     ):
         load_model(
@@ -147,11 +146,9 @@ def test_load_model_custom_skips_thinking_extra_body_when_none() -> None:
 
 def test_load_model_custom_sends_max_tokens_in_body() -> None:
     with (
-        patch(
-            "agent.llm.model_factory.resolve_custom_base_url",
-            return_value="http://example:8000/v1",
+        patch.dict(
+            "os.environ", {"OPENAI_BASE_URL": "http://example:8000/v1"}, clear=False
         ),
-        patch("agent.llm.model_factory.resolve_custom_api_key", return_value=None),
         patch("agent.llm.model_factory.ReasoningChatOpenAI") as ctor,
     ):
         load_model(

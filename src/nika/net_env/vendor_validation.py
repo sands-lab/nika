@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 import shlex
 from dataclasses import dataclass
-from ipaddress import IPv4Address
+from ipaddress import IPv4Address, IPv4Network
 from time import perf_counter
 
 from nika.net_env.contract import (
@@ -80,6 +80,15 @@ def _parse_iosxr_bgp_summary(output: str) -> tuple[int | None, dict[str, _BgpPee
             raise ValueError(f"Unknown IOS XR BGP neighbor state: {state}")
         peers[address] = _BgpPeer(remote_asn, established, local_asn)
     return local_asn, peers
+
+
+def iosxr_bgp_established_peers(output: str) -> set[str]:
+    """Established neighbors from ``show bgp summary``; none if unparseable."""
+    try:
+        _, peers = _parse_iosxr_bgp_summary(output)
+    except ValueError:
+        return set()
+    return {address for address, peer in peers.items() if peer.established}
 
 
 def _parse_routeros_bgp_sessions(output: str) -> dict[str, _BgpPeer]:
@@ -337,6 +346,13 @@ def _native_ping_status(output: str, platform: str) -> bool:
     raise ValueError("Unable to determine reachability from native probe output")
 
 
+def _probe_address(entity) -> str:
+    """Probe a prefix through its first host address, as the FRR verifier does."""
+    if entity.kind == "prefix":
+        return str(IPv4Network(entity.address).network_address + 1)
+    return entity.address.split("/", 1)[0]
+
+
 def _supported_request(intent, platform: str, plan=None) -> VerifyCommand | None:
     if intent.property == "adjacency" and intent.adjacency.protocol == "bgp":
         adjacency = intent.adjacency
@@ -351,6 +367,14 @@ def _supported_request(intent, platform: str, plan=None) -> VerifyCommand | None
             )
         return VerifyCommand(adjacency.local_node, command, 30)
     if plan is not None:
+        if intent.adjacency and intent.adjacency.protocol == "isis":
+            if platform != "iosxr" or intent.adjacency.local_interface is None:
+                return None
+            from nika.net_env.isp.iosxr import ISIS_ADJACENCY_COMMAND
+
+            return VerifyCommand(
+                intent.adjacency.local_node, ISIS_ADJACENCY_COMMAND, 30
+            )
         if intent.adjacency and intent.adjacency.protocol == "ospf":
             if intent.adjacency.ospf_area not in {None, "0", "0.0.0.0"}:
                 return None
@@ -377,24 +401,27 @@ def _supported_request(intent, platform: str, plan=None) -> VerifyCommand | None
                 if intent.bgp_route:
                     command += " bgp=yes"
             return VerifyCommand(expected.node, _native_command(platform, command), 30)
-    if (
-        intent.property in {"reachability", "isolation"}
-        and intent.traffic.protocol == "icmp"
+    if intent.property in {"reachability", "isolation"} and (
+        intent.traffic.protocol == "icmp"
+        # An IPv4 isolation requirement is violated by any delivered packet,
+        # so an ICMP probe is a sufficient counterexample search.
+        or (intent.property == "isolation" and intent.traffic.protocol == "ipv4")
     ):
         if (
             intent.source.kind not in {"node", "endpoint"}
-            or intent.destination.kind not in {"node", "endpoint"}
+            or intent.destination.kind not in {"node", "endpoint", "prefix"}
             or not intent.source.address
             or not intent.destination.address
         ):
             return None
+        target = _probe_address(intent.destination)
         if plan is not None and intent.source.name in {
             node.device_name for node in plan.nodes
         }:
             command = (
-                f"ping {intent.destination.address} source {intent.source.address} repeat 3 timeout 2"
+                f"ping {target} source {intent.source.address} repeat 3 timeout 2"
                 if platform == "iosxr"
-                else f"/ping address={intent.destination.address} src-address={intent.source.address} count=3 interval=1s"
+                else f"/ping address={target} src-address={intent.source.address} count=3 interval=1s"
             )
             return VerifyCommand(
                 intent.source.name,
@@ -414,7 +441,7 @@ def _supported_request(intent, platform: str, plan=None) -> VerifyCommand | None
                     "2",
                     "-I",
                     intent.source.address,
-                    intent.destination.address,
+                    target,
                 ]
             ),
             15,
@@ -492,6 +519,21 @@ def _verify_contract(
                     for path in paths
                 )
                 evidence.update(selected_as_paths=paths, expected=expected.model_dump())
+            elif intent.adjacency and intent.adjacency.protocol == "isis":
+                from nika.net_env.isp.iosxr import parse_iosxr_isis_adjacencies
+                from nika.net_env.utils.iosxr.common import iosxr_interface
+
+                adjacency = intent.adjacency
+                observed = parse_iosxr_isis_adjacencies(result.output)
+                expected = (
+                    adjacency.remote_node,
+                    iosxr_interface(adjacency.local_interface),
+                )
+                passed = expected in observed
+                evidence.update(
+                    expected_adjacency=list(expected),
+                    observed_adjacencies=sorted(map(list, observed)),
+                )
             elif intent.adjacency and intent.adjacency.protocol == "ospf":
                 identity = {}
                 if platform == "routeros":

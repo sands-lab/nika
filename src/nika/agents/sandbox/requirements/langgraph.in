@@ -1,0 +1,8 @@
+langchain-core
+pydantic
+langchain
+langgraph
+langchain-openai
+langchain-anthropic
+langchain-deepseek
+langchain-mcp-adapters

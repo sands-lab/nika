@@ -1,21 +1,21 @@
-"""Base class for NIKA agents: diagnosis -> freeze -> submission.
+"""Base class for troubleshooting agents: diagnosis, then submission.
 
-An agent implements :meth:`NikaAgent.diagnose`; NIKA supplies the rest:
+An agent implements :meth:`DiagnosisAgent.diagnose` and runs inside its
+sandbox, one phase per process (:mod:`agent.runtime`):
 
-* **Setup**: the constructor loads the running session and keeps the run
-  settings (``model``, ``llm_provider``, ``max_steps`` ...).
+* **Setup**: the constructor keeps the run settings (``model``,
+  ``llm_provider``, ``max_steps`` ...) and reads the task from the workspace.
 * **Diagnosis** uses at most ``max_steps`` LLM turns (model responses). When
   the budget runs out, the latest assistant text becomes the report
   (:func:`max_steps_report`). An empty report, or one that starts with
   ``ERROR:``, fails the run with :class:`RuntimeError`, and submission never
   starts.
-* **Freeze and advance** happen on the host (:func:`begin_submission_mcp_phase`),
-  which returns the submission context (fault ontology + resource catalog).
-* **Submission** turns the frozen report into the scored answer. In the
-  default ``structured`` mode the agent's own model calls the task MCP
-  ``submit`` tool (:meth:`NikaAgent.submit`, which harnesses may override).
-  In ``unstructured`` mode a NIKA :class:`~agent.submission.ReportMapper`
-  answers instead, for every agent type.
+* Between the phases the host freezes the report and hands the agent the
+  submission context (fault ontology + resource catalog).
+* **Submission** turns the frozen report into the scored answer: the agent's
+  own model calls the task MCP ``submit`` tool (:meth:`DiagnosisAgent.submit`,
+  which harnesses may override). With unstructured submission the host maps
+  the report itself and this phase does not run.
 
 Each phase writes ``agent_start`` then ``agent_done`` or ``agent_error`` to
 ``messages.jsonl``; workers must not write these bookends themselves.
@@ -23,17 +23,14 @@ Each phase writes ``agent_start`` then ``agent_done`` or ``agent_error`` to
 
 from __future__ import annotations
 
-import os
 import sys
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from agent.protocols import DIAGNOSIS, SUBMISSION
+from agent.runtime.task import current_task, workspace_dir
 from agent.utils.display import agent_output
 from agent.utils.loggers import MessageLogger
-
-if TYPE_CHECKING:
-    from agent.submission import ReportMapper
 
 ERROR_PREFIX = "ERROR:"
 
@@ -73,8 +70,8 @@ async def run_submission_phase(
 ) -> str:
     """Run one submission attempt between the phase bookends.
 
-    Shared by :meth:`NikaAgent.run_submission` and the sandbox runner, which
-    maps the report on the host for sandboxed agents.
+    Shared by :meth:`DiagnosisAgent.run_submission` and the host, which maps
+    the report itself for unstructured submission.
     """
     logger = MessageLogger(phase=SUBMISSION, session_dir=trace_dir)
     print_phase(stream_output, SUBMISSION, "recording structured result")
@@ -96,49 +93,15 @@ async def run_submission_phase(
     return result
 
 
-def _session_paths(session_id: str) -> tuple[Any, str, str, str]:
-    """Return ``(session, session_dir, trace_dir, scenario_name)``.
+class DiagnosisAgent:
+    """Base class for troubleshooting agents; subclasses implement :meth:`diagnose`.
 
-    Inside a sandbox the runner has no session store, so the workspace and
-    its manifest stand in (``session`` is ``None``). Host-side CLI agents work
-    in the sandbox workspace but trace to the host session directory.
-    """
-    from agent.sandbox.config import ENV_SANDBOX_EXECUTION, sandbox_name_from_env
-
-    if os.environ.get(ENV_SANDBOX_EXECUTION) == "1" and not sandbox_name_from_env():
-        from agent.sandbox.sdk_context import resolve_sdk_session_fields
-
-        session_dir, scenario_name = resolve_sdk_session_fields(session_id)
-        return None, session_dir, session_dir, scenario_name
-
-    from agent.sandbox.session_dir import (
-        resolve_agent_session_dir,
-        resolve_agent_trace_dir,
-    )
-    from nika.utils.session import Session
-
-    session = Session()
-    session.load_running_session(session_id=session_id)
-    return (
-        session,
-        resolve_agent_session_dir(session.session_dir),
-        resolve_agent_trace_dir(session_id, session.session_dir),
-        str(getattr(session, "scenario_name", "") or ""),
-    )
-
-
-class NikaAgent:
-    """Base class for NIKA agents; subclasses implement :meth:`diagnose`.
-
-    NIKA constructs the agent with the run settings below (each subclass
+    The runner constructs the agent with the run settings below (each subclass
     receives the ones its constructor declares). Attributes available to
-    subclasses: ``session_id``, ``session`` (``None`` inside a sandbox),
-    ``session_dir`` (agent workspace), ``trace_dir`` (holds
-    ``messages.jsonl``), ``scenario_name``, and every setting.
+    subclasses: ``session_id``, ``session_dir`` (the agent workspace),
+    ``trace_dir`` (holds ``messages.jsonl``), ``scenario_name``, and every
+    setting.
     """
-
-    # Set by NIKA for ``agent.submission.mode: unstructured``.
-    report_mapper: ReportMapper | None = None
 
     def __init__(
         self,
@@ -157,9 +120,8 @@ class NikaAgent:
         self.reasoning_effort = reasoning_effort
         self.max_tokens = max_tokens
         self.stream_output = stream_output
-        self.session, self.session_dir, self.trace_dir, self.scenario_name = (
-            _session_paths(session_id)
-        )
+        self.session_dir = self.trace_dir = str(workspace_dir())
+        self.scenario_name = current_task().scenario_name
 
     async def diagnose(self, task_description: str) -> str:
         """Investigate the network and return the diagnosis report.
@@ -171,7 +133,7 @@ class NikaAgent:
     async def submit(self, diagnosis_report: str, context: dict[str, Any]) -> str:
         """Answer from the frozen report with the agent's own model.
 
-        The default runs NIKA's submission agent: the model sees only the
+        The default runs the shared submission agent: the model sees only the
         report and *context* and calls the task MCP ``submit`` tool.
         Harnesses with their own submission worker override this.
         """
@@ -181,11 +143,9 @@ class NikaAgent:
 
     def diagnosis_mcp_config(self) -> dict[str, Any]:
         """HTTP MCP servers available during diagnosis, keyed by server name."""
-        from agent.utils.mcp_client import load_session_mcp_config
+        from agent.utils.mcp_client import session_mcp_config
 
-        return load_session_mcp_config(
-            self.session_id, self.scenario_name, phase=DIAGNOSIS
-        )
+        return session_mcp_config(DIAGNOSIS)
 
     async def run_diagnosis(self, task_description: str) -> str:
         logger = MessageLogger(phase=DIAGNOSIS, session_dir=self.trace_dir)
@@ -213,37 +173,12 @@ class NikaAgent:
     async def run_submission(
         self, diagnosis_report: str, context: dict[str, Any]
     ) -> str:
-        mapper = self.report_mapper
-        if mapper is None:
-            return await run_submission_phase(
-                lambda: self.submit(diagnosis_report, context),
-                trace_dir=self.trace_dir,
-                stream_output=self.stream_output,
-                submission_mode="structured",
-            )
         return await run_submission_phase(
-            lambda: mapper.submit(
-                diagnosis_report,
-                context,
-                session_id=self.session_id,
-                scenario_name=self.scenario_name,
-                trace_dir=self.trace_dir,
-            ),
+            lambda: self.submit(diagnosis_report, context),
             trace_dir=self.trace_dir,
             stream_output=self.stream_output,
-            **mapper.trace_fields(),
+            submission_mode="structured",
         )
-
-    async def run(self, task_description: str) -> dict[str, Any]:
-        from agent.utils.mcp_client import begin_submission_mcp_phase
-
-        diagnosis_report = await self.run_diagnosis(task_description)
-        context = begin_submission_mcp_phase(self.session_id, diagnosis_report)
-        submission_result = await self.run_submission(diagnosis_report, context)
-        return {
-            "diagnosis_report": diagnosis_report,
-            "submission_result": submission_result,
-        }
 
     def print_phase(self, phase: str, message: str) -> None:
         print_phase(self.stream_output, phase, message)

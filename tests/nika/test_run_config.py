@@ -408,6 +408,17 @@ def test_profile_yaml_loads(
     assert cfg.agent.base_url == expected["base_url"]
 
 
+def test_saved_config_with_observability_still_loads() -> None:
+    """Configs saved with the removed Langfuse settings remain loadable."""
+    saved = {"langfuse_enabled": False, "langfuse_host": "https://cloud.langfuse.com"}
+    cfg = RunConfig.model_validate({"nika": {"observability": saved}})
+    assert "observability" not in cfg.model_dump()["nika"]
+    with pytest.warns(UserWarning, match="nika.observability is ignored"):
+        RunConfig.model_validate(
+            {"nika": {"observability": {**saved, "langfuse_enabled": True}}}
+        )
+
+
 def test_profile_cli_config_show_accepts_run_config(tmp_path: Path) -> None:
     path = tmp_path / "codex-gptmini.yaml"
     path.write_text(

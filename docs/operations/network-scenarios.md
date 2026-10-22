@@ -39,16 +39,16 @@ Why heavy labs need a separate cap:
 
 | Scenario ID | Backend | Scale control | Options | Network |
 | --- | --- | --- | --- | --- |
-| `dc_clos` | Kathara | `-s s\|m\|l` | — | FRR eBGP Clos with DNS/HTTP leaf services |
-| `campus_lan` | Kathara | `-s s\|m\|l` | — | Hierarchical campus LAN with DHCP/DNS/LB farm |
-| `enterprise_branch` | Kathara | `-s s\|m\|l` |  | Hub-and-spoke enterprise WAN: provider underlay + WireGuard + eBGP overlay with per-role VRFs |
+| `dc_clos` | Kathara | `-s s\|m\|l` | `--device-profile iosxr` (`s`) | FRR eBGP Clos with DNS/HTTP leaf services |
+| `campus_lan` | Kathara | `-s s\|m\|l` | `--device-profile iosxr` | Hierarchical campus LAN with DHCP/DNS/LB farm |
+| `enterprise_branch` | Kathara | `-s s\|m\|l` | `--device-profile iosxr` | Hub-and-spoke enterprise WAN: provider underlay + WireGuard + eBGP overlay with per-role VRFs |
 | `sdn_l3_clos` | Kathara | `-s s\|m\|l` |  | ONOS + OVS L3 Clos with SELECT ECMP |
 | `p4_dc_fabric` | Kathara | `-s s\|m\|l` |  | BMv2 `simple_switch_grpc` L3 Clos under P4Runtime; ActionSelector ECMP |
 | `p4_dc_gateway` | Kathara | `-s s\|m\|l` |  | Gateway-spine-leaf BMv2 fabric with ECMP, INT-MX, ECN, queues, and flow tracking |
 | `iosxr_simple_bgp` | Kathara | Fixed |  | Two Cisco XRd routers with eBGP and two PCs |
 | `routeros_simple_bgp` | Kathara | Fixed |  | Two MikroTik RouterOS routers with eBGP and two PCs |
-| `isp_<topology>` | Kathara or Containerlab | Fixed metadata `s`/`m`/`l` | Protocol options | One SNDlib graph per scenario ID, compiled to FRR or SR Linux |
-| `isp_<zoo topology>` | Kathara | Fixed metadata `s`/`m`/`l` | Protocol options | One Topology Zoo graph per scenario ID, compiled to FRR; not a benchmark candidate |
+| `isp_<topology>` | Kathara or Containerlab | Fixed metadata `s`/`m`/`l` | Protocol options | One SNDlib graph per scenario ID, compiled to FRR, SR Linux, IOS XR or RouterOS |
+| `isp_<zoo topology>` | Kathara | Fixed metadata `s`/`m`/`l` | Protocol options | One Topology Zoo graph per scenario ID, compiled to FRR, IOS XR or RouterOS; not a benchmark candidate |
 | `isp_abilene_ebgp_rpki` / `isp_geant_ebgp_rpki` | Kathara | Fixed | — | Named eBGP + offline RPKI overlays |
 | `isp_abilene_ebgp_rtbh` / `isp_dfn-bwin_ebgp_rtbh` | Kathara | Fixed | — | Named eBGP + RTBH blackhole overlays |
 | `min3clos` | Containerlab | Fixed |  | Five-node SR Linux eBGP Clos |
@@ -294,6 +294,32 @@ Give the host at least 8 vCPUs and 16 GB of RAM. On a 4 vCPU / 8 GB host, one of
 
 Each router runs privileged with IPv6 enabled (Kathara device metadata in `lab.py`). XRd ZTP can briefly race the container network namespace at first boot; the router startup scripts retry config apply until that clears, so a slow first boot is expected.
 
+## Native IOS XR routers
+
+To study the same routing design on Cisco IOS XR, pass `--device-profile iosxr`. NIKA keeps the environment's topology, addressing, hosts and services, and runs the routers of the eligible roles as XRd Control Plane containers with native IOS XR configuration. Nodes in other roles keep their FRR/Linux design, so tasks and ground truth are unchanged. Readiness and verification read XR's own `show` output on the XR routers.
+
+```shell
+uv run nika env run isp_arpanet196912 --device-profile iosxr --igp isis --bgp-mode ibgp_rr
+uv run nika env run dc_clos -s s --device-profile iosxr
+uv run nika env run campus_lan -s s --device-profile iosxr
+uv run nika env run enterprise_branch -s s --device-profile iosxr
+```
+
+| Environment | Routers on IOS XR | Routing on IOS XR | Sizes |
+| --- | --- | --- | --- |
+| `isp_<topology>` (SNDlib and Topology Zoo) | All | OSPF or Level-2 IS-IS; BGP `none`, `ibgp_rr` or `ebgp` with the business-prefix allow-list | Graphs that pass memory admission |
+| `dc_clos` | All | eBGP with multipath across spines | `s` |
+| `campus_lan` | Core routers | Multi-area OSPF with the FRR distribution and server gateways | `s`, `m`, `l` |
+| `enterprise_branch` | Provider routers | Static underlay routes with the provider WAN delay | `s`, `m`, `l` |
+
+Campus distribution and server gateways stay FRR because they bridge access ports into a routed interface and relay DHCP; XRd Control Plane cannot route a bridged interface. Enterprise site edges stay FRR because they terminate WireGuard, VRFs and NAT, which XRd does not provide. The RPKI and RTBH ISP specials remain FRR only.
+
+Each XRd router uses about 2 GiB of memory and has a 3 GiB limit, so NIKA checks available memory before it creates any container and rejects larger `dc_clos` sizes. Install the image and raise inotify limits as described for [`iosxr_simple_bgp`](#ios-xr-simple-bgp-scenario). XR boots and applies its configuration in three to five minutes, which the readiness check waits for.
+
+The XRd image has no `tc`. XR traffic still passes the queueing disciplines of the container interfaces, so NIKA applies the enterprise provider WAN delay from a short-lived helper container in the router's network namespace. Link-quality failures that run `tc` inside an XR router container fail to inject; target the FRR/Linux side of the link instead.
+
+XRd does not observe the carrier state of its Linux interfaces. After `link_down`, `show interfaces` in XR still reports the port as up; the IGP or BGP session fails when its hold time expires (40 seconds for OSPF, 30 seconds for IS-IS, 180 seconds for BGP). Use `ip link` in the router container to see the carrier state.
+
 ## RouterOS simple BGP scenario
 
 ### `routeros_simple_bgp`
@@ -343,24 +369,25 @@ Boot is slower than the FRR and XRd scenarios because each router boots a nested
 
 ### Run other environments on RouterOS routers
 
-To compare an agent on a second network operating system, run an existing environment with RouterOS routers instead of FRR. Pass `--device-profile routeros`; hosts, services, addressing and routing protocols stay the same:
+To study the same routing design on MikroTik RouterOS, pass `--device-profile routeros`. As with [native IOS XR routers](#native-ios-xr-routers), NIKA keeps the environment's topology, addressing, hosts and services and runs the routers of the eligible roles as RouterOS VMs with native configuration. Their container interfaces keep their names, so tasks and ground truth are unchanged.
 
 ```shell
 uv run nika env run isp_arpanet196912 --device-profile routeros --igp isis --bgp-mode ibgp_rr
 uv run nika env run dc_clos -s s --device-profile routeros
 uv run nika env run campus_lan -s s --device-profile routeros
+uv run nika env run enterprise_branch -s s --device-profile routeros
 ```
 
-| Environment | RouterOS support |
-| --- | --- |
-| `isp_<topology>` | IS-IS or OSPF, with `--bgp-mode none`, `ibgp_rr` or `ebgp`, business-prefix and infrastructure-prefix policies. Not RPKI or RTBH specials. |
-| `dc_clos` | Size `s`, eBGP fabric. |
-| `campus_lan` | Size `s`, multi-area OSPF, bridged gateways and DHCP relay. Access switches stay Linux bridges. |
-| `enterprise_branch` | Size `s`. Site Edges run per-role VRFs, WireGuard, overlay eBGP, guest NAT and EF/BE overlay QoS natively; provider routers stay FRR. |
+| Environment | Routers on RouterOS | Routing on RouterOS | Sizes |
+| --- | --- | --- | --- |
+| `isp_<topology>` (SNDlib and Topology Zoo) | All | OSPF or Level-2 IS-IS; BGP `none`, `ibgp_rr` or `ebgp` with the business-prefix allow-list | Graphs that pass memory admission |
+| `dc_clos` | All | eBGP with one best path per prefix | `s` |
+| `campus_lan` | Core, distribution and server gateways | Multi-area OSPF, bridged gateways and DHCP relay | `s` |
+| `enterprise_branch` | Site edges | Per-role VRFs, WireGuard, overlay eBGP, guest NAT and EF/BE overlay QoS | `s` |
 
-Each router is a VM, so keep topologies small: ISP deployments check a memory estimate of 1 GiB per router before they start, and `dc_clos` and `campus_lan` reject sizes other than `s`. A router supports at most 30 data ports.
+Each router is a VM that needs about 1 GiB, so NIKA checks available memory before it creates any container. A router supports at most 30 data ports. The RPKI and RTBH ISP specials remain FRR only.
 
-Agents reach RouterOS through `kathara_routeros_mcp_server`, or run RouterOS commands with `nika exec` through the internal management hop that [`routeros_api.py`](../../src/nika/service/lab/routeros_api.py) uses. Inside the router, container interface `ethN` is RouterOS port `ether(N+1)`; `ether1` is vrnetlab's management port.
+Agents reach RouterOS through `kathara_routeros_mcp_server`, or run RouterOS commands with `nika exec` through the internal management hop that [`routeros_api.py`](../../src/nika/service/lab/routeros_api.py) uses. RouterOS `ether1` is vrnetlab's management port. In an ISP environment, container interface `ethN` is RouterOS `ether(N+1)`; in the other environments, `ethN` is `ether(N+2)`.
 
 Link failures behave as on FRR: QEMU does not pass a container interface's link state to the VM, so a watcher in each router container mirrors it to the RouterOS port, and routes over a downed link are withdrawn at once. Two routing behaviors differ from FRR:
 
@@ -369,7 +396,7 @@ Link failures behave as on FRR: QEMU does not pass a container interface's link 
 
 If RouterOS rejects a startup command, the environment fails immediately with the router name and RouterOS's import error instead of waiting for the verification deadline.
 
-On a RouterOS Site Edge, the WAN stays in `main`, and the WireGuard tunnels and their eBGP sessions run in an `overlay` VRF. BGP VPN route targets leak overlay routes into `vrf_corp` and `vrf_server` and export their LANs back. This matches the FRR edge, where business VRFs import the default VRF's BGP routes but not each other's LANs, and guest VRFs import nothing. Overlay QoS uses mangle packet marks and a queue tree with the same EF and BE rates as the FRR edge's HTB classes.
+On a RouterOS site edge, the WAN stays in `main`, and the WireGuard tunnels and their eBGP sessions run in an `overlay` VRF. BGP VPN route targets leak overlay routes into `vrf_corp` and `vrf_server` and export their LANs back. This matches the FRR edge, where business VRFs import the default VRF's BGP routes but not each other's LANs, and guest VRFs import nothing. Overlay QoS uses mangle packet marks and a queue tree with the same EF and BE rates as the FRR edge's HTB classes. The WAN delay stays on the container links.
 
 Failures that change router state apply the same root cause with RouterOS commands: WireGuard keys and allowed addresses, DSCP remarking, source NAT, BGP filters, AS numbers, advertisements and hijacks, blackhole routes, interface MTU and ICMP filters. `frr_service_down` is rejected on RouterOS routers, which have no separate routing daemon to stop.
 
@@ -396,12 +423,14 @@ uv run nika env run isp_abilene --igp ospf \
 
 uv run nika env run isp_france --backend containerlab \
   --device-profile nokia_srlinux --igp isis
+
+uv run nika env run isp_abilene --device-profile routeros --igp isis
 ```
 
 | Control | Accepted values | Default | Effect |
 | --- | --- | --- | --- |
 | `--backend` | `kathara`, `containerlab` | `kathara` | Selects FRR or SR Linux rendering |
-| `--device-profile` | `frr`, `nokia_srlinux`, `iosxr` | Derived from backend | Router profile; `iosxr` is accepted then rejected for SNDlib ISP (use `iosxr_simple_bgp`) |
+| `--device-profile` | `frr`, `nokia_srlinux`, `iosxr`, `routeros` | Derived from backend | Router platform. `iosxr` and `routeros` run on Kathara and need their images: see [native IOS XR routers](#native-ios-xr-routers) and [RouterOS routers](#run-other-environments-on-routeros-routers) |
 | `--igp` | `isis`, `ospf` | `isis` | Selects the IGP compiler |
 | `--metric-strategy` | `constant`, `routing_cost`, `inv_capacity` | `constant` | Maps SNDlib link data to IGP metrics |
 | `--constant-metric` | Positive integer | `10` | Sets constant and fallback metrics |
@@ -459,7 +488,7 @@ NIKA also vendors 259 graphs from the [Internet Topology Zoo](http://www.topolog
 
 Zoo scenarios use the same compiler, IGP and BGP options, stub hosts and compatible failures as SNDlib ISP scenarios. They differ in four ways:
 
-- They run on Kathara with FRR only.
+- They run on Kathara: FRR by default, or native routers with `--device-profile iosxr` or `--device-profile routeros`.
 - Topology Zoo has no demand matrix, so `nika traffic run matrix-replay` rejects them.
 - They are excluded from benchmark generation. The `s` / `m` / `l` size is metadata only (15 or fewer routers is `s`, 28 or fewer is `m`, more is `l`).
 - The importer adapts each graph:
@@ -489,7 +518,7 @@ The fabric uses eBGP (leaf AS 65001 and 65002, spine AS 65056). Its SR Linux con
 
 ## Kubernetes scenarios
 
-Both fixed Kathara scenarios run one k3s server and five workers on the pinned image `rancher/k3s:v1.34.1-k3s1`. Each k3s device starts with a shell entrypoint that waits for `/var/run/nika-net-ready`, which device startup creates after interfaces and default routes are configured; the entrypoint then `exec`s k3s as PID1 so the control plane does not race Kathara bridge attachment. NIKA exports a session-specific kubeconfig after verification. Kubernetes MCP tools are documented under [MCP servers](../agents/mcp-servers.md#kubernetes-k8s_mcp_server).
+Both fixed Kathara scenarios run one k3s server and five workers on the pinned image `rancher/k3s:v1.34.1-k3s1`. Each k3s device starts with a shell entrypoint that waits for `/var/run/net-ready`, which device startup creates after interfaces and default routes are configured; the entrypoint then `exec`s k3s as PID1 so the control plane does not race Kathara bridge attachment. NIKA exports a session-specific kubeconfig after verification. Kubernetes MCP tools are documented under [MCP servers](../agents/mcp-servers.md#kubernetes-k8s_mcp_server).
 
 If startup reports an exited k3s node, inspect the reported container state and log tail. For inotify exhaustion, follow [Host inotify limits too low](troubleshooting.md#host-inotify-limits-too-low-k3s--xrd).
 
@@ -503,7 +532,7 @@ Controller bootstrap has bounded API/component waits. Failed manifest applies, H
 
 - stderr: `[k8s-cache]` (host preparation + node import) and, for interactive commands, `[env_verify_progress]` / `[env_verify]` (readiness checks)
 - session `nika.jsonl` (`env_preload_progress`, `env_verify_progress`)
-- controller bootstrap: `docker exec <controller> tail -f /var/log/startup.log` (`[nika-startup]` stages)
+- controller bootstrap: `docker exec <controller> tail -f /var/log/startup.log` (`[startup]` stages)
 
 During iterative work, `nika env run <scenario> --no-redeploy` skips tearing down an existing lab instance when you only need a new session.
 

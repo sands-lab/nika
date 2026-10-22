@@ -1,110 +1,100 @@
-"""RouterOS profiles keep each environment's addressing and protocol intents."""
+"""RouterOS profiles keep each environment's links, addressing and protocol intents."""
 
 import pytest
 
 from nika.net_env.utils.routeros.common import CONFIG_FILE_PATH
 
 
-def _routeros_routers(env):
-    for name, identity in env.machine_identities.items():
-        if "routeros" in identity.capabilities:
-            yield name, env.lab.machines[name]
+def _build(scenario: str, profile: str):
+    from nika.net_env.net_env_pool import get_net_env_instance
+
+    return get_net_env_instance(scenario, topo_size="s", device_profile=profile)
 
 
-def _assert_vrnetlab_wiring(env):
-    routers = dict(_routeros_routers(env))
-    assert routers
-    for name, machine in routers.items():
-        # vrnetlab blocks boot until exactly CLAB_INTFS data interfaces exist.
-        assert machine.meta["envs"]["CLAB_INTFS"] == str(len(machine.interfaces) - 1)
-        assert machine.interfaces[0].link.name == f"{name}_reserved0"
+def _assert_links_unchanged(native, frr):
+    """Converted routers keep FRR's container interfaces; vrnetlab sees dp*."""
+    assert native.native_routers
+    for name in native.native_routers:
+        machine = native.lab.machines[name]
+        links = {k: v.link.name for k, v in machine.interfaces.items()}
+        assert links == {
+            k: v.link.name for k, v in frr.lab.machines[name].interfaces.items()
+        }
+        envs = machine.meta["envs"]
+        assert envs["CLAB_INTF_PREFIX"] == "dp"
+        assert envs["CLAB_INTFS"] == str(max(links) + 1)
+        assert "routeros" in native.machine_identities[name].capabilities
         assert f"/system identity set name={name}" in machine.fs.readtext(
             CONFIG_FILE_PATH
         )
-    return routers
 
 
 @pytest.mark.unit
 def test_dc_clos_routeros_renders_every_ebgp_session():
-    from nika.net_env.dc_clos.lab import DCClos
-
-    env = DCClos(topo_size="s", device_profile="routeros")
-    routers = _assert_vrnetlab_wiring(env)
-    assert set(routers) == set(env.bgp_neighbors)
-    for name, peers in env.bgp_neighbors.items():
-        config = routers[name].fs.readtext(CONFIG_FILE_PATH)
+    native, frr = _build("dc_clos", "routeros"), _build("dc_clos", "frr")
+    _assert_links_unchanged(native, frr)
+    assert set(native.native_routers) == set(native.bgp_neighbors)
+    for name, peers in native.bgp_neighbors.items():
+        config = native.deployment_configs[name]
         for peer in peers:
-            assert f"local.role=ebgp remote.address={peer} " in config
-    leaf = routers["leaf_router_0_0"].fs.readtext(CONFIG_FILE_PATH)
-    assert "list=BGP-NETWORKS address=10.0.0.0/24" in leaf
+            assert f"remote.address={peer} " in config
+    # Container eth2 of the leaf is RouterOS ether4.
+    leaf = native.deployment_configs["leaf_router_0_0"]
     assert "address=10.0.0.1/24 interface=ether4" in leaf
-    with pytest.raises(ValueError, match="supports topo_size s only"):
-        DCClos(topo_size="m", device_profile="routeros")
+    assert "list=BGP-NETWORKS address=10.0.0.0/24" in leaf
+    with pytest.raises(ValueError, match="supports size s only"):
+        from nika.net_env.net_env_pool import get_net_env_instance
+
+        get_net_env_instance("dc_clos", topo_size="m", device_profile="routeros")
 
 
 @pytest.mark.unit
-def test_campus_routeros_keeps_areas_bridges_and_dhcp_relay():
-    from nika.net_env.campus_lan.lab import CampusLan
-
-    env = CampusLan(topo_size="s", device_profile="routeros")
-    routers = _assert_vrnetlab_wiring(env)
-    core = routers["router_core_1"].fs.readtext(CONFIG_FILE_PATH)
+def test_campus_routeros_routes_bridged_gateways_and_relays_dhcp():
+    native, frr = _build("campus_lan", "routeros"), _build("campus_lan", "frr")
+    _assert_links_unchanged(native, frr)
+    core = native.deployment_configs["router_core_1"]
     assert "area-id=0.0.0.0" in core and "area-id=0.0.0.1" in core
-    dist = routers["router_dist_1_1"].fs.readtext(CONFIG_FILE_PATH)
+    dist = native.deployment_configs["router_dist_1_1"]
+    assert "/interface bridge port add bridge=br0 interface=ether3" in dist
     assert "address=10.1.1.1/24 interface=br0" in dist
     assert "dhcp-server=10.200.0.8 local-address=10.1.1.1" in dist
-    assert "area=area-0.0.0.1 networks=10.1.1.0/24" in dist
-    with pytest.raises(ValueError, match="supports topo_size s only"):
-        CampusLan(topo_size="m", device_profile="routeros")
 
 
 @pytest.mark.unit
 def test_enterprise_routeros_keeps_vrf_leaking_tunnels_and_guest_nat():
-    from nika.net_env.enterprise_branch.lab import EnterpriseBranch
-
-    env = EnterpriseBranch(topo_size="s", device_profile="routeros")
-    routers = _assert_vrnetlab_wiring(env)
-    assert set(routers) == {"hq_edge", "dc2_edge", "br1_edge", "br2_edge"}
-    branch = routers["br1_edge"].fs.readtext(CONFIG_FILE_PATH)
+    native, frr = (
+        _build("enterprise_branch", "routeros"),
+        _build("enterprise_branch", "frr"),
+    )
+    _assert_links_unchanged(native, frr)
+    assert set(native.native_routers) == {"hq_edge", "dc2_edge", "br1_edge", "br2_edge"}
+    branch = native.deployment_configs["br1_edge"]
     # Business VRFs import only overlay BGP routes; guest imports nothing.
     assert "/routing bgp vpn add name=vrf_corp vrf=vrf_corp" in branch
     assert "import.route-targets=65001:1 export.route-targets=65001:10" in branch
     assert "vrf=vrf_guest" not in branch
-    assert "routing-table=vrf_guest" in branch
     assert "to-addresses=198.18.1.10" in branch
-    # A spoke advertises only its own business LAN.
+    # The primary WAN keeps container eth2, RouterOS ether4.
+    assert native.primary_wan_interface() == frr.primary_wan_interface() == "eth2"
+    assert "address=198.18.1.10/32 interface=ether4" in branch
     assert 'chain=POLICY-OUT rule="if (dst == 10.1.10.0/24) { accept; }"' in branch
-    assert "allowed-address=0.0.0.0/0" in branch
-    hub = routers["hq_edge"].fs.readtext(CONFIG_FILE_PATH)
+    hub = native.deployment_configs["hq_edge"]
     assert "nexthop-choice=force-self" in hub
     assert "queue tree add name=wg_br1-ef parent=wg_br1" in hub
     # WAN propagation delay stays on the container link.
-    assert "netem delay" in env.lab.fs.readtext("br1_edge.startup")
-    with pytest.raises(ValueError, match="supports topo_size s only"):
-        EnterpriseBranch(topo_size="m", device_profile="routeros")
-
-
-@pytest.mark.contract
-def test_start_accepts_only_registered_profiles_outside_isp():
-    from nika.workflows.env.start import _resolve_isp_kwargs
-
-    flags = dict(
-        topo=None,
-        igp=None,
-        metric_strategy=None,
-        constant_metric=None,
-        bgp_mode=None,
-        rpki=None,
-        backend=None,
+    assert "tc qdisc replace dev eth2 root netem" in native.lab.fs.readtext(
+        "br1_edge.startup"
     )
-    assert _resolve_isp_kwargs("dc_clos", device_profile=None, **flags) == {}
-    assert _resolve_isp_kwargs("dc_clos", device_profile="frr", **flags) == {}
-    assert _resolve_isp_kwargs("campus_lan", device_profile="routeros", **flags) == {
-        "device_profile": "routeros"
-    }
-    with pytest.raises(ValueError, match="supports device profiles frr; got"):
-        _resolve_isp_kwargs("k8s_lab", device_profile="routeros", **flags)
-    with pytest.raises(ValueError, match="does not accept"):
-        _resolve_isp_kwargs(
-            "dc_clos", device_profile="routeros", **{**flags, "igp": "ospf"}
+
+
+@pytest.mark.unit
+def test_translation_rejects_policies_routeros_cannot_keep():
+    from nika.net_env.utils.routeros.frr import translate_frr_router
+
+    startup = "ip addr add 10.0.0.1/31 dev eth0\nservice frr start\n"
+    with pytest.raises(ValueError, match="open eBGP policy"):
+        translate_frr_router(
+            "r1", "router bgp 1\n neighbor 10.0.0.0 remote-as 2\n", startup
         )
+    with pytest.raises(ValueError, match="Unsupported FRR statement"):
+        translate_frr_router("r1", "router ospf\n redistribute connected\n", startup)

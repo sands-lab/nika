@@ -19,6 +19,10 @@ from nika.problems.support.p4_gateway import (
     unsafe_lb_pool_update,
 )
 
+# Client-side state of the long-lived connection the LB failure holds open.
+KEEPALIVE_STATUS_PATH = "/var/tmp/http-keepalive.status"
+KEEPALIVE_PID_PATH = "/var/tmp/http-keepalive.pid"
+
 _AFFINITY_SCRIPT = r"""import socket
 import sys
 import time
@@ -119,8 +123,7 @@ class LbConnectionStateExhaustion(ProblemBase):
         vip_ip, vip_port = _parse_vip(params.vip_url)
         client_ip = self.runtime.get_host_ip(params.client_host, with_prefix=False)
         src_port = 41000 + (params.seed % 900)
-        status_path = "/var/tmp/http-keepalive.status"
-        pid_path = "/var/tmp/http-keepalive.pid"
+        status_path, pid_path = KEEPALIVE_STATUS_PATH, KEEPALIVE_PID_PATH
         self.runtime.exec(
             params.client_host,
             f"rm -f {status_path} {pid_path}",
@@ -406,9 +409,9 @@ class NatMappingRemovedWithoutDrain(ProblemBase):
         return [node_resource(params.host_name)]
 
     def _routeros_state(self, params: NatMappingRemovedWithoutDrainParams):
-        from nika.net_env.utils.routeros.common import routeros_interface
+        from nika.net_env.utils.routeros.common import routeros_port
 
-        iface = routeros_interface(params.wan_interface)
+        iface = routeros_port(self.net_env, params.host_name, params.wan_interface)
         addresses = ros(
             self.runtime,
             params.host_name,

@@ -17,9 +17,16 @@ not establish full controller, P4 program or stateful service correctness.
 
 ## Run an experiment
 
-Install NIKA with `uv sync --extra batfish` and the normal Docker, Kathara and, for SR Linux, Containerlab prerequisites. Build the pinned analysis tools:
+Prerequisites:
+
+- A Linux host with NIKA installed as described in the [installation guide](../../docs/operations/installation.md), including Docker and Kathara.
+- Containerlab, only for SR Linux specimens and ISP profiles with `--backend containerlab`.
+- For the IOS XR and RouterOS examples, the vendor router images from [Prepare vendor images](../../docs/operations/installation.md#prepare-vendor-images). RouterOS needs `/dev/kvm`.
+
+From the repository root, install the analysis extras and build the pinned analysis tools:
 
 ```bash
+uv sync --extra batfish --extra netlab
 git clone https://github.com/nsg-ethz/synet-plus.git /tmp/nika-netcomplete
 git -C /tmp/nika-netcomplete checkout 6b7816fdeb1ffa3f41c3954b2102651b120cf4d5
 docker build -f scripts/netcomplete/Dockerfile -t nika/netcomplete:experiment /tmp/nika-netcomplete
@@ -43,7 +50,7 @@ Run heavy environments sequentially. Omit `--runtime` for static analysis only. 
 
 The output directory contains the original and resolved specifications, NetComplete inputs and solution, completed parameters, candidate configurations, verifier reports and final summary. These are run artifacts; they are not committed source files. A failed rerun removes the previous acceptance summary. Snapshot exporters replace their generated snapshots so obsolete devices cannot enter later analyses.
 
-The workflow closes its own native session and removes a Batfish service only when it started that service. It preserves an existing analyzer. For independently managed analyzers, pass `batfish_verifier=BatfishVerifier(host=..., port=...)` to the Python workflow and manage that service in the caller.
+The workflow closes its own native session and removes a Batfish service only when it created that service, and stops a stopped analyzer again after restarting it. It leaves a running analyzer in place. For independently managed analyzers, pass `batfish_verifier=BatfishVerifier(host=..., port=...)` to the Python workflow and manage that service in the caller.
 
 ## Cover benchmark ISP deployments
 
@@ -120,7 +127,7 @@ Batfish checks original predicates against the final candidate configuration. Na
 | FRR OSPF/BGP | Native configuration parser | Sessions, routes, flows and declared fault/recovery behavior |
 | FRR IS-IS | Restricted translation of concrete IPv4 Level-2 configuration to IOS XR | Original IS-IS, ordinary iBGP RR and direct eBGP predicates |
 | Nokia SR Linux | Restricted concrete-configuration projection | Original IGP/BGP predicates on SR Linux |
-| Cisco IOS XR | Native parser | Original ISP OSPF/BGP and direct eBGP predicates on XRd |
+| Cisco IOS XR | Native parser | Original ISP OSPF or IS-IS/BGP and direct eBGP predicates on XRd |
 | MikroTik RouterOS | Restricted concrete IPv4 OSPF/BGP projection | Original predicates on RouterOS |
 | Enterprise | Explicit static-underlay projection | WireGuard, VRF routing and isolation |
 | Clos ECMP | Routing model | Installed ECMP sets, including FRR multipath limits |

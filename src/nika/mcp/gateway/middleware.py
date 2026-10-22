@@ -8,10 +8,12 @@ import json
 from mcp.server.fastmcp import FastMCP
 
 from agent.protocols import DIAGNOSIS
+from agent.runtime.contract import SESSION_HEADER, SESSION_TOKEN_HEADER
 from nika.mcp.fastmcp_settings import ensure_fastmcp_settings_ready
 from nika.mcp.gateway.access import decide_diagnosis_access
 from nika.mcp.gateway.context import bind_session, reset_session
 from nika.mcp.gateway.policy import is_server_allowed
+from nika.mcp.gateway.tool_log import record_tool_call, tool_result
 from nika.mcp.gateway.session_registry import (
     access_token_matches,
     bind_transport_session,
@@ -24,12 +26,10 @@ from nika.mcp.tool_output import (
     tool_output_max_chars,
 )
 
-SESSION_HEADER = "NIKA-Session-Id"
-SESSION_TOKEN_HEADER = "NIKA-Session-Token"
 _MCP_JSON = "application/json"
 
 ensure_fastmcp_settings_ready()
-_empty_mcp = FastMCP("nika_phase_blocked")
+_empty_mcp = FastMCP("phase_blocked")
 
 
 class PhaseGateMiddleware:
@@ -46,7 +46,7 @@ class PhaseGateMiddleware:
             return
 
         headers = {name.lower(): value for name, value in scope.get("headers", [])}
-        session_id = headers.get(b"nika-session-id", b"").decode().strip()
+        session_id = headers.get(SESSION_HEADER.lower().encode(), b"").decode().strip()
 
         if not session_id:
             await _send_json(
@@ -63,7 +63,9 @@ class PhaseGateMiddleware:
             )
             return
 
-        presented = headers.get(b"nika-session-token", b"").decode().strip()
+        presented = (
+            headers.get(SESSION_TOKEN_HEADER.lower().encode(), b"").decode().strip()
+        )
         if not access_token_matches(session_id, presented):
             await _send_json(
                 send,
@@ -142,12 +144,42 @@ class PhaseGateMiddleware:
                     )
                     allowed, reason = decision.allowed, decision.reason
                 if not allowed:
+                    record_tool_call(
+                        entry.session_dir if entry else "",
+                        phase=entry.phase if entry else "",
+                        server=self.server_name,
+                        tool=tool_name,
+                        arguments=arguments,
+                        is_error=True,
+                        output=f"Access denied: {reason}",
+                        denied=reason,
+                    )
                     await _tool_denied(send, request_id, reason)
                     return
 
         rewrite = method in {"tools/call", "tools/list"}
+        on_result = None
+        if method == "tools/call" and entry is not None:
+            call_name, call_args, _ = _tool_call(body)
+            # The phase the call started in, even if it ends after the switch.
+            call_phase = entry.phase
+
+            def on_result(result_body: bytes, content_type: str) -> None:
+                is_error, output = tool_result(result_body, content_type)
+                record_tool_call(
+                    entry.session_dir,
+                    phase=call_phase,
+                    server=self.server_name,
+                    tool=call_name or "",
+                    arguments=call_args,
+                    is_error=is_error,
+                    output=output,
+                )
+
         outbound = (
-            _RewritingSend(send, bound_call=(method == "tools/call"))
+            _RewritingSend(
+                send, bound_call=(method == "tools/call"), on_result=on_result
+            )
             if rewrite
             else send
         )
@@ -179,9 +211,11 @@ class _TransportBindingSend:
 class _RewritingSend:
     """Buffer one HTTP response and rewrite MCP tool list/call payloads."""
 
-    def __init__(self, send, *, bound_call: bool):
+    def __init__(self, send, *, bound_call: bool, on_result=None):
         self._send = send
         self._bound_call = bound_call
+        # Called with the rewritten body: what the agent receives.
+        self._on_result = on_result
         self._status = 200
         self._headers: list[tuple[bytes, bytes]] = []
         self._chunks: list[bytes] = []
@@ -212,6 +246,8 @@ class _RewritingSend:
             if name.lower() not in {b"content-length", b"transfer-encoding"}
         ]
         headers.append((b"content-length", str(len(new_body)).encode()))
+        if self._on_result is not None:
+            self._on_result(new_body, content_type)
         await self._send(
             {
                 "type": "http.response.start",
@@ -298,7 +334,7 @@ async def _tool_denied(send, request_id: object, reason: str) -> None:
         status=200,
         payload={
             "jsonrpc": "2.0",
-            "error": {"code": -32003, "message": f"NIKA access denied: {reason}"},
+            "error": {"code": -32003, "message": f"Access denied: {reason}"},
             "id": request_id,
         },
     )

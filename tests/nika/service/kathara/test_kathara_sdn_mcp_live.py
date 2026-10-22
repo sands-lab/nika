@@ -8,7 +8,7 @@ import json
 import pytest
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
-from agent.utils.mcp_servers import MCPServerConfig
+from nika.agents.mcp_config import MCPServerConfig
 from nika.mcp.gateway.lifecycle import mcp_gateway_for_session
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.integration_pipeline import tool_text_list

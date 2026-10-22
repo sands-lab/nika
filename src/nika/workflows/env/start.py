@@ -96,7 +96,6 @@ def _resolve_isp_kwargs(
         "rpki": rpki,
         "device_profile": device_profile,
     }
-    any_provided = any(value is not None for value in provided.values())
 
     if is_isp_named_special(scenario):
         # Case YAML / release rows often still carry device_profile=frr (and
@@ -126,25 +125,34 @@ def _resolve_isp_kwargs(
         return {}
 
     if not is_isp_base_topology(scenario):
-        profiles = scenario_device_profiles(scenario)
-        profile = str(device_profile or "").strip().lower()
-        if profile and profile not in ("frr", *profiles):
-            raise ValueError(
-                f"Scenario '{scenario}' supports device profiles "
-                f"{', '.join(('frr', *profiles))}; got {device_profile!r}."
-            )
-        if profile and profiles:
-            provided.pop("device_profile")
-            if not any(value is not None for value in provided.values()):
-                return {} if profile == "frr" else {"device_profile": profile}
-        if any_provided:
+        profile = (
+            None
+            if device_profile in (None, "", "-")
+            else normalize_device_profile(device_profile)
+        )
+        native = scenario_device_profiles(scenario)
+        protocol_flags = any(
+            value is not None
+            for key, value in provided.items()
+            if key != "device_profile"
+        )
+        if protocol_flags:
             raise ValueError(
                 f"Scenario '{scenario}' does not accept --topo/--igp/"
-                "--metric-strategy/--constant-metric/--bgp-mode/--rpki"
-                + ("" if profiles else "/--device-profile")
-                + "; those flags are only valid for "
-                "ISP topology scenarios (e.g. isp_abilene)."
+                "--metric-strategy/--constant-metric/--bgp-mode/--rpki; those "
+                "flags are only valid for ISP topology scenarios (e.g. isp_abilene)."
             )
+        if profile not in (None, "frr", *native):
+            raise ValueError(
+                f"Scenario '{scenario}' does not support device_profile="
+                f"{profile!r}; supported: {', '.join(('frr', *native))}."
+            )
+        # Native profiles deploy on Kathara; frr keeps the scenario default.
+        if profile in native:
+            resolve_scenario_backend(scenario, backend=backend or "kathara")
+            if (backend or "kathara") != "kathara":
+                raise ValueError(f"device_profile={profile!r} requires Kathara")
+            return {"device_profile": profile}
         return {}
 
     if topo is not None:
@@ -440,7 +448,7 @@ def start_net_env(
         if redeploy or not lab_exists:
             # When run config selects a sandbox agent, prepare its sandbox
             # template alongside lab images (not at per-case agent start).
-            from agent.sandbox.backend import prepare_configured_sandbox_templates
+            from nika.agents.sandbox.backend import prepare_configured_sandbox_templates
 
             images = prepare_configured_sandbox_templates()
             from nika.net_env.utils.kathara.docker_files.docker_images import (

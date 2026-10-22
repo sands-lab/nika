@@ -11,6 +11,7 @@ from Kathara.model.Lab import Lab
 
 from nika.config import pkg_path
 from nika.net_env.base import NetworkEnvBase, ProbePath
+from nika.net_env.native_routers import NativeRouterEnv
 from nika.runtime.spec import NodeRole
 from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 
@@ -61,9 +62,6 @@ _RESOLV_MAXNS = 3
 FRR_NEIGHBOR_ADD_TEMPLATE = """neighbor {neighbor_ip} remote-as {neighbor_as}
 """
 
-DEVICE_PROFILES = ("frr", "routeros")
-NATIVE_TOPO_SIZES = ("s",)
-
 
 class RouterMeta:
     def __init__(self, name, machine: Machine, eth_index, cmd_list, AS_number):
@@ -76,23 +74,7 @@ class RouterMeta:
         self.frr_config = ""
         self.frr_neighbor_configs = []
         self.neighbor_ips: list[str] = []
-        self.peers: list[tuple[str, int]] = []
-        self.addresses: list[tuple[str, str]] = []
         self.host_network = None
-
-    def add_address(self, cidr: str) -> None:
-        """Assign ``cidr`` to the next data interface."""
-        iface = f"eth{self.eth_index}"
-        self.cmd_list.append(f"ip addr add {cidr} dev {iface}")
-        self.addresses.append((iface, cidr))
-        self.eth_index += 1
-
-    def add_peer(self, address: str, asn: int) -> None:
-        self.frr_neighbor_configs.append(
-            FRR_NEIGHBOR_ADD_TEMPLATE.format(neighbor_ip=address, neighbor_as=asn)
-        )
-        self.neighbor_ips.append(address)
-        self.peers.append((address, asn))
 
 
 class HostMeta:
@@ -104,35 +86,26 @@ class HostMeta:
         self.ip_address = None
 
 
-class DCClos(NetworkEnvBase):
+class DCClos(NativeRouterEnv, NetworkEnvBase):
     ROUTING_PARAMETER_KINDS = frozenset({"bgp_exports"})
     LAB_NAME = "dc_clos"
     TOPO_LEVEL = "medium"
+    NATIVE_PROFILE_ROLES = {
+        "iosxr": frozenset({"super_spine", "spine", "leaf"}),
+        "routeros": frozenset({"super_spine", "spine", "leaf"}),
+    }
+    # Each XRd router needs about 2 GiB and each RouterOS router boots a VM;
+    # size m already has 18 routers.
+    NATIVE_PROFILE_SIZES = {"iosxr": ("s",), "routeros": ("s",)}
 
     def __init__(
         self,
         topo_size: Literal["s", "m", "l"] = "s",
         routing_parameters: dict | None = None,
-        device_profile: Literal["frr", "routeros"] = "frr",
+        device_profile: str | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
-        if device_profile not in DEVICE_PROFILES:
-            raise ValueError(
-                f"dc_clos supports device profiles {', '.join(DEVICE_PROFILES)}; "
-                f"got {device_profile!r}."
-            )
-        if device_profile != "frr" and topo_size not in NATIVE_TOPO_SIZES:
-            raise ValueError(
-                f"dc_clos with device_profile={device_profile!r} supports topo_size "
-                f"{', '.join(NATIVE_TOPO_SIZES)} only: each RouterOS router boots "
-                "a QEMU VM, so larger fabrics exceed the supported host budget."
-            )
-        if device_profile != "frr" and routing_parameters is not None:
-            raise ValueError(
-                "Solved routing parameters are supported only for FRR dc_clos routers."
-            )
-        self.device_profile = device_profile
         self.topo_size = topo_size
         self.lab = Lab(self.LAB_NAME)
         self.name = self.LAB_NAME
@@ -153,33 +126,67 @@ class DCClos(NetworkEnvBase):
         infra_pool = IPv4Network("172.16.0.0/16")
         subnets31 = list(infra_pool.subnets(new_prefix=31))
 
-        spine_total = super_spine_count * spine_per_pod
         for ss in range(super_spine_count):
+            ss_name = f"super_spine_router_{ss}"
+            router_ss = self.lab.new_machine(
+                ss_name, **{"image": nika_image("frr"), "cpus": 0.5, "mem": "256m"}
+            )
+            self.declare_machine(
+                ss_name,
+                role=NodeRole.ROUTER,
+                capabilities=("linux", "frr", "bgp"),
+            )
             tot_super_spines.append(
-                self._new_router(
-                    f"super_spine_router_{ss}",
-                    65000 + ss,
-                    data_interfaces=spine_total + 1,
+                RouterMeta(
+                    name=ss_name,
+                    machine=router_ss,
+                    eth_index=0,
+                    cmd_list=[],
+                    AS_number=65000 + ss,
                 )
             )
 
         for pod in range(super_spine_count):
             pod_spines[pod] = []
             for spine_id in range(spine_per_pod):
-                spine_meta = self._new_router(
-                    f"spine_router_{pod}_{spine_id}",
-                    65100 + 10 * pod + spine_id,
-                    data_interfaces=super_spine_count + leaf_per_pod,
+                spine_name = f"spine_router_{pod}_{spine_id}"
+                router_spine = self.lab.new_machine(
+                    spine_name,
+                    **{"image": nika_image("frr"), "cpus": 0.5, "mem": "256m"},
+                )
+                self.declare_machine(
+                    spine_name,
+                    role=NodeRole.ROUTER,
+                    capabilities=("linux", "frr", "bgp"),
+                )
+                spine_meta = RouterMeta(
+                    name=spine_name,
+                    machine=router_spine,
+                    eth_index=0,
+                    cmd_list=[],
+                    AS_number=65100 + 10 * pod + spine_id,
                 )
                 pod_spines[pod].append(spine_meta)
                 tot_spines.append(spine_meta)
 
             pod_leaves[pod] = []
             for leaf_id in range(leaf_per_pod):
-                leaf_meta = self._new_router(
-                    f"leaf_router_{pod}_{leaf_id}",
-                    65200 + 10 * pod + leaf_id,
-                    data_interfaces=spine_per_pod + 1,
+                leaf_name = f"leaf_router_{pod}_{leaf_id}"
+                router_leaf = self.lab.new_machine(
+                    leaf_name,
+                    **{"image": nika_image("frr"), "cpus": 0.5, "mem": "256m"},
+                )
+                self.declare_machine(
+                    leaf_name,
+                    role=NodeRole.ROUTER,
+                    capabilities=("linux", "frr", "bgp"),
+                )
+                leaf_meta = RouterMeta(
+                    name=leaf_name,
+                    machine=router_leaf,
+                    eth_index=0,
+                    cmd_list=[],
+                    AS_number=65200 + 10 * pod + leaf_id,
                 )
                 pod_leaves[pod].append(leaf_meta)
                 tot_leaves.append(leaf_meta)
@@ -198,10 +205,28 @@ class DCClos(NetworkEnvBase):
                 )
                 subnet = subnets31.pop(0)
                 a_ip, b_ip = assign_p2p_ips(subnet)
-                super_spine_meta.add_address(a_ip)
-                spine_meta.add_address(b_ip)
-                super_spine_meta.add_peer(b_ip.split("/")[0], spine_meta.AS_number)
-                spine_meta.add_peer(a_ip.split("/")[0], super_spine_meta.AS_number)
+                super_spine_meta.cmd_list.append(
+                    f"ip addr add {a_ip} dev eth{super_spine_meta.eth_index}"
+                )
+                super_spine_meta.eth_index += 1
+                spine_meta.cmd_list.append(
+                    f"ip addr add {b_ip} dev eth{spine_meta.eth_index}"
+                )
+                spine_meta.eth_index += 1
+                super_spine_meta.frr_neighbor_configs.append(
+                    FRR_NEIGHBOR_ADD_TEMPLATE.format(
+                        neighbor_ip=b_ip.split("/")[0],
+                        neighbor_as=spine_meta.AS_number,
+                    )
+                )
+                super_spine_meta.neighbor_ips.append(b_ip.split("/")[0])
+                spine_meta.frr_neighbor_configs.append(
+                    FRR_NEIGHBOR_ADD_TEMPLATE.format(
+                        neighbor_ip=a_ip.split("/")[0],
+                        neighbor_as=super_spine_meta.AS_number,
+                    )
+                )
+                spine_meta.neighbor_ips.append(a_ip.split("/")[0])
                 if super_spine_meta.router_id == "":
                     super_spine_meta.router_id = a_ip.split("/")[0]
                 if spine_meta.router_id == "":
@@ -221,10 +246,28 @@ class DCClos(NetworkEnvBase):
                     )
                     subnet = subnets31.pop(0)
                     a_ip, b_ip = assign_p2p_ips(subnet)
-                    spine_meta.add_address(a_ip)
-                    leaf_meta.add_address(b_ip)
-                    spine_meta.add_peer(b_ip.split("/")[0], leaf_meta.AS_number)
-                    leaf_meta.add_peer(a_ip.split("/")[0], spine_meta.AS_number)
+                    spine_meta.cmd_list.append(
+                        f"ip addr add {a_ip} dev eth{spine_meta.eth_index}"
+                    )
+                    spine_meta.eth_index += 1
+                    leaf_meta.cmd_list.append(
+                        f"ip addr add {b_ip} dev eth{leaf_meta.eth_index}"
+                    )
+                    leaf_meta.eth_index += 1
+                    spine_meta.frr_neighbor_configs.append(
+                        FRR_NEIGHBOR_ADD_TEMPLATE.format(
+                            neighbor_ip=b_ip.split("/")[0],
+                            neighbor_as=leaf_meta.AS_number,
+                        )
+                    )
+                    spine_meta.neighbor_ips.append(b_ip.split("/")[0])
+                    leaf_meta.frr_neighbor_configs.append(
+                        FRR_NEIGHBOR_ADD_TEMPLATE.format(
+                            neighbor_ip=a_ip.split("/")[0],
+                            neighbor_as=spine_meta.AS_number,
+                        )
+                    )
+                    leaf_meta.neighbor_ips.append(a_ip.split("/")[0])
                     if spine_meta.router_id == "":
                         spine_meta.router_id = a_ip.split("/")[0]
                     if leaf_meta.router_id == "":
@@ -245,15 +288,15 @@ class DCClos(NetworkEnvBase):
         plain_routers = tot_spines
 
         for router_meta in plain_routers:
-            self._write_router(router_meta, networks=())
+            self._write_frr_router(router_meta, network="")
 
         for router_meta in advertise_routers:
-            self._write_router(
-                router_meta,
-                networks=(router_meta.host_network,)
+            network = (
+                f"network {router_meta.host_network}\n"
                 if router_meta.host_network
-                else (),
+                else ""
             )
+            self._write_frr_router(router_meta, network=network)
 
         from nika.net_env.synthesis.parameters import apply_routing_parameters
 
@@ -271,58 +314,26 @@ class DCClos(NetworkEnvBase):
             for pod_idx in range(super_spine_count)
             for web_idx in range(leaf_per_pod - 1)
         ]
+        self.apply_device_profile(device_profile, routing_parameters=routing_parameters)
 
-    def _new_router(self, name: str, asn: int, *, data_interfaces: int) -> RouterMeta:
+    def router_roles(self) -> dict[str, list[str]]:
+        roles = {"super_spine": [], "spine": [], "leaf": []}
+        for name in self.routers:
+            roles[name.split("_router_")[0]].append(name)
+        return roles
+
+    def _bgp_peers(self):
+        if self.device_profile == "iosxr":
+            from nika.net_env.utils.iosxr.platform import IOSXR_BGP_PEERS
+
+            return IOSXR_BGP_PEERS
         if self.device_profile == "routeros":
-            from nika.net_env.utils.routeros.common import add_routeros_router
+            from nika.net_env.utils.routeros.platform import routeros_bgp_peer_query
 
-            machine = add_routeros_router(
-                self.lab, name, data_interfaces=data_interfaces
-            )
-            # Container eth0 is the VM's management port.
-            eth_index = 1
-        else:
-            machine = self.lab.new_machine(
-                name, **{"image": nika_image("frr"), "cpus": 0.5, "mem": "256m"}
-            )
-            eth_index = 0
-        self.declare_machine(
-            name,
-            role=NodeRole.ROUTER,
-            capabilities=("linux", self.device_profile, "bgp"),
-        )
-        return RouterMeta(
-            name=name,
-            machine=machine,
-            eth_index=eth_index,
-            cmd_list=[],
-            AS_number=asn,
-        )
+            return routeros_bgp_peer_query()
+        from nika.net_env.verify import FRR_BGP_PEERS
 
-    def _write_router(self, router_meta: RouterMeta, *, networks) -> None:
-        if self.device_profile == "routeros":
-            from nika.net_env.utils.routeros.common import set_routeros_config
-            from nika.net_env.utils.routeros.render import (
-                render_base,
-                render_ebgp,
-                render_script,
-            )
-
-            set_routeros_config(
-                router_meta.machine,
-                render_script(
-                    render_base(router_meta.name, router_meta.addresses),
-                    render_ebgp(
-                        router_meta.AS_number,
-                        router_meta.router_id,
-                        router_meta.peers,
-                        networks=networks,
-                    ),
-                ),
-            )
-            return
-        network = "".join(f"network {item}\n" for item in networks)
-        self._write_frr_router(router_meta, network=network)
+        return FRR_BGP_PEERS
 
     def _write_frr_router(self, router_meta: RouterMeta, *, network: str) -> None:
         router_meta.machine.create_file_from_path(
@@ -447,7 +458,10 @@ class DCClos(NetworkEnvBase):
                 host_ip = IPv4Interface(
                     f"{subnet.network_address + 2}/{subnet.prefixlen}"
                 )
-                leaf_meta.add_address(str(leaf_ip))
+                leaf_meta.cmd_list.append(
+                    f"ip addr add {leaf_ip} dev eth{leaf_meta.eth_index}"
+                )
+                leaf_meta.eth_index += 1
                 host.cmd_list.append(f"ip addr add {host_ip} dev eth{host.eth_index}")
                 host.cmd_list.append(
                     f"ip route add default via {leaf_ip.ip} dev eth{host.eth_index}"
@@ -472,7 +486,10 @@ class DCClos(NetworkEnvBase):
             client_ip = IPv4Interface(
                 f"{subnet.network_address + 2}/{subnet.prefixlen}"
             )
-            super_spine_meta.add_address(str(ss_ip))
+            super_spine_meta.cmd_list.append(
+                f"ip addr add {ss_ip} dev eth{super_spine_meta.eth_index}"
+            )
+            super_spine_meta.eth_index += 1
             client_meta.cmd_list.append(
                 f"ip addr add {client_ip} dev eth{client_meta.eth_index}"
             )
@@ -587,25 +604,15 @@ class DCClos(NetworkEnvBase):
             peer_host="webserver0_pod0",
         )
 
-    def _native_verify(self, verify, **kwargs) -> dict:
-        if self.device_profile == "frr":
-            return verify(**kwargs)
-        from nika.net_env.utils.routeros.common import (
-            routeros_bgp_peer_query,
-            with_routeros_config_check,
-        )
-
-        result = verify(bgp_peers=routeros_bgp_peer_query(), **kwargs)
-        return with_routeros_config_check(
-            kwargs["runtime"], sorted(self.bgp_neighbors), result
-        )
-
     def startup_verify_lab(self) -> dict:
+        if self.native_routers:
+            # Native routers may defer route selection after sessions
+            # establish, so readiness also requires the services.
+            return self.verify_lab()
         from nika.net_env.dc_clos.verify import verify_dc_clos_lab_startup
 
-        return self._native_verify(
-            verify_dc_clos_lab_startup,
-            runtime=self._build_runtime(),
+        return verify_dc_clos_lab_startup(
+            self._build_runtime(),
             scenario_name=self.LAB_NAME,
             nodes=tuple(self.lab.machines),
             bgp_neighbors=self.bgp_neighbors,
@@ -615,20 +622,13 @@ class DCClos(NetworkEnvBase):
     def verify_lab(self) -> dict:
         from nika.net_env.dc_clos.verify import verify_dc_clos_lab
 
-        return self._native_verify(
-            verify_dc_clos_lab,
-            runtime=self._build_runtime(),
+        return verify_dc_clos_lab(
+            self._build_runtime(),
             scenario_name=self.LAB_NAME,
             nodes=tuple(self.lab.machines),
             bgp_neighbors=self.bgp_neighbors,
             client_addresses=self.client_addresses,
             dns_servers=self.dns_servers,
             web_urls=tuple(self.web_urls),
+            bgp_peers=self._bgp_peers(),
         )
-
-    def deploy(self):
-        if self.device_profile == "routeros":
-            from nika.net_env.utils.routeros.common import require_routeros_image
-
-            require_routeros_image()
-        super().deploy()

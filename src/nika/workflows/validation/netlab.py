@@ -3,6 +3,8 @@
 import re
 from ipaddress import IPv4Address, IPv4Interface, IPv4Network
 
+from nika.net_env.isp.igp.frr import ISIS_PROCESS
+
 
 def _ospf_binding(config, old, new):
     """Bind a network-statement edit to its emitted interface declaration."""
@@ -321,21 +323,6 @@ def bind_netlab_controls(spec, configs, device_profile):
                             "recovery": (old,),
                         }
                     )
-        elif device_profile == "routeros" and mutation.name.startswith(
-            "benchmark-area-"
-        ):
-            area_line = re.search(r"^/routing/ospf/area add .*?$", config, re.M)
-            template_lines = list(
-                re.finditer(r"^/routing/ospf/interface-template add .*?$", config, re.M)
-            )
-            if not area_line or not template_lines:
-                raise ValueError(
-                    "RouterOS netlab OSPF area mutation has no emitted area"
-                )
-            start, end = area_line.start(), template_lines[-1].end()
-            old = config[start:end]
-            old_area = "0.0.0.0"
-            new = old.replace(f"area-id={old_area}", "area-id=66")
         elif device_profile == "routeros" and mutation.name == "missing-rr-client-role":
             adjacency = next(
                 i.adjacency
@@ -355,7 +342,7 @@ def bind_netlab_controls(spec, configs, device_profile):
             if device_profile == "iosxr":
                 old, new = "  interface Loopback0\n", ""
                 context = {
-                    "router ospf NIKA": "router ospf 1",
+                    "router ospf CORE": "router ospf 1",
                     "area 0": "area 0.0.0.0",
                 }
                 for i, control in enumerate(runtime):
@@ -374,11 +361,14 @@ def bind_netlab_controls(spec, configs, device_profile):
                 blocks = re.findall(
                     r"^interface lo\n(?:(?: [^\n]*|![^\n]*|)\n)*", config, re.M
                 )
-                isis = [b for b in blocks if " ip router isis NIKA\n" in b]
+                isis = [b for b in blocks if f" ip router isis {ISIS_PROCESS}\n" in b]
                 if isis:
                     (old,) = isis
                     new = re.sub(
-                        r"^ (?:ip router isis NIKA|isis passive)\n", "", old, flags=re.M
+                        rf"^ (?:ip router isis {ISIS_PROCESS}|isis passive)\n",
+                        "",
+                        old,
+                        flags=re.M,
                     )
                     static.append(mutation.model_copy(update={"old": old, "new": new}))
                     continue
