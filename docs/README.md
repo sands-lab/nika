@@ -2,7 +2,7 @@
 
 Start with the root [README](../README.md) to install NIKA and run one incident. Use the references below to choose a network, inspect available agent tools, or run a benchmark.
 
-The [glossary](../GLOSSARY.md) defines the terms these documents use, such as agent, harness, environment, and task.
+The [glossary](../GLOSSARY.md) defines the terms these documents use, such as agent, harness, scenario, and case.
 
 Join the [NIKA Slack community](https://sands-lab.github.io/nika/community/) for questions, agent discussion, and contributions.
 
@@ -38,20 +38,20 @@ Join the [NIKA Slack community](https://sands-lab.github.io/nika/community/) for
 
 | Goal | Read | Type |
 | --- | --- | --- |
-| Run a benchmark release or an ad-hoc task matrix, or inspect generated coverage | [Benchmark configuration](benchmarks/benchmark-configuration.md) | Reference |
+| Run a frozen release or an ad-hoc case matrix, or inspect generated coverage | [Benchmark configuration](benchmarks/benchmark-configuration.md) | Reference |
 | Run the 0.1.0 case collection | [Run release 0.1.0](compat/release-0.1.0.md) | How-to |
 | Understand ground truth, agent submissions, and scores | [Root-cause ground truth and scoring](benchmarks/root-cause-evaluation.md) | Reference |
 | Package a completed official release run | [Leaderboard submission](benchmarks/leaderboard-submission.md) | How-to |
 | Size hosts and `batch_size` from measured scenario startup cost | [Scenario startup performance](benchmarks/scenario_perf.md) | Reference |
 
-## Develop environments, failures, and verifiers
+## Develop scenarios, failures, and verifiers
 
 | Goal | Read | Type |
 | --- | --- | --- |
-| Add an environment, failure, traffic source, or task | [Create benchmark tasks](development/creating-benchmark-tasks.md) | How-to |
+| Add a scenario, failure, traffic source, or candidate case | [Create benchmark tasks](development/creating-benchmark-tasks.md) | How-to |
 | Define healthy-network intents or implement a verifier | [Scenario validation](development/scenario-validation.md) | Reference |
 | Construct and verify routing, SDN and P4 environments | [Environment construction and verification](development/scenario-verification.md) | Explanation |
-| Check which release 0.2.0 tasks passed the benchmark audit, and how to rerun it | [Benchmark audit](benchmarks/benchmark-audit.md) | Reference |
+| Check which release 0.2.0 cases passed the benchmark audit, and how to rerun it | [Benchmark audit](benchmarks/benchmark-audit.md) | Reference |
 | Select and run the smallest relevant test suite | [Testing](development/testing.md) | Guide |
 
 ## Maintain the documentation

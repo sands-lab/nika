@@ -96,7 +96,9 @@ class SessionStore:
                 return data
         return None
 
-    def delete_session(self, session_id: str, *, status: str = "finished") -> None:
+    def delete_session(
+        self, session_id: str, *, status: str = "finished"
+    ) -> None:
         """Remove the runtime session document after results have been persisted."""
         if status not in {"finished", "aborted", "error"}:
             status = "finished"

@@ -1,11 +1,17 @@
 # Scenario startup performance
 
-Resource and time cost of the labs and cases in benchmark release 0.2.0 (test and dev splits), measured without an agent. Use it to size benchmark `batch_size` and host capacity. Metric definitions and script options: [experiment/profile/README.md](../../experiment/profile/README.md).
+Resource and time cost of the labs and cases in benchmark release 0.2.0 (test and
+dev splits), measured without an agent. Use it to size benchmark `batch_size` and
+host capacity. Metric definitions and script options:
+[experiment/profile/README.md](../../experiment/profile/README.md).
 
 The page has two measurements:
 
-- **Single-lab baseline:** every lab variant the release deploys, one lab at a time, 3 runs each. Normal NIKA startup (deploy, workload preparation, light runtime verification), a 10 s hold, and cleanup.
-- **Concurrency sweep:** every release case, with its failure injected and verified as the benchmark runner does before the agent starts, at `batch_size` 8, 16 and 24.
+- **Single-lab baseline:** every lab variant the release deploys, one lab at a time,
+  3 runs each. Normal NIKA startup (deploy, workload preparation, light runtime
+  verification), a 10 s hold, and cleanup.
+- **Concurrency sweep:** every release case, with its failure injected and verified
+  as the benchmark runner does before the agent starts, at `batch_size` 8, 16 and 24.
 
 ## Run
 
@@ -19,7 +25,8 @@ The page has two measurements:
 | Other load | No other NIKA lab ran. An unrelated libvirt VM ran from 2026-10-02 10:21 to 11:43 UTC and overlapped 37 of the 84 runs in the ISP part of the baseline (see [Sampling quality](#sampling-quality)) |
 | Leftovers | After every step: no containers and no sessions from this run |
 
-`--release` loads one split, so the case files were built from the release YAML files. The baseline used one row per lab variant; the sweep used every row:
+`--release` loads one split, so the case files were built from the release YAML
+files. The baseline used one row per lab variant; the sweep used every row:
 
 ```bash
 uv run python - <<'EOF'
@@ -39,7 +46,12 @@ uv run python experiment/profile/profile_scenarios.py --run-config config/nika.y
   --output results/profile-20261001/scenarios-c1
 ```
 
-The baseline was collected in parts with the same settings. 39 runs (15 non-ISP variants) came from a run that selected labs from the scenario registry before profiling switched to benchmark cases; only runs whose lab variant matches a release variant exactly were kept. The 28 ISP variants, the 6 `campus_lan` and `enterprise_branch` variants, and the third run of 6 variants were profiled from case files with one row per variant.
+The baseline was collected in parts with the same settings. 39 runs (15 non-ISP
+variants) came from a run that selected labs from the scenario registry before
+profiling switched to benchmark cases; only runs whose lab variant matches a release
+variant exactly were kept. The 28 ISP variants, the 6 `campus_lan` and
+`enterprise_branch` variants, and the third run of 6 variants were profiled from
+case files with one row per variant.
 
 Concurrency sweep, run once per `batch_size`, one after another:
 
@@ -53,14 +65,19 @@ done
 
 ## Single-lab baseline
 
-Every one of the 49 lab variants passed 3 of 3 runs. Values are medians over the 3 runs; parentheses show min-max. Times are seconds.
+Every one of the 49 lab variants passed 3 of 3 runs. Values are medians over the 3
+runs; parentheses show min-max. Times are seconds.
 
-- **Variant:** `igp/bgp_mode` set by the benchmark case, and the device image when it is not the FRR default. `-` means scenario defaults.
+- **Variant:** `igp/bgp_mode` set by the benchmark case, and the device image when it
+  is not the FRR default. `-` means scenario defaults.
 - **Containers:** peak lab container count.
-- **Peak mem:** peak sampled container memory, including page cache. **WS:** peak working set (memory minus inactive file cache).
-- **CPU:** aggregate lab container CPU, where 100% is one core. Peak is the highest 1 s sample; mean is total CPU time over the run's wall time.
+- **Peak mem:** peak sampled container memory, including page cache. **WS:** peak
+  working set (memory minus inactive file cache).
+- **CPU:** aggregate lab container CPU, where 100% is one core. Peak is the highest
+  1 s sample; mean is total CPU time over the run's wall time.
 
-Rows for the same scenario are adjacent, so Kathara and Containerlab variants of an ISP topology sit next to each other.
+Rows for the same scenario are adjacent, so Kathara and Containerlab variants of an
+ISP topology sit next to each other.
 
 | Scenario | Backend | Size | Variant | OK | Containers | Deploy | Convergence | Cleanup | Total | Peak mem GiB | WS GiB | Peak CPU % | Mean CPU % |
 | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -116,15 +133,32 @@ Rows for the same scenario are adjacent, so Kathara and Containerlab variants of
 
 ### Baseline observations
 
-- **Runs are repeatable without contention.** Across the 3 runs of a variant, total time varied by a median of 2.2% (max 13%) of the median, and peak memory by 3.3% (max 20%).
-- **Containerlab SR Linux labs cost about 30x the memory of the Kathara FRR labs.** The one variant the release runs on both backends with the same routing setup, `isp_di-yuan` size s with `isis/none`, takes 75 s, 0.46 GiB and 60% mean CPU on Kathara with FRR, and 216 s, 15.19 GiB and 404% mean CPU on Containerlab with SR Linux. The difference includes the device image, not only the backend. All 8 Containerlab SR Linux variants peak at 14.2-15.7 GiB and take 181-202 s to deploy; the 20 Kathara ISP variants peak at 0.35-1.96 GiB and deploy in 12-47 s.
-- **k3s labs are memory- and disk-heavy, mostly through page cache.** `k8s_lab` peaks at 14.2 GiB with a 1.96 GiB working set and writes 13.1 GiB per run; `llmd_lab` peaks at 8.2 GiB with a 1.57 GiB working set and writes 7.0 GiB.
-- **25 of 49 variants stay below 1 GiB.** Apart from the Containerlab SR Linux labs, k3s labs and `min3clos` (4.2 GiB), the largest is `dc_clos` size l at 3.2 GiB.
-- **Convergence is short.** The longest median convergence is 76 s (`k8s_lab`); the Kathara ISP labs converge in 25-54 s.
+- **Runs are repeatable without contention.** Across the 3 runs of a variant, total
+  time varied by a median of 2.2% (max 13%) of the median, and peak memory by 3.3%
+  (max 20%).
+- **Containerlab SR Linux labs cost about 30x the memory of the Kathara FRR labs.**
+  The one variant the release runs on both backends with the same routing setup,
+  `isp_di-yuan` size s with `isis/none`, takes 75 s, 0.46 GiB and 60% mean CPU on
+  Kathara with FRR, and 216 s, 15.19 GiB and 404% mean CPU on Containerlab with
+  SR Linux. The difference includes the device image, not only the backend. All 8
+  Containerlab SR Linux variants peak at 14.2-15.7 GiB and take 181-202 s to deploy;
+  the 20 Kathara ISP variants peak at 0.35-1.96 GiB and deploy in 12-47 s.
+- **k3s labs are memory- and disk-heavy, mostly through page cache.** `k8s_lab`
+  peaks at 14.2 GiB with a 1.96 GiB working set and writes 13.1 GiB per run;
+  `llmd_lab` peaks at 8.2 GiB with a 1.57 GiB working set and writes 7.0 GiB.
+- **25 of 49 variants stay below 1 GiB.** Apart from the Containerlab SR Linux labs,
+  k3s labs and `min3clos` (4.2 GiB), the largest is `dc_clos` size l at 3.2 GiB.
+- **Convergence is short.** The longest median convergence is 76 s (`k8s_lab`); the
+  Kathara ISP labs converge in 25-54 s.
 
 ## Concurrency and throughput
 
-The sweep ran all 169 cases at `batch_size` 8, 16 and 24 with `heavy_batch_size` 1. Light cases share the batch limit; the 78 heavy cases (45 topo_size `l`, 21 k8s/llmd, 12 Containerlab) run alone after the light cases finish. Throughput is ok cases per hour of sweep wall time. Light and heavy phase times are measured from the first to the last resource sample of the cases in each phase. Phase times below are medians over ok cases, in seconds.
+The sweep ran all 169 cases at `batch_size` 8, 16 and 24 with `heavy_batch_size` 1.
+Light cases share the batch limit; the 78 heavy cases (45 topo_size `l`, 21
+k8s/llmd, 12 Containerlab) run alone after the light cases finish. Throughput is ok
+cases per hour of sweep wall time. Light and heavy phase times are measured from the
+first to the last resource sample of the cases in each phase. Phase times below are
+medians over ok cases, in seconds.
 
 | `batch_size` | Wall h | OK / cases | Failed | Throughput ok/h | Light phase h | Light ok/h | Heavy phase h |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -140,23 +174,41 @@ Light cases (91 ok at every level):
 | 16 | 162 | 8.9 | 3.0 | 46 | 248 | 375 | 188 | 106.6 |
 | 24 | 266 | 8.2 | 3.2 | 60 | 385 | 830 | 372 | 101.3 |
 
-Heavy cases (78 ok at every level) are unaffected by `batch_size` because they run alone: median deploy 103-104 s, convergence 19-25 s, inject 3.4 s, cleanup 15-16 s, total 176-177 s. Their minimum MemAvailable was 71.2-81.0 GiB.
+Heavy cases (78 ok at every level) are unaffected by `batch_size` because they run
+alone: median deploy 103-104 s, convergence 19-25 s, inject 3.4 s, cleanup 15-16 s,
+total 176-177 s. Their minimum MemAvailable was 71.2-81.0 GiB.
 
-Docker daemon CPU is the CPU time of `dockerd` and `containerd` during each case's window. The daemons are shared, so this is a measure of contention, not a per-case cost. Host load1 is a 1-minute average, so the first heavy cases still show load from the light phase.
+Docker daemon CPU is the CPU time of `dockerd` and `containerd` during each case's
+window. The daemons are shared, so this is a measure of contention, not a per-case
+cost. Host load1 is a 1-minute average, so the first heavy cases still show load from
+the light phase.
 
 ### Concurrency observations
 
-- **Throughput does not change with `batch_size` between 8 and 24.** The heavy phase takes 4.06-4.10 h of the 4.5 h sweep at every level, because the 78 heavy cases run one at a time.
-- **Light cases saturate the host by `batch_size` 8.** Going from 8 to 16 to 24 does not shorten the light phase (0.43, 0.44, 0.50 h). It makes each light case slower: median deploy rises from 65 to 162 to 266 s and cleanup from 20 to 46 to 60 s, while Docker daemon CPU per case rises from 146 to 375 to 830 s. Convergence and inject times stay flat, so the contention is in container and network creation and removal.
+- **Throughput does not change with `batch_size` between 8 and 24.** The heavy phase
+  takes 4.06-4.10 h of the 4.5 h sweep at every level, because the 78 heavy cases run
+  one at a time.
+- **Light cases saturate the host by `batch_size` 8.** Going from 8 to 16 to 24 does
+  not shorten the light phase (0.43, 0.44, 0.50 h). It makes each light case slower:
+  median deploy rises from 65 to 162 to 266 s and cleanup from 20 to 46 to 60 s, while
+  Docker daemon CPU per case rises from 146 to 375 to 830 s. Convergence and inject
+  times stay flat, so the contention is in container and network creation and
+  removal.
 - **Memory is not the limit.** MemAvailable never dropped below 71 GiB of 125 GiB.
 - **Load does not cause failures.** All 169 cases passed at every level.
 
 ### Sizing guidance for this host class (32 vCPU, 125 GiB)
 
-- Use `batch_size` 8. Values above 8 add per-case latency and Docker daemon load without improving throughput. Values below 8 were not measured.
-- Keep `heavy_batch_size` 1. Expect a full 0.2.0 release (169 cases, both splits) to take about 4.5 h of lab time before agent time, about 4.1 h of it in the heavy cases. Adding CPU cores or raising `batch_size` does not shorten that part; this run did not measure running heavy cases in parallel.
-- Plan memory per lab from the baseline table: about 15.7 GiB for a Containerlab SR Linux lab and 14.2 GiB for `k8s_lab`, below 2 GiB for every Kathara ISP lab.
-- Keep at least 13 GiB of free disk per `k8s_lab` run and 7 GiB per `llmd_lab` run, on top of the images.
+- Use `batch_size` 8. Values above 8 add per-case latency and Docker daemon load
+  without improving throughput. Values below 8 were not measured.
+- Keep `heavy_batch_size` 1. Expect a full 0.2.0 release (169 cases, both splits) to
+  take about 4.5 h of lab time before agent time, about 4.1 h of it in the heavy
+  cases. Adding CPU cores or raising `batch_size` does not shorten that part; this
+  run did not measure running heavy cases in parallel.
+- Plan memory per lab from the baseline table: about 15.7 GiB for a Containerlab
+  SR Linux lab and 14.2 GiB for `k8s_lab`, below 2 GiB for every Kathara ISP lab.
+- Keep at least 13 GiB of free disk per `k8s_lab` run and 7 GiB per `llmd_lab` run,
+  on top of the images.
 
 ## Sampling quality
 
@@ -170,6 +222,11 @@ Docker daemon CPU is the CPU time of `dockerd` and `containerd` during each case
 | Sweep, `batch_size` 16 | 169 | 50 | 138, 8 | 1.2 s | 4.5 s | 0 |
 | Sweep, `batch_size` 24 | 169 | 54 | 238, 10 | 1.2 s | 7.3 s | 0 |
 
-- The median gap between samples is 1.00-1.07 s in each of the 654 runs. Gaps above 2 s in the baseline come from large Kathara ISP labs (44-130 containers), where one sample takes longer than the interval.
-- Sampling errors grow with concurrency because Docker API reads time out under load. They reduce sample coverage and do not change case status.
-- The libvirt VM overlapped 37 baseline ISP runs. For the 28 ISP variants with runs inside and outside that window, the median ratio of total time (inside / outside) is 0.99 (range 0.94-1.09).
+- The median gap between samples is 1.00-1.07 s in each of the 654 runs. Gaps above 2 s in the
+  baseline come from large Kathara ISP labs (44-130 containers), where one sample
+  takes longer than the interval.
+- Sampling errors grow with concurrency because Docker API reads time out under
+  load. They reduce sample coverage and do not change case status.
+- The libvirt VM overlapped 37 baseline ISP runs. For the 28 ISP variants with runs
+  inside and outside that window, the median ratio of total time (inside / outside)
+  is 0.99 (range 0.94-1.09).
