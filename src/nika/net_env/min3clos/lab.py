@@ -8,7 +8,7 @@ import time
 import yaml
 from typing import ClassVar
 
-from nika.config import RUNTIME_DIR
+from nika.config import clab_workdir
 from nika.net_env.base import ProbePath
 from nika.net_env.utils.containerlab.base import ContainerlabNetworkEnv
 from nika.runtime.containerlab import render_topology
@@ -115,8 +115,7 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
         lab_name = self.name
         if not lab_name:
             raise ValueError("Lab name is required before deploy.")
-        self.runtime_workdir = RUNTIME_DIR / "containerlab" / lab_name
-        self.runtime_workdir.mkdir(parents=True, exist_ok=True)
+        self.runtime_workdir = clab_workdir(lab_name)
 
         self.topology_file = self.runtime_workdir / f"{self.LAB_NAME}.clab.yml"
         render_topology(

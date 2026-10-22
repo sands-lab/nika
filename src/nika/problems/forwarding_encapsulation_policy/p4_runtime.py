@@ -346,7 +346,7 @@ def partial_write_routes(intent: dict, switch: str) -> dict:
 # group that now holds the other route's next hops.
 _PARTIAL_BATCH = r"""
 import json, sys
-sys.path.insert(0, "/opt/nika")
+sys.path.insert(0, "/opt/p4rt")
 import grpc
 import p4rt_manager as m
 from google.rpc import code_pb2, status_pb2

@@ -16,7 +16,7 @@ def _config(runtime: LabRuntime, switch: str, kind: str, **values: object) -> st
     )
     output = runtime.exec(
         "fabric_mgr",
-        f"python3 /opt/nika/p4rt_manager.py gateway-config --switch {shlex.quote(switch)} "
+        f"python3 /opt/p4rt/p4rt_manager.py gateway-config --switch {shlex.quote(switch)} "
         f"--kind {shlex.quote(kind)} {options}",
         timeout=30,
     )
@@ -30,7 +30,7 @@ def read_table(runtime: LabRuntime, switch: str, table: str) -> list[dict] | Non
     """Read the live entries of one P4 table, or ``None`` when the read fails."""
     output = runtime.exec(
         "fabric_mgr",
-        f"python3 /opt/nika/p4rt_manager.py read-table --switch {shlex.quote(switch)} "
+        f"python3 /opt/p4rt/p4rt_manager.py read-table --switch {shlex.quote(switch)} "
         f"--table {shlex.quote(table)}",
         timeout=30,
     )
@@ -77,7 +77,7 @@ def _lb(runtime: LabRuntime, switch: str, kind: str, **options: object) -> dict:
     option = f" {' '.join(option_parts)}" if option_parts else ""
     output = runtime.exec(
         "fabric_mgr",
-        "python3 /opt/nika/p4rt_manager.py gateway-lb "
+        "python3 /opt/p4rt/p4rt_manager.py gateway-lb "
         f"--switch {shlex.quote(switch)} --kind {shlex.quote(kind)}{option}",
         timeout=60,
     )

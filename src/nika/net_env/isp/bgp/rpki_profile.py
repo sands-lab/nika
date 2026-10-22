@@ -305,7 +305,7 @@ def slurm_document() -> dict[str, Any]:
             "asn": LEGITIMATE_ORIGIN_ASN,
             "prefix": prefix,
             "maxPrefixLength": int(prefix.split("/")[1]),
-            "comment": f"NIKA offline VRP for {prefix}",
+            "comment": f"local VRP for {prefix}",
         }
         for prefix in LEAK_PREFIXES
     ]

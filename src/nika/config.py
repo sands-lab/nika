@@ -1,4 +1,5 @@
 import os
+import stat
 import sys
 from pathlib import Path
 
@@ -23,6 +24,44 @@ RUNTIME_DIR = REPO_ROOT / "runtime"
 SESSIONS_DIR = RUNTIME_DIR / "sessions"
 SESSIONS_DB = RUNTIME_DIR / "sessions.db"
 BENCHMARK_RUNS_DIR = RUNTIME_DIR / "benchmark_runs"
+# Containerlab working directories. Containerlab exposes the topology and lab
+# paths to every node (CLAB_LABEL_* variables), so they live outside the
+# checkout, on local disk, under a name that does not identify NIKA. The path is
+# fixed (not $TMPDIR), so every process of the user finds the same labs.
+CLAB_RUNTIME_DIR = Path("/tmp") / f"labs-{os.getuid()}"
+
+
+def clab_runtime_root(*, create: bool = False) -> Path | None:
+    """:data:`CLAB_RUNTIME_DIR` if it is a private directory of this user.
+
+    Another local user could pre-create the predictable path, or make it a
+    symlink; NIKA neither writes there nor deletes through it. With *create*,
+    make it (mode 0700) when missing and raise when it is not ours; otherwise
+    return ``None`` for a missing or foreign path.
+    """
+    root = CLAB_RUNTIME_DIR
+    if create:
+        root.mkdir(mode=0o700, exist_ok=True)
+    try:
+        info = root.lstat()
+    except FileNotFoundError:
+        return None
+    if stat.S_ISDIR(info.st_mode) and info.st_uid == os.getuid():
+        return root
+    if create:
+        raise RuntimeError(f"{root} is not a directory owned by this user.")
+    return None
+
+
+def clab_workdir(lab_name: str) -> Path:
+    """Create and return the Containerlab working directory of *lab_name*."""
+    root = clab_runtime_root(create=True)
+    assert root is not None
+    workdir = root / lab_name
+    workdir.mkdir(exist_ok=True)
+    return workdir
+
+
 RESULTS_DIR = REPO_ROOT / "results"
 BENCHMARK_DIR = REPO_ROOT / "benchmark"
 # Current nika-bench release. Locally built nika/* images are tagged with it.

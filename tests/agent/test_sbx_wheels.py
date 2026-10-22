@@ -12,6 +12,8 @@ from nika.agents.sandbox.sbx.wheels import install_agent_packages_in_sandbox
 from nika.agents.sandbox.wheels import (
     WHEEL_DIRNAME,
     load_requirements,
+    needs_agent_venv,
+    runner_path_prefix,
     stage_wheels,
     wheel_dir,
 )
@@ -70,6 +72,17 @@ def test_agent_packages_install_from_pypi_when_offline_disabled(tmp_path) -> Non
     # An added agent's own packages come from PyPI after the frozen set.
     assert "'nooa[mcp]==0.0.10'" in extra[-1]
     assert (workspace / "requirements.txt").is_file()
+
+
+@pytest.mark.parametrize(
+    ("requires_python", "venv"),
+    [(None, False), ("", False), (">=3.10", False), (">=3.12,<3.14", True)],
+)
+def test_agent_venv_only_when_template_python_does_not_fit(
+    requires_python: str | None, venv: bool
+) -> None:
+    assert needs_agent_venv(requires_python) is venv
+    assert bool(runner_path_prefix(requires_python)) is venv
 
 
 @pytest.mark.parametrize(

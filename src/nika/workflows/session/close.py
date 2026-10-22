@@ -8,6 +8,8 @@ from datetime import datetime
 from pathlib import Path
 
 from nika.config import (
+    CLAB_RUNTIME_DIR,
+    clab_runtime_root,
     RESULTS_DIR,
     RUNTIME_DIR,
     SESSIONS_DB,
@@ -41,19 +43,22 @@ def _resolve_runtime_workdir(session_meta: dict) -> Path | None:
         return topology_file.parent
     lab_name = meta_get(session_meta, "lab_name", scenario_params=True)
     if lab_name:
-        backend = resolve_backend(session_meta)
-        backend_root = "containerlab" if backend == "containerlab" else "kathara"
-        return Path(RUNTIME_DIR) / backend_root / str(lab_name)
+        if resolve_backend(session_meta) == "containerlab":
+            return Path(CLAB_RUNTIME_DIR) / str(lab_name)
+        return Path(RUNTIME_DIR) / "kathara" / str(lab_name)
     return None
 
 
 def _is_safe_runtime_removal(path: Path, session_meta: dict) -> bool:
-    """Only delete paths under ``runtime/`` and never under ``results/``."""
+    """Only delete lab workdirs under ``runtime/`` or the Containerlab root.
+
+    Never under ``results/``.
+    """
     resolved = path.resolve()
-    runtime_root = Path(RUNTIME_DIR).resolve()
-    if not resolved.is_relative_to(runtime_root):
-        return False
-    if resolved == runtime_root:
+    roots = [Path(RUNTIME_DIR).resolve()]
+    if (clab_root := clab_runtime_root()) is not None:
+        roots.append(clab_root.resolve())
+    if not any(resolved.is_relative_to(root) and resolved != root for root in roots):
         return False
     sessions_root = Path(SESSIONS_DIR).resolve()
     if resolved == sessions_root or resolved.is_relative_to(sessions_root):
@@ -95,11 +100,8 @@ def wipe_runtime_artifacts(
     sessions_root = Path(sessions_dir or SESSIONS_DIR)
     db_file = Path(db_path or SESSIONS_DB).resolve()
     removed = 0
-    if not runtime_root.exists():
-        return removed
-
     sessions_resolved = sessions_root.resolve()
-    for path in runtime_root.iterdir():
+    for path in runtime_root.iterdir() if runtime_root.exists() else ():
         resolved = path.resolve()
         if resolved == sessions_resolved or resolved == db_file:
             continue
@@ -107,6 +109,11 @@ def wipe_runtime_artifacts(
             continue
         _remove_path(path)
         removed += 1
+    clab_root = clab_runtime_root()
+    if runtime_dir is None and clab_root is not None:
+        for path in clab_root.iterdir():
+            _remove_path(path)
+            removed += 1
     return removed
 
 

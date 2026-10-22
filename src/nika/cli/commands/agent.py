@@ -93,13 +93,14 @@ def _agent_row(agent_id: str, spec: AgentSpec | None, problem: str = "") -> str:
 @agent_app.command("list")
 def agent_list() -> None:
     """Print available agents (built-in and added), LLM providers, and effort levels."""
+    from nika.agents.custom import list_custom_agents
     from nika.agents.plugins import list_external_agents
 
     typer.echo("agent_types:")
     for spec in BUILTIN_AGENTS:
         if spec.id in SUPPORTED_AGENT_TYPES:
             typer.echo(_agent_row(spec.id, spec))
-    for agent_id, spec, problem in list_external_agents():
+    for agent_id, spec, problem in [*list_custom_agents(), *list_external_agents()]:
         typer.echo(_agent_row(agent_id, spec, problem))
     typer.echo("llm_providers:")
     for provider in SUPPORTED_LLM_PROVIDERS:
@@ -234,7 +235,8 @@ def agent_run(
         "-a",
         "--agent",
         help=(
-            "Agent: built-in id, id added with `nika agent add`, or "
+            "Agent: built-in id, custom.<name> (src/agent/custom), id added with "
+            "`nika agent add`, or "
             "module.path:ClassName (default: agent.type in run config)."
         ),
     ),

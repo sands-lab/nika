@@ -30,6 +30,12 @@ _PYPI_NETWORK_HOSTS = (
     "files.pythonhosted.org",
     "pypi.python.org",
 )
+# Where ``uv venv --python`` downloads a managed interpreter.
+_PYTHON_DOWNLOAD_HOSTS = (
+    "github.com",
+    "objects.githubusercontent.com",
+    "release-assets.githubusercontent.com",
+)
 
 
 def mcp_policy_resource(port: int, *, host: str = "localhost") -> str:
@@ -137,12 +143,14 @@ def sandbox_network_lockdown(
     keep_hosts: Sequence[str] = (),
     keep_resources: Sequence[str] = (),
     install_pypi: bool = False,
+    install_python: bool = False,
 ) -> tuple[list[str], list[str]]:
     """Return ``(rest, install)`` resources to deny for *sandbox_name*.
 
     Resources covering *keep_hosts* (an added agent's egress) or equal to
     *keep_resources* stay allowed. With *install_pypi*, resources covering the
-    package index hosts form the second list, denied once installs finish.
+    package index hosts form the second list, denied once installs finish;
+    with *install_python*, so do those covering uv's interpreter downloads.
     """
     proc = run_sbx_checked(["policy", "ls", "--json"], timeout=120)
     resources = [
@@ -150,7 +158,9 @@ def sandbox_network_lockdown(
         for r in allowed_network_resources(json.loads(proc.stdout), sandbox_name)
         if r not in keep_resources and not resource_matches_host(r, keep_hosts)
     ]
-    install_hosts = _PYPI_NETWORK_HOSTS if install_pypi else ()
+    install_hosts = (_PYPI_NETWORK_HOSTS if install_pypi else ()) + (
+        _PYTHON_DOWNLOAD_HOSTS if install_python else ()
+    )
     install = [r for r in resources if resource_matches_host(r, install_hosts)]
     rest = [r for r in resources if r not in install]
     return rest, install

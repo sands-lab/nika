@@ -48,7 +48,7 @@ from nika.agents.sandbox.sbx.proxy import (
     resolve_sbx_upstream_proxy,
 )
 from nika.agents.sandbox.sbx.wheels import install_agent_packages_in_sandbox
-from nika.agents.sandbox.wheels import stage_wheels
+from nika.agents.sandbox.wheels import needs_agent_venv, stage_wheels
 
 logger = logging.getLogger(__name__)
 
@@ -109,8 +109,12 @@ class SbxBackend(SandboxBackend):
         return env
 
     def stage_workspace(self, workspace_dir: Path, *, agent_type: str) -> None:
-        if self.config.offline_sdk_wheels:
-            stage_wheels(workspace_dir, get_agent_spec(agent_type).requirements)
+        spec = get_agent_spec(agent_type)
+        # A venv for another Python installs from PyPI: the wheels are cp314.
+        if self.config.offline_sdk_wheels and not needs_agent_venv(
+            spec.requires_python
+        ):
+            stage_wheels(workspace_dir, spec.requirements)
 
     def build_create_command(
         self,
@@ -156,12 +160,13 @@ class SbxBackend(SandboxBackend):
             with sbx_host_lock("create"):
                 run_sbx_checked(self._create_command, timeout=_SBX_CREATE_TIMEOUT_SEC)
             spec = get_agent_spec(agent_type)
-            use_pypi = bool(spec.packages) or not self.config.offline_sdk_wheels
+            venv = needs_agent_venv(spec.requires_python)
+            use_pypi = bool(spec.packages) or venv or not self.config.offline_sdk_wheels
             # The sbx policy is shared with the user's other sandboxes, so the
             # global allow rules stay; this sandbox denies each of them and
             # reaches only the MCP gateway, the model proxy, and an added
-            # agent's declared egress. Package indexes stay open until the
-            # install finishes.
+            # agent's declared egress. Package indexes (and the interpreter
+            # download of a venv) stay open until the install finishes.
             proxy = (
                 (f"localhost:{self._model_proxy_port}",)
                 if self._model_proxy_port is not None
@@ -172,6 +177,7 @@ class SbxBackend(SandboxBackend):
                 keep_hosts=spec.egress,
                 keep_resources=proxy,
                 install_pypi=use_pypi,
+                install_python=venv,
             )
             allow_network_hosts(sandbox_name, *spec.egress)
             if use_pypi:
@@ -183,6 +189,7 @@ class SbxBackend(SandboxBackend):
                     workspace_dir=workspace_dir,
                     requirements=spec.requirements,
                     packages=spec.packages,
+                    requires_python=spec.requires_python,
                     offline=self.config.offline_sdk_wheels,
                 )
                 denied.result()

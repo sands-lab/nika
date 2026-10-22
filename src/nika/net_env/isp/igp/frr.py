@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+# IS-IS process tag of ISP routers; neutral, since agents read device configs.
+ISIS_PROCESS = "CORE"
+
 if TYPE_CHECKING:
     from nika.net_env.isp.igp.plan import PlannedInterface, PlannedNode
 
@@ -45,7 +48,7 @@ def _render_isis(node: PlannedNode, interfaces: tuple[PlannedInterface, ...]) ->
         "!",
         "interface lo",
         f" ip address {node.loopback}/32",
-        " ip router isis NIKA",
+        f" ip router isis {ISIS_PROCESS}",
         " isis passive",
         "!",
     ]
@@ -56,7 +59,7 @@ def _render_isis(node: PlannedNode, interfaces: tuple[PlannedInterface, ...]) ->
             [
                 f"interface {iface.name}",
                 f" ip address {iface.address}/{iface.prefixlen}",
-                " ip router isis NIKA",
+                f" ip router isis {ISIS_PROCESS}",
                 " isis circuit-type level-2-only",
                 f" isis metric {iface.metric}",
                 *([" isis passive"] if iface.passive else []),
@@ -65,7 +68,7 @@ def _render_isis(node: PlannedNode, interfaces: tuple[PlannedInterface, ...]) ->
         )
     lines.extend(
         [
-            "router isis NIKA",
+            f"router isis {ISIS_PROCESS}",
             f" net {net}",
             " is-type level-2-only",
             " metric-style wide",

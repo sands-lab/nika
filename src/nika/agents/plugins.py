@@ -88,6 +88,8 @@ class AgentManifest(BaseModel):
             )
         if value in _BUILTIN_IDS:
             raise ValueError(f"{value!r} is a built-in NIKA agent")
+        if value.startswith("custom."):
+            raise ValueError("ids starting with 'custom.' name src/agent/custom files")
         return value
 
     @field_validator("class_path")
@@ -116,6 +118,7 @@ class AgentManifest(BaseModel):
             # The default structured submission runs the LangGraph worker.
             requirements=EXTERNAL_AGENT_REQUIREMENTS,
             packages=tuple(packages),
+            requires_python=project_requires_python(Path(import_root)),
             egress=tuple(sandbox.egress),
             source=source,
         )
@@ -192,8 +195,8 @@ def check_import_root(root: Path) -> None:
         )
 
 
-def project_dependencies(root: Path) -> list[str]:
-    """``[project].dependencies`` of the project at *root* or its parent.
+def _project_table(root: Path) -> dict[str, Any]:
+    """``[project]`` of the ``pyproject.toml`` at *root* or its parent.
 
     *root* is the import root, which is the project directory or its ``src``.
     """
@@ -201,8 +204,22 @@ def project_dependencies(root: Path) -> list[str]:
         pyproject = project / "pyproject.toml"
         if pyproject.is_file():
             data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
-            return list(data.get("project", {}).get("dependencies", []))
-    return []
+            return data.get("project", {})
+    return {}
+
+
+def project_dependencies(root: Path) -> list[str]:
+    """``[project].dependencies`` of the project at *root* or its parent."""
+    return list(_project_table(root).get("dependencies", []))
+
+
+def project_requires_python(root: Path) -> str | None:
+    """``[project].requires-python`` of the project at *root* or its parent."""
+    from nika.agents.sandbox.wheels import check_requires_python
+
+    return check_requires_python(
+        _project_table(root).get("requires-python"), where=str(root)
+    )
 
 
 def class_defined(root: Path, class_path: str) -> bool:
@@ -262,6 +279,7 @@ def _import_path_spec(class_path: str) -> AgentSpec | None:
         import_root=str(root),
         requirements=EXTERNAL_AGENT_REQUIREMENTS,
         packages=tuple(project_dependencies(root)),
+        requires_python=project_requires_python(root),
         source="import path",
     )
 

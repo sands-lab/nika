@@ -140,11 +140,15 @@ def _lb_connection_state_exhaustion(
     problem: Any, params: Any
 ) -> tuple[bool, dict[str, Any]]:
     from nika.net_env.verify import http_ok
+    from nika.problems.service_networking.gateway import (
+        KEEPALIVE_PID_PATH,
+        KEEPALIVE_STATUS_PATH,
+    )
 
     profile = getattr(problem, "_affinity_profile", None) or {}
     client_host = profile.get("client_host") or params.client_host
-    status_path = profile.get("status_path", "/tmp/nika-lb-conn.status")
-    pid_path = profile.get("pid_path", "/tmp/nika-lb-conn.pid")
+    status_path = profile.get("status_path", KEEPALIVE_STATUS_PATH)
+    pid_path = profile.get("pid_path", KEEPALIVE_PID_PATH)
     backend_dip = profile.get("backend_dip") or params.backend_dip
     vip_url = profile.get("vip_url") or params.vip_url
 

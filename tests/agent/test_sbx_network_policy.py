@@ -214,3 +214,14 @@ def test_create_removes_sandbox_when_lockdown_fails(tmp_path) -> None:
                 workspace_dir=tmp_path,
             )
     assert optional.call_args_list[-1].args[0] == ["rm", "--force", _SANDBOX]
+
+
+def test_lockdown_keeps_interpreter_downloads_open_during_a_venv_install() -> None:
+    with patch(
+        "nika.agents.sandbox.sbx.policy.run_sbx_checked", side_effect=_policy_ls
+    ):
+        rest, install = sandbox_network_lockdown(
+            _SANDBOX, install_pypi=True, install_python=True
+        )
+    assert {"github.com:443", "**.githubusercontent.com:443"} <= set(install)
+    assert not {"github.com:443", "**.githubusercontent.com:443"} & set(rest)

@@ -220,10 +220,10 @@ class P4DcFabric(NetworkEnvBase):
             [
                 f"ip addr add {FABRIC_MGR_OOB_IP}/16 dev eth0",
                 "ip link set eth0 up",
-                "mkdir -p /tmp/p4_fabric /opt/nika",
-                "cp p4rt_manager.py /opt/nika/p4rt_manager.py 2>/dev/null || "
-                "cp /p4rt_manager.py /opt/nika/p4rt_manager.py || true",
-                "chmod +x /opt/nika/p4rt_manager.py || true",
+                "mkdir -p /tmp/p4_fabric /opt/p4rt",
+                "cp p4rt_manager.py /opt/p4rt/p4rt_manager.py 2>/dev/null || "
+                "cp /p4rt_manager.py /opt/p4rt/p4rt_manager.py || true",
+                "chmod +x /opt/p4rt/p4rt_manager.py || true",
             ],
             "fabric_mgr.startup",
         )

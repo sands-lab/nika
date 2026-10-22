@@ -8,7 +8,7 @@ from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
 from nika.problems.rca import node_resource
 
 _WG_CONF = "/etc/wireguard/wg0.conf"
-_WG_BACKUP = "/tmp/nika-010-wg0.conf"
+_WG_BACKUP = "/tmp/wg0.conf.bak"
 
 
 class VPNMembershipMissingParams(BaseModel):
