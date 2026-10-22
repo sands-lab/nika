@@ -18,6 +18,7 @@ from nika.net_env.utils.kathara.frr_origin import (
     BGP_ORIGIN_IFACE,
     ENSURE_BGP_ORIGIN_IFACE_CMD,
 )
+from nika.problems.support.routeros import is_routeros, ros, ros_rows
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
 
@@ -140,6 +141,8 @@ class BGPHijacking(ProblemBase):
                 self.logger.info(
                     f"Injected BGP hijacking on {params.host_name}: {target_network} (SRL)."
                 )
+            case "kathara" if is_routeros(self.net_env, params.host_name):
+                self._inject_routeros(params, target_network)
             case "kathara":
                 asn_number = self.runtime.frr_get_bgp_asn_number(params.host_name)
                 # Off ``lo`` so the IGP does not carry it: only BGP spreads a hijack.
@@ -197,6 +200,8 @@ class BGPHijacking(ProblemBase):
                         "has_advertisement": verified,
                     },
                 )
+            case "kathara" if is_routeros(self.net_env, params.host_name):
+                return self._verify_routeros(params, target_network)
             case "kathara":
                 # The hijacker's BGP table must source the prefix as its best
                 # path and send it to a peer; whether peers accept it is the symptom.
@@ -234,3 +239,83 @@ class BGPHijacking(ProblemBase):
                 raise RuntimeCapabilityError(
                     f"{type(self).__name__} cannot verify_fault: unsupported backend {backend!r}."
                 )
+
+    def _inject_routeros(self, params: BGPHijackingParams, target_network: str) -> None:
+        host = params.host_name
+        if params.export_prefix_list:
+            raise RuntimeCapabilityError(
+                f"{type(self).__name__}: export prefix lists are FRR objects; "
+                f"RouterOS router {host!r} has no equivalent export_prefix_list."
+            )
+        net = ipaddress.ip_network(target_network, strict=False)
+        ros(
+            self.runtime,
+            host,
+            f"/interface bridge add name={BGP_ORIGIN_IFACE} protocol-mode=none",
+        )
+        # Originate in the BGP instance's table: its VRF, or main.
+        vrf = next((row.get("vrf") for row in _bgp_instances(self.runtime, host)), None)
+        if vrf:
+            members = ros(
+                self.runtime, host, f":put [/ip vrf get [find name={vrf}] interfaces]"
+            ).strip()
+            ros(
+                self.runtime,
+                host,
+                f"/ip vrf set [find name={vrf}] "
+                f"interfaces={members.replace(';', ',')},{BGP_ORIGIN_IFACE}",
+            )
+        # The router answers for the whole prefix, as FRR's local route does.
+        ros(
+            self.runtime,
+            host,
+            f"/ip address add address={next(net.hosts())}/{net.prefixlen} "
+            f"interface={BGP_ORIGIN_IFACE}",
+        )
+        connections = ros_rows(
+            self.runtime, host, "/routing/bgp/connection/print terse"
+        )
+        lists = {row.get("output.network") for row in connections} - {None, ""}
+        address_list = next(iter(lists)) if len(lists) == 1 else "BGP-NETWORKS"
+        ros(
+            self.runtime,
+            host,
+            f"/ip firewall address-list add list={address_list} address={net}",
+        )
+        if not lists:
+            ros(
+                self.runtime,
+                host,
+                f"/routing bgp connection set [find] output.network={address_list}",
+            )
+        self.logger.info(
+            f"Injected BGP hijacking on {host}: {target_network} (RouterOS)."
+        )
+
+    def _verify_routeros(self, params: BGPHijackingParams, target_network: str) -> dict:
+        host = params.host_name
+        net = str(ipaddress.ip_network(target_network, strict=False))
+        advertised = ros(
+            self.runtime, host, "/routing/bgp/advertisements/print terse"
+        ).count(f"dst={net} ")
+        origin = ros(
+            self.runtime,
+            host,
+            f"/ip/address/print terse where interface={BGP_ORIGIN_IFACE}",
+        )
+        has_origin_ip = net.split("/")[0].rsplit(".", 1)[0] in origin
+        verified = advertised > 0 and has_origin_ip
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=verified,
+            details={
+                "host": host,
+                "target_network": net,
+                "advertisements": advertised,
+                "has_origin_ip": has_origin_ip,
+            },
+        )
+
+
+def _bgp_instances(runtime, host: str) -> list[dict[str, str]]:
+    return ros_rows(runtime, host, "/routing/bgp/instance/print terse")

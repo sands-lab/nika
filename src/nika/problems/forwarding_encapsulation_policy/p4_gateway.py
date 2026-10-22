@@ -22,6 +22,7 @@ from nika.problems.support.p4_gateway import (
     set_int_mtu,
     set_silent_destination_drop,
 )
+from nika.problems.support.routeros import is_routeros, ros, ros_rows
 from nika.runtime.base import LabRuntime
 
 
@@ -51,6 +52,8 @@ def read_runtime_config_value(
 # Written the way ``nft list`` prints it (nft adds and hides the implied
 # ``ip protocol icmp`` dependency), so verify_fault can match it exactly.
 _FRAG_NEEDED_NFT_RULE = "icmp type destination-unreachable icmp code frag-needed drop"
+# The nft helper installs the drop on these hooks; RouterOS mirrors them.
+_FRAG_NEEDED_CHAINS = ("input", "forward", "output")
 
 
 class IcmpFragNeededFilterMisconfigurationParams(BaseModel):
@@ -111,6 +114,16 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
         if self._uses_p4_filter(params):
             self._result = set_icmp_frag_needed_filter(self.runtime, params.host_name)
             return
+        if is_routeros(self.net_env, params.host_name):
+            for chain in _FRAG_NEEDED_CHAINS:
+                ros(
+                    self.runtime,
+                    params.host_name,
+                    f"/ip firewall filter add chain={chain} protocol=icmp "
+                    "icmp-options=3:4 action=drop",
+                )
+            self._result = "routeros-filter-frag-needed"
+            return
         self.runtime.add_nft_drop_rule(
             params.host_name, _FRAG_NEEDED_NFT_RULE, family="ip"
         )
@@ -139,6 +152,22 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
                 self.root_cause_name,
                 [3, 4] in entries,
                 {"gateway": params.host_name, "acl_entries": entries},
+            )
+        if is_routeros(self.net_env, params.host_name):
+            rules = ros_rows(
+                self.runtime, params.host_name, "/ip/firewall/filter/print terse"
+            )
+            chains = {
+                row.get("chain")
+                for row in rules
+                if row.get("protocol") == "icmp"
+                and row.get("icmp-options") == "3:4"
+                and row.get("action") == "drop"
+            }
+            return build_verify_result(
+                self.root_cause_name,
+                set(_FRAG_NEEDED_CHAINS) <= chains,
+                {"host": params.host_name, "filter_chains": sorted(chains - {None})},
             )
         verified = self.runtime.nft_drop_rule_present(
             params.host_name, _FRAG_NEEDED_NFT_RULE, family="ip"

@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from nika.net_env.isp.bgp.frr import EXPORT_DENY_PREFIX_LIST
 from nika.problems.support.inject_resolve import resolve_victim_host_ip
 from nika.problems.support.polling import wait_until
+from nika.problems.support.routeros import is_routeros, ros, ros_rows
 from nika.problems.rca import node_resource
 from nika.problems.base import (
     FailureDomain,
@@ -143,6 +144,9 @@ class BGPAsnMisconfig(ProblemBase):
         )
 
     def _inject_asn_misconfig_kathara(self, params: BGPAsnMisconfigParams) -> None:
+        if is_routeros(self.net_env, params.host_name):
+            self._inject_asn_misconfig_routeros(params)
+            return
         if self.runtime.uses_iosxr_router(params.host_name):
             self._inject_asn_misconfig_iosxr(params)
             return
@@ -204,6 +208,33 @@ class BGPAsnMisconfig(ProblemBase):
         self._wrong_asn = wrong_asn
         self.logger.info(
             f"Injected BGP ASN misconfiguration on {params.host_name} from ASN {as_number} to {wrong_asn}."
+        )
+
+    def _routeros_asn(self, host: str) -> int | None:
+        rows = ros_rows(self.runtime, host, "/routing/bgp/instance/print terse")
+        values = {row.get("as") for row in rows}
+        if len(values) != 1 or not str(next(iter(values))).isdigit():
+            return None
+        return int(next(iter(values)))
+
+    def _inject_asn_misconfig_routeros(self, params: BGPAsnMisconfigParams) -> None:
+        as_number = self._routeros_asn(params.host_name)
+        if as_number is None:
+            raise RuntimeCapabilityError(
+                f"{type(self).__name__}: no single BGP AS on {params.host_name!r}"
+            )
+        wrong_asn = as_number + ASN_MISCONFIG_OFFSET
+        ros(
+            self.runtime,
+            params.host_name,
+            f"/routing bgp instance set [find] as={wrong_asn}",
+        )
+        wait_until(lambda: self._routeros_asn(params.host_name) == wrong_asn, 8)
+        self._orig_asn = as_number
+        self._wrong_asn = wrong_asn
+        self.logger.info(
+            f"Injected BGP ASN misconfiguration on {params.host_name} "
+            f"from ASN {as_number} to {wrong_asn} (RouterOS)."
         )
 
     def _inject_asn_misconfig_iosxr(self, params: BGPAsnMisconfigParams) -> None:
@@ -274,7 +305,11 @@ class BGPAsnMisconfig(ProblemBase):
         orig_asn = getattr(self, "_orig_asn", None)
         expected_wrong = getattr(self, "_wrong_asn", None)
         # Only the running bgpd counts: the on-disk file is what inject wrote.
-        running_asn = self._running_asn(params.host_name)
+        running_asn = (
+            self._routeros_asn(params.host_name)
+            if is_routeros(self.net_env, params.host_name)
+            else self._running_asn(params.host_name)
+        )
         verified = expected_wrong is not None and running_asn == expected_wrong
         return build_verify_result(
             fault_type=self.root_cause_name,
@@ -480,6 +515,9 @@ class BGPMissingAdvertise(ProblemBase):
         )
 
     def _inject_missing_adv_kathara(self, params: BGPMissingAdvertiseParams) -> None:
+        if is_routeros(self.net_env, params.host_name):
+            self._inject_missing_adv_routeros(params)
+            return
         if self.runtime.uses_iosxr_router(params.host_name):
             self._inject_missing_adv_iosxr(params)
             return
@@ -490,6 +528,74 @@ class BGPMissingAdvertise(ProblemBase):
             self._inject_missing_adv_prefix(params, params.prefix)
             return
         self._inject_missing_adv_bgp_networks(params)
+
+    def _routeros_advertisements(self, host: str) -> list[str]:
+        """Return what still feeds the RouterOS advertisement path."""
+        if self._is_enterprise_branch():
+            # Business VRFs export their connected LANs to the overlay VRF.
+            return [
+                row["vrf"]
+                for row in ros_rows(self.runtime, host, "/routing/bgp/vpn/print terse")
+                if row.get("vrf") in ("vrf_corp", "vrf_server")
+                and "connected" in row.get("export.redistribute", "")
+            ]
+        return [
+            row.get("address", "")
+            for row in ros_rows(
+                self.runtime,
+                host,
+                "/ip/firewall/address-list/print terse where list=BGP-NETWORKS",
+            )
+        ]
+
+    def _inject_missing_adv_routeros(self, params: BGPMissingAdvertiseParams) -> None:
+        host = params.host_name
+        if self._is_enterprise_branch():
+            ros(
+                self.runtime,
+                host,
+                "/routing bgp vpn unset [find vrf=vrf_corp or vrf=vrf_server] "
+                "export.redistribute",
+            )
+            self._inject_mode = "redistribute"
+        elif params.prefix:
+            prefix = str(ipaddress.ip_network(params.prefix, strict=False))
+            ros(
+                self.runtime,
+                host,
+                "/ip firewall address-list remove "
+                f"[find list=BGP-NETWORKS address={prefix}]",
+            )
+            self._withdrawn_prefix = prefix
+            self._inject_mode = "prefix"
+        else:
+            ros(
+                self.runtime,
+                host,
+                "/ip firewall address-list remove [find list=BGP-NETWORKS]",
+            )
+            self._inject_mode = "bgp_network"
+        self.logger.info(
+            f"Injected BGP missing route on {host} (RouterOS {self._inject_mode})."
+        )
+
+    def _verify_missing_adv_routeros(self, params: BGPMissingAdvertiseParams) -> dict:
+        remaining = self._routeros_advertisements(params.host_name)
+        prefix = params.prefix or self._withdrawn_prefix
+        verified = (
+            prefix not in remaining
+            if self._inject_mode == "prefix" and prefix
+            else not remaining
+        )
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=verified,
+            details={
+                "host": params.host_name,
+                "mode": self._inject_mode,
+                "remaining_advertisements": remaining,
+            },
+        )
 
     def _inject_missing_adv_iosxr(self, params: BGPMissingAdvertiseParams) -> None:
         if params.prefix:
@@ -687,6 +793,8 @@ class BGPMissingAdvertise(ProblemBase):
             return -1
 
     def _verify_missing_adv_kathara(self, params: BGPMissingAdvertiseParams) -> dict:
+        if is_routeros(self.net_env, params.host_name):
+            return self._verify_missing_adv_routeros(params)
         if self.runtime.uses_iosxr_router(params.host_name):
             return self._verify_missing_adv_iosxr(params)
         mode = self._inject_mode

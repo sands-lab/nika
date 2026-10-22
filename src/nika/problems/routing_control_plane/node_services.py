@@ -6,6 +6,7 @@ from nika.problems.base import (
     build_verify_result,
     ProblemBase,
 )
+from nika.problems.support.routeros import reject_routeros
 from nika.utils.logger import system_logger
 
 logger = system_logger
@@ -47,6 +48,12 @@ class FrrDown(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: FrrDownParams):
+        reject_routeros(
+            self,
+            params.host_name,
+            "RouterOS runs no separate routing daemon to stop; disabling its "
+            "routing configuration would be a different root cause.",
+        )
         # systemctl is a no-op in Kathara; kill FRR daemons directly with pkill.
         # watchfrr must be killed first so it does not restart the routing daemons.
         for daemon in (

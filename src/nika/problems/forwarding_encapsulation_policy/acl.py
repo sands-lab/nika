@@ -14,6 +14,14 @@ from nika.problems.support.benchmark_targets import (
 )
 from nika.problems.support.compatible_columns import NON_K8S_HOST_COLUMNS
 from nika.problems.support.polling import wait_until
+from nika.problems.support.routeros import (
+    BGP_DROP_RULES,
+    is_routeros,
+    ros,
+    ros_bgp_established,
+    ros_filter_rules,
+    ros_reset_bgp,
+)
 from nika.runtime.base import RuntimeCapabilityError
 
 
@@ -80,6 +88,8 @@ class BGPAclBlock(ProblemBase):
                 self._srl_acl_entries = self.runtime.srl_add_bgp_acl_drop_179(
                     params.host_name
                 )
+            case "kathara" if is_routeros(self.net_env, params.host_name):
+                self._inject_routeros(params)
             case "kathara":
                 self.runtime.add_nft_drop_rule(
                     params.host_name, "tcp dport 179 drop", family="inet"
@@ -123,6 +133,8 @@ class BGPAclBlock(ProblemBase):
                         "srl_acl_entries": sorted(entries),
                     },
                 )
+            case "kathara" if is_routeros(self.net_env, params.host_name):
+                return self._verify_routeros(params)
             case "kathara":
                 return _verify_nft_drop(
                     self, params.host_name, "tcp dport 179 drop", "tcp sport 179 drop"
@@ -131,6 +143,38 @@ class BGPAclBlock(ProblemBase):
                 raise RuntimeCapabilityError(
                     f"{type(self).__name__} cannot verify_fault: unsupported backend {backend!r}."
                 )
+
+    def _inject_routeros(self, params: BGPAclBlockParams) -> None:
+        for chain, port_match in BGP_DROP_RULES:
+            ros(
+                self.runtime,
+                params.host_name,
+                f"/ip firewall filter add chain={chain} protocol=tcp {port_match} "
+                "action=drop",
+            )
+        ros_reset_bgp(self.runtime, params.host_name)
+        wait_until(lambda: ros_bgp_established(self.runtime, params.host_name) == 0, 8)
+
+    def _verify_routeros(self, params: BGPAclBlockParams) -> dict:
+        rules = ros_filter_rules(self.runtime, params.host_name)
+        present = {
+            (chain, port_match): any(
+                row.get("chain") == chain
+                and row.get("protocol") == "tcp"
+                and row.get("action") == "drop"
+                and row.get(port_match.split("=")[0]) == "179"
+                for row in rules
+            )
+            for chain, port_match in BGP_DROP_RULES
+        }
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=all(present.values()),
+            details={
+                "host": params.host_name,
+                "routeros_filter": {f"{c} {m}": ok for (c, m), ok in present.items()},
+            },
+        )
 
 
 # ==================================================================

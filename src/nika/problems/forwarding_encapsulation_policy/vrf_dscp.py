@@ -23,6 +23,7 @@ from nika.problems.base import (
 )
 from nika.problems.rca import interface_resource
 from nika.problems.support.benchmark_targets import replace
+from nika.problems.support.routeros import is_routeros, ros, ros_count, ros_rows
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
 
@@ -229,9 +230,41 @@ class VrfDscpRemarking(ProblemBase):
         self._install_remark(params, self._corp_prefix)
         time.sleep(_SETTLE_SEC)
 
+    def _routeros(self, params: VrfDscpRemarkingParams) -> bool:
+        return is_routeros(self.net_env, params.host_name)
+
+    def _routeros_remarks(self, params: VrfDscpRemarkingParams) -> list[dict]:
+        # RouterOS does not filter mangle rows by out-interface; select here.
+        return [
+            row
+            for row in ros_rows(
+                self.runtime,
+                params.host_name,
+                "/ip/firewall/mangle/print terse where action=change-dscp",
+            )
+            if row.get("out-interface") == params.intf_name
+            and row.get("dscp") == str(DSCP_EF)
+            and row.get("new-dscp") == str(DSCP_CS0)
+        ]
+
     def _install_remark(self, params: VrfDscpRemarkingParams, corp_prefix: str) -> None:
         edge = params.host_name
         iface = params.intf_name
+        if self._routeros(params):
+            # Postrouting mangle runs before the queue-tree marks, as nft's
+            # mangle hook runs before tc classification on FRR edges.
+            ros(
+                self.runtime,
+                edge,
+                f"/ip firewall mangle add chain=postrouting src-address={corp_prefix} "
+                f"out-interface={iface} dscp={DSCP_EF} action=change-dscp "
+                f"new-dscp={DSCP_CS0} passthrough=yes "
+                "place-before=[:pick [/ip firewall mangle find chain=postrouting] 0]",
+            )
+            self.logger.info(
+                f"Injected DSCP EF→CS0 remark on {edge} oif={iface} saddr={corp_prefix}"
+            )
+            return
         # Ensure mangle table/chain, then EF→CS0 on CORP traffic leaving overlay.
         cmds = [
             f"nft add table ip {_NFT_TABLE} 2>/dev/null || true",
@@ -249,6 +282,8 @@ class VrfDscpRemarking(ProblemBase):
         )
 
     def _remark_present(self, params: VrfDscpRemarkingParams) -> bool:
+        if self._routeros(params):
+            return bool(self._routeros_remarks(params))
         out = self.runtime.exec(
             params.host_name,
             f"nft list chain ip {_NFT_TABLE} {_NFT_CHAIN} 2>/dev/null || true",
@@ -260,6 +295,15 @@ class VrfDscpRemarking(ProblemBase):
         )
 
     def _remove_remark(self, params: VrfDscpRemarkingParams) -> None:
+        if self._routeros(params):
+            for row in self._routeros_remarks(params):
+                ros(
+                    self.runtime,
+                    params.host_name,
+                    "/ip firewall mangle remove [find action=change-dscp "
+                    f'src-address="{row.get("src-address")}"]',
+                )
+            return
         self.runtime.exec(
             params.host_name,
             f"nft flush chain ip {_NFT_TABLE} {_NFT_CHAIN} 2>/dev/null || true; "
@@ -269,10 +313,21 @@ class VrfDscpRemarking(ProblemBase):
 
     def _smoke_ok(self, params: VrfDscpRemarkingParams) -> dict[str, bool]:
         checks: dict[str, bool] = {}
-        link = self.runtime.exec(
-            params.host_name, f"ip -o link show {params.intf_name}"
-        ).strip()
-        checks["wg_iface_up"] = bool(link) and "state DOWN" not in link
+        if self._routeros(params):
+            checks["wg_iface_up"] = (
+                ros_count(
+                    self.runtime,
+                    params.host_name,
+                    f"/interface/print count-only where name={params.intf_name} "
+                    "and running",
+                )
+                > 0
+            )
+        else:
+            link = self.runtime.exec(
+                params.host_name, f"ip -o link show {params.intf_name}"
+            ).strip()
+            checks["wg_iface_up"] = bool(link) and "state DOWN" not in link
         # The fault itself drops much of the EF traffic; any reply shows the path is up.
         checks["ef_path_ping"] = (
             ping_stats(
@@ -286,6 +341,22 @@ class VrfDscpRemarking(ProblemBase):
         checks["hq_server_http"] = http_ok(
             self.runtime, params.src_host, "http://10.0.20.2/"
         ) or http_ok(self.runtime, "br1_corp_pc", "http://10.0.20.2/")
+        if self._routeros(params):
+            checks["bgp_alive"] = (
+                ros_count(
+                    self.runtime,
+                    params.host_name,
+                    "/routing/bgp/session/print count-only where established",
+                )
+                > 0
+            )
+            corp_rib = ros(
+                self.runtime,
+                params.host_name,
+                "/routing/route/print terse where routing-table=vrf_corp and afi=ip",
+            )
+            checks["vrf_corp_rib"] = "dst-address=10." in corp_rib
+            return checks
         bgp = self.runtime.exec(params.host_name, "vtysh -c 'show bgp summary'")
         checks["bgp_alive"] = any(
             len(line.split()) >= 10 and line.split()[9].isdigit()
@@ -301,6 +372,20 @@ class VrfDscpRemarking(ProblemBase):
             )
         checks["vrf_corp_rib"] = "10." in corp_rib
         return checks
+
+    def _edge_tos(self, params: VrfDscpRemarkingParams, dst_ip: str) -> int | None:
+        # A RouterOS tunnel lives inside the VM, out of the container's reach;
+        # the source and destination samples still bound the remark.
+        if self._routeros(params):
+            return None
+        return qos_traffic.sample_dscp_tos(
+            self.runtime,
+            capture_host=params.host_name,
+            capture_iface=params.intf_name,
+            src_host=params.src_host,
+            dst_ip=dst_ip,
+            send_tos=TOS_EF,
+        )
 
     def _metrics_dict(
         self, metrics: qos_traffic.FlowMetrics | None
@@ -334,14 +419,7 @@ class VrfDscpRemarking(ProblemBase):
             dst_ip=dst_ip,
             send_tos=TOS_EF,
         )
-        edge_tos = qos_traffic.sample_dscp_tos(
-            self.runtime,
-            capture_host=params.host_name,
-            capture_iface=params.intf_name,
-            src_host=params.src_host,
-            dst_ip=dst_ip,
-            send_tos=TOS_EF,
-        )
+        edge_tos = self._edge_tos(params, dst_ip)
         dst_tos = qos_traffic.sample_dscp_tos(
             self.runtime,
             capture_host=params.dst_host,
@@ -420,14 +498,7 @@ class VrfDscpRemarking(ProblemBase):
             dst_ip=dst_ip,
             send_tos=TOS_EF,
         )
-        edge_tos = qos_traffic.sample_dscp_tos(
-            self.runtime,
-            capture_host=params.host_name,
-            capture_iface=params.intf_name,
-            src_host=params.src_host,
-            dst_ip=dst_ip,
-            send_tos=TOS_EF,
-        )
+        edge_tos = self._edge_tos(params, dst_ip)
         if self._workload is not None:
             qos_traffic.resume_bulk(self._workload)
         dscp_restored = dst_tos == TOS_EF and (edge_tos is None or edge_tos == TOS_EF)
