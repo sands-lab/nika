@@ -429,8 +429,8 @@ def _stop_session_record(
     _cleanup_session_sandbox(session_meta, session_id=session.session_id)
     backend = resolve_backend(session_meta)
     if session_meta.get("remote"):
-        # Its lab runs on a lab host this process is not connected to, e.g. a
-        # snapshot trial's VM copy, which the trial's worker discards.
+        # A remote-mode session whose lab host this process is not connected
+        # to, e.g. a Firecracker trial copy, which the trial's worker discards.
         _clear_session_record(
             session_meta,
             session_id=session.session_id,

@@ -42,9 +42,8 @@ from nika.firecracker.image import (
     require_build_space,
     root,
     variant_for_row,
-    vm_memory_mib,
 )
-from nika.firecracker.vmm import DISK, Firecracker, firecracker_binary, pid_alive
+from nika.firecracker.vmm import DISK, Firecracker, firecracker_binary
 
 ZDIFF = "mem.zdiff"
 CASE_META = "case.json"
@@ -80,6 +79,7 @@ def case_key(row: dict[str, Any]) -> str:
         "image": image_key(variant_for_row(row)),
         "case": benchmark_row_fingerprint(row),
         "root_causes": row.get("root_causes"),
+        "root_causes_status": row.get("root_causes_status"),
     }
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()[:12]
 
@@ -91,7 +91,8 @@ def _ready_case(key: str) -> CaseImage | None:
     except FileNotFoundError:
         return None
     image = _ready(meta["image"])
-    if image is None:
+    # Its memory diff applies only to the lab image build it was taken from.
+    if image is None or meta.get("image_created") != image.created:
         return None
     return CaseImage(key=key, path=path, image=image, session_id=meta["session_id"])
 
@@ -107,12 +108,13 @@ def ensure_case(row: dict[str, Any]) -> CaseImage:
         case = _ready_case(key)  # another process may have built it meanwhile
         if case is not None:
             return case
+        shutil.rmtree(cases_dir() / key, ignore_errors=True)  # of a rebuilt lab image
         _log(f"[firecracker] building case image {key} for {row['problem']}")
         started = time.monotonic()
         build = cases_dir() / f"{key}.build"
         if build.exists():
             shutil.rmtree(build)  # an interrupted build; we hold its lock
-        require_build_space(vm_memory_mib(str(row["scenario"])))
+        require_build_space(str(row["scenario"]))
         build.mkdir(parents=True)
         try:
             _build_case(build, key, row)
@@ -176,6 +178,7 @@ def _build_case(build: Path, key: str, row: dict[str, Any]) -> None:
         json.dumps(
             {
                 "image": image.key,
+                "image_created": image.created,
                 "session_id": session_id,
                 "problem": row.get("problem"),
                 "variant": variant_for_row(row),
@@ -193,7 +196,7 @@ def build_case_worker(row: dict[str, Any]) -> str:
 
 
 def list_cases() -> list[dict[str, Any]]:
-    from nika.firecracker.image import images_dir
+    from nika.firecracker.image import _builder_alive
 
     rows = []
     directory = cases_dir()
@@ -206,25 +209,31 @@ def list_cases() -> list[dict[str, Any]]:
                 builder = json.loads((path / "builder.json").read_text())
             except (OSError, ValueError):
                 builder = {}
-            alive = builder.get("host") not in (None, socket.gethostname()) or (
-                bool(builder.get("pid")) and pid_alive(int(builder["pid"]))
+            rows.append(
+                {
+                    "key": key,
+                    "path": path,
+                    "ready": False,
+                    "building": _builder_alive(builder),
+                    "current": False,
+                }
             )
-            rows.append({"key": key, "path": path, "ready": False, "building": alive})
             continue
         try:
             meta = json.loads((path / CASE_META).read_text())
         except (OSError, ValueError):
             meta = {}
-        image = meta.get("image", "")
+        image = _ready_case(key)
         rows.append(
             {
                 "key": key,
                 "path": path,
                 "ready": bool(meta),
                 "building": False,
-                "image": image,
-                # A case image is usable while its lab image is current.
-                "current": bool(meta) and _image_current(images_dir() / image),
+                "image": meta.get("image", ""),
+                # Usable while its lab image build is the current one.
+                "current": image is not None
+                and image.image.key == image_key(meta.get("variant", {})),
                 "problem": meta.get("problem"),
                 "diff_bytes": meta.get("diff_bytes", 0),
             }
@@ -232,14 +241,6 @@ def list_cases() -> list[dict[str, Any]]:
     return rows
 
 
-def _image_current(path: Path) -> bool:
-    try:
-        variant_ = json.loads((path / "meta.json").read_text()).get("variant", {})
-    except (OSError, ValueError):
-        return False
-    return bool(variant_) and path.name == image_key(variant_)
-
-
 def delete_case(row: dict[str, Any]) -> None:
+    # Lock files stay: another process may hold the one being unlinked.
     shutil.rmtree(row["path"], ignore_errors=True)
-    (root() / "locks" / f"case-{row['key']}.lock").unlink(missing_ok=True)

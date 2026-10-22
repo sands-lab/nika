@@ -133,6 +133,10 @@ class CodexProgressDetectionTest:
         )
         auth = "unexpected status 401 Unauthorized: invalid token"
         assert _fatal_codex_error_message({"type": "error", "message": auth}) == auth
+        missing = "404 Not Found: model 'x' does not exist"
+        assert (
+            _fatal_codex_error_message({"type": "error", "message": missing}) == missing
+        )
         busy = "unexpected status 503 Service Unavailable: no healthy backend"
         assert _fatal_codex_error_message({"type": "error", "message": busy}) is None
 

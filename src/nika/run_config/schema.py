@@ -47,7 +47,7 @@ class FirecrackerSettings(BaseModel):
     # paths are under the NIKA checkout, so uninstalling NIKA removes it.
     root: str = "runtime/firecracker"
     vm_cpus: int = Field(default=4, ge=1)
-    # Most Kathara labs use under 2 GiB; with huge pages every copy holds all of it.
+    # Most Kathara labs use under 2 GiB; with huge pages, admission reserves all of it.
     vm_memory: str = "4GiB"
     # Scenario id -> VM memory, for larger labs (k8s, SR Linux). Image builds
     # warn when a lab leaves too little of its VM memory free.

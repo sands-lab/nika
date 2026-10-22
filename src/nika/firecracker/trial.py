@@ -147,17 +147,20 @@ class TrialLab:
         self.timings["restore_sec"] = round(time.monotonic() - started, 2)
         uds = self.dir / VSOCK
         try:
-            # A page server that failed (e.g. ENOMEM: the huge-page pool ran
-            # dry) leaves the guest blocked on its next fault: fail now.
+            # A VM or page server that died (e.g. ENOMEM: the huge-page pool ran
+            # dry) leaves nothing to wait for: fail now.
             wait_http_ok(
                 uds,
                 DAEMON_PORT,
-                alive=lambda: server is None or server.poll() is None,
+                alive=lambda: (
+                    (server is None or server.poll() is None)
+                    and pid_alive(int(vm.pid_file.read_text()))
+                ),
             )
         except VmmError:
             log = (self.dir / "uffd.log").read_text(errors="replace").strip()
             raise VmmError(
-                f"page server exited during restore: {log.splitlines()[-1:]}"
+                f"VM or page server exited during restore: {log.splitlines()[-1:]}"
             ) from None
         self.timings["ready_sec"] = round(time.monotonic() - started, 2)
         if server is not None:

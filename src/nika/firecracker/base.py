@@ -50,7 +50,8 @@ GUEST_REPO = "/home/ubuntu/nika"
 SYNCED_FILES = ".nika-files"  # files of the last code sync, NUL-separated
 PROXY_PORT = 3128  # host CONNECT proxy, reached over vsock while building
 # Bump when the base image's contents change, to rebuild existing bases.
-BASE_VERSION = 1
+# Longest a guest command fed from a host file (e.g. ``docker load``) may take.
+STREAM_TIMEOUT_SEC = 1800
 UBUNTU_IMAGE = "ubuntu:24.04"
 ROOTFS_SIZE = "80G"
 BOOT_ARGS = (
@@ -96,6 +97,7 @@ def _stream_file(uds: Path, script: str, path: str) -> None:
 
     size = os.path.getsize(path)
     sock = connect_vsock(uds, EXEC_PORT)
+    sock.settimeout(STREAM_TIMEOUT_SEC)  # a stuck guest command must not hang the build
     try:
         sock.sendall(base64.b64encode(script.encode()) + f"\n{size}\n".encode())
         with open(path, "rb") as fh:
@@ -163,9 +165,10 @@ def _finish_in_firecracker(build_dir: Path, kernel_version: str, key: str) -> No
     disk.unlink(missing_ok=True)
     disk.symlink_to("rootfs.img")
     vm = Firecracker(build_dir, firecracker_binary())
-    vm.start()
-    proxy = HostProxy(build_dir, PROXY_PORT)
+    proxy = None
     try:
+        vm.start()
+        proxy = HostProxy(build_dir, PROXY_PORT)
         vm.boot(
             kernel=str(build_dir / "vmlinux"),
             initrd=str(build_dir / "initrd.img"),
@@ -258,7 +261,8 @@ def _finish_in_firecracker(build_dir: Path, kernel_version: str, key: str) -> No
             raise VmmError(f"images or plugins missing in the base image: {missing}")
         guest_exec(uds, "systemctl enable nika-remote >/dev/null 2>&1; sync")
     finally:
-        proxy.close()
+        if proxy is not None:
+            proxy.close()
         vm.kill()
         disk.unlink(missing_ok=True)
         for name in (VSOCK, "api.sock"):
@@ -531,7 +535,7 @@ def _vendor_images() -> list[str]:
 
 @functools.cache
 def base_key() -> str:
-    """What the base image must match: builder version, runtime images, plugins."""
+    """What the base image must match: its build scripts, runtime images, plugins."""
     images = []
     for ref in _runtime_images() + _vendor_images():
         image_id = subprocess.run(
@@ -542,7 +546,7 @@ def base_key() -> str:
         ).stdout.strip()
         images.append(f"{ref}={image_id}")
     payload = {
-        "version": BASE_VERSION,
+        "scripts": hashlib.sha256((GUEST_SETUP + PACK_ROOTFS).encode()).hexdigest(),
         "boot_args": BOOT_ARGS,
         "ubuntu": UBUNTU_IMAGE,
         "images": images,

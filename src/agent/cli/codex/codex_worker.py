@@ -176,7 +176,10 @@ class _ResponseCounter:
         return started
 
 
-_HTTP_STATUS = re.compile(r"\b(?:status(?: code)?|http)[:=]?\s*(\d{3})\b")
+_HTTP_STATUS = re.compile(
+    r"\b(?:status(?: code)?|http)[:=]?\s*(\d{3})\b"
+    r"|\b(40[134])\s+(?:unauthorized|forbidden|not found)\b"
+)
 
 
 def _fatal_codex_error_message(event: dict) -> str | None:
@@ -211,7 +214,7 @@ def _fatal_codex_error_message(event: dict) -> str | None:
     # Match HTTP statuses only as statuses: messages also carry paths and ids
     # (e.g. a workspace named after the time 11:40:15 contains "401").
     status = _HTTP_STATUS.search(lower)
-    code = int(status.group(1)) if status else None
+    code = int(status.group(1) or status.group(2)) if status else None
     if code == 404 and "not found" in lower and "model" in lower:
         return message
     if code == 401 or "401 unauthorized" in lower:

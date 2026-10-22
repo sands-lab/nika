@@ -20,6 +20,29 @@ NIKA remote daemon in the VM, exactly as in [remote lab execution](remote.md).
 `nika.execution.mode` defaults to `native` (labs on this host). Firecracker execution
 affects only `nika benchmark run`.
 
+## When to use it
+
+Use Firecracker execution when you run a benchmark release more than once on a
+host, such as several agents or models on the same tasks, or when its
+environments take minutes to deploy. On release 0.2.0's test split, the time
+trials spend outside the agent drops from 10.8 h to 0.9 h per run, and 85 tasks
+ran in 2 h 30 min including the one-time builds instead of 5 h 55 min. Scores do
+not change (see [Compatibility and scores](#compatibility-and-scores)).
+
+Firecracker execution needs:
+
+* Linux on x86-64 with KVM, on bare metal or in a VM. Labs that run VMs
+  themselves (RouterOS) do not work in a VM inside another VM.
+* A btrfs filesystem for the images: about 35 GiB for release 0.2.0's test
+  split, plus up to 20 GiB free while images are built. XFS also works, without
+  compression, at about 3.5 times the size.
+* Huge pages (recommended): the `vm_memory` of every copy that runs at once,
+  for example 24 GiB for six 4 GiB copies.
+
+Stay with native execution for a single run of a few tasks, where each
+environment would be deployed once anyway, or on a host without KVM or the
+disk.
+
 ## When it pays off
 
 Firecracker execution makes each trial cheaper in exchange for a one-time
@@ -52,6 +75,19 @@ While a lab image is built, its snapshot temporarily needs the VM's whole
 `vm_memory` (4–20 GiB) of free disk. Disk sizes are with btrfs, where NIKA stores
 images zstd-compressed (about 3.5× smaller); on XFS they are uncompressed. See
 [host setup](#set-up-the-host-once) step 3 for sizing the Firecracker root.
+
+### Compatibility and scores
+
+Restored labs behave like freshly deployed ones:
+
+* All 29 environment variants of release 0.2.0 ran from lab images with the
+  mock agent, with the same scores as native runs.
+* Full test-split runs (85 tasks × 3 trials) with Claude Code and with Codex,
+  each agent in its sandbox, finished all 255 trials; on the 85 tasks run in
+  both modes, Firecracker scored higher on 11, lower on 11 and the same on 63.
+* RouterOS and Cisco XRd labs restored with their BGP sessions up and scored as
+  in native runs; their agents started 2.3 s and 3.4 s after the trial began,
+  instead of 70 s and 120 s.
 
 ### Per environment
 
@@ -179,7 +215,7 @@ reboots. Run them as a user with `sudo`.
    grep HugePages_Total /proc/meminfo
    ```
 
-5. **userfaultfd for the `kvm` group**, used by the huge-page page server:
+5. **userfaultfd for the `kvm` group**, used by the page server that restores huge-page copies and case images:
 
    ```shell
    echo 'KERNEL=="userfaultfd", GROUP="kvm", MODE="0660"' \
@@ -211,9 +247,11 @@ reboots. Run them as a user with `sudo`.
 
 Every lab image starts from a base image (Ubuntu with Docker, NIKA and this
 host's runtime images, plus the vendor images it has, such as RouterOS; see
-[Prepare vendor images](installation.md#prepare-vendor-images)). The first Firecracker run builds it, which takes about
-20 minutes, and later runs rebuild it when this host's runtime images or Kathara
-plugins change. Code changes do not: lab images receive the current checkout.
+[Prepare vendor images](installation.md#prepare-vendor-images)). The first
+Firecracker run builds it, which takes about 20 minutes, and later runs rebuild
+it when this host's runtime images or Kathara plugins, or NIKA's base image
+setup, change. Other code changes do not: lab images receive the current
+checkout.
 
 The base is assembled in Docker containers, so it needs no `sudo`. The VM has no
 network of its own: while it is built, it reaches the network through a proxy on

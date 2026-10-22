@@ -35,15 +35,16 @@ from nika.firecracker.case import (
     wants_case_image,
 )
 from nika.firecracker.config import firecracker_settings
+from nika.firecracker.vmm import kill_pid_file
 from nika.firecracker.image import (
-    BUILD_SPACE_MARGIN_MIB,
     META,
+    build_space_mib,
     delete_image,
     ensure_image,
+    free_root_mib,
     image_key,
     images_dir,
     list_images,
-    root,
     variant_for_row,
     vm_memory_mib,
 )
@@ -66,7 +67,7 @@ def group_by_variant(trials: list[Any]) -> list[Any]:
 
 
 def build_parallelism(max_parallel: int) -> int:
-    """LabImage builds to run at once, by vCPUs (huge pages: see prebuild_images)."""
+    """Builds to run at once, by vCPUs (huge pages and disk: see _build_admitted)."""
     by_cpu = max(1, (os.cpu_count() or 1) // firecracker_settings().vm_cpus)
     return max(1, min(max_parallel, by_cpu))
 
@@ -79,13 +80,7 @@ def _build_mib(params: dict[str, Any]) -> int:
 
 
 def _disk_mib(params: dict[str, Any]) -> int:
-    """Root space a build needs: its snapshot first writes the whole VM memory."""
-    return vm_memory_mib(str(params.get("scenario"))) + BUILD_SPACE_MARGIN_MIB
-
-
-def _free_root_mib() -> int:
-    stat = os.statvfs(root())
-    return stat.f_bavail * stat.f_frsize >> 20
+    return build_space_mib(str(params.get("scenario")))
 
 
 def _build_admitted(
@@ -96,11 +91,10 @@ def _build_admitted(
     submit: Callable[[Any], Future],
     workers: int,
     label: Callable[[Any], str],
-) -> list[str]:
+) -> None:
     """Run builds, at most ``workers`` and only while huge pages and root space
     hold them (each build checks only its own need, so parallel builds would
     all pass that check and then fill the root together)."""
-    failures = []
     pool_mib = hugepage_pool_mib()
     pending = sorted(items, key=mib, reverse=True)
     running: dict[Future, Any] = {}
@@ -112,7 +106,7 @@ def _build_admitted(
             if running and pool_mib is not None and held + mib(item) > pool_mib:
                 continue
             reserved = sum(disk(i) for i in running.values())
-            if running and reserved + disk(item) > _free_root_mib():
+            if running and reserved + disk(item) > free_root_mib():
                 continue
             pending.remove(item)
             running[submit(item)] = item
@@ -126,14 +120,12 @@ def _build_admitted(
                 # A build process's traceback arrives as the exception's cause.
                 where = f"\n{exc.__cause__}" if exc.__cause__ else ""
                 print(f"[firecracker] {message}{where}", flush=True)
-                failures.append(message)
-    return failures
 
 
-def prebuild_images(trials: Iterable[Any], *, max_parallel: int) -> list[str]:
+def prebuild_images(trials: Iterable[Any], *, max_parallel: int) -> None:
     """Build the missing lab images (and case images) of ``trials``.
 
-    Returns failure messages; the trials of a failed build retry it.
+    A failed build is reported; the trials of its variant retry it.
     """
     trials = list(trials)
     ensure_base()  # build or refresh it before keys (which include its id)
@@ -146,7 +138,6 @@ def prebuild_images(trials: Iterable[Any], *, max_parallel: int) -> list[str]:
         for p in variants.values()
         if not (images_dir() / image_key(p) / META).exists()
     ]
-    failures = []
     if missing:
         workers = min(len(missing), build_parallelism(max_parallel))
         print(
@@ -155,18 +146,35 @@ def prebuild_images(trials: Iterable[Any], *, max_parallel: int) -> list[str]:
             flush=True,
         )
         with ThreadPoolExecutor(max_workers=workers) as pool:
-            failures += _build_admitted(
-                missing,
-                mib=_build_mib,
-                disk=_disk_mib,
-                submit=lambda p: pool.submit(ensure_image, p),
-                workers=workers,
-                label=lambda p: f"lab image for {p}",
-            )
-    return failures + prebuild_cases(trials, max_parallel=max_parallel)
+            try:
+                _build_admitted(
+                    missing,
+                    mib=_build_mib,
+                    disk=_disk_mib,
+                    submit=lambda p: pool.submit(ensure_image, p),
+                    workers=workers,
+                    label=lambda p: f"lab image for {p}",
+                )
+            except BaseException:
+                # Ctrl-C / SIGTERM: stop this run's build VMs, so the builder
+                # threads fail at once instead of finishing their builds.
+                pool.shutdown(wait=False, cancel_futures=True)
+                _stop_own_builds()
+                raise
+    prebuild_cases(trials, max_parallel=max_parallel)
 
 
-def prebuild_cases(trials: Iterable[Any], *, max_parallel: int) -> list[str]:
+def _stop_own_builds() -> None:
+    for build in images_dir().glob("*.build"):
+        try:
+            builder = json.loads((build / "builder.json").read_text())
+        except (OSError, ValueError):
+            continue
+        if builder.get("pid") == os.getpid():
+            kill_pid_file(build / "firecracker.pid")
+
+
+def prebuild_cases(trials: Iterable[Any], *, max_parallel: int) -> None:
     """Build the missing case images of ``trials`` (``case_images`` only).
 
     Each build runs in its own process: a process routes lab operations to one
@@ -180,7 +188,7 @@ def prebuild_cases(trials: Iterable[Any], *, max_parallel: int) -> list[str]:
         row for key, row in rows.items() if not (cases_dir() / key / CASE_META).exists()
     ]
     if not missing:
-        return []
+        return
     workers = min(len(missing), build_parallelism(max_parallel))
     print(
         f"[firecracker] building {len(missing)} case image(s) before the trials, "
@@ -189,7 +197,7 @@ def prebuild_cases(trials: Iterable[Any], *, max_parallel: int) -> list[str]:
     )
     context = multiprocessing.get_context("spawn")
     with ProcessPoolExecutor(max_workers=workers, mp_context=context) as pool:
-        return _build_admitted(
+        _build_admitted(
             missing,
             mib=lambda row: _build_mib(variant_for_row(row)),
             disk=lambda row: _disk_mib(variant_for_row(row)),

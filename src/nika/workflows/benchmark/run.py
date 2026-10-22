@@ -71,6 +71,7 @@ from nika.workflows.benchmark.load_config import load_benchmark_input
 from nika.workflows.benchmark.multi_fault import (
     flatten_inject_overrides,
     inject_overrides,
+    row_inject_args,
     row_problems,
 )
 from nika.workflows.benchmark.outcomes import (
@@ -1172,17 +1173,14 @@ def _run_trial_case(
     progress: BenchmarkProgress | None = None,
 ) -> None:
     row = trial.row
+    problems, _, expected_root_causes = row_inject_args(row)
     run_single_case(
         problem=row["problem"],
-        problems=row_problems(row),
+        problems=problems,
         scenario=row["scenario"],
         topo_size=row.get("topo_size") or "",
         inject_params=row["inject"],
-        expected_root_causes=(
-            None
-            if row.get("root_causes_status") == "unresolved"
-            else row.get("root_causes")
-        ),
+        expected_root_causes=expected_root_causes,
         candidate_option_id=row.get("candidate_option_id"),
         release_meta=release_meta,
         agent_type=agent_type,
@@ -1471,7 +1469,11 @@ def _run_trials_batch(
             )
             if index is None:
                 break
-            need = hugepage_need_mib(pending[index].row)
+            need = (
+                hugepage_need_mib(pending[index].row)
+                if hugepage_pool is not None
+                else 0
+            )
             if (
                 futures
                 and hugepage_pool is not None

@@ -57,9 +57,9 @@ GATEWAY_PORT = 8800
 STATE = "vm.state"
 MEMORY = "mem"
 META = "meta.json"
-# Linux reports freed memory about 2 s after it is freed.
 # Warn when a deployed lab leaves less than this share of its VM memory free.
 LOW_MEMORY_FRACTION = 0.25
+# Linux reports freed memory about 2 s after it is freed.
 FREE_PAGE_REPORT_SEC = 5
 # Deploy plus startup verification in a lab image build (longest seen: about
 # 10 min for isp_pdh); a lab that cannot start (e.g. too little VM memory) must
@@ -86,11 +86,9 @@ HOST_ONLY_PATHS = (
     "src/agent/byo/",
     "src/agent/cli/",
     "src/agent/community/",
-    "src/agent/llm/",
     "src/agent/sdk/",
     "src/agent/skills/",
     "src/nika/agents/mock/",
-    "src/nika/agents/sandbox/manager.py",
     "src/nika/agents/sandbox/sbx/",
     "src/nika/agents/sandbox/e2b/",
     "src/nika/evaluator/",
@@ -110,6 +108,8 @@ class LabImage:
     key: str
     path: Path
     session_id: str
+    # Build time: a rebuild under the same key is a different lab image.
+    created: float = 0.0
 
 
 def root() -> Path:
@@ -211,7 +211,12 @@ def _ready(key: str) -> LabImage | None:
         meta = json.loads((path / META).read_text())
     except FileNotFoundError:
         return None
-    return LabImage(key=key, path=path, session_id=meta["session_id"])
+    return LabImage(
+        key=key,
+        path=path,
+        session_id=meta["session_id"],
+        created=meta.get("created", 0.0),
+    )
 
 
 def _log(message: str) -> None:
@@ -247,16 +252,24 @@ def ensure_image(params: dict[str, Any]) -> LabImage:
         return _ready(key)  # type: ignore[return-value]
 
 
-def require_build_space(memory_mib: int) -> None:
+def free_root_mib() -> int:
+    stat = os.statvfs(root())
+    return stat.f_bavail * stat.f_frsize >> 20
+
+
+def build_space_mib(scenario: str) -> int:
+    """Root space a build needs: its snapshot first writes the whole VM memory."""
+    return vm_memory_mib(scenario) + BUILD_SPACE_MARGIN_MIB
+
+
+def require_build_space(scenario: str) -> None:
     """Fail before a build that could fill the Firecracker root.
 
-    A snapshot writes the whole VM memory before its unused part becomes holes,
-    and a full btrfs root fails every build and trial (and the run's own logs
-    when they live there).
+    A full btrfs root fails every build and trial (and the run's own logs when
+    they live there).
     """
-    stat = os.statvfs(root())
-    free_mib = stat.f_bavail * stat.f_frsize >> 20
-    need_mib = memory_mib + BUILD_SPACE_MARGIN_MIB
+    free_mib = free_root_mib()
+    need_mib = build_space_mib(scenario)
     if free_mib < need_mib:
         raise RuntimeError(
             f"Only {free_mib / 1024:.0f} GiB free on {root()}; a build needs about "
@@ -286,7 +299,7 @@ def _build(build: Path, key: str, params: dict[str, Any]) -> None:
         # An interrupted build (we hold its lock): stop its VM before deleting it.
         kill_pid_file(build / "firecracker.pid")
         shutil.rmtree(build)
-    require_build_space(vm_memory_mib(str(params.get("scenario"))))
+    require_build_space(str(params.get("scenario")))
     build.mkdir(parents=True)
     (build / "builder.json").write_text(
         json.dumps(
@@ -491,5 +504,5 @@ def _builder_alive(builder: dict[str, Any]) -> bool:
 
 def delete_image(row: dict[str, Any]) -> None:
     kill_pid_file(Path(row["path"]) / "firecracker.pid")
+    # Lock files stay: another process may hold the one being unlinked.
     shutil.rmtree(row["path"], ignore_errors=True)
-    (root() / "locks" / f"{row['key']}.lock").unlink(missing_ok=True)

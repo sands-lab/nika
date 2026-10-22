@@ -172,6 +172,7 @@ The last command now prints the loopback qdisc without a password prompt.
 | The Kathará Docker network plugin and `~/.config/kathara.conf` | apt packages that older installers added: clang, skopeo |
 | `/etc/sysctl.d/99-nika-inotify.conf`, with the original inotify limits restored | The source tree |
 | `/etc/sudoers.d/nika-host-tc` | `.env` and `config/` |
+| The [Firecracker](firecracker.md) host settings: the userfaultfd udev rule and the GRUB huge-pages file (huge pages stay reserved until the next reboot) | |
 | The `clab_admins` group, plus the Containerlab package, `/etc/containerlab`, and `/usr/local/bin/gnmic` that older installers added | `results/` |
 | `.venv` (including `clab` and `gnmic`), `.nika_cache` (including uv and its cache, XRd tarballs, and CHR downloads), and `runtime/`, including [Firecracker](firecracker.md) images (a btrfs loop file mounted at `runtime/firecracker` is unmounted and its `/etc/fstab` line removed first) | Firecracker images in a `root` you set outside the checkout |
 

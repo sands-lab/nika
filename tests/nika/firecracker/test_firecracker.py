@@ -16,7 +16,6 @@ from nika.remote.config import (
 from nika.run_config.loader import reset_run_config, set_run_config
 from nika.run_config.schema import RunConfig, FirecrackerSettings
 from nika.firecracker import image
-from nika.firecracker.trial import trial_dir
 
 pytestmark = pytest.mark.unit
 
@@ -94,18 +93,6 @@ def test_image_key_tracks_variant_and_code(monkeypatch: pytest.MonkeyPatch) -> N
     assert key == image.image_key(params)
     monkeypatch.setattr(image, "binary_id", lambda path: "fc-2")
     assert key != image.image_key(params)
-
-
-def test_trial_dirs_are_stable_per_trial(tmp_path) -> None:
-    set_run_config(
-        RunConfig.model_validate(
-            {"nika": {"execution": {"firecracker": {"root": str(tmp_path)}}}}
-        )
-    )
-    first = trial_dir("dc_clos__link_down__t01__rabc")
-    assert first == trial_dir("dc_clos__link_down__t01__rabc")
-    assert first != trial_dir("dc_clos__link_down__t02__rabc")
-    assert first.parent.name == "trials"
 
 
 def test_image_build_liveness_protects_running_builds() -> None:
@@ -333,28 +320,28 @@ def test_case_images_follow_lab_image_and_case(monkeypatch: pytest.MonkeyPatch) 
     assert not case.wants_case_image(row)
 
 
-def test_root_is_under_the_checkout_and_compresses_images(tmp_path) -> None:
+def test_root_is_under_the_checkout_and_compresses_images(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     import os
 
-    from nika.config import REPO_ROOT
+    import nika.config
     from nika.firecracker import config
 
     set_run_config(RunConfig())
     assert config.firecracker_settings().root == "runtime/firecracker"
-    root = tmp_path / "fc"
-    set_run_config(
-        RunConfig.model_validate(
-            {"nika": {"execution": {"firecracker": {"root": str(root)}}}}
-        )
-    )
-    assert config.firecracker_root() == root
+    monkeypatch.setattr(nika.config, "REPO_ROOT", tmp_path)
+    root = config.firecracker_root()
+    assert root == tmp_path / "runtime" / "firecracker"
     assert (root / "images").is_dir() and (root / "trials").is_dir()
     try:
-        assert os.getxattr(root / "images", "btrfs.compression") == b"zstd"
-        assert os.getxattr(root / "trials", "btrfs.compression") == b"none"
+        flags = tuple(
+            os.getxattr(root / name, "btrfs.compression")
+            for name in ("images", "trials")
+        )
     except OSError:
-        pass  # not btrfs: nothing to set
-    assert not str(config.firecracker_root()).startswith(str(REPO_ROOT / "runtime"))
+        return  # not btrfs (e.g. tmpfs): compression is not set
+    assert flags == (b"zstd", b"none")
 
 
 def test_unix_sockets_work_in_deep_vm_directories(tmp_path) -> None:
@@ -377,3 +364,27 @@ def test_unix_sockets_work_in_deep_vm_directories(tmp_path) -> None:
     client.close()
     server.close()
     assert path.exists()
+
+
+def test_case_image_needs_the_lab_image_build_it_was_taken_from(tmp_path) -> None:
+    import json
+
+    from nika.firecracker import case
+
+    set_run_config(
+        RunConfig.model_validate(
+            {"nika": {"execution": {"firecracker": {"root": str(tmp_path)}}}}
+        )
+    )
+    lab = tmp_path / "images" / "lab1"
+    lab.mkdir(parents=True)
+    (lab / "meta.json").write_text(json.dumps({"session_id": "s", "created": 1.0}))
+    kept = tmp_path / "cases" / "case1"
+    kept.mkdir(parents=True)
+    (kept / "case.json").write_text(
+        json.dumps({"image": "lab1", "image_created": 1.0, "session_id": "c"})
+    )
+    assert case._ready_case("case1") is not None
+    # The lab image was rebuilt under the same key: its memory differs.
+    (lab / "meta.json").write_text(json.dumps({"session_id": "s", "created": 2.0}))
+    assert case._ready_case("case1") is None

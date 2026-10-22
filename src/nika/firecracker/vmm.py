@@ -219,15 +219,33 @@ def pid_alive(pid: int) -> bool:
 
 
 def kill_pid_file(path: Path) -> None:
+    """SIGKILL the VM or page server whose pid ``path`` holds, if it is still ours.
+
+    A pid file can outlive its process (a crash, a reboot); the pid may then
+    belong to another process, so only one running in, or naming, the pid
+    file's directory is killed.
+    """
     try:
         pid = int(path.read_text())
     except (OSError, ValueError):
+        return
+    run_dir = str(path.parent)
+    try:
+        cwd = os.readlink(f"/proc/{pid}/cwd")
+        cmdline = Path(f"/proc/{pid}/cmdline").read_bytes().decode(errors="replace")
+    except OSError:
+        return  # gone, or not ours to read
+    if cwd != run_dir and run_dir not in cmdline:
         return
     try:
         os.kill(pid, signal.SIGKILL)
     except ProcessLookupError:
         return
     for _ in range(100):
+        try:
+            os.waitpid(pid, os.WNOHANG)  # reap it when it is our child
+        except ChildProcessError:
+            pass
         if not pid_alive(pid):
             return
         time.sleep(0.02)
@@ -372,6 +390,11 @@ class VsockForwarder:
 
     def close(self) -> None:
         self._closed.set()
+        try:
+            # Wakes the accept thread; close() alone leaves it listening.
+            self._server.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
         try:
             self._server.close()
         except OSError:

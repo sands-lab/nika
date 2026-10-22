@@ -46,7 +46,7 @@ def _changed_pages(base: Path, case: Path, start: int, length: int) -> list[int]
     return pages
 
 
-def encode(base: Path, case: Path, out: Path, *, level: int = 3) -> dict[str, int]:
+def encode(base: Path, case: Path, out: Path) -> dict[str, int]:
     """Write the diff of ``case`` against ``base`` to ``out``; return its sizes."""
     size = os.stat(case).st_size
     chunks = range(0, size, READ)
@@ -58,7 +58,7 @@ def encode(base: Path, case: Path, out: Path, *, level: int = 3) -> dict[str, in
             )
             for page in part
         ]
-    cctx = zstandard.ZstdCompressor(level=level)
+    cctx = zstandard.ZstdCompressor(level=3)
     frames = []
     with open(case, "rb") as fc:
         mm = mmap.mmap(fc.fileno(), 0, prot=mmap.PROT_READ) if size else b""

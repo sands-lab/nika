@@ -18,7 +18,7 @@ def _load_run_config(run_config: str | None) -> None:
 
 
 @firecracker_app.command("list")
-def snapshot_list(
+def images_list(
     run_config: str | None = typer.Option(
         None, "--run-config", envvar=ENV_RUN_CONFIG, help="Path to config/nika.yaml."
     ),
@@ -62,7 +62,7 @@ def snapshot_list(
 
 
 @firecracker_app.command("clean")
-def snapshot_clean(
+def images_clean(
     all_images: bool = typer.Option(
         False,
         "--all",

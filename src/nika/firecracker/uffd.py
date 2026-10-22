@@ -49,9 +49,6 @@ def _copy(fd: int, dst: int, src: int, length: int) -> int:
             fcntl.ioctl(fd, UFFDIO_COPY, buf, True)
         except OSError as exc:
             if exc.errno == errno.ENOMEM:
-                copied = struct.unpack_from("q", buf, 32)[0]
-                if copied > 0:
-                    return copied  # the caller continues after these pages
                 if deadline is None:
                     deadline = time.monotonic() + ENOMEM_WAIT_SEC
                     print("huge pages exhausted; waiting", file=sys.stderr, flush=True)
@@ -156,6 +153,8 @@ def serve(socket_path: str, memory_file: str, memory_diff: str | None = None) ->
                 page = addr & ~(size - 1)
                 _copy(uffd, page, base + region["offset"] + page - start, size)
                 return
+        # Unanswered, the vCPU would wait forever; exiting stops the VM.
+        raise SystemExit(f"page fault at {addr:#x} outside guest memory")
 
     def prefetch() -> None:
         # Only the file's data: holes are memory the guest never used (or
