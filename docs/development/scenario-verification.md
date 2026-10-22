@@ -273,8 +273,13 @@ estimates limit experiment size. Native router containers also have matching
 Large graphs can be compiled offline without claiming that native execution was
 validated.
 
-Per-node mixed-vendor deployments are not supported: one `device_profile`
-applies to every router in a deployment.
+In ISP environments, one `device_profile` applies to every router. In `dc_clos`,
+`campus_lan` and `enterprise_branch`, `device_profile: iosxr` runs only the routers
+of the eligible roles on XR, and the other nodes keep FRR/Linux. These experiments
+complete the FRR sketch, translate each eligible router's completed configuration
+to IOS XR, and analyze the XR and FRR configurations together in one Batfish
+snapshot. The `-iosxr` specimens in `experiment/scenario_validation` retain the FRR
+specimens' requirements and replace only the XR-specific negative controls.
 
 ### RouterOS routers in Ethernet environments
 
@@ -352,6 +357,7 @@ The same construction path covers these existing routing sketches:
 | ISP RouterOS | OSPF; no BGP, iBGP RR or eBGP (netlab has no RouterOS IS-IS) | RouterOS exact-prefix filters and local preference |
 | Clos and campus FRR | Ethernet OSPF or eBGP, including solved export policies | Linux addressing, switching and services |
 | Enterprise FRR | Tunnel-endpoint BGP and prefix/preference policies | WireGuard lifecycle and existing default-to-business VRF imports |
+| Clos, campus and enterprise with IOS XR routers | The same sketches, with eligible routers generated as netlab `iosxr` devices | Static routes, eBGP multipath and open eBGP policies on the XR routers |
 | SR Linux BGP fabric | IPv4 BGP and solved export policies | Existing IPv6 interface addressing |
 | Direct IOS XR and RouterOS BGP | Fixed addressed peers and connected origins | RouterOS exact-prefix export filters |
 | FRR OSPF/eBGP security profiles | Base interfaces, protocols, origins and ordinary policies | Existing RPKI/RTBH policy fragments and runtime attachments |

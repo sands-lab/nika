@@ -12,8 +12,12 @@ from nika.net_env.native_routers import (
     NativeRouterPlatform,
     NativeRouterValidation,
 )
-from nika.net_env.utils.iosxr.common import build_xr_config_command, iosxr_interface
-from nika.net_env.utils.iosxr.frr import convert_frr_routers
+from nika.net_env.utils.iosxr.common import (
+    CONFIG_FILE_PATH,
+    build_xr_config_command,
+    iosxr_interface,
+)
+from nika.net_env.utils.iosxr.frr import convert_frr_routers, retained_netlab_fragment
 
 
 def _check_deployable(env) -> None:
@@ -105,6 +109,9 @@ PLATFORM = NativeRouterPlatform(
         running_config_command="/pkg/bin/xr_cli 'show running-config'",
         restore_command=_restore_command,
         route_inspection_command="/pkg/bin/xr_cli 'show route'",
+        config_file=CONFIG_FILE_PATH,
+        netlab_device="iosxr",
+        netlab_retained=retained_netlab_fragment,
     ),
 )
 

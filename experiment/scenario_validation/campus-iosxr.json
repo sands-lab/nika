@@ -898,8 +898,8 @@
     {
       "name": "wrong-downstream-route",
       "node": "router_core_2",
-      "old": "\nend\n",
-      "new": "\nrouter static\n address-family ipv4 unicast\n  10.200.0.0/24 Null0\n !\n!\nend\n",
+      "old": "hostname router_core_2\n",
+      "new": "hostname router_core_2\nrouter static\n address-family ipv4 unicast\n  10.200.0.0/24 Null0\n !\n!\n",
       "expected_failed_ids": [
         "path.server.core1.router_core_2",
         "reach.router_dist_1_1.server_access_router",

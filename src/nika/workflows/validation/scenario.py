@@ -41,6 +41,10 @@ from nika.workflows.validation.scenario_spec import (
 from nika.workflows.validation.scenario_build import scenario_start_kwargs
 
 
+# XR commits and configuration replacement can take a minute on a loaded host.
+NATIVE_CONFIG_TIMEOUT_SEC = 300
+
+
 def restore_link_routes(env, backend, host_name: str, intf_name: str):
     """Restore declared kernel routes removed by administrative interface-down.
 
@@ -380,6 +384,10 @@ def validate_scenario_design(
             retained.append("iBGP attachment of upstream-generated admission policies")
         if "import_preferences" in env.ROUTING_PARAMETER_KINDS:
             retained.append("default-to-business VRF imports")
+        if native_routers:
+            retained.append(
+                "native router static routes, eBGP multipath and open eBGP policies"
+            )
         if getattr(env, "rpki", False) or getattr(env, "rtbh", False):
             retained.append("RPKI/RTBH security policy and runtime attachments")
         if retained:
@@ -551,6 +559,13 @@ def validate_scenario_design(
             session = Session().load_running_session(session_id)
             backend = runtime_for_session(session)
 
+            def run_config(node, command):
+                """Run a configuration operation; native routers commit slowly."""
+                result = backend.exec(node, command, timeout=NATIVE_CONFIG_TIMEOUT_SEC)
+                if result.startswith("[TIMEOUT]"):
+                    raise RuntimeError(f"Configuration operation timed out on {node}")
+                return result
+
             def check(name, contract):
                 deadline = time.monotonic() + spec.convergence_timeout_sec
                 while True:
@@ -625,7 +640,7 @@ def validate_scenario_design(
                 # Native routers restore the running configuration read before
                 # injection, like FRR restores its candidate file.
                 native_originals = {
-                    node: backend.exec(
+                    node: run_config(
                         node, native_validation(node).running_config_command
                     )
                     for node in failure.restore_nodes
@@ -744,7 +759,7 @@ def validate_scenario_design(
                             f"printf %s {shlex.quote(config)} > /etc/frr/frr.conf && service frr restart",
                         )
                     for node, running in native_originals.items():
-                        backend.exec(
+                        run_config(
                             node, native_validation(node).restore_command(running)
                         )
                 check(failure.name + "-restored", spec.healthy)
@@ -820,7 +835,10 @@ def validate_scenario_design(
                             ["vtysh"]
                             + [item for line in commands for item in ("-c", line)]
                         )
-                    backend.exec(mutation.node, command)
+                    with (output / ("runtime-config-" + mutation.name + ".log")).open(
+                        "a"
+                    ) as log:
+                        log.write(run_config(mutation.node, command) + "\n")
 
                 try:
                     configure(mutation.commands)

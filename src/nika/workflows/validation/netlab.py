@@ -346,7 +346,14 @@ def bind_netlab_controls(spec, configs, device_profile):
             old, new = _ospf_binding(config, old, new)
         elif mutation.name == "missing-loopback-announcement":
             if device_profile == "iosxr":
-                old, new = "  interface Loopback0\n", ""
+                # Remove the whole passive loopback binding from the IGP.
+                (old,) = re.findall(
+                    r"^  interface Loopback0\n   passive enable\n"
+                    r"|^ interface Loopback0\n  passive\n  address-family ipv4\n",
+                    config,
+                    re.M,
+                )
+                new = ""
                 context = {
                     "router ospf CORE": "router ospf 1",
                     "area 0": "area 0.0.0.0",

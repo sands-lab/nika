@@ -22,11 +22,11 @@ NATIVE_ISP_CASES = [
     )
 ] + [
     (vendor, topology, bgp_mode, "isis")
-    for vendor, topology, bgp_mode in (
-        ("iosxr", "arpanet196912", "ibgp_rr"),
-        ("routeros", "arpanet196912", "none"),
-        ("routeros", "arpanet196912", "ibgp_rr"),
-        ("routeros", "dataxchange", "ebgp"),
+    for vendor in ("iosxr", "routeros")
+    for topology, bgp_mode in (
+        ("arpanet196912", "none"),
+        ("arpanet196912", "ibgp_rr"),
+        ("dataxchange", "ebgp"),
     )
 ]
 

@@ -64,11 +64,12 @@ def overlay_topology(env):
         raise ValueError(
             "netlab tunnel construction requires an explicit BGP import sketch"
         )
-    configs = {
-        n: m.fs.readtext("etc/frr/frr.conf")
-        for n, m in env.lab.machines.items()
-        if m.fs and m.fs.exists("etc/frr/frr.conf")
-    }
+    from nika.net_env.native_routers import router_sketches
+    from nika.net_env.synthesis.netlab_kathara import native_netlab_routers
+
+    sketches = router_sketches(env)
+    configs = {name: config for name, (config, _) in sketches.items()}
+    native = native_netlab_routers(env)
     topology = {
         "name": "nika",
         "provider": "clab",
@@ -143,8 +144,12 @@ def overlay_topology(env):
                     sorted((str(IPv4Interface(address).ip), peer.remote_address))
                 )
                 links[key].append(endpoint)
+        if name in native:
+            if local_peers:
+                raise ValueError("netlab overlay peers must run FRR")
+            node["device"] = native[name].netlab_device
         topology["nodes"][name] = node
-        startup = env.lab.fs.readtext(name + ".startup")
+        startup = sketches[name][1]
         vrf_interfaces = set(
             re.findall(r"ip link set dev (eth[0-9]+) master vrf_\S+", startup)
         )
@@ -155,7 +160,9 @@ def overlay_topology(env):
             seen.add(interface)
             endpoint = {
                 "node": name,
-                "ifname": interface,
+                "ifname": native[name].interface(interface)
+                if name in native
+                else interface,
                 "ipv4": address,
             }
             if local_peers:
@@ -182,4 +189,8 @@ def generate_overlay_configs(env, directory: Path):
     }
     if actual != expected:
         raise ValueError("netlab-derived tunnel peers differ from the original sketch")
-    return {name: text + retained.get(name, "") for name, text in configs.items()}
+    from nika.net_env.synthesis.netlab_kathara import retain_native_statements
+
+    return retain_native_statements(
+        env, {name: text + retained.get(name, "") for name, text in configs.items()}
+    )

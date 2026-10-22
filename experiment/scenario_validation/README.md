@@ -39,7 +39,7 @@ Run one specification through synthesis, static checks, native execution, declar
 uv run python experiment/scenario_validation/experiment.py experiment/scenario_validation/clos.json --output /tmp/routing-clos --runtime
 ```
 
-Use `campus.json`, `enterprise.json`, `clos-m.json` or `min3clos.json` for the other specimens. `clos-routeros.json`, `campus-routeros.json` and `enterprise-routeros.json` run the same sequence with RouterOS routers; see [RouterOS routers in Ethernet environments](../../docs/development/scenario-verification.md#routeros-routers-in-ethernet-environments). The two-router vendor scenarios derive their specification from the scenario's own router declarations instead:
+Use `campus.json`, `enterprise.json`, `clos-m.json` or `min3clos.json` for the other specimens. To run the eligible Clos, campus or enterprise routers on Cisco IOS XR, use `clos-iosxr.json`, `campus-iosxr.json` or `enterprise-iosxr.json`; they need the XRd image. `clos-routeros.json`, `campus-routeros.json` and `enterprise-routeros.json` run the same sequence with RouterOS routers; see [RouterOS routers in Ethernet environments](../../docs/development/scenario-verification.md#routeros-routers-in-ethernet-environments). The two-router vendor scenarios derive their specification from the scenario's own router declarations instead:
 
 ```bash
 uv run python experiment/scenario_validation/experiment.py --direct-bgp iosxr_simple_bgp --routing-model iosxr-bgp --output /tmp/routing-xrd --runtime
@@ -117,6 +117,12 @@ business VRF imports into default-table origins and leaves VRF-local tables
 unmodeled. The comparison covers only what the projection models; OSPF network
 type, timers and the community types sent to peers are not compared.
 
+With `--device-profile iosxr`, `dc_clos`, `campus_lan` and `enterprise_branch`
+compare the eligible XR routers and the remaining FRR routers in one snapshot.
+netlab generates those routers as `iosxr` devices; NIKA appends the static routes,
+eBGP multipath and open eBGP policies of their FRR design, which the pinned XR
+templates do not emit.
+
 ## Reuse a saved construction
 
 Load the original deployment choices and completed parameters into the normal startup API:
@@ -156,10 +162,17 @@ Batfish checks original predicates against the final candidate configuration. Na
 | FRR OSPF/BGP | Native configuration parser | Sessions, routes, flows and declared fault/recovery behavior |
 | FRR IS-IS | Restricted translation of concrete IPv4 Level-2 configuration to IOS XR | Original IS-IS, ordinary iBGP RR and direct eBGP predicates |
 | Nokia SR Linux | Restricted concrete-configuration projection | Original IGP/BGP predicates on SR Linux |
-| Cisco IOS XR | Native parser | Original ISP OSPF or IS-IS/BGP and direct eBGP predicates on XRd |
+| Cisco IOS XR | Native parser | Original ISP OSPF or IS-IS/BGP, direct eBGP, and Clos, campus and enterprise predicates on XRd |
 | MikroTik RouterOS | Restricted concrete IPv4 OSPF/BGP projection; IS-IS through the IOS XR IS-IS projection; converted Ethernet routers projected back to FRR | Original predicates on RouterOS; no BGP ECMP |
 | Enterprise | Explicit static-underlay projection | WireGuard, VRF routing and isolation |
 | Clos ECMP | Routing model | Installed ECMP sets, including FRR multipath limits |
+
+In Clos, campus and enterprise specimens with `device_profile: iosxr`, NetComplete
+solves the FRR sketch, and each eligible router runs the XR translation of its
+completed configuration. One Batfish snapshot holds the XR configurations and the
+remaining FRR configurations. Native checks read each requirement on the router
+that observes it, and registered faults on an XR router are undone by replacing
+its running configuration with the one read before injection.
 
 The pinned Batfish image includes an [FRR next-hop correction](../../scripts/batfish/frr-next-hop-self.patch). Projections reject unsupported statements instead of silently assigning them supported semantics. Static/native agreement covers the declared experiments, rather than universal implementation equivalence.
 

@@ -549,7 +549,7 @@
       "commands": [
         "router bgp 65200",
         "address-family ipv4 unicast",
-        "maximum-paths ebgp 1"
+        "no maximum-paths ebgp 32"
       ],
       "recovery": [
         "router bgp 65200",
