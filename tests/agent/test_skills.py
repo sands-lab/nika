@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import tempfile
 from pathlib import Path
 
@@ -7,6 +8,7 @@ import pytest
 
 from agent.cli.opencode.opencode_worker import SKILLS_DEST as OPENCODE_SKILLS_DEST
 from agent.utils.skills import (
+    DEFAULT_SKILLS_ROOT,
     TEST_SKILL_NAME,
     claude_skills_package_dir,
     diagnosis_prompt_with_skills,
@@ -87,6 +89,19 @@ class SkillsConfigTest:
             == OVERALL_DIAGNOSIS_PROMPT
         )
 
+    def test_diagnosis_prompt_stays_generic_when_test_skill_is_in_the_tree(
+        self, set_skills
+    ) -> None:
+        workspace = set_skills(True)
+        src = resolve_test_skill_dir()
+        assert src is not None
+        dest = workspace / "skills" / "skills" / TEST_SKILL_NAME
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(src, dest)
+        prompt = diagnosis_prompt_with_skills(OVERALL_DIAGNOSIS_PROMPT)
+        assert SKILLS_PROMPT_SUFFIX in prompt
+        assert TEST_SKILLS_PROMPT_SUFFIX not in prompt
+
 
 class SkillsWorkspaceTest:
     def test_prepare_claude_workspace_excludes_test_skill_by_default(self) -> None:
@@ -101,6 +116,26 @@ class SkillsWorkspaceTest:
         with tempfile.TemporaryDirectory() as tmp:
             workspace = Path(tmp)
             prepare_claude_workspace(workspace, include_test_skill=True)
+            assert (
+                workspace / ".claude" / "skills" / TEST_SKILL_NAME / "SKILL.md"
+            ).exists()
+
+    def test_prepare_claude_workspace_links_a_skill_already_in_the_package_tree(
+        self, set_skills
+    ) -> None:
+        host = set_skills(True)
+        src = resolve_test_skill_dir()
+        assert src is not None
+        shutil.copytree(DEFAULT_SKILLS_ROOT, host / "skills", dirs_exist_ok=True)
+        for dest in (
+            host / "skills" / "skills" / TEST_SKILL_NAME,
+            host / "skills" / ".claude" / "skills" / TEST_SKILL_NAME,
+        ):
+            if not dest.exists():
+                shutil.copytree(src, dest)
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            prepare_claude_workspace(workspace)
             assert (
                 workspace / ".claude" / "skills" / TEST_SKILL_NAME / "SKILL.md"
             ).exists()
@@ -123,6 +158,25 @@ class SkillsWorkspaceTest:
                 workspace / ".agents" / "skills" / TEST_SKILL_NAME / "SKILL.md"
             ).exists()
             assert TEST_SKILL_NAME in (workspace / "AGENTS.md").read_text(
+                encoding="utf-8"
+            )
+
+    def test_prepare_codex_workspace_links_a_skill_already_in_the_package_tree(
+        self, set_skills
+    ) -> None:
+        host = set_skills(True)
+        src = resolve_test_skill_dir()
+        assert src is not None
+        dest = host / "skills" / "skills" / TEST_SKILL_NAME
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(src, dest)
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            prepare_codex_workspace(workspace)
+            assert (
+                workspace / ".agents" / "skills" / TEST_SKILL_NAME / "SKILL.md"
+            ).exists()
+            assert TEST_SKILL_NAME not in (workspace / "AGENTS.md").read_text(
                 encoding="utf-8"
             )
 
@@ -165,6 +219,32 @@ class SkillAssertionTest:
             }
         ]
         assert skill_invoked(messages)
+
+    def test_skill_invoked_from_opencode_skill_tool(self) -> None:
+        messages = [
+            {
+                "event": "tool_start",
+                "tool": {"name": "skill"},
+                "input": '{"name": "skill-loading-check"}',
+            }
+        ]
+        assert skill_invoked(messages)
+
+    def test_marker_ignores_lowercase_skill_tool(self) -> None:
+        messages = [
+            {
+                "event": "tool_start",
+                "tool": {"name": "skill"},
+                "input": '{"name": "skill-loading-check"}',
+            },
+            {"event": "llm_end", "text": "SKILL_LOADING_CHECK_ACTIVE"},
+            {
+                "event": "tool_start",
+                "tool": {"name": "get_reachability"},
+                "input": "{}",
+            },
+        ]
+        assert marker_before_first_mcp_tool(messages)
 
     def test_skill_invoked_from_claude_event(self) -> None:
         messages = [

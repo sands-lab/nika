@@ -82,6 +82,11 @@ def assert_no_codex_tool_item_mirrors(messages: list[dict]) -> None:
     )
 
 
+def _is_skill_tool(name: str) -> bool:
+    """Claude Code uses ``Skill``; OpenCode and dsh use lowercase ``skill``."""
+    return name.lower() == "skill"
+
+
 def _extract_tool_names(entry: dict) -> list[str]:
     names: list[str] = []
     if entry.get("event") == "tool_start" and "tool" in entry:
@@ -130,7 +135,7 @@ def skill_invoked(
     for entry in messages:
         if entry.get("event") == "tool_start":
             tool = entry.get("tool") or {}
-            if tool.get("name") == "Skill" and skill_name in str(
+            if _is_skill_tool(str(tool.get("name") or "")) and skill_name in str(
                 entry.get("input", "")
             ):
                 return True
@@ -140,8 +145,8 @@ def skill_invoked(
             for block in message.get("content") or []:
                 if not isinstance(block, dict) or block.get("type") != "tool_use":
                     continue
-                if block.get("name") == "Skill" and skill_name in json.dumps(
-                    block.get("input") or {}, ensure_ascii=False
+                if _is_skill_tool(str(block.get("name") or "")) and skill_name in (
+                    json.dumps(block.get("input") or {}, ensure_ascii=False)
                 ):
                     return True
         text = _message_text(entry)
@@ -160,6 +165,6 @@ def marker_before_first_mcp_tool(
         if marker in text:
             return True
         for tool_name in _extract_tool_names(entry):
-            if tool_name and tool_name != "Skill":
+            if tool_name and not _is_skill_tool(tool_name):
                 return False
     return False
