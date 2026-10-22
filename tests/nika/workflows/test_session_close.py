@@ -18,7 +18,7 @@ from nika.workflows.session.close import (
 @pytest.fixture(autouse=True)
 def _no_host_sbx_side_effects():
     """Unit tests must not invoke the real ``sbx`` CLI (live benchmarks)."""
-    with patch("agent.sandbox.sbx.client.sbx_available", return_value=False):
+    with patch("nika.agents.sandbox.sbx.client.sbx_available", return_value=False):
         yield
 
 
@@ -90,7 +90,7 @@ def test_close_session_cleans_owned_sbx_before_undeploy(
         patch("nika.remote.config.is_remote_enabled", return_value=False),
         patch("nika.workflows.session.close.get_net_env_instance", return_value=env),
         patch(
-            "agent.sandbox.sbx.cleanup.cleanup_sbx_for_session",
+            "nika.agents.sandbox.sbx.cleanup.cleanup_sbx_for_session",
             side_effect=_cleanup,
         ) as cleanup_mock,
     ):
@@ -107,10 +107,12 @@ def test_close_session_cleans_owned_sbx_before_undeploy(
 
 @pytest.mark.unit
 def test_sandbox_cleanup_skips_sessions_without_a_sandbox() -> None:
-    from agent.sandbox.backend import cleanup_sandbox_for_session
+    from nika.agents.sandbox.backend import cleanup_sandbox_for_session
 
     # No sandbox_backend: no sandboxed agent ran, so no backend is asked.
-    with patch("agent.sandbox.sbx.cleanup.cleanup_sbx_for_session") as sbx_cleanup:
+    with patch(
+        "nika.agents.sandbox.sbx.cleanup.cleanup_sbx_for_session"
+    ) as sbx_cleanup:
         meta = {"session_id": "s1", "agent_session_id": "a1"}
         assert cleanup_sandbox_for_session(meta) is None
     sbx_cleanup.assert_not_called()
@@ -399,6 +401,8 @@ def test_update_session_keeps_document_on_lookup_path(tmp_path: Path) -> None:
 def test_resolve_runtime_workdir_uses_backend_root(tmp_path: Path, monkeypatch) -> None:
     runtime_dir = tmp_path / "runtime"
     monkeypatch.setattr("nika.workflows.session.close.RUNTIME_DIR", runtime_dir)
+    clab_dir = tmp_path / "labs"
+    monkeypatch.setattr("nika.workflows.session.close.CLAB_RUNTIME_DIR", clab_dir)
 
     kathara_meta = {
         "lab_name": "k8s_lab__abc",
@@ -415,10 +419,7 @@ def test_resolve_runtime_workdir_uses_backend_root(tmp_path: Path, monkeypatch) 
         _resolve_runtime_workdir(kathara_meta)
         == runtime_dir / "kathara" / "k8s_lab__abc"
     )
-    assert (
-        _resolve_runtime_workdir(clab_meta)
-        == runtime_dir / "containerlab" / "dc_clos__abc"
-    )
+    assert _resolve_runtime_workdir(clab_meta) == clab_dir / "dc_clos__abc"
 
 
 @pytest.mark.unit
@@ -467,3 +468,25 @@ def test_mcp_session_meta_falls_back_to_run_json(tmp_path: Path, monkeypatch) ->
     meta = get_session_meta()
     assert meta["lab_name"] == lab_name
     assert meta["session_dir"] == str(session_dir)
+
+
+@pytest.mark.unit
+def test_wipe_does_not_follow_a_foreign_containerlab_root(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """The predictable /tmp root is only used when it is this user's directory."""
+    from nika.workflows.session.close import wipe_runtime_artifacts
+
+    for name in ("RUNTIME_DIR", "SESSIONS_DIR", "SESSIONS_DB"):
+        monkeypatch.setattr(
+            f"nika.workflows.session.close.{name}", tmp_path / "runtime" / name
+        )
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    (elsewhere / "keep").write_text("x")
+    root = tmp_path / "labs"
+    root.symlink_to(elsewhere)
+    monkeypatch.setattr("nika.config.CLAB_RUNTIME_DIR", root)
+
+    wipe_runtime_artifacts()
+    assert (elsewhere / "keep").exists()

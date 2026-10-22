@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from agent.utils.mcp_client import load_session_mcp_config
+from nika.agents.mcp_config import load_session_mcp_config
 
 pytestmark = pytest.mark.unit
 

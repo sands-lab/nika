@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import pytest
 
-from agent.sandbox.tunnel import RELAY_SCRIPT, TunnelBridge
+from nika.agents.sandbox.tunnel import RELAY_SCRIPT, TunnelBridge
 from nika.utils.net import pick_free_port
 
 pytestmark = pytest.mark.unit

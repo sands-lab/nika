@@ -193,7 +193,7 @@ def _render_ospf(ospf: _Ospf, interfaces: list[tuple[str, str]]) -> list[str]:
             raise ValueError("Overlapping OSPF area bindings are not translated")
         if matches:
             areas.setdefault(matches.pop(), []).append(name)
-    lines = ["router ospf NIKA"]
+    lines = ["router ospf CORE"]
     if ospf.router_id:
         lines.append(f" router-id {ospf.router_id}")
     for area in sorted(areas, key=lambda value: int(IPv4Address(value))):

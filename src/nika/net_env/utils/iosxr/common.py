@@ -161,8 +161,8 @@ def build_xr_config_command(commands: Iterable[str]) -> str:
     )
     script = (
         "source /pkg/bin/ztp_helper.sh; "
-        "nika_xr_config=$(mktemp); trap 'rm -f \"$nika_xr_config\"' EXIT; "
-        f'printf %s {shlex.quote(config)} > "$nika_xr_config"; '
-        'xrapply "$nika_xr_config" atomic'
+        "xr_config_file=$(mktemp); trap 'rm -f \"$xr_config_file\"' EXIT; "
+        f'printf %s {shlex.quote(config)} > "$xr_config_file"; '
+        'xrapply "$xr_config_file" atomic'
     )
     return shlex.join(["/bin/bash", "-c", script])

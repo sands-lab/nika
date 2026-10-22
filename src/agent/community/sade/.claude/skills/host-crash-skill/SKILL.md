@@ -7,8 +7,8 @@ description: Identify a device that has been killed, stopped, or removed from th
 
 ## Fingerprint (all three must be true → submit)
 
-- ICMP to the device's known IP fails. Look up the IP via a peer or `safe_reachability`; do not rely on a name that the device itself resolves.
-- Shell on the device times out or never opens — `exec_shell`, `infra_sweep exec_failed`, and `safe_reachability` all fail on that device.
+- ICMP to the device's known IP fails. Look up the IP from a peer or the MCP inventory; do not rely on a name that the device itself resolves.
+- Shell on the device times out or never opens — MCP shell probes consistently fail on that device.
 - Same-role peer baseline stays clean. Other hosts/servers of the same kind remain reachable, the routing fabric is healthy, and no widespread cascade is in play.
 
 All three must hold. Any partial response rules out `host_crash`.
@@ -29,4 +29,4 @@ An isolated `exec_failed`/timeout on one web/app server or one client, while ICM
 
 ## Not upstream cascade
 
-If many same-role devices are unreachable together, or the routing/control-plane fabric is broken, the cause is upstream (link, ACL, OSPF/BGP, DHCP relay). Rerun the matching broad-search helper before submitting `host_crash`.
+If many same-role devices are unreachable together, or the routing/control-plane fabric is broken, the cause is upstream (link, ACL, OSPF/BGP, DHCP relay). Repeat the matching broad-search checks through MCP before submitting `host_crash`.

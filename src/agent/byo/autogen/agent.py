@@ -1,27 +1,25 @@
 """AutoGen AgentChat agent.
 
-Two-phase troubleshooting pipeline on :class:`~agent.base.NikaAgent`;
+Two-phase troubleshooting pipeline on :class:`~agent.base.DiagnosisAgent`;
 each phase is an AutoGen ``AssistantAgent`` with the phase's MCP tools.
-
-Select with ``nika agent run -a byo.autogen``.
 """
 
 from __future__ import annotations
 
 import logging
 
-from agent.byo.autogen.config import session_server_configs
 from agent.byo.autogen.runner import run_autogen_phase
 from agent.protocols import DIAGNOSIS, SUBMISSION
 from agent.utils.loggers import MessageLogger
+from agent.utils.mcp_client import session_mcp_config
 from agent.utils.submission_context import submission_user_prompt
 from agent.utils.template import OVERALL_DIAGNOSIS_PROMPT, SUBMIT_PROMPT_TEMPLATE
-from agent.base import NikaAgent
+from agent.base import DiagnosisAgent
 
 logging.basicConfig(level=logging.INFO)
 
 
-class AutogenAgent(NikaAgent):
+class AutogenAgent(DiagnosisAgent):
     """Two-phase troubleshooting agent using AutoGen ``AssistantAgent``."""
 
     def __init__(
@@ -50,9 +48,7 @@ class AutogenAgent(NikaAgent):
             name=phase,
             system_message=system_message,
             task=task,
-            server_configs=session_server_configs(
-                self.session_id, self.scenario_name, phase
-            ),
+            server_configs=session_mcp_config(phase),
             model=self.model,
             provider=self.llm_provider,
             reasoning_effort=self.reasoning_effort,

@@ -6,7 +6,7 @@ import re
 from ipaddress import IPv4Network
 
 from nika.net_env.isp.bgp.plan import BgpNodePlan, BgpPlan
-from nika.net_env.isp.bgp.policy import BUSINESS_PREFIXES
+from nika.net_env.isp.bgp.policy import business_prefixes
 from nika.net_env.isp.igp.plan import IspPlan
 
 
@@ -46,8 +46,8 @@ def render_routeros_isp(
             f"/system identity set name={node.device_name}",
             "/interface bridge add name=lo0 protocol-mode=none",
             f"/ip address add address={node.loopback}/32 interface=lo0",
-            f"/routing ospf instance add name=NIKA version=2 router-id={node.router_id}",
-            "/routing ospf area add name=backbone instance=NIKA area-id=0.0.0.0",
+            f"/routing ospf instance add name=CORE version=2 router-id={node.router_id}",
+            "/routing ospf area add name=backbone instance=CORE area-id=0.0.0.0",
             "/routing ospf interface-template add area=backbone interfaces=lo0 "
             f"networks={node.loopback}/32 type=broadcast passive cost=1",
         ]
@@ -95,12 +95,9 @@ def _render_bgp(node: BgpNodePlan, plan: BgpPlan) -> list[str]:
             ]
         )
     # Match the ordinary FRR BUSINESS policy, including the dormant fault prefix.
-    prefixes = {
-        *BUSINESS_PREFIXES,
-        *(origin.prefix for origin in plan.originated),
-    }
+    prefixes = business_prefixes(origin.prefix for origin in plan.originated)
     for chain in ("BGP-IN", "BGP-OUT"):
-        for prefix in sorted(prefixes):
+        for prefix in prefixes:
             lines.append(_filter_rule(chain, f"if (dst == {prefix}) {{ accept; }}"))
         lines.append(_filter_rule(chain, "reject;"))
     inbound = {}
@@ -118,7 +115,7 @@ def _render_bgp(node: BgpNodePlan, plan: BgpPlan) -> list[str]:
             )
         lines.append(_filter_rule(chain, "jump BGP-IN;"))
     instance = (
-        f"/routing bgp instance add name=NIKA as={node.asn} router-id={node.router_id}"
+        f"/routing bgp instance add name=CORE as={node.asn} router-id={node.router_id}"
     )
     if node.cluster_id:
         instance += f" cluster-id={node.cluster_id}"
@@ -130,7 +127,7 @@ def _render_bgp(node: BgpNodePlan, plan: BgpPlan) -> list[str]:
         if session.route_reflector_client:
             role = "ibgp-rr"
         command = (
-            f"/routing bgp connection add name=peer-{index} instance=NIKA "
+            f"/routing bgp connection add name=peer-{index} instance=CORE "
             f"local.role={role} local.address={session.local_ip} "
             f"remote.address={session.remote_ip} remote.as={session.remote_asn} "
             "afi=ip connect=yes listen=yes "

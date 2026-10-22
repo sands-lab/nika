@@ -17,7 +17,7 @@ class BackendResolveTest:
         # start_net_env prepares sandbox templates before deploy; these tests
         # mock the net env, so keep them off Docker regardless of leaked config.
         monkeypatch.setattr(
-            "agent.sandbox.backend.prepare_configured_sandbox_templates",
+            "nika.agents.sandbox.backend.prepare_configured_sandbox_templates",
             lambda: [],
         )
 

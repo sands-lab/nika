@@ -363,12 +363,9 @@ def validate_scenario_design(
             "parameters": {name: len(values) for name, values in parameters if values},
         }
     client = docker.from_env()
+    # Remove a Batfish service this run created; stop one it restarted.
     owned = False
-    if batfish_verifier is None:
-        try:
-            client.containers.get(BATFISH_CONTAINER_NAME)
-        except NotFound:
-            owned = True
+    restarted = False
     session_id = f"routing-spec-{uuid4().hex[:12]}"
     start_requested = False
     started = False
@@ -383,6 +380,12 @@ def validate_scenario_design(
 
     try:
         if batfish_verifier is None:
+            try:
+                restarted = (
+                    client.containers.get(BATFISH_CONTAINER_NAME).status != "running"
+                )
+            except NotFound:
+                owned = True
             ensure_batfish_service()
         verifier = batfish_verifier or BatfishVerifier()
         for name, contract in contracts.items():
@@ -623,8 +626,8 @@ def validate_scenario_design(
                 finally:
                     if native_srl:
                         from nika.service.containerlab.srl_api import (
-                            NIKA_BGP_WITHDRAW,
-                            NIKA_BGP_WITHDRAW_PFX,
+                            BGP_EXPORT_POLICY,
+                            BGP_EXPORT_PREFIX_SET,
                         )
 
                         for node in failure.restore_nodes:
@@ -671,8 +674,8 @@ def validate_scenario_design(
                                         else "delete " + path
                                     )
                                 commands += [
-                                    f"delete /routing-policy policy {NIKA_BGP_WITHDRAW}",
-                                    f"delete /routing-policy prefix-set {NIKA_BGP_WITHDRAW_PFX}",
+                                    f"delete /routing-policy policy {BGP_EXPORT_POLICY}",
+                                    f"delete /routing-policy prefix-set {BGP_EXPORT_PREFIX_SET}",
                                 ]
                             elif failure.problem == "bgp_acl_block":
                                 commands.extend(
@@ -839,9 +842,13 @@ def validate_scenario_design(
                     pass
         finally:
             try:
-                if owned:
+                if owned or restarted:
                     try:
-                        client.containers.get(BATFISH_CONTAINER_NAME).remove(force=True)
+                        container = client.containers.get(BATFISH_CONTAINER_NAME)
+                        if owned:
+                            container.remove(force=True)
+                        else:
+                            container.stop()
                     except NotFound:
                         pass
             finally:

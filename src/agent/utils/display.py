@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from typing import Any, Iterator
 
-_shown: ContextVar[dict[str, Any] | None] = ContextVar("nika_agent_shown", default=None)
+_shown: ContextVar[dict[str, Any] | None] = ContextVar("agent_shown", default=None)
 
 
 @contextmanager

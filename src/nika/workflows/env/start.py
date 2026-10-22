@@ -448,7 +448,7 @@ def start_net_env(
         if redeploy or not lab_exists:
             # When run config selects a sandbox agent, prepare its sandbox
             # template alongside lab images (not at per-case agent start).
-            from agent.sandbox.backend import prepare_configured_sandbox_templates
+            from nika.agents.sandbox.backend import prepare_configured_sandbox_templates
 
             images = prepare_configured_sandbox_templates()
             from nika.net_env.utils.kathara.docker_files.docker_images import (

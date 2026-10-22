@@ -6,8 +6,8 @@ import re
 from ipaddress import IPv4Network
 
 from nika.net_env.isp.bgp.plan import BgpNodePlan, BgpPlan
-from nika.net_env.isp.bgp.policy import BUSINESS_PREFIXES
-from nika.net_env.isp.igp.frr import isis_net_from_router_id
+from nika.net_env.isp.bgp.policy import business_prefixes
+from nika.net_env.isp.igp.frr import ISIS_PROCESS, isis_net_from_router_id
 from nika.net_env.isp.igp.plan import IspPlan, PlannedNode
 from nika.net_env.utils.iosxr.common import iosxr_interface
 
@@ -77,7 +77,7 @@ def render_iosxr_isp(plan: IspPlan, bgp_plan: BgpPlan | None = None) -> dict[str
 
 def _render_ospf(node: PlannedNode) -> list[str]:
     lines = [
-        "router ospf NIKA",
+        "router ospf CORE",
         f" router-id {node.router_id}",
         " area 0",
         "  interface Loopback0",
@@ -104,7 +104,7 @@ def _render_ospf(node: PlannedNode) -> list[str]:
 def _render_isis(node: PlannedNode) -> list[str]:
     """Render the FRR ISP IS-IS design: one Level-2 instance, wide metrics."""
     lines = [
-        "router isis NIKA",
+        f"router isis {ISIS_PROCESS}",
         " is-type level-2-only",
         f" net {isis_net_from_router_id(node.router_id)}",
         " address-family ipv4 unicast",
@@ -155,12 +155,8 @@ def _render_bgp(node: BgpNodePlan, plan: BgpPlan) -> list[str]:
     lines = []
     # Match the original FRR BUSINESS allow-list, including the dormant prefix
     # used by unauthorized-origin failures and additional planned origins.
-    business = {
-        *BUSINESS_PREFIXES,
-        *(origin.prefix for origin in plan.originated),
-    }
     lines.append("prefix-set BUSINESS")
-    prefixes = sorted(business)
+    prefixes = business_prefixes(origin.prefix for origin in plan.originated)
     lines.extend(
         f" {prefix}{',' if i < len(prefixes) - 1 else ''}"
         for i, prefix in enumerate(prefixes)

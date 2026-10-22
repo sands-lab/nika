@@ -189,7 +189,7 @@ def test_ospf_and_isis_frr_differ() -> None:
     topo = _tiny_topology(nodes=("A", "B"), links=(("L1", "A", "B"),))
     isis = compile_isp_plan(IspConfig(topology="polska", igp="isis"), topology=topo)
     ospf = compile_isp_plan(IspConfig(topology="polska", igp="ospf"), topology=topo)
-    assert "router isis NIKA" in isis.nodes[0].frr_conf
+    assert "router isis CORE" in isis.nodes[0].frr_conf
     assert "router ospf" in ospf.nodes[0].frr_conf
     assert "ip ospf network non-broadcast" in ospf.nodes[0].frr_conf
     assert "neighbor " in ospf.nodes[0].frr_conf

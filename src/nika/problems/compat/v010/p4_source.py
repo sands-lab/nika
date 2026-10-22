@@ -31,6 +31,11 @@ class _LegacyP4SourceFault(ProblemBase):
             raise RuntimeError(f"Expected one P4 program on {host}: {program!r}")
         return program
 
+    @staticmethod
+    def _backup_path(source: str) -> str:
+        # Each legacy P4 source fault edits its own program file.
+        return f"/tmp{source}.orig"
+
     def _is_edited(self, host: str, source: str) -> bool:
         if self.new_text.startswith("#define"):
             result = self.runtime.exec(
@@ -43,7 +48,7 @@ class _LegacyP4SourceFault(ProblemBase):
     def inject_fault(self, params: LegacyP4SourceParams):
         host = params.host_name
         source = self._source_name(host)
-        backup = f"/tmp/nika-010-{self.root_cause_name}.p4"
+        backup = self._backup_path(source)
         old = (self.old_pattern or self.old_text).replace("'", "'\\''")
         new = self.new_text.replace("'", "'\\''")
         changed = self.runtime.exec(
@@ -60,7 +65,7 @@ class _LegacyP4SourceFault(ProblemBase):
             # A failed compiler invocation during rollout leaves this switch down.
             result = self.runtime.exec(
                 host,
-                f"p4c {source} -o /tmp/nika-010-invalid.json "
+                f"p4c {source} -o /tmp/p4c-out.json "
                 "2>&1 && echo COMPILED || echo COMPILE_FAILED",
                 timeout=60,
             )
@@ -87,7 +92,7 @@ class _LegacyP4SourceFault(ProblemBase):
     def recover_fault(self, params: LegacyP4SourceParams) -> dict:
         host = params.host_name
         source = self._source_name(host)
-        backup = f"/tmp/nika-010-{self.root_cause_name}.p4"
+        backup = self._backup_path(source)
         self.runtime.exec(
             host,
             f"pkill -x simple_switch || true; cp {backup} {source} && "

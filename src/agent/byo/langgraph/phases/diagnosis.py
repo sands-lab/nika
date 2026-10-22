@@ -1,4 +1,3 @@
-from dotenv import load_dotenv
 from langchain.agents import create_agent
 from langchain.agents.middleware import ModelCallLimitMiddleware
 from langchain_core.tools.structured import StructuredTool
@@ -7,11 +6,8 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from agent.byo.langgraph.middleware import TruncationRetryMiddleware
 from agent.utils.template import OVERALL_DIAGNOSIS_PROMPT
 from agent.llm.model_factory import load_model
-from agent.utils.mcp_client import load_session_mcp_config
-from agent.utils.mcp_servers import harden_mcp_tools
+from agent.utils.mcp_client import harden_mcp_tools, session_mcp_config
 from agent.protocols import DIAGNOSIS
-
-load_dotenv()
 
 
 class DiagnosisPhase:
@@ -19,17 +15,13 @@ class DiagnosisPhase:
 
     def __init__(
         self,
-        session_id: str,
         llm_provider: str = "openai",
         model: str = "gpt-5-mini",
-        scenario_name: str = "",
         reasoning_effort: str | None = None,
         max_tokens: int | None = None,
         max_steps: int = 20,
     ):
-        mcp_server_config = load_session_mcp_config(
-            session_id, scenario_name, phase=DIAGNOSIS
-        )
+        mcp_server_config = session_mcp_config(DIAGNOSIS)
         self.client = MultiServerMCPClient(connections=mcp_server_config)
         self.tools = None
         self.max_steps = max_steps

@@ -50,7 +50,7 @@ def test_native_isp_profiles_bind_their_igp(profile) -> None:
     else:
         env = get_net_env_instance("isp_abilene", **kwargs)
         assert env.plan.igp == "isis"
-        assert all("router isis NIKA" in c for c in env.deployment_configs.values())
+        assert all("router isis CORE" in c for c in env.deployment_configs.values())
 
     kwargs["igp"] = "ospf"
     env = get_net_env_instance("isp_abilene", **kwargs)
@@ -86,7 +86,7 @@ def test_iosxr_isis_adjacency_table_parses() -> None:
     from nika.net_env.isp.iosxr import parse_iosxr_isis_adjacencies
 
     output = """
-IS-IS NIKA Level-2 adjacencies:
+IS-IS CORE Level-2 adjacencies:
 System Id      Interface                SNPA           State Hold Changed  NSF IPv4 IPv6
                                                                                BFD  BFD
 ucla           Gi0/0/0/1                *PtoP*         Up    26   00:00:32 Yes None None

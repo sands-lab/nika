@@ -542,7 +542,7 @@ def _normalize_netlab_routeros(node, config):
                 f"local.address={local} remote.address={connection['remote.address']} remote.as={connection['remote.as']} "
                 f"afi={connection.get('afi', 'ip')} connect=yes listen=yes "
                 f"input.filter={connection.get('input.filter', 'NETLAB-ACCEPT')} "
-                f"output.filter-chain={connection.get('output.filter-chain', 'NIKA-BGP-OUT')} "
+                f"output.filter-chain={connection.get('output.filter-chain', 'POLICY-BGP-OUT')} "
                 f"output.network={parent['output.network']}"
             )
         for list_name, entries in origins.items():

@@ -99,7 +99,10 @@ def test_tool_event_payload_normalizes_input() -> None:
     assert '"command": "hostname"' in payload["input"]
 
 
-def test_mcp_agent_post_tool_call_includes_correlation_fields(tmp_path: Path) -> None:
+def test_mcp_agent_post_tool_call_includes_correlation_fields(
+    tmp_path: Path, agent_task
+) -> None:
+    agent_task()
     from unittest.mock import AsyncMock, patch
 
     from mcp.types import (
@@ -109,11 +112,11 @@ def test_mcp_agent_post_tool_call_includes_correlation_fields(tmp_path: Path) ->
         TextContent,
     )
 
-    from agent.byo.mcp_agent.llm import NikaOpenAIAugmentedLLM
+    from agent.byo.mcp_agent.llm import LoggedOpenAIAugmentedLLM
 
-    nika_logger = MessageLogger(phase=DIAGNOSIS, session_dir=str(tmp_path))
-    llm = NikaOpenAIAugmentedLLM.__new__(NikaOpenAIAugmentedLLM)
-    llm._nika_logger = nika_logger  # noqa: SLF001
+    trace_logger = MessageLogger(phase=DIAGNOSIS, session_dir=str(tmp_path))
+    llm = LoggedOpenAIAugmentedLLM.__new__(LoggedOpenAIAugmentedLLM)
+    llm._trace_logger = trace_logger  # noqa: SLF001
     llm._pending_tool_calls = PendingToolCallTracker()
 
     request = CallToolRequest(

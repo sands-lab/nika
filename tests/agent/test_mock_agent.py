@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from agent.mock.mock_agent import (
+from nika.agents.mock.mock_agent import (
     _mock_diagnosis_tool_calls,
     _pick_pair,
     _pick_router,

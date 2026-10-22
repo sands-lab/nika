@@ -31,7 +31,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from agent.utils.endpoint_probe import (
+from nika.agents.endpoint_probe import (
     AUTH_FAILED,
     MODEL_NOT_LISTED,
     NO_CREDENTIALS,

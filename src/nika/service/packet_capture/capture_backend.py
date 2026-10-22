@@ -43,8 +43,8 @@ def detect_capture_backend(runtime: LabRuntime, device: str) -> CaptureBackendKi
 
 
 def remote_paths(capture_id: str) -> tuple[str, str]:
-    remote_path = f"/tmp/nika-capture-{capture_id}.pcapng"
-    pid_path = f"/tmp/nika-capture-{capture_id}.pid"
+    remote_path = f"/tmp/capture-{capture_id}.pcapng"
+    pid_path = f"/tmp/capture-{capture_id}.pid"
     return remote_path, pid_path
 
 
@@ -101,7 +101,7 @@ def start_capture(
     # SIGTERM would leave the writer running.
     launch = (
         f"nohup sh -c {shlex.quote('exec ' + capture_cmd)} "
-        f">/tmp/nika-capture-{capture_id}.log "
+        f">/tmp/capture-{capture_id}.log "
         f"2>&1 & echo $! > {quoted_pid}"
     )
     runtime.exec(device, launch, timeout=15)
@@ -109,7 +109,7 @@ def start_capture(
     if not pid.isdigit():
         log_tail = runtime.exec(
             device,
-            f"tail -n 20 /tmp/nika-capture-{capture_id}.log 2>/dev/null || true",
+            f"tail -n 20 /tmp/capture-{capture_id}.log 2>/dev/null || true",
             timeout=5,
         )
         raise RuntimeError(f"Failed to start capture on {device}: {log_tail.strip()}")
