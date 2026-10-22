@@ -114,7 +114,9 @@ def netlab_topology(plan: IspPlan, bgp: BgpPlan | None, device_profile: str) -> 
                 "bgp": {
                     "advertise_loopback": False,
                     "advertise_roles": [],
-                    "next_hop_self": False,  # Preserve reflected next hops (RFC 4456).
+                    # Preserve reflected next hops (RFC 4456). NIKA's FRR eBGP
+                    # design sets next-hop-self on intra-AS sessions instead.
+                    "next_hop_self": device_profile == "frr" and bgp.mode == "ebgp",
                 },
             }
         )
@@ -149,6 +151,11 @@ def netlab_topology(plan: IspPlan, bgp: BgpPlan | None, device_profile: str) -> 
             if bnode.cluster_id:
                 data["bgp.rr_cluster_id"] = bnode.cluster_id
             business = business_prefixes(o.prefix for o in bgp.originated)
+            if device_profile == "nokia_srlinux":
+                # Keep the native SR Linux allow-list.
+                from nika.net_env.isp.bgp.srl import SRL_BUSINESS_PREFIXES
+
+                business = list(SRL_BUSINESS_PREFIXES)
             prefixes = {"BUSINESS": [{"ipv4": p} for p in business]}
             policies = {
                 name: [{"action": "permit", "match": {"prefix": "BUSINESS"}}]
@@ -277,7 +284,7 @@ def generate_netlab_configs(
     topology = netlab_topology(plan, bgp, device_profile)
     configs, transformed = run_netlab(topology, directory)
     if bgp and device_profile != "routeros":
-        configs = _bind_ibgp_policies(configs, transformed)
+        configs = _bind_ibgp_policies(configs, transformed, bgp.mode)
     if device_profile == "frr" and bgp:
         # netlab requires unique virtual interface identities. NIKA already owns
         # one dummy interface with multiple origin addresses; bind those emitted
@@ -399,12 +406,14 @@ def _routeros_policy_fragments(configs, transformed, plan, bgp):
     return result
 
 
-def _bind_ibgp_policies(configs, transformed):
+def _bind_ibgp_policies(configs, transformed, mode):
     """Attach upstream-generated admission policies to actual iBGP neighbors.
 
     netlab 26.10 bgp.policy binds external peers only. NIKA's fixed sketch applies
     the same admission policy within an AS. Keep that binding while letting the
     upstream routing module generate the prefix tests and policy actions.
+    NIKA's FRR eBGP design imports with BGP-IN on iBGP but exports without
+    BGP-OUT, so border routers receive leak prefixes inside their AS.
     """
     result = dict(configs)
     for name, node in transformed["nodes"].items():
@@ -435,16 +444,17 @@ def _bind_ibgp_policies(configs, transformed):
         asn = node["bgp"]["as"]
         lines = [f"router bgp {asn}"]
         if node["device"] == "frr":
-            for policy in ("BGP-IN-ipv4", "BGP-OUT-ipv4"):
+            bindings = (("BGP-IN-ipv4", "in"),)
+            if mode != "ebgp":
+                bindings += (("BGP-OUT-ipv4", "out"),)
+            for policy, _ in bindings:
                 if not re.search(rf"^route-map {policy} ", result[name], re.M):
                     raise ValueError("Missing upstream iBGP admission policy")
             lines.append(" address-family ipv4 unicast")
             for peer in peers:
                 lines.extend(
-                    [
-                        f"  neighbor {peer} route-map BGP-IN-ipv4 in",
-                        f"  neighbor {peer} route-map BGP-OUT-ipv4 out",
-                    ]
+                    f"  neighbor {peer} route-map {policy} {direction}"
+                    for policy, direction in bindings
                 )
             lines.append(" exit-address-family")
         elif node["device"] == "iosxr":
