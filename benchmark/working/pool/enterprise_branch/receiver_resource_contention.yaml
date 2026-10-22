@@ -93,6 +93,206 @@ failure:
         kind: node
         node: hq_srv
       fault_type: receiver_resource_contention
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      duration: '3600'
+      host_name: br1_corp_pc
+    root_causes:
+    - resource:
+        kind: node
+        node: br1_corp_pc
+      fault_type: receiver_resource_contention
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      duration: '3600'
+      host_name: br1_guest_pc
+    root_causes:
+    - resource:
+        kind: node
+        node: br1_guest_pc
+      fault_type: receiver_resource_contention
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      duration: '3600'
+      host_name: br2_corp_pc
+    root_causes:
+    - resource:
+        kind: node
+        node: br2_corp_pc
+      fault_type: receiver_resource_contention
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      duration: '3600'
+      host_name: br2_guest_pc
+    root_causes:
+    - resource:
+        kind: node
+        node: br2_guest_pc
+      fault_type: receiver_resource_contention
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      duration: '3600'
+      host_name: dc2_corp_pc
+    root_causes:
+    - resource:
+        kind: node
+        node: dc2_corp_pc
+      fault_type: receiver_resource_contention
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      duration: '3600'
+      host_name: dc2_guest_pc
+    root_causes:
+    - resource:
+        kind: node
+        node: dc2_guest_pc
+      fault_type: receiver_resource_contention
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      duration: '3600'
+      host_name: dc2_srv
+    root_causes:
+    - resource:
+        kind: node
+        node: dc2_srv
+      fault_type: receiver_resource_contention
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      duration: '3600'
+      host_name: hq_corp_pc
+    root_causes:
+    - resource:
+        kind: node
+        node: hq_corp_pc
+      fault_type: receiver_resource_contention
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      duration: '3600'
+      host_name: hq_guest_pc
+    root_causes:
+    - resource:
+        kind: node
+        node: hq_guest_pc
+      fault_type: receiver_resource_contention
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      duration: '3600'
+      host_name: hq_srv
+    root_causes:
+    - resource:
+        kind: node
+        node: hq_srv
+      fault_type: receiver_resource_contention
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      duration: '3600'
+      host_name: br1_corp_pc
+    root_causes:
+    - resource:
+        kind: node
+        node: br1_corp_pc
+      fault_type: receiver_resource_contention
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      duration: '3600'
+      host_name: br1_guest_pc
+    root_causes:
+    - resource:
+        kind: node
+        node: br1_guest_pc
+      fault_type: receiver_resource_contention
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      duration: '3600'
+      host_name: br2_corp_pc
+    root_causes:
+    - resource:
+        kind: node
+        node: br2_corp_pc
+      fault_type: receiver_resource_contention
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      duration: '3600'
+      host_name: br2_guest_pc
+    root_causes:
+    - resource:
+        kind: node
+        node: br2_guest_pc
+      fault_type: receiver_resource_contention
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      duration: '3600'
+      host_name: dc2_corp_pc
+    root_causes:
+    - resource:
+        kind: node
+        node: dc2_corp_pc
+      fault_type: receiver_resource_contention
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      duration: '3600'
+      host_name: dc2_guest_pc
+    root_causes:
+    - resource:
+        kind: node
+        node: dc2_guest_pc
+      fault_type: receiver_resource_contention
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      duration: '3600'
+      host_name: dc2_srv
+    root_causes:
+    - resource:
+        kind: node
+        node: dc2_srv
+      fault_type: receiver_resource_contention
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      duration: '3600'
+      host_name: hq_corp_pc
+    root_causes:
+    - resource:
+        kind: node
+        node: hq_corp_pc
+      fault_type: receiver_resource_contention
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      duration: '3600'
+      host_name: hq_guest_pc
+    root_causes:
+    - resource:
+        kind: node
+        node: hq_guest_pc
+      fault_type: receiver_resource_contention
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      duration: '3600'
+      host_name: hq_srv
+    root_causes:
+    - resource:
+        kind: node
+        node: hq_srv
+      fault_type: receiver_resource_contention
   - topo_size: m
     inject:
       duration: '3600'

@@ -19,6 +19,42 @@ failure:
         kind: node
         node: pc_2_1_1_1
       fault_type: arp_cache_poisoning
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: pc_1_1_1_1
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_1_1_1_1
+      fault_type: arp_cache_poisoning
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: pc_2_1_1_1
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_2_1_1_1
+      fault_type: arp_cache_poisoning
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: pc_1_1_1_1
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_1_1_1_1
+      fault_type: arp_cache_poisoning
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: pc_2_1_1_1
+    root_causes:
+    - resource:
+        kind: node
+        node: pc_2_1_1_1
+      fault_type: arp_cache_poisoning
   - topo_size: m
     inject:
       host_name: pc_1_1_1_1

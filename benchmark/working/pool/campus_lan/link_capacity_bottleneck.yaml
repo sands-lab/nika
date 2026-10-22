@@ -207,6 +207,214 @@ failure:
         kind: link
         name: server_access_router:eth4--web_server_3:eth0
       fault_type: link_capacity_bottleneck
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      burst: 64kb
+      host_name: dhcp_server
+      intf_name: eth0
+      limit: 500kb
+      rate: 30kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: dhcp_server:eth0--server_access_router:eth6
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      burst: 64kb
+      host_name: dns_server
+      intf_name: eth0
+      limit: 500kb
+      rate: 30kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: dns_server:eth0--server_access_router:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      burst: 64kb
+      host_name: load_balancer
+      intf_name: eth0
+      limit: 500kb
+      rate: 30kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: load_balancer:eth0--server_access_router:eth5
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      burst: 64kb
+      host_name: pc_1_1_1_1
+      intf_name: eth0
+      limit: 500kb
+      rate: 30kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: pc_1_1_1_1:eth0--switch_access_1_1_1:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      burst: 64kb
+      host_name: pc_2_1_1_1
+      intf_name: eth0
+      limit: 500kb
+      rate: 30kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: pc_2_1_1_1:eth0--switch_access_2_1_1:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      burst: 64kb
+      host_name: router_dist_1_1
+      intf_name: eth1
+      limit: 500kb
+      rate: 30kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: router_dist_1_1:eth1--switch_access_1_1_1:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      burst: 64kb
+      host_name: router_dist_2_1
+      intf_name: eth1
+      limit: 500kb
+      rate: 30kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: router_dist_2_1:eth1--switch_access_2_1_1:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      burst: 64kb
+      host_name: server_access_router
+      intf_name: eth1
+      limit: 500kb
+      rate: 30kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: server_access_router:eth1--web_server_0:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      burst: 64kb
+      host_name: server_access_router
+      intf_name: eth2
+      limit: 500kb
+      rate: 30kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: server_access_router:eth2--web_server_1:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      burst: 64kb
+      host_name: server_access_router
+      intf_name: eth3
+      limit: 500kb
+      rate: 30kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: server_access_router:eth3--web_server_2:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      burst: 64kb
+      host_name: server_access_router
+      intf_name: eth4
+      limit: 500kb
+      rate: 30kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: server_access_router:eth4--web_server_3:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      burst: 64kb
+      host_name: dhcp_server
+      intf_name: eth0
+      limit: 500kb
+      rate: 30kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: dhcp_server:eth0--server_access_router:eth6
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      burst: 64kb
+      host_name: dns_server
+      intf_name: eth0
+      limit: 500kb
+      rate: 30kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: dns_server:eth0--server_access_router:eth0
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      burst: 64kb
+      host_name: load_balancer
+      intf_name: eth0
+      limit: 500kb
+      rate: 30kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: load_balancer:eth0--server_access_router:eth5
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      burst: 64kb
+      host_name: pc_1_1_1_1
+      intf_name: eth0
+      limit: 500kb
+      rate: 30kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: pc_1_1_1_1:eth0--switch_access_1_1_1:eth1
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      burst: 64kb
+      host_name: pc_2_1_1_1
+      intf_name: eth0
+      limit: 500kb
+      rate: 30kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: pc_2_1_1_1:eth0--switch_access_2_1_1:eth1
+      fault_type: link_capacity_bottleneck
   - topo_size: m
     inject:
       burst: 64kb

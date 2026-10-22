@@ -13,6 +13,28 @@ failure:
         kind: node
         node: dhcp_server
       fault_type: dhcp_missing_subnet
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: dhcp_server
+      host_name_2: pc_1_1_1_1
+      subnet: 10.1.1.0
+    root_causes:
+    - resource:
+        kind: node
+        node: dhcp_server
+      fault_type: dhcp_missing_subnet
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: dhcp_server
+      host_name_2: pc_1_1_1_1
+      subnet: 10.1.1.0
+    root_causes:
+    - resource:
+        kind: node
+        node: dhcp_server
+      fault_type: dhcp_missing_subnet
   - topo_size: m
     inject:
       host_name: dhcp_server

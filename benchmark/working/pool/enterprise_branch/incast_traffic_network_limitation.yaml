@@ -15,6 +15,19 @@ failure:
         node: hq_edge
         name: eth1
       fault_type: incast_traffic_network_limitation
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      duration: '3600'
+      host_name: hq_srv
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: eth1
+      fault_type: incast_traffic_network_limitation
   - topo_size: m
     inject:
       duration: '3600'

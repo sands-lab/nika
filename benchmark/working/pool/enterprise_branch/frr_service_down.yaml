@@ -51,6 +51,60 @@ failure:
         kind: node
         node: isp2_core
       fault_type: frr_service_down
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: br1_edge
+    root_causes:
+    - resource:
+        kind: node
+        node: br1_edge
+      fault_type: frr_service_down
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: br2_edge
+    root_causes:
+    - resource:
+        kind: node
+        node: br2_edge
+      fault_type: frr_service_down
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: dc2_edge
+    root_causes:
+    - resource:
+        kind: node
+        node: dc2_edge
+      fault_type: frr_service_down
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: hq_edge
+    root_causes:
+    - resource:
+        kind: node
+        node: hq_edge
+      fault_type: frr_service_down
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: isp1_core
+    root_causes:
+    - resource:
+        kind: node
+        node: isp1_core
+      fault_type: frr_service_down
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: isp2_core
+    root_causes:
+    - resource:
+        kind: node
+        node: isp2_core
+      fault_type: frr_service_down
   - topo_size: m
     inject:
       host_name: br1_edge

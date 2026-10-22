@@ -13,6 +13,28 @@ failure:
         kind: node
         node: dns_pod0
       fault_type: dns_lookup_latency
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      delay_ms: '1000'
+      host_name: dns_pod0
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: node
+        node: dns_pod0
+      fault_type: dns_lookup_latency
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      delay_ms: '1000'
+      host_name: dns_pod0
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: node
+        node: dns_pod0
+      fault_type: dns_lookup_latency
   - topo_size: m
     inject:
       delay_ms: '1000'

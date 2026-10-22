@@ -13,6 +13,28 @@ failure:
         node: dns_pod0
         name: eth0
       fault_type: host_ip_conflict
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: client_0
+      host_name_2: dns_pod0
+    root_causes:
+    - resource:
+        kind: interface
+        node: dns_pod0
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: dns_pod0
+      host_name_2: webserver0_pod0
+    root_causes:
+    - resource:
+        kind: interface
+        node: webserver0_pod0
+        name: eth0
+      fault_type: host_ip_conflict
   - topo_size: m
     inject:
       host_name: webserver1_pod1

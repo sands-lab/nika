@@ -18,6 +18,38 @@ failure:
         kind: node
         node: hq_srv
       fault_type: sender_resource_contention
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      client_host: br1_corp_pc
+      cpu_quota: '0.05'
+      dst_ip: 10.0.20.2
+      duration: '3600'
+      host_name: hq_srv
+      large_url: http://10.0.20.2/large.bin
+      small_url: http://10.0.20.2/small.bin
+      stress_cpus: '16'
+    root_causes:
+    - resource:
+        kind: node
+        node: hq_srv
+      fault_type: sender_resource_contention
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      client_host: br1_corp_pc
+      cpu_quota: '0.05'
+      dst_ip: 10.0.20.2
+      duration: '3600'
+      host_name: hq_srv
+      large_url: http://10.0.20.2/large.bin
+      small_url: http://10.0.20.2/small.bin
+      stress_cpus: '16'
+    root_causes:
+    - resource:
+        kind: node
+        node: hq_srv
+      fault_type: sender_resource_contention
   - topo_size: m
     inject:
       client_host: br1_corp_pc

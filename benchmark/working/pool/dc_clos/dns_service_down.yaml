@@ -11,6 +11,24 @@ failure:
         kind: node
         node: dns_pod0
       fault_type: dns_service_down
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: dns_pod0
+    root_causes:
+    - resource:
+        kind: node
+        node: dns_pod0
+      fault_type: dns_service_down
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: dns_pod0
+    root_causes:
+    - resource:
+        kind: node
+        node: dns_pod0
+      fault_type: dns_service_down
   - topo_size: m
     inject:
       host_name: dns_pod0

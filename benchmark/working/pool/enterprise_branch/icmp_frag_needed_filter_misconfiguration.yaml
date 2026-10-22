@@ -11,6 +11,15 @@ failure:
         kind: node
         node: br1_edge
       fault_type: icmp_frag_needed_filter_misconfiguration
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: br1_edge
+    root_causes:
+    - resource:
+        kind: node
+        node: br1_edge
+      fault_type: icmp_frag_needed_filter_misconfiguration
   - topo_size: m
     inject:
       host_name: br1_edge

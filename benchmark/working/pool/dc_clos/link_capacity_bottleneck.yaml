@@ -111,6 +111,58 @@ failure:
         kind: link
         name: spine_router_0_1:eth0--super_spine_router_0:eth1
       fault_type: link_capacity_bottleneck
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      burst: 64kb
+      host_name: client_0
+      intf_name: eth0
+      limit: 500kb
+      rate: 30kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: client_0:eth0--super_spine_router_0:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      burst: 64kb
+      host_name: dns_pod0
+      intf_name: eth0
+      limit: 500kb
+      rate: 30kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: dns_pod0:eth0--leaf_router_0_0:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      burst: 64kb
+      host_name: client_0
+      intf_name: eth0
+      limit: 500kb
+      rate: 30kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: client_0:eth0--super_spine_router_0:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      burst: 64kb
+      host_name: dns_pod0
+      intf_name: eth0
+      limit: 500kb
+      rate: 30kbit
+    root_causes:
+    - resource:
+        kind: link
+        name: dns_pod0:eth0--leaf_router_0_0:eth2
+      fault_type: link_capacity_bottleneck
   - topo_size: m
     inject:
       burst: 64kb

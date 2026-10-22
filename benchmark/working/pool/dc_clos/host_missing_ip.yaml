@@ -13,6 +13,28 @@ failure:
         node: client_0
         name: eth0
       fault_type: host_missing_ip
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: client_0
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_0
+        name: eth0
+      fault_type: host_missing_ip
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: client_0
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_0
+        name: eth0
+      fault_type: host_missing_ip
   - topo_size: m
     inject:
       host_name: client_1

@@ -13,6 +13,28 @@ failure:
         node: br1_corp_pc
         name: eth0
       fault_type: host_missing_ip
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: br1_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_corp_pc
+        name: eth0
+      fault_type: host_missing_ip
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: br1_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_corp_pc
+        name: eth0
+      fault_type: host_missing_ip
   - topo_size: m
     inject:
       host_name: br1_corp_pc
