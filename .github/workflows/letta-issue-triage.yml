@@ -78,7 +78,12 @@ jobs:
                  ambiguous requirements, benchmark contract changes, or anything you
                  are unsure about.
 
-            4. Post ONE triage comment with these sections, omitting empty ones:
+            4. Post ONE triage comment with these sections, omitting empty ones.
+               Retries must not create duplicate triage comments. Before posting,
+               look for a comment by `github-actions[bot]` containing
+               `<!-- nika-issue-triage -->`. Update that comment if it exists;
+               otherwise create one. Include this marker in the comment. Do not
+               edit comments by other authors.
                - `### TL;DR`: only if the issue is long or highly technical (typical of
                  AI-written issues). 2-4 short sentences explaining, without
                  implementation details, what is wrong or wanted and why it matters.
@@ -86,3 +91,17 @@ jobs:
                  how they relate.
                - `### Triage`: `agent-ready` or `needs-human`, with a brief rationale
                  and, for needs-human, the specific questions a human must decide.
+      # The agent can exit 0 without commenting, or duplicate a comment after an
+      # uncertain write; fail visibly in both cases. Only github-actions[bot]
+      # comments count, so issue authors cannot satisfy the check with the marker.
+      - name: Verify triage comment
+        env:
+          ISSUE: ${{ github.event.issue.number }}
+          FILTER: >-
+            .[] | select(.user.login == "github-actions[bot]"
+            and (.body | contains("<!-- nika-issue-triage -->"))) | .html_url
+        run: |
+          urls=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$ISSUE/comments" --jq "$FILTER")
+          count=$(grep -c . <<<"$urls" || true)
+          echo "Found $count triage comment(s): $urls"
+          [ "$count" -eq 1 ]
