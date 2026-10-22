@@ -98,11 +98,10 @@ class NetworkEnvBase:
         """Exact prefix ownership in the fixed BGP configuration sketch."""
         import re
 
+        from nika.net_env.native_routers import router_sketches
+
         origins = {}
-        for node, machine in self.lab.machines.items():
-            if not machine.fs or not machine.fs.exists("etc/frr/frr.conf"):
-                continue
-            config = machine.fs.readtext("etc/frr/frr.conf")
+        for node, (config, _) in router_sketches(self).items():
             for prefix in re.findall(r"^\s*network ([0-9./]+)$", config, re.MULTILINE):
                 if prefix in origins:
                     raise ValueError("The BGP sketch requires one origin per prefix")

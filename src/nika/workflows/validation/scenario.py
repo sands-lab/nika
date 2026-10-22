@@ -384,6 +384,10 @@ def validate_scenario_design(
             retained.append("iBGP attachment of upstream-generated admission policies")
         if "import_preferences" in env.ROUTING_PARAMETER_KINDS:
             retained.append("default-to-business VRF imports")
+        if native_routers:
+            retained.append(
+                "native router static routes, eBGP multipath and open eBGP policies"
+            )
         if getattr(env, "rpki", False) or getattr(env, "rtbh", False):
             retained.append("RPKI/RTBH security policy and runtime attachments")
         if retained:

@@ -66,6 +66,13 @@ class NativeRouterValidation:
     running_config_command: str
     restore_command: Callable[[str], str]
     route_inspection_command: str
+    # Where a deployable native configuration is installed on the Kathara
+    # machine, and the netlab device that generates it (if any).
+    config_file: str | None = None
+    netlab_device: str | None = None
+    # (router, FRR configuration, Linux startup) -> native statements NIKA
+    # appends to netlab output.
+    netlab_retained: Callable[[str, str, str], str] | None = None
 
 
 @dataclass(frozen=True)
@@ -99,6 +106,8 @@ class NativeRouterEnv:
     device_profile: str = "frr"
     native_routers: Mapping[str, str] = MappingProxyType({})
     native_netns_commands: Mapping[str, tuple[str, ...]] = MappingProxyType({})
+    # router -> (FRR configuration, Linux startup) it was converted from
+    native_sources: Mapping[str, tuple[str, str]] = MappingProxyType({})
 
     def router_roles(self) -> Mapping[str, Sequence[str]]:
         """Return router names by role for profile eligibility."""
@@ -125,6 +134,17 @@ class NativeRouterEnv:
         # platform translates them with the rest of each router's design.
         platform = native_platform(profile)
         names = self._eligible(roles)
+        # Keep each converted router's FRR design: completion, configuration
+        # generators and comparisons read the same sketch as the FRR deployment.
+        self.native_sources = MappingProxyType(
+            {
+                name: (
+                    self.lab.machines[name].fs.readtext("etc/frr/frr.conf"),
+                    self.lab.fs.readtext(f"{name}.startup"),
+                )
+                for name in names
+            }
+        )
         conversion = platform.convert(self, names)
         self.deployment_configs = conversion.configs
         self.native_netns_commands = MappingProxyType(conversion.netns_commands)
@@ -150,6 +170,22 @@ class NativeRouterEnv:
         super().deploy()
         for node, commands in self.native_netns_commands.items():
             run_in_network_namespace(self, node, commands)
+
+
+def router_sketches(env) -> dict[str, tuple[str, str]]:
+    """Return each router's FRR design and startup, including converted routers."""
+
+    def startup(name):
+        path = f"{name}.startup"
+        return env.lab.fs.readtext(path) if env.lab.fs.exists(path) else ""
+
+    sketches = {
+        name: (machine.fs.readtext("etc/frr/frr.conf"), startup(name))
+        for name, machine in env.lab.machines.items()
+        if machine.fs and machine.fs.exists("etc/frr/frr.conf")
+    }
+    sketches.update(getattr(env, "native_sources", {}))
+    return sketches
 
 
 def native_router_plan(env) -> NativeRouterPlan:

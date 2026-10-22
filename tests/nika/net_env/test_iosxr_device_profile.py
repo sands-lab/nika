@@ -182,3 +182,33 @@ def test_mixed_snapshot_exports_native_and_frr_routers(tmp_path) -> None:
     }
     assert ("router_core_1", "GigabitEthernet0/0/0/2") in names
     assert ("router_dist_1_1", "eth0") in names
+
+
+def test_netlab_sketch_runs_eligible_routers_as_xr() -> None:
+    from nika.net_env.synthesis.netlab_kathara import kathara_topology
+    from nika.net_env.utils.iosxr.frr import retained_netlab_fragment
+
+    env = get_net_env_instance("campus_lan", topo_size="s", device_profile="iosxr")
+    topology, _ = kathara_topology(env)
+    assert topology["nodes"]["router_core_1"]["device"] == "iosxr"
+    assert "device" not in topology["nodes"]["router_dist_1_1"]
+    names = {
+        (i["node"], i["ifname"])
+        for link in topology["links"]
+        for i in link["interfaces"]
+    }
+    assert ("router_core_1", "GigabitEthernet0/0/0/0") in names
+    # netlab XR templates omit Linux-owned static routes and the FRR eBGP
+    # defaults; NIKA retains them as native statements.
+    provider = get_net_env_instance(
+        "enterprise_branch", topo_size="s", device_profile="iosxr"
+    ).native_sources["isp1_core"]
+    assert "  198.18.1.10/32 100.64.0.17" in retained_netlab_fragment(
+        "isp1_core", *provider
+    )
+    leaf = get_net_env_instance(
+        "dc_clos", topo_size="s", device_profile="iosxr"
+    ).native_sources["leaf_router_0_0"]
+    fragment = retained_netlab_fragment("leaf_router_0_0", *leaf)
+    assert "maximum-paths ebgp 32" in fragment
+    assert "route-policy PASS in" in fragment

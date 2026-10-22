@@ -16,7 +16,12 @@ from ipaddress import IPv4Interface
 from pathlib import Path
 
 from nika.validation.base import ValidationSnapshot
-from nika.validation.batfish.kathara import startup_addresses, startup_static_routes
+from nika.validation.batfish.kathara import (
+    export_native_routers,
+    link_edges,
+    startup_addresses,
+    startup_static_routes,
+)
 from nika.validation.batfish.snapshot import (
     _cumulus_frr_snapshot,
     _edge,
@@ -80,6 +85,8 @@ def build_overlay_snapshot(env, contract, root: Path, *, configs=None, shutdown=
         for name, machine in env.lab.machines.items()
         if machine.fs is not None and machine.fs.exists("etc/frr/frr.conf")
     }
+    # Native routers (such as XR providers) keep their vendor configuration.
+    aliases = export_native_routers(env, root, configs, shutdown)
     tunnels: dict[str, list[tuple[str, str]]] = {}
     tunnel_addresses: dict[str, list[tuple[str, str]]] = {}
     for peer in env.bgp_import_peers():
@@ -130,17 +137,7 @@ def build_overlay_snapshot(env, contract, root: Path, *, configs=None, shutdown=
                 + config,
             )
         )
-    edges = []
-    for link in env.lab.links.values():
-        endpoints = [
-            (name, f"eth{number}")
-            for name in link.machines
-            if name in routers
-            for number, interface in routers[name].interfaces.items()
-            if interface.link.name == link.name
-        ]
-        if len(endpoints) == 2:
-            edges.append(_edge(*endpoints[0], *endpoints[1]))
+    edges = link_edges(env, routers, aliases)
     for network, endpoints in sorted(tunnels.items()):
         if len(endpoints) != 2:
             raise ValueError(f"Tunnel {network} does not join exactly two interfaces")
@@ -150,9 +147,10 @@ def build_overlay_snapshot(env, contract, root: Path, *, configs=None, shutdown=
         snapshot_id=contract.contract_id,
         path=root,
         metadata={
-            "routers": sorted(routers),
+            "routers": sorted({*routers, *aliases}),
             "routing_model": "frr-overlay",
-            "native_config_analysis": False,
+            "native_config_analysis": bool(aliases),
+            **({"interface_aliases": aliases} if aliases else {}),
             "scope": "Default-table FRR BGP over WireGuard interfaces projected as routed point-to-point links, with imported business VRF subnets as origins; no VRF-local tables, encryption, NAT or endpoint resolution",
         },
     )
