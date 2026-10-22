@@ -105,6 +105,10 @@ def netlab_topology(plan: IspPlan, bgp: BgpPlan | None, device_profile: str) -> 
             "traditional"
         )
         topology["defaults.devices.frr.features.isis.loopback.passive"] = True
+    if device_profile == "iosxr":
+        # The ISP design announces router loopbacks as passive IGP interfaces,
+        # as NIKA's native XR renderer does; upstream XR templates do not.
+        topology[f"defaults.devices.iosxr.features.{plan.igp}.loopback.passive"] = True
     if bgp:
         topology.update(
             {
