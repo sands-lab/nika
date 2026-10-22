@@ -265,14 +265,8 @@ estimates limit experiment size. Native router containers also have matching
 Large graphs can be compiled offline without claiming that native execution was
 validated.
 
-A future mixed-vendor extension should retain `device_profile` as the default
-and resolve per-node overrides before allocating interfaces. Link addresses,
-OSPF network type, BGP sessions and original predicates remain shared inputs;
-rendering and native observations dispatch by node. All selected profiles also
-need a common execution backend. Extending the existing Containerlab path is a
-practical next step because SR Linux already uses it. A mixed deployment must
-check interoperability on each cross-vendor link. Per-node profile overrides
-are not implemented yet.
+Per-node mixed-vendor deployments are not supported: one `device_profile`
+applies to every router in a deployment.
 
 ## Delegate configuration generation to netlab
 

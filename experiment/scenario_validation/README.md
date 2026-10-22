@@ -17,9 +17,16 @@ not establish full controller, P4 program or stateful service correctness.
 
 ## Run an experiment
 
-Install NIKA with `uv sync --extra batfish` and the normal Docker, Kathara and, for SR Linux, Containerlab prerequisites. Build the pinned analysis tools:
+Prerequisites:
+
+- A Linux host with NIKA installed as described in the [installation guide](../../docs/operations/installation.md), including Docker and Kathara.
+- Containerlab, only for SR Linux specimens and ISP profiles with `--backend containerlab`.
+- For the IOS XR and RouterOS examples, the vendor router images from [Prepare vendor images](../../docs/operations/installation.md#prepare-vendor-images). RouterOS needs `/dev/kvm`.
+
+From the repository root, install the analysis extras and build the pinned analysis tools:
 
 ```bash
+uv sync --extra batfish --extra netlab
 git clone https://github.com/nsg-ethz/synet-plus.git /tmp/nika-netcomplete
 git -C /tmp/nika-netcomplete checkout 6b7816fdeb1ffa3f41c3954b2102651b120cf4d5
 docker build -f scripts/netcomplete/Dockerfile -t nika/netcomplete:experiment /tmp/nika-netcomplete
