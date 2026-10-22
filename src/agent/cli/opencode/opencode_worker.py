@@ -146,8 +146,8 @@ def build_provider_section(
     model_id = model[len(prefix) :] if model.startswith(prefix) else model
     if provider == "anthropic":
         npm = "@ai-sdk/anthropic"
-        # ``@ai-sdk/anthropic`` posts to ``{baseURL}/messages``. NIKA's proxy
-        # (and Anthropic-compatible gateways) serve ``/v1/messages``.
+        # ``@ai-sdk/anthropic`` posts to ``{baseURL}/messages``. The sandbox
+        # model proxy (and Anthropic-compatible gateways) serve ``/v1/messages``.
         base_url = _anthropic_sdk_base_url(
             os.environ.get(ENV_ANTHROPIC_BASE_URL, "").strip()
         )

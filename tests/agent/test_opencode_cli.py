@@ -77,6 +77,12 @@ class OpenCodeMcpJsonTest:
 class OpenCodeProviderConfigTest:
     """Custom ``endpoint`` provider routing through sandbox model variables."""
 
+    @pytest.fixture(autouse=True)
+    def _clear_provider_env(self, monkeypatch) -> None:
+        monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.delenv("ANTHROPIC_AUTH_TOKEN", raising=False)
+
     @pytest.mark.parametrize("provider", ["openai", "deepseek", "custom"])
     def test_openai_compatible_providers_use_openai_sdk(
         self, monkeypatch, provider: str
