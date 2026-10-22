@@ -267,8 +267,13 @@ estimates limit experiment size. Native router containers also have matching
 Large graphs can be compiled offline without claiming that native execution was
 validated.
 
-Per-node mixed-vendor deployments are not supported: one `device_profile`
-applies to every router in a deployment.
+In ISP environments, one `device_profile` applies to every router. In `dc_clos`,
+`campus_lan` and `enterprise_branch`, `device_profile: iosxr` runs only the routers
+of the eligible roles on XR, and the other nodes keep FRR/Linux. These experiments
+complete the FRR sketch, translate each eligible router's completed configuration
+to IOS XR, and analyze the XR and FRR configurations together in one Batfish
+snapshot. The `-iosxr` specimens in `experiment/scenario_validation` retain the FRR
+specimens' requirements and replace only the XR-specific negative controls.
 
 ## Delegate configuration generation to netlab
 
