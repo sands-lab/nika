@@ -50,6 +50,11 @@ LAZY_COMMANDS.update(
             "remote_app",
             "Optional remote lab-host control plane.",
         ),
+        "firecracker": LazyCommandSpec(
+            "nika.cli.commands.firecracker",
+            "firecracker_app",
+            "Advanced: lab images for benchmark runs in Firecracker.",
+        ),
         "config": LazyCommandSpec(
             "nika.cli.commands.config_cmd",
             "config_app",

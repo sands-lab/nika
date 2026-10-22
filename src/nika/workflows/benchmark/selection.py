@@ -187,8 +187,8 @@ def _phase_p0(
             return str(row["problem"]) == problem
 
         def _covers_with_stack(row: dict[str, Any], *, problem=problem) -> bool:
-            return (
-                str(row["problem"]) == problem and bool(str(row.get("backend") or ""))
+            return str(row["problem"]) == problem and bool(
+                str(row.get("backend") or "")
             )
 
         pick = None
@@ -241,9 +241,7 @@ def _phase_cross_environment_repeats(
                     and deployment_environment_key(row) not in picked
                 )
 
-            def _fills_missing_backend(
-                row: dict[str, Any], *, problem=problem
-            ) -> bool:
+            def _fills_missing_backend(row: dict[str, Any], *, problem=problem) -> bool:
                 if not _new_environment(row, problem=problem):
                     return False
                 backend = str(row.get("backend") or "")

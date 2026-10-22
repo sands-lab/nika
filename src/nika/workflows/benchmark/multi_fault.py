@@ -42,3 +42,31 @@ def nested_inject_map(row: dict[str, Any]) -> dict[str, dict[str, str]]:
 def flatten_inject_overrides(row: dict[str, Any]) -> dict[str, Any]:
     """Return inject overrides suitable for ``inject_failure``."""
     return nested_inject_map(row)
+
+
+def inject_overrides(
+    problem: str, problems: list[str], inject: dict[str, Any]
+) -> dict[str, Any]:
+    """``inject_failure`` overrides for a case's problem(s) and inject params."""
+    if len(problems) > 1:
+        return flatten_inject_overrides(
+            {"problem": problem, "problems": problems, "inject": inject}
+        )
+    return dict(inject)
+
+
+def row_inject_args(
+    row: dict[str, Any],
+) -> tuple[list[str], dict[str, Any], list | None]:
+    """``(problem_names, param_overrides, expected_root_causes)`` a trial injects."""
+    problems = row_problems(row)
+    expected = (
+        None
+        if row.get("root_causes_status") == "unresolved"
+        else row.get("root_causes")
+    )
+    return (
+        problems,
+        inject_overrides(row["problem"], problems, row.get("inject") or {}),
+        expected,
+    )
