@@ -76,13 +76,7 @@ to either experiment runner. The Python workflow accepts
 netlab generates protocol and policy configuration; Batfish and native execution
 check the original requirements.
 
-This path supports the existing ISP, Clos, campus, enterprise and direct-BGP
-routing sketches. ISP devices include FRR, IOS XR, SR Linux and RouterOS within
-their supported protocol scopes. NIKA retains the configuration features missing
-from upstream templates, such as RouterOS filters and enterprise VRF imports;
-the result summary lists these responsibilities. See the
-[configuration generation scope](../../docs/development/scenario-verification.md#4-generate-the-target-device-configuration)
-for protocol limits and model assumptions.
+This path supports the existing ISP, Clos, campus, enterprise and direct-BGP routing sketches. ISP devices include FRR, IOS XR, SR Linux and RouterOS within their supported protocol scopes. NIKA retains the configuration features missing from upstream templates, such as RouterOS filters and enterprise VRF imports; the result summary lists these responsibilities. See the [configuration-generation example](../../docs/development/scenario-verification.md#4-generate-the-target-device-configuration) and the [protocol limits and model assumptions](../../docs/development/scenario-verification.md#acceptance-scope-and-reproduction).
 
 Omitting the option keeps the existing construction path. Normal benchmark
 startup can reuse saved candidates; it does not run NetComplete, netlab or

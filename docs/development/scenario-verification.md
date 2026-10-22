@@ -250,3 +250,12 @@ Acceptance establishes the declared properties within the supported static model
 Catalogue support, offline generation, static acceptance and native acceptance are distinct. A representative run does not cover every topology/vendor/protocol combination. Heavy native environments run one at a time and remain subject to resource admission.
 
 Each experiment saves its original specification, solved parameters, candidate configurations and verification reports. Use the [experiment guide](../../experiment/scenario_validation/README.md) for dependencies, execution, saved-build replay and test matrices, and the [runtime validation guide](scenario-validation.md) for ordinary startup checks.
+
+The recorded FRR example uses the benchmark's OSPF/eBGP Abilene profile with six AS-exit orders. From the repository root, prepare the benchmark inputs, then run only that profile:
+
+```bash
+uv run python experiment/scenario_validation/benchmark_isp.py benchmark/working/cases.yaml --scenario isp_abilene --output /tmp/abilene-input
+uv run python experiment/scenario_validation/experiment.py /tmp/abilene-input/isp_abilene--ospf--ebgp--kathara/specification.json --config-generator netlab --runtime --output /tmp/abilene-verified
+```
+
+The first command writes the input `specification.json` without deploying a network. The second saves `routing-parameters.json`, `candidate-configs/atlang.conf`, `static-healthy.json`, `runtime-healthy.json` and `summary.json` under `/tmp/abilene-verified`, corresponding to the values, configuration and results shown above.
