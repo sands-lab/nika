@@ -59,12 +59,6 @@ def check_netlab_scope(spec, env):
 
         srl_topology(env)
     else:
-        if getattr(env, "native_routers", None):
-            # The Ethernet adapters hand netlab FRR router sketches only.
-            raise ValueError(
-                "netlab Ethernet construction covers FRR routers; "
-                f"device_profile={env.device_profile} routers are rendered natively"
-            )
         if "import_preferences" in env.ROUTING_PARAMETER_KINDS:
             from nika.net_env.synthesis.netlab_overlay import overlay_topology
 
