@@ -27,12 +27,6 @@ def _single_quote(value: str) -> str:
 class IOSXRAPIMixin:
     """XRd Control Plane operations via ``exec_cmd``."""
 
-    def uses_iosxr_router(self: SupportsExec, device_name: str) -> bool:
-        output = self.exec_cmd(
-            device_name, "test -x /pkg/bin/xr_cli && echo yes || true"
-        )
-        return "yes" in output
-
     def iosxr_exec(
         self: SupportsExec, device_name: str, command: str, timeout: float = 60
     ) -> str:
@@ -131,12 +125,6 @@ class IOSXRAPIMixin:
                 "end",
             ],
         )
-
-    def iosxr_bgp_prefix_withdrawn(
-        self: SupportsExec, device_name: str, prefix: str
-    ) -> bool:
-        networks = self.iosxr_list_bgp_networks(device_name)
-        return prefix not in {str(n) for n in networks}
 
 
 def _rewrite_router_bgp_asn(conf: str, old_asn: int, new_asn: int) -> list[str]:
