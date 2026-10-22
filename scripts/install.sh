@@ -373,7 +373,7 @@ bootstrap_config() {
     log "config/nika.yaml already present"
   fi
 
-  # Copies untracked config/custom/ files into new git worktrees.
+  # Checks commit messages and copies untracked config/custom/ files into new worktrees.
   local hooks_path
   git rev-parse --git-dir >/dev/null 2>&1 || return 0
   hooks_path="$(git config --get core.hooksPath || true)"
@@ -381,7 +381,7 @@ bootstrap_config() {
     git config core.hooksPath scripts/git-hooks
     log "Enabled repository git hooks (core.hooksPath=scripts/git-hooks)"
   elif [[ "${hooks_path}" != "scripts/git-hooks" ]]; then
-    warn "core.hooksPath is ${hooks_path}; config/custom/ is not copied into new worktrees"
+    warn "core.hooksPath is ${hooks_path}; commit messages are not checked and config/custom/ is not copied into new worktrees"
   fi
 }
 

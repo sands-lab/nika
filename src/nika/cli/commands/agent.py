@@ -107,7 +107,7 @@ def agent_list() -> None:
         typer.echo(f"  {provider}")
     typer.echo(
         "reasoning_effort (byo.langgraph, byo.mcp_agent, byo.autogen, "
-        "cli.codex, sdk.codex_sdk):"
+        "cli.codex, cli.claude, sdk.codex_sdk, sdk.claude_sdk; default medium):"
     )
     for level in REASONING_EFFORT_LEVELS:
         typer.echo(f"  {level}")
@@ -263,9 +263,9 @@ def agent_run(
         "-e",
         "--reasoning-effort",
         help=(
-            "Reasoning effort for byo agents (openai/custom; anthropic on "
-            "langgraph), cli.codex, and sdk.codex_sdk: none, minimal, low, "
-            "medium, high, xhigh. byo.mcp_agent supports none/low/medium/high."
+            "Reasoning effort for byo, Codex, and Claude agents: none, minimal, "
+            "low, medium, high, xhigh (default: agent.reasoning_effort, else "
+            "medium). byo.mcp_agent supports none/low/medium/high."
         ),
     ),
     access_role: str | None = typer.Option(

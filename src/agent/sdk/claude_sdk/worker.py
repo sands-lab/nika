@@ -10,6 +10,7 @@ from agent.sdk.claude_sdk.transcript import ClaudeSdkTranscript, run_claude_sdk_
 from agent.sdk.mcp import to_sdk_mcp_servers
 from agent.utils.loggers import MessageLogger, render_prompt
 from agent.utils.mcp_client import session_mcp_config
+from agent.utils.reasoning_effort import map_anthropic_effort
 from agent.utils.skills import CLAUDE_SETTING_SOURCES, claude_skills_package_dir
 
 
@@ -28,6 +29,7 @@ class ClaudeSdkWorker:
         llm_provider: str,
         system_prompt: str,
         max_tokens: int | None = None,
+        reasoning_effort: str | None = None,
     ) -> None:
         if phase not in PHASES:
             raise ValueError(f"phase must be one of {PHASES}, got {phase!r}")
@@ -41,6 +43,7 @@ class ClaudeSdkWorker:
         self.scenario_name = scenario_name
         self.system_prompt = system_prompt
         self.max_tokens = max_tokens
+        self.reasoning_effort = reasoning_effort
         self._logger = MessageLogger(phase=phase, session_dir=session_dir)
 
     async def run(self, prompt: str) -> str:
@@ -66,6 +69,7 @@ class ClaudeSdkWorker:
             "max_turns": self.max_steps,
             "permission_mode": "bypassPermissions",
             "env": sdk_env,
+            "effort": map_anthropic_effort(self.reasoning_effort),
         }
         skills_dir = claude_skills_package_dir()
         if skills_dir is not None and self.phase != SUBMISSION:

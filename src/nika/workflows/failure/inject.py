@@ -80,6 +80,7 @@ def inject_failure(
             problem_names,
             session_id=session_id,
             param_overrides=param_overrides,
+            expected_root_causes=expected_root_causes,
         )
         return
 

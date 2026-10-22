@@ -1,5 +1,19 @@
 {
   "worktree": {
     "setup": ["sh scripts/git-hooks/post-checkout 0000000000000000000000000000000000000000"]
+  },
+  "metadataGeneration": {
+    "title": {
+      "instructions": "A few lowercase words naming the change, without a leading verb, e.g. 'onos rest group install'."
+    },
+    "branchName": {
+      "instructions": "Use <type>/<slug>, where <type> is the Conventional Commit type of the change: feat, fix, docs, refactor, perf, test, chore, ci, build, or revert. The slug is 2-5 lowercase hyphenated words. When the task names a GitHub issue, use <type>/<issue>-<slug>, e.g. fix/54-onos-rest-group-install. Never invent placeholders such as noissue."
+    },
+    "commitMessage": {
+      "instructions": "Use Conventional Commits. Subject: type(scope): imperative summary, where type is one of feat, fix, docs, refactor, perf, test, chore, ci, build, or revert, and scope is an optional lowercase area such as benchmark, agent, or ci. Example: fix(benchmark): resolve serial batching race in run scheduler. No trailing period. Optional body: a short summary of why, wrapped at 72 columns."
+    },
+    "pullRequest": {
+      "instructions": "Title: the Conventional Commit line type(scope): imperative summary, without a PR number. Body: a short summary of the change, then Fixes #<issue> (or Closes/Resolves) for each issue it resolves, or Refs #<issue> when it only contributes. Omit both when there is no issue."
+    }
   }
 }
