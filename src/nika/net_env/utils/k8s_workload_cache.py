@@ -59,6 +59,21 @@ _MOUNT_CACHE_DIR = "/image-cache"
 _K3S_API_WAIT_SEC = 600.0
 _K3S_API_POLL_SEC = 2.0
 _IMPORT_TIMEOUT_SEC = 600.0
+_SKOPEO_TIMEOUT_SEC = 600.0
+_SKOPEO_RETRY_TIMES = "2"
+_TRANSIENT_ATTEMPTS = 3
+_TRANSIENT_RETRY_SEC = 10.0
+_TRANSIENT_REGISTRY_MARKERS = (
+    "http status: 5",
+    "status code: 5",
+    "connection reset",
+    "connection refused",
+    "connection timed out",
+    "tls handshake timeout",
+    "i/o timeout",
+    "unexpected eof",
+    "temporarily unavailable",
+)
 
 
 def cache_root() -> Path:
@@ -282,6 +297,25 @@ def _skopeo(*args: str, mount: Path, timeout: float) -> bytes:
         container.remove(force=True)
 
 
+def _is_transient_registry_error(exc: BaseException) -> bool:
+    text = str(exc).lower()
+    return any(marker in text for marker in _TRANSIENT_REGISTRY_MARKERS)
+
+
+def _skopeo_retry(*args: str, mount: Path, timeout: float) -> bytes:
+    """Retry skopeo when the registry returns a 5xx or drops the connection."""
+    last_error: RuntimeError | None = None
+    for attempt in range(1, _TRANSIENT_ATTEMPTS + 1):
+        try:
+            return _skopeo(*args, mount=mount, timeout=timeout)
+        except RuntimeError as exc:
+            last_error = exc
+            if attempt == _TRANSIENT_ATTEMPTS or not _is_transient_registry_error(exc):
+                raise
+            time.sleep(_TRANSIENT_RETRY_SEC)
+    raise last_error  # pragma: no cover
+
+
 def ensure_cached(image: str) -> Path:
     """Fetch a digest-pinned, complete image graph independently of Docker's store."""
     if "@sha256:" not in image:
@@ -306,7 +340,7 @@ def ensure_cached(image: str) -> Path:
         directory = Path(tmp) / "image"
         staged = Path(tmp) / "image.tar"
         try:
-            _skopeo(
+            _skopeo_retry(
                 "copy",
                 "--override-os",
                 "linux",
@@ -314,16 +348,22 @@ def ensure_cached(image: str) -> Path:
                 host_machine_arch(),
                 "--preserve-digests",
                 "--retry-times",
-                "2",
+                _SKOPEO_RETRY_TIMES,
                 f"docker://{source}",
                 f"dir:{directory}",
                 mount=Path(tmp),
-                timeout=600,
+                timeout=_SKOPEO_TIMEOUT_SEC,
             )
             # Keep the upstream index identity while including only the selected
             # platform's blobs. ctr --platform resolves this sparse index offline.
-            root = _skopeo(
-                "inspect", "--raw", f"docker://{source}", mount=Path(tmp), timeout=60
+            root = _skopeo_retry(
+                "inspect",
+                "--raw",
+                "--retry-times",
+                _SKOPEO_RETRY_TIMES,
+                f"docker://{source}",
+                mount=Path(tmp),
+                timeout=_SKOPEO_TIMEOUT_SEC,
             )
             selected = directory / "manifest.json"
             selected.replace(

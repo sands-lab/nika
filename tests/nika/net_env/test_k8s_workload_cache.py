@@ -148,6 +148,8 @@ def test_ensure_cached_fetches_complete_graph_when_missing(tmp_path: Path) -> No
     image, _ = _image_tar(tmp_path)
 
     def fetch(*args, mount, timeout):
+        assert timeout == cache._SKOPEO_TIMEOUT_SEC
+        assert args[args.index("--retry-times") + 1] == cache._SKOPEO_RETRY_TIMES
         if args[0] == "inspect":
             return (tmp_path / "source" / "manifest.json").read_bytes()
         assert "--preserve-digests" in args
@@ -269,11 +271,39 @@ def test_ensure_cached_reports_registry_failure(tmp_path: Path) -> None:
     image, _ = _image_tar(tmp_path)
     with (
         patch.object(cache, "ensure_nika_docker_images"),
-        patch.object(cache, "_skopeo", side_effect=RuntimeError("denied")),
+        patch.object(cache, "_skopeo", side_effect=RuntimeError("denied")) as fetch,
         pytest.raises(RuntimeError, match="denied"),
     ):
         cache.ensure_cached(image)
+    assert fetch.call_count == 1
     assert not cache.cache_tar_exists(image)
+
+
+@pytest.mark.unit
+def test_ensure_cached_retries_transient_registry_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    image, _ = _image_tar(tmp_path)
+    calls: list[str] = []
+
+    def fetch(*args, mount, timeout):
+        calls.append(args[0])
+        if args[0] == "copy" and calls.count("copy") == 1:
+            raise RuntimeError("received unexpected HTTP status: 522")
+        if args[0] == "inspect":
+            if calls.count("inspect") == 1:
+                raise RuntimeError("received unexpected HTTP status: 502")
+            return (tmp_path / "source" / "manifest.json").read_bytes()
+        _image_directory(Path(args[-1].removeprefix("dir:")))
+
+    monkeypatch.setattr(cache.time, "sleep", lambda _seconds: None)
+    with (
+        patch.object(cache, "_skopeo", side_effect=fetch),
+        patch.object(cache, "ensure_nika_docker_images"),
+    ):
+        path = cache.ensure_cached(image)
+    assert calls == ["copy", "copy", "inspect", "inspect"]
+    assert cache._tar_is_complete(path, image)
 
 
 @pytest.mark.unit
