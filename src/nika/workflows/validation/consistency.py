@@ -147,6 +147,9 @@ def compare_config_generators(
         kwargs["routing_parameters"] = parameters.model_dump(mode="json")
 
     native_env = get_net_env_instance(scenario, **kwargs)
+    if getattr(native_env, "native_routers", None):
+        # The FRR projections would silently omit the native routers.
+        raise ValueError("Generator comparison does not cover mixed-vendor deployments")
     candidate_env = get_net_env_instance(scenario, **kwargs)
     check_netlab_scope(None, candidate_env)
     generated = generate_configs(None, candidate_env, parameters, output / "netlab")
