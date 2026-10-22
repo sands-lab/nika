@@ -1,16 +1,16 @@
 # Create benchmark tasks
 
-This guide is for NIKA contributors who add a network scenario, injectable failure, traffic source, or benchmark case. It follows the runtime and registry contracts used by the current implementation.
+This guide is for NIKA contributors who add a network environment, injectable failure, traffic source, or benchmark task. It follows the runtime and registry contracts used by the current implementation.
 
 Core contracts: [`NetworkEnvBase`](../../src/nika/net_env/base.py), [`ProblemBase`](../../src/nika/problems/base.py), and the [`benchmark` workflows](../../src/nika/workflows/benchmark/).
 
 ## Understand the task model
 
-A benchmark case combines:
+A task combines:
 
-- a network scenario from `src/nika/net_env/`
-- either one injectable problem from `src/nika/problems/`, a `problems` list for coordinated multi-fault cases, or the sentinel `problem: healthy` (no fault)
-- explicit injection parameters (empty for healthy cases; nested per problem for multi-fault rows)
+- a network environment from `src/nika/net_env/`
+- either one injectable problem from `src/nika/problems/`, a `problems` list for coordinated multi-fault tasks, or the sentinel `problem: healthy` (no fault)
+- explicit injection parameters (empty for healthy tasks; nested per problem for multi-fault rows)
 - optional traffic generated before or during troubleshooting
 - an agent run and evaluation output under `results/{session_id}/`
 
@@ -26,11 +26,11 @@ nika session close -y
 nika eval metrics
 ```
 
-For benchmark automation, `nika benchmark run` performs env deploy, fault injection, agent run, close, and eval for each case.
+For benchmark automation, `nika benchmark run` performs env deploy, fault injection, agent run, close, and eval for each task.
 
-## Add a network scenario
+## Add a network environment
 
-Network environments implement `NetworkEnvBase` and bind to Kathara or Containerlab through the runtime layer. Read the [network scenario reference](../operations/network-scenarios.md) before adding another scenario ID; an existing parameterized scenario may already cover the topology.
+Network environments implement `NetworkEnvBase` and bind to Kathara or Containerlab through the runtime layer. Read the [network scenario reference](../operations/network-scenarios.md) before adding another environment ID; an existing parameterized environment may already cover the topology.
 
 1. Add a single-backend lab under `src/nika/net_env/<scenario>/`. Only multi-backend scenarios use backend subdirectories, such as `src/nika/net_env/isp/kathara/` and `src/nika/net_env/isp/containerlab/`. Shared backend helpers belong in `src/nika/net_env/utils/kathara/` or `src/nika/net_env/utils/containerlab/`.
 2. Implement a class that sets `LAB_NAME`, initializes the backend lab/topology, sets `self.name`, `self.desc`, and declares useful host lists through `load_machines()`.
@@ -231,9 +231,9 @@ nika traffic run web --pages-min 2 --pages-max 5 --no-loop
 
 For faults that create traffic as the root cause, keep that logic inside the problem class. For background or validation traffic, prefer the traffic CLI or generator APIs.
 
-## Add benchmark cases
+## Add benchmark tasks
 
-Benchmark YAML rows use the same names and injection parameters as the CLI:
+Benchmark YAML rows use the same names and injection parameters as the CLI. The file key remains `cases:`:
 
 ```yaml
 cases:
@@ -259,7 +259,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 
 Review the YAML and docs table diffs.
 
-Run a single case:
+Run a single task:
 
 ```shell
 uv run nika benchmark run my_scenario --problem my_fault -s s \
