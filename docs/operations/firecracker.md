@@ -27,8 +27,8 @@ host, such as several agents or models on the same tasks, or when its
 environments take minutes to deploy. On release 0.2.0's test split, the time
 trials spend outside the agent drops from 10.8 h to 0.9 h per run, and 85 tasks
 ran in 2 h 30 min including the one-time builds instead of 5 h 55 min. Restored
-labs give the same scores as native ones with the mock agent; with real agents,
-scores varied between the modes as much as between any two runs (see
+labs give the same scores as native ones with the mock agent; with a real agent,
+scores differed on some tasks in both directions (see
 [Compatibility and scores](#compatibility-and-scores)).
 
 Firecracker execution needs:
@@ -404,8 +404,10 @@ Restored labs behave like freshly deployed ones:
 * All 29 environment variants of release 0.2.0 ran from lab images with the
   mock agent, with the same scores as native runs.
 * Full test-split runs (85 tasks × 3 trials) with Claude Code and with Codex,
-  each agent in its sandbox, finished all 255 trials; on the 85 tasks run in
-  both modes, Firecracker scored higher on 11, lower on 11 and the same on 63.
+  both on Qwen3-Coder-Next-FP8 and each agent in its sandbox, finished all 255
+  trials; both runs are on the [NIKA leaderboard](https://sands-lab.github.io/nika/leaderboard/).
+  Claude Code also ran each task once natively: on these 85 tasks, Firecracker
+  scored higher on 11, lower on 11 and the same on 63.
 * RouterOS and Cisco XRd labs restored with their BGP sessions up and scored as
   in native runs; their agents started 2.3 s and 3.4 s after the trial began,
   instead of 70 s and 120 s.
