@@ -36,7 +36,7 @@ The templates are Docker's `docker/sandbox-templates` images. sbx runs them dire
 
 ## Set up the runtime
 
-Every runtime needs a [NIKA installation](installation.md), a Docker engine for the network environment, and the agent's [API key or subscription login](#authentication). Then set up the runtime you chose.
+Every runtime needs a [NIKA installation](installation.md), a Docker engine for the network environment, and the agent's [API key or subscription login](#authentication). OpenCode (`cli.opencode`) and DeepSeek Harness (`cli.dsh`) also need [Node.js](https://nodejs.org/) 22+ with npm on the NIKA host, so NIKA can stage their CLIs into the sandbox. Then set up the runtime you chose.
 
 ### Run AgentENV in Docker
 
@@ -200,7 +200,7 @@ OpenCode and DeepSeek Harness need their Node CLIs inside the sandbox. The sandb
 
 ### E2B templates
 
-E2B starts each sandbox from a template that the service builds and keeps. NIKA builds one template for each sandbox template an agent uses, from the same `docker/sandbox-templates` image that sbx runs, and installs the agent's pinned packages into it. Sandboxes therefore start with everything installed, and the NIKA host uploads nothing large.
+E2B starts each sandbox from a template that the service builds and keeps. NIKA builds one template for each sandbox template an agent uses, from the same `docker/sandbox-templates` image that sbx runs, and installs the agent's pinned Python packages into it. OpenCode and DeepSeek Harness still receive their host-cached npm packages through the workspace.
 
 NIKA prepares the configured agent's template when it deploys an environment, when you run `uv run nika images prepare`, and before an agent run. A build can take several minutes; later runs reuse the template. NIKA builds a new template when the pinned image, the pinned packages, `nika.sandbox.cpus`, or `nika.sandbox.memory` change.
 
