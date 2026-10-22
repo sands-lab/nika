@@ -81,7 +81,7 @@ routing sketches. ISP devices include FRR, IOS XR, SR Linux and RouterOS within
 their supported protocol scopes. NIKA retains the configuration features missing
 from upstream templates, such as RouterOS filters and enterprise VRF imports;
 the result summary lists these responsibilities. See the
-[configuration generation scope](../../docs/development/scenario-verification.md#delegate-configuration-generation-to-netlab)
+[configuration generation scope](../../docs/development/scenario-verification.md#4-generate-the-target-device-configuration)
 for protocol limits and model assumptions.
 
 Omitting the option keeps the existing construction path. Normal benchmark
