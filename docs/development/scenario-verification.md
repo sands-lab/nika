@@ -4,7 +4,7 @@ NIKA checks whether a constructed network satisfies its original behavior specif
 
 Run this experiment explicitly during environment development. Normal benchmark execution keeps its existing startup path; saved constructions can be reused without rerunning synthesis and analysis.
 
-## Why these stages are separate
+## What each stage is for
 
 A route requirement does not specify all configuration values, a solved value does not supply every device's syntax, and a generated configuration does not establish its behavior. The workflow assigns each problem to a supported tool:
 

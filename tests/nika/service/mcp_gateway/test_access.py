@@ -130,7 +130,10 @@ def test_ip_targets_pass_default_policy_and_fail_restricted() -> None:
         policy=default, tool_name="active_tcp_probe", arguments=args, node_roles=_ROLES
     ).allowed
     denied = decide_diagnosis_access(
-        policy=_RESTRICTED, tool_name="active_tcp_probe", arguments=args, node_roles=_ROLES
+        policy=_RESTRICTED,
+        tool_name="active_tcp_probe",
+        arguments=args,
+        node_roles=_ROLES,
     )
     assert (denied.allowed, denied.reason) == (False, "unknown_target")
 

@@ -16,16 +16,25 @@ from nika.workflows.benchmark.load_config import (
     normalize_benchmark_row,
 )
 from nika.workflows.benchmark.candidate_context import pool_context_key
-from nika.workflows.benchmark.trials import task_id_for_row
+from nika.workflows.benchmark.trials import (
+    parse_task_selector,
+    sanitize_token,
+    task_id_for_row,
+)
 
 DEFAULT_CATALOG = BENCHMARK_DIR / "working" / "pool"
 DEPLOY_KEYS = ("topo_size", *ISP_DEPLOY_KEYS)
 
 
 def load_example_cases(
-    catalog: Path | None = None, *, env: str | None = None, failure: str | None = None
+    catalog: Path | None = None,
+    *,
+    env: str | None = None,
+    failure: str | None = None,
+    task_id: str | None = None,
 ) -> list[dict[str, Any]]:
     """Use catalog presets and fill missing registered contexts for default browsing."""
+    wanted = parse_task_selector(task_id)[0] if task_id else None
     cases: dict[str, dict[str, Any]] = {}
     for row in load_benchmark_input(catalog or DEFAULT_CATALOG):
         if (env and row["scenario"] != env) or (failure and row["problem"] != failure):
@@ -47,6 +56,8 @@ def load_example_cases(
             "case_source": "catalog",
             "experimental": True,
         }
+        if wanted is not None and wanted in cases:
+            return [cases[wanted]]
     if catalog is None:
         from nika.workflows.benchmark.generate import (
             build_failure_cases,
@@ -59,6 +70,8 @@ def load_example_cases(
             include_benchmark_excluded=True
         ):
             if (env and scenario != env) or (failure and problem != failure):
+                continue
+            if wanted is not None and not wanted.startswith(sanitize_token(scenario)):
                 continue
             context = {
                 "scenario": scenario,
@@ -87,6 +100,8 @@ def load_example_cases(
                     problem=problem,
                     rejected=rejected,
                 )
+            if wanted is not None and wanted in cases:
+                return [cases[wanted]]
     return sorted(
         cases.values(),
         key=lambda row: (
