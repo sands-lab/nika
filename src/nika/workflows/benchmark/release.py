@@ -21,6 +21,7 @@ from nika.net_env.utils.kathara.docker_files.docker_images import (
 )
 from nika.problems.compat.v010 import RELEASE_VERSION as RELEASE_010
 from nika.net_env.net_env_pool import (
+    deployment_needs_licensed_images,
     get_net_env_instance,
     legacy_010_specs,
     list_all_net_envs,
@@ -532,7 +533,15 @@ def preflight_release(
         raise ReleaseError(f"Missing problems: {missing_problems}")
     specs = list_all_net_envs()
     licensed = sorted(
-        name for name in scenarios if name in specs and specs[name].licensed_images
+        {
+            row["scenario"]
+            + (f" ({row['device_profile']})" if row.get("device_profile") else "")
+            for row in release.cases
+            if row["scenario"] in specs
+            and deployment_needs_licensed_images(
+                row["scenario"], row.get("device_profile")
+            )
+        }
     )
     if licensed:
         raise ReleaseError(

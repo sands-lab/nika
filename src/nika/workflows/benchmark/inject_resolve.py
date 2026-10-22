@@ -9,6 +9,7 @@ from collections import defaultdict
 from nika.net_env.net_env_pool import get_net_env_instance
 from nika.problems.base import ProblemBase
 from nika.problems.registry import get_problem_class, list_avail_problem_instances
+from nika.problems.support.router_ops import unsupported_native_targets
 from nika.problems.support.benchmark_targets import (
     InjectTargetContext,
     InjectValidationContext,
@@ -24,6 +25,11 @@ from nika.workflows.benchmark.isp_options import (
 )
 
 DEFAULT_SEED = 42
+
+
+class UnsupportedNativeTargetError(ValueError):
+    """A case targets a native router whose platform cannot run the failure."""
+
 
 _DEVICE_KEYS = (
     "host_name",
@@ -52,7 +58,8 @@ def _case_rng(
     return random.Random(digest)
 
 
-def _isp_rng_key(isp_options: dict[str, str] | None) -> str:
+def _deploy_rng_key(isp_options: dict[str, str] | None) -> str:
+    """Deployment part of a case's RNG key (empty for default deployments)."""
     if not isp_options:
         return ""
     return (
@@ -95,10 +102,10 @@ def _resolve_benchmark_backend(
     )
 
 
-def _isp_stack_kwargs(
+def _stack_kwargs(
     scenario: str, isp_options: dict[str, str] | None
 ) -> dict[str, object]:
-    """Backend / device_profile kwargs for ISP (and other multi-backend) labs."""
+    """Backend / device_profile kwargs for any lab (ISP or native profile)."""
     kwargs: dict[str, object] = {
         "backend": _resolve_benchmark_backend(scenario, isp_options),
     }
@@ -119,7 +126,7 @@ def _get_net_env_for_benchmark(
     if topo_size and not is_isp_scenario(scenario):
         kwargs["topo_size"] = topo_size
     kwargs.update(_isp_protocol_kwargs(scenario, isp_options))
-    kwargs.update(_isp_stack_kwargs(scenario, isp_options))
+    kwargs.update(_stack_kwargs(scenario, isp_options))
     return get_net_env_instance(scenario, **kwargs)
 
 
@@ -180,7 +187,7 @@ def _resolve(
         scenario,
         problem,
         topo_size,
-        _isp_rng_key(isp_options),
+        _deploy_rng_key(isp_options),
     )
     if net_env is None:
         net_env = _get_net_env_for_benchmark(
@@ -308,14 +315,13 @@ def validate_benchmark_case(
             isp_options=isp_options,
         )
         _load_inventory(net_env)
-    if (
-        is_isp_base_topology(canonical)
-        and getattr(net_env, "device_profile", None) in {"iosxr", "routeros"}
-        and problem != "link_down"
-    ):
-        raise ValueError(
-            f"Native ISP benchmark profiles need native fault bindings for {problem!r}; "
-            "currently only link_down is supported."
+    unsupported = unsupported_native_targets(
+        problem_cls, net_env, [inject[key] for key in _DEVICE_KEYS if inject.get(key)]
+    )
+    if unsupported:
+        raise UnsupportedNativeTargetError(
+            f"{problem} has no native implementation for target routers "
+            f"{unsupported} in {scenario}."
         )
     devices = _all_device_names(net_env)
     ifaces_by_device = _device_interfaces(net_env)
@@ -422,7 +428,7 @@ def resolve_multi_inject_params(
         scenario,
         "+".join(sorted(problems)),
         topo_size,
-        _isp_rng_key(isp_options),
+        _deploy_rng_key(isp_options),
     )
     ctx = MultiInjectContext(
         scenario=scenario,

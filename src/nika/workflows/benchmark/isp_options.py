@@ -158,6 +158,29 @@ def isp_options_from_row(row: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
+def _native_profile_option(
+    scenario: str, provided: dict[str, Any]
+) -> dict[str, str] | None:
+    """Return ``{"device_profile": ...}`` for a native profile of a non-ISP lab.
+
+    Environments that declare ``device_profiles`` accept one of them (on
+    Kathara) as their only deployment option. Returns ``None`` otherwise.
+    """
+    from nika.net_env.net_env_pool import scenario_device_profiles
+
+    profile = provided["device_profile"]
+    if profile is None or provided["topo"] is not None:
+        return None
+    if any(provided[key] is not None for key in ISP_PROTOCOL_KEYS):
+        return None
+    profile = profile.strip().lower()
+    if profile not in scenario_device_profiles(scenario):
+        return None
+    if provided["backend"] not in (None, "kathara"):
+        raise ValueError(f"device_profile={profile!r} requires backend kathara.")
+    return {"device_profile": profile}
+
+
 def validate_and_resolve_isp_options(
     *,
     scenario: str,
@@ -191,6 +214,9 @@ def validate_and_resolve_isp_options(
     topo_provided = provided["topo"] is not None
 
     if not is_isp_scenario(scenario):
+        native = _native_profile_option(scenario, provided)
+        if native is not None:
+            return native
         if any_protocol or topo_provided or any_stack:
             raise ValueError(
                 f"Scenario {scenario!r} does not accept topo/igp/bgp_mode/rpki/"

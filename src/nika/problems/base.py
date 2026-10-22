@@ -106,6 +106,12 @@ class ProblemBase:
     isp_protocol: ClassVar[dict[str, Any] | None] = None
     required_capabilities: ClassVar[tuple[str, ...] | list[str]] = ()
     supported_backends: ClassVar[tuple[str, ...] | list[str] | None] = None
+    # Native router failure operations (``problems/support/router_ops.py``)
+    # this failure needs when its target is a native router (IOS XR, RouterOS).
+    # ``None``: no native implementation, so targets stay on FRR/Linux nodes.
+    # An empty set: the failure acts outside the router OS (for example on the
+    # container interface), so every native profile can host it.
+    native_router_operations: ClassVar[frozenset[str] | None] = None
     # Optional protocol whose adjacency effect this failure declares.
     effect_protocol: ClassVar[str | None] = None
     effect_property: ClassVar[str | None] = None

@@ -63,7 +63,13 @@ def test_case_export_preserves_task_identity_and_ground_truth(tmp_path: Path) ->
     )
     assert listing.exit_code == 0, listing.output
     entries = json.loads(listing.output)
-    assert [row["topo_size"] for row in entries] == ["s", "m", "l"]
+    assert [(row["topo_size"], row.get("device_profile")) for row in entries] == [
+        ("s", None),
+        ("s", "iosxr"),
+        ("s", "routeros"),
+        ("m", None),
+        ("l", None),
+    ]
     assert all(row["e2e_verification"] == "not_recorded" for row in entries)
     row = entries[0]
     output = tmp_path / "case with spaces.yaml"

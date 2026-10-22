@@ -96,6 +96,7 @@ class BGPAsnMisconfig(ProblemBase):
         "configuration, which RouterOS routers do not have."
     }
     supported_backends = ("kathara", "containerlab")
+    native_router_operations = frozenset({"bgp_asn", "set_bgp_asn"})
 
     Params = BGPAsnMisconfigParams
     BENCHMARK_COORDINATES = frozenset({"bgp_acl_block"})
@@ -406,6 +407,7 @@ class BGPMissingAdvertise(ProblemBase):
         "configuration, which RouterOS routers do not have.",
     }
     supported_backends = ("kathara", "containerlab")
+    native_router_operations = frozenset({"bgp_networks", "withdraw_bgp_network"})
 
     Params = BGPMissingAdvertiseParams
 

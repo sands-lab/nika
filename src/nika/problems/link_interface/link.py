@@ -49,6 +49,8 @@ class LinkFailure(ProblemBase):
     description = "Carrier or operational link is down on the selected attachment."
     TAGS: str = ["link"]
     supported_backends = ("kathara", "containerlab")
+    # Sets the container interface down; native routers mirror its link state.
+    native_router_operations = frozenset()
     RECORDED_ATTRS = ("faulty_intf",)
 
     Params = LinkFailureParams

@@ -13,6 +13,8 @@ import yaml
 from nika.config import BENCHMARK_DIR
 from nika.net_env.net_env_pool import (
     list_all_net_envs,
+    scenario_device_profile_sizes,
+    scenario_device_profiles,
     scenario_fixed_topo_size,
     scenario_requires_topo_size,
     scenario_supported_backends,
@@ -21,16 +23,22 @@ from nika.problems.rca import UnresolvedRootCauseError
 from nika.problems.rca.inventory import load_offline_net_env
 from nika.problems.rca.materialize import ground_truth_for_case
 from nika.problems.rca.models import FaultResource
-from nika.problems.registry import list_avail_problem_instances
+from nika.problems.registry import get_problem_class, list_avail_problem_instances
+from nika.problems.support.router_ops import unsupported_native_targets
 from nika.workflows.benchmark.e2e_validation import containerlab_isp_supported
 from nika.workflows.benchmark.healthy import HEALTHY_PROBLEM
 from nika.workflows.benchmark.inject_enumerate import enumerate_inject_params
-from nika.workflows.benchmark.inject_resolve import validate_benchmark_case
+from nika.workflows.benchmark.inject_resolve import (
+    UnsupportedNativeTargetError,
+    validate_benchmark_case,
+)
+from nika.topology.catalog import isp_topology_size
 from nika.workflows.benchmark.isp_options import (
     is_isp_base_topology,
     is_isp_named_special,
     isp_config_for_problem,
     isp_stack_for_backend,
+    isp_topo_from_scenario,
 )
 from nika.workflows.benchmark.resume import benchmark_option_id
 
@@ -50,7 +58,15 @@ _PROFILE_FIELDS = (
     "backend",
     "device_profile",
 )
-_ISP_DEPLOY_KEYS = ("igp", "bgp_mode", "rpki", "backend", "device_profile")
+# Deployment options a case row may carry besides ``topo_size``. ISP rows use
+# all of them; other environments with native router profiles carry only
+# ``device_profile``, and their default (FRR) rows carry none.
+_DEPLOY_OPTION_KEYS = ("igp", "bgp_mode", "rpki", "backend", "device_profile")
+# Native router profiles boot licensed vendor images, one heavy lab at a time.
+# The pool carries them only at the topology size their native runs cover
+# (Ethernet ``topo_size`` or ISP topology tier), within the sizes the
+# environment declares, so no candidate needs a large native lab.
+NATIVE_PROFILE_BENCHMARK_SIZE = "s"
 
 
 def _topo_sizes_for_scenario(scenario: str) -> list[str]:
@@ -96,6 +112,27 @@ def _problem_catalog_backends(problem_cls: type) -> tuple[str, ...]:
     return tuple(str(item) for item in supported)
 
 
+def native_benchmark_profiles(scenario: str, topo_size: str = "") -> list[str]:
+    """Native router profiles the pool carries for one deployment size.
+
+    ``topo_size`` is the Ethernet size; ISP base scenarios use their
+    topology tier. Named ISP specials keep FRR (their overlays have no
+    native rendering).
+    """
+    if is_isp_named_special(scenario):
+        return []
+    if is_isp_base_topology(scenario):
+        topo_size = isp_topology_size(isp_topo_from_scenario(scenario))
+    if topo_size != NATIVE_PROFILE_BENCHMARK_SIZE:
+        return []
+    return [
+        profile
+        for profile in scenario_device_profiles(scenario)
+        if topo_size
+        in (scenario_device_profile_sizes(scenario, profile) or (topo_size,))
+    ]
+
+
 def _isp_stack_variants(
     scenario: str, problem_cls: type | None
 ) -> list[dict[str, str]]:
@@ -113,6 +150,10 @@ def _isp_stack_variants(
     variants: list[dict[str, str]] = []
     if "kathara" in allowed:
         variants.append(isp_stack_for_backend("kathara"))
+        variants.extend(
+            {"backend": "kathara", "device_profile": profile}
+            for profile in native_benchmark_profiles(scenario)
+        )
     if "containerlab" in allowed and containerlab_isp_supported(scenario):
         variants.append(isp_stack_for_backend("containerlab"))
     if not variants and "kathara" in scenario_backends:
@@ -120,10 +161,18 @@ def _isp_stack_variants(
     return variants
 
 
+def _profile_variants(scenario: str, topo_size: str) -> list[dict[str, str] | None]:
+    """Default deployment (``None``) plus each native profile of a non-ISP lab."""
+    return [None] + [
+        {"device_profile": profile}
+        for profile in native_benchmark_profiles(scenario, topo_size)
+    ]
+
+
 def _offline_kwargs(isp_options: dict[str, Any] | None) -> dict[str, Any]:
     if not isp_options:
         return {}
-    return {key: isp_options[key] for key in _ISP_DEPLOY_KEYS if key in isp_options}
+    return {key: isp_options[key] for key in _DEPLOY_OPTION_KEYS if key in isp_options}
 
 
 def _document_sort_key(document: dict[str, Any]) -> tuple[str, ...]:
@@ -211,7 +260,21 @@ def iter_failure_case_specs(
                     )
                 continue
             for topo_size in _topo_sizes_for_scenario(scenario):
-                yield problem, scenario, topo_size, None
+                for options in _profile_variants(scenario, topo_size):
+                    yield problem, scenario, topo_size, options
+
+
+def _root_cause_nodes(root_causes: list[dict[str, Any]]) -> list[str]:
+    """Nodes whose own state a root cause names (node and interface resources).
+
+    Link resources name a cable: the failure acts on the injected endpoint,
+    which ``validate_benchmark_case`` already checks.
+    """
+    return [
+        root_cause["resource"]["node"]
+        for root_cause in root_causes
+        if root_cause["resource"].get("node")
+    ]
 
 
 def _rejection(
@@ -292,7 +355,11 @@ def build_failure_cases(
         except ValueError as exc:
             rejected.append(
                 _rejection(
-                    reason="case_validation_failed",
+                    reason=(
+                        "unsupported_device_profile"
+                        if isinstance(exc, UnsupportedNativeTargetError)
+                        else "case_validation_failed"
+                    ),
                     problem=problem,
                     scenario=scenario,
                     topo_size=topo_size,
@@ -335,6 +402,24 @@ def build_failure_cases(
                     topo_size=topo_size,
                     inject=inject,
                     error=exc,
+                    isp_options=isp_options,
+                )
+            )
+            continue
+        unsupported = unsupported_native_targets(
+            get_problem_class(problem, scenario),
+            net_env,
+            _root_cause_nodes(catalog_root_causes),
+        )
+        if unsupported:
+            rejected.append(
+                _rejection(
+                    reason="unsupported_device_profile",
+                    problem=problem,
+                    scenario=scenario,
+                    topo_size=topo_size,
+                    inject=inject,
+                    error=f"root cause on native routers {unsupported}",
                     isp_options=isp_options,
                 )
             )
@@ -423,16 +508,17 @@ def _healthy_specs(
                     yield spec
             continue
         for topo_size in _topo_sizes_for_scenario(scenario):
-            spec = _emit(scenario, topo_size, None)
-            if spec is not None:
-                yield spec
+            for options in _profile_variants(scenario, topo_size):
+                spec = _emit(scenario, topo_size, options)
+                if spec is not None:
+                    yield spec
 
     for document in sorted(failure_documents, key=_document_sort_key):
         scenario = str(document["scenario"]["name"])
         for case in document["failure"]["cases"]:
             topo_size = str(case.get("topo_size") or "")
             isp_options = {
-                key: case[key] for key in _ISP_DEPLOY_KEYS if key in case
+                key: case[key] for key in _DEPLOY_OPTION_KEYS if key in case
             } or None
             spec = _emit(scenario, topo_size, isp_options)
             if spec is not None:

@@ -119,7 +119,7 @@ def test_benchmark_profiles_keep_vendor_identity_and_original_fault(tmp_path):
                 build_benchmark_isp_experiment(profile)
             from nika.workflows.benchmark.inject_resolve import validate_benchmark_case
 
-            with pytest.raises(ValueError, match="native fault bindings"):
+            with pytest.raises(ValueError, match="no native implementation"):
                 validate_benchmark_case(
                     profile["scenario"],
                     "ospf_area_misconfiguration",

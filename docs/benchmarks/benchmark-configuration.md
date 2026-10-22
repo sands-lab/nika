@@ -59,7 +59,7 @@ The runner loads each catalog case as an executable row before creating trials. 
 
 Pool files live at `working/pool/{scenario}/{fault_type}.yaml` (plus `healthy.yaml`). There is no separate manifest file; loaders scan the pool directory.
 
-Failure group files use `scenario` → `failure` → `cases`. Each case carries the deploy profile (`topo_size`, and for base ISP scenarios `igp` / `bgp_mode` / `backend` / `device_profile` when applicable), scalar `inject`, and materialized `root_causes` in the same shape as frozen release cases.
+Failure group files use `scenario` → `failure` → `cases`. Each case carries the deploy profile (`topo_size`, for base ISP scenarios `igp` / `bgp_mode` / `backend` / `device_profile`, and `device_profile` for other environments with native router profiles), scalar `inject`, and materialized `root_causes` in the same shape as frozen release cases. A row without `device_profile` deploys the environment's default routers (FRR, or SR Linux on Containerlab).
 
 ```yaml
 scenario:
@@ -97,6 +97,31 @@ healthy:
     - topo_size: s
     - topo_size: m
 ```
+
+### Native router profiles
+
+The pool also carries cases whose routers run IOS XR (`device_profile: iosxr`) or RouterOS (`device_profile: routeros`). The generator expands each environment that declares these profiles: `dc_clos`, `campus_lan`, `enterprise_branch` and the base ISP scenarios. It adds them only at size `s` (for ISP scenarios, topology tier `s`), within the sizes the environment supports, so no case needs a large native lab. Each profile gets its own healthy variant.
+
+```yaml
+scenario:
+  name: dc_clos
+failure:
+  fault_type: bgp_asn_misconfig
+  cases:
+    - topo_size: s
+      device_profile: iosxr
+      inject:
+        host_name: leaf_router_0_0
+      root_causes:
+        - resource:
+            kind: node
+            node: leaf_router_0_0
+          fault_type: bgp_asn_misconfig
+```
+
+A case targets a native router only when the failure can run there. A failure declares the native router operations it needs in `native_router_operations`, and each vendor provider implements a set of operations (see [Create benchmark tasks](../development/creating-benchmark-tasks.md#add-an-injectable-failure)). Other targets stay on FRR and Linux nodes. In `campus_lan` and `enterprise_branch` only some router roles convert, so many cases of these profiles target FRR routers and hosts in a mixed-vendor lab. Ground truth names NIKA nodes and Linux interface names, as for FRR rows.
+
+These rows need licensed vendor images (`install.sh --with-vendor-images`) and run as heavy trials, one at a time. Like `routeros_simple_bgp`, they stay in the pool, so a run of the whole pool deploys them. `nika benchmark select` and releases leave out every row that needs a licensed image. To run only openly available cases, run `benchmark/working/cases.yaml` or a release.
 
 Paths follow `working/pool/{scenario}/{fault_type}.yaml`, plus `working/pool/{scenario}/healthy.yaml`. Scenarios meant for tests only, such as `iosxr_simple_bgp`, are excluded from generation.
 
