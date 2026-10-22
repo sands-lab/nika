@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+import copy
 import ipaddress
 import json
-import shlex
+import random
 from pathlib import Path
 
 from pydantic import BaseModel, Field
@@ -29,6 +30,7 @@ from nika.problems.forwarding_encapsulation_policy.p4runtime_helpers import (
     lpm_capacity,
     run_manager,
 )
+from nika.problems.support.p4runtime_writes import p4runtime_write, require_ok
 from nika.utils.logger import system_logger
 
 logger = system_logger
@@ -64,15 +66,19 @@ class P4ActionSelectorMemberMisconfig(ProblemBase):
     def inject_fault(self, params: P4ActionSelectorMemberMisconfigParams):
         intent = load_intent(self.runtime)
         prefix, group_id, member_id, peer = _ecmp_target(intent, params.host_name)
-        result = run_manager(
-            self.runtime,
-            "modify-member",
-            "--switch",
-            params.host_name,
-            "--member-id",
-            str(member_id),
-            "--port",
-            str(_BAD_PORT),
+        member = next(
+            dict(m)
+            for m in intent["switches"][params.host_name]["members"]
+            if int(m["member_id"]) == int(member_id)
+        )
+        member["port"] = _BAD_PORT
+        result = require_ok(
+            p4runtime_write(
+                self.runtime,
+                params.host_name,
+                [{"type": "MODIFY", "member": member}],
+            ),
+            f"member update on {params.host_name}",
         )
         self._target = {
             "prefix": prefix,
@@ -152,15 +158,24 @@ class P4EcmpGroupMemberMissing(ProblemBase):
     def inject_fault(self, params: P4EcmpGroupMemberMissingParams):
         intent = load_intent(self.runtime)
         prefix, group_id, member_id, peer = _ecmp_target(intent, params.host_name)
-        result = run_manager(
-            self.runtime,
-            "delete-group-member",
-            "--switch",
-            params.host_name,
-            "--group-id",
-            str(group_id),
-            "--member-id",
-            str(member_id),
+        group = next(
+            g
+            for g in intent["switches"][params.host_name]["groups"]
+            if int(g["group_id"]) == int(group_id)
+        )
+        remaining = [m for m in group["member_ids"] if int(m) != int(member_id)]
+        result = require_ok(
+            p4runtime_write(
+                self.runtime,
+                params.host_name,
+                [
+                    {
+                        "type": "MODIFY",
+                        "group": {"group_id": group_id, "member_ids": remaining},
+                    }
+                ],
+            ),
+            f"group update on {params.host_name}",
         )
         self._target = {
             "prefix": prefix,
@@ -244,20 +259,20 @@ class P4RuntimePipelineMismatch(ProblemBase):
         p4info, json_path = load_blackhole_pipeline(
             self.runtime, params.host_name, _BLACKHOLE_P4
         )
-        result = run_manager(
-            self.runtime,
-            "set-pipeline",
-            "--switch",
-            params.host_name,
-            timeout=60,
-            p4info=p4info,
-            json_path=json_path,
-        )
-        remove_staged_pipeline(self.runtime, p4info, json_path)
+        try:
+            result = p4runtime_write(
+                self.runtime,
+                params.host_name,
+                [],
+                pipeline={"p4info": p4info, "json": json_path},
+                timeout=60,
+            )
+        finally:
+            remove_staged_pipeline(self.runtime, p4info, json_path)
         set_error = result.get("set_error")
         if set_error:
             raise RuntimeError(
-                f"set-pipeline failed on {params.host_name}: {set_error}"
+                f"pipeline push failed on {params.host_name}: {set_error}"
             )
         logger.info("Loaded mismatched pipeline on %s: %s", params.host_name, result)
 
@@ -338,49 +353,44 @@ def partial_write_routes(intent: dict, switch: str) -> dict:
     }
 
 
-# One WriteRequest (CONTINUE_ON_ERROR, the P4Runtime default for non-atomic
-# devices) from a controller that re-derived its selector-group IDs, e.g. a new
-# master after failover: it rewrites both groups in place, then re-sends the
-# routes that must follow them as INSERTs. BMv2 applies the group MODIFYs and
-# rejects the route INSERTs with ALREADY_EXISTS, so each route is left on a
-# group that now holds the other route's next hops.
-_PARTIAL_BATCH = r"""
-import json, sys
-sys.path.insert(0, "/opt/p4rt")
-import grpc
-import p4rt_manager as m
-from google.rpc import code_pb2, status_pb2
-name, plan, intent_path, p4info_path = sys.argv[1:5]
-plan = json.loads(plan)
-switch = m.load_json(intent_path)["switches"][name]
-index = m.P4InfoIndex(m.load_p4info(p4info_path))
-updates = [m.group_entity(index, g, insert=False) for g in plan["groups"]]
-updates += [m.lpm_entity(index, r, insert=True) for r in plan["routes"]]
-client = m.connect(switch)
-out = {"codes": ["OK"] * len(updates), "messages": [""] * len(updates)}
-try:
-    try:
-        client.write(updates, m.p4runtime_pb2.WriteRequest.CONTINUE_ON_ERROR)
-    except grpc.RpcError as exc:
-        details = [
-            status_pb2.Status.FromString(value).details
-            for key, value in exc.trailing_metadata() or []
-            if key == "grpc-status-details-bin"
-        ]
-        if not details:
-            raise
-        for i, detail in enumerate(details[0]):
-            error = m.p4runtime_pb2.Error()
-            detail.Unpack(error)
-            out["codes"][i] = code_pb2.Code.Name(error.canonical_code)
-            out["messages"][i] = error.message
-finally:
-    client.close()
-print(json.dumps(out))
-"""
+def partial_write_intent(intent: dict, pair: dict) -> dict:
+    """The re-derived intent: both routes' selector-group IDs exchanged.
+
+    Group ``victim`` now carries the host route's next hops and vice versa,
+    and each route points at the other ID, so forwarding is unchanged.
+    """
+    updated = copy.deepcopy(intent)
+    state = updated["switches"][pair["switch"]]
+    members = {
+        pair["victim_group"]: pair["host_members"],
+        pair["host_group"]: pair["victim_members"],
+    }
+    for group in state["groups"]:
+        if int(group["group_id"]) in members:
+            group["member_ids"] = list(members[int(group["group_id"])])
+    moved = {
+        pair["victim_prefix"]: pair["host_group"],
+        pair["host_prefix"]: pair["victim_group"],
+    }
+    for route in state["ipv4_lpm"]:
+        if route["prefix"] in moved:
+            route["group_id"] = moved[route["prefix"]]
+    return updated
 
 
 class P4RuntimePartialWrite(ProblemBase):
+    """The controller's own batch to a new intent is only partially applied.
+
+    The controller re-derives the selector-group IDs of two routes (e.g. a new
+    primary after failover), stores that intent, and sends one
+    ``CONTINUE_ON_ERROR`` WriteRequest: both group MODIFYs, then the two
+    routes as INSERTs instead of MODIFYs. The device applies the group
+    rewrites and rejects the route INSERTs with ALREADY_EXISTS. The
+    controller's write log records the per-update status, and the device
+    state matches the new intent for the groups but not for the routes, so
+    each route forwards to the other route's next hops.
+    """
+
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     symptom_probe = "custom"
     symptom_class = "unreachable"
@@ -401,38 +411,43 @@ class P4RuntimePartialWrite(ProblemBase):
             }
         return {"host_name": choice(ctx.rng, ctx.bmv2, ctx.host0)}
 
+    def __init__(self, scenario_name: str | None, **kwargs):
+        super().__init__(scenario_name, **kwargs)
+        self._pair: dict | None = None
+
     def root_cause_resources(self, params: P4RuntimePartialWriteParams):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: P4RuntimePartialWriteParams):
         from nika.net_env.p4_dc_fabric.fabric_manager.apply import (
             INTENT_PATH,
-            P4INFO_PATH,
+            _copy_in,
         )
 
-        pair = partial_write_routes(load_intent(self.runtime), params.host_name)
-        victim, host = pair["victim_group"], pair["host_group"]
-        plan = {
-            "groups": [
-                {"group_id": victim, "member_ids": pair["host_members"]},
-                {"group_id": host, "member_ids": pair["victim_members"]},
-            ],
-            "routes": [
-                {"prefix": pair["victim_prefix"], "group_id": host},
-                {"prefix": pair["host_prefix"], "group_id": victim},
-            ],
-        }
-        out = self.runtime.exec(
+        intent = load_intent(self.runtime)
+        pair = partial_write_routes(intent, params.host_name)
+        self._pair = pair
+        _copy_in(
+            self.runtime,
             "fabric_mgr",
-            f"python3 -c {shlex.quote(_PARTIAL_BATCH)} {params.host_name} "
-            f"{shlex.quote(json.dumps(plan))} {INTENT_PATH} {P4INFO_PATH}",
-            timeout=60,
+            INTENT_PATH,
+            json.dumps(partial_write_intent(intent, pair), indent=2).encode(),
         )
-        try:
-            result = json.loads(out.strip().splitlines()[-1])
-        except (IndexError, json.JSONDecodeError) as exc:
-            raise RuntimeError(f"partial batch on {params.host_name}: {out}") from exc
-        codes = result["codes"]
+        victim, host = pair["victim_group"], pair["host_group"]
+        batch = [
+            {
+                "type": "MODIFY",
+                "group": {"group_id": victim, "member_ids": pair["host_members"]},
+            },
+            {
+                "type": "MODIFY",
+                "group": {"group_id": host, "member_ids": pair["victim_members"]},
+            },
+            {"lpm": {"prefix": pair["victim_prefix"], "group_id": host}},
+            {"lpm": {"prefix": pair["host_prefix"], "group_id": victim}},
+        ]
+        result = p4runtime_write(self.runtime, params.host_name, batch, logged=True)
+        codes = [status["code"] for status in result["statuses"]]
         if codes[:2] != ["OK", "OK"] or "OK" in codes[2:]:
             raise RuntimeError(
                 f"batch on {params.host_name} was not partially applied: {result}"
@@ -449,7 +464,9 @@ class P4RuntimePartialWrite(ProblemBase):
         )
 
     def recheck_artifact(self, params: P4RuntimePartialWriteParams) -> dict:
-        pair = partial_write_routes(load_intent(self.runtime), params.host_name)
+        pair = self._pair or partial_write_routes(
+            load_intent(self.runtime), params.host_name
+        )
         observed = run_manager(
             self.runtime, "read", "--switch", params.host_name, timeout=30
         )
@@ -493,6 +510,36 @@ class P4RuntimePartialWrite(ProblemBase):
         }
 
 
+# Pools for the stray host routes that fill the table, tried in order until one
+# overlaps nothing the fabric routes.
+_HOST_ROUTE_POOLS = ("10.128.0.0/16", "10.192.0.0/16", "172.20.0.0/16")
+
+
+def _host_route_filler(intent: dict, switch: str, count: int) -> list[str]:
+    """``count`` /32 host routes from one tenant-sized pool outside the fabric.
+
+    A run such as ``198.0.0.1, 198.0.1.1, ...`` reads as generated on its own;
+    scattered host routes inside one pool look like a host-route leak.
+    """
+    routed = [
+        ipaddress.ip_network(entry["prefix"], strict=False)
+        for entry in (
+            entry
+            for node in (intent.get("switches") or {}).values()
+            for entry in node.get("ipv4_lpm") or []
+        )
+        if entry.get("prefix") and not entry["prefix"].endswith("/0")
+    ]
+    for pool in map(ipaddress.ip_network, _HOST_ROUTE_POOLS):
+        if not any(pool.overlaps(net) for net in routed):
+            break
+    else:
+        raise RuntimeError("no free address pool for host routes")
+    usable = [h for h in range(1, pool.num_addresses - 1) if h & 0xFF not in (0, 255)]
+    hosts = random.Random(f"{switch}:{pool}").sample(usable, min(count, len(usable)))
+    return [f"{pool.network_address + h}/32" for h in sorted(hosts)]
+
+
 class P4TableResourceExhaustionParams(BaseModel):
     host_name: str = Field(description="Target BMv2 switch name.")
 
@@ -519,16 +566,27 @@ class P4TableResourceExhaustion(ProblemBase):
 
     def inject_fault(self, params: P4TableResourceExhaustionParams):
         intent = load_intent(self.runtime)
-        result = run_manager(
+        size = lpm_capacity(intent)
+        observed = run_manager(
+            self.runtime, "read", "--switch", params.host_name, timeout=60
+        )
+        state = (observed.get("switches") or {}).get(params.host_name) or {}
+        existing = {e.get("prefix") for e in state.get("ipv4_lpm") or []}
+        group_id = int(intent["switches"][params.host_name]["ipv4_lpm"][0]["group_id"])
+        prefixes = _host_route_filler(
+            intent, params.host_name, max(0, size - len(existing))
+        )
+        result = p4runtime_write(
             self.runtime,
-            "fill-table",
-            "--switch",
             params.host_name,
-            "--size",
-            str(lpm_capacity(intent)),
+            [{"lpm": {"prefix": p, "group_id": group_id}} for p in prefixes],
             timeout=120,
         )
-        self._fill = result
+        self._fill = {
+            "size": size,
+            "added": sum(1 for s in result["statuses"] if s["code"] == "OK"),
+            "errors": [s for s in result["statuses"] if s["code"] != "OK"][:3],
+        }
 
     def verify_fault(self, params: P4TableResourceExhaustionParams) -> dict:
         """Read the live LPM table and compare its occupancy with its size."""

@@ -1,11 +1,13 @@
 import ipaddress
 import json
+import random
 import re
 import time
 
 from pydantic import BaseModel, Field
 
 from nika.net_env.isp.bgp.frr import EXPORT_DENY_PREFIX_LIST
+from nika.problems.support.frr import frr_config_command, frr_save_config
 from nika.problems.support.inject_resolve import resolve_victim_host_ip
 from nika.problems.support.polling import wait_until
 from nika.problems.support.router_ops import RouterFaultOps, router_fault_ops
@@ -555,16 +557,14 @@ class BGPMissingAdvertise(ProblemBase):
     ) -> None:
         prefix = str(ipaddress.ip_network(prefix, strict=False))
         asn = self.runtime.frr_get_bgp_asn_number(params.host_name)
-        cmd = (
-            "vtysh -c 'configure terminal' "
-            f"-c 'router bgp {asn}' "
-            f"-c 'no network {prefix}' "
-            "-c 'address-family ipv4 unicast' "
-            f"-c 'no network {prefix}' "
-            "-c 'end' "
-            "-c 'write memory'"
+        cmd = frr_config_command(
+            f"router bgp {asn}",
+            f"no network {prefix}",
+            "address-family ipv4 unicast",
+            f"no network {prefix}",
         )
         self.runtime.exec(params.host_name, cmd)
+        frr_save_config(self.runtime, params.host_name)
         self.runtime.exec(
             params.host_name,
             "vtysh -c 'clear ip bgp * soft out' 2>/dev/null || true",
@@ -608,20 +608,14 @@ class BGPMissingAdvertise(ProblemBase):
                 f"{type(self).__name__}: no BGP network statements on "
                 f"{params.host_name!r} to withdraw."
             )
+        lines = [f"router bgp {asn}"]
         for prefix in prefixes:
-            cmd = (
-                "vtysh -c 'configure terminal' "
-                f"-c 'router bgp {asn}' "
-                f"-c 'no network {prefix}' "
-                "-c 'address-family ipv4 unicast' "
-                f"-c 'no network {prefix}' "
-                "-c 'end'"
-            )
-            self.runtime.exec(params.host_name, cmd)
-        self.runtime.exec(
-            params.host_name,
-            "vtysh -c 'write memory' 2>/dev/null || true",
-        )
+            lines += [f"no network {prefix}"]
+        lines.append("address-family ipv4 unicast")
+        for prefix in prefixes:
+            lines.append(f"no network {prefix}")
+        self.runtime.exec(params.host_name, frr_config_command(*lines))
+        frr_save_config(self.runtime, params.host_name)
         self.runtime.exec(
             params.host_name,
             "vtysh -c 'clear ip bgp * soft out' 2>/dev/null || true",
@@ -639,19 +633,18 @@ class BGPMissingAdvertise(ProblemBase):
     ) -> None:
         asn = self.runtime.frr_get_bgp_asn_number(params.host_name)
         # Overlay VRFs advertise LAN prefixes via redistribute connected.
+        lines: list[str] = []
         for vrf in ("vrf_corp", "vrf_server"):
-            cmd = (
-                "vtysh -c 'configure terminal' "
-                f"-c 'router bgp {asn} vrf {vrf}' "
-                "-c 'address-family ipv4 unicast' "
-                "-c 'no redistribute connected' "
-                "-c 'end'"
-            )
-            self.runtime.exec(params.host_name, f"{cmd} 2>/dev/null || true")
-        self.runtime.exec(
-            params.host_name,
-            "vtysh -c 'write memory' 2>/dev/null || true",
-        )
+            lines += [
+                f"router bgp {asn} vrf {vrf}",
+                "address-family ipv4 unicast",
+                "no redistribute connected",
+                "exit",
+                "exit",
+            ]
+        cmd = frr_config_command(*lines)
+        self.runtime.exec(params.host_name, f"{cmd} 2>/dev/null || true")
+        frr_save_config(self.runtime, params.host_name)
         self.runtime.exec(
             params.host_name,
             "vtysh -c 'clear ip bgp * soft out' 2>/dev/null || true",
@@ -935,16 +928,14 @@ class BGPBlackholeCommunityLeak(ProblemBase):
             raise RuntimeCapabilityError(
                 f"{type(self).__name__} missing RTBH inventory fields."
             )
-        cmd = (
-            "vtysh -c 'configure terminal' "
-            f"-c 'ip prefix-list {RTBH_PREFIX_LIST} seq 5 permit {target_prefix} le 24' "
-            f"-c 'route-map {route_map} permit 5' "
-            f"-c 'match ip address prefix-list {RTBH_PREFIX_LIST}' "
-            f"-c 'set community {community} additive' "
-            "-c 'end' "
-            "-c 'write memory'"
+        cmd = frr_config_command(
+            f"ip prefix-list {RTBH_PREFIX_LIST} seq 5 permit {target_prefix} le 24",
+            f"route-map {route_map} permit 5",
+            f"match ip address prefix-list {RTBH_PREFIX_LIST}",
+            f"set community {community} additive",
         )
         self.runtime.exec(leaker, cmd)
+        frr_save_config(self.runtime, leaker)
         self.runtime.exec(
             leaker,
             f"vtysh -c 'clear ip bgp {neighbor_ip} soft out' 2>/dev/null || true",
@@ -1100,14 +1091,12 @@ class BGPBlackholeCommunityLeak(ProblemBase):
         observer = params.symptom_host or str(bgp.get("data_plane_observer_host") or "")
         discard_nh = str(bgp.get("discard_next_hop") or "")
 
-        cmd = (
-            "vtysh -c 'configure terminal' "
-            f"-c 'no route-map {route_map} permit 5' "
-            f"-c 'no ip prefix-list {RTBH_PREFIX_LIST} seq 5' "
-            "-c 'end' "
-            "-c 'write memory'"
+        cmd = frr_config_command(
+            f"no route-map {route_map} permit 5",
+            f"no ip prefix-list {RTBH_PREFIX_LIST} seq 5",
         )
         self.runtime.exec(leaker, cmd)
+        frr_save_config(self.runtime, leaker)
         self.runtime.exec(
             leaker,
             f"vtysh -c 'clear ip bgp {neighbor_ip} soft out' 2>/dev/null || true",
@@ -1206,19 +1195,28 @@ class BGPRPKIInvalidRouteLeak(ProblemBase):
     def _leaker_devices(
         self, bgp: dict, params: BGPRPKIInvalidRouteLeakParams
     ) -> list[str]:
-        """Every leaker-AS router whose export policy inject rewrites."""
-        leaker = _profile_leaker(self, bgp, params.host_name)
-        return sorted({str(d) for d in (bgp.get("leaker_as_devices") or [leaker])})
+        """The border router whose eBGP export policy inject rewrites.
+
+        Only its sessions announce the leak; the rest of the leaker AS keeps
+        its healthy export policy.
+        """
+        return [_profile_leaker(self, bgp, params.host_name)]
 
     def _prefix_learned(self, device: str, prefix: str, origin_asn: int) -> bool:
+        """Whether ``device`` holds a path for ``prefix`` originated by ``origin_asn``."""
         out = self.runtime.exec(
-            device, f"vtysh -c 'show bgp ipv4 unicast {prefix}' 2>/dev/null || true"
+            device,
+            f"vtysh -c 'show bgp ipv4 unicast {prefix} json' 2>/dev/null || true",
         )
-        if "Network not in table" in out:
+        try:
+            paths = (json.loads(out or "{}") or {}).get("paths") or []
+        except ValueError:
             return False
-        if prefix.split("/")[0] not in out and prefix not in out:
-            return False
-        return not origin_asn or str(origin_asn) in out
+        for path in paths:
+            tokens = str((path.get("aspath") or {}).get("string") or "").split()
+            if tokens and tokens[-1] == str(origin_asn):
+                return True
+        return False
 
     def _rpki_bgp_inventory(self) -> dict:
         inventory = getattr(self.net_env, "inventory", None) or {}
@@ -1239,16 +1237,15 @@ class BGPRPKIInvalidRouteLeak(ProblemBase):
         bgp = self._rpki_bgp_inventory()
         leaker = _profile_leaker(self, bgp, params.host_name)
         devices = self._leaker_devices(bgp, params)
-        # Permit the export-deny prefixes on eBGP export (replaces healthy deny seq 5).
+        # Permit the export-deny prefixes on its eBGP export (replaces the
+        # healthy deny seq 5).
         for device in devices:
-            cmd = (
-                "vtysh -c 'configure terminal' "
-                "-c 'route-map BGP-OUT permit 5' "
-                f"-c 'match ip address prefix-list {EXPORT_DENY_PREFIX_LIST}' "
-                "-c 'end' "
-                "-c 'write memory'"
+            cmd = frr_config_command(
+                "route-map BGP-OUT permit 5",
+                f"match ip address prefix-list {EXPORT_DENY_PREFIX_LIST}",
             )
             self.runtime.exec(device, cmd)
+            frr_save_config(self.runtime, device)
             self.runtime.exec(
                 device, "vtysh -c 'clear ip bgp * soft out' 2>/dev/null || true"
             )
@@ -1265,7 +1262,7 @@ class BGPRPKIInvalidRouteLeak(ProblemBase):
             )
         self.logger.info(
             f"Injected RPKI-invalid route leak via incorrect BGP export policy "
-            f"on leaker AS devices {devices} (primary={leaker})."
+            f"on {leaker}."
         )
 
     def verify_fault(self, params: BGPRPKIInvalidRouteLeakParams) -> dict:
@@ -1324,20 +1321,14 @@ class BGPRPKIInvalidRouteLeak(ProblemBase):
             },
         )
 
-    def _leak_absent(self, observers: list[str], prefixes: list[str]) -> bool:
-        for observer in observers:
-            for prefix in prefixes:
-                out = self.runtime.exec(
-                    observer,
-                    f"vtysh -c 'show bgp ipv4 unicast {prefix}' 2>/dev/null || true",
-                )
-                if "Network not in table" in out:
-                    continue
-                network = prefix.split("/")[0]
-                if network in out or prefix in out:
-                    if "from" in out.lower() or "Path" in out or "*" in out:
-                        return False
-        return True
+    def _leak_absent(
+        self, observers: list[str], prefixes: list[str], leaker_asn: int
+    ) -> bool:
+        return not any(
+            self._prefix_learned(observer, prefix, leaker_asn)
+            for observer in observers
+            for prefix in prefixes
+        )
 
     def recover_fault(self, params: BGPRPKIInvalidRouteLeakParams) -> dict:
         """Restore healthy BGP-OUT deny for leak prefixes on the leaker AS."""
@@ -1357,25 +1348,24 @@ class BGPRPKIInvalidRouteLeak(ProblemBase):
         observers = [o for o in observers if o]
 
         for device in devices:
-            cmd = (
-                "vtysh -c 'configure terminal' "
-                "-c 'route-map BGP-OUT deny 5' "
-                f"-c 'match ip address prefix-list {EXPORT_DENY_PREFIX_LIST}' "
-                "-c 'end' "
-                "-c 'write memory'"
+            cmd = frr_config_command(
+                "route-map BGP-OUT deny 5",
+                f"match ip address prefix-list {EXPORT_DENY_PREFIX_LIST}",
             )
             self.runtime.exec(device, cmd)
+            frr_save_config(self.runtime, device)
             self.runtime.exec(
                 device, "vtysh -c 'clear ip bgp * soft out' 2>/dev/null || true"
             )
-        wait_until(lambda: self._leak_absent(observers, prefixes), 25)
-        leak_absent = self._leak_absent(observers, prefixes)
+        leaker_asn = int(bgp.get("leaker_asn") or 0)
+        wait_until(lambda: self._leak_absent(observers, prefixes, leaker_asn), 25)
+        leak_absent = self._leak_absent(observers, prefixes, leaker_asn)
 
         ok = leak_absent
         details = {
             "host": params.host_name,
             "leaker_device": leaker,
-            "leaker_as_devices": devices,
+            "recovered_devices": devices,
             "leak_prefixes": prefixes,
             "leak_absent": leak_absent,
             "observers": observers,
@@ -1435,23 +1425,26 @@ class BGPMaxPrefixExceeded(ProblemBase):
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
-        from nika.net_env.isp.inject_targets import first_ebgp_session
+        """The session that carries the customer site's route (its only path)."""
+        from nika.net_env.isp.inject_targets import customer_route_session
 
         bgp_inv = loaded_inventory(ctx.net_env).get("bgp")
-        if not isinstance(bgp_inv, dict):
+        if not isinstance(bgp_inv, dict) or "customer_site" not in bgp_inv:
             isp_opts = ctx.isp_options or isp_protocol_for(cls, {"bgp"})
             _plan, bgp_inv = _compile_isp_bgp_inventory(
                 ctx.scenario,
                 igp=str(isp_opts.get("igp") or "ospf"),
                 bgp_mode=str(isp_opts.get("bgp_mode") or "ebgp"),
             )
-        params = dict(first_ebgp_session(bgp_inv))
+        params = dict(customer_route_session(bgp_inv))
         params["flood_count"] = "120"
         return params
 
     symptom_desc = (
         "An eBGP peer advertises more prefixes than the receiver's configured "
-        "maximum-prefix, resetting the session and withdrawing learned routes."
+        "maximum-prefix, resetting the session and withdrawing learned routes; "
+        "a customer route learned only over that session leaves the receiver's "
+        "AS, and the customer loses its service there."
     )
 
     def __init__(self, scenario_name: str | None, **kwargs):
@@ -1543,6 +1536,23 @@ class BGPMaxPrefixExceeded(ProblemBase):
         except (ValueError, TypeError, AttributeError):
             return 0
 
+    def customer_route(self, receiver: str, peer: str) -> dict | None:
+        """The scenario's customer route that ``receiver`` learns only from ``peer``."""
+        site = self._bgp_inventory().get("customer_site")
+        if (
+            isinstance(site, dict)
+            and site.get("partner") == receiver
+            and site.get("provider") == peer
+        ):
+            return site
+        return None
+
+    def _has_route(self, router: str, prefix: str) -> bool:
+        out = self.runtime.exec(
+            router, f"vtysh -c 'show bgp ipv4 unicast {prefix}' 2>/dev/null || true"
+        )
+        return "Network not in table" not in out and prefix.split("/")[0] in out
+
     def _business_prefix_missing(self, receiver: str, peer: str) -> bool:
         bgp = self._bgp_inventory()
         peer_prefixes = [
@@ -1592,88 +1602,84 @@ class BGPMaxPrefixExceeded(ProblemBase):
 
     def _install_flood_policy(self, device: str) -> None:
         # Include solved import policies, not only the baseline policy names.
-        parts = [
-            "vtysh",
-            "-c 'configure terminal'",
-            f"-c 'ip prefix-list {_FLOOD_PREFIX_LIST} seq 5 permit 198.19.0.0/16 le 24'",
+        lines = [
+            f"ip prefix-list {_FLOOD_PREFIX_LIST} seq 5 permit 198.19.0.0/16 le 24"
         ]
         for policy in self._flood_policy_maps(device):
-            parts.extend(
-                [
-                    f"-c 'route-map {policy} permit 1'",
-                    f"-c 'match ip address prefix-list {_FLOOD_PREFIX_LIST}'",
-                ]
-            )
-        parts.append("-c 'end'")
-        self.runtime.exec(device, " ".join(parts))
+            lines += [
+                f"route-map {policy} permit 1",
+                f"match ip address prefix-list {_FLOOD_PREFIX_LIST}",
+            ]
+        self.runtime.exec(device, frr_config_command(*lines))
 
     def _remove_flood_policy(self, device: str) -> None:
-        parts = ["vtysh", "-c 'configure terminal'"]
-        parts.extend(
-            f"-c 'no route-map {policy} permit 1'"
+        lines = [
+            f"no route-map {policy} permit 1"
             for policy in self._flood_policy_maps(device)
-        )
-        parts.extend([f"-c 'no ip prefix-list {_FLOOD_PREFIX_LIST}'", "-c 'end'"])
-        self.runtime.exec(device, " ".join(parts))
+        ]
+        lines.append(f"no ip prefix-list {_FLOOD_PREFIX_LIST}")
+        self.runtime.exec(device, frr_config_command(*lines))
 
-    def _flood_prefixes(self, count: int) -> list[str]:
-        return [f"{_FLOOD_PREFIX_BASE}.{i}.0/24" for i in range(count)]
+    def _flood_prefixes(self, count: int, *, peer: str, neighbor_ip: str) -> list[str]:
+        """Pick ``count`` /24s scattered within the flood /16, not a tidy block.
+
+        Real de-aggregation/leak incidents (e.g. Optus 2023) announce many
+        non-contiguous more-specifics, not one ascending sequential range.
+        The selection is deterministic per session (seeded from the peer and
+        neighbor address) so repeated runs of the same case see the same
+        flood set.
+        """
+        rng = random.Random(f"{peer}|{neighbor_ip}")
+        octets = list(range(256))
+        rng.shuffle(octets)
+        count = min(count, 256)
+        return sorted(f"{_FLOOD_PREFIX_BASE}.{octet}.0/24" for octet in octets[:count])
 
     def _advertise_flood(self, peer: str, asn: int, prefixes: list[str]) -> None:
-        parts = ["vtysh -c 'configure terminal'"]
+        lines: list[str] = []
         config = self.runtime.exec(peer, "vtysh -c 'show running-config'")
         if "no bgp network import-check" not in config:
             # FRR originates a ``network`` only when a matching route exists,
             # so back the announcements with discard routes under import check.
-            parts.extend(f"-c 'ip route {prefix} Null0'" for prefix in prefixes)
-        parts += [f"-c 'router bgp {asn}'", "-c 'address-family ipv4 unicast'"]
-        for prefix in prefixes:
-            parts.append(f"-c 'network {prefix}'")
-        parts.extend(["-c 'end'", "-c 'write memory'"])
-        self.runtime.exec(peer, " ".join(parts))
+            lines.extend(f"ip route {prefix} Null0" for prefix in prefixes)
+        lines += [f"router bgp {asn}", "address-family ipv4 unicast"]
+        lines.extend(f"network {prefix}" for prefix in prefixes)
+        self.runtime.exec(peer, frr_config_command(*lines))
+        frr_save_config(self.runtime, peer)
         self.runtime.exec(
             peer, "vtysh -c 'clear ip bgp * soft out' 2>/dev/null || true"
         )
 
     def _withdraw_flood(self, peer: str, asn: int, prefixes: list[str]) -> None:
-        parts = [
-            "vtysh -c 'configure terminal'",
-            f"-c 'router bgp {asn}'",
-            "-c 'address-family ipv4 unicast'",
-        ]
-        for prefix in prefixes:
-            parts.append(f"-c 'no network {prefix}'")
+        lines = [f"router bgp {asn}", "address-family ipv4 unicast"]
+        lines.extend(f"no network {prefix}" for prefix in prefixes)
         config = self.runtime.exec(peer, "vtysh -c 'show running-config'")
         statics = [p for p in prefixes if f"ip route {p} Null0" in config]
         if statics:
-            parts += ["-c 'exit-address-family'", "-c 'exit'"]
-            parts.extend(f"-c 'no ip route {prefix} Null0'" for prefix in statics)
-        parts.extend(["-c 'end'", "-c 'write memory'"])
-        self.runtime.exec(peer, " ".join(parts))
+            lines += ["exit-address-family", "exit"]
+            lines.extend(f"no ip route {prefix} Null0" for prefix in statics)
+        self.runtime.exec(peer, frr_config_command(*lines))
+        frr_save_config(self.runtime, peer)
 
     def _set_maximum_prefix(
         self, receiver: str, asn: int, neighbor_ip: str, limit: int
     ) -> None:
-        cmd = (
-            "vtysh -c 'configure terminal' "
-            f"-c 'router bgp {asn}' "
-            "-c 'address-family ipv4 unicast' "
-            f"-c 'neighbor {neighbor_ip} maximum-prefix {limit}' "
-            "-c 'end' "
-            "-c 'write memory'"
+        cmd = frr_config_command(
+            f"router bgp {asn}",
+            "address-family ipv4 unicast",
+            f"neighbor {neighbor_ip} maximum-prefix {limit}",
         )
         self.runtime.exec(receiver, cmd)
+        frr_save_config(self.runtime, receiver)
 
     def _clear_maximum_prefix(self, receiver: str, asn: int, neighbor_ip: str) -> None:
-        cmd = (
-            "vtysh -c 'configure terminal' "
-            f"-c 'router bgp {asn}' "
-            "-c 'address-family ipv4 unicast' "
-            f"-c 'no neighbor {neighbor_ip} maximum-prefix' "
-            "-c 'end' "
-            "-c 'write memory'"
+        cmd = frr_config_command(
+            f"router bgp {asn}",
+            "address-family ipv4 unicast",
+            f"no neighbor {neighbor_ip} maximum-prefix",
         )
         self.runtime.exec(receiver, cmd)
+        frr_save_config(self.runtime, receiver)
 
     def _wait_session_state(
         self,
@@ -1713,7 +1719,7 @@ class BGPMaxPrefixExceeded(ProblemBase):
         if limit is None:
             limit = max(received + 5, 10)
         flood_count = max(params.flood_count, limit + 15)
-        prefixes = self._flood_prefixes(flood_count)
+        prefixes = self._flood_prefixes(flood_count, peer=peer, neighbor_ip=neighbor_ip)
 
         receiver_asn = self.runtime.frr_get_bgp_asn_number(receiver)
         peer_asn = self.runtime.frr_get_bgp_asn_number(peer)
@@ -1798,18 +1804,24 @@ class BGPMaxPrefixExceeded(ProblemBase):
         verified = (
             limit is not None and flood > limit and session_down and held_for_limit
         )
+        details = {
+            "receiver": receiver,
+            "peer": peer,
+            "neighbor_ip": neighbor_ip,
+            "maximum_prefix": limit,
+            "peer_flood_prefixes": flood,
+            "session_down": session_down,
+            "held_down_for_limit": held_for_limit,
+        }
+        site = self.customer_route(receiver, peer)
+        if site is not None:
+            # The customer route had no other way into the receiver's AS.
+            stranded = not self._has_route(receiver, str(site["prefix"]))
+            details["customer_prefix"] = site["prefix"]
+            details["customer_route_withdrawn"] = stranded
+            verified = verified and stranded
         return build_verify_result(
-            fault_type=self.root_cause_name,
-            verified=verified,
-            details={
-                "receiver": receiver,
-                "peer": peer,
-                "neighbor_ip": neighbor_ip,
-                "maximum_prefix": limit,
-                "peer_flood_prefixes": flood,
-                "session_down": session_down,
-                "held_down_for_limit": held_for_limit,
-            },
+            fault_type=self.root_cause_name, verified=verified, details=details
         )
 
     def _discover_flood_prefixes(self, peer: str) -> list[str]:
@@ -1839,7 +1851,9 @@ class BGPMaxPrefixExceeded(ProblemBase):
         if not prefixes:
             prefixes = self._discover_flood_prefixes(peer)
         if not prefixes:
-            prefixes = self._flood_prefixes(max(params.flood_count, 80))
+            prefixes = self._flood_prefixes(
+                max(params.flood_count, 80), peer=peer, neighbor_ip=neighbor_ip
+            )
         receiver_asn = int(
             state.get("receiver_asn") or self.runtime.frr_get_bgp_asn_number(receiver)
         )
@@ -1862,12 +1876,17 @@ class BGPMaxPrefixExceeded(ProblemBase):
         session_up = self._wait_session_state(
             receiver, neighbor_ip, established=True, timeout_s=120.0
         )
-        routes_ok = not self._business_prefix_missing(receiver, peer)
+        site = self.customer_route(receiver, peer)
+
+        def routes_back() -> bool:
+            if site is not None and not self._has_route(receiver, str(site["prefix"])):
+                return False
+            return not self._business_prefix_missing(receiver, peer)
+
+        routes_ok = routes_back()
         # Business routes may need a short extra settle after session up.
         if session_up and not routes_ok:
-            routes_ok = wait_until(
-                lambda: not self._business_prefix_missing(receiver, peer), 15
-            )
+            routes_ok = wait_until(routes_back, 15)
         ok = session_up and routes_ok
         details = {
             "receiver": receiver,

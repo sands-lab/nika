@@ -20,7 +20,43 @@ if sys.prefix != sys.base_prefix and str(_ENV_BIN) not in os.environ.get(
 ).split(os.pathsep):
     os.environ["PATH"] = os.pathsep.join([str(_ENV_BIN), os.environ.get("PATH", "")])
 
-RUNTIME_DIR = REPO_ROOT / "runtime"
+
+ENV_NIKA_HOME = "NIKA_HOME"
+
+
+def _configured_state_dir() -> str:
+    """Read ``nika.state_dir`` from the run-config YAML without importing the loader."""
+    import yaml
+
+    raw = os.environ.get("NIKA_RUN_CONFIG", "").strip()
+    path = Path(raw).expanduser() if raw else Path("config") / "nika.yaml"
+    if not path.is_absolute():
+        path = REPO_ROOT / path
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        return str((data.get("nika") or {}).get("state_dir") or "").strip()
+    except Exception:
+        return ""
+
+
+def resolve_state_dir() -> Path:
+    """Return the root of all NIKA state (``runtime/`` and ``.nika_cache/``).
+
+    Precedence: ``NIKA_HOME`` env → ``nika.state_dir`` in run config → repo root.
+    Relative paths resolve from the repo root.
+    """
+    raw = os.environ.get(ENV_NIKA_HOME, "").strip() or _configured_state_dir()
+    if not raw:
+        return REPO_ROOT
+    path = Path(raw).expanduser()
+    if not path.is_absolute():
+        path = REPO_ROOT / path
+    return path.resolve()
+
+
+STATE_DIR = resolve_state_dir()
+RUNTIME_DIR = STATE_DIR / "runtime"
+CACHE_DIR = STATE_DIR / ".nika_cache"
 SESSIONS_DIR = RUNTIME_DIR / "sessions"
 SESSIONS_DB = RUNTIME_DIR / "sessions.db"
 BENCHMARK_RUNS_DIR = RUNTIME_DIR / "benchmark_runs"

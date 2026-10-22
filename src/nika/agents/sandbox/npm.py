@@ -17,12 +17,12 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from nika.agents.sandbox.locks import host_file_lock
-from nika.config import REPO_ROOT
+from nika.config import CACHE_DIR
 
 logger = logging.getLogger(__name__)
 
 NPM_DIRNAME = ".npm-prefix"
-_NPM_CACHE = REPO_ROOT / ".nika_cache" / "agent-npm"
+_NPM_CACHE = CACHE_DIR / "agent-npm"
 _CACHE_STAMP = ".packages.txt"
 
 

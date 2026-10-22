@@ -63,6 +63,29 @@ class PhaseGateMiddleware:
             )
             return
 
+        entry = get_session(session_id)
+        if entry is None:
+            # An unregistered (mistyped or closed) session must fail loudly:
+            # the phase-blocked app would answer with an empty tool list,
+            # which reads as "this lab has no tools". 403 rather than 404,
+            # which Streamable HTTP clients treat as "re-initialize".
+            await _send_json(
+                send,
+                status=403,
+                payload={
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32003,
+                        "message": (
+                            f"Unknown {SESSION_HEADER}: no running session "
+                            "is registered with this gateway."
+                        ),
+                    },
+                    "id": None,
+                },
+            )
+            return
+
         presented = (
             headers.get(SESSION_TOKEN_HEADER.lower().encode(), b"").decode().strip()
         )
@@ -102,7 +125,6 @@ class PhaseGateMiddleware:
         if not transport_id:
             send = _TransportBindingSend(send, session_id)
 
-        entry = get_session(session_id)
         target_app = (
             self.app
             if is_server_allowed(session_id, self.server_name)
@@ -125,9 +147,6 @@ class PhaseGateMiddleware:
         if method == "tools/call":
             tool_name, arguments, request_id = _tool_call(body)
             if tool_name is not None:
-                if entry is None:
-                    await _tool_denied(send, request_id, "unknown_session")
-                    return
                 if entry.phase != DIAGNOSIS:
                     allowed = (
                         self.server_name == "task_mcp_server" and tool_name == "submit"

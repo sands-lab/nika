@@ -95,11 +95,17 @@ def isp_link_symptom_targets(
     }
 
 
-def isp_default_probe_path(isp_inventory: Mapping[str, Any]):
-    """Default inter-PoP probe path from the first backbone link."""
+def isp_default_probe_path(
+    isp_inventory: Mapping[str, Any], asn_of: Mapping[str, int] | None = None
+):
+    """Default inter-PoP probe path from the first backbone link.
+
+    With ``asn_of`` (eBGP), only a link inside one AS qualifies: edge stubs do
+    not reach stubs of another AS by design.
+    """
     from nika.net_env.base import ProbePath
 
-    device, iface = first_link_endpoint(isp_inventory)
+    device, iface = first_link_endpoint(isp_inventory, asn_of)
     targets = isp_link_symptom_targets(isp_inventory, device, iface)
     return ProbePath(
         src_host=targets["symptom_host"],
@@ -109,8 +115,9 @@ def isp_default_probe_path(isp_inventory: Mapping[str, Any]):
     )
 
 
-def isp_topology_probe_path(topo: str):
+def isp_topology_probe_path(topo: str, bgp_mode: str | None = None):
     """Default probe path for an SNDlib topology, compiled offline (OSPF layout)."""
+    from nika.net_env.isp.bgp.plan import compile_bgp_plan
     from nika.net_env.isp.igp import IspConfig, compile_isp_plan
     from nika.net_env.isp.traffic.models import TrafficInterval, TrafficMatrixSeries
     from nika.net_env.isp.traffic.stubs import attach_traffic_stubs
@@ -131,12 +138,30 @@ def isp_topology_probe_path(topo: str):
         pop_node_ids=tuple(n.node_id for n in plan.nodes),
         render_frr=False,
     )
-    return isp_default_probe_path(attachment.plan.inventory)
+    bgp_plan = compile_bgp_plan(plan, bgp_mode) if bgp_mode else None
+    asn_of = (
+        {node.device_name: node.asn for node in bgp_plan.nodes}
+        if bgp_plan is not None and bgp_plan.mode == "ebgp"
+        else None
+    )
+    return isp_default_probe_path(attachment.plan.inventory, asn_of)
 
 
-def first_link_endpoint(isp_inventory: Mapping[str, Any]) -> tuple[str, str]:
-    """Return (device, iface) for the first inventory link endpoint_a."""
+def first_link_endpoint(
+    isp_inventory: Mapping[str, Any], asn_of: Mapping[str, int] | None = None
+) -> tuple[str, str]:
+    """Return (device, iface) for the first inventory link endpoint_a.
+
+    ``asn_of`` restricts the choice to links whose two ends share an AS.
+    """
     links = list(isp_inventory.get("links") or [])
+    if asn_of is not None:
+        links = [
+            link
+            for link in links
+            if asn_of.get((link.get("endpoint_a") or {}).get("device"))
+            == asn_of.get((link.get("endpoint_b") or {}).get("device"))
+        ]
     if not links:
         raise ValueError("ISP inventory has no links")
     link = sorted(links, key=lambda item: str(item.get("link_id") or ""))[0]
@@ -205,90 +230,24 @@ def hijack_speaker_and_prefix(
     return speaker, hijack_prefix
 
 
-def first_ebgp_session(
+def customer_route_session(
     bgp_inventory: Mapping[str, Any] | None,
 ) -> dict[str, str]:
-    """Return one undirected eBGP session as receiver/peer/neighbor_ip.
+    """The session over which the partner AS learns the customer site's route.
 
-    Prefers a session whose peer originates a business prefix so session reset
-    withdraws observable RIB state. ``neighbor_ip`` is the peer address as seen
-    from the receiver.
+    Returns it as receiver (partner) / peer (provider) / neighbor_ip (the
+    provider's address seen from the partner). Losing that session strands
+    the customer prefix in the partner AS.
     """
-    if not bgp_inventory:
-        raise ValueError("bgp inventory required for bgp_max_prefix_exceeded")
-    sessions = [
-        s
-        for s in (bgp_inventory.get("sessions") or [])
-        if str(s.get("session_type") or "") == "ebgp"
-        and s.get("local_device")
-        and s.get("remote_device")
-        and s.get("remote_ip")
-    ]
-    if not sessions:
-        raise ValueError("bgp inventory has no eBGP sessions")
-    originators = {
-        str(item["device"])
-        for item in (bgp_inventory.get("originated") or [])
-        if item.get("device")
-    }
-
-    def _rank(sess: Mapping[str, Any]) -> tuple[int, str, str, str]:
-        local = str(sess["local_device"])
-        remote = str(sess["remote_device"])
-        # Prefer peer (remote) as an originator so flood+withdraw hits its prefixes.
-        peer_is_orig = 0 if remote in originators else 1
-        either_orig = 0 if (local in originators or remote in originators) else 1
-        return (peer_is_orig, either_orig, local, remote)
-
-    sessions = sorted(
-        sessions,
-        key=lambda s: (
-            *_rank(s),
-            str(s.get("remote_ip") or ""),
-        ),
-    )
-    seen: set[tuple[str, str]] = set()
-    for sess in sessions:
-        local = str(sess["local_device"])
-        remote = str(sess["remote_device"])
-        key = tuple(sorted((local, remote)))
-        if key in seen:
-            continue
-        seen.add(key)
-        # Orient so peer is the originator when possible.
-        if remote in originators or local not in originators:
-            return {
-                "receiver_name": local,
-                "peer_name": remote,
-                "neighbor_ip": str(sess["remote_ip"]),
-            }
-        # local is originator and remote is not: flip using the reverse session.
-        reverse = next(
-            (
-                s
-                for s in sessions
-                if str(s.get("local_device")) == remote
-                and str(s.get("remote_device")) == local
-                and s.get("remote_ip")
-            ),
-            None,
+    site = (bgp_inventory or {}).get("customer_site")
+    if not isinstance(site, Mapping):
+        raise ValueError(
+            "bgp_max_prefix_exceeded needs a plain eBGP ISP with a customer site"
         )
-        if reverse is not None:
-            return {
-                "receiver_name": remote,
-                "peer_name": local,
-                "neighbor_ip": str(reverse["remote_ip"]),
-            }
-        return {
-            "receiver_name": local,
-            "peer_name": remote,
-            "neighbor_ip": str(sess["remote_ip"]),
-        }
-    sess = sessions[0]
     return {
-        "receiver_name": str(sess["local_device"]),
-        "peer_name": str(sess["remote_device"]),
-        "neighbor_ip": str(sess["remote_ip"]),
+        "receiver_name": str(site["partner"]),
+        "peer_name": str(site["provider"]),
+        "neighbor_ip": str(site["provider_ip"]),
     }
 
 
@@ -457,5 +416,5 @@ def isp_inject_params(
             raise ValueError("bgp inventory missing leaker_device")
         return {"host_name": str(leaker)}
     if problem == BGP_MAX_PREFIX_PROBLEM:
-        return first_ebgp_session(bgp_inventory)
+        return customer_route_session(bgp_inventory)
     raise ValueError(f"unsupported isp inject problem: {problem!r}")

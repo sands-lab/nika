@@ -10,6 +10,7 @@ from Kathara.model.Lab import Lab
 
 from nika.config import pkg_path
 from nika.net_env.base import NetworkEnvBase
+from nika.net_env.probe_intent import ProbeIntent
 from nika.net_env.isp.bgp import (
     DEFAULT_BGP_MODE,
     BgpPlan,
@@ -20,7 +21,12 @@ from nika.net_env.isp.bgp import (
     render_bgp_frr_fragment,
     scope_igp_to_bgp_as,
 )
-from nika.net_env.isp.brief import format_isp_network_info
+from nika.net_env.isp.brief import (
+    design_notes,
+    ebgp_scope_note,
+    format_isp_network_info,
+    stub_probe_intent,
+)
 from nika.net_env.isp.igp import (
     DEFAULT_CONSTANT_METRIC,
     DEFAULT_IGP,
@@ -212,6 +218,7 @@ class Isp(NetworkEnvBase):
             if self.bgp_plan is not None
             else "Infrastructure loopbacks only; BGP disabled."
         )
+        bgp_desc += ebgp_scope_note(self.bgp_plan)
         source = "Topology Zoo" if is_zoo_topology(self.topo) else "SNDlib"
         self.desc = (
             f"ISP from {source} topology '{self.plan.topology_name}' "
@@ -219,6 +226,8 @@ class Isp(NetworkEnvBase):
             f"{host_n} edge stubs, IGP={self.plan.igp}, "
             f"metric={self.plan.metric_strategy}). {bgp_desc}"
         )
+        self.design_note = design_notes(self.plan, self.bgp_plan, router_services=True)
+        self.desc += self.design_note
 
         if self.bgp_plan is not None:
             rpki = bool(self.bgp_plan.inventory.get("rpki"))
@@ -299,6 +308,7 @@ class Isp(NetworkEnvBase):
         for edge in self.traffic.edge_links:
             self.lab.connect_machine_to_link(edge.router_device, edge.collision_domain)
             self.lab.connect_machine_to_link(edge.host_name, edge.collision_domain)
+        customer_iface = self._attach_customer_site(host_opts)
 
         self._rpki_attachment: dict | None = None
         if self.bgp_plan is not None and self.bgp_plan.inventory.get("rpki"):
@@ -329,6 +339,12 @@ class Isp(NetworkEnvBase):
                     plen = pref.prefix.rsplit("/", 1)[1]
                     extras.append(
                         f"ip addr add {pref.ping_address}/{plen} dev {BGP_ORIGIN_IFACE}"
+                    )
+                site = self.bgp_plan.customer_site
+                if site is not None and node.device_name == site.provider:
+                    plen = site.prefix.rsplit("/", 1)[1]
+                    extras.append(
+                        f"ip addr add {site.gateway}/{plen} dev {customer_iface}"
                     )
                 if (
                     self._rpki_attachment is not None
@@ -380,6 +396,33 @@ class Isp(NetworkEnvBase):
             )
 
         self.load_machines()
+
+    def _attach_customer_site(self, host_opts: dict) -> str | None:
+        """Attach the eBGP customer site; return its interface on the provider."""
+        site = self.bgp_plan.customer_site if self.bgp_plan is not None else None
+        if site is None:
+            return None
+        node = next(n for n in self.plan.nodes if n.device_name == site.provider)
+        provider_iface = f"eth{len(node.interfaces)}"
+        collision = f"cd_{site.host_name}"
+        self.lab.new_machine(site.host_name, **host_opts)
+        self.declare_machine(
+            site.host_name,
+            role=NodeRole.HOST,
+            capabilities=("linux",),
+            reachability_target=True,
+        )
+        self.lab.connect_machine_to_link(site.provider, collision)
+        self.lab.connect_machine_to_link(site.host_name, collision)
+        plen = site.prefix.rsplit("/", 1)[1]
+        self.lab.create_file_from_list(
+            [
+                f"ip addr add {site.address}/{plen} dev eth0",
+                f"ip route replace default via {site.gateway}",
+            ],
+            f"{site.host_name}.startup",
+        )
+        return provider_iface
 
     def _attach_routinator(self) -> dict:
         """Attach an offline Routinator RTR next to the ROV observer."""
@@ -451,6 +494,42 @@ class Isp(NetworkEnvBase):
             "port": port,
         }
 
+    def probe_intent(self) -> ProbeIntent | None:
+        return stub_probe_intent(self.bgp_plan, self.traffic)
+
+    def business_workload(self):
+        from nika.net_env.isp.workload import build_isp_workload
+
+        return build_isp_workload(
+            self.plan,
+            self.traffic,
+            self.bgp_plan,
+            self.topo,
+            router_services=True,
+            routine_changes=self.device_profile == "frr",
+        )
+
+    def bgp_hijack_targets(self):
+        """Business-prefix hijacks that divert a service client's sessions."""
+        from nika.net_env.isp.bgp.hijack import hijack_targets
+
+        if self.bgp_plan is None:
+            return []
+        stub_of = {h.router_device: h.host_name for h in self.traffic.hosts}
+        router_of = {stub: router for router, stub in stub_of.items()}
+        prefix_at = {o.ping_address: o.prefix for o in self.bgp_plan.originated}
+        clients: dict[str, set[str]] = {}
+        for process in self.business_workload().processes:
+            if (
+                process.app == "web_client"
+                and process.node in router_of
+                and process.args[0] in prefix_at
+            ):
+                clients.setdefault(prefix_at[process.args[0]], set()).add(
+                    router_of[process.node]
+                )
+        return hijack_targets(self.plan, self.bgp_plan, stub_of, clients)
+
     def get_info(self) -> str:
         return format_isp_network_info(
             super().get_info(),
@@ -465,7 +544,7 @@ class Isp(NetworkEnvBase):
             return None
         from nika.net_env.isp.inject_targets import isp_topology_probe_path
 
-        return isp_topology_probe_path(topo)
+        return isp_topology_probe_path(topo, deploy_kwargs.get("bgp_mode"))
 
     def startup_verify_lab(self) -> dict:
         from nika.net_env.isp.kathara.verify import verify_isp_lab_startup

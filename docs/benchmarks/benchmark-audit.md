@@ -42,24 +42,23 @@ The release 0.2.0 audit ran on one host. Other NIKA workloads shared that host, 
 | Kathara | 3.8.3 |
 | Python | 3.12.12, run through `uv` |
 
-The audit ran from 2026-10-10 07:53 to 2026-10-12 09:08 UTC.
-Each case took 6.4 minutes at the median and 17.3 minutes at most, from lab deploy to undeploy.
+The audit ran from 2026-10-24 20:10 to 2026-10-25 23:26 UTC.
+Each case took 7.8 minutes at the median and 22.2 minutes at most, from lab deploy to undeploy.
 
 Lab nodes used these images. Every node that used an image reference had the same image ID.
 
 | Image | Image ID |
 | --- | --- |
-| `ghcr.io/nokia/srlinux:24.10@sha256:20064faa8c2fbb2fa6d8812496c28bcfdad40a965da8831da43e55a1eccda14d` | `20064faa8c2f` |
-| `kathara/p4:latest@sha256:62d4511908530028e275420b644d05e45ed9b4f5d786b56a63b5fb287dcce6ef` | `62d451190853` |
-| `kathara/sdn:latest@sha256:19cb5b383367e1d204e76f7e6e65753fbc947647747879f24883558a5c3fd8c5` | `19cb5b383367` |
-| `nika/base:0.2.0` | `3bc814ba015c` |
-| `nika/fabric-controller:0.2.0` | `443e02998fa1` |
-| `nika/frr:0.2.0` | `1251bceb0f1d` |
-| `nika/nginx:0.2.0` | `45f3b48aa38c` |
-| `nika/onos:0.2.0` | `367b0d46f41d` |
-| `nika/routinator:0.2.0` | `3211e28488cd` |
-| `rancher/k3s:v1.34.1-k3s1@sha256:5e0707cfd1239b358ef73f3254bc3eadc027dd30cd5ec6ca41e29e47652a1b8c` | `5e0707cfd123` |
-| `wbitt/network-multitool:latest@sha256:db2810fe2c8d36db074eab5d98fbf861c8ed55e0786d648d3477b3de9135632e` | `db2810fe2c8d` |
+| `ghcr.io/nokia/srlinux:24.10@sha256:20064faa8c2fbb2fa6d8812496c28bcfdad40a965da8831da43e55a1eccda14d` | `57c4f3789309` |
+| `kathara/p4:latest@sha256:62d4511908530028e275420b644d05e45ed9b4f5d786b56a63b5fb287dcce6ef` | `62d451190853`, `9102302f9fb3` |
+| `kathara/sdn:latest@sha256:19cb5b383367e1d204e76f7e6e65753fbc947647747879f24883558a5c3fd8c5` | `19cb5b383367`, `1b6bac7a75d8` |
+| `nika/base:0.2.0` | `708951f5b1a6`, `847c0f5fe882` |
+| `nika/fabric-controller:0.2.0` | `8492ced23f37`, `bb30d4170e4d` |
+| `nika/frr:0.2.0` | `754699e8256f`, `aca95475caee` |
+| `nika/nginx:0.2.0` | `e2fe0d71fb71`, `e8655478f5c8` |
+| `nika/onos:0.2.0` | `2a83abf39cab`, `790fa4ef806d` |
+| `nika/routinator:0.2.0` | `020501984f49` |
+| `rancher/k3s:v1.34.1-k3s1@sha256:5e0707cfd1239b358ef73f3254bc3eadc027dd30cd5ec6ca41e29e47652a1b8c` | `7a78342ef2af` |
 
 ## What the audit checks for one case
 
@@ -96,6 +95,18 @@ The audit admits a case only when its admission status is `pass`.
 | `unsupported` | The fault has no behavioral check for the stage. `reason` names the scope. |
 | `no_evidence` | The stage produced no observation. |
 
+### Agent-view stages
+
+These stages check what a diagnosing agent reads, using `experiment/audit/agent_view.py`. They run no LLM. They are required like the other stages: a stored record without them is stale and runs again.
+
+| Stage | Runs on | Fails when |
+| --- | --- | --- |
+| `agent_view` | healthy cases, inside the 120 s wait | A check fails in both of two rounds 15 s apart: a PingMesh anomaly with the tool's default arguments and the scenario's `probe_intent`, the scenario probe path, an IPv4 or IPv6 endpoint pair that does not answer (or answers although `probe_intent` isolates it), a published DNS name that does not resolve from a resolver client, an FRR BGP peer that is not Established, or a Kubernetes `Warning` event. |
+| `baseline_agent_view` | fault cases, after `sham_symptom` | The same checks on the healthy lab before inject. |
+| `leak_scan` | fault cases, right after `inject_artifact` | A file under `/etc`, `/tmp`, `/var`, `/opt`, `/root`, `/usr/local` that inject added or changed names `nika`, an injection, or the fault id (in its path, or more times in its content than before), ends like a backup (`.sav`, `.bak`, `.orig`), or is a copy of a file's pre-inject content; or a new process, socket, link, route, rule, firewall, tc, FRR, OVS, SR Linux, Kubernetes, or P4Runtime line names one of those. |
+
+The leak scan masks timestamps, PIDs, counters, and object versions before it compares the two snapshots. Inject parameter values such as the target host or prefix are not tokens: the fault lives in that configuration. New processes are listed for review without failing the stage, because some are the fault mechanism itself. An agent-view stage that cannot read the lab is `no_evidence`.
+
 A stored result counts only when it has a finished run, image identities for every lab node, the symptom probe that the fault declares today, and a clean, committed working tree. Each record keeps its commit and source fingerprint. A case audited with `--repeats N` passes only when all N fresh-lab runs pass. A case without such a result is not admitted.
 
 ## Launch parameters
@@ -105,8 +116,8 @@ Run every command from the repository root on a host with Docker and the NIKA im
 The release 0.2.0 audit used these commands:
 
 ```shell
-# Audit every release case three times on fresh labs, replacing stored results
-uv run python -m experiment.audit.matrix --jobs 8 --repeats 3 --force
+# Audit every release case twice on fresh labs, replacing stored results
+uv run python -m experiment.audit.matrix --jobs 8 --repeats 2 --force
 
 # Resume after an interruption. Cases with a stored result are skipped.
 uv run python -m experiment.audit.matrix --jobs 8
@@ -152,7 +163,7 @@ uv run python -c "from experiment.audit.report_doc import write_benchmark_audit_
 
 ## Limits
 
-- The audit observes each case for about 2 minutes after inject. It does not cover the 2400-second trial budget. The benchmark trial also checks the artifact while the agent runs (see [Checks during a benchmark trial](#checks-during-a-benchmark-trial)).
+- The audit observes each case for about 2 minutes after inject. It does not cover the 2400-second trial budget. Labs run the scenario business workload during the audit, so symptoms are checked under realistic load. The agent-view stages check the PingMesh tool and the lab state an agent can read, not the prompt or the other MCP tools' output. The benchmark trial also checks the artifact while the agent runs (see [Checks during a benchmark trial](#checks-during-a-benchmark-trial)).
 
 ## Checks during a benchmark trial
 
@@ -181,10 +192,10 @@ Every release case, grouped by scenario. The Admission column comes from the mat
 | dev | nat_mapping_removed_without_drain | s | scenario default | none | host_name=br1_edge, nat_ip_a=198.18.1.10, nat_ip_b=198.18.1.11, source_prefix=10.1.40.0/24, wan_interface=eth2 | The pre-inject flow breaks and new flows leave through ``nat_ip_b``. | 2/2 | pass |
 | dev | snat_port_pool_exhaustion | m | scenario default | none | host_name=br1_edge, port_end=40063, port_start=40000, public_ip=198.18.1.10, source_prefix=10.1.40.0/24 | After inject, concurrent flows stop at the SNAT pool size. | 2/2 | pass |
 | dev | tcp_receive_window_limited | l | scenario default | none | host_name=br1_corp_pc2, large_url=http://10.0.20.2/large.bin, sender_host=hq_srv, sender_ip=10.0.20.2, small_url=http://10.0.20.2/small.bin | Bulk TCP into the receiver is window-bound; another receiver is not. | 2/2 | pass |
-| dev | vrf_dscp_remarking | s | scenario default | none | corp_prefix=10.0.10.0/24, direction=lan_to_overlay, dst_host=br1_corp_pc, host_name=hq_edge, intf_name=wg_br1, src_host=hq_corp_pc | Under the same bulk load, the demoted EF flow queues behind bulk traffic. | 2/2 | pass |
+| dev | vrf_dscp_remarking | s | scenario default | none | corp_prefix=10.0.10.0/24, direction=lan_to_overlay, dst_host=br1_corp_pc, host_name=hq_edge, intf_name=wg_br1, src_host=hq_corp_pc | Demoted media competes with bulk in best effort and loses packets. | 2/2 | pass |
 | dev | wireguard_allowed_ips_misconfiguration | l | scenario default | none | host_name=br1_edge, intf_name=wg_hq, target_prefix=10.0.20.0/24 | Ping on the scenario probe path works before inject and fails after; the control path, if any, stays up. | 2/2 | pass |
 | dev | wireguard_peer_key_misconfiguration | s | scenario default | none | host_name=br1_edge, intf_name=wg_hq | Ping on the scenario probe path works before inject and fails after; the control path, if any, stays up. | 2/2 | pass |
-| test | bgp_hijacking | l | scenario default | none | export_prefix_list=LOCAL-ADV, host_name=br1_edge, observer_host=br2_corp_pc, probe_dst_ip=10.9.10.2, symptom_host=br2_edge, target_network=10.9.10.0/24 | The remote observer's best path points at the hijacker and its host's traffic follows. | 2/2 | pass |
+| test | bgp_hijacking | l | scenario default | none | host_name=hq_edge, observer_host=br1_corp_pc, probe_dst_ip=10.2.10.2, symptom_host=br1_edge, target_network=10.2.10.0/24 | The remote observer's best path points at the hijacker and its host's traffic follows. | 2/2 | pass |
 | test | bgp_missing_route_advertisement | m | scenario default | none | host_name=br1_edge | Every observer loses the originator's route for the baseline prefixes. | 2/2 | pass |
 | test | host_static_blackhole | l | scenario default | none | host_name=br1_edge | Hosts behind the router lose the prefix; other destinations stay up. | 2/2 | pass |
 | test | link_down | l | scenario default | none | host_name=br1_corp_pc, intf_name=eth0 | Traffic no longer crosses the link. | 2/2 | pass |
@@ -192,7 +203,7 @@ Every release case, grouped by scenario. The Admission column comes from the mat
 | test | nat_mapping_removed_without_drain | l | scenario default | none | host_name=br1_edge, nat_ip_a=198.18.1.10, nat_ip_b=198.18.1.11, source_prefix=10.1.40.0/24, wan_interface=eth3 | The pre-inject flow breaks and new flows leave through ``nat_ip_b``. | 2/2 | pass |
 | test | snat_port_pool_exhaustion | s | scenario default | none | host_name=br1_edge, port_end=40063, port_start=40000, public_ip=198.18.1.10, source_prefix=10.1.40.0/24 | After inject, concurrent flows stop at the SNAT pool size. | 2/2 | pass |
 | test | tcp_receive_window_limited | s | scenario default | none | host_name=br1_corp_pc, large_url=http://10.0.20.2/large.bin, sender_host=hq_srv, sender_ip=10.0.20.2, small_url=http://10.0.20.2/small.bin | Bulk TCP into the receiver is window-bound; another receiver is not. | 2/2 | pass |
-| test | vrf_dscp_remarking | m | scenario default | none | corp_prefix=10.0.10.0/24, direction=lan_to_overlay, dst_host=br1_corp_pc, host_name=hq_edge, intf_name=wg_br1, src_host=hq_corp_pc | Under the same bulk load, the demoted EF flow queues behind bulk traffic. | 2/2 | pass |
+| test | vrf_dscp_remarking | m | scenario default | none | corp_prefix=10.0.10.0/24, direction=lan_to_overlay, dst_host=br1_corp_pc, host_name=hq_edge, intf_name=wg_br1, src_host=hq_corp_pc | Demoted media competes with bulk in best effort and loses packets. | 2/2 | pass |
 | test | wireguard_allowed_ips_misconfiguration | s | scenario default | none | host_name=br1_edge, intf_name=wg_hq, target_prefix=10.0.20.0/24 | Ping on the scenario probe path works before inject and fails after; the control path, if any, stays up. | 2/2 | pass |
 | test | wireguard_peer_key_misconfiguration | l | scenario default | none | host_name=br1_edge, intf_name=wg_hq | Ping on the scenario probe path works before inject and fails after; the control path, if any, stays up. | 2/2 | pass |
 | test | healthy | m | scenario default | none | none | Healthy lab: the scenario checks pass, no symptom. | 2/2 | pass |
@@ -204,7 +215,7 @@ Every release case, grouped by scenario. The Admission column comes from the mat
 | dev | arp_cache_poisoning | none | scenario default | none | host_name=client | Ping on the scenario probe path works before inject and fails after; the control path, if any, stays up. | 2/2 | pass |
 | dev | frr_service_down | none | scenario default | none | host_name=leaf_1_1 | Every remote OSPF, IS-IS, or BGP neighbor of the router loses its adjacency. | 2/2 | pass |
 | dev | host_incorrect_gateway | none | scenario default | none | host_name=client | Ping on the scenario probe path works before inject and fails after; the control path, if any, stays up. | 2/2 | pass |
-| dev | k8s_coredns_isolated | none | scenario default | none | control_node=controller, symptom_host=worker1 | Another node's lookups fail while the CoreDNS pod stays reachable by IP. | 2/2 | pass |
+| dev | k8s_coredns_isolated | none | scenario default | none | control_node=controller, node_name=controller, symptom_host=worker1 | Another node's lookups fail while the CoreDNS pod stays reachable by IP. | 2/2 | pass |
 | test | bgp_asn_misconfig | none | scenario default | none | host_name=leaf_1_1 | Remote peers refuse the router's OPEN with "Bad Peer AS"; sessions stay down. | 2/2 | pass |
 | test | host_incorrect_netmask | none | scenario default | none | host_name=worker3, netmask_prefix=8 | A remote host inside the wrong prefix loses the host; a sibling does not. | 2/2 | pass |
 | test | k8s_clusterip_routing_broken | none | scenario default | none | control_node=controller, node_name=controller | The node cannot use a Service VIP; its backend and other nodes still can. | 2/2 | pass |
@@ -234,7 +245,7 @@ Every release case, grouped by scenario. The Admission column comes from the mat
 
 | Split | Fault | Scale | Backend | Design | Inject | Symptom checked | Repeats passed | Admission |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | bgp_hijacking | m | kathara | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=frr | host_name=albany, peer_host=pc_albany, probe_dst_ip=198.18.0.1, symptom_host=atlanta, target_network=198.18.0.0/24 | The remote observer's best path points at the hijacker and its host's traffic follows. | 2/2 | pass |
+| dev | bgp_hijacking | m | kathara | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=frr | host_name=albany, observer_host=pc_newyork, probe_dst_ip=203.0.115.1, symptom_host=newyork, target_network=203.0.115.0/24 | The remote observer's best path points at the hijacker and its host's traffic follows. | 2/2 | pass |
 
 ### `isp_geant`
 
@@ -266,7 +277,7 @@ Every release case, grouped by scenario. The Admission column comes from the mat
 | dev | p4_table_resource_exhaustion | s | scenario default | none | host_name=leaf_1 | The full LPM table rejects a new entry; installed routes still forward. | 2/2 | pass |
 | dev | p4runtime_partial_write | l | scenario default | none | host_name=leaf_1 | Victim traffic lands on the local host, which is itself unreachable. | 2/2 | pass |
 | dev | p4runtime_pipeline_mismatch | s | scenario default | none | host_name=leaf_1 | Ping on the scenario probe path works before inject and fails after; the control path, if any, stays up. | 2/2 | pass |
-| test | incast_traffic_network_limitation | l | scenario default | none | duration=3600, host_name=web_2, observer_device=client_1_1, probe_dst_ip=10.0.2.11 | Synchronized bursts fill the shallow egress queue: a victim flow through it is delayed by a large share of the queue's drain time; a control flow is not. | 2/2 | pass |
+| test | incast_traffic_network_limitation | l | scenario default | none | host_name=web_2, observer_device=client_1_1, probe_dst_ip=10.0.2.11 | Synchronized fan-in overflows the shallow egress queue: the port tail-drops while its average send rate stays well below the port rate, and a control flow that avoids the port stays healthy. | 2/2 | pass |
 | test | p4_table_entry_missing | m | scenario default | none | host_name=leaf_1, observer_device=client_1_1, probe_dst_ip=10.0.2.11 | HTTP on the scenario probe path works before inject and fails after; the control path, if any, stays up. | 2/2 | pass |
 
 ### `sdn_l3_clos`
@@ -275,14 +286,14 @@ Every release case, grouped by scenario. The Admission column comes from the mat
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | dev | device_forwarding_packet_corruption | s | scenario default | none | forwarding_device=leaf_2, intf_name=eth0, observer_device=client_1_1, probe_dst_ip=10.0.2.11, seed=42 | End hosts receive TCP segments that fail their checksum. | 2/2 | pass |
 | dev | flow_rule_loop | m | scenario default | none | host_name=leaf_1, host_name_2=spine_2, port_name=eth5, port_name_2=eth5 | Flows hashed onto the looped link are lost and multiply on that link. | 2/2 | pass |
-| dev | flow_rule_shadowing | l | scenario default | none | host_name=spine_1 | Cross-rack flows hashed onto the shadowed switch stop arriving. | 2/2 | pass |
+| dev | flow_rule_shadowing | l | scenario default | none | host_name=spine_1 | Flows to the shadowed prefix stop arriving; other prefixes still do. | 2/2 | pass |
 | dev | sdn_controller_crash | m | scenario default | none | host_name=onos | Switches lose their controller and new flows stop reaching them. | 2/2 | pass |
 | dev | sender_resource_contention | l | scenario default | none | client_host=client_2_1, cpu_quota=0.05, dst_ip=10.0.1.11, duration=3600, host_name=web_1, large_url=http://10.0.1.11/large.bin, small_url=http://10.0.1.11/small.bin, stress_cpus=16 | Bulk downloads from the sender slow down; small objects and the path do not. | 2/2 | pass |
 | dev | southbound_port_block | l | scenario default | none | host_name=onos, southbound_port=6653 | Switches lose their controller and new flows stop reaching them. | 2/2 | pass |
 | dev | southbound_port_mismatch | s | scenario default | none | host_name=onos, mismatched_port=6633, original_port=6653 | Switches lose their controller and new flows stop reaching them. | 2/2 | pass |
 | test | arp_cache_poisoning | l | scenario default | none | host_name=client_10_1 | Ping on the scenario probe path works before inject and fails after; the control path, if any, stays up. | 2/2 | pass |
 | test | flow_rule_loop | s | scenario default | none | host_name=leaf_1, host_name_2=spine_1, port_name=eth2, port_name_2=eth2 | Flows hashed onto the looped link are lost and multiply on that link. | 2/2 | pass |
-| test | flow_rule_shadowing | s | scenario default | none | host_name=spine_1 | Cross-rack flows hashed onto the shadowed switch stop arriving. | 2/2 | pass |
+| test | flow_rule_shadowing | s | scenario default | none | host_name=spine_1 | Flows to the shadowed prefix stop arriving; other prefixes still do. | 2/2 | pass |
 | test | link_flap | s | scenario default | none | down_time=1, host_name=client_1_1, intf_name=eth0, observer_device=client_1_1, probe_dst_ip=10.0.2.11, up_time=1 | Echo loss comes in repeated outages separated by recoveries. | 2/2 | pass |
 | test | sdn_controller_crash | l | scenario default | none | host_name=onos | Switches lose their controller and new flows stop reaching them. | 2/2 | pass |
 | test | southbound_port_block | m | scenario default | none | host_name=onos, southbound_port=6653 | Switches lose their controller and new flows stop reaching them. | 2/2 | pass |
@@ -332,7 +343,7 @@ Every release case, grouped by scenario. The Admission column comes from the mat
 | test | arp_acl_block | m | scenario default | none | host_name=client_0 | Ping on the scenario probe path works before inject and fails after; the control path, if any, stays up. | 2/2 | pass |
 | test | host_incorrect_gateway | l | scenario default | none | host_name=client_0 | Ping on the scenario probe path works before inject and fails after; the control path, if any, stays up. | 2/2 | pass |
 | test | link_detach | m | scenario default | none | host_name=client_0, intf_name=eth0 | Traffic no longer crosses the link. | 2/2 | pass |
-| test | receiver_resource_contention | s | scenario default | none | duration=3600, host_name=client_0 | The receiver drains a TCP stream far slower; its network path is healthy. | 2/2 | pass |
+| test | receiver_resource_contention | s | scenario default | none | duration=3600, host_name=client_0 | The receiver's closed window holds a TCP stream back; its path is healthy. | 2/2 | pass |
 | test | healthy | m | scenario default | none | none | Healthy lab: the scenario checks pass, no symptom. | 2/2 | pass |
 | test | healthy | l | scenario default | none | none | Healthy lab: the scenario checks pass, no symptom. | 2/2 | pass |
 | test | healthy | s | scenario default | none | none | Healthy lab: the scenario checks pass, no symptom. | 2/2 | pass |
@@ -346,10 +357,10 @@ Every release case, grouped by scenario. The Admission column comes from the mat
 | dev | k8s_clusterip_routing_broken | none | scenario default | none | control_node=controller, node_name=controller | The node cannot use a Service VIP; its backend and other nodes still can. | 2/2 | pass |
 | dev | k8s_networkpolicy_deny | none | scenario default | none | control_node=controller, control_url=http://200.0.0.8/, namespace=llm-d, pod_selector=gateway.networking.k8s.io/gateway-name=llm-d-gateway, symptom_host=client, symptom_url=http://llmd/v1/models | The isolated path stops answering HTTP while a control path still answers. | 2/2 | pass |
 | dev | k8s_worker_apiserver_partition | none | scenario default | none | control_node=controller, node_name=worker1 | NotReady worker whose pods leave endpoints and refuse logs, still pingable. | 2/2 | pass |
-| dev | receiver_resource_contention | none | scenario default | none | duration=3600, host_name=client | The receiver drains a TCP stream far slower; its network path is healthy. | 2/2 | pass |
+| dev | receiver_resource_contention | none | scenario default | none | duration=3600, host_name=client | The receiver's closed window holds a TCP stream back; its path is healthy. | 2/2 | pass |
 | test | host_ip_conflict | none | scenario default | none | host_name=client, host_name_2=web | Two hosts answer ARP for the same address, as a third node sees it. | 2/2 | pass |
 | test | host_missing_ip | none | scenario default | none | host_name=client, intf_name=eth0 | Peers can no longer reach the host at the address it should hold. | 2/2 | pass |
-| test | k8s_coredns_isolated | none | scenario default | none | control_node=controller, symptom_host=worker1 | Another node's lookups fail while the CoreDNS pod stays reachable by IP. | 2/2 | pass |
+| test | k8s_coredns_isolated | none | scenario default | none | control_node=controller, node_name=controller, symptom_host=worker1 | Another node's lookups fail while the CoreDNS pod stays reachable by IP. | 2/2 | pass |
 | test | sender_resource_contention | none | scenario default | none | client_host=client, cpu_quota=0.05, dst_ip=200.0.0.8, duration=3600, host_name=web, large_url=http://200.0.0.8/large.bin, small_url=http://200.0.0.8/small.bin, stress_cpus=16 | Bulk downloads from the sender slow down; small objects and the path do not. | 2/2 | pass |
 | test | healthy | none | scenario default | none | none | Healthy lab: the scenario checks pass, no symptom. | 2/2 | pass |
 
@@ -372,13 +383,13 @@ Every release case, grouped by scenario. The Admission column comes from the mat
 | Split | Fault | Scale | Backend | Design | Inject | Symptom checked | Repeats passed | Admission |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | dev | icmp_frag_needed_filter_misconfiguration | s | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | host_name=atlam5 | Fragmentation Needed no longer crosses the node; other ICMP still does. | 2/2 | pass |
-| test | bgp_max_prefix_exceeded | s | kathara | igp=ospf, bgp_mode=ebgp, rpki=False, device_profile=frr | flood_count=120, neighbor_ip=10.0.0.21, peer_name=losang, receiver_name=hstnng | The peer's session is down with the receiver's max-prefix Cease notification. | 2/2 | pass |
+| test | bgp_max_prefix_exceeded | s | kathara | igp=ospf, bgp_mode=ebgp, rpki=False, device_profile=frr | flood_count=120, neighbor_ip=10.0.0.23, peer_name=kscyng, receiver_name=iplsng | The peer's session is down with the receiver's max-prefix Cease notification. | 2/2 | pass |
 
 ### `p4_dc_gateway`
 
 | Split | Fault | Scale | Backend | Design | Inject | Symptom checked | Repeats passed | Admission |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | incast_traffic_network_limitation | m | scenario default | none | duration=3600, host_name=service_1_1, observer_device=client_1, probe_dst_ip=10.0.1.11 | Synchronized bursts fill the shallow egress queue: a victim flow through it is delayed by a large share of the queue's drain time; a control flow is not. | 2/2 | pass |
+| dev | incast_traffic_network_limitation | m | scenario default | none | host_name=service_1_1, observer_device=client_1, probe_dst_ip=10.0.1.11 | Synchronized fan-in overflows the shallow egress queue: the port tail-drops while its average send rate stays well below the port rate, and a control flow that avoids the port stays healthy. | 2/2 | pass |
 | dev | int_insufficient_mtu_headroom | s | scenario default | none | bmv2_port=2, host_name=gateway_1, int_mtu=1480, intf_name=eth1 | Near-MTU packets on the faulted port lose INT; small packets keep it. | 2/2 | pass |
 | dev | p4_action_selector_member_misconfig | l | scenario default | none | host_name=leaf_1 | Flows hashed to the bad member leave on the bad port and are lost. | 2/2 | pass |
 | dev | lb_pending_connection_update_race | m | scenario default | none | host_name=gateway_1, learning_delay_ms=8000, seed=42 | Connections opened just before a routine pool update break; learned ones do not. | 2/2 | pass |
@@ -411,7 +422,7 @@ Every release case, grouped by scenario. The Admission column comes from the mat
 
 | Split | Fault | Scale | Backend | Design | Inject | Symptom checked | Repeats passed | Admission |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| dev | link_capacity_bottleneck | none | scenario default | none | burst=64kb, host_name=client1, intf_name=eth1, limit=500kb, rate=30kbit | The receiver takes in far less than on the healthy link, but traffic flows. | 2/2 | pass |
+| dev | link_capacity_bottleneck | none | scenario default | none | burst=16kb, host_name=client1, intf_name=eth1, limit=32kb, rate=512kbit | The receiver takes in far less than on the healthy link, but traffic flows. | 2/2 | pass |
 | dev | healthy | none | scenario default | none | none | Healthy lab: the scenario checks pass, no symptom. | 2/2 | pass |
 | test | bgp_asn_misconfig | none | scenario default | none | host_name=leaf1 | Remote peers refuse the router's OPEN with "Bad Peer AS"; sessions stay down. | 2/2 | pass |
 
@@ -467,7 +478,7 @@ Every release case, grouped by scenario. The Admission column comes from the mat
 | dev | healthy | s | containerlab | igp=ospf, bgp_mode=ebgp, rpki=False, device_profile=nokia_srlinux | none | Healthy lab: the scenario checks pass, no symptom. | 2/2 | pass |
 | dev | healthy | s | containerlab | igp=isis, bgp_mode=none, rpki=False, device_profile=nokia_srlinux | none | Healthy lab: the scenario checks pass, no symptom. | 2/2 | pass |
 | dev | healthy | s | containerlab | igp=isis, bgp_mode=ibgp_rr, rpki=False, device_profile=nokia_srlinux | none | Healthy lab: the scenario checks pass, no symptom. | 2/2 | pass |
-| test | link_capacity_bottleneck | s | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | burst=64kb, host_name=n_10, intf_name=eth0, limit=500kb, peer_host=pc_n_9, probe_dst_ip=10.254.0.42, rate=30kbit, symptom_host=pc_n_10 | The receiver takes in far less than on the healthy link, but traffic flows. | 2/2 | pass |
+| test | link_capacity_bottleneck | s | kathara | igp=isis, bgp_mode=none, rpki=False, device_profile=frr | burst=16kb, host_name=n_3, intf_name=eth4, limit=32kb, peer_host=pc_n_10, probe_dst_ip=10.254.0.6, rate=512kbit, symptom_host=pc_n_3 | The receiver takes in far less than on the healthy link, but traffic flows. | 2/2 | pass |
 
 ### `isp_pdh`
 

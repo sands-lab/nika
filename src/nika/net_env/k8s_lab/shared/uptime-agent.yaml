@@ -1,0 +1,56 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+---
+# Per-node synthetic checks: every node's agent calls the sample apps through
+# their Service names, as a monitoring agent would. A round counts as healthy
+# only when every call succeeded; readiness follows the last healthy round.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: uptime-agent
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: uptime-agent
+  template:
+    metadata:
+      labels:
+        app: uptime-agent
+    spec:
+      containers:
+      - name: agent
+        image: busybox:1.37.0-musl@sha256:5cec3fc171c87218698e85a52af7087de727372aae264a787b8112901a5b0092
+        imagePullPolicy: Never
+        command: [sh, -c]
+        args:
+        - |
+          # The first round runs right after start; count start as healthy so
+          # readiness does not fail before that round can finish.
+          date +%s > /tmp/last-ok
+          while true; do
+            ok=1
+            for url in \
+              http://word.word-ns.svc.cluster.local:5001/word \
+              "http://weather.weather-ns.svc.cluster.local:5001/weather?location=London"; do
+              if ! wget -q -T 5 -O /dev/null "$url"; then
+                echo "$(date -u +%FT%TZ) check failed: $url" >&2
+                ok=0
+              fi
+            done
+            [ $ok = 1 ] && date +%s > /tmp/last-ok
+            sleep 10
+          done
+        readinessProbe:
+          exec:
+            command: [sh, -c, 'test $(($(date +%s) - $(cat /tmp/last-ok))) -lt 60']
+          periodSeconds: 10
+          # A loaded node can take over the 1 s default to start the probe shell.
+          timeoutSeconds: 5
+          failureThreshold: 3
+        resources:
+          requests:
+            cpu: 5m
+            memory: 8Mi

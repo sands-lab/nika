@@ -7,6 +7,7 @@ from nika.problems.base import (
     ProblemBase,
 )
 from nika.problems.support.benchmark_targets import dhcp_server_client
+from nika.problems.support.inject_resolve import unused_address_near
 from nika.problems.support.dhcp import (
     client_subnet,
     set_subnet_option,
@@ -33,7 +34,10 @@ class DHCPSpoofedGateway(ProblemBase):
     symptom_class = "unreachable"
     root_cause_name: str = "dhcp_spoofed_gateway"
 
-    description = "DHCP distributes a spoofed default gateway."
+    description = (
+        "The DHCP server advertises an incorrect default gateway (router "
+        "option) to the clients of a subnet."
+    )
     TAGS: str = ["dhcp"]
 
     Params = DHCPSpoofedGatewayParams
@@ -81,9 +85,12 @@ class DHCPSpoofedDNSParams(BaseModel):
 
     host_name: str = Field(description="DHCP server host name.")
     host_name_2: str = Field(description="Affected client host name.")
-    wrong_dns: str = Field(
-        default="192.0.2.1",
-        description="Spoofed DNS IP (TEST-NET; non-resolving).",
+    wrong_dns: str | None = Field(
+        default=None,
+        description=(
+            "Spoofed DNS IP. Defaults to an unused, non-resolving address next "
+            "to the subnet's real resolver."
+        ),
     )
 
 
@@ -113,23 +120,34 @@ class DHCPSpoofedDNS(ProblemBase):
         dhcp_server = params.host_name
         client_host = params.host_name_2
         subnet = client_subnet(self.runtime, client_host, dhcp_server)
-        self.runtime.dhcp_set_option_dns(dhcp_server, subnet, params.wrong_dns)
+        self._wrong_dns = self._spoofed_dns(params, subnet)
+        self.runtime.dhcp_set_option_dns(dhcp_server, subnet, self._wrong_dns)
         self.runtime.renew_dhcp_leases(self.runtime.list_dhcp_client_nodes())
+
+    def _spoofed_dns(self, params: DHCPSpoofedDNSParams, subnet: str) -> str:
+        if params.wrong_dns:
+            return params.wrong_dns
+        current = subnet_option_value(
+            self.runtime, params.host_name, subnet, "domain-name-servers"
+        )
+        real = (current or "").split(",")[0].strip() or subnet
+        return unused_address_near(self.runtime, real)
 
     def verify_fault(self, params: DHCPSpoofedDNSParams) -> dict:
         """Verify dhcpd.conf has the spoofed DNS server option."""
         dhcp_server = params.host_name
+        wrong_dns = params.wrong_dns or getattr(self, "_wrong_dns", None)
         grep_result = self.runtime.exec(
             dhcp_server,
-            f"grep 'option domain-name-servers.*{params.wrong_dns}' /etc/dhcp/dhcpd.conf && echo found || echo absent",
+            f"grep 'option domain-name-servers.*{wrong_dns}' /etc/dhcp/dhcpd.conf && echo found || echo absent",
         ).strip()
-        verified = "found" in grep_result
+        verified = bool(wrong_dns) and "found" in grep_result
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=verified,
             details={
                 "dhcp_server": dhcp_server,
-                "wrong_dns": params.wrong_dns,
+                "wrong_dns": wrong_dns,
                 "grep_result": grep_result,
             },
         )

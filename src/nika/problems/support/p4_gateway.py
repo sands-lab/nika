@@ -1,68 +1,107 @@
-"""Private control adapter for P4 gateway benchmark fault hooks."""
+"""P4 gateway fault adapters: P4Runtime writes and switch route geometry."""
 
 from __future__ import annotations
 
-import json
-import shlex
-
+import ipaddress
+from nika.problems.support.p4runtime_writes import p4runtime_write, require_ok
 from nika.runtime.base import LabRuntime
-
-
-def _config(runtime: LabRuntime, switch: str, kind: str, **values: object) -> str:
-    options = " ".join(
-        f"--{name.replace('_', '-')} {shlex.quote(str(value))}"
-        for name, value in values.items()
-        if value is not None
-    )
-    output = runtime.exec(
-        "fabric_mgr",
-        f"python3 /opt/p4rt/p4rt_manager.py gateway-config --switch {shlex.quote(switch)} "
-        f"--kind {shlex.quote(kind)} {options}",
-        timeout=30,
-    )
-    payload = json.loads(output)
-    if not payload.get("ok"):
-        raise RuntimeError(f"P4Runtime gateway configuration failed: {payload}")
-    return output
 
 
 def read_table(runtime: LabRuntime, switch: str, table: str) -> list[dict] | None:
     """Read the live entries of one P4 table, or ``None`` when the read fails."""
-    output = runtime.exec(
-        "fabric_mgr",
-        f"python3 /opt/p4rt/p4rt_manager.py read-table --switch {shlex.quote(switch)} "
-        f"--table {shlex.quote(table)}",
-        timeout=30,
-    )
+    from nika.net_env.p4_dc_fabric.fabric_manager.apply import run_manager
+
     try:
-        payload = json.loads(output)
-    except ValueError:
+        payload = run_manager(
+            runtime, "read-table", "--switch", switch, "--table", table, timeout=30
+        )
+    except RuntimeError:
         return None
     rows = (payload.get("tables") or {}).get(table) if payload.get("ok") else None
     return rows if isinstance(rows, list) else None
 
 
-def set_silent_destination_drop(
-    runtime: LabRuntime, switch: str, target_ip: str
-) -> str:
-    return _config(runtime, switch, "silent-drop", address=target_ip)
-
-
-def set_deterministic_loss(
-    runtime: LabRuntime, switch: str, port: int, threshold: int
-) -> str:
-    return _config(runtime, switch, "loss", port=port, value=threshold)
+def _modify_port_entry(
+    runtime: LabRuntime,
+    switch: str,
+    table: str,
+    field: str,
+    port: int,
+    action: str,
+    params: dict[str, int],
+) -> dict:
+    spec = {
+        "type": "MODIFY",
+        "table": table,
+        "match": {field: int(port)},
+        "action": action,
+        "params": params,
+    }
+    return require_ok(
+        p4runtime_write(runtime, switch, [spec]), f"{table} update on {switch}"
+    )
 
 
 def set_ecn_threshold(
     runtime: LabRuntime, switch: str, port: int, threshold: int
-) -> str:
-    return _config(runtime, switch, "ecn", port=port, value=threshold)
+) -> dict:
+    return _modify_port_entry(
+        runtime,
+        switch,
+        "ecn_config",
+        "egress_port",
+        port,
+        "set_ecn_threshold",
+        {"threshold": int(threshold)},
+    )
 
 
-def set_int_mtu(runtime: LabRuntime, switch: str, port: int, mtu: int) -> str:
-    return _config(runtime, switch, "int-mtu", port=port, value=mtu)
+def set_int_mtu(runtime: LabRuntime, switch: str, port: int, mtu: int) -> dict:
+    return _modify_port_entry(
+        runtime,
+        switch,
+        "int_mtu_config",
+        "egress_spec",
+        port,
+        "set_int_mtu",
+        {"mtu": int(mtu)},
+    )
 
 
-def set_icmp_frag_needed_filter(runtime: LabRuntime, switch: str) -> str:
-    return _config(runtime, switch, "icmp-frag-needed")
+def set_icmp_frag_needed_filter(runtime: LabRuntime, switch: str) -> dict:
+    spec = {
+        "table": "icmp_acl",
+        "match": {"type": 3, "code": 4},
+        "action": "drop",
+    }
+    return require_ok(
+        p4runtime_write(runtime, switch, [spec]), f"ICMP filter on {switch}"
+    )
+
+
+def ternary_miss_row(prefix: str, target_ip: str, others: list[str]) -> tuple[str, str]:
+    """Value/mask of the addresses a flipped don't-care bit drops from *prefix*.
+
+    A TCAM soft error that sets one mask bit of the host part (stored value 0)
+    makes the row stop matching every address in *prefix* with that bit set.
+    Choose the lowest such bit that the target has and the other addresses
+    under the prefix lack, so the target loses its route and they keep it.
+    """
+    network = ipaddress.IPv4Network(prefix, strict=False)
+    target = int(ipaddress.IPv4Address(target_ip))
+    peers = [
+        int(ipaddress.IPv4Address(ip))
+        for ip in others
+        if ipaddress.IPv4Address(ip) in network and ip != target_ip
+    ]
+    host_bits = 32 - network.prefixlen
+    candidates = [b for b in range(host_bits) if target >> b & 1]
+    if not candidates:
+        raise ValueError(f"{target_ip} has no host bit set under {prefix}")
+    bit = min(candidates, key=lambda b: (sum(1 for p in peers if p >> b & 1), b))
+    base = int(network.network_address)
+    mask = int(network.netmask) | (1 << bit)
+    return (
+        str(ipaddress.IPv4Address(base | (1 << bit))),
+        str(ipaddress.IPv4Address(mask)),
+    )

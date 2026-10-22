@@ -6,7 +6,7 @@ Implementation: [`benchmark/`](../../benchmark/) stores matrices and releases; [
 
 ## Frozen release (`nika-bench@0.2.0`)
 
-`0.2.0` publishes public Dev and Test splits from the current failure registry. Both splits cover every failure registered when the version was frozen, except `lb_connection_state_exhaustion`, which 0.2.0 held out and which has since been removed from the registry (see the release README). Labels are public for reproducibility. Each version directory under [`benchmark/releases/`](../../benchmark/releases/) includes a `README.md` with suite shape, scenario and failure coverage, and links to the scenario and failure references.
+`0.2.0` publishes public Dev and Test splits from the current failure registry. Both splits cover every registered failure that a benchmark scenario can host (`lb_connection_state_exhaustion` is held out; see the release README). Labels are public for reproducibility. Each version directory under [`benchmark/releases/`](../../benchmark/releases/) includes a `README.md` with suite shape, scenario and failure coverage, and links to the scenario and failure references.
 
 ```shell
 nika benchmark releases
@@ -36,6 +36,8 @@ nika leaderboard submit --result_dir results/my-run --submission results/my-run/
 `defaults.n_trials` in `RELEASE.yaml` is 3 for `0.2.0`. It expands the split to `case_count × n_trials` deterministic trials. Resume skips completed trials, including `outcome=agent_failed` (capability / no submission / tool-heavy or post-LLM case timeout). LLM/API endpoint failures (connection refused, provider 5xx, case-timeout killed mid-LLM after LLM-dominated wall clock, etc.) stamp `outcome=endpoint_failed` instead: they are **not** scored and `--resume` cleans and retries them. This is about the model HTTP endpoint, not the network lab under test. Failures after ground truth is written but before the agent demonstrably started (sandbox CLI missing, MCP gateway URL or bind failure, a worker killed during agent setup) stamp `outcome=infra_failed`. NIKA treats them like `endpoint_failed`: not scored, cleaned, and retried. NIKA counts a failure as `agent_failed` only when `nika.jsonl` has `agent_start` and `messages.jsonl` has at least one model or tool event. A valid `submission.json` always makes the trial `success`, even when a later step (agent timeout, sandbox teardown) fails. NIKA also cleans incomplete trials in place, so retries stay within K. Different `--result_dir` values create isolated runs and do not skip each other's trials.
 
 Official `--release` runs default to continuing past trial failures (`continue_on_error=True`) so one bad trial does not abort the job; use `--abort-on-error` to stop immediately. Ad-hoc `--config` batches still default from `benchmark.continue_on_error` in run config. The agent itself runs under `agent.timeout_sec` (default 1800s), which applies to every agent type. Per-case watchdogs use `--case-timeout` / `benchmark.case_timeout_sec` (default 2400s); a timed-out trial is finalized as counted `agent_failed` when the budget was spent on agent work, or as retryable `endpoint_failed` when the kill lands mid-LLM and LLM calls dominated the wall clock. NIKA stops a timed-out worker with SIGTERM and gives it up to 60 seconds to remove its sandbox, stop the MCP gateway, and undeploy the lab before SIGKILL.
+
+Before each trial deploys its lab, the runner waits until free memory meets the trial's resource-class floor and the 1-minute load average is below `benchmark.admission.load_per_cpu` times the CPU count, then applies the class spacing. This keeps deploy spikes from showing up as latency or loss in healthy labs. Waits are logged as `admission_wait` events in `nika.jsonl`, and the trial's `run.json` records `host_load_avg_at_agent_start`. See [`benchmark.admission.*`](../operations/configuration.md) to tune or disable it.
 
 Per-trial `run.json` is stamped with the same release identity fields plus `trial_id` / `trial_index` / `outcome`.
 
@@ -1639,6 +1641,36 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>lb_connection_state_exhaustion</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 </tr>

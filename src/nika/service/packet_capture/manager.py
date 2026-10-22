@@ -49,7 +49,7 @@ class CaptureManager:
         meta = CaptureMeta(
             capture_id=capture_id,
             device=device,
-            interface=interface,
+            interface=running.interface,
             capture_filter=capture_filter,
             remote_path=running.remote_path,
             pid_path=running.pid_path,

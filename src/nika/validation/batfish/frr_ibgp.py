@@ -31,13 +31,17 @@ def split_frr_ibgp(config: str) -> tuple[str, str]:
     return "".join(igp), "".join(bgp)
 
 
-def project_frr_ibgp(fragment: str, *, allow_ebgp: bool = False) -> str:
+def project_frr_ibgp(
+    fragment: str, *, allow_ebgp: bool = False, stub_addresses=()
+) -> str:
     """Preserve concrete origins, sessions and supported route-map policies.
 
     This accepts the ordinary IPv4 iBGP sketch and the restricted direct-eBGP
     subset used with IS-IS, including counterexamples that change concrete
     attributes. It rejects features outside that subset rather than rebuilding
-    policies from the design.
+    policies from the design. *stub_addresses* (``address/len``) are connected
+    stub links configured outside FRR; ``network`` statements may originate
+    their prefixes.
     """
     if not fragment.strip():
         return ""
@@ -199,7 +203,9 @@ def project_frr_ibgp(fragment: str, *, allow_ebgp: bool = False) -> str:
         or "no bgp default ipv4-unicast" not in flags
     ):
         reject("incomplete BGP instance")
-    if any(prefix not in {a.network for a in addresses} for prefix in networks):
+    stubs = [IPv4Interface(address) for address in stub_addresses]
+    connected = {a.network for a in [*addresses, *stubs]}
+    if any(prefix not in connected for prefix in networks):
         reject("non-connected origin in the connected-prefix subset")
     if any("asn" not in peer for peer in peers.values()):
         reject("incomplete BGP peer")
@@ -211,6 +217,10 @@ def project_frr_ibgp(fragment: str, *, allow_ebgp: bool = False) -> str:
     if addresses:
         lines.append("interface Loopback1")
         lines.extend(f" ipv4 address {address}" for address in addresses)
+        lines.append("!")
+    if stubs:
+        lines.append("interface Loopback2")
+        lines.extend(f" ipv4 address {address}" for address in stubs)
         lines.append("!")
     for name, entries in sorted(prefixes.items()):
         lines.extend(

@@ -7,12 +7,14 @@ import json
 
 from pydantic import BaseModel, Field
 
+from nika.net_env.sdn_l3_clos.fabric_manager.apply import onos_flow_snapshot
 from nika.net_env.sdn_l3_clos.topology_model import (
     ONOS_OOB_IP,
     ONOS_REST_PORT,
     device_id,
     dpid_for_leaf,
     dpid_for_spine,
+    rack_prefix,
 )
 from nika.problems.base import (
     FailureDomain,
@@ -81,7 +83,10 @@ class FlowRuleShadowing(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "unreachable"
     root_cause_name: str = "flow_rule_shadowing"
-    description = "A higher-priority SDN rule shadows intended forwarding."
+    description = (
+        "A higher-priority flow rule on one switch matches traffic before the "
+        "intended rules and silently drops it."
+    )
     TAGS: str = ["sdn"]
 
     Params = FlowRuleShadowingParams
@@ -96,11 +101,33 @@ class FlowRuleShadowing(ProblemBase):
     def root_cause_resources(self, params: FlowRuleShadowingParams):
         return [node_resource(params.host_name)]
 
-    # Above proactive L3 Clos fabric priorities (gateway ARP ~45k, host ~40k).
-    _SHADOW_PRIORITY = 50000
+    # A priority from the fabric's own scheme (its ARP rules use 42000), above
+    # the IPv4 forwarding rules (rack prefixes 30000, hosts 40000), so the rule
+    # wins without standing out from operator-installed flows by priority.
+    _SHADOW_PRIORITY = 42000
+
+    def shadowed_prefix(self, params: FlowRuleShadowingParams) -> str:
+        """Rack /24 the rule covers: the highest-numbered rack other than the
+        switch's own, so the rule always sits on a path that reaches it."""
+        model = self.net_env.model
+        own = (
+            model.leaf_id(params.host_name)
+            if params.host_name in model.leaves
+            else None
+        )
+        leaf_id = max(i for i in range(1, model.leaf_count + 1) if i != own)
+        return rack_prefix(leaf_id)
+
+    def _is_shadow_line(self, line: str, prefix: str) -> bool:
+        return (
+            f"priority={self._SHADOW_PRIORITY},ip,nw_dst={prefix} " in line
+            and "actions=drop" in line
+        )
 
     def inject_fault(self, params: FlowRuleShadowingParams):
-        # Install through ONOS so the live FlowRuleProvider keeps the drop rule.
+        # Install through ONOS so the live FlowRuleProvider keeps the rule.
+        # Match IPv4 to one rack prefix only: ARP, LLDP and other prefixes keep
+        # using the intended lower-priority rules.
         device = _device_id_for_switch(params.host_name)
         _onos_post_flow(
             self.runtime,
@@ -111,20 +138,61 @@ class FlowRuleShadowing(ProblemBase):
                 "isPermanent": True,
                 "deviceId": device,
                 "treatment": {"instructions": []},
-                "selector": {"criteria": []},
+                "selector": {
+                    "criteria": [
+                        {"type": "ETH_TYPE", "ethType": "0x0800"},
+                        {"type": "IPV4_DST", "ip": self.shadowed_prefix(params)},
+                    ]
+                },
             },
         )
 
-    def verify_fault(self, params: FlowRuleShadowingParams) -> dict:
+    def _shadow_lines(self, params: FlowRuleShadowingParams) -> list[str]:
         flows = self.runtime.exec(
             params.host_name,
             f"ovs-ofctl -O OpenFlow13 dump-flows {params.host_name} 2>/dev/null",
-        ).strip()
-        verified = f"priority={self._SHADOW_PRIORITY}" in flows and "drop" in flows
+        )
+        prefix = self.shadowed_prefix(params)
+        return [
+            line.strip()
+            for line in flows.splitlines()
+            if self._is_shadow_line(line, prefix)
+        ]
+
+    def verify_fault(self, params: FlowRuleShadowingParams) -> dict:
+        lines = self._shadow_lines(params)
         return build_verify_result(
             fault_type=self.root_cause_name,
-            verified=verified,
-            details={"host": params.host_name, "flows": flows},
+            verified=bool(lines),
+            details={
+                "host": params.host_name,
+                "prefix": self.shadowed_prefix(params),
+                "shadow_flows": lines,
+            },
+        )
+
+    def recover_fault(self, params: FlowRuleShadowingParams) -> dict:
+        device = _device_id_for_switch(params.host_name)
+        prefix = self.shadowed_prefix(params)
+        for flow in onos_flow_snapshot(self.runtime).get("flows", []):
+            criteria = (flow.get("selector") or {}).get("criteria") or []
+            if (
+                flow.get("deviceId") == device
+                and flow.get("priority") == self._SHADOW_PRIORITY
+                and any(c.get("ip") == prefix for c in criteria)
+            ):
+                self.runtime.exec(
+                    "fabric_mgr",
+                    "curl -s -u onos:rocks -X DELETE "
+                    f"'http://{ONOS_OOB_IP}:{ONOS_REST_PORT}/onos/v1/flows/"
+                    f"{device}/{flow['id']}' >/dev/null || true",
+                    timeout=30,
+                )
+        remaining = self._shadow_lines(params)
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=not remaining,
+            details={"host": params.host_name, "shadow_flows": remaining},
         )
 
 
@@ -148,7 +216,10 @@ class FlowRuleLoop(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "loss"
     root_cause_name: str = "flow_rule_loop"
-    description = "SDN flow rules create a forwarding loop."
+    description = (
+        "SDN flow rules on adjacent switches send packets back and forth, so "
+        "they circulate until their TTL expires."
+    )
     TAGS: str = ["sdn"]
 
     Params = FlowRuleLoopParams
@@ -191,8 +262,9 @@ class FlowRuleLoop(ProblemBase):
             return given
         return p0.name, p1.name
 
-    # Above proactive L3 Clos fabric priorities so the bounce actually matches.
-    _LOOP_PRIORITY = 50000
+    # A fabric-scheme priority (see FlowRuleShadowing) above the IPv4
+    # forwarding rules, so the bounce matches.
+    _LOOP_PRIORITY = 42000
 
     def inject_fault(self, params: FlowRuleLoopParams):
         # Each end sends IPv4 arriving from the other switch straight back out
@@ -237,7 +309,7 @@ class FlowRuleLoop(ProblemBase):
         )
 
     def _loop_lines(self, flows: str) -> list[str]:
-        marker = f"priority={self._LOOP_PRIORITY},"
+        marker = f"priority={self._LOOP_PRIORITY},ip,"
         return [line.strip() for line in flows.splitlines() if marker in line]
 
     def verify_fault(self, params: FlowRuleLoopParams) -> dict:

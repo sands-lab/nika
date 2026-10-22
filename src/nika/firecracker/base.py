@@ -33,7 +33,7 @@ import time
 import uuid
 from pathlib import Path
 
-from nika.config import REPO_ROOT
+from nika.config import CACHE_DIR, REPO_ROOT
 from nika.firecracker.config import firecracker_root, firecracker_settings
 from nika.firecracker.vmm import (
     DISK,
@@ -128,14 +128,12 @@ def _copy_caches(uds: Path) -> None:
     k8s labs load their in-cluster images and charts from ``.nika_cache``;
     ``nika images prepare`` fills it on this host.
     """
-    caches = [
-        name for name in CACHE_DIRS if (REPO_ROOT / ".nika_cache" / name).is_dir()
-    ]
+    caches = [name for name in CACHE_DIRS if (CACHE_DIR / name).is_dir()]
     if not caches:
         return
     with tempfile.NamedTemporaryFile(suffix=".tar") as tar:
         subprocess.run(
-            ["tar", "-cf", tar.name, "-C", str(REPO_ROOT / ".nika_cache"), *caches],
+            ["tar", "-cf", tar.name, "-C", str(CACHE_DIR), *caches],
             check=True,
         )
         _stream_file(
@@ -470,7 +468,7 @@ def _build_rootfs(build_dir: Path) -> str:
         )
         _log("writing the ext4 root filesystem")
         export = subprocess.Popen(["docker", "export", name], stdout=subprocess.PIPE)
-        extract = _extract_vmlinux(REPO_ROOT / ".nika_cache" / "firecracker")
+        extract = _extract_vmlinux(CACHE_DIR / "firecracker")
         script = PACK_ROOTFS.format(size=ROOTFS_SIZE, uid=os.getuid(), gid=os.getgid())
         packed = subprocess.run(
             [

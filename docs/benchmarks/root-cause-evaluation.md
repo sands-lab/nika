@@ -18,7 +18,7 @@ The resource catalog uses these canonical IDs:
 | Node | `node/{name}` | `node/pc1` |
 | Interface | `interface/{node}/{interface}` | `interface/pc1/eth0` |
 | Link | `link/{sorted node:intf joined by --}` | `link/pc1:eth0--router1:eth0` |
-| Kubernetes object | `k8s/{kind}/{namespace}/{name}` | `k8s/Service/kube-system/kube-dns` |
+| Kubernetes object | `k8s/{kind}/{namespace}/{name}` | `k8s/NetworkPolicy/word-ns/default-deny-ingress` |
 
 Owner kind follows the mutated catalog object. Controller-side cable faults (`link_down`, `link_flap`, `link_packet_corruption`) use the undirected link TP set. Interface removals, egress hooks, and queueing faults stay on `interface/...`.
 
@@ -127,7 +127,9 @@ Exact eval and leaderboard scoring contract. Implementation:
 
 NIKA writes `eval_metrics.json` when a trial closes (or when you run
 `nika eval metrics`). Detection is binary. RCA metrics compare predicted and
-expected sets. Duplicate pairs do not change a score.
+expected sets. Duplicate pairs do not change a score. Scores written before
+the containment and healthy-verdict rules below change when you regrade with
+`nika eval metrics`.
 
 | Metric group | Compared set | Fields |
 | --- | --- | --- |
@@ -139,16 +141,32 @@ expected sets. Duplicate pairs do not change a score.
 `rca_accuracy` and `localization_accuracy` equal the corresponding recall
 (backward-compatible aliases).
 
-For a predicted set `P` and ground-truth set `T`:
+For a predicted set `P` and ground-truth set `T`, let `M` be the number of
+matched pairs in a one-to-one matching between `P` and `T`:
 
-- `precision = |P ∩ T| / |P|` (0 if `P` is empty)
-- `recall = |P ∩ T| / |T|` (0 if `T` is empty)
+- `precision = M / |P|` (0 if `P` is empty)
+- `recall = M / |T|` (0 if `T` is empty)
 - `F1 = 2 * precision * recall / (precision + recall)` (0 if both are 0)
 
-Special case: when both `P` and `T` are empty, precision, recall, and F1
-are all `1.0`. That is the correct score for a healthy case with an empty
-`root_causes` submission. An agent that never submits must not reach this
-path (see `score_status` below).
+Fault types match only when they are identical. A predicted resource matches a
+ground-truth resource when it has the same `resource_id`, or when it is a more
+specific part of it:
+
+| Ground-truth resource | Also matched by |
+| --- | --- |
+| `node/{node}` | any `interface/{node}/{ifname}` on that node |
+| `link/{tps}` | `interface/{node}/{ifname}` for an endpoint `{node}:{ifname}` of that link |
+
+Joint RCA uses the same rule for the resource half of each pair. Each
+ground-truth item is matched at most once, so naming both ends of a faulty
+link scores one true positive and one false positive. A coarser prediction,
+such as `node/{node}` for an interface fault, does not match.
+
+Special case: when both `P` and `T` are empty, precision, recall, and F1 are
+all `1.0` only if the submission also says `is_anomaly: false`. That is the
+correct score for a healthy case. A healthy case submitted as
+`is_anomaly: true` with an empty `root_causes` list scores `0.0`. An agent that
+never submits must not reach this path (see `score_status` below).
 
 Unparseable agent `root_causes` score as `0.0` under `scored`. Unparseable
 `is_anomaly` also scores `0.0`. Trace counters (`in_tokens`, `out_tokens`,
@@ -222,6 +240,34 @@ Leaderboard pack/validate rejects a package when any trial has
 
 Example: three trials with primary scores `[1.0, no_submission, no_submission]`
 yield primary mean `1/3`, `submission_rate=1/3`, and conditional mean `1.0`.
+
+### Run-validity gates
+
+A low score can mean the agent was wrong, or that the run never gave it a fair
+chance. NIKA flags the second kind from artifacts already in each trial
+directory (`messages.jsonl`, `submission.json`, `nika.jsonl`, `run.json`), so
+you can audit a run without re-executing it. The detector is
+`nika.evaluator.validity`; `eval_metrics.json` records `validity_flags`, and
+readers recompute them from the artifacts for older runs.
+
+| Flag | Meaning |
+| --- | --- |
+| `no_submission` | no readable `submission.json` with a `root_causes` list |
+| `empty_report` | frozen diagnosis report is empty or only opening narration before the first tool call |
+| `truncated_final_turn` | the last LLM turn of a phase hit the output limit (`finish_reason: length`, `stop_reason: max_tokens`, or output tokens equal `max_tokens` with no text) |
+| `max_steps_exhausted` | diagnosis hit `max_steps`; details record whether a wrap-up report exists |
+| `fault_absent_at_cleanup` | a `fault_presence_recheck` before cleanup read `absent`: the agent likely mutated the network or the fault self-healed |
+| `infra_error` | the trial failed to start, lacks ground truth, or has `score_status=infra_error` |
+
+`nika eval summary` prints per-flag trial counts and rates, and the JSON report
+carries `validity_counts` / `validity_rates`. `nika leaderboard pack` stores
+`validity_flags` in each trial `result.json` and `validity_counts` in
+`metrics.json`.
+
+`nika leaderboard validate` warns on any flag. It fails only on
+harness-attributable invalidity: `truncated_final_turn` or `infra_error` on
+more than `--max-harness-rate` of trials (default `0.05`). The other flags can
+reflect agent behavior, so they stay warnings.
 
 ### Run offline eval
 

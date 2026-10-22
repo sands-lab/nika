@@ -126,22 +126,28 @@ def _policy_ls(*_args, **_kwargs):
     return SimpleNamespace(stdout=json.dumps(_POLICY))
 
 
-def test_lockdown_splits_install_resources_and_keeps_egress() -> None:
+def test_lockdown_keeps_declared_egress_open_during_setup_only() -> None:
     with patch(
         "nika.agents.sandbox.sbx.policy.run_sbx_checked", side_effect=_policy_ls
     ):
         rest, install = sandbox_network_lockdown(
             _SANDBOX,
-            keep_hosts=("api.openai.com",),
+            setup_hosts=("api.openai.com",),
             keep_resources=("localhost:41000",),
             install_pypi=True,
         )
-    assert install == ["pypi.org:443", "files.pythonhosted.org:443", "pypi.org"]
+    # Package indexes and the declared egress are denied once setup finishes.
+    assert install == [
+        "pypi.org:443",
+        "files.pythonhosted.org:443",
+        "**.openai.com:443",
+        "pypi.org",
+        "api.openai.com",
+    ]
     assert "github.com:443" in rest
     assert "**.githubusercontent.com:443" in rest
     assert "platform.claude.com:443" in rest
-    # Egress host and the model proxy stay reachable.
-    assert "**.openai.com:443" not in rest
+    # Only the model proxy stays reachable.
     assert "localhost:41000" not in rest + install
 
 
@@ -174,20 +180,25 @@ def test_create_denies_global_allows_per_sandbox(tmp_path) -> None:
     assert [c[:5] for c in denies] == [
         ["policy", "deny", "network", "--sandbox", name]
     ] * 2
-    # Everything else first, package indexes last (after the install).
+    # Everything else first; package indexes and the declared egress last
+    # (after the install, before the agent attaches to the gateway).
     assert "github.com:443" in denies[0][5].split(",")
-    assert denies[1][5] == "pypi.org:443,files.pythonhosted.org:443,pypi.org"
+    assert denies[1][5] == (
+        "pypi.org:443,files.pythonhosted.org:443,**.openai.com:443,pypi.org,"
+        "api.openai.com"
+    )
     revoked = [list(c.args[0]) for c in policy_optional.call_args_list]
-    assert [
-        "policy",
-        "rm",
-        "network",
-        "--force",
-        "--sandbox",
-        name,
-        "--resource",
-        "pypi.org",
-    ] in revoked
+    for host in ("pypi.org", "api.openai.com"):
+        assert [
+            "policy",
+            "rm",
+            "network",
+            "--force",
+            "--sandbox",
+            name,
+            "--resource",
+            host,
+        ] in revoked
     # NIKA no longer adds global rules.
     assert all(
         "--sandbox" in c

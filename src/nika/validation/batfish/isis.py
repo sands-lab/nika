@@ -212,7 +212,9 @@ def parse_frr_isis(node: str, config: str) -> tuple[str, dict[str, dict]]:
     return net, interfaces
 
 
-def project_frr_isis(node: str, config: str, *, shutdown=(), allow_ebgp=False) -> str:
+def project_frr_isis(
+    node: str, config: str, *, shutdown=(), allow_ebgp=False, stub_addresses=()
+) -> str:
     """Translate one supported FRR config to native IOS XR IS-IS syntax."""
     igp_config, bgp_fragment = split_frr_ibgp(config)
     net, interfaces = parse_frr_isis(node, igp_config)
@@ -255,7 +257,11 @@ def project_frr_isis(node: str, config: str, *, shutdown=(), allow_ebgp=False) -
         )
     lines.append("!")
     return (
-        "\n".join(lines) + "\n" + project_frr_ibgp(bgp_fragment, allow_ebgp=allow_ebgp)
+        "\n".join(lines)
+        + "\n"
+        + project_frr_ibgp(
+            bgp_fragment, allow_ebgp=allow_ebgp, stub_addresses=stub_addresses
+        )
     )
 
 
@@ -296,6 +302,7 @@ def build_isis_snapshot(
     batfish_dir.mkdir(parents=True, exist_ok=True)
     aliases = {}
     plan_nodes = {node.device_name: node for node in plan.nodes}
+    stubs = env.bgp_plan.stub_interfaces() if env.bgp_plan is not None else {}
     for node, config in sorted(deployment_configs.items()):
         igp_config, _ = split_frr_ibgp(config)
         _, interfaces = parse_frr_isis(node, igp_config)
@@ -310,6 +317,7 @@ def build_isis_snapshot(
             # mismatched external peer. Analyze the concrete ASN rather than
             # assuming the original sketch remained same-AS.
             allow_ebgp=env.bgp_plan is not None,
+            stub_addresses=stubs.get(node, ()),
         )
         (configs_dir / f"{node}.cfg").write_text(projected, encoding="utf-8")
 
@@ -382,6 +390,9 @@ def _validate_startup_addresses(node, commands, interfaces) -> None:
                     f"Unsupported startup address on {node}: {command}"
                 ) from exc
             found.add((address, match.group(2)))
+        elif re.fullmatch(r"ip link set dev eth[0-9]+ mtu [0-9]+", command):
+            # Link MTU does not change the routing control plane.
+            continue
         elif command not in allowed_boot:
             raise ValueError(
                 f"Unsupported ISP router startup command on {node}: {command}"

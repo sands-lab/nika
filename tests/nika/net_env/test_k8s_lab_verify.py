@@ -48,6 +48,16 @@ class K8sLabUnitTest:
 
         assert set(inst.routers) == expected_routers
 
+    def test_dc_exit_is_not_listed_as_frr(self) -> None:
+        """dc_exit only carries static routes, so the brief must not call it FRRRouting."""
+        info = self._inst().get_info()
+
+        frr_line = next(
+            line for line in info.splitlines() if line.startswith("Routers (FRR")
+        )
+        assert "dc_exit" not in frr_line
+        assert "Routers (Linux, static routes): dc_exit" in info
+
     def test_has_kubernetes_nodes(self) -> None:
         """k8s_lab must classify k3s machines into kubernetes_nodes."""
         inst = self._inst()

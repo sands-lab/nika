@@ -34,6 +34,8 @@ class PlannedInterface:
     subnet: str
     metric: int
     passive: bool = False
+    # IP MTU when the link runs below Ethernet's 1500 (tunnelled backhaul).
+    mtu: int | None = None
 
 
 @dataclass(frozen=True)
@@ -143,6 +145,30 @@ def link_metric(link: TopoLink, config: IspConfig) -> int:
     raise IspConfigError(f"Unsupported metric strategy {config.metric_strategy!r}.")
 
 
+# Backbone links carried over a tunnel, by SNDlib topology. Both ends run the
+# tunnel's IP MTU, so full-size packets across them rely on Path MTU Discovery.
+# Abilene: the atlam5 PoP is backhauled to atlang over GRE (24 bytes of
+# overhead on a 1500-byte carrier MTU).
+TUNNEL_LINKS: dict[str, dict[frozenset[str], int]] = {
+    "abilene": {frozenset({"atlam5", "atlang"}): 1476},
+}
+
+
+def tunnel_links(plan: "IspPlan") -> list[tuple[str, str, int]]:
+    """``(endpoint_a, endpoint_b, mtu)`` of the plan's tunnelled links."""
+    by_link = {
+        iface.link_id: iface.mtu
+        for node in plan.nodes
+        for iface in node.interfaces
+        if iface.mtu
+    }
+    return [
+        (link.endpoint_a, link.endpoint_b, by_link[link.link_id])
+        for link in plan.links
+        if link.link_id in by_link
+    ]
+
+
 def compile_isp_plan(
     config: IspConfig | None = None,
     *,
@@ -166,6 +192,7 @@ def compile_isp_plan(
         topology_name=topo.name,
     )
     cd_by_link = _assign_collision_domains(links_sorted, topology_name=topo.name)
+    tunnels = TUNNEL_LINKS.get(topo.name, {})
 
     # Build per-node interface lists in sorted link-id order.
     ifaces_by_device: dict[str, list[PlannedInterface]] = {
@@ -219,6 +246,7 @@ def compile_isp_plan(
             f"eth{cfg.first_interface_index + len(ifaces_by_device[right_dev])}"
         )
         prefixlen = subnet.prefixlen
+        mtu = tunnels.get(frozenset({left_dev, right_dev}))
 
         left_iface = PlannedInterface(
             name=left_iface_name,
@@ -230,6 +258,7 @@ def compile_isp_plan(
             prefixlen=prefixlen,
             subnet=str(subnet),
             metric=metric,
+            mtu=mtu,
         )
         right_iface = PlannedInterface(
             name=right_iface_name,
@@ -241,6 +270,7 @@ def compile_isp_plan(
             prefixlen=prefixlen,
             subnet=str(subnet),
             metric=metric,
+            mtu=mtu,
         )
         ifaces_by_device[left_dev].append(left_iface)
         ifaces_by_device[right_dev].append(right_iface)
@@ -334,6 +364,7 @@ def build_inventory(
                 "subnet": iface.subnet,
                 "metric": iface.metric,
                 "passive": iface.passive,
+                **({"mtu": iface.mtu} if iface.mtu else {}),
             }
             for iface in sorted(node.interfaces, key=lambda i: i.name)
         ]
@@ -495,6 +526,8 @@ def _startup_commands(
     cmds = [f"ip addr add {loopback}/32 dev lo"]
     for iface in interfaces:
         cmds.append(f"ip addr add {iface.address}/{iface.prefixlen} dev {iface.name}")
+        if iface.mtu:
+            cmds.append(f"ip link set dev {iface.name} mtu {iface.mtu}")
     # FRR 10.x mgmtd can apply frr.conf incompletely on first boot (IS-IS LSPs
     # missing IP reachability TLVs). Re-apply once the daemon is listening.
     cmds.extend(

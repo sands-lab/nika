@@ -1,6 +1,9 @@
 ip address add 200.0.0.8/24 dev eth0
+printf '200.0.0.7 client\n200.0.0.8 web\n' >> /etc/hosts
 
 # HTTP endpoint for application-layer faults (receiver contention, ACL, probes).
 mkdir -p /var/www
 printf 'ok\n' > /var/www/index.html
+# Dataset the client syncs from this server.
+dd if=/dev/urandom of=/var/www/dataset.bin bs=1M count=16 status=none
 cd /var/www && nohup python3 -m http.server 80 >/dev/null 2>&1 &

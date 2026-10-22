@@ -562,10 +562,12 @@ def preflight_release(
                 dev_cases=dev, test_cases=test, allow_context_overlap=True
             )
         else:
+            # A release may hold out failures registered after it was frozen.
+            held_out = set(release.manifest.get("held_out_failures") or ())
             _validate_release_splits(
                 dev,
                 test,
-                expected_failures=_benchmark_failures(),
+                expected_failures=_benchmark_failures() - held_out,
             )
 
     _verify_mcp_policy(release.cases, release.tools)
@@ -627,6 +629,7 @@ def build_run_identity(
         resolve_agent_timeout,
         resolve_max_tokens,
         resolve_reasoning_effort,
+        resolve_sampling,
     )
 
     commit, dirty = read_git_commit()
@@ -642,6 +645,7 @@ def build_run_identity(
         "model": model,
         "max_steps": max_steps,
         "max_tokens": resolve_max_tokens(agent_type) if agent_type else None,
+        "sampling": resolve_sampling(agent_type) if agent_type else None,
         "agent_timeout_sec": resolve_agent_timeout(),
         "reasoning_effort": resolve_reasoning_effort(agent_type),
         "access_role": get_run_config().agent.access.role,

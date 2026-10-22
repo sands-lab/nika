@@ -32,15 +32,19 @@ nika env run dc_clos -s s
 
 `uv run nika ...` also works, but uv then checks the environment on every call and keeps its cache in `~/.cache/uv`. NIKA itself never calls uv. The installer points the uv cache and uv-managed Python at `.nika_cache/uv/` only while it runs, so re-run `./scripts/install.sh` after `git pull` to update dependencies without touching your home directory. It does not change uv settings for your other projects.
 
+To keep sessions and caches outside the checkout, for instance on local disk when the checkout is on NFS or shared by several copies, export `NIKA_HOME=/var/lib/nika` (or another local path) before installing and running NIKA. See [State directory](configuration.md#state-directory).
+
 Some parts still live outside the repository because they belong to the host:
 
 - Docker images and build cache, in Docker's data root (usually `/var/lib/docker`).
 - The `clab` binary in `.venv/bin` is owned by root and setuid, as in Containerlab's own installer. Members of the `clab_admins` group run it as root. The installer uses `sudo` once to set this up and to create the group and add you to it. Open a new login shell afterwards. If `.venv` sits on a `nosuid` mount or a network home that refuses root-owned setuid files, the installer stops; install Containerlab system-wide with its [own installer](https://containerlab.dev/install/) and re-run, and NIKA uses that copy.
-- The inotify and `vrf` kernel settings described below, under `/etc`.
+- The inotify, neighbor table, and `vrf` kernel settings described below, under `/etc`.
 
 The tools NIKA runs for fault injection and Kubernetes image preparation come in Docker images that `nika images prepare` builds: `nika/tc-bpf` compiles and attaches eBPF programs, and `nika/skopeo` fetches workload images. skopeo uses the proxy variables and the inline `docker login` credentials from `~/.docker/config.json`; credential helpers stay on the host. Containerlab link faults use the host's `tc`, `ip`, and `nsenter`, which most distributions ship by default; the installer warns if one is missing.
 
 The installer also raises `fs.inotify.max_user_instances` and `fs.inotify.max_user_watches` to at least `64000` and persists them in `/etc/sysctl.d/99-nika-inotify.conf`. `k8s_lab`, `llmd_lab`, and `iosxr_simple_bgp` fail at the kernel default. If the installer cannot change them, follow [Host inotify limits too low](troubleshooting.md#host-inotify-limits-too-low-k3s--xrd).
+
+It raises the IPv4 and IPv6 neighbor table limits (`net.ipv4.neigh.default.gc_thresh1/2/3` and the IPv6 keys) to at least `8192`, `16384`, and `32768` and persists them in `/etc/sysctl.d/99-nika-neigh.conf`. All container network namespaces share one kernel neighbor table, and large or concurrent labs overflow the kernel default of `1024` entries and drop packets. If the installer cannot change them, follow [Host neighbor table overflows](troubleshooting.md#host-neighbor-table-overflows-large-or-concurrent-labs).
 
 Scenarios with Linux VRF devices, such as `enterprise_branch`, need the host `vrf` kernel module, and the benchmark includes them. The installer loads the module and persists it in `/etc/modules-load.d/nika-vrf.conf`. When the module is missing, the installer stops before changing anything and prints the `linux-modules-extra` install command. See [Host kernel lacks the vrf module](troubleshooting.md#host-kernel-lacks-the-vrf-module-enterprise_branch).
 
@@ -189,7 +193,7 @@ The last command now prints the loopback qdisc without a password prompt.
 | Running sessions, Kathará and Containerlab labs, the Batfish container, the AgentENV container | Docker and your docker group membership; sbx and your kvm group membership |
 | Docker images NIKA built or pulled, including vendor router images, build parents such as `debian:bookworm-slim`, and legacy tags | A uv installed outside the repository |
 | The Kathará Docker network plugin and `~/.config/kathara.conf` | apt packages that installers added: btrfs-progs, and clang and skopeo from older ones |
-| `/etc/sysctl.d/99-nika-inotify.conf`, with the original inotify limits restored | The source tree |
+| `/etc/sysctl.d/99-nika-inotify.conf` and `/etc/sysctl.d/99-nika-neigh.conf`, with the original limits restored | The source tree |
 | `/etc/sudoers.d/nika-host-tc` | `.env` and `config/` |
 | The [Firecracker](firecracker.md) host settings: the userfaultfd udev rule, `/etc/sysctl.d/99-nika-hugepages.conf` with the original huge-page reservation restored, and the GRUB huge-pages file of older manual setups (its huge pages stay reserved until the next reboot) | |
 | The `clab_admins` group, plus the Containerlab package, `/etc/containerlab`, and `/usr/local/bin/gnmic` that older installers added | `results/` |
@@ -197,7 +201,7 @@ The last command now prints the loopback qdisc without a password prompt.
 
 An image that a non-NIKA container still uses is kept, and the script prints its name. Pass `--prune-build-cache` to also run `docker builder prune -af`. The Docker build cache is shared with every build on the host, so only use this flag on a dedicated lab host.
 
-If the inotify limits were raised by an installer older than this one, the original values were not recorded. The kernel defaults return after the next reboot.
+If an installer older than this one raised the inotify limits, the original values were not recorded. The kernel defaults return after the next reboot.
 
 To install again, run `./scripts/install.sh`.
 

@@ -178,16 +178,16 @@ The class receives the keyword arguments it declares among `session_id`, `model`
 
 ### Sandbox definition
 
-An added agent runs in a sandbox like the built-in ones. NIKA keeps the network policy, credentials, and phase boundary; the agent can state its template, what to install, and which extra hosts it must reach:
+An added agent runs in a sandbox like the built-in ones. NIKA keeps the network policy, credentials, and phase boundary; the agent can state its template, what to install, and which extra hosts it must reach while the sandbox is prepared:
 
 ```yaml
 sandbox:
   base: shell                      # shell (default), claude, or codex
   install: ["nooa[mcp]==0.0.10"]   # default: [project].dependencies
-  egress: [integrate.api.nvidia.com]
+  egress: [download.pytorch.org]   # reachable during setup only
 ```
 
-The sandbox installs NIKA's pinned `langgraph` package set first, then `install` from PyPI. When `[project].requires-python` excludes the sandbox's Python, both go into an environment with a matching interpreter, as for [custom agents](custom-agents.md). Pin versions in `install` or in `pyproject.toml` so runs stay reproducible. `egress` applies on Docker Sandboxes; E2B sandboxes have no internet access. Files named `nika-agent.yaml` stay on the host.
+The sandbox installs NIKA's pinned `langgraph` package set first, then `install` from PyPI. When `[project].requires-python` excludes the sandbox's Python, both go into an environment with a matching interpreter, as for [custom agents](custom-agents.md). Pin versions in `install` or in `pyproject.toml` so runs stay reproducible. `egress` hosts are reachable only during this setup, on Docker Sandboxes. Once the agent starts, its sandbox reaches only the MCP gateway and the model proxy, so the agent reaches its model through `agent.provider`, not through a host in `egress` ([network egress](../operations/agent-sandbox.md#how-sandboxes-stay-isolated)). E2B sandboxes have no internet access. Files named `nika-agent.yaml` stay on the host.
 
 ## Python MCP client
 

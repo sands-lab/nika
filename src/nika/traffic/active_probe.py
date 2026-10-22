@@ -59,7 +59,7 @@ s.close()
     )
     runtime.exec(
         destination,
-        f"{limit} python3 -c {shlex.quote(server)} >/tmp/nika-probe-server.log 2>&1 &",
+        f"{limit} python3 -c {shlex.quote(server)} >/tmp/probe-server.log 2>&1 &",
     )
     # The listener starts in the background; retry refused connects until it
     # is up instead of guessing a startup delay.

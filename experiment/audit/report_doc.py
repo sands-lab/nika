@@ -12,9 +12,11 @@ from collections import Counter
 import os
 from pathlib import Path
 
+from nika.config import RUNTIME_DIR
 from experiment.audit.coverage import cover_release, gap_count, release_cases
 from experiment.audit.environment import CaseAudit, identity_from_row
 from experiment.audit.provenance import provenance_complete
+from experiment.audit.agent_view import ROUND_GAP_SEC, SCAN_DIRS
 from experiment.audit.live import (
     FINAL_WAIT_SEC,
     PERSISTENCE_WAIT_SEC,
@@ -27,7 +29,7 @@ DOC_PATH = (
 # One directory per audit run; NIKA_AUDIT_RESULTS_DIR points it elsewhere.
 RESULTS_DIR = Path(
     os.environ.get("NIKA_AUDIT_RESULTS_DIR")
-    or DOC_PATH.parents[2] / "runtime" / "environment-audit-results"
+    or RUNTIME_DIR / "environment-audit-results"
 )
 
 
@@ -443,6 +445,20 @@ def _procedure_section() -> list[str]:
         "| `unsupported` | The fault has no behavioral check for the stage. `reason` names the scope. |",
         "| `no_evidence` | The stage produced no observation. |",
         "",
+        "### Agent-view stages",
+        "",
+        "These stages check what a diagnosing agent reads, using `experiment/audit/agent_view.py`. They run no LLM. They are required like the other stages: a stored record without them is stale and runs again.",
+        "",
+        "| Stage | Runs on | Fails when |",
+        "| --- | --- | --- |",
+        f"| `agent_view` | healthy cases, inside the {PERSISTENCE_WAIT_SEC + FINAL_WAIT_SEC:g} s wait | A check fails in both of two rounds {ROUND_GAP_SEC:g} s apart: a PingMesh anomaly with the tool's default arguments and the scenario's `probe_intent`, the scenario probe path, an IPv4 or IPv6 endpoint pair that does not answer (or answers although `probe_intent` isolates it), a published DNS name that does not resolve from a resolver client, an FRR BGP peer that is not Established, or a Kubernetes `Warning` event. |",
+        "| `baseline_agent_view` | fault cases, after `sham_symptom` | The same checks on the healthy lab before inject. |",
+        "| `leak_scan` | fault cases, right after `inject_artifact` | A file under "
+        + ", ".join(f"`{d}`" for d in SCAN_DIRS)
+        + " that inject added or changed names `nika`, an injection, or the fault id (in its path, or more times in its content than before), ends like a backup (`.sav`, `.bak`, `.orig`), or is a copy of a file's pre-inject content; or a new process, socket, link, route, rule, firewall, tc, FRR, OVS, SR Linux, Kubernetes, or P4Runtime line names one of those. |",
+        "",
+        "The leak scan masks timestamps, PIDs, counters, and object versions before it compares the two snapshots. Inject parameter values such as the target host or prefix are not tokens: the fault lives in that configuration. New processes are listed for review without failing the stage, because some are the fault mechanism itself. An agent-view stage that cannot read the lab is `no_evidence`.",
+        "",
         "A stored result counts only when it has a finished run, image identities for every lab node, the symptom probe that the fault declares today, and a clean, committed working tree. Each record keeps its commit and source fingerprint. A case audited with `--repeats N` passes only when all N fresh-lab runs pass. A case without such a result is not admitted.",
     ]
 
@@ -463,8 +479,8 @@ def _run_section() -> list[str]:
         "The release 0.2.0 audit used these commands:",
         "",
         "```shell",
-        "# Audit every release case three times on fresh labs, replacing stored results",
-        "uv run python -m experiment.audit.matrix --jobs 8 --repeats 3 --force",
+        "# Audit every release case twice on fresh labs, replacing stored results",
+        "uv run python -m experiment.audit.matrix --jobs 8 --repeats 2 --force",
         "",
         "# Resume after an interruption. Cases with a stored result are skipped.",
         "uv run python -m experiment.audit.matrix --jobs 8",
@@ -520,7 +536,7 @@ def _limits_section() -> list[str]:
         "",
         "## Limits",
         "",
-        f"- The audit observes each case for about {(PERSISTENCE_WAIT_SEC + FINAL_WAIT_SEC) / 60:g} minutes after inject. It does not cover the 2400-second trial budget. The benchmark trial also checks the artifact while the agent runs (see [Checks during a benchmark trial](#checks-during-a-benchmark-trial)).",
+        f"- The audit observes each case for about {(PERSISTENCE_WAIT_SEC + FINAL_WAIT_SEC) / 60:g} minutes after inject. It does not cover the 2400-second trial budget. Labs run the scenario business workload during the audit, so symptoms are checked under realistic load. The agent-view stages check the PingMesh tool and the lab state an agent can read, not the prompt or the other MCP tools' output. The benchmark trial also checks the artifact while the agent runs (see [Checks during a benchmark trial](#checks-during-a-benchmark-trial)).",
         "",
         "## Checks during a benchmark trial",
         "",

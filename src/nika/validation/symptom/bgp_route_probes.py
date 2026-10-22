@@ -83,10 +83,15 @@ def _origin_asn(path: dict) -> int | None:
 def _from_router(
     path: dict, addrs: set[str], asn: int | None, observer_asn: Any
 ) -> bool:
-    """Whether ``path`` was originated by the router owning ``addrs`` / ``asn``."""
-    if set(path["nexthops"]) & addrs or path.get("originator") in addrs:
-        return True
-    return asn is not None and asn != observer_asn and _origin_asn(path) == asn
+    """Whether ``path`` was originated by the router owning ``addrs`` / ``asn``.
+
+    Across eBGP the origin AS decides, since a transit hub that rewrites the
+    next hop also forwards routes it did not originate.
+    """
+    origin = _origin_asn(path)
+    if asn is not None and asn != observer_asn and origin is not None:
+        return origin == asn
+    return bool(set(path["nexthops"]) & addrs) or path.get("originator") in addrs
 
 
 # ---------------------------------------------------------------- hijack

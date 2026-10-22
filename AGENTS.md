@@ -12,6 +12,7 @@ Start from the [documentation index](docs/README.md). It maps each contract to i
 * Prefer established deterministic synthesis and verification tools for configuration decisions; keep authored requirements independent of generated outputs.
 * Preserve benchmark reproducibility, ground truth, telemetry semantics, and backend neutrality.
 * Do not weaken tests to make a change pass.
+* Keep scenarios and failures decoupled: scenario- or failure-specific adapters, helpers, and compatibility branches live in that scenario's or failure's own files, not in shared framework code.
 * Write human-facing documentation with the [NIKA documentation skill](.agents/skills/nika-docs/SKILL.md), and use the terms in the [glossary](GLOSSARY.md).
 * When the user repeatedly asks for the same reusable coding or workflow practice, add it to the matching section of this file. Do not record task-specific decisions.
 

@@ -5,8 +5,10 @@ the probes send many cross-rack UDP flows with distinct source ports and count
 how many arrive. The loss threshold is half of that expected share, and every
 predicate is also evaluated on the healthy lab (baseline and sham).
 
-Shadowing: a drop-all rule on the switch. Same-rack traffic on a leaf other
-than the target never crosses a spine and is the control path.
+Shadowing: a drop rule for one rack prefix on the switch. Flows to that
+prefix are lost (all of them through a leaf, the ECMP share through a spine)
+and the rule's counter matches the lost packets, while flows from the same
+source to another rack through the same switch are the control path.
 
 Controller loss (crash, blocked or mismatched southbound port): the fabric is
 programmed proactively and the switches fail secure, so installed flows keep
@@ -39,7 +41,7 @@ from nika.problems.management_orchestration_plane.sdn import _switch_controller_
 
 _PORT = 19611
 _FLOWS = 256
-_LOG = "/tmp/nika-audit-shadow.log"
+_LOG = "/tmp/probe-shadow.log"
 
 
 # A healthy sweep may lose this many flows to host noise.
@@ -54,38 +56,39 @@ def _min_loss_percent(model: Any, switch: str) -> float:
     return 50.0 * share
 
 
-def _ends(model: Any, switch: str) -> dict[str, Any]:
+def _ends(problem: Any, params: Any) -> dict[str, Any]:
+    """Source, a web server in the shadowed rack, and a control web server."""
+    model = problem.net_env.model
+    switch = params.host_name
     leaf = model.leaf_id(switch) if switch in model.leaves else None
-    clients = model.client_endpoints()
-    source = next((e for e in clients if leaf in (None, e.leaf_id)), None)
-    if source is None:
-        return {}
-    target = next(
-        (e for e in model.web_endpoints() if e.leaf_id != source.leaf_id), None
-    )
-    control = next(
+    shadowed = int(problem.shadowed_prefix(params).split(".")[2])
+    source = next(
         (
-            (a, b)
-            for a in model.endpoints
-            for b in model.endpoints
-            if a.leaf_id == b.leaf_id and a.name < b.name and a.leaf_id != leaf
+            e
+            for e in model.client_endpoints()
+            if e.leaf_id != shadowed and leaf in (None, e.leaf_id)
         ),
         None,
     )
-    if target is None or control is None:
+    target = next((e for e in model.web_endpoints() if e.leaf_id == shadowed), None)
+    control = next(
+        (
+            e
+            for e in model.web_endpoints()
+            if source is not None and e.leaf_id not in (shadowed, source.leaf_id)
+        ),
+        None,
+    )
+    if source is None or target is None or control is None:
         return {}
     return {"source": source, "target": target, "control": control}
 
 
-def _drop_packets(problem: Any, switch: str) -> int | None:
-    flows = problem.runtime.exec(
-        switch, f"ovs-ofctl -O OpenFlow13 dump-flows {switch} 2>/dev/null"
-    )
-    for line in flows.splitlines():
-        if f"priority={problem._SHADOW_PRIORITY} " in line and "drop" in line:
-            match = re.search(r"\bn_packets=(\d+)", line)
-            if match:
-                return int(match.group(1))
+def _drop_packets(problem: Any, params: Any) -> int | None:
+    for line in problem._shadow_lines(params):
+        match = re.search(r"\bn_packets=(\d+)", line)
+        if match:
+            return int(match.group(1))
     return None
 
 
@@ -136,18 +139,18 @@ def _flows(problem: Any, source: Any, target: Any) -> dict[str, Any]:
 
 
 def _sample(problem: Any, params: Any) -> dict[str, Any] | None:
-    ends = _ends(problem.net_env.model, params.host_name)
+    ends = _ends(problem, params)
     if not ends:
         return None
-    before = _drop_packets(problem, params.host_name)
+    before = _drop_packets(problem, params)
     path = _flows(problem, ends["source"], ends["target"])
-    after = _drop_packets(problem, params.host_name)
-    control = _flows(problem, *ends["control"])
+    after = _drop_packets(problem, params)
+    control = _flows(problem, ends["source"], ends["control"])
     return {
         "path": path,
         "control": control,
         "min_loss_percent": _min_loss_percent(problem.net_env.model, params.host_name),
-        # Diagnostic only: the rule's own counter is part of the artifact.
+        "lost_packets": path["sent"] - path["received"],
         "drop_packets_before": before,
         "drop_packets_after": after,
     }
@@ -165,18 +168,27 @@ def flow_shadow_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any
 
 
 def flow_shadow(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
-    """Cross-rack flows hashed onto the shadowed switch stop arriving."""
+    """Flows to the shadowed prefix stop arriving; other prefixes still do."""
     sample = _sample(problem, params)
     if sample is None:
         return False, {"error": "no_cross_rack_probe_path"}
     control_ok = sample["control"]["loss_percent"] <= _HEALTHY_LOSS_PERCENT
+    before, after = sample["drop_packets_before"], sample["drop_packets_after"]
+    # Unlike a loop, each lost packet is counted once by the rule and nowhere else.
+    counted = (
+        before is not None
+        and after is not None
+        and after - before >= 0.9 * sample["lost_packets"]
+    )
     verified = (
-        sample["path"]["loss_percent"] >= sample["min_loss_percent"] and control_ok
+        sample["path"]["loss_percent"] >= sample["min_loss_percent"]
+        and control_ok
+        and counted
     )
     return verified, build_verify_result(
         fault_type=problem.root_cause_name,
         verified=verified,
-        details={**sample, "control_ok": control_ok},
+        details={**sample, "control_ok": control_ok, "counted": counted},
     )
 
 

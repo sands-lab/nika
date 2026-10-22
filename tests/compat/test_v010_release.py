@@ -36,13 +36,14 @@ def test_0_1_0_rows_validate_and_match_ground_truth(split: str) -> None:
     for row in load_release("0.1.0", split=split).cases:
         topo_size = row.get("topo_size") or ""
         validate_benchmark_case(
-            row["scenario"], row["problem"], row["inject"], topo_size
+            row["scenario"], row["problem"], row["inject"], topo_size, release="0.1.0"
         )
         truth = ground_truth_for_case(
             problem=row["problem"],
             params=row["inject"],
             scenario=row["scenario"],
             topo_size=topo_size,
+            release="0.1.0",
         )
         assert_root_causes_match(truth, row["root_causes"])
 
@@ -60,3 +61,24 @@ def test_legacy_overrides_apply_only_on_original_labs() -> None:
     for (scenario, name), cls in SCENARIO_FAILURE_OVERRIDES.items():
         assert get_problem_class(name, scenario) is cls
         assert get_problem_class(name) is not cls
+
+
+def test_0_1_0_dc_clos_mtu_resolves_two_sided_only_for_the_release() -> None:
+    from nika.problems.compat.v010 import RELEASE_VERSION
+    from nika.problems.compat.v010.mtu import MtuMismatchTwoSided
+    from nika.problems.forwarding_encapsulation_policy.mtu import MtuMismatch
+
+    assert get_problem_class("mtu_mismatch", "dc_clos", RELEASE_VERSION) is (
+        MtuMismatchTwoSided
+    )
+    assert get_problem_class("mtu_mismatch", "dc_clos") is MtuMismatch
+    assert get_problem_class("mtu_mismatch", "dc_clos", "0.2.0") is MtuMismatch
+    rows = [
+        row
+        for split in ("dev", "test")
+        for row in load_release("0.1.0", split=split).cases
+        if row["problem"] == "mtu_mismatch"
+    ]
+    assert rows
+    for row in rows:
+        assert len(row["root_causes"]) == 2

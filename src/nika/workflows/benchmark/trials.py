@@ -690,6 +690,7 @@ _RUN_IDENTITY_FIELDS = (
     "case_timeout_sec",
     "official",
     "reasoning_effort",
+    "sampling",
     "agent_timeout_sec",
     "access_role",
     "submission",

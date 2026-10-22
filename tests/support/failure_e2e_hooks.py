@@ -240,7 +240,7 @@ def assert_sender_resource_contention(ctx: FailureE2EContext) -> None:
 
     _stash_original_nano(ctx)
     artifact = ctx.verify["details"]
-    assert artifact["stress_running"] is True
+    assert artifact["workload_running"] is True
     assert artifact["quota_ok"] is True
     assert artifact.get("cpu_http_running", True) is True
     details = ctx.symptom["details"]
@@ -274,8 +274,8 @@ def assert_sender_resource_contention_recover(ctx: FailureE2EContext) -> None:
     if original_nano is None:
         original_nano = read_nano_cpus(ctx.runtime, ctx.parsed.host_name)
     assert read_nano_cpus(ctx.runtime, ctx.parsed.host_name) == original_nano
-    assert not ctx.runtime.process_running(ctx.parsed.host_name, "stress-ng")
     assert ctx.recovered is not None
+    assert ctx.recovered["details"]["workload_gone"] is True
     details = ctx.recovered["details"]
     restored_bps = details["restored_throughput_bps"]
     baseline_bps = details["baseline_throughput_bps"]

@@ -28,6 +28,7 @@ from nika.service.packet_capture.limits import (
 )
 from nika.service.packet_capture.manager import CaptureManager
 from nika.service.packet_capture.protocol_fields import extract_protocol_fields
+from nika.service.containerlab.srl_api import srl_linux_intf
 from tests.support.integration_base import SharedSessionTestCase
 from tests.support.prerequisites import docker_available
 
@@ -200,6 +201,29 @@ class TestInspectCapture:
         with pytest.raises(inspect.TsharkNotFoundError):
             inspect.require_tshark(runtime, "pc1")
 
+    def test_node_without_tshark_inspects_host_side(self) -> None:
+        runtime = MagicMock()
+        runtime.exec.return_value = ""
+        with (
+            patch.object(inspect, "_read_pcap", return_value=b"PCAP") as read,
+            patch.object(inspect, "_host_tshark", return_value="1\n") as host,
+        ):
+            out = inspect._run_tshark(
+                runtime, "s1", "/tmp/x.pcapng", ["-r", "/tmp/x.pcapng", "-Y", "ip"]
+            )
+        assert out == "1\n"
+        read.assert_called_once_with(runtime, "s1", "/tmp/x.pcapng")
+        assert host.call_args.args[0] == ["-r", "-", "-Y", "ip"]
+        assert host.call_args.kwargs["stdin"] == b"PCAP"
+
+    def test_node_with_tshark_runs_in_node(self) -> None:
+        runtime = MagicMock()
+        runtime.exec.return_value = "/usr/bin/tshark"
+        with patch.object(inspect, "_host_tshark") as host:
+            inspect._run_tshark(runtime, "pc1", "/tmp/x", ["-r", "/tmp/x"])
+        host.assert_not_called()
+        assert "tshark -r /tmp/x" in runtime.exec.call_args.args[1]
+
 
 # --- registry / gateway -----------------------------------------------------
 
@@ -315,6 +339,38 @@ class TestCaptureLifecycle:
         started = manager.start(device="client1", interface="eth0")
         with pytest.raises(RuntimeError, match="not stopped"):
             manager.inspect(started["capture_id"], view="summary")
+
+    def test_missing_interface_fails_before_capture(self) -> None:
+        class _NoSuchIface(FakeRuntime):
+            def exec(self, node: str, command: str, timeout: float = 10) -> str:
+                if command.startswith("[ -e /sys/class/net/"):
+                    self.commands.append((node, command))
+                    return "missing"
+                if command.startswith("ls /sys/class/net"):
+                    return "lo\neth0\n"
+                return super().exec(node, command, timeout)
+
+        runtime = _NoSuchIface()
+        with pytest.raises(ValueError, match=r"'eth9'.*Available interfaces: lo, eth0"):
+            CaptureManager(runtime=runtime).start(device="client1", interface="eth9")
+        assert not any("nohup" in command for _node, command in runtime.commands)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("name", "device"),
+    [
+        ("ethernet-1/3", "e1-3"),
+        ("ethernet-1/3.0", "e1-3"),
+        ("e1-3", "e1-3"),
+        ("e1-3.0", "e1-3"),
+        ("eth2", "e1-3"),
+        ("mgmt0", "mgmt0"),
+        ("any", "any"),
+    ],
+)
+def test_srl_names_map_to_default_netns_port(name: str, device: str) -> None:
+    assert srl_linux_intf(name) == device
 
 
 # --- live e2e ---------------------------------------------------------------

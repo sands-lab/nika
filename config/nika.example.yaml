@@ -31,6 +31,12 @@ agent:
   # reasoning_effort: medium
   # Output-token cap per model response. Not applied by Codex agents or SADE.
   max_tokens: 8192
+  # Sampling for byo.langgraph and byo.mcp_agent. Leave unset to send nothing, so
+  # the server applies the model's recommended generation defaults. Reasoning
+  # models (Qwen3, GLM) repeat endlessly under greedy decoding.
+  # temperature: 0.6
+  # top_p: 0.95
+  # seed: 0
   # How the frozen report becomes the scored answer. structured (default): the
   # agent's own model calls submit(). unstructured: the model below maps the
   # report for every agent type; such runs cannot be packed for the leaderboard.
@@ -59,6 +65,9 @@ agent:
 nika:
   # Write run artifacts under this directory.
   result_dir: results
+  # Keep sessions, lab workdirs and caches here (use local disk, not NFS).
+  # NIKA_HOME overrides this. Unset keeps them under the repo checkout.
+  # state_dir: /var/lib/nika
   remote:
     # Run lab operations on a remote NIKA server.
     enabled: false
@@ -94,6 +103,8 @@ nika:
       clean_after_run: false
   sandbox:
     # Sandbox runtime: sbx (Docker Sandboxes) or e2b (E2B-compatible service).
+    # Either way, a running agent's sandbox reaches only the MCP gateway and
+    # the host model proxy; all other network egress is denied.
     backend: sbx
     # e2b: URL of a service that serves its API and sandboxes at one address.
     # Null uses E2B_DOMAIN from .env, else E2B cloud.
@@ -106,7 +117,8 @@ nika:
     # default).
     memory: 4g
     # sbx: install SDK agents from cached wheels instead of downloading
-    # packages. e2b templates already contain them.
+    # packages (PyPI is reachable only during sandbox setup). e2b templates
+    # already contain them.
     offline_sdk_wheels: true
     # sbx: route sandboxd and sbx traffic through this proxy.
     upstream_proxy: null
@@ -168,6 +180,20 @@ benchmark:
   # same time. Heavy and light trials never overlap; 1 runs each heavy trial
   # alone on the host.
   heavy_batch_size: 1
+  # Hold each trial's lab deploy until the host has headroom. Concurrent deploys
+  # push the load far above the core count, and healthy labs then show high
+  # latency or transient loss that an agent can mistake for a fault.
+  admission:
+    enabled: true
+    # Admit while the 1-minute load average is below this many times the CPU count.
+    load_per_cpu: 1.0
+    # Admit while free memory (GiB) is at least this value for the trial's class.
+    # Classes: light, large (topo_size l), clab (Containerlab), k8s (k8s/llmd/XRd).
+    memory_floor_gib: {light: 8, large: 16, clab: 32, k8s: 16}
+    # Seconds the next admission waits after a lab of this class was admitted.
+    spacing_sec: {light: 10, large: 45, clab: 180, k8s: 90}
+    # Admit anyway after waiting this long. 0 waits indefinitely.
+    max_wait_sec: 1800
   # Stop each trial after this many seconds. Set 0 to disable.
   case_timeout_sec: 2400
   # Continue an ad-hoc batch after a failed trial. Release runs continue unless

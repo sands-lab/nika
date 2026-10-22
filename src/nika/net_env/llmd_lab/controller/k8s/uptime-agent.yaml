@@ -1,0 +1,54 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+---
+# Per-node synthetic checks: every node's agent sends an inference request to
+# the llm-d gateway through its Service name, as a monitoring agent would. A
+# round counts as healthy only when the request succeeded; readiness follows
+# the last healthy round.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: uptime-agent
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: uptime-agent
+  template:
+    metadata:
+      labels:
+        app: uptime-agent
+    spec:
+      containers:
+      - name: agent
+        image: busybox:1.37.0-musl@sha256:5cec3fc171c87218698e85a52af7087de727372aae264a787b8112901a5b0092
+        imagePullPolicy: Never
+        command: [sh, -c]
+        args:
+        - |
+          # The first round runs right after start; count start as healthy so
+          # readiness does not fail before that round can finish.
+          date +%s > /tmp/last-ok
+          url=http://llm-d-gateway.llm-d.svc.cluster.local/v1/chat/completions
+          body='{"model":"llm-d-sim","max_tokens":8,"messages":[{"role":"user","content":"ping"}]}'
+          while true; do
+            if wget -q -T 15 -O /dev/null --header 'Content-Type: application/json' --post-data "$body" "$url"; then
+              date +%s > /tmp/last-ok
+            else
+              echo "$(date -u +%FT%TZ) check failed: $url" >&2
+            fi
+            sleep 10
+          done
+        readinessProbe:
+          exec:
+            command: [sh, -c, 'test $(($(date +%s) - $(cat /tmp/last-ok))) -lt 60']
+          periodSeconds: 10
+          # A loaded node can take over the 1 s default to start the probe shell.
+          timeoutSeconds: 5
+          failureThreshold: 3
+        resources:
+          requests:
+            cpu: 5m
+            memory: 8Mi

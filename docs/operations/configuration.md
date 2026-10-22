@@ -62,6 +62,7 @@ Relative result paths resolve from the repository root. NIKA rejects unknown YAM
 | `agent.submit_reject_limit` | `5` | Max consecutive `submit()` validation failures. After the last one, `submit()` refuses every later call for the session, including valid ones. Set `0` to disable the cap. |
 | `agent.reasoning_effort` | `null` | Reasoning effort. When unset, built-in harnesses use `medium` and `community.sade` and added agents get none. Accepted levels depend on the agent; see [Reasoning effort](../agents/agent-reference.md#reasoning-effort). |
 | `agent.max_tokens` | `8192` | Output-token cap per model response. BYO agents pass it to the model client; `cli.claude` and `sdk.claude_sdk` set `CLAUDE_CODE_MAX_OUTPUT_TOKENS`. `cli.codex`, `sdk.codex_sdk`, and `community.sade` do not apply it and record `null`. Benchmark runs record it in the run identity. Must be at least `1`. |
+| `agent.temperature`, `agent.top_p`, `agent.seed` | `null` | Sampling parameters for `byo.langgraph` and `byo.mcp_agent`. Unset values are not sent, so an OpenAI-compatible server (for example vLLM) applies the model's own `generation_config` defaults; do not force `temperature: 0` on reasoning models, which then repeat until `max_tokens`. `temperature` must be at least `0`, `top_p` in `(0, 1]`. Anthropic and DeepSeek clients ignore `seed`. Benchmark runs and `run.json` record the explicit values, or `"server default"`, as `sampling`. |
 | `agent.llm.timeout_sec` | `480` | LLM request timeout used by the `byo.langgraph` model factory. Must be non-negative. With streaming it bounds the wait between chunks, not the whole response. |
 | `agent.llm.max_retries` | `2` | LLM retries used by the `byo.langgraph` model factory. Must be non-negative. |
 | `agent.llm.stream` | `true` | Stream LLM responses in the `byo.langgraph` model factory. Set `false` for OpenAI-compatible servers that do not support streaming or `stream_options`. |
@@ -102,20 +103,29 @@ Leaderboard trajectory submit reads `HF_TOKEN` from `.env` / the environment. Se
 | Key | Default | Meaning and constraints |
 | --- | --- | --- |
 | `nika.result_dir` | `results` | Parent directory for session and benchmark artifacts. |
+| `nika.state_dir` | repository root | Root of all NIKA state: `runtime/` (sessions, `sessions.db`, benchmark runs, lab workdirs, audit results) and `.nika_cache/` (k8s images, Helm, vendor, traffic). The `NIKA_HOME` environment variable overrides it. Relative paths resolve from the repository root. See [State directory](#state-directory). |
 | `nika.remote.enabled` | `false` | Route lab lifecycle calls to the remote control plane. |
 | `nika.remote.url` | `null` | Remote control-plane base URL. Required when remote mode is enabled. |
 | `nika.remote.artifact_root` | `null` | Reserved path carried in the remote client configuration. Current workflows do not consume it. |
-| `nika.sandbox.backend` | `sbx` | Sandbox runtime: `sbx` (Docker Sandboxes on the host) or `e2b` (E2B or an E2B-compatible service). See [Choose a sandbox runtime](agent-sandbox.md#choose-a-sandbox-runtime). |
+| `nika.sandbox.backend` | `sbx` | Sandbox runtime: `sbx` (Docker Sandboxes on the host) or `e2b` (E2B or an E2B-compatible service). See [Choose a sandbox runtime](agent-sandbox.md#choose-a-sandbox-runtime). With either runtime, a running agent's sandbox reaches only the MCP gateway and the model proxy; see [network egress](agent-sandbox.md#how-sandboxes-stay-isolated). |
 | `nika.sandbox.url` | `null` | `e2b` only: address of an E2B-compatible service that serves its API and sandboxes at one address, such as AgentENV. `null` uses `E2B_DOMAIN` from `.env`, else E2B cloud. |
 | `nika.sandbox.keep` | `false` | Keep the sandbox after the agent exits. An E2B sandbox stays until `nika session close` or the end of its lifetime. |
 | `nika.sandbox.cpus` | `2` | vCPU count per sandbox. `null` lets sbx give each sandbox every host vCPU, or E2B use the service default. |
 | `nika.sandbox.memory` | `4g` | Memory limit per sandbox. `null` lets sbx use half of host memory, or E2B use the service default. |
-| `nika.sandbox.offline_sdk_wheels` | `true` | `sbx` only: stage cached SDK wheels for SDK and SADE sandboxes. Set `false` to install packages from PyPI inside the sandbox. |
+| `nika.sandbox.offline_sdk_wheels` | `true` | `sbx` only: stage cached SDK wheels for SDK and SADE sandboxes. Set `false` to install packages from PyPI inside the sandbox; PyPI is reachable only while the sandbox is prepared. |
 | `nika.sandbox.upstream_proxy` | `null` | `sbx` only: proxy used by the shared `sandboxd` process and host `sbx` commands. |
 | `nika.judge.provider` | `openai` | Provider used by `nika eval judge` when the CLI does not override it. |
 | `nika.judge.model` | `gpt-5-mini` | Judge model used when the CLI does not override it. |
 | `nika.k8s.access` | `auto` | `auto` and `mcp` register the Kubernetes MCP server. `kubectl_only` skips it. |
 | `nika.k8s.apiserver` | `null` | Optional Kubernetes API server override for the host-side client. |
+
+### State directory
+
+By default NIKA keeps `runtime/` and `.nika_cache/` inside the checkout, so every checkout of the repository gets its own sessions and caches. Set `NIKA_HOME` (or `nika.state_dir`) to share one state folder across all checkouts. Precedence is `NIKA_HOME`, then `nika.state_dir`, then the repository root. Layout under it is unchanged: `runtime/` and `.nika_cache/`.
+
+Put the state directory on local disk, for example `/var/lib/nika` or `/workspace/nika-state`. Kubernetes and llm-d labs bind-mount `.nika_cache/k8s-images` into Docker; a root Docker daemon cannot read an NFS path under root-squash, which fails with `mkdir ...: permission denied`. NIKA checks the filesystem before deploying such a lab and stops with a message if the path is on NFS.
+
+`NIKA_VENDOR_CACHE`, `NIKA_AUDIT_RESULTS_DIR` and `nika.result_dir` keep overriding their own paths. Results stay under `results/` unless `result_dir` is set. Move an existing state folder by moving `runtime/` and `.nika_cache/` while no session is running. Set `NIKA_HOME` before `./scripts/install.sh` to place `.nika_cache/` there.
 
 ### Lab lifecycle settings
 
@@ -167,6 +177,11 @@ Default production and benchmark paths use light runtime checks without Batfish 
 | `benchmark.batch_size` | `1` | Max concurrent light trials (sliding window). Must be at least `1`. |
 | `benchmark.heavy_batch_size` | `1` | Max concurrent heavy trials: Containerlab, k8s/llmd/XRd, and topo_size `l` cases. Must be at least `1`. Heavy and light trials never overlap; with `1`, each heavy trial runs alone on the host. When a heavy trial is next in the queue, NIKA stops starting light trials, waits for running trials to finish, then starts heavy trials. |
 | `benchmark.case_timeout_sec` | `2400` | Hard wall-clock limit per trial. Set `0` to disable it. |
+| `benchmark.admission.enabled` | `true` | Hold each trial's lab deploy until the host has headroom. Concurrent deploys push the load far above the core count, and healthy labs then show high latency or transient loss. Set `false` to start trials as soon as a batch slot frees. |
+| `benchmark.admission.load_per_cpu` | `1.0` | Admit only while the 1-minute load average is below this multiple of the CPU count. The release audit uses `2`; benchmark trials are latency-sensitive, so the default is stricter. |
+| `benchmark.admission.memory_floor_gib` | `{light: 8, large: 16, clab: 32, k8s: 16}` | Free memory (GiB) a trial of each resource class needs before it is admitted. Set only the classes you change. |
+| `benchmark.admission.spacing_sec` | `{light: 10, large: 45, clab: 180, k8s: 90}` | Seconds the next admission waits after a lab of that class was admitted, so it sees the memory and load that lab claims while it settles. Admissions are serialized host-wide through a lock in `/tmp/nika-admission-locks` (override with `NIKA_ADMISSION_LOCK_DIR`). |
+| `benchmark.admission.max_wait_sec` | `1800` | Admit anyway after waiting this long. `0` waits indefinitely. The wait counts toward `case_timeout_sec`. |
 | `benchmark.continue_on_error` | `false` | Continue the batch after a failed trial. |
 | `benchmark.retry_passes` | `0` | Additional passes over failed or incomplete trials. Must be non-negative. |
 | `benchmark.resume` | `true` | Reuse completed trial slots in the result directory. |

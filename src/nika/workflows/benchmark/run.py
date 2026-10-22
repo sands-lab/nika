@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import nullcontext
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from pydantic import ValidationError
 
@@ -33,6 +34,8 @@ from nika.firecracker.trial import (
     reap_orphan_trials,
     release_trial,
 )
+from nika.run_config.loader import get_run_config
+from nika.utils.logger import log_event
 from nika.utils.session import Session
 from nika.utils.session_artifacts import (
     RUN_FILENAME,
@@ -43,7 +46,9 @@ from nika.utils.session_artifacts import (
 )
 from nika.utils.session_store import SessionStore
 from nika.workflows.agent.run import start_agent
+from nika.workflows.benchmark import admission
 from nika.workflows.benchmark.admit import (
+    resource_class_for_row,
     CLASS_LIGHT,
     pick_admissible,
     resource_class,
@@ -409,6 +414,45 @@ def default_release_ref() -> str:
     return DEFAULT_RELEASE_VERSION
 
 
+def _wait_for_host_admission(
+    row: dict[str, Any], on_wait: Callable[[dict[str, Any]], None]
+) -> float | None:
+    """Hold the lab deploy until the host has memory and load headroom."""
+    cfg = get_run_config().benchmark.admission
+    if not cfg.enabled:
+        return None
+    return admission.wait_for_admission(
+        resource_class_for_row(row),
+        lock_path=Path(
+            os.environ.get("NIKA_ADMISSION_LOCK_DIR") or admission.DEFAULT_LOCK_DIR
+        )
+        / "benchmark.lock",
+        ceiling=admission.load_ceiling(cfg.load_per_cpu),
+        floors={**admission.MEMORY_FLOOR_GIB, **cfg.memory_floor_gib},
+        spacing={**admission.SPACING_SEC, **cfg.spacing_sec},
+        max_wait_sec=cfg.max_wait_sec,
+        on_wait=on_wait,
+    )
+
+
+def _record_host_load(
+    session: Session, waits: list[dict[str, Any]], waited: float | None
+) -> None:
+    """Stamp the host load at agent start and log the admission waits."""
+    one, five, fifteen = admission.load_average()
+    session.update_session("host_load_avg_at_agent_start", [one, five, fifteen])
+    if waited is None:
+        return
+    for info in waits:
+        log_event("admission_wait", "Waiting for host capacity", **info)
+    log_event(
+        "admission_admitted",
+        f"Lab admitted after {waited:.0f}s",
+        waited_sec=round(waited, 1),
+        waits=len(waits),
+    )
+
+
 def _stamp_release_meta(session_id: str, release_meta: dict | None) -> None:
     if not release_meta:
         return
@@ -441,6 +485,7 @@ def validate_inject_params(
     params: dict[str, Any],
     *,
     problems: list[str] | None = None,
+    release: str | None = None,
 ) -> None:
     """Raise ValueError if inject params do not satisfy the problem schema."""
     resolved_problems = list(problems or row_problems({"problem": problem}))
@@ -467,13 +512,14 @@ def validate_inject_params(
         problem_inst = get_problem_instance(
             problem_names=resolved_problems,
             scenario_name=scenario,
+            release=release,
             **kwargs,
         )
         if hasattr(problem_inst, "resolve_params"):
             problem_inst.resolve_params(nested)
         return
 
-    problem_cls = get_problem_class(resolved_problems[0], scenario)
+    problem_cls = get_problem_class(resolved_problems[0], scenario, release)
     if problem_cls is None:
         raise ValueError(f"Unknown problem {resolved_problems[0]!r}")
     params_class = getattr(problem_cls, "Params", None)
@@ -869,6 +915,7 @@ def run_single_case(
         topo_size or "",
         inject_params,
         problems=resolved_problems,
+        release=(release_meta or {}).get("version"),
     )
 
     predetermined_dir: str | None = None
@@ -893,11 +940,19 @@ def run_single_case(
     if progress is not None and progress_label and predetermined_dir:
         progress.attach_session(progress_label, predetermined_dir)
 
+    image_lab = active_trial_lab()
+    admission_waits: list[dict[str, Any]] = []
+    # A Firecracker trial lab is already restored; admission gates host deploys.
+    admission_waited = (
+        _wait_for_host_admission(row, admission_waits.append)
+        if image_lab is None
+        else None
+    )
+
     _phase("deploy")
     # Trial directory stays ``trials/{trial_id}``; SessionStore key must also
     # incorporate result_dir so parallel same-task runs do not share a lab.
     store_session_id = store_session_id_for_trial(trial_id, result_dir) or trial_id
-    image_lab = active_trial_lab()
     if image_lab is not None:
         # Firecracker execution: the lab was restored from a lab image; adopt it.
         session_id = image_lab.attach(
@@ -934,6 +989,9 @@ def run_single_case(
             pass
         else:
             _phase("inject")
+            # inject_failure resolves release-scoped failure variants from the
+            # session's benchmark_version, so stamp it first.
+            _stamp_release_meta(session_id, release_meta)
             inject_failure(
                 problem_names=resolved_problems,
                 session_id=session_id,
@@ -958,6 +1016,7 @@ def run_single_case(
         )
 
         _phase("agent")
+        _record_host_load(session, admission_waits, admission_waited)
         start_agent(
             agent_type=agent_type,
             llm_provider=llm_provider,

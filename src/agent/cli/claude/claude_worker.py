@@ -27,6 +27,7 @@ from pathlib import Path
 from agent.base import max_steps_report
 from agent.cli.claude.config import (
     claude_env,
+    isolation_args,
     resolve_claude_model,
     use_bare_claude_mode,
 )
@@ -176,6 +177,7 @@ class ClaudeWorker:
             "--dangerously-skip-permissions",
             "--mcp-config",
             str(self._mcp_config_path),
+            *isolation_args(),
             "--model",
             self.model,
             "--max-turns",

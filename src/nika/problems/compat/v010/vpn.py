@@ -8,7 +8,6 @@ from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
 from nika.problems.rca import node_resource
 
 _WG_CONF = "/etc/wireguard/wg0.conf"
-_WG_BACKUP = "/tmp/wg0.conf.bak"
 
 
 class VPNMembershipMissingParams(BaseModel):
@@ -38,7 +37,10 @@ class VPNMembershipMissing(ProblemBase):
 
     def inject_fault(self, params: VPNMembershipMissingParams):
         server = params.host_name_2
-        self.runtime.exec(server, f"cp {_WG_CONF} {_WG_BACKUP}")
+        # Keep the original config in injector memory, not as a backup file.
+        self._orig_conf_b64 = self.runtime.exec(
+            server, f"base64 -w0 {_WG_CONF}"
+        ).strip()
         self.runtime.exec(
             server,
             f"sed -i '/# {params.host_name}$/{{n; s/^/# /; n; s/^/# /; n; s/^/# /;}}' "
@@ -59,7 +61,9 @@ class VPNMembershipMissing(ProblemBase):
 
     def recover_fault(self, params: VPNMembershipMissingParams) -> dict:
         server = params.host_name_2
-        self.runtime.exec(server, f"cp {_WG_BACKUP} {_WG_CONF}")
+        self.runtime.exec(
+            server, f"echo {self._orig_conf_b64} | base64 -d > {_WG_CONF}"
+        )
         self.runtime.exec(server, "wg-quick down wg0; wg-quick up wg0", timeout=20)
         # The server learns a peer's endpoint only from that peer's traffic.
         self.runtime.exec(

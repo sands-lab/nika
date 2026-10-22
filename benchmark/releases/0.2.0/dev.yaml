@@ -68,10 +68,10 @@ cases:
   problem: bgp_hijacking
   inject:
     host_name: albany
-    peer_host: pc_albany
-    probe_dst_ip: 198.18.0.1
-    symptom_host: atlanta
-    target_network: 198.18.0.0/24
+    observer_host: pc_newyork
+    probe_dst_ip: 203.0.115.1
+    symptom_host: newyork
+    target_network: 203.0.115.0/24
   topo_size: m
   igp: isis
   bgp_mode: ibgp_rr
@@ -134,23 +134,7 @@ cases:
   root_causes:
   - resource:
       kind: node
-      node: dnvrng
-    fault_type: bgp_rpki_invalid_route_leak
-  - resource:
-      kind: node
       node: kscyng
-    fault_type: bgp_rpki_invalid_route_leak
-  - resource:
-      kind: node
-      node: losang
-    fault_type: bgp_rpki_invalid_route_leak
-  - resource:
-      kind: node
-      node: snvang
-    fault_type: bgp_rpki_invalid_route_leak
-  - resource:
-      kind: node
-      node: sttlng
     fault_type: bgp_rpki_invalid_route_leak
 - scenario: p4_dc_fabric
   problem: bmv2_switch_down
@@ -434,7 +418,6 @@ cases:
     host_name: service_1_1
     observer_device: client_1
     probe_dst_ip: 10.0.1.11
-    duration: '3600'
   root_causes:
   - resource:
       kind: interface
@@ -469,13 +452,12 @@ cases:
   problem: k8s_coredns_isolated
   inject:
     control_node: controller
+    node_name: controller
     symptom_host: worker1
   root_causes:
   - resource:
-      kind: k8s
-      name: kube-dns
-      namespace: kube-system
-      k8s_kind: Service
+      kind: node
+      node: controller
     fault_type: k8s_coredns_isolated
 - scenario: llmd_lab
   problem: k8s_networkpolicy_deny
@@ -528,11 +510,11 @@ cases:
 - scenario: min3clos
   problem: link_capacity_bottleneck
   inject:
-    burst: 64kb
+    burst: 16kb
     host_name: client1
     intf_name: eth1
-    limit: 500kb
-    rate: 30kbit
+    limit: 32kb
+    rate: 512kbit
   root_causes:
   - resource:
       kind: link

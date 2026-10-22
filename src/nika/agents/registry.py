@@ -59,7 +59,7 @@ class AgentSpec:
     # Python version specifier the agent's interpreter must satisfy (PEP 440,
     # e.g. ">=3.12,<3.14"); ``None`` accepts the sandbox template's Python.
     requires_python: str | None = None
-    # Extra hosts the sandbox may reach (an added agent's LLM endpoint).
+    # Extra hosts an added agent's sandbox may reach while it is prepared.
     egress: tuple[str, ...] = ()
     # Pinned npm CLIs staged on the host into the workspace (see
     # :mod:`nika.agents.sandbox.npm`). Empty for agents that need none.

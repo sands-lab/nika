@@ -241,3 +241,64 @@ def test_streamed_reasoning_chunks_keep_whitespace() -> None:
         merged = chunk if merged is None else merged + chunk
 
     assert merged.message.additional_kwargs["reasoning_content"] == "Check the "
+
+
+@pytest.fixture
+def agent_sampling(agent_task):
+    """Write a task whose model client has the given sampling settings."""
+
+    def _set(**sampling) -> None:
+        agent_task(llm=sampling)
+
+    return _set
+
+
+def _load_custom_kwargs() -> dict:
+    with (
+        patch.dict(
+            "os.environ", {"OPENAI_BASE_URL": "http://example:8000/v1"}, clear=False
+        ),
+        patch("agent.llm.model_factory.ReasoningChatOpenAI") as ctor,
+    ):
+        load_model(llm_provider="custom", model="qwen")
+    return ctor.call_args.kwargs
+
+
+def test_load_model_custom_sends_no_sampling_by_default(agent_sampling) -> None:
+    agent_sampling()
+    kwargs = _load_custom_kwargs()
+    assert not {"temperature", "top_p", "seed"} & kwargs.keys()
+
+
+def test_load_model_custom_sends_configured_sampling(agent_sampling) -> None:
+    agent_sampling(temperature=0.6, top_p=0.95, seed=7)
+    kwargs = _load_custom_kwargs()
+    assert (kwargs["temperature"], kwargs["top_p"], kwargs["seed"]) == (0.6, 0.95, 7)
+
+
+def test_mcp_agent_request_params_sampling() -> None:
+    from agent.byo.mcp_agent.config import build_mcp_request_params
+
+    params = build_mcp_request_params(model="m", max_steps=3, provider="custom")
+    assert params.metadata is None
+
+    sampling = {"temperature": 0.6, "seed": 7}
+    params = build_mcp_request_params(
+        model="m", max_steps=3, provider="custom", sampling=sampling
+    )
+    assert params.metadata == {"temperature": 0.6, "seed": 7}
+    params = build_mcp_request_params(
+        model="m", max_steps=3, provider="anthropic", sampling=sampling
+    )
+    assert params.metadata == {"temperature": 0.6}
+
+
+def test_resolve_sampling_records_effective_settings() -> None:
+    from nika.run_config.schema import RunConfig
+    from nika.utils.agent_config import resolve_sampling
+
+    default = RunConfig()
+    assert resolve_sampling("byo.langgraph", config=default) == "server default"
+    assert resolve_sampling("cli.claude", config=default) is None
+    tuned = RunConfig.model_validate({"agent": {"top_p": 0.9}})
+    assert resolve_sampling("byo.mcp_agent", config=tuned) == {"top_p": 0.9}

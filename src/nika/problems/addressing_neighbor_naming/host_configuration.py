@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from nika.problems.support.inject_resolve import (
     derive_incorrect_ip,
     derive_wrong_gateway,
+    unused_address_near,
 )
 from nika.problems.rca import node_resource
 from nika.problems.rca.inventory import interface_on
@@ -385,7 +386,10 @@ class HostIncorrectGateway(ProblemBase):
     symptom_probe = "path_ping"
     symptom_class = "unreachable"
     root_cause_name: str = "host_incorrect_gateway"
-    description = "Host default gateway is incorrect."
+    description = (
+        "The host's own default route points at an incorrect gateway "
+        "(set locally, not learned from DHCP)."
+    )
     TAGS: str = ["pc", "frr"]
 
     Params = HostIncorrectGatewayParams
@@ -551,9 +555,12 @@ class HostIncorrectDNSParams(BaseModel):
     """Parameters for injecting an incorrect DNS resolver fault."""
 
     host_name: str = Field(description="Target host name.")
-    fake_dns_ip: str = Field(
-        default="192.0.2.1",
-        description="Incorrect DNS IP (TEST-NET; non-resolving).",
+    fake_dns_ip: str | None = Field(
+        default=None,
+        description=(
+            "Incorrect DNS IP. Defaults to an unused address next to the host's "
+            "real resolver, like a stale or mistyped resolver entry."
+        ),
     )
 
 
@@ -576,15 +583,36 @@ class HostIncorrectDNS(ProblemBase):
     def root_cause_resources(self, params: HostIncorrectDNSParams):
         return [node_resource(params.host_name)]
 
+    def _resolver(self, params: HostIncorrectDNSParams, resolv: str) -> str:
+        if params.fake_dns_ip:
+            return params.fake_dns_ip
+        servers = re.findall(r"^\s*nameserver\s+(\d+\.\d+\.\d+\.\d+)", resolv, re.M)
+        real = next((ip for ip in servers if not ip.startswith("127.")), None)
+        real = real or self.runtime.get_default_gateway(params.host_name)
+        if not real:
+            raise ValueError(f"No resolver or gateway on {params.host_name}")
+        return unused_address_near(self.runtime, real)
+
     def inject_fault(self, params: HostIncorrectDNSParams):
+        resolv = self.runtime.exec(params.host_name, "cat /etc/resolv.conf 2>/dev/null")
+        fake = self._resolver(params, resolv)
+        self._fake_dns_ip = fake
+        # Swap only the nameserver entries; search and options stay as they were.
+        lines = [
+            line for line in resolv.splitlines() if not line.startswith("nameserver")
+        ]
+        self.runtime.write_file(
+            params.host_name,
+            "/etc/resolv.conf",
+            "\n".join([*lines, f"nameserver {fake}"]) + "\n",
+        )
         self.runtime.exec(
             params.host_name,
-            f"echo 'nameserver {params.fake_dns_ip}' > /etc/resolv.conf; "
             # dhclient rewrites resolv.conf at lease renewal. Keep the same
             # incorrect resolver in its renewal path on DHCP-backed hosts.
             "if test -d /etc/dhcp/dhclient-enter-hooks.d; then "
             "printf '%s\\n' 'new_domain_name_servers=\""
-            f"{params.fake_dns_ip}"
+            f"{fake}"
             "\"' > /etc/dhcp/dhclient-enter-hooks.d/nameservers; fi; "
             # Drop static hosts overrides so name lookups must use DNS.
             "sed -i -E '/\\sweb0\\.(local|pod0)\\s*$/d' /etc/hosts 2>/dev/null || true; "
@@ -596,13 +624,14 @@ class HostIncorrectDNS(ProblemBase):
         resolv = self.runtime.exec(
             params.host_name, "cat /etc/resolv.conf 2>/dev/null || echo ''"
         )
-        verified = params.fake_dns_ip in resolv
+        fake = params.fake_dns_ip or getattr(self, "_fake_dns_ip", None)
+        verified = bool(fake) and f"nameserver {fake}" in resolv
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=verified,
             details={
                 "host": params.host_name,
-                "fake_dns_ip": params.fake_dns_ip,
+                "fake_dns_ip": fake,
                 "resolv_conf": resolv.strip(),
             },
         )

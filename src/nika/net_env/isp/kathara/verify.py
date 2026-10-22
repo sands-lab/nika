@@ -113,6 +113,11 @@ def _collect(runtime, plan, bgp_plan, traffic, contract, healed, *, full):
     if contract:
         commands.extend(intent_commands(contract))
     if bgp_plan:
+        site = bgp_plan.customer_site
+        if full and site is not None:
+            commands.append(
+                VerifyCommand(site.host_name, ping_command(site.service_address), 15)
+            )
         if bgp_plan.inventory.get("rpki"):
             commands.append(
                 VerifyCommand(
@@ -196,6 +201,8 @@ def verify_isp_lab_startup(
         machine = rtr.get("machine")
         if machine:
             expected.append(str(machine))
+    if bgp_plan is not None and bgp_plan.customer_site is not None:
+        expected.append(bgp_plan.customer_site.host_name)
     runtime = _collect(runtime, plan, bgp_plan, None, None, frr_healed, full=False)
     check_functions = {
         "nodes_deployed": lambda: nodes_deployed(runtime, expected),
@@ -253,6 +260,8 @@ def verify_isp_lab(
         machine = rtr.get("machine")
         if machine:
             expected.append(str(machine))
+    if bgp_plan is not None and bgp_plan.customer_site is not None:
+        expected.append(bgp_plan.customer_site.host_name)
     all_hosts = [host.host_name for host in traffic.hosts] if traffic else []
     traffic = sample_traffic(traffic, contract, bgp_plan)
     runtime = _collect(
@@ -305,6 +314,11 @@ def verify_isp_lab(
             )
             check_functions["rpki_leak_absent"] = lambda: _rpki_leak_absent_ok(
                 runtime, bgp_plan
+            )
+        if bgp_plan.customer_site is not None:
+            site = bgp_plan.customer_site
+            check_functions["customer_site_reaches_service"] = lambda: ping_ok(
+                runtime, site.host_name, site.service_address
             )
         if bgp_plan.inventory.get("rtbh"):
             check_functions["rtbh_baseline_healthy"] = lambda: (
@@ -989,10 +1003,11 @@ def _bgp_prefixes_propagated_ok(runtime, bgp_plan):
 
 
 def _bgp_infra_denied_ok(runtime, bgp_plan):
+    """No BGP speaker carries a route inside an infrastructure prefix."""
     try:
         denied = [IPv4Network(prefix) for prefix in bgp_plan.deny_prefixes]
         return not any(
-            IPv4Network(prefix).subnet_of(network)
+            IPv4Network(prefix, strict=False).subnet_of(network)
             for device in {session.local_device for session in bgp_plan.sessions}
             for prefix in _bgp_routes(runtime, device)
             for network in denied
@@ -1076,20 +1091,35 @@ def _rpki_rtr_ok(runtime: LabRuntime, bgp_plan: BgpPlan) -> bool:
     return False
 
 
+def _path_origin_asn(path: dict) -> str:
+    aspath = path.get("path")
+    if aspath is None:
+        aspath = (path.get("aspath") or {}).get("string")
+    tokens = str(aspath or "").split()
+    return tokens[-1] if tokens else ""
+
+
 def _rpki_leak_absent_ok(runtime, bgp_plan):
-    prefixes = [str(prefix) for prefix in bgp_plan.inventory.get("leak_prefixes", [])]
+    """Healthy state: observers hold the leak-target prefixes only from their
+    legitimate origin, never with the leaker AS as origin."""
+    inventory = bgp_plan.inventory
+    prefixes = [str(p) for p in (inventory.get("leak_prefixes") or [])]
+    leaker_asn = str(inventory.get("leaker_asn") or "")
     observers = [
-        bgp_plan.inventory.get(key) for key in ("rov_observer", "non_rov_observer")
+        str(inventory.get(key) or "") for key in ("rov_observer", "non_rov_observer")
     ]
-    if not prefixes or not all(observers):
+    observers = [observer for observer in observers if observer]
+    if not prefixes or not observers or not leaker_asn:
         return False
     try:
-        return not any(
-            path
-            for observer in observers
-            for prefix in prefixes
-            for path in _bgp_routes(runtime, observer).get(prefix, [])
-            if not path.get("sourced", False)
-        )
+        for observer in observers:
+            routes = _bgp_routes(runtime, observer)
+            for prefix in prefixes:
+                paths = routes.get(prefix) or []
+                if not paths or any(
+                    _path_origin_asn(path) == leaker_asn for path in paths
+                ):
+                    return False
     except (ValueError, KeyError, TypeError):
         return False
+    return True

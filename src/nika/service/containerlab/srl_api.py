@@ -6,12 +6,14 @@ import ipaddress
 import json
 import re
 
+from nika.net_env.isp.igp.ifaces import srl_e1_name
 from nika.service.containerlab.protocols import SupportsSRL
 
 BGP_ACL_DESCRIPTION = "cpm-protect"
 BGP_EXPORT_POLICY = "CLOS01-OUT"
 BGP_EXPORT_PREFIX_SET = "CLOS01-OUT-PFX"
 STATIC_NHG = "static-nhg-1"
+_ETH_RE = re.compile(r"^eth\d+$")
 # Transport port fields matched against TCP/179, in drop-entry order.
 _BGP_ACL_PORTS = ("destination-port", "source-port")
 _CPM_IPV4_ENTRY_RE = re.compile(
@@ -25,12 +27,21 @@ _SRL_SUBIF_TO_LINUX: dict[str, str] = {
 }
 
 
-def _srl_linux_intf(subinterface: str) -> str:
-    if subinterface in _SRL_SUBIF_TO_LINUX:
-        return _SRL_SUBIF_TO_LINUX[subinterface]
-    if subinterface.startswith("ethernet-1/"):
-        return subinterface.replace("ethernet-1/", "e1-").split(".")[0]
-    return subinterface.split(".")[0]
+def srl_linux_intf(name: str) -> str:
+    """Linux port device in an SRL container's default netns for *name*.
+
+    Accepts SRL names (``ethernet-1/2``, ``ethernet-1/2.0``), Containerlab
+    endpoint names (``e1-2``, ``e1-2.0``), and NIKA plan names (``eth1``);
+    all map to ``e1-2``. Other names (``mgmt0``, ``any``) pass through.
+    """
+    name = name.strip()
+    if name in _SRL_SUBIF_TO_LINUX:
+        return _SRL_SUBIF_TO_LINUX[name]
+    if name.startswith("ethernet-1/"):
+        return name.replace("ethernet-1/", "e1-").split(".")[0]
+    if _ETH_RE.match(name):
+        return srl_e1_name(name)
+    return name.split(".")[0]
 
 
 class SRLAPIMixin:
@@ -197,13 +208,13 @@ class SRLAPIMixin:
         subinterface: str = "ethernet-1/2.0",
     ) -> None:
         """Withdraw client-facing prefix by bringing down the Linux veth."""
-        intf = _srl_linux_intf(subinterface)
+        intf = srl_linux_intf(subinterface)
         self.exec_cmd(device_name, f"ip link set {intf} down")
 
     def srl_client_subinterface_disabled(
         self: SupportsSRL, device_name: str, *, subinterface: str
     ) -> bool:
-        intf = _srl_linux_intf(subinterface)
+        intf = srl_linux_intf(subinterface)
         output = self.exec_cmd(
             device_name, f"cat /sys/class/net/{intf}/operstate 2>/dev/null || true"
         )

@@ -9,6 +9,7 @@ from typing import Literal
 from Kathara.manager.Kathara import Kathara, Machine
 from Kathara.model.Lab import Lab
 
+from nika.net_env.utils.download_object import download_object_commands
 from nika.config import pkg_path
 from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.net_env.native_routers import NativeRouterEnv
@@ -307,7 +308,13 @@ class DCClos(NativeRouterEnv, NetworkEnvBase):
             "A multi-tier data center Clos using EBGP with DNS/HTTP services. "
             "Each pod runs one BIND DNS server and HTTP servers on leaf subnets; "
             "external clients in 192.168.<pod>.0/24 resolve names such as "
-            "web0.pod0 over the fabric."
+            "web0.pod0 over the fabric. "
+            "Each pod's DNS server is authoritative only for its own pod zone, and "
+            "clients fall back across the pod servers when one does not serve a "
+            "name. Each super-spine has its own ASN, so every external client "
+            "reaches the DNS and web services and the other clients. Users behind each client browse every pod's web servers "
+            "by name all the time and download large.bin from one of them every "
+            "few minutes."
         )
         self.web_urls = [
             f"http://web{web_idx}.pod{pod_idx}"
@@ -357,6 +364,13 @@ class DCClos(NativeRouterEnv, NetworkEnvBase):
         self.lab.create_file_from_list(
             router_meta.cmd_list,
             f"{router_meta.machine.name}.startup",
+        )
+
+    def business_workload(self):
+        from nika.net_env.dc_clos.workload import build_workload
+
+        return build_workload(
+            sorted(self.client_addresses), list(self.web_urls), self.frr_routers()
         )
 
     def _attach_service_workload(
@@ -583,8 +597,9 @@ class DCClos(NativeRouterEnv, NetworkEnvBase):
                     "mkdir -p /var/www",
                     "dd if=/dev/zero of=/var/www/small.bin bs=1024 count=16 "
                     "status=none 2>/dev/null || true",
-                    "dd if=/dev/zero of=/var/www/large.bin bs=1M count=32 "
+                    "dd if=/dev/zero of=/var/www/large.bin bs=1M count=2 "
                     "status=none 2>/dev/null || true",
+                    *download_object_commands("/var/www"),
                     "cd /var/www && nohup python3 -m http.server 80 >/dev/null 2>&1 &",
                 ]
             )

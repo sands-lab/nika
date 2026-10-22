@@ -283,3 +283,47 @@ def eval_clean(
         f"under {results_root}, {report.session_files_removed} session file(s) under {SESSIONS_DIR}, "
         f"and cleared the SQLite index at {SESSIONS_DB}."
     )
+
+
+@eval_app.command("leak-scan")
+def eval_leak_scan(
+    paths: list[Path] = typer.Argument(
+        ...,
+        help="messages.jsonl files, or directories searched for them "
+        "(trial, job, or trajectory package directories).",
+    ),
+    tools: bool = typer.Option(
+        True,
+        "--tools/--no-tools",
+        help="Also scan the MCP tool descriptions and schemas agents receive.",
+    ),
+    max_hits: int = typer.Option(
+        20, "--max-hits", min=0, help="Number of hits to print (0: none)."
+    ),
+) -> None:
+    """Fail when agent-visible text names the benchmark or its injected faults.
+
+    Scans prompts, agent session metadata, and tool outputs of recorded
+    trajectories for `nika`, `inject`, `fault`, and `ground truth`. `fault`
+    is allowed in the submission phase, which presents the fault ontology.
+    """
+    from nika.evaluator.leak_scan import (
+        scan_tool_metadata,
+        scan_trajectory,
+        summarize_hits,
+        trajectory_files,
+    )
+
+    files = trajectory_files(paths)
+    if not files and not tools:
+        raise typer.BadParameter(f"No messages.jsonl found under {list(paths)}")
+    hits = scan_tool_metadata() if tools else []
+    for path in files:
+        hits.extend(scan_trajectory(path))
+    for hit in hits[:max_hits]:
+        typer.echo(hit.format())
+    summary = summarize_hits(hits, n_trajectories=len(files))
+    if hits:
+        typer.secho(summary, fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1)
+    typer.echo(summary)

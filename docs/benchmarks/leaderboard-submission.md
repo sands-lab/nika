@@ -90,6 +90,8 @@ In addition to metrics, each trial records fault-type labels for confusion-matri
 - `gt_fault_types`: unique `fault_type` values from session `ground_truth.json` `root_causes` (fallback: `[problem]`)
 - `predicted_fault_types`: unique `fault_type` values from session `submission.json` `root_causes`, or `null` when the file is missing or has no pairs
 
+- `validity_flags`: run-validity flags for the trial (empty when clean); see [run-validity gates](root-cause-evaluation.md#run-validity-gates)
+
 `results/rca_confusion.json` aggregates multi-label edges `(gt, predicted)` across trials and records `n_missing_prediction` / `missing_prediction_trial_ids`.
 
 ## Trajectories package layout (Hugging Face)
@@ -234,6 +236,7 @@ Short system description, authors, and links to code / report / site (if any).
 - Identity matches the in-tree frozen release
 - Exact trial coverage (`case_count × n_trials`); metrics and `rca_confusion.json` match recomputed aggregates (non-`scored` trials count as 0 in primary means)
 - No `grading_error` or residual `infra_error` trials (`infra_error` is auto-retried during the run; leftovers reject the pack)
+- Run validity: warns on any flagged trial; fails when `truncated_final_turn` or `infra_error` exceeds 5% of trials (`nika leaderboard validate --max-harness-rate`)
 - Sibling trajectories package has the required per-trial files and matching trial set
 - No secrets or absolute paths in package text
 

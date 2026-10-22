@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
 from nika.problems.rca import node_resource
+from nika.problems.support.frr import frr_config_command
 from nika.problems.support.inject_resolve import resolve_victim_host_ip
 
 
@@ -38,9 +39,11 @@ class BGPBlackholeRouteLeak(ProblemBase):
         asn = self._asn(params.host_name)
         self.runtime.exec(
             params.host_name,
-            "vtysh -c 'configure terminal' "
-            f"-c 'ip route {network} Null0' "
-            f"-c 'router bgp {asn}' -c 'network {network}' -c 'end'",
+            frr_config_command(
+                f"ip route {network} Null0",
+                f"router bgp {asn}",
+                f"network {network}",
+            ),
         )
 
     def verify_fault(self, params: BGPBlackholeRouteLeakParams) -> dict:
@@ -64,9 +67,12 @@ class BGPBlackholeRouteLeak(ProblemBase):
         asn = self._asn(params.host_name)
         self.runtime.exec(
             params.host_name,
-            "vtysh -c 'configure terminal' "
-            f"-c 'router bgp {asn}' -c 'no network {network}' "
-            f"-c 'exit' -c 'no ip route {network} Null0' -c 'end'",
+            frr_config_command(
+                f"router bgp {asn}",
+                f"no network {network}",
+                "exit",
+                f"no ip route {network} Null0",
+            ),
         )
         config = self.runtime.exec(params.host_name, "vtysh -c 'show running-config'")
         present = (

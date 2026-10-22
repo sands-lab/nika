@@ -10,6 +10,8 @@ from typing import ClassVar, Literal
 import yaml
 
 from nika.config import clab_workdir
+from nika.net_env.probe_intent import ProbeIntent
+from nika.net_env.isp.brief import design_notes, ebgp_scope_note, stub_probe_intent
 from nika.net_env.utils.containerlab.base import ContainerlabNetworkEnv
 from nika.utils.dependencies import require_gnmic
 from nika.net_env.isp.bgp import (
@@ -50,13 +52,20 @@ from nika.net_env.isp.traffic import (
 from nika.net_env.isp.brief import format_isp_network_info
 from nika.runtime.containerlab.parse import parse_clab_topology
 from nika.runtime.spec import LabSpec, NodeRole
+from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 
 IgpLiteral = Literal["isis", "ospf"]
 MetricLiteral = Literal["constant", "routing_cost", "inv_capacity"]
 
 SRL_IMAGE = "ghcr.io/nokia/srlinux:24.10@sha256:20064faa8c2fbb2fa6d8812496c28bcfdad40a965da8831da43e55a1eccda14d"
 SRL_TYPE = "ixr-d2l"
-LINUX_IMAGE = "wbitt/network-multitool:latest@sha256:db2810fe2c8d36db074eab5d98fbf861c8ed55e0786d648d3477b3de9135632e"
+# Linux end hosts: the NIKA base image carries the network tools and the
+# Python runtime of the scenario's business traffic programs.
+LINUX_IMAGE = nika_image("base")
+LINUX_CMD = "sleep infinity"
+# Containerlab veths default to MTU 9500, above the SR Linux port MTU (9232),
+# which drops oversized frames without ICMP and black-holes full-size TCP.
+LINUX_HOST_MTU = 1500
 SRL_PASSWORD = "NokiaSrl1!"
 
 
@@ -144,7 +153,10 @@ class Isp(ContainerlabNetworkEnv):
             constant_metric=constant_metric,
         )
         base_plan = compile_isp_plan(config)
-        self.bgp_plan: BgpPlan | None = compile_bgp_plan(base_plan, self.bgp_mode)
+        # The customer site needs a Kathara host and FRR policy; not modelled here.
+        self.bgp_plan: BgpPlan | None = compile_bgp_plan(
+            base_plan, self.bgp_mode, customer_site=False
+        )
         base_plan = scope_igp_to_bgp_as(base_plan, self.bgp_plan)
         from nika.net_env.synthesis.parameters import (
             RoutingParameters,
@@ -197,6 +209,7 @@ class Isp(ContainerlabNetworkEnv):
             if self.bgp_plan is not None
             else "Infrastructure loopbacks only; BGP disabled."
         )
+        bgp_desc += ebgp_scope_note(self.bgp_plan)
         self.desc = (
             f"ISP from SNDlib topology '{self.plan.topology_name}' on Containerlab "
             f"({len(self.plan.nodes)} SRL routers, {len(self.plan.links)} links, "
@@ -204,7 +217,24 @@ class Isp(ContainerlabNetworkEnv):
             f"metric={self.plan.metric_strategy}, "
             f"device_profile={self.device_profile}). {bgp_desc}"
         )
+        self.desc += design_notes(self.plan, self.bgp_plan, router_services=False)
         self._populate_role_lists()
+
+    def probe_intent(self) -> ProbeIntent | None:
+        return stub_probe_intent(self.bgp_plan, self.traffic)
+
+    def business_workload(self):
+        from nika.net_env.isp.workload import build_isp_workload
+
+        # SR Linux routers do not run the service programs; stubs host them.
+        return build_isp_workload(
+            self.plan,
+            self.traffic,
+            self.bgp_plan,
+            self.topo,
+            router_services=False,
+            router_iface=srl_e1_name,
+        )
 
     def _assign_mgmt_ips(self) -> dict[str, str]:
         names = [
@@ -254,6 +284,7 @@ class Isp(ContainerlabNetworkEnv):
             nodes[host.host_name] = {
                 "kind": "linux",
                 "image": LINUX_IMAGE,
+                "cmd": LINUX_CMD,
                 "mgmt-ipv4": self._mgmt_ipv4[host.host_name],
             }
 
@@ -293,7 +324,7 @@ class Isp(ContainerlabNetworkEnv):
             "topology": {
                 "kinds": {
                     "nokia_srlinux": {"image": SRL_IMAGE},
-                    "linux": {"image": LINUX_IMAGE},
+                    "linux": {"image": LINUX_IMAGE, "cmd": LINUX_CMD},
                 },
                 "nodes": nodes,
                 "links": links,
@@ -334,7 +365,13 @@ class Isp(ContainerlabNetworkEnv):
 
         for host in self.traffic.hosts:
             script = "\n".join(
-                ["#!/bin/bash", "set -euo pipefail", *host.startup_commands, ""]
+                [
+                    "#!/bin/bash",
+                    "set -euo pipefail",
+                    f"ip link set dev {host.host_iface} mtu {LINUX_HOST_MTU}",
+                    *host.startup_commands,
+                    "",
+                ]
             )
             path = configs / f"{host.host_name}.sh"
             path.write_text(script, encoding="utf-8")
@@ -465,10 +502,14 @@ exit "$FAILED"
             return None
         from nika.net_env.isp.inject_targets import isp_topology_probe_path
 
-        return isp_topology_probe_path(topo)
+        return isp_topology_probe_path(topo, deploy_kwargs.get("bgp_mode"))
+
+    def _collect_lab_images(self) -> set[str]:
+        return {LINUX_IMAGE}
 
     def deploy(self) -> None:
         require_gnmic()
+        self._ensure_docker_images()
         already_existed = self.lab_exists()
         super().deploy()
         if already_existed:

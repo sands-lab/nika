@@ -81,7 +81,7 @@ class TestMultiFaultInjectWorkflow(IntegrationTestCase):
             gt = json.loads(
                 (Path(row["session_dir"]) / "ground_truth.json").read_text()
             )
-            # A failure may label several resources (mtu_mismatch lowers both link ends).
+            # A failure may label several resources.
             assert {rc["fault_type"] for rc in gt["root_causes"]} == set(problems)
         finally:
             if session_id is not None:

@@ -7,6 +7,7 @@ import io
 import json
 import re
 import os
+import subprocess
 import sys
 import tarfile
 import tempfile
@@ -17,7 +18,7 @@ from typing import TYPE_CHECKING
 import docker.errors
 import requests
 
-from nika.config import REPO_ROOT
+from nika.config import CACHE_DIR
 from nika.net_env.utils.kathara.docker_files.docker_images import (
     _get_client,
     ensure_nika_docker_images,
@@ -72,7 +73,37 @@ _IMPORT_TIMEOUT_SEC = 600.0
 
 
 def cache_root() -> Path:
-    return REPO_ROOT / ".nika_cache" / "k8s-images"
+    return CACHE_DIR / "k8s-images"
+
+
+def _fs_type(path: Path) -> str:
+    """Filesystem type of the nearest existing ancestor (``stat -f -c %T``)."""
+    probe = path
+    while not probe.exists() and probe != probe.parent:
+        probe = probe.parent
+    try:
+        out = subprocess.run(
+            ["stat", "-f", "-c", "%T", str(probe)],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=True,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return out.stdout.strip().lower()
+
+
+def ensure_docker_bind_path(path: Path) -> None:
+    """Fail early if the root Docker daemon cannot bind-mount *path* (e.g. NFS root-squash)."""
+    fs = _fs_type(path)
+    if fs.startswith("nfs"):
+        raise RuntimeError(
+            f"{path} is on an NFS filesystem ({fs}); the Docker daemon cannot "
+            "bind-mount it under root-squash. Set NIKA_HOME (or nika.state_dir) "
+            "to a local-disk directory such as /var/lib/nika and re-run "
+            "`scripts/install.sh` or `nika setup images` to repopulate the cache."
+        )
 
 
 def _k8s_scenario_class(scenario: str) -> type["NetworkEnvBase"] | None:
@@ -461,6 +492,7 @@ def mount_workload_cache(machine, scenario: str) -> None:
     """Stage the image cache and block node registry fallback, including system pods."""
     if scenario not in K8S_SCENARIOS:
         return
+    ensure_docker_bind_path(cache_root())
     cache_root().mkdir(parents=True, exist_ok=True)
     machine.add_meta("volume", f"{cache_root()}|{_MOUNT_CACHE_DIR}|ro")
     # A refused local endpoint prevents mutable system-image tags from being

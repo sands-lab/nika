@@ -39,6 +39,7 @@ from nika.agents.sandbox.sbx.policy import (
     deny_mcp_gateway,
     deny_network_resources,
     ensure_pypi_network_policy,
+    revoke_network_hosts,
     revoke_pypi_network_policy,
     sandbox_network_lockdown,
     sanitize_sandbox_name,
@@ -166,17 +167,18 @@ class SbxBackend(SandboxBackend):
             use_pypi = bool(spec.packages) or venv or not self.config.offline_sdk_wheels
             # The sbx policy is shared with the user's other sandboxes, so the
             # global allow rules stay; this sandbox denies each of them and
-            # reaches only the MCP gateway, the model proxy, and an added
-            # agent's declared egress. Package indexes (and the interpreter
-            # download of a venv) stay open until the install finishes.
+            # reaches only the model proxy and, once allow_gateway runs, the
+            # MCP gateway. An added agent's declared egress, package indexes,
+            # and the interpreter download of a venv stay open only until the
+            # install finishes, before the agent attaches to the gateway.
             proxy = (
                 (f"localhost:{self._model_proxy_port}",)
                 if self._model_proxy_port is not None
                 else ()
             )
-            rest, install = sandbox_network_lockdown(
+            rest, setup = sandbox_network_lockdown(
                 sandbox_name,
-                keep_hosts=spec.egress,
+                setup_hosts=spec.egress,
                 keep_resources=proxy,
                 install_pypi=use_pypi,
                 install_python=venv,
@@ -195,12 +197,15 @@ class SbxBackend(SandboxBackend):
                     offline=self.config.offline_sdk_wheels,
                 )
                 denied.result()
+            # sbx rejects a deny that conflicts with a per-sandbox allow, so
+            # the setup allows go before the setup resources are denied.
+            revoke_network_hosts(sandbox_name, *spec.egress)
             if use_pypi:
                 revoke_pypi_network_policy(sandbox_name)
-            deny_network_resources(sandbox_name, install)
+            deny_network_resources(sandbox_name, setup)
             logger.info(
                 "Denied %d network resources in sbx sandbox %s",
-                len(rest) + len(install),
+                len(rest) + len(setup),
                 sandbox_name,
             )
         except BaseException:

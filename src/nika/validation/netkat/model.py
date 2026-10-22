@@ -22,6 +22,9 @@ class ForwardingRule(ContractModel):
     prefix: str
     priority: int
     actions: tuple[ForwardingAction, ...]
+    # Destination MAC the rule matches (a routed interface's own MAC); ``None``
+    # matches any destination MAC.
+    destination_mac: str | None = None
 
 
 class ForwardingNetwork(ContractModel):
@@ -43,8 +46,11 @@ class ForwardingNetwork(ContractModel):
         """Encode ordered rules and physical attachments as a NetKAT relation.
 
         Each choice denotes a possible selector output, not a hash distribution.
-        Endpoint reception checks the destination MAC; router forwarding itself
-        follows the supported IP-only matches. TTL and ARP remain assumptions.
+        Endpoint reception checks the destination MAC; router forwarding
+        follows the IPv4 destination prefix and, when a rule states one, the
+        destination MAC. A packet's first-hop MAC is left open, so a source
+        endpoint may address any MAC its switch accepts. TTL and ARP remain
+        assumptions.
         """
         ids = self.location_ids()
         macs = {
@@ -52,6 +58,12 @@ class ForwardingNetwork(ContractModel):
             for i, m in enumerate(
                 sorted(
                     {e.mac for e in self.endpoints.values()}
+                    | {
+                        r.destination_mac
+                        for rows in self.rules.values()
+                        for r in rows
+                        if r.destination_mac
+                    }
                     | {
                         a.destination_mac
                         for rows in self.rules.values()
@@ -71,12 +83,27 @@ class ForwardingNetwork(ContractModel):
             previous = []
             for rule in sorted(rows, key=lambda r: r.priority, reverse=True):
                 network = IPv4Network(rule.prefix, strict=False)
-                if any(p == rule.priority and network.overlaps(n) for p, n in previous):
+                mac = rule.destination_mac
+                # Rules for different destination MACs never match one packet.
+                related = [
+                    (p, n, m) for p, n, m in previous if None in (m, mac) or m == mac
+                ]
+                if any(
+                    p == rule.priority and network.overlaps(n) for p, n, _ in related
+                ):
                     raise ValueError(
                         f"Ambiguous rule priority on {switch}: {rule.priority}"
                     )
+                if any(
+                    m is not None and mac is None and network.overlaps(n)
+                    for _, n, m in related
+                ):
+                    raise ValueError(
+                        f"Unsupported rule order on {switch}: a destination-MAC "
+                        f"rule shadows part of a MAC-agnostic rule ({rule.prefix})"
+                    )
                 surviving = [network]
-                for _, higher in previous:
+                for _, higher, _ in related:
                     remaining = []
                     for prefix in surviving:
                         if not prefix.overlaps(higher):
@@ -84,8 +111,10 @@ class ForwardingNetwork(ContractModel):
                         elif higher.subnet_of(prefix) and higher != prefix:
                             remaining.extend(prefix.address_exclude(higher))
                     surviving = remaining
-                previous.append((rule.priority, network))
+                previous.append((rule.priority, network, mac))
                 guard = union(prefix_test(str(p)) for p in surviving)
+                if mac is not None:
+                    guard = f"@mac={macs[mac]} ⋅ ({guard})"
                 outputs = []
                 for action in rule.actions:
                     if action.peer not in ids:

@@ -6,9 +6,7 @@ from typing import Any, ClassVar
 
 from pydantic import Field
 
-from nika.problems.rca import (
-    k8s_resource,
-)
+from nika.problems.rca import UnresolvedRootCauseError, node_resource
 from nika.problems.support.kubernetes.base import K8sParams, K8sProblemBase
 from nika.problems.support.kubernetes.node_filter import (
     DropSpec,
@@ -48,7 +46,8 @@ class CoreDNSIsolationParams(K8sParams):
         description=(
             "Device to filter DNS traffic on. Defaults to every node hosting a "
             "CoreDNS pod, which isolates CoreDNS cluster-wide; naming another "
-            "node instead cuts DNS only for the pods scheduled there."
+            "node instead cuts DNS only for the pods scheduled there. Benchmark "
+            "cases name the node, so the faulty device is known without a cluster."
         ),
     )
     dns_service: str = Field(
@@ -100,12 +99,13 @@ class CoreDNSIsolation(K8sProblemBase):
     def benchmark_inject_params(cls, ctx):
         k8s_nodes = ctx.roles.get("k8s_nodes") or []
         control = k8s_control_node(ctx)
-        # node_name is intentionally left unset: the fault resolves the nodes
-        # actually hosting CoreDNS at inject time, which is where isolating it
-        # takes the whole cluster's name resolution down.
+        # The labs place CoreDNS on the control plane, so filtering DNS there
+        # takes the whole cluster's name resolution down. The faulty device is
+        # the node holding the drop rules, named so ground truth needs no cluster.
         workers = sorted(node for node in k8s_nodes if node != control)
         return {
             "control_node": control,
+            "node_name": control,
             "symptom_host": workers[0] if workers else control,
         }
 
@@ -183,9 +183,20 @@ class CoreDNSIsolation(K8sProblemBase):
         return self.target_devices[0]
 
     def root_cause_resources(self, params: CoreDNSIsolationParams):
-        ns = params.dns_namespace or DNS_NAMESPACE
-        name = params.dns_service or DNS_SERVICE
-        return [k8s_resource("Service", name, namespace=ns)]
+        # The fault is the filter rules, which live on the node(s) they were
+        # installed on; the Service and CoreDNS pods are unchanged.
+        # Offline ground truth skips __init__, so target_devices may be unset.
+        devices = (
+            [params.node_name]
+            if params.node_name
+            else getattr(self, "target_devices", [])
+        )
+        if not devices:
+            raise UnresolvedRootCauseError(
+                "k8s_coredns_isolated needs node_name to name the device that "
+                "holds the DNS drop rules before injection."
+            )
+        return [node_resource(device) for device in devices]
 
     def inject_fault(self, params: CoreDNSIsolationParams) -> None:
         k8s = self.runtime.lab_api

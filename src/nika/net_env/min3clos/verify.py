@@ -27,6 +27,20 @@ CLIENT2_IP = "10.0.0.27"
 CLIENT1_GATEWAY = "10.0.0.24"
 CLIENT2_GATEWAY = "10.0.0.26"
 CLIENT_INTF = "eth1"
+CLIENT1_IPV6 = "1000:10::25"
+CLIENT2_IPV6 = "1000:10::27"
+CLIENT1_GATEWAY_IPV6 = "1000:10::24"
+CLIENT2_GATEWAY_IPV6 = "1000:10::26"
+
+# system0.0 loopbacks (configs/*.yaml), advertised by IS-IS and OSPF.
+ROUTER_LOOPBACKS = (
+    "30.0.0.1",
+    "30.0.0.2",
+    "30.0.0.3",
+    "3000:30::1",
+    "3000:30::2",
+    "3000:30::3",
+)
 
 EXPECTED_NODES = (
     "leaf1",
@@ -47,6 +61,10 @@ BGP_PEERS = {
 _CLIENTS = {
     CLIENT1: (CLIENT1_IP, CLIENT1_GATEWAY, CLIENT2_IP),
     CLIENT2: (CLIENT2_IP, CLIENT2_GATEWAY, CLIENT1_IP),
+}
+_CLIENTS_IPV6 = {
+    CLIENT1: (CLIENT1_IPV6, CLIENT1_GATEWAY_IPV6, CLIENT2_IPV6),
+    CLIENT2: (CLIENT2_IPV6, CLIENT2_GATEWAY_IPV6, CLIENT1_IPV6),
 }
 
 
@@ -89,9 +107,10 @@ def _collect(runtime, *, full):
             ]
         )
         if full:
+            _, gateway6, peer6 = _CLIENTS_IPV6[client]
             commands.extend(
                 VerifyCommand(client, mesh_ping_command(target), 30)
-                for target in (gateway, peer)
+                for target in (gateway, peer, gateway6, peer6, *ROUTER_LOOPBACKS)
             )
     return collect_verify_commands(runtime, commands)
 
@@ -115,7 +134,11 @@ def verify_min3clos_lab_startup(runtime: LabRuntime, *, scenario_name: str) -> d
 
 
 def verify_min3clos_lab(runtime: LabRuntime, *, scenario_name: str) -> dict:
-    """Check provisioning, all BGP sessions, and client reachability both ways."""
+    """Check provisioning, all BGP sessions, and dual-stack reachability.
+
+    Clients reach their gateway and the other client over IPv4 and IPv6, and
+    every router loopback (system0) over both families.
+    """
     runtime = _collect(runtime, full=True)
     clients_ready = _clients_addressed(runtime)
     checks = {
@@ -131,6 +154,20 @@ def verify_min3clos_lab(runtime: LabRuntime, *, scenario_name: str) -> dict:
         and not any(
             ping_unreachable(runtime, client, [peer])
             for client, (_, _, peer) in _CLIENTS.items()
+        ),
+        "client_ipv6_gateways_reachable": clients_ready
+        and not any(
+            ping_unreachable(runtime, client, [gateway])
+            for client, (_, gateway, _) in _CLIENTS_IPV6.items()
+        ),
+        "cross_leaf_clients_reachable_ipv6": clients_ready
+        and not any(
+            ping_unreachable(runtime, client, [peer])
+            for client, (_, _, peer) in _CLIENTS_IPV6.items()
+        ),
+        "router_loopbacks_reachable": clients_ready
+        and not any(
+            ping_unreachable(runtime, client, ROUTER_LOOPBACKS) for client in _CLIENTS
         ),
     }
     return runtime.finish(

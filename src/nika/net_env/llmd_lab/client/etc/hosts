@@ -1,3 +1,5 @@
 127.0.0.1 localhost
 ::1       localhost
 200.0.0.240 llmd
+200.0.0.7 client
+200.0.0.8 web

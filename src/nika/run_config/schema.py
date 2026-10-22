@@ -15,6 +15,7 @@ from pydantic import (
 )
 
 from nika.agents.provider_env import validate_provider_for_agent
+from nika.workflows.benchmark.admission import MEMORY_FLOOR_GIB, SPACING_SEC
 
 
 class RemoteSettings(BaseModel):
@@ -268,6 +269,8 @@ class NikaSettings(BaseModel):
         return data
 
     result_dir: str = "results"
+    # Root for runtime/ and .nika_cache/. Null = repo root. NIKA_HOME overrides.
+    state_dir: str | None = None
     remote: RemoteSettings = Field(default_factory=RemoteSettings)
     execution: ExecutionSettings = Field(default_factory=ExecutionSettings)
     sandbox: SandboxSettings = Field(default_factory=SandboxSettings)
@@ -402,6 +405,11 @@ class AgentSettings(BaseModel):
     reasoning_effort: str | None = None
     # Output-token cap per model response. Not applied by Codex agents or SADE.
     max_tokens: int = 8192
+    # Sampling. None = do not send, so the server applies the model's own
+    # generation defaults. Applied by byo.langgraph and byo.mcp_agent.
+    temperature: float | None = None
+    top_p: float | None = None
+    seed: int | None = None
     llm: AgentLlmSettings = Field(default_factory=AgentLlmSettings)
     access: AgentAccessSettings = Field(default_factory=AgentAccessSettings)
     submission: AgentSubmissionSettings = Field(default_factory=AgentSubmissionSettings)
@@ -442,6 +450,29 @@ class AgentSettings(BaseModel):
             raise ValueError("agent.max_tokens must be >= 1")
         return value
 
+    @field_validator("temperature")
+    @classmethod
+    def _temperature_non_negative(cls, value: float | None) -> float | None:
+        if value is not None and value < 0:
+            raise ValueError("agent.temperature must be >= 0")
+        return value
+
+    @field_validator("top_p")
+    @classmethod
+    def _top_p_in_range(cls, value: float | None) -> float | None:
+        if value is not None and not 0 < value <= 1:
+            raise ValueError("agent.top_p must be in (0, 1]")
+        return value
+
+    def sampling_params(self) -> dict[str, float | int]:
+        """Explicitly configured sampling parameters (unset ones are omitted)."""
+        params = {
+            "temperature": self.temperature,
+            "top_p": self.top_p,
+            "seed": self.seed,
+        }
+        return {key: value for key, value in params.items() if value is not None}
+
     @field_validator("timeout_sec")
     @classmethod
     def _timeout_sec_non_negative(cls, value: int) -> int:
@@ -457,6 +488,39 @@ class AgentSettings(BaseModel):
         return value
 
 
+class AdmissionSettings(BaseModel):
+    """Host-load gate that delays each trial's lab deploy until the host can take it."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = True
+    # Admit while the 1-minute load average is below this many times the CPU count.
+    load_per_cpu: float = 1.0
+    # Admit while free memory is at least this many GiB for the trial's class.
+    memory_floor_gib: dict[str, float] = Field(
+        default_factory=lambda: dict(MEMORY_FLOOR_GIB)
+    )
+    # Seconds the next admission waits after a lab of this class was admitted.
+    spacing_sec: dict[str, float] = Field(default_factory=lambda: dict(SPACING_SEC))
+    # Admit anyway after waiting this long. 0 waits indefinitely.
+    max_wait_sec: int = 1800
+
+    @field_validator("memory_floor_gib", "spacing_sec")
+    @classmethod
+    def _known_classes(cls, value: dict[str, float]) -> dict[str, float]:
+        unknown = set(value) - set(MEMORY_FLOOR_GIB)
+        if unknown:
+            raise ValueError(f"unknown resource classes: {sorted(unknown)}")
+        return value
+
+    @field_validator("load_per_cpu", "max_wait_sec")
+    @classmethod
+    def _positive(cls, value: float) -> float:
+        if value < 0:
+            raise ValueError("must be >= 0")
+        return value
+
+
 class BenchmarkSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -469,6 +533,7 @@ class BenchmarkSettings(BaseModel):
     retry_passes: int = 0
     resume: bool = True
     session_tag: str | None = None
+    admission: AdmissionSettings = Field(default_factory=AdmissionSettings)
 
     @field_validator("batch_size", "heavy_batch_size")
     @classmethod

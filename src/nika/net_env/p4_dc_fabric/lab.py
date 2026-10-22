@@ -10,7 +10,7 @@ from Kathara.manager.Kathara import Kathara, Machine
 from Kathara.model.Lab import Lab
 
 from nika.net_env.base import NetworkEnvBase, ProbePath
-from nika.runtime.base import LabRuntime
+from nika.net_env.p4_dc_fabric.fabric_manager.apply import MANAGER, MANAGER_DIR
 from nika.net_env.p4_dc_fabric.topology_model import (
     BASE_IMAGE,
     FABRIC_CONTROLLER_IMAGE,
@@ -24,9 +24,27 @@ from nika.net_env.p4_dc_fabric.topology_model import (
     gateway_ip,
 )
 from nika.runtime.spec import NodeRole
+from nika.net_env.utils.rack_workload import (
+    FANOUT_PORT,
+    bulk_downloads,
+    client_processes,
+    fanout_processes,
+    web_content_commands,
+)
+from nika.traffic.workload import FAN_IN_BURSTS, BusinessWorkload, WorkloadExercise
 
-_PKG = Path(__file__).resolve().parent
 _MANAGER = Path(__file__).resolve().parents[1] / "utils" / "kathara" / "p4rt_manager.py"
+# BMv2 paths carry about 5 Mbit/s of TCP, so a 2 MB object takes a few seconds.
+LARGE_OBJECT_MB = 2
+# Search front end and its shards. Each shard answers a query with a block of
+# datagrams sent back to back; BMv2 forwards such a short block far faster than
+# its sustained rate. The blocks from four shards converge on the front end's
+# leaf port at once and a normal port buffer absorbs them; a 16 KB queue
+# draining at 20 Mbit/s (5.7 ms) cannot.
+QUERY_LEAF = 2
+QUERY_SHARDS = 4
+SHARD_ANSWER_DATAGRAMS = 24
+SHARD_DATAGRAM_BYTES = 1400
 
 
 class SwitchMeta:
@@ -98,7 +116,14 @@ class P4DcFabric(NetworkEnvBase):
             {self.model.endpoints_per_leaf} endpoints per leaf.
             Per-leaf rack prefix 10.0.<leaf>.0/24 with virtual gateway MAC {VIRTUAL_ROUTER_MAC}.
             BMv2 simple_switch_grpc; OOB control network 172.31.0.0/16;
-            IPv4 LPM + ActionSelector ECMP programmed from one topology model.""")
+            IPv4 LPM + ActionSelector ECMP programmed from one topology model.
+            Each leaf hosts one nginx web server (web_<leaf>, 10.0.<leaf>.11) and
+            client hosts. Clients load pages and small objects from the web
+            servers all the time and download large.bin ({LARGE_OBJECT_MB} MB)
+            from one of them every few minutes. web_{QUERY_LEAF} also runs a
+            search front end: about once a second it sends a query to
+            the index shards on {", ".join(w.name for w in self._shards())}
+            (UDP {FANOUT_PORT}), which all answer at once.""")
 
         spine_metas: list[SwitchMeta] = []
         leaf_metas: list[SwitchMeta] = []
@@ -186,7 +211,7 @@ class P4DcFabric(NetworkEnvBase):
                 if ep.role == "web":
                     host_meta.cmd_list.extend(
                         [
-                            "mkdir -p /var/www/html",
+                            *web_content_commands(LARGE_OBJECT_MB),
                             f"echo 'p4_dc_fabric web_{leaf_id}' > /var/www/html/index.html",
                             "nginx || service nginx start || true",
                         ]
@@ -211,19 +236,17 @@ class P4DcFabric(NetworkEnvBase):
             ports = self.model.ports[meta.name]
             oob_eth = len(ports)
             cmds = _switch_startup(ports, info.device_id, oob_eth, info.oob_ip)
-            machine = meta.machine
-            machine.create_file_from_path(str(_PKG / "fabric.p4"), "fabric.p4")
-            self.lab.create_file_from_list(cmds, f"{machine.name}.startup")
+            self.lab.create_file_from_list(cmds, f"{meta.machine.name}.startup")
 
         fabric_mgr.create_file_from_path(str(_MANAGER), "p4rt_manager.py")
         self.lab.create_file_from_list(
             [
                 f"ip addr add {FABRIC_MGR_OOB_IP}/16 dev eth0",
                 "ip link set eth0 up",
-                "mkdir -p /tmp/p4_fabric /opt/p4rt",
-                "cp p4rt_manager.py /opt/p4rt/p4rt_manager.py 2>/dev/null || "
-                "cp /p4rt_manager.py /opt/p4rt/p4rt_manager.py || true",
-                "chmod +x /opt/p4rt/p4rt_manager.py || true",
+                f"mkdir -p /tmp/p4_fabric {MANAGER_DIR}",
+                f"cp p4rt_manager.py {MANAGER} 2>/dev/null || "
+                f"cp /p4rt_manager.py {MANAGER} || true",
+                f"chmod +x {MANAGER} || true",
             ],
             "fabric_mgr.startup",
         )
@@ -240,6 +263,37 @@ class P4DcFabric(NetworkEnvBase):
         from nika.net_env.p4_dc_fabric.fabric_manager import reconcile_fabric
 
         reconcile_fabric(self._build_runtime(), self.model)
+
+    def _frontend(self):
+        return next(w for w in self.model.web_endpoints() if w.leaf_id == QUERY_LEAF)
+
+    def _shards(self):
+        return [w for w in self.model.web_endpoints() if w.leaf_id != QUERY_LEAF][
+            :QUERY_SHARDS
+        ]
+
+    def business_workload(self) -> BusinessWorkload:
+        clients = [e.name for e in self.model.client_endpoints()]
+        webs = [e.ip for e in self.model.web_endpoints()]
+        frontend = self._frontend()
+        return BusinessWorkload(
+            processes=(
+                *client_processes(
+                    clients, webs, page_pause="5-20", large_pause="180-420"
+                ),
+                *fanout_processes(
+                    frontend.name,
+                    {w.name: w.ip for w in self._shards()},
+                    count=SHARD_ANSWER_DATAGRAMS,
+                    size=SHARD_DATAGRAM_BYTES,
+                    period="0.5-1.5",
+                ),
+            ),
+            exercises=(
+                WorkloadExercise(FAN_IN_BURSTS, (frontend.name,)),
+                *bulk_downloads(clients),
+            ),
+        )
 
     def target_roles(self) -> dict[str, list[str]]:
         roles = super().target_roles()
@@ -293,10 +347,3 @@ class P4DcFabric(NetworkEnvBase):
             scenario_name=self.LAB_NAME,
             model=self.model,
         )
-
-    def reconcile_dataplane_after_port_reconnect(
-        self, runtime: LabRuntime, nodes: list[str]
-    ) -> None:
-        from nika.net_env.p4_dc_fabric.fabric_manager import reconcile_fabric
-
-        reconcile_fabric(runtime, self.model)

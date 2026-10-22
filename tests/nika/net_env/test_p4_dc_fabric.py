@@ -16,6 +16,7 @@ from nika.net_env.p4_dc_fabric.fabric_manager.apply import (
 from nika.net_env.p4_dc_fabric.fabric_manager.intent import (
     build_forwarding_intent,
 )
+from nika.net_env.p4_dc_gateway import apply as gateway_apply
 from nika.net_env.p4_dc_fabric.topology_model import (
     SIZE_TABLE,
     SWITCH_IMAGE,
@@ -187,3 +188,41 @@ def test_blackhole_p4_compiles_with_inject_command() -> None:
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert _COMPILE_OK in result.stdout
+
+
+@pytest.mark.integration
+@pytest.mark.skipif(
+    not docker_image_available(SWITCH_IMAGE),
+    reason=f"{SWITCH_IMAGE} image not available",
+)
+def test_gateway_pipeline_names_no_fault_hooks(tmp_path) -> None:
+    source = Path(gateway_apply.PIPELINE_SOURCE)
+    result = subprocess.run(
+        [
+            "docker",
+            "run",
+            "--rm",
+            "-v",
+            f"{source}:/src/gateway.p4:ro",
+            "-v",
+            f"{tmp_path}:/out",
+            SWITCH_IMAGE,
+            "bash",
+            "-lc",
+            "cd /out && p4c --std p4-16 --p4runtime-files gw.p4info.txt "
+            "/src/gateway.p4 && chmod a+r /out/*",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=180,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    # Switches load this P4Info too, so GetForwardingPipelineConfig on any
+    # switch must not name a fault hook either.
+    p4info = (tmp_path / "gw.p4info.txt").read_text().lower()
+    device = (tmp_path / "gateway.json").read_text().lower()
+    assert "ipv4_lpm" in p4info and "ipv4_lpm" in device
+    for word in ("internal_fault", "_hw", "inject", "nika", "tcam", "corrupt"):
+        assert word not in p4info
+        assert word not in device

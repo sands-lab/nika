@@ -13,6 +13,7 @@ from nika.net_env.isp.bgp import (
     normalize_bgp_mode,
     scope_igp_to_bgp_as,
 )
+from nika.net_env.isp.brief import design_notes, ebgp_scope_note, stub_probe_intent
 from nika.net_env.isp.contract import build_isp_validation_contract
 from nika.net_env.isp.igp import IspConfig, compile_isp_plan
 from nika.net_env.isp.profiles import normalize_device_profile, validate_backend_profile
@@ -21,6 +22,7 @@ from nika.net_env.isp.traffic import (
     TrafficMatrixSeries,
     attach_traffic_stubs,
 )
+from nika.net_env.probe_intent import ProbeIntent
 from nika.net_env.utils.kathara.docker_files.docker_images import (
     image_exists,
     nika_image,
@@ -84,7 +86,8 @@ class IspVendor(NetworkEnvBase):
             first_interface_index=1 if self.device_profile == "routeros" else 0,
         )
         plan = compile_isp_plan(config)
-        self.bgp_plan = compile_bgp_plan(plan, self.bgp_mode)
+        # The customer site needs a Kathara FRR host and export policy.
+        self.bgp_plan = compile_bgp_plan(plan, self.bgp_mode, customer_site=False)
         plan = scope_igp_to_bgp_as(plan, self.bgp_plan)
         if routing_parameters is not None:
             from nika.net_env.synthesis.parameters import (
@@ -140,6 +143,7 @@ class IspVendor(NetworkEnvBase):
 
             native_interface = routeros_interface
             self.deployment_configs = render_routeros_isp(self.plan, self.bgp_plan)
+        self._native_interface = native_interface
         self.BGP_CONFIG_PATH = CONFIG_FILE_PATH
         self.BGP_ROUTERS = {node.device_name: node for node in self.plan.nodes}
         self.BGP_INTERFACE_MAP = {
@@ -152,10 +156,17 @@ class IspVendor(NetworkEnvBase):
         self.lab = Lab(scenario_id)
         self.name = scenario_id
         self.instance = Kathara.get_instance()
+        bgp_desc = (
+            f"BGP={self.bgp_mode}."
+            if self.bgp_plan is not None
+            else "Infrastructure loopbacks only; BGP disabled."
+        )
+        bgp_desc += ebgp_scope_note(self.bgp_plan)
         self.desc = (
             f"ISP {self.plan.topology_name}: {self.device_profile}, "
-            f"{self.plan.igp.upper()}, BGP={self.bgp_mode}"
+            f"{self.plan.igp.upper()}, {bgp_desc}"
         )
+        self.desc += design_notes(self.plan, self.bgp_plan, router_services=False)
         for node in self.plan.nodes:
             if self.device_profile == "routeros":
                 from nika.net_env.utils.routeros.common import add_routeros_router
@@ -227,6 +238,29 @@ class IspVendor(NetworkEnvBase):
                 edge.host_name, edge.collision_domain, machine_iface_number=0
             )
         self.load_machines()
+
+    def probe_intent(self) -> ProbeIntent | None:
+        return stub_probe_intent(self.bgp_plan, self.traffic)
+
+    def business_workload(self):
+        from nika.net_env.isp.workload import build_isp_workload
+
+        return build_isp_workload(
+            self.plan,
+            self.traffic,
+            self.bgp_plan,
+            self.topo,
+            router_services=False,
+            router_iface=self._native_interface,
+        )
+
+    @classmethod
+    def default_probe_path(cls, *, topo_size: str = "s", topo=None, **deploy_kwargs):
+        if not isinstance(topo, str):
+            return None
+        from nika.net_env.isp.inject_targets import isp_topology_probe_path
+
+        return isp_topology_probe_path(topo, deploy_kwargs.get("bgp_mode"))
 
     def deploy(self):
         if not image_exists(self._image):

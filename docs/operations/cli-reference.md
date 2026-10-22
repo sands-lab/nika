@@ -481,6 +481,7 @@ Eval commands operate on **closed** sessions only. After a benchmark run (or a m
 - **`nika eval metrics [--session_id ID] [--result_dir PATH]`**: write rule-based metrics to `eval_metrics.json`. Scoring contract: [Score a submission](../benchmarks/root-cause-evaluation.md#score-a-submission). With `--result_dir` and no `--session_id`, processes every closed session under that directory. Benchmark writes metrics when each case closes.
 - **`nika eval judge -p PROVIDER -m MODEL [--session_id ID] [--result_dir PATH]`**: LLM judge → `llm_judge.json`. With `--result_dir` and no `--session_id`, judges every closed session under that directory.
 - **`nika eval summary [filters] [-o PATH] [--result_dir PATH]`**: scan finished sessions, write one CSV, and print a visual summary to the terminal. See [report output](#nika-eval-summary-report-output).
+- **`nika eval leak-scan PATH... [--no-tools] [--max-hits N]`**: exit non-zero when recorded trajectories (`messages.jsonl` files, or directories holding them) or the diagnosis MCP tool metadata show the agent `nika`, `inject`, `fault`, or `ground truth`. See [Check trajectories for benchmark-identifying text](agent-sandbox.md#check-trajectories-for-benchmark-identifying-text).
 - **`nika eval clean [-y] [--force]`**: delete historical artifacts under `results/`, runtime session JSON files, and the SQLite index at `runtime/sessions.db`. Refuses when running sessions exist unless **`--force`** is passed.
 
 Typical post-benchmark flow:

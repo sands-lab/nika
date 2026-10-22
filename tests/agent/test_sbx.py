@@ -537,6 +537,19 @@ def test_open_session_preserves_host_submission_on_collect(tmp_path) -> None:
     assert not (session_dir / "messages.jsonl").exists()
 
 
+def test_e2b_refuses_a_sandbox_with_internet_access(tmp_path) -> None:
+    from nika.agents.sandbox.e2b.backend import E2bBackend
+
+    backend = E2bBackend(_sbx_config())
+    with patch.object(
+        backend, "_run_checked", side_effect=RuntimeError("reached example.com")
+    ):
+        with pytest.raises(RuntimeError, match="does not enforce egress"):
+            backend._check_no_egress()
+    with patch.object(backend, "_run_checked", return_value=""):
+        backend._check_no_egress()
+
+
 def test_sandbox_manifest_omits_host_session_dir(tmp_path) -> None:
     """Host session_dir is a shortcut to ground_truth; never bake it into sandbox."""
     from nika.utils.session_store import SessionStore

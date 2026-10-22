@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import textwrap
+from collections.abc import Mapping
 from enum import StrEnum
 from functools import wraps
 from typing import TYPE_CHECKING, Any, ClassVar, Literal
@@ -139,6 +140,17 @@ class ProblemBase:
     # Co-injected failures whose params ``coordinate_benchmark_inject`` adjusts
     # when a multi-fault case is exactly this failure plus these.
     BENCHMARK_COORDINATES: ClassVar[frozenset[str]] = frozenset()
+    # Exercise kind (``nika.traffic.workload``) of scenario business traffic the
+    # symptom needs. In a scenario that declares a workload, benchmark targets
+    # must be ones that traffic exercises (``symptom_workload_target``).
+    SYMPTOM_WORKLOAD: ClassVar[str | None] = None
+
+    @classmethod
+    def symptom_workload_target(
+        cls, inject: Mapping[str, str]
+    ) -> tuple[str, ...] | None:
+        """Workload target of ``inject`` for ``SYMPTOM_WORKLOAD``."""
+        return None
 
     @classmethod
     def is_compatible(

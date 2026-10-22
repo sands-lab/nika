@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import textwrap
 from pathlib import Path
 from typing import Literal
@@ -11,16 +12,21 @@ from Kathara.manager.Kathara import Kathara
 from Kathara.model.Lab import Lab
 
 from nika.net_env.base import NetworkEnvBase, ProbePath
-from nika.runtime.base import LabRuntime
+from nika.net_env.probe_intent import ProbeIntent
+from nika.net_env.p4_dc_fabric.fabric_manager.apply import MANAGER, MANAGER_DIR
 from nika.net_env.p4_dc_fabric.lab import _switch_startup
 from nika.net_env.p4_dc_gateway.topology_model import (
     BASE_IMAGE,
+    CLIENT_ACCESS_MTU,
     COLLECTOR_IMAGE,
     COLLECTOR_TELEMETRY_IP,
     CONTROLLER_IMAGE,
+    CONN_TABLE_CAPACITY,
     CONNECTION_LEARNING_DELAY_MS,
+    POOL_UPDATE_INTERVAL_SEC,
     CONTROLLER_OOB_IP,
     LB_AGENT,
+    INT_REPORTS,
     LB_AGENT_CONFIG,
     LB_AGENT_STATUS,
     NGINX_IMAGE,
@@ -34,9 +40,31 @@ from nika.net_env.p4_dc_gateway.topology_model import (
     service_gateway,
 )
 from nika.runtime.spec import NodeRole
+from nika.net_env.utils.rack_workload import (
+    FANOUT_PORT,
+    bulk_downloads,
+    fanout_processes,
+    seed_for,
+    web_content_commands,
+)
+from nika.traffic.workload import (
+    FAN_IN_BURSTS,
+    VIP_KEEPALIVE_SESSIONS,
+    BusinessWorkload,
+    WorkloadExercise,
+    WorkloadProcess,
+)
 
 _PKG = Path(__file__).resolve().parent
 _MANAGER = Path(__file__).resolve().parents[1] / "utils" / "kathara" / "p4rt_manager.py"
+# BMv2 paths carry about 5 Mbit/s of TCP, so a 2 MB object takes a few seconds.
+LARGE_OBJECT_MB = 2
+# Every site agent answers a status poll with a block of datagrams sent back to
+# back; BMv2 forwards such a short block far faster than its sustained rate.
+# The blocks converge on the collector's leaf port at once and a normal port
+# buffer absorbs them; a 16 KB queue draining at 20 Mbit/s (5.7 ms) cannot.
+STATUS_ANSWER_DATAGRAMS = 24
+STATUS_DATAGRAM_BYTES = 1400
 
 
 class P4DcGateway(NetworkEnvBase):
@@ -57,10 +85,29 @@ class P4DcGateway(NetworkEnvBase):
             P4Runtime gateway-spine-leaf fabric with 5-tuple ECMP, INT-MX,
             per-port ECN configuration, gateway flow tracking, and a minimal
             stateful L4 VIP load balancer.
+            External clients attach to their gateway over a provider access
+            circuit with a {CLIENT_ACCESS_MTU}-byte MTU.
             Size {topo_size}: {self.model.gateway_count} gateways,
             {self.model.spine_count} spines, {self.model.leaf_count} leaves,
             {self.model.client_count} external clients, and
-            {self.model.service_count} HTTP services."""
+            {self.model.service_count} HTTP services.
+            Routing is north-south only: clients reach the services and services
+            answer clients; there is no client-to-client or cross-leaf
+            service-to-service path. The VIP {VIP_IP}:{VIP_PORT} fronts the
+            backend pool {", ".join(b.name for b in self.model.backend_pool)};
+            those backends are meant to be reached through the VIP.
+            The VIP is a TCP service (port {VIP_PORT}) and does not answer ping;
+            services do not originate traffic to the VIP, only external
+            clients use it. Each gateway's LB agent applies routine DIP pool
+            updates on its own schedule, so the lb_vip pool version can differ
+            between gateways.
+            Every service publishes small.bin and large.bin ({LARGE_OBJECT_MB} MB).
+            Users at each client site keep browsing sessions open to the VIP,
+            load small objects from the services directly, and download
+            large.bin through the VIP or from a service every few minutes.
+            {self._collector().name} runs a status collector: every few seconds
+            it polls the agent at every client site (UDP {FANOUT_PORT}), and
+            all sites answer at once with a block of datagrams."""
         )
 
         switches = {}
@@ -132,7 +179,6 @@ class P4DcGateway(NetworkEnvBase):
                 -2, f"ip addr add {info.telemetry_ip}/24 dev eth{telemetry_eth}"
             )
             cmds.insert(-2, f"ip link set eth{telemetry_eth} up")
-            machine.create_file_from_path(str(_PKG / "gateway.p4"), "gateway.p4")
             machine.create_file_from_path(
                 str(_PKG / "hop_exporter.py"), "hop_exporter.py"
             )
@@ -150,6 +196,8 @@ class P4DcGateway(NetworkEnvBase):
                     f"python3 {LB_AGENT} serve --device-id {info.device_id} "
                     f"--vip {VIP_IP} --vip-port {VIP_PORT} "
                     f"--learning-delay-ms {CONNECTION_LEARNING_DELAY_MS} "
+                    f"--max-connections {CONN_TABLE_CAPACITY} "
+                    f"--update-interval {POOL_UPDATE_INTERVAL_SEC} "
                     f"--config {LB_AGENT_CONFIG} --status {LB_AGENT_STATUS} "
                     f"--ports '{json.dumps(sorted(port_map))}' "
                     ">/tmp/lb-agent.log 2>&1 &"
@@ -173,7 +221,7 @@ class P4DcGateway(NetworkEnvBase):
             if item.role == "http_service":
                 commands.extend(
                     (
-                        "mkdir -p /var/www/html",
+                        *web_content_commands(LARGE_OBJECT_MB),
                         f"echo '{item.name}' > /var/www/html/index.html",
                         "nginx || service nginx start || true",
                     )
@@ -185,9 +233,9 @@ class P4DcGateway(NetworkEnvBase):
             [
                 f"ip addr add {CONTROLLER_OOB_IP}/24 dev eth0",
                 "ip link set eth0 up",
-                "mkdir -p /tmp/p4_fabric /opt/p4rt",
-                "cp p4rt_manager.py /opt/p4rt/p4rt_manager.py 2>/dev/null || cp /p4rt_manager.py /opt/p4rt/p4rt_manager.py",
-                "chmod +x /opt/p4rt/p4rt_manager.py",
+                f"mkdir -p /tmp/p4_fabric {MANAGER_DIR}",
+                f"cp p4rt_manager.py {MANAGER} 2>/dev/null || cp /p4rt_manager.py {MANAGER}",
+                f"chmod +x {MANAGER}",
             ],
             "fabric_mgr.startup",
         )
@@ -196,8 +244,8 @@ class P4DcGateway(NetworkEnvBase):
             [
                 f"ip addr add {COLLECTOR_TELEMETRY_IP}/24 dev eth0",
                 "ip link set eth0 up",
-                "mkdir -p /var/lib/int-collector",
-                "python3 collector.py --output /var/lib/int-collector/int_reports.jsonl >/tmp/collector.log 2>&1 &",
+                f"mkdir -p {os.path.dirname(INT_REPORTS)}",
+                f"python3 collector.py --output {INT_REPORTS} >/tmp/collector.log 2>&1 &",
             ],
             "collector.startup",
         )
@@ -208,6 +256,108 @@ class P4DcGateway(NetworkEnvBase):
         from .apply import reconcile_gateway
 
         reconcile_gateway(self._build_runtime(), self.model)
+
+    def _collector(self):
+        return self.model.backend_pool[0]
+
+    def business_workload(self) -> BusinessWorkload:
+        vip = f"http://{VIP_IP}"
+        services = [f"http://{item.ip}" for item in self.model.services]
+        processes: list[WorkloadProcess] = []
+        for client in self.model.clients:
+            seed = seed_for(client.name)
+            processes += [
+                WorkloadProcess(
+                    node=client.name,
+                    app="browser",
+                    command="vip-session",
+                    args=(
+                        f"{vip}/",
+                        f"{vip}/small.bin",
+                        "--keepalive",
+                        "--users",
+                        "4",
+                        "--pause",
+                        "2-6",
+                        "--seed",
+                        seed,
+                    ),
+                ),
+                # Short-lived keep-alive sessions: new VIP connections open
+                # every few seconds, then are reused by later requests.
+                WorkloadProcess(
+                    node=client.name,
+                    app="browser",
+                    command="portal-session",
+                    args=(
+                        f"{vip}/",
+                        "--keepalive",
+                        "--users",
+                        "4",
+                        "--pause",
+                        "2-6",
+                        "--lifetime",
+                        "10-30",
+                        "--seed",
+                        str(int(seed) + 1),
+                    ),
+                ),
+                WorkloadProcess(
+                    node=client.name,
+                    app="browser",
+                    command="browser",
+                    args=(
+                        *(f"{site}/small.bin" for site in services),
+                        "--pause",
+                        "5-20",
+                        "--seed",
+                        seed,
+                    ),
+                ),
+                WorkloadProcess(
+                    node=client.name,
+                    app="browser",
+                    command="downloader",
+                    args=(
+                        *(f"{site}/large.bin" for site in [vip, *services]),
+                        "--pause",
+                        "120-300",
+                        "--seed",
+                        seed,
+                    ),
+                ),
+            ]
+        collector = self._collector()
+        processes += fanout_processes(
+            collector.name,
+            {client.name: client.ip for client in self.model.clients},
+            count=STATUS_ANSWER_DATAGRAMS,
+            size=STATUS_DATAGRAM_BYTES,
+            period="2-4",
+            worker_command="site-agent",
+            aggregator_command="status-collector",
+        )
+        return BusinessWorkload(
+            processes=tuple(processes),
+            exercises=(
+                WorkloadExercise(FAN_IN_BURSTS, (collector.name,)),
+                *(
+                    WorkloadExercise(VIP_KEEPALIVE_SESSIONS, (gateway,))
+                    for gateway in self.model.gateways
+                ),
+                *bulk_downloads(client.name for client in self.model.clients),
+            ),
+        )
+
+    def probe_intent(self) -> ProbeIntent | None:
+        """North-south only: clients are mutually isolated, as are services on different leaves."""
+        return ProbeIntent.from_partitions(
+            [[client.name] for client in self.model.clients],
+            [
+                [service.name for service in self.model.services_on_leaf(leaf)]
+                for leaf in self.model.leaves
+            ],
+        )
 
     def target_roles(self) -> dict[str, list[str]]:
         roles = super().target_roles()
@@ -249,10 +399,3 @@ class P4DcGateway(NetworkEnvBase):
         return verify_p4_dc_gateway_lab(
             self._build_runtime(), self.LAB_NAME, self.model
         )
-
-    def reconcile_dataplane_after_port_reconnect(
-        self, runtime: LabRuntime, nodes: list[str]
-    ) -> None:
-        from .apply import reconcile_gateway
-
-        reconcile_gateway(runtime, self.model)

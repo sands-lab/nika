@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import ipaddress
+import re
 import time
 
 from pydantic import BaseModel, Field
@@ -9,6 +11,79 @@ from pydantic import BaseModel, Field
 from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
 from nika.problems.rca import node_resource
 from nika.problems.support.router_ops import native_fault_ops
+from nika.traffic.workload import NAT_SESSIONS, VIP_KEEPALIVE_SESSIONS
+
+
+class LbConnectionStateExhaustionParams(BaseModel):
+    host_name: str = Field(default="gateway_1")
+    max_connections: int = Field(default=4, ge=1, le=255)
+
+
+class LbConnectionStateExhaustion(ProblemBase):
+    """Gateway L4 agent connection limit set below the site's live connections.
+
+    ``max_connections=4`` is lab-scaled: a client site keeps about 8 to 10 VIP
+    connections open, so the limit plays the role of an undersized production
+    connection-tracking table against its normal load.
+    """
+
+    failure_domain = FailureDomain.SERVICE_NETWORKING
+    symptom_probe = "custom"
+    symptom_class = "gray"
+    root_cause_name = "lb_connection_state_exhaustion"
+    description = "Load-balancer connection-state table is exhausted."
+    symptom_desc = (
+        "The gateway L4 agent's connection limit is below what its client site "
+        "keeps open, so lb_conn_table stays full and new connections are not "
+        "pinned; a routine DIP pool update moves them to another backend, which "
+        "resets them."
+    )
+    TAGS = ["p4", "p4_runtime", "http", "l4_load_balancer"]
+    Params = LbConnectionStateExhaustionParams
+    SYMPTOM_WORKLOAD = VIP_KEEPALIVE_SESSIONS
+
+    @classmethod
+    def symptom_workload_target(cls, inject):
+        return (inject.get("host_name") or "",)
+
+    BENCHMARK_TARGETS = "canonical"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        if ctx.scenario != "p4_dc_gateway":
+            return {"host_name": ctx.host0}
+        # Below the keep-alive sessions one client site holds open at once.
+        return {"host_name": "gateway_1", "max_connections": "4"}
+
+    def root_cause_resources(self, params: LbConnectionStateExhaustionParams):
+        return [node_resource(params.host_name)]
+
+    def inject_fault(self, params: LbConnectionStateExhaustionParams):
+        from nika.net_env.p4_dc_gateway.l4_lb import set_agent_config
+
+        # A connection limit sized for a much smaller site; the agent rereads
+        # its configuration once a second and the site's own sessions fill it.
+        set_agent_config(
+            self.runtime, params.host_name, max_connections=params.max_connections
+        )
+        deadline = time.time() + 30
+        while time.time() < deadline:
+            if self.verify_fault(params)["verified"]:
+                return
+            time.sleep(1.0)
+
+    def verify_fault(self, params: LbConnectionStateExhaustionParams) -> dict:
+        from nika.net_env.p4_dc_gateway.l4_lb import learner_status
+
+        status = learner_status(self.runtime, params.host_name)
+        limit = status.get("max_connections")
+        return build_verify_result(
+            self.root_cause_name,
+            limit == params.max_connections
+            and status.get("learned", 0) >= limit
+            and status.get("age_sec", 99) < 5,
+            {"gateway": params.host_name, "learner": status},
+        )
 
 
 class LbPendingConnectionUpdateRaceParams(BaseModel):
@@ -29,6 +104,11 @@ class LbPendingConnectionUpdateRace(ProblemBase):
     )
     TAGS = ["p4", "p4_runtime", "http", "l4_load_balancer"]
     Params = LbPendingConnectionUpdateRaceParams
+    SYMPTOM_WORKLOAD = VIP_KEEPALIVE_SESSIONS
+
+    @classmethod
+    def symptom_workload_target(cls, inject):
+        return (inject.get("host_name") or "",)
 
     BENCHMARK_TARGETS = "canonical"
 
@@ -46,9 +126,11 @@ class LbPendingConnectionUpdateRace(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: LbPendingConnectionUpdateRaceParams):
-        from nika.net_env.p4_dc_gateway.l4_lb import set_learning_delay
+        from nika.net_env.p4_dc_gateway.l4_lb import set_agent_config
 
-        set_learning_delay(self.runtime, params.host_name, params.learning_delay_ms)
+        set_agent_config(
+            self.runtime, params.host_name, learning_delay_ms=params.learning_delay_ms
+        )
         # The agent rereads its configuration once a second.
         deadline = time.time() + 10
         while time.time() < deadline:
@@ -96,6 +178,11 @@ class SnatPortPoolExhaustion(ProblemBase):
     TAGS = ["vpn", "http", "nat"]
     native_router_operations = frozenset({"add_source_nat", "source_nat_rules"})
     Params = SnatPortPoolExhaustionParams
+    SYMPTOM_WORKLOAD = NAT_SESSIONS
+
+    @classmethod
+    def symptom_workload_target(cls, inject):
+        return (inject.get("host_name") or "", inject.get("source_prefix") or "")
 
     BENCHMARK_TARGETS = "canonical"
 
@@ -127,15 +214,12 @@ class SnatPortPoolExhaustion(ProblemBase):
                 to_ports=f"{params.port_start}-{params.port_end}",
             )
             return
+        # A port-restricted rule placed ahead of the site's own SNAT rule in
+        # the edge's POSTROUTING chain, as an operator edit would leave it; a
+        # separate chain would exist only on this edge and stand out.
         self.runtime.exec(
             params.host_name,
-            "nft add chain ip nat snat_outbound "
-            "'{ type nat hook postrouting priority 99 ; policy accept; }' 2>/dev/null || true",
-        )
-        self.runtime.exec(params.host_name, "nft flush chain ip nat snat_outbound")
-        self.runtime.exec(
-            params.host_name,
-            f"nft add rule ip nat snat_outbound ip protocol tcp "
+            f"nft insert rule ip nat POSTROUTING ip protocol tcp "
             f"ip saddr {params.source_prefix} "
             f"snat to {params.public_ip}:{params.port_start}-{params.port_end}",
         )
@@ -194,6 +278,11 @@ class NatMappingRemovedWithoutDrain(ProblemBase):
         }
     )
     Params = NatMappingRemovedWithoutDrainParams
+    SYMPTOM_WORKLOAD = NAT_SESSIONS
+
+    @classmethod
+    def symptom_workload_target(cls, inject):
+        return (inject.get("host_name") or "", inject.get("source_prefix") or "")
 
     BENCHMARK_TARGETS = "canonical"
 
@@ -230,13 +319,27 @@ class NatMappingRemovedWithoutDrain(ProblemBase):
             f"ip -4 addr show dev {params.wan_interface}; "
             f"conntrack -L -p tcp --reply-dst {params.nat_ip_a} -o extended 2>/dev/null || true",
         )
+        # Renumber the prefix's own SNAT rule to the second address, then
+        # withdraw the first address without draining its mappings.
+        chain = self.runtime.exec(
+            params.host_name, "nft -a list chain ip nat POSTROUTING"
+        )
+        handles = [
+            match.group(1)
+            for line in chain.splitlines()
+            if f"ip saddr {params.source_prefix} " in line
+            and f"snat to {params.nat_ip_a}" in line
+            and (match := re.search(r"# handle (\d+)", line))
+        ]
+        if not handles:
+            raise RuntimeError(
+                f"no SNAT rule for {params.source_prefix} to {params.nat_ip_a} "
+                f"on {params.host_name}"
+            )
         self.runtime.exec(
             params.host_name,
-            "nft add chain ip nat snat_egress "
-            "'{ type nat hook postrouting priority 98 ; policy accept; }' 2>/dev/null || true; "
-            "nft flush chain ip nat snat_egress; "
-            f"nft add rule ip nat snat_egress ip protocol tcp ip saddr {params.source_prefix} "
-            f"snat to {params.nat_ip_b}; "
+            f"nft replace rule ip nat POSTROUTING handle {handles[0]} "
+            f"ip saddr {params.source_prefix} snat to {params.nat_ip_b}; "
             f"ip addr del {params.nat_ip_a}/32 dev {params.wan_interface}",
         )
         self.runtime.exec(
@@ -276,11 +379,19 @@ class NatMappingRemovedWithoutDrain(ProblemBase):
             params.host_name,
             f"conntrack -L -p tcp --reply-dst {params.nat_ip_a} -o extended 2>/dev/null || true",
         )
+        # Other LANs may still translate to NAT_IP_A; only the moved prefix counts.
+        inside = ipaddress.ip_network(params.source_prefix, strict=False)
+        moved = [
+            line
+            for line in entries.splitlines()
+            if (match := re.search(r"\bsrc=(\S+)", line))
+            and ipaddress.ip_address(match.group(1)) in inside
+        ]
         return build_verify_result(
             self.root_cause_name,
             params.nat_ip_a not in addresses
             and params.nat_ip_b in addresses
-            and not entries.strip(),
+            and not moved,
             {
                 "edge": params.host_name,
                 "before": getattr(self, "_before", ""),

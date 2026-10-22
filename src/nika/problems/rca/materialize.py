@@ -92,11 +92,12 @@ def ground_truth_for_case(
     scenario: str,
     topo_size: str = "",
     net_env: Any = None,
+    release: str | None = None,
 ) -> ProblemGroundTruth:
     from nika.problems.rca.inventory import load_offline_net_env
     from nika.problems.registry import get_problem_class
 
-    cls = get_problem_class(problem, scenario)
+    cls = get_problem_class(problem, scenario, release)
     if cls is None:
         raise UnresolvedRootCauseError(f"Unknown failure {problem!r}.")
     env = net_env if net_env is not None else load_offline_net_env(scenario, topo_size)
