@@ -117,6 +117,12 @@ business VRF imports into default-table origins and leaves VRF-local tables
 unmodeled. The comparison covers only what the projection models; OSPF network
 type, timers and the community types sent to peers are not compared.
 
+With `--device-profile iosxr`, `dc_clos`, `campus_lan` and `enterprise_branch`
+compare the eligible XR routers and the remaining FRR routers in one snapshot.
+netlab generates those routers as `iosxr` devices; NIKA appends the static routes,
+eBGP multipath and open eBGP policies of their FRR design, which the pinned XR
+templates do not emit.
+
 ## Reuse a saved construction
 
 Load the original deployment choices and completed parameters into the normal startup API:

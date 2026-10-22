@@ -318,6 +318,7 @@ The same construction path covers these existing routing sketches:
 | ISP RouterOS | OSPF; no BGP, iBGP RR or eBGP | RouterOS exact-prefix filters and local preference |
 | Clos and campus FRR | Ethernet OSPF or eBGP, including solved export policies | Linux addressing, switching and services |
 | Enterprise FRR | Tunnel-endpoint BGP and prefix/preference policies | WireGuard lifecycle and existing default-to-business VRF imports |
+| Clos, campus and enterprise with IOS XR routers | The same sketches, with eligible routers generated as netlab `iosxr` devices | Static routes, eBGP multipath and open eBGP policies on the XR routers |
 | SR Linux BGP fabric | IPv4 BGP and solved export policies | Existing IPv6 interface addressing |
 | Direct IOS XR and RouterOS BGP | Fixed addressed peers and connected origins | RouterOS exact-prefix export filters |
 | FRR OSPF/eBGP security profiles | Base interfaces, protocols, origins and ordinary policies | Existing RPKI/RTBH policy fragments and runtime attachments |
