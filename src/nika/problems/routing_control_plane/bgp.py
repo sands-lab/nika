@@ -9,6 +9,7 @@ from nika.net_env.isp.bgp.frr import EXPORT_DENY_PREFIX_LIST
 from nika.problems.support.inject_resolve import resolve_victim_host_ip
 from nika.problems.support.polling import wait_until
 from nika.problems.support.routeros import is_routeros, ros, ros_rows
+from nika.problems.support.router_ops import RouterFaultOps, router_fault_ops
 from nika.problems.rca import node_resource
 from nika.problems.base import (
     FailureDomain,
@@ -90,6 +91,10 @@ class BGPAsnMisconfig(ProblemBase):
     description = "BGP local ASN is misconfigured relative to peer expectation."
     effect_protocol = "bgp"
     TAGS: str = ["bgp"]
+    INCOMPATIBLE_SCENARIOS = {
+        "routeros_simple_bgp": "The injector reads and edits the FRR BGP "
+        "configuration, which RouterOS routers do not have."
+    }
     supported_backends = ("kathara", "containerlab")
 
     Params = BGPAsnMisconfigParams
@@ -147,8 +152,9 @@ class BGPAsnMisconfig(ProblemBase):
         if is_routeros(self.net_env, params.host_name):
             self._inject_asn_misconfig_routeros(params)
             return
-        if self.runtime.uses_iosxr_router(params.host_name):
-            self._inject_asn_misconfig_iosxr(params)
+        ops = router_fault_ops(self, params.host_name)
+        if ops is not None:
+            self._inject_asn_misconfig_native(params, ops)
             return
         as_number = self.runtime.frr_get_bgp_asn_number(params.host_name)
         wrong_asn = as_number + ASN_MISCONFIG_OFFSET
@@ -237,20 +243,17 @@ class BGPAsnMisconfig(ProblemBase):
             f"from ASN {as_number} to {wrong_asn} (RouterOS)."
         )
 
-    def _inject_asn_misconfig_iosxr(self, params: BGPAsnMisconfigParams) -> None:
-        as_number = self.runtime.iosxr_get_bgp_asn_number(params.host_name)
+    def _inject_asn_misconfig_native(
+        self, params: BGPAsnMisconfigParams, ops: RouterFaultOps
+    ) -> None:
+        as_number = ops.bgp_asn()
         wrong_asn = as_number + ASN_MISCONFIG_OFFSET
-        self.runtime.iosxr_set_bgp_asn(params.host_name, wrong_asn)
-        wait_until(
-            lambda: (
-                self.runtime.iosxr_get_bgp_asn_number(params.host_name) == wrong_asn
-            ),
-            8,
-        )
-        running = self.runtime.iosxr_get_bgp_asn_number(params.host_name)
+        ops.set_bgp_asn(wrong_asn)
+        wait_until(lambda: ops.bgp_asn() == wrong_asn, 8)
+        running = ops.bgp_asn()
         if running != wrong_asn:
             raise RuntimeCapabilityError(
-                f"{type(self).__name__}: IOS-XR on {params.host_name!r} "
+                f"{type(self).__name__}: {ops.profile} on {params.host_name!r} "
                 f"did not apply ASN change ({as_number} -> {wrong_asn}); "
                 f"running={running}."
             )
@@ -258,7 +261,7 @@ class BGPAsnMisconfig(ProblemBase):
         self._wrong_asn = wrong_asn
         self.logger.info(
             f"Injected BGP ASN misconfiguration on {params.host_name} "
-            f"from ASN {as_number} to {wrong_asn} (IOS-XR)."
+            f"from ASN {as_number} to {wrong_asn} ({ops.profile})."
         )
 
     def verify_fault(self, params: BGPAsnMisconfigParams) -> dict:
@@ -300,14 +303,16 @@ class BGPAsnMisconfig(ProblemBase):
         return int(match.group(1)) if match else None
 
     def _verify_asn_misconfig_kathara(self, params: BGPAsnMisconfigParams) -> dict:
-        if self.runtime.uses_iosxr_router(params.host_name):
-            return self._verify_asn_misconfig_iosxr(params)
+        routeros = is_routeros(self.net_env, params.host_name)
+        ops = None if routeros else router_fault_ops(self, params.host_name)
+        if ops is not None:
+            return self._verify_asn_misconfig_native(params, ops)
         orig_asn = getattr(self, "_orig_asn", None)
         expected_wrong = getattr(self, "_wrong_asn", None)
         # Only the running bgpd counts: the on-disk file is what inject wrote.
         running_asn = (
             self._routeros_asn(params.host_name)
-            if is_routeros(self.net_env, params.host_name)
+            if routeros
             else self._running_asn(params.host_name)
         )
         verified = expected_wrong is not None and running_asn == expected_wrong
@@ -322,11 +327,15 @@ class BGPAsnMisconfig(ProblemBase):
             },
         )
 
-    def _verify_asn_misconfig_iosxr(self, params: BGPAsnMisconfigParams) -> dict:
+    def _verify_asn_misconfig_native(
+        self, params: BGPAsnMisconfigParams, ops: RouterFaultOps
+    ) -> dict:
         orig_asn = getattr(self, "_orig_asn", None)
         wrong_asn = getattr(self, "_wrong_asn", None)
         try:
-            running_asn = self.runtime.iosxr_get_bgp_asn_number(params.host_name)
+            running_asn = ops.bgp_asn()
+        except RuntimeCapabilityError:
+            raise
         except Exception:
             running_asn = None
         verified = (wrong_asn is not None and running_asn == wrong_asn) or (
@@ -383,7 +392,9 @@ class BGPMissingAdvertise(ProblemBase):
     TAGS: str = ["bgp"]
     INCOMPATIBLE_SCENARIOS = {
         "min3clos": "The IGP also carries the host subnets, so peers keep a route "
-        "after BGP stops advertising it."
+        "after BGP stops advertising it.",
+        "routeros_simple_bgp": "The injector reads and edits the FRR BGP "
+        "configuration, which RouterOS routers do not have.",
     }
     supported_backends = ("kathara", "containerlab")
 
@@ -518,8 +529,9 @@ class BGPMissingAdvertise(ProblemBase):
         if is_routeros(self.net_env, params.host_name):
             self._inject_missing_adv_routeros(params)
             return
-        if self.runtime.uses_iosxr_router(params.host_name):
-            self._inject_missing_adv_iosxr(params)
+        ops = router_fault_ops(self, params.host_name)
+        if ops is not None:
+            self._inject_missing_adv_native(params, ops)
             return
         if self._is_enterprise_branch():
             self._inject_missing_adv_enterprise_redistribute(params)
@@ -597,31 +609,33 @@ class BGPMissingAdvertise(ProblemBase):
             },
         )
 
-    def _inject_missing_adv_iosxr(self, params: BGPMissingAdvertiseParams) -> None:
+    def _inject_missing_adv_native(
+        self, params: BGPMissingAdvertiseParams, ops: RouterFaultOps
+    ) -> None:
         if params.prefix:
             prefix = str(ipaddress.ip_network(params.prefix, strict=False))
-            self.runtime.iosxr_withdraw_bgp_prefix(params.host_name, prefix)
+            ops.withdraw_bgp_network(prefix)
             self._withdrawn_prefix = prefix
-            self._inject_mode = "iosxr_prefix"
+            self._inject_mode = "native_prefix"
             self.logger.info(
                 f"Injected BGP missing route on {params.host_name} "
-                f"(IOS-XR withdrew network {prefix})."
+                f"({ops.profile} withdrew network {prefix})."
             )
             return
-        prefixes = self.runtime.iosxr_list_bgp_networks(params.host_name)
+        prefixes = ops.bgp_networks()
         if not prefixes:
             raise RuntimeCapabilityError(
                 f"{type(self).__name__}: no BGP network statements on "
-                f"{params.host_name!r} to withdraw (IOS-XR)."
+                f"{params.host_name!r} to withdraw ({ops.profile})."
             )
         for prefix in prefixes:
-            self.runtime.iosxr_withdraw_bgp_prefix(params.host_name, prefix)
-        self._inject_mode = "iosxr_bgp_network"
+            ops.withdraw_bgp_network(prefix)
+        self._inject_mode = "native_bgp_network"
         if len(prefixes) == 1:
             self._withdrawn_prefix = prefixes[0]
         self.logger.info(
             f"Injected BGP missing route on {params.host_name} "
-            f"(IOS-XR withdrew BGP networks {prefixes})."
+            f"({ops.profile} withdrew BGP networks {prefixes})."
         )
 
     def _inject_missing_adv_prefix(
@@ -795,8 +809,9 @@ class BGPMissingAdvertise(ProblemBase):
     def _verify_missing_adv_kathara(self, params: BGPMissingAdvertiseParams) -> dict:
         if is_routeros(self.net_env, params.host_name):
             return self._verify_missing_adv_routeros(params)
-        if self.runtime.uses_iosxr_router(params.host_name):
-            return self._verify_missing_adv_iosxr(params)
+        ops = router_fault_ops(self, params.host_name)
+        if ops is not None:
+            return self._verify_missing_adv_native(params, ops)
         mode = self._inject_mode
         if mode is None:
             if self._is_enterprise_branch():
@@ -874,14 +889,16 @@ class BGPMissingAdvertise(ProblemBase):
             },
         )
 
-    def _verify_missing_adv_iosxr(self, params: BGPMissingAdvertiseParams) -> dict:
+    def _verify_missing_adv_native(
+        self, params: BGPMissingAdvertiseParams, ops: RouterFaultOps
+    ) -> dict:
         mode = self._inject_mode or (
-            "iosxr_prefix" if params.prefix else "iosxr_bgp_network"
+            "native_prefix" if params.prefix else "native_bgp_network"
         )
         prefix = params.prefix or self._withdrawn_prefix
-        if mode == "iosxr_prefix" and prefix:
+        if mode == "native_prefix" and prefix:
             prefix = str(ipaddress.ip_network(prefix, strict=False))
-            verified = self.runtime.iosxr_bgp_prefix_withdrawn(params.host_name, prefix)
+            verified = prefix not in set(ops.bgp_networks())
             return build_verify_result(
                 fault_type=self.root_cause_name,
                 verified=verified,
@@ -891,7 +908,7 @@ class BGPMissingAdvertise(ProblemBase):
                     "prefix": prefix,
                 },
             )
-        networks = self.runtime.iosxr_list_bgp_networks(params.host_name)
+        networks = ops.bgp_networks()
         verified = len(networks) == 0
         return build_verify_result(
             fault_type=self.root_cause_name,

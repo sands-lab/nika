@@ -27,7 +27,7 @@ for the full package contract.
 ## 1. Read the run
 
 From `<result_dir>/run.json`, record: `official` (must be `true`), `version`,
-`split`, `agent_type`, `model`, `llm_provider`, `max_steps`,
+`split`, `agent_type`, `model`, `llm_provider`, `max_steps`, `reasoning_effort`,
 `case_timeout_sec`, `nika_git_commit`, `nika_git_dirty`, `run_id`.
 
 Stop and report if `official` is not true. Note a dirty NIKA tree in the README.

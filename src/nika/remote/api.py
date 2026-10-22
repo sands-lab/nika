@@ -20,6 +20,9 @@ from nika.remote.handlers import (
     handle_mcp_attach,
     handle_mcp_detach,
     handle_session_containers,
+    handle_session_log,
+    handle_session_rebind,
+    handle_session_verify,
 )
 from nika.remote.protocol import (
     EnvStartRequest,
@@ -28,6 +31,7 @@ from nika.remote.protocol import (
     HealthResponse,
     McpAttachRequest,
     SessionCloseRequest,
+    SessionRebindRequest,
 )
 
 
@@ -170,6 +174,42 @@ async def session_artifacts(request: Request) -> Response:
         return _error_response(exc, status=400)
 
 
+async def session_log(request: Request) -> JSONResponse:
+    session_id = request.path_params["session_id"]
+    try:
+        offset = int(request.query_params.get("offset", "0"))
+        result = await run_in_threadpool(
+            handle_session_log, session_id, request.path_params["name"], offset
+        )
+        return JSONResponse(result.model_dump())
+    except FileNotFoundError as exc:
+        return _error_response(exc, status=404)
+    except Exception as exc:  # noqa: BLE001
+        return _error_response(exc, status=400)
+
+
+async def session_rebind(request: Request) -> JSONResponse:
+    session_id = request.path_params["session_id"]
+    try:
+        body = SessionRebindRequest.model_validate(await request.json())
+        result = await run_in_threadpool(handle_session_rebind, session_id, body)
+        return JSONResponse(result.model_dump())
+    except FileNotFoundError as exc:
+        return _error_response(exc, status=404)
+    except Exception as exc:  # noqa: BLE001
+        return _error_response(exc, status=400)
+
+
+async def session_verify(request: Request) -> JSONResponse:
+    session_id = request.path_params["session_id"]
+    try:
+        return JSONResponse(await run_in_threadpool(handle_session_verify, session_id))
+    except FileNotFoundError as exc:
+        return _error_response(exc, status=404)
+    except Exception as exc:  # noqa: BLE001
+        return _error_response(exc, status=400)
+
+
 def create_remote_app() -> Starlette:
     """Build the remote daemon ASGI application (no shared-token auth)."""
     routes = [
@@ -185,6 +225,13 @@ def create_remote_app() -> Starlette:
         Route("/v1/sessions/wipe", sessions_wipe, methods=["POST"]),
         Route("/v1/sessions/{session_id}", session_get, methods=["GET"]),
         Route("/v1/sessions/{session_id}/close", session_close, methods=["POST"]),
+        Route("/v1/sessions/{session_id}/rebind", session_rebind, methods=["POST"]),
+        Route("/v1/sessions/{session_id}/verify", session_verify, methods=["POST"]),
+        Route(
+            "/v1/sessions/{session_id}/logs/{name}",
+            session_log,
+            methods=["GET"],
+        ),
         Route(
             "/v1/sessions/{session_id}/containers",
             session_containers,

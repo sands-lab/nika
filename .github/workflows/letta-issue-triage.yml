@@ -20,11 +20,14 @@ jobs:
         with:
           fetch-depth: 0
       # Same install as ci.yml's install-benchmark-e2e, so the agent can run NIKA.
-      # Runners ship Docker; their Azure kernels keep vrf.ko in linux-modules-extra.
+      # Runners ship Docker. Older Azure kernels keep vrf.ko only in
+      # linux-modules-extra, which newer runner kernels may not publish.
       - name: Install host prerequisites
         run: |
-          sudo apt-get update
-          sudo apt-get install -y "linux-modules-extra-$(uname -r)"
+          if ! sudo modprobe -n vrf; then
+            sudo apt-get update
+            sudo apt-get install -y "linux-modules-extra-$(uname -r)"
+          fi
       # Labs build or pull their images on first deploy.
       - name: Install NIKA
         run: ./scripts/install.sh --skip-images

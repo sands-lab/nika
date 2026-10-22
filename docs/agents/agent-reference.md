@@ -50,7 +50,7 @@ Configure shared values in `config/nika.yaml` or override them on `nika agent ru
 | `-n`, `--max-steps` | `agent.max_steps` | `20`; LLM turns per phase, for every agent (see [Step limit](#step-limit)) |
 | (run config only) | `agent.timeout_sec` | `1800`; wall-clock budget for the whole agent run, for every agent |
 | (run config only) | `agent.max_tokens` | `8192`; output-token cap per model response, for every LLM agent except `cli.codex`, `sdk.codex_sdk`, and `community.sade` |
-| `-e`, `--reasoning-effort` | `agent.reasoning_effort` | None |
+| `-e`, `--reasoning-effort` | `agent.reasoning_effort` | `medium` for built-in harnesses; see [Reasoning effort](#reasoning-effort) |
 | `--base-url` | `agent.base_url` | None |
 
 See [Run configuration](../operations/configuration.md) for precedence, defaults, and validation rules.
@@ -92,7 +92,11 @@ Every agent runs in a sandbox, on Docker Sandboxes or E2B. The lab and MCP gatew
 
 ## Reasoning effort
 
-`byo.langgraph`, `byo.autogen`, `cli.codex`, and `sdk.codex_sdk` accept `none`, `minimal`, `low`, `medium`, `high`, or `xhigh`. `byo.mcp_agent` accepts `none`, `low`, `medium`, or `high`. Claude-family agents ignore the shared `-e` option.
+`byo.langgraph`, `byo.autogen`, `cli.codex`, and `sdk.codex_sdk` accept `none`, `minimal`, `low`, `medium`, `high`, or `xhigh`. `byo.mcp_agent` accepts `none`, `low`, `medium`, or `high`. `cli.claude` and `sdk.claude_sdk` pass it to Claude Code's `--effort` (`minimal` becomes `low`; `none` omits it).
+
+When neither `-e` nor `agent.reasoning_effort` sets a value, these built-in harnesses use `medium`. `community.sade` and added agents get no default: their authors configure reasoning themselves, and the agent receives `agent.reasoning_effort` as set. The effective value is recorded in the session, in the benchmark `run.json`, and in the leaderboard package identity.
+
+On the `custom` provider, `byo.langgraph` enables thinking and sends `reasoning_effort` only for `low`, `medium`, and `high`, the levels OpenAI-compatible servers such as vLLM accept. On `deepseek`, `byo.langgraph` and `byo.mcp_agent` do not send it.
 
 ## Sandbox credentials and dependencies
 

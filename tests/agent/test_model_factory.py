@@ -105,7 +105,12 @@ def test_load_model_openai_passes_max_tokens() -> None:
     assert ctor.call_args.kwargs["max_tokens"] == 8192
 
 
-def test_load_model_custom_enables_thinking_extra_body() -> None:
+@pytest.mark.parametrize(
+    ("effort", "body_effort"), [("low", {"reasoning_effort": "low"}), ("xhigh", {})]
+)
+def test_load_model_custom_enables_thinking_extra_body(
+    effort: str, body_effort: dict
+) -> None:
     fake = MagicMock(name="ReasoningChatOpenAI")
     with (
         patch.dict(
@@ -116,12 +121,15 @@ def test_load_model_custom_enables_thinking_extra_body() -> None:
         load_model(
             llm_provider="custom",
             model="qwen",
-            reasoning_effort="low",
+            reasoning_effort=effort,
             max_retries=3,
         )
 
     kwargs = ctor.call_args.kwargs
-    assert kwargs["extra_body"] == {"chat_template_kwargs": {"enable_thinking": True}}
+    assert kwargs["extra_body"] == {
+        "chat_template_kwargs": {"enable_thinking": True},
+        **body_effort,
+    }
     assert "reasoning_effort" not in kwargs
     assert kwargs["max_retries"] == 0
     assert fake._attempt_retries == 3
@@ -161,6 +169,7 @@ def test_load_model_custom_sends_max_tokens_in_body() -> None:
     kwargs = ctor.call_args.kwargs
     assert kwargs["extra_body"] == {
         "chat_template_kwargs": {"enable_thinking": True},
+        "reasoning_effort": "low",
         "max_tokens": 8192,
     }
     assert "max_tokens" not in kwargs

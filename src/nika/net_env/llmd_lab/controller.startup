@@ -11,7 +11,8 @@ chmod +x /usr/local/bin/helm
 stage_run "apply MetalLB" kubectl --request-timeout=30s apply -f /k8s/metallb.yaml
 stage_ready "MetalLB controller" -n metallb-system --selector component=controller
 stage_ready "MetalLB speakers" -n metallb-system --selector component=speaker
-stage_run "apply MetalLB addresses" kubectl --request-timeout=30s apply -f /k8s/metallb-l2.yaml
+# The webhook serves shortly after the controller pod is Ready; retry until it admits.
+stage_wait "apply MetalLB addresses" 120 kubectl --request-timeout=30s apply -f /k8s/metallb-l2.yaml
 stage_run "apply Gateway API" kubectl --request-timeout=30s apply -f /k8s/gateway-api-base.yaml
 stage_run "apply Inference API" kubectl --request-timeout=30s apply -f /k8s/gateway-api-inference.yaml
 

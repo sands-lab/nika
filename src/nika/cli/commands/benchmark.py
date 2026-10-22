@@ -427,9 +427,9 @@ def benchmark_run(
         "-e",
         "--reasoning-effort",
         help=(
-            "Reasoning effort for byo agents (openai/custom; anthropic on "
-            "langgraph), cli.codex, and sdk.codex_sdk: none, minimal, low, "
-            "medium, high, xhigh. byo.mcp_agent supports none/low/medium/high."
+            "Reasoning effort for byo, Codex, and Claude agents: none, minimal, "
+            "low, medium, high, xhigh (default: agent.reasoning_effort, else "
+            "medium). byo.mcp_agent supports none/low/medium/high."
         ),
     ),
     access_role: str | None = typer.Option(
