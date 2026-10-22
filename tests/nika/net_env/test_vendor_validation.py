@@ -362,3 +362,18 @@ def test_routeros_ospf_reads_the_converted_port_and_designed_area() -> None:
         instances=identity["instances"],
         areas="0 name=area-1 instance=CORE area-id=0.0.0.2",
     )
+
+
+def test_routeros_isis_neighbors_parse_system_id_and_port() -> None:
+    from nika.net_env.vendor_validation import _routeros_isis_adjacencies
+
+    # Recorded RouterOS 7.21.5 ``/routing/isis/neighbor/print terse`` rows.
+    output = (
+        "0 D instance=CORE interface=ether2 snpa=EE:6C:89:6D:43:58 "
+        "srcid=0000.0aff.0003 state=up\r\n"
+        "1 D instance=CORE interface=ether3 snpa=DA:B2:5A:4C:88:73 "
+        "srcid=0000.0aff.0002 state=init"
+    )
+    assert _routeros_isis_adjacencies(output) == {("0000.0aff.0003", "ether2")}
+    with pytest.raises(ValueError):
+        _routeros_isis_adjacencies("0 D instance=CORE state=up")

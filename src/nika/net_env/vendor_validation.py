@@ -345,18 +345,22 @@ def _ospf_established(
 
 
 def _routeros_isis_adjacencies(output: str) -> set[tuple[str, str]]:
-    """Return ``(system id, port)`` of Up Level-2 RouterOS IS-IS neighbors."""
+    """Return ``(system id, port)`` of Up RouterOS IS-IS neighbors.
+
+    RouterOS reports no level per neighbor; the analyzed configuration runs
+    Level-2 circuits only.
+    """
     from nika.net_env.utils.routeros.parse import routeros_terse_rows
 
     rows = routeros_terse_rows(output)
     if not rows and output.strip():
         raise ValueError("Unrecognized RouterOS IS-IS neighbor output")
-    if any(not {"interface", "srcid", "state", "level"} <= row.keys() for row in rows):
+    if any(not {"interface", "srcid", "state"} <= row.keys() for row in rows):
         raise ValueError("Incomplete RouterOS IS-IS neighbor identity")
     return {
         (row["srcid"], row["interface"].split("%", 1)[0])
         for row in rows
-        if row["state"] == "up" and row["level"] in {"l2", "2"}
+        if row["state"] == "up" and row.get("level", "l2") in {"l2", "2"}
     }
 
 
