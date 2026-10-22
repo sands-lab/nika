@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
 from pathlib import Path
 from typing import Any
@@ -35,7 +37,10 @@ from nika.agents.sandbox.sbx.policy import (
     allow_mcp_gateway,
     allow_network_hosts,
     deny_mcp_gateway,
+    deny_network_resources,
     ensure_pypi_network_policy,
+    revoke_pypi_network_policy,
+    sandbox_network_lockdown,
     sanitize_sandbox_name,
 )
 from nika.agents.sandbox.sbx.proxy import (
@@ -44,6 +49,8 @@ from nika.agents.sandbox.sbx.proxy import (
 )
 from nika.agents.sandbox.sbx.wheels import install_agent_packages_in_sandbox
 from nika.agents.sandbox.wheels import stage_wheels
+
+logger = logging.getLogger(__name__)
 
 # Covers a first-run template image pull; a normal create takes under a minute.
 _SBX_CREATE_TIMEOUT_SEC = 600
@@ -87,9 +94,6 @@ class SbxBackend(SandboxBackend):
         ensure_sbx_proxy_config(self._upstream_proxy)
         require_sbx_authenticated()
         ensure_sbx_ready()
-        # Only an added agent's declared hosts; models are reached through the
-        # proxy on the host bridge.
-        allow_network_hosts(*get_agent_spec(agent_type).egress)
         # The proxy holds the key (or subscription login), adapts requests for
         # custom endpoints, and records every call. The microVM reaches it on
         # the host bridge, and the per-session token keeps other clients out.
@@ -152,14 +156,43 @@ class SbxBackend(SandboxBackend):
             with sbx_host_lock("create"):
                 run_sbx_checked(self._create_command, timeout=_SBX_CREATE_TIMEOUT_SEC)
             spec = get_agent_spec(agent_type)
-            if spec.packages or not self.config.offline_sdk_wheels:
-                ensure_pypi_network_policy()
-            install_agent_packages_in_sandbox(
-                sandbox_name=sandbox_name,
-                workspace_dir=workspace_dir,
-                requirements=spec.requirements,
-                packages=spec.packages,
-                offline=self.config.offline_sdk_wheels,
+            use_pypi = bool(spec.packages) or not self.config.offline_sdk_wheels
+            # The sbx policy is shared with the user's other sandboxes, so the
+            # global allow rules stay; this sandbox denies each of them and
+            # reaches only the MCP gateway, the model proxy, and an added
+            # agent's declared egress. Package indexes stay open until the
+            # install finishes.
+            proxy = (
+                (f"localhost:{self._model_proxy_port}",)
+                if self._model_proxy_port is not None
+                else ()
+            )
+            rest, install = sandbox_network_lockdown(
+                sandbox_name,
+                keep_hosts=spec.egress,
+                keep_resources=proxy,
+                install_pypi=use_pypi,
+            )
+            allow_network_hosts(sandbox_name, *spec.egress)
+            if use_pypi:
+                ensure_pypi_network_policy(sandbox_name)
+            with ThreadPoolExecutor(max_workers=1) as pool:
+                denied = pool.submit(deny_network_resources, sandbox_name, rest)
+                install_agent_packages_in_sandbox(
+                    sandbox_name=sandbox_name,
+                    workspace_dir=workspace_dir,
+                    requirements=spec.requirements,
+                    packages=spec.packages,
+                    offline=self.config.offline_sdk_wheels,
+                )
+                denied.result()
+            if use_pypi:
+                revoke_pypi_network_policy(sandbox_name)
+            deny_network_resources(sandbox_name, install)
+            logger.info(
+                "Denied %d network resources in sbx sandbox %s",
+                len(rest) + len(install),
+                sandbox_name,
             )
         except BaseException:
             if not self.config.keep_container:
