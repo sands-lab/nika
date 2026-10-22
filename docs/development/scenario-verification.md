@@ -326,7 +326,9 @@ NetComplete supplies the solved values; netlab supplies protocol and policy synt
 Prefix filters and local preference use upstream's [routing module](https://netlab.tools/module/routing/)
 and [BGP policy plugin](https://netlab.tools/plugins/bgp.policy/). The latter binds
 eBGP policies only. NIKA attaches the same upstream-generated admission policies
-to the actual iBGP peers in the fixed ISP sketch. RouterOS lacks this generic
+to the actual iBGP peers in the fixed ISP sketch, as its native renderers do. In
+the FRR eBGP sketch, iBGP peers keep only the import policy and use next-hop-self,
+so leak prefixes still reach the AS borders. RouterOS lacks this generic
 policy module, so NIKA retains its existing finite filter implementation.
 The summary records these retained configuration responsibilities. Unsupported
 protocol or policy combinations raise an error.

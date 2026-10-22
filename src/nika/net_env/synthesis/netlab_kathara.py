@@ -121,13 +121,12 @@ def kathara_topology(env, parameters=None):
             if len(matches) > 1:
                 raise ValueError("Overlapping OSPF area bindings are not covered")
             if matches:
-                endpoint["ospf"] = {
-                    "area": matches.pop(),
-                    "cost": costs.get(
-                        (name, interface), configured_costs.get(interface, 1)
-                    ),
-                    "passive": False,
-                }
+                endpoint["ospf"] = {"area": matches.pop(), "passive": False}
+                cost = costs.get((name, interface), configured_costs.get(interface))
+                # Without a solved or configured cost, keep FRR's bandwidth-derived
+                # default, as the native configuration does.
+                if cost is not None:
+                    endpoint["ospf"]["cost"] = cost
             elif areas:
                 endpoint["ospf"] = False
             if peers:
