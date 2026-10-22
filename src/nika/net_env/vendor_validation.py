@@ -25,6 +25,7 @@ IOSXR_BGP_COMMAND = "/pkg/bin/xr_cli 'show bgp summary'"
 ROUTEROS_BGP_COMMAND = CLI_COMMAND.format(
     command="/routing/bgp/session/print terse where established=yes"
 )
+ROUTEROS_ISIS_COMMAND = CLI_COMMAND.format(command="/routing/isis/neighbor/print terse")
 
 
 @dataclass(frozen=True)
@@ -275,7 +276,13 @@ def _ospf_established(
     node = next(n for n in plan.nodes if n.device_name == adjacency.local_node)
     interface = next(i for i in node.interfaces if i.address == adjacency.local_address)
     index = int(interface.name.removeprefix("eth"))
+    # The declared area, else the interface's designed area (backbone for ISP plans).
+    value = adjacency.ospf_area or getattr(interface, "ospf_area", None) or "0"
+    area = IPv4Address(int(value) if value.isdigit() else value)
     if platform == "routeros":
+        # ISP routers reserve container eth0, so ethN is etherN+1; converted
+        # routers name their port.
+        port = getattr(interface, "port", None) or f"ether{index + 1}"
         if instances is None or areas is None:
             raise ValueError(
                 "RouterOS OSPF identity requires instance and area observations"
@@ -289,7 +296,7 @@ def _ospf_established(
             row["name"]
             for row in _ros_rows(areas, "area-id")
             if row.get("instance") in local_instances
-            and row.get("area-id") == "0.0.0.0"
+            and row.get("area-id") == str(area)
         }
         rows = _ros_rows(output, "router-id")
         if any(
@@ -300,7 +307,7 @@ def _ospf_established(
         return any(
             row.get("router-id") == adjacency.remote_router_id
             and row.get("address", "").split("%", 1)[0] == adjacency.remote_address
-            and row.get("interface", "").split("%", 1)[0] == f"ether{index + 1}"
+            and row.get("interface", "").split("%", 1)[0] == port
             and row.get("state", "").lower() == "full"
             and row.get("instance") in local_instances
             and row.get("area") in local_areas
@@ -308,9 +315,6 @@ def _ospf_established(
         )
     if not re.search(r"Neighbors for OSPF|Neighbor\s+\d+\.\d+\.\d+\.\d+", output, re.I):
         raise ValueError("Unrecognized IOS XR OSPF neighbor output")
-    # The declared area, else the interface's designed area (backbone for ISP plans).
-    value = adjacency.ospf_area or getattr(interface, "ospf_area", None) or "0"
-    area = IPv4Address(int(value) if value.isdigit() else value)
     for block in re.split(r"(?m)(?=^\s*Neighbor\s+\d+\.)", output):
         identity = re.search(
             r"Neighbor\s+([\d.]+),\s+interface address\s+([\d.]+)", block, re.I
@@ -338,6 +342,37 @@ def _ospf_established(
         ):
             return True
     return False
+
+
+def _routeros_isis_adjacencies(output: str) -> set[tuple[str, str]]:
+    """Return ``(system id, port)`` of Up Level-2 RouterOS IS-IS neighbors."""
+    from nika.net_env.utils.routeros.parse import routeros_terse_rows
+
+    rows = routeros_terse_rows(output)
+    if not rows and output.strip():
+        raise ValueError("Unrecognized RouterOS IS-IS neighbor output")
+    if any(not {"interface", "srcid", "state", "level"} <= row.keys() for row in rows):
+        raise ValueError("Incomplete RouterOS IS-IS neighbor identity")
+    return {
+        (row["srcid"], row["interface"].split("%", 1)[0])
+        for row in rows
+        if row["state"] == "up" and row["level"] in {"l2", "2"}
+    }
+
+
+def _routeros_isis_system_id(plan, device: str) -> str:
+    from nika.net_env.isp.routeros import isis_identity
+
+    node = next(n for n in plan.nodes if n.device_name == device)
+    return isis_identity(node.router_id)[1]
+
+
+def _routeros_port(plan, device: str, interface: str) -> str:
+    from nika.net_env.utils.routeros.common import routeros_interface
+
+    node = next(n for n in plan.nodes if n.device_name == device)
+    planned = next((i for i in node.interfaces if i.name == interface), None)
+    return getattr(planned, "port", None) or routeros_interface(interface)
 
 
 def _native_ping_status(output: str, platform: str) -> bool:
@@ -375,20 +410,18 @@ def _supported_request(intent, platform: str, plan=None) -> VerifyCommand | None
         return VerifyCommand(adjacency.local_node, command, 30)
     if plan is not None:
         if intent.adjacency and intent.adjacency.protocol == "isis":
-            if platform != "iosxr" or intent.adjacency.local_interface is None:
+            if intent.adjacency.local_interface is None:
                 return None
+            if platform == "routeros":
+                return VerifyCommand(
+                    intent.adjacency.local_node, ROUTEROS_ISIS_COMMAND, 30
+                )
             from nika.net_env.isp.iosxr import ISIS_ADJACENCY_COMMAND
 
             return VerifyCommand(
                 intent.adjacency.local_node, ISIS_ADJACENCY_COMMAND, 30
             )
         if intent.adjacency and intent.adjacency.protocol == "ospf":
-            if platform == "routeros" and intent.adjacency.ospf_area not in {
-                None,
-                "0",
-                "0.0.0.0",
-            }:
-                return None
             return VerifyCommand(
                 intent.adjacency.local_node,
                 _native_command(
@@ -409,6 +442,13 @@ def _supported_request(intent, platform: str, plan=None) -> VerifyCommand | None
                 )
             else:
                 command = f"/routing/route/print detail without-paging where dst-address={expected.prefix} active=yes"
+                node = next(
+                    (n for n in plan.nodes if n.device_name == expected.node), None
+                )
+                tables = dict(getattr(node, "route_tables", ()))
+                vrf = getattr(expected, "vrf", "default")
+                if vrf in tables:
+                    command += f" routing-table={tables[vrf]}"
                 if intent.bgp_route:
                     command += " bgp=yes"
             return VerifyCommand(expected.node, _native_command(platform, command), 30)
@@ -530,6 +570,24 @@ def _verify_contract(
                     for path in paths
                 )
                 evidence.update(selected_as_paths=paths, expected=expected.model_dump())
+            elif (
+                intent.adjacency
+                and intent.adjacency.protocol == "isis"
+                and platform == "routeros"
+            ):
+                adjacency = intent.adjacency
+                observed = _routeros_isis_adjacencies(result.output)
+                expected = (
+                    _routeros_isis_system_id(plan, adjacency.remote_node),
+                    _routeros_port(
+                        plan, adjacency.local_node, adjacency.local_interface
+                    ),
+                )
+                passed = expected in observed
+                evidence.update(
+                    expected_adjacency=list(expected),
+                    observed_adjacencies=sorted(map(list, observed)),
+                )
             elif intent.adjacency and intent.adjacency.protocol == "isis":
                 from nika.net_env.isp.iosxr import parse_iosxr_isis_adjacencies
                 from nika.net_env.utils.iosxr.common import iosxr_interface

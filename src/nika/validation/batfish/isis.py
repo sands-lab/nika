@@ -131,7 +131,9 @@ def parse_frr_isis(node: str, config: str) -> tuple[str, dict[str, dict]]:
                 if not match or iface["metric_explicit"]:
                     reject(line)
                 metric = int(match.group(1))
-                if not 1 <= metric <= 16_777_214:
+                # Metric 0 occurs only on passive circuits (RouterOS advertises
+                # passive prefixes with metric 0); checked below.
+                if not 0 <= metric <= 16_777_214:
                     reject(line)
                 iface["metric"] = metric
                 iface["metric_explicit"] = True
@@ -189,11 +191,13 @@ def parse_frr_isis(node: str, config: str) -> tuple[str, dict[str, dict]]:
                 raise ValueError(
                     f"Incomplete disabled FRR IS-IS interface on {node}:{name}"
                 )
+        elif iface["metric"] == 0 and not iface["passive"]:
+            raise ValueError(f"IS-IS metric 0 requires a passive circuit on {node}")
         elif name == "lo":
             if (
                 not iface["passive"]
                 or iface["circuit_type"] is not None
-                or iface["metric_explicit"]
+                or (iface["metric_explicit"] and iface["metric"] != 0)
                 or iface["point_to_point"]
             ):
                 raise ValueError(f"Unsupported FRR IS-IS loopback config on {node}")

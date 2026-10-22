@@ -278,3 +278,65 @@ def _config_log_pending(text: str) -> bool:
     # Before the upload, /file get reports a missing item; before the VM
     # accepts SSH, the exec wrapper returns no output or a timeout marker.
     return "no such item" in text or text.startswith("[TIMEOUT]")
+
+
+RUNNING_CONFIG_COMMAND = CLI_COMMAND.format(command="/export terse")
+# Menus a failure or counterexample may change, grouped so that items which
+# reference each other are restored together; parents precede children.
+_RESTORED_MENUS = (
+    ("/ip firewall address-list",),
+    ("/ip firewall filter",),
+    ("/routing filter rule",),
+    ("/ip route",),
+    (
+        "/routing ospf instance",
+        "/routing ospf area",
+        "/routing ospf interface-template",
+    ),
+    ("/routing isis instance", "/routing isis interface-template"),
+    ("/routing bgp instance", "/routing bgp connection", "/routing bgp vpn"),
+)
+
+
+def routeros_restore_command(running: str) -> str:
+    """Return a shell command that restores the menus changed since ``running``.
+
+    ``running`` is the ``/export terse`` output read before a change. The
+    command reads the current export and, for each menu group whose static
+    items differ, removes those items and re-adds the saved ones. Unchanged
+    groups, addresses, interfaces and management settings are left alone.
+    """
+    import shlex
+
+    from nika.service.lab.routeros_api import MGMT_ADDR, MGMT_PASSWORD, MGMT_USER
+
+    lines = [line for line in running.splitlines() if line.startswith("/")]
+    if not any(line.startswith("/system identity ") for line in lines):
+        raise ValueError("Unrecognized RouterOS export")
+    ssh = (
+        f"sshpass -p {MGMT_PASSWORD} ssh -q -oStrictHostKeyChecking=no "
+        f"-oConnectTimeout=5 {MGMT_USER}@{MGMT_ADDR}"
+    )
+    script = [
+        "set -e",
+        f"saved={shlex.quote(chr(10).join(lines))}",
+        f'current=$({ssh} "/export terse" | tr -d "\\r")',
+        "restore=''",
+    ]
+    for menus in _RESTORED_MENUS:
+        pattern = "^(" + "|".join(m + " " for m in menus) + ")"
+        removal = "; ".join(
+            f"{menu} remove [find where !dynamic]" for menu in reversed(menus)
+        )
+        script.extend(
+            [
+                f"old=$(printf '%s\\n' \"$saved\" | grep -E {shlex.quote(pattern)} || true)",
+                f"new=$(printf '%s\\n' \"$current\" | grep -E {shlex.quote(pattern)} || true)",
+                'if [ "$old" != "$new" ]; then',
+                f'  restore="$restore{removal}; $(printf \'%s\\n\' "$old" | '
+                "sed '/^$/d' | paste -sd ';' -);\"",
+                "fi",
+            ]
+        )
+    script.append(f'[ -z "$restore" ] || {ssh} "$restore"')
+    return shlex.join(["/bin/bash", "-c", "\n".join(script)])

@@ -77,14 +77,14 @@ def _profile_limitations(deployment, features):
         reasons.append(
             "Native ISP vendor observation and configuration analysis remain required"
         )
-    native_igps = {"iosxr": {"ospf", "isis"}, "routeros": {"ospf"}}
+    native_igps = {"iosxr": {"ospf", "isis"}, "routeros": {"ospf", "isis"}}
     if deployment["device_profile"] in native_igps and (
         deployment["igp"] not in native_igps[deployment["device_profile"]]
         or deployment["bgp_mode"] not in {"none", "ibgp_rr", "ebgp"}
     ):
         reasons.append(
-            "Native ISP vendor profiles require a supported IGP (IOS XR: OSPF or "
-            "IS-IS; RouterOS: OSPF) and BGP mode"
+            "Native ISP vendor profiles require a supported IGP (OSPF or IS-IS) "
+            "and BGP mode"
         )
     if features and (
         not set(features) <= {"rpki", "rtbh"}
@@ -1202,11 +1202,12 @@ def build_benchmark_isp_experiment(
                 old_announcement = next(
                     line
                     for line in env.deployment_configs[target].splitlines()
-                    if line.startswith("/routing ospf interface-template add ")
+                    if line.startswith(f"/routing {plan.igp} interface-template add ")
                     and "interfaces=lo0 " in line
                 )
                 withdraw_native = (
-                    "/routing ospf interface-template remove [find where interfaces=lo0]",
+                    f"/routing {plan.igp} interface-template remove "
+                    "[find where interfaces=lo0]",
                 )
                 recover_native = (old_announcement,)
         role_static, role_runtime = [], []

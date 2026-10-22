@@ -137,7 +137,24 @@ def vendor_ospf_interfaces(node, config, device_profile):
 
 
 def vendor_isis_interfaces(config, device_profile):
-    """Read IS-IS interface/passive bindings from a concrete IOS XR configuration."""
+    """Read IS-IS interface/passive bindings from a concrete native configuration."""
+    if device_profile == "routeros":
+        bindings = {}
+        for line in config.splitlines():
+            if not line.startswith("/routing isis interface-template add "):
+                continue
+            parts = shlex.split(line)
+            values = dict(part.split("=", 1) for part in parts if "=" in part)
+            interface = values.get("interfaces", "")
+            if (
+                not interface
+                or "," in interface
+                or interface in bindings
+                or values.get("levels") != "l2"
+            ):
+                raise ValueError("Unsupported RouterOS IS-IS interface binding")
+            bindings[interface] = "passive" in parts
+        return bindings
     if device_profile != "iosxr":
         raise ValueError(f"Native IS-IS completion is unsupported on {device_profile}")
     bindings = {}
@@ -280,11 +297,26 @@ def build_vendor_snapshot(
         raise ValueError("Candidate configurations must cover the declared routers")
     native = routing_model in {"iosxr-bgp", "iosxr-isp"}
     isp = routing_model.endswith("-isp")
+    # Batfish has no IS-IS model for FRR or RouterOS; RouterOS IS-IS projects
+    # to IOS XR syntax, as FRR IS-IS does.
+    routeros_isis = isp and not native and env.plan.igp == "isis"
+
+    def snapshot_interface(native_name):
+        if routeros_isis:
+            from nika.validation.batfish.isis import _native_interface
+
+            return _native_interface(routeros_model_interface(native_name))
+        return native_name if native else routeros_model_interface(native_name)
+
     aliases = {}
     for node, config in configs.items():
         disabled = [(n, env.BGP_INTERFACE_MAP[i]) for n, i in shutdown if n == node]
         if native:
             content = iosxr_batfish_config(config, [i for _, i in disabled])
+        elif routeros_isis:
+            from nika.validation.batfish.routeros_isp import project_routeros_isis
+
+            content = project_routeros_isis(node, config, shutdown=disabled)
         else:
             projector = project_routeros_isp if isp else project_routeros_bgp
             content = _cumulus_frr_snapshot(
@@ -295,9 +327,7 @@ def build_vendor_snapshot(
         (root / "configs" / f"{node}.cfg").write_text(content)
         if isp:
             aliases[node] = {
-                native_name
-                if native
-                else routeros_model_interface(native_name): logical_name
+                snapshot_interface(native_name): logical_name
                 for logical_name, native_name in env.BGP_INTERFACE_MAP.items()
             }
     # Linux hosts are concrete routed endpoints with their original default routes.
@@ -340,9 +370,10 @@ def build_vendor_snapshot(
                 (
                     n,
                     (
-                        routeros_model_interface(env.BGP_INTERFACE_MAP[i])
-                        if not native
-                        and (isp or "/routing/bgp/template add " in configs[n])
+                        snapshot_interface(env.BGP_INTERFACE_MAP[i])
+                        if isp
+                        else routeros_model_interface(env.BGP_INTERFACE_MAP[i])
+                        if not native and "/routing/bgp/template add " in configs[n]
                         else env.BGP_INTERFACE_MAP[i]
                     )
                     if n in configs
@@ -361,6 +392,8 @@ def build_vendor_snapshot(
             **({"interface_aliases": aliases} if isp else {}),
             "scope": "Native IOS-XR IPv4 OSPF/BGP configuration with routed Linux hosts"
             if native and isp
+            else "Restricted concrete RouterOS IPv4 IS-IS L2 wide metrics projected to IOS XR, BGP/RR, exact-prefix filters and local preference; native execution required"
+            if routeros_isis
             else "Restricted concrete RouterOS IPv4 OSPFv2 area 0, BGP/RR, exact-prefix filters and local preference; native execution required"
             if isp
             else "Native IOS-XR IPv4 BGP configuration with routed Linux hosts"

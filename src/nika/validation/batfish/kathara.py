@@ -67,11 +67,17 @@ def build_kathara_snapshot(
         )
         disabled = [validation.interface(i) for n, i in shutdown if n == name]
         node = validation.node(name, config)
-        default_endpoints.update(i.address for i in node.interfaces)
         aliases[name] = {validation.interface(i.name): i.name for i in node.interfaces}
-        (root / "configs" / f"{name}.cfg").write_text(
-            validation.batfish_config(config, disabled)
-        )
+        if routing_model == "linux-static" and validation.static_underlay:
+            content = validation.static_underlay(config, disabled)
+            default_endpoints.update(
+                str(IPv4Interface(address).ip)
+                for address in re.findall(r"^ ip address (\S+)$", content, re.M)
+            )
+        else:
+            content = validation.batfish_config(config, disabled)
+            default_endpoints.update(i.address for i in node.interfaces)
+        (root / "configs" / f"{name}.cfg").write_text(content)
     for name, machine in routers.items():
         startup = env.lab.fs.readtext(f"{name}.startup")
         addresses = startup_addresses(startup)
