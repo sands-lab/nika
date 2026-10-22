@@ -34,8 +34,8 @@ def _verify(env: Isp, root: Path, configs: dict[str, str] | None = None):
 
 
 def test_routing_workflow_rejects_unsupported_required_analysis(tmp_path):
-    from nika.workflows.validation.routing import validate_routing_design
-    from nika.workflows.validation.routing_spec import RoutingExperiment
+    from nika.workflows.validation.scenario import validate_scenario_design
+    from nika.workflows.validation.scenario_spec import ScenarioExperiment
 
     env = Isp(topo="abilene", igp="ospf", bgp_mode="none")
     # The RPKI design marker declares semantics outside this snapshot's
@@ -51,7 +51,7 @@ def test_routing_workflow_rejects_unsupported_required_analysis(tmp_path):
             ),
         }
     )
-    spec = RoutingExperiment(
+    spec = ScenarioExperiment(
         scenario="isp_abilene",
         deployment={"igp": "ospf", "bgp_mode": "none"},
         healthy=contract,
@@ -62,7 +62,7 @@ def test_routing_workflow_rejects_unsupported_required_analysis(tmp_path):
         '{"status": "passed", "validation_scope": "static-and-runtime"}\n'
     )
     with pytest.raises(RuntimeError, match="Requirements did not pass"):
-        validate_routing_design(spec, tmp_path)
+        validate_scenario_design(spec, tmp_path)
     report = ValidationReport.model_validate_json(
         (tmp_path / "static-healthy.json").read_text()
     )

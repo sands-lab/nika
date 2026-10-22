@@ -10,6 +10,10 @@ from pathlib import Path
 
 from nika.validation.base import ValidationSnapshot
 from nika.validation.batfish.kathara import startup_addresses, startup_static_routes
+from nika.validation.batfish.routeros_isp import (
+    project_routeros_isp,
+    routeros_model_interface,
+)
 from nika.validation.batfish.snapshot import (
     prepare_snapshot,
     _cumulus_frr_snapshot,
@@ -24,12 +28,103 @@ def vendor_configs(env):
     }
 
 
+def vendor_addresses(config, device_profile):
+    """Read concrete native IPv4 interface addresses, including loopbacks."""
+    addresses = []
+    if device_profile == "iosxr":
+        interface = None
+        for line in config.splitlines():
+            if match := re.fullmatch(r"interface (\S+)", line):
+                interface = match[1]
+            elif line and not line[0].isspace():
+                interface = None
+            elif interface and line.lstrip().startswith("ipv4 address "):
+                match = re.fullmatch(
+                    r" ipv4 address ([0-9.]+(?:/[0-9]+| [0-9.]+))", line
+                )
+                if not match:
+                    raise ValueError("Unsupported IOS XR IPv4 addressing")
+                addresses.append(
+                    (str(IPv4Interface(match[1].replace(" ", "/"))), interface)
+                )
+    elif device_profile == "routeros":
+        for line in config.splitlines():
+            parts = shlex.split(line)
+            if parts[:2] != ["/ip", "address"]:
+                continue
+            if parts[:3] != ["/ip", "address", "add"]:
+                raise ValueError("Unsupported RouterOS IPv4 addressing")
+            attributes = [part.split("=", 1) for part in parts[3:]]
+            if any(len(part) != 2 for part in attributes):
+                raise ValueError("Unsupported RouterOS IPv4 addressing")
+            values = dict(attributes)
+            if len(attributes) != 2 or set(values) != {"address", "interface"}:
+                raise ValueError("Unsupported RouterOS IPv4 addressing")
+            addresses.append(
+                (str(IPv4Interface(values["address"])), values["interface"])
+            )
+    else:
+        raise ValueError(f"Unsupported native device profile: {device_profile}")
+    return addresses
+
+
+def vendor_ospf_interfaces(node, config, device_profile):
+    """Read concrete interface/area/passive bindings for native ISP completion."""
+    if device_profile == "routeros":
+        projected = project_routeros_isp(node, config)
+        addresses = vendor_addresses(config, device_profile)
+        declarations = re.findall(
+            r"^ network ([0-9./]+) area ([0-9.]+)$", projected, re.M
+        )
+        passive = set(re.findall(r"^ passive-interface (\S+)$", projected, re.M))
+        return {
+            interface: (
+                int(IPv4Interface(f"{area}/32").ip),
+                routeros_model_interface(interface) in passive,
+            )
+            for address, interface in addresses
+            for network, area in declarations
+            if IPv4Interface(address).ip in IPv4Interface(network).network
+        }
+    if device_profile != "iosxr":
+        raise ValueError(f"Unsupported native device profile: {device_profile}")
+    bindings = {}
+    in_ospf, area, interface = False, None, None
+    for line in config.splitlines():
+        if re.fullmatch(r"router ospf \S+", line):
+            if in_ospf:
+                raise ValueError("Native ISP completion requires one OSPF instance")
+            in_ospf, area, interface = True, None, None
+        elif line and not line[0].isspace() and not line.startswith("!"):
+            in_ospf = False
+        elif in_ospf:
+            if match := re.fullmatch(r" area ([0-9.]+)", line):
+                area = (
+                    int(IPv4Interface(f"{match[1]}/32").ip)
+                    if "." in match[1]
+                    else int(match[1])
+                )
+                interface = None
+            elif match := re.fullmatch(r"  interface (\S+)", line):
+                interface = match[1]
+                if area is None or interface in bindings:
+                    raise ValueError("Unsupported IOS XR OSPF interface binding")
+                bindings[interface] = (area, False)
+            elif line == "   passive enable" and interface:
+                bindings[interface] = (area, True)
+            elif line == "  !":
+                interface = None
+    return bindings
+
+
 def project_routeros_bgp(node, config, *, shutdown=()):
     """Accept only the addressed direct-eBGP and exact-prefix-filter subset.
 
     Parse the concrete candidate, including mutations, rather than regenerating
     an idealized configuration from the original requirements or solver result.
     """
+    if "/routing/bgp/template add " in config:
+        return project_routeros_isp(node, config, shutdown=shutdown, require_igp=False)
     addresses, instances, connections, filters = [], [], [], {}
     for line in config.splitlines():
         if not line.strip():
@@ -130,7 +225,7 @@ def project_routeros_bgp(node, config, *, shutdown=()):
 def build_vendor_snapshot(
     env, contract, root: Path, *, configs=None, shutdown=(), routing_model
 ):
-    if routing_model not in {"iosxr-bgp", "routeros-bgp"}:
+    if routing_model not in {"iosxr-bgp", "routeros-bgp", "iosxr-isp", "routeros-isp"}:
         raise ValueError("Unsupported native BGP platform")
     root = prepare_snapshot(root)
     (root / "configs").mkdir(parents=True, exist_ok=True)
@@ -138,28 +233,38 @@ def build_vendor_snapshot(
     configs = vendor_configs(env) if configs is None else configs
     if set(configs) != set(env.BGP_ROUTERS):
         raise ValueError("Candidate configurations must cover the declared routers")
-    native = routing_model == "iosxr-bgp"
+    native = routing_model in {"iosxr-bgp", "iosxr-isp"}
+    isp = routing_model.endswith("-isp")
+    aliases = {}
     for node, config in configs.items():
         disabled = [(n, env.BGP_INTERFACE_MAP[i]) for n, i in shutdown if n == node]
         if native:
             for _, interface in disabled:
-                statement = f"interface {interface}\n"
-                if config.count(statement) != 1:
+                statement = r"^interface " + re.escape(interface) + r"\n"
+                if len(re.findall(statement, config, re.M)) != 1:
                     raise ValueError("Unknown or ambiguous XR shutdown interface")
                 config = re.sub(
-                    r"(interface " + re.escape(interface) + r"\n)(.*?)(?=\n!|\Z)",
+                    r"(^interface " + re.escape(interface) + r"\n)(.*?)(?=\n!|\Z)",
                     lambda m: m[1] + " shutdown\n" + m[2].replace(" no shutdown", ""),
                     config,
-                    flags=re.S,
+                    flags=re.S | re.M,
                 )
             content = "!! IOS XR Configuration 7.0.0\n" + config
         else:
+            projector = project_routeros_isp if isp else project_routeros_bgp
             content = _cumulus_frr_snapshot(
                 node,
                 "frr version 10.5\nfrr defaults traditional\n"
-                + project_routeros_bgp(node, config, shutdown=disabled),
+                + projector(node, config, shutdown=disabled),
             )
         (root / "configs" / f"{node}.cfg").write_text(content)
+        if isp:
+            aliases[node] = {
+                native_name
+                if native
+                else routeros_model_interface(native_name): logical_name
+                for logical_name, native_name in env.BGP_INTERFACE_MAP.items()
+            }
     # Linux hosts are concrete routed endpoints with their original default routes.
     for node in set(env.lab.machines) - set(configs):
         startup = (
@@ -197,7 +302,17 @@ def build_vendor_snapshot(
         ]
         if len(endpoints) == 2:
             endpoints = [
-                (n, env.BGP_INTERFACE_MAP[i] if n in configs else i)
+                (
+                    n,
+                    (
+                        routeros_model_interface(env.BGP_INTERFACE_MAP[i])
+                        if not native
+                        and (isp or "/routing/bgp/template add " in configs[n])
+                        else env.BGP_INTERFACE_MAP[i]
+                    )
+                    if n in configs
+                    else i,
+                )
                 for n, i in endpoints
             ]
             edges.append(_edge(*endpoints[0], *endpoints[1]))
@@ -208,7 +323,12 @@ def build_vendor_snapshot(
         metadata={
             "routing_model": routing_model,
             "native_config_analysis": native,
-            "scope": "Native IOS-XR IPv4 BGP configuration with routed Linux hosts"
+            **({"interface_aliases": aliases} if isp else {}),
+            "scope": "Native IOS-XR IPv4 OSPF/BGP configuration with routed Linux hosts"
+            if native and isp
+            else "Restricted concrete RouterOS IPv4 OSPFv2 area 0, BGP/RR, exact-prefix filters and local preference; native execution required"
+            if isp
+            else "Native IOS-XR IPv4 BGP configuration with routed Linux hosts"
             if native
             else "Restricted concrete RouterOS IPv4 direct-eBGP, connected origins and exact-prefix export filters; native execution required",
         },

@@ -14,6 +14,7 @@ from nika.net_env.base import NetworkEnvBase
 from nika.net_env.utils.iosxr.common import (
     CONFIG_FILE_PATH,
     IMAGE,
+    XR_ENTRYPOINT,
     XR_ZTP_DISABLE_ENV,
     build_xr_interfaces_env,
     build_xr_startup_script,
@@ -117,6 +118,7 @@ class IosXrSimpleBGP(NetworkEnvBase):
                 capabilities=("linux", "iosxr", "bgp"),
             )
             machine.add_meta("privileged", True)
+            machine.add_meta("entrypoint", XR_ENTRYPOINT)
             machine.add_meta("ipv6", True)
             machine.add_meta(
                 "env",

@@ -49,6 +49,7 @@ dependencies = [
 sade = ["claude-agent-sdk==0.2.119"]
 # SDK agents (src/agent/sdk/claude_sdk, src/agent/sdk/codex_sdk).
 sdk = ["claude-agent-sdk==0.2.119", "openai-codex==0.1.0b3"]
+netlab = ["networklab==26.10"]
 batfish = [
     "docker>=7.1.0,<8",
     "pybatfish==2025.7.7.2423",
@@ -63,6 +64,7 @@ include = ["nika*", "agent*"]
 
 [tool.setuptools.package-data]
 # Runtime data loaded from the installed package (lab files, images, prompts).
+"nika.validation.netkat" = ["KatchBatch.java"]
 "nika.inspect" = ["www/dist/**/*"]
 "nika.net_env.compat.v010.p4_bloom_filter" = ["*.p4", "cmds/*.txt"]
 "nika.net_env.compat.v010.p4_counter" = ["p4_src/*.p4", "cmds/*.txt"]

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from nika.net_env.isp.bgp.policy import BUSINESS_PREFIXES
+
 from nika.net_env.isp.bgp.plan import BgpNodePlan, BgpPlan
 from nika.net_env.utils.kathara.frr_origin import BGP_ORIGIN_IFACE
 
@@ -28,28 +30,15 @@ def merge_frr_conf(igp_conf: str, bgp_fragment: str) -> str:
 
 def _common_prefix_lists(*, extra_business: tuple[str, ...] = ()) -> list[str]:
     lines = [
-        "ip prefix-list BUSINESS seq 5 permit 203.0.113.0/24 le 24",
-        "ip prefix-list BUSINESS seq 10 permit 203.0.114.0/24 le 24",
-        "ip prefix-list BUSINESS seq 15 permit 203.0.115.0/24 le 24",
-        "ip prefix-list BUSINESS seq 20 permit 198.51.100.0/24 le 24",
-        "ip prefix-list BUSINESS seq 25 permit 198.51.101.0/24 le 24",
-        "ip prefix-list BUSINESS seq 30 permit 198.51.102.0/24 le 24",
-        # Dormant benchmark prefix: no router originates it in the healthy
-        # baseline. An unauthorized origin can propagate when injected.
-        "ip prefix-list BUSINESS seq 31 permit 198.18.0.0/24 le 24",
+        f"ip prefix-list BUSINESS seq {seq} permit {prefix} le 24"
+        for seq, prefix in zip(
+            (5, 10, 15, 20, 25, 30, 31), BUSINESS_PREFIXES, strict=True
+        )
     ]
     seq = 35
     for prefix in extra_business:
         # Already covered by 203.0.113/114 entries when those are leak targets.
-        if prefix in (
-            "203.0.113.0/24",
-            "203.0.114.0/24",
-            "203.0.115.0/24",
-            "198.51.100.0/24",
-            "198.51.101.0/24",
-            "198.51.102.0/24",
-            "198.18.0.0/24",
-        ):
+        if prefix in BUSINESS_PREFIXES:
             continue
         lines.append(f"ip prefix-list BUSINESS seq {seq} permit {prefix} le 24")
         seq += 5
@@ -105,25 +94,15 @@ def _route_maps(
     )
     if rtbh_import_policy and blackhole_community and discard_next_hop:
         lines.extend(
-            [
-                f"bgp community-list standard BH-SIGNAL permit {blackhole_community}",
-                "!",
-                "route-map BGP-IN permit 5",
-                " match ip address prefix-list BUSINESS",
-                " match community BH-SIGNAL",
-                " set local-preference 200",
-                f" set ip next-hop {discard_next_hop}",
-                "!",
-            ]
+            _rtbh_import_route_map(
+                "BGP-IN",
+                prefix_list="BUSINESS",
+                blackhole_community=blackhole_community,
+                discard_next_hop=discard_next_hop,
+            )
         )
     if rov_reject_invalid:
-        lines.extend(
-            [
-                "route-map BGP-IN deny 5",
-                " match rpki invalid",
-                "!",
-            ]
-        )
+        lines.extend(_rpki_reject_route_map("BGP-IN"))
     lines.extend(
         [
             "route-map BGP-IN permit 10",
@@ -138,6 +117,8 @@ def _route_maps(
 
 def _leaker_outbound_route_maps(
     outbound_maps: tuple[tuple[str, str], ...],
+    *,
+    prefix_list: str = "BUSINESS",
 ) -> list[str]:
     if not outbound_maps:
         return []
@@ -147,13 +128,37 @@ def _leaker_outbound_route_maps(
         lines.extend(
             [
                 f"route-map {name} permit 10",
-                " match ip address prefix-list BUSINESS",
+                f" match ip address prefix-list {prefix_list}",
                 "!",
                 f"route-map {name} deny 20",
                 "!",
             ]
         )
     return lines
+
+
+def _rpki_reject_route_map(name: str, sequence: int = 5) -> list[str]:
+    return [f"route-map {name} deny {sequence}", " match rpki invalid", "!"]
+
+
+def _rtbh_import_route_map(
+    name: str,
+    *,
+    prefix_list: str,
+    blackhole_community: str,
+    discard_next_hop: str,
+    sequence: int = 5,
+) -> list[str]:
+    return [
+        f"bgp community-list standard BH-SIGNAL permit {blackhole_community}",
+        "!",
+        f"route-map {name} permit {sequence}",
+        f" match ip address prefix-list {prefix_list}",
+        " match community BH-SIGNAL",
+        " set local-preference 200",
+        f" set ip next-hop {discard_next_hop}",
+        "!",
+    ]
 
 
 def _rtbh_discard_static(discard_next_hop: str | None) -> list[str]:

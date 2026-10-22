@@ -47,7 +47,11 @@ def srl_addresses(document):
     ]
 
 
-def project_srl_isp(node, document, *, shutdown=()):
+def project_srl_isp(node, document, *, shutdown=(), require_igp=True):
+    from nika.validation.batfish.srl_netlab import normalize_netlab_srl
+
+    document = normalize_netlab_srl(document)
+    origins = document.pop("_netlab_origins", None)
     _keys(
         document,
         [
@@ -61,7 +65,8 @@ def project_srl_isp(node, document, *, shutdown=()):
     if instance["name"] != "default" or instance["admin-state"] != "enable":
         raise ValueError("Projection requires enabled default instance")
     attached = {r["name"] for r in instance["interface"]}
-    lines = [f"hostname {node}"]
+    # OSPF-only output shares IOS tokens; select the intended XR grammar.
+    lines = ["!! IOS XR Configuration 7.0.0", f"hostname {node}"]
     interfaces = {}
     addresses = {}
     for interface in document["srl_nokia-interfaces:interface"]:
@@ -95,92 +100,117 @@ def project_srl_isp(node, document, *, shutdown=()):
         raise ValueError("Unmodeled attached interfaces")
     protocols = instance["protocols"]
     igps = set(protocols) & {"srl_nokia-isis:isis", "srl_nokia-ospf:ospf"}
-    if len(igps) != 1 or set(protocols) - igps - {"srl_nokia-bgp:bgp"}:
+    if (
+        (require_igp and len(igps) != 1)
+        or len(igps) > 1
+        or set(protocols) - igps - {"srl_nokia-bgp:bgp"}
+    ):
         raise ValueError("Projection requires one supported IGP")
-    key = next(iter(igps))
-    (igp,) = protocols[key]["instance"]
-    if "isis" in key:
-        _keys(
-            igp,
-            ["name", "admin-state", "level-capability", "net", "interface", "level"],
-            ["max-ecmp-paths"],
-        )
-        if (igp["name"], igp["admin-state"], igp["level-capability"], igp["level"]) != (
-            "default",
-            "enable",
-            "L2",
-            [{"level-number": 2, "metric-style": "wide"}],
-        ):
-            raise ValueError("Projection requires single L2 wide-metric IS-IS")
-        (net,) = igp["net"]
-        lines += [
-            f"router isis {ISIS_PROCESS}",
-            f" net {net}",
-            " is-type level-2-only",
-            " address-family ipv4 unicast",
-            "  metric-style wide",
-            " !",
-        ]
-        rows = igp["interface"]
-        for row in rows:
-            _keys(row, ["interface-name"], ["passive", "circuit-type", "level"])
-            lines.append(f" interface {interfaces[row['interface-name']]}")
-            if row.get("circuit-type") not in (None, "point-to-point"):
-                raise ValueError("Unsupported IS-IS circuit type")
-            if row.get("passive"):
-                lines.append("  passive")
-            if row.get("circuit-type"):
-                lines.append("  point-to-point")
-            lines += ["  address-family ipv4 unicast"]
-            if "level" in row:
-                (level,) = row["level"]
-                _keys(level, ["level-number", "metric"])
-                if level["level-number"] != 2 or not 1 <= level["metric"] <= 16777214:
-                    raise ValueError("Unsupported IS-IS metric")
-                lines.append(f"   metric {level['metric']}")
-            lines += ["  !", " !"]
-    else:
-        _keys(
-            igp,
-            ["name", "admin-state", "version", "router-id", "area"],
-            ["max-ecmp-paths"],
-        )
-        if (igp["name"], igp["admin-state"], igp["version"]) != (
-            "default",
-            "enable",
-            "ospf-v2",
-        ):
-            raise ValueError("Projection requires OSPFv2")
-        (area,) = igp["area"]
-        _keys(area, ["area-id", "interface"])
-        lines += [
-            "router ospf",
-            f" router-id {igp['router-id']}",
-            f" area {area['area-id']}",
-        ]
-        for row in area["interface"]:
-            _keys(row, ["interface-name"], ["passive", "metric", "interface-type"])
-            lines.append(f"  interface {interfaces[row['interface-name']]}")
-            if row.get("passive"):
-                lines.append("   passive enable")
-            if "metric" in row:
-                lines.append(f"   cost {row['metric']}")
-            if row.get("interface-type"):
-                if row["interface-type"] != "point-to-point":
-                    raise ValueError("Unsupported OSPF type")
-                lines.append("   network point-to-point")
-            lines.append("  !")
-        lines.append(" !")
-    lines.append("!")
+    if igps:
+        key = next(iter(igps))
+        (igp,) = protocols[key]["instance"]
+        if "isis" in key:
+            _keys(
+                igp,
+                [
+                    "name",
+                    "admin-state",
+                    "level-capability",
+                    "net",
+                    "interface",
+                    "level",
+                ],
+                ["max-ecmp-paths"],
+            )
+            if (
+                igp["name"],
+                igp["admin-state"],
+                igp["level-capability"],
+                igp["level"],
+            ) != (
+                "default",
+                "enable",
+                "L2",
+                [{"level-number": 2, "metric-style": "wide"}],
+            ):
+                raise ValueError("Projection requires single L2 wide-metric IS-IS")
+            (net,) = igp["net"]
+            lines += [
+                f"router isis {ISIS_PROCESS}",
+                f" net {net}",
+                " is-type level-2-only",
+                " address-family ipv4 unicast",
+                "  metric-style wide",
+                " !",
+            ]
+            rows = igp["interface"]
+            for row in rows:
+                _keys(row, ["interface-name"], ["passive", "circuit-type", "level"])
+                lines.append(f" interface {interfaces[row['interface-name']]}")
+                if row.get("circuit-type") not in (None, "point-to-point"):
+                    raise ValueError("Unsupported IS-IS circuit type")
+                if row.get("passive"):
+                    lines.append("  passive")
+                if row.get("circuit-type"):
+                    lines.append("  point-to-point")
+                lines += ["  address-family ipv4 unicast"]
+                if "level" in row:
+                    (level,) = row["level"]
+                    _keys(level, ["level-number", "metric"])
+                    if (
+                        level["level-number"] != 2
+                        or not 1 <= level["metric"] <= 16777214
+                    ):
+                        raise ValueError("Unsupported IS-IS metric")
+                    lines.append(f"   metric {level['metric']}")
+                lines += ["  !", " !"]
+        else:
+            _keys(
+                igp,
+                ["name", "admin-state", "version", "router-id", "area"],
+                ["max-ecmp-paths"],
+            )
+            if igp["name"] not in {"default", "1"} or (
+                igp["admin-state"],
+                igp["version"],
+            ) != (
+                "enable",
+                "ospf-v2",
+            ):
+                raise ValueError("Projection requires OSPFv2")
+            (area,) = igp["area"]
+            _keys(area, ["area-id", "interface"])
+            lines += [
+                "router ospf",
+                f" router-id {igp['router-id']}",
+                f" area {area['area-id']}",
+            ]
+            for row in area["interface"]:
+                _keys(row, ["interface-name"], ["passive", "metric", "interface-type"])
+                lines.append(f"  interface {interfaces[row['interface-name']]}")
+                if row.get("passive"):
+                    lines.append("   passive enable")
+                if "metric" in row:
+                    lines.append(f"   cost {row['metric']}")
+                if row.get("interface-type"):
+                    if row["interface-type"] != "point-to-point":
+                        raise ValueError("Unsupported OSPF type")
+                    lines.append("   network point-to-point")
+                lines.append("  !")
+            lines.append(" !")
+        lines.append("!")
     bgp = protocols.get("srl_nokia-bgp:bgp")
     if bgp:
         lines += _project_bgp(
-            bgp, document["srl_nokia-routing-policy:routing-policy"], addresses
+            bgp,
+            document["srl_nokia-routing-policy:routing-policy"],
+            addresses,
+            origins=origins,
         )
     return "\n".join(lines) + "\n"
 
 
-def _project_bgp(bgp, routing, addresses):
+def _project_bgp(bgp, routing, addresses, *, origins=None):
     _keys(
         bgp,
         [
@@ -213,7 +243,10 @@ def _project_bgp(bgp, routing, addresses):
         for p in row["prefix"]:
             _keys(p, ["ip-prefix", "mask-length-range"])
             prefix = IPv4Network(p["ip-prefix"])
-            if p["mask-length-range"] != f"{prefix.prefixlen}..{prefix.prefixlen}":
+            if p["mask-length-range"] not in {
+                "exact",
+                f"{prefix.prefixlen}..{prefix.prefixlen}",
+            }:
                 raise ValueError("Only exact prefix sets supported")
             entries.append(" " + str(prefix))
         lines += [f"prefix-set {name}", ",\n".join(entries), "end-set", "!"]
@@ -283,7 +316,9 @@ def _project_bgp(bgp, routing, addresses):
         lines.append(" bgp cluster-id " + bgp["route-reflector"]["cluster-id"])
     lines.append(" address-family ipv4 unicast")
     for name, addr in addresses.values():
-        if name.startswith("lo0.") and addr.network.prefixlen < 32:
+        if (origins is not None and str(addr.network) in origins) or (
+            origins is None and name.startswith("lo0.") and addr.network.prefixlen < 32
+        ):
             lines.append("  network " + str(addr.network))
     lines.append(" !")
     for peer in bgp["neighbor"]:
