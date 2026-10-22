@@ -18,34 +18,27 @@ _MESSAGE_CAP = 240
 mcp = FastMCP(name=SERVER_NAME, host="127.0.0.1", port=8000, log_level="INFO")
 
 
-def dump_events_json(
+def _dump_events_json(
     events: Sequence[Mapping[str, Any]], *, max_chars: int | None = None
 ) -> str:
     """Serialize events as JSON that stays within the MCP text budget."""
     items = [dict(event) for event in events]
     budget = tool_output_max_chars() if max_chars is None else max_chars
 
-    def encode(*, pretty: bool) -> str:
-        if pretty:
-            return json.dumps(items, default=str, indent=2)
-        return json.dumps(items, default=str, separators=(",", ":"))
+    def encode() -> str:
+        return json.dumps(items, default=str, indent=2)
 
-    if budget <= 0:
-        return encode(pretty=True)
-    text = encode(pretty=True)
-    if len(text) <= budget:
-        return text
-    text = encode(pretty=False)
-    if len(text) <= budget:
+    text = encode()
+    if budget <= 0 or len(text) <= budget:
         return text
     for event in items:
         message = str(event.get("message") or "")
         if len(message) > _MESSAGE_CAP:
             event["message"] = message[: _MESSAGE_CAP - 3] + "..."
-    text = encode(pretty=False)
+    text = encode()
     while items and len(text) > budget:
         del items[0]
-        text = encode(pretty=False)
+        text = encode()
     return text
 
 
@@ -65,7 +58,7 @@ def k8s_list_events(
         all_namespaces: List cluster-wide events.
         limit: Max events to return.
     """
-    return dump_events_json(
+    return _dump_events_json(
         get_client().list_events(
             namespace=namespace or None,
             field_selector=field_selector or None,

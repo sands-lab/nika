@@ -504,17 +504,25 @@ The same report prints automatically when `nika benchmark run` finishes.
 Pack, validate, and open GitHub (scores) + Hugging Face (trajectories) PRs from an official release run. See the [leaderboard submission guide](../benchmarks/leaderboard-submission.md).
 
 ```shell
+nika leaderboard submit --result_dir results/my-run \
+  --name "My Agent" --authors "Your Name"
+```
+
+To supply a longer README or extra metadata, pass `--submission` instead of `--name` and `--authors`:
+
+```shell
 nika leaderboard template -o results/my-run/submission
 # edit metadata.yaml + README.md
 nika leaderboard submit --result_dir results/my-run \
   --submission results/my-run/submission
 ```
 
-`submit` packs `{result_dir}/{YYYYMMDD}_{slug}/` plus sibling `{YYYYMMDD}_{slug}_trajectories/`, validates both (unless `--skip-validate`), then opens PRs. Pack or validate failures exit before any remote submit. Requires authenticated [`gh`](https://cli.github.com/) and `HF_TOKEN`. Scores PR target: `sands-lab/nika-leaderboard` (`--repo`). Trajectories dataset PR: `nika-bench/nika-trajectories` (`--traj-repo`). Use `--skip-github` / `--skip-trajectories` to submit only one side.
+`submit` packs `{result_dir}/{YYYYMMDD}_{slug}/` plus sibling `{YYYYMMDD}_{slug}_trajectories/`, validates both (unless `--skip-validate`), then opens PRs. Pack or validate failures exit before any remote submit. Requires authenticated [`gh`](https://cli.github.com/), and Hugging Face authentication through `hf auth login` or `HF_TOKEN`. Scores PR target: `sands-lab/nika-leaderboard` (`--repo`). Trajectories dataset PR: `nika-bench/nika-trajectories` (`--traj-repo`). Use `--skip-github` / `--skip-trajectories` to submit only one side.
 
 | Flag | Meaning |
 |------|---------|
-| `--submission DIR` | Required. Directory with the edited `metadata.yaml` and `README.md` from `template` |
+| `--name TEXT` / `--authors TEXT` | Entry name and authors; generates metadata. Mutually exclusive with `--submission` |
+| `--submission DIR` | Directory with the edited `metadata.yaml` and `README.md` from `template` |
 | `--out DIR` | Scores package directory (default `{result_dir}/{YYYYMMDD}_{slug}/`); trajectories go to a sibling `{name}_trajectories/` |
 | `--draft` | Open the GitHub PR as a draft |
 | `--title TEXT` | GitHub PR title (default `Add submission <package>`) |
