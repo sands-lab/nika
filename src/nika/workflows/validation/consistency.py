@@ -147,12 +147,21 @@ def compare_config_generators(
         kwargs["routing_parameters"] = parameters.model_dump(mode="json")
 
     native_env = get_net_env_instance(scenario, **kwargs)
+    routing_model, builder = consistency_snapshot_builder(native_env, routing_model)
+    if getattr(native_env, "native_routers", None):
+        from nika.net_env.native_routers import require_native_validation
+
+        # Only these projections export native routers next to FRR routers.
+        if routing_model not in {"frr", "frr-overlay"}:
+            raise ValueError(
+                f"Generator comparison of mixed-vendor deployments does not cover {routing_model}"
+            )
+        require_native_validation(native_env)
     candidate_env = get_net_env_instance(scenario, **kwargs)
     check_netlab_scope(None, candidate_env)
     generated = generate_configs(None, candidate_env, parameters, output / "netlab")
     apply_routing_configs(candidate_env, generated)
 
-    routing_model, builder = consistency_snapshot_builder(native_env, routing_model)
     snapshots = {
         name: builder(env, _contract(scenario, name), output / name)
         for name, env in (("native", native_env), ("netlab", candidate_env))

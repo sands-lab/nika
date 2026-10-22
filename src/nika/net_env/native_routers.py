@@ -66,11 +66,8 @@ class NativeRouterValidation:
     node: Callable[[str, str], NativeRouterNode]
     # (runtime, contract, plan) -> ValidationReport for native observations.
     verify_contract: Callable[..., object]
-    # Shell commands that apply configuration lines, read the running
-    # configuration, and replace it with a previously read one.
+    # Shell command that applies configuration lines (runtime negative controls).
     config_command: Callable[[Sequence[str]], str]
-    running_config_command: str
-    restore_command: Callable[[str], str]
     route_inspection_command: str
     # Where a deployable native configuration is installed on the Kathara
     # machine, and the netlab device that generates it (if any).
@@ -192,6 +189,15 @@ class NativeRouterEnv:
         super().deploy()
         for node, commands in self.native_netns_commands.items():
             run_in_network_namespace(self, node, commands)
+
+
+def require_native_validation(env) -> None:
+    """Reject native routers whose platform has no validation projection."""
+    for name, profile in getattr(env, "native_routers", {}).items():
+        if native_platform(profile).validation is None:
+            raise ValueError(
+                f"No mixed-vendor validation projection for {profile} router {name}"
+            )
 
 
 def router_sketches(env) -> dict[str, tuple[str, str]]:
