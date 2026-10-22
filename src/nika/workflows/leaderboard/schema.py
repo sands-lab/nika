@@ -137,6 +137,8 @@ class RunIdentity(BaseModel):
     model: str | None = None
     llm_provider: str | None = None
     max_steps: int | None = None
+    # None for runs recorded before NIKA defaulted built-in agents to medium.
+    reasoning_effort: str | None = None
     case_timeout_sec: int
     nika_git_commit: str | None = None
     source_result_dir: str | None = None

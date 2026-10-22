@@ -24,7 +24,7 @@ agent:
   timeout_sec: 1800
   # Load shared troubleshooting skills for Claude and Codex agents.
   enable_skills: true
-  # Optional for OpenAI, Anthropic, and supported custom models.
+  # Built-in agents default to medium; added agents get no default.
   # DeepSeek ignores this setting.
   # reasoning_effort: medium
   # Output-token cap per model response. Not applied by Codex agents or SADE.

@@ -292,11 +292,18 @@ def _openai_model(*, retries: int, stream: bool, **kwargs: Any) -> ReasoningChat
     return model
 
 
+# Levels OpenAI-compatible servers such as vLLM accept for ``reasoning_effort``.
+_CUSTOM_EFFORT_LEVELS = frozenset({"low", "medium", "high"})
+
+
 def _custom_extra_body(reasoning_effort: str | None) -> dict[str, Any] | None:
     """Enable thinking on Qwen/vLLM-style custom servers when effort is set."""
     if reasoning_effort is None or reasoning_effort == "none":
         return None
-    return {"chat_template_kwargs": {"enable_thinking": True}}
+    body: dict[str, Any] = {"chat_template_kwargs": {"enable_thinking": True}}
+    if reasoning_effort in _CUSTOM_EFFORT_LEVELS:
+        body["reasoning_effort"] = reasoning_effort
+    return body
 
 
 def load_model(
@@ -370,7 +377,7 @@ def load_model(
             "temperature": 0,
             "timeout": timeout,
         }
-        # Do not forward reasoning_effort: many OpenAI-compat servers (vLLM/Qwen)
+        # Only low/medium/high reach the server: OpenAI-compat servers (vLLM)
         # reject levels like ``xhigh``. Thinking is enabled via extra_body.
         extra_body = _custom_extra_body(reasoning_effort) or {}
         if max_tokens is not None:

@@ -22,6 +22,7 @@ class ClaudeSdkAgent(DiagnosisAgent):
         *,
         llm_provider: str,
         max_tokens: int | None = None,
+        reasoning_effort: str | None = None,
         stream_output: bool = True,
     ) -> None:
         super().__init__(
@@ -30,6 +31,7 @@ class ClaudeSdkAgent(DiagnosisAgent):
             llm_provider=llm_provider,
             max_steps=max_steps,
             max_tokens=max_tokens,
+            reasoning_effort=reasoning_effort,
             stream_output=stream_output,
         )
         scenario_name = self.scenario_name
@@ -41,6 +43,7 @@ class ClaudeSdkAgent(DiagnosisAgent):
             llm_provider=llm_provider,
             max_steps=max_steps,
             max_tokens=max_tokens,
+            reasoning_effort=reasoning_effort,
             scenario_name=scenario_name,
         )
         self._submission_phase = ClaudeSdkSubmissionPhase(
@@ -50,6 +53,7 @@ class ClaudeSdkAgent(DiagnosisAgent):
             llm_provider=llm_provider,
             max_steps=max_steps,
             max_tokens=max_tokens,
+            reasoning_effort=reasoning_effort,
         )
 
     async def diagnose(self, task_description: str) -> str:

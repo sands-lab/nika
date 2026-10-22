@@ -38,6 +38,7 @@ class ClaudeSubmissionPhase:
         stream_output: bool = True,
         trace_dir: str | None = None,
         max_tokens: int | None = None,
+        reasoning_effort: str | None = None,
     ) -> None:
         self._worker = ClaudeWorker(
             session_id=session_id,
@@ -49,6 +50,7 @@ class ClaudeSubmissionPhase:
             stream_output=stream_output,
             trace_dir=trace_dir,
             max_tokens=max_tokens,
+            reasoning_effort=reasoning_effort,
         )
 
     async def run(self, diagnosis_report: str, context: dict) -> str:
