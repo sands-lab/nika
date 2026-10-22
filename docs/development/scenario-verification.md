@@ -193,7 +193,7 @@ uv run pytest tests/nika/validation/test_vendor_isp_workflow.py -m e2e -x -q
 ```
 
 The matrix uses ARPANET196912 for OSPF and iBGP route reflection, and DataXchange
-for multi-AS BGP. IOS XR also runs iBGP route reflection over IS-IS. Each profile follows NetComplete, Batfish, native checks,
+for multi-AS BGP. IOS XR runs each of these BGP sketches over both OSPF and IS-IS. Each profile follows NetComplete, Batfish, native checks,
 configuration negative controls, link failure and recovery. Keep native
 acceptance results separate from offline configuration compilation.
 
@@ -201,10 +201,14 @@ Recorded native examples include:
 
 | Graph | BGP sketch | Profiles | Healthy predicates |
 | --- | --- | --- | --- |
-| ARPANET196912 | none | IOS XR, RouterOS | 20 |
-| ARPANET196912 | iBGP route reflection | IOS XR, RouterOS | 36 |
-| DataXchange | multi-AS BGP | IOS XR, RouterOS | 62 |
+| ARPANET196912 | none | IOS XR (OSPF, IS-IS), RouterOS | 20 |
+| ARPANET196912 | iBGP route reflection | IOS XR (OSPF, IS-IS), RouterOS | 36 |
+| DataXchange | multi-AS BGP | IOS XR (OSPF, IS-IS), RouterOS | 62 |
 | Abilene | multi-AS BGP | RouterOS | 133 |
+
+The `-iosxr` Clos, campus and enterprise specimens (size `s`) also passed native
+execution with 14 + 2, 21 and 4 + 6 healthy predicates, including their registered
+failures on XR or FRR routers.
 
 Each listed execution also rejected its declared configuration negative controls,
 checked the link-failure state and restored every healthy predicate. These are
