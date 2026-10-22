@@ -203,7 +203,7 @@ nika inspect [--result-dir PATH] [--host 127.0.0.1] [--port 7580] [--no-open]
   | `--bgp-mode none\|ibgp_rr\|ebgp` | BGP preset for ISP topology scenarios (default `none`) |
   | `--rpki` / `--no-rpki` | Deprecated for base ISP scenarios. Use the named scenarios `isp_abilene_ebgp_rpki` or `isp_geant_ebgp_rpki` |
   | `--backend kathara\|containerlab` | Lab backend. Required when a scenario supports both; ISP defaults to `kathara` |
-  | `--device-profile frr\|iosxr\|routeros\|nokia_srlinux` | Router platform. For ISP scenarios, `frr`, `iosxr` and `routeros` run on Kathara and `nokia_srlinux` on Containerlab; the default follows `--backend`. `dc_clos` (size `s`), `campus_lan` and `enterprise_branch` accept `iosxr`. See [native IOS XR routers](network-scenarios.md#native-ios-xr-routers) |
+  | `--device-profile frr\|iosxr\|routeros\|nokia_srlinux` | Router platform. For ISP scenarios, `frr`, `iosxr` and `routeros` run on Kathara and `nokia_srlinux` on Containerlab; the default follows `--backend`. `routeros` requires `--igp ospf`. `dc_clos` (size `s`), `campus_lan` and `enterprise_branch` accept `iosxr`. See [native IOS XR routers](network-scenarios.md#native-ios-xr-routers) |
 - **`nika env ps`**: list running lab instances (one row per deployed lab). Columns: env id, size, status, age, active session count, endpoint.
 
 ---

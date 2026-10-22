@@ -390,12 +390,14 @@ uv run nika env run isp_abilene --igp ospf \
 
 uv run nika env run isp_france --backend containerlab \
   --device-profile nokia_srlinux --igp isis
+
+uv run nika env run isp_abilene --device-profile routeros --igp ospf
 ```
 
 | Control | Accepted values | Default | Effect |
 | --- | --- | --- | --- |
 | `--backend` | `kathara`, `containerlab` | `kathara` | Selects FRR or SR Linux rendering |
-| `--device-profile` | `frr`, `nokia_srlinux`, `iosxr`, `routeros` | Derived from backend | Router platform; `iosxr` and `routeros` run on Kathara (see [native IOS XR routers](#native-ios-xr-routers)) |
+| `--device-profile` | `frr`, `nokia_srlinux`, `iosxr`, `routeros` | Derived from backend | Router platform. `iosxr` and `routeros` run on Kathara and need their images: see [native IOS XR routers](#native-ios-xr-routers) and [RouterOS simple BGP](#routeros-simple-bgp-scenario). `routeros` requires `--igp ospf` |
 | `--igp` | `isis`, `ospf` | `isis` | Selects the IGP compiler |
 | `--metric-strategy` | `constant`, `routing_cost`, `inv_capacity` | `constant` | Maps SNDlib link data to IGP metrics |
 | `--constant-metric` | Positive integer | `10` | Sets constant and fallback metrics |
@@ -453,7 +455,7 @@ NIKA also vendors 259 graphs from the [Internet Topology Zoo](http://www.topolog
 
 Zoo scenarios use the same compiler, IGP and BGP options, stub hosts and compatible failures as SNDlib ISP scenarios. They differ in four ways:
 
-- They run on Kathara: FRR by default, or native routers with `--device-profile`.
+- They run on Kathara: FRR by default, or native routers with `--device-profile iosxr`, or `--device-profile routeros --igp ospf`.
 - Topology Zoo has no demand matrix, so `nika traffic run matrix-replay` rejects them.
 - They are excluded from benchmark generation. The `s` / `m` / `l` size is metadata only (15 or fewer routers is `s`, 28 or fewer is `m`, more is `l`).
 - The importer adapts each graph:
