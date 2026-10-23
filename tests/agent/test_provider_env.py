@@ -84,6 +84,61 @@ def test_deepseek_maps_to_openai_compat_for_langgraph() -> None:
     assert "ANTHROPIC_API_KEY" not in mapped
 
 
+def test_openai_maps_gateway_base_url() -> None:
+    mapped = map_provider_credentials(
+        agent_type="cli.opencode",
+        provider="openai",
+        sources={
+            "OPENAI_API_KEY": "sk-test",
+            "OPENAI_BASE_URL": "http://lb.example/v1",
+        },
+    )
+    assert mapped["OPENAI_API_KEY"] == "sk-test"
+    assert mapped["OPENAI_BASE_URL"] == "http://lb.example/v1"
+
+
+def test_deepseek_honors_gateway_base_url() -> None:
+    mapped = map_provider_credentials(
+        agent_type="cli.dsh",
+        provider="deepseek",
+        sources={
+            "DEEPSEEK_API_KEY": "sk-ds",
+            "DEEPSEEK_BASE_URL": "http://lb.example/v1",
+        },
+    )
+    assert mapped["DEEPSEEK_API_KEY"] == "sk-ds"
+    assert mapped["OPENAI_API_KEY"] == "sk-ds"
+    assert mapped["OPENAI_BASE_URL"] == "http://lb.example/v1"
+
+
+def test_deepseek_gateway_strips_v1_for_anthropic_family() -> None:
+    mapped = map_provider_credentials(
+        agent_type="cli.claude",
+        provider="deepseek",
+        sources={
+            "DEEPSEEK_API_KEY": "sk-ds",
+            "DEEPSEEK_BASE_URL": "http://gateway.example/v1",
+        },
+    )
+    assert mapped["ANTHROPIC_BASE_URL"] == "http://gateway.example"
+
+
+def test_process_env_overlays_openai_gateway(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from nika.agents.sandbox.config import load_credential_sources
+
+    env_file = tmp_path / ".env"
+    env_file.write_text("OPENAI_API_KEY=from-file\n", encoding="utf-8")
+    monkeypatch.setenv("OPENAI_API_KEY", "from-proc")
+    monkeypatch.setenv("OPENAI_BASE_URL", "http://lb.example/v1")
+    sources = load_credential_sources(
+        env_file, provider="openai", agent_type="cli.opencode"
+    )
+    assert sources["OPENAI_API_KEY"] == "from-proc"
+    assert sources["OPENAI_BASE_URL"] == "http://lb.example/v1"
+
+
 def test_deepseek_maps_to_anthropic_compat_for_claude() -> None:
     mapped = map_provider_credentials(
         agent_type="cli.claude",

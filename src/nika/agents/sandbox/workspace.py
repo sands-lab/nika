@@ -22,10 +22,18 @@ from agent.runtime.contract import (
     TASK_FILENAME,
 )
 from agent.utils.loggers import MESSAGES_FILENAME
-from agent.utils.skills import DEFAULT_SKILLS_ROOT, SKILLS_DIRNAME
+from agent.utils.skills import (
+    DEFAULT_SKILLS_ROOT,
+    SKILLS_DIRNAME,
+    TEST_SKILL_NAME,
+    resolve_test_skill_dir,
+)
 from nika.agents.sandbox.constants import MANIFEST_FILENAME
 
 logger = logging.getLogger(__name__)
+
+# Host-only live-test override. Never copied into the sandbox.
+TEST_INCLUDE_SKILL_ENV = "NIKA_TEST_INCLUDE_SKILL"
 
 # Freeze events are host-written; a sandbox copy could replace the report that
 # ``submit()`` and the evaluator read.
@@ -242,8 +250,40 @@ def prepare_workspace(
         shutil.copytree(
             DEFAULT_SKILLS_ROOT, workspace / SKILLS_DIRNAME, dirs_exist_ok=True
         )
+        _stage_test_skill(workspace / SKILLS_DIRNAME)
 
     return SandboxWorkspace(session_dir=session_path, workspace_dir=workspace)
+
+
+def _include_test_skill() -> bool:
+    return os.environ.get(TEST_INCLUDE_SKILL_ENV, "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+
+
+def _stage_test_skill(skills_root: Path) -> None:
+    """Plant the integration-test skill into a host-staged skills tree.
+
+    Live sandbox tests for agents that load the shared library set
+    :data:`TEST_INCLUDE_SKILL_ENV`. ``copytree`` follows ``.claude/skills``
+    (a symlink in the package), so plant into both the canonical tree and
+    that copied Claude discovery path.
+    """
+    if not _include_test_skill():
+        return
+    src = resolve_test_skill_dir()
+    if src is None:
+        return
+    dests = [skills_root / "skills" / TEST_SKILL_NAME]
+    claude_skills = skills_root / ".claude" / "skills"
+    if claude_skills.is_dir() and not claude_skills.is_symlink():
+        dests.append(claude_skills / TEST_SKILL_NAME)
+    for dest in dests:
+        if dest.exists():
+            continue
+        shutil.copytree(src, dest)
 
 
 def trace_mirror(workspace: SandboxWorkspace) -> TraceMirror:

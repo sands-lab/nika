@@ -47,6 +47,8 @@ def _sbx_config(**overrides):
     [
         ("cli.codex", "docker/sandbox-templates:codex-docker"),
         ("cli.claude", "docker/sandbox-templates:claude-code-docker"),
+        ("cli.opencode", "docker/sandbox-templates:shell-docker"),
+        ("cli.dsh", "docker/sandbox-templates:shell-docker"),
         ("sdk.codex_sdk", "docker/sandbox-templates:shell-docker"),
         ("sdk.claude_sdk", "docker/sandbox-templates:shell-docker"),
         ("community.sade", "docker/sandbox-templates:shell-docker"),
@@ -68,6 +70,8 @@ def test_required_sbx_template_images(agent_type: str, image: str) -> None:
     [
         ("cli.codex", "codex"),
         ("cli.claude", "claude"),
+        ("cli.opencode", "shell"),
+        ("cli.dsh", "shell"),
         ("sdk.codex_sdk", "shell"),
         ("sdk.claude_sdk", "shell"),
         ("community.sade", "shell"),

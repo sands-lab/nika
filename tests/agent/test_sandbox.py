@@ -8,7 +8,11 @@ from nika.agents.sandbox.env import format_env_for_log
 from nika.agents.sandbox.mcp_manifest import build_sandbox_mcp_servers
 from nika.agents.sandbox.redact import redact_text
 from nika.agents.sandbox.sbx.policy import mcp_policy_resource_from_url
-from nika.agents.sandbox.workspace import collect_artifacts, prepare_workspace
+from nika.agents.sandbox.workspace import (
+    TEST_INCLUDE_SKILL_ENV,
+    collect_artifacts,
+    prepare_workspace,
+)
 from nika.mcp.gateway.session_registry import (
     get_session,
     register_session,
@@ -76,6 +80,60 @@ def test_sandbox_mcp_servers_use_gateway_and_session_header(tmp_path) -> None:
         server["headers"]["X-Session-Token"] == "***REDACTED***"
         for server in collected["mcp_servers"].values()
     )
+
+
+def test_prepare_workspace_excludes_test_skill_by_default(
+    tmp_path, monkeypatch
+) -> None:
+    from agent.utils.skills import TEST_SKILL_NAME
+
+    monkeypatch.delenv(TEST_INCLUDE_SKILL_ENV, raising=False)
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    workspace = prepare_workspace(
+        session_dir=session_dir,
+        task_json="{}",
+        runtime_env={},
+        agent_session_id="sess-skill-default",
+        enable_skills=True,
+        workspace_dir=tmp_path / "workspace",
+    )
+    planted = (
+        workspace.workspace_dir / "skills" / "skills" / TEST_SKILL_NAME / "SKILL.md"
+    )
+    assert not planted.exists()
+
+
+def test_prepare_workspace_stages_test_skill_when_requested(
+    tmp_path, monkeypatch
+) -> None:
+    from agent.utils.skills import TEST_SKILL_NAME
+
+    monkeypatch.setenv(TEST_INCLUDE_SKILL_ENV, "1")
+    session_dir = tmp_path / "session"
+    session_dir.mkdir()
+    workspace = prepare_workspace(
+        session_dir=session_dir,
+        task_json="{}",
+        runtime_env={},
+        agent_session_id="sess-skill-live",
+        enable_skills=True,
+        workspace_dir=tmp_path / "workspace",
+    )
+    planted = (
+        workspace.workspace_dir / "skills" / "skills" / TEST_SKILL_NAME / "SKILL.md"
+    )
+    claude_planted = (
+        workspace.workspace_dir
+        / "skills"
+        / ".claude"
+        / "skills"
+        / TEST_SKILL_NAME
+        / "SKILL.md"
+    )
+    assert planted.is_file()
+    assert claude_planted.is_file()
+    assert "SKILL_LOADING_CHECK_ACTIVE" in planted.read_text(encoding="utf-8")
 
 
 def test_host_bridge_uses_sandbox_localhost_policy_resource() -> None:

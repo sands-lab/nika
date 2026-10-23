@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import functools
 import json
+import os
 import re
 import subprocess
 
@@ -16,10 +17,14 @@ from nika.run_config.loader import (
 )
 from nika.run_config.schema import RunConfig
 from nika.utils.agent_session_id import resolve_agent_session_id
+from nika.agents.sandbox.workspace import TEST_INCLUDE_SKILL_ENV
 from nika.utils.session_store import SessionStore
 from tests.agent._assertions import (
     assert_phase_messages,
+    assert_no_cli_native_mirrors,
     assert_no_codex_tool_item_mirrors,
+    marker_before_first_mcp_tool,
+    skill_invoked,
 )
 from tests.agent.sandbox_support import (
     sandbox_backend_available,
@@ -46,6 +51,16 @@ _backend_available = functools.cache(sandbox_backend_available)
 _SENSITIVE_NAMES = ("auth.json", ".credentials.json", ".host_auth")
 # Nothing the agent sees may name the benchmark that runs it.
 _HOST_NAME = re.compile(rb"nika", re.IGNORECASE)
+_SHARED_SKILL_AGENTS = frozenset(
+    {
+        "cli.claude",
+        "cli.codex",
+        "cli.opencode",
+        "cli.dsh",
+        "sdk.claude_sdk",
+        "sdk.codex_sdk",
+    }
+)
 
 
 def _isolate_agent_run_config(
@@ -111,6 +126,8 @@ class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
             self.llm_provider, backend=backend
         ):
             pytest.skip(f"{self.llm_provider} credentials for {backend} not available")
+        if self.agent_type in _SHARED_SKILL_AGENTS:
+            os.environ[TEST_INCLUDE_SKILL_ENV] = "1"
         _isolate_agent_run_config(
             agent_type=self.agent_type,
             provider=self.llm_provider,
@@ -120,6 +137,7 @@ class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
         )
 
     def teardown_method(self) -> None:
+        os.environ.pop(TEST_INCLUDE_SKILL_ENV, None)
         reset_run_config()
 
     def test_step_01_start_env(self) -> None:
@@ -162,6 +180,8 @@ class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
         for dirname in (
             "codex_workspace",
             "claude_workspace",
+            "opencode_workspace",
+            "dsh_workspace",
             "codex_sdk_workspace",
             "claude_sdk_workspace",
         ):
@@ -181,8 +201,17 @@ class SandboxAgentPipelineBase(CommonPipelineSteps, OrderedPipelineTestCase):
             require_submission_tools=False,
         )
         assert_no_codex_tool_item_mirrors(messages)
+        assert_no_cli_native_mirrors(messages)
         phases = {e["phase"] for e in messages}
         assert DIAGNOSIS in phases
+        if self.agent_type in _SHARED_SKILL_AGENTS:
+            assert skill_invoked(messages), (
+                "diagnosis must invoke skill-loading-check "
+                "(skill/Skill tool or $skill-loading-check)"
+            )
+            assert marker_before_first_mcp_tool(messages), (
+                "SKILL_LOADING_CHECK_ACTIVE must appear before the first MCP tool"
+            )
 
     def test_step_05_agent_view_names_no_host(self) -> None:
         """Neither the model traffic nor the sandbox names the benchmark."""
@@ -251,6 +280,18 @@ class SandboxClaudeCliPipelineTest(SandboxAgentPipelineBase):
     model = CLAUDE_MODEL
 
 
+class SandboxOpenCodeCliPipelineTest(SandboxAgentPipelineBase):
+    agent_type = "cli.opencode"
+    llm_provider = OPENAI_PROVIDER
+    model = OPENAI_MODEL
+
+
+class SandboxDshCliPipelineTest(SandboxAgentPipelineBase):
+    agent_type = "cli.dsh"
+    llm_provider = OPENAI_PROVIDER
+    model = OPENAI_MODEL
+
+
 class SandboxCodexSdkPipelineTest(SandboxAgentPipelineBase):
     agent_type = "sdk.codex_sdk"
     llm_provider = OPENAI_PROVIDER
@@ -309,6 +350,14 @@ class E2bCodexCliPipelineTest(_OnE2b, SandboxCodexCliPipelineTest):
 
 
 class E2bClaudeCliPipelineTest(_OnE2b, SandboxClaudeCliPipelineTest):
+    pass
+
+
+class E2bOpenCodeCliPipelineTest(_OnE2b, SandboxOpenCodeCliPipelineTest):
+    pass
+
+
+class E2bDshCliPipelineTest(_OnE2b, SandboxDshCliPipelineTest):
     pass
 
 
