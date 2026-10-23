@@ -18,17 +18,8 @@ def render_base(name: str, addresses: Iterable[tuple[str, str]]) -> list[str]:
     ]
 
 
-def render_ospf(
-    router_id: str,
-    networks: Mapping[str, str],
-    *,
-    passive: Iterable[str] = (),
-) -> list[str]:
-    """Render OSPFv2 with ``network -> area`` statements, like FRR ``network``.
-
-    ``passive`` lists networks advertised without forming adjacencies.
-    """
-    passive = set(passive)
+def render_ospf(router_id: str, networks: Mapping[str, str]) -> list[str]:
+    """Render OSPFv2 with ``network -> area`` statements, like FRR ``network``."""
     areas = sorted(
         set(networks.values()), key=lambda area: tuple(map(int, area.split(".")))
     )
@@ -39,8 +30,7 @@ def render_ospf(
     )
     for network, area in sorted(networks.items()):
         lines.append(
-            f"/routing ospf interface-template add area=area-{area} "
-            f"networks={network}" + (" passive" if network in passive else "")
+            f"/routing ospf interface-template add area=area-{area} networks={network}"
         )
     return lines
 

@@ -348,7 +348,7 @@ cd .nika_cache/vendor/vrnetlab/mikrotik/routeros
 make docker-image
 ```
 
-3. Tag the built image to match the image reference in [`lab.py`](../../src/nika/net_env/routeros_simple_bgp/lab.py) (`IMAGE`, currently `vrnetlab/mikrotik_routeros:7.21.5`). For a different RouterOS version, retag as `7.21.5` or change that constant:
+3. Tag the built image to match the image reference in [`common.py`](../../src/nika/net_env/utils/routeros/common.py) (`IMAGE`, currently `vrnetlab/mikrotik_routeros:7.21.5`). For a different RouterOS version, retag as `7.21.5` or change that constant:
 
 ```shell
 docker tag <built-tag> vrnetlab/mikrotik_routeros:7.21.5

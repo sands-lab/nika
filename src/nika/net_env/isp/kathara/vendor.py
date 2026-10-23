@@ -136,7 +136,7 @@ class IspVendor(NetworkEnvBase):
                 render_routeros_isp,
                 routeros_interface,
             )
-            from nika.net_env.routeros_simple_bgp.lab import CONFIG_FILE_PATH, IMAGE
+            from nika.net_env.utils.routeros.common import CONFIG_FILE_PATH, IMAGE
 
             native_interface = routeros_interface
             self.deployment_configs = render_routeros_isp(self.plan, self.bgp_plan)

@@ -79,7 +79,7 @@ def direct_bgp_topology(env, parameters=None) -> tuple[dict, str]:
         raise ValueError("Solved direct BGP exports must cover both routers")
 
     from nika.net_env.iosxr_simple_bgp.lab import IMAGE as IOSXR_IMAGE
-    from nika.net_env.routeros_simple_bgp.lab import IMAGE as ROUTEROS_IMAGE
+    from nika.net_env.utils.routeros.common import IMAGE as ROUTEROS_IMAGE
 
     device = "iosxr" if profile == "iosxr" else "routeros7"
     module = ["bgp", "routing"] if profile == "iosxr" else ["bgp"]

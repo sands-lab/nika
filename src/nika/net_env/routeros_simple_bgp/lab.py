@@ -15,21 +15,10 @@ from nika.net_env.base import NetworkEnvBase
 from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 from nika.net_env.utils.routeros.common import (
     CONFIG_FILE_PATH,
-    IMAGE,
     add_routeros_router,
     require_routeros_image,
 )
 from nika.runtime.spec import NodeRole
-from nika.service.lab.routeros_api import MGMT_ADDR, MGMT_PASSWORD, MGMT_USER
-
-__all__ = [
-    "CONFIG_FILE_PATH",
-    "IMAGE",
-    "MGMT_ADDR",
-    "MGMT_PASSWORD",
-    "MGMT_USER",
-    "RouterOsSimpleBGP",
-]
 
 # Real data-link count per router (router-to-router + router-to-pc).
 CLAB_INTFS = 2

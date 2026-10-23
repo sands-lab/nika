@@ -131,7 +131,7 @@ def netlab_topology(plan: IspPlan, bgp: BgpPlan | None, device_profile: str) -> 
         if device_profile == "nokia_srlinux":
             data.update({"box": SRL_IMAGE, "clab.type": SRL_TYPE})
         elif device_profile == "routeros":
-            from nika.net_env.routeros_simple_bgp.lab import IMAGE
+            from nika.net_env.utils.routeros.common import IMAGE
 
             data.update({"box": IMAGE, "clab.type": "vr-ros"})
         if plan.igp == "ospf":
