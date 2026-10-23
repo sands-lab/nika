@@ -29,6 +29,7 @@ from tests.support.integration_pipeline import (
     live_anthropic_test_config,
     live_codex_test_model,
     live_custom_base_url,
+    live_openai_test_config,
     load_test_env,
 )
 
@@ -49,6 +50,7 @@ _PARALLEL_CASES = (
 
 CLAUDE_PROVIDER, CLAUDE_MODEL = live_anthropic_test_config()
 CODEX_MODEL = live_codex_test_model()
+OPENAI_PROVIDER, OPENAI_MODEL = live_openai_test_config()
 
 
 def _diagnosis_mcp_calls(session_path: Path) -> int:
@@ -89,6 +91,8 @@ def _assert_sandbox_artifacts(session_path: Path, *, agent_type: str) -> None:
     for dirname in (
         "codex_workspace",
         "claude_workspace",
+        "opencode_workspace",
+        "dsh_workspace",
         "codex_sdk_workspace",
         "claude_sdk_workspace",
     ):
@@ -361,9 +365,45 @@ class SandboxBenchmarkCodexTest(_SandboxBenchmark):
         )
 
 
+class SandboxBenchmarkOpenCodeTest(_SandboxBenchmark):
+    """OpenCode sandbox path for ``nika benchmark run``."""
+
+    llm_provider = OPENAI_PROVIDER
+
+    def test_parallel_batch_produces_sandbox_artifacts(self) -> None:
+        _run_parallel_sandbox_benchmark(
+            backend=self.sandbox_backend,
+            agent_type="cli.opencode",
+            provider=OPENAI_PROVIDER,
+            model=OPENAI_MODEL,
+        )
+
+
+class SandboxBenchmarkDshTest(_SandboxBenchmark):
+    """DeepSeek Harness sandbox path for ``nika benchmark run``."""
+
+    llm_provider = OPENAI_PROVIDER
+
+    def test_parallel_batch_produces_sandbox_artifacts(self) -> None:
+        _run_parallel_sandbox_benchmark(
+            backend=self.sandbox_backend,
+            agent_type="cli.dsh",
+            provider=OPENAI_PROVIDER,
+            model=OPENAI_MODEL,
+        )
+
+
 class E2bBenchmarkClaudeTest(SandboxBenchmarkClaudeTest):
     sandbox_backend = "e2b"
 
 
 class E2bBenchmarkCodexTest(SandboxBenchmarkCodexTest):
+    sandbox_backend = "e2b"
+
+
+class E2bBenchmarkOpenCodeTest(SandboxBenchmarkOpenCodeTest):
+    sandbox_backend = "e2b"
+
+
+class E2bBenchmarkDshTest(SandboxBenchmarkDshTest):
     sandbox_backend = "e2b"

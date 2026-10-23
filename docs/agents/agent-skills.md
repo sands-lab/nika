@@ -1,6 +1,6 @@
 # Configure agent skills
 
-This guide is for agent implementers who attach reusable troubleshooting instructions to Claude Code or Codex agents. A skill is a directory containing a `SKILL.md` file.
+This guide is for agent implementers who attach reusable troubleshooting instructions to Claude Code, Codex, OpenCode, or DeepSeek Harness agents. A skill is a directory containing a `SKILL.md` file.
 
 Implementation: [`utils/skills.py`](../../src/agent/utils/skills.py) prepares skill workspaces; [`agent/skills/`](../../src/agent/skills/) stores the shared library.
 
@@ -14,6 +14,8 @@ Skills are optional. Enable or disable them with `agent.enable_skills` in `confi
 | `cli.claude` | Same as above via `claude -p --setting-sources project` |
 | `cli.codex` | Codex skills under `.agents/skills/` + `AGENTS.md` |
 | `sdk.codex_sdk` | Same as Codex CLI |
+| `cli.opencode` | Shared skills under `.opencode/skills/` |
+| `cli.dsh` | Shared skills under `.agents/skills/` + `AGENTS.md` |
 | `community.sade` | Own 15-skill library under `src/agent/community/sade/.claude/` (separate from the shared library) |
 
 `byo.langgraph`, `byo.mcp_agent`, and `byo.autogen` do not load skills.
@@ -32,9 +34,9 @@ src/agent/skills/
     └── skills/ → ../skills/   # Codex discovery path
 ```
 
-Claude agents load `.claude/` via `setting_sources=["project"]`. Codex agents receive `.agents/skills/` and a short `AGENTS.md` in the per-session workspace.
+Claude agents load `.claude/` via `setting_sources=["project"]`. Codex agents receive `.agents/skills/` and a short `AGENTS.md` in the per-session workspace. OpenCode agents receive `.opencode/skills/`. DeepSeek Harness agents receive the same `.agents/skills/` layout and `AGENTS.md` as Codex, in the isolated headless workspace.
 
-`skill-loading-check` lives under [`tests/agent/fixtures/skills/`](../../tests/agent/fixtures/skills/skill-loading-check/SKILL.md) and is **not** part of the production skill package (sandbox copies never include it). Skill tests pass `include_test_skill=True` to `prepare_claude_workspace` / `prepare_codex_workspace` / `diagnosis_prompt_with_skills` to materialize it.
+`skill-loading-check` is a test-only fixture under [`tests/agent/fixtures/skills/`](../../tests/agent/fixtures/skills/skill-loading-check/SKILL.md). It is not part of the production skill package. [Testing](../development/testing.md) describes how unit and live sandbox tests load it.
 
 ## Configuration
 
@@ -98,11 +100,11 @@ uv run nika failure inject link_down --set host_name=pc_0_0 --set intf_name=eth0
 uv run nika agent run -a sdk.claude_sdk -p deepseek -m deepseek-v4-flash -n 20
 ```
 
-Inspect `results/{session_id}/messages.jsonl` for `Skill` tool calls (Claude) or skill-name mentions (Codex).
+Inspect `results/{session_id}/messages.jsonl` for `Skill` tool calls (Claude), `$skill` mentions (Codex), or lowercase `skill` tool calls (OpenCode and DeepSeek Harness).
 
 Run `uv run pytest tests/agent/test_skills.py -v` for the skill unit and integration tests.
 
-## Claude vs Codex invocation
+## How agents invoke skills
 
 **Claude Code agents** use the native Skill tool:
 
@@ -119,6 +121,12 @@ $my-link-skill
 ```
 
 Or implicitly when the task matches the skill description.
+
+**OpenCode** discovers skills from `.opencode/skills/`. **DeepSeek Harness** uses the same `.agents/skills/` path and `AGENTS.md` as Codex. Both invoke:
+
+```text
+skill({ name: "my-link-skill" })
+```
 
 ## Advanced example: SADE
 

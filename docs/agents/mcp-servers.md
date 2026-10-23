@@ -48,7 +48,7 @@ Call `int_query_telemetry` with a start time and optional flow or packet filters
 
 ### Kubernetes (`k8s_mcp_server`)
 
-Call `k8s_list_events(namespace=..., limit=...)` for event evidence. Use `exec_shell` on `controller` for other Kubernetes operations, such as `kubectl get nodes --no-headers`, `kubectl describe pod ...`, or `kubectl logs ... --tail=20`. Keep output below the command result limit and set a longer timeout for slow API calls. The server is selected when `nika.k8s.access` is `auto` or `mcp`; `kubectl_only` omits it.
+Call `k8s_list_events(namespace=..., limit=...)` for event evidence. It returns JSON that stays within the MCP output budget: long messages are shortened and extra events are dropped, so the payload stays parseable. Use `exec_shell` on `controller` for other Kubernetes operations, such as `kubectl get nodes --no-headers`, `kubectl describe pod ...`, or `kubectl logs ... --tail=20`. Keep command output below the result limit and set a longer timeout for slow API calls. The server is selected when `nika.k8s.access` is `auto` or `mcp`; `kubectl_only` omits it.
 
 ## Capture packets
 

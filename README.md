@@ -100,7 +100,7 @@ See the [failure reference](docs/operations/failures.md#registered-failures) for
 
 ### Pluggable agents
 
-NIKA includes agents built with [LangGraph](https://reference.langchain.com/python/langgraph/overview), [mcp-agent](https://github.com/lastmile-ai/mcp-agent), and [AutoGen](https://microsoft.github.io/autogen/stable/); sandboxed [Codex](https://github.com/openai/codex) and [Claude Code](https://github.com/anthropics/claude-code) agents; and community integrations such as [SADE](docs/agents/community/sade.md). [Choose an agent](docs/agents/agent-implementations.md) or [integrate your own](docs/agents/custom-agents.md).
+NIKA includes agents built with [LangGraph](https://reference.langchain.com/python/langgraph/overview), [mcp-agent](https://github.com/lastmile-ai/mcp-agent), and [AutoGen](https://microsoft.github.io/autogen/stable/); sandboxed [Codex](https://github.com/openai/codex), [Claude Code](https://github.com/anthropics/claude-code), [OpenCode](https://opencode.ai), and [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) agents; and community integrations such as [SADE](docs/agents/community/sade.md). [Choose an agent](docs/agents/agent-implementations.md) or [integrate your own](docs/agents/custom-agents.md).
 
 ### Network inspection via MCP
 

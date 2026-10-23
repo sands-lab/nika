@@ -1,4 +1,4 @@
-"""Shared skill library helpers for Claude Code and Codex agents."""
+"""Shared skill library helpers for Claude Code, Codex, OpenCode, and dsh."""
 
 from __future__ import annotations
 
@@ -187,6 +187,19 @@ def prepare_claude_workspace(
     if package is None:
         return
     _symlink_or_copy(package / ".claude", workspace / ".claude")
+
+
+def prepare_skill_workspace(
+    workspace: Path, dest: Path, *, include_test_skill: bool = False
+) -> None:
+    """Link shared skills into *dest* under *workspace* (for non-Claude/Codex CLIs)."""
+    if not skills_enabled():
+        return
+    if dest.is_absolute():
+        skills_dst = dest
+    else:
+        skills_dst = workspace / dest
+    _link_skills(skills_dst, with_test=include_test_skill)
 
 
 def prepare_codex_workspace(

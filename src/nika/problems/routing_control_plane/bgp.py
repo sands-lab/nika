@@ -155,7 +155,7 @@ class BGPAsnMisconfig(ProblemBase):
         as_number = self.runtime.frr_get_bgp_asn_number(params.host_name)
         wrong_asn = as_number + ASN_MISCONFIG_OFFSET
         # k8s_lab uses split FRR configs (/etc/frr/bgpd.conf); campus etc. use frr.conf.
-        # Patch on-disk configs and bounce daemons so split-config labs reload.
+        # Patch the on-disk config so it matches what the running bgpd will use.
         # Avoid shell "$vars" inside runtime.exec wrapping (quote escaping breaks loops).
         patched: list[str] = []
         for conf in ("/etc/frr/frr.conf", "/etc/frr/bgpd.conf"):
@@ -182,22 +182,30 @@ class BGPAsnMisconfig(ProblemBase):
                 f"{type(self).__name__}: could not patch BGP ASN files on "
                 f"{params.host_name!r}: patched={patched!r} grep={verify_files!r}"
             )
-        self.runtime.exec(
-            params.host_name,
-            (
-                "pkill -9 -x bgpd 2>/dev/null || true; "
-                "pkill -9 -x zebra 2>/dev/null || true; "
-                "sleep 1; "
-                "/usr/lib/frr/frrinit.sh start 2>/dev/null || "
-                "systemctl start frr 2>/dev/null || "
-                "service frr start 2>/dev/null || "
-                "("
-                "  [ -x /usr/lib/frr/zebra ] && /usr/lib/frr/zebra -d -A 127.0.0.1; "
-                "  [ -x /usr/lib/frr/bgpd ] && /usr/lib/frr/bgpd -d -A 127.0.0.1; "
-                ")"
-            ),
-            timeout=90,
-        )
+        # FRR cannot renumber a live BGP instance in place, so delete it and
+        # reload the patched config through vtysh. The daemons keep running:
+        # killing them leaves watchfrr holding its pid lock, so a restart fails
+        # and bgpd stays down instead of running with the wrong ASN (#265).
+        # VRF instances depend on the default one and must be removed first.
+        instances = [
+            line.strip()
+            for line in self.runtime.exec(
+                params.host_name,
+                "vtysh -c 'show running-config' 2>/dev/null | grep -E '^router bgp '",
+                timeout=20,
+            ).splitlines()
+            if line.startswith("router bgp ")
+        ]
+        instances.sort(key=lambda line: " vrf " not in line)
+        if instances:
+            remove = " ".join(f"-c 'no {line}'" for line in instances)
+            self.runtime.exec(
+                params.host_name,
+                f"vtysh -c 'configure terminal' {remove}",
+                timeout=30,
+            )
+        for conf in patched:
+            self.runtime.exec(params.host_name, f"vtysh -f {conf}", timeout=60)
         wait_until(lambda: self._running_asn(params.host_name) == wrong_asn, 30)
         running = self._running_asn(params.host_name)
         if running != wrong_asn:
