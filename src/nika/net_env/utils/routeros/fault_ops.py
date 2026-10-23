@@ -17,7 +17,6 @@ from nika.net_env.utils.routeros.parse import (
     routeros_terse_rows,
 )
 from nika.problems.support.router_ops import RouterFaultOps, SourceNat, TunnelPeer
-from nika.runtime.base import RuntimeCapabilityError
 from nika.service.lab.routeros_api import CLI_COMMAND
 
 _BGP_PORT_RULES = tuple(
@@ -191,6 +190,41 @@ class RouterOsFaultOps(RouterFaultOps):
         )
 
     # Packet filters
+
+    # Running configuration
+
+    def save_config(self) -> str:
+        return self._cli("/export terse")
+
+    def restore_config(self, saved: str) -> None:
+        from nika.net_env.utils.routeros.common import routeros_restore_script
+
+        script = routeros_restore_script(saved, self._cli("/export terse"))
+        if script:
+            self._cli(script)
+
+    # OSPF
+
+    def ospf_interface_areas(self) -> list[str]:
+        areas = {
+            row["name"]: row["area-id"]
+            for row in self._rows("/routing/ospf/area/print terse")
+            if "name" in row and "area-id" in row
+        }
+        return [
+            areas.get(row.get("area", ""), row.get("area", ""))
+            for row in self._rows("/routing/ospf/interface-template/print terse")
+        ]
+
+    def renumber_ospf_area(self, area: str, new_area: str) -> None:
+        # RouterOS keeps the established neighbors of a reconfigured area, so
+        # the instance restarts to run the new area ID, as a restarted FRR
+        # daemon runs an edited configuration.
+        self._cli(
+            f'/routing ospf area set [find where area-id="{area}"] '
+            f'area-id="{new_area}"; /routing ospf instance disable [find]; '
+            ":delay 2s; /routing ospf instance enable [find]"
+        )
 
     def _filter_rules(self) -> list[dict[str, str]]:
         return self._rows("/ip/firewall/filter/print terse")
@@ -417,24 +451,3 @@ class RouterOsFaultOps(RouterFaultOps):
                 f'reply-dst-address~"^{address}:"'
             )
         )
-
-    # Configuration save and restore
-
-    def _exec_config(self, command: str) -> str:
-        # Importing a full configuration takes minutes on RouterOS.
-        result = self.runtime.exec(self.node, command, timeout=300)
-        if result.startswith("[TIMEOUT]"):
-            raise RuntimeCapabilityError(
-                f"RouterOS configuration operation timed out on {self.node}"
-            )
-        return result
-
-    def save_config(self) -> str:
-        from nika.net_env.utils.routeros.common import RUNNING_CONFIG_COMMAND
-
-        return self._exec_config(RUNNING_CONFIG_COMMAND)
-
-    def restore_config(self, saved: str) -> None:
-        from nika.net_env.utils.routeros.common import routeros_restore_command
-
-        self._exec_config(routeros_restore_command(saved))
