@@ -69,7 +69,9 @@ def load_credential_sources(
         ENV_CUSTOM_API_KEY,
         ENV_CUSTOM_BASE_URL,
         ENV_DEEPSEEK_API_KEY,
+        ENV_DEEPSEEK_BASE_URL,
         ENV_OPENAI_API_KEY,
+        ENV_OPENAI_BASE_URL,
         map_provider_credentials,
     )
 
@@ -78,7 +80,9 @@ def load_credential_sources(
     merged = dict(file_vals)
     for key in (
         ENV_DEEPSEEK_API_KEY,
+        ENV_DEEPSEEK_BASE_URL,
         ENV_OPENAI_API_KEY,
+        ENV_OPENAI_BASE_URL,
         ENV_ANTHROPIC_API_KEY,
         ENV_ANTHROPIC_AUTH_TOKEN,
         ENV_ANTHROPIC_BASE_URL,

@@ -78,7 +78,13 @@ class AgentConfigTest:
 
     def test_reasoning_effort_defaults_to_medium_for_builtin_agents(self) -> None:
         set_run_config(RunConfig.model_validate({"agent": {}}))
-        for agent_type in ("byo.langgraph", "cli.claude", "sdk.codex_sdk"):
+        for agent_type in (
+            "byo.langgraph",
+            "cli.claude",
+            "cli.opencode",
+            "cli.dsh",
+            "sdk.codex_sdk",
+        ):
             assert resolve_reasoning_effort(agent_type) == "medium"
         # Added and community agents configure their own reasoning effort.
         assert resolve_reasoning_effort("community.sade") is None
@@ -91,6 +97,8 @@ class AgentConfigTest:
             "byo.autogen",
             "cli.claude",
             "sdk.claude_sdk",
+            "cli.opencode",
+            "cli.dsh",
         ):
             assert resolve_max_tokens(agent_type) == 4096
         for agent_type in ("mock", "community.sade", "cli.codex", "sdk.codex_sdk"):
@@ -106,6 +114,8 @@ class AgentConfigTest:
             ("sdk.claude_sdk", "deepseek-v4-flash"),
             ("community.sade", "deepseek-v4-flash"),
             ("cli.claude", "deepseek-v4-flash"),
+            ("cli.opencode", "deepseek-v4-flash"),
+            ("cli.dsh", "deepseek-v4-flash"),
         ]
         for agent_type, model in cases:
             provider = (
