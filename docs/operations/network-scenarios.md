@@ -548,11 +548,17 @@ In a benchmark task, set the same option in the case:
 
 `netflow` is currently the only telemetry type. A task with telemetry has a different task ID from the same task without it, so their results are kept apart.
 
-With `netflow`, NIKA adds a `flow_collector` node running `nfcapd` and connects every device to it over an out-of-band export network, on each device's last scenario interface. On devices that Kathara bridges to the host, its host NIC still comes after it. Once the environment passes its checks, NIKA runs `pmacctd -V` on every device. Each device that answers runs one pmacct probe per scenario interface, which exports ingress flows over IPFIX. The deployment then waits until the collector and every probe are running. Agents query the records with [`netflow_query`](../agents/mcp-servers.md#netflow-kathara_netflow_mcp_server).
+With `netflow`, NIKA does the following before deployment:
 
-`nika/frr` includes pmacct, so the routers of FRR-based environments export flows. On a device without pmacct, the export interface stays unconfigured. If no device has pmacct, the environment still deploys and the collector receives no records. The `telemetry_configured` event in the session log lists the pmacct version of each exporting device and the devices left unconfigured. Telemetry requires the Kathara backend.
+1. It adds a `flow_collector` node running `nfcapd`.
+2. It connects every device whose image supports NetFlow to the collector over an out-of-band export network.
+3. On each of these devices, it runs one pmacct probe per scenario interface. The probe exports ingress flows over IPFIX.
 
-Each exporting device keeps its export interface in a separate VRF named `nika_telemetry`. Its routing protocols therefore never advertise the export network, even with `redistribute connected` or `redistribute kernel`. The export interface is also left out of the topology given to agents and failures.
+The deployment then waits until the collector and every probe are running. Agents query the records with [`netflow_query`](../agents/mcp-servers.md#netflow-kathara_netflow_mcp_server).
+
+Each device keeps its export interface in a separate VRF named `nika_telemetry`. Its routing protocols therefore never advertise the export network, even with `redistribute connected` or `redistribute kernel`. The interface is also left out of the topology given to agents and failures.
+
+An image supports a telemetry type when it carries a matching `io.nika.telemetry` label (for example, `LABEL io.nika.telemetry="netflow"`). `nika/frr` carries it, so the routers of FRR-based environments export flows, while hosts on other images do not. If no device in the environment supports the requested type, `nika env run` fails before it deploys anything. Telemetry requires the Kathara backend.
 
 The export network uses `172.28.0.0/16` by default. If an environment already uses that range, choose a free one in `config/nika.yaml`:
 

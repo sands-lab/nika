@@ -4,4 +4,5 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends stress-ng isc-dhcp-server isc-dhcp-relay nftables wireguard wireguard-tools tcpdump tshark conntrack pmacct && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# pmacct (NetFlow telemetry exporter) stays idle unless a case enables it.
+# pmacct stays idle unless a case enables NetFlow telemetry.
+LABEL io.nika.telemetry="netflow"
