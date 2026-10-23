@@ -70,6 +70,7 @@ class BGPHijacking(ProblemBase):
     root_cause_name: str = "bgp_hijacking"
     description = "An unauthorized BGP prefix is advertised (hijack)."
     TAGS: str = ["bgp"]
+    native_router_operations = frozenset({"bgp_advertised_to", "originate_bgp_prefix"})
     INCOMPATIBLE_SCENARIOS = {
         "routeros_simple_bgp": "The injector reads and edits the FRR BGP "
         "configuration, which RouterOS routers do not have."

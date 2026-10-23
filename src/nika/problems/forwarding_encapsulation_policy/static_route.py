@@ -52,6 +52,9 @@ class StaticBlackHole(ProblemBase):
     root_cause_name: str = "host_static_blackhole"
     description = "A static blackhole route drops traffic to a prefix locally."
     TAGS: str = ["bgp"]
+    native_router_operations = frozenset(
+        {"add_blackhole_route", "blackhole_routes", "remote_bgp_prefixes"}
+    )
     supported_backends = ("kathara", "containerlab")
 
     Params = StaticBlackHoleParams

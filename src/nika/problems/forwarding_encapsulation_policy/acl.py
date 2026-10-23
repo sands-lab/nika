@@ -64,6 +64,9 @@ class BGPAclBlock(ProblemBase):
     root_cause_name = "bgp_acl_block"
     description = "BGP control-plane traffic is blocked by an ACL."
     TAGS: str = ["bgp"]
+    native_router_operations = frozenset(
+        {"bgp_established_peers", "bgp_transport_blocked", "block_bgp_transport"}
+    )
     supported_backends = ("kathara", "containerlab")
 
     Params = BGPAclBlockParams

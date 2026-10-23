@@ -295,6 +295,7 @@ class SnatPortPoolExhaustion(ProblemBase):
     description = "SNAT source-port pool is exhausted."
     symptom_desc = "The available SNAT source-port pool is exhausted for concurrent outbound connections."
     TAGS = ["vpn", "http", "nat"]
+    native_router_operations = frozenset({"add_source_nat", "source_nat_rules"})
     Params = SnatPortPoolExhaustionParams
 
     BENCHMARK_TARGETS = "canonical"
@@ -384,6 +385,15 @@ class NatMappingRemovedWithoutDrain(ProblemBase):
         "An active SNAT address is removed without draining its conntrack mappings."
     )
     TAGS = ["vpn", "http", "nat"]
+    native_router_operations = frozenset(
+        {
+            "add_source_nat",
+            "clear_nat_mappings",
+            "interface_addresses",
+            "nat_mapping_count",
+            "remove_interface_address",
+        }
+    )
     Params = NatMappingRemovedWithoutDrainParams
 
     BENCHMARK_TARGETS = "canonical"
