@@ -32,7 +32,8 @@ Use `exec_shell(host_name, command, timeout=10)` for ordinary commands. Set `tim
 | `kathara_bmv2_mcp_server` | Kathara P4 scenarios | `p4rt_exec` runs read-only P4Runtime queries through the fabric controller `fabric_mgr`. |
 | `kathara_sdn_mcp_server` | Kathara SDN scenarios | `sdn_onos_rest` queries ONOS REST through `fabric_mgr`. |
 | `kathara_telemetry_mcp_server` | Kathara telemetry scenarios | `int_query_telemetry` filters observed INT-MX packet and hop records. |
-| `kathara_netflow_mcp_server` | Sessions started with `telemetry: [netflow]` | `netflow_query` reads and aggregates IPFIX flow records stored by `flow_collector`. |
+| `kathara_netflow_mcp_server` | Sessions started with `telemetry: [netflow]` | `netflow_query` reads and aggregates IPFIX flow records stored by `telemetry_collector`. |
+| `kathara_prometheus_mcp_server` | Sessions started with `telemetry: [prometheus]` | `prometheus_query` runs PromQL against the device metrics Prometheus stores on `telemetry_collector`. |
 | `k8s_mcp_server` | Kubernetes scenarios when `nika.k8s.access` permits MCP | `k8s_list_events` queries session-scoped Kubernetes events. |
 
 ### SDN (`kathara_sdn_mcp_server`)
@@ -49,9 +50,15 @@ Call `int_query_telemetry` with a start time and optional flow or packet filters
 
 ### NetFlow (`kathara_netflow_mcp_server`)
 
-Call `netflow_query` with a time window, for example `start_time="-600"` for the last ten minutes. To narrow the results, pass `exporter` (a device name) and an nfdump `filter` such as `proto udp and dst ip 10.254.0.6`. To sum packets, bytes, and flows, set `aggregate_by` to one or more of `router`, `inif`, `proto`, `srcip`, `srcport`, `dstip`, and `dstport`. Rows are sorted by `order_by` (`bytes`, `packets`, or `flows`), and `limit` caps them at 100.
+Call `netflow_query` with a time window, for example `start_time="-600"` for the last ten minutes. To narrow the results, pass `exporter` (a device name) and an nfdump `filter` such as `proto udp and dst ip 10.254.0.6`. To sum packets, bytes, and flows, set `aggregate_by` to one or more of `router`, `inif`, `proto`, `srcip`, `srcport`, `dstip`, and `dstport`. Rows are sorted by `order_by` (`bytes`, `packets`, or `flows`), and `limit` sets how many are returned.
 
-Devices export only the traffic they receive, so a flow appears once for each device on its path. `in_if` is the kernel ifindex of the receiving interface; running `ip -o link` on that device maps it to an interface name. Records become queryable about 20 seconds after the traffic. The server is selected when a session enables [flow telemetry](../operations/network-scenarios.md#flow-telemetry).
+Devices export only the traffic they receive, so a flow appears once for each device on its path. `in_if` is the kernel ifindex of the receiving interface; running `ip -o link` on that device maps it to an interface name. Records become queryable about 20 seconds after the traffic. The server is selected when a session enables `netflow` [telemetry](../operations/network-scenarios.md#telemetry).
+
+### Prometheus (`kathara_prometheus_mcp_server`)
+
+Call `prometheus_query` with a PromQL expression, for example `node_network_up == 0` for interfaces that are down, or `rate(node_network_receive_bytes_total{node="chinng"}[30s])` for receive rates on one device. Each series carries the device as `node`; `device` is the interface name, as node_exporter uses it. Omit `start_time` for an instant query. With `start_time` (for example `"-600"`), the tool returns a range at `step` resolution. `limit` sets how many series are returned.
+
+Metrics cover each device's network stack: interface counters and state (`node_network_*`), protocol statistics (`node_netstat_*`), sockets (`node_sockstat_*`), conntrack (`node_nf_conntrack_*`), and ARP (`node_arp_*`). `up` shows whether a device answers its scrape. Devices are scraped every 5 seconds. The server is selected when a session enables `prometheus` [telemetry](../operations/network-scenarios.md#telemetry).
 
 ### Kubernetes (`k8s_mcp_server`)
 

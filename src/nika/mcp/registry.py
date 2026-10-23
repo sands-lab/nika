@@ -6,7 +6,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Literal
 
-from nika.telemetry import NETFLOW
+from nika.telemetry import NETFLOW, PROMETHEUS
 
 Backend = Literal["kathara", "containerlab"]
 Role = Literal[
@@ -105,6 +105,12 @@ MCP_SERVER_SPECS: dict[str, MCPServerSpec] = {
         backend="kathara",
         role="telemetry",
         module="nika.mcp.servers.kathara.netflow_server",
+    ),
+    "kathara_prometheus_mcp_server": MCPServerSpec(
+        name="kathara_prometheus_mcp_server",
+        backend="kathara",
+        role="telemetry",
+        module="nika.mcp.servers.kathara.prometheus_server",
     ),
     # Host-side Kubernetes MCP (session kubeconfig → published API port)
     "k8s_mcp_server": MCPServerSpec(
@@ -208,6 +214,8 @@ def select_diagnosis_servers(
         servers.append("kathara_telemetry_mcp_server")
     if backend != "containerlab" and NETFLOW in telemetry:
         servers.append("kathara_netflow_mcp_server")
+    if backend != "containerlab" and PROMETHEUS in telemetry:
+        servers.append("kathara_prometheus_mcp_server")
     if tokens & KUBERNETES_KEYWORDS and _k8s_mcp_enabled():
         servers.append(K8S_MCP_SERVER)
 

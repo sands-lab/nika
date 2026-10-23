@@ -3,8 +3,9 @@ import time
 from datetime import UTC, datetime
 
 from nika.service.kathara.base_api import KatharaBaseAPI, _SupportsBase
-from nika.service.kathara.telemetry_api import TelemetryAPIMixin
-from nika.telemetry.netflow import FLOW_COLLECTOR, FLOW_DIR, FLOW_EXPORTERS_FILE
+from nika.service.kathara.telemetry_api import time_bound_seconds
+from nika.telemetry.management import TELEMETRY_COLLECTOR
+from nika.telemetry.netflow import FLOW_DIR, FLOW_EXPORTERS_FILE
 
 # Agent-facing aggregation keys mapped to nfdump ``-A`` keys and output fields.
 NETFLOW_AGGREGATE_KEYS: dict[str, tuple[str, str, str]] = {
@@ -17,7 +18,6 @@ NETFLOW_AGGREGATE_KEYS: dict[str, tuple[str, str, str]] = {
     "dstport": ("dstport", "%dp", "dst_port"),
 }
 NETFLOW_ORDER_KEYS = ("bytes", "packets", "flows")
-NETFLOW_MAX_LIMIT = 100
 NETFLOW_MAX_FILTER_CHARS = 512
 
 _RECORD_FIELDS = (
@@ -44,22 +44,16 @@ _PROTO_NAMES = {
 
 
 def _nfdump_time(value: str) -> str:
-    """Format a time bound as an nfdump ``-t`` UTC timestamp.
-
-    Accepts what ``int_query_telemetry`` accepts, plus ``-N`` for N seconds ago.
-    """
-    if value.startswith("-") and value[1:].replace(".", "", 1).isdigit():
-        seconds = time.time() - float(value[1:])
-    else:
-        seconds = TelemetryAPIMixin._time_bound_ns(value) / 1_000_000_000
+    """Format a time bound (see ``time_bound_seconds``) as an nfdump ``-t`` timestamp."""
+    seconds = time_bound_seconds(value)
     return datetime.fromtimestamp(seconds, UTC).strftime("%Y/%m/%d.%H:%M:%S")
 
 
 class NetflowAPIMixin:
-    """Query IPFIX flow records stored by the lab flow collector."""
+    """Query IPFIX flow records stored by the lab telemetry collector."""
 
     def _flow_exporters(self: _SupportsBase) -> dict[str, str]:
-        raw = self.exec_cmd(FLOW_COLLECTOR, f"cat {FLOW_EXPORTERS_FILE}")
+        raw = self.exec_cmd(TELEMETRY_COLLECTOR, f"cat {FLOW_EXPORTERS_FILE}")
         exporters: dict[str, str] = {}
         for line in raw.splitlines():
             parts = line.split()
@@ -85,6 +79,8 @@ class NetflowAPIMixin:
                 f"Unknown aggregate_by keys {unknown}; "
                 f"use {sorted(NETFLOW_AGGREGATE_KEYS)}."
             )
+        if int(limit) < 1:
+            raise ValueError("limit must be at least 1.")
         if order_by not in NETFLOW_ORDER_KEYS:
             raise ValueError(f"order_by must be one of {list(NETFLOW_ORDER_KEYS)}.")
         if filter is not None and len(filter) > NETFLOW_MAX_FILTER_CHARS:
@@ -119,12 +115,14 @@ class NetflowAPIMixin:
         argv = ["nfdump", "-R", FLOW_DIR, "-q", "-N", "-t", window]
         if keys:
             argv += ["-A", ",".join(NETFLOW_AGGREGATE_KEYS[k][0] for k in keys)]
-        argv += ["-O", order_by, "-n", str(max(1, min(int(limit), NETFLOW_MAX_LIMIT)))]
+        argv += ["-O", order_by, "-n", str(int(limit))]
         argv += ["-o", "fmt:" + "|".join(spec for spec, _ in fields)]
         if clauses:
             argv.append(" and ".join(clauses))
 
-        raw = self.exec_cmd(FLOW_COLLECTOR, "TZ=UTC " + shlex.join(argv), timeout=30)
+        raw = self.exec_cmd(
+            TELEMETRY_COLLECTOR, "TZ=UTC " + shlex.join(argv), timeout=30
+        )
         rows: list[dict] = []
         unparsed: list[str] = []
         for line in raw.splitlines():

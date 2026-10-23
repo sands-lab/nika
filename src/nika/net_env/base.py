@@ -202,14 +202,14 @@ class NetworkEnvBase:
 
         Output format: [(host1:intf1, host2:intf2), ...]
         """
-        from nika.telemetry import TELEMETRY_NETWORK
+        from nika.telemetry import is_telemetry_link
 
         topology = defaultdict(list)
         machines = self.lab.machines
         for machine, stat in machines.items():
             for intf_num, intf in stat.interfaces.items():
                 # The telemetry export LAN is out-of-band, not a scenario link.
-                if intf.link.name == TELEMETRY_NETWORK:
+                if is_telemetry_link(intf.link.name):
                     continue
                 topology[intf.link.name].append(f"{machine}:eth{intf_num}")
         # sorted by the link name A, B, C, ...

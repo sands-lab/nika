@@ -49,11 +49,11 @@ from nika.net_env.verify import LabVerifyTimeoutError, verify_lab_with_retry
 from nika.problems.support.polling import wait_until
 from nika.run_config.loader import get_run_config
 from nika.telemetry import (
-    TELEMETRY_READY_TIMEOUT_SEC,
     apply_telemetry,
     configure_telemetry,
     normalize_telemetry,
     require_telemetry_backend,
+    telemetry_ready_timeout,
     telemetry_running,
 )
 from nika.utils.logger import (
@@ -238,29 +238,25 @@ def _configure_telemetry(net_env: Any, session: Session, *, scenario: str) -> No
     unconfigured; only a configured probe or collector that does not start fails.
     """
     runtime = net_env._build_runtime()
-    applied = configure_telemetry(runtime, net_env.metadata["telemetry"])
-    net_env.metadata["telemetry"] = applied
+    plan = configure_telemetry(runtime, net_env.metadata["telemetry"])
+    net_env.metadata["telemetry"] = plan
     session.update_session("metadata", dict(net_env.metadata))
-    for kind, plan in applied.items():
-        unconfigured = sorted(set(plan["candidates"]) - set(plan["exporters"]))
+    for kind, info in plan["kinds"].items():
         log_event(
             "telemetry_configured",
-            f"Telemetry {kind} configured on {len(plan['exporters'])} of "
-            f"{len(plan['candidates'])} devices ({net_env.name})",
+            f"Telemetry {kind} configured on {len(info['versions'])} of "
+            f"{len(plan['devices'])} devices ({net_env.name})",
             scenario=scenario,
             lab_name=net_env.name,
             kind=kind,
-            versions=plan["versions"],
-            unconfigured=unconfigured,
+            versions=info["versions"],
+            unconfigured=sorted(set(plan["devices"]) - set(info["versions"])),
         )
-    if not wait_until(
-        lambda: telemetry_running(runtime, applied),
-        TELEMETRY_READY_TIMEOUT_SEC,
-        interval_s=5,
-    ):
+    timeout = telemetry_ready_timeout(plan)
+    if not wait_until(lambda: telemetry_running(runtime, plan), timeout, interval_s=5):
         raise RuntimeError(
-            f"Telemetry {sorted(applied)} collectors or exporters are not running "
-            f"after {TELEMETRY_READY_TIMEOUT_SEC}s."
+            f"Telemetry {sorted(plan['kinds'])} collectors or agents are not running "
+            f"after {timeout:.0f}s."
         )
 
 

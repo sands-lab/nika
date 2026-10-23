@@ -243,11 +243,12 @@ class ExecutionSettings(BaseModel):
     firecracker: FirecrackerSettings = Field(default_factory=FirecrackerSettings)
 
 
-class NetflowSettings(BaseModel):
-    """Out-of-band export network for NetFlow/IPFIX telemetry."""
+class TelemetrySettings(BaseModel):
+    """Settings for scenario telemetry selected per case with ``telemetry``."""
 
     model_config = ConfigDict(extra="forbid")
 
+    # Out-of-band management network shared by every telemetry kind.
     subnet: str = "172.28.0.0/16"
 
     @field_validator("subnet")
@@ -256,17 +257,9 @@ class NetflowSettings(BaseModel):
         network = ipaddress.ip_network(value, strict=True)
         if network.version != 4 or network.num_addresses < 16:
             raise ValueError(
-                "nika.telemetry.netflow.subnet must be an IPv4 network of /28 or larger"
+                "nika.telemetry.subnet must be an IPv4 network of /28 or larger"
             )
         return str(network)
-
-
-class TelemetrySettings(BaseModel):
-    """Settings for scenario telemetry selected per case with ``telemetry``."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    netflow: NetflowSettings = Field(default_factory=NetflowSettings)
 
 
 class NikaSettings(BaseModel):
