@@ -819,12 +819,17 @@ def benchmark_validate_profiles(
     from nika.workflows.benchmark.profile_validation import (
         declared_cells,
         load_results,
+        prune_results,
         validate_cells,
     )
 
+    declared = declared_cells()
+    if not list_only:
+        for key in prune_results(declared):
+            typer.echo(f"drop {key}: no longer declared by the pool")
     cells = [
         cell
-        for cell in declared_cells()
+        for cell in declared
         if (environment is None or cell.environment == environment)
         and (device_profile is None or cell.device_profile == device_profile)
         and (failure is None or cell.failure == failure)

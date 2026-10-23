@@ -154,6 +154,16 @@ def write_results(
     tmp.replace(path)
 
 
+def prune_results(declared: Iterable[Cell], path: Path = RESULTS_PATH) -> list[str]:
+    """Drop recorded cells the pool no longer declares; return their keys."""
+    keys = {cell.key for cell in declared}
+    records = load_results(path)
+    stale = sorted(set(records) - keys)
+    if stale:
+        write_results({k: r for k, r in records.items() if k in keys}, path)
+    return stale
+
+
 def validated_cells(path: Path = RESULTS_PATH) -> set[str]:
     return {key for key, r in load_results(path).items() if r["status"] == VALIDATED}
 
