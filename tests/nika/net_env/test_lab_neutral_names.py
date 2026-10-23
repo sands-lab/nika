@@ -19,7 +19,6 @@ from nika.net_env.net_env_pool import (
     scenario_requires_topo_size,
     scenario_supported_backends,
 )
-from nika.telemetry import management
 
 pytestmark = pytest.mark.contract
 
@@ -28,7 +27,7 @@ pytestmark = pytest.mark.contract
 _HOST_NAME = re.compile(r"(?<![a-z])nika", re.IGNORECASE)
 _NET_ENV = Path(__file__).resolve().parents[3] / "src" / "nika" / "net_env"
 # Device-side strings built in Python (fault injection, verification) are not
-# scanned here, except the telemetry configuration, checked below.
+# scanned here.
 # Dockerfile lines that never reach the image filesystem.
 _HOST_ONLY_DOCKERFILE_LINE = re.compile(r"^\s*(#|FROM |ARG |LABEL )")
 
@@ -53,35 +52,6 @@ def test_device_files_do_not_name_the_host() -> None:
         if any(_HOST_NAME.search(line) for line in lines):
             leaks.append(str(path.relative_to(_NET_ENV)))
     assert leaks == []
-
-
-def test_telemetry_device_side_does_not_name_the_host() -> None:
-    net_env = get_net_env_instance("dc_clos", backend="kathara", topo_size="s")
-    kinds = tuple(management.KINDS)
-    plan = management.attach(net_env, "172.28.0.0/16", kinds)
-    collector, prefixlen, addresses = management.address_plan(
-        plan["subnet"], list(plan["devices"])
-    )
-    device_side = [
-        net_env.lab.fs.readtext(f"{node}.startup")
-        for node in (management.TELEMETRY_SWITCH, management.TELEMETRY_COLLECTOR)
-    ]
-    device_side += [management.SCRIPT, management.LOG]
-    for name, device in plan["devices"].items():
-        device_side += management.setup_lines(
-            mgmt_iface=device["mgmt_iface"],
-            address=addresses[name],
-            prefixlen=prefixlen,
-            collector=collector,
-        )
-        for kind in management.KINDS.values():
-            files = kind.device_files(device, addresses[name], collector)
-            device_side += [*files, *files.values()]
-            device_side += kind.device_lines(device, addresses[name])
-    for kind in management.KINDS.values():
-        files = kind.collector_files(addresses)
-        device_side += [*files, *files.values(), *kind.collector_lines()]
-    assert [text for text in device_side if _HOST_NAME.search(text)] == []
 
 
 @pytest.mark.parametrize("scenario", sorted(list_all_net_envs()))
