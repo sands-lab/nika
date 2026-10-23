@@ -218,6 +218,38 @@ def test_completion_configuration_execution_and_registered_failures(
     assert summary["synthesis"]["backend"] == "netcomplete"
 
 
+@pytest.mark.e2e
+@pytest.mark.parametrize("config_generator", [None, "netlab"])
+@pytest.mark.parametrize("specimen", ["clos", "campus", "enterprise"])
+def test_xr_routers_follow_the_same_construction_and_failures(
+    specimen, config_generator, tmp_path, netcomplete_image, batfish_verifier
+):
+    """Eligible routers on XRd pass the FRR specimen's sequence (run serially)."""
+    from nika.net_env.utils.iosxr.common import IMAGE
+    from nika.net_env.utils.kathara.docker_files.docker_images import image_exists
+
+    if not image_exists(IMAGE):
+        pytest.skip("Install the licensed XRd image first")
+    if config_generator:
+        from importlib.util import find_spec
+
+        if find_spec("netsim") is None:
+            pytest.skip("Install the netlab extra for upstream construction")
+    spec = ScenarioExperiment.model_validate_json(
+        (SPECIMENS / f"{specimen}-iosxr.json").read_text()
+    )
+    summary = validate_scenario_design(
+        spec,
+        tmp_path,
+        runtime=True,
+        image=netcomplete_image,
+        config_generator=config_generator,
+        batfish_verifier=batfish_verifier,
+    )
+    assert_scenario_acceptance(spec, summary, tmp_path, runtime=True)
+    assert summary["synthesis"]["backend"] == "netcomplete"
+
+
 @pytest.mark.integration
 def test_inconsistent_paths_receive_explicit_solver_unsat(tmp_path, netcomplete_image):
     from nika.net_env.synthesis.runner import run_netcomplete

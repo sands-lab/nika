@@ -41,6 +41,10 @@ from nika.workflows.validation.scenario_spec import (
 from nika.workflows.validation.scenario_build import scenario_start_kwargs
 
 
+# XR commits and configuration replacement can take a minute on a loaded host.
+NATIVE_CONFIG_TIMEOUT_SEC = 300
+
+
 def restore_link_routes(env, backend, host_name: str, intf_name: str):
     """Restore declared kernel routes removed by administrative interface-down.
 
@@ -116,8 +120,15 @@ def validate_scenario_design(
         spec.scenario, topo_size=spec.topo_size, **deploy_options
     )
     if getattr(env, "native_routers", None):
-        # The FRR projections would silently omit the native routers.
-        raise ValueError("Scenario experiments do not cover mixed-vendor deployments")
+        from nika.net_env.native_routers import require_native_validation
+
+        # Only the Ethernet FRR/Linux projections export native routers.
+        if spec.routing_model not in {"frr", "linux-static"}:
+            raise ValueError(
+                "Scenario experiments cover mixed-vendor deployments only with "
+                "the frr or linux-static routing model"
+            )
+        require_native_validation(env)
     if config_generator == "netlab":
         from nika.workflows.validation.netlab import check_netlab_scope
 
@@ -182,6 +193,18 @@ def validate_scenario_design(
     else:
         snapshot_builder = build_kathara_snapshot
         runtime_verifier = verify_isp_contract
+    # Routers an FRR/Linux environment runs on a native platform. Their vendor
+    # projection supplies static analysis, native observation and restoration.
+    native_routers = dict(getattr(env, "native_routers", {}))
+    if native_routers:
+        from nika.net_env.native_routers import (
+            native_platform,
+            verify_native_router_contract,
+        )
+
+        def native_validation(node):
+            return native_platform(native_routers[node]).validation
+
     spec = resolve_routing_requirements(spec, env)
     (output / "resolved-spec.json").write_text(spec.model_dump_json(indent=2) + "\n")
     names = (
@@ -260,8 +283,21 @@ def validate_scenario_design(
         raise ValueError("A completed stage requires a declared completion sketch")
     if spec.completion is not None:
         if parameters is None:
+            # Native routers translate the completed FRR sketch, so completion
+            # reads the same sketch the FRR deployment would use.
+            sketch = (
+                get_net_env_instance(
+                    spec.scenario,
+                    topo_size=spec.topo_size,
+                    **{
+                        k: v for k, v in deploy_options.items() if k != "device_profile"
+                    },
+                )
+                if native_routers
+                else env
+            )
             parameters = complete_routing(
-                spec, env, output / "netcomplete", image=image
+                spec, sketch, output / "netcomplete", image=image
             )
         else:
             parameters = RoutingParameters.model_validate(parameters)
@@ -274,6 +310,8 @@ def validate_scenario_design(
             routing_parameters=parameters.model_dump(mode="json"),
             **deploy_options,
         )
+    if native_routers:
+        runtime_verifier = verify_native_router_contract(env, runtime_verifier)
     generated_configs = None
     if config_generator == "netlab":
         from nika.net_env.synthesis.configuration import apply_routing_configs
@@ -323,9 +361,12 @@ def validate_scenario_design(
                 for node, document in env.routing_documents.items()
             }
         return {
-            name: machine.fs.readtext("etc/frr/frr.conf")
-            for name, machine in env.lab.machines.items()
-            if machine.fs and machine.fs.exists("etc/frr/frr.conf")
+            **{
+                name: machine.fs.readtext("etc/frr/frr.conf")
+                for name, machine in env.lab.machines.items()
+                if machine.fs and machine.fs.exists("etc/frr/frr.conf")
+            },
+            **{name: env.deployment_configs[name] for name in native_routers},
         }
 
     for name, config in candidate_configs().items():
@@ -353,6 +394,10 @@ def validate_scenario_design(
             retained.append("iBGP attachment of upstream-generated admission policies")
         if "import_preferences" in env.ROUTING_PARAMETER_KINDS:
             retained.append("default-to-business VRF imports")
+        if native_routers:
+            retained.append(
+                "native router static routes, eBGP multipath and open eBGP policies"
+            )
         if getattr(env, "rpki", False) or getattr(env, "rtbh", False):
             retained.append("RPKI/RTBH security policy and runtime attachments")
         if retained:
@@ -524,6 +569,13 @@ def validate_scenario_design(
             session = Session().load_running_session(session_id)
             backend = runtime_for_session(session)
 
+            def run_config(node, command):
+                """Run a configuration operation; native routers commit slowly."""
+                result = backend.exec(node, command, timeout=NATIVE_CONFIG_TIMEOUT_SEC)
+                if result.startswith("[TIMEOUT]"):
+                    raise RuntimeError(f"Configuration operation timed out on {node}")
+                return result
+
             def check(name, contract):
                 deadline = time.monotonic() + spec.convergence_timeout_sec
                 while True:
@@ -592,8 +644,19 @@ def validate_scenario_design(
                     else {
                         node: env.lab.machines[node].fs.readtext("etc/frr/frr.conf")
                         for node in failure.restore_nodes
+                        if node not in native_routers
                     }
                 )
+                # Native routers restore the running configuration read before
+                # injection, like FRR restores its candidate file.
+                native_ops = {
+                    node: native_platform(native_routers[node]).fault_ops(backend, node)
+                    for node in failure.restore_nodes
+                    if node in native_routers
+                }
+                native_originals = {
+                    node: ops.save_config() for node, ops in native_ops.items()
+                }
                 nft_rules = {
                     node: backend.list_nft_ruleset(node)
                     for node in failure.restore_nft_nodes
@@ -706,6 +769,8 @@ def validate_scenario_design(
                             node,
                             f"printf %s {shlex.quote(config)} > /etc/frr/frr.conf && service frr restart",
                         )
+                    for node, running in native_originals.items():
+                        native_ops[node].restore_config(running)
                 check(failure.name + "-restored", spec.healthy)
                 if spec.runtime_requirements:
                     check(
@@ -737,10 +802,11 @@ def validate_scenario_design(
             )
             if native_vendor:
                 node = next(iter(env.BGP_ROUTERS))
+            node = node if node is None or isinstance(node, str) else node.name
+            if node in native_routers:
+                inspection_command = native_validation(node).route_inspection_command
             if node:
-                observed = backend.exec(
-                    node if isinstance(node, str) else node.name, inspection_command
-                )
+                observed = backend.exec(node, inspection_command)
                 (output / "runtime-route-inspection.json").write_text(observed)
             for mutation in spec.runtime_counterexamples:
 
@@ -756,7 +822,11 @@ def validate_scenario_design(
                                 f"SR Linux rejected the declared configuration operation: {result}"
                             )
                         return
-                    if native_vendor:
+                    if mutation.node in native_routers:
+                        command = native_validation(mutation.node).config_command(
+                            commands
+                        )
+                    elif native_vendor:
                         if spec.routing_model in {"iosxr-bgp", "iosxr-isp"}:
                             from nika.net_env.utils.iosxr.common import (
                                 build_xr_config_command,
@@ -774,7 +844,10 @@ def validate_scenario_design(
                             ["vtysh"]
                             + [item for line in commands for item in ("-c", line)]
                         )
-                    backend.exec(mutation.node, command)
+                    with (output / ("runtime-config-" + mutation.name + ".log")).open(
+                        "a"
+                    ) as log:
+                        log.write(run_config(mutation.node, command) + "\n")
 
                 try:
                     configure(mutation.commands)

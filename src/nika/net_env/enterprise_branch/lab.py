@@ -285,7 +285,7 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
             "authorized business prefixes in per-role VRFs. Providers only "
             "forward tunnel endpoint reachability."
         )
-        self.apply_device_profile(device_profile, routing_parameters=routing_parameters)
+        self.apply_device_profile(device_profile)
 
     def router_roles(self) -> dict[str, list[str]]:
         providers = {isp_name_for(provider) for provider in self.spec.providers}

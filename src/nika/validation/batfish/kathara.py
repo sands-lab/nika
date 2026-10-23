@@ -2,6 +2,9 @@
 
 Address statements are read from concrete startup commands. This exporter accepts
 physical Ethernet router links only; it does not infer DHCP, bridges or tunnels.
+Routers that an environment runs on a native platform (``native_routers``) are
+exported as their concrete native configuration for Batfish's vendor parser, so
+one snapshot analyzes FRR and native routers together.
 """
 
 from __future__ import annotations
@@ -33,6 +36,52 @@ def startup_static_routes(startup: str):
     ]
 
 
+def export_native_routers(env, root: Path, configs, shutdown, endpoints=None):
+    """Write each native router's concrete configuration for its vendor parser.
+
+    Returns ``{router: {native interface: Linux interface}}`` aliases. Router
+    addresses are added to ``endpoints`` when given.
+    """
+    from nika.net_env.native_routers import native_platform
+
+    aliases = {}
+    for name, profile in sorted(getattr(env, "native_routers", {}).items()):
+        validation = native_platform(profile).validation
+        if validation is None:
+            raise ValueError(f"No validation projection for native profile {profile}")
+        config = (
+            configs[name]
+            if configs is not None and name in configs
+            else env.deployment_configs[name]
+        )
+        disabled = [validation.interface(i) for n, i in shutdown if n == name]
+        node = validation.node(name, config)
+        if endpoints is not None:
+            endpoints.update(i.address for i in node.interfaces)
+        aliases[name] = {validation.interface(i.name): i.name for i in node.interfaces}
+        (root / "configs" / f"{name}.cfg").write_text(
+            validation.batfish_config(config, disabled)
+        )
+    return aliases
+
+
+def link_edges(env, routers, aliases):
+    """Layer-1 edges between exported routers, under each router's own names."""
+    names = {name: {v: k for k, v in alias.items()} for name, alias in aliases.items()}
+    edges = []
+    for link in env.lab.links.values():
+        endpoints = [
+            (name, names[name].get(f"eth{number}") if name in names else f"eth{number}")
+            for name in link.machines
+            if name in routers or name in names
+            for number, interface in env.lab.machines[name].interfaces.items()
+            if interface.link.name == link.name
+        ]
+        if len(endpoints) == 2 and all(interface for _, interface in endpoints):
+            edges.append(_edge(*endpoints[0], *endpoints[1]))
+    return edges
+
+
 def build_kathara_snapshot(
     env, contract, root: Path, *, configs=None, shutdown=(), routing_model="frr"
 ):
@@ -47,8 +96,10 @@ def build_kathara_snapshot(
         for name, machine in env.lab.machines.items()
         if machine.fs is not None and machine.fs.exists("etc/frr/frr.conf")
     }
-    if not routers:
+    native = dict(getattr(env, "native_routers", {}))
+    if not routers and not native:
         raise ValueError("No concrete FRR configurations available.")
+    aliases = export_native_routers(env, root, configs, shutdown, default_endpoints)
     for name, machine in routers.items():
         startup = env.lab.fs.readtext(f"{name}.startup")
         addresses = startup_addresses(startup)
@@ -160,24 +211,23 @@ def build_kathara_snapshot(
                 raise ValueError(
                     "Linux static projection only verifies explicitly addressed default-table router endpoints; overlay and VRF requirements need runtime coverage"
                 )
-    edges = []
-    for link in env.lab.links.values():
-        endpoints = [
-            (name, f"eth{number}")
-            for name in link.machines
-            if name in routers
-            for number, interface in routers[name].interfaces.items()
-            if interface.link.name == link.name
-        ]
-        if len(endpoints) == 2:
-            edges.append(_edge(*endpoints[0], *endpoints[1]))
+    edges = link_edges(env, routers, aliases)
     (root / "batfish" / "layer1_topology.json").write_text(json.dumps({"edges": edges}))
     return ValidationSnapshot(
         snapshot_id=contract.contract_id,
         path=root,
         metadata={
-            "routers": sorted(routers),
+            "routers": sorted({*routers, *native}),
             "routing_model": routing_model,
+            **(
+                {
+                    "native_routers": native,
+                    "native_config_analysis": True,
+                    "interface_aliases": aliases,
+                }
+                if native
+                else {}
+            ),
             **(
                 {
                     "rpki_model": "RFC 6811 under the Routinator SLURM assertions; synchronized RTR and AS_SEQUENCE paths assumed; runtime checks cache and actual route admission"

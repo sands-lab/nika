@@ -302,7 +302,15 @@ def resolve_routing_requirements(spec, env):
                 from nika.validation.batfish.srl_isp import srl_addresses
 
                 addresses = srl_addresses(env.routing_documents[terminal])
-            elif getattr(env, "device_profile", None) in {"iosxr", "routeros"}:
+            elif terminal in getattr(env, "native_routers", {}):
+                from nika.validation.batfish.vendor_bgp import vendor_addresses
+
+                addresses = vendor_addresses(
+                    env.deployment_configs[terminal], env.native_routers[terminal]
+                )
+            elif hasattr(env, "BGP_ROUTERS") and getattr(
+                env, "device_profile", None
+            ) in {"iosxr", "routeros"}:
                 from nika.validation.batfish.vendor_bgp import (
                     vendor_addresses,
                     vendor_configs,

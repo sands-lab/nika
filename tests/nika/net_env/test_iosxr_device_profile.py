@@ -112,8 +112,112 @@ def test_translation_keeps_areas_static_routes_and_underlay_delay() -> None:
     assert "netem" not in enterprise.lab.fs.readtext("isp1_core.startup")
 
 
-def test_routing_experiments_reject_mixed_vendor_deployments(tmp_path) -> None:
-    # Their FRR projections would silently omit the IOS XR routers.
+def test_solved_parameters_translate_with_the_router_design() -> None:
+    exports = {
+        "bgp_exports": [
+            {
+                "node": "leaf_router_0_0",
+                "neighbor": "172.16.0.4",
+                "terms": [
+                    {"prefix": "10.0.0.0/24", "permit": True},
+                    {"prefix": "10.0.1.0/24", "permit": False},
+                ],
+            }
+        ]
+    }
+    leaf = get_net_env_instance(
+        "dc_clos", topo_size="s", device_profile="iosxr", routing_parameters=exports
+    ).deployment_configs["leaf_router_0_0"]
+    # First matching route-map entry applies; unmatched routes are denied.
+    assert (
+        "route-policy NC-OUT-0\n"
+        "  if destination in NC-0-1 then\n    pass\n"
+        "  elseif destination in NC-0-2 then\n    drop\n"
+        "  else\n    drop\n  endif\nend-policy"
+    ) in leaf
+    assert "prefix-set NC-0-1\n  10.0.0.0/24\nend-set" in leaf
+    peer = leaf.split(" neighbor 172.16.0.4\n", 1)[1].split(" !\n", 2)[0]
+    assert "route-policy PASS in" in peer and "route-policy NC-OUT-0 out" in peer
+    costs = {"ospf_costs": [{"node": "router_core_1", "interface": "eth0", "cost": 7}]}
+    core = get_net_env_instance(
+        "campus_lan", topo_size="s", device_profile="iosxr", routing_parameters=costs
+    ).deployment_configs["router_core_1"]
+    assert "  interface GigabitEthernet0/0/0/0\n   cost 7\n  !" in core
+
+
+def test_mixed_snapshot_exports_native_and_frr_routers(tmp_path) -> None:
+    import json
+
+    from nika.net_env.contract import ValidationContract
+    from nika.validation.batfish.kathara import build_kathara_snapshot
+
+    env = get_net_env_instance("campus_lan", topo_size="s", device_profile="iosxr")
+    contract = ValidationContract.model_validate(
+        {
+            "scenario": "campus_lan",
+            "contract_id": "mixed",
+            "design_source": {"basis": "test"},
+            "intents": [],
+        }
+    )
+    snapshot = build_kathara_snapshot(
+        env, contract, tmp_path, shutdown=[("router_core_1", "eth0")]
+    )
+    configs = snapshot.path / "configs"
+    core = (configs / "router_core_1.cfg").read_text()
+    assert core.startswith("!! IOS XR Configuration")
+    disabled = core.split("interface GigabitEthernet0/0/0/0\n", 1)[1].split("!", 1)[0]
+    assert " shutdown" in disabled and "no shutdown" not in disabled
+    assert "frr version" in (configs / "router_dist_1_1.cfg").read_text()
+    assert snapshot.metadata["interface_aliases"]["router_core_1"] == {
+        "GigabitEthernet0/0/0/0": "eth0",
+        "GigabitEthernet0/0/0/1": "eth1",
+        "GigabitEthernet0/0/0/2": "eth2",
+    }
+    edges = json.loads((snapshot.path / "batfish/layer1_topology.json").read_text())
+    names = {
+        (end["hostname"], end["interfaceName"])
+        for edge in edges["edges"]
+        for end in (edge["interface1"], edge["interface2"])
+    }
+    assert ("router_core_1", "GigabitEthernet0/0/0/2") in names
+    assert ("router_dist_1_1", "eth0") in names
+
+
+def test_netlab_sketch_runs_eligible_routers_as_xr() -> None:
+    from nika.net_env.synthesis.netlab_kathara import kathara_topology
+    from nika.net_env.utils.iosxr.frr import retained_netlab_fragment
+
+    env = get_net_env_instance("campus_lan", topo_size="s", device_profile="iosxr")
+    topology, _ = kathara_topology(env)
+    assert topology["nodes"]["router_core_1"]["device"] == "iosxr"
+    assert "device" not in topology["nodes"]["router_dist_1_1"]
+    names = {
+        (i["node"], i["ifname"])
+        for link in topology["links"]
+        for i in link["interfaces"]
+    }
+    assert ("router_core_1", "GigabitEthernet0/0/0/0") in names
+    # netlab XR templates omit Linux-owned static routes and the FRR eBGP
+    # defaults; NIKA retains them as native statements.
+    provider = get_net_env_instance(
+        "enterprise_branch", topo_size="s", device_profile="iosxr"
+    ).native_sources["isp1_core"]
+    assert "  198.18.1.10/32 100.64.0.17" in retained_netlab_fragment(
+        "isp1_core", *provider
+    )
+    leaf = get_net_env_instance(
+        "dc_clos", topo_size="s", device_profile="iosxr"
+    ).native_sources["leaf_router_0_0"]
+    fragment = retained_netlab_fragment("leaf_router_0_0", *leaf)
+    assert "maximum-paths ebgp 32" in fragment
+    assert "route-policy PASS in" in fragment
+
+
+def test_routing_experiments_reject_uncovered_mixed_vendor_projections(
+    tmp_path,
+) -> None:
+    # Only projections that export native routers may analyze them.
     from nika.workflows.validation.consistency import compare_config_generators
 
     with pytest.raises(ValueError, match="mixed-vendor"):
@@ -122,6 +226,7 @@ def test_routing_experiments_reject_mixed_vendor_deployments(tmp_path) -> None:
             tmp_path,
             topo_size="s",
             deployment={"device_profile": "iosxr"},
+            routing_model="frr-isis",
         )
 
 

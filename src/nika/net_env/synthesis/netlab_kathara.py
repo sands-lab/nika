@@ -11,6 +11,31 @@ from nika.net_env.synthesis.netlab import run_netlab
 from nika.validation.batfish.kathara import startup_addresses
 
 
+def native_netlab_routers(env) -> dict:
+    """Return the validation projection of each router netlab generates natively."""
+    from nika.net_env.native_routers import native_platform
+
+    native = {}
+    for name, profile in getattr(env, "native_routers", {}).items():
+        validation = native_platform(profile).validation
+        if validation is None or validation.netlab_device is None:
+            raise ValueError(f"netlab cannot generate {profile} router configuration")
+        native[name] = validation
+    return native
+
+
+def retain_native_statements(env, configs: dict[str, str]) -> dict[str, str]:
+    """Append the native statements of the router design netlab does not emit."""
+    from nika.net_env.native_routers import router_sketches
+
+    sketches = router_sketches(env)
+    result = dict(configs)
+    for name, validation in native_netlab_routers(env).items():
+        if validation.netlab_retained is not None:
+            result[name] += validation.netlab_retained(name, *sketches[name])
+    return result
+
+
 def kathara_topology(env, parameters=None):
     """Preserve the topology's addresses and protocol sketch; bind solved values.
 
@@ -25,11 +50,11 @@ def kathara_topology(env, parameters=None):
         raise ValueError(
             "netlab Ethernet construction requires OSPF costs or BGP export capabilities"
         )
-    configs = {
-        name: machine.fs.readtext("etc/frr/frr.conf")
-        for name, machine in env.lab.machines.items()
-        if machine.fs and machine.fs.exists("etc/frr/frr.conf")
-    }
+    from nika.net_env.native_routers import router_sketches
+
+    sketches = router_sketches(env)
+    configs = {name: config for name, (config, _) in sketches.items()}
+    native = native_netlab_routers(env)
     topology = {
         "name": "nika",
         "provider": "clab",
@@ -100,8 +125,10 @@ def kathara_topology(env, parameters=None):
                 policies[f"NC_OUT_{index}"] = entries
             if policies:
                 node["routing"] = {"prefix": prefix_lists, "policy": policies}
+        if name in native:
+            node["device"] = native[name].netlab_device
         topology["nodes"][name] = node
-        startup = env.lab.fs.readtext(f"{name}.startup")
+        startup = sketches[name][1]
         interface = None
         configured_costs = {}
         for line in config.splitlines():
@@ -112,7 +139,13 @@ def kathara_topology(env, parameters=None):
             elif line and not line[0].isspace() and not line.startswith("!"):
                 interface = None
         for address, interface in startup_addresses(startup):
-            endpoint = {"node": name, "ifname": interface, "ipv4": address}
+            endpoint = {
+                "node": name,
+                "ifname": native[name].interface(interface)
+                if name in native
+                else interface,
+                "ipv4": address,
+            }
             matches = {
                 str(IPv4Address(int(area) if "." not in area else area))
                 for prefix, area in areas
@@ -199,4 +232,4 @@ def generate_kathara_configs(env, parameters, directory: Path):
         (name, prefix) for prefix, name in env.bgp_origin_prefixes().items()
     }:
         raise ValueError("netlab-derived prefix origins differ from the fixed sketch")
-    return configs
+    return retain_native_statements(env, configs)

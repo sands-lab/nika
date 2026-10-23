@@ -1,0 +1,405 @@
+{
+  "scenario": "enterprise_branch",
+  "topo_size": "s",
+  "healthy": {
+    "scenario": "enterprise_branch",
+    "contract_id": "routing.enterprise.underlay",
+    "design_source": {
+      "basis": "Concrete Ethernet provider underlay and configured static endpoint routes. No static assertion about WireGuard or VRF business forwarding."
+    },
+    "intents": [
+      {
+        "id": "reach.backup.br1.hq",
+        "description": "Predeclared enterprise communication requirement.",
+        "property": "reachability",
+        "expected": "reachable",
+        "source": {
+          "kind": "node",
+          "name": "br1_edge",
+          "address": "100.64.0.21"
+        },
+        "destination": {
+          "kind": "node",
+          "name": "hq_edge",
+          "address": "100.64.0.5"
+        },
+        "traffic": {
+          "protocol": "icmp",
+          "round_trip": true
+        }
+      },
+      {
+        "id": "reach.backup.hq.br1",
+        "description": "Predeclared enterprise communication requirement.",
+        "property": "reachability",
+        "expected": "reachable",
+        "source": {
+          "kind": "node",
+          "name": "hq_edge",
+          "address": "100.64.0.5"
+        },
+        "destination": {
+          "kind": "node",
+          "name": "br1_edge",
+          "address": "100.64.0.21"
+        },
+        "traffic": {
+          "protocol": "icmp",
+          "round_trip": true
+        }
+      },
+      {
+        "id": "reach.primary.br1.hq",
+        "description": "Predeclared enterprise communication requirement.",
+        "property": "reachability",
+        "expected": "reachable",
+        "source": {
+          "kind": "node",
+          "name": "br1_edge",
+          "address": "100.64.0.17"
+        },
+        "destination": {
+          "kind": "node",
+          "name": "hq_edge",
+          "address": "100.64.0.1"
+        },
+        "traffic": {
+          "protocol": "icmp",
+          "round_trip": true
+        }
+      },
+      {
+        "id": "reach.primary.hq.br1",
+        "description": "Predeclared enterprise communication requirement.",
+        "property": "reachability",
+        "expected": "reachable",
+        "source": {
+          "kind": "node",
+          "name": "hq_edge",
+          "address": "100.64.0.1"
+        },
+        "destination": {
+          "kind": "node",
+          "name": "br1_edge",
+          "address": "100.64.0.17"
+        },
+        "traffic": {
+          "protocol": "icmp",
+          "round_trip": true
+        }
+      }
+    ]
+  },
+  "runtime_requirements": {
+    "scenario": "enterprise_branch",
+    "contract_id": "routing.enterprise.runtime-overlay",
+    "design_source": {
+      "basis": "RFC 4271 local preference and actual WireGuard/VRF execution; runtime-only coverage explicitly declared."
+    },
+    "intents": [
+      {
+        "id": "business.corp.br1.hq",
+        "description": "Predeclared enterprise communication requirement.",
+        "property": "reachability",
+        "expected": "reachable",
+        "source": {
+          "kind": "node",
+          "name": "br1_corp_pc",
+          "address": "10.1.10.2"
+        },
+        "destination": {
+          "kind": "node",
+          "name": "hq_corp_pc",
+          "address": "10.0.10.2"
+        },
+        "traffic": {
+          "protocol": "icmp",
+          "round_trip": true
+        }
+      },
+      {
+        "id": "business.corp.hq.br1",
+        "description": "Predeclared enterprise communication requirement.",
+        "property": "reachability",
+        "expected": "reachable",
+        "source": {
+          "kind": "node",
+          "name": "hq_corp_pc",
+          "address": "10.0.10.2"
+        },
+        "destination": {
+          "kind": "node",
+          "name": "br1_corp_pc",
+          "address": "10.1.10.2"
+        },
+        "traffic": {
+          "protocol": "icmp",
+          "round_trip": true
+        }
+      },
+      {
+        "id": "isolate.guest.corp",
+        "description": "Predeclared enterprise communication requirement.",
+        "property": "isolation",
+        "expected": "unreachable",
+        "source": {
+          "kind": "node",
+          "name": "br1_guest_pc",
+          "address": "10.1.40.2"
+        },
+        "destination": {
+          "kind": "node",
+          "name": "hq_corp_pc",
+          "address": "10.0.10.2"
+        },
+        "traffic": {
+          "protocol": "icmp",
+          "round_trip": true
+        }
+      }
+    ]
+  },
+  "incidents": [
+    {
+      "name": "primary-underlay-down",
+      "host_name": "hq_edge",
+      "intf_name": "eth3",
+      "requirements": {
+        "scenario": "enterprise_branch",
+        "contract_id": "routing.enterprise.underlay.primary-down",
+        "design_source": {
+          "basis": "Concrete Ethernet provider underlay and configured static endpoint routes. No static assertion about WireGuard or VRF business forwarding."
+        },
+        "intents": [
+          {
+            "id": "reach.backup.br1.hq",
+            "description": "Predeclared enterprise communication requirement.",
+            "property": "reachability",
+            "expected": "reachable",
+            "source": {
+              "kind": "node",
+              "name": "br1_edge",
+              "address": "100.64.0.21"
+            },
+            "destination": {
+              "kind": "node",
+              "name": "hq_edge",
+              "address": "100.64.0.5"
+            },
+            "traffic": {
+              "protocol": "icmp",
+              "round_trip": true
+            }
+          },
+          {
+            "id": "reach.backup.hq.br1",
+            "description": "Predeclared enterprise communication requirement.",
+            "property": "reachability",
+            "expected": "reachable",
+            "source": {
+              "kind": "node",
+              "name": "hq_edge",
+              "address": "100.64.0.5"
+            },
+            "destination": {
+              "kind": "node",
+              "name": "br1_edge",
+              "address": "100.64.0.21"
+            },
+            "traffic": {
+              "protocol": "icmp",
+              "round_trip": true
+            }
+          },
+          {
+            "id": "reach.primary.br1.hq",
+            "description": "Predeclared enterprise communication requirement.",
+            "property": "isolation",
+            "expected": "unreachable",
+            "source": {
+              "kind": "node",
+              "name": "br1_edge",
+              "address": "100.64.0.17"
+            },
+            "destination": {
+              "kind": "node",
+              "name": "hq_edge",
+              "address": "100.64.0.1"
+            },
+            "traffic": {
+              "protocol": "icmp",
+              "round_trip": true
+            }
+          },
+          {
+            "id": "reach.primary.hq.br1",
+            "description": "Predeclared enterprise communication requirement.",
+            "property": "isolation",
+            "expected": "unreachable",
+            "source": {
+              "kind": "node",
+              "name": "hq_edge",
+              "address": "100.64.0.1"
+            },
+            "destination": {
+              "kind": "node",
+              "name": "br1_edge",
+              "address": "100.64.0.17"
+            },
+            "traffic": {
+              "protocol": "icmp",
+              "round_trip": true
+            }
+          }
+        ]
+      },
+      "runtime_requirements": {
+        "scenario": "enterprise_branch",
+        "contract_id": "routing.enterprise.runtime-overlay.primary-down",
+        "design_source": {
+          "basis": "RFC 4271 local preference and actual WireGuard/VRF execution; runtime-only coverage explicitly declared."
+        },
+        "intents": [
+          {
+            "id": "business.corp.br1.hq",
+            "description": "Predeclared enterprise communication requirement.",
+            "property": "reachability",
+            "expected": "reachable",
+            "source": {
+              "kind": "node",
+              "name": "br1_corp_pc",
+              "address": "10.1.10.2"
+            },
+            "destination": {
+              "kind": "node",
+              "name": "hq_corp_pc",
+              "address": "10.0.10.2"
+            },
+            "traffic": {
+              "protocol": "icmp",
+              "round_trip": true
+            }
+          },
+          {
+            "id": "business.corp.hq.br1",
+            "description": "Predeclared enterprise communication requirement.",
+            "property": "reachability",
+            "expected": "reachable",
+            "source": {
+              "kind": "node",
+              "name": "hq_corp_pc",
+              "address": "10.0.10.2"
+            },
+            "destination": {
+              "kind": "node",
+              "name": "br1_corp_pc",
+              "address": "10.1.10.2"
+            },
+            "traffic": {
+              "protocol": "icmp",
+              "round_trip": true
+            }
+          },
+          {
+            "id": "isolate.guest.corp",
+            "description": "Predeclared enterprise communication requirement.",
+            "property": "isolation",
+            "expected": "unreachable",
+            "source": {
+              "kind": "node",
+              "name": "br1_guest_pc",
+              "address": "10.1.40.2"
+            },
+            "destination": {
+              "kind": "node",
+              "name": "hq_corp_pc",
+              "address": "10.0.10.2"
+            },
+            "traffic": {
+              "protocol": "icmp",
+              "round_trip": true
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "routing_model": "linux-static",
+  "completion": {
+    "kind": "bgp_imports",
+    "requirements": [
+      "route.business.hq.br1",
+      "route.business.br1.hq",
+      "route.server.br1.hq"
+    ]
+  },
+  "failure_checks": [
+    {
+      "name": "business-withdrawal",
+      "problem": "bgp_missing_route_advertisement",
+      "params": {
+        "host_name": "br1_edge"
+      },
+      "restore_nodes": [
+        "br1_edge"
+      ],
+      "expected_failed_ids": [
+        "business.corp.br1.hq",
+        "business.corp.hq.br1",
+        "route.business.hq.br1"
+      ]
+    }
+  ],
+  "behavior": [
+    {
+      "kind": "bgp_selection",
+      "id": "route.business.hq.br1",
+      "node": "hq_edge",
+      "prefix": "10.1.10.0/24",
+      "candidates": [
+        "wg_br1",
+        "wg_br1_b"
+      ],
+      "unavailable": {
+        "primary-underlay-down": [
+          "wg_br1"
+        ]
+      }
+    },
+    {
+      "kind": "bgp_selection",
+      "id": "route.business.br1.hq",
+      "node": "br1_edge",
+      "prefix": "10.0.10.0/24",
+      "candidates": [
+        "wg_hq",
+        "wg_hq_b",
+        "wg_dc2"
+      ],
+      "unavailable": {
+        "primary-underlay-down": [
+          "wg_hq"
+        ]
+      }
+    },
+    {
+      "kind": "bgp_selection",
+      "id": "route.server.br1.hq",
+      "node": "br1_edge",
+      "prefix": "10.0.20.0/24",
+      "candidates": [
+        "wg_hq",
+        "wg_hq_b",
+        "wg_dc2"
+      ],
+      "unavailable": {
+        "primary-underlay-down": [
+          "wg_hq"
+        ]
+      }
+    }
+  ],
+  "deployment": {
+    "device_profile": "iosxr"
+  }
+}

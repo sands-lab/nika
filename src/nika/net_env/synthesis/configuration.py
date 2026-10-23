@@ -29,11 +29,12 @@ def apply_routing_configs(env, configs: dict[str, str]) -> None:
             "Completed configuration deployment requires a supported routing backend"
         )
     path = getattr(env, "BGP_CONFIG_PATH", "/etc/frr/frr.conf")
+    native = dict(getattr(env, "native_routers", {}))
     expected = {
         name
         for name, machine in env.lab.machines.items()
         if machine.fs and machine.fs.exists(path.lstrip("/"))
-    }
+    } | set(native)
     if set(configs) != expected or any(
         not isinstance(value, str) or not value.strip() for value in configs.values()
     ):
@@ -41,5 +42,12 @@ def apply_routing_configs(env, configs: dict[str, str]) -> None:
             "Completed configurations must cover every router exactly once"
         )
     for name, text in configs.items():
+        if name in native:
+            from nika.net_env.native_routers import native_platform
+
+            # Native routers read their deployable configuration elsewhere.
+            config_file = native_platform(native[name]).validation.config_file
+            env.lab.machines[name].create_file_from_string(text, config_file)
+            continue
         env.lab.machines[name].create_file_from_string(text, path)
     env.deployment_configs = dict(configs)

@@ -308,6 +308,9 @@ def _ospf_established(
         )
     if not re.search(r"Neighbors for OSPF|Neighbor\s+\d+\.\d+\.\d+\.\d+", output, re.I):
         raise ValueError("Unrecognized IOS XR OSPF neighbor output")
+    # The declared area, else the interface's designed area (backbone for ISP plans).
+    value = adjacency.ospf_area or getattr(interface, "ospf_area", None) or "0"
+    area = IPv4Address(int(value) if value.isdigit() else value)
     for block in re.split(r"(?m)(?=^\s*Neighbor\s+\d+\.)", output):
         identity = re.search(
             r"Neighbor\s+([\d.]+),\s+interface address\s+([\d.]+)", block, re.I
@@ -326,7 +329,11 @@ def _ospf_established(
                 block,
                 re.I,
             )
-            and re.search(r"area\s+(?:0|0\.0\.0\.0)(?:\s|,|$)", block, re.I)
+            and re.search(
+                rf"area\s+(?:{int(area)}|{re.escape(str(area))})(?:\s|,|$)",
+                block,
+                re.I,
+            )
             and re.search(r"State is FULL", block, re.I)
         ):
             return True
@@ -376,7 +383,11 @@ def _supported_request(intent, platform: str, plan=None) -> VerifyCommand | None
                 intent.adjacency.local_node, ISIS_ADJACENCY_COMMAND, 30
             )
         if intent.adjacency and intent.adjacency.protocol == "ospf":
-            if intent.adjacency.ospf_area not in {None, "0", "0.0.0.0"}:
+            if platform == "routeros" and intent.adjacency.ospf_area not in {
+                None,
+                "0",
+                "0.0.0.0",
+            }:
                 return None
             return VerifyCommand(
                 intent.adjacency.local_node,

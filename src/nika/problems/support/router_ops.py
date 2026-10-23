@@ -64,6 +64,14 @@ class RouterFaultOps:
         """Remove the BGP ``network`` statement for ``prefix``."""
         self._unsupported("Withdrawing a BGP network")
 
+    def save_config(self) -> str:
+        """Return the running configuration, to restore it after a failure."""
+        self._unsupported("Saving the running configuration")
+
+    def restore_config(self, saved: str) -> None:
+        """Replace the running configuration with one returned by ``save_config``."""
+        self._unsupported("Restoring the running configuration")
+
     def supports(self, operation: str) -> bool:
         """Return whether this provider implements ``operation``."""
         return getattr(type(self), operation) is not getattr(RouterFaultOps, operation)
