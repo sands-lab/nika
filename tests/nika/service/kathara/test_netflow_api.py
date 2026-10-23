@@ -19,7 +19,7 @@ class _FakeCollector(NetflowAPIMixin):
         self.commands: list[str] = []
 
     def exec_cmd(self, host_name: str, command: str, timeout: float = 10) -> str:
-        assert host_name == "flow_collector"
+        assert host_name == "telemetry_collector"
         self.commands.append(command)
         if command.startswith("cat "):
             return _EXPORTERS
@@ -75,7 +75,8 @@ def test_aggregation_uses_whitelisted_keys() -> None:
     argv = _nfdump_argv(api)
     assert argv[argv.index("-A") + 1] == "router,inif"
     assert argv[argv.index("-O") + 1] == "packets"
-    assert argv[argv.index("-n") + 1] == "100"
+    # The agent's limit reaches nfdump as is.
+    assert argv[argv.index("-n") + 1] == "500"
     assert rows[0]["exporter"] == "iplsng"
     assert rows[0]["in_if"] == 3
 
@@ -86,6 +87,7 @@ def test_aggregation_uses_whitelisted_keys() -> None:
         ({"aggregate_by": ["srcmac"]}, "Unknown aggregate_by"),
         ({"order_by": "duration"}, "order_by"),
         ({"exporter": "nowhere"}, "Unknown exporter"),
+        ({"limit": 0}, "limit must be"),
     ],
 )
 def test_invalid_arguments_are_rejected(kwargs: dict, message: str) -> None:

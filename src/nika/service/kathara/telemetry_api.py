@@ -1,7 +1,17 @@
 import json
+import time
 from datetime import datetime
 
 from nika.service.kathara.base_api import KatharaBaseAPI, _SupportsBase
+
+
+def time_bound_seconds(value: str) -> float:
+    """Unix seconds for a time bound given as Unix seconds or nanoseconds,
+    ISO-8601, or ``-N`` for N seconds ago (the form flow and metric tools take).
+    """
+    if value.startswith("-") and value[1:].replace(".", "", 1).isdigit():
+        return time.time() - float(value[1:])
+    return TelemetryAPIMixin._time_bound_ns(value) / 1_000_000_000
 
 
 class TelemetryAPIMixin:
