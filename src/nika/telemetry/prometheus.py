@@ -17,15 +17,15 @@ import re
 from typing import TYPE_CHECKING, Any
 
 from nika.net_env.verify import exec_or_empty, process_running
-from nika.telemetry import TELEMETRY_NETWORK
+from nika.telemetry import CONFIG_DIR, MGMT_VRF
 
 if TYPE_CHECKING:
     from nika.runtime.base import LabRuntime
 
 EXPORTER_PORT = 9100
 PROMETHEUS_URL = "http://127.0.0.1:9090"
-PROMETHEUS_CONFIG = "/etc/nika-telemetry/prometheus.yml"
-PROMETHEUS_DATA = "/var/lib/nika/prometheus"
+PROMETHEUS_CONFIG = f"{CONFIG_DIR}/prometheus.yml"
+PROMETHEUS_DATA = "/var/lib/prometheus"
 SCRAPE_INTERVAL = "5s"
 # Collectors that read the device's own network namespace. CPU, memory, and disk
 # collectors would report the shared host kernel, the same on every device.
@@ -45,13 +45,16 @@ def probe(runtime: LabRuntime, name: str) -> str | None:
     return match.group(1) if match and "socat" in out else None
 
 
-def device_files(device: dict[str, Any], address: str, collector: str) -> dict:
+def device_files(
+    device: dict[str, Any], address: str, collector: str
+) -> dict[str, str]:
     return {}
 
 
 def device_lines(device: dict[str, Any], address: str) -> list[str]:
-    # The management interface stays out of the metrics, like out of the topology.
-    hidden = f"'^({device['export_iface']}|{TELEMETRY_NETWORK}|lo)$'"
+    # The management interface stays out of the metrics, as it stays out of the
+    # topology.
+    hidden = f"'^({device['mgmt_iface']}|{MGMT_VRF}|lo)$'"
     exporter = " ".join(
         [
             "prometheus-node-exporter",
@@ -64,7 +67,7 @@ def device_lines(device: dict[str, Any], address: str) -> list[str]:
     )
     relay = (
         f"socat TCP-LISTEN:{EXPORTER_PORT},bind={address},"
-        f"so-bindtodevice={TELEMETRY_NETWORK},reuseaddr,fork "
+        f"so-bindtodevice={MGMT_VRF},reuseaddr,fork "
         f"TCP:127.0.0.1:{EXPORTER_PORT}"
     )
     return [
