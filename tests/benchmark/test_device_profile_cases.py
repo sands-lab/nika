@@ -143,3 +143,39 @@ def test_failures_declare_every_native_operation_they_use() -> None:
         declared = problem_cls.native_router_operations
         if used:
             assert declared is not None and used <= declared, (name, used, declared)
+
+
+def test_predicate_has_a_device_profile_dimension() -> None:
+    link_down = get_problem_class("link_down")
+    assert link_down.is_compatible("dc_clos", "iosxr")
+    assert not link_down.is_compatible("sdn_l3_clos", "iosxr")
+    assert link_down.runs_on_device_profile("iosxr")
+    frr_down = get_problem_class("frr_service_down")
+    # The deployment is compatible; its XR routers are not targets.
+    assert frr_down.is_compatible("campus_lan", "iosxr")
+    assert not frr_down.runs_on_device_profile("iosxr")
+
+
+def test_validation_results_round_trip_and_key_isp_as_one_environment(
+    tmp_path,
+) -> None:
+    from nika.workflows.benchmark.profile_validation import (
+        VALIDATED,
+        cell_environment,
+        load_results,
+        validated_cells,
+        write_results,
+    )
+
+    assert cell_environment("isp_polska") == "isp"
+    assert cell_environment("dc_clos") == "dc_clos"
+    path = tmp_path / "device_profiles.yaml"
+    record = {
+        "environment": "dc_clos",
+        "device_profile": "iosxr",
+        "failure": "bgp_asn_misconfig",
+        "status": VALIDATED,
+    }
+    write_results({"dc_clos/iosxr/bgp_asn_misconfig": record}, path)
+    assert load_results(path) == {"dc_clos/iosxr/bgp_asn_misconfig": record}
+    assert validated_cells(path) == {"dc_clos/iosxr/bgp_asn_misconfig"}

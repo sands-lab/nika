@@ -21,12 +21,29 @@ from pathlib import Path
 import yaml
 
 from nika.config import BENCHMARK_DIR, REPO_ROOT
-from nika.net_env.net_env_pool import coverage_columns, parse_column
-from nika.problems.registry import compatible, list_avail_problem_instances
+from nika.net_env.net_env_pool import (
+    coverage_columns,
+    list_all_net_envs,
+    parse_column,
+    scenario_device_profiles,
+)
+from nika.problems.registry import (
+    compatible,
+    get_problem_class,
+    list_avail_problem_instances,
+)
 from nika.problems.base import FailureDomain
 from nika.workflows.benchmark.isp_options import is_isp_base_topology, isp_column_suffix
 from nika.workflows.benchmark.healthy import is_healthy_case
 from nika.workflows.benchmark.load_config import normalize_benchmark_row
+from nika.workflows.benchmark.profile_validation import (
+    FAILED,
+    ISP_ENVIRONMENT,
+    UNSUPPORTED,
+    VALIDATED,
+    cell_key,
+    load_results,
+)
 
 DOCS_PATH = REPO_ROOT / "docs" / "benchmarks" / "benchmark-configuration.md"
 SECTION_START = "## Coverage matrix (scenario × failure)"
@@ -74,6 +91,10 @@ SCENARIO_DISPLAY: dict[str, str] = {
 
 MARK_COMPATIBLE = "○"
 MARK_RELEASE = "●"
+MARK_NATIVE = "◆"
+VALIDATION_MARKS = {VALIDATED: "✓", FAILED: "✗", UNSUPPORTED: "–"}
+# Base ISP scenarios share one capability surface; this one stands for them.
+ISP_REPRESENTATIVE = "isp_abilene"
 
 
 def _column_label(row: dict) -> str:
@@ -232,8 +253,74 @@ def render_tables(*, release_dir: Path) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def _profile_environments() -> list[tuple[str, str]]:
+    """(environment key, scenario that stands for it) with native profiles."""
+    environments = [
+        (name, name)
+        for name, spec in sorted(list_all_net_envs().items())
+        if spec.device_profiles
+        and not spec.benchmark_excluded
+        and not is_isp_base_topology(name)
+    ]
+    return environments + [(ISP_ENVIRONMENT, ISP_REPRESENTATIVE)]
+
+
+def _profile_cell(
+    problem: str, scenario: str, environment: str, profile: str, results: dict
+) -> str:
+    cls = get_problem_class(problem)
+    if not cls.is_compatible(scenario, profile):
+        return ""
+    mark = MARK_NATIVE if cls.runs_on_device_profile(profile) else MARK_COMPATIBLE
+    record = results.get(cell_key(environment, profile, problem))
+    if record is not None:
+        mark += VALIDATION_MARKS.get(record["status"], "?")
+    return mark
+
+
+def render_profile_table(*, results: dict | None = None) -> str:
+    """Environment × device profile × failure, declared and last validated."""
+    results = load_results() if results is None else results
+    environments = _profile_environments()
+    columns = [
+        (environment, scenario, profile)
+        for environment, scenario in environments
+        for profile in scenario_device_profiles(scenario)
+    ]
+    problems = sorted(
+        (
+            name
+            for name in list_avail_problem_instances()
+            if any(
+                get_problem_class(name).is_compatible(scenario, profile)
+                for _env, scenario, profile in columns
+            )
+        ),
+        key=lambda name: (_domain_rank(_problem_domain(name)), name),
+    )
+    lines = ["<table>", "<thead>", "<tr>", '<th rowspan="2">Failure</th>']
+    for environment, scenario in environments:
+        display = SCENARIO_DISPLAY.get(environment, environment)
+        lines.append(
+            f'<th colspan="{len(scenario_device_profiles(scenario))}">{display}</th>'
+        )
+    lines += ["</tr>", "<tr>"]
+    lines += [f"<th>{profile}</th>" for _env, _scenario, profile in columns]
+    lines += ["</tr>", "</thead>", "<tbody>"]
+    for problem in problems:
+        lines.append("<tr>")
+        lines.append(f"<td><code>{problem}</code></td>")
+        for environment, scenario, profile in columns:
+            mark = _profile_cell(problem, scenario, environment, profile, results)
+            lines.append(f'<td align="center">{mark}</td>')
+        lines.append("</tr>")
+    lines += ["</tbody>", "</table>"]
+    return "\n".join(lines) + "\n"
+
+
 def render_section(*, release_dir: Path) -> str:
     tables = render_tables(release_dir=release_dir)
+    profile_table = render_profile_table()
     release_name = release_dir.name
     return (
         f"{SECTION_START}\n"
@@ -256,6 +343,22 @@ def render_section(*, release_dir: Path) -> str:
         "```\n"
         "\n"
         f"{tables}"
+        "\n"
+        "### Native router profiles\n"
+        "\n"
+        "IOS XR and RouterOS deployments of the environments that declare them "
+        "(`isp` stands for every base ISP scenario). Blank = incompatible, "
+        f"`{MARK_NATIVE}` = the failure also targets the profile's routers (its "
+        "`native_router_operations` are all implemented by the vendor provider), "
+        f"`{MARK_COMPATIBLE}` = it targets only the FRR/Linux nodes of the "
+        "deployment, which may have none when every router converts. A suffix "
+        "shows the last execution result from "
+        "`benchmark/working/validation/device_profiles.yaml`: "
+        f"`{VALIDATION_MARKS[VALIDATED]}` validated, "
+        f"`{VALIDATION_MARKS[FAILED]}` failed, "
+        f"`{VALIDATION_MARKS[UNSUPPORTED]}` unsupported; no suffix = not run.\n"
+        "\n"
+        f"{profile_table}"
         "\n"
         "When you add, remove, or retarget cases (new failure, new scenario, or "
         "a `TAGS` / `COMPATIBLE_COLUMNS` / registry change that changes "

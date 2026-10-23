@@ -252,6 +252,8 @@ def iter_failure_case_specs(
                 if protocol["rpki"]:
                     continue
                 for stack in _isp_stack_variants(scenario, problem_cls):
+                    if not problem_cls.is_compatible(scenario, stack["device_profile"]):
+                        continue
                     yield (
                         problem,
                         scenario,
@@ -261,7 +263,9 @@ def iter_failure_case_specs(
                 continue
             for topo_size in _topo_sizes_for_scenario(scenario):
                 for options in _profile_variants(scenario, topo_size):
-                    yield problem, scenario, topo_size, options
+                    profile = (options or {}).get("device_profile")
+                    if problem_cls.is_compatible(scenario, profile):
+                        yield problem, scenario, topo_size, options
 
 
 def _root_cause_nodes(root_causes: list[dict[str, Any]]) -> list[str]:
@@ -559,12 +563,26 @@ def _document_path(document: dict[str, Any]) -> Path:
     return Path(scenario) / leaf
 
 
-def build_candidate_catalog() -> tuple[list[dict[str, Any]], dict[str, Any]]:
+def build_candidate_catalog(
+    *, validated_only: bool = False
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     failure_docs: dict[tuple[str, str], dict[str, Any]] = {}
     rejected: list[dict[str, Any]] = []
     all_ids: set[str] = set()
+    validated = None
+    if validated_only:
+        from nika.workflows.benchmark.profile_validation import validated_cells
+
+        validated = validated_cells()
 
     for problem, scenario, topo_size, isp_options in iter_failure_case_specs():
+        profile = (isp_options or {}).get("device_profile")
+        if (
+            validated is not None
+            and profile in scenario_device_profiles(scenario)
+            and _cell_key(scenario, profile, problem) not in validated
+        ):
+            continue
         cases, case_rejected = build_failure_cases(
             problem=problem,
             scenario=scenario,
@@ -682,10 +700,16 @@ def _write_yaml_atomic(path: Path, payload: dict[str, Any]) -> None:
     tmp_path.replace(path)
 
 
+def _cell_key(scenario: str, profile: str, problem: str) -> str:
+    from nika.workflows.benchmark.profile_validation import cell_environment, cell_key
+
+    return cell_key(cell_environment(scenario), profile, problem)
+
+
 def generate_candidate_catalog(
-    *, out_path: Path | None = None
+    *, out_path: Path | None = None, validated_only: bool = False
 ) -> tuple[Path, dict[str, Any]]:
-    documents, report = build_candidate_catalog()
+    documents, report = build_candidate_catalog(validated_only=validated_only)
     catalog_dir = out_path or default_pool_dir()
     catalog_dir.mkdir(parents=True, exist_ok=True)
     expected_paths: set[Path] = set()

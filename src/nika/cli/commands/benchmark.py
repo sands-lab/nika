@@ -771,15 +771,73 @@ def benchmark_generate(
         "--output",
         help="Pool directory (default: benchmark/working/pool).",
     ),
+    validated_only: bool = typer.Option(
+        False,
+        "--validated-only",
+        help="Keep IOS XR/RouterOS cases only for cells that "
+        "`nika benchmark validate-profiles` recorded as validated.",
+    ),
 ) -> None:
     """Generate the executable candidate pool under ``benchmark/working/pool``."""
     from nika.workflows.benchmark.generate import generate_candidate_catalog
 
-    catalog_dir, report = generate_candidate_catalog(out_path=output)
+    catalog_dir, report = generate_candidate_catalog(
+        out_path=output, validated_only=validated_only
+    )
     typer.echo(
         f"Generated {report['summary']['candidate_files']} candidate files "
         f"({report['summary']['concrete_inject_options']} inject options) → {catalog_dir}"
     )
+
+
+@benchmark_app.command("validate-profiles")
+def benchmark_validate_profiles(
+    environment: str | None = typer.Option(
+        None, "--environment", help="Only this environment (scenario, or isp)."
+    ),
+    device_profile: str | None = typer.Option(
+        None, "--device-profile", help="Only this native profile (iosxr, routeros)."
+    ),
+    failure: str | None = typer.Option(None, "--failure", help="Only this failure."),
+    native_only: bool = typer.Option(
+        False,
+        "--native-only",
+        help="Only cells whose representative case targets a native router.",
+    ),
+    limit: int | None = typer.Option(None, "--limit", help="Run at most N cells."),
+    rerun: bool = typer.Option(False, "--rerun", help="Repeat recorded cells."),
+    list_only: bool = typer.Option(
+        False, "--list", help="List cells and their last result without running."
+    ),
+) -> None:
+    """Run one case per IOS XR/RouterOS cell end to end and record the result.
+
+    Writes ``benchmark/working/validation/device_profiles.yaml``. Heavy: cells
+    run one at a time under ``/tmp/nika-heavy-lab.lock``; run on demand or
+    nightly. Recorded cells are skipped, so a rerun resumes.
+    """
+    from nika.workflows.benchmark.profile_validation import (
+        declared_cells,
+        load_results,
+        validate_cells,
+    )
+
+    cells = [
+        cell
+        for cell in declared_cells()
+        if (environment is None or cell.environment == environment)
+        and (device_profile is None or cell.device_profile == device_profile)
+        and (failure is None or cell.failure == failure)
+        and (cell.native_target or not native_only)
+    ]
+    if list_only:
+        results = load_results()
+        for cell in cells:
+            status = results.get(cell.key, {}).get("status", "-")
+            target = "native" if cell.native_target else "frr/linux"
+            typer.echo(f"{cell.key}\t{target}\t{status}")
+        return
+    validate_cells(cells, rerun=rerun, limit=limit, echo=typer.echo)
 
 
 @benchmark_app.command("select")

@@ -137,7 +137,7 @@ class ProblemBase:
     BENCHMARK_COORDINATES: ClassVar[frozenset[str]] = frozenset()
 
     @classmethod
-    def is_compatible(cls, target: str) -> bool:
+    def is_compatible(cls, target: str, device_profile: str | None = None) -> bool:
         """Return whether this failure can inject usefully on ``target``.
 
         Single failure/scenario compatibility predicate. ``target`` is a scenario
@@ -145,8 +145,22 @@ class ProblemBase:
         subset of the target's effective tags, and when ``COMPATIBLE_COLUMNS`` is
         set the target must be listed; a bare scenario id matches when any of
         its columns is listed.
+
+        A native ``device_profile`` (IOS XR, RouterOS) must also be one the
+        scenario declares. The deployment then keeps FRR/Linux nodes as
+        targets; ``runs_on_device_profile`` says whether the failure can also
+        target the profile's routers.
         """
-        from nika.net_env.net_env_pool import effective_tags, parse_column
+        from nika.net_env.net_env_pool import (
+            effective_tags,
+            parse_column,
+            scenario_device_profiles,
+        )
+
+        if device_profile not in (None, "", "frr", "nokia_srlinux") and (
+            device_profile not in scenario_device_profiles(target.partition("/")[0])
+        ):
+            return False
 
         allowed = cls.COMPATIBLE_COLUMNS
         if (
@@ -158,6 +172,17 @@ class ProblemBase:
         if target.partition("/")[0] in cls.INCOMPATIBLE_SCENARIOS:
             return False
         return frozenset(cls.TAGS).issubset(effective_tags(target))
+
+    @classmethod
+    def runs_on_device_profile(cls, device_profile: str) -> bool:
+        """Whether this failure can target a router running native ``device_profile``.
+
+        Derived from code: the profile's ``RouterFaultOps`` provider must
+        implement every operation in ``native_router_operations``.
+        """
+        from nika.problems.support.router_ops import failure_supports_profile
+
+        return failure_supports_profile(cls, device_profile)
 
     @classmethod
     def benchmark_inject_params(cls, ctx: InjectTargetContext) -> dict[str, str]:

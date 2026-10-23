@@ -277,7 +277,7 @@ def unsupported_native_targets(problem_cls, net_env, nodes) -> dict[str, str]:
     unsupported: dict[str, str] = {}
     for node in nodes:
         profile = native_router_profile(net_env, node)
-        if profile is not None and not failure_supports_profile(problem_cls, profile):
+        if profile is not None and not problem_cls.runs_on_device_profile(profile):
             unsupported[node] = profile
     return unsupported
 
