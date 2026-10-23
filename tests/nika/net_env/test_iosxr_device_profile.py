@@ -214,8 +214,10 @@ def test_netlab_sketch_runs_eligible_routers_as_xr() -> None:
     assert "route-policy PASS in" in fragment
 
 
-def test_routing_experiments_reject_mixed_vendor_deployments(tmp_path) -> None:
-    # Their FRR projections would silently omit the IOS XR routers.
+def test_routing_experiments_reject_uncovered_mixed_vendor_projections(
+    tmp_path,
+) -> None:
+    # Only projections that export native routers may analyze them.
     from nika.workflows.validation.consistency import compare_config_generators
 
     with pytest.raises(ValueError, match="mixed-vendor"):
@@ -224,4 +226,5 @@ def test_routing_experiments_reject_mixed_vendor_deployments(tmp_path) -> None:
             tmp_path,
             topo_size="s",
             deployment={"device_profile": "iosxr"},
+            routing_model="frr-isis",
         )

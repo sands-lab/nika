@@ -195,6 +195,18 @@ class RouterOsFaultOps(RouterFaultOps):
 
     # Packet filters
 
+    # Running configuration
+
+    def save_config(self) -> str:
+        return self._cli("/export terse")
+
+    def restore_config(self, saved: str) -> None:
+        from nika.net_env.utils.routeros.common import routeros_restore_script
+
+        script = routeros_restore_script(saved, self._cli("/export terse"))
+        if script:
+            self._cli(script)
+
     # OSPF
 
     def ospf_interface_areas(self) -> list[str]:

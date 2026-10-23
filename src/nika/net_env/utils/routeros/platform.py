@@ -13,8 +13,6 @@ from nika.net_env.native_routers import (
 from nika.net_env.utils.routeros.common import (
     CONFIG_LOG_COMMAND,
     IMAGE,
-    RUNNING_CONFIG_COMMAND,
-    routeros_restore_command,
     require_routeros_image,
     routeros_config_applied,
 )
@@ -143,8 +141,6 @@ PLATFORM = NativeRouterPlatform(
         node=_node,
         verify_contract=_verify_contract,
         config_command=_config_command,
-        running_config_command=RUNNING_CONFIG_COMMAND,
-        restore_command=routeros_restore_command,
         route_inspection_command=CLI_COMMAND.format(command="/ip/route/print detail"),
         static_underlay=_static_underlay,
     ),
