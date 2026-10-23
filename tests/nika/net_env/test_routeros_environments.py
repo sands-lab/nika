@@ -240,11 +240,13 @@ def test_failure_providers_follow_the_router_profile():
         native_fault_ops(problem("routeros"), leaf, "block_bgp_transport"),
         RouterOsFaultOps,
     )
-    # FRR routers and providers without an operation keep the default path.
+    # FRR routers keep the default path; native routers never fall back to it.
     assert router_fault_ops(problem("frr"), leaf) is None
-    assert native_fault_ops(problem("iosxr"), leaf, "block_bgp_transport") is None
-    # RouterOS has no routing daemon to stop: the operation stays unimplemented,
-    # so frr_service_down never targets RouterOS routers.
-    assert not ops.supports("stop_routing_process")
+    assert native_fault_ops(problem("frr"), leaf, "block_bgp_transport") is None
+    with pytest.raises(RuntimeCapabilityError, match="not supported on iosxr"):
+        native_fault_ops(problem("iosxr"), leaf, "set_tunnel_peer_public_key")
+    # RouterOS runs no separate routing daemon to stop.
     with pytest.raises(RuntimeCapabilityError, match="not supported on routeros"):
-        ops.stop_routing_process()
+        native_fault_ops(problem("routeros"), leaf, "stop_routing_process")
+    ops = router_fault_ops(problem("routeros"), leaf)
+    assert not ops.supports("stop_routing_process")

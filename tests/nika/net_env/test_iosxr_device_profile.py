@@ -228,3 +228,42 @@ def test_routing_experiments_reject_uncovered_mixed_vendor_projections(
             deployment={"device_profile": "iosxr"},
             routing_model="frr-isis",
         )
+
+
+def test_iosxr_fault_ops_read_router_output() -> None:
+    from nika.net_env.utils.iosxr.fault_ops import IosxrFaultOps
+
+    outputs = {
+        "show bgp summary": (
+            "BGP router identifier 172.16.0.5, local AS number 65200\n"
+            "Neighbor        Spk    AS MsgRcvd MsgSent       TblVer  InQ OutQ  Up/Down  St/PfxRcd\n"
+            "172.16.0.4        0 65100      13      14            9    0    0 00:00:26          2\n"
+            "172.16.0.8        0 65101      13      14            9    0    0 00:00:26          2\n"
+        ),
+        "show bgp ipv4 unicast advertised neighbor 172.16.0.4 summary": (
+            "Network            Next Hop        From            AS Path\n"
+            "10.0.1.0/24        172.16.0.5      Local           65200i\n"
+        ),
+        # A relayed path is not an origination.
+        "show bgp ipv4 unicast advertised neighbor 172.16.0.8 summary": (
+            "Network            Next Hop        From            AS Path\n"
+            "10.0.1.0/24        172.16.0.5      172.16.0.4      65200 65100 65201i\n"
+        ),
+        "show route ipv4 bgp": (
+            "B    10.0.1.0/24 [20/0] via 172.16.0.4, 00:02:33\n"
+            "                 [20/0] via 172.16.0.8, 00:02:33\n"
+        ),
+        "show running-config router static": (
+            "router static\n address-family ipv4 unicast\n"
+            "  192.168.0.0/24 Null0\n  10.9.0.0/24 172.16.0.4\n !\n!\n"
+        ),
+    }
+
+    class Runtime:
+        def exec(self, node, command, timeout=None):
+            return outputs[command.removeprefix("/pkg/bin/xr_cli '")[:-1]]
+
+    ops = IosxrFaultOps(Runtime(), "leaf_router_0_0")
+    assert ops.bgp_advertised_to("10.0.1.0/24") == ["172.16.0.4"]
+    assert ops.remote_bgp_prefixes() == ["10.0.1.0/24"]
+    assert ops.blackhole_routes() == ["192.168.0.0/24"]

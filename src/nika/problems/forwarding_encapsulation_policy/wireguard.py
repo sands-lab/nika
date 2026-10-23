@@ -236,6 +236,7 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
     def inject_fault(self, params: WireGuardPeerKeyMisconfigParams):
         edge = params.host_name
         wrong_key = WRONG_HUB_PEER_PUBLIC_KEY
+        ops = native_fault_ops(self, edge, "set_tunnel_peer_public_key")
         ifaces = self._wg_ifaces_on_edge(edge)
         if not ifaces:
             raise RuntimeError(f"No WireGuard interfaces found on {edge}")
@@ -244,7 +245,6 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
                 f"Primary intf_name {params.intf_name!r} not among {ifaces} on {edge}"
             )
 
-        ops = native_fault_ops(self, edge, "set_tunnel_peer_public_key")
         if ops is not None:
             self._inject_native(ops, edge, ifaces, wrong_key)
             return
@@ -534,6 +534,7 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
     def inject_fault(self, params: WireGuardAllowedIpsMisconfigParams):
         iface = params.intf_name
         edge = params.host_name
+        ops = native_fault_ops(self, edge, "set_tunnel_peer_allowed_addresses")
         spoke = self._spoke_site(edge)
         hub_tun_ip = self._resolve_hub_tunnel_ip(params)
         self._hub_tunnel_ip = hub_tun_ip
@@ -551,7 +552,6 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
                 f"target_prefix {params.target_prefix} still present in allowlist"
             )
 
-        ops = native_fault_ops(self, edge, "set_tunnel_peer_allowed_addresses")
         if ops is not None:
             ops.set_tunnel_peer_allowed_addresses(iface, allowlist.split(", "))
         else:

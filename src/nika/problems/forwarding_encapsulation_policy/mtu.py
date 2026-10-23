@@ -112,12 +112,11 @@ class MtuMismatch(ProblemBase):
         return None
 
     def _set_mtu(self, host: str, intf: str, mtu: int) -> None:
-        self.runtime.exec(host, f"ip link set dev {intf} mtu {int(mtu)}")
         ops = native_fault_ops(self, host, "set_interface_mtu")
         if ops is not None:
-            # The container link only carries a VM's frames; the router must
-            # know the MTU to fragment or send ICMP Fragmentation Needed.
             ops.set_interface_mtu(intf, mtu)
+            return
+        self.runtime.exec(host, f"ip link set dev {intf} mtu {int(mtu)}")
 
     @staticmethod
     def _skip_peer_mtu(peer_host: str) -> bool:
@@ -153,11 +152,7 @@ class MtuMismatch(ProblemBase):
     def _read_mtu(self, host: str, intf: str) -> int | None:
         ops = native_fault_ops(self, host, "interface_mtu")
         if ops is not None:
-            # Both the router port and its container link must carry it.
-            native = ops.interface_mtu(intf)
-            link = self.runtime.exec(host, f"ip -o link show dev {intf}")
-            match = _MTU_RE.search(link)
-            return native if match and native == int(match.group(1)) else None
+            return ops.interface_mtu(intf)
         output = self.runtime.exec(
             host, f"ip -o link show dev {intf} 2>/dev/null || true"
         ).strip()

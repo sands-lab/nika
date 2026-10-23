@@ -6,7 +6,7 @@ from nika.problems.base import (
     build_verify_result,
     ProblemBase,
 )
-from nika.problems.support.router_ops import router_fault_ops
+from nika.problems.support.router_ops import native_fault_ops
 from nika.utils.logger import system_logger
 
 logger = system_logger
@@ -49,8 +49,7 @@ class FrrDown(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: FrrDownParams):
-        # A native router without the operation raises RuntimeCapabilityError.
-        ops = router_fault_ops(self, params.host_name)
+        ops = native_fault_ops(self, params.host_name, "stop_routing_process")
         if ops is not None:
             ops.stop_routing_process()
             return
@@ -80,6 +79,7 @@ class FrrDown(ProblemBase):
 
     def verify_fault(self, params: FrrDownParams) -> dict:
         """Verify FRR is down by checking zebra is not running and routing is unavailable."""
+        native_fault_ops(self, params.host_name, "stop_routing_process")
         zebra_output = self.runtime.exec(
             params.host_name, "pgrep -a zebra 2>/dev/null || echo NONE"
         ).strip()

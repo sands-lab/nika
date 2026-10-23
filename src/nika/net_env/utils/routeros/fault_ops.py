@@ -118,11 +118,6 @@ class RouterOsFaultOps(RouterFaultOps):
                     f'/routing bgp vpn unset [find vrf="{vrf}"] export.redistribute'
                 )
 
-    # No stop_routing_process: routing is part of the RouterOS system
-    # process, and disabling its configuration would model a different root
-    # cause than a crash. Leaving it to the base class keeps frr_service_down
-    # off RouterOS routers in generated cases.
-
     def bgp_established_peers(self) -> set[str]:
         return routeros_established_bgp_peers(
             self._cli("/routing/bgp/session/print terse where established=yes")
@@ -310,6 +305,9 @@ class RouterOsFaultOps(RouterFaultOps):
         )
 
     def set_interface_mtu(self, interface: str, mtu: int) -> None:
+        # The container link only carries the VM's frames; the router port
+        # must know the MTU to fragment or send ICMP Fragmentation Needed.
+        self.runtime.exec(self.node, f"ip link set dev {interface} mtu {int(mtu)}")
         self._cli(
             f"/interface ethernet set [find name={self._port(interface)}] mtu={int(mtu)}"
         )
@@ -317,7 +315,13 @@ class RouterOsFaultOps(RouterFaultOps):
     def interface_mtu(self, interface: str) -> int | None:
         rows = self._rows(f"/interface/print terse where name={self._port(interface)}")
         value = rows[0].get("mtu") if rows else None
-        return int(value) if value and value.isdigit() else None
+        native = int(value) if value and value.isdigit() else None
+        # Both the router port and its container link must carry it.
+        link = re.search(
+            r"\bmtu\s+(\d+)\b",
+            self.runtime.exec(self.node, f"ip -o link show dev {interface}"),
+        )
+        return native if link and native == int(link[1]) else None
 
     def interface_addresses(self, interface: str) -> list[str]:
         return [
