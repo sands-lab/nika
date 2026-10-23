@@ -1,0 +1,7 @@
+ARG NIKA_IMAGE_TAG
+FROM nika/base:${NIKA_IMAGE_TAG}
+
+# Collector for every telemetry kind: nfcapd/nfdump (NetFlow) and Prometheus.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends nfdump prometheus && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
