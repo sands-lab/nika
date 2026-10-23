@@ -529,12 +529,12 @@ controller  worker1  worker2  worker3  worker4  worker5  client
 
 Use this scenario for Kubernetes service, DNS, policy, and inference-routing faults without a routed fabric. Verification checks node readiness, llm-d and gateway pods, the LoadBalancer address, model discovery, and a simulated chat completion.
 
-## Telemetry
+## Flow telemetry
 
-Agents can investigate an environment with the evidence operators read from monitoring systems, as well as with device commands: flow records (NetFlow/IPFIX) and device metrics (Prometheus). To collect them, turn on telemetry when you deploy the environment:
+Agents can investigate an environment with flow records, the per-device traffic accounting that operators read from NetFlow or IPFIX collectors, as well as with device commands. To collect flow records, turn on telemetry when you deploy the environment:
 
 ```shell
-uv run nika env run isp_abilene --telemetry netflow --telemetry prometheus
+uv run nika env run isp_abilene --telemetry netflow
 ```
 
 In a benchmark task, set the same option in the case:
@@ -542,29 +542,25 @@ In a benchmark task, set the same option in the case:
 ```yaml
 - scenario: isp_abilene
   problem: link_down
-  telemetry: [netflow, prometheus]
+  telemetry: [netflow]
   ...
 ```
 
-| Type | Agent on each device | Collector | Agent tool |
-| --- | --- | --- | --- |
-| `netflow` | pmacct, one probe per scenario interface, exporting ingress flows over IPFIX | `nfcapd` | [`netflow_query`](../agents/mcp-servers.md#netflow-kathara_netflow_mcp_server) |
-| `prometheus` | node_exporter with the network-stack collectors (interface counters and state, protocol statistics, sockets, conntrack, ARP) | Prometheus, scraping every 5 s | [`prometheus_query`](../agents/mcp-servers.md#prometheus-kathara_prometheus_mcp_server) |
+`netflow` is currently the only telemetry type. A task with telemetry has a different task ID from the same task without it, so their results are kept apart.
 
-A task with telemetry has a different task ID from the same task without it, so their results are kept apart.
+With `netflow`, NIKA adds a `flow_collector` node running `nfcapd` and connects every device to it over an out-of-band export network, on each device's last scenario interface. On devices that Kathara bridges to the host, its host NIC still comes after it. Once the environment passes its checks, NIKA runs `pmacctd -V` on every device. Each device that answers runs one pmacct probe per scenario interface, which exports ingress flows over IPFIX. The deployment then waits until the collector and every probe are running. Agents query the records with [`netflow_query`](../agents/mcp-servers.md#netflow-kathara_netflow_mcp_server).
 
-Both types share one out-of-band management network. NIKA adds a `telemetry_switch` node, which bridges the network in its kernel, and a `telemetry_collector` node. Every device and the collector connect to the switch over a point-to-point link, on the device's last scenario interface. On devices that Kathara bridges to the host, its host NIC still comes after it. Once the environment passes its checks, NIKA asks every device for each requested type's agent: `pmacctd -V` for `netflow`, `prometheus-node-exporter --version` and `socat` for `prometheus`. It configures each type on the devices that answer and starts its collector service. The deployment then waits until the collector services and every configured agent are running.
+`nika/frr` includes pmacct, so the routers of FRR-based environments export flows. On a device without pmacct, the export interface stays unconfigured. If no device has pmacct, the environment still deploys and the collector receives no records. The `telemetry_configured` event in the session log lists the pmacct version of each exporting device and the devices left unconfigured. Telemetry requires the Kathara backend.
 
-`nika/frr` includes pmacct, node_exporter, and socat, so the routers of FRR-based environments export flows and metrics. `nika/base` includes node_exporter and socat, so hosts on it export metrics. On a device without a type's agent, that type stays unconfigured. If no device supports a type, the environment still deploys and that type's collector receives no data. The `telemetry_configured` events in the session log list the agent version of each configured device and the devices left unconfigured. Telemetry requires the Kathara backend.
+Each exporting device keeps its export interface in a separate VRF named `nika_telemetry`. Its routing protocols therefore never advertise the export network, even with `redistribute connected` or `redistribute kernel`. The export interface is also left out of the topology given to agents and failures.
 
-Each configured device keeps its management interface in a separate VRF named `nika_telemetry`. Its routing protocols therefore never advertise the management network, even with `redistribute connected` or `redistribute kernel`. node_exporter answers only on the management network, so the data plane cannot reach it. The management interface is also left out of the topology given to agents and failures, and out of the Prometheus metrics.
-
-The management network uses `172.28.0.0/16` by default. If an environment already uses that range, choose a free one in `config/nika.yaml`:
+The export network uses `172.28.0.0/16` by default. If an environment already uses that range, choose a free one in `config/nika.yaml`:
 
 ```yaml
 nika:
   telemetry:
-    subnet: 172.28.0.0/16
+    netflow:
+      subnet: 172.28.0.0/16
 ```
 
 ## Inspect and close a scenario

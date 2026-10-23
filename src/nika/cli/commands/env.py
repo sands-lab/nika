@@ -107,8 +107,8 @@ def env_run(
         None,
         "--telemetry",
         help=(
-            "Telemetry to attach, repeatable (supported: netflow, prometheus). "
-            "Devices without support stay unconfigured."
+            "Telemetry to attach, repeatable (supported: netflow). Fails when no "
+            "scenario image declares support for it."
         ),
     ),
     instance_tag: str | None = typer.Option(

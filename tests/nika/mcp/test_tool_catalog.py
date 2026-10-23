@@ -11,7 +11,6 @@ from nika.mcp.servers.containerlab.srl_server import mcp as srl_mcp
 from nika.mcp.servers.kathara.frr_server import mcp as frr_mcp
 from nika.mcp.servers.kathara.iosxr_server import mcp as iosxr_mcp
 from nika.mcp.servers.kathara.netflow_server import mcp as netflow_mcp
-from nika.mcp.servers.kathara.prometheus_server import mcp as prometheus_mcp
 from nika.mcp.servers.kathara.routeros_server import mcp as routeros_mcp
 from nika.mcp.servers.kathara.sdn_server import mcp as sdn_mcp
 
@@ -29,7 +28,6 @@ async def test_generic_and_specialized_tool_catalog() -> None:
         (srl_mcp, {"srl_exec_cli"}),
         (sdn_mcp, {"sdn_onos_rest"}),
         (netflow_mcp, {"netflow_query"}),
-        (prometheus_mcp, {"prometheus_query"}),
     )
     for server, names in expected:
         assert {tool.name for tool in await server.list_tools()} == names
@@ -44,17 +42,10 @@ def test_frr_server_only_selected_for_rpki() -> None:
     )
 
 
-def test_telemetry_servers_only_selected_with_session_telemetry() -> None:
-    def telemetry_servers(telemetry: tuple[str, ...]) -> set[str]:
-        servers = select_diagnosis_servers(
-            "isp_abilene", backend="kathara", telemetry=telemetry
-        )
-        return {
-            s
-            for s in servers
-            if s.endswith(("netflow_mcp_server", "prometheus_mcp_server"))
-        }
-
-    assert telemetry_servers(()) == set()
-    assert telemetry_servers(("netflow",)) == {"kathara_netflow_mcp_server"}
-    assert telemetry_servers(("prometheus",)) == {"kathara_prometheus_mcp_server"}
+def test_netflow_server_only_selected_with_session_telemetry() -> None:
+    assert "kathara_netflow_mcp_server" not in select_diagnosis_servers(
+        "isp_abilene", backend="kathara"
+    )
+    assert "kathara_netflow_mcp_server" in select_diagnosis_servers(
+        "isp_abilene", backend="kathara", telemetry=("netflow",)
+    )

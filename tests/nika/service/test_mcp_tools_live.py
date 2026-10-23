@@ -299,10 +299,10 @@ class TestTelemetryMcpLive(IntegrationTestCase):
             self._close_session(session_id)
 
 
-def _tool_rows(name: str, raw: object) -> list[dict]:
+def _flow_rows(raw: object) -> list[dict]:
     rows: list[dict] = []
     for text in tool_text_list(raw):
-        _assert_ok(name, text)
+        _assert_ok("netflow_query", text)
         rows.append(json.loads(text))
     return rows
 
@@ -335,9 +335,7 @@ class TestNetflowMcpLive(IntegrationTestCase):
                 async def _query(**args) -> list[dict]:
                     client = MultiServerMCPClient(connections=config)
                     tools = {t.name: t for t in await client.get_tools()}
-                    return _tool_rows(
-                        "netflow_query", await tools["netflow_query"].ainvoke(args)
-                    )
+                    return _flow_rows(await tools["netflow_query"].ainvoke(args))
 
                 def _exporters(start_time: str) -> set[str]:
                     rows = asyncio.run(
@@ -362,65 +360,11 @@ class TestNetflowMcpLive(IntegrationTestCase):
                     session_id=session_id,
                 )
                 window_start = str(time.time() + 20)
-                # Exporters' records land a few seconds apart, so wait for them all.
-                rerouted = {"chinng", "nycmng", "iplsng"}
                 after: set[str] = set()
                 deadline = time.monotonic() + 180
-                while not rerouted <= after and time.monotonic() < deadline:
+                while "nycmng" not in after and time.monotonic() < deadline:
                     time.sleep(10)
                     after = _exporters(window_start)
-            assert rerouted <= after
-        finally:
-            self._close_session(session_id)
-
-
-@pytest.mark.skipif(not docker_available(), reason="Docker not available")
-class TestPrometheusMcpLive(IntegrationTestCase):
-    """isp_abilene + telemetry prometheus: metrics show a link going down."""
-
-    SCENARIO = "isp_abilene"
-    LINK_UP = 'node_network_up{node="chinng",device="eth0"}'
-
-    def test_prometheus_query_shows_link_down(self) -> None:
-        session_id = self._start_env(self.SCENARIO, ["--telemetry", "prometheus"])
-        try:
-            self._assert_session_ready(session_id, self.SCENARIO)
-            with mcp_gateway_for_session(session_id, scenario_name=self.SCENARIO):
-                # Selected from the session's telemetry, not from scenario tags.
-                config = load_session_mcp_config(session_id, self.SCENARIO)
-                assert "kathara_prometheus_mcp_server" in config
-                assert "kathara_netflow_mcp_server" not in config
-
-                async def _query(**args) -> list[dict]:
-                    client = MultiServerMCPClient(connections=config)
-                    tools = {t.name: t for t in await client.get_tools()}
-                    raw = await tools["prometheus_query"].ainvoke(args)
-                    return _tool_rows("prometheus_query", raw)
-
-                # A counter is there from the first scrape; rate() needs two.
-                routers = asyncio.run(
-                    _query(
-                        query='node_network_receive_bytes_total{device="eth0"}',
-                        limit=100,
-                    )
-                )
-                assert {"chinng", "iplsng", "nycmng"} <= {r["node"] for r in routers}
-                assert [
-                    r["value"] for r in asyncio.run(_query(query=self.LINK_UP))
-                ] == [1.0]
-
-                self._inject_failure(
-                    "link_down",
-                    {"host_name": "chinng", "intf_name": "eth0"},
-                    session_id=session_id,
-                )
-                state: list[float] = []
-                deadline = time.monotonic() + 60
-                while state != [0.0] and time.monotonic() < deadline:
-                    time.sleep(5)
-                    state = [
-                        r["value"] for r in asyncio.run(_query(query=self.LINK_UP))
-                    ]
-            assert state == [0.0]
+            assert {"chinng", "nycmng", "iplsng"} <= after
         finally:
             self._close_session(session_id)

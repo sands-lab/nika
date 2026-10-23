@@ -33,7 +33,7 @@ def netflow_query(
         aggregate_by: Sum counters per key; any of ``router``, ``inif``,
             ``proto``, ``srcip``, ``srcport``, ``dstip``, ``dstport``.
         order_by: ``bytes``, ``packets``, or ``flows`` (descending).
-        limit: Maximum rows to return.
+        limit: Maximum rows (1-100).
     """
     return KatharaNetflowAPI(
         lab_name=get_lab_name(), session_meta=get_session_meta()

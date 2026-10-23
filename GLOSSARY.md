@@ -12,7 +12,7 @@ A NIKA benchmark is a set of **tasks**. Each task combines a **network environme
 | **Network environment** | A network design NIKA can deploy and run, such as the data center Clos `dc_clos`, on Kathará or Containerlab. Code and CLI options call the design a *scenario* (`scenario:`, `nika env run`), and older documentation calls the running deployment a *lab*. Prefer “environment”; “scenario” is an acceptable alternative. |
 | **Network incident** | The problem the agent must troubleshoot, caused by one or more injected failures. A healthy task has no failure and checks that the agent does not report one. |
 | **Network traffic pattern** | The traffic that flows through the environment while the incident is live, such as service requests, SNDlib demand replay on an ISP backbone, or synchronized bursts toward one receiver. Some patterns come with the environment or failure; others are started with `nika traffic run`. |
-| **Telemetry** | Optional per-task monitoring data, flow records (NetFlow/IPFIX) and device metrics (Prometheus), that devices in the environment export to a collector the agent can query. A task enables it with `telemetry:`; see [telemetry](docs/operations/network-scenarios.md#telemetry). |
+| **Flow telemetry** | Optional per-task flow records, such as NetFlow/IPFIX, that devices in the environment export to a collector the agent can query. A task enables it with `telemetry:`; see [flow telemetry](docs/operations/network-scenarios.md#flow-telemetry). |
 | **Trial** | One scored run of a task. A task can be repeated across multiple trials. |
 | **Benchmark release** | A versioned set of tasks, such as `0.2.0`, split into Dev and Test sets. Published releases do not change. |
 

@@ -12,36 +12,12 @@ if TYPE_CHECKING:
     from nika.runtime.base import LabRuntime
 
 NETFLOW = "netflow"
-PROMETHEUS = "prometheus"
-TELEMETRY_KINDS: tuple[str, ...] = (NETFLOW, PROMETHEUS)
-# Out-of-band management network shared by every telemetry kind: the LAN to the
-# collector and, on each configured device, the VRF that holds its interface on
-# that LAN. Not a scenario link.
+TELEMETRY_KINDS: tuple[str, ...] = (NETFLOW,)
+# Out-of-band telemetry network: the shared export LAN and, on each exporting
+# device, the VRF that holds its export interface. Not a scenario link.
 TELEMETRY_NETWORK = "nika_telemetry"
-# Seconds to wait after the lab is verified for collectors and agents to run: a
-# base plus a share per device, since a large lab loads the host while it starts.
-TELEMETRY_READY_BASE_SEC = 60
-TELEMETRY_READY_PER_DEVICE_SEC = 1
-# Concurrent per-device execs when probing, configuring, and checking devices;
-# large labs have hundreds of devices.
-DEVICE_EXEC_WORKERS = 16
-
-
-def telemetry_ready_timeout(plan: dict[str, Any]) -> float:
-    """Seconds to wait for a configured plan's collectors and agents to run."""
-    return TELEMETRY_READY_BASE_SEC + TELEMETRY_READY_PER_DEVICE_SEC * len(
-        plan["devices"]
-    )
-
-
-def telemetry_link(name: str) -> str:
-    """Kathara link between ``name`` and the management switch."""
-    return f"{TELEMETRY_NETWORK}_{name}"
-
-
-def is_telemetry_link(link: str) -> bool:
-    """Whether a Kathara link belongs to the management network, not the scenario."""
-    return link.startswith(f"{TELEMETRY_NETWORK}_")
+# Seconds to wait after the lab is verified for exporters and collectors to run.
+TELEMETRY_READY_TIMEOUT_SEC = 60
 
 
 def normalize_telemetry(value: str | Iterable[str] | None) -> tuple[str, ...]:
@@ -81,30 +57,35 @@ def telemetry_for_session(meta: dict[str, Any] | Any) -> tuple[str, ...]:
 
 
 def apply_telemetry(net_env: NetworkEnvBase, kinds: Iterable[str]) -> dict[str, Any]:
-    """Wire the management network into the built, not yet deployed, lab.
+    """Wire each telemetry kind's network into the built, not yet deployed, lab.
 
-    Returns the telemetry plan to persist with the session.
+    Returns per-kind metadata to persist with the session.
     """
     from nika.run_config.loader import get_run_config
-    from nika.telemetry import management
+    from nika.telemetry import netflow
 
-    subnet = get_run_config().nika.telemetry.subnet
-    return management.attach(net_env, subnet, normalize_telemetry(kinds))
+    settings = get_run_config().nika.telemetry
+    applied: dict[str, Any] = {}
+    if NETFLOW in normalize_telemetry(kinds):
+        applied[NETFLOW] = netflow.attach(net_env, settings.netflow.subnet)
+    return applied
 
 
-def configure_telemetry(runtime: LabRuntime, plan: dict[str, Any]) -> dict[str, Any]:
-    """Configure each requested kind on the devices that support it.
+def configure_telemetry(runtime: LabRuntime, applied: dict[str, Any]) -> dict[str, Any]:
+    """Configure each wired telemetry kind on the devices that support it.
 
     Runs in the lab check phase, once the containers are up. A device without
     support is left unconfigured; that is not an error.
     """
-    from nika.telemetry import management
+    from nika.telemetry import netflow
 
-    return management.configure(runtime, plan)
+    if NETFLOW not in applied:
+        return applied
+    return {**applied, NETFLOW: netflow.configure(runtime, applied[NETFLOW])}
 
 
-def telemetry_running(runtime: LabRuntime, plan: dict[str, Any]) -> bool:
-    """Every requested kind has its collector service and device agents running."""
-    from nika.telemetry import management
+def telemetry_running(runtime: LabRuntime, applied: dict[str, Any]) -> bool:
+    """Every attached telemetry kind has its collectors and exporters running."""
+    from nika.telemetry import netflow
 
-    return management.running(runtime, plan)
+    return NETFLOW not in applied or netflow.export_running(runtime, applied[NETFLOW])
