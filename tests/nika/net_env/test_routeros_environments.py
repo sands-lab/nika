@@ -222,6 +222,7 @@ def test_mixed_platform_runtime_report_keeps_each_row(monkeypatch):
     assert report.status == "passed"
 
 
+@pytest.mark.unit
 def test_failure_providers_follow_the_router_profile():
     from types import SimpleNamespace
 

@@ -420,3 +420,24 @@ class RouterOsFaultOps(RouterFaultOps):
                 f'reply-dst-address~"^{address}:"'
             )
         )
+
+    # Configuration save and restore
+
+    def _exec_config(self, command: str) -> str:
+        # Importing a full configuration takes minutes on RouterOS.
+        result = self.runtime.exec(self.node, command, timeout=300)
+        if result.startswith("[TIMEOUT]"):
+            raise RuntimeCapabilityError(
+                f"RouterOS configuration operation timed out on {self.node}"
+            )
+        return result
+
+    def save_config(self) -> str:
+        from nika.net_env.utils.routeros.common import RUNNING_CONFIG_COMMAND
+
+        return self._exec_config(RUNNING_CONFIG_COMMAND)
+
+    def restore_config(self, saved: str) -> None:
+        from nika.net_env.utils.routeros.common import routeros_restore_command
+
+        self._exec_config(routeros_restore_command(saved))
