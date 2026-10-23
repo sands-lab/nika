@@ -34,6 +34,10 @@ Removes everything NIKA set up on this host:
     from older installers) and the ${GNMIC_BIN} older installers added
   - ~/.config/kathara.conf and, in the repo, .venv (with clab and gnmic),
     .nika_cache (with uv and its cache when the installer added them), runtime/
+    (including Firecracker images, after unmounting runtime/firecracker and
+    removing its /etc/fstab entry when the host setup mounted a loop file there)
+  - the Firecracker host settings: the userfaultfd udev rule and the GRUB
+    huge-pages file (huge pages stay reserved until the next reboot)
 
 Keeps Docker and docker group membership, sbx and kvm group membership, a uv
 installed outside the repo, apt packages that older installers added (clang,
@@ -287,6 +291,51 @@ remove_host_tools() {
   fi
 }
 
+FIRECRACKER_ROOT="${ROOT}/runtime/firecracker"
+
+FIRECRACKER_UDEV_RULE=/etc/udev/rules.d/99-nika-userfaultfd.rules
+FIRECRACKER_GRUB_CFG=/etc/default/grub.d/99-nika-hugepages.cfg
+
+stop_firecracker() {
+  # Host settings from docs/operations/firecracker.md.
+  if [[ -f "${FIRECRACKER_UDEV_RULE}" ]]; then
+    ${SUDO} rm -f "${FIRECRACKER_UDEV_RULE}"
+    ${SUDO} udevadm control --reload-rules 2>/dev/null || true
+    log "Removed ${FIRECRACKER_UDEV_RULE}"
+  fi
+  if [[ -f "${FIRECRACKER_GRUB_CFG}" ]]; then
+    ${SUDO} rm -f "${FIRECRACKER_GRUB_CFG}"
+    ${SUDO} update-grub >/dev/null 2>&1 || warn "update-grub failed; run it before rebooting"
+    log "Removed ${FIRECRACKER_GRUB_CFG} (huge pages stay reserved until the next reboot)"
+  fi
+  [[ -d "${FIRECRACKER_ROOT}" ]] || return 0
+  # Firecracker VMs (image builds, trial copies) and their page servers.
+  local pid cwd pids=()
+  for pid in $(pgrep -x firecracker 2>/dev/null); do
+    cwd="$(readlink "/proc/${pid}/cwd" 2>/dev/null || true)"
+    [[ "${cwd}" == "${FIRECRACKER_ROOT}"/* ]] && pids+=("${pid}")
+  done
+  for pid in $(pgrep -f "nika.firecracker.uffd ${FIRECRACKER_ROOT}/" 2>/dev/null); do
+    pids+=("${pid}")
+  done
+  if [[ ${#pids[@]} -gt 0 ]]; then
+    kill -9 "${pids[@]}" 2>/dev/null || true
+    for _ in $(seq 50); do  # they hold files open; the unmount waits for them
+      kill -0 "${pids[@]}" 2>/dev/null || break
+      sleep 0.1
+    done
+  fi
+  # The documented host setup mounts a btrfs loop file here.
+  if mountpoint -q "${FIRECRACKER_ROOT}"; then
+    ${SUDO} umount "${FIRECRACKER_ROOT}"
+    log "Unmounted ${FIRECRACKER_ROOT}"
+  fi
+  if grep -qF " ${FIRECRACKER_ROOT} " /etc/fstab 2>/dev/null; then
+    ${SUDO} sed -i "\\| ${FIRECRACKER_ROOT} |d" /etc/fstab
+    log "Removed the ${FIRECRACKER_ROOT} entry from /etc/fstab"
+  fi
+}
+
 remove_files() {
   local kathara_conf="${HOME}/.config/kathara.conf"
   if [[ -f "${kathara_conf}" ]]; then
@@ -322,6 +371,7 @@ main() {
   remove_images
   restore_inotify
   remove_host_tools
+  stop_firecracker
   remove_files
   log "NIKA removed. Kept: Docker, apt packages, source tree, .env, config/, results/"
 }

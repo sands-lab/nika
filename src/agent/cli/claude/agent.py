@@ -36,6 +36,9 @@ class ClaudeAgent(DiagnosisAgent):
         LLM-turn budget per phase (``claude --max-turns``), as for other agents.
     max_tokens:
         Output-token cap per model response (``CLAUDE_CODE_MAX_OUTPUT_TOKENS``).
+    reasoning_effort:
+        Run reasoning effort, mapped to ``claude --effort``; omitted when unset
+        or ``none``.
     """
 
     def __init__(
@@ -46,6 +49,7 @@ class ClaudeAgent(DiagnosisAgent):
         llm_provider: str,
         max_steps: int = 20,
         max_tokens: int | None = None,
+        reasoning_effort: str | None = None,
         stream_output: bool = True,
     ) -> None:
         super().__init__(
@@ -54,6 +58,7 @@ class ClaudeAgent(DiagnosisAgent):
             llm_provider=llm_provider,
             max_steps=max_steps,
             max_tokens=max_tokens,
+            reasoning_effort=reasoning_effort,
             stream_output=stream_output,
         )
         scenario_name = self.scenario_name
@@ -68,6 +73,7 @@ class ClaudeAgent(DiagnosisAgent):
             stream_output=stream_output,
             trace_dir=self.trace_dir,
             max_tokens=max_tokens,
+            reasoning_effort=reasoning_effort,
         )
         self._submission_phase = ClaudeSubmissionPhase(
             session_id=session_id,
@@ -78,6 +84,7 @@ class ClaudeAgent(DiagnosisAgent):
             stream_output=stream_output,
             trace_dir=self.trace_dir,
             max_tokens=max_tokens,
+            reasoning_effort=reasoning_effort,
         )
 
     async def diagnose(self, task_description: str) -> str:

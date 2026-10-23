@@ -20,10 +20,28 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
+      # Only human-facing docs are reviewed; other Markdown (agent skills,
+      # notes) is not. Without docs changes, pass without starting the agent.
+      - name: Detect changed docs
+        id: docs
+        run: |
+          files=$(gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/${{ github.event.pull_request.number }}/files" \
+            --jq '.[] | select(.status != "removed") | .filename')
+          docs=$(printf '%s\n' "$files" | grep -E '(^|/)README\.md$|^docs/' || true)
+          if [ -z "$docs" ]; then
+            echo "No README.md or docs/ changes; skipping the review."
+            echo PASS > .letta-docs-verdict
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            printf 'Docs to review:\n%s\n' "$docs"
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/checkout@v4
+        if: steps.docs.outputs.changed == 'true'
         with:
           fetch-depth: 0
       - uses: letta-ai/letta-code-action@v0
+        if: steps.docs.outputs.changed == 'true'
         with:
           letta_api_key: ${{ secrets.LETTA_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -37,10 +55,11 @@ jobs:
           prompt: |
             Review pull request #${{ github.event.pull_request.number }} for documentation quality only.
 
-            1. List the Markdown files changed in this PR, e.g. with
-               `gh pr diff ${{ github.event.pull_request.number }} --name-only | grep -Ei '\.(md|mdx)$'`.
-               If no Markdown file changed, write the verdict PASS (see below), post nothing and stop.
-            2. Review each changed Markdown file (README files first) against the
+            1. List the human-facing docs changed in this PR: `README.md` files and files
+               under `docs/`, e.g. with
+               `gh pr diff ${{ github.event.pull_request.number }} --name-only | grep -E '(^|/)README\.md$|^docs/'`.
+               Other Markdown files (agent skills, notes) are out of scope.
+            2. Review each changed docs file (README files first) against the
                human-facing documentation guidelines stored in your memory. Recall
                those guidelines before reviewing and apply them as the checklist.
             3. Focus on clarity and quality for a human reader: purpose stated up front,

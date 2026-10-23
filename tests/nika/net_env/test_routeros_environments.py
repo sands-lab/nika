@@ -220,3 +220,28 @@ def test_mixed_platform_runtime_report_keeps_each_row(monkeypatch):
     platforms = {row.evidence["platform_verifier"] for row in report.results}
     assert platforms == {"frr-runtime", "routeros-runtime"}
     assert report.status == "passed"
+
+
+@pytest.mark.unit
+def test_failure_providers_follow_the_router_profile():
+    from types import SimpleNamespace
+
+    from nika.net_env.utils.routeros.fault_ops import RouterOsFaultOps
+    from nika.problems.support.router_ops import native_fault_ops, router_fault_ops
+    from nika.runtime.base import RuntimeCapabilityError
+
+    def problem(profile):
+        return SimpleNamespace(net_env=_build("dc_clos", profile), runtime=None)
+
+    leaf = "leaf_router_0_0"
+    ops = router_fault_ops(problem("routeros"), leaf)
+    assert isinstance(ops, RouterOsFaultOps)
+    assert isinstance(
+        native_fault_ops(problem("routeros"), leaf, "block_bgp_transport"),
+        RouterOsFaultOps,
+    )
+    # FRR routers and providers without an operation keep the default path.
+    assert router_fault_ops(problem("frr"), leaf) is None
+    assert native_fault_ops(problem("iosxr"), leaf, "block_bgp_transport") is None
+    with pytest.raises(RuntimeCapabilityError, match="no separate routing daemon"):
+        ops.stop_routing_process()

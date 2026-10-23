@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 
 from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
 from nika.problems.rca import node_resource
-from nika.problems.support.routeros import is_routeros, ros, ros_count, ros_rows
+from nika.problems.support.router_ops import native_fault_ops
 from nika.problems.support.p4_gateway import (
     delete_lb_conn,
     exhaust_lb_conn_table,
@@ -317,16 +317,14 @@ class SnatPortPoolExhaustion(ProblemBase):
     def inject_fault(self, params: SnatPortPoolExhaustionParams):
         if params.port_end < params.port_start:
             raise ValueError("port_end must be greater than or equal to port_start")
-        if is_routeros(self.net_env, params.host_name):
+        ops = native_fault_ops(self, params.host_name, "add_source_nat")
+        if ops is not None:
             # Ahead of the healthy pool rule, like the higher-priority nft chain.
-            ros(
-                self.runtime,
-                params.host_name,
-                "/ip firewall nat add chain=srcnat protocol=tcp "
-                f"src-address={params.source_prefix} action=src-nat "
-                f"to-addresses={params.public_ip} "
-                f"to-ports={params.port_start}-{params.port_end} "
-                "place-before=[:pick [/ip firewall nat find chain=srcnat] 0]",
+            ops.add_source_nat(
+                params.source_prefix,
+                params.public_ip,
+                protocol="tcp",
+                to_ports=f"{params.port_start}-{params.port_end}",
             )
             return
         self.runtime.exec(
@@ -343,22 +341,19 @@ class SnatPortPoolExhaustion(ProblemBase):
         )
 
     def verify_fault(self, params: SnatPortPoolExhaustionParams) -> dict:
-        if is_routeros(self.net_env, params.host_name):
-            rows = ros_rows(
-                self.runtime,
-                params.host_name,
-                "/ip/firewall/nat/print terse where chain=srcnat",
-            )
+        ops = native_fault_ops(self, params.host_name, "source_nat_rules")
+        if ops is not None:
             ports = f"{params.port_start}-{params.port_end}"
+            rules = ops.source_nat_rules()
             return build_verify_result(
                 self.root_cause_name,
                 any(
-                    row.get("to-addresses") == params.public_ip
-                    and row.get("to-ports") == ports
-                    and row.get("src-address") == params.source_prefix
-                    for row in rows
+                    rule.source_prefix == params.source_prefix
+                    and rule.to_address == params.public_ip
+                    and rule.to_ports == ports
+                    for rule in rules
                 ),
-                {"edge": params.host_name, "rules": rows},
+                {"edge": params.host_name, "rules": [vars(rule) for rule in rules]},
             )
         rules = self.runtime.exec(params.host_name, "nft -a list table ip nat")
         wanted = f"{params.public_ip}:{params.port_start}-{params.port_end}"
@@ -408,49 +403,18 @@ class NatMappingRemovedWithoutDrain(ProblemBase):
     def root_cause_resources(self, params: NatMappingRemovedWithoutDrainParams):
         return [node_resource(params.host_name)]
 
-    def _routeros_state(self, params: NatMappingRemovedWithoutDrainParams):
-        from nika.net_env.utils.routeros.common import routeros_port
-
-        iface = routeros_port(self.net_env, params.host_name, params.wan_interface)
-        addresses = ros(
-            self.runtime,
-            params.host_name,
-            f"/ip/address/print terse where interface={iface}",
-        )
-        mappings = ros_count(
-            self.runtime,
-            params.host_name,
-            "/ip/firewall/connection/print count-only where protocol=tcp and "
-            f'reply-dst-address~"^{params.nat_ip_a}:"',
-        )
-        return iface, addresses, mappings
-
-    def _inject_routeros(self, params: NatMappingRemovedWithoutDrainParams) -> None:
-        iface, addresses, mappings = self._routeros_state(params)
-        self._before = f"{addresses}\nactive mappings via {params.nat_ip_a}: {mappings}"
-        edge = params.host_name
-        ros(
-            self.runtime,
-            edge,
-            "/ip firewall nat add chain=srcnat protocol=tcp "
-            f"src-address={params.source_prefix} action=src-nat "
-            f"to-addresses={params.nat_ip_b} "
-            "place-before=[:pick [/ip firewall nat find chain=srcnat] 0]; "
-            f'/ip address remove [find address="{params.nat_ip_a}/32"]',
-        )
-        # Withdraw without draining: drop the mappings that used the address.
-        ros(
-            self.runtime,
-            edge,
-            "/ip firewall connection remove [find protocol=tcp and "
-            f'reply-dst-address~"^{params.nat_ip_a}:"]; '
-            "/ip firewall connection remove [find protocol=tcp and "
-            f'dst-address~"^{params.nat_ip_a}:"]',
-        )
-
     def inject_fault(self, params: NatMappingRemovedWithoutDrainParams):
-        if is_routeros(self.net_env, params.host_name):
-            self._inject_routeros(params)
+        ops = native_fault_ops(self, params.host_name, "clear_nat_mappings")
+        if ops is not None:
+            wan, active = params.wan_interface, params.nat_ip_a
+            self._before = {
+                "addresses": ops.interface_addresses(wan),
+                "mappings": ops.nat_mapping_count(active),
+            }
+            ops.add_source_nat(params.source_prefix, params.nat_ip_b, protocol="tcp")
+            ops.remove_interface_address(wan, f"{active}/32")
+            # Withdraw without draining: drop the mappings that used it.
+            ops.clear_nat_mappings(active)
             return
         self._before = self.runtime.exec(
             params.host_name,
@@ -480,12 +444,14 @@ class NatMappingRemovedWithoutDrain(ProblemBase):
         )
 
     def verify_fault(self, params: NatMappingRemovedWithoutDrainParams) -> dict:
-        if is_routeros(self.net_env, params.host_name):
-            _iface, addresses, mappings = self._routeros_state(params)
+        ops = native_fault_ops(self, params.host_name, "nat_mapping_count")
+        if ops is not None:
+            addresses = ops.interface_addresses(params.wan_interface)
+            mappings = ops.nat_mapping_count(params.nat_ip_a)
             return build_verify_result(
                 self.root_cause_name,
-                f"address={params.nat_ip_a}/32" not in addresses
-                and f"address={params.nat_ip_b}/32" in addresses
+                f"{params.nat_ip_a}/32" not in addresses
+                and f"{params.nat_ip_b}/32" in addresses
                 and mappings == 0,
                 {
                     "edge": params.host_name,

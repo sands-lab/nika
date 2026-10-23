@@ -96,6 +96,12 @@ def _restore_command(running: str) -> str:
     return shlex.join(["/bin/bash", "-c", script])
 
 
+def _fault_ops(runtime, node: str):
+    from nika.net_env.utils.iosxr.fault_ops import IosxrFaultOps
+
+    return IosxrFaultOps(runtime, node)
+
+
 PLATFORM = NativeRouterPlatform(
     convert=convert_frr_routers,
     check_deployable=_check_deployable,
@@ -113,6 +119,7 @@ PLATFORM = NativeRouterPlatform(
         netlab_device="iosxr",
         netlab_retained=retained_netlab_fragment,
     ),
+    fault_ops=_fault_ops,
 )
 
 

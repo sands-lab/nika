@@ -25,6 +25,59 @@ class RemoteSettings(BaseModel):
     artifact_root: str | None = None
 
 
+def _gib(value: str) -> str:
+    if not value.endswith("GiB") or not value[:-3].isdigit():
+        raise ValueError(f"VM memory must look like '8GiB', got {value!r}")
+    return value
+
+
+class FirecrackerSettings(BaseModel):
+    """Firecracker execution (``nika.execution.mode: firecracker``), advanced.
+
+    Each environment variant is deployed and verified once in a microVM booted
+    from the base image in ``root`` and kept as a *lab image*; trials restore a
+    copy of it instead of deploying from scratch. See
+    docs/operations/firecracker.md.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    # Directory on a reflink-capable filesystem (btrfs, XFS) for the base image,
+    # lab and case images, trial copies and NIKA's Firecracker build. Relative
+    # paths are under the NIKA checkout, so uninstalling NIKA removes it.
+    root: str = "runtime/firecracker"
+    vm_cpus: int = Field(default=4, ge=1)
+    # Most Kathara labs use under 2 GiB; with huge pages, admission reserves all of it.
+    vm_memory: str = "4GiB"
+    # Scenario id -> VM memory, for larger labs (k8s, SR Linux). Image builds
+    # warn when a lab leaves too little of its VM memory free.
+    vm_memory_overrides: dict[str, str] = Field(default_factory=dict)
+    # Back VM memory with 2 MiB huge pages reserved on the host (vm.nr_hugepages):
+    # restored labs run at full speed at once, but copies do not share memory.
+    huge_pages: bool = False
+    # Re-run the startup lab verification after each restore, as a cold deploy does.
+    verify_after_restore: bool = True
+    # Also keep each failure case as a case image (snapshot after injection, its
+    # memory stored as a compressed diff against the lab image): trials skip
+    # verification and injection. All trials of a case start from the same
+    # injected state. Costs disk (tens of MiB per case) and one build per case.
+    case_images: bool = False
+    # Delete the lab images a benchmark run used when it ends. Keeping them (the
+    # default) takes substantial disk (each holds its lab's memory and disk
+    # changes, often 2-8 GiB) but lets later runs skip the builds.
+    clean_after_run: bool = False
+
+    @field_validator("vm_memory")
+    @classmethod
+    def _memory_in_gib(cls, value: str) -> str:
+        return _gib(value)
+
+    @field_validator("vm_memory_overrides")
+    @classmethod
+    def _overrides_in_gib(cls, value: dict[str, str]) -> dict[str, str]:
+        return {scenario: _gib(memory) for scenario, memory in value.items()}
+
+
 class SandboxSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -157,6 +210,17 @@ class RuntimeValidationSettings(BaseModel):
     failure_effect: bool = False
 
 
+class ExecutionSettings(BaseModel):
+    """Where benchmark trials run their labs."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # ``native``: on this host. ``firecracker``: in Firecracker microVMs restored
+    # from lab images, configured under ``firecracker``.
+    mode: Literal["native", "firecracker"] = "native"
+    firecracker: FirecrackerSettings = Field(default_factory=FirecrackerSettings)
+
+
 class NikaSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -184,6 +248,7 @@ class NikaSettings(BaseModel):
 
     result_dir: str = "results"
     remote: RemoteSettings = Field(default_factory=RemoteSettings)
+    execution: ExecutionSettings = Field(default_factory=ExecutionSettings)
     sandbox: SandboxSettings = Field(default_factory=SandboxSettings)
     judge: JudgeSettings = Field(default_factory=JudgeSettings)
     k8s: K8sSettings = Field(default_factory=K8sSettings)

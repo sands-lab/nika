@@ -10,7 +10,7 @@ from nika.problems.base import (
     build_verify_result,
     ProblemBase,
 )
-from nika.problems.support.routeros import is_routeros, ros, ros_rows
+from nika.problems.support.router_ops import native_fault_ops
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
 
@@ -97,47 +97,25 @@ class OSPFAreaMisconfig(ProblemBase):
     def root_cause_resources(self, params: OSPFAreaMisconfigParams):
         return [node_resource(params.host_name)]
 
-    def _routeros_template_areas(self, host: str) -> list[str]:
-        """Area IDs of the router's OSPF interface templates, in order."""
-        areas = {
-            row["name"]: row["area-id"]
-            for row in ros_rows(self.runtime, host, "/routing/ospf/area/print terse")
-            if "name" in row and "area-id" in row
-        }
-        return [
-            areas.get(row.get("area", ""), row.get("area", ""))
-            for row in ros_rows(
-                self.runtime, host, "/routing/ospf/interface-template/print terse"
-            )
-        ]
-
-    def _inject_routeros(self, params: OSPFAreaMisconfigParams) -> None:
-        # Renumber the router's first area, the RouterOS form of rewriting
-        # FRR ``network ... area`` statements. RouterOS keeps established
-        # neighbors of a reconfigured area, so the OSPF instance restarts to
-        # run the new area ID, as a restarted FRR daemon would.
-        host = params.host_name
-        templates = self._routeros_template_areas(host)
-        if not templates:
-            raise RuntimeError(f"Could not find OSPF area on {host}")
-        self._orig_areas = set(templates)
-        correct_id = templates[0]
-        wrong_id = "0.0.0.66" if correct_id != "0.0.0.66" else "0.0.0.99"
-        ros(
-            self.runtime,
-            host,
-            f"/routing ospf area set [find where area-id={correct_id}] "
-            f"area-id={wrong_id}; /routing ospf instance disable [find]; "
-            ":delay 2s; /routing ospf instance enable [find]",
-        )
+    def _inject_native(self, params: OSPFAreaMisconfigParams, ops) -> None:
+        # Move the router's first area to a wrong area ID, the native form of
+        # rewriting FRR ``network ... area`` statements.
+        areas = ops.ospf_interface_areas()
+        if not areas:
+            raise RuntimeError(f"Could not find OSPF area on {params.host_name}")
+        self._orig_areas = set(areas)
+        correct_area = areas[0]
+        wrong_area = "0.0.0.66" if correct_area != "0.0.0.66" else "0.0.0.99"
+        ops.renumber_ospf_area(correct_area, wrong_area)
         self.logger.info(
-            f"Injected OSPF area misconfiguration on {host} from area "
-            f"{correct_id} to {wrong_id} (RouterOS)."
+            f"Injected OSPF area misconfiguration on {params.host_name} from "
+            f"area {correct_area} to {wrong_area}."
         )
 
     def inject_fault(self, params: OSPFAreaMisconfigParams):
-        if is_routeros(self.net_env, params.host_name):
-            self._inject_routeros(params)
+        ops = native_fault_ops(self, params.host_name, "renumber_ospf_area")
+        if ops is not None:
+            self._inject_native(params, ops)
             return
         running_cfg = self.runtime.exec(
             params.host_name, "vtysh -c 'show running-config'"
@@ -187,9 +165,10 @@ class OSPFAreaMisconfig(ProblemBase):
 
     def verify_fault(self, params: OSPFAreaMisconfigParams) -> dict:
         """Verify the OSPF area in frr.conf and in the running daemon was changed."""
-        if is_routeros(self.net_env, params.host_name):
+        ops = native_fault_ops(self, params.host_name, "ospf_interface_areas")
+        if ops is not None:
             orig_areas = set(getattr(self, "_orig_areas", None) or ())
-            running_areas = set(self._routeros_template_areas(params.host_name))
+            running_areas = set(ops.ospf_interface_areas())
             return build_verify_result(
                 fault_type=self.root_cause_name,
                 verified=bool(running_areas) and running_areas != orig_areas,

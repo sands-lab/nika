@@ -17,8 +17,12 @@ from nika.remote.config import (
     RemoteConfig,
     is_remote_enabled,
 )
-from nika.remote.handlers import handle_env_start
-from nika.remote.protocol import EnvStartRequest, EnvStartResponse
+from nika.remote.handlers import handle_env_start, handle_failure_inject
+from nika.remote.protocol import (
+    EnvStartRequest,
+    EnvStartResponse,
+    FailureInjectRequest,
+)
 from nika.run_config.loader import reset_run_config, set_run_config
 from nika.run_config.schema import RunConfig
 
@@ -151,6 +155,32 @@ def test_handle_env_start_forwards_static_validation() -> None:
     assert start.call_args.kwargs["static_validation"] is True
 
 
+def test_remote_inject_checks_benchmark_root_causes() -> None:
+    """A remote lab enforces the benchmark root causes as a local inject does."""
+    expected = [{"resource": {"kind": "node", "node": "r1"}, "fault_type": "x"}]
+    with (
+        patch("nika.remote.config.is_remote_enabled", return_value=True),
+        patch("nika.remote.workflows.remote_inject_failure") as remote,
+    ):
+        from nika.workflows.failure.inject import inject_failure
+
+        inject_failure(["x"], session_id="s1", expected_root_causes=expected)
+    assert remote.call_args.kwargs["expected_root_causes"] == expected
+    with (
+        patch("nika.remote.handlers.inject_failure") as inject,
+        patch(
+            "nika.remote.handlers.session_public_dict",
+            return_value={"session_id": "s1"},
+        ),
+    ):
+        handle_failure_inject(
+            FailureInjectRequest(
+                session_id="s1", problem_names=["x"], expected_root_causes=expected
+            )
+        )
+    assert inject.call_args.kwargs["expected_root_causes"] == expected
+
+
 def test_remote_app_health_no_auth() -> None:
     app = create_remote_app()
     client = TestClient(app)
@@ -257,3 +287,62 @@ def test_mcp_policy_resource_from_url() -> None:
     from nika.agents.sandbox.sbx.policy import mcp_policy_resource_from_url
 
     assert mcp_policy_resource_from_url("http://10.1.2.3:9444/mcp") == "10.1.2.3:9444"
+
+
+def test_session_log_reads_complete_lines_from_offset(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from nika.remote import handlers
+
+    log = tmp_path / "nika.jsonl"
+    log.write_text('{"e":1}\n{"e":2}\n{"e":3', encoding="utf-8")
+
+    monkeypatch.setattr(handlers, "_session_dir", lambda session_id: str(tmp_path))
+    first = handlers.handle_session_log("s1", "nika.jsonl", 0)
+    # The partially written third line is held back.
+    assert first.data == '{"e":1}\n{"e":2}\n'
+    assert handlers.handle_session_log("s1", "nika.jsonl", first.offset).data == ""
+    with log.open("a", encoding="utf-8") as fh:
+        fh.write("}\n")
+    assert handlers.handle_session_log("s1", "nika.jsonl", first.offset).data == (
+        '{"e":3}\n'
+    )
+    # An offset past the end means the file was replaced: read it again.
+    assert (
+        handlers.handle_session_log("s1", "nika.jsonl", 10**6).offset
+        == log.stat().st_size
+    )
+    with pytest.raises(ValueError):
+        handlers.handle_session_log("s1", "../run.json", 0)
+
+
+def test_log_follower_appends_each_remote_line_once(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from nika.remote import workflows
+    from nika.remote.protocol import SessionLogResponse
+
+    remote = {"nika.jsonl": '{"e":"env_start"}\n{"e":"inject"}\n', "messages.jsonl": ""}
+
+    class Client:
+        def read_log(self, session_id, name, offset):
+            data = remote[name][offset:]
+            return SessionLogResponse(
+                data=data, offset=offset + len(data), server_time=0.0
+            )
+
+    # The local mirror already holds a pulled line and a local agent event.
+    (tmp_path / "nika.jsonl").write_text('{"e":"env_start"}\n{"e":"agent_start"}\n')
+    follower = workflows.RemoteLogFollower(Client(), "s1", tmp_path)
+    follower.poll()
+    follower.poll()
+    remote["messages.jsonl"] += '{"event":"diagnosis_frozen","origin":"remote"}\n'
+    follower.poll()
+
+    assert (tmp_path / "nika.jsonl").read_text().splitlines() == [
+        '{"e":"env_start"}',
+        '{"e":"agent_start"}',
+        '{"e":"inject"}',
+    ]
+    assert "diagnosis_frozen" in (tmp_path / "messages.jsonl").read_text()
+    assert follower.clock_offset_sec is not None

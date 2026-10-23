@@ -89,4 +89,4 @@ def test_agent_resolves_from_yaml_only(
     assert resolve_agent_model(agent_type, None) == model
     assert resolve_max_steps(None) == 9
     if agent_type in ("byo.langgraph", "cli.codex", "sdk.codex_sdk"):
-        assert resolve_reasoning_effort(None) == "low"
+        assert resolve_reasoning_effort(agent_type) == "low"

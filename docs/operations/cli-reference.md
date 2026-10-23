@@ -151,7 +151,7 @@ Aligned with `nika agent run`:
 - **`-p` / `--provider`**: LLM provider for all agents (`openai`, `anthropic`, `deepseek`, `custom`; capabilities differ by agent).
 - **`-m` / `--model`**: model id.
 - **`-n` / `--max-steps`**: max LLM turns per phase (every agent).
-- **`-e` / `--reasoning-effort`**: Reasoning effort for BYO agents (`byo.langgraph`, `byo.mcp_agent`, `byo.autogen`), `cli.codex`, and `sdk.codex_sdk`: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`. `byo.mcp_agent` accepts `none` / `low` / `medium` / `high` only.
+- **`-e` / `--reasoning-effort`**: Reasoning effort for BYO agents (`byo.langgraph`, `byo.mcp_agent`, `byo.autogen`), Codex agents (`cli.codex`, `sdk.codex_sdk`), and Claude agents (`cli.claude`, `sdk.claude_sdk`): `none`, `minimal`, `low`, `medium`, `high`, `xhigh`. `byo.mcp_agent` accepts `none` / `low` / `medium` / `high` only. Defaults to `medium` for these agents.
 - **`--base-url`**: inference endpoint (`agent.base_url`), the OpenAI-style API root ending in `/v1` (for example `http://localhost:8000/v1`). Used only with `provider=custom`, where it is required.
 
 `nika eval judge` uses **`-p`** and **`-m`** for the judge only (no agent in that command).
@@ -277,7 +277,7 @@ Lab deployment and verification timings live under `nika.lab`. MCP client and ga
   | `-p` / `--provider` | both | Shared: `openai`, `anthropic`, `deepseek`, or `custom` |
   | `-m` / `--model` | both | model id |
   | `-n` / `--max-steps` | both | Max LLM turns per phase (every agent) |
-  | `-e` / `--reasoning-effort` | both | Reasoning effort (BYO agents, `cli.codex`, `sdk.codex_sdk`) |
+  | `-e` / `--reasoning-effort` | both | Reasoning effort (BYO, Codex, and Claude agents; default `medium`) |
   | `--base-url` | both | Inference endpoint (`agent.base_url`) |
   | `--role` | both | Diagnosis access role (default `agent.access.role`) |
   | `--run-config PATH` | both | Run config file (default `config/nika.yaml`; also `NIKA_RUN_CONFIG`) |

@@ -11,6 +11,7 @@ from nika.problems.support.benchmark_targets import (
     require_role_member,
 )
 from nika.problems.support.inject_resolve import resolve_victim_host_ip
+from nika.problems.support.router_ops import native_fault_ops
 
 from nika.problems.rca import node_resource
 
@@ -20,7 +21,6 @@ from nika.problems.base import (
     ProblemBase,
 )
 
-from nika.problems.support.routeros import is_routeros, ros, ros_rows
 from nika.runtime.base import RuntimeCapabilityError
 
 from nika.utils.logger import system_logger
@@ -124,23 +124,9 @@ class StaticBlackHole(ProblemBase):
         toward that prefix is dropped. Local attached subnets often stay
         on-link and never hit a blackhole installed for them.
         """
-        if self.lab_backend == "kathara" and is_routeros(
-            self.net_env, params.host_name
-        ):
-
-            def prefixes(query: str) -> set[str]:
-                return {
-                    row["dst-address"]
-                    for row in ros_rows(self.runtime, params.host_name, query)
-                    if "dst-address" in row
-                }
-
-            # Remote prefixes only: a VRF router also learns routes for LANs
-            # it serves in another table.
-            learned = sorted(
-                prefixes("/routing/route/print terse where bgp and active and afi=ip")
-                - prefixes("/routing/route/print terse where connect and afi=ip")
-            )
+        ops = native_fault_ops(self, params.host_name, "remote_bgp_prefixes")
+        if ops is not None:
+            learned = ops.remote_bgp_prefixes()
             if learned:
                 return learned[0]
         elif self.lab_backend == "kathara":
@@ -180,14 +166,10 @@ class StaticBlackHole(ProblemBase):
                 self.runtime.srl_add_blackhole_static(
                     params.host_name, self._blackhole_network
                 )
-            case "kathara" if is_routeros(self.net_env, params.host_name):
-                for table in self._routeros_tables(params.host_name, host_network):
-                    ros(
-                        self.runtime,
-                        params.host_name,
-                        f"/ip route add dst-address={host_network} blackhole "
-                        f"routing-table={table}",
-                    )
+            case "kathara" if ops := native_fault_ops(
+                self, params.host_name, "add_blackhole_route"
+            ):
+                ops.add_blackhole_route(str(host_network))
             case "kathara":
                 # A VRF router forwards end-host traffic from the VRF's table,
                 # so the blackhole goes into every table that routes the prefix.
@@ -203,14 +185,6 @@ class StaticBlackHole(ProblemBase):
         self.logger.info(
             f"Injected addition of blackhole route {host_network} on {params.host_name}."
         )
-
-    def _routeros_tables(self, router: str, network) -> list[str]:
-        rows = ros_rows(
-            self.runtime,
-            router,
-            f"/routing/route/print terse where dst-address={network} and active",
-        )
-        return sorted({row.get("routing-table", "main") for row in rows} | {"main"})
 
     def _tables_routing(self, router: str, network) -> list[str]:
         output = self.runtime.exec(
@@ -243,20 +217,18 @@ class StaticBlackHole(ProblemBase):
                     verified=verified,
                     details={"host": params.host_name, "network": host_network},
                 )
-            case "kathara" if is_routeros(self.net_env, params.host_name):
-                route_output = ros(
-                    self.runtime,
-                    params.host_name,
-                    "/ip/route/print terse where blackhole",
-                )
-                network = ipaddress.ip_network(host_network, strict=False)
+            case "kathara" if ops := native_fault_ops(
+                self, params.host_name, "blackhole_routes"
+            ):
+                network = str(ipaddress.ip_network(host_network, strict=False))
+                routes = ops.blackhole_routes()
                 return build_verify_result(
                     fault_type=self.root_cause_name,
-                    verified=f"dst-address={network}" in route_output,
+                    verified=network in routes,
                     details={
                         "host": params.host_name,
                         "network": host_network,
-                        "route_output": route_output,
+                        "blackhole_routes": routes,
                     },
                 )
             case "kathara":

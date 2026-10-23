@@ -41,6 +41,7 @@ dependencies = [
     "huggingface_hub>=1.29.0,<2",
     "starlette>=1.0.0,<2",
     "uvicorn>=0.47.0,<0.48",
+    "zstandard>=0.25.0,<0.26",
 ]
 
 [project.optional-dependencies]
@@ -66,6 +67,7 @@ include = ["nika*", "agent*"]
 # Runtime data loaded from the installed package (lab files, images, prompts).
 "nika.validation.netkat" = ["KatchBatch.java"]
 "nika.inspect" = ["www/dist/**/*"]
+"nika.firecracker" = ["*.patch"]
 "nika.net_env.compat.v010.p4_bloom_filter" = ["*.p4", "cmds/*.txt"]
 "nika.net_env.compat.v010.p4_counter" = ["p4_src/*.p4", "cmds/*.txt"]
 "nika.net_env.compat.v010.p4_mpls" = ["*.p4", "cmds/*/*.txt", "cmds/*/*.py", "startups/*.startup"]
