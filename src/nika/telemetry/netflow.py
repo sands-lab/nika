@@ -17,8 +17,8 @@ if TYPE_CHECKING:
     from nika.runtime.base import LabRuntime
 
 IPFIX_PORT = 9995
-FLOW_DIR = "/var/lib/nika/flows"
-FLOW_EXPORTERS_FILE = "/var/lib/nika/flow_exporters"
+FLOW_DIR = "/var/lib/flows"
+FLOW_EXPORTERS_FILE = "/var/lib/flow_exporters"
 # nfcapd rotation period; nfdump reads closed files, so this bounds query lag.
 FLOW_ROTATE_SEC = 10
 # pmacct nfprobe timeouts: export active flows every 10 s, idle flows after 10 s,
@@ -33,7 +33,7 @@ _PMACCTD_VERSION = re.compile(r"\bpmacctd (\d[\w.\-]*)")
 
 
 def pmacct_conf_path(iface: str) -> str:
-    return f"{PMACCT_DIR}/nika-netflow-{iface}.conf"
+    return f"{PMACCT_DIR}/netflow-{iface}.conf"
 
 
 def pmacct_conf(collector: str, iface: str, engine: int) -> str:
@@ -72,7 +72,9 @@ def probe(runtime: LabRuntime, name: str) -> str | None:
     return match.group(1) if match else None
 
 
-def device_files(device: dict[str, Any], address: str, collector: str) -> dict:
+def device_files(
+    device: dict[str, Any], address: str, collector: str
+) -> dict[str, str]:
     return {
         pmacct_conf_path(iface): pmacct_conf(collector, iface, engine)
         for engine, iface in enumerate(device["data_ifaces"], 1)
