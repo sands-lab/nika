@@ -263,15 +263,17 @@ def verify_enterprise_branch_lab(
             f"underlay_{tag}_hub_to_spoke": view.ping_ok(
                 runtime, hub_edge, bt.spoke_wan_ip
             ),
-            f"wg_{tag}_spoke": bool(
+            f"wg_{tag}_spoke": view.wireguard_ok(
+                bt.spoke_iface,
                 exec_or_empty(
                     runtime, spoke_edge, view.wireguard(bt.spoke_iface), timeout=15
-                ).strip()
+                ),
             ),
-            f"wg_{tag}_hub": bool(
+            f"wg_{tag}_hub": view.wireguard_ok(
+                bt.hub_iface,
                 exec_or_empty(
                     runtime, hub_edge, view.wireguard(bt.hub_iface), timeout=15
-                ).strip()
+                ),
             ),
         }
 

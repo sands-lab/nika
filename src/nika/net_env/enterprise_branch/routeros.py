@@ -392,6 +392,16 @@ class RouterOsEdgeView(FrrEdgeView):
     def wireguard(self, iface: str) -> str:
         return _cli(f"/interface/wireguard/peers/print terse where interface={iface}")
 
+    def wireguard_ok(self, iface: str, output: str) -> bool:
+        from nika.net_env.utils.routeros.parse import routeros_terse_rows
+
+        # A CLI error or an empty table is output too; require the peer row.
+        try:
+            rows = routeros_terse_rows(output)
+        except ValueError:
+            return False
+        return any(row.get("interface") == iface for row in rows)
+
     def vrf_ribs(self, vrf: str, *, routing_table_first: bool) -> tuple[str, ...]:
         return (
             _cli(

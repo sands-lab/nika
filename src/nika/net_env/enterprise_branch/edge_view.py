@@ -24,6 +24,9 @@ class FrrEdgeView:
     def wireguard(self, iface: str) -> str:
         return f"wg show {iface}"
 
+    def wireguard_ok(self, iface: str, output: str) -> bool:
+        return bool(output.strip())
+
     def vrf_ribs(self, vrf: str, *, routing_table_first: bool) -> tuple[str, ...]:
         """Commands tried in order until one returns output."""
         kernel = f"ip route show vrf {vrf}"
