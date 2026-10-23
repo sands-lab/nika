@@ -83,6 +83,7 @@ class OSPFAreaMisconfig(ProblemBase):
     effect_protocol = "ospf"
 
     TAGS: str = ["ospf"]
+    native_router_operations = frozenset({"ospf_interface_areas", "renumber_ospf_area"})
 
     Params = OSPFAreaMisconfigParams
 
