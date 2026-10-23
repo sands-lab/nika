@@ -147,11 +147,11 @@ Batch resume only looks at this directory. See [`--resume`](#batch-run-options).
 
 Aligned with `nika agent run`:
 
-- **`-a` / `--agent`**: `byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `cli.codex`, `cli.claude`, `community.sade`, `sdk.claude_sdk`, or `sdk.codex_sdk`.
+- **`-a` / `--agent`**: `byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `cli.codex`, `cli.claude`, `cli.opencode`, `cli.dsh`, `community.sade`, `sdk.claude_sdk`, or `sdk.codex_sdk`.
 - **`-p` / `--provider`**: LLM provider for all agents (`openai`, `anthropic`, `deepseek`, `custom`; capabilities differ by agent).
 - **`-m` / `--model`**: model id.
 - **`-n` / `--max-steps`**: max LLM turns per phase (every agent).
-- **`-e` / `--reasoning-effort`**: Reasoning effort for BYO agents (`byo.langgraph`, `byo.mcp_agent`, `byo.autogen`), Codex agents (`cli.codex`, `sdk.codex_sdk`), and Claude agents (`cli.claude`, `sdk.claude_sdk`): `none`, `minimal`, `low`, `medium`, `high`, `xhigh`. `byo.mcp_agent` accepts `none` / `low` / `medium` / `high` only. Defaults to `medium` for these agents.
+- **`-e` / `--reasoning-effort`**: Reasoning effort for BYO agents (`byo.langgraph`, `byo.mcp_agent`, `byo.autogen`), Codex agents (`cli.codex`, `sdk.codex_sdk`), Claude agents (`cli.claude`, `sdk.claude_sdk`), OpenCode (`cli.opencode`), and DeepSeek Harness (`cli.dsh`): `none`, `minimal`, `low`, `medium`, `high`, `xhigh`. `byo.mcp_agent` accepts `none` / `low` / `medium` / `high` only. Defaults to `medium` for these agents.
 - **`--base-url`**: inference endpoint (`agent.base_url`), the OpenAI-style API root ending in `/v1` (for example `http://localhost:8000/v1`). Used only with `provider=custom`, where it is required.
 
 `nika eval judge` uses **`-p`** and **`-m`** for the judge only (no agent in that command).
@@ -252,7 +252,7 @@ Lab deployment and verification timings live under `nika.lab`. MCP client and ga
 
 ## `nika agent`
 
-- **`nika agent list`**: built-in harnesses (`byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `cli.codex`, `cli.claude`, `community.sade`, `sdk.claude_sdk`, `sdk.codex_sdk`), custom agents from `src/agent/custom/`, and added agents, with their providers and sandbox support, plus LLM providers and reasoning-effort levels.
+- **`nika agent list`**: built-in harnesses (`byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `cli.codex`, `cli.claude`, `cli.opencode`, `cli.dsh`, `community.sade`, `sdk.claude_sdk`, `sdk.codex_sdk`), custom agents from `src/agent/custom/`, and added agents, with their providers and sandbox support, plus LLM providers and reasoning-effort levels.
 - **`nika agent add PATH`** / **`nika agent remove ID`**: register an agent project developed outside NIKA from its `nika-agent.yaml`, or unregister it. NIKA copies the project into the agent's sandbox on every run and installs its dependencies there. See [Custom agent registration](../agents/agent-reference.md#custom-agent-registration); an agent in `src/agent/custom/` needs no registration ([Integrate a custom agent](../agents/custom-agents.md)).
 - **`nika agent check`**: lists models at the configured LLM endpoint and reports whether it is reachable, accepts the credentials, and serves `agent.model`. Takes `--run-config`, `-p`, `-m`, `--base-url`, and `--json`; exits non-zero when the endpoint is not usable. No tokens are spent.
 - **`nika agent run`**: two modes:
@@ -273,11 +273,11 @@ Lab deployment and verification timings live under `nika.lab`. MCP client and ga
 
   | Flag | Mode | Meaning |
   |------|------|---------|
-  | `-a` / `--agent` | both | `byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `cli.codex`, `cli.claude`, `community.sade`, `sdk.claude_sdk`, or `sdk.codex_sdk` |
+  | `-a` / `--agent` | both | `byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `cli.codex`, `cli.claude`, `cli.opencode`, `cli.dsh`, `community.sade`, `sdk.claude_sdk`, or `sdk.codex_sdk` |
   | `-p` / `--provider` | both | Shared: `openai`, `anthropic`, `deepseek`, or `custom` |
   | `-m` / `--model` | both | model id |
   | `-n` / `--max-steps` | both | Max LLM turns per phase (every agent) |
-  | `-e` / `--reasoning-effort` | both | Reasoning effort (BYO, Codex, and Claude agents; default `medium`) |
+  | `-e` / `--reasoning-effort` | both | Reasoning effort (BYO, Codex, Claude, OpenCode, and DeepSeek Harness agents; default `medium`) |
   | `--base-url` | both | Inference endpoint (`agent.base_url`) |
   | `--role` | both | Diagnosis access role (default `agent.access.role`) |
   | `--run-config PATH` | both | Run config file (default `config/nika.yaml`; also `NIKA_RUN_CONFIG`) |

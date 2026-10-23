@@ -21,7 +21,7 @@ uv run nika agent run --run-config config/cli.codex.yaml --problem dc_clos_s_lin
 
 Each `--run-config` file is a complete configuration; it does not inherit `config/nika.yaml`. Copying the active file preserves your AgentENV, E2B, or sbx settings. Use per-agent templates as references when editing the copied file's `agent` section.
 
-Tracked per-agent templates live next to `nika.example.yaml`: `byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `cli.codex`, `cli.claude`, `sdk.codex_sdk`, and `sdk.claude_sdk` (each as `config/<agent>.example.yaml`).
+Tracked per-agent templates live next to `nika.example.yaml`: `byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `cli.codex`, `cli.claude`, `cli.opencode`, `cli.dsh`, `sdk.codex_sdk`, and `sdk.claude_sdk` (each as `config/<agent>.example.yaml`).
 
 `nika config show` validates the selected YAML file and prints the effective configuration without credentials. Use `--run-config PATH` or `NIKA_RUN_CONFIG` to select a different operations file.
 
@@ -55,10 +55,10 @@ Relative result paths resolve from the repository root. NIKA rejects unknown YAM
 | `agent.type` | `byo.langgraph` | Agent registry name. Run `uv run nika agent list` for available names. |
 | `agent.provider` | `openai` | Provider name. The selected agent must support it. |
 | `agent.model` | `null` | Canonical model id for the active agent type. |
-| `agent.base_url` | `null` | Required for `provider: custom`. Use the OpenAI-style API root, usually ending in `/v1` (for example `http://localhost:8000/v1`), not the bare host and port. Other providers ignore it; set `OPENAI_BASE_URL` or `ANTHROPIC_BASE_URL` in `.env` to route them through a gateway. Set via YAML, `nika config set agent.base_url=...`, or `--base-url` on `agent run` / `benchmark run`. |
+| `agent.base_url` | `null` | Required for `provider: custom`. Use the OpenAI-style API root, usually ending in `/v1` (for example `http://localhost:8000/v1`), not the bare host and port. Other providers ignore it; set `OPENAI_BASE_URL`, `ANTHROPIC_BASE_URL`, or `DEEPSEEK_BASE_URL` in `.env` to route them through a gateway. Set via YAML, `nika config set agent.base_url=...`, or `--base-url` on `agent run` / `benchmark run`. |
 | `agent.max_steps` | `20` | Host-enforced limit on successful LLM generation requests per phase for every sandboxed agent, including sub-agent requests. Provider failures do not consume the budget. Must be at least `1`. See [Step limit](../agents/agent-reference.md#step-limit). |
 | `agent.timeout_sec` | `1800` | Wall-clock budget in seconds for one agent run (diagnosis plus submission). Applies to every agent type. When it expires, NIKA stops the agent and cleans up its sandbox. Benchmark batch runs record the trial as counted `agent_failed`, or as `success` when the agent already wrote a valid `submission.json`. Keep it below `benchmark.case_timeout_sec`. Set `0` to disable it. |
-| `agent.enable_skills` | `true` | Load the shared skill library for Claude and Codex agents. |
+| `agent.enable_skills` | `true` | Load the shared skill library for Claude, Codex, OpenCode, and DeepSeek Harness agents. |
 | `agent.submit_reject_limit` | `5` | Max consecutive `submit()` validation failures. After the last one, `submit()` refuses every later call for the session, including valid ones. Set `0` to disable the cap. |
 | `agent.reasoning_effort` | `null` | Reasoning effort. When unset, built-in harnesses use `medium` and `community.sade` and added agents get none. Accepted levels depend on the agent; see [Reasoning effort](../agents/agent-reference.md#reasoning-effort). |
 | `agent.max_tokens` | `8192` | Output-token cap per model response. BYO agents pass it to the model client; `cli.claude` and `sdk.claude_sdk` set `CLAUDE_CODE_MAX_OUTPUT_TOKENS`. `cli.codex`, `sdk.codex_sdk`, and `community.sade` do not apply it and record `null`. Benchmark runs record it in the run identity. Must be at least `1`. |
@@ -83,8 +83,10 @@ Model resolution order: `-m/--model`, then `agent.model`.
 | `byo.langgraph` | `openai`, `anthropic`, `deepseek`, `custom` |
 | `byo.mcp_agent` | `openai`, `anthropic`, `deepseek`, `custom` |
 | `byo.autogen` | `openai`, `anthropic`, `deepseek`, `custom` |
+| `cli.opencode` | `openai`, `anthropic`, `deepseek`, `custom` |
 | `cli.codex` | `openai`, `deepseek`, `custom` |
 | `sdk.codex_sdk` | `openai`, `deepseek`, `custom` |
+| `cli.dsh` | `openai`, `deepseek`, `custom` |
 | `cli.claude` | `anthropic`, `deepseek`, `custom` |
 | `sdk.claude_sdk` | `anthropic`, `deepseek`, `custom` |
 | `community.sade` | `anthropic`, `deepseek`, `custom` |

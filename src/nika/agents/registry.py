@@ -61,6 +61,9 @@ class AgentSpec:
     requires_python: str | None = None
     # Extra hosts the sandbox may reach (an added agent's LLM endpoint).
     egress: tuple[str, ...] = ()
+    # Pinned npm CLIs staged on the host into the workspace (see
+    # :mod:`nika.agents.sandbox.npm`). Empty for agents that need none.
+    npm_packages: tuple[str, ...] = ()
     # builtin, custom (src/agent/custom), user (nika agent add), or import path.
     source: str = "builtin"
     # Added project directory, copied into the sandbox next to the agent package.
@@ -123,6 +126,22 @@ BUILTIN_AGENTS: tuple[AgentSpec, ...] = (
         providers=frozenset({"anthropic", "deepseek", "custom"}),
         credential_family="anthropic",
         template="claude",
+    ),
+    AgentSpec(
+        id="cli.opencode",
+        default_reasoning_effort="medium",
+        class_path="agent.cli.opencode.agent:OpenCodeAgent",
+        credential_family="provider",
+        template="shell",
+        npm_packages=("opencode-ai@1.19.3",),
+    ),
+    AgentSpec(
+        id="cli.dsh",
+        default_reasoning_effort="medium",
+        class_path="agent.cli.dsh.agent:DshAgent",
+        providers=frozenset({"openai", "deepseek", "custom"}),
+        template="shell",
+        npm_packages=("@deepseek-ai/dsh@0.2.1-rc.2",),
     ),
     AgentSpec(
         id="sdk.codex_sdk",

@@ -19,9 +19,13 @@ from nika.agents.provider_env import (
     DEEPSEEK_OPENAI_BASE_URL,
     ENV_ANTHROPIC_API_KEY,
     ENV_ANTHROPIC_AUTH_TOKEN,
+    ENV_ANTHROPIC_BASE_URL,
     ENV_DEEPSEEK_API_KEY,
+    ENV_DEEPSEEK_BASE_URL,
     ENV_OPENAI_API_KEY,
+    ENV_OPENAI_BASE_URL,
     has_provider_credentials,
+    openai_compat_to_anthropic_base_url,
     resolve_custom_api_key,
     resolve_custom_base_url,
 )
@@ -65,10 +69,12 @@ def _request_spec(
     match provider:
         case "openai":
             key = _env(ENV_OPENAI_API_KEY, sources)
-            return OPENAI_API_ROOT, {"Authorization": f"Bearer {key}"}
+            root = _env(ENV_OPENAI_BASE_URL, sources) or OPENAI_API_ROOT
+            return root, {"Authorization": f"Bearer {key}"}
         case "deepseek":
             key = _env(ENV_DEEPSEEK_API_KEY, sources)
-            return DEEPSEEK_OPENAI_BASE_URL, {"Authorization": f"Bearer {key}"}
+            root = _env(ENV_DEEPSEEK_BASE_URL, sources) or DEEPSEEK_OPENAI_BASE_URL
+            return root, {"Authorization": f"Bearer {key}"}
         case "anthropic":
             headers = {"anthropic-version": ANTHROPIC_VERSION}
             if key := _env(ENV_ANTHROPIC_API_KEY, sources):
@@ -76,7 +82,13 @@ def _request_spec(
             else:
                 token = _env(ENV_ANTHROPIC_AUTH_TOKEN, sources)
                 headers["Authorization"] = f"Bearer {token}"
-            return ANTHROPIC_API_ROOT, headers
+            explicit = _env(ENV_ANTHROPIC_BASE_URL, sources)
+            root = (
+                openai_compat_to_anthropic_base_url(explicit) + "/v1"
+                if explicit
+                else ANTHROPIC_API_ROOT
+            )
+            return root, headers
         case "custom":
             root = (base_url or "").strip() or resolve_custom_base_url(sources)
             headers = {}

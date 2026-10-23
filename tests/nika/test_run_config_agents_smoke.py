@@ -23,6 +23,8 @@ AGENT_SPECS = (
     ("byo.mcp_agent", "deepseek", DEEPSEEK_FLASH),
     ("byo.autogen", "deepseek", DEEPSEEK_FLASH),
     ("cli.claude", "deepseek", DEEPSEEK_FLASH),
+    ("cli.opencode", "deepseek", DEEPSEEK_FLASH),
+    ("cli.dsh", "deepseek", DEEPSEEK_FLASH),
     ("cli.codex", "openai", "gpt-5-mini"),
     ("sdk.claude_sdk", "deepseek", DEEPSEEK_FLASH),
     ("sdk.codex_sdk", "openai", "gpt-5-mini"),
