@@ -82,6 +82,46 @@ Omitting the option keeps the existing construction path. Normal benchmark
 startup can reuse saved candidates; it does not run NetComplete, netlab or
 Batfish. This option adds no NIKA CLI command and changes no published tasks.
 
+## Compare native and netlab configurations
+
+Check that netlab and NIKA's native renderers produce the same routing for one
+environment design before relying on netlab candidates. The comparison needs a
+running Batfish service at `127.0.0.1:9996`. Start the pinned image built above
+and wait until it answers; this reuses an analyzer that is already running:
+
+```bash
+uv run python -c "from nika.validation.batfish.service import ensure_batfish_service; print(ensure_batfish_service())"
+```
+
+Then compare one design:
+
+```bash
+uv run python experiment/scenario_validation/generator_consistency.py isp_abilene \
+  --backend kathara --igp ospf --bgp-mode ebgp --device-profile frr \
+  --output /tmp/consistency-abilene
+```
+
+The script renders both candidates, analyzes each with the platform's Batfish
+export from the table below and exits nonzero on any difference. It neither
+starts nor stops Batfish. If you started the analyzer only for this example, stop
+it afterwards with `docker rm -f nika-batfish-2025-07-07-2423-frr-next-hop-self`;
+leave it running when other experiments share it. From Python, call
+`compare_config_generators(scenario, output, topo_size=..., deployment={...})`
+in `nika.workflows.validation.consistency`. Pass `routing_model` to select another
+projection, and `batfish_host`/`batfish_port` for another analyzer.
+
+`report.json` lists each difference as `kind`, `node`, `key`, `native` and
+`candidate`, and records each candidate's Batfish parse status under `scope`.
+The script fails if either candidate yields no interface or RIB facts. The compared facts are interface addresses, OSPF areas, passivity and costs,
+OSPF or IS-IS adjacencies, BGP sessions, ASNs and RR roles, main RIB and resolved
+FIB entries, selected BGP paths, and per-neighbor import and export outcomes. Both
+candidates see the same probe routes: every path either candidate advertises,
+the design's business, leak and policy prefixes, the RTBH community and a
+TEST-NET-1 canary. Enterprise uses a restricted tunnel projection; it lowers
+business VRF imports into default-table origins and leaves VRF-local tables
+unmodeled. The comparison covers only what the projection models; OSPF network
+type, timers and the community types sent to peers are not compared.
+
 ## Reuse a saved construction
 
 Load the original deployment choices and completed parameters into the normal startup API:
@@ -121,7 +161,7 @@ Batfish checks original predicates against the final candidate configuration. Na
 | FRR OSPF/BGP | Native configuration parser | Sessions, routes, flows and declared fault/recovery behavior |
 | FRR IS-IS | Restricted translation of concrete IPv4 Level-2 configuration to IOS XR | Original IS-IS, ordinary iBGP RR and direct eBGP predicates |
 | Nokia SR Linux | Restricted concrete-configuration projection | Original IGP/BGP predicates on SR Linux |
-| Cisco IOS XR | Native parser | Original ISP OSPF/BGP and direct eBGP predicates on XRd |
+| Cisco IOS XR | Native parser | Original ISP OSPF or IS-IS/BGP and direct eBGP predicates on XRd |
 | MikroTik RouterOS | Restricted concrete IPv4 OSPF/BGP projection | Original predicates on RouterOS |
 | Enterprise | Explicit static-underlay projection | WireGuard, VRF routing and isolation |
 | Clos ECMP | Routing model | Installed ECMP sets, including FRR multipath limits |

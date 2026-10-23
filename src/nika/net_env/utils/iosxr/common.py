@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import re
 import shlex
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 
 from nika.net_env.utils.kathara.docker_files.docker_images import image_exists
 
@@ -26,6 +27,51 @@ XR_ENTRYPOINT = shlex.join(
 # Startup scripts run inside the container shell; double-quoted xr_cli args are fine.
 _CLI_COMMAND = '/pkg/bin/xr_cli "{command}"'
 _ZTP_APPLY_COMMAND = "/bin/bash -c 'source /pkg/bin/ztp_helper.sh; xrapply {file}'"
+
+
+# Kathara memory limit per XRd router. XRd Control Plane needs about 2 GiB
+# resident; the limit leaves boot headroom.
+XRD_MEMORY = "3g"
+
+
+def iosxr_interface(name: str) -> str:
+    """Map a Kathara Linux interface to its XRd control-plane interface."""
+    if name == "lo":
+        return "Loopback0"
+    if match := re.fullmatch(r"eth(0|[1-9][0-9]*)", name):
+        return f"GigabitEthernet0/0/0/{match[1]}"
+    raise ValueError(f"Unsupported IOS XR interface: {name!r}")
+
+
+def configure_xrd_router(
+    lab,
+    machine,
+    config: str,
+    linux_interfaces: Sequence[str],
+) -> None:
+    """Make a Kathara machine boot XRd and apply ``config`` once XR is up.
+
+    The machine keeps its name and links; ``linux_interfaces`` are the data
+    ports XR takes over, named as :func:`iosxr_interface` maps them.
+    """
+    machine.update_meta({"image": IMAGE, "mem": XRD_MEMORY, "cpus": 1.0})
+    machine.add_meta("privileged", True)
+    machine.add_meta("ipv6", True)
+    machine.add_meta("entrypoint", XR_ENTRYPOINT)
+    machine.add_meta(
+        "env",
+        build_xr_interfaces_env(
+            *((name, iosxr_interface(name)) for name in linux_interfaces)
+        ),
+    )
+    machine.add_meta("env", XR_ZTP_DISABLE_ENV)
+    machine.create_file_from_string(config, CONFIG_FILE_PATH)
+    lab.create_file_from_list(
+        build_xr_startup_script(
+            CONFIG_FILE_PATH, wait_iface=iosxr_interface(linux_interfaces[0])
+        ),
+        f"{machine.name}.startup",
+    )
 
 
 def build_xr_interfaces_env(*linux_to_xr: tuple[str, str]) -> str:

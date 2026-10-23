@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import shlex
 import time
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from ipaddress import IPv4Address
 from typing import TYPE_CHECKING, Any, Literal
@@ -788,6 +788,19 @@ def frr_bgp_established_peers(summary: str) -> set[str]:
         if state.isdigit() or state == "Established":
             peers.add(fields[0])
     return peers
+
+
+@dataclass(frozen=True)
+class BgpPeerQuery:
+    """A router command and parser returning its Established BGP peer addresses."""
+
+    command: str
+    established_peers: Callable[[str], set[str]]
+
+
+FRR_BGP_PEERS = BgpPeerQuery(
+    "vtysh -c 'show bgp summary json'", frr_bgp_established_peers
+)
 
 
 def srl_bgp_established_peers(output: str) -> set[str]:

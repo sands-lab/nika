@@ -10,6 +10,7 @@ from Kathara.model.Lab import Lab
 
 from nika.config import pkg_path
 from nika.net_env.base import NetworkEnvBase, ProbePath
+from nika.net_env.native_routers import NativeRouterEnv
 from nika.net_env.enterprise_branch.addressing import (
     VRF_TABLE,
     edge_name_for,
@@ -229,16 +230,19 @@ def _render_edge_frr(
     return "\n".join(lines)
 
 
-class EnterpriseBranch(NetworkEnvBase):
+class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
     ROUTING_PARAMETER_KINDS = frozenset({"import_preferences"})
     LAB_NAME = "enterprise_branch"
     TOPO_LEVEL = "medium"
     VERIFY_MAX_WAIT_SEC = 240
+    # Site edges terminate WireGuard, VRFs and NAT, which XRd does not provide.
+    NATIVE_PROFILE_ROLES = {"iosxr": frozenset({"provider"})}
 
     def __init__(
         self,
         topo_size: TopoSize = "s",
         routing_parameters: dict | None = None,
+        device_profile: str | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -276,6 +280,24 @@ class EnterpriseBranch(NetworkEnvBase):
             "authorized business prefixes in per-role VRFs. Providers only "
             "forward tunnel endpoint reachability."
         )
+        self.apply_device_profile(device_profile, routing_parameters=routing_parameters)
+
+    def router_roles(self) -> dict[str, list[str]]:
+        providers = {isp_name_for(provider) for provider in self.spec.providers}
+        roles = {"provider": [], "edge": []}
+        for name, identity in self.machine_identities.items():
+            if identity.role is NodeRole.ROUTER:
+                roles["provider" if name in providers else "edge"].append(name)
+        return roles
+
+    def _provider_routes(self) -> str:
+        from nika.net_env.enterprise_branch.verify import FRR_PROVIDER_ROUTES
+
+        if self.device_profile == "iosxr":
+            from nika.net_env.utils.iosxr.platform import IOSXR_ROUTES
+
+            return IOSXR_ROUTES
+        return FRR_PROVIDER_ROUTES
 
     def bgp_import_peers(self):
         from nika.net_env.synthesis.requirements import BgpImportPeer
@@ -732,4 +754,5 @@ class EnterpriseBranch(NetworkEnvBase):
             topo_size=self.topo_size,
             built_tunnels=self.built_tunnels,
             spec=self.spec,
+            provider_routes=self._provider_routes(),
         )

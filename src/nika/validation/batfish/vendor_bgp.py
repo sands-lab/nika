@@ -117,6 +117,32 @@ def vendor_ospf_interfaces(node, config, device_profile):
     return bindings
 
 
+def vendor_isis_interfaces(config, device_profile):
+    """Read IS-IS interface/passive bindings from a concrete IOS XR configuration."""
+    if device_profile != "iosxr":
+        raise ValueError(f"Native IS-IS completion is unsupported on {device_profile}")
+    bindings = {}
+    in_isis, interface = False, None
+    for line in config.splitlines():
+        if re.fullmatch(r"router isis \S+", line):
+            if in_isis or bindings:
+                raise ValueError("Native ISP completion requires one IS-IS instance")
+            in_isis, interface = True, None
+        elif line and not line[0].isspace() and not line.startswith("!"):
+            in_isis = False
+        elif in_isis:
+            if match := re.fullmatch(r" interface (\S+)", line):
+                interface = match[1]
+                if interface in bindings:
+                    raise ValueError("Unsupported IOS XR IS-IS interface binding")
+                bindings[interface] = False
+            elif line == "  passive" and interface:
+                bindings[interface] = True
+            elif line == " !":
+                interface = None
+    return bindings
+
+
 def project_routeros_bgp(node, config, *, shutdown=()):
     """Accept only the addressed direct-eBGP and exact-prefix-filter subset.
 

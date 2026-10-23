@@ -77,12 +77,14 @@ def _profile_limitations(deployment, features):
         reasons.append(
             "Native ISP vendor observation and configuration analysis remain required"
         )
-    if deployment["device_profile"] in {"iosxr", "routeros"} and (
-        deployment["igp"] != "ospf"
+    native_igps = {"iosxr": {"ospf", "isis"}, "routeros": {"ospf"}}
+    if deployment["device_profile"] in native_igps and (
+        deployment["igp"] not in native_igps[deployment["device_profile"]]
         or deployment["bgp_mode"] not in {"none", "ibgp_rr", "ebgp"}
     ):
         reasons.append(
-            "Native ISP vendor profiles require IPv4 OSPF and supported BGP modes"
+            "Native ISP vendor profiles require a supported IGP (IOS XR: OSPF or "
+            "IS-IS; RouterOS: OSPF) and BGP mode"
         )
     if features and (
         not set(features) <= {"rpki", "rtbh"}

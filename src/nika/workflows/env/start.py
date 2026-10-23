@@ -39,6 +39,7 @@ from nika.net_env.net_env_pool import (
     get_net_env_instance,
     resolve_scenario_backend,
     resolve_scenario_id,
+    scenario_device_profiles,
     scenario_fixed_topo_size,
     scenario_requires_topo_size,
 )
@@ -95,7 +96,6 @@ def _resolve_isp_kwargs(
         "rpki": rpki,
         "device_profile": device_profile,
     }
-    any_provided = any(value is not None for value in provided.values())
 
     if is_isp_named_special(scenario):
         # Case YAML / release rows often still carry device_profile=frr (and
@@ -125,13 +125,34 @@ def _resolve_isp_kwargs(
         return {}
 
     if not is_isp_base_topology(scenario):
-        if any_provided:
+        profile = (
+            None
+            if device_profile in (None, "", "-")
+            else normalize_device_profile(device_profile)
+        )
+        native = scenario_device_profiles(scenario)
+        protocol_flags = any(
+            value is not None
+            for key, value in provided.items()
+            if key != "device_profile"
+        )
+        if protocol_flags:
             raise ValueError(
                 f"Scenario '{scenario}' does not accept --topo/--igp/"
-                "--metric-strategy/--constant-metric/--bgp-mode/--rpki/"
-                "--device-profile; those flags are only valid for "
-                "ISP topology scenarios (e.g. isp_abilene)."
+                "--metric-strategy/--constant-metric/--bgp-mode/--rpki; those "
+                "flags are only valid for ISP topology scenarios (e.g. isp_abilene)."
             )
+        if profile not in (None, "frr", *native):
+            raise ValueError(
+                f"Scenario '{scenario}' does not support device_profile="
+                f"{profile!r}; supported: {', '.join(('frr', *native))}."
+            )
+        # Native profiles deploy on Kathara; frr keeps the scenario default.
+        if profile in native:
+            resolve_scenario_backend(scenario, backend=backend or "kathara")
+            if (backend or "kathara") != "kathara":
+                raise ValueError(f"device_profile={profile!r} requires Kathara")
+            return {"device_profile": profile}
         return {}
 
     if topo is not None:

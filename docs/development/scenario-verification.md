@@ -186,6 +186,8 @@ router bgp 65001
 
 Both express the same prefix-specific import decision. RouterOS and SR Linux need their own supported renderings; sharing a solved value does not make their configuration languages interchangeable. The IOS XR excerpt is generation evidence, not native XRd acceptance. The execution results in step 6 belong to FRR.
 
+Before relying on netlab for a design, compare its candidate with NIKA's native renderer for the same design. [`generator_consistency.py`](../../experiment/scenario_validation/generator_consistency.py) renders both, analyzes each with the platform's Batfish export and lists every differing routing fact: interface addresses, IGP areas, costs and adjacencies, BGP sessions and roles, RIB and FIB entries, selected BGP paths and per-neighbor import/export outcomes. An empty difference list shows that the two generators agree within that projection, not that either candidate meets the requirements; steps 5 and 6 still decide acceptance. The [experiment guide](../../experiment/scenario_validation/README.md#compare-native-and-netlab-configurations) describes the command and report.
+
 ## 5. Check the final candidate with Batfish
 
 **Input:** final configurations, host/interface addressing, physical connectivity, and the original predicates from step 2. A fault-state snapshot also identifies the disabled link endpoints.
@@ -242,10 +244,14 @@ Acceptance establishes the declared properties within the supported static model
 | Environment family | Experiment scope and boundary |
 | --- | --- |
 | ISP FRR and SR Linux | Supported OSPF or IPv4 Level-2 IS-IS sketches, iBGP RR and ordinary eBGP; IS-IS uses a shortest-path reduction with symmetric metrics 1–65,535, not a native NetComplete IS-IS solver |
-| ISP IOS XR and RouterOS | Supported OSPF sketches with no BGP, iBGP RR or eBGP, subject to device/fault bindings and parser/projection limits |
+| ISP IOS XR | Supported OSPF or IPv4 Level-2 IS-IS sketches with no BGP, iBGP RR or eBGP, subject to device/fault bindings and parser limits; ISP contracts declare OSPF adjacencies only, so IS-IS adjacencies are checked natively on XR |
+| ISP RouterOS | Supported OSPF sketches with no BGP, iBGP RR or eBGP, subject to device/fault bindings and projection limits |
 | Clos, campus, enterprise, min3clos and direct BGP | Declared routing, communication, policy and isolation; installed ECMP and overlay behavior require native evidence |
+| Clos, campus and enterprise with `device_profile: iosxr` | Outside this experiment, which rejects these deployments; startup readiness and native verification cover them |
 | SDN and P4 | Restricted forwarding checks plus native counterexamples, outages and recovery; recorded native packet acceptance covers sizes `s` and `m`, while `l` has static evidence only |
 | Kubernetes and llmd | Existing readiness/runtime checks; outside this formal-analysis experiment |
+
+With `device_profile: iosxr`, `dc_clos` (size `s`) runs every router on XRd, `campus_lan` its core routers and `enterprise_branch` its provider routers. The other roles stay FRR/Linux, so one deployment mixes vendors. The specification-driven experiment and the generator comparison accept one platform per deployment, because their FRR projections would silently omit the XR routers. These deployments rely on startup readiness, which reads XR's own `show` output, and on native fault and recovery runs. See [native IOS XR routers](../operations/network-scenarios.md#native-ios-xr-routers) for the roles and limits.
 
 Catalogue support, offline generation, static acceptance and native acceptance are distinct. A representative run does not cover every topology/vendor/protocol combination. Heavy native environments run one at a time and remain subject to resource admission.
 

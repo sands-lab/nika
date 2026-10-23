@@ -11,6 +11,7 @@ from Kathara.model.Lab import Lab
 
 from nika.config import pkg_path
 from nika.net_env.base import NetworkEnvBase, ProbePath
+from nika.net_env.native_routers import NativeRouterEnv
 from nika.runtime.spec import NodeRole
 from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 
@@ -85,15 +86,19 @@ class HostMeta:
         self.ip_address = None
 
 
-class DCClos(NetworkEnvBase):
+class DCClos(NativeRouterEnv, NetworkEnvBase):
     ROUTING_PARAMETER_KINDS = frozenset({"bgp_exports"})
     LAB_NAME = "dc_clos"
     TOPO_LEVEL = "medium"
+    NATIVE_PROFILE_ROLES = {"iosxr": frozenset({"super_spine", "spine", "leaf"})}
+    # Each XRd router needs about 2 GiB; size m already has 18 routers.
+    NATIVE_PROFILE_SIZES = {"iosxr": ("s",)}
 
     def __init__(
         self,
         topo_size: Literal["s", "m", "l"] = "s",
         routing_parameters: dict | None = None,
+        device_profile: str | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -305,6 +310,22 @@ class DCClos(NetworkEnvBase):
             for pod_idx in range(super_spine_count)
             for web_idx in range(leaf_per_pod - 1)
         ]
+        self.apply_device_profile(device_profile, routing_parameters=routing_parameters)
+
+    def router_roles(self) -> dict[str, list[str]]:
+        roles = {"super_spine": [], "spine": [], "leaf": []}
+        for name in self.routers:
+            roles[name.split("_router_")[0]].append(name)
+        return roles
+
+    def _bgp_peers(self):
+        if self.device_profile == "iosxr":
+            from nika.net_env.utils.iosxr.platform import IOSXR_BGP_PEERS
+
+            return IOSXR_BGP_PEERS
+        from nika.net_env.verify import FRR_BGP_PEERS
+
+        return FRR_BGP_PEERS
 
     def _write_frr_router(self, router_meta: RouterMeta, *, network: str) -> None:
         router_meta.machine.create_file_from_path(
@@ -576,6 +597,10 @@ class DCClos(NetworkEnvBase):
         )
 
     def startup_verify_lab(self) -> dict:
+        if self.native_routers:
+            # Native routers may defer route selection after sessions
+            # establish, so readiness also requires the services.
+            return self.verify_lab()
         from nika.net_env.dc_clos.verify import verify_dc_clos_lab_startup
 
         return verify_dc_clos_lab_startup(
@@ -597,4 +622,5 @@ class DCClos(NetworkEnvBase):
             client_addresses=self.client_addresses,
             dns_servers=self.dns_servers,
             web_urls=tuple(self.web_urls),
+            bgp_peers=self._bgp_peers(),
         )

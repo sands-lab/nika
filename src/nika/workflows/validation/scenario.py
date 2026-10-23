@@ -115,6 +115,9 @@ def validate_scenario_design(
     env = get_net_env_instance(
         spec.scenario, topo_size=spec.topo_size, **deploy_options
     )
+    if getattr(env, "native_routers", None):
+        # The FRR projections would silently omit the native routers.
+        raise ValueError("Scenario experiments do not cover mixed-vendor deployments")
     if config_generator == "netlab":
         from nika.workflows.validation.netlab import check_netlab_scope
 

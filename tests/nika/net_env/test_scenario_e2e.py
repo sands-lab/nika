@@ -23,6 +23,21 @@ _VENDOR_IMAGES = {
     "iosxr_simple_bgp": XRD_IMAGE,
     "routeros_simple_bgp": ROUTEROS_IMAGE,
 }
+_PROFILE_IMAGES = {"iosxr": XRD_IMAGE, "routeros": ROUTEROS_IMAGE}
+
+
+def _vendor_image(case: ScenarioE2ECase) -> str | None:
+    args = list(case.env_run_args)
+    if "--device-profile" in args:
+        return _PROFILE_IMAGES.get(args[args.index("--device-profile") + 1])
+    return _VENDOR_IMAGES.get(case.scenario)
+
+
+def _case_id(case: ScenarioE2ECase) -> str:
+    args = list(case.env_run_args)
+    if "--device-profile" in args:
+        return f"{case.scenario}-{args[args.index('--device-profile') + 1]}"
+    return case.scenario
 
 
 _KATHARA_CASES = tuple(
@@ -46,6 +61,10 @@ _KATHARA_CASES = tuple(
         env_run_args=(),
         topo_size=None,
     ),
+    *(
+        ScenarioE2ECase(scenario, env_run_args=("-s", "s", "--device-profile", "iosxr"))
+        for scenario in ("dc_clos", "campus_lan", "enterprise_branch")
+    ),
 )
 
 _K8S_CASES = (
@@ -65,14 +84,26 @@ _ISP_CASES = (
         env_run_args=("--igp", "isis"),
         topo_size=None,
     ),
+    ScenarioE2ECase(
+        "isp_arpanet196912",
+        env_run_args=(
+            "--device-profile",
+            "iosxr",
+            "--igp",
+            "isis",
+            "--bgp-mode",
+            "ibgp_rr",
+        ),
+        topo_size=None,
+    ),
 )
 
 
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
 class KatharaScenarioE2ETest(IntegrationTestCase):
-    @pytest.mark.parametrize("case", _KATHARA_CASES, ids=lambda c: c.scenario)
+    @pytest.mark.parametrize("case", _KATHARA_CASES, ids=_case_id)
     def test_evaluate_scenario(self, case: ScenarioE2ECase) -> None:
-        image = _VENDOR_IMAGES.get(case.scenario)
+        image = _vendor_image(case)
         if image and not docker_image_available(image):
             pytest.skip(f"Vendor image {image} not installed locally")
         if case.scenario == "enterprise_branch" and not linux_vrf_available():
@@ -142,8 +173,11 @@ class Min3ClosScenarioE2ETest(IntegrationTestCase):
 
 @pytest.mark.skipif(not docker_available(), reason="Docker not available")
 class IspScenarioE2ETest(IntegrationTestCase):
-    @pytest.mark.parametrize("case", _ISP_CASES, ids=lambda c: c.scenario)
+    @pytest.mark.parametrize("case", _ISP_CASES, ids=_case_id)
     def test_evaluate_scenario(self, case: ScenarioE2ECase) -> None:
+        image = _vendor_image(case)
+        if image and not docker_image_available(image):
+            pytest.skip(f"Vendor image {image} not installed locally")
         session_id = self._start_env(case.scenario, list(case.env_run_args))
         try:
             row = self._assert_session_ready(session_id, case.scenario)

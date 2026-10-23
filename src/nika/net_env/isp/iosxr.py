@@ -7,26 +7,19 @@ from ipaddress import IPv4Network
 
 from nika.net_env.isp.bgp.plan import BgpNodePlan, BgpPlan
 from nika.net_env.isp.bgp.policy import business_prefixes
-from nika.net_env.isp.igp.plan import IspPlan
-
-
-def iosxr_interface(name: str) -> str:
-    """Map a planned Linux interface to its XRd control-plane interface."""
-    if name == "lo":
-        return "Loopback0"
-    if match := re.fullmatch(r"eth(0|[1-9][0-9]*)", name):
-        return f"GigabitEthernet0/0/0/{match[1]}"
-    raise ValueError(f"Unsupported IOS XR ISP interface: {name!r}")
+from nika.net_env.isp.igp.frr import ISIS_PROCESS, isis_net_from_router_id
+from nika.net_env.isp.igp.plan import IspPlan, PlannedNode
+from nika.net_env.utils.iosxr.common import iosxr_interface
 
 
 def render_iosxr_isp(plan: IspPlan, bgp_plan: BgpPlan | None = None) -> dict[str, str]:
-    """Return device-name/config mappings for IPv4 OSPF and original BGP plans.
+    """Return device-name/config mappings for IPv4 OSPF or IS-IS and BGP plans.
 
-    Business origins use separate loopbacks excluded from OSPF. Security profile
-    overlays require native policy implementations and are rejected explicitly.
+    Business origins use separate loopbacks excluded from the IGP. Security
+    profile overlays require native policy implementations and are rejected.
     """
-    if plan.igp != "ospf":
-        raise ValueError("IOS XR ISP rendering supports OSPF only")
+    if plan.igp not in {"ospf", "isis"}:
+        raise ValueError("IOS XR ISP rendering supports OSPF and IS-IS only")
     bgp_nodes = {}
     if bgp_plan is not None:
         if bgp_plan.mode not in ("ibgp_rr", "ebgp"):
@@ -69,30 +62,12 @@ def render_iosxr_isp(plan: IspPlan, bgp_plan: BgpPlan | None = None) -> dict[str
                     "!",
                 ]
             )
-        lines.extend(
-            [
-                "router ospf CORE",
-                f" router-id {node.router_id}",
-                " area 0",
-                "  interface Loopback0",
-                "   passive enable",
-                "  !",
-            ]
-        )
-        for interface in node.interfaces:
-            lines.extend(
-                [
-                    f"  interface {iosxr_interface(interface.name)}",
-                    f"   cost {interface.metric}",
-                ]
-            )
-            if interface.passive:
-                lines.append("   passive enable")
-            else:
-                # Backbone links are dedicated /31 point-to-point circuits.
-                lines.append("   network point-to-point")
-            lines.append("  !")
-        lines.extend([" !", "!"])
+        if bgp_plan is not None:
+            lines.extend(_origin_interfaces(bgp_nodes[node.device_name]))
+        # XR resolves a command in the innermost mode that accepts it, so all
+        # interfaces precede routing blocks that also have interface submodes.
+        render_igp = _render_ospf if plan.igp == "ospf" else _render_isis
+        lines.extend(render_igp(node))
         if bgp_plan is not None:
             lines.extend(_render_bgp(bgp_nodes[node.device_name], bgp_plan))
         lines.extend(["end", ""])
@@ -100,7 +75,68 @@ def render_iosxr_isp(plan: IspPlan, bgp_plan: BgpPlan | None = None) -> dict[str
     return configurations
 
 
-def _render_bgp(node: BgpNodePlan, plan: BgpPlan) -> list[str]:
+def _render_ospf(node: PlannedNode) -> list[str]:
+    lines = [
+        "router ospf CORE",
+        f" router-id {node.router_id}",
+        " area 0",
+        "  interface Loopback0",
+        "   passive enable",
+        "  !",
+    ]
+    for interface in node.interfaces:
+        lines.extend(
+            [
+                f"  interface {iosxr_interface(interface.name)}",
+                f"   cost {interface.metric}",
+            ]
+        )
+        if interface.passive:
+            lines.append("   passive enable")
+        else:
+            # Backbone links are dedicated /31 point-to-point circuits.
+            lines.append("   network point-to-point")
+        lines.append("  !")
+    lines.extend([" !", "!"])
+    return lines
+
+
+def _render_isis(node: PlannedNode) -> list[str]:
+    """Render the FRR ISP IS-IS design: one Level-2 instance, wide metrics."""
+    lines = [
+        f"router isis {ISIS_PROCESS}",
+        " is-type level-2-only",
+        f" net {isis_net_from_router_id(node.router_id)}",
+        " address-family ipv4 unicast",
+        "  metric-style wide",
+        " !",
+        " interface Loopback0",
+        "  passive",
+        "  address-family ipv4 unicast",
+        "  !",
+        " !",
+    ]
+    for interface in node.interfaces:
+        lines.append(f" interface {iosxr_interface(interface.name)}")
+        if interface.passive:
+            # Edge and inter-AS subnets are advertised without adjacencies.
+            lines.append("  passive")
+        else:
+            # Backbone links are dedicated /31 point-to-point circuits.
+            lines.extend(["  circuit-type level-2-only", "  point-to-point"])
+        lines.extend(
+            [
+                "  address-family ipv4 unicast",
+                f"   metric {interface.metric}",
+                "  !",
+                " !",
+            ]
+        )
+    lines.append("!")
+    return lines
+
+
+def _origin_interfaces(node: BgpNodePlan) -> list[str]:
     lines = []
     for index, origin in enumerate(sorted(node.originated, key=lambda p: p.prefix), 1):
         prefix = IPv4Network(origin.prefix)
@@ -112,6 +148,11 @@ def _render_bgp(node: BgpNodePlan, plan: BgpPlan) -> list[str]:
                 "!",
             ]
         )
+    return lines
+
+
+def _render_bgp(node: BgpNodePlan, plan: BgpPlan) -> list[str]:
+    lines = []
     # Match the original FRR BUSINESS allow-list, including the dormant prefix
     # used by unauthorized-origin failures and additional planned origins.
     lines.append("prefix-set BUSINESS")
@@ -184,3 +225,61 @@ def _render_bgp(node: BgpNodePlan, plan: BgpPlan) -> list[str]:
         )
     lines.append("!")
     return lines
+
+
+ISIS_ADJACENCY_COMMAND = "/pkg/bin/xr_cli 'show isis adjacency'"
+_XR_INTERFACE_ABBREVIATIONS = {"Gi": "GigabitEthernet"}
+
+
+def parse_iosxr_isis_adjacencies(output: str) -> set[tuple[str, str]]:
+    """Return ``(system id, interface)`` pairs of Up Level-2 adjacencies.
+
+    A Level-2 table with no rows means no neighbors. Output without the table
+    is a CLI or parser error and must not be read as a down adjacency.
+    """
+    if not re.search(r"IS-IS \S+ Level-2 adjacencies:", output):
+        if re.search(r"Total adjacency count:\s*0|No IS-IS", output):
+            return set()
+        raise ValueError("IOS XR returned no recognizable IS-IS adjacency table")
+    adjacencies = set()
+    for line in output.split("Level-2 adjacencies:", 1)[1].splitlines():
+        fields = line.split()
+        if len(fields) < 4 or fields[0] in {"System", "BFD", "Total"}:
+            continue
+        match = re.fullmatch(r"([A-Za-z]+)(\d+(?:/\d+)*)", fields[1])
+        if match is None:
+            raise ValueError(f"Malformed IOS XR IS-IS adjacency row: {line.strip()}")
+        prefix = _XR_INTERFACE_ABBREVIATIONS.get(match[1], match[1])
+        if fields[3] == "Up":
+            adjacencies.add((fields[0], f"{prefix}{match[2]}"))
+    return adjacencies
+
+
+def iosxr_isis_adjacency_checks(observed, plan: IspPlan) -> dict[str, bool]:
+    """Check every active IGP link for an Up Level-2 adjacency at both ends.
+
+    ``observed`` holds :data:`ISIS_ADJACENCY_COMMAND` results for each router.
+    XR reports neighbors by dynamic hostname, which is the planned device name.
+    """
+    from nika.net_env.isp.igp.plan import active_igp_links
+
+    tables: dict[str, set[tuple[str, str]] | None] = {}
+    for node in plan.nodes:
+        result = observed.results.get((node.device_name, ISIS_ADJACENCY_COMMAND))
+        try:
+            if result is None or result.error or result.returncode != 0:
+                raise ValueError("IS-IS adjacency query failed")
+            tables[node.device_name] = parse_iosxr_isis_adjacencies(result.output)
+        except ValueError:
+            tables[node.device_name] = None
+    checks = {}
+    for link in active_igp_links(plan):
+        for local, interface, remote in (
+            (link.endpoint_a, link.iface_a, link.endpoint_b),
+            (link.endpoint_b, link.iface_b, link.endpoint_a),
+        ):
+            table = tables[local]
+            checks[f"adj.isis.{local}.{remote}.{interface}"] = bool(
+                table and (remote, iosxr_interface(interface)) in table
+            )
+    return checks
