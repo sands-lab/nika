@@ -34,8 +34,7 @@ def _check_deployable(env) -> None:
 
 
 def _linux_interface(native: str) -> str:
-    if native == "Loopback0":
-        return "lo"
+    """Invert :func:`iosxr_interface` for the data ports a plan names."""
     if match := re.fullmatch(r"GigabitEthernet0/0/0/(\d+)", native):
         return f"eth{match[1]}"
     raise ValueError(f"Unsupported IOS XR interface: {native!r}")

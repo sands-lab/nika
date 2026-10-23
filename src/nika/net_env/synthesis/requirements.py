@@ -308,10 +308,9 @@ def resolve_routing_requirements(spec, env):
                 addresses = vendor_addresses(
                     env.deployment_configs[terminal], env.native_routers[terminal]
                 )
-            elif hasattr(env, "BGP_ROUTERS") and env.device_profile in {
-                "iosxr",
-                "routeros",
-            }:
+            elif hasattr(env, "BGP_ROUTERS") and getattr(
+                env, "device_profile", None
+            ) in {"iosxr", "routeros"}:
                 from nika.validation.batfish.vendor_bgp import (
                     vendor_addresses,
                     vendor_configs,
