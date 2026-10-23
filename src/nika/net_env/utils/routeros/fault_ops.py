@@ -119,13 +119,10 @@ class RouterOsFaultOps(RouterFaultOps):
                     f'/routing bgp vpn unset [find vrf="{vrf}"] export.redistribute'
                 )
 
-    def stop_routing_process(self) -> None:
-        # Routing is part of the RouterOS system process; disabling its
-        # configuration would model a different root cause than a crash.
-        raise RuntimeCapabilityError(
-            "Stopping the routing process is not supported on routeros router "
-            f"{self.node!r}: RouterOS runs no separate routing daemon."
-        )
+    # No stop_routing_process: routing is part of the RouterOS system
+    # process, and disabling its configuration would model a different root
+    # cause than a crash. Leaving it to the base class keeps frr_service_down
+    # off RouterOS routers in generated cases.
 
     def bgp_established_peers(self) -> set[str]:
         return routeros_established_bgp_peers(

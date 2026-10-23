@@ -6,7 +6,7 @@ from nika.problems.base import (
     build_verify_result,
     ProblemBase,
 )
-from nika.problems.support.router_ops import native_fault_ops
+from nika.problems.support.router_ops import router_fault_ops
 from nika.utils.logger import system_logger
 
 logger = system_logger
@@ -49,7 +49,8 @@ class FrrDown(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: FrrDownParams):
-        ops = native_fault_ops(self, params.host_name, "stop_routing_process")
+        # A native router without the operation raises RuntimeCapabilityError.
+        ops = router_fault_ops(self, params.host_name)
         if ops is not None:
             ops.stop_routing_process()
             return

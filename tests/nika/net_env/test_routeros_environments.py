@@ -243,5 +243,8 @@ def test_failure_providers_follow_the_router_profile():
     # FRR routers and providers without an operation keep the default path.
     assert router_fault_ops(problem("frr"), leaf) is None
     assert native_fault_ops(problem("iosxr"), leaf, "block_bgp_transport") is None
-    with pytest.raises(RuntimeCapabilityError, match="no separate routing daemon"):
+    # RouterOS has no routing daemon to stop: the operation stays unimplemented,
+    # so frr_service_down never targets RouterOS routers.
+    assert not ops.supports("stop_routing_process")
+    with pytest.raises(RuntimeCapabilityError, match="not supported on routeros"):
         ops.stop_routing_process()
