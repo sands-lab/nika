@@ -310,7 +310,7 @@ class DCClos(NativeRouterEnv, NetworkEnvBase):
             for pod_idx in range(super_spine_count)
             for web_idx in range(leaf_per_pod - 1)
         ]
-        self.apply_device_profile(device_profile, routing_parameters=routing_parameters)
+        self.apply_device_profile(device_profile)
 
     def router_roles(self) -> dict[str, list[str]]:
         roles = {"super_spine": [], "spine": [], "leaf": []}

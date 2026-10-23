@@ -21,6 +21,25 @@ from nika.validation.batfish.snapshot import (
 )
 
 
+def iosxr_batfish_config(config: str, shutdown=()) -> str:
+    """Return a concrete IOS XR configuration for Batfish's native XR parser.
+
+    ``shutdown`` names native interfaces administratively disabled in the
+    analyzed operating state.
+    """
+    for interface in shutdown:
+        statement = r"^interface " + re.escape(interface) + r"\n"
+        if len(re.findall(statement, config, re.M)) != 1:
+            raise ValueError("Unknown or ambiguous XR shutdown interface")
+        config = re.sub(
+            r"(^interface " + re.escape(interface) + r"\n)(.*?)(?=\n!|\Z)",
+            lambda m: m[1] + " shutdown\n" + m[2].replace(" no shutdown", ""),
+            config,
+            flags=re.S | re.M,
+        )
+    return "!! IOS XR Configuration 7.0.0\n" + config
+
+
 def vendor_configs(env):
     return {
         node: env.lab.machines[node].fs.readtext(env.BGP_CONFIG_PATH.lstrip("/"))
@@ -265,17 +284,7 @@ def build_vendor_snapshot(
     for node, config in configs.items():
         disabled = [(n, env.BGP_INTERFACE_MAP[i]) for n, i in shutdown if n == node]
         if native:
-            for _, interface in disabled:
-                statement = r"^interface " + re.escape(interface) + r"\n"
-                if len(re.findall(statement, config, re.M)) != 1:
-                    raise ValueError("Unknown or ambiguous XR shutdown interface")
-                config = re.sub(
-                    r"(^interface " + re.escape(interface) + r"\n)(.*?)(?=\n!|\Z)",
-                    lambda m: m[1] + " shutdown\n" + m[2].replace(" no shutdown", ""),
-                    config,
-                    flags=re.S | re.M,
-                )
-            content = "!! IOS XR Configuration 7.0.0\n" + config
+            content = iosxr_batfish_config(config, [i for _, i in disabled])
         else:
             projector = project_routeros_isp if isp else project_routeros_bgp
             content = _cumulus_frr_snapshot(

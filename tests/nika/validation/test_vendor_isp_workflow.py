@@ -20,7 +20,14 @@ NATIVE_ISP_CASES = [
         ("arpanet196912", "ibgp_rr"),
         ("dataxchange", "ebgp"),
     )
-] + [("iosxr", "arpanet196912", "ibgp_rr", "isis")]
+] + [
+    ("iosxr", topology, bgp_mode, "isis")
+    for topology, bgp_mode in (
+        ("arpanet196912", "none"),
+        ("arpanet196912", "ibgp_rr"),
+        ("dataxchange", "ebgp"),
+    )
+]
 
 
 @pytest.mark.e2e
