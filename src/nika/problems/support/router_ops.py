@@ -240,11 +240,16 @@ def router_fault_ops(problem, node: str) -> RouterFaultOps | None:
 
 
 def native_fault_ops(problem, node: str, operation: str) -> RouterFaultOps | None:
-    """Return ``node``'s provider if it implements ``operation``, else ``None``.
+    """Return ``node``'s provider, checked to implement ``operation``.
 
-    Failures whose default implementation predates a native profile keep that
-    implementation for providers without the operation, so existing behavior on
-    those platforms is unchanged.
+    Returns ``None`` for nodes without a native router profile, which keep the
+    failure's default implementation. A native router never falls back to that
+    implementation: if its provider lacks ``operation``, this raises
+    ``RuntimeCapabilityError`` before the failure changes anything.
     """
     ops = router_fault_ops(problem, node)
-    return ops if ops is not None and ops.supports(operation) else None
+    if ops is not None and not ops.supports(operation):
+        raise RuntimeCapabilityError(
+            f"{operation} is not supported on {ops.profile} router {node!r}."
+        )
+    return ops
