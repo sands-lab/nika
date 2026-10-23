@@ -19,6 +19,23 @@ failure:
         node: webserver0_pod0
         name: eth0
       fault_type: mtu_mismatch
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: leaf_router_0_1
+      intf_name: eth2
+      mtu: '500'
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_router_0_1
+        name: eth2
+      fault_type: mtu_mismatch
+    - resource:
+        kind: interface
+        node: webserver0_pod0
+        name: eth0
+      fault_type: mtu_mismatch
   - topo_size: m
     inject:
       host_name: leaf_router_0_1

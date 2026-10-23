@@ -19,6 +19,23 @@ failure:
         node: isp1_core
         name: eth2
       fault_type: mtu_mismatch
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: br1_edge
+      intf_name: eth2
+      mtu: '500'
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: eth2
+      fault_type: mtu_mismatch
+    - resource:
+        kind: interface
+        node: isp1_core
+        name: eth2
+      fault_type: mtu_mismatch
   - topo_size: m
     inject:
       host_name: br1_edge

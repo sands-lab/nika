@@ -71,6 +71,42 @@ failure:
         kind: node
         node: hq_edge
       fault_type: bgp_missing_route_advertisement
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: br1_edge
+    root_causes:
+    - resource:
+        kind: node
+        node: br1_edge
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: br2_edge
+    root_causes:
+    - resource:
+        kind: node
+        node: br2_edge
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: dc2_edge
+    root_causes:
+    - resource:
+        kind: node
+        node: dc2_edge
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: hq_edge
+    root_causes:
+    - resource:
+        kind: node
+        node: hq_edge
+      fault_type: bgp_missing_route_advertisement
   - topo_size: m
     inject:
       host_name: br1_edge

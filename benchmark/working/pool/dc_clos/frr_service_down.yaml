@@ -19,6 +19,24 @@ failure:
         kind: node
         node: spine_router_0_1
       fault_type: frr_service_down
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: spine_router_0_0
+    root_causes:
+    - resource:
+        kind: node
+        node: spine_router_0_0
+      fault_type: frr_service_down
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: spine_router_0_1
+    root_causes:
+    - resource:
+        kind: node
+        node: spine_router_0_1
+      fault_type: frr_service_down
   - topo_size: m
     inject:
       host_name: leaf_router_0_0

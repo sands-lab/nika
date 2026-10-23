@@ -37,6 +37,24 @@ failure:
         kind: node
         node: leaf_router_0_1
       fault_type: bgp_missing_route_advertisement
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: leaf_router_0_0
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_0_0
+      fault_type: bgp_missing_route_advertisement
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: leaf_router_0_1
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_0_1
+      fault_type: bgp_missing_route_advertisement
   - topo_size: m
     inject:
       host_name: leaf_router_0_0
