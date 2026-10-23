@@ -121,6 +121,8 @@ failure:
 
 A case targets a native router only when the failure can run there. A failure declares the native router operations it needs in `native_router_operations`, and each vendor provider implements a set of operations (see [Create benchmark tasks](../development/creating-benchmark-tasks.md#add-an-injectable-failure)). Other targets stay on FRR and Linux nodes. In `campus_lan` and `enterprise_branch` only some router roles convert, so many cases of these profiles target FRR routers and hosts in a mixed-vendor lab. Ground truth names NIKA nodes and Linux interface names, as for FRR rows.
 
+`ProblemBase.is_compatible(scenario, device_profile)` and `runs_on_device_profile` record this compatibility; the coverage matrix below shows it per environment and profile, with the last result of `nika benchmark validate-profiles` (see [Validate device-profile cells](../development/creating-benchmark-tasks.md#validate-device-profile-cells)). `nika benchmark generate --validated-only` keeps native rows only for validated cells.
+
 These rows need licensed vendor images (`install.sh --with-vendor-images`) and run as heavy trials, one at a time. Like `routeros_simple_bgp`, they stay in the pool, so a run of the whole pool deploys them. `nika benchmark select` and releases leave out every row that needs a licensed image. To run only openly available cases, run `benchmark/working/cases.yaml` or a release.
 
 Paths follow `working/pool/{scenario}/{fault_type}.yaml`, plus `working/pool/{scenario}/healthy.yaml`. Scenarios meant for tests only, such as `iosxr_simple_bgp`, are excluded from generation.
