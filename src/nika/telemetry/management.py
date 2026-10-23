@@ -3,7 +3,7 @@
 Two phases: ``attach`` wires the collector and the management LAN before
 deployment; ``configure`` runs in the lab check phase. It probes every
 container for each requested kind, gives a management address to each device
-that supports at least one, and starts that kind's agents there and its
+that supports at least one, and starts that kind's exporters there and its
 services on the collector. A kind no device supports is not an error.
 
 Each kind module (``netflow``, ``prometheus``) provides ``probe``,
@@ -20,10 +20,11 @@ from typing import TYPE_CHECKING, Any
 from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 from nika.runtime.spec import NodeRole
 from nika.telemetry import (
+    CONFIG_DIR,
     DEVICE_EXEC_WORKERS,
+    MGMT_VRF,
     NETFLOW,
     PROMETHEUS,
-    TELEMETRY_NETWORK,
     netflow,
     prometheus,
     telemetry_link,
@@ -39,13 +40,14 @@ if TYPE_CHECKING:
 KINDS = {NETFLOW: netflow, PROMETHEUS: prometheus}
 TELEMETRY_COLLECTOR = "telemetry_collector"
 TELEMETRY_SWITCH = "telemetry_switch"
-# Routing table of each device's ``TELEMETRY_NETWORK`` VRF.
-EXPORT_VRF_TABLE = 4242
+# Routing table of each device's ``MGMT_VRF``.
+MGMT_VRF_TABLE = 4242
 # Policy rule, ahead of the main table, that sends collector traffic into the VRF.
-EXPORT_RULE_PREF = 100
-SCRIPT_DIR = "/etc/nika-telemetry"
-SCRIPT = f"{SCRIPT_DIR}/start.sh"
-LOG = "/var/log/nika-telemetry.log"
+MGMT_RULE_PREF = 100
+# Bridge on the switch that joins its management links.
+SWITCH_BRIDGE = "br0"
+SCRIPT = f"{CONFIG_DIR}/start.sh"
+LOG = "/var/log/telemetry.log"
 
 
 def address_plan(subnet: str, devices: list[str]) -> tuple[str, int, dict[str, str]]:
@@ -67,14 +69,16 @@ def address_plan(subnet: str, devices: list[str]) -> tuple[str, int, dict[str, s
     return str(network[-2]), network.prefixlen, addresses
 
 
-def attach(net_env: NetworkEnvBase, subnet: str, kinds: tuple[str, ...]) -> dict:
+def attach(
+    net_env: NetworkEnvBase, subnet: str, kinds: tuple[str, ...]
+) -> dict[str, Any]:
     """Wire the collector and the management LAN into the built, not yet deployed, lab.
 
     The LAN is a star: ``telemetry_switch`` bridges, in its kernel, one
     point-to-point link per device and one to the collector. Kathara links are
     userspace hubs that copy every frame to every port, so one shared link
-    would not scale to large labs. Every device joins on its last interface;
-    none is configured yet.
+    would not scale to large labs. Every device joins on an interface after
+    its scenario interfaces; none is configured yet.
     """
     lab = net_env.lab
     devices = sorted(lab.machines)
@@ -100,15 +104,15 @@ def attach(net_env: NetworkEnvBase, subnet: str, kinds: tuple[str, ...]) -> dict
     for name in devices:
         data_ifaces = [f"eth{num}" for num in sorted(lab.machines[name].interfaces)]
         plan_devices[name] = {
-            "export_iface": _connect_last(lab, name),
+            "mgmt_iface": _connect_last(lab, name),
             "data_ifaces": data_ifaces,
         }
     lab.create_file_from_list(
         [
-            f"ip link add {TELEMETRY_NETWORK} type bridge stp_state 0",
+            f"ip link add {SWITCH_BRIDGE} type bridge stp_state 0",
             f"for intf in $(ls /sys/class/net | grep '^eth'); do "
-            f"ip link set $intf master {TELEMETRY_NETWORK}; ip link set $intf up; done",
-            f"ip link set {TELEMETRY_NETWORK} up",
+            f"ip link set $intf master {SWITCH_BRIDGE}; ip link set $intf up; done",
+            f"ip link set {SWITCH_BRIDGE} up",
         ],
         f"{TELEMETRY_SWITCH}.startup",
     )
@@ -152,7 +156,7 @@ def _connect_last(lab: Lab, name: str) -> str:
 
 
 def setup_lines(
-    *, export_iface: str, address: str, prefixlen: int, collector: str
+    *, mgmt_iface: str, address: str, prefixlen: int, collector: str
 ) -> list[str]:
     """Isolate the management interface in a VRF reachable from the collector.
 
@@ -163,16 +167,16 @@ def setup_lines(
     """
     return [
         "setup() {",
-        f"  ip link show {TELEMETRY_NETWORK} >/dev/null 2>&1 || "
-        f"ip link add {TELEMETRY_NETWORK} type vrf table {EXPORT_VRF_TABLE} "
+        f"  ip link show {MGMT_VRF} >/dev/null 2>&1 || "
+        f"ip link add {MGMT_VRF} type vrf table {MGMT_VRF_TABLE} "
         "|| return 1",
-        f"  ip link set {TELEMETRY_NETWORK} up &&",
-        f"  ip link set {export_iface} master {TELEMETRY_NETWORK} &&",
-        f"  ip link set {export_iface} up &&",
-        f"  ip addr replace {address}/{prefixlen} dev {export_iface} &&",
-        f"  {{ ip rule | grep -q 'to {collector} lookup {EXPORT_VRF_TABLE}' || "
-        f"ip rule add to {collector}/32 lookup {EXPORT_VRF_TABLE} "
-        f"pref {EXPORT_RULE_PREF}; }}",
+        f"  ip link set {MGMT_VRF} up &&",
+        f"  ip link set {mgmt_iface} master {MGMT_VRF} &&",
+        f"  ip link set {mgmt_iface} up &&",
+        f"  ip addr replace {address}/{prefixlen} dev {mgmt_iface} &&",
+        f"  {{ ip rule | grep -q 'to {collector} lookup {MGMT_VRF_TABLE}' || "
+        f"ip rule add to {collector}/32 lookup {MGMT_VRF_TABLE} "
+        f"pref {MGMT_RULE_PREF}; }}",
         "}",
         'i=0; until setup; do i=$((i+1)); [ "$i" -ge 60 ] && '
         '{ echo "Telemetry management interface setup failed" >&2; exit 1; }; '
@@ -203,7 +207,7 @@ def configure(runtime: LabRuntime, plan: dict[str, Any]) -> dict[str, Any]:
         for kind in own:
             files.update(kind.device_files(device, addresses[name], collector_ip))
         lines = setup_lines(
-            export_iface=device["export_iface"],
+            mgmt_iface=device["mgmt_iface"],
             address=addresses[name],
             prefixlen=prefixlen,
             collector=collector_ip,
@@ -231,7 +235,7 @@ def _run(
     runtime: LabRuntime, name: str, files: dict[str, str], lines: list[str]
 ) -> None:
     """Write ``files`` and a start script on ``name``, then run it detached."""
-    dirs = sorted({SCRIPT_DIR, *(posixpath.dirname(path) for path in files)})
+    dirs = sorted({CONFIG_DIR, *(posixpath.dirname(path) for path in files)})
     runtime.exec(name, f"mkdir -p {' '.join(dirs)}")
     for path, content in files.items():
         runtime.write_file(name, path, content)
@@ -240,7 +244,7 @@ def _run(
 
 
 def running(runtime: LabRuntime, plan: dict[str, Any]) -> bool:
-    """Every requested kind has its collector service and device agents running."""
+    """Every requested kind has its collector service and device exporters running."""
     return all(
         KINDS[kind].running(
             runtime,

@@ -31,8 +31,10 @@ def collapse_traces(
 
 
 def time_bound_seconds(value: str) -> float:
-    """Unix seconds for a time bound given as Unix seconds or nanoseconds,
-    ISO-8601, or ``-N`` for N seconds ago (the form flow and metric tools take).
+    """Return a time bound of the flow and metric tools as Unix seconds.
+
+    The bound is Unix seconds or nanoseconds, ISO-8601, or ``-N`` for N seconds
+    ago.
     """
     if value.startswith("-") and value[1:].replace(".", "", 1).isdigit():
         return time.time() - float(value[1:])

@@ -14,12 +14,16 @@ if TYPE_CHECKING:
 NETFLOW = "netflow"
 PROMETHEUS = "prometheus"
 TELEMETRY_KINDS: tuple[str, ...] = (NETFLOW, PROMETHEUS)
-# Out-of-band management network shared by every telemetry kind: the LAN to the
-# collector and, on each configured device, the VRF that holds its interface on
-# that LAN. Not a scenario link.
-TELEMETRY_NETWORK = "nika_telemetry"
-# Seconds to wait after the lab is verified for collectors and agents to run: a
-# base plus a share per device, since a large lab loads the host while it starts.
+# Prefix of the Kathara links of the out-of-band management network shared by
+# every telemetry kind. Link names stay on the host; not a scenario link.
+TELEMETRY_LINK_PREFIX = "nika_telemetry_"
+# Names devices see: the VRF that holds each configured device's management
+# interface, and the directory of the telemetry configuration and start script.
+# Agents inspect devices, so these do not name the benchmark.
+MGMT_VRF = "mgmt"
+CONFIG_DIR = "/etc/telemetry"
+# Seconds to wait after the lab is verified for collectors and exporters to run:
+# a base plus a share per device, since a large lab loads the host while it starts.
 TELEMETRY_READY_BASE_SEC = 60
 TELEMETRY_READY_PER_DEVICE_SEC = 1
 # Concurrent per-device execs when probing, configuring, and checking devices;
@@ -28,7 +32,7 @@ DEVICE_EXEC_WORKERS = 16
 
 
 def telemetry_ready_timeout(plan: dict[str, Any]) -> float:
-    """Seconds to wait for a configured plan's collectors and agents to run."""
+    """Seconds to wait for a configured plan's collectors and exporters to run."""
     return TELEMETRY_READY_BASE_SEC + TELEMETRY_READY_PER_DEVICE_SEC * len(
         plan["devices"]
     )
@@ -36,12 +40,12 @@ def telemetry_ready_timeout(plan: dict[str, Any]) -> float:
 
 def telemetry_link(name: str) -> str:
     """Kathara link between ``name`` and the management switch."""
-    return f"{TELEMETRY_NETWORK}_{name}"
+    return f"{TELEMETRY_LINK_PREFIX}{name}"
 
 
 def is_telemetry_link(link: str) -> bool:
     """Whether a Kathara link belongs to the management network, not the scenario."""
-    return link.startswith(f"{TELEMETRY_NETWORK}_")
+    return link.startswith(TELEMETRY_LINK_PREFIX)
 
 
 def normalize_telemetry(value: str | Iterable[str] | None) -> tuple[str, ...]:
@@ -104,7 +108,7 @@ def configure_telemetry(runtime: LabRuntime, plan: dict[str, Any]) -> dict[str, 
 
 
 def telemetry_running(runtime: LabRuntime, plan: dict[str, Any]) -> bool:
-    """Every requested kind has its collector service and device agents running."""
+    """Every requested kind has its collector service and device exporters running."""
     from nika.telemetry import management
 
     return management.running(runtime, plan)

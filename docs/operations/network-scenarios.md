@@ -684,18 +684,18 @@ In a benchmark task, set the same option in the case:
   ...
 ```
 
-| Type | Agent on each device | Collector | Agent tool |
+| Type | Exporter on each device | Collector | Agent tool |
 | --- | --- | --- | --- |
 | `netflow` | pmacct, one probe per scenario interface, exporting ingress flows over IPFIX | `nfcapd` | [`netflow_query`](../agents/mcp-servers.md#netflow-kathara_netflow_mcp_server) |
 | `prometheus` | node_exporter with the network-stack collectors (interface counters and state, protocol statistics, sockets, conntrack, ARP) | Prometheus, scraping every 5 s | [`prometheus_query`](../agents/mcp-servers.md#prometheus-kathara_prometheus_mcp_server) |
 
 A task with telemetry has a different task ID from the same task without it, so their results are kept apart.
 
-Both types share one out-of-band management network. NIKA adds a `telemetry_switch` node, which bridges the network in its kernel, and a `telemetry_collector` node. Every device and the collector connect to the switch over a point-to-point link, on the device's last scenario interface. On devices that Kathara bridges to the host, its host NIC still comes after it. Once the environment passes its checks, NIKA asks every device for each requested type's agent: `pmacctd -V` for `netflow`, `prometheus-node-exporter --version` and `socat` for `prometheus`. It configures each type on the devices that answer and starts its collector service. The deployment then waits until the collector services and every configured agent are running.
+Both types share one out-of-band management network. NIKA adds a `telemetry_switch` node and a `telemetry_collector` node. Every device and the collector connect to the switch over a point-to-point link, on an extra interface after the device's scenario interfaces.
 
-`nika/frr` includes pmacct, node_exporter, and socat, so the routers of FRR-based environments export flows and metrics. `nika/base` includes node_exporter and socat, so hosts on it export metrics. On a device without a type's agent, that type stays unconfigured. If no device supports a type, the environment still deploys and that type's collector receives no data. The `telemetry_configured` events in the session log list the agent version of each configured device and the devices left unconfigured. Telemetry requires the Kathara backend.
+Once the environment passes its checks, NIKA configures each type on the devices whose image has its exporter, then waits until the exporters and collectors are running. `nika/frr` includes pmacct, node_exporter, and socat, so the routers of FRR-based environments export flows and metrics. `nika/base` includes node_exporter and socat, so hosts on it export metrics. A device without a type's exporter stays unconfigured for that type. If no device supports a type, the environment still deploys and that type's collector receives no data. The `telemetry_configured` events in the session log list the exporter version of each configured device and the devices left unconfigured. Telemetry requires the Kathara backend.
 
-Each configured device keeps its management interface in a separate VRF named `nika_telemetry`. Its routing protocols therefore never advertise the management network, even with `redistribute connected` or `redistribute kernel`. node_exporter answers only on the management network, so the data plane cannot reach it. The management interface is also left out of the topology given to agents and failures, and out of the Prometheus metrics.
+Each configured device keeps its management interface in a separate VRF named `mgmt`. Its routing protocols therefore never advertise the management network, even with `redistribute connected` or `redistribute kernel`. node_exporter answers only on the management network, so the data plane cannot reach it. The management interface is also left out of the topology given to agents and failures, and out of the Prometheus metrics.
 
 The management network uses `172.28.0.0/16` by default. If an environment already uses that range, choose a free one in `config/nika.yaml`:
 

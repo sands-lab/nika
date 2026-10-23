@@ -255,7 +255,7 @@ def _configure_telemetry(net_env: Any, session: Session, *, scenario: str) -> No
     timeout = telemetry_ready_timeout(plan)
     if not wait_until(lambda: telemetry_running(runtime, plan), timeout, interval_s=5):
         raise RuntimeError(
-            f"Telemetry {sorted(plan['kinds'])} collectors or agents are not running "
+            f"Telemetry {sorted(plan['kinds'])} collectors or exporters are not running "
             f"after {timeout:.0f}s."
         )
 
