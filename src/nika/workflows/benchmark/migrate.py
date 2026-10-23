@@ -16,7 +16,6 @@ from nika.workflows.benchmark.healthy import is_healthy_case
 from nika.workflows.benchmark.isp_options import ISP_DEPLOY_KEYS
 from nika.problems.rca import UnresolvedRootCauseError, canonical_root_causes
 from nika.problems.rca.inventory import load_offline_net_env
-from nika.telemetry import telemetry_field
 
 
 def _load_raw(path: Path) -> dict[str, Any]:
@@ -44,7 +43,6 @@ def materialize_case(
     scenario = str(row["scenario"])
     problems = row_problems(row)
     problem = str(row.get("problem") or "+".join(problems))
-    telemetry_option = telemetry_field(row.get("telemetry"))
     if is_healthy_case(problem):
         out: dict[str, Any] = {
             "scenario": scenario,
@@ -56,7 +54,6 @@ def materialize_case(
         for key in ISP_DEPLOY_KEYS:
             if row.get(key) not in (None, "", "-"):
                 out[key] = row[key]
-        out.update(telemetry_option)
         return out
     topo = _topo_size(row)
     isp_kwargs: dict[str, Any] = {}
@@ -113,7 +110,6 @@ def materialize_case(
         "root_causes": canonical_root_causes(gt.root_causes),
     }
     out.update(isp_kwargs)
-    out.update(telemetry_option)
     return out
 
 

@@ -161,7 +161,6 @@ def handle_env_start(request: EnvStartRequest) -> EnvStartResponse:
             backend=request.backend,
             device_profile=request.device_profile,
             static_validation=request.static_validation,
-            telemetry=request.telemetry,
         )
     except Exception:
         logger.exception("env start failed scenario=%s", request.scenario)

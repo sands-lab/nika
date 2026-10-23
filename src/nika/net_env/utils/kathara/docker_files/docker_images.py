@@ -30,8 +30,6 @@ _BUILD_ARGS = {NIKA_IMAGE_TAG_ARG: NIKA_IMAGE_TAG}
 IMAGE_LABEL = "io.nika.image"
 BUILD_HASH_LABEL = "io.nika.build-hash"
 _BUILD_HASH_VERSION = "2"
-# Comma-separated telemetry kinds (e.g. ``netflow``) an image can export.
-TELEMETRY_LABEL = "io.nika.telemetry"
 
 
 def nika_image(name: str) -> str:
@@ -52,7 +50,6 @@ NIKA_IMAGE_DOCKERFILES: dict[str, str] = {
     nika_image("tc-bpf"): "Dockerfile.tc-bpf",
     nika_image("skopeo"): "Dockerfile.skopeo",
     nika_image("routinator"): "../isp/rpki/Dockerfile.routinator",
-    nika_image("flow-collector"): "Dockerfile.flow-collector",
 }
 
 # Upstream images NIKA labs deploy directly, pinned to the last verified
@@ -334,23 +331,13 @@ def _local_image_id(image: str) -> str | None:
         return None
 
 
-def _image_labels(image: str) -> dict[str, str] | None:
-    """Return the labels of a local image, or None if it is absent."""
-    try:
-        return _get_client().images.get(image).labels or {}
-    except ImageNotFound:
-        return None
-
-
 def _image_build_hash(image: str) -> str | None:
     """Return the build-hash label of a local image, or None if absent."""
-    return (_image_labels(image) or {}).get(BUILD_HASH_LABEL)
-
-
-def image_telemetry(image: str) -> frozenset[str]:
-    """Return the telemetry kinds a local image declares it can export."""
-    value = (_image_labels(image) or {}).get(TELEMETRY_LABEL, "")
-    return frozenset(kind.strip() for kind in value.split(",") if kind.strip())
+    try:
+        labels = _get_client().images.get(image).labels or {}
+    except ImageNotFound:
+        return None
+    return labels.get(BUILD_HASH_LABEL)
 
 
 def _hash_build(

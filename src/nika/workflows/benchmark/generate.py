@@ -32,7 +32,6 @@ from nika.workflows.benchmark.isp_options import (
     isp_config_for_problem,
     isp_stack_for_backend,
 )
-from nika.workflows.benchmark.load_config import CASE_PROFILE_FIELDS
 from nika.workflows.benchmark.resume import benchmark_option_id
 
 WORKING_DIRNAME = "working"
@@ -43,6 +42,14 @@ def default_pool_dir() -> Path:
     return BENCHMARK_DIR / WORKING_DIRNAME / POOL_DIRNAME
 
 
+_PROFILE_FIELDS = (
+    "topo_size",
+    "igp",
+    "bgp_mode",
+    "rpki",
+    "backend",
+    "device_profile",
+)
 _ISP_DEPLOY_KEYS = ("igp", "bgp_mode", "rpki", "backend", "device_profile")
 
 
@@ -440,7 +447,7 @@ def _document_option_ids(document: dict[str, Any]) -> list[str]:
                 "scenario": document["scenario"]["name"],
                 "problem": document["failure"]["fault_type"],
                 "inject": case["inject"],
-                **{key: case[key] for key in CASE_PROFILE_FIELDS if key in case},
+                **{key: case[key] for key in _PROFILE_FIELDS if key in case},
             }
             ids.append(benchmark_option_id(row))
         return ids
@@ -450,7 +457,7 @@ def _document_option_ids(document: dict[str, Any]) -> list[str]:
             "scenario": document["scenario"]["name"],
             "problem": HEALTHY_PROBLEM,
             "inject": {},
-            **{key: variant[key] for key in CASE_PROFILE_FIELDS if key in variant},
+            **{key: variant[key] for key in _PROFILE_FIELDS if key in variant},
         }
         ids.append(benchmark_option_id(row))
     return ids

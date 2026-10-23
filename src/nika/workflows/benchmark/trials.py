@@ -132,7 +132,6 @@ def case_key_for_row(row: dict[str, Any]) -> str:
             parts.append(sanitize_token(str(value)))
     if identity.get("rpki"):
         parts.append("rpki")
-    parts.extend(sanitize_token(kind) for kind in identity.get("telemetry", []))
     base = "__".join(parts)
     inject_parts = _inject_case_key_parts(identity.get("inject"))
     full = "__".join([base, *inject_parts])
@@ -207,8 +206,6 @@ def task_catalog_entry(row: dict[str, Any]) -> dict[str, Any]:
             entry[key] = value
     if row.get("rpki"):
         entry["rpki"] = True
-    if row.get("telemetry"):
-        entry["telemetry"] = list(row["telemetry"])
     return entry
 
 

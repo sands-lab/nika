@@ -66,9 +66,6 @@ def _parse_env_run_args(extra_args: list[str] | None) -> dict[str, Any]:
         elif arg == "--no-redeploy":
             kwargs["redeploy"] = False
             i += 1
-        elif arg == "--telemetry" and i + 1 < len(args):
-            kwargs.setdefault("telemetry", []).append(args[i + 1])
-            i += 2
         elif arg == "--instance-tag" and i + 1 < len(args):
             kwargs["instance_tag"] = args[i + 1]
             i += 2

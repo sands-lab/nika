@@ -136,12 +136,7 @@ def start_example_case(row: dict[str, Any], *, result_dir: str | None = None) ->
         row.get("topo_size") if scenario_requires_topo_size(row["scenario"]) else None
     )
     session_id = start_net_env(
-        row["scenario"],
-        size,
-        instance_tag="case",
-        result_dir=result_dir,
-        telemetry=row.get("telemetry"),
-        **options,
+        row["scenario"], size, instance_tag="case", result_dir=result_dir, **options
     )
     try:
         inject_failure(

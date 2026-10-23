@@ -134,7 +134,7 @@ def row_to_case(row: dict[str, Any]) -> dict[str, Any]:
     topo_size = row.get("topo_size") or ""
     if topo_size:
         case["topo_size"] = topo_size
-    for key in ("igp", "bgp_mode", "rpki", "backend", "device_profile", "telemetry"):
+    for key in ("igp", "bgp_mode", "rpki", "backend", "device_profile"):
         if key in row:
             case[key] = row[key]
     root_causes = row.get("root_causes")

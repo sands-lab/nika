@@ -249,7 +249,6 @@ def mcp_gateway_for_session(
         set_gateway_agent_url(manager, agent_host=sandbox_agent_host)
     from nika.mcp.registry import select_diagnosis_servers
     from nika.run_config.loader import get_run_config
-    from nika.telemetry import telemetry_for_session
     from nika.utils.session_store import SessionStore
 
     access = get_run_config().agent.access
@@ -268,11 +267,7 @@ def mcp_gateway_for_session(
         access_policy=snapshot["diagnosis"],
         node_roles=node_roles,
         diagnosis_servers=(
-            select_diagnosis_servers(
-                scenario_name,
-                backend=resolved_backend,
-                telemetry=telemetry_for_session(row),
-            )
+            select_diagnosis_servers(scenario_name, backend=resolved_backend)
             if scenario_name
             else None
         ),

@@ -9,7 +9,6 @@ from typing import Any
 from urllib.parse import quote
 
 from nika.config import SESSIONS_DIR
-from nika.telemetry import telemetry_field
 from nika.utils.session_index import SessionIndex
 from nika.workflows.session.close import close_session
 
@@ -46,8 +45,6 @@ def benchmark_row_identity(row: dict[str, Any]) -> dict[str, Any]:
             key: bool(row.get(key, False)) if key == "rpki" else row.get(key) or ""
             for key in ISP_DEPLOY_KEYS
         },
-        # Only when set, so rows without telemetry keep their published identity.
-        **({"telemetry": list(row["telemetry"])} if row.get("telemetry") else {}),
         "inject": _fingerprint_inject(row),
     }
 
@@ -69,8 +66,6 @@ def benchmark_option_id(row: dict[str, Any]) -> str:
         ("topo_size", row.get("topo_size") or ""),
     ]
     identity.extend((key, row[key]) for key in ISP_DEPLOY_KEYS if key in row)
-    if row.get("telemetry"):
-        identity.append(("telemetry", ",".join(row["telemetry"])))
     identity.append(("problem", row["problem"]))
     identity.extend(
         (f"inject.{key}", value)
@@ -101,7 +96,6 @@ def benchmark_row_from_case(
     rpki: bool | None = None,
     backend: str | None = None,
     device_profile: str | None = None,
-    telemetry: list[str] | None = None,
 ) -> dict[str, Any]:
     row: dict[str, Any] = {
         "scenario": scenario,
@@ -121,7 +115,6 @@ def benchmark_row_from_case(
         row["backend"] = backend
     if device_profile:
         row["device_profile"] = device_profile
-    row.update(telemetry_field(telemetry))
     return row
 
 

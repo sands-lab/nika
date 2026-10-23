@@ -5,14 +5,12 @@ from __future__ import annotations
 import asyncio
 import json
 import re
-import time
 
 import pytest
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
-from nika.agents.mcp_config import MCPServerConfig, load_session_mcp_config
+from nika.agents.mcp_config import MCPServerConfig
 from nika.mcp.gateway.lifecycle import mcp_gateway_for_session
-from nika.runtime.factory import runtime_for_session
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.integration_pipeline import tool_text_list
 from tests.support.prerequisites import docker_available, docker_image_available
@@ -295,76 +293,5 @@ class TestTelemetryMcpLive(IntegrationTestCase):
             assert any(
                 row.get("trace_complete") and row.get("hop_sequence") for row in traces
             )
-        finally:
-            self._close_session(session_id)
-
-
-def _flow_rows(raw: object) -> list[dict]:
-    rows: list[dict] = []
-    for text in tool_text_list(raw):
-        _assert_ok("netflow_query", text)
-        rows.append(json.loads(text))
-    return rows
-
-
-@pytest.mark.skipif(not docker_available(), reason="Docker not available")
-class TestNetflowMcpLive(IntegrationTestCase):
-    """isp_abilene + telemetry netflow: IPFIX records show the path and a reroute."""
-
-    SCENARIO = "isp_abilene"
-    # pc_chinng -> pc_iplsng crosses the direct chinng-iplsng link (chinng eth0).
-    SRC, DST_IP = "pc_chinng", "10.254.0.22"
-    FLOW_FILTER = "src ip 10.254.0.10 and dst ip 10.254.0.22"
-
-    def test_netflow_query_shows_reroute_after_link_down(self) -> None:
-        session_id = self._start_env(self.SCENARIO, ["--telemetry", "netflow"])
-        try:
-            row = self._assert_session_ready(session_id, self.SCENARIO)
-            runtime = runtime_for_session(row)
-            # A ping loop survives the unreachable window while IS-IS reconverges.
-            runtime.exec(
-                self.SRC,
-                "nohup sh -c 'while true; do ping -q -c 5 -i 0.2 -W 1 "
-                f"{self.DST_IP}; done' >/dev/null 2>&1 &",
-            )
-            with mcp_gateway_for_session(session_id, scenario_name=self.SCENARIO):
-                # Selected from the session's telemetry, not from scenario tags.
-                config = load_session_mcp_config(session_id, self.SCENARIO)
-                assert "kathara_netflow_mcp_server" in config
-
-                async def _query(**args) -> list[dict]:
-                    client = MultiServerMCPClient(connections=config)
-                    tools = {t.name: t for t in await client.get_tools()}
-                    return _flow_rows(await tools["netflow_query"].ainvoke(args))
-
-                def _exporters(start_time: str) -> set[str]:
-                    rows = asyncio.run(
-                        _query(
-                            start_time=start_time,
-                            filter=self.FLOW_FILTER,
-                            aggregate_by=["router"],
-                        )
-                    )
-                    return {row["exporter"] for row in rows}
-
-                before: set[str] = set()
-                deadline = time.monotonic() + 120
-                while before != {"chinng", "iplsng"} and time.monotonic() < deadline:
-                    time.sleep(10)
-                    before = _exporters("-60")
-                assert before == {"chinng", "iplsng"}
-
-                self._inject_failure(
-                    "link_down",
-                    {"host_name": "chinng", "intf_name": "eth0"},
-                    session_id=session_id,
-                )
-                window_start = str(time.time() + 20)
-                after: set[str] = set()
-                deadline = time.monotonic() + 180
-                while "nycmng" not in after and time.monotonic() < deadline:
-                    time.sleep(10)
-                    after = _exporters(window_start)
-            assert {"chinng", "nycmng", "iplsng"} <= after
         finally:
             self._close_session(session_id)

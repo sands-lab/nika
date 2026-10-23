@@ -26,7 +26,6 @@ from agent.utils.loggers import tool_event_payload
 from nika.agents.mcp_config import load_session_mcp_config, select_diagnosis_servers
 from nika.problems.rca import RootCause
 from nika.runtime.factory import resolve_backend
-from nika.telemetry import telemetry_for_session
 
 _ROUTER_HINTS = ("router", "leaf", "spine", "super_spine")
 
@@ -195,9 +194,7 @@ class MockAgent(DiagnosisAgent):
 
         backend = resolve_backend(self.session)
         scenario = str(getattr(self.session, "scenario_name", "") or "")
-        server_names = select_diagnosis_servers(
-            scenario, backend=backend, telemetry=telemetry_for_session(self.session)
-        )
+        server_names = select_diagnosis_servers(scenario, backend=backend)
         gt = _load_ground_truth(getattr(self.session, "session_dir", None))
         preferred = _preferred_devices_from_gt(gt)
         devices = _session_device_names(self.session_id) or list(preferred)
