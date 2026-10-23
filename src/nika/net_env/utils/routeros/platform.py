@@ -126,6 +126,12 @@ def _config_command(commands) -> str:
     return CLI_COMMAND.format(command="; ".join(commands))
 
 
+def _fault_ops(runtime, node: str):
+    from nika.net_env.utils.routeros.fault_ops import RouterOsFaultOps
+
+    return RouterOsFaultOps(runtime, node)
+
+
 PLATFORM = NativeRouterPlatform(
     convert=convert_frr_routers,
     check_deployable=_check_deployable,
@@ -142,6 +148,7 @@ PLATFORM = NativeRouterPlatform(
         route_inspection_command=CLI_COMMAND.format(command="/ip/route/print detail"),
         static_underlay=_static_underlay,
     ),
+    fault_ops=_fault_ops,
 )
 
 
