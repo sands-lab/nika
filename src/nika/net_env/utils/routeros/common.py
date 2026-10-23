@@ -153,11 +153,17 @@ def configure_routeros_router(
             f"RouterOS router {machine.name!r} needs {len(interfaces)} data "
             f"interfaces; vrnetlab supports 1 to {MAX_DATA_INTERFACES}."
         )
-    machine.update_meta({"image": IMAGE, "mem": CONTAINER_MEMORY, "cpus": 1.0})
     indices = [int(name[3:]) + 1 for name in interfaces]
-    if max(indices) > MAX_DATA_INTERFACES:
-        raise ValueError(f"RouterOS router {machine.name!r} uses ports beyond eth29")
-    _boot_meta(machine, max(indices))
+    if sorted(indices) != list(range(1, len(indices) + 1)):
+        # vrnetlab waits, without a timeout, for one bridged link per port and
+        # takes the ports in that order, so a gap would hang the boot and shift
+        # every ``ether`` name away from ``bridged_interface``.
+        raise ValueError(
+            f"RouterOS router {machine.name!r} must use container interfaces "
+            f"eth0 to eth{len(indices) - 1}, not {sorted(interfaces)}."
+        )
+    machine.update_meta({"image": IMAGE, "mem": CONTAINER_MEMORY, "cpus": 1.0})
+    _boot_meta(machine, len(indices))
     machine.add_meta("env", f"CLAB_INTF_PREFIX={_BRIDGED_PREFIX}")
     if machine.fs.exists("etc/frr"):
         machine.fs.removetree("etc/frr")

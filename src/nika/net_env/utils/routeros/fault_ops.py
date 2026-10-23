@@ -45,6 +45,9 @@ class RouterOsFaultOps(RouterFaultOps):
     def _port(self, interface: str) -> str:
         """Map a container interface to its RouterOS port; keep other names."""
         if re.fullmatch(r"eth\d+", interface):
+            # The environment decides the layout: a converted router's ``ethN``
+            # is ``ether{N+2}``, an ISP router's is ``ether{N+1}``. Runtimes
+            # without a Kathara environment only run reserved-layout routers.
             net_env = getattr(self.runtime, "_net_env", None)
             return routeros_port(net_env, self.node, interface)
         return interface
