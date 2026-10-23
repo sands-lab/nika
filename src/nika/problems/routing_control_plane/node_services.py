@@ -78,6 +78,7 @@ class FrrDown(ProblemBase):
 
     def verify_fault(self, params: FrrDownParams) -> dict:
         """Verify FRR is down by checking zebra is not running and routing is unavailable."""
+        native_fault_ops(self, params.host_name, "stop_routing_process")
         zebra_output = self.runtime.exec(
             params.host_name, "pgrep -a zebra 2>/dev/null || echo NONE"
         ).strip()

@@ -17,7 +17,6 @@ from nika.net_env.utils.routeros.parse import (
     routeros_terse_rows,
 )
 from nika.problems.support.router_ops import RouterFaultOps, SourceNat, TunnelPeer
-from nika.runtime.base import RuntimeCapabilityError
 from nika.service.lab.routeros_api import CLI_COMMAND
 
 _BGP_PORT_RULES = tuple(
@@ -118,14 +117,6 @@ class RouterOsFaultOps(RouterFaultOps):
                 self._cli(
                     f'/routing bgp vpn unset [find vrf="{vrf}"] export.redistribute'
                 )
-
-    def stop_routing_process(self) -> None:
-        # Routing is part of the RouterOS system process; disabling its
-        # configuration would model a different root cause than a crash.
-        raise RuntimeCapabilityError(
-            "Stopping the routing process is not supported on routeros router "
-            f"{self.node!r}: RouterOS runs no separate routing daemon."
-        )
 
     def bgp_established_peers(self) -> set[str]:
         return routeros_established_bgp_peers(
@@ -279,6 +270,9 @@ class RouterOsFaultOps(RouterFaultOps):
         )
 
     def set_interface_mtu(self, interface: str, mtu: int) -> None:
+        # The container link only carries the VM's frames; the router port
+        # must know the MTU to fragment or send ICMP Fragmentation Needed.
+        self.runtime.exec(self.node, f"ip link set dev {interface} mtu {int(mtu)}")
         self._cli(
             f"/interface ethernet set [find name={self._port(interface)}] mtu={int(mtu)}"
         )
@@ -286,7 +280,13 @@ class RouterOsFaultOps(RouterFaultOps):
     def interface_mtu(self, interface: str) -> int | None:
         rows = self._rows(f"/interface/print terse where name={self._port(interface)}")
         value = rows[0].get("mtu") if rows else None
-        return int(value) if value and value.isdigit() else None
+        native = int(value) if value and value.isdigit() else None
+        # Both the router port and its container link must carry it.
+        link = re.search(
+            r"\bmtu\s+(\d+)\b",
+            self.runtime.exec(self.node, f"ip -o link show dev {interface}"),
+        )
+        return native if link and native == int(link[1]) else None
 
     def interface_addresses(self, interface: str) -> list[str]:
         return [

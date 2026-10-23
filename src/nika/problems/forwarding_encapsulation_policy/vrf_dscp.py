@@ -23,7 +23,7 @@ from nika.problems.base import (
 )
 from nika.problems.rca import interface_resource
 from nika.problems.support.benchmark_targets import replace
-from nika.problems.support.router_ops import native_fault_ops
+from nika.problems.support.router_ops import native_fault_ops, router_fault_ops
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
 
@@ -345,7 +345,7 @@ class VrfDscpRemarking(ProblemBase):
     def _edge_tos(self, params: VrfDscpRemarkingParams, dst_ip: str) -> int | None:
         # A native router's tunnel is out of the container's capture reach;
         # the source and destination samples still bound the remark.
-        if native_fault_ops(self, params.host_name, "add_dscp_remark") is not None:
+        if router_fault_ops(self, params.host_name) is not None:
             return None
         return qos_traffic.sample_dscp_tos(
             self.runtime,
