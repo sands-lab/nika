@@ -2263,7 +2263,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td><code>host_ip_conflict</code></td>
 <td align="center">○</td>
 <td align="center">○</td>
-<td align="center">○</td>
+<td align="center">●</td>
 <td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
@@ -2285,7 +2285,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">●</td>
 <td align="center"></td>
 <td align="center">○</td>
-<td align="center">●</td>
+<td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
 </tr>
@@ -2351,31 +2351,31 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 </tr>
 <tr>
 <td><code>mac_address_conflict</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center"></td>
 <td align="center">●</td>
-<td align="center">●</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center">○</td>
 </tr>
@@ -2870,6 +2870,573 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 <td align="center"></td>
 <td align="center">●</td>
+</tr>
+</tbody>
+</table>
+
+### Native router profiles
+
+IOS XR and RouterOS deployments of the environments that declare them (`isp` stands for every base ISP scenario). Blank = incompatible, `◆` = the failure also targets the profile's routers (its `native_router_operations` are all implemented by the vendor provider), `○` = it targets only the FRR/Linux nodes of the deployment, which may have none when every router converts. A suffix shows the last execution result from `benchmark/working/validation/device_profiles.yaml`: `✓` validated, `✗` failed, `–` unsupported; no suffix = not run.
+
+<table>
+<thead>
+<tr>
+<th rowspan="2">Failure</th>
+<th colspan="2">campus</th>
+<th colspan="2">clos</th>
+<th colspan="2">enterprise</th>
+<th colspan="2">isp</th>
+</tr>
+<tr>
+<th>iosxr</th>
+<th>routeros</th>
+<th>iosxr</th>
+<th>routeros</th>
+<th>iosxr</th>
+<th>routeros</th>
+<th>iosxr</th>
+<th>routeros</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>link_capacity_bottleneck</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>link_detach</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>link_down</code></td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>link_flap</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>link_packet_corruption</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>bgp_asn_misconfig</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>bgp_max_prefix_exceeded</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>bgp_missing_route_advertisement</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>frr_service_down</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○✓</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>ospf_area_misconfiguration</code></td>
+<td align="center">○</td>
+<td align="center">◆✓</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>ospf_neighbor_missing</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>arp_acl_block</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>bgp_acl_block</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>device_forwarding_packet_corruption</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dns_port_blocked</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>host_static_blackhole</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>http_acl_block</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>icmp_acl_block</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>icmp_frag_needed_filter_misconfiguration</code></td>
+<td align="center">○</td>
+<td align="center">◆✓</td>
+<td align="center">○</td>
+<td align="center">◆✓</td>
+<td align="center">○</td>
+<td align="center">◆✓</td>
+<td align="center">○</td>
+<td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>mtu_mismatch</code></td>
+<td align="center">○</td>
+<td align="center">◆✓</td>
+<td align="center">○</td>
+<td align="center">◆✓</td>
+<td align="center">○</td>
+<td align="center">◆✓</td>
+<td align="center">○</td>
+<td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>ospf_acl_block</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>vrf_dscp_remarking</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">◆✓</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>wireguard_allowed_ips_misconfiguration</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">◆✓</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>wireguard_peer_key_misconfiguration</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">◆✓</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>load_balancer_overload</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>nat_mapping_removed_without_drain</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">◆✓</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>snat_port_pool_exhaustion</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">◆✓</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dhcp_missing_subnet</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dhcp_service_down</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dns_lookup_latency</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dns_record_error</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dns_service_down</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>host_incorrect_dns</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>host_incorrect_gateway</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>host_incorrect_ip</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>host_incorrect_netmask</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>host_ip_conflict</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>host_missing_ip</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>mac_address_conflict</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>receiver_resource_contention</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>sender_resource_contention</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>incast_traffic_network_limitation</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>tcp_receive_window_limited</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>arp_cache_poisoning</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>bgp_hijacking</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">◆✗</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
+<td align="center">◆✗</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>dhcp_spoofed_dns</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dhcp_spoofed_gateway</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dhcp_spoofed_subnet</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>web_dos_attack</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
 </tr>
 </tbody>
 </table>
