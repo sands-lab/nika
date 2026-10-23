@@ -179,6 +179,19 @@ class RouterOsFaultOps(RouterFaultOps):
         self._cli(f"/ip firewall address-list add list={name} address={net}")
         if not lists:
             self._cli(f"/routing bgp connection set [find] output.network={name}")
+        # An export filter that admits only the router's own prefixes would
+        # keep the hijack in; the misconfiguration admits it there too.
+        chains = {
+            row["output.filter-chain"]
+            for row in self._rows("/routing/bgp/connection/print terse")
+            if row.get("output.filter-chain")
+        }
+        for chain in sorted(chains):
+            self._cli(
+                f"/routing filter rule add chain={chain} "
+                f'rule="if (dst == {net}) {{ accept; }}" '
+                f'place-before=[:pick [/routing filter rule find chain="{chain}"] 0]'
+            )
 
     def bgp_advertised_to(self, prefix: str) -> list[str]:
         return sorted(
