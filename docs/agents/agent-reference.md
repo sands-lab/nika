@@ -13,6 +13,8 @@ Use [Choose and run an agent](agent-implementations.md) for setup walkthroughs a
 | `byo.autogen` | AutoGen `AssistantAgent` workers | Sandbox, `shell` template | No |
 | `cli.codex` | Codex CLI, two phases | Sandbox, `codex` template | Shared Codex skills |
 | `cli.claude` | Claude Code CLI, two phases | Sandbox, `claude` template | Shared Claude skills |
+| `cli.opencode` | OpenCode CLI, two phases | Sandbox, `shell` template | Shared skills under `.opencode/skills/` |
+| `cli.dsh` | DeepSeek Harness `dsh --profile headless`, two phases | Sandbox, `shell` template | Shared skills under `.agents/skills/` + `AGENTS.md` |
 | `sdk.codex_sdk` | `openai-codex`, two threads | Sandbox, `shell` template | Shared Codex skills |
 | `sdk.claude_sdk` | `claude-agent-sdk`, two sessions | Sandbox, `shell` template | Shared Claude skills |
 | `community.sade` | Claude Agent SDK with a 15-skill library | Sandbox, `shell` template | SADE library |
@@ -69,6 +71,8 @@ Harnesses also pass `max_steps` to their own turn limit, so most stop by themsel
 | `byo.mcp_agent` | mcp-agent `max_iterations` |
 | `byo.autogen` | `max_tool_iterations = max_steps - 1`, plus one reflection turn that writes the report |
 | `cli.claude` | `claude --max-turns` |
+| `cli.opencode` | NIKA counts model responses in the `opencode run --format json` stream and stops OpenCode when a response past the limit starts |
+| `cli.dsh` | NIKA counts model responses in the `dsh --profile headless --json` stream and stops the harness when a response past the limit starts |
 | `cli.codex` | NIKA counts model responses in the `codex exec --json` stream and stops Codex when a response past the limit starts |
 | `sdk.claude_sdk`, `community.sade` | Claude Agent SDK `max_turns` |
 | `sdk.codex_sdk` | NIKA counts `thread/tokenUsage/updated` notifications, one per model response, and interrupts the turn past the limit |
@@ -80,8 +84,8 @@ Store provider keys in `.env`. Set custom endpoint URLs with `--base-url`, `nika
 
 | Agent family | Providers |
 | --- | --- |
-| `byo.langgraph`, `byo.mcp_agent`, `byo.autogen` | `openai`, `anthropic`, `deepseek`, `custom` |
-| `cli.codex`, `sdk.codex_sdk` | `openai`, `deepseek`, `custom` |
+| `byo.langgraph`, `byo.mcp_agent`, `byo.autogen`, `cli.opencode` | `openai`, `anthropic`, `deepseek`, `custom` |
+| `cli.codex`, `sdk.codex_sdk`, `cli.dsh` | `openai`, `deepseek`, `custom` |
 | `cli.claude`, `sdk.claude_sdk`, `community.sade` | `anthropic`, `deepseek`, `custom` |
 
 ### Custom endpoint compatibility
@@ -92,7 +96,7 @@ Every agent runs in a sandbox, on Docker Sandboxes or E2B. The lab and MCP gatew
 
 ## Reasoning effort
 
-`byo.langgraph`, `byo.autogen`, `cli.codex`, and `sdk.codex_sdk` accept `none`, `minimal`, `low`, `medium`, `high`, or `xhigh`. `byo.mcp_agent` accepts `none`, `low`, `medium`, or `high`. `cli.claude` and `sdk.claude_sdk` pass it to Claude Code's `--effort` (`minimal` becomes `low`; `none` omits it).
+`byo.langgraph`, `byo.autogen`, `cli.codex`, and `sdk.codex_sdk` accept `none`, `minimal`, `low`, `medium`, `high`, or `xhigh`. `byo.mcp_agent` accepts `none`, `low`, `medium`, or `high`. `cli.claude` and `sdk.claude_sdk` pass it to Claude Code's `--effort` (`minimal` becomes `low`; `none` omits it). `cli.opencode` maps it to OpenCode's `--variant` (`xhigh` becomes `max`; `none` omits it). `cli.dsh` maps it to DeepSeek Harness thinking (`low`/`high`/`max`; NIKA `medium` maps to `high`; `none` omits it).
 
 When neither `-e` nor `agent.reasoning_effort` sets a value, these built-in harnesses use `medium`. `community.sade` and added agents get no default: their authors configure reasoning themselves, and the agent receives `agent.reasoning_effort` as set. The effective value is recorded in the session, in the benchmark `run.json`, and in the leaderboard package identity.
 

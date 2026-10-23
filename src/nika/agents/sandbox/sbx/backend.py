@@ -48,6 +48,7 @@ from nika.agents.sandbox.sbx.proxy import (
     resolve_sbx_upstream_proxy,
 )
 from nika.agents.sandbox.sbx.wheels import install_agent_packages_in_sandbox
+from nika.agents.sandbox.npm import stage_npm
 from nika.agents.sandbox.wheels import needs_agent_venv, stage_wheels
 
 logger = logging.getLogger(__name__)
@@ -115,6 +116,7 @@ class SbxBackend(SandboxBackend):
             spec.requires_python
         ):
             stage_wheels(workspace_dir, spec.requirements)
+        stage_npm(workspace_dir, spec.npm_packages)
 
     def build_create_command(
         self,
