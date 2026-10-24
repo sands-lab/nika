@@ -10,6 +10,7 @@ from nika.problems.base import (
     build_verify_result,
     ProblemBase,
 )
+from nika.problems.support.router_ops import native_fault_ops
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
 
@@ -96,7 +97,26 @@ class OSPFAreaMisconfig(ProblemBase):
     def root_cause_resources(self, params: OSPFAreaMisconfigParams):
         return [node_resource(params.host_name)]
 
+    def _inject_native(self, params: OSPFAreaMisconfigParams, ops) -> None:
+        # Move the router's first area to a wrong area ID, the native form of
+        # rewriting FRR ``network ... area`` statements.
+        areas = ops.ospf_interface_areas()
+        if not areas:
+            raise RuntimeError(f"Could not find OSPF area on {params.host_name}")
+        self._orig_areas = set(areas)
+        correct_area = areas[0]
+        wrong_area = "0.0.0.66" if correct_area != "0.0.0.66" else "0.0.0.99"
+        ops.renumber_ospf_area(correct_area, wrong_area)
+        self.logger.info(
+            f"Injected OSPF area misconfiguration on {params.host_name} from "
+            f"area {correct_area} to {wrong_area}."
+        )
+
     def inject_fault(self, params: OSPFAreaMisconfigParams):
+        ops = native_fault_ops(self, params.host_name, "renumber_ospf_area")
+        if ops is not None:
+            self._inject_native(params, ops)
+            return
         running_cfg = self.runtime.exec(
             params.host_name, "vtysh -c 'show running-config'"
         )
@@ -145,6 +165,19 @@ class OSPFAreaMisconfig(ProblemBase):
 
     def verify_fault(self, params: OSPFAreaMisconfigParams) -> dict:
         """Verify the OSPF area in frr.conf and in the running daemon was changed."""
+        ops = native_fault_ops(self, params.host_name, "ospf_interface_areas")
+        if ops is not None:
+            orig_areas = set(getattr(self, "_orig_areas", None) or ())
+            running_areas = set(ops.ospf_interface_areas())
+            return build_verify_result(
+                fault_type=self.root_cause_name,
+                verified=bool(running_areas) and running_areas != orig_areas,
+                details={
+                    "host": params.host_name,
+                    "orig_areas": sorted(orig_areas),
+                    "running_areas": sorted(running_areas),
+                },
+            )
         file_config = self.runtime.exec(params.host_name, "cat /etc/frr/frr.conf")
         running_config = self.runtime.exec(
             params.host_name, "vtysh -c 'show running-config' 2>/dev/null"

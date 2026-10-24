@@ -284,3 +284,51 @@ def _config_log_pending(text: str) -> bool:
     # Before the upload, /file get reports a missing item; before the VM
     # accepts SSH, the exec wrapper returns no output or a timeout marker.
     return "no such item" in text or text.startswith("[TIMEOUT]")
+
+
+# Menus a failure or counterexample may change, grouped so that items which
+# reference each other are restored together; parents precede children.
+_RESTORED_MENUS = (
+    ("/ip firewall address-list",),
+    ("/ip firewall filter",),
+    ("/routing filter rule",),
+    ("/ip route",),
+    (
+        "/routing ospf instance",
+        "/routing ospf area",
+        "/routing ospf interface-template",
+    ),
+    ("/routing isis instance", "/routing isis interface-template"),
+    ("/routing bgp instance", "/routing bgp connection", "/routing bgp vpn"),
+)
+
+
+def routeros_restore_script(saved: str, current: str) -> str:
+    """Return RouterOS commands that restore the menus changed since ``saved``.
+
+    Both arguments are ``/export terse`` outputs. For each menu group whose
+    static items differ, the script removes those items and re-adds the saved
+    ones. Unchanged groups, addresses, interfaces and management settings are
+    left alone. An empty script means nothing changed.
+    """
+
+    def lines(export: str) -> list[str]:
+        return [line.rstrip() for line in export.splitlines() if line.startswith("/")]
+
+    before, after = lines(saved), lines(current)
+    if not any(line.startswith("/system identity ") for line in before):
+        raise ValueError("Unrecognized RouterOS export")
+    commands = []
+    for menus in _RESTORED_MENUS:
+        old = [
+            line for line in before if line.startswith(tuple(m + " " for m in menus))
+        ]
+        new = [line for line in after if line.startswith(tuple(m + " " for m in menus))]
+        if old != new:
+            commands.extend(
+                f"{menu} remove [find where !dynamic]" for menu in reversed(menus)
+            )
+            commands.extend(old)
+    if any("'" in command for command in commands):
+        raise ValueError("RouterOS export contains a single quote")
+    return "; ".join(commands)

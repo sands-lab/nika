@@ -73,3 +73,33 @@ def test_terse_rows_read_numbered_items_and_flag_only_routes():
     assert rows[1]["routing-table"] == "overlay"
     with pytest.raises(ValueError):
         routeros_terse_rows("syntax error (line 1 column 5)")
+
+
+def test_restore_script_readds_only_changed_menu_groups():
+    from nika.net_env.utils.routeros.common import routeros_restore_script
+
+    saved = (
+        "# 2026-10-22 by RouterOS 7.21.5\n"
+        "/routing bgp instance add as=65200 name=CORE router-id=172.16.0.5\n"
+        "/ip address add address=172.16.0.5/31 interface=ether2 network=172.16.0.4\n"
+        "/ip firewall address-list add address=10.0.0.0/24 list=BGP-NETWORKS\n"
+        "/routing bgp connection add instance=CORE name=peer-0 remote.address=172.16.0.4 .as=65100\n"
+        "/system identity set name=leaf\n"
+    )
+    assert routeros_restore_script(saved, saved) == ""
+    withdrawn = saved.replace(
+        "/ip firewall address-list add address=10.0.0.0/24 list=BGP-NETWORKS\n", ""
+    )
+    assert routeros_restore_script(saved, withdrawn) == (
+        "/ip firewall address-list remove [find where !dynamic]; "
+        "/ip firewall address-list add address=10.0.0.0/24 list=BGP-NETWORKS"
+    )
+    renumbered = saved.replace(".as=65100", ".as=65099")
+    # Connections reference the instance, so the BGP group is restored together.
+    assert routeros_restore_script(saved, renumbered) == (
+        "/routing bgp vpn remove [find where !dynamic]; "
+        "/routing bgp connection remove [find where !dynamic]; "
+        "/routing bgp instance remove [find where !dynamic]; "
+        "/routing bgp instance add as=65200 name=CORE router-id=172.16.0.5; "
+        "/routing bgp connection add instance=CORE name=peer-0 remote.address=172.16.0.4 .as=65100"
+    )

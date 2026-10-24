@@ -202,6 +202,41 @@ class RouterOsFaultOps(RouterFaultOps):
 
     # Packet filters
 
+    # Running configuration
+
+    def save_config(self) -> str:
+        return self._cli("/export terse")
+
+    def restore_config(self, saved: str) -> None:
+        from nika.net_env.utils.routeros.common import routeros_restore_script
+
+        script = routeros_restore_script(saved, self._cli("/export terse"))
+        if script:
+            self._cli(script)
+
+    # OSPF
+
+    def ospf_interface_areas(self) -> list[str]:
+        areas = {
+            row["name"]: row["area-id"]
+            for row in self._rows("/routing/ospf/area/print terse")
+            if "name" in row and "area-id" in row
+        }
+        return [
+            areas.get(row.get("area", ""), row.get("area", ""))
+            for row in self._rows("/routing/ospf/interface-template/print terse")
+        ]
+
+    def renumber_ospf_area(self, area: str, new_area: str) -> None:
+        # RouterOS keeps the established neighbors of a reconfigured area, so
+        # the instance restarts to run the new area ID, as a restarted FRR
+        # daemon runs an edited configuration.
+        self._cli(
+            f'/routing ospf area set [find where area-id="{area}"] '
+            f'area-id="{new_area}"; /routing ospf instance disable [find]; '
+            ":delay 2s; /routing ospf instance enable [find]"
+        )
+
     def _filter_rules(self) -> list[dict[str, str]]:
         return self._rows("/ip/firewall/filter/print terse")
 

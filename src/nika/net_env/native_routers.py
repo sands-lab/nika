@@ -32,6 +32,8 @@ class NativeInterface:
     name: str
     address: str
     ospf_area: str | None = None
+    # The platform's port name when it does not follow from ``name``.
+    port: str | None = None
 
 
 @dataclass(frozen=True)
@@ -39,6 +41,9 @@ class NativeRouterNode:
     device_name: str
     interfaces: tuple[NativeInterface, ...]
     loopback: str | None = None
+    # (contract VRF, native routing table) where the platform names the
+    # table that holds the design's routes differently.
+    route_tables: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -52,9 +57,10 @@ class NativeRouterPlan:
 class NativeRouterValidation:
     """Vendor projection used by specification-driven validation."""
 
-    # Linux interface name -> native interface name.
+    # Linux interface name -> interface name in the Batfish snapshot (the
+    # native name, or the Linux name for a projection into another syntax).
     interface: Callable[[str], str]
-    # (config, native interfaces shut down) -> Batfish snapshot file content.
+    # (config, snapshot interfaces shut down) -> Batfish snapshot file content.
     batfish_config: Callable[[str, Sequence[str]], str]
     # (node, config) -> concrete interfaces for the runtime verifier.
     node: Callable[[str, str], NativeRouterNode]
@@ -70,6 +76,11 @@ class NativeRouterValidation:
     # (router, FRR configuration, Linux startup) -> native statements NIKA
     # appends to netlab output.
     netlab_retained: Callable[[str, str, str], str] | None = None
+    # (config, snapshot interfaces shut down) -> Batfish content of the
+    # router's default-table addressing and static routes, for environments
+    # analyzed with the Linux static model. Without it the full projection
+    # (``batfish_config``) is analyzed.
+    static_underlay: Callable[[str, Sequence[str]], str] | None = None
 
 
 @dataclass(frozen=True)

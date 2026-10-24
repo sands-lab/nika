@@ -39,7 +39,7 @@ Run one specification through synthesis, static checks, native execution, declar
 uv run python experiment/scenario_validation/experiment.py experiment/scenario_validation/clos.json --output /tmp/routing-clos --runtime
 ```
 
-Use `campus.json`, `enterprise.json`, `clos-m.json` or `min3clos.json` for the other specimens. To run the eligible Clos, campus or enterprise routers on Cisco IOS XR, use `clos-iosxr.json`, `campus-iosxr.json` or `enterprise-iosxr.json`; they need the XRd image. The two-router vendor scenarios derive their specification from the scenario's own router declarations instead:
+Use `campus.json`, `enterprise.json`, `clos-m.json` or `min3clos.json` for the other specimens. To run the eligible Clos, campus or enterprise routers on Cisco IOS XR, use `clos-iosxr.json`, `campus-iosxr.json` or `enterprise-iosxr.json`; they need the XRd image. `clos-routeros.json`, `campus-routeros.json` and `enterprise-routeros.json` run the same sequence with RouterOS routers; see [RouterOS routers in Ethernet environments](../../docs/development/scenario-verification.md#routeros-routers-in-ethernet-environments). The two-router vendor scenarios derive their specification from the scenario's own router declarations instead:
 
 ```bash
 uv run python experiment/scenario_validation/experiment.py --direct-bgp iosxr_simple_bgp --routing-model iosxr-bgp --output /tmp/routing-xrd --runtime
@@ -168,7 +168,7 @@ Batfish checks original predicates against the final candidate configuration. Na
 | FRR IS-IS | Restricted translation of concrete IPv4 Level-2 configuration to IOS XR | Original IS-IS, ordinary iBGP RR and direct eBGP predicates |
 | Nokia SR Linux | Restricted concrete-configuration projection | Original IGP/BGP predicates on SR Linux |
 | Cisco IOS XR | Native parser | Original ISP OSPF or IS-IS/BGP, direct eBGP, and Clos, campus and enterprise predicates on XRd |
-| MikroTik RouterOS | Restricted concrete IPv4 OSPF/BGP projection | Original predicates on RouterOS |
+| MikroTik RouterOS | Restricted concrete IPv4 OSPF/BGP projection; IS-IS through the IOS XR IS-IS projection; converted Ethernet routers projected back to FRR | Original predicates on RouterOS; no BGP ECMP |
 | Enterprise | Explicit static-underlay projection | WireGuard, VRF routing and isolation |
 | Clos ECMP | Routing model | Installed ECMP sets, including FRR multipath limits |
 

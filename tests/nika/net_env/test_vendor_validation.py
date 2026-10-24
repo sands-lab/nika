@@ -317,3 +317,63 @@ def test_routeros_omitted_default_ebgp_role_is_not_a_reflector_client():
     peer = _parse_routeros_bgp_sessions(output)["10.0.0.3"]
     assert peer.established and peer.local_asn == 65002
     assert peer.rr_client is False
+
+
+def test_routeros_ospf_reads_the_converted_port_and_designed_area() -> None:
+    from nika.net_env.contract import AdjacencyExpectation
+    from nika.net_env.native_routers import (
+        NativeInterface,
+        NativeRouterNode,
+        NativeRouterPlan,
+    )
+    from nika.net_env.vendor_validation import _ospf_established
+
+    adjacency = AdjacencyExpectation(
+        protocol="ospf",
+        local_node="dist",
+        remote_node="core",
+        local_address="192.0.2.1",
+        remote_address="192.0.2.0",
+        local_router_id="10.0.0.1",
+        remote_router_id="10.0.0.2",
+    )
+    # A converted router's container eth0 is RouterOS ether2, in area 1.
+    plan = NativeRouterPlan(
+        (
+            NativeRouterNode(
+                "dist", (NativeInterface("eth0", "192.0.2.1", "0.0.0.1", "ether2"),)
+            ),
+        )
+    )
+    ros = '0 instance=CORE area=area-1 interface=ether2 address=192.0.2.0 router-id=10.0.0.2 state="Full"'
+    identity = {
+        "instances": "0 name=CORE router-id=10.0.0.1",
+        "areas": "0 name=area-1 instance=CORE area-id=0.0.0.1",
+    }
+    assert _ospf_established(ros, "routeros", adjacency, plan, **identity)
+    assert not _ospf_established(
+        ros.replace("ether2", "ether1"), "routeros", adjacency, plan, **identity
+    )
+    assert not _ospf_established(
+        ros,
+        "routeros",
+        adjacency,
+        plan,
+        instances=identity["instances"],
+        areas="0 name=area-1 instance=CORE area-id=0.0.0.2",
+    )
+
+
+def test_routeros_isis_neighbors_parse_system_id_and_port() -> None:
+    from nika.net_env.vendor_validation import _routeros_isis_adjacencies
+
+    # Recorded RouterOS 7.21.5 ``/routing/isis/neighbor/print terse`` rows.
+    output = (
+        "0 D instance=CORE interface=ether2 snpa=EE:6C:89:6D:43:58 "
+        "srcid=0000.0aff.0003 state=up\r\n"
+        "1 D instance=CORE interface=ether3 snpa=DA:B2:5A:4C:88:73 "
+        "srcid=0000.0aff.0002 state=init"
+    )
+    assert _routeros_isis_adjacencies(output) == {("0000.0aff.0003", "ether2")}
+    with pytest.raises(ValueError):
+        _routeros_isis_adjacencies("0 D instance=CORE state=up")

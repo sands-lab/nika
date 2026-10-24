@@ -102,6 +102,16 @@ class RouterFaultOps:
         """Return the peers ``prefix`` is advertised to."""
         self._unsupported("Reading BGP advertisements")
 
+    # OSPF
+
+    def ospf_interface_areas(self) -> list[str]:
+        """Return the dotted area ID of each OSPF interface binding, in order."""
+        self._unsupported("Reading OSPF areas")
+
+    def renumber_ospf_area(self, area: str, new_area: str) -> None:
+        """Run the OSPF interfaces of ``area`` in ``new_area`` instead."""
+        self._unsupported("Changing an OSPF area")
+
     # Packet filters
 
     def block_bgp_transport(self) -> None:

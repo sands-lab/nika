@@ -31,6 +31,9 @@ def netlab_topology(plan: IspPlan, bgp: BgpPlan | None, device_profile: str) -> 
         raise ValueError(
             "netlab construction currently supports FRR, IOS XR, Nokia SR Linux and RouterOS"
         )
+    if plan.igp == "isis" and device_profile == "routeros":
+        # netlab's routeros7 device declares no IS-IS feature.
+        raise ValueError("netlab has no RouterOS IS-IS configuration module")
     if plan.igp not in {"ospf", "isis"} or (
         plan.igp == "isis" and device_profile not in {"frr", "iosxr", "nokia_srlinux"}
     ):

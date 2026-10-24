@@ -36,11 +36,15 @@ def startup_static_routes(startup: str):
     ]
 
 
-def export_native_routers(env, root: Path, configs, shutdown, endpoints=None):
+def export_native_routers(
+    env, root: Path, configs, shutdown, endpoints=None, *, static_underlay=False
+):
     """Write each native router's concrete configuration for its vendor parser.
 
     Returns ``{router: {native interface: Linux interface}}`` aliases. Router
-    addresses are added to ``endpoints`` when given.
+    addresses are added to ``endpoints`` when given. With ``static_underlay``
+    (the Linux static model), a platform that provides it exports only the
+    router's default-table addressing and static routes.
     """
     from nika.net_env.native_routers import native_platform
 
@@ -56,12 +60,19 @@ def export_native_routers(env, root: Path, configs, shutdown, endpoints=None):
         )
         disabled = [validation.interface(i) for n, i in shutdown if n == name]
         node = validation.node(name, config)
-        if endpoints is not None:
-            endpoints.update(i.address for i in node.interfaces)
         aliases[name] = {validation.interface(i.name): i.name for i in node.interfaces}
-        (root / "configs" / f"{name}.cfg").write_text(
-            validation.batfish_config(config, disabled)
-        )
+        if static_underlay and validation.static_underlay:
+            content = validation.static_underlay(config, disabled)
+            addresses = [
+                str(IPv4Interface(address).ip)
+                for address in re.findall(r"^ ip address (\S+)$", content, re.M)
+            ]
+        else:
+            content = validation.batfish_config(config, disabled)
+            addresses = [i.address for i in node.interfaces]
+        if endpoints is not None:
+            endpoints.update(addresses)
+        (root / "configs" / f"{name}.cfg").write_text(content)
     return aliases
 
 
@@ -99,7 +110,14 @@ def build_kathara_snapshot(
     native = dict(getattr(env, "native_routers", {}))
     if not routers and not native:
         raise ValueError("No concrete FRR configurations available.")
-    aliases = export_native_routers(env, root, configs, shutdown, default_endpoints)
+    aliases = export_native_routers(
+        env,
+        root,
+        configs,
+        shutdown,
+        default_endpoints,
+        static_underlay=routing_model == "linux-static",
+    )
     for name, machine in routers.items():
         startup = env.lab.fs.readtext(f"{name}.startup")
         addresses = startup_addresses(startup)

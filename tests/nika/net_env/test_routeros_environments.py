@@ -98,6 +98,138 @@ def test_translation_rejects_policies_routeros_cannot_keep():
         )
     with pytest.raises(ValueError, match="Unsupported FRR statement"):
         translate_frr_router("r1", "router ospf\n redistribute connected\n", startup)
+    # FRR merges repeated route-map entries; the chain would keep both.
+    repeated = (
+        "ip prefix-list A seq 5 permit 10.0.0.0/24\n"
+        "route-map M permit 10\n match ip address prefix-list A\n"
+        "route-map M deny 10\n match ip address prefix-list A\n"
+        "router bgp 1\n no bgp ebgp-requires-policy\n"
+        " neighbor 10.0.0.0 remote-as 2\n neighbor 10.0.0.0 route-map M out\n"
+    )
+    with pytest.raises(ValueError, match="repeats a sequence number"):
+        translate_frr_router("r1", repeated, startup)
+
+
+@pytest.mark.unit
+def test_solved_parameters_translate_to_routeros_routers():
+    from nika.net_env.net_env_pool import get_net_env_instance
+
+    exports = {
+        "bgp_exports": [
+            {
+                "node": "leaf_router_0_0",
+                "neighbor": "172.16.0.4",
+                "terms": [
+                    {"prefix": "10.0.0.0/24", "permit": True},
+                    {"prefix": "10.0.1.0/24", "permit": False},
+                ],
+            }
+        ]
+    }
+    leaf = get_net_env_instance(
+        "dc_clos", topo_size="s", device_profile="routeros", routing_parameters=exports
+    ).deployment_configs["leaf_router_0_0"]
+    # First exact-prefix match applies; unmatched routes are rejected.
+    rules = [line for line in leaf.splitlines() if "chain=NC-OUT-0 " in line]
+    assert rules == [
+        '/routing filter rule add chain=NC-OUT-0 rule="if (dst == 10.0.0.0/24 && dst-len == 24) { accept; }"',
+        '/routing filter rule add chain=NC-OUT-0 rule="if (dst == 10.0.1.0/24 && dst-len == 24) { reject; }"',
+        '/routing filter rule add chain=NC-OUT-0 rule="reject;"',
+    ]
+    assert (
+        "remote.address=172.16.0.4 " in leaf and "output.filter-chain=NC-OUT-0" in leaf
+    )
+    core = get_net_env_instance(
+        "campus_lan",
+        topo_size="s",
+        device_profile="routeros",
+        routing_parameters={
+            "ospf_costs": [{"node": "router_core_1", "interface": "eth0", "cost": 7}]
+        },
+    ).deployment_configs["router_core_1"]
+    assert "area=area-0.0.0.0 networks=172.16.0.0/31 cost=7" in core
+    edge = get_net_env_instance(
+        "enterprise_branch",
+        topo_size="s",
+        device_profile="routeros",
+        routing_parameters={
+            "import_preferences": [
+                {
+                    "node": "br1_edge",
+                    "interface": "wg_hq",
+                    "prefix": "10.0.10.0/24",
+                    "permit": True,
+                    "local_preference": 300,
+                }
+            ]
+        },
+    ).deployment_configs["br1_edge"]
+    chain = [line for line in edge.splitlines() if "chain=POLICY-IN-wg_hq " in line]
+    assert chain == [
+        '/routing filter rule add chain=POLICY-IN-wg_hq rule="if (dst == 10.0.10.0/24 && dst-len == 24) { set bgp-local-pref 300; accept; }"',
+        '/routing filter rule add chain=POLICY-IN-wg_hq rule="if (dst in 10.0.0.0/8 && dst-len <= 24) { set bgp-local-pref 200; accept; }"',
+        '/routing filter rule add chain=POLICY-IN-wg_hq rule="reject;"',
+    ]
+
+
+@pytest.mark.unit
+def test_mixed_platform_runtime_report_keeps_each_row(monkeypatch):
+    from types import SimpleNamespace
+
+    from nika.net_env import native_routers
+    from pathlib import Path
+
+    from nika.net_env.contract import ValidationReport, ValidationResult
+    from nika.net_env.synthesis.requirements import resolve_routing_requirements
+    from nika.workflows.validation.scenario_spec import ScenarioExperiment
+
+    spec = ScenarioExperiment.model_validate_json(
+        (
+            Path(__file__).resolve().parents[3]
+            / "experiment/scenario_validation/enterprise-routeros.json"
+        ).read_text()
+    )
+    env = _build("enterprise_branch", "routeros")
+    contract = resolve_routing_requirements(spec, env).runtime_requirements
+
+    def platform_report(name):
+        def verify(runtime, contract, plan=None):
+            return ValidationReport.from_results(
+                contract,
+                name,
+                [
+                    ValidationResult(
+                        intent=i.id,
+                        verifier=name,
+                        status="passed",
+                        supported=True,
+                        evidence={},
+                        duration_ms=0,
+                    )
+                    for i in contract.intents
+                ],
+            )
+
+        return verify
+
+    monkeypatch.setattr(
+        native_routers,
+        "native_platform",
+        lambda profile: SimpleNamespace(
+            validation=SimpleNamespace(
+                verify_contract=platform_report("routeros-runtime"),
+                node=lambda name, config: native_routers.NativeRouterNode(name, ()),
+            )
+        ),
+    )
+    fallback = platform_report("frr-runtime")
+    verify = native_routers.verify_native_router_contract(
+        env, lambda runtime, contract, plan: fallback(runtime, contract)
+    )
+    report = verify(None, contract=contract)
+    platforms = {row.evidence["platform_verifier"] for row in report.results}
+    assert platforms == {"frr-runtime", "routeros-runtime"}
+    assert report.status == "passed"
 
 
 @pytest.mark.unit

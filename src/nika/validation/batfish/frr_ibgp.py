@@ -158,6 +158,10 @@ def project_frr_ibgp(fragment: str, *, allow_ebgp: bool = False) -> str:
                 elif attribute == "update-source lo" and not af:
                     assign(peer, "source", "Loopback0")
                 elif (
+                    value := re.fullmatch(r"update-source eth([0-9]+)", attribute)
+                ) and not af:
+                    assign(peer, "source", f"GigabitEthernet0/0/0/{value[1]}")
+                elif (
                     attribute
                     in {
                         "activate",

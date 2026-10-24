@@ -22,7 +22,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from ipaddress import IPv4Interface
+from ipaddress import IPv4Interface, IPv4Network
 
 from nika.net_env.enterprise_branch.edge_view import FrrEdgeView
 from nika.net_env.enterprise_branch.topology import (
@@ -61,6 +61,9 @@ class RouterOsTunnel:
     peer_port: int
     remote_asn: int
     local_pref: int
+    # Ordered (RouterOS match, accept, local preference) import terms; the
+    # default is the design's single enterprise-aggregate term.
+    imports: tuple[tuple[str, bool, int | None], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -213,16 +216,18 @@ def _render_bgp(edge: RouterOsEdge) -> list[str]:
     lines.append(_filter_rule("POLICY-OUT", "reject;"))
     for tunnel in edge.tunnels:
         chain = f"POLICY-IN-{tunnel.iface}"
-        lines.extend(
-            [
-                _filter_rule(
-                    chain,
-                    f"if ({_ENTERPRISE}) {{ set bgp-local-pref {tunnel.local_pref}; "
-                    "accept; }",
-                ),
-                _filter_rule(chain, "reject;"),
-            ]
-        )
+        for match, accept, preference in tunnel.imports or (
+            (_ENTERPRISE, True, tunnel.local_pref),
+        ):
+            action = "reject;"
+            if accept:
+                action = (
+                    "accept;"
+                    if preference is None
+                    else f"set bgp-local-pref {preference}; accept;"
+                )
+            lines.append(_filter_rule(chain, f"if ({match}) {{ {action} }}"))
+        lines.append(_filter_rule(chain, "reject;"))
     lines.append(
         f"/routing bgp instance add name=CORE as={edge.asn} "
         f"router-id={edge.router_id} vrf={OVERLAY_VRF}"
@@ -285,6 +290,60 @@ def _render_vrf_leaking(edge: RouterOsEdge) -> list[str]:
     return lines
 
 
+def _sketch_imports(frr_conf: str, iface: str):
+    """Read a tunnel's FRR import route map as ordered RouterOS terms.
+
+    Completed import preferences edit this route map in the FRR sketch. Each
+    entry matches the enterprise aggregate list or one exact prefix and may set
+    a local preference; FRR applies the first match and denies the rest, as the
+    RouterOS chain does. Any other entry or list form is rejected.
+    """
+    lists: dict[str, list[str]] = {}
+    entries: dict[int, list] = {}
+    current = None
+    for line in frr_conf.splitlines():
+        if match := re.fullmatch(
+            r"ip prefix-list (\S+) seq \d+ (permit|deny) (.+)", line
+        ):
+            lists.setdefault(match[1], []).append(
+                match[3] if match[2] == "permit" else line
+            )
+            current = None
+        elif match := re.fullmatch(
+            rf"route-map RM-IN-{re.escape(iface)} (permit|deny) (\d+)", line
+        ):
+            if int(match[2]) in entries:
+                raise ValueError(f"Repeated import route map entry on {iface}")
+            current = entries[int(match[2])] = [match[1], None, None]
+        elif current is not None and line.startswith(" "):
+            if (
+                match := re.fullmatch(r" match ip address prefix-list (\S+)", line)
+            ) and current[1] is None:
+                current[1] = match[1]
+            elif (
+                match := re.fullmatch(r" set local-preference (\d+)", line)
+            ) and current[2] is None:
+                current[2] = int(match[1])
+            else:
+                raise ValueError(f"Unsupported import route map statement on {iface}")
+        else:
+            current = None
+    terms = []
+    for _, (action, plist, preference) in sorted(entries.items()):
+        prefixes = lists.get(plist)
+        if prefixes == ["10.0.0.0/8 le 24"]:
+            match = _ENTERPRISE
+        elif prefixes and len(prefixes) == 1 and " " not in prefixes[0]:
+            network = IPv4Network(prefixes[0])
+            match = f"dst == {network} && dst-len == {network.prefixlen}"
+        else:
+            raise ValueError(f"Unsupported enterprise import policy on {iface}")
+        terms.append((match, action == "permit", preference))
+    if not terms:
+        raise ValueError(f"Missing enterprise import policy on {iface}")
+    return tuple(terms)
+
+
 _VRF_PORT = re.compile(r"ip link set dev (eth\d+) master (\S+)")
 _PUBLIC_ADDRESS = re.compile(r"ip addr add ([0-9.]+)/32 dev (eth\d+)")
 _SHAPING = re.compile(r"tc qdisc (?:add|replace) dev eth\d+ root netem .*")
@@ -308,6 +367,7 @@ def edge_router(env, name: str):
         if match := _PUBLIC_ADDRESS.fullmatch(line):
             public.setdefault(match[2], []).append(match[1])
     peer_asns = {site_name: spec.asn for site_name, spec in env.spec.sites.items()}
+    frr_conf = env.lab.machines[name].fs.readtext("etc/frr/frr.conf")
     underlay, tunnels = [], []
     for bt in env.built_tunnels:
         if edge.site == bt.spoke:
@@ -331,6 +391,7 @@ def edge_router(env, name: str):
                 peer_port=port,
                 remote_asn=peer_asns[remote],
                 local_pref=local_pref,
+                imports=_sketch_imports(frr_conf, iface),
             )
         )
     lans = tuple(
