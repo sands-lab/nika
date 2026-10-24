@@ -32,6 +32,32 @@ def test_first_container_interface_is_reserved_for_management():
         routeros_interface("wg0")
 
 
+def test_port_mapping_follows_the_router_attachment_layout():
+    from types import SimpleNamespace
+
+    from nika.net_env.utils.routeros.common import bridged_interface, routeros_port
+
+    # A converted router keeps the environment's eth0 and bridges it to dp1.
+    assert bridged_interface("eth0") == "ether2"
+    converted = SimpleNamespace(native_routers={"leaf": "routeros"})
+    assert routeros_port(converted, "leaf", "eth2") == "ether4"
+    # An ISP router reserves eth0 for vrnetlab's management port instead.
+    assert routeros_port(SimpleNamespace(), "atla", "eth2") == "ether3"
+
+
+def test_a_gap_in_the_container_interfaces_is_rejected():
+    from Kathara.model.Lab import Lab
+
+    from nika.net_env.utils.routeros.common import configure_routeros_router
+
+    lab = Lab("gap")
+    machine = lab.new_machine("r1")
+    with pytest.raises(ValueError, match="eth0 to eth1"):
+        configure_routeros_router(
+            lab, machine, "/system identity set name=r1", ["eth0", "eth2"]
+        )
+
+
 def test_terse_rows_read_numbered_items_and_flag_only_routes():
     from nika.net_env.utils.routeros.parse import routeros_terse_rows
 

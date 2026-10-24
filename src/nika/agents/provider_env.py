@@ -20,6 +20,7 @@ from agent.llm.endpoints import (
     ENV_ANTHROPIC_AUTH_TOKEN,
     ENV_ANTHROPIC_BASE_URL,
     ENV_DEEPSEEK_API_KEY,
+    ENV_DEEPSEEK_BASE_URL,
     ENV_OPENAI_API_KEY,
     ENV_OPENAI_BASE_URL,
     SUPPORTED_PROVIDERS,
@@ -198,15 +199,20 @@ def map_provider_credentials(
         if not key:
             return out
         out[ENV_DEEPSEEK_API_KEY] = key
+        gateway = _env_get(ENV_DEEPSEEK_BASE_URL, sources)
         if family == "anthropic":
             out[ENV_ANTHROPIC_API_KEY] = key
             out[ENV_ANTHROPIC_AUTH_TOKEN] = key
-            out[ENV_ANTHROPIC_BASE_URL] = DEEPSEEK_ANTHROPIC_BASE_URL
+            out[ENV_ANTHROPIC_BASE_URL] = (
+                openai_compat_to_anthropic_base_url(gateway)
+                if gateway
+                else DEEPSEEK_ANTHROPIC_BASE_URL
+            )
         else:
             # OpenAI-compatible agents (langgraph uses ChatDeepSeek separately;
             # mcp/autogen/codex expect OPENAI_*).
             out[ENV_OPENAI_API_KEY] = key
-            out[ENV_OPENAI_BASE_URL] = DEEPSEEK_OPENAI_BASE_URL
+            out[ENV_OPENAI_BASE_URL] = gateway or DEEPSEEK_OPENAI_BASE_URL
         return out
 
     # custom
@@ -258,7 +264,11 @@ def host_model_endpoint(
             )
         return url, resolve_custom_api_key() or None
     if provider == "deepseek":
-        return DEEPSEEK_OPENAI_BASE_URL, os.environ.get(ENV_DEEPSEEK_API_KEY) or None
+        url = (
+            os.environ.get(ENV_DEEPSEEK_BASE_URL, "").strip()
+            or DEEPSEEK_OPENAI_BASE_URL
+        )
+        return url, os.environ.get(ENV_DEEPSEEK_API_KEY) or None
     return None, None
 
 

@@ -156,7 +156,7 @@ Field notes:
 
 - `info.github`: link to the agent implementation or library, rather than the submitter's profile. For NIKA's built-in agents, use `https://github.com/sands-lab/nika`.
 - `info.site` and `info.report`: supply the project site and relevant paper or report when available. Explain a benchmark-paper link in the README so readers can distinguish it from an agent report.
-- `agent.framework`: use the public harness name, such as `Claude Code`, `Codex`, or `LangGraph`. The run identity retains the NIKA agent ID, such as `cli.claude`.
+- `agent.framework`: use the public harness name, such as `Claude Code`, `Codex`, `OpenCode`, `DeepSeek Harness`, or `LangGraph`. The run identity retains the NIKA agent ID, such as `cli.claude`.
 - `agent.tools` and `agent.skills`: describe what the agent used. Copy enabled MCP server names from the run's `tools.allowed_mcp_servers` when appropriate.
 - `agent.extra`: record the official model repository and the evaluated revision when available, along with serving precision or other configuration needed to reproduce the run. Do not guess a revision after the run.
 - `agent.optimization_methods`: free-form strings describing **harness optimizations** applied around the model (prompting, skills, multi-agent orchestration, GEPA-style search, etc.). Prefer short labels such as `GEPA`, `skills`, or `Multi-agent`. This is not limited to weight fine-tuning.

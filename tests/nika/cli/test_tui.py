@@ -50,6 +50,24 @@ def test_probe_classifies_endpoint(monkeypatch, model, status_code, expected) ->
     assert result.ok == (expected != "auth_failed")
 
 
+def test_probe_openai_uses_gateway_base_url(monkeypatch) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert str(request.url) == "http://lb.example/v1/models"
+        assert request.headers["Authorization"] == "Bearer sk-test"
+        return httpx.Response(200, json={"data": [{"id": "Qwen3.6-35B-A3B-FP8"}]})
+
+    _serve(monkeypatch, handler)
+    result = probe_endpoint(
+        "openai",
+        "Qwen3.6-35B-A3B-FP8",
+        sources={
+            "OPENAI_API_KEY": "sk-test",
+            "OPENAI_BASE_URL": "http://lb.example/v1",
+        },
+    )
+    assert result.status == "ok"
+
+
 def test_probe_reports_missing_credentials_and_unreachable(monkeypatch) -> None:
     assert probe_endpoint("openai", "gpt-5", sources={}).status == "no_credentials"
     assert probe_endpoint("custom", "m", sources={}).status == "no_credentials"

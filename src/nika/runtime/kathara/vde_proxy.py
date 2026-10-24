@@ -83,6 +83,14 @@ class KatharaVdeFaultProxy:
         if existing is not None:
             return existing
         endpoint, peer, original = self._endpoints(node, intf)
+        endpoint_stays = self._stays_attached(endpoint.node)
+        peer_stays = self._stays_attached(peer.node)
+        if endpoint_stays and peer_stays:
+            raise RuntimeCapabilityError(
+                f"cannot insert a VDE proxy on {endpoint.node}:{endpoint.intf}: "
+                f"{endpoint.node} and {peer.node} both run a router VM, and "
+                "neither port can move to a proxy LAN."
+            )
         key = self._key(node, intf)
         baseline = self._routing_baseline(endpoint, peer)
 
@@ -137,24 +145,29 @@ class KatharaVdeFaultProxy:
             # Docker's ``none`` network mode forbids connecting an additional
             # network.  Start on the ordinary bridge, then detach it before
             # connecting the two controller-only VDE LANs.
-            peer_stays = self._stays_attached(peer.node)
             self._client.networks.get("bridge").disconnect(proxy, force=True)
-            self._connect(proxy, lan_a, 0, f"fp-{key}-a")
-            # A VM-backed peer keeps its port; the proxy joins its LAN instead.
+            # A VM-backed node keeps its port; the proxy joins its LAN instead.
+            self._connect(
+                proxy, original if endpoint_stays else lan_a, 0, f"fp-{key}-a"
+            )
             self._connect(proxy, original if peer_stays else lan_b, 1, f"fp-{key}-b")
             self._normalise_proxy_interfaces(proxy)
             self._bridge(proxy)
-            original.disconnect(self.runtime.get_container(endpoint.node), force=True)
+            if not endpoint_stays:
+                original.disconnect(
+                    self.runtime.get_container(endpoint.node), force=True
+                )
             if not peer_stays:
                 original.disconnect(self.runtime.get_container(peer.node), force=True)
-            self._connect(
-                self.runtime.get_container(endpoint.node),
-                lan_a,
-                endpoint.number,
-                f"fp-{key}-a",
-                endpoint.mac,
-            )
-            self._restore_and_post(endpoint)
+            if not endpoint_stays:
+                self._connect(
+                    self.runtime.get_container(endpoint.node),
+                    lan_a,
+                    endpoint.number,
+                    f"fp-{key}-a",
+                    endpoint.mac,
+                )
+                self._restore_and_post(endpoint)
             if not peer_stays:
                 self._connect(
                     self.runtime.get_container(peer.node),
@@ -390,7 +403,7 @@ done
                 (state.endpoint, state.lan_a_id),
                 (state.peer, state.lan_b_id),
             ):
-                if endpoint is state.peer and self._stays_attached(endpoint.node):
+                if self._stays_attached(endpoint.node):
                     continue
                 container = self.runtime.get_container(endpoint.node)
                 try:

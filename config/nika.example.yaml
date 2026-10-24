@@ -9,6 +9,8 @@
 #   config/byo.autogen.example.yaml
 #   config/cli.codex.example.yaml
 #   config/cli.claude.example.yaml
+#   config/cli.opencode.example.yaml
+#   config/cli.dsh.example.yaml
 #   config/sdk.codex_sdk.example.yaml
 #   config/sdk.claude_sdk.example.yaml
 # List registered names with: uv run nika agent list

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import ipaddress
 import re
-import shlex
 
+from nika.net_env.utils.iosxr.common import build_xr_file_command
 from nika.problems.support.router_ops import RouterFaultOps
 from nika.service.lab.iosxr_api import CLI_COMMAND
 
@@ -18,6 +18,7 @@ _ADDRESSED_INTERFACE = re.compile(
     r"^(GigabitEthernet\S+)\s+(\d+\.\d+\.\d+\.\d+)\s", re.MULTILINE
 )
 _ROUTE_PREFIX = re.compile(r"^(\S+)\s+(\d+\.\d+\.\d+\.\d+/\d+)\s", re.MULTILINE)
+_ROUTER_BGP = re.compile(r"^router bgp (\d+)", re.MULTILINE)
 _STATIC_NULL0 = re.compile(r"^\s+(\d+\.\d+\.\d+\.\d+/\d+)\s+Null0\s*$", re.MULTILINE)
 
 
@@ -42,13 +43,7 @@ def _replace_command(running: str) -> str:
     if start is None or not any(line == "end" for line in lines[start:]):
         raise ValueError("Unrecognized IOS XR running configuration")
     config = "\n".join(lines[start:]) + "\n"
-    script = (
-        "source /pkg/bin/ztp_helper.sh; "
-        "xr_config_file=$(mktemp); trap 'rm -f \"$xr_config_file\"' EXIT; "
-        f'printf %s {shlex.quote(config)} > "$xr_config_file"; '
-        'xrreplace "$xr_config_file"'
-    )
-    return shlex.join(["/bin/bash", "-c", script])
+    return build_xr_file_command(config, 'xrreplace "$xr_config_file"')
 
 
 class IosxrFaultOps(RouterFaultOps):
@@ -86,6 +81,17 @@ class IosxrFaultOps(RouterFaultOps):
         return self._exec("/pkg/bin/xr_cli 'show running-config'")
 
     def restore_config(self, saved: str) -> None:
+        # XRd cannot remove one BGP instance and create another in one commit;
+        # the replace then leaves no BGP at all. Remove a renumbered one first.
+        running = _ROUTER_BGP.search(self.save_config())
+        wanted = _ROUTER_BGP.search(saved)
+        if running and (wanted is None or running[1] != wanted[1]):
+            self._exec(
+                build_xr_file_command(
+                    f"no router bgp {running[1]}\nend\n",
+                    'xrapply "$xr_config_file"',
+                )
+            )
         self._exec(_replace_command(saved))
 
     # Routing sessions

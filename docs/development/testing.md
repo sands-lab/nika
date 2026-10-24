@@ -126,6 +126,9 @@ Run agent unit tests to check configuration, authentication mapping, and output 
 | `test_agent_config.py` | shared config | agent model/env resolution, judge env | None |
 | `test_codex_cli.py` | `cli.codex` | Codex TOML/display/worker config | None (unit tests) |
 | `test_claude_cli.py` | `cli.claude` | Claude JSON/display/auth helpers | None (unit tests) |
+| `test_opencode_cli.py` | `cli.opencode` | OpenCode MCP/provider/max_steps helpers | None (unit tests) |
+| `test_dsh_cli.py` | `cli.dsh` | DeepSeek Harness MCP/env/max_steps helpers | None (unit tests) |
+| `test_npm_stage.py` | `cli.opencode`, `cli.dsh` | Host npm prefix staging for sandbox CLIs | None (unit tests) |
 | `test_langgraph_max_steps.py` | `byo.langgraph` | `max_steps` counts LLM turns | None |
 | `test_mcp_agent_bootstrap.py` | `byo.mcp_agent` | import hygiene regression | None |
 | `test_sade.py` | `community.sade` | SDK env + MCP adapter | None (unit tests) |
@@ -143,7 +146,7 @@ Run agent unit tests to check configuration, authentication mapping, and output 
 | `test_sandbox_security.py` | sandbox | microVM security probe | sbx + Docker |
 | `test_sandbox_isolation.py` | sandbox | distinct gateway ports + cross-sandbox MCP policy isolation | unit; sbx for peer-gateway probe |
 | `test_sandbox_e2b.py` | sandbox | an E2B sandbox reaches only its tunnel, no other host port and no internet | E2B service (`E2B_API_KEY`) |
-| `test_sandbox_agents.py` | sandbox | E2E of every built-in agent (test BGP fixture / `link_down`); `Sandbox*` classes on sbx, `E2b*` classes on E2B. With a custom endpoint, also checks that no model request, and nothing in the kept sbx sandbox, names NIKA | See [Live agent credentials](#live-agent-credentials) |
+| `test_sandbox_agents.py` | sandbox | E2E of every built-in agent (test BGP fixture / `link_down`); `Sandbox*` classes on sbx, `E2b*` classes on E2B. Claude Code, Codex, OpenCode, and DeepSeek Harness (CLI and SDK) also require a live `skill-loading-check` invocation. With a custom endpoint, also checks that no model request, and nothing in the kept sbx sandbox, names NIKA | See [Live agent credentials](#live-agent-credentials) |
 
 ### Live agent credentials
 
@@ -152,6 +155,7 @@ Choose the agent tests that match your available credentials. Set API keys and t
 | Live E2E coverage | Provider and model | Required credentials |
 |-------------------|--------------------|----------------------|
 | Codex CLI/SDK sandbox agents; Codex sandbox benchmark | `openai`, default `gpt-5-mini` (or the OpenAI-family override below) | `OPENAI_API_KEY`; or NIKA's [Codex login](../operations/agent-sandbox.md#subscriptions) with Codex access |
+| OpenCode and DeepSeek Harness sandbox agents and sandbox benchmark | Same OpenAI-family provider/model as Codex | Selected provider's API key. Subscriptions do not authenticate these CLIs. |
 | BYO sandbox agents | `openai`, default `gpt-5-mini` (or the OpenAI-family override below) | Selected provider's API key; for `custom`, `NIKA_TEST_CUSTOM_BASE_URL` and `NIKA_CUSTOM_API_KEY` if required. Subscriptions do not authenticate BYO agents. |
 | Claude CLI/SDK and SADE sandbox agents; Claude sandbox benchmark; Kubernetes Claude agent E2E | Default `deepseek` / `deepseek-v4-flash` | `DEEPSEEK_API_KEY`; no Claude subscription required |
 | The same Claude-family tests with the Anthropic override below | `anthropic`, explicit account-accessible Claude model | `ANTHROPIC_API_KEY` (legacy `ANTHROPIC_AUTH_TOKEN` also works); or a Claude subscription with Claude Code access as `CLAUDE_CODE_OAUTH_TOKEN` |
@@ -159,7 +163,7 @@ Choose the agent tests that match your available credentials. Set API keys and t
 | BYO LangGraph/MCP Agent/AutoGen pipelines in `test_agent_pipeline_contract.py`; curated release live E2E | Fixed DeepSeek configuration | `DEEPSEEK_API_KEY`; the Claude/Codex overrides below do not apply |
 | Sandbox security and isolation probes | No LLM calls | No LLM key or subscription; authenticated sbx runtime, or an E2B service for `test_sandbox_e2b.py` |
 
-Sandbox tests require a working Docker engine and a [sandbox runtime](../operations/agent-sandbox.md#set-up-the-runtime). Each sandbox pipeline and benchmark test class has an sbx variant (`Sandbox*`), which runs after `sbx login`, and an E2B variant (`E2b*`), which runs when `E2B_API_KEY` is set, against the service in your run config (`nika.sandbox.url`, else `E2B_DOMAIN`, else E2B cloud). Docker login is separate from LLM authentication. Agent CLIs and Python packages come with the sandbox, so the host needs none of them. Kubernetes agent E2E also needs privileged Kathara/k3s support; the BYO Containerlab pipeline needs `clab` and `gnmic`.
+Sandbox tests require a working Docker engine and a [sandbox runtime](../operations/agent-sandbox.md#set-up-the-runtime). Each sandbox pipeline and benchmark test class has an sbx variant (`Sandbox*`), which runs after `sbx login`, and an E2B variant (`E2b*`), which runs when `E2B_API_KEY` is set, against the service in your run config (`nika.sandbox.url`, else `E2B_DOMAIN`, else E2B cloud). Docker login is separate from LLM authentication. Claude, Codex, and BYO Python packages come with the sandbox. OpenCode and DeepSeek Harness also need [Node.js](https://nodejs.org/) 22+ with npm on the host so NIKA can stage their CLIs. Kubernetes agent E2E also needs privileged Kathara/k3s support; the BYO Containerlab pipeline needs `clab` and `gnmic`.
 
 For **API-key mode**, NIKA keeps the selected provider's key on the host (see [API keys](../operations/agent-sandbox.md#api-keys)). An API key uses the provider's API account; a ChatGPT or Claude subscription is an alternative authentication path for the corresponding sandbox agents, not an API key for BYO frameworks. See [OpenAI authentication](https://learn.chatgpt.com/docs/auth) and [Docker's Claude authentication](https://docs.docker.com/ai/sandboxes/agents/claude-code/#authentication).
 
@@ -172,8 +176,8 @@ Use these test-only overrides to select a model your account can access. Selecti
 | `NIKA_TEST_ANTHROPIC_PROVIDER` | `deepseek` | Claude CLI/SDK, SADE, Claude sandbox benchmark, Kubernetes Claude E2E; accepts `deepseek`, `anthropic`, or `custom` |
 | `NIKA_TEST_ANTHROPIC_MODEL` | `deepseek-v4-flash` for DeepSeek; required for Anthropic and custom | The same Claude-family tests |
 | `NIKA_TEST_CUSTOM_BASE_URL` | None | Endpoint (`agent.base_url`) for the custom override; the endpoint must serve the Anthropic `/v1/messages` route |
-| `NIKA_TEST_OPENAI_PROVIDER` | `openai` | Codex CLI/SDK and BYO sandbox agents; accepts `openai`, `deepseek`, or `custom` (with `NIKA_TEST_CUSTOM_BASE_URL`) |
-| `NIKA_TEST_CODEX_MODEL` | `gpt-5-mini` | The same OpenAI-family sandbox agents, and the Codex sandbox benchmark |
+| `NIKA_TEST_OPENAI_PROVIDER` | `openai` | Codex CLI/SDK, OpenCode, DeepSeek Harness, and BYO sandbox agents; accepts `openai`, `deepseek`, or `custom` (with `NIKA_TEST_CUSTOM_BASE_URL`) |
+| `NIKA_TEST_CODEX_MODEL` | `gpt-5-mini` | The same OpenAI-family sandbox agents, and the Codex, OpenCode, and DeepSeek Harness sandbox benchmarks |
 
 For example, with an Anthropic API key or Claude subscription login configured, replace `YOUR_CLAUDE_MODEL` with a model available to that account:
 
@@ -239,7 +243,7 @@ Covers `nika benchmark run` / resume / release orchestration and runner YAML loa
 | `test_release.py` | Freeze/preflight/job metadata on mini releases |
 | `test_trials.py` | Trial / release runs: cases×K trials, resume, agent_failed retain, isolation, `runtime/benchmark_runs` progress; Docker E2E mini-release run |
 | `test_batch.py` | Parallel mock batch under shared `trials/` layout (`--config`, `n_trials=1`) |
-| `test_sandbox_benchmark.py` | Claude + Codex sandbox single/parallel (`--batch-size 2`), on sbx and E2B |
+| `test_sandbox_benchmark.py` | Claude, Codex, OpenCode, and DeepSeek Harness sandbox single/parallel (`--batch-size 2`), on sbx and E2B |
 | `test_curated_release_contract.py` | Test-only curated rows from `0.2.0` `test` split: subset contract, mock pack/validate, timeout+continue |
 | `test_curated_release_e2e.py` | Live Docker + `byo.langgraph` / DeepSeek on the curated subset (batch, resume, summary, pack/validate) |
 | `test_alias_load.py` | Reject legacy scenario aliases / invalid workload columns |

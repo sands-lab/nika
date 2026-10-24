@@ -40,7 +40,7 @@ def test_native_isp_synthesis_execution_and_recovery(
     from docker.errors import ImageNotFound
 
     from nika.net_env.iosxr_simple_bgp.lab import IMAGE as xrd_image
-    from nika.net_env.routeros_simple_bgp.lab import IMAGE as routeros_image
+    from nika.net_env.utils.routeros.common import IMAGE as routeros_image
     from nika.workflows.validation.scenario import validate_scenario_design
 
     client = docker.from_env()
