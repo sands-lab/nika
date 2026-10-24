@@ -45,6 +45,15 @@ K8S_SCENARIOS = frozenset(
 )
 
 SKOPEO_IMAGE = nika_image("skopeo")
+# Registry or CDN outages often last minutes, beyond skopeo's own short
+# retries. Retry the whole fetch on these transient errors with backoff.
+_TRANSIENT_REGISTRY_ERROR = re.compile(
+    r"status code from registry 5\d\d|connection reset|i/o timeout"
+    r"|TLS handshake timeout|unexpected EOF|context deadline exceeded",
+    re.IGNORECASE,
+)
+_FETCH_BACKOFF_SEC = (30, 60, 120)
+
 _PROXY_ENV_KEYS = (
     "HTTP_PROXY",
     "HTTPS_PROXY",
@@ -302,6 +311,21 @@ def ensure_cached(image: str) -> Path:
         + "@"
         + digest
     )
+    delays = iter(_FETCH_BACKOFF_SEC)
+    while True:
+        try:
+            _fetch_into_cache(image, source, tar_path)
+            return tar_path
+        except RuntimeError as exc:
+            delay = next(delays, None)
+            if delay is None or not _TRANSIENT_REGISTRY_ERROR.search(str(exc)):
+                raise
+            _progress(f"transient registry error for {image}; retrying in {delay}s")
+            time.sleep(delay)
+
+
+def _fetch_into_cache(image: str, source: str, tar_path: Path) -> None:
+    """Copy one image from its registry into ``tar_path`` (one attempt)."""
     with tempfile.TemporaryDirectory(dir=cache_root()) as tmp:
         directory = Path(tmp) / "image"
         staged = Path(tmp) / "image.tar"
@@ -314,7 +338,7 @@ def ensure_cached(image: str) -> Path:
                 host_machine_arch(),
                 "--preserve-digests",
                 "--retry-times",
-                "2",
+                "5",
                 f"docker://{source}",
                 f"dir:{directory}",
                 mount=Path(tmp),
@@ -340,7 +364,6 @@ def ensure_cached(image: str) -> Path:
             raise RuntimeError(f"Incomplete or corrupt image archive for {image}")
         staged.chmod(0o644)
         staged.replace(tar_path)
-    return tar_path
 
 
 def ensure_workload_cache(scenario: str) -> list[Path]:
