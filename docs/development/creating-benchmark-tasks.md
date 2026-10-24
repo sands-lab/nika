@@ -288,7 +288,9 @@ uv run nika benchmark run --config benchmark/my_cases.yaml \
 
 ### Validate device-profile cells
 
-Declared compatibility says a failure should work on an IOS XR or RouterOS deployment; an execution run shows that it does. `nika benchmark validate-profiles` takes one representative case per (environment, `device_profile`, failure) cell of the working pool, preferring a case that targets a native router. It deploys the case, injects it, checks `verify_fault` and the ground truth, runs `recover_fault` when the failure defines it, and closes the lab:
+Declared compatibility says a failure should work on an IOS XR or RouterOS deployment; an execution run shows that it does. `nika benchmark validate-profiles` takes one representative case per (environment, `device_profile`, failure) cell of the working pool, preferring a case that targets a native router. It deploys the case, injects it, checks `verify_fault` and the ground truth, runs `recover_fault` when the failure defines it, and closes the lab.
+
+Before running validation, prepare the vendor images locally using the [IOS XR setup](../operations/network-scenarios.md#ios-xr-simple-bgp-scenario) or [RouterOS setup](../operations/network-scenarios.md#routeros-simple-bgp-scenario). RouterOS also needs `/dev/kvm`, with nested virtualization enabled when the host is a VM. The validator skips cells whose image is missing without recording a result.
 
 ```shell
 uv run nika benchmark validate-profiles --list                 # cells and last result
