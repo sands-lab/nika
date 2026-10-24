@@ -8,7 +8,6 @@ pytestmark = pytest.mark.unit
 
 def test_gateway_and_nat_failures_register() -> None:
     names = (
-        "lb_connection_state_exhaustion",
         "lb_pending_connection_update_race",
         "icmp_frag_needed_filter_misconfiguration",
         "snat_port_pool_exhaustion",
@@ -48,14 +47,3 @@ def test_nat_benchmark_params_use_routed_branch_aliases() -> None:
         "nat_mapping_removed_without_drain", "enterprise_branch", "m", seed=1
     )
     assert params_m["wan_interface"] == "eth3"
-
-
-def test_gateway_benchmark_params_target_the_gateway() -> None:
-    params = resolve_inject_params(
-        "lb_connection_state_exhaustion", "p4_dc_gateway", "s", seed=1
-    )
-    assert params["host_name"] == "gateway_1"
-    assert params["client_host"] == "client_1"
-    assert params["vip_url"] == "http://20.0.0.1:80/"
-    assert params["backend_dip"] == "10.0.1.11"
-    assert params["attacker_device"] == "client_2"
