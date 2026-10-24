@@ -284,6 +284,28 @@ def failure_supports_profile(problem_cls, profile: str) -> bool:
     return needed is not None and needed <= profile_fault_operations(profile)
 
 
+# Failure parameters that name a node the failure acts on or reads.
+TARGET_PARAM_KEYS = (
+    "host_name",
+    "host_name_2",
+    "attacker_device",
+    "control_node",
+    "node_name",
+    "symptom_host",
+    "forwarding_device",
+)
+
+
+def target_nodes(params) -> list[str]:
+    """Nodes named by a failure's parameters (a model or a mapping)."""
+    if params is None:
+        return []
+    data = params.model_dump() if hasattr(params, "model_dump") else params
+    if not isinstance(data, dict):
+        return []
+    return [str(data[key]) for key in TARGET_PARAM_KEYS if data.get(key)]
+
+
 def unsupported_native_targets(problem_cls, net_env, nodes) -> dict[str, str]:
     """Map each of ``nodes`` whose native profile cannot run the failure to it."""
     unsupported: dict[str, str] = {}

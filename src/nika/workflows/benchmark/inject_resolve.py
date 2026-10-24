@@ -9,7 +9,10 @@ from collections import defaultdict
 from nika.net_env.net_env_pool import get_net_env_instance
 from nika.problems.base import ProblemBase
 from nika.problems.registry import get_problem_class, list_avail_problem_instances
-from nika.problems.support.router_ops import unsupported_native_targets
+from nika.problems.support.router_ops import (
+    TARGET_PARAM_KEYS,
+    unsupported_native_targets,
+)
 from nika.problems.support.benchmark_targets import (
     InjectTargetContext,
     InjectValidationContext,
@@ -31,15 +34,7 @@ class UnsupportedNativeTargetError(ValueError):
     """A case targets a native router whose platform cannot run the failure."""
 
 
-_DEVICE_KEYS = (
-    "host_name",
-    "host_name_2",
-    "attacker_device",
-    "control_node",
-    "node_name",
-    "symptom_host",
-    "forwarding_device",
-)
+_DEVICE_KEYS = TARGET_PARAM_KEYS
 
 
 def _case_rng(
@@ -323,6 +318,28 @@ def validate_benchmark_case(
             f"{problem} has no native implementation for target routers "
             f"{unsupported} in {scenario}."
         )
+    if (
+        problem_cls.BENCHMARK_LINK_PROXY
+        and _resolve_benchmark_backend(canonical, isp_options) == "kathara"
+        and inject.get("host_name")
+        and inject.get("intf_name")
+    ):
+        from nika.problems.rca.inventory import link_containing_endpoint, parse_endpoint
+        from nika.runtime.kathara.vde_proxy import proxy_can_attach
+
+        try:
+            link = link_containing_endpoint(
+                net_env, inject["host_name"], inject["intf_name"]
+            )
+        except Exception:  # noqa: BLE001 - other checks report bad endpoints
+            link = None
+        if link is not None:
+            nodes = [parse_endpoint(ep)[0] for ep in str(link.name).split("--")]
+            if not proxy_can_attach(net_env, nodes):
+                raise UnsupportedNativeTargetError(
+                    f"{problem} needs a movable port on {link.name}, but every "
+                    "endpoint is a RouterOS router."
+                )
     devices = _all_device_names(net_env)
     ifaces_by_device = _device_interfaces(net_env)
 
