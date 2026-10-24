@@ -3,10 +3,11 @@
 The translation keeps each router's design: interface addresses, static
 routes, OSPF network-to-area bindings with interface costs, BGP sessions with
 network origins, FRR's open eBGP default and per-neighbor route maps over
-exact-prefix lists (the form solved routing parameters take), Linux bridged gateways and their DHCP relay. Linux
-egress shaping (netem) stays on the container links. RouterOS installs one
-best BGP path, so FRR's eBGP multipath has no equivalent; unsupported
-statements are rejected rather than deployed with changed meaning.
+exact-prefix lists (the form solved routing parameters take), Linux bridged
+gateways and their DHCP relay. Linux egress shaping (netem) stays on the
+container links. RouterOS installs one best BGP path, so FRR's eBGP multipath
+has no equivalent; unsupported statements are rejected rather than deployed
+with changed meaning.
 """
 
 from __future__ import annotations
@@ -119,6 +120,10 @@ def _route_map_chains(policy, used) -> dict[str, list[tuple[str, bool]]]:
     """Flatten route maps over exact prefix lists into ordered prefix actions."""
     chains = {}
     for name in sorted(used):
+        sequences = [seq for seq, _, _ in policy.route_maps[name]]
+        if len(set(sequences)) != len(sequences):
+            # FRR merges repeated entries; the sketch keeps one per sequence.
+            raise ValueError(f"Route map {name} repeats a sequence number")
         chains[name] = [
             (prefix, permit)
             for _, permit, plist in sorted(policy.route_maps[name])

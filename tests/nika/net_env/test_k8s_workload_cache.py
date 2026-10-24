@@ -277,6 +277,33 @@ def test_ensure_cached_reports_registry_failure(tmp_path: Path) -> None:
 
 
 @pytest.mark.unit
+def test_ensure_cached_retries_transient_registry_errors(tmp_path: Path) -> None:
+    image, _ = _image_tar(tmp_path)
+    attempts = []
+
+    def fetch(*args, mount, timeout):
+        if args[0] == "inspect":
+            return (tmp_path / "source" / "manifest.json").read_bytes()
+        attempts.append(args[0])
+        if len(attempts) == 1:
+            raise RuntimeError(
+                "fetching blob: invalid status code from registry 503 "
+                "(Service Unavailable)"
+            )
+        _image_directory(Path(args[-1].removeprefix("dir:")))
+
+    with (
+        patch.object(cache, "_skopeo", side_effect=fetch),
+        patch.object(cache, "ensure_nika_docker_images"),
+        patch.object(cache.time, "sleep") as sleep,
+    ):
+        path = cache.ensure_cached(image)
+    assert attempts == ["copy", "copy"]
+    sleep.assert_called_once_with(cache._FETCH_BACKOFF_SEC[0])
+    assert cache._tar_is_complete(path, image)
+
+
+@pytest.mark.unit
 def test_preload_records_stopped_node_before_failure_cleanup() -> None:
     net_env = MagicMock()
     net_env.LAB_NAME = "k8s_lab"

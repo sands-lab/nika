@@ -22,15 +22,12 @@ def render_ospf(
     router_id: str,
     networks: Mapping[str, str],
     *,
-    passive: Iterable[str] = (),
     costs: Mapping[str, int] | None = None,
 ) -> list[str]:
     """Render OSPFv2 with ``network -> area`` statements, like FRR ``network``.
 
-    ``passive`` lists networks advertised without forming adjacencies;
     ``costs`` sets the interface cost of the template for a network.
     """
-    passive = set(passive)
     costs = costs or {}
     areas = sorted(
         set(networks.values()), key=lambda area: tuple(map(int, area.split(".")))
@@ -45,7 +42,6 @@ def render_ospf(
             f"/routing ospf interface-template add area=area-{area} "
             f"networks={network}"
             + (f" cost={costs[network]}" if network in costs else "")
-            + (" passive" if network in passive else "")
         )
     return lines
 

@@ -255,13 +255,28 @@ def test_converted_routeros_routers_project_solved_policy_and_main_table():
     # RouterOS templates default to cost 1.
     assert "interface eth1\n ip address 172.16.0.2/31\n ip ospf cost 1\n" in core
     assert " network 172.16.0.6/31 area 0.0.0.1\n" in core
-    edge = project_routeros_static_underlay(
-        "br1_edge",
-        get_net_env_instance(
-            "enterprise_branch", topo_size="s", device_profile="routeros"
-        ).deployment_configs["br1_edge"],
-    )
+    # RouterOS binds a port to its first matching template and matches by
+    # address; FRR takes the most specific containing network. Reject both gaps.
+    for extra in ("172.16.0.0/30", "172.16.0.0/32"):
+        with pytest.raises(ValueError, match="RouterOS OSPF template"):
+            project_routeros_router(
+                "router_core_1",
+                campus.deployment_configs["router_core_1"]
+                + "/routing ospf interface-template add area=area-0.0.0.0 "
+                f"networks={extra}\n",
+            )
+    edge_config = get_net_env_instance(
+        "enterprise_branch", topo_size="s", device_profile="routeros"
+    ).deployment_configs["br1_edge"]
+    edge = project_routeros_static_underlay("br1_edge", edge_config)
     # VRF ports, tunnels and BGP stay with the runtime requirements.
     assert "10.1.10.1" not in edge and "172.30." not in edge
     assert "interface eth2\n ip address 100.64.0.17/30\n" in edge
     assert "ip route 100.64.0.1/32 100.64.0.18" in edge
+    # BGP or routes outside a declared VRF would change the analyzed table.
+    for extra in (
+        "/routing bgp instance add name=X as=65000 router-id=10.0.0.1",
+        "/ip route add dst-address=10.9.0.0/24 gateway=10.0.0.1 routing-table=T",
+    ):
+        with pytest.raises(ValueError, match="table"):
+            project_routeros_static_underlay("br1_edge", edge_config + extra + "\n")
