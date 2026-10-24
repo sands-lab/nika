@@ -14,6 +14,7 @@ from nika.problems.support.benchmark_targets import (
 )
 from nika.problems.support.compatible_columns import NON_K8S_HOST_COLUMNS
 from nika.problems.support.polling import wait_until
+from nika.problems.support.router_ops import native_fault_ops
 from nika.runtime.base import RuntimeCapabilityError
 
 
@@ -75,6 +76,11 @@ class BGPAclBlock(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: BGPAclBlockParams):
+        ops = native_fault_ops(self, params.host_name, "block_bgp_transport")
+        if ops is not None:
+            ops.block_bgp_transport()
+            wait_until(lambda: not ops.bgp_established_peers(), 8)
+            return
         match self.lab_backend:
             case "containerlab":
                 self._srl_acl_entries = self.runtime.srl_add_bgp_acl_drop_179(
@@ -108,6 +114,13 @@ class BGPAclBlock(ProblemBase):
 
     def verify_fault(self, params: BGPAclBlockParams) -> dict:
         """Verify nftables or SRL ACL blocks TCP port 179 (BGP)."""
+        ops = native_fault_ops(self, params.host_name, "bgp_transport_blocked")
+        if ops is not None:
+            return build_verify_result(
+                fault_type=self.root_cause_name,
+                verified=ops.bgp_transport_blocked(),
+                details={"host": params.host_name, "profile": ops.profile},
+            )
         match self.lab_backend:
             case "containerlab":
                 entries = getattr(self, "_srl_acl_entries", {})

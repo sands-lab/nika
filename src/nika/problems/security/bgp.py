@@ -18,6 +18,8 @@ from nika.net_env.utils.kathara.frr_origin import (
     BGP_ORIGIN_IFACE,
     ENSURE_BGP_ORIGIN_IFACE_CMD,
 )
+from nika.problems.support.polling import wait_until
+from nika.problems.support.router_ops import native_fault_ops
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
 
@@ -138,6 +140,20 @@ class BGPHijacking(ProblemBase):
             else self._default_target_network()
         )
         self._target_network = target_network
+        ops = native_fault_ops(self, params.host_name, "originate_bgp_prefix")
+        if ops is not None:
+            # The provider also admits the prefix through the router's export
+            # policy, the native form of ``export_prefix_list``.
+            ops.originate_bgp_prefix(target_network)
+            # Routers may hold updates for their minimum advertisement
+            # interval (30 s for eBGP on IOS XR); inject returns once sent.
+            network = str(ipaddress.ip_network(target_network, strict=False))
+            wait_until(lambda: ops.bgp_advertised_to(network), 60, interval_s=5)
+            self.logger.info(
+                f"Injected BGP hijacking on {params.host_name}: {target_network} "
+                f"({ops.profile})."
+            )
+            return
         match self.lab_backend:
             case "containerlab":
                 self.runtime.srl_advertise_prefix(params.host_name, target_network)
@@ -187,6 +203,19 @@ class BGPHijacking(ProblemBase):
             else getattr(self, "_target_network", None)
             or self._default_target_network()
         )
+        ops = native_fault_ops(self, params.host_name, "bgp_advertised_to")
+        if ops is not None:
+            network = str(ipaddress.ip_network(target_network, strict=False))
+            advertised_to = ops.bgp_advertised_to(network)
+            return build_verify_result(
+                fault_type=self.root_cause_name,
+                verified=bool(advertised_to),
+                details={
+                    "host": params.host_name,
+                    "target_network": network,
+                    "advertised_to": advertised_to,
+                },
+            )
         match self.lab_backend:
             case "containerlab":
                 verified = self.runtime.srl_prefix_advertised(

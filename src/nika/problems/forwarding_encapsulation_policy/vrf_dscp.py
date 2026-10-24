@@ -23,6 +23,7 @@ from nika.problems.base import (
 )
 from nika.problems.rca import interface_resource
 from nika.problems.support.benchmark_targets import replace
+from nika.problems.support.router_ops import native_fault_ops, router_fault_ops
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
 
@@ -232,6 +233,14 @@ class VrfDscpRemarking(ProblemBase):
     def _install_remark(self, params: VrfDscpRemarkingParams, corp_prefix: str) -> None:
         edge = params.host_name
         iface = params.intf_name
+        ops = native_fault_ops(self, edge, "add_dscp_remark")
+        if ops is not None:
+            ops.add_dscp_remark(iface, corp_prefix, DSCP_EF, DSCP_CS0)
+            self.logger.info(
+                f"Injected DSCP EF→CS0 remark on {edge} oif={iface} "
+                f"saddr={corp_prefix} ({ops.profile})"
+            )
+            return
         # Ensure mangle table/chain, then EF→CS0 on CORP traffic leaving overlay.
         cmds = [
             f"nft add table ip {_NFT_TABLE} 2>/dev/null || true",
@@ -249,6 +258,9 @@ class VrfDscpRemarking(ProblemBase):
         )
 
     def _remark_present(self, params: VrfDscpRemarkingParams) -> bool:
+        ops = native_fault_ops(self, params.host_name, "dscp_remark_present")
+        if ops is not None:
+            return ops.dscp_remark_present(params.intf_name, DSCP_EF, DSCP_CS0)
         out = self.runtime.exec(
             params.host_name,
             f"nft list chain ip {_NFT_TABLE} {_NFT_CHAIN} 2>/dev/null || true",
@@ -260,6 +272,10 @@ class VrfDscpRemarking(ProblemBase):
         )
 
     def _remove_remark(self, params: VrfDscpRemarkingParams) -> None:
+        ops = native_fault_ops(self, params.host_name, "remove_dscp_remark")
+        if ops is not None:
+            ops.remove_dscp_remark(params.intf_name, DSCP_EF, DSCP_CS0)
+            return
         self.runtime.exec(
             params.host_name,
             f"nft flush chain ip {_NFT_TABLE} {_NFT_CHAIN} 2>/dev/null || true; "
@@ -268,6 +284,9 @@ class VrfDscpRemarking(ProblemBase):
         )
 
     def _smoke_ok(self, params: VrfDscpRemarkingParams) -> dict[str, bool]:
+        ops = native_fault_ops(self, params.host_name, "vrf_routes")
+        if ops is not None:
+            return self._native_smoke(params, ops)
         checks: dict[str, bool] = {}
         link = self.runtime.exec(
             params.host_name, f"ip -o link show {params.intf_name}"
@@ -302,6 +321,41 @@ class VrfDscpRemarking(ProblemBase):
         checks["vrf_corp_rib"] = "10." in corp_rib
         return checks
 
+    def _native_smoke(self, params: VrfDscpRemarkingParams, ops) -> dict[str, bool]:
+        return {
+            "wg_iface_up": ops.interface_up(params.intf_name),
+            # The fault itself drops much of the EF traffic; any reply shows the path is up.
+            "ef_path_ping": ping_stats(
+                self.runtime,
+                params.src_host,
+                qos_traffic.host_ip(self.runtime, params.dst_host),
+                count=5,
+            ).received
+            > 0,
+            "hq_server_http": http_ok(
+                self.runtime, params.src_host, "http://10.0.20.2/"
+            )
+            or http_ok(self.runtime, "br1_corp_pc", "http://10.0.20.2/"),
+            "bgp_alive": bool(ops.bgp_established_peers()),
+            "vrf_corp_rib": any(
+                p.startswith("10.") for p in ops.vrf_routes("vrf_corp")
+            ),
+        }
+
+    def _edge_tos(self, params: VrfDscpRemarkingParams, dst_ip: str) -> int | None:
+        # A native router's tunnel is out of the container's capture reach;
+        # the source and destination samples still bound the remark.
+        if router_fault_ops(self, params.host_name) is not None:
+            return None
+        return qos_traffic.sample_dscp_tos(
+            self.runtime,
+            capture_host=params.host_name,
+            capture_iface=params.intf_name,
+            src_host=params.src_host,
+            dst_ip=dst_ip,
+            send_tos=TOS_EF,
+        )
+
     def _metrics_dict(
         self, metrics: qos_traffic.FlowMetrics | None
     ) -> dict[str, Any] | None:
@@ -334,14 +388,7 @@ class VrfDscpRemarking(ProblemBase):
             dst_ip=dst_ip,
             send_tos=TOS_EF,
         )
-        edge_tos = qos_traffic.sample_dscp_tos(
-            self.runtime,
-            capture_host=params.host_name,
-            capture_iface=params.intf_name,
-            src_host=params.src_host,
-            dst_ip=dst_ip,
-            send_tos=TOS_EF,
-        )
+        edge_tos = self._edge_tos(params, dst_ip)
         dst_tos = qos_traffic.sample_dscp_tos(
             self.runtime,
             capture_host=params.dst_host,
@@ -420,14 +467,7 @@ class VrfDscpRemarking(ProblemBase):
             dst_ip=dst_ip,
             send_tos=TOS_EF,
         )
-        edge_tos = qos_traffic.sample_dscp_tos(
-            self.runtime,
-            capture_host=params.host_name,
-            capture_iface=params.intf_name,
-            src_host=params.src_host,
-            dst_ip=dst_ip,
-            send_tos=TOS_EF,
-        )
+        edge_tos = self._edge_tos(params, dst_ip)
         if self._workload is not None:
             qos_traffic.resume_bulk(self._workload)
         dscp_restored = dst_tos == TOS_EF and (edge_tos is None or edge_tos == TOS_EF)

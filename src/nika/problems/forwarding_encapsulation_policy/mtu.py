@@ -16,6 +16,7 @@ from nika.problems.rca.inventory import (
 )
 from nika.problems.support.benchmark_targets import resolve_path_mtu_target
 from nika.problems.support.compatible_columns import LINUX_PMTU_COLUMNS
+from nika.problems.support.router_ops import native_fault_ops
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
 
@@ -110,6 +111,10 @@ class MtuMismatch(ProblemBase):
         return None
 
     def _set_mtu(self, host: str, intf: str, mtu: int) -> None:
+        ops = native_fault_ops(self, host, "set_interface_mtu")
+        if ops is not None:
+            ops.set_interface_mtu(intf, mtu)
+            return
         self.runtime.exec(host, f"ip link set dev {intf} mtu {int(mtu)}")
 
     @staticmethod
@@ -144,6 +149,9 @@ class MtuMismatch(ProblemBase):
                 )
 
     def _read_mtu(self, host: str, intf: str) -> int | None:
+        ops = native_fault_ops(self, host, "interface_mtu")
+        if ops is not None:
+            return ops.interface_mtu(intf)
         output = self.runtime.exec(
             host, f"ip -o link show dev {intf} 2>/dev/null || true"
         ).strip()

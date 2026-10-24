@@ -348,7 +348,7 @@ cd .nika_cache/vendor/vrnetlab/mikrotik/routeros
 make docker-image
 ```
 
-3. Tag the built image to match the image reference in [`lab.py`](../../src/nika/net_env/routeros_simple_bgp/lab.py) (`IMAGE`, currently `vrnetlab/mikrotik_routeros:7.21.5`). For a different RouterOS version, retag as `7.21.5` or change that constant:
+3. Tag the built image to match the image reference in [`common.py`](../../src/nika/net_env/utils/routeros/common.py) (`IMAGE`, currently `vrnetlab/mikrotik_routeros:7.21.5`). For a different RouterOS version, retag as `7.21.5` or change that constant:
 
 ```shell
 docker tag <built-tag> vrnetlab/mikrotik_routeros:7.21.5
@@ -366,6 +366,43 @@ uv run nika env run routeros_simple_bgp
 ```
 
 Boot is slower than the FRR and XRd scenarios because each router boots a nested VM; the scenario's verification window accounts for this, so a slow first boot is expected and not a failure.
+
+### Run other environments on RouterOS routers
+
+To study the same routing design on MikroTik RouterOS, pass `--device-profile routeros`. First build the local `vrnetlab/mikrotik_routeros:7.21.5` image and make sure the host has KVM, as described in [RouterOS simple BGP](#routeros-simple-bgp-scenario). As with [native IOS XR routers](#native-ios-xr-routers), NIKA keeps the environment's topology, addressing, hosts and services and runs the routers of the eligible roles as RouterOS VMs with native configuration. Their container interfaces keep their names, so tasks and ground truth are unchanged.
+
+```shell
+uv run nika env run isp_arpanet196912 --device-profile routeros --igp isis --bgp-mode ibgp_rr
+uv run nika env run dc_clos -s s --device-profile routeros
+uv run nika env run campus_lan -s s --device-profile routeros
+uv run nika env run enterprise_branch -s s --device-profile routeros
+```
+
+| Environment | Routers on RouterOS | Routing on RouterOS | Sizes |
+| --- | --- | --- | --- |
+| `isp_<topology>` (SNDlib and Topology Zoo) | All | OSPF or Level-2 IS-IS; BGP `none`, `ibgp_rr` or `ebgp` with the business-prefix allow-list | Graphs that pass memory admission |
+| `dc_clos` | All | eBGP with one best path per prefix | `s` |
+| `campus_lan` | Core, distribution and server gateways | Multi-area OSPF, bridged gateways and DHCP relay | `s` |
+| `enterprise_branch` | Site edges | Per-role VRFs, WireGuard, overlay eBGP, guest NAT and EF/BE overlay QoS | `s` |
+
+Each router is a VM that needs about 1 GiB, so NIKA checks available memory before it creates any container. A router supports at most 30 data ports. The RPKI and RTBH ISP specials remain FRR only.
+
+Agents run RouterOS commands with the `routeros_exec` tool of [`kathara_routeros_mcp_server`](../agents/mcp-servers.md#use-dedicated-diagnosis-tools). RouterOS `ether1` is vrnetlab's management port. In an ISP environment, container interface `ethN` is RouterOS `ether(N+1)`; in the other environments, `ethN` is `ether(N+2)`.
+
+Link-down failures behave as on FRR: QEMU does not pass a container interface's link state to the VM, so a watcher in each router container mirrors it to the RouterOS port, and routes over a downed link are withdrawn at once.
+
+Link-quality failures, such as `link_capacity_bottleneck`, are not supported on a link between two RouterOS routers and raise `RuntimeCapabilityError`. Target a link with at least one FRR or Linux endpoint instead.
+
+Two routing behaviors differ from FRR:
+
+* RouterOS installs one best BGP path, so `dc_clos` traffic uses a single spine instead of FRR's equal-cost multipath.
+* RouterOS advertises passive IS-IS interfaces, such as host-facing links, with metric 0. Route selection is unchanged because each such prefix has one origin.
+
+If RouterOS rejects a startup command, the environment fails immediately with the router name and RouterOS's import error instead of waiting for the verification deadline.
+
+On a RouterOS site edge, the WAN stays in `main`, and the WireGuard tunnels and their eBGP sessions run in an `overlay` VRF. BGP VPN route targets leak overlay routes into `vrf_corp` and `vrf_server` and export their LANs back. This matches the FRR edge, where business VRFs import the default VRF's BGP routes but not each other's LANs, and guest VRFs import nothing. Overlay QoS uses mangle packet marks and a queue tree with the same EF and BE rates as the FRR edge's HTB classes. The WAN delay stays on the container links.
+
+Failures that change router state apply the same root cause with RouterOS commands: WireGuard keys and allowed addresses, DSCP remarking, source NAT, BGP filters, AS numbers, advertisements and hijacks, blackhole routes, interface MTU and ICMP filters. `frr_service_down` is rejected on RouterOS routers, which have no separate routing daemon to stop.
 
 ## SNDlib ISP scenarios
 
@@ -391,13 +428,13 @@ uv run nika env run isp_abilene --igp ospf \
 uv run nika env run isp_france --backend containerlab \
   --device-profile nokia_srlinux --igp isis
 
-uv run nika env run isp_abilene --device-profile routeros --igp ospf
+uv run nika env run isp_abilene --device-profile routeros --igp isis
 ```
 
 | Control | Accepted values | Default | Effect |
 | --- | --- | --- | --- |
 | `--backend` | `kathara`, `containerlab` | `kathara` | Selects FRR or SR Linux rendering |
-| `--device-profile` | `frr`, `nokia_srlinux`, `iosxr`, `routeros` | Derived from backend | Router platform. `iosxr` and `routeros` run on Kathara and need their images: see [native IOS XR routers](#native-ios-xr-routers) and [RouterOS simple BGP](#routeros-simple-bgp-scenario). `routeros` requires `--igp ospf` |
+| `--device-profile` | `frr`, `nokia_srlinux`, `iosxr`, `routeros` | Derived from backend | Router platform. `iosxr` and `routeros` run on Kathara and need their images: see [native IOS XR routers](#native-ios-xr-routers) and [RouterOS routers](#run-other-environments-on-routeros-routers) |
 | `--igp` | `isis`, `ospf` | `isis` | Selects the IGP compiler |
 | `--metric-strategy` | `constant`, `routing_cost`, `inv_capacity` | `constant` | Maps SNDlib link data to IGP metrics |
 | `--constant-metric` | Positive integer | `10` | Sets constant and fallback metrics |
@@ -455,7 +492,7 @@ NIKA also vendors 259 graphs from the [Internet Topology Zoo](http://www.topolog
 
 Zoo scenarios use the same compiler, IGP and BGP options, stub hosts and compatible failures as SNDlib ISP scenarios. They differ in four ways:
 
-- They run on Kathara: FRR by default, or native routers with `--device-profile iosxr`, or `--device-profile routeros --igp ospf`.
+- They run on Kathara: FRR by default, or native routers with `--device-profile iosxr` or `--device-profile routeros`.
 - Topology Zoo has no demand matrix, so `nika traffic run matrix-replay` rejects them.
 - They are excluded from benchmark generation. The `s` / `m` / `l` size is metadata only (15 or fewer routers is `s`, 28 or fewer is `m`, more is `l`).
 - The importer adapts each graph:

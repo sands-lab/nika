@@ -14,181 +14,34 @@ changed meaning.
 
 from __future__ import annotations
 
-import re
-from dataclasses import dataclass, field
-from ipaddress import IPv4Address, IPv4Interface, IPv4Network
+from dataclasses import dataclass
+from ipaddress import IPv4Address, IPv4Interface
 
 from nika.net_env.native_routers import NativeConversion
+from nika.net_env.utils.frr_sketch import (
+    Bgp,
+    Ospf,
+    Policy,
+    Startup,
+    parse_frr,
+    parse_startup,
+)
 from nika.net_env.utils.iosxr.common import iosxr_interface
 
-# FRR statements without forwarding semantics (logging and the vty shell).
-_IGNORED = re.compile(r"^(?:!.*|log .*|debug .*|line vty|frr (?:version|defaults) .*)$")
-_ADDRESS = re.compile(r"ip addr add (\S+) dev (eth\d+)")
-_STATIC = re.compile(r"ip route add (default|[0-9./]+) via ([0-9.]+)(?: dev eth\d+)?")
-_SHAPING = re.compile(r"tc qdisc (?:add|replace) dev (eth\d+) root netem .*")
-# Linux forwarding is irrelevant once XR forwards the router's traffic.
-_LINUX_ONLY = {"service frr start", "sysctl -w net.ipv4.ip_forward=1"}
 PASS_POLICY = "PASS"
 
 
-@dataclass
-class _Bgp:
-    asn: int
-    router_id: str | None = None
-    multipath_relax: bool = False
-    maximum_paths: int | None = None
-    requires_policy: bool = True
-    networks: list[str] = field(default_factory=list)
-    neighbors: dict[str, int] = field(default_factory=dict)
-    # (neighbor, direction) -> route-map name
-    route_maps: dict[tuple[str, str], str] = field(default_factory=dict)
-
-
-@dataclass
-class _Ospf:
-    router_id: str | None = None
-    networks: list[tuple[IPv4Network, str]] = field(default_factory=list)
-
-
-@dataclass
-class _Policy:
-    """Exact-prefix lists, route maps and interface costs outside routing blocks."""
-
-    prefix_lists: dict[str, list[str]] = field(default_factory=dict)
-    # route-map -> [(seq, permit, prefix-list)]
-    route_maps: dict[str, list[tuple[int, bool, str | None]]] = field(
-        default_factory=dict
-    )
-    ospf_costs: dict[str, int] = field(default_factory=dict)
-
-
-@dataclass
-class _Startup:
-    interfaces: list[tuple[str, str]] = field(default_factory=list)
-    static_routes: list[tuple[str, str]] = field(default_factory=list)
-    shaping: list[str] = field(default_factory=list)
-
-
-def _parse_startup(startup: str) -> _Startup:
-    parsed = _Startup()
-    for line in startup.splitlines():
-        line = line.strip().removesuffix(" || true")
-        if not line or line in _LINUX_ONLY:
-            continue
-        if match := _ADDRESS.fullmatch(line):
-            IPv4Interface(match[1])
-            parsed.interfaces.append((match[2], match[1]))
-        elif match := _STATIC.fullmatch(line):
-            prefix = "0.0.0.0/0" if match[1] == "default" else match[1]
-            parsed.static_routes.append((str(IPv4Network(prefix)), match[2]))
-        elif _SHAPING.fullmatch(line):
-            parsed.shaping.append(line)
-        else:
-            raise ValueError(f"Unsupported IOS XR router startup command: {line!r}")
-    names = [name for name, _ in parsed.interfaces]
-    if len(set(names)) != len(names):
-        raise ValueError("IOS XR translation needs one address per interface")
-    if any(_SHAPING.fullmatch(line)[1] not in names for line in parsed.shaping):
-        raise ValueError("Linux shaping must target an addressed router interface")
+def _parse_startup(startup: str) -> Startup:
+    try:
+        parsed = parse_startup(startup)
+    except ValueError as exc:
+        raise ValueError(f"Unsupported IOS XR router startup command: {exc}") from exc
+    # XRd Control Plane cannot route a bridged interface or relay DHCP.
+    if parsed.bridge_ports is not None or parsed.dhcp_relay is not None:
+        raise ValueError(
+            "Unsupported IOS XR router startup command: Linux bridge or DHCP relay"
+        )
     return parsed
-
-
-def _parse_frr(
-    frr_conf: str, hostname: str
-) -> tuple[_Bgp | None, _Ospf | None, _Policy]:
-    bgp = ospf = None
-    policy = _Policy()
-    block = entry = None
-    for raw in frr_conf.splitlines():
-        line = raw.strip()
-        indented = raw[:1].isspace()
-        if not line or _IGNORED.fullmatch(line):
-            block = block if indented else None
-            continue
-        if not indented:
-            block = None
-            if match := re.fullmatch(r"hostname (\S+)", line):
-                if match[1] != hostname:
-                    raise ValueError(f"FRR hostname {match[1]!r} != {hostname!r}")
-                continue
-            if match := re.fullmatch(r"router bgp (\d+)", line):
-                # Later blocks of the same instance add statements, as in FRR.
-                if bgp is not None and bgp.asn != int(match[1]):
-                    raise ValueError("IOS XR translation needs one BGP instance")
-                bgp, block = bgp or _Bgp(int(match[1])), "bgp"
-                continue
-            if line == "router ospf":
-                if ospf is not None:
-                    raise ValueError("IOS XR translation needs one OSPF instance")
-                ospf, block = _Ospf(), "ospf"
-                continue
-            if match := re.fullmatch(
-                r"ip prefix-list (\S+) seq \d+ permit ([0-9./]+)", line
-            ):
-                prefix = IPv4Network(match[2])
-                policy.prefix_lists.setdefault(match[1], []).append(str(prefix))
-                continue
-            if match := re.fullmatch(r"route-map (\S+) (permit|deny) (\d+)", line):
-                entry = [int(match[3]), match[2] == "permit", None]
-                policy.route_maps.setdefault(match[1], []).append(entry)
-                block = "route-map"
-                continue
-            if match := re.fullmatch(r"interface (eth\d+)", line):
-                block, entry = "interface", match[1]
-                continue
-        elif block == "bgp" and _bgp_statement(bgp, line):
-            continue
-        elif block == "ospf":
-            if match := re.fullmatch(r"(?:ospf )?router-id (\S+)", line):
-                ospf.router_id = str(IPv4Address(match[1]))
-                continue
-            if match := re.fullmatch(r"network (\S+) area (\S+)", line):
-                area = match[2]
-                area = str(IPv4Address(int(area))) if area.isdigit() else area
-                ospf.networks.append((IPv4Network(match[1]), str(IPv4Address(area))))
-                continue
-        elif block == "route-map":
-            match = re.fullmatch(r"match ip address prefix-list (\S+)", line)
-            if match and entry[2] is None:
-                entry[2] = match[1]
-                continue
-        elif block == "interface":
-            if match := re.fullmatch(r"ip ospf cost (\d+)", line):
-                policy.ospf_costs[entry] = int(match[1])
-                continue
-        raise ValueError(f"Unsupported FRR statement for IOS XR: {line!r}")
-    for name, entries in policy.route_maps.items():
-        for _, _, plist in entries:
-            if plist is None or plist not in policy.prefix_lists:
-                raise ValueError(f"Route map {name} needs a defined exact prefix list")
-    if bgp is not None:
-        for name in bgp.route_maps.values():
-            if name not in policy.route_maps:
-                raise ValueError(f"Undefined route map {name!r}")
-    return bgp, ospf, policy
-
-
-def _bgp_statement(bgp: _Bgp, line: str) -> bool:
-    if match := re.fullmatch(r"bgp router-id (\S+)", line):
-        bgp.router_id = str(IPv4Address(match[1]))
-    elif line == "bgp bestpath as-path multipath-relax":
-        bgp.multipath_relax = True
-    elif match := re.fullmatch(r"maximum-paths (\d+)", line):
-        bgp.maximum_paths = int(match[1])
-    elif line == "no bgp ebgp-requires-policy":
-        bgp.requires_policy = False
-    elif match := re.fullmatch(r"network (\S+)", line):
-        bgp.networks.append(str(IPv4Network(match[1])))
-    elif match := re.fullmatch(r"neighbor (\S+) remote-as (\d+)", line):
-        bgp.neighbors[str(IPv4Address(match[1]))] = int(match[2])
-    elif match := re.fullmatch(r"neighbor (\S+) route-map (\S+) (in|out)", line):
-        peer = str(IPv4Address(match[1]))
-        if peer not in bgp.neighbors or (peer, match[3]) in bgp.route_maps:
-            raise ValueError(f"Unsupported route map binding for {peer}")
-        bgp.route_maps[peer, match[3]] = match[2]
-    else:
-        return False
-    return True
 
 
 @dataclass(frozen=True)
@@ -205,7 +58,7 @@ def translate_frr_router(hostname: str, frr_conf: str, startup: str) -> XrRouter
     parsed = _parse_startup(startup)
     if not parsed.interfaces:
         raise ValueError(f"Router {hostname!r} has no addressed interfaces")
-    bgp, ospf, policy = _parse_frr(frr_conf, hostname)
+    bgp, ospf, policy = parse_frr(frr_conf, hostname)
     names = {name for name, _ in parsed.interfaces}
     if not set(policy.ospf_costs) <= names or (policy.ospf_costs and ospf is None):
         raise ValueError("OSPF costs must name addressed OSPF interfaces")
@@ -239,7 +92,7 @@ def translate_frr_router(hostname: str, frr_conf: str, startup: str) -> XrRouter
 
 
 def _render_ospf(
-    ospf: _Ospf, interfaces: list[tuple[str, str]], costs: dict[str, int]
+    ospf: Ospf, interfaces: list[tuple[str, str]], costs: dict[str, int]
 ) -> list[str]:
     # FRR enables OSPF on each interface whose primary address falls in a
     # ``network`` statement; XR names those interfaces under their area.
@@ -271,7 +124,7 @@ def _render_ospf(
     return lines
 
 
-def _render_policies(policy: _Policy, used: set[str]) -> list[str]:
+def _render_policies(policy: Policy, used: set[str]) -> list[str]:
     """Render FRR route maps as XR route policies with the same semantics.
 
     An FRR route map applies its first matching entry, and denies a route
@@ -301,7 +154,7 @@ def _render_policies(policy: _Policy, used: set[str]) -> list[str]:
     return lines
 
 
-def _render_bgp(bgp: _Bgp) -> list[str]:
+def _render_bgp(bgp: Bgp) -> list[str]:
     external = {peer for peer, asn in bgp.neighbors.items() if asn != bgp.asn}
     # FRR without ``ebgp-requires-policy`` accepts and advertises everything on
     # eBGP sessions. XR, like FRR's default, exchanges nothing without policy.
@@ -350,7 +203,7 @@ def retained_netlab_fragment(hostname: str, frr_conf: str, startup: str) -> str:
         lines.extend(["router static", " address-family ipv4 unicast"])
         lines.extend(f"  {prefix} {hop}" for prefix, hop in static_routes)
         lines.extend([" !", "!"])
-    bgp, _, _ = _parse_frr(frr_conf, hostname)
+    bgp, _, _ = parse_frr(frr_conf, hostname)
     if bgp is None:
         return "\n".join([*lines, ""]) if lines else ""
     external = [peer for peer, asn in bgp.neighbors.items() if asn != bgp.asn]

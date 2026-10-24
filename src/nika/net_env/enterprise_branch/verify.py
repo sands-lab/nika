@@ -18,15 +18,16 @@ from nika.net_env.enterprise_branch.topology import (
     build_topo_spec,
     overlay_qos_for,
 )
+from nika.net_env.enterprise_branch.edge_view import FrrEdgeView
 from nika.net_env.verify import (
     build_lab_verify_result,
     exec_or_empty,
-    frr_bgp_established_peers,
     host_has_ipv4,
     http_ok,
     nodes_deployed,
     ping_ok,
 )
+
 from nika.utils.parallel import bounded_parallel_map
 from nika.runtime.base import LabRuntime
 from nika.net_env.verify_collection import (
@@ -35,6 +36,8 @@ from nika.net_env.verify_collection import (
     ping_command,
     http_command,
 )
+
+FRR_EDGES = FrrEdgeView()
 
 
 def _lan_host_ip(lan: LanSpec, host_index: int = 0) -> str:
@@ -68,7 +71,9 @@ def _rib_has_prefix(rib: str, prefix: str) -> bool:
 FRR_PROVIDER_ROUTES = "vtysh -c 'show ip route'"
 
 
-def _collect(runtime, spec, tunnels, *, full, provider_routes=FRR_PROVIDER_ROUTES):
+def _collect(
+    runtime, spec, tunnels, view, *, full, provider_routes=FRR_PROVIDER_ROUTES
+):
     commands = []
 
     def add(node, command, timeout=20):
@@ -82,13 +87,13 @@ def _collect(runtime, spec, tunnels, *, full, provider_routes=FRR_PROVIDER_ROUTE
     hq_ip, srv_ip = _lan_host_ip(hq_corp), _lan_host_ip(hq_srv)
     if not full:
         add(hq_corp.host_name, "ip -4 -o addr show dev eth0", 10)
-        add(edge_name_for("hq"), "pgrep -x bgpd", 10)
+        add(edge_name_for("hq"), view.routing_process, 10)
         for spoke in spec.branch_names():
-            add(edge_name_for(spoke), "vtysh -c 'show ip bgp'")
+            add(edge_name_for(spoke), view.bgp_rib)
             ping(_corp_lan(spec, spoke).host_name, srv_ip)
         return collect_verify_commands(runtime, commands)
     for site in spec.sites.values():
-        add(edge_name_for(site.name), "ip -d link show type vrf", 15)
+        add(edge_name_for(site.name), view.vrf_list, 15)
         for lan in site.lans:
             for host in lan.host_names:
                 add(host, "ip -4 -o addr show dev eth0", 10)
@@ -104,25 +109,26 @@ def _collect(runtime, spec, tunnels, *, full, provider_routes=FRR_PROVIDER_ROUTE
     seen = set()
     for tunnel in tunnels:
         left, right = edge_name_for(tunnel.spoke), edge_name_for(tunnel.hub)
-        ping(left, tunnel.hub_wan_ip)
-        ping(right, tunnel.spoke_wan_ip)
+        add(left, view.ping(tunnel.hub_wan_ip), 15)
+        add(right, view.ping(tunnel.spoke_wan_ip), 15)
         for edge, interface in ((left, tunnel.spoke_iface), (right, tunnel.hub_iface)):
-            add(edge, f"wg show {interface}", 15)
-            add(edge, "vtysh -c 'show bgp summary json'")
+            add(edge, view.wireguard(interface), 15)
+            add(edge, view.bgp_peers.command)
             if (edge, interface) not in seen:
                 seen.add((edge, interface))
-                add(edge, f"tc qdisc show dev {interface}", 15)
-                add(edge, f"tc class show dev {interface}", 15)
+                for command in view.qos(interface):
+                    add(edge, command, 15)
         if not tunnel.primary and tunnel.spoke in spec.branch_names():
-            add(left, f"vtysh -c 'show ip bgp {hq_corp.prefix}'")
+            add(left, view.bgp_route(hq_corp.prefix))
     for spoke in spec.branch_names():
         edge, corp = edge_name_for(spoke), _corp_lan(spec, spoke)
-        add(edge, "vtysh -c 'show ip bgp'")
-        add(edge, f"vtysh -c 'show ip route vrf {vrf_name('corp')}'")
-        add(edge, f"ip route show vrf {vrf_name('corp')}", 15)
+        add(edge, view.bgp_rib)
+        for command in view.vrf_ribs(vrf_name("corp"), routing_table_first=True):
+            add(edge, command, 15)
         for lan in spec.sites[spoke].lans:
             if lan.role in LOCAL_ONLY_ROLES:
-                add(edge, f"ip route show vrf {lan.vrf}", 15)
+                for command in view.vrf_ribs(lan.vrf, routing_table_first=False):
+                    add(edge, command, 15)
         ping(corp.host_name, hq_ip)
         ping(hq_corp.host_name, _lan_host_ip(corp))
         add(corp.host_name, http_command(f"http://{srv_ip}/"))
@@ -133,11 +139,12 @@ def _collect(runtime, spec, tunnels, *, full, provider_routes=FRR_PROVIDER_ROUTE
     spokes = spec.branch_names()
     for i, source in enumerate(spokes):
         for destination in spokes[i + 1 :]:
-            target = _lan_host_ip(_corp_lan(spec, destination))
+            target_lan = _corp_lan(spec, destination)
+            target = _lan_host_ip(target_lan)
             ping(_corp_lan(spec, source).host_name, target)
             add(
                 edge_name_for(source),
-                f"ip route get {target} vrf {vrf_name('corp')}",
+                view.route_lookup(vrf_name("corp"), target, target_lan.prefix),
                 15,
             )
     for provider in spec.providers:
@@ -153,28 +160,29 @@ def verify_enterprise_branch_lab_startup(
     topo_size: TopoSize,
     built_tunnels: list[BuiltTunnel] | None = None,
     spec: TopoSpec | None = None,
+    edge_view: FrrEdgeView = FRR_EDGES,
     **_kwargs: Any,
 ) -> dict[str, Any]:
-    """Bounded readiness: nodes, HQ edge FRR, and every branch overlay to HQ."""
+    """Bounded readiness: nodes, HQ edge routing, and every branch overlay to HQ."""
     spec = spec or build_topo_spec(topo_size)
-    runtime = _collect(runtime, spec, list(built_tunnels or []), full=False)
+    view = edge_view
+    runtime = _collect(runtime, spec, list(built_tunnels or []), view, full=False)
     hq_corp = _corp_lan(spec, "hq")
     hq_srv = _server_lan(spec, "hq")
     hq_srv_ip = _lan_host_ip(hq_srv)
     checks = {
         "nodes_deployed": nodes_deployed(runtime, spec.all_node_names()),
         "hq_corp_ipv4": host_has_ipv4(runtime, hq_corp.host_name, "10.0.10.2"),
-        "hq_edge_frr": bool(
+        "hq_edge_frr": view.routing_process_ok(
+            edge_name_for("hq"),
             exec_or_empty(
-                runtime, edge_name_for("hq"), "pgrep -x bgpd", timeout=10
-            ).strip()
+                runtime, edge_name_for("hq"), view.routing_process, timeout=10
+            ),
         ),
     }
 
     def spoke_overlay_checks(spoke: str) -> dict[str, bool]:
-        rib = exec_or_empty(
-            runtime, edge_name_for(spoke), "vtysh -c 'show ip bgp'", timeout=20
-        )
+        rib = exec_or_empty(runtime, edge_name_for(spoke), view.bgp_rib, timeout=20)
         corp = _corp_lan(spec, spoke)
         return {
             f"overlay_hq_corp_on_{spoke}": _rib_has_prefix(rib, hq_corp.prefix),
@@ -201,14 +209,17 @@ def verify_enterprise_branch_lab(
     topo_size: TopoSize,
     built_tunnels: list[BuiltTunnel] | None = None,
     spec: TopoSpec | None = None,
+    edge_view: FrrEdgeView = FRR_EDGES,
     provider_routes: str = FRR_PROVIDER_ROUTES,
     **_kwargs: Any,
 ) -> dict[str, Any]:
     spec = spec or build_topo_spec(topo_size)
+    view = edge_view
     runtime = _collect(
         runtime,
         spec,
         list(built_tunnels or []),
+        view,
         full=True,
         provider_routes=provider_routes,
     )
@@ -234,7 +245,7 @@ def verify_enterprise_branch_lab(
     # --- VRF devices present on every Site Edge ---
     def site_vrf_checks(site) -> dict[str, bool]:
         edge = edge_name_for(site.name)
-        vrf_out = exec_or_empty(runtime, edge, "ip -d link show type vrf", timeout=15)
+        vrf_out = exec_or_empty(runtime, edge, view.vrf_list, timeout=15)
         return {f"vrf_{site.name}_{lan.role}": lan.vrf in vrf_out for lan in site.lans}
 
     for site_checks in bounded_parallel_map(site_vrf_checks, spec.sites.values()):
@@ -246,30 +257,33 @@ def verify_enterprise_branch_lab(
         hub_edge = edge_name_for(bt.hub)
         tag = f"{bt.spoke}_{bt.hub}_{bt.provider}_{'pri' if bt.primary else 'bak'}"
         result = {
-            f"underlay_{tag}_spoke_to_hub": ping_ok(runtime, spoke_edge, bt.hub_wan_ip),
-            f"underlay_{tag}_hub_to_spoke": ping_ok(runtime, hub_edge, bt.spoke_wan_ip),
-            f"wg_{tag}_spoke": bool(
-                exec_or_empty(
-                    runtime, spoke_edge, f"wg show {bt.spoke_iface}", timeout=15
-                ).strip()
+            f"underlay_{tag}_spoke_to_hub": view.ping_ok(
+                runtime, spoke_edge, bt.hub_wan_ip
             ),
-            f"wg_{tag}_hub": bool(
+            f"underlay_{tag}_hub_to_spoke": view.ping_ok(
+                runtime, hub_edge, bt.spoke_wan_ip
+            ),
+            f"wg_{tag}_spoke": view.wireguard_ok(
+                bt.spoke_iface,
                 exec_or_empty(
-                    runtime, hub_edge, f"wg show {bt.hub_iface}", timeout=15
-                ).strip()
+                    runtime, spoke_edge, view.wireguard(bt.spoke_iface), timeout=15
+                ),
+            ),
+            f"wg_{tag}_hub": view.wireguard_ok(
+                bt.hub_iface,
+                exec_or_empty(
+                    runtime, hub_edge, view.wireguard(bt.hub_iface), timeout=15
+                ),
             ),
         }
 
-        spoke_sum = exec_or_empty(
-            runtime, spoke_edge, "vtysh -c 'show bgp summary json'", timeout=20
-        )
-        hub_sum = exec_or_empty(
-            runtime, hub_edge, "vtysh -c 'show bgp summary json'", timeout=20
-        )
-        result[f"bgp_{tag}_spoke"] = bt.hub_tunnel_ip in frr_bgp_established_peers(
+        peers = view.bgp_peers
+        spoke_sum = exec_or_empty(runtime, spoke_edge, peers.command, timeout=20)
+        hub_sum = exec_or_empty(runtime, hub_edge, peers.command, timeout=20)
+        result[f"bgp_{tag}_spoke"] = bt.hub_tunnel_ip in peers.established_peers(
             spoke_sum
         )
-        result[f"bgp_{tag}_hub"] = bt.spoke_tunnel_ip in frr_bgp_established_peers(
+        result[f"bgp_{tag}_hub"] = bt.spoke_tunnel_ip in peers.established_peers(
             hub_sum
         )
         return result
@@ -291,23 +305,18 @@ def verify_enterprise_branch_lab(
     def spoke_overlay_checks(spoke: str) -> dict[str, bool]:
         result: dict[str, bool] = {}
         edge = edge_name_for(spoke)
-        rib = exec_or_empty(runtime, edge, "vtysh -c 'show ip bgp'", timeout=20)
+        rib = exec_or_empty(runtime, edge, view.bgp_rib, timeout=20)
         result[f"overlay_hq_corp_on_{spoke}"] = hq_corp_net in rib
         result[f"overlay_hq_server_on_{spoke}"] = hq_srv_net in rib
         for net in local_only_nets:
             result[f"overlay_no_{net}_on_{spoke}"] = net not in rib
 
         # CORP VRF RIB: HQ CORP + SERVER (shared-services leak); no guest/iot.
-        corp_rib = exec_or_empty(
-            runtime,
-            edge,
-            f"vtysh -c 'show ip route vrf {vrf_name('corp')}'",
-            timeout=20,
-        )
-        if not corp_rib.strip():
-            corp_rib = exec_or_empty(
-                runtime, edge, f"ip route show vrf {vrf_name('corp')}", timeout=15
-            )
+        corp_rib = ""
+        for command in view.vrf_ribs(vrf_name("corp"), routing_table_first=True):
+            corp_rib = exec_or_empty(runtime, edge, command, timeout=20)
+            if corp_rib.strip():
+                break
         result[f"vrf_corp_hq_corp_on_{spoke}"] = _rib_has_prefix(
             corp_rib, hq_corp.prefix
         )
@@ -321,11 +330,9 @@ def verify_enterprise_branch_lab(
         for lan in spec.sites[spoke].lans:
             if lan.role not in LOCAL_ONLY_ROLES:
                 continue
-            local_rib = exec_or_empty(
-                runtime,
-                edge,
-                f"ip route show vrf {lan.vrf}",
-                timeout=15,
+            local_rib = "".join(
+                exec_or_empty(runtime, edge, command, timeout=15)
+                for command in view.vrf_ribs(lan.vrf, routing_table_first=False)
             )
             result[f"vrf_{lan.role}_no_hq_corp_on_{spoke}"] = (
                 hq_corp_net not in local_rib
@@ -372,16 +379,17 @@ def verify_enterprise_branch_lab(
     def spoke_pair_checks(pair: tuple[str, str]) -> dict[str, bool]:
         a, b = pair
         a_corp = _corp_lan(spec, a)
-        b_ip = _lan_host_ip(_corp_lan(spec, b))
+        b_lan = _corp_lan(spec, b)
+        b_ip = _lan_host_ip(b_lan)
         route_get = exec_or_empty(
             runtime,
             edge_name_for(a),
-            f"ip route get {b_ip} vrf {vrf_name('corp')}",
+            view.route_lookup(vrf_name("corp"), b_ip, b_lan.prefix),
             timeout=15,
         )
         return {
             f"e2e_{a}_to_{b}": ping_ok(runtime, a_corp.host_name, b_ip),
-            f"overlay_path_{a}_to_{b}": "dev wg" in route_get or "172.30." in route_get,
+            f"overlay_path_{a}_to_{b}": view.overlay_path_ok(route_get),
         }
 
     for pair_result in bounded_parallel_map(spoke_pair_checks, spoke_pairs):
@@ -457,19 +465,14 @@ def verify_enterprise_branch_lab(
 
     def qos_checks(job: tuple[str, str]) -> dict[str, bool]:
         edge_name, iface = job
-        tc_out = exec_or_empty(
-            runtime, edge_name, f"tc qdisc show dev {iface}", timeout=15
-        )
-        tc_class = exec_or_empty(
-            runtime, edge_name, f"tc class show dev {iface}", timeout=15
+        outputs = tuple(
+            exec_or_empty(runtime, edge_name, command, timeout=15)
+            for command in view.qos(iface)
         )
         tag = f"{edge_name}_{iface}"
         return {
-            f"qos_htb_{tag}": "htb" in tc_out.lower(),
-            f"qos_ef_class_{tag}": "1:10" in tc_class,
-            f"qos_be_class_{tag}": "1:20" in tc_class,
-            f"qos_rate_{tag}": f"{qos.rate_mbit}Mbit" in tc_class
-            or (f"{qos.rate_mbit}mbit" in tc_class.lower()),
+            f"qos_{key}_{tag}": value
+            for key, value in view.qos_checks(outputs, qos).items()
         }
 
     for qos_result in bounded_parallel_map(qos_checks, qos_jobs):
@@ -481,14 +484,11 @@ def verify_enterprise_branch_lab(
 
     def backup_check(bt: BuiltTunnel) -> tuple[str, bool]:
         summary = exec_or_empty(
-            runtime,
-            edge_name_for(bt.spoke),
-            "vtysh -c 'show bgp summary json'",
-            timeout=20,
+            runtime, edge_name_for(bt.spoke), view.bgp_peers.command, timeout=20
         )
         return (
             f"backup_bgp_{bt.spoke}_{bt.hub}_{bt.provider}",
-            bt.hub_tunnel_ip in frr_bgp_established_peers(summary),
+            bt.hub_tunnel_ip in view.bgp_peers.established_peers(summary),
         )
 
     for key, value in bounded_parallel_map(backup_check, backups):
@@ -505,10 +505,7 @@ def verify_enterprise_branch_lab(
         if not primaries:
             return None
         best = exec_or_empty(
-            runtime,
-            edge_name_for(spoke),
-            f"vtysh -c 'show ip bgp {hq_corp_cidr}'",
-            timeout=20,
+            runtime, edge_name_for(spoke), view.bgp_route(hq_corp_cidr), timeout=20
         )
         return f"primary_path_{spoke}", primaries[0].hub_tunnel_ip in best
 

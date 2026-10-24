@@ -16,6 +16,7 @@ from nika.problems.support.benchmark_targets import (
     resolve_path_mtu_target,
 )
 from nika.problems.support.compatible_columns import LINUX_PMTU_COLUMNS
+from nika.problems.support.router_ops import native_fault_ops
 from nika.problems.support.p4_gateway import (
     read_table,
     set_icmp_frag_needed_filter,
@@ -111,6 +112,11 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
         if self._uses_p4_filter(params):
             self._result = set_icmp_frag_needed_filter(self.runtime, params.host_name)
             return
+        ops = native_fault_ops(self, params.host_name, "block_icmp_frag_needed")
+        if ops is not None:
+            ops.block_icmp_frag_needed()
+            self._result = f"{ops.profile}-filter-frag-needed"
+            return
         self.runtime.add_nft_drop_rule(
             params.host_name, _FRAG_NEEDED_NFT_RULE, family="ip"
         )
@@ -139,6 +145,13 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
                 self.root_cause_name,
                 [3, 4] in entries,
                 {"gateway": params.host_name, "acl_entries": entries},
+            )
+        ops = native_fault_ops(self, params.host_name, "icmp_frag_needed_blocked")
+        if ops is not None:
+            return build_verify_result(
+                self.root_cause_name,
+                ops.icmp_frag_needed_blocked(),
+                {"host": params.host_name, "profile": ops.profile},
             )
         verified = self.runtime.nft_drop_rule_present(
             params.host_name, _FRAG_NEEDED_NFT_RULE, family="ip"

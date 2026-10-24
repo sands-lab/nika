@@ -43,14 +43,10 @@ def test_native_isp_profiles_bind_their_igp(profile) -> None:
     assert kwargs["device_profile"] == profile
     from nika.net_env.net_env_pool import get_net_env_instance
 
-    if profile == "routeros":
-        # The default IGP is IS-IS; the RouterOS renderer supports OSPF only.
-        with pytest.raises(ValueError, match="supports only IPv4 OSPF"):
-            get_net_env_instance("isp_abilene", **kwargs)
-    else:
-        env = get_net_env_instance("isp_abilene", **kwargs)
-        assert env.plan.igp == "isis"
-        assert all("router isis CORE" in c for c in env.deployment_configs.values())
+    env = get_net_env_instance("isp_abilene", **kwargs)
+    assert env.plan.igp == "isis"
+    isis = "router isis CORE" if profile == "iosxr" else "/routing isis instance"
+    assert all(isis in c for c in env.deployment_configs.values())
 
     kwargs["igp"] = "ospf"
     env = get_net_env_instance("isp_abilene", **kwargs)

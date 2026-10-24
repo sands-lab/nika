@@ -14,7 +14,12 @@ class CampusLan(NativeRouterEnv, NetworkEnvBase):
     TOPO_LEVEL = "medium"
     # Distribution and server gateways bridge access ports and relay DHCP;
     # XRd Control Plane cannot route a bridged interface, so they stay FRR.
-    NATIVE_PROFILE_ROLES = {"iosxr": frozenset({"core"})}
+    # RouterOS routes bridged interfaces and relays DHCP, so it also runs them.
+    NATIVE_PROFILE_ROLES = {
+        "iosxr": frozenset({"core"}),
+        "routeros": frozenset({"core", "distribution", "server_gateway"}),
+    }
+    NATIVE_PROFILE_SIZES = {"routeros": ("s",)}
 
     def __init__(
         self,
@@ -30,6 +35,7 @@ class CampusLan(NativeRouterEnv, NetworkEnvBase):
         donor = CampusLanDhcp(topo_size=topo_size, **kwargs)
 
         self.__dict__.update(donor.__dict__)
+        self.topo_size = topo_size
         from nika.net_env.synthesis.parameters import apply_routing_parameters
 
         apply_routing_parameters(self, routing_parameters)
@@ -53,7 +59,16 @@ class CampusLan(NativeRouterEnv, NetworkEnvBase):
     def _router_queries(self):
         from nika.net_env.campus_lan.verify import CORE_ROUTER, FRR_QUERIES
 
-        if self.native_routers.get(CORE_ROUTER) != "iosxr":
+        profile = self.native_routers.get(CORE_ROUTER)
+        if profile == "routeros":
+            from nika.net_env.campus_lan.verify import DIST_ROUTER_DHCP
+            from nika.net_env.utils.routeros.platform import routeros_campus_queries
+
+            return routeros_campus_queries(
+                FRR_QUERIES,
+                gateways=self.native_routers.get(DIST_ROUTER_DHCP) == "routeros",
+            )
+        if profile != "iosxr":
             return FRR_QUERIES
         from dataclasses import replace
 

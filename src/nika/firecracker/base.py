@@ -520,7 +520,7 @@ def _containerd_store() -> bool:
 
 def _vendor_images() -> list[str]:
     """Vendor router images this host prepared (``install.sh --with-vendor-images``)."""
-    from nika.net_env.routeros_simple_bgp.lab import IMAGE as ROUTEROS_IMAGE
+    from nika.net_env.utils.routeros.common import IMAGE as ROUTEROS_IMAGE
     from nika.net_env.utils.iosxr.common import IMAGE as XRD_IMAGE
 
     return [

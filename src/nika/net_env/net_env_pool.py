@@ -128,9 +128,10 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         class_name="DCClos",
         coverage_major=True,
         device_profiles={
-            "iosxr": BackendEnvBinding(
+            profile: BackendEnvBinding(
                 module="nika.net_env.dc_clos.lab", class_name="DCClos"
             )
+            for profile in ("iosxr", "routeros")
         },
         tags=(
             "arp",
@@ -155,9 +156,10 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         family="campus",
         coverage_major=True,
         device_profiles={
-            "iosxr": BackendEnvBinding(
+            profile: BackendEnvBinding(
                 module="nika.net_env.campus_lan.lab", class_name="CampusLan"
             )
+            for profile in ("iosxr", "routeros")
         },
         tags=(
             "arp",
@@ -183,10 +185,11 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         class_name="EnterpriseBranch",
         coverage_major=True,
         device_profiles={
-            "iosxr": BackendEnvBinding(
+            profile: BackendEnvBinding(
                 module="nika.net_env.enterprise_branch.lab",
                 class_name="EnterpriseBranch",
             )
+            for profile in ("iosxr", "routeros")
         },
         tags=(
             "arp",

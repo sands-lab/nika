@@ -117,7 +117,7 @@ def build_parent_images() -> list[str]:
 
 def owned_images() -> list[str]:
     """Every Docker image the current NIKA release may create or pull."""
-    from nika.net_env.routeros_simple_bgp.lab import IMAGE as ROUTEROS_IMAGE
+    from nika.net_env.utils.routeros.common import IMAGE as ROUTEROS_IMAGE
     from nika.net_env.utils.iosxr.common import IMAGE as XRD_IMAGE
     from nika.validation.batfish.service import BATFISH_IMAGE
 
@@ -217,7 +217,7 @@ def prune_stale_caches() -> list[str]:
         _HELM_CHART_SPECS,
         _HELM_VERSION,
     )
-    from nika.net_env.routeros_simple_bgp.lab import IMAGE as ROUTEROS_IMAGE
+    from nika.net_env.utils.routeros.common import IMAGE as ROUTEROS_IMAGE
     from nika.net_env.utils.k8s_workload_cache import cache_root, cache_tar_path
 
     actions: list[str] = []

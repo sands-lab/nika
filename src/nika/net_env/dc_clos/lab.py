@@ -90,9 +90,13 @@ class DCClos(NativeRouterEnv, NetworkEnvBase):
     ROUTING_PARAMETER_KINDS = frozenset({"bgp_exports"})
     LAB_NAME = "dc_clos"
     TOPO_LEVEL = "medium"
-    NATIVE_PROFILE_ROLES = {"iosxr": frozenset({"super_spine", "spine", "leaf"})}
-    # Each XRd router needs about 2 GiB; size m already has 18 routers.
-    NATIVE_PROFILE_SIZES = {"iosxr": ("s",)}
+    NATIVE_PROFILE_ROLES = {
+        "iosxr": frozenset({"super_spine", "spine", "leaf"}),
+        "routeros": frozenset({"super_spine", "spine", "leaf"}),
+    }
+    # Each XRd router needs about 2 GiB and each RouterOS router boots a VM;
+    # size m already has 18 routers.
+    NATIVE_PROFILE_SIZES = {"iosxr": ("s",), "routeros": ("s",)}
 
     def __init__(
         self,
@@ -323,6 +327,10 @@ class DCClos(NativeRouterEnv, NetworkEnvBase):
             from nika.net_env.utils.iosxr.platform import IOSXR_BGP_PEERS
 
             return IOSXR_BGP_PEERS
+        if self.device_profile == "routeros":
+            from nika.net_env.utils.routeros.platform import routeros_bgp_peer_query
+
+            return routeros_bgp_peer_query()
         from nika.net_env.verify import FRR_BGP_PEERS
 
         return FRR_BGP_PEERS

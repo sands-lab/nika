@@ -9,7 +9,29 @@ operation it does not implement raises ``RuntimeCapabilityError``.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from nika.runtime.base import RuntimeCapabilityError
+
+
+@dataclass(frozen=True)
+class TunnelPeer:
+    """The single peer of a point-to-point tunnel interface."""
+
+    public_key: str
+    allowed_addresses: tuple[str, ...]
+    # Seconds since the last successful handshake; None if there was none.
+    handshake_age_sec: float | None
+
+
+@dataclass(frozen=True)
+class SourceNat:
+    """A source NAT rule as the router reports it."""
+
+    source_prefix: str
+    to_address: str
+    to_ports: str | None = None
+    protocol: str | None = None
 
 
 class RouterFaultOps:
@@ -50,6 +72,133 @@ class RouterFaultOps:
         """Replace the running configuration with one returned by ``save_config``."""
         self._unsupported("Restoring the running configuration")
 
+    def supports(self, operation: str) -> bool:
+        """Return whether this provider implements ``operation``."""
+        return getattr(type(self), operation) is not getattr(RouterFaultOps, operation)
+
+    # Routing processes and sessions
+
+    def stop_routing_process(self) -> None:
+        """Stop the routing process the way a crash would."""
+        self._unsupported("Stopping the routing process")
+
+    def bgp_established_peers(self) -> set[str]:
+        """Return the addresses of Established BGP peers."""
+        self._unsupported("Reading BGP sessions")
+
+    def reset_bgp_session(self, peer: str) -> None:
+        """Hard-reset the BGP session to ``peer``, like ``clear ip bgp``."""
+        self._unsupported("Resetting a BGP session")
+
+    def remote_bgp_prefixes(self) -> list[str]:
+        """Return the active BGP-learned prefixes the router does not serve itself."""
+        self._unsupported("Listing BGP-learned prefixes")
+
+    def originate_bgp_prefix(self, prefix: str) -> None:
+        """Answer for ``prefix`` locally and advertise it to every BGP peer."""
+        self._unsupported("Originating a BGP prefix")
+
+    def bgp_advertised_to(self, prefix: str) -> list[str]:
+        """Return the peers ``prefix`` is advertised to."""
+        self._unsupported("Reading BGP advertisements")
+
+    # Packet filters
+
+    def block_bgp_transport(self) -> None:
+        """Drop BGP (TCP 179) in every direction and reset the sessions."""
+        self._unsupported("Blocking BGP transport")
+
+    def bgp_transport_blocked(self) -> bool:
+        self._unsupported("Reading BGP transport filters")
+
+    def block_icmp_frag_needed(self) -> None:
+        """Drop ICMP Fragmentation Needed in every direction."""
+        self._unsupported("Blocking ICMP Fragmentation Needed")
+
+    def icmp_frag_needed_blocked(self) -> bool:
+        self._unsupported("Reading ICMP filters")
+
+    # Routes and interfaces
+
+    def add_blackhole_route(self, prefix: str) -> None:
+        """Blackhole ``prefix`` in every routing table that carries it."""
+        self._unsupported("Adding a blackhole route")
+
+    def blackhole_routes(self) -> list[str]:
+        self._unsupported("Listing blackhole routes")
+
+    def route_interface(self, prefix: str) -> str | None:
+        """Return the interface of the active route to ``prefix``."""
+        self._unsupported("Reading routes")
+
+    def interface_up(self, interface: str) -> bool:
+        self._unsupported("Reading interface state")
+
+    def set_interface_mtu(self, interface: str, mtu: int) -> None:
+        """Set the router's MTU on container interface ``interface``."""
+        self._unsupported("Setting an interface MTU")
+
+    def interface_mtu(self, interface: str) -> int | None:
+        self._unsupported("Reading an interface MTU")
+
+    def interface_addresses(self, interface: str) -> list[str]:
+        """Return the CIDR addresses on container interface ``interface``."""
+        self._unsupported("Reading interface addresses")
+
+    def remove_interface_address(self, interface: str, address: str) -> None:
+        self._unsupported("Removing an interface address")
+
+    # Tunnels, QoS marking and NAT
+
+    def tunnel_peer(self, interface: str) -> TunnelPeer:
+        self._unsupported("Reading a tunnel peer")
+
+    def set_tunnel_peer_public_key(self, interface: str, key: str) -> None:
+        self._unsupported("Changing a tunnel peer key")
+
+    def set_tunnel_peer_allowed_addresses(
+        self, interface: str, prefixes: list[str]
+    ) -> None:
+        self._unsupported("Changing tunnel peer allowed addresses")
+
+    def add_dscp_remark(
+        self, interface: str, source_prefix: str, from_dscp: int, to_dscp: int
+    ) -> None:
+        """Rewrite DSCP before egress classification on ``interface``."""
+        self._unsupported("Adding a DSCP remark")
+
+    def dscp_remark_present(self, interface: str, from_dscp: int, to_dscp: int) -> bool:
+        self._unsupported("Reading DSCP remarks")
+
+    def remove_dscp_remark(self, interface: str, from_dscp: int, to_dscp: int) -> None:
+        self._unsupported("Removing a DSCP remark")
+
+    def vrf_routes(self, vrf: str) -> list[str]:
+        """Return the prefixes in a VRF routing table."""
+        self._unsupported("Reading VRF routes")
+
+    def add_source_nat(
+        self,
+        source_prefix: str,
+        to_address: str,
+        *,
+        protocol: str | None = None,
+        to_ports: str | None = None,
+    ) -> None:
+        """Add a source NAT rule ahead of the existing ones."""
+        self._unsupported("Adding source NAT")
+
+    def source_nat_rules(self) -> list[SourceNat]:
+        self._unsupported("Reading source NAT rules")
+
+    def clear_nat_mappings(self, address: str) -> None:
+        """Drop the TCP connection mappings to or from ``address``."""
+        self._unsupported("Clearing NAT mappings")
+
+    def nat_mapping_count(self, address: str) -> int:
+        """Return the TCP mappings whose reply goes to ``address``."""
+        self._unsupported("Reading NAT mappings")
+
 
 def router_fault_ops(problem, node: str) -> RouterFaultOps | None:
     """Return the failure-operations provider for ``node``'s native profile.
@@ -76,3 +225,19 @@ def router_fault_ops(problem, node: str) -> RouterFaultOps | None:
             f"No failure operations are implemented for {profiles[0]} router {node!r}."
         )
     return factory(problem.runtime, node)
+
+
+def native_fault_ops(problem, node: str, operation: str) -> RouterFaultOps | None:
+    """Return ``node``'s provider, checked to implement ``operation``.
+
+    Returns ``None`` for nodes without a native router profile, which keep the
+    failure's default implementation. A native router never falls back to that
+    implementation: if its provider lacks ``operation``, this raises
+    ``RuntimeCapabilityError`` before the failure changes anything.
+    """
+    ops = router_fault_ops(problem, node)
+    if ops is not None and not ops.supports(operation):
+        raise RuntimeCapabilityError(
+            f"{operation} is not supported on {ops.profile} router {node!r}."
+        )
+    return ops

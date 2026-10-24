@@ -87,7 +87,10 @@ class NativeRouterPlatform:
 
 
 # Vendor modules exposing ``PLATFORM``; add a profile here to support it.
-_PLATFORMS = {"iosxr": "nika.net_env.utils.iosxr.platform"}
+_PLATFORMS = {
+    "iosxr": "nika.net_env.utils.iosxr.platform",
+    "routeros": "nika.net_env.utils.routeros.platform",
+}
 
 
 def native_profiles() -> frozenset[str]:

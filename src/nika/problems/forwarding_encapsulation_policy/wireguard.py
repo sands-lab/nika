@@ -16,6 +16,7 @@ from nika.problems.base import (
 from nika.problems.rca import interface_resource
 from nika.problems.support.benchmark_targets import replace
 from nika.problems.support.polling import wait_until
+from nika.problems.support.router_ops import RouterFaultOps, native_fault_ops
 from nika.utils.logger import system_logger
 
 # Upper bound for overlay BGP to drop after peer-key change + neighbor clear.
@@ -226,6 +227,7 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
     def inject_fault(self, params: WireGuardPeerKeyMisconfigParams):
         edge = params.host_name
         wrong_key = WRONG_HUB_PEER_PUBLIC_KEY
+        ops = native_fault_ops(self, edge, "set_tunnel_peer_public_key")
         ifaces = self._wg_ifaces_on_edge(edge)
         if not ifaces:
             raise RuntimeError(f"No WireGuard interfaces found on {edge}")
@@ -234,6 +236,9 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
                 f"Primary intf_name {params.intf_name!r} not among {ifaces} on {edge}"
             )
 
+        if ops is not None:
+            self._inject_native(ops, edge, ifaces, wrong_key)
+            return
         cleared: list[str] = []
         for iface in ifaces:
             hub_tun_ip = self._resolve_hub_tunnel_ip(edge, iface)
@@ -269,7 +274,61 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
             _SETTLE_SEC,
         )
 
+    def _inject_native(
+        self, ops: RouterFaultOps, edge: str, ifaces: list[str], wrong_key: str
+    ) -> None:
+        cleared = []
+        for iface in ifaces:
+            hub_tun_ip = self._resolve_hub_tunnel_ip(edge, iface)
+            ops.set_tunnel_peer_public_key(iface, wrong_key)
+            ops.reset_bgp_session(hub_tun_ip)
+            cleared.append(hub_tun_ip)
+        self._hub_tunnel_ips = cleared
+        self.logger.info(
+            f"Injected wrong WireGuard Hub peer public key on {edge} "
+            f"({', '.join(ifaces)}, {ops.profile}); reset BGP sessions {cleared}."
+        )
+        wait_until(lambda: not set(cleared) & ops.bgp_established_peers(), _SETTLE_SEC)
+
+    def _verify_native(
+        self, ops: RouterFaultOps, params: WireGuardPeerKeyMisconfigParams
+    ) -> dict:
+        edge, expected = params.host_name, WRONG_HUB_PEER_PUBLIC_KEY
+        ifaces = self._wg_ifaces_on_edge(edge)
+        all_ok = bool(ifaces) and params.intf_name in ifaces
+        per_iface: dict[str, dict[str, Any]] = {}
+        for iface in ifaces:
+            peer = ops.tunnel_peer(iface)
+            iface_up = ops.interface_up(iface)
+            # A new key starts a new peer session; a handshake would need the
+            # wrong key to match the Hub, which it cannot.
+            no_handshake = (
+                peer.handshake_age_sec is None or peer.handshake_age_sec > _SETTLE_SEC
+            )
+            key_ok = peer.public_key == expected
+            all_ok = all_ok and key_ok and iface_up and no_handshake
+            per_iface[iface] = {
+                "public_key_ok": key_ok,
+                "iface_up": iface_up,
+                "handshake_age_sec": peer.handshake_age_sec,
+                "no_successful_handshake": no_handshake,
+            }
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=all_ok,
+            details={
+                "host_name": edge,
+                "intf_name": params.intf_name,
+                "expected_public_key": expected,
+                "ifaces": ifaces,
+                "per_iface": per_iface,
+            },
+        )
+
     def verify_fault(self, params: WireGuardPeerKeyMisconfigParams) -> dict:
+        ops = native_fault_ops(self, params.host_name, "tunnel_peer")
+        if ops is not None:
+            return self._verify_native(ops, params)
         edge = params.host_name
         expected = WRONG_HUB_PEER_PUBLIC_KEY
         ifaces = self._wg_ifaces_on_edge(edge)
@@ -458,6 +517,7 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
     def inject_fault(self, params: WireGuardAllowedIpsMisconfigParams):
         iface = params.intf_name
         edge = params.host_name
+        ops = native_fault_ops(self, edge, "set_tunnel_peer_allowed_addresses")
         spoke = self._spoke_site(edge)
         hub_tun_ip = self._resolve_hub_tunnel_ip(params)
         self._hub_tunnel_ip = hub_tun_ip
@@ -475,12 +535,15 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
                 f"target_prefix {params.target_prefix} still present in allowlist"
             )
 
-        conf_path = f"/etc/wireguard/{iface}.conf"
-        self.runtime.exec(
-            edge,
-            f"sed -i 's|^AllowedIPs = .*|AllowedIPs = {allowlist}|' {conf_path}",
-        )
-        _wg_syncconf(self.runtime, edge, iface)
+        if ops is not None:
+            ops.set_tunnel_peer_allowed_addresses(iface, allowlist.split(", "))
+        else:
+            conf_path = f"/etc/wireguard/{iface}.conf"
+            self.runtime.exec(
+                edge,
+                f"sed -i 's|^AllowedIPs = .*|AllowedIPs = {allowlist}|' {conf_path}",
+            )
+            _wg_syncconf(self.runtime, edge, iface)
         self.logger.info(
             f"Injected WireGuard AllowedIPs omit of {params.target_prefix} "
             f"on {edge}/{iface} (hub tunnel {hub_tun_ip} retained; BGP untouched)."
@@ -496,6 +559,9 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
         # First host in the target /24 for route lookup (LAN host is typically .2).
         target_net = ip_network(params.target_prefix, strict=False)
         target_host = str(target_net.network_address + 2)
+        ops = native_fault_ops(self, edge, "tunnel_peer")
+        if ops is not None:
+            return self._verify_native(ops, params, target, hub_tun_ip)
 
         conf_line = self.runtime.exec(
             edge, f"grep -E '^AllowedIPs = ' /etc/wireguard/{iface}.conf || true"
@@ -557,6 +623,50 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
                 "bgp_established": bgp_ok,
                 "rib": rib,
                 "linux_route": linux_route,
+                "route_ok": route_ok,
+            },
+        )
+
+    def _verify_native(
+        self,
+        ops: RouterFaultOps,
+        params: WireGuardAllowedIpsMisconfigParams,
+        target: str,
+        hub_tun_ip: str,
+    ) -> dict:
+        edge, iface = params.host_name, params.intf_name
+        peer = ops.tunnel_peer(iface)
+        conf_omits_target = target not in peer.allowed_addresses
+        conf_keeps_tunnel = f"{hub_tun_ip}/32" in peer.allowed_addresses
+        # Peers rekey at least every two minutes while the tunnel is healthy.
+        handshake_ok = (
+            peer.handshake_age_sec is not None and peer.handshake_age_sec < 180
+        )
+        bgp_ok = hub_tun_ip in ops.bgp_established_peers()
+        route_interface = ops.route_interface(target)
+        route_ok = route_interface == iface
+        verified = (
+            conf_omits_target
+            and conf_keeps_tunnel
+            and handshake_ok
+            and bgp_ok
+            and route_ok
+        )
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=verified,
+            details={
+                "host_name": edge,
+                "intf_name": iface,
+                "target_prefix": params.target_prefix,
+                "hub_tunnel_ip": hub_tun_ip,
+                "allowed_addresses": list(peer.allowed_addresses),
+                "conf_omits_target": conf_omits_target,
+                "conf_keeps_tunnel": conf_keeps_tunnel,
+                "handshake_age_sec": peer.handshake_age_sec,
+                "handshake_ok": handshake_ok,
+                "bgp_established": bgp_ok,
+                "route_interface": route_interface,
                 "route_ok": route_ok,
             },
         )

@@ -11,6 +11,7 @@ from nika.problems.support.benchmark_targets import (
     require_role_member,
 )
 from nika.problems.support.inject_resolve import resolve_victim_host_ip
+from nika.problems.support.router_ops import native_fault_ops
 
 from nika.problems.rca import node_resource
 
@@ -123,7 +124,12 @@ class StaticBlackHole(ProblemBase):
         toward that prefix is dropped. Local attached subnets often stay
         on-link and never hit a blackhole installed for them.
         """
-        if self.lab_backend == "kathara":
+        ops = native_fault_ops(self, params.host_name, "remote_bgp_prefixes")
+        if ops is not None:
+            learned = ops.remote_bgp_prefixes()
+            if learned:
+                return learned[0]
+        elif self.lab_backend == "kathara":
             bgp_routes = self.runtime.exec(
                 params.host_name, "ip -4 route show proto bgp 2>/dev/null || true"
             )
@@ -160,6 +166,10 @@ class StaticBlackHole(ProblemBase):
                 self.runtime.srl_add_blackhole_static(
                     params.host_name, self._blackhole_network
                 )
+            case "kathara" if ops := native_fault_ops(
+                self, params.host_name, "add_blackhole_route"
+            ):
+                ops.add_blackhole_route(str(host_network))
             case "kathara":
                 # A VRF router forwards end-host traffic from the VRF's table,
                 # so the blackhole goes into every table that routes the prefix.
@@ -206,6 +216,20 @@ class StaticBlackHole(ProblemBase):
                     fault_type=self.root_cause_name,
                     verified=verified,
                     details={"host": params.host_name, "network": host_network},
+                )
+            case "kathara" if ops := native_fault_ops(
+                self, params.host_name, "blackhole_routes"
+            ):
+                network = str(ipaddress.ip_network(host_network, strict=False))
+                routes = ops.blackhole_routes()
+                return build_verify_result(
+                    fault_type=self.root_cause_name,
+                    verified=network in routes,
+                    details={
+                        "host": params.host_name,
+                        "network": host_network,
+                        "blackhole_routes": routes,
+                    },
                 )
             case "kathara":
                 route_output = self.runtime.exec(

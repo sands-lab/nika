@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
 from nika.problems.rca import node_resource
+from nika.problems.support.router_ops import native_fault_ops
 from nika.problems.support.p4_gateway import (
     delete_lb_conn,
     exhaust_lb_conn_table,
@@ -316,6 +317,16 @@ class SnatPortPoolExhaustion(ProblemBase):
     def inject_fault(self, params: SnatPortPoolExhaustionParams):
         if params.port_end < params.port_start:
             raise ValueError("port_end must be greater than or equal to port_start")
+        ops = native_fault_ops(self, params.host_name, "add_source_nat")
+        if ops is not None:
+            # Ahead of the healthy pool rule, like the higher-priority nft chain.
+            ops.add_source_nat(
+                params.source_prefix,
+                params.public_ip,
+                protocol="tcp",
+                to_ports=f"{params.port_start}-{params.port_end}",
+            )
+            return
         self.runtime.exec(
             params.host_name,
             "nft add chain ip nat snat_outbound "
@@ -330,6 +341,20 @@ class SnatPortPoolExhaustion(ProblemBase):
         )
 
     def verify_fault(self, params: SnatPortPoolExhaustionParams) -> dict:
+        ops = native_fault_ops(self, params.host_name, "source_nat_rules")
+        if ops is not None:
+            ports = f"{params.port_start}-{params.port_end}"
+            rules = ops.source_nat_rules()
+            return build_verify_result(
+                self.root_cause_name,
+                any(
+                    rule.source_prefix == params.source_prefix
+                    and rule.to_address == params.public_ip
+                    and rule.to_ports == ports
+                    for rule in rules
+                ),
+                {"edge": params.host_name, "rules": [vars(rule) for rule in rules]},
+            )
         rules = self.runtime.exec(params.host_name, "nft -a list table ip nat")
         wanted = f"{params.public_ip}:{params.port_start}-{params.port_end}"
         return build_verify_result(
@@ -379,6 +404,18 @@ class NatMappingRemovedWithoutDrain(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: NatMappingRemovedWithoutDrainParams):
+        ops = native_fault_ops(self, params.host_name, "clear_nat_mappings")
+        if ops is not None:
+            wan, active = params.wan_interface, params.nat_ip_a
+            self._before = {
+                "addresses": ops.interface_addresses(wan),
+                "mappings": ops.nat_mapping_count(active),
+            }
+            ops.add_source_nat(params.source_prefix, params.nat_ip_b, protocol="tcp")
+            ops.remove_interface_address(wan, f"{active}/32")
+            # Withdraw without draining: drop the mappings that used it.
+            ops.clear_nat_mappings(active)
+            return
         self._before = self.runtime.exec(
             params.host_name,
             f"ip -4 addr show dev {params.wan_interface}; "
@@ -407,6 +444,22 @@ class NatMappingRemovedWithoutDrain(ProblemBase):
         )
 
     def verify_fault(self, params: NatMappingRemovedWithoutDrainParams) -> dict:
+        ops = native_fault_ops(self, params.host_name, "nat_mapping_count")
+        if ops is not None:
+            addresses = ops.interface_addresses(params.wan_interface)
+            mappings = ops.nat_mapping_count(params.nat_ip_a)
+            return build_verify_result(
+                self.root_cause_name,
+                f"{params.nat_ip_a}/32" not in addresses
+                and f"{params.nat_ip_b}/32" in addresses
+                and mappings == 0,
+                {
+                    "edge": params.host_name,
+                    "before": getattr(self, "_before", ""),
+                    "addresses": addresses,
+                    "conntrack_mappings": mappings,
+                },
+            )
         addresses = self.runtime.exec(
             params.host_name, f"ip -4 addr show dev {params.wan_interface}"
         )

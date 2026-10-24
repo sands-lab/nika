@@ -235,8 +235,13 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
     LAB_NAME = "enterprise_branch"
     TOPO_LEVEL = "medium"
     VERIFY_MAX_WAIT_SEC = 240
-    # Site edges terminate WireGuard, VRFs and NAT, which XRd does not provide.
-    NATIVE_PROFILE_ROLES = {"iosxr": frozenset({"provider"})}
+    # Site edges terminate WireGuard, VRFs and NAT, which XRd does not
+    # provide; RouterOS runs them natively, while providers stay FRR.
+    NATIVE_PROFILE_ROLES = {
+        "iosxr": frozenset({"provider"}),
+        "routeros": frozenset({"edge"}),
+    }
+    NATIVE_PROFILE_SIZES = {"routeros": ("s",)}
 
     def __init__(
         self,
@@ -289,6 +294,14 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
             if identity.role is NodeRole.ROUTER:
                 roles["provider" if name in providers else "edge"].append(name)
         return roles
+
+    def native_router_config(self, profile: str, name: str):
+        """Render RouterOS Site Edges from their design, not the FRR sketch."""
+        if profile != "routeros":
+            return None
+        from nika.net_env.enterprise_branch.routeros import edge_router
+
+        return edge_router(self, name)
 
     def _provider_routes(self) -> str:
         from nika.net_env.enterprise_branch.verify import FRR_PROVIDER_ROUTES
@@ -735,24 +748,46 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
             verify_enterprise_branch_lab_startup,
         )
 
-        return verify_enterprise_branch_lab_startup(
-            self._build_runtime(),
-            scenario_name=self.LAB_NAME,
-            topo_size=self.topo_size,
-            built_tunnels=self.built_tunnels,
-            spec=self.spec,
-        )
+        return self._verify(verify_enterprise_branch_lab_startup, startup=True)
 
     def verify_lab(self) -> dict:
         from nika.net_env.enterprise_branch.verify import (
             verify_enterprise_branch_lab,
         )
 
-        return verify_enterprise_branch_lab(
-            self._build_runtime(),
+        return self._verify(
+            verify_enterprise_branch_lab, provider_routes=self._provider_routes()
+        )
+
+    def _verify(self, verify, *, startup: bool = False, **extra) -> dict:
+        runtime = self._build_runtime()
+        kwargs = dict(
             scenario_name=self.LAB_NAME,
             topo_size=self.topo_size,
             built_tunnels=self.built_tunnels,
             spec=self.spec,
-            provider_routes=self._provider_routes(),
+            **extra,
         )
+        if self.device_profile != "routeros":
+            return verify(runtime, **kwargs)
+        from nika.net_env.enterprise_branch.routeros import RouterOsEdgeView
+        from nika.net_env.utils.routeros.common import with_routeros_config_check
+        from nika.net_env.verify import exec_or_empty
+
+        view = RouterOsEdgeView()
+        result = verify(runtime, edge_view=view, **kwargs)
+        if startup:
+            # RouterOS edges import their configs at different times after
+            # boot, so readiness also waits for every planned overlay session.
+            established = all(
+                {tunnel[1] for tunnel in edge.tunnels.values()}
+                <= view.bgp_peers.established_peers(
+                    exec_or_empty(
+                        runtime, edge.name, view.bgp_peers.command, timeout=20
+                    )
+                )
+                for edge in self._edges.values()
+            )
+            result["checks"]["overlay_sessions_established"] = established
+            result["verified"] = bool(result["verified"] and established)
+        return with_routeros_config_check(runtime, sorted(self.native_routers), result)

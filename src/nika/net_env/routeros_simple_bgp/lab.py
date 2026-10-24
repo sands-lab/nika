@@ -1,15 +1,9 @@
 """MikroTik RouterOS (vrnetlab) simple BGP lab.
 
 Requires a locally built ``vrnetlab/mikrotik/routeros`` image tagged as
-``IMAGE`` below — MikroTik's licensing means the CHR disk image cannot be
-redistributed or auto-built like the ``nika/*`` images.
-
-RouterOS via vrnetlab boots a full QEMU VM inside the container (unlike XRd,
-which is a native container process). vrnetlab always reserves the first
-container interface (``eth0`` / RouterOS ``ether1``) for its own internal
-management bridge, so each router here starts with an isolated placeholder
-link that consumes Kathara interface index 0 before the real data links are
-attached — see the two ``connect_machine_to_link`` calls below.
+``IMAGE`` — MikroTik's licensing means the CHR disk image cannot be
+redistributed or auto-built like the ``nika/*`` images. Machine setup, including
+the reserved management interface, is shared in ``nika.net_env.utils.routeros``.
 """
 
 import ipaddress
@@ -18,27 +12,16 @@ from Kathara.manager.Kathara import Kathara
 from Kathara.model.Lab import Lab
 
 from nika.net_env.base import NetworkEnvBase
-from nika.net_env.utils.kathara.docker_files.docker_images import (
-    image_exists,
-    nika_image,
+from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
+from nika.net_env.utils.routeros.common import (
+    CONFIG_FILE_PATH,
+    add_routeros_router,
+    require_routeros_image,
 )
 from nika.runtime.spec import NodeRole
 
-IMAGE = "vrnetlab/mikrotik_routeros:7.21.5"
-
-# vrnetlab's own fixed, non-secret internal defaults for RouterOS's mgmt IP,
-# which sits on an internal bridge reachable only via `docker exec` into the
-# container's network namespace — never exposed on the Kathara data plane.
-MGMT_USER = "vrnetlab"
-MGMT_PASSWORD = "VR-netlab9"
-MGMT_ADDR = "172.31.255.30"
-
-# Real data-link count per router (router-to-router + router-to-pc). Must
-# track this exactly: vrnetlab's boot blocks with no timeout until it sees
-# CLAB_INTFS + 1 total container interfaces, so setting this too high hangs
-# the VM forever waiting for interfaces this scenario never attaches.
+# Real data-link count per router (router-to-router + router-to-pc).
 CLAB_INTFS = 2
-CONFIG_FILE_PATH = "/ftpboot/config.auto.rsc"
 
 LINK_IFACE = "ether2"
 PC_IFACE = "ether3"
@@ -125,31 +108,19 @@ class RouterOsSimpleBGP(NetworkEnvBase):
                 raise ValueError("Unknown solved RouterOS node")
 
         for router_name, router in ROUTERS.items():
-            machine = self.lab.new_machine(router_name, **{"image": IMAGE})
-            self.declare_machine(
-                router_name,
-                role=NodeRole.ROUTER,
-                capabilities=("linux", "routeros", "bgp"),
-            )
-            machine.add_meta("privileged", True)
-            machine.add_meta("env", f"CLAB_INTFS={CLAB_INTFS}")
-            # vrnetlab's default "vrxcon" datapath only wires a qemu netdev
-            # for a data interface that appears *after* boot (containerlab's
-            # model). Kathara attaches interfaces before the container
-            # starts, so eth1/eth2 already exist and vrxcon's -device ends up
-            # with no matching -netdev, crashing qemu immediately. "macvtap"
-            # instead wraps the already-present interface in a passthru
-            # macvtap, which is the datapath that matches Kathara's model.
-            machine.add_meta("args", "--connection-mode macvtap")
             config = _build_startup_config(router_name, router)
             if routing_parameters is not None:
                 config = render_routeros_bgp_exports(
                     config, router_name, routing_parameters
                 )
-            machine.create_file_from_string(config, CONFIG_FILE_PATH)
-            # Consumes Kathara interface index 0 (RouterOS `ether1`, reserved
-            # by vrnetlab for its own mgmt bridge). Must be connected first.
-            self.lab.connect_machine_to_link(router_name, f"{router_name}_reserved0")
+            add_routeros_router(
+                self.lab, router_name, config=config, data_interfaces=CLAB_INTFS
+            )
+            self.declare_machine(
+                router_name,
+                role=NodeRole.ROUTER,
+                capabilities=("linux", "routeros", "bgp"),
+            )
 
         pc1 = self.lab.new_machine("pc1", **{"image": nika_image("base")})
         pc2 = self.lab.new_machine("pc2", **{"image": nika_image("base")})
@@ -192,16 +163,7 @@ class RouterOsSimpleBGP(NetworkEnvBase):
         return {str(router["pc_ip"].network): name for name, router in ROUTERS.items()}
 
     def deploy(self):
-        if not image_exists(IMAGE):
-            raise RuntimeError(
-                f"MikroTik RouterOS image {IMAGE!r} not found locally. Build "
-                "it with:\n"
-                "  ./scripts/install.sh --with-vendor-images\n"
-                "That downloads CHR, clones hellt/vrnetlab into "
-                ".nika_cache/vendor/vrnetlab, and tags the image. See "
-                "docs/operations/network-scenarios.md#routeros-simple-bgp-scenario "
-                "for the manual fallback under the same cache path."
-            )
+        require_routeros_image()
         super().deploy()
 
     def startup_verify_lab(self) -> dict:
