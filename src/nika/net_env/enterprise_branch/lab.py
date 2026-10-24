@@ -713,6 +713,48 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
             "l2_endpoints": sorted(corp, key=lambda h: h != "br1_corp_pc"),
         }
 
+    def hijack_targets(self) -> list[dict[str, str]]:
+        """BGP hijacks a branch edge can make visible to another branch.
+
+        Edges accept overlay prefixes only up to /24 and export only their
+        ``LOCAL-ADV`` prefixes, so a hijack is the equal-length /24 of a
+        third site's CORP LAN with ``LOCAL-ADV`` extended. The hub (HQ)
+        prefers the hijacker's path, so the observer branch's traffic to that
+        LAN follows it. One target per hijacking branch edge.
+        """
+        corp = {
+            host.site: host
+            for host in sorted(self._hosts.values(), key=lambda h: h.name)
+            if host.role == "corp" and host.name.endswith("_corp_pc")
+        }
+        branches = sorted(site for site in corp if site.startswith("br"))
+        targets = []
+        for hijacker in branches:
+            observer = next((b for b in branches if b != hijacker), None)
+            victim = next(
+                (
+                    site
+                    for site in sorted(corp, key=lambda s: (s.startswith("br"), s))
+                    if site not in {"hq", hijacker, observer}
+                ),
+                None,
+            )
+            if observer is None or victim is None:
+                continue
+            host = corp[victim]
+            prefix = IPv4Network(f"{host.ip}/24", strict=False)
+            targets.append(
+                {
+                    "host_name": f"{hijacker}_edge",
+                    "target_network": str(prefix),
+                    "export_prefix_list": "LOCAL-ADV",
+                    "symptom_host": f"{observer}_edge",
+                    "observer_host": corp[observer].name,
+                    "probe_dst_ip": host.ip,
+                }
+            )
+        return targets
+
     def _target_size(self) -> TopoSize:
         return self.topo_size if self.topo_size in SCALE else "s"
 
