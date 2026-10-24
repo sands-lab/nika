@@ -389,7 +389,11 @@ Each router is a VM that needs about 1 GiB, so NIKA checks available memory befo
 
 Agents run RouterOS commands with the `routeros_exec` tool of [`kathara_routeros_mcp_server`](../agents/mcp-servers.md#use-dedicated-diagnosis-tools). RouterOS `ether1` is vrnetlab's management port. In an ISP environment, container interface `ethN` is RouterOS `ether(N+1)`; in the other environments, `ethN` is `ether(N+2)`.
 
-Link failures behave as on FRR: QEMU does not pass a container interface's link state to the VM, so a watcher in each router container mirrors it to the RouterOS port, and routes over a downed link are withdrawn at once. Two routing behaviors differ from FRR:
+Link-down failures behave as on FRR: QEMU does not pass a container interface's link state to the VM, so a watcher in each router container mirrors it to the RouterOS port, and routes over a downed link are withdrawn at once.
+
+Link-quality failures, such as `link_capacity_bottleneck`, are not supported on a link between two RouterOS routers and raise `RuntimeCapabilityError`. Target a link with at least one FRR or Linux endpoint instead.
+
+Two routing behaviors differ from FRR:
 
 * RouterOS installs one best BGP path, so `dc_clos` traffic uses a single spine instead of FRR's equal-cost multipath.
 * RouterOS advertises passive IS-IS interfaces, such as host-facing links, with metric 0. Route selection is unchanged because each such prefix has one origin.
