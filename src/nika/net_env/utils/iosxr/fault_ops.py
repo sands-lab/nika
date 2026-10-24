@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import shlex
 import ipaddress
 import re
+import shlex
 
 from nika.problems.support.router_ops import RouterFaultOps
 from nika.service.lab.iosxr_api import CLI_COMMAND
