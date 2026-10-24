@@ -121,6 +121,9 @@ def start_example_case(row: dict[str, Any], *, result_dir: str | None = None) ->
     from nika.workflows.session.close import close_session
 
     options = {key: row[key] for key in ISP_DEPLOY_KEYS if key in row}
+    from nika.workflows.benchmark.licensed import require_licensed_images
+
+    require_licensed_images([row])
     validate_benchmark_case(
         row["scenario"],
         row["problem"],

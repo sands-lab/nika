@@ -382,6 +382,24 @@ def benchmark_run(
             "Accepts a case task_id or a trial dirname ({task_id}__tNN)."
         ),
     ),
+    skip_licensed: bool = typer.Option(
+        False,
+        "--skip-licensed",
+        help=(
+            "Batch mode: leave out rows that need licensed vendor images "
+            "(IOS XR, RouterOS device profiles; iosxr_simple_bgp, "
+            "routeros_simple_bgp)."
+        ),
+    ),
+    device_profiles: list[str] | None = typer.Option(
+        None,
+        "--device-profile",
+        help=(
+            "Batch mode: run only rows of these router platforms (frr, "
+            "nokia_srlinux, iosxr, routeros). Repeatable; rows without a "
+            "device_profile count as frr."
+        ),
+    ),
     problem: str | None = typer.Option(
         None,
         "--problem",
@@ -652,6 +670,11 @@ def benchmark_run(
             raise typer.BadParameter(
                 "--task-id applies to batch mode only; omit it for a single case."
             )
+        if skip_licensed or device_profiles:
+            raise typer.BadParameter(
+                "--skip-licensed and --device-profile apply to --config batch "
+                "mode only; omit them for a single case."
+            )
         if not problem:
             raise typer.BadParameter("--problem is required when SCENARIO is given.")
         if scenario_requires_topo_size(scenario) and not size:
@@ -723,6 +746,8 @@ def benchmark_run(
                 yes=yes,
                 verbose=verbose,
                 output_mode=output_mode,
+                skip_licensed=skip_licensed,
+                device_profiles=device_profiles,
             )
         except ValueError as exc:
             raise typer.BadParameter(str(exc)) from exc

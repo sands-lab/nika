@@ -179,3 +179,27 @@ def test_validation_results_round_trip_and_key_isp_as_one_environment(
     write_results({"dc_clos/iosxr/bgp_asn_misconfig": record}, path)
     assert load_results(path) == {"dc_clos/iosxr/bgp_asn_misconfig": record}
     assert validated_cells(path) == {"dc_clos/iosxr/bgp_asn_misconfig"}
+
+
+def test_runs_select_rows_by_platform_and_name_missing_licensed_images(
+    monkeypatch,
+) -> None:
+    from nika.net_env.utils.kathara.docker_files import docker_images
+    from nika.workflows.benchmark.licensed import (
+        require_licensed_images,
+        select_rows,
+    )
+
+    native = {"scenario": "dc_clos", "device_profile": "routeros"}
+    licensed = {"scenario": "routeros_simple_bgp"}
+    frr = {"scenario": "dc_clos"}
+    rows = [native, licensed, frr]
+    assert select_rows(rows, skip_licensed=True) == [frr]
+    assert select_rows(rows, device_profiles=["routeros"]) == [native]
+    assert select_rows(rows, device_profiles=["frr"]) == [licensed, frr]
+    monkeypatch.setattr(docker_images, "image_exists", lambda image: False)
+    with pytest.raises(ValueError, match="--skip-licensed") as exc:
+        require_licensed_images(rows)
+    assert "dc_clos/routeros x1" in str(exc.value)
+    assert "routeros_simple_bgp/frr x1" in str(exc.value)
+    require_licensed_images([frr])

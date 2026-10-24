@@ -1078,6 +1078,8 @@ def run_benchmark_from_yaml(
     verbose: bool = False,
     output_mode: OutputMode = "human",
     plan_header: str | None = None,
+    skip_licensed: bool = False,
+    device_profiles: list[str] | None = None,
 ) -> None:
     """Run ad-hoc YAML cases via the shared trial runner (``n_trials=1``).
 
@@ -1105,6 +1107,8 @@ def run_benchmark_from_yaml(
         verbose=verbose,
         output_mode=output_mode,
         plan_header=plan_header,
+        skip_licensed=skip_licensed,
+        device_profiles=device_profiles,
     )
 
 
@@ -1516,6 +1520,18 @@ def _run_trials_batch(
     return failures
 
 
+def select_trials_rows(
+    rows: list[dict[str, Any]], task_ids: list[str] | None
+) -> list[dict[str, Any]]:
+    """Rows this launch runs (``--task-id`` narrows them)."""
+    if not task_ids:
+        return rows
+    from nika.workflows.benchmark.trials import parse_task_selector, task_id_for_row
+
+    wanted = {parse_task_selector(selector)[0] for selector in task_ids}
+    return [row for row in rows if task_id_for_row(row) in wanted]
+
+
 def run_benchmark_trials(
     benchmark_file: str,
     agent_type: str,
@@ -1540,6 +1556,8 @@ def run_benchmark_trials(
     plan_header: str | None = None,
     job: dict[str, Any] | None = None,
     check_images: bool = True,
+    skip_licensed: bool = False,
+    device_profiles: list[str] | None = None,
 ) -> None:
     """Run cases × ``n_trials`` under ``{result_dir}/trials/`` (shared batch kernel).
 
@@ -1567,9 +1585,22 @@ def run_benchmark_trials(
     quiet_third_party_logging()
 
     rows = load_benchmark_input(benchmark_file)
+    if skip_licensed or device_profiles:
+        from nika.workflows.benchmark.licensed import select_rows
+
+        rows = select_rows(
+            rows, skip_licensed=skip_licensed, device_profiles=device_profiles
+        )
     if not rows:
         print(f"No benchmark rows found in {benchmark_file}")
         return
+    if check_images:
+        from nika.remote.config import is_remote_enabled
+
+        if not is_remote_enabled():
+            from nika.workflows.benchmark.licensed import require_licensed_images
+
+            require_licensed_images(select_trials_rows(rows, task_ids))
     release_meta = dict(release_meta or {})
 
     # ``all_trials`` is the job's full grid; ``trials`` is what this launch

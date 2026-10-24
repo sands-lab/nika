@@ -355,6 +355,8 @@ nika benchmark run --release 0.2.0 --split test \
 | `nika benchmark list` | Without `--release` or `--config`, prints one row per frozen release: version, default split, case count per split, `n_trials`, and status. It reads only the `RELEASE.yaml` manifests and skips preflight. With `--release` (optionally `--split`) or `--config`, prints `SCENARIO`, `PROBLEM`, `DEPLOY`, and `TASK_ID` for each case. Add `--json` for scripts. |
 | `nika benchmark describe TASK_ID` | Prints scenario, problem, deploy fields, inject, and `root_causes`. Accepts a case id or a trial dirname; strips `__tNN`. |
 | `nika benchmark run --task-id ID` | Batch mode only. Repeatable. A case id runs every trial for that case; `{task_id}__t02` runs that trial slot only. Unknown ids fail before the run starts. |
+| `nika benchmark run --skip-licensed` | `--config` batch mode only. Leaves out rows that need licensed vendor images: IOS XR and RouterOS `device_profile` rows, `iosxr_simple_bgp`, `routeros_simple_bgp`. Without it, a run that needs a missing licensed image stops before any lab starts and lists the affected rows. |
+| `nika benchmark run --device-profile NAME` | `--config` batch mode only. Repeatable. Runs only rows of these router platforms (`frr`, `nokia_srlinux`, `iosxr`, `routeros`); rows without a `device_profile` count as `frr`. |
 
 ### Run layout and artifacts
 
@@ -429,6 +431,8 @@ nika benchmark run --config benchmark/working/cases.yaml --batch-size 4 --retry-
 ### Generate and select candidate cases
 
 - **`nika benchmark generate [--output DIR]`**: write the executable candidate pool (default `benchmark/working/pool`) and print how many candidate files and inject options it produced.
+- **`nika benchmark generate --validated-only`**: keep IOS XR and RouterOS cases only for cells that `validate-profiles` recorded as validated.
+- **`nika benchmark validate-profiles [--list] [--native-only] [--environment ENV] [--device-profile P] [--failure F] [--limit N] [--rerun]`**: run one case per (environment, device profile, failure) cell end to end and record the result in `benchmark/working/validation/device_profiles.yaml`. Heavy: cells run one at a time under `/tmp/nika-heavy-lab.lock`.
 - **`nika benchmark select [--pool DIR] [--output PATH] [--seed N] [--skip-audit]`**: pick a compact case subset from the audited pool (default output `benchmark/working/cases.yaml`, seed `42`). `--skip-audit` bypasses the pool audit gate; avoid it for release candidates.
 
 ### Freeze a release

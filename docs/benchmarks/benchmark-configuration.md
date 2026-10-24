@@ -123,7 +123,16 @@ A case targets a native router only when the failure can run there. A failure de
 
 `ProblemBase.is_compatible(scenario, device_profile)` and `runs_on_device_profile` record this compatibility; the coverage matrix below shows it per environment and profile, with the last result of `nika benchmark validate-profiles` (see [Validate device-profile cells](../development/creating-benchmark-tasks.md#validate-device-profile-cells)). `nika benchmark generate --validated-only` keeps native rows only for validated cells.
 
-These rows need licensed vendor images (`install.sh --with-vendor-images`) and run as heavy trials, one at a time. Like `routeros_simple_bgp`, they stay in the pool, so a run of the whole pool deploys them. `nika benchmark select` and releases leave out every row that needs a licensed image. To run only openly available cases, run `benchmark/working/cases.yaml` or a release.
+These rows need licensed vendor images (`./scripts/install.sh --with-vendor-images`) and run as heavy trials, one at a time. Like `routeros_simple_bgp`, they stay in the pool. `nika benchmark select` and releases leave out every row that needs a licensed image.
+
+Before any lab starts, `nika benchmark run --config` and `nika case run` check that the licensed images their rows need are installed. When one is missing, the run stops and lists the image and the affected rows by scenario and platform. Choose which rows a pool run includes:
+
+```shell
+nika benchmark run --config benchmark/working/pool --skip-licensed            # openly available images only
+nika benchmark run --config benchmark/working/pool --device-profile routeros  # RouterOS rows only
+```
+
+`--device-profile` is repeatable; rows without a `device_profile` count as `frr`.
 
 Paths follow `working/pool/{scenario}/{fault_type}.yaml`, plus `working/pool/{scenario}/healthy.yaml`. Scenarios meant for tests only, such as `iosxr_simple_bgp`, are excluded from generation.
 

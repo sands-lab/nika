@@ -629,6 +629,31 @@ def deployment_needs_licensed_images(
     return spec.licensed_images or device_profile in (spec.device_profiles or {})
 
 
+def deployment_licensed_images(
+    scenario_name: str, device_profile: str | None = None
+) -> tuple[str, ...]:
+    """Licensed vendor images a deployment needs (empty for open images).
+
+    A native ``device_profile`` needs its vendor image; a licensed scenario
+    (``iosxr_simple_bgp``, ``routeros_simple_bgp``) needs the image of the
+    native profile its tags name.
+    """
+    from nika.net_env.native_routers import native_profiles
+
+    spec = _require_scenario(scenario_name)
+    profiles = set()
+    if device_profile in (spec.device_profiles or {}):
+        profiles.add(device_profile)
+    if spec.licensed_images:
+        profiles.update(set(spec.tags) & native_profiles())
+    return tuple(
+        sorted(
+            import_module(f"nika.net_env.utils.{profile}.common").IMAGE
+            for profile in profiles
+        )
+    )
+
+
 def scenario_supported_backends(scenario_name: str) -> list[str]:
     """Return backends supported by ``scenario_name``."""
     return list(_require_scenario(scenario_name).supported_backends)
