@@ -1641,36 +1641,6 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 </tr>
 <tr>
-<td><code>lb_connection_state_exhaustion</code></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-</tr>
-<tr>
 <td><code>lb_pending_connection_update_race</code></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -2910,14 +2880,14 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <tbody>
 <tr>
 <td><code>link_capacity_bottleneck</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
 </tr>
 <tr>
 <td><code>link_detach</code></td>
@@ -2943,25 +2913,25 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 </tr>
 <tr>
 <td><code>link_flap</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
 </tr>
 <tr>
 <td><code>link_packet_corruption</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
 </tr>
 <tr>
 <td><code>bgp_asn_misconfig</code></td>
@@ -3396,10 +3366,10 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td><code>bgp_hijacking</code></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">◆✗</td>
+<td align="center">◆✓</td>
 <td align="center">◆✓</td>
 <td align="center">◆</td>
-<td align="center">◆✗</td>
+<td align="center">◆✓</td>
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
 </tr>
