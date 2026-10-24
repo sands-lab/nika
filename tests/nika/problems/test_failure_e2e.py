@@ -101,19 +101,6 @@ def _incast_e2e_cases() -> list[FailureE2ECase]:
     ]
 
 
-def _lb_conn_exhaustion_e2e_cases() -> list[FailureE2ECase]:
-    return [
-        FailureE2ECase(
-            problem="lb_connection_state_exhaustion",
-            scenario="p4_dc_gateway",
-            env_run_args=("-s", "s"),
-            inject_seed=1,
-            checks=frozenset({"verify", "symptom"}),
-            sleep_after_inject_sec=2.0,
-        )
-    ]
-
-
 CORE_E2E_CASES = (
     FailureE2ECase(
         problem="link_down",
@@ -186,7 +173,6 @@ def _all_e2e_cases() -> list[FailureE2ECase]:
         *CORE_E2E_CASES,
         *_link_detach_e2e_cases(),
         *_incast_e2e_cases(),
-        *_lb_conn_exhaustion_e2e_cases(),
         *_pipeline_mismatch_e2e_cases(),
         *_flap_e2e_cases(),
     ]

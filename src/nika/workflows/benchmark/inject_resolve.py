@@ -9,6 +9,10 @@ from collections import defaultdict
 from nika.net_env.net_env_pool import get_net_env_instance
 from nika.problems.base import ProblemBase
 from nika.problems.registry import get_problem_class, list_avail_problem_instances
+from nika.problems.support.router_ops import (
+    TARGET_PARAM_KEYS,
+    unsupported_native_targets,
+)
 from nika.problems.support.benchmark_targets import (
     InjectTargetContext,
     InjectValidationContext,
@@ -25,15 +29,12 @@ from nika.workflows.benchmark.isp_options import (
 
 DEFAULT_SEED = 42
 
-_DEVICE_KEYS = (
-    "host_name",
-    "host_name_2",
-    "attacker_device",
-    "control_node",
-    "node_name",
-    "symptom_host",
-    "forwarding_device",
-)
+
+class UnsupportedNativeTargetError(ValueError):
+    """A case targets a native router whose platform cannot run the failure."""
+
+
+_DEVICE_KEYS = TARGET_PARAM_KEYS
 
 
 def _case_rng(
@@ -52,7 +53,8 @@ def _case_rng(
     return random.Random(digest)
 
 
-def _isp_rng_key(isp_options: dict[str, str] | None) -> str:
+def _deploy_rng_key(isp_options: dict[str, str] | None) -> str:
+    """Deployment part of a case's RNG key (empty for default deployments)."""
     if not isp_options:
         return ""
     return (
@@ -95,10 +97,10 @@ def _resolve_benchmark_backend(
     )
 
 
-def _isp_stack_kwargs(
+def _stack_kwargs(
     scenario: str, isp_options: dict[str, str] | None
 ) -> dict[str, object]:
-    """Backend / device_profile kwargs for ISP (and other multi-backend) labs."""
+    """Backend / device_profile kwargs for any lab (ISP or native profile)."""
     kwargs: dict[str, object] = {
         "backend": _resolve_benchmark_backend(scenario, isp_options),
     }
@@ -119,7 +121,7 @@ def _get_net_env_for_benchmark(
     if topo_size and not is_isp_scenario(scenario):
         kwargs["topo_size"] = topo_size
     kwargs.update(_isp_protocol_kwargs(scenario, isp_options))
-    kwargs.update(_isp_stack_kwargs(scenario, isp_options))
+    kwargs.update(_stack_kwargs(scenario, isp_options))
     return get_net_env_instance(scenario, **kwargs)
 
 
@@ -180,7 +182,7 @@ def _resolve(
         scenario,
         problem,
         topo_size,
-        _isp_rng_key(isp_options),
+        _deploy_rng_key(isp_options),
     )
     if net_env is None:
         net_env = _get_net_env_for_benchmark(
@@ -308,15 +310,36 @@ def validate_benchmark_case(
             isp_options=isp_options,
         )
         _load_inventory(net_env)
-    if (
-        is_isp_base_topology(canonical)
-        and getattr(net_env, "device_profile", None) in {"iosxr", "routeros"}
-        and problem != "link_down"
-    ):
-        raise ValueError(
-            f"Native ISP benchmark profiles need native fault bindings for {problem!r}; "
-            "currently only link_down is supported."
+    unsupported = unsupported_native_targets(
+        problem_cls, net_env, [inject[key] for key in _DEVICE_KEYS if inject.get(key)]
+    )
+    if unsupported:
+        raise UnsupportedNativeTargetError(
+            f"{problem} has no native implementation for target routers "
+            f"{unsupported} in {scenario}."
         )
+    if (
+        problem_cls.BENCHMARK_LINK_PROXY
+        and _resolve_benchmark_backend(canonical, isp_options) == "kathara"
+        and inject.get("host_name")
+        and inject.get("intf_name")
+    ):
+        from nika.problems.rca.inventory import link_containing_endpoint, parse_endpoint
+        from nika.runtime.kathara.vde_proxy import proxy_can_attach
+
+        try:
+            link = link_containing_endpoint(
+                net_env, inject["host_name"], inject["intf_name"]
+            )
+        except Exception:  # noqa: BLE001 - other checks report bad endpoints
+            link = None
+        if link is not None:
+            nodes = [parse_endpoint(ep)[0] for ep in str(link.name).split("--")]
+            if not proxy_can_attach(net_env, nodes):
+                raise UnsupportedNativeTargetError(
+                    f"{problem} needs a movable port on {link.name}, but every "
+                    "endpoint is a RouterOS router."
+                )
     devices = _all_device_names(net_env)
     ifaces_by_device = _device_interfaces(net_env)
 
@@ -422,7 +445,7 @@ def resolve_multi_inject_params(
         scenario,
         "+".join(sorted(problems)),
         topo_size,
-        _isp_rng_key(isp_options),
+        _deploy_rng_key(isp_options),
     )
     ctx = MultiInjectContext(
         scenario=scenario,

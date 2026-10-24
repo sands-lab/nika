@@ -16,6 +16,18 @@ healthy:
     device_profile: frr
   - topo_size: s
     igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+  - topo_size: s
+    igp: isis
     bgp_mode: none
     rpki: false
     backend: containerlab
@@ -27,6 +39,18 @@ healthy:
     backend: kathara
     device_profile: frr
   - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+  - topo_size: s
     igp: ospf
     bgp_mode: ebgp
     rpki: false
@@ -40,7 +64,25 @@ healthy:
     device_profile: frr
   - topo_size: s
     igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+  - topo_size: s
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+  - topo_size: s
+    igp: ospf
     bgp_mode: none
     rpki: false
     backend: kathara
     device_profile: frr
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros

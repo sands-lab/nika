@@ -219,6 +219,474 @@ failure:
         kind: link
         name: hq_edge:eth4--isp2_core:eth0
       fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      corruption_percentage: '10'
+      host_name: br1_corp_pc
+      intf_name: eth0
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: br1_corp_pc:eth0--br1_edge:eth0
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      corruption_percentage: '10'
+      host_name: br1_edge
+      intf_name: eth1
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: br1_edge:eth1--br1_guest_pc:eth0
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      corruption_percentage: '10'
+      host_name: br1_edge
+      intf_name: eth2
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: br1_edge:eth2--isp1_core:eth2
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      corruption_percentage: '10'
+      host_name: br1_edge
+      intf_name: eth3
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: br1_edge:eth3--isp2_core:eth2
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      corruption_percentage: '10'
+      host_name: br2_corp_pc
+      intf_name: eth0
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: br2_corp_pc:eth0--br2_edge:eth0
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      corruption_percentage: '10'
+      host_name: br2_edge
+      intf_name: eth1
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: br2_edge:eth1--br2_guest_pc:eth0
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      corruption_percentage: '10'
+      host_name: br2_edge
+      intf_name: eth2
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: br2_edge:eth2--isp1_core:eth3
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      corruption_percentage: '10'
+      host_name: br2_edge
+      intf_name: eth3
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: br2_edge:eth3--isp2_core:eth3
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      corruption_percentage: '10'
+      host_name: dc2_corp_pc
+      intf_name: eth0
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: dc2_corp_pc:eth0--dc2_edge:eth0
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      corruption_percentage: '10'
+      host_name: dc2_edge
+      intf_name: eth1
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: dc2_edge:eth1--dc2_srv:eth0
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      corruption_percentage: '10'
+      host_name: dc2_edge
+      intf_name: eth2
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: dc2_edge:eth2--dc2_guest_pc:eth0
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      corruption_percentage: '10'
+      host_name: dc2_edge
+      intf_name: eth3
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: dc2_edge:eth3--isp1_core:eth1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      corruption_percentage: '10'
+      host_name: dc2_edge
+      intf_name: eth4
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: dc2_edge:eth4--isp2_core:eth1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      corruption_percentage: '10'
+      host_name: hq_corp_pc
+      intf_name: eth0
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: hq_corp_pc:eth0--hq_edge:eth0
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      corruption_percentage: '10'
+      host_name: hq_edge
+      intf_name: eth1
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: hq_edge:eth1--hq_srv:eth0
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      corruption_percentage: '10'
+      host_name: hq_edge
+      intf_name: eth2
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: hq_edge:eth2--hq_guest_pc:eth0
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      corruption_percentage: '10'
+      host_name: hq_edge
+      intf_name: eth3
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: hq_edge:eth3--isp1_core:eth0
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      corruption_percentage: '10'
+      host_name: hq_edge
+      intf_name: eth4
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: hq_edge:eth4--isp2_core:eth0
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      corruption_percentage: '10'
+      host_name: br1_corp_pc
+      intf_name: eth0
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: br1_corp_pc:eth0--br1_edge:eth0
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      corruption_percentage: '10'
+      host_name: br1_edge
+      intf_name: eth1
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: br1_edge:eth1--br1_guest_pc:eth0
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      corruption_percentage: '10'
+      host_name: br1_edge
+      intf_name: eth2
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: br1_edge:eth2--isp1_core:eth2
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      corruption_percentage: '10'
+      host_name: br1_edge
+      intf_name: eth3
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: br1_edge:eth3--isp2_core:eth2
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      corruption_percentage: '10'
+      host_name: br2_corp_pc
+      intf_name: eth0
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: br2_corp_pc:eth0--br2_edge:eth0
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      corruption_percentage: '10'
+      host_name: br2_edge
+      intf_name: eth1
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: br2_edge:eth1--br2_guest_pc:eth0
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      corruption_percentage: '10'
+      host_name: br2_edge
+      intf_name: eth2
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: br2_edge:eth2--isp1_core:eth3
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      corruption_percentage: '10'
+      host_name: br2_edge
+      intf_name: eth3
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: br2_edge:eth3--isp2_core:eth3
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      corruption_percentage: '10'
+      host_name: dc2_corp_pc
+      intf_name: eth0
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: dc2_corp_pc:eth0--dc2_edge:eth0
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      corruption_percentage: '10'
+      host_name: dc2_edge
+      intf_name: eth1
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: dc2_edge:eth1--dc2_srv:eth0
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      corruption_percentage: '10'
+      host_name: dc2_edge
+      intf_name: eth2
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: dc2_edge:eth2--dc2_guest_pc:eth0
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      corruption_percentage: '10'
+      host_name: dc2_edge
+      intf_name: eth3
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: dc2_edge:eth3--isp1_core:eth1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      corruption_percentage: '10'
+      host_name: dc2_edge
+      intf_name: eth4
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: dc2_edge:eth4--isp2_core:eth1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      corruption_percentage: '10'
+      host_name: hq_corp_pc
+      intf_name: eth0
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: hq_corp_pc:eth0--hq_edge:eth0
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      corruption_percentage: '10'
+      host_name: hq_edge
+      intf_name: eth1
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: hq_edge:eth1--hq_srv:eth0
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      corruption_percentage: '10'
+      host_name: hq_edge
+      intf_name: eth2
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: hq_edge:eth2--hq_guest_pc:eth0
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      corruption_percentage: '10'
+      host_name: hq_edge
+      intf_name: eth3
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: hq_edge:eth3--isp1_core:eth0
+      fault_type: link_packet_corruption
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      corruption_percentage: '10'
+      host_name: hq_edge
+      intf_name: eth4
+      observer_device: br1_corp_pc
+      probe_dst_ip: 10.0.20.2
+    root_causes:
+    - resource:
+        kind: link
+        name: hq_edge:eth4--isp2_core:eth0
+      fault_type: link_packet_corruption
   - topo_size: m
     inject:
       corruption_percentage: '10'

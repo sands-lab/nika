@@ -69,6 +69,19 @@ class VdeFaultProxyState:
     routing_baseline: RoutingBaseline = ()
 
 
+def port_stays_attached(net_env, node: str) -> bool:
+    """Whether ``node`` must keep its port: re-creating a RouterOS container
+    interface detaches the VM's NIC behind it for good."""
+    identities = getattr(net_env, "machine_identities", None) or {}
+    identity = identities.get(node)
+    return identity is not None and "routeros" in identity.capabilities
+
+
+def proxy_can_attach(net_env, endpoints) -> bool:
+    """Whether a proxy can join a link: at least one endpoint's port must move."""
+    return not all(port_stays_attached(net_env, node) for node in endpoints)
+
+
 class KatharaVdeFaultProxy:
     """Insert and remove a transparent proxy for a point-to-point VDE link."""
 
@@ -581,10 +594,7 @@ done
         )
 
     def _stays_attached(self, node: str) -> bool:
-        """Whether ``node`` must keep its port: re-creating a RouterOS
-        container interface detaches the VM's NIC behind it for good."""
-        identity = self._node_identity(node)
-        return identity is not None and "routeros" in identity.capabilities
+        return port_stays_attached(self.runtime._net_env, node)
 
     def _node_identity(self, node: str) -> NodeIdentity | None:
         return self.runtime._net_env.machine_identities.get(node)

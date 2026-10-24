@@ -49,6 +49,8 @@ class LinkFailure(ProblemBase):
     description = "Carrier or operational link is down on the selected attachment."
     TAGS: str = ["link"]
     supported_backends = ("kathara", "containerlab")
+    # Sets the container interface down; native routers mirror its link state.
+    native_router_operations = frozenset()
     RECORDED_ATTRS = ("faulty_intf",)
 
     Params = LinkFailureParams
@@ -254,6 +256,9 @@ class LinkFlap(ProblemBase):
     root_cause_name: str = "link_flap"
     description = "Logical link flaps between up and down."
     TAGS: str = ["link"]
+    # Acts on the link through a controller-side proxy, outside the router OS.
+    native_router_operations = frozenset()
+    BENCHMARK_LINK_PROXY = True
     supported_backends = ("kathara", "containerlab")
     RECORDED_ATTRS = ("faulty_intf",)
 
@@ -444,6 +449,9 @@ class LinkCapacityBottleneck(ProblemBase):
     root_cause_name: str = "link_capacity_bottleneck"
     description = "Logical link capacity is bottlenecked below demand."
     TAGS: str = ["link"]
+    # Acts on the link through a controller-side proxy, outside the router OS.
+    native_router_operations = frozenset()
+    BENCHMARK_LINK_PROXY = True
     supported_backends = ("kathara", "containerlab")
     RECORDED_ATTRS = ("faulty_intf",)
 

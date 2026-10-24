@@ -146,6 +146,15 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
     root_cause_owner = "interface"
     description = "WireGuard peer public key is incorrect."
     TAGS: str = ["vpn"]
+    native_router_operations = frozenset(
+        {
+            "bgp_established_peers",
+            "interface_up",
+            "reset_bgp_session",
+            "set_tunnel_peer_public_key",
+            "tunnel_peer",
+        }
+    )
     Params = WireGuardPeerKeyMisconfigParams
     BENCHMARK_TUNNEL_IFACE = True
     symptom_desc = (
@@ -419,6 +428,14 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
     root_cause_owner = "interface"
     description = "WireGuard AllowedIPs omits a required remote prefix."
     TAGS: str = ["vpn"]
+    native_router_operations = frozenset(
+        {
+            "bgp_established_peers",
+            "route_interface",
+            "set_tunnel_peer_allowed_addresses",
+            "tunnel_peer",
+        }
+    )
     Params = WireGuardAllowedIpsMisconfigParams
     BENCHMARK_TUNNEL_IFACE = True
     symptom_desc = (

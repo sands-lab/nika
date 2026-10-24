@@ -43,6 +43,90 @@ failure:
         node: br2_edge
         name: wg_hq_b
       fault_type: wireguard_peer_key_misconfiguration
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: br1_edge
+      intf_name: wg_hq
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: wg_dc2
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: wg_hq
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: wg_hq_b
+      fault_type: wireguard_peer_key_misconfiguration
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: br2_edge
+      intf_name: wg_hq
+    root_causes:
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: wg_dc2
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: wg_hq
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: wg_hq_b
+      fault_type: wireguard_peer_key_misconfiguration
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: br1_edge
+      intf_name: wg_hq
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: wg_dc2
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: wg_hq
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: wg_hq_b
+      fault_type: wireguard_peer_key_misconfiguration
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: br2_edge
+      intf_name: wg_hq
+    root_causes:
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: wg_dc2
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: wg_hq
+      fault_type: wireguard_peer_key_misconfiguration
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: wg_hq_b
+      fault_type: wireguard_peer_key_misconfiguration
   - topo_size: m
     inject:
       host_name: br1_edge

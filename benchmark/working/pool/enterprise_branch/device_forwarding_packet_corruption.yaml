@@ -14,6 +14,18 @@ failure:
         kind: node
         node: hq_edge
       fault_type: device_forwarding_packet_corruption
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      forwarding_device: hq_edge
+      intf_name: eth4
+      probe_dst_ip: 10.0.20.2
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: hq_edge
+      fault_type: device_forwarding_packet_corruption
   - topo_size: m
     inject:
       forwarding_device: hq_edge

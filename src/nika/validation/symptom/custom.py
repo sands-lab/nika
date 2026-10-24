@@ -136,63 +136,6 @@ from nika.validation.symptom.path_probes import (
 )
 
 
-def _lb_connection_state_exhaustion(
-    problem: Any, params: Any
-) -> tuple[bool, dict[str, Any]]:
-    from nika.net_env.verify import http_ok
-    from nika.problems.service_networking.gateway import (
-        KEEPALIVE_PID_PATH,
-        KEEPALIVE_STATUS_PATH,
-    )
-
-    profile = getattr(problem, "_affinity_profile", None) or {}
-    client_host = profile.get("client_host") or params.client_host
-    status_path = profile.get("status_path", KEEPALIVE_STATUS_PATH)
-    pid_path = profile.get("pid_path", KEEPALIVE_PID_PATH)
-    backend_dip = profile.get("backend_dip") or params.backend_dip
-    vip_url = profile.get("vip_url") or params.vip_url
-
-    status = problem.runtime.exec(
-        client_host, f"cat {status_path} 2>/dev/null || true"
-    ).strip()
-    deadline = time.time() + 8.0
-    while time.time() < deadline and status not in {"broken", "ok"}:
-        time.sleep(0.5)
-        status = problem.runtime.exec(
-            client_host, f"cat {status_path} 2>/dev/null || true"
-        ).strip()
-    if status != "broken":
-        running = problem.runtime.exec(
-            client_host,
-            f"kill -0 $(cat {pid_path} 2>/dev/null) 2>/dev/null && echo running || echo dead",
-        ).strip()
-        if running == "running":
-            problem.runtime.exec(
-                client_host,
-                f"kill $(cat {pid_path} 2>/dev/null) 2>/dev/null || true",
-            )
-            time.sleep(1.0)
-            status = problem.runtime.exec(
-                client_host, f"cat {status_path} 2>/dev/null || true"
-            ).strip()
-
-    affinity_broken = status == "broken"
-    vip_ok = http_ok(problem.runtime, client_host, vip_url)
-    verified = affinity_broken and vip_ok
-    result = build_verify_result(
-        fault_type=problem.root_cause_name,
-        verified=verified,
-        details={
-            "affinity_status": status,
-            "affinity_broken": affinity_broken,
-            "vip_ok": vip_ok,
-            "backend_dip": backend_dip,
-            "vip_url": vip_url,
-        },
-    )
-    return verified, result
-
-
 # EF latency under the same competing bulk load must rise this much (ratio and
 # absolute) over the healthy reading before the remark counts as degrading it.
 _EF_LATENCY_RATIO = 3.0
@@ -289,7 +232,6 @@ _CUSTOM: dict[str, Any] = {
     "k8s_worker_apiserver_partition": worker_partition,
     "silent_egress_packet_loss": silent_loss,
     "load_balancer_overload": lb_overload,
-    "lb_connection_state_exhaustion": _lb_connection_state_exhaustion,
     "snat_port_pool_exhaustion": snat_pool_exhaustion,
     "nat_mapping_removed_without_drain": nat_mapping_removed,
     "mac_address_conflict": mac_conflict,

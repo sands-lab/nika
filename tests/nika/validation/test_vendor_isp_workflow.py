@@ -117,12 +117,18 @@ def test_benchmark_profiles_keep_vendor_identity_and_original_fault(tmp_path):
         if spec.deployment.device_profile != "frr":
             with pytest.raises(ValueError, match="native fault bindings"):
                 build_benchmark_isp_experiment(profile)
+            from nika.problems.registry import get_problem_class
             from nika.workflows.benchmark.inject_resolve import validate_benchmark_case
 
-            with pytest.raises(ValueError, match="native fault bindings"):
-                validate_benchmark_case(
-                    profile["scenario"],
-                    "ospf_area_misconfiguration",
-                    {"host_name": original["host_name"]},
-                    isp_options=profile["deployment"],
-                )
+            # Benchmark cases follow the vendor provider's fault operations.
+            args = (
+                profile["scenario"],
+                "ospf_area_misconfiguration",
+                {"host_name": original["host_name"]},
+            )
+            native = spec.deployment.device_profile
+            if get_problem_class(args[1]).runs_on_device_profile(native):
+                validate_benchmark_case(*args, isp_options=profile["deployment"])
+            else:
+                with pytest.raises(ValueError, match="no native implementation"):
+                    validate_benchmark_case(*args, isp_options=profile["deployment"])

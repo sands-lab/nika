@@ -712,6 +712,22 @@ def require_role_member(
         )
 
 
+def require_node_capability(
+    ctx: InjectValidationContext,
+    problem: str,
+    host_name: str | None,
+    capability: str,
+) -> None:
+    """Reject a target that does not declare ``capability`` (e.g. ``bgp``)."""
+    identities = getattr(ctx.net_env, "machine_identities", None) or {}
+    identity = identities.get(host_name) if host_name else None
+    if identity is not None and capability not in identity.capabilities:
+        raise ValueError(
+            f"{problem} host_name={host_name!r} does not run {capability} on "
+            f"{ctx.scenario} (topo_size={ctx.topo_size!r})."
+        )
+
+
 def require_distinct_hosts(
     ctx: InjectValidationContext,
     problem: str,

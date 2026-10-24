@@ -51,6 +51,33 @@ failure:
         kind: node
         node: server_access_router
       fault_type: frr_service_down
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: router_dist_1_1
+    root_causes:
+    - resource:
+        kind: node
+        node: router_dist_1_1
+      fault_type: frr_service_down
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: router_dist_2_1
+    root_causes:
+    - resource:
+        kind: node
+        node: router_dist_2_1
+      fault_type: frr_service_down
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: server_access_router
+    root_causes:
+    - resource:
+        kind: node
+        node: server_access_router
+      fault_type: frr_service_down
   - topo_size: m
     inject:
       host_name: router_core_1

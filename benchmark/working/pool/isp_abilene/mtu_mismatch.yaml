@@ -24,3 +24,24 @@ failure:
         node: atlang
         name: eth0
       fault_type: mtu_mismatch
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    inject:
+      host_name: atlam5
+      intf_name: eth1
+      mtu: '500'
+    root_causes:
+    - resource:
+        kind: interface
+        node: atlam5
+        name: eth1
+      fault_type: mtu_mismatch
+    - resource:
+        kind: interface
+        node: atlang
+        name: eth1
+      fault_type: mtu_mismatch

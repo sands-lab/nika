@@ -95,6 +95,7 @@ class BGPAsnMisconfig(ProblemBase):
         "configuration, which RouterOS routers do not have."
     }
     supported_backends = ("kathara", "containerlab")
+    native_router_operations = frozenset({"bgp_asn", "set_bgp_asn"})
 
     Params = BGPAsnMisconfigParams
     BENCHMARK_COORDINATES = frozenset({"bgp_acl_block"})
@@ -102,6 +103,15 @@ class BGPAsnMisconfig(ProblemBase):
     @classmethod
     def benchmark_inject_params(cls, ctx):
         return {"host_name": ctx.router0}
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        from nika.problems.support.benchmark_targets import require_node_capability
+
+        # Transit routers without BGP (enterprise ISP cores) have no session.
+        require_node_capability(
+            ctx, cls.root_cause_name, inject.get("host_name"), "bgp"
+        )
 
     @classmethod
     def coordinate_benchmark_inject(cls, ctx, params_by_problem):
@@ -369,6 +379,7 @@ class BGPMissingAdvertise(ProblemBase):
         "configuration, which RouterOS routers do not have.",
     }
     supported_backends = ("kathara", "containerlab")
+    native_router_operations = frozenset({"bgp_networks", "withdraw_bgp_network"})
 
     Params = BGPMissingAdvertiseParams
 

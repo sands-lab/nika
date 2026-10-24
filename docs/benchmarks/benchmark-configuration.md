@@ -6,7 +6,7 @@ Implementation: [`benchmark/`](../../benchmark/) stores matrices and releases; [
 
 ## Frozen release (`nika-bench@0.2.0`)
 
-`0.2.0` publishes public Dev and Test splits from the current failure registry. Both splits cover every registered failure that a benchmark scenario can host (`lb_connection_state_exhaustion` is held out; see the release README). Labels are public for reproducibility. Each version directory under [`benchmark/releases/`](../../benchmark/releases/) includes a `README.md` with suite shape, scenario and failure coverage, and links to the scenario and failure references.
+`0.2.0` publishes public Dev and Test splits from the current failure registry. Both splits cover every failure registered when the version was frozen, except `lb_connection_state_exhaustion`, which 0.2.0 held out and which has since been removed from the registry (see the release README). Labels are public for reproducibility. Each version directory under [`benchmark/releases/`](../../benchmark/releases/) includes a `README.md` with suite shape, scenario and failure coverage, and links to the scenario and failure references.
 
 ```shell
 nika benchmark releases
@@ -59,7 +59,7 @@ The runner loads each catalog case as an executable row before creating trials. 
 
 Pool files live at `working/pool/{scenario}/{fault_type}.yaml` (plus `healthy.yaml`). There is no separate manifest file; loaders scan the pool directory.
 
-Failure group files use `scenario` → `failure` → `cases`. Each case carries the deploy profile (`topo_size`, and for base ISP scenarios `igp` / `bgp_mode` / `backend` / `device_profile` when applicable), scalar `inject`, and materialized `root_causes` in the same shape as frozen release cases.
+Failure group files use `scenario` → `failure` → `cases`. Each case carries the deploy profile (`topo_size`, for base ISP scenarios `igp` / `bgp_mode` / `backend` / `device_profile`, and `device_profile` for other environments with native router profiles), scalar `inject`, and materialized `root_causes` in the same shape as frozen release cases. A row without `device_profile` deploys the environment's default routers, including native routers in vendor-specific environments.
 
 ```yaml
 scenario:
@@ -97,6 +97,42 @@ healthy:
     - topo_size: s
     - topo_size: m
 ```
+
+### Native router profiles
+
+The pool also carries cases whose routers run IOS XR (`device_profile: iosxr`) or RouterOS (`device_profile: routeros`). The generator expands each environment that declares these profiles: `dc_clos`, `campus_lan`, `enterprise_branch` and the base ISP scenarios. It adds them only at size `s` (for ISP scenarios, topology tier `s`), within the sizes the environment supports, so no case needs a large native lab. Each profile gets its own healthy variant.
+
+```yaml
+scenario:
+  name: dc_clos
+failure:
+  fault_type: bgp_asn_misconfig
+  cases:
+    - topo_size: s
+      device_profile: iosxr
+      inject:
+        host_name: leaf_router_0_0
+      root_causes:
+        - resource:
+            kind: node
+            node: leaf_router_0_0
+          fault_type: bgp_asn_misconfig
+```
+
+A case targets a native router only when the failure can run there. A failure declares the native router operations it needs in `native_router_operations`, and each vendor provider implements a set of operations (see [Create benchmark tasks](../development/creating-benchmark-tasks.md#add-an-injectable-failure)). Other targets stay on FRR and Linux nodes. In `campus_lan` and `enterprise_branch` only some router roles convert, so many cases of these profiles target FRR routers and hosts in a mixed-vendor lab. Ground truth names NIKA nodes and Linux interface names, as for FRR rows.
+
+`ProblemBase.is_compatible(scenario, device_profile)` and `runs_on_device_profile` record this compatibility; the coverage matrix below shows it per environment and profile, with the last result of `nika benchmark validate-profiles` (see [Validate device-profile cells](../development/creating-benchmark-tasks.md#validate-device-profile-cells)). `nika benchmark generate --validated-only` keeps native rows only for validated cells.
+
+These rows need licensed vendor images (`./scripts/install.sh --with-vendor-images`) and run as heavy trials, one at a time. Like `routeros_simple_bgp`, they stay in the pool. `nika benchmark select` and releases leave out every row that needs a licensed image.
+
+Before any lab starts, `nika benchmark run --config` and `nika case run` check that the licensed images their rows need are installed. When one is missing, the run stops and lists the image and the affected rows by scenario and platform. Choose which rows a pool run includes:
+
+```shell
+nika benchmark run --config benchmark/working/pool --skip-licensed            # openly available images only
+nika benchmark run --config benchmark/working/pool --device-profile routeros  # RouterOS rows only
+```
+
+`--device-profile` is repeatable. An explicit `device_profile` takes precedence; otherwise the filter uses the environment's uniquely declared native platform, with `frr` as the fallback. For example, `routeros_simple_bgp` rows count as `routeros` even without the field.
 
 Paths follow `working/pool/{scenario}/{fault_type}.yaml`, plus `working/pool/{scenario}/healthy.yaml`. Scenarios meant for tests only, such as `iosxr_simple_bgp`, are excluded from generation.
 
@@ -1605,36 +1641,6 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 </tr>
 <tr>
-<td><code>lb_connection_state_exhaustion</code></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-</tr>
-<tr>
 <td><code>lb_pending_connection_update_race</code></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -2236,7 +2242,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td><code>host_ip_conflict</code></td>
 <td align="center">○</td>
 <td align="center">○</td>
-<td align="center">○</td>
+<td align="center">●</td>
 <td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
@@ -2258,7 +2264,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">●</td>
 <td align="center"></td>
 <td align="center">○</td>
-<td align="center">●</td>
+<td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
 </tr>
@@ -2324,31 +2330,31 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 </tr>
 <tr>
 <td><code>mac_address_conflict</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center"></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center"></td>
 <td align="center">●</td>
-<td align="center">●</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center">○</td>
 </tr>
@@ -2843,6 +2849,573 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 <td align="center"></td>
 <td align="center">●</td>
+</tr>
+</tbody>
+</table>
+
+### Native router profiles
+
+IOS XR and RouterOS deployments of the environments that declare them (`isp` stands for every base ISP scenario). Blank = incompatible, `◆` = the failure also targets the profile's routers (its `native_router_operations` are all implemented by the vendor provider), `○` = it targets only the FRR/Linux nodes of the deployment, which may have none when every router converts. A suffix shows the last execution result from `benchmark/working/validation/device_profiles.yaml`: `✓` validated, `✗` failed, `–` unsupported; no suffix = not run.
+
+<table>
+<thead>
+<tr>
+<th rowspan="2">Failure</th>
+<th colspan="2">campus</th>
+<th colspan="2">clos</th>
+<th colspan="2">enterprise</th>
+<th colspan="2">isp</th>
+</tr>
+<tr>
+<th>iosxr</th>
+<th>routeros</th>
+<th>iosxr</th>
+<th>routeros</th>
+<th>iosxr</th>
+<th>routeros</th>
+<th>iosxr</th>
+<th>routeros</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>link_capacity_bottleneck</code></td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
+</tr>
+<tr>
+<td><code>link_detach</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>link_down</code></td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>link_flap</code></td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
+</tr>
+<tr>
+<td><code>link_packet_corruption</code></td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
+</tr>
+<tr>
+<td><code>bgp_asn_misconfig</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>bgp_max_prefix_exceeded</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>bgp_missing_route_advertisement</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>frr_service_down</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○✓</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>ospf_area_misconfiguration</code></td>
+<td align="center">○</td>
+<td align="center">◆✓</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>ospf_neighbor_missing</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>arp_acl_block</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>bgp_acl_block</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>device_forwarding_packet_corruption</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dns_port_blocked</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>host_static_blackhole</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>http_acl_block</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>icmp_acl_block</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>icmp_frag_needed_filter_misconfiguration</code></td>
+<td align="center">○</td>
+<td align="center">◆✓</td>
+<td align="center">○</td>
+<td align="center">◆✓</td>
+<td align="center">○</td>
+<td align="center">◆✓</td>
+<td align="center">○</td>
+<td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>mtu_mismatch</code></td>
+<td align="center">○</td>
+<td align="center">◆✓</td>
+<td align="center">○</td>
+<td align="center">◆✓</td>
+<td align="center">○</td>
+<td align="center">◆✓</td>
+<td align="center">○</td>
+<td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>ospf_acl_block</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>vrf_dscp_remarking</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">◆✓</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>wireguard_allowed_ips_misconfiguration</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">◆✓</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>wireguard_peer_key_misconfiguration</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">◆✓</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>load_balancer_overload</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>nat_mapping_removed_without_drain</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">◆✓</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>snat_port_pool_exhaustion</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">◆✓</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dhcp_missing_subnet</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dhcp_service_down</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dns_lookup_latency</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dns_record_error</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dns_service_down</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>host_incorrect_dns</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>host_incorrect_gateway</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>host_incorrect_ip</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>host_incorrect_netmask</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>host_ip_conflict</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>host_missing_ip</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>mac_address_conflict</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>receiver_resource_contention</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>sender_resource_contention</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>incast_traffic_network_limitation</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>tcp_receive_window_limited</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>arp_cache_poisoning</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>bgp_hijacking</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+<td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>dhcp_spoofed_dns</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dhcp_spoofed_gateway</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>dhcp_spoofed_subnet</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>web_dos_attack</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
 </tr>
 </tbody>
 </table>

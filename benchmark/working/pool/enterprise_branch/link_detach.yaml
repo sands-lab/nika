@@ -183,6 +183,248 @@ failure:
         node: hq_edge
         name: eth4
       fault_type: link_detach
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: br1_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_corp_pc
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: br1_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: eth1
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: br1_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: br1_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_edge
+        name: eth3
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: br2_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: br2_corp_pc
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: br2_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: eth1
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: br2_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: br2_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: br2_edge
+        name: eth3
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: dc2_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_corp_pc
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: dc2_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: eth1
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: dc2_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: dc2_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: eth3
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: dc2_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_edge
+        name: eth4
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: hq_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_corp_pc
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: hq_edge
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: eth1
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: hq_edge
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: hq_edge
+      intf_name: eth3
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: eth3
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: hq_edge
+      intf_name: eth4
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_edge
+        name: eth4
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: br1_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: br1_corp_pc
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: br2_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: br2_corp_pc
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: dc2_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: dc2_corp_pc
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: hq_corp_pc
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_corp_pc
+        name: eth0
+      fault_type: link_detach
   - topo_size: m
     inject:
       host_name: br1_corp_pc

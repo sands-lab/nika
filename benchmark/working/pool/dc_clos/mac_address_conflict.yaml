@@ -13,6 +13,28 @@ failure:
         node: dns_pod0
         name: eth0
       fault_type: mac_address_conflict
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: webserver0_pod0
+      host_name_2: client_0
+    root_causes:
+    - resource:
+        kind: interface
+        node: webserver0_pod0
+        name: eth0
+      fault_type: mac_address_conflict
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: webserver0_pod0
+      host_name_2: dns_pod0
+    root_causes:
+    - resource:
+        kind: interface
+        node: webserver0_pod0
+        name: eth0
+      fault_type: mac_address_conflict
   - topo_size: m
     inject:
       host_name: webserver0_pod1

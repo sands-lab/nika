@@ -77,6 +77,16 @@ class VrfDscpRemarking(ProblemBase):
     root_cause_owner = "interface"
     description = "VRF edge incorrectly remarks high-priority DSCP."
     TAGS: list[str] = ["vpn"]
+    native_router_operations = frozenset(
+        {
+            "add_dscp_remark",
+            "bgp_established_peers",
+            "dscp_remark_present",
+            "interface_up",
+            "remove_dscp_remark",
+            "vrf_routes",
+        }
+    )
     Params = VrfDscpRemarkingParams
     BENCHMARK_TUNNEL_IFACE = True
     symptom_desc = (

@@ -64,6 +64,9 @@ class BGPAclBlock(ProblemBase):
     root_cause_name = "bgp_acl_block"
     description = "BGP control-plane traffic is blocked by an ACL."
     TAGS: str = ["bgp"]
+    native_router_operations = frozenset(
+        {"bgp_established_peers", "bgp_transport_blocked", "block_bgp_transport"}
+    )
     supported_backends = ("kathara", "containerlab")
 
     Params = BGPAclBlockParams
@@ -71,6 +74,15 @@ class BGPAclBlock(ProblemBase):
     @classmethod
     def benchmark_inject_params(cls, ctx):
         return {"host_name": ctx.router0}
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        from nika.problems.support.benchmark_targets import require_node_capability
+
+        # Transit routers without BGP (enterprise ISP cores) have no session.
+        require_node_capability(
+            ctx, cls.root_cause_name, inject.get("host_name"), "bgp"
+        )
 
     def root_cause_resources(self, params: BGPAclBlockParams):
         return [node_resource(params.host_name)]

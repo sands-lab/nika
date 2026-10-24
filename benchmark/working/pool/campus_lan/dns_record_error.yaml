@@ -13,6 +13,28 @@ failure:
         kind: node
         node: dns_server
       fault_type: dns_record_error
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: dns_server
+      target_domain: local
+      target_website: web0
+    root_causes:
+    - resource:
+        kind: node
+        node: dns_server
+      fault_type: dns_record_error
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: dns_server
+      target_domain: local
+      target_website: web0
+    root_causes:
+    - resource:
+        kind: node
+        node: dns_server
+      fault_type: dns_record_error
   - topo_size: m
     inject:
       host_name: dns_server

@@ -13,6 +13,28 @@ failure:
         node: web_server_3
         name: eth0
       fault_type: host_ip_conflict
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: web_server_0
+      host_name_2: web_server_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_server_3
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: web_server_0
+      host_name_2: web_server_3
+    root_causes:
+    - resource:
+        kind: interface
+        node: web_server_3
+        name: eth0
+      fault_type: host_ip_conflict
   - topo_size: m
     inject:
       host_name: pc_1_1_1_1

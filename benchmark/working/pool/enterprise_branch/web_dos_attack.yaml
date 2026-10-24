@@ -15,6 +15,32 @@ failure:
         kind: node
         node: hq_srv
       fault_type: web_dos_attack
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      attack_url: http://10.0.20.2/archive/
+      attacker_device: br1_corp_pc
+      host_name: hq_srv
+      observer_device: hq_corp_pc
+      probe_url: http://10.0.20.2/small.bin
+    root_causes:
+    - resource:
+        kind: node
+        node: hq_srv
+      fault_type: web_dos_attack
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      attack_url: http://10.0.20.2/archive/
+      attacker_device: br1_corp_pc
+      host_name: hq_srv
+      observer_device: hq_corp_pc
+      probe_url: http://10.0.20.2/small.bin
+    root_causes:
+    - resource:
+        kind: node
+        node: hq_srv
+      fault_type: web_dos_attack
   - topo_size: m
     inject:
       attack_url: http://10.0.20.2/archive/

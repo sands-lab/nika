@@ -13,6 +13,28 @@ failure:
         node: br2_corp_pc
         name: eth0
       fault_type: host_ip_conflict
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: br2_corp_pc
+      host_name_2: hq_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: hq_corp_pc
+        name: eth0
+      fault_type: host_ip_conflict
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: hq_corp_pc
+      host_name_2: br2_corp_pc
+    root_causes:
+    - resource:
+        kind: interface
+        node: br2_corp_pc
+        name: eth0
+      fault_type: host_ip_conflict
   - topo_size: m
     inject:
       host_name: hq_corp_pc

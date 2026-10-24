@@ -53,6 +53,7 @@ class MtuMismatch(ProblemBase):
     root_cause_owner = "interface"
     description = "Path MTU is misconfigured on an intermediate hop."
     TAGS: list[str] = ["link", "icmp"]
+    native_router_operations = frozenset({"interface_mtu", "set_interface_mtu"})
     COMPATIBLE_COLUMNS = LINUX_PMTU_COLUMNS
 
     Params = MtuMismatchParams

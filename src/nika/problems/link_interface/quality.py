@@ -49,6 +49,9 @@ class LinkPacketCorruption(ProblemBase):
     root_cause_name: str = "link_packet_corruption"
     description = "A faulty link corrupts a fraction of the frames it carries."
     TAGS: str = ["link"]
+    # Acts on the link through a controller-side proxy, outside the router OS.
+    native_router_operations = frozenset()
+    BENCHMARK_LINK_PROXY = True
     supported_backends = ("kathara",)
 
     Params = LinkPacketCorruptionParams

@@ -258,3 +258,5 @@ def test_failure_providers_follow_the_router_profile():
     # RouterOS runs no separate routing daemon to stop.
     with pytest.raises(RuntimeCapabilityError, match="not supported on routeros"):
         native_fault_ops(problem("routeros"), leaf, "stop_routing_process")
+    ops = router_fault_ops(problem("routeros"), leaf)
+    assert not ops.supports("stop_routing_process")

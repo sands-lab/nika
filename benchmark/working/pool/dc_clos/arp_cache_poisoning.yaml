@@ -11,6 +11,24 @@ failure:
         kind: node
         node: client_0
       fault_type: arp_cache_poisoning
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: client_0
+    root_causes:
+    - resource:
+        kind: node
+        node: client_0
+      fault_type: arp_cache_poisoning
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: client_0
+    root_causes:
+    - resource:
+        kind: node
+        node: client_0
+      fault_type: arp_cache_poisoning
   - topo_size: m
     inject:
       host_name: client_0

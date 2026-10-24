@@ -120,12 +120,12 @@ def get_problem_class(
     return FAILURES.get(resolved)
 
 
-def compatible(problem: str, column: str) -> bool:
+def compatible(problem: str, column: str, device_profile: str | None = None) -> bool:
     """Return whether ``problem`` can inject usefully on coverage ``column``."""
     cls = get_problem_class(problem)
     if cls is None:
         raise ValueError(f"Unknown problem {problem!r}")
-    return cls.is_compatible(column)
+    return cls.is_compatible(column, device_profile)
 
 
 def compatible_columns(problem: str) -> list[str]:

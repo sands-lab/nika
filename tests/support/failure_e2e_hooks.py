@@ -372,34 +372,6 @@ def assert_isolation_http_pre(ctx: FailureE2EContext) -> None:
     ctx.before = before
 
 
-def assert_lb_connection_state_exhaustion_pre(ctx: FailureE2EContext) -> None:
-    from nika.net_env.verify import http_ok
-    from nika.problems.service_networking.gateway import _parse_vip
-    from nika.problems.support.p4_gateway import learn_lb_conn
-
-    path = _require_probe_path(ctx)
-    assert path.http_url is not None
-    assert http_ok(ctx.runtime, path.src_host, path.http_url), path
-    vip_ip, vip_port = _parse_vip(ctx.parsed.vip_url)
-    # Keep another real table entry while the injector fills the remaining slots.
-    learn_lb_conn(
-        ctx.runtime,
-        ctx.parsed.host_name,
-        src_addr="192.0.2.11",
-        src_port=49999,
-        dst_addr=vip_ip,
-        dst_port=vip_port,
-        dip=ctx.parsed.backend_dip,
-    )
-
-
-def assert_lb_connection_state_exhaustion(ctx: FailureE2EContext) -> None:
-    assert ctx.symptom is not None
-    details = ctx.symptom["details"]
-    assert details["affinity_broken"] is True, ctx.symptom
-    assert details["vip_ok"] is True, ctx.symptom
-
-
 def assert_tcp_rwnd_pre(ctx: FailureE2EContext) -> None:
     from nika.net_env.verify import (
         http_download_stats,
@@ -575,10 +547,6 @@ HOOKS: dict[str, dict[str, Any]] = {
     },
     "k8s_coredns_isolated": {
         "pre_inject": assert_isolation_http_pre,
-    },
-    "lb_connection_state_exhaustion": {
-        "pre_inject": assert_lb_connection_state_exhaustion_pre,
-        "post_inject": assert_lb_connection_state_exhaustion,
     },
     "tcp_receive_window_limited": {
         "pre_inject": assert_tcp_rwnd_pre,

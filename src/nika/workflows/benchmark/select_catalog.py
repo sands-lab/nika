@@ -9,7 +9,10 @@ from typing import Any
 import yaml
 
 from nika.config import BENCHMARK_DIR
-from nika.net_env.net_env_pool import list_all_net_envs
+from nika.net_env.net_env_pool import (
+    deployment_needs_licensed_images,
+    list_all_net_envs,
+)
 from nika.workflows.benchmark.candidate_context import collapse_candidates
 from nika.workflows.benchmark.coverage_report import build_coverage_report
 from nika.workflows.benchmark.load_config import load_candidate_catalog
@@ -36,12 +39,16 @@ def write_selected_catalog(
         if skip_audit
         else eligible_candidates(str(pool_path))
     )
-    # Releases only depend on openly available images (see preflight_release).
+    # Releases only depend on openly available images (see preflight_release);
+    # native router profiles (``device_profile: iosxr`` / ``routeros``) do not.
     specs = list_all_net_envs()
     candidates = [
         row
         for row in candidates
-        if row["scenario"] not in specs or not specs[row["scenario"]].licensed_images
+        if row["scenario"] not in specs
+        or not deployment_needs_licensed_images(
+            row["scenario"], row.get("device_profile")
+        )
     ]
 
     cases, _ = select_benchmark_cases(candidates, seed=seed)

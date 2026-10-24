@@ -72,6 +72,9 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
         "MTU and large transfers stall while small packets still work."
     )
     TAGS = ["icmp"]
+    native_router_operations = frozenset(
+        {"block_icmp_frag_needed", "icmp_frag_needed_blocked"}
+    )
     COMPATIBLE_COLUMNS = LINUX_PMTU_COLUMNS | {"p4_dc_gateway"}
     Params = IcmpFragNeededFilterMisconfigurationParams
     BENCHMARK_TARGETS = "canonical"

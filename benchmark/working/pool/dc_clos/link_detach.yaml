@@ -93,6 +93,50 @@ failure:
         node: spine_router_0_1
         name: eth0
       fault_type: link_detach
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: client_0
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_0
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: dns_pod0
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: dns_pod0
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: client_0
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_0
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: dns_pod0
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: dns_pod0
+        name: eth0
+      fault_type: link_detach
   - topo_size: m
     inject:
       host_name: client_0

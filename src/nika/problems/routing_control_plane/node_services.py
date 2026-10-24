@@ -32,6 +32,7 @@ class FrrDown(ProblemBase):
     root_cause_name: str = "frr_service_down"
     description = "FRR routing daemon is unavailable."
     TAGS: str = ["frr"]
+    native_router_operations = frozenset({"stop_routing_process"})
 
     Params = FrrDownParams
 

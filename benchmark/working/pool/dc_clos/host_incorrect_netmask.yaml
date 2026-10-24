@@ -13,6 +13,28 @@ failure:
         node: client_0
         name: eth0
       fault_type: host_incorrect_netmask
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: client_0
+      netmask_prefix: '8'
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_0
+        name: eth0
+      fault_type: host_incorrect_netmask
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: client_0
+      netmask_prefix: '8'
+    root_causes:
+    - resource:
+        kind: interface
+        node: client_0
+        name: eth0
+      fault_type: host_incorrect_netmask
   - topo_size: m
     inject:
       host_name: client_1

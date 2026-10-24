@@ -1,0 +1,299 @@
+"""Benchmark cases per router device profile (offline, no Docker)."""
+
+from __future__ import annotations
+
+import ast
+import inspect
+import textwrap
+
+import pytest
+
+from nika.net_env.net_env_pool import deployment_needs_licensed_images
+from nika.problems.registry import get_problem_class, list_avail_problem_instances
+from nika.problems.support.router_ops import (
+    failure_supports_profile,
+    profile_fault_operations,
+)
+from nika.workflows.benchmark.generate import (
+    build_failure_cases,
+    iter_failure_case_specs,
+    native_benchmark_profiles,
+)
+from nika.workflows.benchmark.load_config import normalize_benchmark_row
+
+pytestmark = pytest.mark.contract
+
+
+def test_compatibility_follows_the_vendor_fault_operations() -> None:
+    # A failure needs every operation its native path uses; profiles offer
+    # the operations their provider implements.
+    assert {"bgp_asn", "set_bgp_asn"} <= profile_fault_operations("iosxr")
+    asn = get_problem_class("bgp_asn_misconfig")
+    assert failure_supports_profile(asn, "iosxr")
+    assert failure_supports_profile(asn, "routeros") == (
+        {"bgp_asn", "set_bgp_asn"} <= profile_fault_operations("routeros")
+    )
+    # Acting on the container interface needs no router operation.
+    assert failure_supports_profile(get_problem_class("link_down"), "routeros")
+    # Without a native implementation a failure stays on FRR/Linux nodes.
+    frr_down = get_problem_class("frr_service_down")
+    assert not failure_supports_profile(frr_down, "iosxr")
+
+
+def test_generation_expands_native_profiles_only_at_size_s() -> None:
+    assert native_benchmark_profiles("dc_clos", "s") == ["iosxr", "routeros"]
+    assert native_benchmark_profiles("dc_clos", "m") == []
+    assert native_benchmark_profiles("campus_lan", "l") == []
+    assert native_benchmark_profiles("isp_abilene") == ["iosxr", "routeros"]
+    assert native_benchmark_profiles("isp_geant") == []  # topology tier m
+    assert native_benchmark_profiles("isp_abilene_ebgp_rpki") == []
+    specs = {
+        (scenario, size, (options or {}).get("device_profile"))
+        for problem, scenario, size, options in iter_failure_case_specs()
+        if problem == "link_down" and scenario == "dc_clos"
+    }
+    assert specs == {
+        ("dc_clos", "s", None),
+        ("dc_clos", "s", "iosxr"),
+        ("dc_clos", "s", "routeros"),
+        ("dc_clos", "m", None),
+        ("dc_clos", "l", None),
+    }
+
+
+def test_targets_avoid_native_routers_that_cannot_run_the_failure() -> None:
+    # dc_clos converts every router: frr_service_down has no XR target.
+    cases, rejected = build_failure_cases(
+        problem="frr_service_down",
+        scenario="dc_clos",
+        topo_size="s",
+        isp_options={"device_profile": "iosxr"},
+    )
+    assert not cases
+    assert {row["reason"] for row in rejected} == {"unsupported_device_profile"}
+    # campus_lan converts only its core: OSPF faults keep the FRR routers.
+    cases, _ = build_failure_cases(
+        problem="ospf_neighbor_missing",
+        scenario="campus_lan",
+        topo_size="s",
+        isp_options={"device_profile": "iosxr"},
+    )
+    targets = {case["inject"]["host_name"] for case in cases}
+    assert targets and not any(name.startswith("router_core") for name in targets)
+    # A native implementation targets the XR routers, named as NIKA nodes.
+    cases, _ = build_failure_cases(
+        problem="bgp_asn_misconfig",
+        scenario="dc_clos",
+        topo_size="s",
+        isp_options={"device_profile": "iosxr"},
+    )
+    assert cases and all(case["device_profile"] == "iosxr" for case in cases)
+    assert cases[0]["root_causes"] == [
+        {
+            "resource": {"kind": "node", "node": cases[0]["inject"]["host_name"]},
+            "fault_type": "bgp_asn_misconfig",
+        }
+    ]
+
+
+def test_native_rows_parse_and_need_licensed_images() -> None:
+    row = normalize_benchmark_row(
+        {
+            "scenario": "dc_clos",
+            "problem": "link_down",
+            "topo_size": "s",
+            "device_profile": "routeros",
+            "inject": {"host_name": "leaf_router_0_0", "intf_name": "eth0"},
+        }
+    )
+    assert row["device_profile"] == "routeros"
+    with pytest.raises(ValueError):
+        normalize_benchmark_row(
+            {
+                "scenario": "sdn_l3_clos",
+                "problem": "link_down",
+                "topo_size": "s",
+                "device_profile": "iosxr",
+                "inject": {"host_name": "h1", "intf_name": "eth0"},
+            }
+        )
+    assert deployment_needs_licensed_images("dc_clos", "iosxr")
+    assert not deployment_needs_licensed_images("dc_clos")
+    assert deployment_needs_licensed_images("routeros_simple_bgp")
+
+
+def _native_operations_used(problem_cls) -> set[str]:
+    """Operations a failure class requests through the native dispatch."""
+    tree = ast.parse(textwrap.dedent(inspect.getsource(problem_cls)))
+    used: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if getattr(func, "id", None) == "native_fault_ops" and len(node.args) >= 3:
+            used.add(node.args[2].value)
+        if isinstance(func, ast.Attribute) and getattr(func.value, "id", "") == "ops":
+            used.add(func.attr)
+    return used
+
+
+def test_failures_declare_every_native_operation_they_use() -> None:
+    for name, problem_cls in list_avail_problem_instances().items():
+        used = _native_operations_used(problem_cls)
+        declared = problem_cls.native_router_operations
+        if used:
+            assert declared is not None and used <= declared, (name, used, declared)
+
+
+def test_predicate_has_a_device_profile_dimension() -> None:
+    link_down = get_problem_class("link_down")
+    assert link_down.is_compatible("dc_clos", "iosxr")
+    assert not link_down.is_compatible("sdn_l3_clos", "iosxr")
+    assert link_down.runs_on_device_profile("iosxr")
+    frr_down = get_problem_class("frr_service_down")
+    # The deployment is compatible; its XR routers are not targets.
+    assert frr_down.is_compatible("campus_lan", "iosxr")
+    assert not frr_down.runs_on_device_profile("iosxr")
+
+
+def test_validation_results_round_trip_and_key_isp_as_one_environment(
+    tmp_path,
+) -> None:
+    from nika.workflows.benchmark.profile_validation import (
+        VALIDATED,
+        cell_environment,
+        load_results,
+        validated_cells,
+        write_results,
+    )
+
+    assert cell_environment("isp_polska") == "isp"
+    assert cell_environment("dc_clos") == "dc_clos"
+    path = tmp_path / "device_profiles.yaml"
+    record = {
+        "environment": "dc_clos",
+        "device_profile": "iosxr",
+        "failure": "bgp_asn_misconfig",
+        "status": VALIDATED,
+    }
+    write_results({"dc_clos/iosxr/bgp_asn_misconfig": record}, path)
+    assert load_results(path) == {"dc_clos/iosxr/bgp_asn_misconfig": record}
+    assert validated_cells(path) == {"dc_clos/iosxr/bgp_asn_misconfig"}
+
+
+def test_runs_select_rows_by_platform_and_name_missing_licensed_images(
+    monkeypatch,
+) -> None:
+    from nika.net_env.utils.kathara.docker_files import docker_images
+    from nika.workflows.benchmark.licensed import (
+        require_licensed_images,
+        select_rows,
+    )
+
+    native = {"scenario": "dc_clos", "device_profile": "routeros"}
+    licensed = {"scenario": "routeros_simple_bgp"}
+    frr = {"scenario": "dc_clos"}
+    rows = [native, licensed, frr]
+    assert select_rows(rows, skip_licensed=True) == [frr]
+    assert select_rows(rows, device_profiles=["routeros"]) == [native, licensed]
+    assert select_rows(rows, device_profiles=["frr"]) == [frr]
+    monkeypatch.setattr(docker_images, "image_exists", lambda image: False)
+    with pytest.raises(ValueError, match="--skip-licensed") as exc:
+        require_licensed_images(rows)
+    assert "dc_clos/routeros x1" in str(exc.value)
+    assert "routeros_simple_bgp/routeros x1" in str(exc.value)
+    require_licensed_images([frr])
+
+
+@pytest.mark.parametrize("profile", ["iosxr", "routeros"])
+@pytest.mark.parametrize("method", ["inject_fault", "verify_fault"])
+def test_generic_guard_refuses_native_targets_before_running_commands(profile, method):
+    from types import SimpleNamespace
+
+    from nika.problems.base import ProblemBase
+    from nika.runtime.base import RuntimeCapabilityError
+
+    class FrrOnlyFailure(ProblemBase):
+        def inject_fault(self, params):
+            return "executed"
+
+        def verify_fault(self, params):
+            return "executed"
+
+    failure = object.__new__(FrrOnlyFailure)
+    failure.net_env = SimpleNamespace(
+        machine_identities={
+            "native": SimpleNamespace(capabilities=(profile,)),
+            "frr": SimpleNamespace(capabilities=("frr",)),
+        }
+    )
+    with pytest.raises(RuntimeCapabilityError, match="native routers"):
+        getattr(failure, method)(params={"host_name": "native"})
+    assert getattr(failure, method)({"host_name": "frr"}) == "executed"
+
+
+def test_profile_validation_resumes_and_preserves_other_writers(tmp_path, monkeypatch):
+    import fcntl
+    from contextlib import contextmanager
+
+    from nika.net_env.utils.kathara.docker_files import docker_images
+    from nika.workflows.benchmark import profile_validation as validation
+    from nika.workflows.benchmark.trials import task_id_for_row
+
+    path = tmp_path / "results.yaml"
+    lock_path = tmp_path / "lab.lock"
+    row = {
+        "scenario": "dc_clos",
+        "problem": "link_down",
+        "device_profile": "routeros",
+        "inject": {"host_name": "r1", "intf_name": "eth0"},
+    }
+    cell = validation.Cell("dc_clos", "routeros", "link_down", row, True)
+    calls = []
+
+    def run_cell(current, **kwargs):
+        with lock_path.open("a") as handle:
+            with pytest.raises(BlockingIOError):
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        calls.append(current)
+        return {
+            "environment": current.environment,
+            "device_profile": current.device_profile,
+            "failure": current.failure,
+            "task_id": task_id_for_row(current.row),
+            "status": "validated",
+            "duration_sec": 1,
+        }
+
+    original_lock = validation.heavy_lab_lock
+
+    @contextmanager
+    def competing_writer():
+        # Simulate a validator completing another cell before we acquire the lock.
+        with original_lock(lock_path):
+            records = validation.load_results(path)
+            records["dc_clos/iosxr/link_down"] = {
+                "environment": "dc_clos",
+                "device_profile": "iosxr",
+                "failure": "link_down",
+                "status": "validated",
+            }
+            validation.write_results(records, path)
+            yield
+
+    monkeypatch.setattr(validation, "heavy_lab_lock", competing_writer)
+    monkeypatch.setattr(validation, "run_cell", run_cell)
+    monkeypatch.setattr(docker_images, "image_exists", lambda image: True)
+    validation.validate_cells([cell], results_path=path, echo=lambda message: None)
+    validation.validate_cells([cell], results_path=path, echo=lambda message: None)
+    assert len(calls) == 1
+    assert "dc_clos/iosxr/link_down" in validation.load_results(path)
+    changed = validation.Cell(
+        cell.environment,
+        cell.device_profile,
+        cell.failure,
+        {**row, "inject": {"host_name": "r2", "intf_name": "eth0"}},
+        True,
+    )
+    validation.validate_cells([changed], results_path=path, echo=lambda message: None)
+    assert len(calls) == 2

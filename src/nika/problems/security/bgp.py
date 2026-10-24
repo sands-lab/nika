@@ -71,6 +71,7 @@ class BGPHijacking(ProblemBase):
     root_cause_name: str = "bgp_hijacking"
     description = "An unauthorized BGP prefix is advertised (hijack)."
     TAGS: str = ["bgp"]
+    native_router_operations = frozenset({"bgp_advertised_to", "originate_bgp_prefix"})
     INCOMPATIBLE_SCENARIOS = {
         "routeros_simple_bgp": "The injector reads and edits the FRR BGP "
         "configuration, which RouterOS routers do not have."
@@ -82,7 +83,21 @@ class BGPHijacking(ProblemBase):
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
+        hijacks = getattr(ctx.net_env, "hijack_targets", None)
+        if hijacks is not None:
+            # The environment fixes which hijacks its routing policy lets
+            # through (enterprise_branch); see EnterpriseBranch.hijack_targets.
+            targets = hijacks()
+            if targets:
+                return dict(targets[0])
         return access_router_victim(ctx, prefer_site_edge=False)
+
+    @classmethod
+    def benchmark_inject_options(cls, ctx, base):
+        hijacks = getattr(ctx.net_env, "hijack_targets", None)
+        if hijacks is not None:
+            return [dict(target) for target in hijacks()]
+        return super().benchmark_inject_options(ctx, base)
 
     @classmethod
     def validate_benchmark_inject(cls, ctx, inject):

@@ -106,6 +106,15 @@ class ProblemBase:
     isp_protocol: ClassVar[dict[str, Any] | None] = None
     required_capabilities: ClassVar[tuple[str, ...] | list[str]] = ()
     supported_backends: ClassVar[tuple[str, ...] | list[str] | None] = None
+    # Native router failure operations (``problems/support/router_ops.py``)
+    # this failure needs when its target is a native router (IOS XR, RouterOS).
+    # ``None``: no native implementation, so targets stay on FRR/Linux nodes.
+    # An empty set: the failure acts outside the router OS (for example on the
+    # container interface), so every native profile can host it.
+    native_router_operations: ClassVar[frozenset[str] | None] = None
+    # The failure inserts a controller-side VDE proxy on the target link, so
+    # one endpoint's port must be able to move (see ``proxy_can_attach``).
+    BENCHMARK_LINK_PROXY: ClassVar[bool] = False
     # Optional protocol whose adjacency effect this failure declares.
     effect_protocol: ClassVar[str | None] = None
     effect_property: ClassVar[str | None] = None
@@ -131,7 +140,7 @@ class ProblemBase:
     BENCHMARK_COORDINATES: ClassVar[frozenset[str]] = frozenset()
 
     @classmethod
-    def is_compatible(cls, target: str) -> bool:
+    def is_compatible(cls, target: str, device_profile: str | None = None) -> bool:
         """Return whether this failure can inject usefully on ``target``.
 
         Single failure/scenario compatibility predicate. ``target`` is a scenario
@@ -139,8 +148,22 @@ class ProblemBase:
         subset of the target's effective tags, and when ``COMPATIBLE_COLUMNS`` is
         set the target must be listed; a bare scenario id matches when any of
         its columns is listed.
+
+        A native ``device_profile`` (IOS XR, RouterOS) must also be one the
+        scenario declares. The deployment then keeps FRR/Linux nodes as
+        targets; ``runs_on_device_profile`` says whether the failure can also
+        target the profile's routers.
         """
-        from nika.net_env.net_env_pool import effective_tags, parse_column
+        from nika.net_env.net_env_pool import (
+            effective_tags,
+            parse_column,
+            scenario_device_profiles,
+        )
+
+        if device_profile not in (None, "", "frr", "nokia_srlinux") and (
+            device_profile not in scenario_device_profiles(target.partition("/")[0])
+        ):
+            return False
 
         allowed = cls.COMPATIBLE_COLUMNS
         if (
@@ -152,6 +175,17 @@ class ProblemBase:
         if target.partition("/")[0] in cls.INCOMPATIBLE_SCENARIOS:
             return False
         return frozenset(cls.TAGS).issubset(effective_tags(target))
+
+    @classmethod
+    def runs_on_device_profile(cls, device_profile: str) -> bool:
+        """Whether this failure can target a router running native ``device_profile``.
+
+        Derived from code: the profile's ``RouterFaultOps`` provider must
+        implement every operation in ``native_router_operations``.
+        """
+        from nika.problems.support.router_ops import failure_supports_profile
+
+        return failure_supports_profile(cls, device_profile)
 
     @classmethod
     def benchmark_inject_params(cls, ctx: InjectTargetContext) -> dict[str, str]:
@@ -245,6 +279,9 @@ class ProblemBase:
                 **kwargs: Any,
             ) -> Any:
                 self.check_runtime_compatible(operation=__name)
+                self.check_native_targets(
+                    kwargs.get("params", args[0] if args else None), operation=__name
+                )
                 return __method(self, *args, **kwargs)
 
             checked._nika_capability_checked = True  # type: ignore[attr-defined]
@@ -374,6 +411,31 @@ class ProblemBase:
             """
         tmpl = textwrap.dedent(diagnostic_prompt)
         return tmpl.format(net_desc=self.net_env.get_info()).strip()
+
+    def check_native_targets(self, params: Any, *, operation: str) -> None:
+        """Refuse to act on a native router that cannot run this failure.
+
+        Without this, a failure with no native implementation would run its
+        FRR/Linux commands inside an IOS XR or RouterOS container and change
+        nothing. ``native_router_operations`` decides, as in generation.
+        """
+        from nika.problems.support.router_ops import (
+            target_nodes,
+            unsupported_native_targets,
+        )
+
+        net_env = getattr(self, "net_env", None)
+        if net_env is None:
+            return
+        unsupported = unsupported_native_targets(
+            type(self), net_env, target_nodes(params)
+        )
+        if unsupported:
+            raise RuntimeCapabilityError(
+                f"{type(self).__name__} cannot {operation}: native routers "
+                f"{unsupported} do not implement its operations "
+                f"{sorted(self.native_router_operations or ())}."
+            )
 
     def check_runtime_compatible(
         self, *, operation: Literal["init", "inject_fault", "verify_fault"] | str
