@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import ipaddress
 import re
-import shlex
 
+from nika.net_env.utils.iosxr.common import build_xr_file_command
 from nika.problems.support.router_ops import RouterFaultOps
 from nika.service.lab.iosxr_api import CLI_COMMAND
 
@@ -42,13 +42,7 @@ def _replace_command(running: str) -> str:
     if start is None or not any(line == "end" for line in lines[start:]):
         raise ValueError("Unrecognized IOS XR running configuration")
     config = "\n".join(lines[start:]) + "\n"
-    script = (
-        "source /pkg/bin/ztp_helper.sh; "
-        "xr_config_file=$(mktemp); trap 'rm -f \"$xr_config_file\"' EXIT; "
-        f'printf %s {shlex.quote(config)} > "$xr_config_file"; '
-        'xrreplace "$xr_config_file"'
-    )
-    return shlex.join(["/bin/bash", "-c", script])
+    return build_xr_file_command(config, 'xrreplace "$xr_config_file"')
 
 
 class IosxrFaultOps(RouterFaultOps):

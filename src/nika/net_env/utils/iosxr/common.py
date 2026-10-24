@@ -149,6 +149,20 @@ def require_xrd_image(image: str = IMAGE) -> None:
     )
 
 
+def build_xr_file_command(config: str, action: str) -> str:
+    """Run a ZTP configuration ``action`` over a temporary file holding ``config``.
+
+    ``action`` reads the file through ``"$xr_config_file"``, for example
+    ``'xrapply "$xr_config_file" atomic'``.
+    """
+    script = (
+        "source /pkg/bin/ztp_helper.sh; "
+        "xr_config_file=$(mktemp); trap 'rm -f \"$xr_config_file\"' EXIT; "
+        f'printf %s {shlex.quote(config)} > "$xr_config_file"; ' + action
+    )
+    return shlex.join(["/bin/bash", "-c", script])
+
+
 def build_xr_config_command(commands: Iterable[str]) -> str:
     """Apply native configuration atomically through Cisco's ZTP helper."""
     config = (
@@ -159,10 +173,4 @@ def build_xr_config_command(commands: Iterable[str]) -> str:
         )
         + "\nend\n"
     )
-    script = (
-        "source /pkg/bin/ztp_helper.sh; "
-        "xr_config_file=$(mktemp); trap 'rm -f \"$xr_config_file\"' EXIT; "
-        f'printf %s {shlex.quote(config)} > "$xr_config_file"; '
-        'xrapply "$xr_config_file" atomic'
-    )
-    return shlex.join(["/bin/bash", "-c", script])
+    return build_xr_file_command(config, 'xrapply "$xr_config_file" atomic')
