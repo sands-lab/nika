@@ -149,6 +149,104 @@ failure:
         name: dns_pod0:eth0--leaf_router_0_0:eth2
       fault_type: link_flap
   - topo_size: s
+    device_profile: iosxr
+    inject:
+      down_time: '1'
+      host_name: leaf_router_0_0
+      intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: leaf_router_0_0:eth0--spine_router_0_0:eth1
+      fault_type: link_flap
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      down_time: '1'
+      host_name: leaf_router_0_0
+      intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: leaf_router_0_0:eth1--spine_router_0_1:eth1
+      fault_type: link_flap
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      down_time: '1'
+      host_name: leaf_router_0_1
+      intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: leaf_router_0_1:eth0--spine_router_0_0:eth2
+      fault_type: link_flap
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      down_time: '1'
+      host_name: leaf_router_0_1
+      intf_name: eth1
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: leaf_router_0_1:eth1--spine_router_0_1:eth2
+      fault_type: link_flap
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      down_time: '1'
+      host_name: leaf_router_0_1
+      intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: leaf_router_0_1:eth2--webserver0_pod0:eth0
+      fault_type: link_flap
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      down_time: '1'
+      host_name: spine_router_0_0
+      intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: spine_router_0_0:eth0--super_spine_router_0:eth0
+      fault_type: link_flap
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      down_time: '1'
+      host_name: spine_router_0_1
+      intf_name: eth0
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: spine_router_0_1:eth0--super_spine_router_0:eth1
+      fault_type: link_flap
+  - topo_size: s
     device_profile: routeros
     inject:
       down_time: '1'
@@ -175,6 +273,20 @@ failure:
     - resource:
         kind: link
         name: dns_pod0:eth0--leaf_router_0_0:eth2
+      fault_type: link_flap
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      down_time: '1'
+      host_name: leaf_router_0_1
+      intf_name: eth2
+      observer_device: client_0
+      probe_dst_ip: 10.0.1.2
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: leaf_router_0_1:eth2--webserver0_pod0:eth0
       fault_type: link_flap
   - topo_size: m
     inject:

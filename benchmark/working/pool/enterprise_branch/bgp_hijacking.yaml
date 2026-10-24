@@ -5,7 +5,12 @@ failure:
   cases:
   - topo_size: s
     inject:
+      export_prefix_list: LOCAL-ADV
       host_name: br1_edge
+      observer_host: br2_corp_pc
+      probe_dst_ip: 10.10.10.2
+      symptom_host: br2_edge
+      target_network: 10.10.10.0/24
     root_causes:
     - resource:
         kind: node
@@ -13,41 +18,12 @@ failure:
       fault_type: bgp_hijacking
   - topo_size: s
     inject:
+      export_prefix_list: LOCAL-ADV
       host_name: br2_edge
-    root_causes:
-    - resource:
-        kind: node
-        node: br2_edge
-      fault_type: bgp_hijacking
-  - topo_size: s
-    inject:
-      host_name: dc2_edge
-    root_causes:
-    - resource:
-        kind: node
-        node: dc2_edge
-      fault_type: bgp_hijacking
-  - topo_size: s
-    inject:
-      host_name: hq_edge
-    root_causes:
-    - resource:
-        kind: node
-        node: hq_edge
-      fault_type: bgp_hijacking
-  - topo_size: s
-    device_profile: iosxr
-    inject:
-      host_name: br1_edge
-    root_causes:
-    - resource:
-        kind: node
-        node: br1_edge
-      fault_type: bgp_hijacking
-  - topo_size: s
-    device_profile: iosxr
-    inject:
-      host_name: br2_edge
+      observer_host: br1_corp_pc
+      probe_dst_ip: 10.10.10.2
+      symptom_host: br1_edge
+      target_network: 10.10.10.0/24
     root_causes:
     - resource:
         kind: node
@@ -56,34 +32,26 @@ failure:
   - topo_size: s
     device_profile: iosxr
     inject:
-      host_name: dc2_edge
-    root_causes:
-    - resource:
-        kind: node
-        node: dc2_edge
-      fault_type: bgp_hijacking
-  - topo_size: s
-    device_profile: iosxr
-    inject:
-      host_name: hq_edge
-    root_causes:
-    - resource:
-        kind: node
-        node: hq_edge
-      fault_type: bgp_hijacking
-  - topo_size: s
-    device_profile: routeros
-    inject:
+      export_prefix_list: LOCAL-ADV
       host_name: br1_edge
+      observer_host: br2_corp_pc
+      probe_dst_ip: 10.10.10.2
+      symptom_host: br2_edge
+      target_network: 10.10.10.0/24
     root_causes:
     - resource:
         kind: node
         node: br1_edge
       fault_type: bgp_hijacking
   - topo_size: s
-    device_profile: routeros
+    device_profile: iosxr
     inject:
+      export_prefix_list: LOCAL-ADV
       host_name: br2_edge
+      observer_host: br1_corp_pc
+      probe_dst_ip: 10.10.10.2
+      symptom_host: br1_edge
+      target_network: 10.10.10.0/24
     root_causes:
     - resource:
         kind: node
@@ -92,32 +60,26 @@ failure:
   - topo_size: s
     device_profile: routeros
     inject:
-      host_name: dc2_edge
-    root_causes:
-    - resource:
-        kind: node
-        node: dc2_edge
-      fault_type: bgp_hijacking
-  - topo_size: s
-    device_profile: routeros
-    inject:
-      host_name: hq_edge
-    root_causes:
-    - resource:
-        kind: node
-        node: hq_edge
-      fault_type: bgp_hijacking
-  - topo_size: m
-    inject:
+      export_prefix_list: LOCAL-ADV
       host_name: br1_edge
+      observer_host: br2_corp_pc
+      probe_dst_ip: 10.10.10.2
+      symptom_host: br2_edge
+      target_network: 10.10.10.0/24
     root_causes:
     - resource:
         kind: node
         node: br1_edge
       fault_type: bgp_hijacking
-  - topo_size: m
+  - topo_size: s
+    device_profile: routeros
     inject:
+      export_prefix_list: LOCAL-ADV
       host_name: br2_edge
+      observer_host: br1_corp_pc
+      probe_dst_ip: 10.10.10.2
+      symptom_host: br1_edge
+      target_network: 10.10.10.0/24
     root_causes:
     - resource:
         kind: node
@@ -125,7 +87,38 @@ failure:
       fault_type: bgp_hijacking
   - topo_size: m
     inject:
+      export_prefix_list: LOCAL-ADV
+      host_name: br1_edge
+      observer_host: br2_corp_pc
+      probe_dst_ip: 10.10.10.2
+      symptom_host: br2_edge
+      target_network: 10.10.10.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: br1_edge
+      fault_type: bgp_hijacking
+  - topo_size: m
+    inject:
+      export_prefix_list: LOCAL-ADV
+      host_name: br2_edge
+      observer_host: br1_corp_pc
+      probe_dst_ip: 10.10.10.2
+      symptom_host: br1_edge
+      target_network: 10.10.10.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: br2_edge
+      fault_type: bgp_hijacking
+  - topo_size: m
+    inject:
+      export_prefix_list: LOCAL-ADV
       host_name: br3_edge
+      observer_host: br1_corp_pc
+      probe_dst_ip: 10.10.10.2
+      symptom_host: br1_edge
+      target_network: 10.10.10.0/24
     root_causes:
     - resource:
         kind: node
@@ -133,31 +126,25 @@ failure:
       fault_type: bgp_hijacking
   - topo_size: m
     inject:
+      export_prefix_list: LOCAL-ADV
       host_name: br4_edge
+      observer_host: br1_corp_pc
+      probe_dst_ip: 10.10.10.2
+      symptom_host: br1_edge
+      target_network: 10.10.10.0/24
     root_causes:
     - resource:
         kind: node
         node: br4_edge
       fault_type: bgp_hijacking
-  - topo_size: m
-    inject:
-      host_name: dc2_edge
-    root_causes:
-    - resource:
-        kind: node
-        node: dc2_edge
-      fault_type: bgp_hijacking
-  - topo_size: m
-    inject:
-      host_name: hq_edge
-    root_causes:
-    - resource:
-        kind: node
-        node: hq_edge
-      fault_type: bgp_hijacking
   - topo_size: l
     inject:
+      export_prefix_list: LOCAL-ADV
       host_name: br1_edge
+      observer_host: br2_corp_pc
+      probe_dst_ip: 10.10.10.2
+      symptom_host: br2_edge
+      target_network: 10.10.10.0/24
     root_causes:
     - resource:
         kind: node
@@ -165,7 +152,12 @@ failure:
       fault_type: bgp_hijacking
   - topo_size: l
     inject:
+      export_prefix_list: LOCAL-ADV
       host_name: br2_edge
+      observer_host: br1_corp_pc
+      probe_dst_ip: 10.10.10.2
+      symptom_host: br1_edge
+      target_network: 10.10.10.0/24
     root_causes:
     - resource:
         kind: node
@@ -173,7 +165,12 @@ failure:
       fault_type: bgp_hijacking
   - topo_size: l
     inject:
+      export_prefix_list: LOCAL-ADV
       host_name: br3_edge
+      observer_host: br1_corp_pc
+      probe_dst_ip: 10.10.10.2
+      symptom_host: br1_edge
+      target_network: 10.10.10.0/24
     root_causes:
     - resource:
         kind: node
@@ -181,7 +178,12 @@ failure:
       fault_type: bgp_hijacking
   - topo_size: l
     inject:
+      export_prefix_list: LOCAL-ADV
       host_name: br4_edge
+      observer_host: br1_corp_pc
+      probe_dst_ip: 10.10.10.2
+      symptom_host: br1_edge
+      target_network: 10.10.10.0/24
     root_causes:
     - resource:
         kind: node
@@ -189,7 +191,12 @@ failure:
       fault_type: bgp_hijacking
   - topo_size: l
     inject:
+      export_prefix_list: LOCAL-ADV
       host_name: br5_edge
+      observer_host: br1_corp_pc
+      probe_dst_ip: 10.10.10.2
+      symptom_host: br1_edge
+      target_network: 10.10.10.0/24
     root_causes:
     - resource:
         kind: node
@@ -197,7 +204,12 @@ failure:
       fault_type: bgp_hijacking
   - topo_size: l
     inject:
+      export_prefix_list: LOCAL-ADV
       host_name: br6_edge
+      observer_host: br1_corp_pc
+      probe_dst_ip: 10.10.10.2
+      symptom_host: br1_edge
+      target_network: 10.10.10.0/24
     root_causes:
     - resource:
         kind: node
@@ -205,7 +217,12 @@ failure:
       fault_type: bgp_hijacking
   - topo_size: l
     inject:
+      export_prefix_list: LOCAL-ADV
       host_name: br7_edge
+      observer_host: br1_corp_pc
+      probe_dst_ip: 10.10.10.2
+      symptom_host: br1_edge
+      target_network: 10.10.10.0/24
     root_causes:
     - resource:
         kind: node
@@ -213,25 +230,14 @@ failure:
       fault_type: bgp_hijacking
   - topo_size: l
     inject:
+      export_prefix_list: LOCAL-ADV
       host_name: br8_edge
+      observer_host: br1_corp_pc
+      probe_dst_ip: 10.10.10.2
+      symptom_host: br1_edge
+      target_network: 10.10.10.0/24
     root_causes:
     - resource:
         kind: node
         node: br8_edge
-      fault_type: bgp_hijacking
-  - topo_size: l
-    inject:
-      host_name: dc2_edge
-    root_causes:
-    - resource:
-        kind: node
-        node: dc2_edge
-      fault_type: bgp_hijacking
-  - topo_size: l
-    inject:
-      host_name: hq_edge
-    root_causes:
-    - resource:
-        kind: node
-        node: hq_edge
       fault_type: bgp_hijacking
