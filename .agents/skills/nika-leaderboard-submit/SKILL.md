@@ -71,7 +71,8 @@ Fill `metadata.yaml`:
   catalog key when one exists (`catalog/models.json` in the leaderboard repo).
   The exact runtime ID stays in the run identity.
 * `agent.framework`: the public harness, not the NIKA agent ID: `cli.claude` →
-  `Claude Code`, `cli.codex` → `Codex`, `byo.langgraph` → `ReAct`.
+  `Claude Code`, `cli.codex` → `Codex`, `cli.opencode` → `OpenCode`,
+  `cli.dsh` → `DeepSeek Harness`, `byo.langgraph` → `ReAct`.
 * `info.github`: the agent implementation (`https://github.com/sands-lab/nika`
   for built-in agents), not a personal profile.
 * `agent.tools`, `agent.skills`, `agent.optimization_methods`: what the run

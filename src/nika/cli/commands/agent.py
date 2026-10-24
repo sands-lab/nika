@@ -107,7 +107,8 @@ def agent_list() -> None:
         typer.echo(f"  {provider}")
     typer.echo(
         "reasoning_effort (byo.langgraph, byo.mcp_agent, byo.autogen, "
-        "cli.codex, cli.claude, sdk.codex_sdk, sdk.claude_sdk; default medium):"
+        "cli.codex, cli.claude, cli.opencode, cli.dsh, sdk.codex_sdk, "
+        "sdk.claude_sdk; default medium):"
     )
     for level in REASONING_EFFORT_LEVELS:
         typer.echo(f"  {level}")

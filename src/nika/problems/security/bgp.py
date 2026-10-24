@@ -18,6 +18,7 @@ from nika.net_env.utils.kathara.frr_origin import (
     BGP_ORIGIN_IFACE,
     ENSURE_BGP_ORIGIN_IFACE_CMD,
 )
+from nika.problems.support.polling import wait_until
 from nika.problems.support.router_ops import native_fault_ops
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
@@ -142,12 +143,13 @@ class BGPHijacking(ProblemBase):
         self._target_network = target_network
         ops = native_fault_ops(self, params.host_name, "originate_bgp_prefix")
         if ops is not None:
-            if params.export_prefix_list:
-                raise RuntimeCapabilityError(
-                    f"{type(self).__name__}: export prefix lists are FRR objects; "
-                    f"{ops.profile} router {params.host_name!r} has no equivalent."
-                )
+            # The provider also admits the prefix through the router's export
+            # policy, the native form of ``export_prefix_list``.
             ops.originate_bgp_prefix(target_network)
+            # Routers may hold updates for their minimum advertisement
+            # interval (30 s for eBGP on IOS XR); inject returns once sent.
+            network = str(ipaddress.ip_network(target_network, strict=False))
+            wait_until(lambda: ops.bgp_advertised_to(network), 60, interval_s=5)
             self.logger.info(
                 f"Injected BGP hijacking on {params.host_name}: {target_network} "
                 f"({ops.profile})."

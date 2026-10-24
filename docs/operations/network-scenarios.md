@@ -348,7 +348,7 @@ cd .nika_cache/vendor/vrnetlab/mikrotik/routeros
 make docker-image
 ```
 
-3. Tag the built image to match the image reference in [`lab.py`](../../src/nika/net_env/routeros_simple_bgp/lab.py) (`IMAGE`, currently `vrnetlab/mikrotik_routeros:7.21.5`). For a different RouterOS version, retag as `7.21.5` or change that constant:
+3. Tag the built image to match the image reference in [`common.py`](../../src/nika/net_env/utils/routeros/common.py) (`IMAGE`, currently `vrnetlab/mikrotik_routeros:7.21.5`). For a different RouterOS version, retag as `7.21.5` or change that constant:
 
 ```shell
 docker tag <built-tag> vrnetlab/mikrotik_routeros:7.21.5
@@ -369,7 +369,7 @@ Boot is slower than the FRR and XRd scenarios because each router boots a nested
 
 ### Run other environments on RouterOS routers
 
-To study the same routing design on MikroTik RouterOS, pass `--device-profile routeros`. As with [native IOS XR routers](#native-ios-xr-routers), NIKA keeps the environment's topology, addressing, hosts and services and runs the routers of the eligible roles as RouterOS VMs with native configuration. Their container interfaces keep their names, so tasks and ground truth are unchanged.
+To study the same routing design on MikroTik RouterOS, pass `--device-profile routeros`. First build the local `vrnetlab/mikrotik_routeros:7.21.5` image and make sure the host has KVM, as described in [RouterOS simple BGP](#routeros-simple-bgp-scenario). As with [native IOS XR routers](#native-ios-xr-routers), NIKA keeps the environment's topology, addressing, hosts and services and runs the routers of the eligible roles as RouterOS VMs with native configuration. Their container interfaces keep their names, so tasks and ground truth are unchanged.
 
 ```shell
 uv run nika env run isp_arpanet196912 --device-profile routeros --igp isis --bgp-mode ibgp_rr
@@ -387,7 +387,7 @@ uv run nika env run enterprise_branch -s s --device-profile routeros
 
 Each router is a VM that needs about 1 GiB, so NIKA checks available memory before it creates any container. A router supports at most 30 data ports. The RPKI and RTBH ISP specials remain FRR only.
 
-Agents reach RouterOS through `kathara_routeros_mcp_server`, or run RouterOS commands with `nika exec` through the internal management hop that [`routeros_api.py`](../../src/nika/service/lab/routeros_api.py) uses. RouterOS `ether1` is vrnetlab's management port. In an ISP environment, container interface `ethN` is RouterOS `ether(N+1)`; in the other environments, `ethN` is `ether(N+2)`.
+Agents run RouterOS commands with the `routeros_exec` tool of [`kathara_routeros_mcp_server`](../agents/mcp-servers.md#use-dedicated-diagnosis-tools). RouterOS `ether1` is vrnetlab's management port. In an ISP environment, container interface `ethN` is RouterOS `ether(N+1)`; in the other environments, `ethN` is `ether(N+2)`.
 
 Link failures behave as on FRR: QEMU does not pass a container interface's link state to the VM, so a watcher in each router container mirrors it to the RouterOS port, and routes over a downed link are withdrawn at once. Two routing behaviors differ from FRR:
 

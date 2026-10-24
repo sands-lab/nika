@@ -11,7 +11,6 @@ from nika.net_env.native_routers import (
     NativeRouterValidation,
 )
 from nika.net_env.utils.routeros.common import (
-    CONFIG_LOG_COMMAND,
     IMAGE,
     require_routeros_image,
     routeros_config_applied,
@@ -186,7 +185,6 @@ ROUTEROS_OSPF_PROCESS = _with_import_check(
 ROUTEROS_OSPF_NEIGHBORS = CLI_COMMAND.format(
     command="/routing/ospf/neighbor/print count-only where state=Full"
 )
-ROUTEROS_ROUTES = CLI_COMMAND.format(command="/ip/route/print terse")
 
 
 def routeros_campus_queries(frr_queries, *, gateways: bool):
@@ -210,12 +208,3 @@ def routeros_campus_queries(frr_queries, *, gateways: bool):
         ),
         dhcp_relay_running=lambda output: routeros_count(output) > 0,
     )
-
-
-__all__ = [
-    "CONFIG_LOG_COMMAND",
-    "PLATFORM",
-    "ROUTEROS_ROUTES",
-    "routeros_bgp_peer_query",
-    "routeros_campus_queries",
-]

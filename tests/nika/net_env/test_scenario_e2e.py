@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from nika.net_env.routeros_simple_bgp.lab import IMAGE as ROUTEROS_IMAGE
+from nika.net_env.utils.routeros.common import IMAGE as ROUTEROS_IMAGE
 from nika.net_env.utils.iosxr.common import IMAGE as XRD_IMAGE
 from nika.runtime.factory import resolve_backend
 from tests.support.integration_base import IntegrationTestCase
