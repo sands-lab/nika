@@ -18,6 +18,7 @@ _ADDRESSED_INTERFACE = re.compile(
     r"^(GigabitEthernet\S+)\s+(\d+\.\d+\.\d+\.\d+)\s", re.MULTILINE
 )
 _ROUTE_PREFIX = re.compile(r"^(\S+)\s+(\d+\.\d+\.\d+\.\d+/\d+)\s", re.MULTILINE)
+_ROUTER_BGP = re.compile(r"^router bgp (\d+)", re.MULTILINE)
 _STATIC_NULL0 = re.compile(r"^\s+(\d+\.\d+\.\d+\.\d+/\d+)\s+Null0\s*$", re.MULTILINE)
 
 
@@ -80,6 +81,17 @@ class IosxrFaultOps(RouterFaultOps):
         return self._exec("/pkg/bin/xr_cli 'show running-config'")
 
     def restore_config(self, saved: str) -> None:
+        # XRd cannot remove one BGP instance and create another in one commit;
+        # the replace then leaves no BGP at all. Remove a renumbered one first.
+        running = _ROUTER_BGP.search(self.save_config())
+        wanted = _ROUTER_BGP.search(saved)
+        if running and (wanted is None or running[1] != wanted[1]):
+            self._exec(
+                build_xr_file_command(
+                    f"no router bgp {running[1]}\nend\n",
+                    'xrapply "$xr_config_file"',
+                )
+            )
         self._exec(_replace_command(saved))
 
     # Routing sessions
