@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import pytest
+import yaml
 
 from tests.support.scenario_validation import assert_scenario_acceptance
 
@@ -265,7 +266,7 @@ def test_as_selection_predicates_follow_original_order_before_synthesis():
 @pytest.mark.contract
 def test_benchmark_profiles_preserve_protocol_and_backend_choices():
     profiles = benchmark_isp_profiles([ROOT / "benchmark/working/cases.yaml"])
-    native = profiles["isp_dfn-gwin--isis--ibgp_rr--containerlab"]
+    native = profiles["isp_dfn-bwin--isis--ibgp_rr--containerlab"]
     assert native["deployment"]["igp"] == "isis"
     assert native["supported"]
     assert build_benchmark_isp_experiment(native).routing_model == "srl-isp"
@@ -274,7 +275,7 @@ def test_benchmark_profiles_preserve_protocol_and_backend_choices():
     assert fixed["features"] == ["rpki"]
     assert fixed["supported"]
     assert build_benchmark_isp_experiment(fixed).failure_checks[0].static_edits
-    profile = profiles["isp_polska--ospf--none--kathara"]
+    profile = profiles["isp_nobel-us--ospf--none--kathara"]
     spec = build_benchmark_isp_experiment(profile)
     assert spec.deployment.igp == "ospf"
     assert spec.deployment.bgp_mode == "none"
@@ -291,7 +292,7 @@ def test_benchmark_profiles_preserve_protocol_and_backend_choices():
     )
     assert any(
         f.problem == "ospf_area_misconfiguration"
-        and f.params == {"host_name": "bialystok"}
+        and f.params == {"host_name": "ann_arbor"}
         for f in spec.failure_checks
     )
     assert set(spec.runtime_counterexamples[0].expected_failed_ids) <= {
@@ -475,11 +476,32 @@ def test_benchmark_isp_configuration_execution_and_recovery(
 
 @pytest.mark.contract
 @pytest.mark.parametrize("scenario", ["isp_sun", "isp_ta1"])
-def test_parallel_ospf_paths_bind_every_physical_next_hop(scenario):
+def test_parallel_ospf_paths_bind_every_physical_next_hop(scenario, tmp_path):
     from nika.net_env.synthesis.requirements import resolve_routing_requirements
     from nika.problems.rca.inventory import load_offline_net_env
 
-    profiles = benchmark_isp_profiles([ROOT / "benchmark/working/cases.yaml"])
+    # The healthy deployment of a graph with parallel links, independent of
+    # which cases the working selection happens to hold.
+    manifest = tmp_path / "cases.yaml"
+    manifest.write_text(
+        yaml.safe_dump(
+            {
+                "cases": [
+                    {
+                        "scenario": scenario,
+                        "problem": "healthy",
+                        "inject": {},
+                        "igp": "ospf",
+                        "bgp_mode": "none",
+                        "rpki": False,
+                        "backend": "kathara",
+                        "device_profile": "frr",
+                    }
+                ]
+            }
+        )
+    )
+    profiles = benchmark_isp_profiles([manifest])
     spec = build_benchmark_isp_experiment(profiles[f"{scenario}--ospf--none--kathara"])
     env = load_offline_net_env(
         scenario, **spec.deployment.model_dump(exclude_none=True)

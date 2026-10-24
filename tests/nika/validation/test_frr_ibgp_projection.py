@@ -237,11 +237,14 @@ def test_selected_isis_ibgp_benchmark_failures_preserve_original_design():
         )
     }
     assert set(selected) == {
+        "isp_brain--isis--ibgp_rr--kathara",
         "isp_cost266--isis--ibgp_rr--kathara",
+        "isp_france--isis--ibgp_rr--kathara",
+        "isp_germany50--isis--ibgp_rr--kathara",
+        "isp_janos-us--isis--ibgp_rr--kathara",
+        "isp_newyork--isis--ibgp_rr--kathara",
         "isp_nobel-eu--isis--ibgp_rr--kathara",
         "isp_pioro40--isis--ibgp_rr--kathara",
-        "isp_janos-us--isis--ibgp_rr--kathara",
-        "isp_zib54--isis--ibgp_rr--kathara",
     }
 
     for profile in selected.values():
