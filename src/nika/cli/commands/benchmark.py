@@ -861,9 +861,16 @@ def benchmark_validate_profiles(
         and (cell.native_target or not native_only)
     ]
     if list_only:
+        from nika.workflows.benchmark.trials import task_id_for_row
+
         results = load_results()
         for cell in cells:
-            status = results.get(cell.key, {}).get("status", "-")
+            record = results.get(cell.key, {})
+            status = (
+                record.get("status", "-")
+                if record.get("task_id") == task_id_for_row(cell.row)
+                else "-"
+            )
             target = "native" if cell.native_target else "frr/linux"
             typer.echo(f"{cell.key}\t{target}\t{status}")
         return

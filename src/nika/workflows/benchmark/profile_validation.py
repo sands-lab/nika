@@ -291,7 +291,15 @@ def validate_cells(
     for cell in cells:
         if limit is not None and done >= limit:
             break
-        if cell.key in records and not rerun:
+        from nika.workflows.benchmark.trials import task_id_for_row
+
+        recorded = records.get(cell.key)
+        # A record holds for the case it ran; a new representative reruns.
+        if (
+            recorded is not None
+            and not rerun
+            and recorded.get("task_id") == task_id_for_row(cell.row)
+        ):
             continue
         image = profile_image(cell.device_profile)
         if not image_exists(image):
