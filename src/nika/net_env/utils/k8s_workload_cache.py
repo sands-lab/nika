@@ -48,7 +48,8 @@ SKOPEO_IMAGE = nika_image("skopeo")
 # Registry or CDN outages often last minutes, beyond skopeo's own short
 # retries. Retry the whole fetch on these transient errors with backoff.
 _TRANSIENT_REGISTRY_ERROR = re.compile(
-    r"status code from registry 5\d\d|connection reset|i/o timeout"
+    r"status code from registry (5\d\d|429)|unexpected HTTP status: (5\d\d|429)"
+    r"|too many requests|connection reset|i/o timeout"
     r"|TLS handshake timeout|unexpected EOF|context deadline exceeded",
     re.IGNORECASE,
 )
