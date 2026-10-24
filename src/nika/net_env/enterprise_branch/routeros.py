@@ -22,7 +22,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from ipaddress import IPv4Interface
+from ipaddress import IPv4Interface, IPv4Network
 
 from nika.net_env.enterprise_branch.edge_view import FrrEdgeView
 from nika.net_env.enterprise_branch.topology import (
@@ -294,30 +294,39 @@ def _sketch_imports(frr_conf: str, iface: str):
     """Read a tunnel's FRR import route map as ordered RouterOS terms.
 
     Completed import preferences edit this route map in the FRR sketch. Each
-    entry matches the enterprise aggregate list or one exact prefix; FRR
-    applies the first match and denies the rest, as the RouterOS chain does.
+    entry matches the enterprise aggregate list or one exact prefix and may set
+    a local preference; FRR applies the first match and denies the rest, as the
+    RouterOS chain does. Any other entry or list form is rejected.
     """
-    from ipaddress import IPv4Network
-
     lists: dict[str, list[str]] = {}
     entries: dict[int, list] = {}
     current = None
     for line in frr_conf.splitlines():
-        if match := re.fullmatch(r"ip prefix-list (\S+) seq \d+ permit (.+)", line):
-            lists.setdefault(match[1], []).append(match[2])
+        if match := re.fullmatch(
+            r"ip prefix-list (\S+) seq \d+ (permit|deny) (.+)", line
+        ):
+            lists.setdefault(match[1], []).append(
+                match[3] if match[2] == "permit" else line
+            )
+            current = None
         elif match := re.fullmatch(
             rf"route-map RM-IN-{re.escape(iface)} (permit|deny) (\d+)", line
         ):
-            current = entries.setdefault(int(match[2]), [match[1], None, None])
-        elif current is not None and (
-            match := re.fullmatch(r" match ip address prefix-list (\S+)", line)
-        ):
-            current[1] = match[1]
-        elif current is not None and (
-            match := re.fullmatch(r" set local-preference (\d+)", line)
-        ):
-            current[2] = int(match[1])
-        elif not line.startswith(" "):
+            if int(match[2]) in entries:
+                raise ValueError(f"Repeated import route map entry on {iface}")
+            current = entries[int(match[2])] = [match[1], None, None]
+        elif current is not None and line.startswith(" "):
+            if (
+                match := re.fullmatch(r" match ip address prefix-list (\S+)", line)
+            ) and current[1] is None:
+                current[1] = match[1]
+            elif (
+                match := re.fullmatch(r" set local-preference (\d+)", line)
+            ) and current[2] is None:
+                current[2] = int(match[1])
+            else:
+                raise ValueError(f"Unsupported import route map statement on {iface}")
+        else:
             current = None
     terms = []
     for _, (action, plist, preference) in sorted(entries.items()):

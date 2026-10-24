@@ -42,6 +42,7 @@ def _node(name: str, config: str) -> NativeRouterNode:
     import shlex
     from ipaddress import IPv4Address, IPv4Interface, IPv4Network
 
+    from nika.validation.batfish.routeros_isp import routeros_router_interface
     from nika.validation.batfish.vendor_bgp import vendor_addresses
 
     areas, networks, table = {}, [], "main"
@@ -62,7 +63,7 @@ def _node(name: str, config: str) -> NativeRouterNode:
         area = next((areas[a] for n, a in networks if ip in n), None)
         interfaces.append(
             NativeInterface(
-                _container_interface(port),
+                routeros_router_interface(port),
                 str(ip),
                 None if area is None else str(IPv4Address(area)),
                 port,
@@ -71,43 +72,33 @@ def _node(name: str, config: str) -> NativeRouterNode:
     return NativeRouterNode(name, tuple(interfaces), route_tables=(("default", table),))
 
 
-def _container_interface(port: str) -> str:
-    from nika.validation.batfish.routeros_isp import routeros_router_interface
+def _projected_snapshot(project, config: str, shutdown) -> str:
+    """Return a projection of the RouterOS router as FRR snapshot content."""
+    import re
 
-    return routeros_router_interface(port)
+    from nika.validation.batfish.snapshot import _cumulus_frr_snapshot
+
+    name = re.search(r"^/system identity set name=(\S+)$", config, re.M)
+    if name is None:
+        raise ValueError("RouterOS projection requires a concrete identity")
+    return _cumulus_frr_snapshot(
+        name[1],
+        "frr version 10.5\nfrr defaults traditional\n"
+        + project(name[1], config, shutdown=tuple(shutdown)),
+    )
 
 
 def _batfish_config(config: str, shutdown) -> str:
     """Project the RouterOS router into FRR syntax under its container names."""
-    import re
-
     from nika.validation.batfish.routeros_isp import project_routeros_router
-    from nika.validation.batfish.snapshot import _cumulus_frr_snapshot
 
-    name = re.search(r"^/system identity set name=(\S+)$", config, re.M)
-    if name is None:
-        raise ValueError("RouterOS projection requires a concrete identity")
-    return _cumulus_frr_snapshot(
-        name[1],
-        "frr version 10.5\nfrr defaults traditional\n"
-        + project_routeros_router(name[1], config, shutdown=tuple(shutdown)),
-    )
+    return _projected_snapshot(project_routeros_router, config, shutdown)
 
 
 def _static_underlay(config: str, shutdown) -> str:
-    import re
-
     from nika.validation.batfish.routeros_isp import project_routeros_static_underlay
-    from nika.validation.batfish.snapshot import _cumulus_frr_snapshot
 
-    name = re.search(r"^/system identity set name=(\S+)$", config, re.M)
-    if name is None:
-        raise ValueError("RouterOS projection requires a concrete identity")
-    return _cumulus_frr_snapshot(
-        name[1],
-        "frr version 10.5\nfrr defaults traditional\n"
-        + project_routeros_static_underlay(name[1], config, shutdown=tuple(shutdown)),
-    )
+    return _projected_snapshot(project_routeros_static_underlay, config, shutdown)
 
 
 def _verify_contract(runtime, contract, plan):

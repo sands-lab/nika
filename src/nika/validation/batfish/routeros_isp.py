@@ -1037,14 +1037,20 @@ def project_routeros_router(node, config, *, shutdown=()):
             if network in [n for n, _ in networks]:
                 raise ValueError("Duplicate RouterOS OSPF template network")
             networks.append((network, areas[template["area"]]["area-id"]))
+            # RouterOS matches an interface by address; FRR's ``network`` needs
+            # the interface prefix inside it. Project only where both agree.
             members = [
                 name for name, address in addresses.items() if address.ip in network
             ]
+            if any(not addresses[n].network.subnet_of(network) for n in members):
+                raise ValueError("RouterOS OSPF template is narrower than its port")
             for name in members:
-                # RouterOS interface templates default to cost 1.
-                cost = int(_integer(template.get("cost", "1"), 65535))
-                if costs.setdefault(name, cost) != cost:
+                # A port in two templates takes the first match on RouterOS and
+                # the most specific network in FRR; reject the ambiguity.
+                if name in costs:
                     raise ValueError("Overlapping RouterOS OSPF templates")
+                # RouterOS interface templates default to cost 1.
+                costs[name] = int(_integer(template.get("cost", "1"), 65535))
                 if template["passive"]:
                     passive.add(name)
     for name, address in addresses.items():
@@ -1182,27 +1188,38 @@ def project_routeros_static_underlay(node, config, *, shutdown=()):
     This is the RouterOS counterpart of the Linux static projection of FRR
     edges: addresses on data ports outside any VRF and ``main`` static routes
     with IPv4 gateways. VRF, tunnel, BGP, NAT, filter and QoS statements are
-    recognized and left to runtime requirements; any other statement, or a
-    route into another table, is rejected.
+    recognized and left to runtime requirements when they stay in a declared
+    VRF; any other statement, or a route or BGP instance in another table, is
+    rejected.
     """
-    identity, vrf_ports, addresses, routes = None, set(), {}, []
+    statements = []
     for line in config.splitlines():
         if not line.strip() or line.strip() == ":delay 2s":
             continue
         parts = shlex.split(line)
         split = next((i for i, part in enumerate(parts) if "=" in part), len(parts))
-        path, values = (
-            tuple(parts[:split]),
-            dict(part.split("=", 1) for part in parts[split:] if "=" in part),
-        )
+        values = dict(part.split("=", 1) for part in parts[split:] if "=" in part)
         if len(values) != len(parts) - split:
             raise ValueError(f"Unsupported RouterOS flag: {line}")
+        statements.append((line, tuple(parts[:split]), values))
+    # A VRF claims its ports wherever the statement appears in the script.
+    vrfs, vrf_ports = set(), set()
+    for _, path, values in statements:
+        if path == ("/ip", "vrf", "add"):
+            if not values.get("name") or not values.get("interfaces"):
+                raise ValueError("Unsupported RouterOS VRF")
+            vrfs.add(values["name"])
+            vrf_ports.update(values["interfaces"].split(","))
+    identity, addresses, routes = None, {}, []
+    for line, path, values in statements:
         if path == ("/system", "identity", "set"):
             if values != {"name": node} or identity:
                 raise ValueError("Unsupported RouterOS identity")
             identity = node
-        elif path == ("/ip", "vrf", "add"):
-            vrf_ports.update(values["interfaces"].split(","))
+        elif path == ("/routing", "bgp", "instance", "add"):
+            # BGP routes in ``main`` would change the analyzed table.
+            if values.get("vrf") not in vrfs:
+                raise ValueError("RouterOS BGP outside a VRF changes the main table")
         elif path in _RUNTIME_ONLY:
             continue
         elif path == ("/ip", "address", "add"):
@@ -1214,13 +1231,20 @@ def project_routeros_static_underlay(node, config, *, shutdown=()):
             addresses.setdefault(interface, []).append(IPv4Interface(values["address"]))
         elif path == ("/ip", "route", "add"):
             gateway = values.get("gateway", "")
-            if values.get("routing-table", "main") != "main":
+            table = values.get("routing-table", "main")
+            if table != "main":
+                if table not in vrfs:
+                    raise ValueError("RouterOS route into an undeclared table")
                 continue
             if "@" in gateway:
                 # A cross-VRF route into a VRF port, like FRR's ``dev vrf_*``
                 # leak, is outside the default-table model.
                 port, _, vrf = gateway.partition("@")
-                if port not in vrf_ports or set(values) != {"dst-address", "gateway"}:
+                if (
+                    port not in vrf_ports
+                    or vrf not in vrfs
+                    or set(values) != {"dst-address", "gateway"}
+                ):
                     raise ValueError("Unsupported RouterOS cross-table route")
                 continue
             if set(values) != {"dst-address", "gateway"}:

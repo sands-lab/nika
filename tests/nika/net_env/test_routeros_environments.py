@@ -98,6 +98,16 @@ def test_translation_rejects_policies_routeros_cannot_keep():
         )
     with pytest.raises(ValueError, match="Unsupported FRR statement"):
         translate_frr_router("r1", "router ospf\n redistribute connected\n", startup)
+    # FRR merges repeated route-map entries; the chain would keep both.
+    repeated = (
+        "ip prefix-list A seq 5 permit 10.0.0.0/24\n"
+        "route-map M permit 10\n match ip address prefix-list A\n"
+        "route-map M deny 10\n match ip address prefix-list A\n"
+        "router bgp 1\n no bgp ebgp-requires-policy\n"
+        " neighbor 10.0.0.0 remote-as 2\n neighbor 10.0.0.0 route-map M out\n"
+    )
+    with pytest.raises(ValueError, match="repeats a sequence number"):
+        translate_frr_router("r1", repeated, startup)
 
 
 @pytest.mark.unit
