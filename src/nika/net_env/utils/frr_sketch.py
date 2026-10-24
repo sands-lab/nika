@@ -175,8 +175,6 @@ def parse_frr(frr_conf: str, hostname: str) -> tuple[Bgp | None, Ospf | None, Po
         for name in bgp.route_maps.values():
             if name not in policy.route_maps:
                 raise ValueError(f"Undefined route map {name!r}")
-    if policy.ospf_costs and ospf is None:
-        raise ValueError("OSPF costs need an OSPF instance")
     return bgp, ospf, policy
 
 

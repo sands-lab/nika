@@ -266,7 +266,13 @@ def test_as_selection_predicates_follow_original_order_before_synthesis():
 @pytest.mark.contract
 def test_benchmark_profiles_preserve_protocol_and_backend_choices():
     profiles = benchmark_isp_profiles([ROOT / "benchmark/working/cases.yaml"])
-    native = profiles["isp_dfn-bwin--isis--ibgp_rr--containerlab"]
+    native = next(
+        profile
+        for profile in profiles.values()
+        if profile["deployment"]["backend"] == "containerlab"
+        and profile["deployment"]["igp"] == "isis"
+        and profile["deployment"]["bgp_mode"] == "ibgp_rr"
+    )
     assert native["deployment"]["igp"] == "isis"
     assert native["supported"]
     assert build_benchmark_isp_experiment(native).routing_model == "srl-isp"
@@ -275,7 +281,17 @@ def test_benchmark_profiles_preserve_protocol_and_backend_choices():
     assert fixed["features"] == ["rpki"]
     assert fixed["supported"]
     assert build_benchmark_isp_experiment(fixed).failure_checks[0].static_edits
-    profile = profiles["isp_nobel-us--ospf--none--kathara"]
+    profile = next(
+        profile
+        for profile in profiles.values()
+        if profile["deployment"]["backend"] == "kathara"
+        and profile["deployment"]["igp"] == "ospf"
+        and profile["deployment"]["bgp_mode"] == "none"
+        and any(
+            case["problem"] == "ospf_area_misconfiguration"
+            for case in profile["benchmark_cases"]
+        )
+    )
     spec = build_benchmark_isp_experiment(profile)
     assert spec.deployment.igp == "ospf"
     assert spec.deployment.bgp_mode == "none"
@@ -292,7 +308,10 @@ def test_benchmark_profiles_preserve_protocol_and_backend_choices():
     )
     assert any(
         f.problem == "ospf_area_misconfiguration"
-        and f.params == {"host_name": "ann_arbor"}
+        and any(
+            case["problem"] == f.problem and case["inject"] == f.params
+            for case in profile["benchmark_cases"]
+        )
         for f in spec.failure_checks
     )
     assert set(spec.runtime_counterexamples[0].expected_failed_ids) <= {

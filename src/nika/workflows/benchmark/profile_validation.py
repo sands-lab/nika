@@ -157,10 +157,11 @@ def write_results(
 def prune_results(declared: Iterable[Cell], path: Path = RESULTS_PATH) -> list[str]:
     """Drop recorded cells the pool no longer declares; return their keys."""
     keys = {cell.key for cell in declared}
-    records = load_results(path)
-    stale = sorted(set(records) - keys)
-    if stale:
-        write_results({k: r for k, r in records.items() if k in keys}, path)
+    with heavy_lab_lock():
+        records = load_results(path)
+        stale = sorted(set(records) - keys)
+        if stale:
+            write_results({k: r for k, r in records.items() if k in keys}, path)
     return stale
 
 
@@ -293,23 +294,25 @@ def validate_cells(
             break
         from nika.workflows.benchmark.trials import task_id_for_row
 
-        recorded = records.get(cell.key)
-        # A record holds for the case it ran; a new representative reruns.
-        if (
-            recorded is not None
-            and not rerun
-            and recorded.get("task_id") == task_id_for_row(cell.row)
-        ):
-            continue
-        image = profile_image(cell.device_profile)
-        if not image_exists(image):
-            echo(f"skip {cell.key}: image {image} is not installed")
-            continue
-        echo(f"run  {cell.key} ({cell.row['scenario']}, {cell.row['inject']})")
         with heavy_lab_lock():
+            # Another validator may have finished while this one waited.
+            # Reload and persist under the same lock to keep both results.
+            records = load_results(results_path)
+            recorded = records.get(cell.key)
+            if (
+                recorded is not None
+                and not rerun
+                and recorded.get("task_id") == task_id_for_row(cell.row)
+            ):
+                continue
+            image = profile_image(cell.device_profile)
+            if not image_exists(image):
+                echo(f"skip {cell.key}: image {image} is not installed")
+                continue
+            echo(f"run  {cell.key} ({cell.row['scenario']}, {cell.row['inject']})")
             record = run_cell(cell, result_dir=result_dir)
-        records[cell.key] = record
-        write_results(records, results_path)
+            records[cell.key] = record
+            write_results(records, results_path)
         echo(f"     {record['status']} after {record['duration_sec']}s")
         done += 1
     return records

@@ -195,11 +195,105 @@ def test_runs_select_rows_by_platform_and_name_missing_licensed_images(
     frr = {"scenario": "dc_clos"}
     rows = [native, licensed, frr]
     assert select_rows(rows, skip_licensed=True) == [frr]
-    assert select_rows(rows, device_profiles=["routeros"]) == [native]
-    assert select_rows(rows, device_profiles=["frr"]) == [licensed, frr]
+    assert select_rows(rows, device_profiles=["routeros"]) == [native, licensed]
+    assert select_rows(rows, device_profiles=["frr"]) == [frr]
     monkeypatch.setattr(docker_images, "image_exists", lambda image: False)
     with pytest.raises(ValueError, match="--skip-licensed") as exc:
         require_licensed_images(rows)
     assert "dc_clos/routeros x1" in str(exc.value)
-    assert "routeros_simple_bgp/frr x1" in str(exc.value)
+    assert "routeros_simple_bgp/routeros x1" in str(exc.value)
     require_licensed_images([frr])
+
+
+@pytest.mark.parametrize("profile", ["iosxr", "routeros"])
+@pytest.mark.parametrize("method", ["inject_fault", "verify_fault"])
+def test_generic_guard_refuses_native_targets_before_running_commands(profile, method):
+    from types import SimpleNamespace
+
+    from nika.problems.base import ProblemBase
+    from nika.runtime.base import RuntimeCapabilityError
+
+    class FrrOnlyFailure(ProblemBase):
+        def inject_fault(self, params):
+            return "executed"
+
+        def verify_fault(self, params):
+            return "executed"
+
+    failure = object.__new__(FrrOnlyFailure)
+    failure.net_env = SimpleNamespace(
+        machine_identities={
+            "native": SimpleNamespace(capabilities=(profile,)),
+            "frr": SimpleNamespace(capabilities=("frr",)),
+        }
+    )
+    with pytest.raises(RuntimeCapabilityError, match="native routers"):
+        getattr(failure, method)(params={"host_name": "native"})
+    assert getattr(failure, method)({"host_name": "frr"}) == "executed"
+
+
+def test_profile_validation_resumes_and_preserves_other_writers(tmp_path, monkeypatch):
+    import fcntl
+    from contextlib import contextmanager
+
+    from nika.net_env.utils.kathara.docker_files import docker_images
+    from nika.workflows.benchmark import profile_validation as validation
+    from nika.workflows.benchmark.trials import task_id_for_row
+
+    path = tmp_path / "results.yaml"
+    lock_path = tmp_path / "lab.lock"
+    row = {
+        "scenario": "dc_clos",
+        "problem": "link_down",
+        "device_profile": "routeros",
+        "inject": {"host_name": "r1", "intf_name": "eth0"},
+    }
+    cell = validation.Cell("dc_clos", "routeros", "link_down", row, True)
+    calls = []
+
+    def run_cell(current, **kwargs):
+        with lock_path.open("a") as handle:
+            with pytest.raises(BlockingIOError):
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        calls.append(current)
+        return {
+            "environment": current.environment,
+            "device_profile": current.device_profile,
+            "failure": current.failure,
+            "task_id": task_id_for_row(current.row),
+            "status": "validated",
+            "duration_sec": 1,
+        }
+
+    original_lock = validation.heavy_lab_lock
+
+    @contextmanager
+    def competing_writer():
+        # Simulate a validator completing another cell before we acquire the lock.
+        with original_lock(lock_path):
+            records = validation.load_results(path)
+            records["dc_clos/iosxr/link_down"] = {
+                "environment": "dc_clos",
+                "device_profile": "iosxr",
+                "failure": "link_down",
+                "status": "validated",
+            }
+            validation.write_results(records, path)
+            yield
+
+    monkeypatch.setattr(validation, "heavy_lab_lock", competing_writer)
+    monkeypatch.setattr(validation, "run_cell", run_cell)
+    monkeypatch.setattr(docker_images, "image_exists", lambda image: True)
+    validation.validate_cells([cell], results_path=path, echo=lambda message: None)
+    validation.validate_cells([cell], results_path=path, echo=lambda message: None)
+    assert len(calls) == 1
+    assert "dc_clos/iosxr/link_down" in validation.load_results(path)
+    changed = validation.Cell(
+        cell.environment,
+        cell.device_profile,
+        cell.failure,
+        {**row, "inject": {"host_name": "r2", "intf_name": "eth0"}},
+        True,
+    )
+    validation.validate_cells([changed], results_path=path, echo=lambda message: None)
+    assert len(calls) == 2

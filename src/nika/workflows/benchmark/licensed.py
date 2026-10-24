@@ -21,8 +21,14 @@ PREPARE_HINT = (
 
 
 def row_device_profile(row: dict[str, Any]) -> str:
-    """Router platform of a row; rows without one deploy FRR."""
-    return str(row.get("device_profile") or "frr")
+    """Router platform selected by the row or declared by its environment."""
+    from nika.net_env.native_routers import native_profiles
+    from nika.net_env.net_env_pool import scenario_tags
+
+    if row.get("device_profile"):
+        return str(row["device_profile"])
+    profiles = set(scenario_tags(row["scenario"])) & native_profiles()
+    return next(iter(profiles)) if len(profiles) == 1 else "frr"
 
 
 def row_licensed_images(row: dict[str, Any]) -> tuple[str, ...]:

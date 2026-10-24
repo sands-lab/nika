@@ -282,12 +282,12 @@ cells:
     host_name: leaf_router_0_0
     intf_name: eth0
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: c5409b2ed4b4
   image: ios-xr/xrd-control-plane:26.2.1
-  date: '2026-10-23T09:05:26Z'
+  date: '2026-10-24T14:10:36Z'
   status: validated
   recovery: restored
-  duration_sec: 284
+  duration_sec: 289
 - environment: dc_clos
   device_profile: iosxr
   failure: link_flap
@@ -347,12 +347,12 @@ cells:
   inject:
     host_name: leaf_router_0_0
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: c5409b2ed4b4
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T09:16:41Z'
+  date: '2026-10-24T14:15:25Z'
   status: validated
   recovery: not_defined
-  duration_sec: 80
+  duration_sec: 81
 - environment: dc_clos
   device_profile: routeros
   failure: bgp_hijacking
@@ -436,12 +436,12 @@ cells:
     host_name: leaf_router_0_0
     intf_name: eth0
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: c5409b2ed4b4
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T09:24:44Z'
+  date: '2026-10-24T14:16:46Z'
   status: validated
   recovery: restored
-  duration_sec: 78
+  duration_sec: 81
 - environment: dc_clos
   device_profile: routeros
   failure: link_flap
