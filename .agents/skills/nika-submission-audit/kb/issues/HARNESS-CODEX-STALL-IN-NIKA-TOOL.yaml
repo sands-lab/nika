@@ -1,0 +1,27 @@
+id: HARNESS-CODEX-STALL-IN-NIKA-TOOL
+title: A cli.codex trial is killed by the 300 s no-progress watchdog while NIKA's own pingmesh call is still running, and the 0 is scored as agent_failed
+class: harness_defect
+severity: warn
+status: open
+summary: In 20261020_codex_qwen3_coder_next_fp8 the only tool call (run_pingmesh_snapshot, max_pairs 256) started at
+  06:19:25 and the subprocess stall watchdog fired at 06:24:25 with reconnect_failure false. In the same submission
+  PingMesh with max_pairs 128 already takes up to 200 s, so a NIKA tool can legitimately outlive the 300 s
+  watchdog. trace_shows_endpoint_failure counts a stall inside a tool call as a capability failure
+  (src/nika/workflows/benchmark/outcomes.py), so the tool's runtime is charged to the agent.
+guideline: Counts when run.json has agent_error "diagnosis phase stalled after 300s" and the last step of the trace is
+  an unanswered call to a NIKA MCP tool (run_pingmesh_snapshot, iperf_test, packet capture). Does not count when the
+  stall follows a model turn with no pending tool call, or when the endpoint failed to reconnect. No step-level
+  signature exists, because the stall is recorded only in run.json and nika.jsonl.
+scope:
+  agent_types:
+  - cli.codex
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-CODEX-STALL-IN-NIKA-TOOL)
+  date: '2026-10-28'
+  refs:
+  - enterprise_branch__bgp_hijac__h93dd2b8e7404__t02:5
+  found_by: agentic
+evidence:
+- 'enterprise_branch__bgp_hijac__h93dd2b8e7404__t02 (20261020_codex_qwen3_coder_next_fp8) step 5: {"count": 4,
+  "high_latency_ms": 100, "max_pairs": 256}; run.json agent_error "ERROR: diagnosis phase stalled after 300s without
+  no Codex progress", outcome agent_failed'

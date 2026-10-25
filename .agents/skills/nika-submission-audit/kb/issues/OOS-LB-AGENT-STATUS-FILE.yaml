@@ -1,0 +1,23 @@
+id: OOS-LB-AGENT-STATUS-FILE
+title: Load-balancer agent status file under /var/lib/nika readable on gateways
+class: out_of_scope
+role: known
+severity: warn
+status: fixed
+fixed_in: c00630bc
+summary: p4_dc_gateway gateways exposed /var/lib/nika/lb_agent.status.json and the lb_agent process arguments;
+  the path names the benchmark and the file holds harness learner counters.
+guideline: Renamed on the fix commit; a hit on a newer commit is a regression.
+detect:
+- kind: text
+  where:
+  - tool_result
+  - tool_call
+  exclude_authored: false
+  pattern: lb_agent\.status\.json
+provenance:
+  source: agentic audit pilot B (Claude Haiku 5.5) on 20261014_claude_code_qwen3_5_27b with planted defects
+  date: '2026-10-25'
+  found_by: agentic
+  refs:
+  - p4_dc_gateway__bmv2_switch_d__h8e9f694d6699__t01

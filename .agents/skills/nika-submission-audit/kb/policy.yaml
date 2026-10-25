@@ -1,0 +1,90 @@
+# What a benchmark trial may use. The tool_policy, mutation, and out-of-scope
+# checks read this file; issue 208 asks for one place for the allowlist.
+
+# Agent built-ins that stay inside the agent's own sandbox workspace. Anything
+# else the harness offers (web tools, claude.ai connectors, subagents, skills,
+# schedulers, messaging) is out of policy. Regexes, matched in full.
+allowed_builtin_tools:
+  - Bash
+  - Read
+  - Edit
+  - Write
+  - Glob
+  - Grep
+  - TodoWrite
+  - ToolSearch
+  - ListMcpResourcesTool
+  - ReadMcpResourceTool
+  - ReadMcpResourceDirTool
+  - list_mcp_resources
+  - list_mcp_resource_templates
+  - read_mcp_resource
+  - local_shell
+  - update_plan
+
+# MCP servers NIKA starts (nika.mcp.registry.MCP_SERVER_SPECS).
+mcp_server_pattern: '^(?:containerlab_srl|k8s|kathara_[a-z0-9]+|packet_capture|pingmesh|task)_mcp_server$'
+
+# Tools that are always out of policy, whatever the harness: web access,
+# claude.ai connectors, subagents, skills, schedulers, and messaging.
+forbidden_tools:
+  - WebSearch
+  - WebFetch
+  - web_search
+  - web_fetch
+  - mcp__claude_ai_.*
+  - Task
+  - Agent
+  - Skill
+  - Workflow
+  - SendMessage
+  - RemoteTrigger
+  - PushNotification
+  - Cron.*
+  - ScheduleWakeup
+
+# Tools that run commands on lab nodes. State-changing commands sent through
+# them change the network under diagnosis.
+node_exec_tools: [exec_shell, srl_exec_cli, p4rt_exec, sdn_onos_rest]
+
+# Commands that change state on a node. Read-only diagnosis never needs them.
+mutating_commands:
+  - \bsystemctl\s+(?:start|stop|restart|reload|enable|disable)\b
+  - \bservice\s+\S+\s+(?:start|stop|restart|reload)\b
+  - \bip\s+(?:-\S+\s+)*(?:addr|address|route|link|neigh|rule)\s+(?:add|del|delete|replace|change|flush|set)\b
+  - \bsed\s+(?:-\S+\s+)*-i\b
+  - \b(?:iptables|ip6tables)\s+(?:-t\s+\S+\s+)?-(?:A|D|I|R|F|X|P)\b
+  - \bnft\s+(?:add|delete|flush|insert|replace)\b
+  - \btc\s+(?:qdisc|class|filter)\s+(?:add|del|change|replace)\b
+  - \bvtysh\b.*(?:configure|conf\s+t)
+  - \b(?:kill|pkill|killall)\b
+  - \bsysctl\s+-w\b
+  - \bkubectl\s+(?:delete|apply|patch|edit|scale|rollout)\b
+  - \bovs-ofctl\s+(?:add-flow|del-flows|mod-flows)\b
+  - \b(?:rm|mv)\s+-?\S*\s*/etc/
+  - \bvtysh\b.*(?:\bclear\b|write\s+mem)
+  - \b(?:ifconfig\s+\S+\s+(?:up|down)|ifup|ifdown)\b
+  - \bethtool\s+-[sKA]\b
+  - \bbrctl\s+(?:addif|delif|addbr|delbr)\b
+  - \bovs-vsctl\s+(?:add|del|set)
+  - \bkubectl\s+(?:create|replace|label|annotate|cordon|drain)\b
+  - \b(?:reboot|shutdown)\b
+  - '>\s*/(?:etc|proc|sys)/'
+
+# Tool output that means the tool or NIKA failed, not the network.
+tool_error_patterns:
+  - Traceback \(most recent call last\)
+  - '"isError":\s*true'
+  - JSON-RPC error
+  - \bMCP error\b
+  - session not found
+  - Connection refused.*(?:gateway|mcp)
+  - '\bError executing tool\b'
+  - '\b(?:Internal Server Error|502 Bad Gateway|503 Service Unavailable)\b'
+  - \[TIMEOUT\] Command
+
+# Tool output that the harness cut short.
+output_truncated_patterns:
+  - The output of your last command was too long
+  - \[output truncated
+  - \.\.\. \[truncated\]

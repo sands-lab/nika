@@ -1,0 +1,22 @@
+id: LABEL-TCAM-AS-EXACT-MATCH
+title: TCAM corruption realized as an exact-match drop entry
+class: label_unidentifiable
+severity: warn
+status: fixed
+summary: BMv2 has no TCAM; the injection added an exact-match drop entry that agents correctly called
+  a misconfiguration.
+scope:
+  fault_types:
+  - p4_tcam_entry_corruption
+detect:
+- kind: metric
+  metric: label_confusion
+  threshold: 0.4
+  min_trials: 6
+  pattern: p4_table_entry_\w+
+provenance:
+  source: trajectory audit 2026-10-14 (REPORT_en.md) B3
+  date: '2026-10-14'
+  refs: []
+  found_by: manual
+fixed_in: c00630bc

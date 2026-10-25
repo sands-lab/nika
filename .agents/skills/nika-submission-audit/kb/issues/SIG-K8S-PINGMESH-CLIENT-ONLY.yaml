@@ -1,0 +1,32 @@
+id: SIG-K8S-PINGMESH-CLIENT-ONLY
+title: In k8s_lab run_pingmesh_snapshot knows only the client endpoint, so it returns 0 pairs and rejects every other node
+class: signal_invisible
+severity: warn
+status: open
+summary: k8s_lab declares only the client as a reachability target (src/nika/net_env/k8s_lab/lab.py), and PingMesh
+  takes its endpoints from reachability_targets() (src/nika/service/kathara/base_api.py). The mounted PingMesh
+  tool therefore cannot produce a single pair in k8s_lab; a call with default arguments returns total_pairs 0,
+  and a call naming controller or worker nodes fails with "Unknown sources".
+guideline: Counts on any k8s_lab run_pingmesh_snapshot result with total_pairs 0 or an "Available endpoints
+  ['client']" error. The agent loses the reachability overview, not the fault itself; exec_shell ping still
+  works. Does not count in other environments, where an empty mesh comes from the agent's own filters.
+scope:
+  scenarios:
+  - k8s_lab
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: run_pingmesh_snapshot
+  pattern: '"total_pairs":\s*0\b|Available endpoints: \[''client''\]'
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-K8S-PINGMESH-EMPTY)
+  date: '2026-10-28'
+  refs:
+  - k8s_lab__healthy__t01:5
+  - k8s_lab__healthy__t01:17
+  found_by: agentic
+evidence:
+- 'k8s_lab__healthy__t01 (20261011_react_qwen3_8_27b_fp8) step 5: "endpoints":{"client":"3.0.0.2"},"sources":["client"],"targets":["client"],"results":[],"anomalies":[],"summary":{"total_pairs":0'
+- 'k8s_lab__healthy__t01 (20261010_claude_code_qwen3_8_27b_fp8) step 17: Error executing tool run_pingmesh_snapshot:
+  Unknown sources: [''controller'', ''worker1'', ...]. Available endpoints: [''client'']'

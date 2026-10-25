@@ -1,0 +1,27 @@
+id: LABEL-NEAR-DUPLICATE-PAIRS
+title: Near-duplicate label pairs
+class: label_unidentifiable
+severity: warn
+status: fixed
+summary: flow_rule_loop/shadowing, sender/receiver contention, and dhcp_spoofed_gateway/host_incorrect_gateway
+  were hard to tell apart; about 23% of the strongest model's wrong types described the right mechanism.
+scope:
+  fault_types:
+  - flow_rule_loop
+  - flow_rule_shadowing
+  - sender_resource_contention
+  - receiver_resource_contention
+  - dhcp_spoofed_gateway
+  - host_incorrect_gateway
+detect:
+- kind: metric
+  metric: label_confusion
+  threshold: 0.4
+  min_trials: 6
+  pattern: flow_rule_(?:loop|shadowing)|(?:sender|receiver)_resource_contention|dhcp_spoofed_gateway|host_incorrect_gateway
+provenance:
+  source: trajectory audit 2026-10-14 (REPORT_en.md) B3
+  date: '2026-10-14'
+  refs: []
+  found_by: manual
+fixed_in: c00630bc

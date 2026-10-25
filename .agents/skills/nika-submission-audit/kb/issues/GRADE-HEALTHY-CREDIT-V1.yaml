@@ -1,0 +1,18 @@
+id: GRADE-HEALTHY-CREDIT-V1
+title: Healthy credit without is_anomaly=false
+class: grading_error
+severity: warn
+status: fixed
+fixed_in: c00630bc
+summary: Scoring before the fix gave rca_f1=1 on healthy cases for any empty root-cause list, whatever
+  is_anomaly said; 'lazy-healthy' agents gained.
+guideline: Submissions graded before the fix differ from a re-grade only on these trials. Compare entries
+  with the re-graded score.
+detect:
+- kind: regrade
+  explain: healthy_credit
+provenance:
+  source: trajectory audit 2026-10-14 (REPORT_en.md) 3.2
+  date: '2026-10-14'
+  refs: []
+  found_by: manual

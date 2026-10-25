@@ -1,0 +1,21 @@
+id: LEAK-NIKA-SESSION-ID-HEADER
+title: NIKA-Session-Id header visible to the agent
+class: shortcut
+severity: info
+status: open
+summary: >-
+  The NIKA-Session-Id header used between the harness and the MCP servers
+  appears in agent-visible text, so the agent can tell it runs inside the
+  benchmark.
+guideline: >-
+  This reveals the benchmark, not the fault. Count it as a benchmark-identity
+  leak; it matters when the agent's reasoning changes after seeing it.
+detect:
+- kind: text
+  where: [init, harness, prompt, tool_result]
+  pattern: NIKA-Session-Id
+provenance:
+  source: issue 206 (NIKA-Session-Id headers)
+  date: '2026-10-14'
+  refs: ['#206']
+  found_by: manual

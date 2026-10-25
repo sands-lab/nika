@@ -1,0 +1,23 @@
+id: LEAK-PROMPT-VARIES-BY-TASK
+title: Prompt wording tells fault tasks from healthy tasks
+class: shortcut
+role: lead
+severity: warn
+status: open
+summary: >-
+  Within one environment, a prompt line appears in at least half of the fault
+  tasks and in none of the healthy tasks. Healthy and fault tasks should get
+  the same prompt; a line that differs by task variant tells the agent that a
+  fault exists before it looks at the network.
+guideline: >-
+  Read the listed lines in `prompt_contrast`. Wording that differs only by
+  task variant is a leak even when it reads like a harmless instruction.
+  It does not count when the line describes the environment the same way for
+  every task and only the healthy tasks are too few to show it.
+detect:
+- kind: prompt_contrast
+provenance:
+  source: built-in generic check
+  date: '2026-10-28'
+  refs: []
+  found_by: manual

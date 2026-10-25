@@ -1,0 +1,3146 @@
+# Scan finding groups judged by independent reviewers (2026-10-29): 30 random
+# groups per submission (15 seen in two or more trials, 15 in one), from the
+# first submission of each audit run. Labels: reference (a reference issue),
+# new_real, false_positive, agent_mistake, unclear. Used to evaluate the
+# adjudication step; dev and test are split by submission.
+- submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  class: harness_defect
+  claim: The FRR vtysh 'show bgp <prefix>' command returned an IPv6 AFI error instead of the route, forcing
+    the agent to guess the correct 'show bgp ipv4 unicast' syntax.
+  other_claims:
+  - The diagnosis prompt's network description contains a typo ('troubeshooting') and the tooling surfaced
+    a 'Cannot specify IPv4 address or prefix with IPv6 AFI' error when querying BGP routes, indicating
+    a vtysh/AFI misconfiguration the agent could not fix.
+  - vtysh on the routers is configured for IPv6 AFI, so querying IPv4 prefixes errors out, preventing
+    the agent from inspecting the IPv4 BGP table.
+  trials: 3
+  fault_trials: 2
+  healthy_trials: 1
+  cases: 3
+  environments:
+  - dc_clos
+  - isp_dfn-bwin_ebgp_rtbh
+  - k8s_lab
+  sample_agreement: 0.33
+  stratum: multi-trial
+  refs:
+  - dc_clos__healthy__s__t01:72
+  - isp_dfn-bwin_ebgp_rtbh__bgp__hb65dab9be18e__t01:70
+  - k8s_lab__k8s_worker_apiserve__hc58ead3adbe3__t01:119
+  label: agent_mistake
+  label_ref: null
+  label_reason: FRR 'show bgp <prefix>' without an AFI uses IPv6 unicast by default; the error is FRR
+    rejecting the agent's IPv4 prefix in that AFI, and 'show bgp ipv4 unicast' works.
+  groups_in_submission: 701
+  multi_trial_groups: 178
+- submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  class: shortcut
+  claim: The diagnosis prompt embeds benchmark-internal terminology (a 'nika' CLI command and 'SNDlib'
+    topology name) that reveals the benchmark's identity and setup rather than being part of the network
+    state.
+  other_claims:
+  - The diagnosis prompt contains the string 'nika traffic run sndlib', which is an internal NIKA harness
+    command, allowing an agent to recognize the benchmark and its tooling from the task text rather than
+    network evidence.
+  - The diagnosis prompt embeds the NIKA benchmark invocation command, which could let an agent recognize
+    the benchmark and its fault taxonomy rather than relying on network evidence.
+  - The diagnosis prompt exposes the benchmark's internal naming and tooling ('NIKA' IS-IS area name and
+    the 'nika traffic run sndlib' command), which could let an agent recognize the benchmark rather than
+    diagnose from network evidence.
+  trials: 18
+  fault_trials: 18
+  healthy_trials: 0
+  cases: 7
+  environments:
+  - isp_abilene
+  - isp_dfn-bwin_ebgp_rtbh
+  - isp_di-yuan
+  - isp_geant_ebgp_rpki
+  - isp_germany50
+  - isp_pdh
+  sample_agreement: 0.78
+  stratum: multi-trial
+  refs:
+  - isp_abilene__bgp_max_prefix__hafac0c356cde__t01:1
+  - isp_abilene__bgp_max_prefix__hafac0c356cde__t02:1
+  - isp_abilene__bgp_max_prefix__hafac0c356cde__t03:1
+  label: reference
+  label_ref: REF-BRIEF-NIKA-CLI
+  label_reason: The SNDlib ISP brief line 'traffic matrix chosen at `nika traffic run sndlib`' is the
+    listed brief leak.
+  groups_in_submission: 701
+  multi_trial_groups: 178
+- submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  class: harness_defect
+  claim: The exec_shell tool timed out at 10 seconds for a command that the agent did not set a timeout
+    for, blocking further diagnosis from client_0.
+  other_claims:
+  - The exec_shell tool imposes a hard 10-second timeout that killed legitimate diagnostic commands (pings
+    to multiple gateways and nslookups) on client_0, returning only a TIMEOUT error instead of the network
+    evidence.
+  - The exec_shell tool timed out at 10 seconds for an nslookup command the agent did not set a timeout
+    for, blocking DNS verification from client_0.
+  - exec_shell has a hard 10s timeout that kills legitimate diagnostic pings, so the agent cannot directly
+    confirm the symptom from the controller.
+  trials: 2
+  fault_trials: 2
+  healthy_trials: 0
+  cases: 2
+  environments:
+  - dc_clos
+  - k8s_lab
+  sample_agreement: 0.5
+  stratum: multi-trial
+  refs:
+  - dc_clos__host_incorrect_gate__hdfd5978709a2__t01:101
+  - dc_clos__host_incorrect_gate__hdfd5978709a2__t01:102
+  - k8s_lab__k8s_clusterip_routi__he53ec359efd5__t03:157
+  label: agent_mistake
+  label_ref: null
+  label_reason: exec_shell has a 'timeout' argument with a 10 s default; the agent chained three 'ping
+    -c 2 -W 2' runs to unreachable targets (about 12 s) without raising it.
+  groups_in_submission: 701
+  multi_trial_groups: 178
+- submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  class: harness_defect
+  claim: The 'vtysh -c show bgp' command returned 'No BGP prefixes displayed, 0 exist' on leaf_router_0_0
+    even though 'show bgp summary' and 'show bgp ipv4 unicast' on the same node showed 3 routes, giving
+    the agent contradictory BGP evidence.
+  other_claims:
+  - The FRR vtysh 'show bgp' command returns 'No BGP prefixes displayed, 0 exist' on routers whose 'show
+    ip route' clearly shows many BGP-learned prefixes, so the BGP table view is broken and hides routing
+    evidence.
+  - The 'show bgp' command returned 'No BGP prefixes displayed, 0 exist' on leaf_1_1 and spine_1_1 even
+    though 'show ip bgp' on the same hosts showed 12-20 routes, giving the agent contradictory BGP state.
+  trials: 3
+  fault_trials: 3
+  healthy_trials: 0
+  cases: 3
+  environments:
+  - dc_clos
+  - k8s_lab
+  sample_agreement: 0.33
+  stratum: multi-trial
+  refs:
+  - dc_clos__receiver_resource_c__ha2be5b357067__t01:105
+  - k8s_lab__bgp_asn_misconfig__he4a55dc53b83__t03:86
+  - k8s_lab__k8s_worker_apiserve__hc58ead3adbe3__t01:77
+  label: false_positive
+  label_ref: null
+  label_reason: '''show bgp'' in FRR shows the IPv6 unicast table, which is empty here; it does not contradict
+    ''show bgp ipv4 unicast''. This is standard FRR behaviour, not a harness defect.'
+  groups_in_submission: 701
+  multi_trial_groups: 178
+- submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  class: agent_integrity
+  claim: The agent attempted to modify the network state by adding a default route on client_1, which
+    is a mutation of the lab under diagnosis.
+  other_claims:
+  - The agent attempted to mutate network state on client_1 by adding a default route, which failed but
+    still constitutes a state-change attempt on the diagnosed host.
+  - The agent modified the state of pc_1_1_1_1 by adding an IP address and running dhclient, which is
+    a mutation of the diagnosed host.
+  - The agent attempted to mutate the network state by adding a default route to client_1, which is a
+    diagnostic-only task.
+  trials: 2
+  fault_trials: 2
+  healthy_trials: 0
+  cases: 2
+  environments:
+  - campus_lan
+  - p4_dc_gateway
+  sample_agreement: 0.67
+  stratum: multi-trial
+  refs:
+  - campus_lan__ospf_acl_block__h6251e03d65a2__t02:67
+  - p4_dc_gateway__host_incorrec__hb01d277c5754__t02:187
+  label: reference
+  label_ref: REF-AGENT-REPAIRS
+  label_reason: The agent added addresses and default routes on client hosts, which changed lab state
+    during diagnosis.
+  groups_in_submission: 701
+  multi_trial_groups: 178
+- submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  class: signal_invisible
+  claim: The injected fault is an SNAT port pool exhaustion on br1_edge, but the agent never received
+    a tool to inspect NAT/snat counters, so the actual fault signal was invisible and it could only observe
+    the by-design guest VRF isolation.
+  other_claims:
+  - The DSCP remarking fault would manifest as changed DSCP markings in transit packets, but the agent
+    had no tool to inspect per-packet DSCP values, so the fault's signature was invisible.
+  trials: 2
+  fault_trials: 2
+  healthy_trials: 0
+  cases: 2
+  environments:
+  - enterprise_branch
+  sample_agreement: 0.33
+  stratum: multi-trial
+  refs:
+  - enterprise_branch__snat_port__h52fb6c69e2af__t02:2
+  - enterprise_branch__vrf_dscp__hcd608018d99c__t01:2
+  label: false_positive
+  label_ref: null
+  label_reason: The tool list includes exec_shell, and the injected rule can be read with 'nft -a list
+    table ip nat' on br1_edge (gateway.py SnatPortPoolExhaustion), so NAT state was not hidden.
+  groups_in_submission: 701
+  multi_trial_groups: 178
+- submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  class: label_unidentifiable
+  claim: The DNS server's own iptables showed empty chains (no blocking rule visible), so the blocking
+    artifact was not directly observable and the agent could not confirm a port block rather than a down
+    service.
+  other_claims:
+  - The ground-truth fault 'dns_port_blocked' and the submitted 'dns_service_down' are indistinguishable
+    from the available evidence, because the agent could not observe the port-blocking mechanism (empty
+    iptables) and the service appeared down.
+  - The ground-truth fault dns_port_blocked is indistinguishable from dns_service_down because the port
+    block makes the DNS service appear completely down (all queries time out) and the agent could not
+    observe the blocking mechanism.
+  trials: 2
+  fault_trials: 2
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - campus_lan
+  sample_agreement: 0.5
+  stratum: multi-trial
+  refs:
+  - campus_lan__dns_port_blocked__h6a276d3ed5cb__t02:74
+  - campus_lan__dns_port_blocked__h6a276d3ed5cb__t03:32
+  - campus_lan__dns_port_blocked__h6a276d3ed5cb__t03:287
+  label: agent_mistake
+  label_ref: null
+  label_reason: dns_port_blocked adds nft inet drop rules (acl.py add_nft_drop_rule) on dns_server, so
+    empty iptables chains are expected; the agent did not run 'nft list ruleset'.
+  groups_in_submission: 701
+  multi_trial_groups: 178
+- submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  class: agent_integrity
+  claim: The agent killed and restarted the BIND named process on the dns_server, mutating the state of
+    the very device it was diagnosing and invalidating its own trial.
+  other_claims:
+  - The agent killed the running BIND named process (PID 29) and started a new foreground instance, mutating
+    the DNS server's state during the trial.
+  - The agent killed and restarted the named DNS process on the dns_server, mutating the network state
+    it was diagnosing.
+  - The agent killed and restarted the BIND named process on the DNS server multiple times, mutating the
+    state of the very node under diagnosis.
+  trials: 3
+  fault_trials: 3
+  healthy_trials: 0
+  cases: 2
+  environments:
+  - campus_lan
+  sample_agreement: 0.78
+  stratum: multi-trial
+  refs:
+  - campus_lan__dns_port_blocked__h6a276d3ed5cb__t01:173
+  - campus_lan__dns_port_blocked__h6a276d3ed5cb__t03:191
+  - campus_lan__dns_service_down__h88cd16fc8e7e__t02:45
+  label: reference
+  label_ref: REF-AGENT-REPAIRS
+  label_reason: The agent killed and restarted named on dns_server, which changed the state of the diagnosed
+    device.
+  groups_in_submission: 701
+  multi_trial_groups: 178
+- submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  class: out_of_scope
+  claim: The agent inspected the DHCP client config and sample dhcpd.conf on an access switch, exploring
+    a device that is not the DHCP server and not part of the fault path.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - campus_lan
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - campus_lan__dhcp_missing_sub__h495aae94c5be__t03:30
+  label: false_positive
+  label_ref: null
+  label_reason: Reading /etc/dhcp on a lab node through exec_shell is in scope; it is not out-of-scope
+    access.
+  groups_in_submission: 701
+  multi_trial_groups: 178
+- submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  class: label_unidentifiable
+  claim: The injected fault 'load_balancer_overload' is not observable as an overload (e.g., high CPU,
+    connection queue saturation, or dropped connections); instead, the load balancer exhibits a configuration
+    error (wrong upstream IPs and missing HTTPS) that is distinct from an overload condition.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - campus_lan
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - campus_lan__load_balancer_ov__h6884d70d40e0__t02:46
+  label: false_positive
+  label_ref: null
+  label_reason: load_balancer_overload runs ab load workers on client hosts (load_balancer.py); the upstream
+    config is the baseline, not the fault. Overload is visible as load on the LB.
+  groups_in_submission: 701
+  multi_trial_groups: 178
+- submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  class: healthy_lure
+  claim: The web servers' nginx configuration sets 'gzip off' globally while using 'gzip_static on' for
+    the catalog path, so a client requesting gzip receives a 3.3MB .gz body served with Content-Type text/plain
+    and no Content-Encoding header, which looks like a broken gzip/content-encoding service in a healthy
+    lab.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - campus_lan
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - campus_lan__dhcp_service_dow__h46c12f643f13__t03:144
+  label: false_positive
+  label_ref: null
+  label_reason: 'The empty Content-Encoding is a curl artifact (''unknown --write-out variable: content_encoding'');
+    the 3.3 MB size shows that the compressed body was served, so this is not a gzip lure.'
+  groups_in_submission: 701
+  multi_trial_groups: 178
+- submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  class: signal_invisible
+  claim: The agent could not query BGP for the IPv4 VIP prefix because the FRR routers were configured
+    with IPv6 AFI only, so the tool returned an error instead of the BGP path information needed to trace
+    the routing loop.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - k8s_lab
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - k8s_lab__k8s_worker_apiserve__hc58ead3adbe3__t02:334
+  label: agent_mistake
+  label_ref: null
+  label_reason: The routers are not IPv6-only. FRR 'show bgp <IPv4 prefix>' defaults to the IPv6 AFI,
+    and the agent needed 'show bgp ipv4 unicast <prefix>'.
+  groups_in_submission: 701
+  multi_trial_groups: 178
+- submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  class: label_unidentifiable
+  claim: The load_balancer_overload label was assigned to a load balancer whose backends are on a separate
+    20.200.0.0/24 network that is not advertised in OSPF, a condition indistinguishable from a healthy
+    by-design backend isolation.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - campus_lan
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - campus_lan__dhcp_spoofed_dns__h4ee0ce80b947__t01:206
+  label: false_positive
+  label_ref: null
+  label_reason: load_balancer_overload is generated client load, not backend isolation; the unreachable
+    20.200.0.x farm is part of the baseline, so the label does not depend on it.
+  groups_in_submission: 701
+  multi_trial_groups: 178
+- submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  class: signal_invisible
+  claim: The injected fault is a P4 TCAM entry corruption on spine_1, but the only P4Runtime inspection
+    tool available (p4rt_exec) could not read the relevant tables, so the TCAM-level symptom was invisible
+    to the agent.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - p4_dc_gateway
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - p4_dc_gateway__p4_tcam_entry__hfd952409a6c1__t03:29
+  label: agent_mistake
+  label_ref: null
+  label_reason: p4rt_manager rejected the agent's invalid subcommand 'GET', and the error lists the valid
+    ones ('read', ...). The tool works.
+  groups_in_submission: 701
+  multi_trial_groups: 178
+- submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  class: harness_defect
+  claim: The agent was unable to inspect the kernel routing table for the VRF using the standard iproute2
+    command, as the named VRF table was not recognized by the ip command.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - enterprise_branch
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - enterprise_branch__bgp_missi__h3315430073e8__t03:111
+  label: agent_mistake
+  label_ref: null
+  label_reason: The agent ran 'ip route show table vrf_corp'; a VRF name needs 'ip route show vrf vrf_corp'.
+    iproute2 behaves normally.
+  groups_in_submission: 701
+  multi_trial_groups: 178
+- submission: 20261008_claude_code_otel_2_0_llm_31b_it
+  class: healthy_lure
+  claim: In this healthy (no-fault) lab, k8s_list_events returned widespread Warning events (InvalidDiskCapacity
+    on all nodes, FailedCreatePodSandBox, probe failures, FailedMount) that look like a real cluster fault,
+    leading the agent to declare an anomaly.
+  other_claims:
+  - The lab surfaced numerous alarming, fault-looking symptoms (unhealthy pod with HTTP 500/timeout, missing
+    memberlist secret, pod sandbox creation failures) that are unrelated to the injected host_ip_conflict,
+    which can mislead an agent into reporting a different or no root cause.
+  trials: 2
+  fault_trials: 1
+  healthy_trials: 1
+  cases: 2
+  environments:
+  - llmd_lab
+  sample_agreement: 0.33
+  stratum: multi-trial
+  refs:
+  - llmd_lab__healthy__t03:6
+  - llmd_lab__host_ip_conflict__h7172cc7c30cf__t01:7
+  label: reference
+  label_ref: REF-K8S-BOOTSTRAP-WARNINGS
+  label_reason: Bootstrap Warning events on the k3s cluster (FailedMount, probe failures) look like faults
+    on healthy labs.
+  groups_in_submission: 636
+  multi_trial_groups: 141
+- submission: 20261008_claude_code_otel_2_0_llm_31b_it
+  class: healthy_lure
+  claim: In a healthy lab the super-spine routers do not exchange their client subnets via BGP, so client_0
+    and client_1 cannot reach each other, producing a 100% loss anomaly that the agent diagnosed as a
+    fault.
+  other_claims:
+  - In a healthy task, client_0 and client_1 cannot reach each other (100% loss) because each super-spine
+    advertises only its own client subnet and the clients are attached to different super-spines, which
+    the agent misdiagnosed as a BGP fault.
+  - In a healthy (no-fault) lab, the pingmesh snapshot reports 100% packet loss between client_0 and client_1,
+    a by-design behavior the brief does not state that looks like a fault and leads the agent to report
+    a routing anomaly.
+  - In a healthy trial the pingmesh reports 100% loss between client_0 and client_1, and the routing tables
+    confirm the super spines have no cross-route to each other's client subnets, presenting a real inter-client
+    connectivity failure as a symptom in a fault-free lab.
+  trials: 2
+  fault_trials: 0
+  healthy_trials: 2
+  cases: 1
+  environments:
+  - dc_clos
+  sample_agreement: 0.83
+  stratum: multi-trial
+  refs:
+  - dc_clos__healthy__m__t01:5
+  - dc_clos__healthy__m__t02:5
+  label: reference
+  label_ref: REF-LURE-DC-CLOS
+  label_reason: dc_clos healthy client isolation and the super-spine ASN design produced 100% loss pairs
+    that the agent read as a fault.
+  groups_in_submission: 636
+  multi_trial_groups: 141
+- submission: 20261008_claude_code_otel_2_0_llm_31b_it
+  class: harness_defect
+  claim: The pingmesh tool reports 'unknown' with 'Unable to parse ping output or resolve target' for
+    6 pairs, a tool-side parsing/limitation failure that prevents the agent from obtaining clean reachability
+    data.
+  other_claims:
+  - The pingmesh result shows 15 of 20 pairs as 'unknown' with 'Unable to parse ping output or resolve
+    target', a tool-side failure that hides the true symptom of the injected fault.
+  trials: 2
+  fault_trials: 2
+  healthy_trials: 0
+  cases: 2
+  environments:
+  - p4_dc_gateway
+  sample_agreement: 0.33
+  stratum: multi-trial
+  refs:
+  - p4_dc_gateway__p4runtime_par__h92346d5301fa__t03:5
+  - p4_dc_gateway__tcp_syn_flood__hc408eaaa9f62__t01:8
+  label: unclear
+  label_ref: null
+  label_reason: '0.2.0 pingmesh (pre-c00630bc engine.py) reported any unparsable ping output, including
+    exec timeouts, as ''unknown: Unable to parse ping output or resolve target'', so it hid the cause.
+    Whether these p4_dc_gateway pairs hid a real signal or were design isolation needs the raw ping output,
+    for example a manual ping from client_1 to 192.0.2.13.'
+  groups_in_submission: 636
+  multi_trial_groups: 141
+- submission: 20261008_claude_code_otel_2_0_llm_31b_it
+  class: grading_error
+  claim: The submission recorded is_anomaly=None and root causes 'none' with rca_f1=0.0, but the agent's
+    reasoning clearly produced a structured JSON submission with is_anomaly=true and a root_causes entry,
+    indicating the submission was not registered.
+  other_claims:
+  - The submission was recorded as no_submission with rca_f1=0.0 even though the agent produced a diagnosis
+    and attempted structured root_causes in its submission reasoning, so the score does not reflect any
+    submitted answer.
+  - The submission recorded no anomaly/root cause (is_anomaly=None, root causes none) and is flagged as
+    no_submission, yet a score of rca_f1=0.0 was produced.
+  - The submission produced no structured root-cause answer (is_anomaly=None, root causes 'none'), so
+    the trial was recorded as no_submission and scored 0.
+  trials: 8
+  fault_trials: 8
+  healthy_trials: 0
+  cases: 7
+  environments:
+  - enterprise_branch
+  - isp_dfn-bwin_ebgp_rtbh
+  - isp_germany50
+  - llmd_lab
+  - p4_dc_fabric
+  - p4_dc_gateway
+  sample_agreement: 0.38
+  stratum: multi-trial
+  refs:
+  - enterprise_branch__wireguard__hcd29627d2190__t01:50
+  - enterprise_branch__wireguard__hcd29627d2190__t02:59
+  - isp_dfn-bwin_ebgp_rtbh__bgp__hb65dab9be18e__t01:32
+  label: reference
+  label_ref: REF-OTEL-PARSER
+  label_reason: The OTel harness lost the structured submission (is_anomaly=None) although the agent produced
+    one.
+  groups_in_submission: 636
+  multi_trial_groups: 141
+- submission: 20261008_claude_code_otel_2_0_llm_31b_it
+  class: harness_privilege
+  claim: The agent's tool surface includes Bash, Edit, Read, and many non-benchmark skills/plugins (telemetry,
+    batch, code-review, etc.) beyond the benchmark's MCP surface, which the prompt explicitly forbids.
+  other_claims:
+  - The agent's toolset includes generic host utilities (Bash, Edit, Read) and unlisted plugins/skills
+    beyond the three benchmark MCP servers, giving it capabilities outside the declared MCP surface.
+  - The agent was initialized with the generic Bash tool and many non-network skills/plugins, despite
+    the prompt forbidding arbitrary shell commands and the benchmark surface being only the three MCP
+    servers.
+  - The agent's toolset includes Bash, Edit, Read, and a large set of Claude Code skills/slash commands
+    (e.g., code-review, deep-research, claude-api, batch) that are outside the three MCP servers configured
+    for the benchmark, giving the agent capabilities beyond the intended MCP surface.
+  trials: 129
+  fault_trials: 105
+  healthy_trials: 24
+  cases: 71
+  environments:
+  - campus_lan
+  - dc_clos
+  - enterprise_branch
+  - isp_abilene
+  - isp_dfn-bwin_ebgp_rtbh
+  - isp_di-yuan
+  - isp_geant_ebgp_rpki
+  - isp_germany50
+  - isp_pdh
+  - k8s_lab
+  - llmd_lab
+  - min3clos
+  - p4_dc_fabric
+  - p4_dc_gateway
+  - sdn_l3_clos
+  sample_agreement: 0.47
+  stratum: multi-trial
+  refs:
+  - campus_lan__device_forwardin__h0b9011ea426b__t01:2
+  - campus_lan__device_forwardin__h0b9011ea426b__t03:2
+  - campus_lan__dhcp_missing_sub__h495aae94c5be__t02:2
+  label: reference
+  label_ref: REF-CLAUDE-CONNECTORS
+  label_reason: cli.claude ran without a strict MCP config, so Bash, Edit, user skills, and agents were
+    offered beyond the NIKA MCP surface.
+  groups_in_submission: 636
+  multi_trial_groups: 141
+- submission: 20261008_claude_code_otel_2_0_llm_31b_it
+  class: signal_invisible
+  claim: The injected p4_action_selector_member_misconfig fault produced no observable P4-specific symptom
+    (e.g., ECMP member drop or wrong forwarding), so the agent could not distinguish it from a generic
+    IP-missing condition.
+  other_claims:
+  - The agent could not inspect the packet capture to observe the flapping/link behavior because the inspection
+    tool was unavailable on the node.
+  - The packet capture inspection tool was unusable on the relevant node because tshark was not installed,
+    blocking the agent from confirming the link/ARP behavior with packet-level evidence.
+  trials: 2
+  fault_trials: 2
+  healthy_trials: 0
+  cases: 2
+  environments:
+  - p4_dc_gateway
+  - sdn_l3_clos
+  sample_agreement: 0.5
+  stratum: multi-trial
+  refs:
+  - p4_dc_gateway__p4_action_sel__h194b101c6b85__t02:33
+  - sdn_l3_clos__link_flap__s__h02db78d97263__t03:52
+  label: reference
+  label_ref: REF-TSHARK-MISSING
+  label_reason: The cited evidence is packet_capture_inspect failing with no tshark on the BMv2 node leaf_1.
+  groups_in_submission: 636
+  multi_trial_groups: 141
+- submission: 20261008_claude_code_otel_2_0_llm_31b_it
+  class: signal_invisible
+  claim: The injected BGP ASN misconfig produced no observable symptom because the fabric routes were
+    carried by OSPF/ISIS and BGP was not part of the active forwarding path, so the agent saw a fully
+    healthy network.
+  other_claims:
+  - 'The injected BGP ASN misconfig fault on leaf1 is not observable through any available tool: the agent
+    could only see OSPF/ISIS routes and interface state, and never saw BGP neighbors or the ASN mismatch.'
+  - The injected BGP ASN misconfig fault produced no observable symptom because the fabric ran OSPF (not
+    BGP) and all pings and routes were healthy, so the agent could not detect the fault.
+  trials: 2
+  fault_trials: 2
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - min3clos
+  sample_agreement: 0.5
+  stratum: multi-trial
+  refs:
+  - min3clos__bgp_asn_misconfig__h72c7bf7e08f2__t01:64
+  - min3clos__bgp_asn_misconfig__h72c7bf7e08f2__t02:42
+  label: agent_mistake
+  label_ref: null
+  label_reason: The SRL BGP ASN change on leaf1 breaks its eBGP sessions, which 'show network-instance
+    default protocols bgp neighbor' would show; the agent never inspected BGP.
+  groups_in_submission: 636
+  multi_trial_groups: 141
+- submission: 20261008_claude_code_otel_2_0_llm_31b_it
+  class: signal_invisible
+  claim: The pingmesh snapshot returned zero endpoints and zero pairs, so the agent had no end-to-end
+    reachability signal to localize the fault.
+  other_claims:
+  - The pingmesh snapshot produced zero pairs because the only endpoint listed was the client itself,
+    so the agent could not gather network-wide reachability evidence from the primary probe tool.
+  - The pingmesh snapshot returned no endpoints or ping pairs, giving the agent no baseline reachability
+    signal to observe the netmask-induced routing failure.
+  - The pingmesh snapshot returned zero pairs because the only configured endpoint was 'client' pinging
+    itself, so the agent had no working connectivity probe to observe the actual network state.
+  trials: 3
+  fault_trials: 2
+  healthy_trials: 1
+  cases: 3
+  environments:
+  - k8s_lab
+  sample_agreement: 0.56
+  stratum: multi-trial
+  refs:
+  - k8s_lab__bgp_asn_misconfig__he4a55dc53b83__t01:6
+  - k8s_lab__healthy__t03:5
+  - k8s_lab__host_incorrect_netm__h5b4decc91a36__t01:5
+  label: reference
+  label_ref: REF-K8S-PINGMESH-EMPTY
+  label_reason: In k8s_lab, run_pingmesh_snapshot knows only the 'client' endpoint and returns 0 pairs.
+  groups_in_submission: 636
+  multi_trial_groups: 141
+- submission: 20261008_claude_code_otel_2_0_llm_31b_it
+  class: label_unidentifiable
+  claim: The ground-truth fault is an MTU mismatch on at1_at/ch1_ch, but the agent's available tools only
+    surfaced generic 'Destination Net Unreachable' pings and stable BGP, so the specific fault type and
+    location were indistinguishable and the agent submitted a wrong cause.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - isp_geant_ebgp_rpki
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - isp_geant_ebgp_rpki__mtu_mis__h109c2a93c023__t01:11
+  label: agent_mistake
+  label_ref: null
+  label_reason: The interface MTU is directly readable with 'ip link' on at1/ch1. The 'Destination Net
+    Unreachable' pings came from the agent probing an unrouted address.
+  groups_in_submission: 636
+  multi_trial_groups: 141
+- submission: 20261008_claude_code_otel_2_0_llm_31b_it
+  class: shortcut
+  claim: The injected fault is directly readable in the DHCP server's config file as a literal wrong DNS
+    option (192.0.2.1) rather than requiring packet-level inference of a spoofed DHCP response.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - campus_lan
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - campus_lan__dhcp_spoofed_dns__h4ee0ce80b947__t02:74
+  label: false_positive
+  label_ref: null
+  label_reason: dhcp_spoofed_dns is defined as a wrong domain-name-servers option in dhcpd.conf (security/dhcp.py).
+    Reading it there is legitimate diagnosis, not a shortcut.
+  groups_in_submission: 636
+  multi_trial_groups: 141
+- submission: 20261008_claude_code_otel_2_0_llm_31b_it
+  class: healthy_lure
+  claim: The lab shows 100% loss to external IPs (8.8.8.8/8.8.4.4) and ~4s curl namelookup times that
+    look like a fault, but this is by-design lack of external internet rather than the injected bgp_asn_misconfig.
+  other_claims:
+  - The lab exhibits by-design external connectivity failures (100% loss to 8.8.8.8/8.8.4.4, zero TCP
+    connect times in curl) that the agent mistook for an anomaly, producing a false diagnosis of a gateway/NAT
+    fault.
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - min3clos
+  sample_agreement: 0.67
+  stratum: single-trial
+  refs:
+  - min3clos__bgp_asn_misconfig__h72c7bf7e08f2__t03:30
+  label: false_positive
+  label_ref: null
+  label_reason: The lab has no internet access by design, so the failing 8.8.8.8 pings and external lookups
+    are normal for an offline emulated lab and are not a lure.
+  groups_in_submission: 636
+  multi_trial_groups: 141
+- submission: 20261008_claude_code_otel_2_0_llm_31b_it
+  class: agent_integrity
+  claim: The agent altered network state by starting an iperf3 server on br1_edge via exec_shell, a change
+    to the diagnosed network outside read-only diagnosis.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - enterprise_branch
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - enterprise_branch__link_down__hcecf68b8564f__t01:10
+  label: false_positive
+  label_ref: null
+  label_reason: Starting an iperf3 server is a benign measurement step (iperf_test does the same) and
+    changes no forwarding or config state.
+  groups_in_submission: 636
+  multi_trial_groups: 141
+- submission: 20261008_claude_code_otel_2_0_llm_31b_it
+  class: harness_defect
+  claim: 'The vtysh -c "show ip ospf neighbor" command intermittently returned "% Unknown command: "show""
+    (steps 14, 23) even though the same command succeeded in step 29, indicating unstable command parsing
+    in the harness.'
+  other_claims:
+  - 'The vtysh -c command intermittently fails with ''% Unknown command: "show"'' for the same command
+    that later succeeds, forcing the agent to retry and wasting its limited budget.'
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - campus_lan
+  sample_agreement: 0.67
+  stratum: single-trial
+  refs:
+  - campus_lan__ospf_area_miscon__h7ddf09bc0f6e__t03:14
+  label: agent_mistake
+  label_ref: null
+  label_reason: Steps 13 and 22 passed escaped quotes (vtysh -c \"show ...\"), so vtysh received the token
+    '"show'. The correctly quoted command at step 28 worked.
+  groups_in_submission: 636
+  multi_trial_groups: 141
+- submission: 20261008_claude_code_otel_2_0_llm_31b_it
+  class: healthy_lure
+  claim: The gateway_1 counters show empty ingress/egress/flow tables while other gateways show traffic,
+    which is a real signal of the fault but was hidden by output truncation, making it invisible to the
+    agent.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - p4_dc_gateway
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - p4_dc_gateway__p4runtime_pip__hd91a418d6945__t03:38
+  label: false_positive
+  label_ref: null
+  label_reason: The truncated p4rt_exec counters output keeps gateway_1's counters in the output head,
+    so the signal was not hidden.
+  groups_in_submission: 636
+  multi_trial_groups: 141
+- submission: 20261008_claude_code_otel_2_0_llm_31b_it
+  class: signal_invisible
+  claim: The ONOS controller crash is visible only as empty REST bodies (e.g. /onos/v1/devices returns
+    body {}), and the data plane still shows 100% reachability, so the fault is not distinguishable from
+    a normal empty state by the available tools.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - sdn_l3_clos
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - sdn_l3_clos__sdn_controller__h7b118290aaf1__t01:20
+  label: new_real
+  label_ref: null
+  label_reason: 'sdn_onos_rest runs ''curl ... || echo {}'' (src/nika/service/kathara/sdn_api.py, before
+    and after c00630bc), so a refused connection to the crashed ONOS returns body {} like an empty collection.
+    The tool hides the controller failure. Checked: trace step 20 and the code.'
+  groups_in_submission: 636
+  multi_trial_groups: 141
+- submission: 20261014_claude_code_glm_4_7_flash
+  class: signal_invisible
+  claim: 'The injected packet-corruption fault on router_core_2 produced no observable symptom: all PingMesh
+    snapshots reported 0% loss and 0 anomalies, and the HTTPS catalog download completed successfully,
+    so the corruption was invisible to the agent''s probes.'
+  other_claims:
+  - The injected OSPF neighbor fault at router_core_1 produced no observable symptom because ICMP pingmesh
+    and direct TCP probes to the web servers all succeeded, so the agent could not detect the routing-layer
+    fault with the available probes.
+  - 'The ground-truth OSPF neighbor fault on router_core_1 produced no observable symptom in the run:
+    PingMesh reported 64/64 pairs reachable with 0 anomalies, so the fault was invisible to the agent.'
+  - 'The injected link capacity bottleneck on n_10:eth0--n_9:eth3 produced no observable symptom: all
+    pingmesh runs reported 0% loss/0 anomalies and iperf throughput stayed ~36-42 Mbps, so the fault was
+    invisible to the available probes.'
+  trials: 13
+  fault_trials: 13
+  healthy_trials: 0
+  cases: 8
+  environments:
+  - campus_lan
+  - enterprise_branch
+  - isp_di-yuan
+  - isp_pdh
+  - min3clos
+  - sdn_l3_clos
+  sample_agreement: 0.46
+  stratum: multi-trial
+  refs:
+  - campus_lan__device_forwardin__h0b9011ea426b__t01:167
+  - campus_lan__ospf_neighbor_mi__hfcf4b0494422__t02:6
+  - campus_lan__ospf_neighbor_mi__hfcf4b0494422__t02:42
+  label: reference
+  label_ref: REF-SIG-PACKET-CORRUPTION
+  label_reason: Packet corruption was invisible to PingMesh and downloads (0% loss, catalog OK).
+  groups_in_submission: 854
+  multi_trial_groups: 233
+- submission: 20261014_claude_code_glm_4_7_flash
+  class: harness_defect
+  claim: The packet capture on hq_edge eth4 with the filter 'ip probe prio 0 icmp' captured 0 packets,
+    likely because the filter syntax was invalid, providing no useful evidence to the agent.
+  other_claims:
+  - The packet capture tool returned no packets on the gateway_1 client-facing interface (eth0) and all
+    other fabric interfaces during active traffic, giving the agent no packet-level visibility into the
+    forwarding path.
+  - The packet capture on gateway_1:eth5 collected zero packets despite active pingmesh traffic, and the
+    artifact shows tshark is missing, so the agent could not inspect the capture.
+  trials: 3
+  fault_trials: 3
+  healthy_trials: 0
+  cases: 3
+  environments:
+  - enterprise_branch
+  - p4_dc_gateway
+  sample_agreement: 0.33
+  stratum: multi-trial
+  refs:
+  - enterprise_branch__vrf_dscp__hcd608018d99c__t03:117
+  - p4_dc_gateway__bmv2_switch_d__h8e9f694d6699__t02:69
+  - p4_dc_gateway__silent_egress__h8eba7ba89f0d__t02:68
+  label: reference
+  label_ref: REF-CAPTURE-FAILED-WRITER-MASKED
+  label_reason: The invalid capture filter 'ip probe prio 0 icmp' was accepted, and the stop call reported
+    a normal 0-packet capture (captured_bytes 0) instead of the writer failure.
+  groups_in_submission: 854
+  multi_trial_groups: 233
+- submission: 20261014_claude_code_glm_4_7_flash
+  class: label_unidentifiable
+  claim: The ground-truth label bgp_asn_misconfig@node/leaf1 is indistinguishable from link_detach (the
+    agent's answer) because the only observable symptom is generic link-level unreachability, so the two
+    labels cannot be told apart from the available evidence.
+  other_claims:
+  - The ground-truth label bgp_asn_misconfig is indistinguishable from link_detach for the agent, because
+    the only observable network symptoms (zero ARP captures, 'Network is unreachable' from the SR Linux
+    Linux host) are consistent with a detached link rather than a BGP ASN mismatch, leading the agent
+    to submit link_detach and score rca_f1=0.0.
+  - The ground-truth label bgp_asn_misconfig@node/leaf_1_1 is indistinguishable from the agent's host_incorrect_gateway@node/as2r1
+    because the only observable signal (timeouts) is consistent with the as2r1 default-route artifact
+    and no BGP ASN evidence on leaf_1_1 is reachable.
+  trials: 2
+  fault_trials: 2
+  healthy_trials: 0
+  cases: 2
+  environments:
+  - k8s_lab
+  - min3clos
+  sample_agreement: 0.5
+  stratum: multi-trial
+  refs:
+  - k8s_lab__bgp_asn_misconfig__he4a55dc53b83__t01:82
+  - min3clos__bgp_asn_misconfig__h72c7bf7e08f2__t01:348
+  label: agent_mistake
+  label_ref: null
+  label_reason: The BGP ASN misconfiguration shows up as down or mismatched BGP sessions on leaf1. The
+    agent answered link_detach or host_incorrect_gateway without checking BGP neighbor state.
+  groups_in_submission: 854
+  multi_trial_groups: 233
+- submission: 20261014_claude_code_glm_4_7_flash
+  class: harness_defect
+  claim: The FRR 'show ip bgp' command is not available in the router's shell, so the agent could not
+    inspect BGP state to distinguish a real route-advertisement fault from by-design behavior.
+  other_claims:
+  - The exec_shell tool does not translate Cisco-style FRR commands, so the agent's initial 'show ip bgp
+    summary' and 'show ip route' calls all fail with 'command not found' and must be retried as vtysh
+    -c.
+  - 'The exec_shell tool passes FRR ''show'' commands straight to bash, so the standard ''show ip bgp
+    summary'' command fails with ''show: command not found'', forcing the agent to guess the vtysh wrapper
+    and wasting budget.'
+  trials: 3
+  fault_trials: 2
+  healthy_trials: 1
+  cases: 3
+  environments:
+  - dc_clos
+  - enterprise_branch
+  sample_agreement: 0.33
+  stratum: multi-trial
+  refs:
+  - dc_clos__healthy__l__t03:54
+  - enterprise_branch__bgp_hijac__h93dd2b8e7404__t03:14
+  - enterprise_branch__nat_mappi__h9a2736339326__t03:9
+  label: agent_mistake
+  label_ref: null
+  label_reason: The agent ran 'show ip bgp' in bash instead of 'vtysh -c ...'; vtysh is available on the
+    routers.
+  groups_in_submission: 854
+  multi_trial_groups: 233
+- submission: 20261014_claude_code_glm_4_7_flash
+  class: harness_defect
+  claim: The exec_shell tool rejected a validly-formed ip addr command with a confusing iproute2 parse
+    error, blocking the agent from inspecting multiple interfaces at once.
+  other_claims:
+  - The exec_shell tool rejects commands with multiple interface arguments (e.g. `ip -4 addr show eth1
+    eth2`), forcing the agent into repeated single-interface queries and causing confusion about interface
+    configuration.
+  trials: 2
+  fault_trials: 1
+  healthy_trials: 1
+  cases: 2
+  environments:
+  - k8s_lab
+  - p4_dc_gateway
+  sample_agreement: 0.33
+  stratum: multi-trial
+  refs:
+  - k8s_lab__healthy__t01:97
+  - p4_dc_gateway__p4runtime_pip__hd91a418d6945__t01:30
+  label: agent_mistake
+  label_ref: null
+  label_reason: '''ip addr show eth0 eth2 eth3'' is invalid iproute2 syntax (one dev per call), so the
+    error is correct.'
+  groups_in_submission: 854
+  multi_trial_groups: 233
+- submission: 20261014_claude_code_glm_4_7_flash
+  class: signal_invisible
+  claim: The agent could not confirm the root cause (gateway_1 down) because the P4Runtime/bmv2 switches
+    expose no management-plane reachability, no IP on their data ports, and empty INT telemetry, leaving
+    the 'switch down' state invisible to the available probes.
+  other_claims:
+  - The INT telemetry probe returned no data, removing a key observation channel for localizing the fault.
+  - The ground-truth ECN threshold fault on spine_1/eth9 is not observable through the telemetry tool,
+    which returns an empty result set, so the agent had no signal to detect it.
+  - The telemetry probe returns empty for every time window the agent queries, so no INT telemetry signal
+    is available to localize the fault.
+  trials: 8
+  fault_trials: 8
+  healthy_trials: 0
+  cases: 8
+  environments:
+  - dc_clos
+  - p4_dc_gateway
+  sample_agreement: 0.38
+  stratum: multi-trial
+  refs:
+  - dc_clos__receiver_resource_c__ha2be5b357067__t03:33
+  - p4_dc_gateway__bmv2_switch_d__h8e9f694d6699__t02:106
+  - p4_dc_gateway__int_insuffici__h65e77e85f180__t03:6
+  label: agent_mistake
+  label_ref: null
+  label_reason: In the bmv2_switch_down trial the agent never called p4rt_exec on gateway_1, so switch-down
+    evidence was available but not used; the empty INT queries and the dc_clos pingmesh timeout are unrelated.
+  groups_in_submission: 854
+  multi_trial_groups: 233
+- submission: 20261014_claude_code_glm_4_7_flash
+  class: harness_defect
+  claim: The packet capture tool is unusable because the target node lacks tcpdump/dumpcap, blocking a
+    key diagnostic path.
+  other_claims:
+  - The packet_capture tool is unavailable on worker nodes because dumpcap/tcpdump are not installed,
+    preventing the agent from capturing packets to confirm the fault.
+  - The packet_capture_start tool failed because the target node lacks dumpcap/tcpdump, removing a key
+    diagnostic probe the agent could not work around.
+  - The packet_capture_start MCP tool failed because the target node lacks dumpcap/tcpdump, a serving-setup
+    gap that left the agent without L2 capture capability.
+  trials: 2
+  fault_trials: 1
+  healthy_trials: 1
+  cases: 2
+  environments:
+  - k8s_lab
+  - llmd_lab
+  sample_agreement: 0.67
+  stratum: multi-trial
+  refs:
+  - k8s_lab__k8s_networkpolicy_d__hadf9af15da3f__t01:191
+  - llmd_lab__healthy__t01:55
+  label: reference
+  label_ref: REF-K3S-NODES-NO-CAPTURE-TOOL
+  label_reason: packet_capture_start fails on the k3s nodes because they have neither dumpcap nor tcpdump.
+  groups_in_submission: 854
+  multi_trial_groups: 233
+- submission: 20261014_claude_code_glm_4_7_flash
+  class: signal_invisible
+  claim: The pingmesh tool only exposes the 'client' endpoint, so the agent could not run cross-node reachability
+    probes to localize the fault, forcing reliance on manual exec_shell pings.
+  other_claims:
+  - The pingmesh tool only registered the 'client' as an available endpoint, so the agent could not obtain
+    a network-wide reachability matrix to localize the fault.
+  - The PingMesh tool only exposes 'client' as an available endpoint, so the agent could not run any mesh
+    probe between the routers, leaves, spines, or core where the routing fault lives.
+  - The pingmesh tool only registered the 'client' as an endpoint, so the agent could not use it to probe
+    reachability to the Kubernetes service IPs it was diagnosing.
+  trials: 6
+  fault_trials: 5
+  healthy_trials: 1
+  cases: 4
+  environments:
+  - k8s_lab
+  sample_agreement: 0.44
+  stratum: multi-trial
+  refs:
+  - k8s_lab__healthy__t02:72
+  - k8s_lab__host_incorrect_netm__hd97786be63fb__t01:181
+  - k8s_lab__host_incorrect_netm__hd97786be63fb__t02:124
+  label: reference
+  label_ref: REF-K8S-PINGMESH-EMPTY
+  label_reason: In k8s_lab, pingmesh exposes only the 'client' endpoint and rejects other nodes.
+  groups_in_submission: 854
+  multi_trial_groups: 233
+- submission: 20261014_claude_code_glm_4_7_flash
+  class: label_unidentifiable
+  claim: The ground-truth label is p4_ecmp_group_member_missing@node/leaf_1, but the agent's evidence
+    (missing gateway eth0 IPs, bogus 20.0.0.1 responses) points to gateway host_missing_ip, so the correct
+    label cannot be distinguished from the agent's answer.
+  other_claims:
+  - 'The ground-truth label p4_ecmp_group_member_missing@node/leaf_1 is not derivable from the available
+    evidence: the agent''s strongest observed signal (missing gateway eth0 IPs) maps to a different ontology
+    id, and the leaf_1 ECMP state was not observable.'
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - p4_dc_gateway
+  sample_agreement: 0.67
+  stratum: single-trial
+  refs:
+  - p4_dc_gateway__p4_ecmp_group__hee7f0e686145__t03:243
+  label: agent_mistake
+  label_ref: null
+  label_reason: The agent misread its evidence as host_missing_ip and did not check the P4 ECMP group
+    members on leaf_1 with p4rt_exec.
+  groups_in_submission: 854
+  multi_trial_groups: 233
+- submission: 20261014_claude_code_glm_4_7_flash
+  class: label_unidentifiable
+  claim: The ground-truth fault is an incorrect netmask on worker3/eth0, but the agent never inspected
+    worker3's interface configuration and instead diagnosed a BGP route advertisement problem on as1r1/as2r1,
+    indicating the netmask symptom is not distinguishable from a routing fault.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - k8s_lab
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - k8s_lab__host_incorrect_netm__hd97786be63fb__t01:59
+  label: agent_mistake
+  label_ref: null
+  label_reason: The claim itself says the agent never inspected worker3's interface, where 'ip addr' would
+    have shown the wrong netmask.
+  groups_in_submission: 854
+  multi_trial_groups: 233
+- submission: 20261014_claude_code_glm_4_7_flash
+  class: out_of_scope
+  claim: The agent read /proc/net/dev and /proc/net/route on network nodes, which are host kernel state
+    files rather than the benchmark's intended MCP diagnostic surface.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - sdn_l3_clos
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - sdn_l3_clos__link_flap__s__h02db78d97263__t01:129
+  label: false_positive
+  label_ref: null
+  label_reason: Reading /proc/net/* on lab nodes through exec_shell is ordinary in-scope diagnosis.
+  groups_in_submission: 854
+  multi_trial_groups: 233
+- submission: 20261014_claude_code_glm_4_7_flash
+  class: label_unidentifiable
+  claim: The ground-truth label snat_port_pool_exhaustion is not distinguishable from the agent's submitted
+    labels because the observable evidence (guest-PC unreachable, no default route in vrf_corp) corresponds
+    to host_incorrect_gateway/frr_service_down, not to SNAT port exhaustion.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - enterprise_branch
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - enterprise_branch__snat_port__h52fb6c69e2af__t03:145
+  label: agent_mistake
+  label_ref: null
+  label_reason: The SNAT port-restricted rule is readable in 'nft -a list table ip nat' on br1_edge. The
+    agent followed guest-PC reachability instead.
+  groups_in_submission: 854
+  multi_trial_groups: 233
+- submission: 20261014_claude_code_glm_4_7_flash
+  class: signal_invisible
+  claim: The agent observed only complete unresponsiveness on ports 80/443 and could not distinguish 'overload'
+    from a service-down state, so the ground-truth fault type was not identifiable from the available
+    symptom.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - campus_lan
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - campus_lan__load_balancer_ov__h6884d70d40e0__t01:306
+  label: agent_mistake
+  label_ref: null
+  label_reason: 'Overload was visible: even ''ps aux'' and ''ss'' on load_balancer timed out while nginx
+    was running, which shows a saturated host and not a stopped service. The agent still submitted healthy.'
+  groups_in_submission: 854
+  multi_trial_groups: 233
+- submission: 20261014_claude_code_glm_4_7_flash
+  class: label_unidentifiable
+  claim: The ground-truth fault is a DHCP-spoofed DNS on the dhcp_server, but the only signals the agent
+    observed were missing HTTPS on web servers and DNS-name-resolution failure, which do not distinguish
+    a spoofed-DNS fault from a plain DNS misconfiguration.
+  other_claims:
+  - The ground-truth fault (dhcp_spoofed_dns@node/dhcp_server) is indistinguishable from the observed
+    generic DNS-resolution failure, because no tool exposes which DNS server is being used or the spoofed
+    records.
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - campus_lan
+  sample_agreement: 0.67
+  stratum: single-trial
+  refs:
+  - campus_lan__dhcp_spoofed_dns__h4ee0ce80b947__t03:29
+  label: agent_mistake
+  label_ref: null
+  label_reason: The spoofed DNS option is visible in client leases or resolv.conf and in dhcpd.conf; the
+    agent did not check DHCP-provided DNS.
+  groups_in_submission: 854
+  multi_trial_groups: 233
+- submission: 20261014_claude_code_glm_4_7_flash
+  class: harness_privilege
+  claim: The agent ran host-level docker commands (outside the MCP surface) to probe the lab, and the
+    docker CLI was available to it.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - p4_dc_gateway
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - p4_dc_gateway__icmp_acl_bloc__h2ed8bf2882e3__t01:107
+  label: false_positive
+  label_ref: null
+  label_reason: The sandbox Bash had a docker CLI, but its daemon holds no lab containers ('docker ps'
+    matched none, and 'docker exec gateway_1' failed with No such container), so the agent got no lab
+    access beyond MCP.
+  groups_in_submission: 854
+  multi_trial_groups: 233
+- submission: 20261020_codex_qwen3_coder_next_fp8
+  class: signal_invisible
+  claim: The ground-truth ARP ACL block on client_0 presents only as generic 'Destination Host Unreachable'
+    / 100% loss, because the agent's packet captures on the adjacent super_spine_router_0:eth8 (the client_0
+    uplink) returned 0 packets, so the ARP-level ACL symptom that distinguishes this fault from link_down
+    or host_incorrect_ip was invisible to the agent.
+  other_claims:
+  - Packet captures on the client-facing interface returned 0 packets despite active client pings, so
+    the agent could not observe the ARP/ICMP traffic that would reveal the gateway mismatch.
+  - Packet captures on the directly affected routers returned zero packets, giving the agent no visibility
+    into the routing-plane fault.
+  - Captures on gateway_1 returned zero packets (only 24 bytes) despite 100% loss being reported, so no
+    packet-level symptom of the fault was observable to the agent.
+  trials: 13
+  fault_trials: 13
+  healthy_trials: 0
+  cases: 10
+  environments:
+  - campus_lan
+  - dc_clos
+  - isp_dfn-bwin_ebgp_rtbh
+  - p4_dc_gateway
+  - sdn_l3_clos
+  sample_agreement: 0.46
+  stratum: multi-trial
+  refs:
+  - campus_lan__mac_address_conf__had54d040ef0c__t03:23
+  - dc_clos__arp_acl_block__m__heebcdfb08b4d__t01:6
+  - dc_clos__arp_acl_block__m__heebcdfb08b4d__t02:13
+  label: agent_mistake
+  label_ref: null
+  label_reason: arp_acl_block is an nft arp-family drop rule on client_0 (acl.py), readable with 'nft
+    list ruleset'. A silent neighbour capture is consistent with the fault.
+  groups_in_submission: 469
+  multi_trial_groups: 155
+- submission: 20261020_codex_qwen3_coder_next_fp8
+  class: healthy_lure
+  claim: The lab presents a real, un-injected fault (FRR service dead on dc_exit with no bgpd.conf) that
+    looks like a network anomaly, which the agent diagnosed as its root cause instead of the ground-truth
+    fault.
+  other_claims:
+  - In a healthy (no-fault) trial, the FRR service on dc_exit is inactive, producing a real, observable
+    symptom that the agent reports as the root cause frr_service_down.
+  - In a healthy (no-fault) lab, the FRR service on dc_exit reports 'inactive (dead)' and vtysh cannot
+    connect, which looks like a real fault and led the agent to submit a false anomaly.
+  - The dc_exit router shows FRR inactive (and the agent reported it as a critical fault), but the ground
+    truth is only a netmask issue on worker3, so the lab exhibits a fault-like symptom on a non-injected
+    resource that can mislead diagnosis.
+  trials: 8
+  fault_trials: 5
+  healthy_trials: 3
+  cases: 5
+  environments:
+  - dc_clos
+  - k8s_lab
+  sample_agreement: 0.67
+  stratum: multi-trial
+  refs:
+  - dc_clos__healthy__l__t02:45
+  - k8s_lab__bgp_asn_misconfig__he4a55dc53b83__t01:42
+  - k8s_lab__bgp_asn_misconfig__he4a55dc53b83__t02:23
+  label: reference
+  label_ref: REF-LURE-K8S
+  label_reason: dc_exit in k8s_lab is a static router whose FRR service is inactive by design, and agents
+    report it as frr_service_down.
+  groups_in_submission: 469
+  multi_trial_groups: 155
+- submission: 20261020_codex_qwen3_coder_next_fp8
+  class: fault_not_realized
+  claim: The ground-truth fault dns_record_error@node/dns_server has no observable network symptom in
+    the run; all connectivity checks and routing states appear normal, so the fault exists only as a label.
+  other_claims:
+  - 'The injected DNS record error on the dns_server produced no observable symptom during the run: the
+    pingmesh showed the dns_server reachable from all PCs with zero anomalies, and the agent never performed
+    any DNS name-resolution probe, so the fault was invisible and the agent correctly concluded the network
+    was healthy.'
+  - 'The injected dns_record_error fault produced no observable symptom: all pingmesh tests (including
+    from PCs to the dns_server) and the full network snapshot showed 100% reachability and zero anomalies,
+    so the agent had no evidence of a DNS fault.'
+  - The injected host_incorrect_dns fault on pc_1_1_1_1 produced no observable symptom because the agent's
+    only diagnostic tool (run_pingmesh_snapshot) tests IP reachability, not name resolution, so the faulty
+    host appeared healthy and the agent concluded the network was anomaly-free.
+  trials: 14
+  fault_trials: 14
+  healthy_trials: 0
+  cases: 9
+  environments:
+  - campus_lan
+  - enterprise_branch
+  - isp_abilene
+  - isp_di-yuan
+  - llmd_lab
+  - sdn_l3_clos
+  sample_agreement: 0.36
+  stratum: multi-trial
+  refs:
+  - campus_lan__dhcp_missing_sub__h495aae94c5be__t02:6
+  - campus_lan__dns_record_error__h139fe82d0c0f__t01:21
+  - campus_lan__dns_record_error__h139fe82d0c0f__t02:29
+  label: agent_mistake
+  label_ref: null
+  label_reason: dns_record_error is observable with a DNS lookup (pingmesh does not test DNS). The agent
+    never ran nslookup or dig in these trials and submitted healthy.
+  groups_in_submission: 469
+  multi_trial_groups: 155
+- submission: 20261020_codex_qwen3_coder_next_fp8
+  class: harness_defect
+  claim: The packet_capture tool rejected a generic 'router' device name and exec_shell rejected 'control',
+    leaving the agent without a way to inspect router state or BGP tables.
+  other_claims:
+  - The packet_capture tool errored because the agent used a non-existent device name, leaving the agent
+    without any packet-level evidence.
+  - The packet_capture tool rejects the only plausible device name 'router' with 'Device `router` is not
+    running', leaving the agent without any interface or BGP-state inspection capability in a network
+    of 12 FRR routers.
+  - The packet-capture tool could not be used to inspect BGP/RTBH state because the device name 'router'
+    is not running, forcing the agent to rely solely on pingmesh and preventing it from distinguishing
+    the injected bgp_blackhole_community_leak from a missing route advertisement.
+  trials: 2
+  fault_trials: 2
+  healthy_trials: 0
+  cases: 2
+  environments:
+  - isp_abilene
+  - isp_dfn-bwin_ebgp_rtbh
+  sample_agreement: 0.67
+  stratum: multi-trial
+  refs:
+  - isp_abilene__bgp_max_prefix__hafac0c356cde__t02:12
+  - isp_dfn-bwin_ebgp_rtbh__bgp__hb65dab9be18e__t03:18
+  label: agent_mistake
+  label_ref: null
+  label_reason: '''router'' and ''control'' are not lab node names; the agent invented device names.'
+  groups_in_submission: 469
+  multi_trial_groups: 155
+- submission: 20261020_codex_qwen3_coder_next_fp8
+  class: harness_defect
+  claim: The packet capture inspection tool failed on the load_balancer node because tshark is not installed,
+    and the error message leaks internal benchmark image names and rebuild instructions to the agent.
+  other_claims:
+  - The packet capture tool returned zero packets on the load_balancer and then failed inspection because
+    tshark is not installed on that node, blocking the agent's ability to inspect the captured traffic.
+  - The load_balancer node lacks tshark, so packet capture inspection on that device fails, preventing
+    the agent from inspecting the corrupted HTTPS payload that is the symptom of the injected fault.
+  - The packet capture inspection tool failed because the load_balancer node lacks tshark, preventing
+    the agent from inspecting the captured packets.
+  trials: 3
+  fault_trials: 3
+  healthy_trials: 0
+  cases: 3
+  environments:
+  - campus_lan
+  sample_agreement: 0.89
+  stratum: multi-trial
+  refs:
+  - campus_lan__device_forwardin__h0b9011ea426b__t01:45
+  - campus_lan__dns_port_blocked__h6a276d3ed5cb__t01:87
+  - campus_lan__ospf_neighbor_mi__hfcf4b0494422__t02:65
+  label: reference
+  label_ref: REF-TSHARK-MISSING
+  label_reason: tshark is missing on load_balancer for packet_capture_inspect. The nika image names in
+    the message are also covered by REF-HARNESS-PATHS.
+  groups_in_submission: 469
+  multi_trial_groups: 155
+- submission: 20261020_codex_qwen3_coder_next_fp8
+  class: harness_privilege
+  claim: The agent used the exec_shell tool to run arbitrary commands (vtysh, ip addr) on the network
+    nodes, although the diagnosis prompt explicitly instructed it to rely only on the provided MCP tools
+    and not execute arbitrary shell commands.
+  other_claims:
+  - The agent used the exec_shell tool to run arbitrary commands (ip addr, ip route, bridge link show,
+    curl) on network nodes, which is outside the three configured MCP servers and contradicts the prompt's
+    instruction not to execute arbitrary shell commands.
+  - The agent used the exec_shell MCP tool to run arbitrary shell commands on network hosts, which directly
+    contradicts the prompt instruction to not execute arbitrary shell commands.
+  - The agent used the exec_shell tool to run arbitrary commands (ip route, ping, iptables, cat /proc/...)
+    on network nodes, although the diagnosis prompt explicitly instructed it to rely only on MCP tools
+    and not execute arbitrary shell commands.
+  trials: 5
+  fault_trials: 5
+  healthy_trials: 0
+  cases: 5
+  environments:
+  - campus_lan
+  - dc_clos
+  - isp_abilene
+  sample_agreement: 0.33
+  stratum: multi-trial
+  refs:
+  - campus_lan__dhcp_spoofed_gat__ha283c5609ad2__t03:23
+  - campus_lan__dns_lookup_laten__h9afd41613374__t02:9
+  - campus_lan__dns_service_down__h88cd16fc8e7e__t01:17
+  label: false_positive
+  label_ref: null
+  label_reason: exec_shell is a provided MCP tool; the prompt's ban on arbitrary shell commands refers
+    to the agent's local shell.
+  groups_in_submission: 469
+  multi_trial_groups: 155
+- submission: 20261020_codex_qwen3_coder_next_fp8
+  class: signal_invisible
+  claim: The packet capture tool is unusable on the BMV2 nodes (leaf_1) because tshark is not installed,
+    so the agent cannot inspect packets to confirm the silent egress drop on gateway_1:eth1.
+  other_claims:
+  - Packet capture inspection is unavailable because tshark is missing on the lab nodes, so the agent
+    cannot inspect the captured traffic to observe the flow-rule loop symptom.
+  trials: 2
+  fault_trials: 2
+  healthy_trials: 0
+  cases: 2
+  environments:
+  - p4_dc_gateway
+  - sdn_l3_clos
+  sample_agreement: 0.33
+  stratum: multi-trial
+  refs:
+  - p4_dc_gateway__silent_egress__h8eba7ba89f0d__t02:23
+  - sdn_l3_clos__flow_rule_loop__hebae33c8d7d4__t03:45
+  label: reference
+  label_ref: REF-TSHARK-MISSING
+  label_reason: tshark is missing on BMv2 or OVS leaf_1 for packet_capture_inspect.
+  groups_in_submission: 469
+  multi_trial_groups: 155
+- submission: 20261020_codex_qwen3_coder_next_fp8
+  class: signal_invisible
+  claim: The ground-truth fault is a TCAM entry corruption on spine_1, but the p4rt read for spine_1 returns
+    a clean state (mismatches empty, arbitration master) with no visible corruption, so the fault is not
+    observable through the provided tools.
+  other_claims:
+  - The injected TCAM-entry corruption on spine_1 produces no visible switch-level evidence (empty mismatches,
+    normal counters, no tshark), leaving the agent only coarse cross-subnet ping loss to reason from.
+  trials: 2
+  fault_trials: 2
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - p4_dc_gateway
+  sample_agreement: 0.33
+  stratum: multi-trial
+  refs:
+  - p4_dc_gateway__p4_tcam_entry__hfd952409a6c1__t02:37
+  - p4_dc_gateway__p4_tcam_entry__hfd952409a6c1__t03:38
+  label: false_positive
+  label_ref: null
+  label_reason: In 0.2.0 the TCAM fault was an internal_fault_drop P4 table. That table is listed in the
+    very p4rt read output (and leaks, see REF-P4-FAULT-TABLES), so the fault was observable.
+  groups_in_submission: 469
+  multi_trial_groups: 155
+- submission: 20261020_codex_qwen3_coder_next_fp8
+  class: grading_error
+  claim: The agent's submission of 'dns_service_down@node/controller' and 'dhcp_missing_subnet@node/worker1-5'
+    received a score of 0.0, but the ground truth is 'k8s_coredns_isolated@k8s/Service/kube-system/kube-dns',
+    indicating the agent's diagnosis was incorrect.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - llmd_lab
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - llmd_lab__k8s_coredns_isolat__he788b9979872__t01:31
+  label: agent_mistake
+  label_ref: null
+  label_reason: The claim says the agent's answer was wrong, and a score of 0 is correct grading.
+  groups_in_submission: 469
+  multi_trial_groups: 155
+- submission: 20261020_codex_qwen3_coder_next_fp8
+  class: label_unidentifiable
+  claim: The ground-truth bgp_blackhole_community_leak@node/frankfurt is indistinguishable from frr_service_down
+    on the affected nodes using only reachability and empty captures, so the agent could not identify
+    the true fault type or single location.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - isp_dfn-bwin_ebgp_rtbh
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - isp_dfn-bwin_ebgp_rtbh__bgp__hb65dab9be18e__t01:40
+  label: reference
+  label_ref: REF-DFNBWIN-STUB-ISOLATION-LURE
+  label_reason: The cited evidence (pc_frankfurt cannot reach pc_hannover) is the baseline stub isolation
+    lure of isp_dfn-bwin_ebgp_rtbh, which misled the label.
+  groups_in_submission: 469
+  multi_trial_groups: 155
+- submission: 20261020_codex_qwen3_coder_next_fp8
+  class: harness_defect
+  claim: The pingmesh tool emitted a 'output too long' warning that instructs the agent to use shell commands
+    (head/tail/sed/grep/redirect to file), which contradicts the prompt's prohibition on arbitrary shell
+    commands and the agent's lack of such tools.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - enterprise_branch
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - enterprise_branch__vrf_dscp__hcd608018d99c__t01:11
+  label: reference
+  label_ref: REF-PINGMESH-TRUNCATION
+  label_reason: The pingmesh output went over the tool output limit. The generic truncation note (head/tail/sed)
+    is part of that issue.
+  groups_in_submission: 469
+  multi_trial_groups: 155
+- submission: 20261020_codex_qwen3_coder_next_fp8
+  class: signal_invisible
+  claim: The characteristic signature of a TCP SYN flood (massive SYN packet count) is not exposed by
+    the available tools because packet inspection fails, leaving the agent unable to distinguish it from
+    other faults.
+  other_claims:
+  - The TCP SYN flood signature is invisible to the agent because the capture inspection tool fails, leaving
+    only coarse latency and reachability symptoms.
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - p4_dc_gateway
+  sample_agreement: 0.67
+  stratum: single-trial
+  refs:
+  - p4_dc_gateway__tcp_syn_flood__hc408eaaa9f62__t03:23
+  - p4_dc_gateway__tcp_syn_flood__hc408eaaa9f62__t03:25
+  label: false_positive
+  label_ref: null
+  label_reason: The excerpt itself shows the P4 flow_syn counter at 78065 SYN packets, so the SYN flood
+    signature was visible without tshark.
+  groups_in_submission: 469
+  multi_trial_groups: 155
+- submission: 20261020_codex_qwen3_coder_next_fp8
+  class: label_unidentifiable
+  claim: The ping-mesh symptom (uniform ~50% loss involving the leaf_1 rack) is indistinguishable from
+    link_packet_corruption on the uplinks, so the agent could not identify the ground-truth link_flap
+    on the client access link.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - sdn_l3_clos
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - sdn_l3_clos__link_flap__s__h02db78d97263__t02:60
+  label: agent_mistake
+  label_ref: null
+  label_reason: A link flap shows in interface state and carrier changes on the access link; the agent
+    read only the loss pattern.
+  groups_in_submission: 469
+  multi_trial_groups: 155
+- submission: 20261020_codex_qwen3_coder_next_fp8
+  class: signal_invisible
+  claim: The DNS resolution symptom is masked because every DNS query command (nslookup, dig) times out
+    and returns no output, so the agent cannot see the actual blocked-port failure and instead concludes
+    the network is healthy.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - campus_lan
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - campus_lan__dns_port_blocked__h6a276d3ed5cb__t03:118
+  label: agent_mistake
+  label_ref: null
+  label_reason: The nslookup timeout on dns_server is the dns_port_blocked symptom (nft drops port 53);
+    the agent took it as no signal.
+  groups_in_submission: 469
+  multi_trial_groups: 155
+- submission: 20261020_codex_qwen3_coder_next_fp8
+  class: harness_defect
+  claim: The diagnosis agent exhausted its step budget (max_steps_reached) before producing a diagnosis
+    report, so the submission prompt received no report to submit.
+  other_claims:
+  - The diagnosis phase was cut off by the max-steps limit before the agent could produce a diagnostic
+    report, leaving the submission phase with no usable report.
+  - The diagnosis agent was cut off at max_steps before it could finish and write a final report, leaving
+    the frozen diagnosis report as a single in-progress sentence rather than a coherent diagnosis.
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - isp_germany50
+  sample_agreement: 1.0
+  stratum: single-trial
+  refs:
+  - isp_germany50__frr_service_d__h4af1d78aea8d__t01:244
+  label: reference
+  label_ref: REF-EMPTY-REPORTS
+  label_reason: The trial hit max_steps_reached, and the frozen report is a single unfinished sentence,
+    so it ended without a real final report.
+  groups_in_submission: 469
+  multi_trial_groups: 155
+- submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  class: harness_defect
+  claim: A tool result exceeded the harness token limit and was dumped to a file with a verbose summarization
+    instruction, disrupting the agent's flow.
+  other_claims:
+  - A shell command produced a 4.6M-character result that exceeded the harness token limit and was dumped
+    to a file, forcing the agent to read it back in chunks rather than receiving the output inline.
+  - A tool result exceeded the maximum allowed tokens (4,664,245 characters) and was saved to a file,
+    truncating the live output the agent was trying to read from the web server.
+  - A tool result exceeded the maximum allowed tokens and was truncated to a file, preventing the agent
+    from reading the full nginx config and access log in one view.
+  trials: 2
+  fault_trials: 2
+  healthy_trials: 0
+  cases: 2
+  environments:
+  - campus_lan
+  sample_agreement: 0.83
+  stratum: multi-trial
+  refs:
+  - campus_lan__device_forwardin__h0b9011ea426b__t03:30
+  - campus_lan__dhcp_missing_sub__h495aae94c5be__t02:140
+  label: new_real
+  label_ref: null
+  label_reason: 'Checked t03:27-30 and t02:137-140: exec_shell ''curl -v'' of the gzip catalog returned
+    4.66M characters although NIKA''s 10000-char tool_output_max_chars cap is active in this run (219
+    trials show elision); the binary-laden MCP body escapes the gateway truncation (rewrite_http_body
+    passes bodies it cannot decode/parse unchanged), so Claude Code spilled it to a file.'
+  groups_in_submission: 701
+  multi_trial_groups: 178
+- submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  class: harness_defect
+  claim: The pingmesh snapshot output was truncated by the harness, so the agent could not see the full
+    list of unreachable pairs and had to infer the pattern from the summary and the tail.
+  other_claims:
+  - The INT telemetry query output was truncated by the harness, hiding the full hop traces the agent
+    needed to localize the cross-leaf fault.
+  - Multiple tool outputs were truncated by a length guard ('output too long'), so the agent could not
+    see full /proc/net/dev, pingmesh, and telemetry results in one view.
+  - The INT telemetry query returned output that was truncated by the harness, hiding the full hop sequence
+    that might have revealed the fault.
+  trials: 4
+  fault_trials: 4
+  healthy_trials: 0
+  cases: 4
+  environments:
+  - isp_dfn-bwin_ebgp_rtbh
+  - p4_dc_gateway
+  sample_agreement: 0.33
+  stratum: multi-trial
+  refs:
+  - isp_dfn-bwin_ebgp_rtbh__bgp__hb65dab9be18e__t03:10
+  - p4_dc_gateway__bmv2_switch_d__h8e9f694d6699__t03:110
+  - p4_dc_gateway__lb_pending_co__h40b4eccba51a__t02:7
+  label: reference
+  label_ref: REF-PINGMESH-TRUNCATION
+  label_reason: Examples are PingMesh (and INT) results cut by NIKA's 10000-char output limit; known issue
+    (INT part is REF-INT-TRUNCATION).
+  groups_in_submission: 701
+  multi_trial_groups: 178
+- submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  class: label_unidentifiable
+  claim: The ground-truth fault is wireguard_peer_key_misconfiguration but the observable evidence (no
+    handshake, no data transfer, BGP in Connect state) is identical to a generic tunnel-down condition,
+    and the agent's own report states the keys are consistent, so the agent could not distinguish the
+    key-misconfiguration label from allowed_ips_misconfiguration.
+  other_claims:
+  - The ground-truth fault wireguard_peer_key_misconfiguration is indistinguishable from wireguard_allowed_ips_misconfiguration
+    from the observable evidence (both yield non-functional tunnels with no handshake), causing the agent
+    to submit the wrong label and score 0.
+  - The ground-truth fault type wireguard_peer_key_misconfiguration and the submitted bgp_acl_block are
+    indistinguishable from the available evidence, because the WireGuard tunnels show UP/LOWER_UP with
+    active handshakes and no key-mismatch signal is exposed to the agent.
+  trials: 2
+  fault_trials: 2
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - enterprise_branch
+  sample_agreement: 0.5
+  stratum: multi-trial
+  refs:
+  - enterprise_branch__wireguard__hcd29627d2190__t01:117
+  - enterprise_branch__wireguard__hcd29627d2190__t03:34
+  label: agent_mistake
+  label_ref: null
+  label_reason: A wrong peer key yields no handshake on the affected peer while other peers handshake,
+    which is distinguishable from AllowedIPs omissions by comparing wg show keys on both ends; the agent
+    did not do that.
+  groups_in_submission: 701
+  multi_trial_groups: 178
+- submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  class: shortcut
+  claim: The pingmesh output explicitly labels an endpoint 'load_balancer', leaking the fault's location
+    and type name before any network evidence is gathered.
+  other_claims:
+  - The pingmesh snapshot output lists the endpoint name 'load_balancer', allowing an agent to identify
+    the fault location from a name label rather than purely from network behavior.
+  - The endpoint inventory provided in the submission prompt contains the literal node name 'load_balancer',
+    which is the exact resource_id of the ground-truth fault, allowing the agent to identify the fault
+    location without network evidence.
+  - The frozen diagnosis report supplied in the submission prompt explicitly names the injected fault
+    type ('Load Balancer Misconfiguration') and the exact resource ('load_balancer', 10.200.0.7), allowing
+    the agent to map to the ground-truth label without any network evidence from the run.
+  trials: 3
+  fault_trials: 3
+  healthy_trials: 0
+  cases: 2
+  environments:
+  - campus_lan
+  - isp_germany50
+  sample_agreement: 0.56
+  stratum: multi-trial
+  refs:
+  - campus_lan__load_balancer_ov__h6884d70d40e0__t01:6
+  - campus_lan__load_balancer_ov__h6884d70d40e0__t02:7
+  - campus_lan__load_balancer_ov__h6884d70d40e0__t02:251
+  label: false_positive
+  label_ref: null
+  label_reason: load_balancer is the node's topology name, listed in the brief and pingmesh endpoints
+    for every case; node names are not a fault leak.
+  groups_in_submission: 701
+  multi_trial_groups: 178
+- submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  class: harness_defect
+  claim: The packet capture tool returned an artifact path and tshark error string, leaking internal benchmark
+    naming and the absence of the inspection tool to the agent.
+  other_claims:
+  - The packet capture stop result exposes an internal benchmark artifact path (/tmp/nika-capture-...)
+    and a tshark error string, leaking harness internals to the agent.
+  - The packet capture tool returned a remote pcapng artifact path but tshark was not installed on the
+    capture nodes, so the agent could not inspect the captured packets.
+  - The packet capture artifact path is exposed in the tool result, leaking internal harness file locations
+    to the agent.
+  trials: 3
+  fault_trials: 3
+  healthy_trials: 0
+  cases: 3
+  environments:
+  - enterprise_branch
+  - sdn_l3_clos
+  sample_agreement: 0.44
+  stratum: multi-trial
+  refs:
+  - enterprise_branch__vrf_dscp__hcd608018d99c__t03:63
+  - sdn_l3_clos__link_flap__s__h02db78d97263__t01:98
+  - sdn_l3_clos__sdn_controller__h7b118290aaf1__t01:46
+  label: reference
+  label_ref: REF-PCAP-CAPTURE-NAME
+  label_reason: The /tmp/nika-capture-* artifact path is the known capture-name leak; the tshark-missing
+    part is REF-TSHARK-MISSING.
+  groups_in_submission: 701
+  multi_trial_groups: 178
+- submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  class: harness_privilege
+  claim: The agent ran with a Bash tool and bypassPermissions mode, giving it arbitrary shell execution
+    on network nodes beyond the intended MCP diagnostic surface.
+  other_claims:
+  - The agent was granted the Bash tool with permissionMode bypassPermissions, allowing arbitrary shell
+    execution beyond the declared MCP troubleshooting surface.
+  - The agent ran with the Bash tool and bypassPermissions, allowing it to execute arbitrary shell commands
+    (ps, ovs-ofctl, iptables, curl) on lab nodes, which the diagnosis prompt explicitly forbade.
+  - The agent was granted a Bash tool and ran arbitrary shell commands on network hosts despite the prompt
+    explicitly forbidding arbitrary shell commands.
+  trials: 5
+  fault_trials: 4
+  healthy_trials: 1
+  cases: 5
+  environments:
+  - p4_dc_gateway
+  - sdn_l3_clos
+  sample_agreement: 0.33
+  stratum: multi-trial
+  refs:
+  - p4_dc_gateway__bmv2_switch_d__h8e9f694d6699__t03:2
+  - p4_dc_gateway__host_incorrec__hb01d277c5754__t01:2
+  - p4_dc_gateway__http_acl_bloc__hcec9063e909a__t01:8
+  label: false_positive
+  label_ref: null
+  label_reason: Bash is an allowed in-sandbox builtin under policy.yaml; node commands go through NIKA's
+    exec_shell MCP tool, which is the intended diagnosis surface.
+  groups_in_submission: 701
+  multi_trial_groups: 178
+- submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  class: harness_defect
+  claim: The packet capture tool returned zero packets and reported that tshark was not found, so the
+    agent could not inspect any captured traffic.
+  other_claims:
+  - The packet capture tool reports tshark as not found, so the agent cannot inspect packet contents and
+    every capture returns 0 packets, hiding the ARP poisoning evidence.
+  - The packet_capture tool reports that tshark is not installed on the lab nodes, so the agent could
+    never inspect captured packets even though the capture tool was provided.
+  - The packet capture artifact is unusable because tshark is not installed on the lab nodes, so the agent
+    cannot inspect captured packets.
+  trials: 7
+  fault_trials: 5
+  healthy_trials: 2
+  cases: 7
+  environments:
+  - sdn_l3_clos
+  sample_agreement: 0.57
+  stratum: multi-trial
+  refs:
+  - sdn_l3_clos__arp_cache_poiso__hb377eed72e6e__t02:20
+  - sdn_l3_clos__flow_rule_shado__he6582a3b1d4e__t01:59
+  - sdn_l3_clos__healthy__l__t01:30
+  label: reference
+  label_ref: REF-TSHARK-MISSING
+  label_reason: tshark not found on sdn_l3_clos OVS nodes is the known missing-tshark issue.
+  groups_in_submission: 701
+  multi_trial_groups: 178
+- submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  class: healthy_lure
+  claim: The lab exhibits a real, unexplained symptom (load balancer 502s and large-file HTTPS timeouts)
+    in a task whose only injected fault is host_incorrect_dns, which can mislead an agent into reporting
+    extra root causes.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - campus_lan
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - campus_lan__host_incorrect_d__h5ac233e53e43__t03:228
+  label: reference
+  label_ref: REF-CURL-WEB-TEST-UNCOMPRESSED-TIMEOUT
+  label_reason: The real symptom in t03 is curl/curl_web_test timing out on the 64 MiB catalog; no 502
+    was ever returned (the agent only speculated), and the 20.200.0.x upstreams are the LB's private link
+    by design.
+  groups_in_submission: 701
+  multi_trial_groups: 178
+- submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  class: label_unidentifiable
+  claim: The ground-truth fault bgp_blackhole_community_leak@node/frankfurt is indistinguishable from
+    the agent's submitted ospf_neighbor_missing@node/frankfurt because the observable symptoms (no OSPF
+    neighbors, 0 BGP prefixes, isolated AS) are identical and the agent never saw the community 65003:666
+    being applied to a leaked prefix.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - isp_dfn-bwin_ebgp_rtbh
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - isp_dfn-bwin_ebgp_rtbh__bgp__hb65dab9be18e__t03:118
+  label: reference
+  label_ref: REF-DFNBWIN-STUB-ISOLATION-LURE
+  label_reason: The 'isolated frankfurt, no OSPF neighbours' evidence that drove ospf_neighbor_missing@frankfurt
+    is the known baseline stub-isolation lure; the community is otherwise observable in BGP.
+  groups_in_submission: 701
+  multi_trial_groups: 178
+- submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  class: harness_defect
+  claim: The agent's attempt to verify resource IDs by reading a context JSON file from a redacted path
+    returned nothing, so its validation script reported all valid IDs as missing.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - k8s_lab
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - k8s_lab__bgp_asn_misconfig__he4a55dc53b83__t03:134
+  label: agent_mistake
+  label_ref: null
+  label_reason: The agent's own validation script read a file path that did not exist and reported valid
+    IDs as missing; no harness tool failed.
+  groups_in_submission: 701
+  multi_trial_groups: 178
+- submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  class: harness_defect
+  claim: The ONOS /onos/v1/hosts endpoint returns an empty hosts list even though the fabric is forwarding
+    traffic, giving a misleading 'no hosts learned' symptom.
+  other_claims:
+  - The ONOS REST API returned an empty hosts table for a healthy fabric, producing a control-plane symptom
+    that looks like a fault.
+  trials: 1
+  fault_trials: 0
+  healthy_trials: 1
+  cases: 1
+  environments:
+  - sdn_l3_clos
+  sample_agreement: 0.67
+  stratum: single-trial
+  refs:
+  - sdn_l3_clos__healthy__l__t01:24
+  label: false_positive
+  label_ref: null
+  label_reason: '/onos/v1/hosts is empty in every sdn_l3_clos trial, healthy and fault alike: the fabric
+    is proactive with static gateway ARP (apply.py), so ONOS never learns hosts; uniform by-design state,
+    not a fault signal.'
+  groups_in_submission: 701
+  multi_trial_groups: 178
+- submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  class: signal_invisible
+  claim: The agent could not inspect the OpenFlow flow tables on any switch because the installed ovs-ofctl
+    binary only supported OpenFlow version 0x01 while the OVS datapath supported 0x04, making the shadowing
+    rule invisible via the standard CLI.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - sdn_l3_clos
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - sdn_l3_clos__flow_rule_shado__he6582a3b1d4e__t01:60
+  label: agent_mistake
+  label_ref: null
+  label_reason: ovs-ofctl defaults to OpenFlow 1.0; the brief states OpenFlow 1.3, and 'ovs-ofctl -O OpenFlow13'
+    would dump the flows.
+  groups_in_submission: 701
+  multi_trial_groups: 178
+- submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  class: signal_invisible
+  claim: The injected sender_resource_contention fault manifests only as exec_shell timeouts on the web
+    node; because the web node's shell is unresponsive, the agent cannot run `top`, `ps`, or `cat /proc/loadavg`
+    to directly observe the CPU contention that defines the fault.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - llmd_lab
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - llmd_lab__sender_resource_co__h1bbe56e6f9c3__t01:105
+  label: false_positive
+  label_ref: null
+  label_reason: Shell timeouts and slowness on the contended host are the realized symptom of sender_resource_contention;
+    the fault is observable.
+  groups_in_submission: 701
+  multi_trial_groups: 178
+- submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  class: harness_defect
+  claim: The k8s_mcp_server's k8s_list_events tool was available but the agent instead ran kubectl via
+    exec_shell, which repeatedly failed on workers, indicating the intended Kubernetes access path was
+    not functional.
+  other_claims: []
+  trials: 1
+  fault_trials: 0
+  healthy_trials: 1
+  cases: 1
+  environments:
+  - k8s_lab
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - k8s_lab__healthy__t02:2
+  label: agent_mistake
+  label_ref: null
+  label_reason: The agent chose kubectl via exec_shell instead of the available k8s_mcp_server tools;
+    nothing shows the k8s tools were broken.
+  groups_in_submission: 701
+  multi_trial_groups: 178
+- submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+  class: harness_defect
+  claim: The ovs-ofctl tool reports the correct bridge name is not 'br0' but the agent's command to dump
+    flows on the actual bridge still fails, and ovs-dpctl only shows controller-bound metadata flows,
+    leaving the agent unable to view the installed OpenFlow rules.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - sdn_l3_clos
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - sdn_l3_clos__flow_rule_shado__he6582a3b1d4e__t03:41
+  label: agent_mistake
+  label_ref: null
+  label_reason: The agent used a wrong bridge name (br0) and the default OF1.0 version; correct ovs-ofctl
+    usage shows the rules.
+  groups_in_submission: 701
+  multi_trial_groups: 178
+- submission: 20261008_claude_code_otel_2_0_llm_31b_it
+  class: harness_defect
+  claim: The pingmesh tool rejects router hostnames as endpoints, so the agent could not probe the WireGuard-terminating
+    routers that are the actual fault location.
+  other_claims:
+  - The pingmesh tool rejects router names as endpoints, so the agent cannot probe between routers directly
+    and must infer router-level faults only through PC-to-PC reachability.
+  trials: 2
+  fault_trials: 2
+  healthy_trials: 0
+  cases: 2
+  environments:
+  - enterprise_branch
+  - isp_geant_ebgp_rpki
+  sample_agreement: 0.33
+  stratum: multi-trial
+  refs:
+  - enterprise_branch__wireguard__hcd29627d2190__t03:15
+  - isp_geant_ebgp_rpki__mtu_mis__h109c2a93c023__t02:12
+  label: false_positive
+  label_ref: null
+  label_reason: PingMesh endpoints are hosts by design; router state is inspected with exec_shell/vtysh,
+    which the agent had.
+  groups_in_submission: 636
+  multi_trial_groups: 141
+- submission: 20261008_claude_code_otel_2_0_llm_31b_it
+  class: fault_not_realized
+  claim: The injected incorrect-DNS fault on pc_1_1_1_1 produced no observable symptom in the only probe
+    run (all 64 pairs reachable, 0 loss, no anomalies), so the agent could not detect it.
+  other_claims:
+  - The injected fault is a single missing OSPF neighbor at router_core_1, but the observed symptom is
+    a global routing collapse (58 of 62 pairs unreachable) that is far broader than the injected fault,
+    suggesting the fault was realized as a total OSPF failure rather than a single adjacency miss.
+  - The injected TCP receive-window fault on br1_corp_pc produced no observable symptom; the agent never
+    probed TCP/iperf and the PingMesh (ICMP) summary reported 0% packet loss, so the ground-truth fault
+    is invisible to the run.
+  - 'The injected link_capacity_bottleneck produced no observable symptom in the run: the PingMesh summary
+    reported all 64 pairs reachable with 0% loss and 0 anomalies, so the fault was effectively absent
+    from the agent''s view.'
+  trials: 13
+  fault_trials: 13
+  healthy_trials: 0
+  cases: 12
+  environments:
+  - campus_lan
+  - enterprise_branch
+  - isp_di-yuan
+  - isp_geant_ebgp_rpki
+  - k8s_lab
+  - p4_dc_gateway
+  - sdn_l3_clos
+  sample_agreement: 0.38
+  stratum: multi-trial
+  refs:
+  - campus_lan__host_incorrect_d__h5ac233e53e43__t02:5
+  - campus_lan__ospf_neighbor_mi__hfcf4b0494422__t01:6
+  - enterprise_branch__tcp_recei__h131c3a680384__t02:5
+  label: false_positive
+  label_ref: null
+  label_reason: ICMP pingmesh not showing a DNS/rwnd fault does not mean the fault was not realized; the
+    agent never ran DNS/TCP probes. The merged claims are heterogeneous and none is shown to be a non-realized
+    fault.
+  groups_in_submission: 636
+  multi_trial_groups: 141
+- submission: 20261008_claude_code_otel_2_0_llm_31b_it
+  class: harness_defect
+  claim: The run_pingmesh_snapshot tool output was truncated with a warning, so the agent never saw the
+    full anomaly list or the middle of the response, limiting what network evidence it could use.
+  other_claims:
+  - The run_pingmesh_snapshot output was truncated by the harness, hiding the detailed per-pair results
+    the agent needed to localize the fault.
+  - The PingMesh snapshot output was truncated with a warning, hiding the middle of the results from the
+    agent.
+  - The pingmesh snapshot output was truncated, preventing the agent from seeing the full reachability
+    matrix and potentially missing key connectivity patterns that could have helped localize the fault
+    more efficiently.
+  trials: 39
+  fault_trials: 32
+  healthy_trials: 7
+  cases: 31
+  environments:
+  - campus_lan
+  - dc_clos
+  - enterprise_branch
+  - llmd_lab
+  - p4_dc_fabric
+  - p4_dc_gateway
+  - sdn_l3_clos
+  sample_agreement: 0.4
+  stratum: multi-trial
+  refs:
+  - campus_lan__device_forwardin__h0b9011ea426b__t01:5
+  - campus_lan__dhcp_service_dow__h46c12f643f13__t03:5
+  - campus_lan__dhcp_spoofed_gat__ha283c5609ad2__t02:5
+  label: reference
+  label_ref: REF-PINGMESH-TRUNCATION
+  label_reason: PingMesh output over the 10000-char tool output limit.
+  groups_in_submission: 636
+  multi_trial_groups: 141
+- submission: 20261008_claude_code_otel_2_0_llm_31b_it
+  class: harness_privilege
+  claim: The agent had permissionMode 'bypassPermissions', allowing it to execute arbitrary shell commands
+    (e.g., iptables, dig, cat /etc files) without the benchmark gating them.
+  other_claims:
+  - The agent ran with bypassPermissions and a Bash tool, allowing arbitrary shell execution despite the
+    prompt forbidding it.
+  trials: 2
+  fault_trials: 1
+  healthy_trials: 1
+  cases: 2
+  environments:
+  - dc_clos
+  - isp_dfn-bwin_ebgp_rtbh
+  sample_agreement: 0.33
+  stratum: multi-trial
+  refs:
+  - dc_clos__healthy__l__t01:2
+  - isp_dfn-bwin_ebgp_rtbh__bgp__hb65dab9be18e__t01:2
+  label: false_positive
+  label_ref: null
+  label_reason: Bash/Edit/Read are allowed in-sandbox builtins (policy.yaml); bypassPermissions only affects
+    the agent sandbox, and lab access is through NIKA MCP tools.
+  groups_in_submission: 636
+  multi_trial_groups: 141
+- submission: 20261008_claude_code_otel_2_0_llm_31b_it
+  class: label_unidentifiable
+  claim: The ground-truth label dhcp_service_down@node/dhcp_server is indistinguishable from the silent_egress_packet_loss
+    on distribution interfaces the agent found, because the evidence (generic packet loss) does not point
+    to the DHCP service.
+  other_claims:
+  - The ground-truth label web_dos_attack@node/web_2 is indistinguishable from the agent's silent_egress_packet_loss@interface/leaf_4/eth1
+    because the observable evidence (TX drops on leaf_4/eth1 and generic loss/latency) does not uniquely
+    point to a web_2 DoS.
+  trials: 2
+  fault_trials: 2
+  healthy_trials: 0
+  cases: 2
+  environments:
+  - campus_lan
+  - sdn_l3_clos
+  sample_agreement: 0.33
+  stratum: multi-trial
+  refs:
+  - campus_lan__dhcp_service_dow__h46c12f643f13__t03:5
+  - sdn_l3_clos__web_dos_attack__hb8cb4f83387a__t03:18
+  label: agent_mistake
+  label_ref: null
+  label_reason: The agent's conclusion (silent egress loss) does not follow from evidence; dhcp_service_down
+    and web_dos_attack have distinct, checkable symptoms (dhcpd not running, load on web_2).
+  groups_in_submission: 636
+  multi_trial_groups: 141
+- submission: 20261008_claude_code_otel_2_0_llm_31b_it
+  class: harness_defect
+  claim: The diagnosis prompt contains a redacted path placeholder where the network's current statistics
+    were supposed to be injected, so the agent never received the live state block.
+  other_claims:
+  - The diagnosis prompt was truncated again, hiding the current network state that the agent was supposed
+    to analyze.
+  - The diagnosis prompt was truncated, hiding the network's current state description that the agent
+    was supposed to analyze.
+  - The diagnosis prompt truncated the network state after the description, so the agent never received
+    the current state it was asked to analyze and had to ask for it.
+  trials: 3
+  fault_trials: 3
+  healthy_trials: 0
+  cases: 3
+  environments:
+  - enterprise_branch
+  - p4_dc_gateway
+  sample_agreement: 0.33
+  stratum: multi-trial
+  refs:
+  - enterprise_branch__link_pack__ha7c5a53baacc__t02:1
+  - p4_dc_gateway__mac_address_c__ha320a5263108__t01:1
+  - p4_dc_gateway__p4_action_sel__h194b101c6b85__t03:3
+  label: false_positive
+  label_ref: null
+  label_reason: 'The <REDACTED_PATH> sits in the published trace only: the publication redactor matched
+    ''state:\n'' as a path; base.py''s prompt has ''its current state:\n{net_desc}'' and the description
+    follows in the same message, so the agent got it.'
+  groups_in_submission: 636
+  multi_trial_groups: 141
+- submission: 20261008_claude_code_otel_2_0_llm_31b_it
+  class: harness_defect
+  claim: The packet_capture_inspect tool is unusable on the BMv2 switch nodes because tshark is not installed,
+    so the agent could not inspect the captures it took.
+  other_claims:
+  - The packet_capture_inspect tool is also unusable on leaf_2 for the same missing-tshark reason, blocking
+    inspection of the second capture.
+  - The packet_capture_inspect tool is unusable on the BMv2 switches because tshark is not installed,
+    so the agent cannot inspect any captures it starts on leaf/spine nodes.
+  - The same missing-tshark failure repeats on a second switch (leaf_2), confirming the capture-inspection
+    tool is non-functional across the fabric.
+  trials: 12
+  fault_trials: 11
+  healthy_trials: 1
+  cases: 10
+  environments:
+  - p4_dc_fabric
+  - p4_dc_gateway
+  - sdn_l3_clos
+  sample_agreement: 0.78
+  stratum: multi-trial
+  refs:
+  - p4_dc_fabric__p4_table_entry__h3bb65a370906__t03:20
+  - p4_dc_fabric__p4_table_entry__h3bb65a370906__t03:23
+  - p4_dc_gateway__bmv2_switch_d__h8e9f694d6699__t03:91
+  label: reference
+  label_ref: REF-TSHARK-MISSING
+  label_reason: packet_capture_inspect fails because BMv2 nodes lack tshark.
+  groups_in_submission: 636
+  multi_trial_groups: 141
+- submission: 20261008_claude_code_otel_2_0_llm_31b_it
+  class: healthy_lure
+  claim: The healthy lab shows an OpenFlow version negotiation warning (OVS OF1.0 vs peer OF1.3) that
+    the agent misread as a root cause, indicating by-design behavior not explained in the brief.
+  other_claims: []
+  trials: 1
+  fault_trials: 0
+  healthy_trials: 1
+  cases: 1
+  environments:
+  - sdn_l3_clos
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - sdn_l3_clos__healthy__l__t01:54
+  label: agent_mistake
+  label_ref: null
+  label_reason: The OF1.0/OF1.3 negotiation warning comes from the agent's ovs-ofctl call without -O OpenFlow13;
+    it is not a lab property.
+  groups_in_submission: 636
+  multi_trial_groups: 141
+- submission: 20261008_claude_code_otel_2_0_llm_31b_it
+  class: healthy_lure
+  claim: In this healthy (no-fault) task, the DNS server at 10.200.0.2 refuses all recursive queries and
+    cannot resolve internal hostnames, producing a strong DNS-down symptom that the agent diagnosed as
+    the root cause.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - campus_lan
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - campus_lan__dhcp_missing_sub__h495aae94c5be__t03:14
+  label: false_positive
+  label_ref: null
+  label_reason: The DNS server is authoritative-only (recursion off) and pc_1_1_1_1 is not a DNS name;
+    REFUSED for that query is normal, and the case is a fault case, not healthy.
+  groups_in_submission: 636
+  multi_trial_groups: 141
+- submission: 20261008_claude_code_otel_2_0_llm_31b_it
+  class: signal_invisible
+  claim: The P4Runtime gateway-spine-leaf fabric is a P4/bmv2 network, so the agent's only available probes
+    (ip route, pingmesh) show only the kernel control plane (directly-connected routes) and cannot reveal
+    the P4 forwarding tables where a MAC conflict would manifest, leaving the symptom invisible.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - p4_dc_gateway
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - p4_dc_gateway__mac_address_c__ha320a5263108__t02:11
+  label: agent_mistake
+  label_ref: null
+  label_reason: p4rt_exec table reads were available to inspect P4 forwarding state; the agent only looked
+    at kernel routes.
+  groups_in_submission: 636
+  multi_trial_groups: 141
+- submission: 20261008_claude_code_otel_2_0_llm_31b_it
+  class: signal_invisible
+  claim: The agent could not observe the actual BGP max-prefix limit or prefix-count symptom because the
+    BGP summary showed no limit and the agent never queried the neighbor prefix-counts on the faulted
+    nodes.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - isp_abilene
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - isp_abilene__bgp_max_prefix__hafac0c356cde__t03:20
+  label: agent_mistake
+  label_ref: null
+  label_reason: The claim itself says the agent never queried per-neighbor prefix counts on the faulted
+    nodes.
+  groups_in_submission: 636
+  multi_trial_groups: 141
+- submission: 20261008_claude_code_otel_2_0_llm_31b_it
+  class: signal_invisible
+  claim: The leaf router's eth8 interface is configured with 10.0.0.1/24 while the client expects a 192.168.0.0/24
+    gateway, but the harness provides no tool to view the router's full interface list or the intended
+    gateway IP, so the gateway IP mismatch is not directly observable.
+  other_claims:
+  - The leaf router's interface is on 10.0.0.1/24 while the client expects a 192.168.0.254 gateway, but
+    the 192.168.0.0/24 segment was in the truncated portion of the route dump, so the concrete gateway
+    mismatch was not directly observable.
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - dc_clos
+  sample_agreement: 0.67
+  stratum: single-trial
+  refs:
+  - dc_clos__host_incorrect_gate__hdfd5978709a2__t02:20
+  label: false_positive
+  label_ref: null
+  label_reason: exec_shell lets the agent run ip addr/ip route on the leaf and client, so the gateway
+    mismatch is observable.
+  groups_in_submission: 636
+  multi_trial_groups: 141
+- submission: 20261008_claude_code_otel_2_0_llm_31b_it
+  class: signal_invisible
+  claim: The packet capture tool exposes only a protocol summary and a one-line packet list (src/dst/info),
+    with no payload or OSPF header fields (Area ID, Authentication Type, Hello/Dead timers), so the agent
+    could not inspect the exact ACL-dropped OSPF field and had to guess a generic packet-loss cause.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - campus_lan
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - campus_lan__ospf_acl_block__h6251e03d65a2__t03:70
+  label: false_positive
+  label_ref: null
+  label_reason: packet_capture_inspect has a 'protocol' view (protocol=ospf) with protocol fields; the
+    agent used only summary/packets.
+  groups_in_submission: 636
+  multi_trial_groups: 141
+- submission: 20261008_claude_code_otel_2_0_llm_31b_it
+  class: harness_defect
+  claim: The submission harness exposed the full canonical resource inventory (links/interfaces) but the
+    agent's final submission used fault_type ids (bgp_acl_block, dns_port_blocked) that do not match the
+    ground-truth ontology id wireguard_peer_key_misconfiguration, indicating the ontology/fault-type list
+    was not adequately surfaced to guide the exact-id requirement.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - enterprise_branch
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - enterprise_branch__wireguard__hcd29627d2190__t02:58
+  label: false_positive
+  label_ref: null
+  label_reason: The submission prompt lists the full fault-type catalog including wireguard_peer_key_misconfiguration
+    with descriptions; the agent picked the wrong id.
+  groups_in_submission: 636
+  multi_trial_groups: 141
+- submission: 20261008_claude_code_otel_2_0_llm_31b_it
+  class: harness_defect
+  claim: The harness injected a system-reminder containing git/PR attribution instructions into the agent's
+    reasoning steps, which is unrelated to the network diagnosis and risks steering the agent.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - enterprise_branch
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - enterprise_branch__tcp_recei__h131c3a680384__t02:3
+  label: false_positive
+  label_ref: null
+  label_reason: The attribution text appears only inside the model's own thinking in 2 of 255 trials,
+    not as a harness message; it is standard Claude Code content with no bearing on diagnosis.
+  groups_in_submission: 636
+  multi_trial_groups: 141
+- submission: 20261014_claude_code_glm_4_7_flash
+  class: harness_defect
+  claim: The curl_web_test tool returned misleading timing fields (connect/appconnect/starttransfer all
+    0.000000 with a small total) for requests that actually failed, making it impossible to distinguish
+    a connection failure from a successful one.
+  other_claims:
+  - The curl_web_test tool reports successful connections (nonzero starttransfer/total times) for hostnames
+    that cannot be resolved, contradicting the shell curl/nslookup failures and potentially misleading
+    the agent about service health.
+  - The curl_web_test tool returned all-zero timings for web.nika.local, which is misleading because DNS
+    resolution was actually failing on the client.
+  - The curl_web_test tool returns only curl timing metrics and never the HTTP response body, so the agent
+    could not read any ONOS REST content through it.
+  trials: 5
+  fault_trials: 5
+  healthy_trials: 0
+  cases: 4
+  environments:
+  - campus_lan
+  - llmd_lab
+  - sdn_l3_clos
+  sample_agreement: 0.47
+  stratum: multi-trial
+  refs:
+  - campus_lan__dns_port_blocked__h6a276d3ed5cb__t02:14
+  - campus_lan__dns_service_down__h88cd16fc8e7e__t02:102
+  - llmd_lab__host_missing_ip__h235346563fb5__t02:38
+  label: reference
+  label_ref: REF-CURL-WEB-TEST-NO-STATUS
+  label_reason: curl_web_test prints only -w timings, so failed connections show 0.000000 phases; the
+    llmd 'curl not found' example is a side detail.
+  groups_in_submission: 854
+  multi_trial_groups: 233
+- submission: 20261014_claude_code_glm_4_7_flash
+  class: agent_integrity
+  claim: The agent executed mutating `ip route add` commands on multiple network nodes, altering the routing
+    state of the lab it was diagnosing.
+  other_claims:
+  - The agent modified live network state by adding a route on gateway_1, which the prompt forbade and
+    which could alter the fault's symptoms during the trial.
+  - The agent modified the network's routing table by adding a route on gateway_1, changing the state
+    it was diagnosing.
+  - The agent attempted to modify network state by adding a default route on client_1 during diagnosis.
+  trials: 5
+  fault_trials: 5
+  healthy_trials: 0
+  cases: 5
+  environments:
+  - isp_germany50
+  - p4_dc_gateway
+  sample_agreement: 0.67
+  stratum: multi-trial
+  refs:
+  - isp_germany50__frr_service_d__h4af1d78aea8d__t02:214
+  - p4_dc_gateway__host_incorrec__hb01d277c5754__t01:59
+  - p4_dc_gateway__http_acl_bloc__hcec9063e909a__t02:64
+  label: reference
+  label_ref: REF-AGENT-REPAIRS
+  label_reason: The agent ran 'ip route add' on lab nodes, changing state under diagnosis.
+  groups_in_submission: 854
+  multi_trial_groups: 233
+- submission: 20261014_claude_code_glm_4_7_flash
+  class: harness_defect
+  claim: The packet capture tool returned only metadata (12 packets) and a remote pcapng path but no packet
+    contents, so the agent could not see the corrupted packets on the faulty link.
+  other_claims:
+  - The packet capture tool captured 0 packets on client eth0 despite active TCP connection attempts to
+    port 80 during the capture window, making the primary L2/L3 evidence for the IP conflict invisible
+    to the agent.
+  - Packet capture returned 0 packets despite a live TCP connection attempt during the capture window,
+    so the agent could not inspect the IP-conflict traffic.
+  - The second packet capture also returned 0 packets over 12 seconds even though a curl connection was
+    actively attempted during the window.
+  trials: 12
+  fault_trials: 12
+  healthy_trials: 0
+  cases: 11
+  environments:
+  - campus_lan
+  - enterprise_branch
+  - llmd_lab
+  - p4_dc_fabric
+  - p4_dc_gateway
+  - sdn_l3_clos
+  sample_agreement: 0.42
+  stratum: multi-trial
+  refs:
+  - campus_lan__dhcp_missing_sub__h495aae94c5be__t01:114
+  - enterprise_branch__link_pack__ha7c5a53baacc__t01:237
+  - enterprise_branch__vrf_dscp__hcd608018d99c__t03:117
+  label: false_positive
+  label_ref: null
+  label_reason: packet_capture_stop returns metadata by design; contents are read via packet_capture_inspect.
+    The 0-packet examples (bridge-enslaved eth1 in dhcp_missing_subnet) are not shown to be capture failures.
+  groups_in_submission: 854
+  multi_trial_groups: 233
+- submission: 20261014_claude_code_glm_4_7_flash
+  class: healthy_lure
+  claim: In this healthy (no-fault) lab, the DNS servers return SERVFAIL/timeouts for the fully-qualified
+    'webserverX_podX' names that the task description tells clients to resolve, while only the short 'webX.podX'
+    names resolve, creating a real observable symptom that mimics a DNS fault.
+  other_claims:
+  - In a healthy lab, curl to the web servers by hostname and nslookup/dig for the hostname 'webserver0_pod0'
+    time out or SERVFAIL because the BIND zone file only defines the short names web0..web6, so the service-layer
+    behaviour looks like a DNS fault even though no fault was injected.
+  - In a healthy task, the DNS server returned REFUSED for the hostname 'webserver0_pod0' because only
+    'web0.pod0' is defined in the zone file, creating a symptom that looks like a DNS fault and led the
+    agent to report an anomaly.
+  - The healthy lab's DNS server refused external name resolution (REFUSED) while the web server still
+    answered direct-IP HTTP, producing a symptom that mimics a real DNS-down fault and drove the wrong
+    anomaly submission.
+  trials: 4
+  fault_trials: 0
+  healthy_trials: 4
+  cases: 3
+  environments:
+  - dc_clos
+  sample_agreement: 0.58
+  stratum: multi-trial
+  refs:
+  - dc_clos__healthy__l__t01:85
+  - dc_clos__healthy__l__t01:106
+  - dc_clos__healthy__l__t01:154
+  label: false_positive
+  label_ref: null
+  label_reason: The brief says clients resolve names such as web0.pod0; webserverX_podX are node names,
+    not DNS names, so SERVFAIL for them is expected.
+  groups_in_submission: 854
+  multi_trial_groups: 233
+- submission: 20261014_claude_code_glm_4_7_flash
+  class: healthy_lure
+  claim: The DNS server shows ~1000ms RTT to the load_balancer (10.200.0.7), yet the agent's curl to the
+    load balancer returns instantly with all timing fields at 0.000000 and no connection, a contradictory
+    symptom unrelated to the DNS latency fault.
+  other_claims:
+  - The curl timing report shows all phases (namelookup, connect, starttransfer) at 0.000000, an odd by-design
+    value that could be misread as a service anomaly on a healthy host.
+  - The curl_web_test tool returns all-zero timings and a success-looking result for hosts that are actually
+    unreachable, so the agent saw 'OK' HTTP responses for endpoints that pingmesh reported as down.
+  trials: 3
+  fault_trials: 2
+  healthy_trials: 1
+  cases: 3
+  environments:
+  - campus_lan
+  - dc_clos
+  - p4_dc_gateway
+  sample_agreement: 0.33
+  stratum: multi-trial
+  refs:
+  - campus_lan__dns_lookup_laten__h9afd41613374__t01:69
+  - dc_clos__healthy__m__t01:14
+  - p4_dc_gateway__p4_tcam_entry__hfd952409a6c1__t02:13
+  label: reference
+  label_ref: REF-CURL-WEB-TEST-NO-STATUS
+  label_reason: All-zero curl_web_test timings for failed connections are the known no-status issue.
+  groups_in_submission: 854
+  multi_trial_groups: 233
+- submission: 20261014_claude_code_glm_4_7_flash
+  class: harness_defect
+  claim: The packet_capture_inspect tool requires a 'view' field but gives no hint of valid values, causing
+    the agent to fail with 'raw' and 'list' and a missing-field error before finding 'summary'.
+  other_claims:
+  - packet_capture_inspect declares 'view' as defaulting to 'summary' yet the pydantic validator requires
+    the field, so a call omitting it is rejected.
+  trials: 2
+  fault_trials: 2
+  healthy_trials: 0
+  cases: 2
+  environments:
+  - enterprise_branch
+  - p4_dc_gateway
+  sample_agreement: 0.33
+  stratum: multi-trial
+  refs:
+  - enterprise_branch__link_down__hcecf68b8564f__t02:169
+  - p4_dc_gateway__p4_table_reso__h2bab5479b819__t01:79
+  label: reference
+  label_ref: REF-PCAP-INSPECT-ARGS
+  label_reason: Agents omitting or guessing the required 'view' argument of packet_capture_inspect.
+  groups_in_submission: 854
+  multi_trial_groups: 233
+- submission: 20261014_claude_code_glm_4_7_flash
+  class: agent_integrity
+  claim: The agent killed the running named process and restarted the service, further altering the DNS
+    server state.
+  other_claims:
+  - The agent killed the named process and restarted bind9, further mutating the DNS server state.
+  - The agent force-killed all named processes on the dns_server, removing the running fault artifact
+    and invalidating the trial's initial state.
+  - The agent force-killed the named process on the DNS server, removing the running instance of the injected
+    fault.
+  trials: 2
+  fault_trials: 2
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - campus_lan
+  sample_agreement: 1.0
+  stratum: multi-trial
+  refs:
+  - campus_lan__dns_port_blocked__h6a276d3ed5cb__t01:105
+  - campus_lan__dns_port_blocked__h6a276d3ed5cb__t02:250
+  - campus_lan__dns_port_blocked__h6a276d3ed5cb__t02:253
+  label: reference
+  label_ref: REF-AGENT-REPAIRS
+  label_reason: The agent killed named and restarted bind9 on dns_server, changing lab state.
+  groups_in_submission: 854
+  multi_trial_groups: 233
+- submission: 20261014_claude_code_glm_4_7_flash
+  class: out_of_scope
+  claim: The agent explored the host filesystem for container runtime configuration (e.g., `/var/lib/rancher/k3s/agent/etc/containerd/`)
+    rather than using Kubernetes-specific diagnostic tools to find the CoreDNS fault.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - llmd_lab
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - llmd_lab__k8s_coredns_isolat__he788b9979872__t02:58
+  label: false_positive
+  label_ref: null
+  label_reason: Reading a node's containerd config via exec_shell is ordinary lab inspection, not out-of-scope
+    access; at most inefficient.
+  groups_in_submission: 854
+  multi_trial_groups: 233
+- submission: 20261014_claude_code_glm_4_7_flash
+  class: healthy_lure
+  claim: The lab showed the OVS vswitchd service inactive and all switch interfaces in DOWN state while
+    all data-plane traffic still flowed, which the agent read as a fault-like anomaly.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - sdn_l3_clos
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - sdn_l3_clos__southbound_port__h001765cc535d__t03:53
+  label: new_real
+  label_ref: null
+  label_reason: 'Checked: on sdn_l3_clos switches ''systemctl status ovs-vswitchd'' reports ''inactive
+    (dead)'' while OVS forwards, in healthy (telecomgpt healthy__l t03) and fault trials across submissions;
+    sdn_l3_clos analogue of REF-LURE-CAMPUS-BIND9-UNIT, unexplained by the brief.'
+  groups_in_submission: 854
+  multi_trial_groups: 233
+- submission: 20261014_claude_code_glm_4_7_flash
+  class: signal_invisible
+  claim: 'The injected wireguard_allowed_ips_misconfiguration fault is not observable as a distinct symptom:
+    the agent saw bgpd down on ISP cores and guest-network unreachability, but no WireGuard AllowedIPs
+    signal, leading it to a wrong root cause.'
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - enterprise_branch
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - enterprise_branch__wireguard__hffb08b156bdd__t02:22
+  label: agent_mistake
+  label_ref: null
+  label_reason: bgpd=no on the provider cores is by design (lab.py PROVIDER_DAEMONS); 'wg show' via exec_shell
+    exposes AllowedIPs, so the fault was observable.
+  groups_in_submission: 854
+  multi_trial_groups: 233
+- submission: 20261014_claude_code_glm_4_7_flash
+  class: healthy_lure
+  claim: The healthy lab's client cannot resolve external names because resolv.conf points only to the
+    internal DNS, producing a timeout that resembles a DNS fault.
+  other_claims: []
+  trials: 1
+  fault_trials: 0
+  healthy_trials: 1
+  cases: 1
+  environments:
+  - dc_clos
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - dc_clos__healthy__s__t03:152
+  label: false_positive
+  label_ref: null
+  label_reason: The lab is offline by design; external lookups to 8.8.8.8 failing is expected.
+  groups_in_submission: 854
+  multi_trial_groups: 233
+- submission: 20261014_claude_code_glm_4_7_flash
+  class: harness_defect
+  claim: The exec_shell tool's default 10s timeout silently truncated legitimate diagnostic commands (nslookup,
+    tcpdump, traceroute), returning only a timeout marker instead of the command's output.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - campus_lan
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - campus_lan__host_incorrect_d__h5ac233e53e43__t01:14
+  label: false_positive
+  label_ref: null
+  label_reason: In a host_incorrect_dns case the nslookup timeout is the fault symptom, and the timeout
+    is reported explicitly.
+  groups_in_submission: 854
+  multi_trial_groups: 233
+- submission: 20261014_claude_code_glm_4_7_flash
+  class: harness_defect
+  claim: The load_balancer node was unresponsive to virtually all exec_shell commands (ss, ip route, ip
+    addr, ps, curl localhost all timed out), preventing the agent from inspecting the faulty device's
+    listening ports or process state, even though ICMP ping to it succeeded.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - campus_lan
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - campus_lan__load_balancer_ov__h6884d70d40e0__t01:37
+  label: false_positive
+  label_ref: null
+  label_reason: Shell unresponsiveness on load_balancer under load_balancer_overload is the realized overload
+    symptom.
+  groups_in_submission: 854
+  multi_trial_groups: 233
+- submission: 20261014_claude_code_glm_4_7_flash
+  class: healthy_lure
+  claim: The lab presents a strong, observable 'fault' (iptables FORWARD drops on hq_edge eth2/eth3 blocking
+    IoT and Guest traffic) that the agent correctly diagnosed, but it is not the injected BGP hijack,
+    making the ground-truth fault indistinguishable from the visible symptom.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - enterprise_branch
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - enterprise_branch__bgp_hijac__h93dd2b8e7404__t03:52
+  label: reference
+  label_ref: REF-LURE-ENTERPRISE
+  label_reason: Guest/IoT FORWARD drops to 10/8 are the by-design VRF isolation that the known enterprise_branch
+    baseline lure covers.
+  groups_in_submission: 854
+  multi_trial_groups: 233
+- submission: 20261014_claude_code_glm_4_7_flash
+  class: harness_defect
+  claim: The pingmesh snapshot tool only ever lists 'client' as both source and target, so it produces
+    zero pairs and cannot detect any network anomaly, making the tool useless for diagnosis.
+  other_claims:
+  - The pingmesh snapshot only ever includes the client endpoint as both source and target, yielding zero
+    pairs and no anomalies, so it cannot reveal any cross-device connectivity fault.
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - k8s_lab
+  sample_agreement: 0.67
+  stratum: single-trial
+  refs:
+  - k8s_lab__bgp_asn_misconfig__he4a55dc53b83__t01:8
+  label: reference
+  label_ref: REF-K8S-PINGMESH-EMPTY
+  label_reason: k8s_lab pingmesh knows only 'client' and returns 0 pairs.
+  groups_in_submission: 854
+  multi_trial_groups: 233
+- submission: 20261020_codex_qwen3_coder_next_fp8
+  class: harness_defect
+  claim: The pingmesh snapshot returned zero pairs because the endpoint map listed the client as both
+    the only source and the only target, so it provided no connectivity evidence.
+  other_claims:
+  - The pingmesh tool returned a snapshot with only the client endpoint and zero connectivity pairs, so
+    the agent could not observe any end-to-end reachability symptom of the fault.
+  - The pingmesh tool returned no connectivity pairs because it only registered the client as an endpoint
+    and target, making the primary reachability probe useless for diagnosing the network.
+  - The pingmesh snapshot returned zero pairs because the only endpoint (client) was also the only target,
+    so the primary reachability probe produced no evidence.
+  trials: 9
+  fault_trials: 7
+  healthy_trials: 2
+  cases: 6
+  environments:
+  - k8s_lab
+  sample_agreement: 0.44
+  stratum: multi-trial
+  refs:
+  - k8s_lab__bgp_asn_misconfig__he4a55dc53b83__t01:6
+  - k8s_lab__bgp_asn_misconfig__he4a55dc53b83__t02:9
+  - k8s_lab__healthy__t01:7
+  label: reference
+  label_ref: REF-K8S-PINGMESH-EMPTY
+  label_reason: k8s_lab pingmesh knows only 'client' and returns 0 pairs.
+  groups_in_submission: 469
+  multi_trial_groups: 155
+- submission: 20261020_codex_qwen3_coder_next_fp8
+  class: signal_invisible
+  claim: 'The injected packet corruption on router_core_2 produced no observable symptom in any available
+    probe: all pingmesh snapshots reported 0% loss and the agent''s only tool (run_pingmesh_snapshot)
+    cannot detect payload corruption, so the fault was invisible to the agent.'
+  other_claims:
+  - The injected fault (device_forwarding_packet_corruption at router_core_2) produces no observable symptom
+    in any of the pingmesh snapshots the agent could run, so the agent could not detect it.
+  - The injected fault is packet corruption at router_core_2, but the agent's only available probe (ICMP
+    ping mesh) shows 100% reachability and zero loss for all pairs, so the corruption symptom is invisible
+    to the agent.
+  - 'The injected DHCP-spoofed-DNS fault produces no observable symptom in the agent''s tools: the ping
+    mesh reports 100% reachability with zero anomalies, and the packet-capture protocol/expert views return
+    null fields and empty items, so the agent could not see the spoofed DNS.'
+  trials: 26
+  fault_trials: 25
+  healthy_trials: 1
+  cases: 20
+  environments:
+  - campus_lan
+  - enterprise_branch
+  - isp_di-yuan
+  - k8s_lab
+  - llmd_lab
+  - p4_dc_gateway
+  - sdn_l3_clos
+  sample_agreement: 0.37
+  stratum: multi-trial
+  refs:
+  - campus_lan__device_forwardin__h0b9011ea426b__t02:6
+  - campus_lan__device_forwardin__h0b9011ea426b__t03:6
+  - campus_lan__device_forwardin__h0b9011ea426b__t03:28
+  label: reference
+  label_ref: REF-SIG-PACKET-CORRUPTION
+  label_reason: Representative claim is campus_lan device_forwarding_packet_corruption invisible to ICMP
+    pingmesh, the known few-hosts corruption issue.
+  groups_in_submission: 469
+  multi_trial_groups: 155
+- submission: 20261020_codex_qwen3_coder_next_fp8
+  class: harness_defect
+  claim: The pingmesh snapshot returned no endpoints or results, so the agent had no reachability probe
+    data to observe any fault symptom.
+  other_claims:
+  - The pingmesh snapshot tool returned zero pairs and no results for every call, providing no connectivity
+    evidence to the agent.
+  trials: 2
+  fault_trials: 2
+  healthy_trials: 0
+  cases: 2
+  environments:
+  - k8s_lab
+  sample_agreement: 0.33
+  stratum: multi-trial
+  refs:
+  - k8s_lab__bgp_asn_misconfig__he4a55dc53b83__t02:9
+  - k8s_lab__host_incorrect_netm__hd97786be63fb__t02:6
+  label: reference
+  label_ref: REF-K8S-PINGMESH-EMPTY
+  label_reason: k8s_lab pingmesh returns 0 pairs.
+  groups_in_submission: 469
+  multi_trial_groups: 155
+- submission: 20261020_codex_qwen3_coder_next_fp8
+  class: run_validity
+  claim: The run enabled the under-development feature non_prefixed_mcp_tool_names, which the harness
+    warns is incomplete and may behave unpredictably, potentially making this trial not comparable to
+    runs without it.
+  other_claims:
+  - The harness runs with an under-development, non-prefixed MCP tool naming feature that is explicitly
+    flagged as incomplete and unpredictable, putting this trial's tooling on an unstable configuration.
+  trials: 2
+  fault_trials: 1
+  healthy_trials: 1
+  cases: 2
+  environments:
+  - enterprise_branch
+  - llmd_lab
+  sample_agreement: 0.33
+  stratum: multi-trial
+  refs:
+  - enterprise_branch__vrf_dscp__hcd608018d99c__t01:2
+  - llmd_lab__healthy__t01:2
+  label: false_positive
+  label_ref: null
+  label_reason: NIKA's codex worker enables non_prefixed_mcp_tool_names on purpose for custom providers
+    (codex_worker.py) and it is present in all 255 trials, so trials are comparable; the warning is harmless.
+  groups_in_submission: 469
+  multi_trial_groups: 155
+- submission: 20261020_codex_qwen3_coder_next_fp8
+  class: grading_error
+  claim: The ground-truth fault host_incorrect_dns@node/pc_1_1_1_1 is undetectable with the provided tools,
+    yet the agent's correct observation of a healthy ICMP layer (is_anomaly=False) was scored rca_f1=0.0,
+    penalizing the agent for a fault the harness made unobservable.
+  other_claims:
+  - The submission scored is_anomaly=False with no root causes for a case whose ground truth is frr_service_down@node/aachen,
+    yielding rca_f1=0.0.
+  trials: 2
+  fault_trials: 2
+  healthy_trials: 0
+  cases: 2
+  environments:
+  - campus_lan
+  - isp_germany50
+  sample_agreement: 0.33
+  stratum: multi-trial
+  refs:
+  - campus_lan__host_incorrect_d__h5ac233e53e43__t03:40
+  - isp_germany50__frr_service_d__h4af1d78aea8d__t01:250
+  label: false_positive
+  label_ref: null
+  label_reason: The agent answered is_anomaly=false for real, detectable faults (DNS via nslookup, FRR
+    down via vtysh); rca_f1=0 is correct grading.
+  groups_in_submission: 469
+  multi_trial_groups: 155
+- submission: 20261020_codex_qwen3_coder_next_fp8
+  class: label_unidentifiable
+  claim: The ground-truth fault type (mac_address_conflict) is not distinguishable from link_down or other
+    faults because the agent's tools only exposed intermittent packet loss and ICMP 'Destination Host
+    Unreachable' messages, with no MAC table, switch, or packet-capture evidence of the conflict.
+  other_claims:
+  - The observable symptoms (packet loss/unreachability between web servers) are indistinguishable from
+    a link_down fault, making the ground-truth mac_address_conflict label unidentifiable from the available
+    evidence.
+  - The observable evidence (client_0 unreachable in both directions while client_1 and all servers work)
+    is indistinguishable among arp_acl_block, link_down and host_incorrect_ip, so the ground-truth label
+    arp_acl_block@node/client_0 cannot be uniquely determined from the available signals.
+  - The ground-truth label arp_acl_block is indistinguishable from the agent's submitted label icmp_acl_block
+    from the available evidence, because both yield identical complete client_0 isolation with 'Destination
+    Host Unreachable' and no ARP-layer probe was available.
+  trials: 5
+  fault_trials: 5
+  healthy_trials: 0
+  cases: 4
+  environments:
+  - campus_lan
+  - dc_clos
+  - sdn_l3_clos
+  sample_agreement: 0.47
+  stratum: multi-trial
+  refs:
+  - campus_lan__mac_address_conf__had54d040ef0c__t02:41
+  - dc_clos__arp_acl_block__m__heebcdfb08b4d__t02:55
+  - dc_clos__arp_acl_block__m__heebcdfb08b4d__t03:29
+  label: agent_mistake
+  label_ref: null
+  label_reason: ARP tables / ip neigh and arping on the hosts distinguish a MAC conflict or ARP ACL from
+    link_down; the agent did not check them.
+  groups_in_submission: 469
+  multi_trial_groups: 155
+- submission: 20261020_codex_qwen3_coder_next_fp8
+  class: healthy_lure
+  claim: In a healthy lab, cross-VRF traffic (guest/IoT subnets) is 100% unreachable, which looks like
+    a fault and led the agent to a false-positive diagnosis.
+  other_claims:
+  - In a healthy task, cross-VRF pings between guest/IoT PCs and other subnets show 100% packet loss,
+    which looks like a fault but is by-design segmentation not stated in the brief.
+  - The healthy task exhibits systematic 100% packet loss between corporate and guest/IoT subnets on every
+    site, a by-design segmentation behavior that looks like a fault and drove the agent to a false-positive
+    anomaly diagnosis.
+  - The fault-free lab shows by-design guest/IoT VRF segmentation as 100% packet loss from corporate PCs
+    to guest/IoT segments within the same site, which looks like a fault and drove the agent's misdiagnosis.
+  trials: 2
+  fault_trials: 1
+  healthy_trials: 1
+  cases: 2
+  environments:
+  - enterprise_branch
+  sample_agreement: 0.67
+  stratum: multi-trial
+  refs:
+  - enterprise_branch__healthy__m__t01:40
+  - enterprise_branch__vrf_dscp__hcd608018d99c__t01:11
+  label: reference
+  label_ref: REF-LURE-ENTERPRISE
+  label_reason: Cross-VRF guest/IoT unreachability on healthy enterprise_branch is the known baseline
+    lure.
+  groups_in_submission: 469
+  multi_trial_groups: 155
+- submission: 20261020_codex_qwen3_coder_next_fp8
+  class: signal_invisible
+  claim: The ground-truth fault is receiver_resource_contention on client_0, but the agent could not observe
+    the specific contention symptom because all commands on client_0 timed out, only revealing a generic
+    non-responsive state.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - dc_clos
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - dc_clos__receiver_resource_c__ha2be5b357067__t02:27
+  label: false_positive
+  label_ref: null
+  label_reason: Unresponsive commands on client_0 are the realized symptom of receiver_resource_contention.
+  groups_in_submission: 469
+  multi_trial_groups: 155
+- submission: 20261020_codex_qwen3_coder_next_fp8
+  class: label_unidentifiable
+  claim: The ground-truth fault is an incorrect IP on the host interface, but the agent could only observe
+    P4 switch tables and counters, which show no IP configuration, making the specific fault type 'host_incorrect_ip'
+    indistinguishable from other causes of reachability loss.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - p4_dc_gateway
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - p4_dc_gateway__host_incorrec__hb01d277c5754__t02:14
+  label: agent_mistake
+  label_ref: null
+  label_reason: exec_shell 'ip addr' on the host would show the wrong IP; the agent only inspected P4
+    tables.
+  groups_in_submission: 469
+  multi_trial_groups: 155
+- submission: 20261020_codex_qwen3_coder_next_fp8
+  class: signal_invisible
+  claim: SSH connections to all FRR routers are refused, which prevented the agent from querying BGP status
+    and forced it to guess that FRR was down on every router, rather than observing the specific routing
+    fault.
+  other_claims:
+  - The agent could not run vtysh on any router to inspect BGP state because SSH to every FRR device was
+    refused, hiding the routing-plane symptom of the fault.
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - k8s_lab
+  sample_agreement: 0.67
+  stratum: single-trial
+  refs:
+  - k8s_lab__k8s_clusterip_routi__he53ec359efd5__t03:24
+  label: agent_mistake
+  label_ref: null
+  label_reason: The agent tried ssh between nodes; routers are reached through exec_shell (vtysh), not
+    ssh.
+  groups_in_submission: 469
+  multi_trial_groups: 155
+- submission: 20261020_codex_qwen3_coder_next_fp8
+  class: signal_invisible
+  claim: The only connectivity probe available (run_pingmesh_snapshot) measures only reachability/loss/RTT
+    and cannot reveal a DoS-style degradation or traffic flood on web_2, so even a real symptom would
+    be hidden from the agent's tooling.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - sdn_l3_clos
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - sdn_l3_clos__web_dos_attack__hb8cb4f83387a__t03:9
+  label: false_positive
+  label_ref: null
+  label_reason: Other tools (exec_shell, capture, curl_web_test, iperf) can reveal DoS load; pingmesh
+    is not the only probe.
+  groups_in_submission: 469
+  multi_trial_groups: 155
+- submission: 20261020_codex_qwen3_coder_next_fp8
+  class: harness_defect
+  claim: The p4rt read of spine_1 returns the same GatewayIngress pipeline as the gateways, confirming
+    the tool serves gateway pipeline data for spine/leaf switches.
+  other_claims: []
+  trials: 1
+  fault_trials: 0
+  healthy_trials: 1
+  cases: 1
+  environments:
+  - p4_dc_gateway
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - p4_dc_gateway__healthy__m__t03:19
+  label: false_positive
+  label_ref: null
+  label_reason: p4_dc_gateway compiles one gateway.p4 for every switch with a role_id (control.py), so
+    spines show the GatewayIngress tables by design.
+  groups_in_submission: 469
+  multi_trial_groups: 155
+- submission: 20261020_codex_qwen3_coder_next_fp8
+  class: signal_invisible
+  claim: The agent had no tool to inspect WireGuard interface configuration (peer keys, AllowedIPs), so
+    the specific fault type (peer_key vs allowed_ips) and its exact location (interface wg_dc2/wg_hq/wg_hq_b)
+    were unobservable from the available MCP surface.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - enterprise_branch
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - enterprise_branch__wireguard__hcd29627d2190__t02:82
+  label: false_positive
+  label_ref: null
+  label_reason: exec_shell on the edges runs 'wg show', exposing peer keys and AllowedIPs.
+  groups_in_submission: 469
+  multi_trial_groups: 155
+- submission: 20261020_codex_qwen3_coder_next_fp8
+  class: harness_defect
+  claim: The submission validator rejected a syntactically plausible resource_id (interface/client_0:eth0)
+    and only the error message revealed the required slash format, which the agent then had to guess.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - dc_clos
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - dc_clos__arp_acl_block__m__heebcdfb08b4d__t01:64
+  label: false_positive
+  label_ref: null
+  label_reason: The resource_id format and canonical inventory (interface/<node>/<if>) are given in the
+    submission prompt; the validator's rejection is correct.
+  groups_in_submission: 469
+  multi_trial_groups: 155
+- submission: 20261020_codex_qwen3_coder_next_fp8
+  class: signal_invisible
+  claim: The injected receiver resource contention fault produced only complete timeouts and zero captured
+    packets, with no observable signal (e.g., high latency, packet loss, or queue metrics) to distinguish
+    it from a host misconfiguration.
+  other_claims: []
+  trials: 1
+  fault_trials: 1
+  healthy_trials: 0
+  cases: 1
+  environments:
+  - dc_clos
+  sample_agreement: 0.33
+  stratum: single-trial
+  refs:
+  - dc_clos__receiver_resource_c__ha2be5b357067__t01:18
+  label: false_positive
+  label_ref: null
+  label_reason: Timeouts on client_0 are the realized receiver contention symptom; 0 packets in a short
+    capture on a stalled host does not show invisibility.
+  groups_in_submission: 469
+  multi_trial_groups: 155

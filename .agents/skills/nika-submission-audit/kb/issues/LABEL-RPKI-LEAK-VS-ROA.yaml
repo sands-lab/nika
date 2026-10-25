@@ -1,0 +1,22 @@
+id: LABEL-RPKI-LEAK-VS-ROA
+title: RPKI-invalid leak reads as a wrong ROA
+class: label_unidentifiable
+severity: warn
+status: fixed
+summary: The baseline already placed the leaked prefix on the leaker's loopback, so 'the ROA is wrong'
+  was equally valid.
+scope:
+  fault_types:
+  - bgp_rpki_invalid_route_leak
+detect:
+- kind: metric
+  metric: label_confusion
+  threshold: 0.4
+  min_trials: 6
+  pattern: rpki|roa|bgp_
+provenance:
+  source: trajectory audit 2026-10-14 (REPORT_en.md) B3
+  date: '2026-10-14'
+  refs: []
+  found_by: manual
+fixed_in: c00630bc

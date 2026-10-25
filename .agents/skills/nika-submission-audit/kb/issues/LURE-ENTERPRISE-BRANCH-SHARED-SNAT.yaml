@@ -1,0 +1,41 @@
+id: LURE-ENTERPRISE-BRANCH-SHARED-SNAT
+title: In release 0.2.0 enterprise_branch every site edge SNATs guest/IoT traffic to 198.18.1.10, which only BR1 owns, so guest/IoT provider egress fails at every non-BR1 site
+class: healthy_lure
+severity: warn
+status: fixed
+fixed_in: c00630bc
+summary: At the release commit, src/nika/net_env/enterprise_branch/lab.py hard-coded 'snat to 198.18.1.10' for
+  every site, but only br1 owns 198.18.1.10/.11 and isp1_core routes them only toward BR1. Replies to translated
+  guest/IoT traffic from other sites go to BR1, so their provider egress fails in the fault-free lab. The brief does
+  not state this. c00630bc gives each site its own address (nat_public_ip in addressing.py). This is separate
+  from LURE-ENTERPRISE-BRANCH-VRF-WAN (VRFs local by design).
+guideline: Counts when tool output shows a non-BR1 site (10.N.x.0/24 with N not 1) SNATed to 198.18.1.10 or the
+  provider's single return route for 198.18.1.10 toward BR1, and matters when the
+  agent blames NAT or provider routing at a non-BR1 site on a healthy or unrelated case. Agents that report this on a
+  release-0.2.0 healthy trial are right about the lab. Does not count for BR1's own rules.
+scope:
+  scenarios:
+  - enterprise_branch
+detect:
+- kind: text
+  where:
+  - tool_result
+  pattern: ip saddr 10\.(?!1\.)\d+\.\d+\.\d+/\d+ (?:counter packets \d+ bytes \d+ )?snat to 198\.18\.1\.10\b
+- kind: text
+  where:
+  - tool_result
+  pattern: 198\.18\.1\.10 via 100\.64\.0\.\d+ dev eth\d+
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-LURE-ENTBR-SHARED-SNAT-198-18-1-10)
+  date: '2026-10-28'
+  refs:
+  - enterprise_branch__healthy__m__t02:52
+  - enterprise_branch__healthy__m__t02:70
+  - enterprise_branch__nat_mappi__h9a2736339326__t02:56
+  found_by: agentic
+evidence:
+- 'enterprise_branch__healthy__m__t02 (20261017_codex_gpt_6_1_sol) step 52: ip saddr 10.2.30.0/24 snat to 198.18.1.10
+  / ip saddr 10.2.40.0/24 snat to 198.18.1.10'
+- 'enterprise_branch__healthy__m__t02 step 70: 3 packets transmitted, 0 received, 100% packet loss'
+- 'enterprise_branch__nat_mappi__h9a2736339326__t02 (20261010_claude_code_qwen3_8_27b_fp8) step 56: 198.18.1.10 via
+  100.64.0.17 dev eth2'

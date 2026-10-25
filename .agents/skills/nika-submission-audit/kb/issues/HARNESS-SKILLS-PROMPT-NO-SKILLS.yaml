@@ -1,0 +1,36 @@
+id: HARNESS-SKILLS-PROMPT-NO-SKILLS
+title: Skills-enabled diagnosis prompt advertises project skills that 0.2.0 does not ship
+class: harness_defect
+severity: info
+status: open
+summary: >-
+  With skills enabled, diagnosis_prompt_with_skills (src/agent/utils/skills.py) appends SKILLS_PROMPT_SUFFIX
+  ('Project skills are available for structured troubleshooting workflows'), but the production skill
+  directory src/agent/skills/skills/ holds only .gitkeep. Discovery finds nothing. All prompts of the
+  8 skills-enabled 0.2.0 submissions carry the suffix; cli.codex agents spent turns on skill discovery
+  (list_mcp_resources) that returned no entries.
+guideline: >-
+  The cause is the shared prompt, so it affects cli.claude as well as cli.codex. Turns an agent spends
+  looking for skills are lost to the harness, not an agent error. Submissions without the suffix ran with
+  skills disabled and are not affected.
+scope: {}
+detect:
+- kind: text
+  where:
+  - prompt
+  pattern: Project skills are available for structured troubleshooting
+exploit: false
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-SKILLS-PROMPT-NO-SKILLS)
+  date: '2026-10-28'
+  refs:
+  - enterprise_branch__healthy__m__t03:1
+  - enterprise_branch__healthy__m__t03:5
+  - enterprise_branch__healthy__m__t03:106
+  found_by: agentic
+evidence:
+- '20261017_codex_gpt_6_1_sol enterprise_branch__healthy__m__t03 step 1: ## Skills Project skills are
+  available for structured troubleshooting workflows.'
+- '20261017_codex_gpt_6_1_sol enterprise_branch__healthy__m__t03 step 5: {"resources":[]}'
+- '20261017_codex_gpt_6_1_sol enterprise_branch__healthy__m__t03 step 106: MCP resource and template discovery
+  returned no entries.'

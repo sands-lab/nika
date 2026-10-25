@@ -1,0 +1,21 @@
+id: LURE-PINGMESH-DESIGN-ISOLATION
+title: PingMesh reports intended isolation as faults
+class: healthy_lure
+role: known
+severity: warn
+status: fixed
+fixed_in: c00630bc
+summary: PingMesh probed all pairs and flagged every unreachable pair and every RTT over 100 ms, including
+  isolation and latency the design intends (VRFs, client isolation, north-south only, WAN RTT). It now
+  reads probe_intent from the session metadata.
+detect:
+- kind: metric
+  metric: healthy_fp_rate
+  threshold: 0.5
+  min_trials: 3
+provenance:
+  source: audit fix record for release 0.2.0 (FIX_STATUS, issue 206)
+  date: '2026-10-22'
+  refs:
+  - '#206'
+  found_by: live_audit
