@@ -17,6 +17,11 @@
   "framework": "Codex",
   "agent_type": "cli.codex",
   "llm_provider": "custom",
+  "vendor": {
+    "id": "qwen",
+    "label": "Qwen",
+    "icon": "lobehub/qwen.svg"
+  },
   "tools": [
     "containerlab_srl_mcp_server",
     "k8s_mcp_server",
@@ -76,6 +81,10 @@
   "run_id": "370f8d0625010545",
   "official": true,
   "nika_git_commit": "98ce4879a23914b15cd55a066c0a105f7946a4b3",
+  "model_icon": {
+    "label": "Qwen",
+    "icon": "lobehub/qwen.svg"
+  },
   "name": "Qwen3 Coder Next FP8 · Codex",
   "readme": "# Codex + Qwen3-Coder-Next\n\nAuthors: NIKA Team\n\nThis entry runs the Codex CLI through NIKA's `cli.codex` agent (Codex in a\nDocker Sandbox) with the standard NIKA MCP tools. The model is\n`Qwen/Qwen3-Coder-Next-FP8`, self-hosted with vLLM 0.24 behind an\nOpenAI-compatible endpoint.\n\n## Evaluation\n\n- Benchmark release: nika-bench 0.2.0, test split, 85 tasks with 3 trials each.\n- All 255 slots finished: 254 scored submissions and 1 agent failure without a\n  submission, which counts as zero in primary means. In the failed trial\n  (`enterprise_branch__bgp_hijac__h93dd2b8e7404__t02`) the Codex diagnosis phase\n  stalled for 300 seconds without progress and the agent stopped before\n  submitting.\n- Mean RCA F1: 0.1457337255 (14.57%).\n- Mean localization F1: 0.2914121569 (29.14%).\n- Mean detection score: 0.8078431373 (80.78%).\n- Budgets: 100 steps, 1800-second agent timeout and 2400-second task timeout.\n  No output-token limit was set: the run records `max_tokens: null`, and NIKA\n  does not apply its output-token cap to Codex agents.\n- No residual infrastructure or grading errors.\n\n## Run provenance\n\n- NIKA commit: the run identity records `98ce4879a23914b15cd55a066c0a105f7946a4b3`\n  (clean tree). 246 trials ran at commit `77e25143` and 9 at `98ce4879`, both on\n  the branch of [sands-lab/nika#213](https://github.com/sands-lab/nika/pull/213),\n  which is not merged; the later commit changes only host-side Firecracker\n  scheduling and error handling. The run history also records one resume at\n  commit `77e25143` with uncommitted changes in the NIKA tree (2026-10-20 04:19\n  UTC); the changes themselves are not recorded.\n- Agent configuration: NIKA's default shared troubleshooting skills were enabled\n  (`agent.enable_skills` default); no other harness optimization was used.\n- Execution: NIKA's opt-in Firecracker execution mode with case images\n  (`nika.execution: firecracker`, `nika.firecracker.case_images: true`, from\n  #213). Each task's failure was injected once into a restored lab image and\n  saved as a case image; all three trials of a task restored that injected state,\n  and the agent started after a fault-presence check. The agent and its sandbox\n  ran on the host.\n- Reruns: nine trials that ended `endpoint_failed` (the model endpoint briefly\n  had no healthy backend) or `infra_failed` (the Codex process exited at start)\n  were rerun once.\n- Model serving: vLLM 0.24, Hugging Face revision\n  `da6e2ed27304dd39abadd9c82ef50e8de67bdd4c`, FP8 weights, 262144-token context\n  window, tensor parallelism over A100 GPUs (two replicas behind a load\n  balancer).\n\nThe leaderboard estimates cost from public reference rates for hosted\ninference; it is not the self-hosted GPU cost of this run.\n\n## Links\n\n- [Agent code](https://github.com/sands-lab/nika)\n- [Project site](https://sands-lab.github.io/nika/)\n- [Benchmark paper](https://arxiv.org/abs/2512.16381), which describes NIKA\n  rather than this agent.\n- [Model page](https://huggingface.co/Qwen/Qwen3-Coder-Next-FP8)\n- [Trajectories](https://huggingface.co/datasets/nika-bench/nika-trajectories/tree/main/trajectories/0.2.0/20261020_codex_qwen3_coder_next_fp8)",
   "trials": [

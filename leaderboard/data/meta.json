@@ -12,12 +12,12 @@
     "llm_provider": [
       "anthropic",
       "att",
-      "custom",
       "google",
       "ku-dfi",
       "openai",
+      "ornith-ai",
       "qwen",
-      "zai"
+      "zai-org"
     ],
     "model": [
       "Claude Haiku 5.5",
@@ -52,6 +52,40 @@
       "test"
     ]
   },
+  "vendors": {
+    "anthropic": {
+      "label": "Anthropic",
+      "icon": "lobehub/anthropic.svg"
+    },
+    "att": {
+      "label": "AT&T",
+      "icon": "hf/att.webp"
+    },
+    "google": {
+      "label": "Google",
+      "icon": "lobehub/google.svg"
+    },
+    "ku-dfi": {
+      "label": "KU-DFI",
+      "icon": "hf/ku-dfi.webp"
+    },
+    "openai": {
+      "label": "OpenAI",
+      "icon": "lobehub/openai.svg"
+    },
+    "ornith-ai": {
+      "label": "Ornith.ai",
+      "icon": "hf/ornith-ai.webp"
+    },
+    "qwen": {
+      "label": "Qwen",
+      "icon": "lobehub/qwen.svg"
+    },
+    "zai-org": {
+      "label": "Z.ai",
+      "icon": "lobehub/zai.svg"
+    }
+  },
   "primary_metric": "mean_rca_f1",
   "ranking": {
     "method": "paired cluster bootstrap over cases",
@@ -59,5 +93,5 @@
     "seed": 0,
     "confidence": 0.95
   },
-  "generated_at": "2026-10-25T11:27:22+00:00"
+  "generated_at": "2026-10-25T11:55:23+00:00"
 }

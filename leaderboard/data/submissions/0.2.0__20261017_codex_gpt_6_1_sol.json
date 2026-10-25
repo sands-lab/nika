@@ -17,6 +17,11 @@
   "framework": "Codex",
   "agent_type": "cli.codex",
   "llm_provider": "openai",
+  "vendor": {
+    "id": "openai",
+    "label": "OpenAI",
+    "icon": "lobehub/openai.svg"
+  },
   "tools": [
     "containerlab_srl_mcp_server",
     "k8s_mcp_server",
@@ -76,6 +81,7 @@
   "run_id": "5a215b1c49811afe",
   "official": true,
   "nika_git_commit": "5096d23a3b79cd0d425d65ef1ebcb647ac2e8918",
+  "model_icon": null,
   "name": "GPT-6.1 Sol (high) · Codex",
   "readme": "# Codex + GPT-6.1 Sol (high)\n\nAuthors: NIKA Team\n\nThis entry uses NIKA's built-in `cli.codex` agent with OpenAI-hosted\nGPT-6.1 Sol (`gpt-6.1-sol`) at `high` reasoning effort, and the standard NIKA\nMCP tools. Codex authenticated with a ChatGPT subscription login, not an API\nkey. Each trial has separate diagnosis and structured-submission phases.\nThe agent ran in e2b sandboxes.\n\n## Evaluation\n\n- Benchmark release: nika-bench 0.2.0, test split, 85 tasks with 3 trials each.\n- All 255 slots finished: 245 scored submissions and 10 agent failures without\n  submissions, which count as zero in primary means.\n- Mean RCA F1: 0.6841192157 (68.41%).\n- Mean localization F1: 0.7547729412 (75.48%).\n- Mean detection score: 0.8549019608 (85.49%).\n- Budgets: 100 steps, no maximum output-token override, 1800-second agent\n  timeout and 2400-second task timeout.\n- No residual infrastructure or grading errors.\n\n### Agent failures\n\n- Five trials produced a diagnosis report, but the submission phase declined to\n  submit because it found no matching fault in the ontology:\n  `enterprise_branch__healthy__m__t01`, `enterprise_branch__healthy__m__t02`,\n  `enterprise_branch__tcp_recei__h131c3a680384__t01`,\n  `enterprise_branch__tcp_recei__h131c3a680384__t02` and\n  `p4_dc_gateway__lb_pending_co__he9ad04263eac__t01`.\n- Two trials hit the 100-step limit without a diagnosis report:\n  `p4_dc_gateway__icmp_frag_nee__ha855b5fd985e__t03` and\n  `p4_dc_gateway__int_insuffici__h65e77e85f180__t02`.\n- One trial hit the step limit, and its submission phase then failed with\n  \"Selected model is at capacity\":\n  `p4_dc_gateway__silent_egress__h8eba7ba89f0d__t01`.\n- Two trials lost the sandbox command stream (connection reset or timeout),\n  which truncated the diagnosis report:\n  `p4_dc_gateway__p4_table_reso__h2bab5479b819__t01` and\n  `p4_dc_gateway__p4runtime_par__h92346d5301fa__t03`.\n\n## Run provenance\n\nThe run used NIKA commit `5096d23a3b79cd0d425d65ef1ebcb647ac2e8918` with local\nchanges present. The Codex CLI version was not recorded.\n\n## Links and model information\n\n- [Agent and benchmark](https://github.com/sands-lab/nika)\n- [Project site](https://sands-lab.github.io/nika/)\n- [Benchmark paper](https://arxiv.org/abs/2512.16381), which describes NIKA.\n- [Model page](https://developers.openai.com/api/docs/models/gpt-6.1-sol)\n\nModel release date: 2026-09-29\n([announcement](https://openai.com/index/introducing-gpt-6-1-sol/)).\n\nReference price retrieved 2026-10-17: OpenAI API standard tier, USD 2.00 per\nmillion input tokens and USD 10.00 per million output tokens (USD 0.10 per\nmillion cached input tokens, not applied). Source:\n[model page](https://developers.openai.com/api/docs/models/gpt-6.1-sol). The run\nused a ChatGPT subscription, so this is a reference estimate, not the amount\nbilled.",
   "trials": [

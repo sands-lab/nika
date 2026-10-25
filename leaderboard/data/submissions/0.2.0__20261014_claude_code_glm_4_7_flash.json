@@ -17,6 +17,11 @@
   "framework": "Claude Code",
   "agent_type": "cli.claude",
   "llm_provider": "custom",
+  "vendor": {
+    "id": "zai-org",
+    "label": "Z.ai",
+    "icon": "lobehub/zai.svg"
+  },
   "tools": [
     "containerlab_srl_mcp_server",
     "k8s_mcp_server",
@@ -71,6 +76,7 @@
   "run_id": "4d9e98d77919538e",
   "official": true,
   "nika_git_commit": "ba4e78364b26b3a948c234e450c93df3e23090be",
+  "model_icon": null,
   "name": "GLM-4.7-Flash · Claude Code",
   "readme": "# Claude Code + GLM-4.7-Flash\n\nAuthors: NIKA Team\n\nThis entry uses NIKA's `cli.claude` integration with self-hosted\n`zai-org/GLM-4.7-Flash` and the standard NIKA MCP tools.\n\n## Evaluation\n\n- Benchmark release: nika-bench 0.2.0, test split, 85 tasks with 3 trials each.\n- All 255 slots finished: 242 scored submissions and 13 agent failures without submissions. The failures ended without a usable report or without calling the submission tool; the 13 count as zero in primary means.\n- Mean RCA F1: 0.1117341176 (11.17%).\n- Mean localization F1: 0.2054305882 (20.54%).\n- Mean detection score: 0.7921568627 (79.22%).\n- Budgets: 100 steps, 32768 maximum output tokens, 14400-second agent timeout and 15000-second task timeout.\n- No residual infrastructure or grading errors.\n\n## Run provenance\n\nAll 255 trials ran at NIKA commit `ba4e78364b26b3a948c234e450c93df3e23090be`.\nThe model was served with vLLM 0.24 from revision\n`7dd20894a642a0aa287e9827cb1a1f7f91386b67` in bf16 with a 202752-token context\nwindow and piecewise CUDA graphs. The run metadata does not record the serving\ncontext or precision.\n\nNine trials that ended diagnosis within two turns were rerun once.\n\n## Links and model information\n\n- [Agent and benchmark](https://github.com/sands-lab/nika)\n- [Project site](https://sands-lab.github.io/nika/)\n- [Benchmark paper](https://arxiv.org/abs/2512.16381), which describes NIKA.\n- [Model checkpoint](https://huggingface.co/zai-org/GLM-4.7-Flash)\n- [Trajectories](https://huggingface.co/datasets/Zhihao98/nika-trajectories/tree/main/trajectories/0.2.0/20261014_claude_code_glm_4_7_flash)\n\nModel weights release date: 2026-01-19. The\n[first weight upload](https://huggingface.co/zai-org/GLM-4.7-Flash/commit/75fce703a93da3705c4cf8d3caadbac1d1072c78)\ncontains the safetensors shards.\n\nReference quote retrieved 2026-10-14: OpenRouter, USD 0.0605 per million input\ntokens and USD 0.40 per million output tokens. Sources:\n[model page](https://openrouter.ai/z-ai/glm-4.7-flash) and\n[public model API](https://openrouter.ai/api/v1/models). This is a hosted\nreference estimate, not the self-hosted GPU bill; cached-input discounts are\nnot applied.",
   "trials": [

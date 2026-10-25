@@ -17,6 +17,11 @@
   "framework": "Claude Code",
   "agent_type": "cli.claude",
   "llm_provider": "custom",
+  "vendor": {
+    "id": "google",
+    "label": "Google",
+    "icon": "lobehub/google.svg"
+  },
   "tools": [
     "containerlab_srl_mcp_server",
     "k8s_mcp_server",
@@ -72,6 +77,10 @@
   "run_id": "3f319b6189246012",
   "official": true,
   "nika_git_commit": "63912570d6fd1b0bc9647d6e299d68e642a36210",
+  "model_icon": {
+    "label": "Gemma",
+    "icon": "lobehub/gemma.svg"
+  },
   "name": "Gemma 4 31B IT · Claude Code",
   "readme": "# Claude Code + Gemma-4-31B-it\n\nAuthors: NIKA Team\n\nThis entry runs NIKA's `cli.claude` integration with Gemma-4-31B-it and the standard NIKA MCP tools.\n\n## Evaluation\n\n- Frozen release: nika-bench 0.2.0, test split, 85 cases with 3 trials each.\n- All 255 trials finished with scored submissions.\n- Recorded budgets: 100 steps, 32768 maximum output tokens, 14400-second agent timeout and 15000-second case timeout.\n- Mean rca_f1: 0.3172003922.\n- Mean localization_f1: 0.4419478431.\n- Mean detection_score: 0.8745098039.\n\nThe run records NIKA commit `63912570d6fd1b0bc9647d6e299d68e642a36210` with local changes present.\n\n## Links\n\n- Agent and benchmark: https://github.com/sands-lab/nika\n- Project site: https://sands-lab.github.io/nika/\n- Benchmark paper: https://arxiv.org/abs/2512.16381\n\nThe benchmark paper describes NIKA.\n\n## Model and trajectory packaging\n\n- Model checkpoint: https://huggingface.co/google/gemma-4-31B-it\n- Serving precision: BF16 (confirmed by the operator).\n- Evaluated model revision and additional serving configuration were not recorded in the run metadata.\n- The submission copy escapes Unicode line separators in JSONL strings. The original run files, decoded trajectory content, submissions, scores, and trial coverage remain unchanged.\n- Model release date and hosted reference price require maintainer review; this submission does not infer them from another checkpoint.",
   "trials": [

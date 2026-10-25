@@ -17,6 +17,11 @@
   "framework": "ReAct",
   "agent_type": "byo.langgraph",
   "llm_provider": "custom",
+  "vendor": {
+    "id": "ku-dfi",
+    "label": "KU-DFI",
+    "icon": "hf/ku-dfi.webp"
+  },
   "tools": [
     "containerlab_srl_mcp_server",
     "k8s_mcp_server",
@@ -71,6 +76,7 @@
   "run_id": "73005ec6f687776d",
   "official": true,
   "nika_git_commit": "ba4e78364b26b3a948c234e450c93df3e23090be",
+  "model_icon": null,
   "name": "TelecomGPT-R1 · ReAct",
   "readme": "# ReAct + TelecomGPT-R1\n\nAuthors: NIKA Team\n\nThis entry uses the ReAct agent implemented with LangGraph through NIKA's\n`byo.langgraph` integration, self-hosted `KU-DFI/TelecomGPT-R1` (27B), and the\nstandard NIKA MCP tools.\n\n## Evaluation\n\n- Benchmark release: nika-bench 0.2.0, test split, 85 tasks with 3 trials each.\n- All 255 slots finished: 238 scored submissions and 17 agent failures without submissions. Every failure reached the 100-step limit without a report; the 17 count as zero in primary means.\n- Mean RCA F1: 0.2462188235 (24.62%).\n- Mean localization F1: 0.3426811765 (34.27%).\n- Mean detection score: 0.7372549020 (73.73%).\n- Budgets: 100 steps, 32768 maximum output tokens, 14400-second agent timeout and 15000-second task timeout.\n- No residual infrastructure or grading errors.\n\n## Run provenance\n\nAll 255 trials ran at NIKA commit `ba4e78364b26b3a948c234e450c93df3e23090be`.\nThe model was served with vLLM 0.24 from revision\n`f24b5120e225d582af5c4e5aa2cf226740de1ae7` in bf16. Serving context changed\nduring the run: 33 trials finished with a 131072-token context window, after\nwhich a request exceeded that window and serving was raised to 262144 tokens\nfor the remaining 222 trials. The 33 completed trials were kept; every trial\nthat had not succeeded was rerun at 262144. The run metadata does not record\nthe serving context or precision.\n\n## Links and model information\n\n- [Agent and benchmark](https://github.com/sands-lab/nika)\n- [Project site](https://sands-lab.github.io/nika/)\n- [Benchmark paper](https://arxiv.org/abs/2512.16381), which describes NIKA.\n- [Model checkpoint](https://huggingface.co/KU-DFI/TelecomGPT-R1)\n- [Trajectories](https://huggingface.co/datasets/Zhihao98/nika-trajectories/tree/main/trajectories/0.2.0/20261013_react_telecomgpt_r1)\n\nThis submission reuses the leaderboard's reviewed `TelecomGPT-R1` catalog\nentries: weight release date 2026-06-08 and the Featherless AI reference quote\nretrieved 2026-10-13 (USD 1.60 per million input tokens and USD 12.00 per\nmillion output tokens). The hosted quote estimates token costs; it does not\nmeasure this run's GPU bill.",
   "trials": [

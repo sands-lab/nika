@@ -16,7 +16,12 @@
   "submitted_model": "Qwen3.6-27B",
   "framework": "Claude Code",
   "agent_type": "ClaudeCode",
-  "llm_provider": "qwen",
+  "llm_provider": null,
+  "vendor": {
+    "id": "qwen",
+    "label": "Qwen",
+    "icon": "lobehub/qwen.svg"
+  },
   "tools": [],
   "skills": [],
   "optimization_methods": [],
@@ -56,6 +61,10 @@
   "run_id": "preview-qwen3_6_27b_claudecode",
   "official": false,
   "nika_git_commit": null,
+  "model_icon": {
+    "label": "Qwen",
+    "icon": "lobehub/qwen.svg"
+  },
   "name": "Qwen3.6 27B · Claude Code",
   "readme": "# Qwen3.6-27B ClaudeCode\n\nSlide-reported results on NIKA release 0.1.0. Aggregate metrics only; no per-trial results.",
   "trials": [],

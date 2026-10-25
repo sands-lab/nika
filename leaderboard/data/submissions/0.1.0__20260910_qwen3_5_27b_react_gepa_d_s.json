@@ -16,7 +16,12 @@
   "submitted_model": "Qwen3.5-27B",
   "framework": "ReAct",
   "agent_type": "ReACT",
-  "llm_provider": "qwen",
+  "llm_provider": null,
+  "vendor": {
+    "id": "qwen",
+    "label": "Qwen",
+    "icon": "lobehub/qwen.svg"
+  },
   "tools": [],
   "skills": [],
   "optimization_methods": [
@@ -60,6 +65,10 @@
   "run_id": "preview-qwen3_5_27b_react_gepa_d_s",
   "official": false,
   "nika_git_commit": null,
+  "model_icon": {
+    "label": "Qwen",
+    "icon": "lobehub/qwen.svg"
+  },
   "name": "Qwen3.5 27B · ReAct · GEPA (d+s)",
   "readme": "# Qwen3.5-27B ReACT+GEPA (d+s)\n\nSlide-reported results on NIKA release 0.1.0. Aggregate metrics only; no per-trial results.",
   "trials": [],

@@ -17,6 +17,11 @@
   "framework": "Claude Code",
   "agent_type": "cli.claude",
   "llm_provider": "custom",
+  "vendor": {
+    "id": "ornith-ai",
+    "label": "Ornith.ai",
+    "icon": "hf/ornith-ai.webp"
+  },
   "tools": [
     "containerlab_srl_mcp_server",
     "k8s_mcp_server",
@@ -80,6 +85,7 @@
   "run_id": "faf28950bc7b0343",
   "official": true,
   "nika_git_commit": "ce0d0ba598ba1a6a09b712f8b52bab6a54c0806d",
+  "model_icon": null,
   "name": "Ornith-1.5-122B · Claude Code",
   "readme": "# Ornith-1.5-122B with Claude Code\n\nThis submission evaluates Ornith-1.5-122B through the Claude Code harness on the\nNIKA 0.2.0 test split: 85 network troubleshooting tasks, with three trials per task.\n\n## Configuration\n\n- **Model:** `ornith-ai/Ornith-1.5-122B`, revision\n  `7681ef608624e7532d8164128bcffdbdbaf1b1af`.\n- **Serving:** self-hosted vLLM 0.24, original BF16 weights, tensor parallelism\n  across two H200 GPUs per server, and a 262,144-token context window.\n- **Harness:** Claude Code through NIKA's custom-provider integration. A local\n  LiteLLM proxy forwards native Anthropic-format requests to vLLM; the benchmark\n  does not use an Anthropic-hosted model.\n- **Limits:** 100 maximum steps, 8,192 maximum output tokens per request,\n  1,800-second agent timeout, and 2,400-second task timeout.\n- **Concurrency:** batch size 16 and heavy-task batch size 1.\n- **NIKA revision:** `ce0d0ba598ba1a6a09b712f8b52bab6a54c0806d`.\n\n## Execution and recovery\n\nThe run spans multiple ORIX allocations. NIKA's resume mechanism retained scored\ntrials and retried infrastructure interruptions. Scored agent failures are included;\nthey were not removed or rerun to improve the score. The final recovery targets\nonly the two trials left unfinished after the earlier allocations ended.\n\nDuring part of the run, multiple inference backends served the same model revision\nand configuration through LiteLLM. Separate trajectory-audit workloads and LangGraph\nbenchmark runs also shared the inference service during parts of the run, including\na separate batch-4 LangGraph experiment. These conditions can affect latency;\nthis is not a controlled inference-throughput measurement. Audit analyses are not\nbenchmark scores and were not provided to the troubleshooting agents.\n\n## Pricing\n\nThis run used self-hosted vLLM on ORIX GPUs. No verified, currently available public\nper-token price was established for this model. Token pricing is unavailable, not\nzero, and does not represent the compute cost of this run.",
   "trials": [

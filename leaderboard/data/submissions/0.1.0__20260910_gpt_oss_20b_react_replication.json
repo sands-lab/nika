@@ -16,7 +16,12 @@
   "submitted_model": "GPT-OSS-20B",
   "framework": "ReAct",
   "agent_type": "ReACT",
-  "llm_provider": "openai",
+  "llm_provider": null,
+  "vendor": {
+    "id": "openai",
+    "label": "OpenAI",
+    "icon": "lobehub/openai.svg"
+  },
   "tools": [],
   "skills": [],
   "optimization_methods": [],
@@ -56,6 +61,7 @@
   "run_id": "preview-gpt_oss_20b_react_replication",
   "official": false,
   "nika_git_commit": null,
+  "model_icon": null,
   "name": "GPT OSS 20B · ReAct · replication",
   "readme": "# GPT-OSS-20B ReACT (replication)\n\nReplication of the NIKA arXiv GPT-OSS-20B ReACT baseline (release 0.1.0). Aggregate metrics only; no per-trial results.",
   "trials": [],

@@ -17,6 +17,11 @@
   "framework": "Claude Code",
   "agent_type": "cli.claude",
   "llm_provider": "custom",
+  "vendor": {
+    "id": "qwen",
+    "label": "Qwen",
+    "icon": "lobehub/qwen.svg"
+  },
   "tools": [
     "containerlab_srl_mcp_server",
     "k8s_mcp_server",
@@ -71,6 +76,10 @@
   "run_id": "556fb10a0340dcfd",
   "official": true,
   "nika_git_commit": "2d745c6a1fd40b0c97c6445c07400608c4a8ec1d",
+  "model_icon": {
+    "label": "Qwen",
+    "icon": "lobehub/qwen.svg"
+  },
   "name": "Qwen3.8-27B-FP8 · Claude Code",
   "readme": "# Claude Code + Qwen3.8-27B-FP8\n\nAuthors: NIKA Team\n\nThis entry uses Claude Code through NIKA's `cli.claude` integration with\nself-hosted Qwen3.8-27B-FP8 and the standard NIKA MCP tools.\n\n## Evaluation\n\n- Frozen release: nika-bench 0.2.0, test split, 85 cases with 3 trials each.\n- Recorded budgets: 100 steps, 8192 maximum output tokens, 14400-second\n  agent timeout and 15000-second case timeout.\n- All 255 slots are finished: 252 scored submissions and 3 agent failures.\n- Mean RCA F1: 0.5529968627450983 (55.30%).\n\n## Links\n\n- Agent and benchmark: https://github.com/sands-lab/nika\n- Project site: https://sands-lab.github.io/nika/\n- Benchmark paper: https://arxiv.org/abs/2512.16381\n- Model: https://huggingface.co/Qwen/Qwen3.8-27B-FP8\n- Trajectories: https://huggingface.co/datasets/Zhihao98/nika-trajectories/tree/main/trajectories/0.2.0/20261010_claude_code_qwen3_8_27b_fp8\n\n## Display metadata correction\n\nThe follow-up correction supplies project links, the Claude Code harness name,\nand tools and budgets from the recorded run. Scores, trial files, identity,\nand benchmark coverage remain the original submission's generated artifacts.\n\n## Model release and reference price\n\n- Released weights: 2026-08-13. Source: https://huggingface.co/Qwen/Qwen3.8-27B-FP8/commit/10b09acb2fdc08d52017d17c1e3d42845fba3f4f\n- Reference quote, retrieved 2026-10-10: OpenRouter Qwen3.8-27B: $0.425 input / $2.55 output per million tokens. Source: https://openrouter.ai/qwen/qwen3.8-27b. The run used FP8 weights.\n\nThe leaderboard derives a hosted reference estimate from recorded token counts.\nIt does not measure this self-hosted run's GPU bill or apply cache discounts.",
   "trials": [

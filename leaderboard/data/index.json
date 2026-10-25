@@ -18,7 +18,12 @@
       "submitted_model": "GPT-5",
       "framework": "ReAct",
       "agent_type": "ReACT",
-      "llm_provider": "openai",
+      "llm_provider": null,
+      "vendor": {
+        "id": "openai",
+        "label": "OpenAI",
+        "icon": "lobehub/openai.svg"
+      },
       "tools": [],
       "skills": [],
       "optimization_methods": [],
@@ -56,6 +61,7 @@
       "run_id": "preview-gpt_5_react",
       "official": false,
       "nika_git_commit": null,
+      "model_icon": null,
       "name": "GPT-5 · ReAct",
       "rca_f1_ci": null,
       "beaten_by": [],
@@ -79,7 +85,12 @@
       "submitted_model": "Qwen3.6-27B",
       "framework": "Claude Code",
       "agent_type": "ClaudeCode",
-      "llm_provider": "qwen",
+      "llm_provider": null,
+      "vendor": {
+        "id": "qwen",
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
       "tools": [],
       "skills": [],
       "optimization_methods": [],
@@ -119,6 +130,10 @@
       "run_id": "preview-qwen3_6_27b_claudecode",
       "official": false,
       "nika_git_commit": null,
+      "model_icon": {
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
       "name": "Qwen3.6 27B · Claude Code",
       "rca_f1_ci": null,
       "beaten_by": [
@@ -144,7 +159,12 @@
       "submitted_model": "Qwen3.6-27B",
       "framework": "Claude Code",
       "agent_type": "ClaudeCode",
-      "llm_provider": "qwen",
+      "llm_provider": null,
+      "vendor": {
+        "id": "qwen",
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
       "tools": [],
       "skills": [
         "skills"
@@ -188,6 +208,10 @@
       "run_id": "preview-qwen3_6_27b_claudecode_skills",
       "official": false,
       "nika_git_commit": null,
+      "model_icon": {
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
       "name": "Qwen3.6 27B · Claude Code · skills",
       "rca_f1_ci": null,
       "beaten_by": [
@@ -214,7 +238,12 @@
       "submitted_model": "GPT-5-mini",
       "framework": "ReAct",
       "agent_type": "ReACT",
-      "llm_provider": "openai",
+      "llm_provider": null,
+      "vendor": {
+        "id": "openai",
+        "label": "OpenAI",
+        "icon": "lobehub/openai.svg"
+      },
       "tools": [],
       "skills": [],
       "optimization_methods": [],
@@ -252,6 +281,7 @@
       "run_id": "preview-gpt_5_mini_react",
       "official": false,
       "nika_git_commit": null,
+      "model_icon": null,
       "name": "GPT-5 Mini · ReAct",
       "rca_f1_ci": null,
       "beaten_by": [
@@ -279,7 +309,12 @@
       "submitted_model": "Qwen3.5-27B",
       "framework": "Claude Code",
       "agent_type": "ClaudeCode",
-      "llm_provider": "qwen",
+      "llm_provider": null,
+      "vendor": {
+        "id": "qwen",
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
       "tools": [],
       "skills": [],
       "optimization_methods": [],
@@ -319,6 +354,10 @@
       "run_id": "preview-qwen3_5_27b_claudecode",
       "official": false,
       "nika_git_commit": null,
+      "model_icon": {
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
       "name": "Qwen3.5 27B · Claude Code",
       "rca_f1_ci": null,
       "beaten_by": [
@@ -347,7 +386,12 @@
       "submitted_model": "Qwen3.5-27B",
       "framework": "ReAct",
       "agent_type": "ReACT",
-      "llm_provider": "qwen",
+      "llm_provider": null,
+      "vendor": {
+        "id": "qwen",
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
       "tools": [],
       "skills": [],
       "optimization_methods": [],
@@ -387,6 +431,10 @@
       "run_id": "preview-qwen3_5_27b_react",
       "official": false,
       "nika_git_commit": null,
+      "model_icon": {
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
       "name": "Qwen3.5 27B · ReAct",
       "rca_f1_ci": null,
       "beaten_by": [
@@ -416,7 +464,12 @@
       "submitted_model": "Qwen3.5-27B",
       "framework": "ReAct",
       "agent_type": "ReACT",
-      "llm_provider": "qwen",
+      "llm_provider": null,
+      "vendor": {
+        "id": "qwen",
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
       "tools": [],
       "skills": [],
       "optimization_methods": [
@@ -460,6 +513,10 @@
       "run_id": "preview-qwen3_5_27b_react_gepa_d_s",
       "official": false,
       "nika_git_commit": null,
+      "model_icon": {
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
       "name": "Qwen3.5 27B · ReAct · GEPA (d+s)",
       "rca_f1_ci": null,
       "beaten_by": [
@@ -490,7 +547,12 @@
       "submitted_model": "Qwen3.5-27B",
       "framework": "ReAct",
       "agent_type": "ReACT",
-      "llm_provider": "qwen",
+      "llm_provider": null,
+      "vendor": {
+        "id": "qwen",
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
       "tools": [],
       "skills": [],
       "optimization_methods": [
@@ -534,6 +596,10 @@
       "run_id": "preview-qwen3_5_27b_react_gepa_d",
       "official": false,
       "nika_git_commit": null,
+      "model_icon": {
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
       "name": "Qwen3.5 27B · ReAct · GEPA (d)",
       "rca_f1_ci": null,
       "beaten_by": [
@@ -565,7 +631,12 @@
       "submitted_model": "GPT-OSS-20B",
       "framework": "ReAct",
       "agent_type": "ReACT",
-      "llm_provider": "openai",
+      "llm_provider": null,
+      "vendor": {
+        "id": "openai",
+        "label": "OpenAI",
+        "icon": "lobehub/openai.svg"
+      },
       "tools": [],
       "skills": [],
       "optimization_methods": [],
@@ -603,6 +674,7 @@
       "run_id": "preview-gpt_oss_20b_react",
       "official": false,
       "nika_git_commit": null,
+      "model_icon": null,
       "name": "GPT OSS 20B · ReAct",
       "rca_f1_ci": null,
       "beaten_by": [
@@ -635,7 +707,12 @@
       "submitted_model": "GPT-OSS-20B",
       "framework": "ReAct",
       "agent_type": "ReACT",
-      "llm_provider": "openai",
+      "llm_provider": null,
+      "vendor": {
+        "id": "openai",
+        "label": "OpenAI",
+        "icon": "lobehub/openai.svg"
+      },
       "tools": [],
       "skills": [],
       "optimization_methods": [],
@@ -675,6 +752,7 @@
       "run_id": "preview-gpt_oss_20b_react_replication",
       "official": false,
       "nika_git_commit": null,
+      "model_icon": null,
       "name": "GPT OSS 20B · ReAct · replication",
       "rca_f1_ci": null,
       "beaten_by": [
@@ -708,7 +786,12 @@
       "submitted_model": "GPT-OSS-20B",
       "framework": "Claude Code",
       "agent_type": "ClaudeCode",
-      "llm_provider": "openai",
+      "llm_provider": null,
+      "vendor": {
+        "id": "openai",
+        "label": "OpenAI",
+        "icon": "lobehub/openai.svg"
+      },
       "tools": [],
       "skills": [],
       "optimization_methods": [],
@@ -748,6 +831,7 @@
       "run_id": "preview-gpt_oss_20b_claudecode",
       "official": false,
       "nika_git_commit": null,
+      "model_icon": null,
       "name": "GPT OSS 20B · Claude Code",
       "rca_f1_ci": null,
       "beaten_by": [
@@ -783,6 +867,11 @@
       "framework": "Claude Code",
       "agent_type": "cli.claude",
       "llm_provider": "anthropic",
+      "vendor": {
+        "id": "anthropic",
+        "label": "Anthropic",
+        "icon": "lobehub/anthropic.svg"
+      },
       "tools": [
         "containerlab_srl_mcp_server",
         "k8s_mcp_server",
@@ -843,6 +932,10 @@
       "run_id": "5971e18568010dd8",
       "official": true,
       "nika_git_commit": "dba357b3c0c6585f68d059a531c12619f8e9b3b3",
+      "model_icon": {
+        "label": "Claude",
+        "icon": "lobehub/claude.svg"
+      },
       "name": "Claude Opus 5.5 · Claude Code",
       "rca_f1_ci": [
         0.687584,
@@ -870,6 +963,11 @@
       "framework": "Claude Code",
       "agent_type": "cli.claude",
       "llm_provider": "anthropic",
+      "vendor": {
+        "id": "anthropic",
+        "label": "Anthropic",
+        "icon": "lobehub/anthropic.svg"
+      },
       "tools": [
         "containerlab_srl_mcp_server",
         "k8s_mcp_server",
@@ -929,6 +1027,10 @@
       "run_id": "19bb905ec42d84b5",
       "official": true,
       "nika_git_commit": "dba357b3c0c6585f68d059a531c12619f8e9b3b3",
+      "model_icon": {
+        "label": "Claude",
+        "icon": "lobehub/claude.svg"
+      },
       "name": "Claude Sonnet 5.5 · Claude Code",
       "rca_f1_ci": [
         0.653596,
@@ -956,6 +1058,11 @@
       "framework": "Codex",
       "agent_type": "cli.codex",
       "llm_provider": "openai",
+      "vendor": {
+        "id": "openai",
+        "label": "OpenAI",
+        "icon": "lobehub/openai.svg"
+      },
       "tools": [
         "containerlab_srl_mcp_server",
         "k8s_mcp_server",
@@ -1015,6 +1122,7 @@
       "run_id": "5a215b1c49811afe",
       "official": true,
       "nika_git_commit": "5096d23a3b79cd0d425d65ef1ebcb647ac2e8918",
+      "model_icon": null,
       "name": "GPT-6.1 Sol (high) · Codex",
       "rca_f1_ci": [
         0.597387,
@@ -1044,6 +1152,11 @@
       "framework": "Claude Code",
       "agent_type": "cli.claude",
       "llm_provider": "custom",
+      "vendor": {
+        "id": "qwen",
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
       "tools": [
         "containerlab_srl_mcp_server",
         "k8s_mcp_server",
@@ -1098,6 +1211,10 @@
       "run_id": "556fb10a0340dcfd",
       "official": true,
       "nika_git_commit": "2d745c6a1fd40b0c97c6445c07400608c4a8ec1d",
+      "model_icon": {
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
       "name": "Qwen3.8-27B-FP8 · Claude Code",
       "rca_f1_ci": [
         0.466328,
@@ -1129,6 +1246,11 @@
       "framework": "ReAct",
       "agent_type": "byo.langgraph",
       "llm_provider": "custom",
+      "vendor": {
+        "id": "qwen",
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
       "tools": [
         "containerlab_srl_mcp_server",
         "k8s_mcp_server",
@@ -1183,6 +1305,10 @@
       "run_id": "0c97c4d03d5b7ab4",
       "official": true,
       "nika_git_commit": "d22f922662c94e2ec8d0d6d7552420d897635aee",
+      "model_icon": {
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
       "name": "Qwen3.8-27B-FP8 · ReAct",
       "rca_f1_ci": [
         0.413866,
@@ -1215,6 +1341,11 @@
       "framework": "Claude Code",
       "agent_type": "cli.claude",
       "llm_provider": "anthropic",
+      "vendor": {
+        "id": "anthropic",
+        "label": "Anthropic",
+        "icon": "lobehub/anthropic.svg"
+      },
       "tools": [
         "containerlab_srl_mcp_server",
         "k8s_mcp_server",
@@ -1275,6 +1406,10 @@
       "run_id": "86100c2240e99740",
       "official": true,
       "nika_git_commit": "dba357b3c0c6585f68d059a531c12619f8e9b3b3",
+      "model_icon": {
+        "label": "Claude",
+        "icon": "lobehub/claude.svg"
+      },
       "name": "Claude Haiku 5.5 · Claude Code",
       "rca_f1_ci": [
         0.403388,
@@ -1308,6 +1443,11 @@
       "framework": "Claude Code",
       "agent_type": "cli.claude",
       "llm_provider": "custom",
+      "vendor": {
+        "id": "ornith-ai",
+        "label": "Ornith.ai",
+        "icon": "hf/ornith-ai.webp"
+      },
       "tools": [
         "containerlab_srl_mcp_server",
         "k8s_mcp_server",
@@ -1371,6 +1511,7 @@
       "run_id": "faf28950bc7b0343",
       "official": true,
       "nika_git_commit": "ce0d0ba598ba1a6a09b712f8b52bab6a54c0806d",
+      "model_icon": null,
       "name": "Ornith-1.5-122B · Claude Code",
       "rca_f1_ci": [
         0.375107,
@@ -1404,6 +1545,11 @@
       "framework": "ReAct",
       "agent_type": "byo.langgraph",
       "llm_provider": "custom",
+      "vendor": {
+        "id": "qwen",
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
       "tools": [
         "containerlab_srl_mcp_server",
         "k8s_mcp_server",
@@ -1458,6 +1604,10 @@
       "run_id": "d45f4be0c28acc57",
       "official": true,
       "nika_git_commit": "ba4e78364b26b3a948c234e450c93df3e23090be",
+      "model_icon": {
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
       "name": "Qwen3.5 27B · ReAct",
       "rca_f1_ci": [
         0.253727,
@@ -1493,6 +1643,11 @@
       "framework": "Claude Code",
       "agent_type": "cli.claude",
       "llm_provider": "custom",
+      "vendor": {
+        "id": "qwen",
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
       "tools": [
         "containerlab_srl_mcp_server",
         "k8s_mcp_server",
@@ -1547,6 +1702,10 @@
       "run_id": "6306186bfe22100a",
       "official": true,
       "nika_git_commit": "ba4e78364b26b3a948c234e450c93df3e23090be",
+      "model_icon": {
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
       "name": "Qwen3.5 27B · Claude Code",
       "rca_f1_ci": [
         0.237835,
@@ -1582,6 +1741,11 @@
       "framework": "Claude Code",
       "agent_type": "cli.claude",
       "llm_provider": "custom",
+      "vendor": {
+        "id": "google",
+        "label": "Google",
+        "icon": "lobehub/google.svg"
+      },
       "tools": [
         "containerlab_srl_mcp_server",
         "k8s_mcp_server",
@@ -1637,6 +1801,10 @@
       "run_id": "3f319b6189246012",
       "official": true,
       "nika_git_commit": "63912570d6fd1b0bc9647d6e299d68e642a36210",
+      "model_icon": {
+        "label": "Gemma",
+        "icon": "lobehub/gemma.svg"
+      },
       "name": "Gemma 4 31B IT · Claude Code",
       "rca_f1_ci": [
         0.238039,
@@ -1672,6 +1840,11 @@
       "framework": "Claude Code",
       "agent_type": "cli.claude",
       "llm_provider": "custom",
+      "vendor": {
+        "id": "openai",
+        "label": "OpenAI",
+        "icon": "lobehub/openai.svg"
+      },
       "tools": [
         "containerlab_srl_mcp_server",
         "k8s_mcp_server",
@@ -1728,6 +1901,7 @@
       "run_id": "b169dba30aabb6bf",
       "official": true,
       "nika_git_commit": "5096d23a3b79cd0d425d65ef1ebcb647ac2e8918",
+      "model_icon": null,
       "name": "GPT OSS 120B · Claude Code",
       "rca_f1_ci": [
         0.198956,
@@ -1764,6 +1938,11 @@
       "framework": "Claude Code",
       "agent_type": "cli.claude",
       "llm_provider": "custom",
+      "vendor": {
+        "id": "ku-dfi",
+        "label": "KU-DFI",
+        "icon": "hf/ku-dfi.webp"
+      },
       "tools": [
         "containerlab_srl_mcp_server",
         "k8s_mcp_server",
@@ -1818,6 +1997,7 @@
       "run_id": "ed11cc8866ce847c",
       "official": true,
       "nika_git_commit": "ba4e78364b26b3a948c234e450c93df3e23090be",
+      "model_icon": null,
       "name": "TelecomGPT-R1 · Claude Code",
       "rca_f1_ci": [
         0.174176,
@@ -1856,6 +2036,11 @@
       "framework": "ReAct",
       "agent_type": "byo.langgraph",
       "llm_provider": "custom",
+      "vendor": {
+        "id": "ku-dfi",
+        "label": "KU-DFI",
+        "icon": "hf/ku-dfi.webp"
+      },
       "tools": [
         "containerlab_srl_mcp_server",
         "k8s_mcp_server",
@@ -1910,6 +2095,7 @@
       "run_id": "73005ec6f687776d",
       "official": true,
       "nika_git_commit": "ba4e78364b26b3a948c234e450c93df3e23090be",
+      "model_icon": null,
       "name": "TelecomGPT-R1 · ReAct",
       "rca_f1_ci": [
         0.17395,
@@ -1948,6 +2134,11 @@
       "framework": "ReAct",
       "agent_type": "byo.langgraph",
       "llm_provider": "custom",
+      "vendor": {
+        "id": "google",
+        "label": "Google",
+        "icon": "lobehub/google.svg"
+      },
       "tools": [
         "containerlab_srl_mcp_server",
         "k8s_mcp_server",
@@ -2002,6 +2193,10 @@
       "run_id": "bd167ed99e60276f",
       "official": true,
       "nika_git_commit": "e9656af3aa15e3db1168328656065d11e19d4b85",
+      "model_icon": {
+        "label": "Gemma",
+        "icon": "lobehub/gemma.svg"
+      },
       "name": "Gemma 4 31B IT · ReAct",
       "rca_f1_ci": [
         0.157982,
@@ -2041,6 +2236,11 @@
       "framework": "Claude Code",
       "agent_type": "cli.claude",
       "llm_provider": "custom",
+      "vendor": {
+        "id": "qwen",
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
       "tools": [],
       "skills": [],
       "optimization_methods": [],
@@ -2078,6 +2278,10 @@
       "run_id": "7ff2f0b4fe0f4e9b",
       "official": true,
       "nika_git_commit": "5ab69e6bef637d51d4c04c5c05eca5f4a1bfb37e",
+      "model_icon": {
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
       "name": "Qwen3.6 35B A3B FP8 · Claude Code",
       "rca_f1_ci": [
         0.170803,
@@ -2119,6 +2323,11 @@
       "framework": "Claude Code",
       "agent_type": "cli.claude",
       "llm_provider": "custom",
+      "vendor": {
+        "id": "qwen",
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
       "tools": [
         "containerlab_srl_mcp_server",
         "k8s_mcp_server",
@@ -2176,6 +2385,10 @@
       "run_id": "ee735260d73f56c0",
       "official": true,
       "nika_git_commit": "4f654ae61b438d824cccb6741e01521e9401db68",
+      "model_icon": {
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
       "name": "Qwen3 Coder Next FP8 · Claude Code",
       "rca_f1_ci": [
         0.138126,
@@ -2217,6 +2430,11 @@
       "framework": "Codex",
       "agent_type": "cli.codex",
       "llm_provider": "custom",
+      "vendor": {
+        "id": "qwen",
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
       "tools": [],
       "skills": [],
       "optimization_methods": [],
@@ -2254,6 +2472,10 @@
       "run_id": "1afde5c43d6e5ec8",
       "official": true,
       "nika_git_commit": "2ad19b638907564c29452117e82ed32298293056",
+      "model_icon": {
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
       "name": "Qwen3.6 35B A3B FP8 · Codex",
       "rca_f1_ci": [
         0.144289,
@@ -2296,6 +2518,11 @@
       "framework": "ReAct",
       "agent_type": "byo.langgraph",
       "llm_provider": "custom",
+      "vendor": {
+        "id": "qwen",
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
       "tools": [],
       "skills": [],
       "optimization_methods": [],
@@ -2333,6 +2560,10 @@
       "run_id": "7eae0e3cd26588d2",
       "official": true,
       "nika_git_commit": "5ab69e6bef637d51d4c04c5c05eca5f4a1bfb37e",
+      "model_icon": {
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
       "name": "Qwen3.6 35B A3B FP8 · ReAct",
       "rca_f1_ci": [
         0.111095,
@@ -2376,6 +2607,11 @@
       "framework": "Codex",
       "agent_type": "cli.codex",
       "llm_provider": "custom",
+      "vendor": {
+        "id": "qwen",
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
       "tools": [
         "containerlab_srl_mcp_server",
         "k8s_mcp_server",
@@ -2435,6 +2671,10 @@
       "run_id": "370f8d0625010545",
       "official": true,
       "nika_git_commit": "98ce4879a23914b15cd55a066c0a105f7946a4b3",
+      "model_icon": {
+        "label": "Qwen",
+        "icon": "lobehub/qwen.svg"
+      },
       "name": "Qwen3 Coder Next FP8 · Codex",
       "rca_f1_ci": [
         0.092715,
@@ -2480,6 +2720,11 @@
       "framework": "Claude Code",
       "agent_type": "cli.claude",
       "llm_provider": "custom",
+      "vendor": {
+        "id": "zai-org",
+        "label": "Z.ai",
+        "icon": "lobehub/zai.svg"
+      },
       "tools": [
         "containerlab_srl_mcp_server",
         "k8s_mcp_server",
@@ -2534,6 +2779,7 @@
       "run_id": "4d9e98d77919538e",
       "official": true,
       "nika_git_commit": "ba4e78364b26b3a948c234e450c93df3e23090be",
+      "model_icon": null,
       "name": "GLM-4.7-Flash · Claude Code",
       "rca_f1_ci": [
         0.068393,
@@ -2580,6 +2826,11 @@
       "framework": "ReAct",
       "agent_type": "byo.langgraph",
       "llm_provider": "custom",
+      "vendor": {
+        "id": "zai-org",
+        "label": "Z.ai",
+        "icon": "lobehub/zai.svg"
+      },
       "tools": [
         "containerlab_srl_mcp_server",
         "k8s_mcp_server",
@@ -2634,6 +2885,7 @@
       "run_id": "c6917f63cb8b1e5b",
       "official": true,
       "nika_git_commit": "663784e8bea88499b157008299e9957c61905f48",
+      "model_icon": null,
       "name": "GLM-4.7-Flash · ReAct",
       "rca_f1_ci": [
         0.045752,
@@ -2681,6 +2933,11 @@
       "framework": "Claude Code",
       "agent_type": "cli.claude",
       "llm_provider": "custom",
+      "vendor": {
+        "id": "att",
+        "label": "AT&T",
+        "icon": "hf/att.webp"
+      },
       "tools": [
         "containerlab_srl_mcp_server",
         "k8s_mcp_server",
@@ -2742,6 +2999,7 @@
       "run_id": "2fa068fe3714d386",
       "official": true,
       "nika_git_commit": "85b05ea169631c3f658bde5b9fb1c631c8bd5a2c",
+      "model_icon": null,
       "name": "OTel-2.0-LLM-31B-IT · Claude Code",
       "rca_f1_ci": [
         0.016994,

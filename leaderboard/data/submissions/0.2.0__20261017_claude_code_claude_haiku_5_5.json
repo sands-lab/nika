@@ -17,6 +17,11 @@
   "framework": "Claude Code",
   "agent_type": "cli.claude",
   "llm_provider": "anthropic",
+  "vendor": {
+    "id": "anthropic",
+    "label": "Anthropic",
+    "icon": "lobehub/anthropic.svg"
+  },
   "tools": [
     "containerlab_srl_mcp_server",
     "k8s_mcp_server",
@@ -77,6 +82,10 @@
   "run_id": "86100c2240e99740",
   "official": true,
   "nika_git_commit": "dba357b3c0c6585f68d059a531c12619f8e9b3b3",
+  "model_icon": {
+    "label": "Claude",
+    "icon": "lobehub/claude.svg"
+  },
   "name": "Claude Haiku 5.5 · Claude Code",
   "readme": "# Claude Haiku 5.5\n\nNIKA's built-in `cli.claude` agent uses Claude Code CLI 2.1.280 with Anthropic-hosted\nClaude Haiku 5.5 through subscription authentication. Each trial has separate diagnosis\nand structured-submission phases, using the benchmark release's allowed MCP servers.\nThe runtime model identifier is `claude-haiku-5-5`.\n\nThis is an official NIKA release 0.2.0 `test` run: 85 tasks with three trials each,\nfor 255 scored trials. It used NIKA commit\n`dba357b3c0c6585f68d059a531c12619f8e9b3b3` with a clean checkout.\n\n## Configuration\n\n- Batch size: 16; heavy batch size: 1.\n- Maximum Claude Code turns: 100 per phase.\n- Maximum output tokens: 8,192 per model response.\n- Agent timeout: 1,800 seconds; entire-trial timeout: 2,400 seconds.\n- No custom skills or optimization methods are declared in this submission.\n\nFive trials encountered infrastructure failures before the agent ran: three sandbox-start\nfailures and two lab-startup failures. A single guarded `--resume` pass retried only those\nunscored trials. None of the 250 already-scored trials was repeated.\n\nThe final outcomes are 253 `success` and two `agent_failed`. In the two agent failures,\nthe agent invoked the built-in `init` skill and wrote a `CLAUDE.md` file instead of\ncompleting the network diagnosis. No answer was submitted. These trials remain scored\nfailures in the submitted results; they were not retried or excluded. Execution status\nand diagnostic correctness are separate measurements.\n\n## Known caveat\n\nIn all three `p4_dc_gateway / tcp_syn_flood` trials, a container-limited Python process\nwas OOM-killed shortly after injection. Code, memory limits, and timing strongly indicate\nthe INT collector (`collector.py`, 256 MiB container), which retains reports in an\nunbounded in-memory dictionary. Direct PID-to-container attribution was unavailable\nafter teardown. The last INT-report timestamp was not retained, so loss of fresh\ntelemetry is inferred rather than directly measured.\n\nFault-presence checks confirmed that flood-generator processes remained alive; they\ndid not measure the actual traffic rate. Interpret this task's results with the\npotentially stale or missing telemetry caveat. The original results and trajectories\nare unchanged. Investigation: https://github.com/sands-lab/nika/issues/202.\n\n## Links\n\n- Code: https://github.com/sands-lab/nika\n- Model: https://www.anthropic.com/claude-haiku-5-5\n\n## Authors\n\n- Alessandro Cornacchia",
   "trials": [

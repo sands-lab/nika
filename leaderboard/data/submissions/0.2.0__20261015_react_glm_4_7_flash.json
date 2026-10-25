@@ -17,6 +17,11 @@
   "framework": "ReAct",
   "agent_type": "byo.langgraph",
   "llm_provider": "custom",
+  "vendor": {
+    "id": "zai-org",
+    "label": "Z.ai",
+    "icon": "lobehub/zai.svg"
+  },
   "tools": [
     "containerlab_srl_mcp_server",
     "k8s_mcp_server",
@@ -71,6 +76,7 @@
   "run_id": "c6917f63cb8b1e5b",
   "official": true,
   "nika_git_commit": "663784e8bea88499b157008299e9957c61905f48",
+  "model_icon": null,
   "name": "GLM-4.7-Flash · ReAct",
   "readme": "# ReAct + GLM-4.7-Flash\n\nNIKA Team evaluated the LangGraph ReAct harness (`byo.langgraph`) with\nGLM-4.7-Flash on NIKA benchmark 0.2.0, test split.\n\n## Evaluation\n\nThe run covers 85 tasks with three trials each. All 255 trials finished:\n231 successful runs and 24 agent failures. Failed trials count as zero in\nprimary means. The run has no remaining infrastructure or grading errors.\nMean RCA F1 is 8.46%, localization F1 is 21.08%, and detection score is 74.12%.\n\nThe harness uses the standard NIKA MCP tools, a 100-step limit, 32768 maximum\noutput tokens, a 14400-second agent timeout and a 15000-second task timeout.\nRun ID: `c6917f63cb8b1e5b`. All trials record NIKA commit\n`663784e8bea88499b157008299e9957c61905f48`.\n\n## Model and reference pricing\n\nThe checkpoint is [zai-org/GLM-4.7-Flash](https://huggingface.co/zai-org/GLM-4.7-Flash).\nThis run records a self-hosted endpoint; its metadata does not record the model\nrevision or serving precision.\n\nModel weights release date: 2026-01-19, from the\n[first weight upload](https://huggingface.co/zai-org/GLM-4.7-Flash/commit/75fce703a93da3705c4cf8d3caadbac1d1072c78).\nThe reviewed leaderboard catalog supplies the OpenRouter reference quote:\nUSD 0.0605 per million input tokens and USD 0.40 per million output tokens,\nretrieved 2026-10-14 from the [model page](https://openrouter.ai/z-ai/glm-4.7-flash)\nand [public model API](https://openrouter.ai/api/v1/models).\nThis estimates hosted token cost; the self-hosted GPU bill is not recorded.\n\n[Trajectories](https://huggingface.co/datasets/Zhihao98/nika-trajectories/tree/main/trajectories/0.2.0/20261015_react_glm_4_7_flash)",
   "trials": [

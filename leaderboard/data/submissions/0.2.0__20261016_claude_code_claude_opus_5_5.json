@@ -17,6 +17,11 @@
   "framework": "Claude Code",
   "agent_type": "cli.claude",
   "llm_provider": "anthropic",
+  "vendor": {
+    "id": "anthropic",
+    "label": "Anthropic",
+    "icon": "lobehub/anthropic.svg"
+  },
   "tools": [
     "containerlab_srl_mcp_server",
     "k8s_mcp_server",
@@ -77,6 +82,10 @@
   "run_id": "5971e18568010dd8",
   "official": true,
   "nika_git_commit": "dba357b3c0c6585f68d059a531c12619f8e9b3b3",
+  "model_icon": {
+    "label": "Claude",
+    "icon": "lobehub/claude.svg"
+  },
   "name": "Claude Opus 5.5 · Claude Code",
   "readme": "# Claude Opus 5.5\n\nNIKA's built-in `cli.claude` agent uses Claude Code CLI 2.1.280 with Anthropic-hosted\nClaude Opus 5.5 through subscription authentication. Each trial has separate diagnosis\nand structured-submission phases, using the benchmark release's allowed MCP servers.\nThe runtime model identifier is `claude-opus-5-5`.\n\nThis is an official NIKA release 0.2.0 `test` run: 85 tasks with three trials each,\nfor 255 scored trials. It used NIKA commit\n`dba357b3c0c6585f68d059a531c12619f8e9b3b3` with a clean checkout.\n\n## Configuration\n\n- Batch size: 8; heavy batch size: 1.\n- Maximum Claude Code turns: 20 per phase.\n- Maximum output tokens: 8,192 per model response.\n- Agent timeout: 1,800 seconds; entire-trial timeout: 2,400 seconds.\n- No custom skills or optimization methods are declared in this submission.\n\nTwo trials encountered sandbox-start failures before the agent ran. A single guarded\n`--resume` pass retried only those unscored trials. None of the 253 already-scored trials\nwas repeated. The final outcomes are 237 `success` and 18 `agent_failed`; completion\nstatus and diagnostic correctness are separate measurements.\n\n## Known caveat\n\nIn all three `p4_dc_gateway / tcp_syn_flood` trials, a container-limited Python process\nwas OOM-killed about 70 seconds after injection, and INT telemetry stopped updating.\nCode, memory limits, and timing strongly indicate the INT collector (`collector.py`,\n256 MiB container), which retains reports in an unbounded in-memory dictionary.\nDirect PID-to-container attribution was unavailable after teardown.\n\nFault-presence checks confirmed that flood-generator processes remained alive; they\ndid not measure the actual traffic rate. Interpret this task's results with the\nstale-telemetry caveat. The original trial results and trajectories are unchanged.\n\n## Links\n\n- Code: https://github.com/sands-lab/nika\n- Model: https://www.anthropic.com/claude-opus-5-5\n\n## Authors\n\n- Alessandro Cornacchia",
   "trials": [
