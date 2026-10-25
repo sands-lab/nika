@@ -138,13 +138,22 @@ Manual fallback for each lab: [IOS-XR](network-scenarios.md#ios-xr-simple-bgp-sc
 
 ## Set up Firecracker execution
 
-Benchmark runs that deploy every environment from scratch spend most of their time outside the agent. [Firecracker execution](firecracker.md) restores each trial's environment from a saved microVM instead. To set up the host for it and select it in `config/nika.yaml`:
+Benchmark runs that deploy every environment from scratch spend most of their time outside the agent. [Firecracker execution](firecracker.md) restores each trial's environment from a saved microVM instead.
+
+Prerequisites:
+
+- An x86-64 host with KVM (`/dev/kvm`).
+- At least 80 GiB of free disk on the disk that holds the checkout. The installer mounts a btrfs loop file at `runtime/firecracker` and leaves 20 GiB free for Docker images.
+
+> **Warning:** The installer reserves half of the host's memory as huge pages. Other applications cannot use that memory until you [uninstall NIKA](#uninstall).
+
+To set up the host and select Firecracker execution in `config/nika.yaml`:
 
 ```shell
 ./scripts/install.sh --with-firecracker
 ```
 
-It needs x86-64 and `/dev/kvm`, reserves half of the host's memory as huge pages, and mounts a btrfs loop file at `runtime/firecracker`. The installer ends with the steps it cannot do itself, such as a reboot. See [Set up the host](firecracker.md#set-up-the-host-once) for what it changes.
+The installer ends with the steps it cannot do itself, such as a reboot. See [Set up the host](firecracker.md#set-up-the-host-once) for what it changes and how the memory and disk are sized.
 
 ## Allow Containerlab link faults
 

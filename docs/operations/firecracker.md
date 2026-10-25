@@ -39,7 +39,8 @@ Firecracker execution needs:
   split, plus up to 20 GiB free while images are built. XFS also works, without
   compression, at about 3.5 times the size.
 * Memory to reserve as huge pages: the installer reserves half of the host's
-  memory (see [Huge pages and disk](#huge-pages-and-disk)).
+  memory, which other applications can then no longer use (see
+  [Huge pages and disk](#huge-pages-and-disk)).
 
 Stay with native execution for a single run of a few tasks, where each
 environment would be deployed once anyway, or on a host without KVM, the
@@ -60,8 +61,7 @@ It ends with a list of the steps left to you, typically a new login shell and
 sometimes a reboot. After those, run benchmarks as usual (see
 [Run benchmarks](#run-benchmarks)).
 
-The installer keeps these settings across reboots, and
-[uninstalling NIKA](installation.md#uninstall) removes them:
+The installer makes these changes, which persist across reboots:
 
 | Setting | What the installer does |
 |---|---|
@@ -71,6 +71,10 @@ The installer keeps these settings across reboots, and
 | Firecracker root | Mounts a btrfs loop file, `runtime/firecracker.img`, at `runtime/firecracker` through `/etc/fstab`, unless the root is already on btrfs or XFS. It installs `btrfs-progs` with apt when `mkfs.btrfs` is missing. |
 | Kathara network plugin | Installs it in the host's Docker. The base image copies it, with the runtime images and the k8s and Helm caches that the installer prepares, because the VM has no network of its own. |
 | Run config | Sets `nika.execution.mode: firecracker` in `config/nika.yaml`. |
+
+[Uninstalling NIKA](installation.md#uninstall) unmounts and deletes the loop
+file and removes the huge-page and userfaultfd settings, restoring the earlier
+huge-page reservation. Your `kvm` group membership and `config/nika.yaml` stay.
 
 Firecracker itself needs no installation. On first use NIKA builds
 Firecracker 1.17 with its nested virtualization patch in a Rust container,
