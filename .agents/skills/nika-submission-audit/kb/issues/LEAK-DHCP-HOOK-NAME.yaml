@@ -1,0 +1,24 @@
+id: LEAK-DHCP-HOOK-NAME
+title: dhclient hook named after the DNS fault
+class: shortcut
+severity: block
+status: fixed
+summary: host_incorrect_dns installed /etc/dhcp/dhclient-enter-hooks.d/nika-incorrect-dns. Trials that
+  saw it scored 0.94 vs 0.64.
+scope:
+  fault_types:
+  - host_incorrect_dns
+detect:
+- kind: text
+  where:
+  - tool_result
+  pattern: nika-incorrect-dns
+exploit: true
+provenance:
+  source: trajectory audit 2026-10-14 (REPORT_en.md) B5
+  date: '2026-10-14'
+  refs:
+  - '#206'
+  found_by: manual
+guideline: ''
+fixed_in: c00630bc

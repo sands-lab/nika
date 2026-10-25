@@ -1,0 +1,19 @@
+id: LURE-ENTERPRISE-BUFFERBLOAT
+title: enterprise_branch WAN bufferbloat on healthy labs
+class: healthy_lure
+role: known
+severity: warn
+status: fixed
+fixed_in: c00630bc
+summary: Business traffic filled the WAN queue and raised latency on healthy enterprise_branch labs, which
+  agents reported as faults. The WAN now uses fq_codel and stays below the latency threshold.
+scope:
+  scenarios:
+  - enterprise_branch
+  healthy: true
+provenance:
+  source: audit fix record for release 0.2.0 (FIX_STATUS, issue 206)
+  date: '2026-10-22'
+  refs:
+  - '#206'
+  found_by: live_audit

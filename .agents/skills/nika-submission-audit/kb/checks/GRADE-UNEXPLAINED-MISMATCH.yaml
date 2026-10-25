@@ -1,0 +1,18 @@
+id: GRADE-UNEXPLAINED-MISMATCH
+title: Submitted scores differ from a re-grade
+class: grading_error
+role: lead
+severity: block
+status: open
+summary: Re-scoring submission.json against ground_truth.json gives different metrics, and no known scoring
+  revision explains it.
+guideline: Compare the submission's NIKA commit with the scoring history (src/nika/evaluator/scoring.py).
+  An edited result file is a submission integrity problem; a scoring change without a recorded revision
+  needs a known issue with a regrade explain value.
+detect:
+- kind: regrade
+provenance:
+  source: built-in generic check
+  date: '2026-10-26'
+  refs: []
+  found_by: manual

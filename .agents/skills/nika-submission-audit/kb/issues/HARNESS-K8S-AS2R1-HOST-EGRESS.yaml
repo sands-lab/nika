@@ -1,0 +1,36 @@
+id: HARNESS-K8S-AS2R1-HOST-EGRESS
+title: In k8s_lab, as2r1's default route goes through a NATed Docker-bridge uplink, so traffic for unadvertised lab prefixes leaves the lab and gets host-dependent answers
+class: harness_defect
+severity: warn
+status: open
+summary: k8s_lab bridges as2r1 to Docker for internet connectivity (src/nika/net_env/k8s_lab/lab.py), masquerades
+  all egress on eth2 (as2r1.startup), and default-originates to as1r1 over BGP. In-lab addresses that BGP does not
+  carry (the 10.0.x.0/30 links) are therefore routed into the host or campus network. Traceroutes show 172.17.0.1
+  and public or campus hops, and an outside host answered a lab address with ttl=245. Reachability becomes
+  host-dependent, and the brief does not mention the uplink; it lured host_incorrect_gateway@node/as2r1.
+guideline: Counts when tool output shows as2r1's Docker default route (default via 172.x.x.1 dev eth2) or a
+  traceroute from inside the lab that leaves through a 172.16-31.x.1 hop. Matters most when the agent probes a
+  10.0.x.x link address or another unadvertised prefix and reasons about the answer, or blames as2r1's gateway.
+  Does not count for the controller's own Docker bridge, which only publishes the API port.
+scope:
+  scenarios:
+  - k8s_lab
+detect:
+- kind: text
+  where:
+  - tool_result
+  pattern: default via 172\.(?:1[6-9]|2\d|3[01])\.\d+\.1 dev eth2\b|(?m:^\s*\d+\s+172\.(?:1[6-9]|2\d|3[01])\.\d+\.1\s)
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-K8S-LAB-AS2R1-HOST-EGRESS)
+  date: '2026-10-28'
+  refs:
+  - k8s_lab__k8s_worker_apiserve__hc58ead3adbe3__t03:140
+  - k8s_lab__k8s_worker_apiserve__hc58ead3adbe3__t03:134
+  - k8s_lab__bgp_asn_misconfig__he4a55dc53b83__t01:39
+  found_by: agentic
+evidence:
+- 'k8s_lab__k8s_worker_apiserve__hc58ead3adbe3__t03 (20261016_claude_code_gpt_oss_120b) step 140: traceroute to
+  10.0.2.2 ... 1  3.0.0.1 ... 2  172.17.0.1 ... 3  192.168.64.1'
+- 'k8s_lab__k8s_worker_apiserve__hc58ead3adbe3__t03 step 134: 64 bytes from 10.0.1.2: icmp_seq=1 ttl=245 time=5.42 ms'
+- 'k8s_lab__bgp_asn_misconfig__he4a55dc53b83__t01 (20261014_claude_code_glm_4_7_flash) step 39: default via 172.17.0.1
+  dev eth2'

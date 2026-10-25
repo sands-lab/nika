@@ -1,0 +1,21 @@
+id: LEAK-INJECTOR-HELPER-LOGS
+title: Load and attack helpers leave named logs
+class: shortcut
+role: known
+severity: warn
+status: open
+summary: 'Traffic and attack helpers leave files whose names point at the fault: /var/tmp/http-load-N.log,
+  http-hold.py, iperf3_s_5201.log, burst-server-*.log, /tmp/iperf_c_*.sh.'
+guideline: The running process is the fault mechanism; a leftover file on one device, absent from its
+  peers, is the leak. Files the agent created itself (its own iperf runs) are excluded; scenario workload
+  servers (iperf3_s_* for business traffic since c00630bc) are design, not leaks.
+detect:
+- kind: text
+  exclude_authored: true
+  pattern: http-load-\d+\.log|http-hold\.py|iperf3_s_\d+\.log|burst-server-\S*\.log|iperf_c_\S+\.sh
+provenance:
+  source: red-team trace audit (qwen38, full, postfix reports)
+  date: '2026-10-20'
+  refs:
+  - red-team/qwen38/report.md
+  found_by: live_audit

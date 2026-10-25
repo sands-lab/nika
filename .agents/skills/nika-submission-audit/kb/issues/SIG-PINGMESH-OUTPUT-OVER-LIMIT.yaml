@@ -1,0 +1,18 @@
+id: SIG-PINGMESH-OUTPUT-OVER-LIMIT
+title: PingMesh output over the tool output limit
+class: signal_invisible
+severity: warn
+status: fixed
+fixed_in: c00630bc
+summary: About half of PingMesh outputs exceeded 10k characters and were cut; in about 30% of cut outputs
+  anomaly entries were lost. Default sampling was source-major and capped at 64 pairs without saying so.
+detect:
+- kind: text
+  tool: run_pingmesh_snapshot
+  exclude_authored: false
+  pattern: output of your last command was too long
+provenance:
+  source: trajectory audit 2026-10-14 (REPORT_en.md) B4
+  date: '2026-10-14'
+  refs: []
+  found_by: manual

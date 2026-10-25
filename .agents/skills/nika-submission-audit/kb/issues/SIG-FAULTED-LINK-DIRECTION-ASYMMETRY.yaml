@@ -1,0 +1,16 @@
+id: SIG-FAULTED-LINK-DIRECTION-ASYMMETRY
+title: Unimpaired direction of a faulted Kathara link is faster
+class: shortcut
+role: known
+severity: info
+status: open
+summary: On a Kathara link with the fault proxy, the unimpaired direction runs about 210 Mbit/s while
+  native VDE hubs run about 40 Mbit/s, which marks the faulted link to an agent that load-tests both directions.
+guideline: Residual of the VDE splice fix. Count it only when an agent measured both directions and used
+  the difference.
+provenance:
+  source: audit fix record for release 0.2.0 (FIX_STATUS, issue 206)
+  date: '2026-10-22'
+  refs:
+  - '#206'
+  found_by: live_audit

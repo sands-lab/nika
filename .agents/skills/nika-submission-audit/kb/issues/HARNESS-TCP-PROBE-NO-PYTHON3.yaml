@@ -1,0 +1,35 @@
+id: HARNESS-TCP-PROBE-NO-PYTHON3
+title: active_tcp_probe fails on nodes without python3
+class: harness_defect
+severity: warn
+status: open
+summary: >-
+  active_tcp_probe runs 'python3 -c' on the source and destination nodes (src/nika/traffic/active_probe.py).
+  isp_pdh PCs, min3clos clients and the k3s controller/worker nodes of k8s_lab and llmd_lab have no python3,
+  so the probe fails with '/bin/sh: python3: not found' whatever arguments the agent passes (99 failing
+  calls in 17 submissions; no isp_pdh probe ever succeeded).
+guideline: >-
+  The advertised tool cannot work on these nodes; the error is not a symptom of the network. An agent
+  that reads it as a down host or a broken service was misled. 'python3: not found' from the agent's own
+  exec_shell commands is not this issue.
+scope: {}
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: active_tcp_probe
+  exclude_authored: false
+  pattern: 'python3: not found'
+exploit: false
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-TCP-PROBE-NO-PYTHON3)
+  date: '2026-10-28'
+  refs:
+  - isp_pdh__bgp_acl_block__s__i__hbe4170621772__t01:29
+  - min3clos__bgp_asn_misconfig__h72c7bf7e08f2__t01:155
+  found_by: agentic
+evidence:
+- '20261012_react_gemma_4_31b_it isp_pdh__bgp_acl_block__s__i__hbe4170621772__t01 step 29: {"source":
+  "pc_n1", "destination": "pc_n10", ...} -> "result": "/bin/sh: python3: not found"'
+- '20261019_claude_code_qwen3_coder_next_fp8 min3clos__bgp_asn_misconfig__h72c7bf7e08f2__t01 step 155:
+  "source": "client2", "destination": "client1", ... "result": "/bin/sh: python3: not found"'

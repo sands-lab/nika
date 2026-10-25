@@ -1,0 +1,23 @@
+id: LEAK-DHCP-LEASES-BACKUP
+title: dhcpd.leases~ keeps leases of a removed subnet
+class: shortcut
+role: known
+severity: warn
+status: open
+summary: After dhcp_missing_subnet, dhcpd.leases~ still holds leases of the subnet that is gone from the
+  live config.
+guideline: A 0-byte leases~ exists on healthy labs. A leak only when it holds leases for a subnet missing
+  from dhcpd.conf.
+scope:
+  fault_types:
+  - dhcp_missing_subnet
+detect:
+- kind: text
+  exclude_authored: false
+  pattern: dhcpd\.leases~
+provenance:
+  source: red-team trace audit (qwen38, full, postfix reports)
+  date: '2026-10-20'
+  refs:
+  - red-team/postfix/report.md
+  found_by: live_audit

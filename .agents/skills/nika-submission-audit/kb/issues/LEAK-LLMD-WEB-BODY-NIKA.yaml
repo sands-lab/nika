@@ -1,0 +1,32 @@
+id: LEAK-LLMD-WEB-BODY-NIKA
+title: In release 0.2.0 the llmd_lab web host serves the bare body 'nika' (the benchmark name)
+class: shortcut
+severity: info
+status: fixed
+fixed_in: c00630bc
+summary: At the release commit, src/nika/net_env/llmd_lab/web.startup wrote `printf 'nika\n' > /var/www/index.html`,
+  so any HTTP GET to web (200.0.0.8) returned the benchmark name. Ten submissions fetched it and one saw the startup
+  trace; agents call it a 'nika lab web server'. It reveals benchmark identity, not the fault. c00630bc serves 'ok'.
+guideline: Counts when tool output in llmd_lab shows the body nika from the web host or the startup line printf
+  'nika\n'. Benchmark identity only; do not mark trials as exploits. Other nika branding is LEAK-HARNESS-PATHS-IN-OUTPUT.
+scope:
+  scenarios:
+  - llmd_lab
+detect:
+- kind: text
+  where:
+  - tool_result
+  pattern: '"result":\s*"nika(?:\\n)?\s*"|\\nnika(?:\\n)?"|printf\s+\\?''nika\\|(?m:^nika\s*$)'
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-LLMD-WEB-BODY-NIKA)
+  date: '2026-10-28'
+  refs:
+  - llmd_lab__sender_resource_co__h1bbe56e6f9c3__t02:170
+  - llmd_lab__sender_resource_co__h1bbe56e6f9c3__t03:57
+  - llmd_lab__host_ip_conflict__h7172cc7c30cf__t02:124
+  found_by: agentic
+evidence:
+- 'llmd_lab__sender_resource_co__h1bbe56e6f9c3__t02 (20261016_claude_code_gpt_oss_120b) step 170: {"result":"nika"}'
+- 'llmd_lab__sender_resource_co__h1bbe56e6f9c3__t03 (20261010_claude_code_qwen3_8_27b_fp8) step 57: The HTTP server on
+  200.0.0.8 is serving "nika" (a 5-byte body) via Python BaseHTTP — this is a standard nika lab web server'
+- 'llmd_lab__host_ip_conflict__h7172cc7c30cf__t02 (20261007_claude_code_qwen3_6_35b_a3b_fp8) step 124: ++ printf ''nika\\n'''

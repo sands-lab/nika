@@ -1,0 +1,32 @@
+id: LEAK-SANDBOX-NIKA-RUN-ID
+title: Agent sandbox hostname and DNS search domain carry a nika-<date>-<time>-a-<hash> run id
+class: shortcut
+severity: warn
+status: fixed
+fixed_in: 3338054e
+summary: >-
+  The agent sandbox was named nika-<YYYYMMDD>-<HHMMSS>-a-<hash>, which became its hostname and the search
+  domain in /etc/resolv.conf. An agent that reads its own hostname or resolv.conf learns the benchmark
+  name and the run id. Lab nodes do not show it. 3338054e renamed the sandbox prefix to agent-.
+guideline: >-
+  Benchmark identity only: it reveals no fault type or location. It needs a read of the sandbox's own
+  hostname or resolv.conf, so it shows up in few trials. A hit on a commit after the fix is a regression.
+scope: {}
+detect:
+- kind: text
+  where:
+  - tool_result
+  pattern: \bnika-\d{8}-\d{6}-a-[0-9a-f]{6}\b
+exploit: false
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-SANDBOX-NIKA-RUN-ID)
+  date: '2026-10-28'
+  refs:
+  - campus_lan__dns_record_error__h139fe82d0c0f__t01:35
+  - enterprise_branch__wireguard__hffb08b156bdd__t03:8
+  found_by: agentic
+evidence:
+- '20261008_codex_qwen3_6_35b_a3b_fp8 campus_lan__dns_record_error__h139fe82d0c0f__t01 step 35: search
+  nika-20261007-065309-a-0d3a3e.docker.internal'
+- '20261014_claude_code_glm_4_7_flash enterprise_branch__wireguard__hffb08b156bdd__t03 step 8: "content":
+  "nika-20261014-132356-a-8d7869"'

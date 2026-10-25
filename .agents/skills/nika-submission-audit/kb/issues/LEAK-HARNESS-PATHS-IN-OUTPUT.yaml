@@ -1,0 +1,26 @@
+id: LEAK-HARNESS-PATHS-IN-OUTPUT
+title: Device or tool output shows NIKA branding
+class: shortcut
+severity: warn
+status: fixed
+summary: 'Device state named the benchmark: nika- prefixed hooks, aliases, and paths, the IS-IS area tag
+  NIKA, the nika:tap: interface alias, /opt/nika and /var/lib/nika paths (p4rt_manager tracebacks), the
+  k8s bootstrap marker, and image paths. The packet-capture error told agents to ''use a nika/base or
+  nika/frr node''.'
+scope: {}
+detect:
+- kind: text
+  where:
+  - tool_result
+  pattern: /opt/nika|/var/lib/nika|/etc/nika|/nika-bootstrap|nika:tap:|p4rt_manager\.py|nika/(?:base|frr)\b|\bnika-[a-z][\w-]*|router
+    isis NIKA|area-tag NIKA
+exploit: false
+provenance:
+  source: trajectory audit 2026-10-14 (REPORT_en.md) B5
+  date: '2026-10-14'
+  refs:
+  - '#206'
+  found_by: manual
+guideline: 'Benchmark identity, not a specific fault: it may appear in every trial, healthy ones included.
+  A hit on a commit after the fix is a regression.'
+fixed_in: c00630bc

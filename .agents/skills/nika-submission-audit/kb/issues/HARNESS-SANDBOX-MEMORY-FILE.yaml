@@ -1,0 +1,19 @@
+id: HARNESS-SANDBOX-MEMORY-FILE
+title: Sandbox template memory file loaded into the agent
+class: harness_privilege
+severity: warn
+status: fixed
+fixed_in: c00630bc
+summary: The sbx template's 421-line CLAUDE.md was loaded as agent memory.
+detect:
+- kind: text
+  where:
+  - init
+  exclude_authored: false
+  pattern: memory_paths\"?:\s*\[[^\]]*CLAUDE\.md
+provenance:
+  source: issue 206 comment
+  date: '2026-10-16'
+  refs:
+  - '#206'
+  found_by: manual

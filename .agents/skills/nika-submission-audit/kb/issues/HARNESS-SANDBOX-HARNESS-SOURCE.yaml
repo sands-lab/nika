@@ -1,0 +1,19 @@
+id: HARNESS-SANDBOX-HARNESS-SOURCE
+title: Agent sandbox contained harness source
+class: harness_privilege
+role: known
+severity: block
+status: fixed
+fixed_in: c00630bc
+summary: 'The agent sandbox held a copy of the agent harness source, including the evaluation judge template
+  (''Ground Truth: {ground_truth}'') and mock_agent.py.'
+detect:
+- kind: text
+  exclude_authored: false
+  pattern: 'mock_agent\.py|LLM_JUDGE_PROMPT|Ground Truth: \{ground_truth\}'
+provenance:
+  source: audit fix record for release 0.2.0 (FIX_STATUS, issue 206)
+  date: '2026-10-22'
+  refs:
+  - '#206'
+  found_by: live_audit

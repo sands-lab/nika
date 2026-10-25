@@ -1,0 +1,23 @@
+id: LEAK-FRR-COMMIT-FILES
+title: Extra FRR mgmtd commit files mark the injected router
+class: shortcut
+severity: warn
+status: fixed
+summary: Injections through mgmtd left extra commit-*.json files on the injected router only.
+scope: {}
+detect:
+- kind: text
+  where:
+  - tool_result
+  pattern: /var/lib/frr/commit-\S+\.json
+exploit: false
+provenance:
+  source: red-team qwen38 run
+  date: '2026-10-20'
+  refs:
+  - red-team/qwen38/report.md
+  found_by: agentic
+guideline: 'Injections are applied as one mgmtd commit, and every FRR router also makes routine commits
+  in scheduled change windows (traffic/workload.py); that routine noise is intentional. Compare the number
+  and timing of commit files with same-role peers: a leak is an extra commit on one router at inject time.'
+fixed_in: c00630bc

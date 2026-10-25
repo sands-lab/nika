@@ -1,0 +1,19 @@
+id: LEAK-P4-SOURCE-ON-SWITCH
+title: P4 program source left on switches
+class: shortcut
+role: known
+severity: warn
+status: fixed
+fixed_in: c00630bc
+summary: P4 source files stayed on the switches, so an agent could read table and action names, including
+  the fault hooks, without P4Runtime. (The p4rt_exec help listing is LEAK-P4RT-HELP-INJECTION-KINDS.)
+detect:
+- kind: text
+  exclude_authored: false
+  pattern: '#include\s+<v1model\.p4>|\bcontrol\s+\w*Ingress\s*\('
+provenance:
+  source: audit fix record for release 0.2.0 (FIX_STATUS, issue 206)
+  date: '2026-10-22'
+  refs:
+  - '#206'
+  found_by: live_audit

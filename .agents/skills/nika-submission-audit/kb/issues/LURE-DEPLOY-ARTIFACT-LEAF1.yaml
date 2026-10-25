@@ -1,0 +1,21 @@
+id: LURE-DEPLOY-ARTIFACT-LEAF1
+title: Deployment artifacts single out one device
+class: healthy_lure
+role: known
+severity: info
+status: open
+summary: 'Deployment leaves artifacts on one device that look like injection traces: the P4 compile output
+  (/tmp/fabric.*, /tmp/gateway.*) always on leaf_1 (fabric_manager apply uses leaves[0]), sr_cli and .pyc
+  traces of readiness probes, /tmp/onos_batch.py, /tmp/EOS, nika-import.log.'
+guideline: These are in every healthy lab. Count a hit only when the agent used the artifact to pick its
+  answer (for example blaming leaf_1).
+detect:
+- kind: text
+  exclude_authored: false
+  pattern: /tmp/(?:fabric|gateway)\.(?:json|p4info|p4i)|/tmp/onos_batch\.py|nika-import\.log
+provenance:
+  source: red-team trace audit (qwen38, full, postfix reports)
+  date: '2026-10-20'
+  refs:
+  - red-team/qwen38/report.md
+  found_by: live_audit

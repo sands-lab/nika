@@ -1,0 +1,30 @@
+id: LEAK-K8S-PROMPT-FAULT-ONLY-WORDING
+title: k8s_lab fault prompts carry a reporting sentence that healthy prompts lack
+class: shortcut
+severity: warn
+status: open
+summary: >-
+  In release 0.2.0 every k8s_lab fault-task prompt ends with "Report faulty
+  devices using lab device names, not Kubernetes object names", and no k8s_lab
+  healthy-task prompt does (252 fault trials, 0 healthy). An agent that has
+  seen both variants can tell from the prompt alone that a fault was injected.
+guideline: >-
+  The sentence names no device and no fault type, so it does not reveal which
+  fault; it reveals whether there is one. Check the prompts of healthy and
+  faulted tasks of the same environment side by side: wording that differs
+  only by task variant is a leak even when it looks like a harmless
+  instruction. Earlier audit runs saw this sentence and dismissed it as a
+  false positive of the leak-term check.
+scope:
+  scenarios: [k8s_lab]
+detect:
+- kind: text
+  where: [prompt]
+  pattern: Report faulty devices using lab device names
+provenance:
+  source: submission-audit runs 2026-10-28, confirmed on trajectories (REF-K8S-PROMPT-FAULT-WORDING)
+  date: '2026-10-28'
+  refs:
+  - 'k8s_lab__k8s_clusterip_routi__he53ec359efd5__t01:1'
+  - 'k8s_lab__k8s_networkpolicy_d__hadf9af15da3f__t01:1'
+  found_by: agentic

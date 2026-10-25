@@ -1,0 +1,23 @@
+id: FNR-COREDNS-NO-LOOKUP
+title: CoreDNS isolation without new lookups
+class: fault_not_realized
+severity: warn
+status: fixed
+summary: No workload performed a new DNS lookup; the ground truth was a Kubernetes Service while the prompt
+  asks for devices.
+scope:
+  fault_types:
+  - k8s_coredns_isolated
+guideline: After the fix this case should no longer fail for every configuration. If it still does on
+  a post-fix commit, reproduce it in a live lab (nika benchmark audit stages symptom and persistence).
+detect:
+- kind: metric
+  metric: case_fail_rate
+  threshold: 0.95
+  min_trials: 6
+provenance:
+  source: trajectory audit 2026-10-14 (REPORT_en.md) B2 and 3.1
+  date: '2026-10-14'
+  refs: []
+  found_by: manual
+fixed_in: c00630bc

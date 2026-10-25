@@ -1,0 +1,36 @@
+id: LURE-K8S-VIP-ICMP-LOOP
+title: k8s_lab ingress VIP 101.0.0.1 loops ICMP between a leaf and a worker
+class: healthy_lure
+severity: warn
+status: open
+summary: >-
+  On fault-free k8s_lab, ping to the MetalLB ingress VIP 101.0.0.1 loops between a leaf and the advertising
+  worker until TTL expiry (Time to live exceeded; traceroute alternates 192.168.0.2 / 201.2.1.2), while
+  HTTP to the VIP works. The worker has no local address for the VIP; only kube-proxy's TCP/80 and TCP/443
+  rules catch traffic to it. The brief does not state this. Healthy trials of 14 submissions saw it and
+  answered flow_rule_loop, host_static_blackhole, bgp_hijacking or k8s_clusterip_routing_broken.
+guideline: >-
+  A TTL-exceeded loop for ICMP to 101.0.0.1 with working HTTP to the VIP is the baseline. Loops for other
+  destinations, or failing HTTP to the VIP, are not this issue. Separate from LURE-K8S-DC-EXIT-STATIC
+  (dc_exit FRR).
+scope:
+  scenarios:
+  - k8s_lab
+detect:
+- kind: text
+  where:
+  - tool_result
+  pattern: PING 101\.0\.0\.1 [\s\S]{0,300}?Time to live exceeded
+exploit: false
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-LURE-K8S-VIP-ICMP-LOOP)
+  date: '2026-10-28'
+  refs:
+  - k8s_lab__healthy__t01:40
+  - k8s_lab__healthy__t01:44
+  found_by: agentic
+evidence:
+- '20261016_claude_code_claude_sonnet_5_5 k8s_lab__healthy__t01 step 40: PING 101.0.0.1 (101.0.0.1) 56(84)
+  bytes of data. From 201.2.1.2 icmp_seq=1 Time to live exceeded'
+- '20261016_claude_code_claude_sonnet_5_5 k8s_lab__healthy__t01 step 44: 8 192.168.0.2 ... 9 201.2.1.2
+  ... 10 192.168.0.2 ... 11 201.2.1.2'

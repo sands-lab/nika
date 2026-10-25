@@ -1,0 +1,22 @@
+id: LURE-ISP-ABILENE-PASSIVE-INTER-AS
+title: 'isp_abilene: healthy baseline lure'
+class: healthy_lure
+severity: warn
+status: fixed
+fixed_in: c00630bc
+summary: Inter-AS OSPF is passive by design and PingMesh showed about 50% of pairs unreachable at baseline;
+  agents reported OSPF/BGP faults.
+scope:
+  scenarios:
+  - isp_abilene
+detect:
+- kind: metric
+  metric: healthy_label_share
+  threshold: 0.3
+  min_trials: 3
+  pattern: ospf_|bgp_
+provenance:
+  source: trajectory audit 2026-10-14 (REPORT_en.md) B1
+  date: '2026-10-14'
+  refs: []
+  found_by: manual
