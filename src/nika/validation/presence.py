@@ -163,13 +163,21 @@ def recheck_bound_artifact(session_id: str) -> dict[str, Any]:
 
 
 def recheck_artifact_with_retry(problem: Any, params: Any) -> dict[str, Any]:
-    """Read the artifact again once after an absent read; never replay injection.
+    """Read the artifact again once after an absent or failed read; never replay injection.
 
     Many checks reduce a timed-out command to a boolean, so a busy container
-    can read as absent once.
+    can read as absent once. A parser that raises on a ``[TIMEOUT]`` sentinel
+    is retried the same way.
     """
+    raw: Any = None
     for attempt in range(2):
-        raw = problem.recheck_artifact(params)
+        try:
+            raw = problem.recheck_artifact(params)
+        except Exception:  # noqa: BLE001 - retry a transient timeout once
+            if attempt == 0:
+                time.sleep(1.0)
+                continue
+            raise
         if not isinstance(raw, dict) or raw.get("present"):
             return raw
         if attempt == 0:

@@ -54,6 +54,7 @@ class ArpCachePoisoning(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
         self.logger = system_logger
+        self._poisoned_neighbor: str | None = None
 
     def root_cause_resources(self, params: ArpCachePoisoningParams):
         return [node_resource(params.host_name)]
@@ -95,6 +96,7 @@ class ArpCachePoisoning(ProblemBase):
 
     def inject_fault(self, params: ArpCachePoisoningParams):
         gateway, dev = self._arp_target(params)
+        self._poisoned_neighbor = gateway
         # Clos/P4 install nud permanent GW neigh; arp -s does not reliably override.
         self.runtime.exec(params.host_name, "ip neigh flush nud permanent")
         self.runtime.exec(params.host_name, "ip neigh flush all")
@@ -128,7 +130,9 @@ class ArpCachePoisoning(ProblemBase):
 
     def verify_fault(self, params: ArpCachePoisoningParams) -> dict:
         """Verify the ARP cache has the fake MAC for the poisoned neighbor."""
-        gateway, _dev = self._arp_target(params)
+        gateway = self._poisoned_neighbor
+        if gateway is None:
+            gateway, _dev = self._arp_target(params)
         neigh_output = self.runtime.exec(
             params.host_name, f"ip neigh show | grep '{params.fake_mac}'"
         ).strip()

@@ -132,6 +132,22 @@ class LabOpsTest:
 
         assert runtime.get_default_gateway("pc1") == "10.0.0.1"
 
+    def test_json_parsers_report_exec_timeout(self):
+        timeout = "[TIMEOUT] Command 'ip -j route' on 'pc1' exceeded 10s."
+        runtime = _StubRuntime(
+            {
+                ("pc1", "ip -j route"): timeout,
+                ("pc1", "ip -j addr"): timeout,
+            }
+        )
+
+        with pytest.raises(RuntimeError, match="Timed out running `ip -j route`"):
+            runtime.get_default_gateway("pc1")
+        with pytest.raises(RuntimeError, match="Timed out running `ip -j addr`"):
+            runtime.get_host_ip("pc1")
+        with pytest.raises(RuntimeError, match="Timed out running `ip -j addr`"):
+            runtime.get_host_interfaces("pc1")
+
     def test_add_nft_drop_rule_builds_commands(self):
         runtime = _StubRuntime()
         runtime.add_nft_drop_rule("router1", "tcp dport 179 drop")
