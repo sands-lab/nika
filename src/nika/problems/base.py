@@ -106,6 +106,7 @@ class ProblemBase:
     isp_protocol: ClassVar[dict[str, Any] | None] = None
     required_capabilities: ClassVar[tuple[str, ...] | list[str]] = ()
     supported_backends: ClassVar[tuple[str, ...] | list[str] | None] = None
+    minimum_path_bdp_bytes: ClassVar[int] = 0
     # Native router failure operations (``problems/support/router_ops.py``)
     # this failure needs when its target is a native router (IOS XR, RouterOS).
     # ``None``: no native implementation, so targets stay on FRR/Linux nodes.
@@ -140,8 +141,17 @@ class ProblemBase:
     BENCHMARK_COORDINATES: ClassVar[frozenset[str]] = frozenset()
 
     @classmethod
-    def is_compatible(cls, target: str, device_profile: str | None = None) -> bool:
+    def is_compatible(
+        cls,
+        target: str,
+        device_profile: str | None = None,
+        *,
+        backend: str | None = None,
+    ) -> bool:
         """Return whether this failure can inject usefully on ``target``.
+
+        Declared backend support and path BDP requirements must also fit the
+        deployment. Unknown path limits still require runtime calibration.
 
         Single failure/scenario compatibility predicate. ``target`` is a scenario
         id or a coverage column id (``isp_<topo>/<config>``). TAGS must be a
@@ -158,12 +168,29 @@ class ProblemBase:
             effective_tags,
             parse_column,
             scenario_device_profiles,
+            scenario_supported_backends,
+            scenario_path_bdp_limit_bytes,
         )
 
         if device_profile not in (None, "", "frr", "nokia_srlinux") and (
             device_profile not in scenario_device_profiles(target.partition("/")[0])
         ):
             return False
+
+        backends = set(scenario_supported_backends(target.partition("/")[0]))
+        if backend is not None:
+            backends &= {backend}
+        if cls.supported_backends is not None:
+            backends &= set(cls.supported_backends)
+        if not backends:
+            return False
+
+        if cls.minimum_path_bdp_bytes:
+            ceiling = scenario_path_bdp_limit_bytes(
+                target.partition("/")[0], device_profile
+            )
+            if ceiling is not None and ceiling < cls.minimum_path_bdp_bytes:
+                return False
 
         allowed = cls.COMPATIBLE_COLUMNS
         if (

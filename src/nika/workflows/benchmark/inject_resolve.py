@@ -294,7 +294,11 @@ def validate_benchmark_case(
     if problem_cls is None:
         raise ValueError(f"Unknown problem {problem!r}")
 
-    if not problem_cls.is_compatible(canonical):
+    if not problem_cls.is_compatible(
+        canonical,
+        (isp_options or {}).get("device_profile"),
+        backend=_resolve_benchmark_backend(canonical, isp_options),
+    ):
         compatible_columns = problem_cls.COMPATIBLE_COLUMNS
         raise ValueError(
             f"Incompatible {problem} on {scenario}: problem tags "

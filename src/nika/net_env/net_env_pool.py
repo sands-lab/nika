@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from nika.net_env.base import NetworkEnvBase, ProbePath
+from nika.net_env.enterprise_branch.topology import UNDERLAY_ONE_WAY_DELAY_MS
 from nika.topology.catalog import (
     SNDLIB_TOPOLOGY_NAMES,
     ZOO_TOPOLOGY_NAMES,
@@ -57,6 +58,8 @@ class NetEnvSpec:
     # binding names the class that deploys the same scenario on that platform;
     # the scenario default remains the class bound above.
     device_profiles: Mapping[str, BackendEnvBinding] | None = None
+    # Designed unloaded RTT of the benchmark WAN flow, when specified.
+    nominal_path_rtt_ms: float | None = None
 
     @property
     def LAB_NAME(self) -> str:
@@ -180,6 +183,7 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         topo_size=["s", "m", "l"],
     ),
     "enterprise_branch": NetEnvSpec(
+        nominal_path_rtt_ms=4 * UNDERLAY_ONE_WAY_DELAY_MS,
         lab_name="enterprise_branch",
         module="nika.net_env.enterprise_branch.lab",
         class_name="EnterpriseBranch",
@@ -600,6 +604,23 @@ def effective_tags(column: str) -> frozenset[str]:
             return _ISP_COVERAGE_BASE_TAGS | frozenset({"ospf", "bgp", "ebgp"})
         raise ValueError(f"Unknown isp config {config!r} for {scenario!r}")
     return frozenset(scenario_tags(scenario))
+
+
+def scenario_path_bdp_limit_bytes(
+    scenario_name: str, device_profile: str | None = None
+) -> float | None:
+    """Nominal path BDP ceiling for profiles with a known forwarding limit.
+
+    The shipped CHR image uses the free license (1 Mbps upload per interface):
+    https://help.mikrotik.com/docs/spaces/ROS/pages/18350234/Cloud+Hosted+Router+CHR
+    Unknown RTTs or unrestricted profiles have no declared ceiling. Runtime
+    calibration must still check the actual flow before changing TCP buffers.
+    """
+    bandwidth_bps = {"routeros": 1_000_000}.get(device_profile)
+    rtt_ms = _require_scenario(scenario_name).nominal_path_rtt_ms
+    if bandwidth_bps is None or rtt_ms is None:
+        return None
+    return bandwidth_bps * rtt_ms / 8000
 
 
 def scenario_device_profiles(scenario_name: str) -> tuple[str, ...]:

@@ -90,7 +90,8 @@ class IncastTrafficNetworkLimitationParams(BaseModel):
             "20M/64, or 500K when the forwarding device is a BMv2 switch."
         ),
     )
-    packet_size: int = Field(default=1400, description="UDP payload bytes.")
+    # Leave IP/UDP header room on tunnel paths (for example, WireGuard MTU 1420).
+    packet_size: int = Field(default=1200, description="UDP payload bytes.")
     duration: int = Field(default=3600, gt=0, description="Burst traffic seconds.")
     seed: int = Field(default=7, description="Deterministic flow-port seed.")
     probe_dst_ip: str | None = Field(
@@ -299,26 +300,35 @@ class IncastTrafficNetworkLimitation(ProblemBase):
     def _fan_in_senders(
         self, params: IncastTrafficNetworkLimitationParams
     ) -> list[str]:
+        def running_sender(host: str, pid: int | str) -> bool:
+            # A scheduled shell is not traffic, and zombies have no executable.
+            executable = (
+                self.runtime.exec(
+                    host, f"readlink /proc/{pid}/exe 2>/dev/null || true", timeout=10
+                )
+                .strip()
+                .rsplit("/", 1)[-1]
+            )
+            return executable == "iperf3" or executable.startswith("python")
+
         if self._burst_pids:
             return [
                 host
                 for host, pid in self._burst_pids.items()
-                if self.runtime.exec(
-                    host, f"kill -0 {pid} 2>/dev/null && echo yes || true", timeout=10
-                ).strip()
-                == "yes"
+                if running_sender(host, pid)
             ]
         receiver_ip = self._receiver_ip or self._host_ip(params.host_name)
         senders = self._senders or self._sender_pool(params.host_name)
         # ``-[c]`` keeps pgrep from matching the wrapper shell's own command line.
         pattern = f"iperf3 -[c] {receiver_ip} "
-        return [
-            host
-            for host in senders
-            if self.runtime.exec(
+        active = []
+        for host in senders:
+            pids = self.runtime.exec(
                 host, f"pgrep -f '{pattern}' || true", timeout=10
-            ).strip()
-        ]
+            ).split()
+            if any(pid.isdigit() and running_sender(host, pid) for pid in pids):
+                active.append(host)
+        return active
 
     def verify_fault(self, params: IncastTrafficNetworkLimitationParams) -> dict:
         """Verify the shallow egress queue and the running many-to-one bursts."""

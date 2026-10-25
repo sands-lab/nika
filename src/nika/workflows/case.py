@@ -42,14 +42,16 @@ def load_example_cases(
         if is_healthy_case(row["problem"]) or len(row.get("problems", [])) > 1:
             continue
         cls = get_problem_class(row["problem"], row["scenario"])
-        if cls is None or not cls.is_compatible(row["scenario"]):
+        if cls is None:
             continue
         backend = resolve_scenario_backend(
             row["scenario"],
             backend=row.get("backend"),
             default_when_ambiguous="kathara",
         )
-        if cls.supported_backends and backend not in cls.supported_backends:
+        if not cls.is_compatible(
+            row["scenario"], row.get("device_profile"), backend=backend
+        ):
             continue
         cases[task_id_for_row(row)] = {
             **row,
