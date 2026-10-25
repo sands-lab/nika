@@ -46,6 +46,7 @@
     "thinking_configuration": "Explicit enable_thinking=true set during the run; earlier trials used the prior serving defaults.",
     "retry_policy": "Targeted replacement of one deployment error and 14 endpoint/long-wait failures; two of those trials repeated after backend preemption. Model no-output failures retained; no best-of score selection."
   },
+  "reasoning_effort": null,
   "benchmark_version": "0.2.0",
   "split": "test",
   "case_count": 85,

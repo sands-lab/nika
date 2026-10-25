@@ -24,6 +24,7 @@
       "optimization_methods": [],
       "tags": [],
       "extra": {},
+      "reasoning_effort": null,
       "benchmark_version": "0.1.0",
       "split": "test",
       "case_count": 150,
@@ -86,6 +87,7 @@
         "slides"
       ],
       "extra": {},
+      "reasoning_effort": null,
       "benchmark_version": "0.1.0",
       "split": "test",
       "case_count": 150,
@@ -154,6 +156,7 @@
         "slides"
       ],
       "extra": {},
+      "reasoning_effort": null,
       "benchmark_version": "0.1.0",
       "split": "test",
       "case_count": 150,
@@ -217,6 +220,7 @@
       "optimization_methods": [],
       "tags": [],
       "extra": {},
+      "reasoning_effort": null,
       "benchmark_version": "0.1.0",
       "split": "test",
       "case_count": 150,
@@ -283,6 +287,7 @@
         "slides"
       ],
       "extra": {},
+      "reasoning_effort": null,
       "benchmark_version": "0.1.0",
       "split": "test",
       "case_count": 150,
@@ -350,6 +355,7 @@
         "slides"
       ],
       "extra": {},
+      "reasoning_effort": null,
       "benchmark_version": "0.1.0",
       "split": "test",
       "case_count": 150,
@@ -422,6 +428,7 @@
       "extra": {
         "gepa_variant": "d+s"
       },
+      "reasoning_effort": null,
       "benchmark_version": "0.1.0",
       "split": "test",
       "case_count": 150,
@@ -495,6 +502,7 @@
       "extra": {
         "gepa_variant": "d"
       },
+      "reasoning_effort": null,
       "benchmark_version": "0.1.0",
       "split": "test",
       "case_count": 150,
@@ -563,6 +571,7 @@
       "optimization_methods": [],
       "tags": [],
       "extra": {},
+      "reasoning_effort": null,
       "benchmark_version": "0.1.0",
       "split": "test",
       "case_count": 150,
@@ -634,6 +643,7 @@
         "replication"
       ],
       "extra": {},
+      "reasoning_effort": null,
       "benchmark_version": "0.1.0",
       "split": "test",
       "case_count": 150,
@@ -706,6 +716,7 @@
         "slides"
       ],
       "extra": {},
+      "reasoning_effort": null,
       "benchmark_version": "0.1.0",
       "split": "test",
       "case_count": 150,
@@ -800,6 +811,7 @@
         "heavy_batch_size": 1,
         "nika_git_commit": "dba357b3c0c6585f68d059a531c12619f8e9b3b3"
       },
+      "reasoning_effort": null,
       "benchmark_version": "0.2.0",
       "split": "test",
       "case_count": 85,
@@ -885,6 +897,7 @@
         "heavy_batch_size": 1,
         "nika_git_commit": "dba357b3c0c6585f68d059a531c12619f8e9b3b3"
       },
+      "reasoning_effort": null,
       "benchmark_version": "0.2.0",
       "split": "test",
       "case_count": 85,
@@ -970,6 +983,7 @@
         "case_timeout_sec": 2400,
         "nika_git_commit": "5096d23a3b79cd0d425d65ef1ebcb647ac2e8918"
       },
+      "reasoning_effort": "high",
       "benchmark_version": "0.2.0",
       "split": "test",
       "case_count": 85,
@@ -1001,7 +1015,7 @@
       "run_id": "5a215b1c49811afe",
       "official": true,
       "nika_git_commit": "5096d23a3b79cd0d425d65ef1ebcb647ac2e8918",
-      "name": "GPT-6.1 Sol · Codex",
+      "name": "GPT-6.1 Sol (high) · Codex",
       "rca_f1_ci": [
         0.597387,
         0.766735
@@ -1052,6 +1066,7 @@
         "agent_timeout_sec": 14400,
         "case_timeout_sec": 15000
       },
+      "reasoning_effort": null,
       "benchmark_version": "0.2.0",
       "split": "test",
       "case_count": 85,
@@ -1136,6 +1151,7 @@
         "agent_timeout_sec": 14400,
         "case_timeout_sec": 15000
       },
+      "reasoning_effort": null,
       "benchmark_version": "0.2.0",
       "split": "test",
       "case_count": 85,
@@ -1227,6 +1243,7 @@
         "heavy_batch_size": 1,
         "nika_git_commit": "dba357b3c0c6585f68d059a531c12619f8e9b3b3"
       },
+      "reasoning_effort": null,
       "benchmark_version": "0.2.0",
       "split": "test",
       "case_count": 85,
@@ -1322,6 +1339,7 @@
         "heavy_batch_size": 1,
         "nika_commit": "ce0d0ba598ba1a6a09b712f8b52bab6a54c0806d"
       },
+      "reasoning_effort": null,
       "benchmark_version": "0.2.0",
       "split": "test",
       "case_count": 85,
@@ -1408,6 +1426,7 @@
         "agent_timeout_sec": 14400,
         "case_timeout_sec": 15000
       },
+      "reasoning_effort": null,
       "benchmark_version": "0.2.0",
       "split": "test",
       "case_count": 85,
@@ -1496,6 +1515,7 @@
         "agent_timeout_sec": 14400,
         "case_timeout_sec": 15000
       },
+      "reasoning_effort": null,
       "benchmark_version": "0.2.0",
       "split": "test",
       "case_count": 85,
@@ -1585,6 +1605,7 @@
         "model_repository": "google/gemma-4-31B-it",
         "serving_precision": "BF16"
       },
+      "reasoning_effort": null,
       "benchmark_version": "0.2.0",
       "split": "test",
       "case_count": 85,
@@ -1675,6 +1696,7 @@
         "agent_timeout_sec": 1800,
         "case_timeout_sec": 2400
       },
+      "reasoning_effort": null,
       "benchmark_version": "0.2.0",
       "split": "test",
       "case_count": 85,
@@ -1764,6 +1786,7 @@
         "agent_timeout_sec": 14400,
         "case_timeout_sec": 15000
       },
+      "reasoning_effort": null,
       "benchmark_version": "0.2.0",
       "split": "test",
       "case_count": 85,
@@ -1855,6 +1878,7 @@
         "agent_timeout_sec": 14400,
         "case_timeout_sec": 15000
       },
+      "reasoning_effort": null,
       "benchmark_version": "0.2.0",
       "split": "test",
       "case_count": 85,
@@ -1946,6 +1970,7 @@
         "case_timeout_sec": 15000,
         "model_repository": "google/gemma-4-31B-it"
       },
+      "reasoning_effort": null,
       "benchmark_version": "0.2.0",
       "split": "test",
       "case_count": 85,
@@ -2021,6 +2046,7 @@
       "optimization_methods": [],
       "tags": [],
       "extra": {},
+      "reasoning_effort": null,
       "benchmark_version": "0.2.0",
       "split": "test",
       "case_count": 85,
@@ -2118,6 +2144,7 @@
         "agent_timeout_sec": 1800,
         "case_timeout_sec": 2400
       },
+      "reasoning_effort": null,
       "benchmark_version": "0.2.0",
       "split": "test",
       "case_count": 85,
@@ -2195,6 +2222,7 @@
       "optimization_methods": [],
       "tags": [],
       "extra": {},
+      "reasoning_effort": null,
       "benchmark_version": "0.2.0",
       "split": "test",
       "case_count": 85,
@@ -2273,6 +2301,7 @@
       "optimization_methods": [],
       "tags": [],
       "extra": {},
+      "reasoning_effort": null,
       "benchmark_version": "0.2.0",
       "split": "test",
       "case_count": 85,
@@ -2374,6 +2403,7 @@
         "hf_revision": "da6e2ed27304dd39abadd9c82ef50e8de67bdd4c",
         "hf_revision_source": "specified"
       },
+      "reasoning_effort": null,
       "benchmark_version": "0.2.0",
       "split": "test",
       "case_count": 85,
@@ -2472,6 +2502,7 @@
         "agent_timeout_sec": 14400,
         "case_timeout_sec": 15000
       },
+      "reasoning_effort": null,
       "benchmark_version": "0.2.0",
       "split": "test",
       "case_count": 85,
@@ -2571,6 +2602,7 @@
         "agent_timeout_sec": 14400,
         "case_timeout_sec": 15000
       },
+      "reasoning_effort": null,
       "benchmark_version": "0.2.0",
       "split": "test",
       "case_count": 85,
@@ -2678,6 +2710,7 @@
         "thinking_configuration": "Explicit enable_thinking=true set during the run; earlier trials used the prior serving defaults.",
         "retry_policy": "Targeted replacement of one deployment error and 14 endpoint/long-wait failures; two of those trials repeated after backend preemption. Model no-output failures retained; no best-of score selection."
       },
+      "reasoning_effort": null,
       "benchmark_version": "0.2.0",
       "split": "test",
       "case_count": 85,

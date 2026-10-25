@@ -39,6 +39,7 @@
     "case_timeout_sec": 15000,
     "model_repository": "google/gemma-4-31B-it"
   },
+  "reasoning_effort": null,
   "benchmark_version": "0.2.0",
   "split": "test",
   "case_count": 85,

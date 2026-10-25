@@ -44,6 +44,7 @@
     "hf_revision": "da6e2ed27304dd39abadd9c82ef50e8de67bdd4c",
     "hf_revision_source": "specified"
   },
+  "reasoning_effort": null,
   "benchmark_version": "0.2.0",
   "split": "test",
   "case_count": 85,

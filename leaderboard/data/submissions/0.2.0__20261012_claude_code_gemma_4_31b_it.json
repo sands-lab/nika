@@ -40,6 +40,7 @@
     "model_repository": "google/gemma-4-31B-it",
     "serving_precision": "BF16"
   },
+  "reasoning_effort": null,
   "benchmark_version": "0.2.0",
   "split": "test",
   "case_count": 85,

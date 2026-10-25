@@ -39,6 +39,7 @@
     "agent_timeout_sec": 14400,
     "case_timeout_sec": 15000
   },
+  "reasoning_effort": null,
   "benchmark_version": "0.2.0",
   "split": "test",
   "case_count": 85,

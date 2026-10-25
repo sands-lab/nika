@@ -45,6 +45,7 @@
     "heavy_batch_size": 1,
     "nika_git_commit": "dba357b3c0c6585f68d059a531c12619f8e9b3b3"
   },
+  "reasoning_effort": null,
   "benchmark_version": "0.2.0",
   "split": "test",
   "case_count": 85,

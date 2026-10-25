@@ -22,6 +22,7 @@
   "optimization_methods": [],
   "tags": [],
   "extra": {},
+  "reasoning_effort": null,
   "benchmark_version": "0.1.0",
   "split": "test",
   "case_count": 150,
