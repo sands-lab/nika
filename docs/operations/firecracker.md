@@ -38,127 +38,86 @@ Firecracker execution needs:
 * A btrfs filesystem for the images: about 35 GiB for release 0.2.0's test
   split, plus up to 20 GiB free while images are built. XFS also works, without
   compression, at about 3.5 times the size.
-* Huge pages (recommended): the `vm_memory` of every copy that runs at once,
-  for example 24 GiB for six 4 GiB copies.
+* Memory to reserve as huge pages: the installer reserves half of the host's
+  memory, which other applications can then no longer use (see
+  [Huge pages and disk](#huge-pages-and-disk)).
 
 Stay with native execution for a single run of a few tasks, where each
-environment would be deployed once anyway, or on a host without KVM or the
-disk. [Performance reference](#performance-reference) has the measurements per
+environment would be deployed once anyway, or on a host without KVM, the
+disk or the memory to reserve as huge pages.
+[Performance reference](#performance-reference) has the measurements per
 environment, including build time, disk use and break-even point.
 
 ## Set up the host (once)
 
-These steps make the host able to run Firecracker trials and are kept across
-reboots. Run them as a user with `sudo`.
+Run the installer with `--with-firecracker` from the NIKA checkout, as a user
+with `sudo`:
 
-1. **KVM.** Check that `/dev/kvm` exists and add yourself to its group, then log
-   in again:
+```shell
+./scripts/install.sh --with-firecracker
+```
 
-   ```shell
-   sudo usermod -aG kvm "$USER"
-   ```
+It ends with a list of the steps left to you, typically a new login shell and
+sometimes a reboot. After those, run benchmarks as usual (see
+[Run benchmarks](#run-benchmarks)).
 
-2. **Nested virtualization in KVM**, for labs that run VMs themselves (vrnetlab
-   images such as RouterOS). It is on by default on recent kernels; check that
-   this prints `1` or `Y`:
+The installer makes these changes, which persist across reboots:
 
-   ```shell
-   cat /sys/module/kvm_amd/parameters/nested 2>/dev/null || cat /sys/module/kvm_intel/parameters/nested
-   ```
+| Setting | What the installer does |
+|---|---|
+| KVM access | Adds you to the group that owns `/dev/kvm`. |
+| Huge pages | Reserves half of the host's memory as 2 MiB huge pages, now and at boot (`/etc/sysctl.d/99-nika-hugepages.conf`), or keeps a larger reservation the host already has. |
+| userfaultfd | Gives the `kvm` group access to `/dev/userfaultfd` (`/etc/udev/rules.d/99-nika-userfaultfd.rules`). The page server that restores copies onto huge pages uses it. |
+| Firecracker root | Mounts a btrfs loop file, `runtime/firecracker.img`, at `runtime/firecracker` through `/etc/fstab`, unless the root is already on btrfs or XFS. It installs `btrfs-progs` with apt when `mkfs.btrfs` is missing. |
+| Kathara network plugin | Installs it in the host's Docker. The base image copies it, with the runtime images and the k8s and Helm caches that the installer prepares, because the VM has no network of its own. |
+| Run config | Sets `nika.execution.mode: firecracker` in `config/nika.yaml`. |
 
-   Firecracker itself needs no installation. On first use NIKA builds
-   Firecracker 1.17 with its nested virtualization patch in a Rust container,
-   which takes about 3 minutes. Upstream Firecracker snapshots lose the state of
-   a hypervisor in the guest, so restored labs that run VMs crash without the
-   patch.
+[Uninstalling NIKA](installation.md#uninstall) unmounts and deletes the loop
+file and removes the huge-page and userfaultfd settings, restoring the earlier
+huge-page reservation. Your `kvm` group membership and `config/nika.yaml` stay.
 
-3. **A btrfs filesystem for the Firecracker root.** NIKA keeps the base image,
-   lab and case images, trial copies and its Firecracker build in
-   `runtime/firecracker/` in the NIKA checkout, so
-   [uninstalling NIKA](installation.md#uninstall) removes them. Trial disks are
-   copy-on-write clones of lab image disks, which needs btrfs (or XFS), and on
-   btrfs NIKA stores images zstd-compressed. If the checkout is on another
-   filesystem, mount a btrfs loop file there, from the NIKA checkout:
+Firecracker itself needs no installation. On first use NIKA builds
+Firecracker 1.17 with its nested virtualization patch in a Rust container,
+which takes about 3 minutes. Upstream Firecracker snapshots lose the state of a
+hypervisor in the guest, so restored labs that run VMs (vrnetlab images such as
+RouterOS) crash without the patch. Those labs also need KVM nested
+virtualization; the installer checks it and tells you when it is off.
 
-   ```shell
-   sudo apt-get install -y btrfs-progs
-   mkdir -p runtime/firecracker
-   truncate -s 150G runtime/firecracker.img
-   mkfs.btrfs -q runtime/firecracker.img
-   echo "$PWD/runtime/firecracker.img $PWD/runtime/firecracker btrfs loop,noatime,nofail 0 0" \
-     | sudo tee -a /etc/fstab
-   sudo systemctl daemon-reload && sudo mount runtime/firecracker
-   sudo chown "$USER": runtime/firecracker
-   ```
+### Huge pages and disk
 
-   To keep the images elsewhere, such as on a separate disk, set
-   `nika.execution.firecracker.root` to a directory on btrfs or XFS.
+Every running copy holds its VM memory in huge pages, and the reserved memory is
+unavailable to everything else. A copy uses huge pages only for the memory its
+lab uses (`nika firecracker list` shows it per lab image: about 1 GiB for small
+Kathara labs, 2–5 GiB for ISP, k8s and SR Linux labs), but it can grow to its
+full `vm_memory`. A VM that finds the pool empty crashes, so the runner admits a
+trial only while the pool holds its full `vm_memory`. Half of the host's memory
+runs several copies at once; the largest labs of release 0.2.0 need 20 GiB for
+one. To change the reservation, edit `vm.nr_hugepages` (in 2 MiB pages) in
+`/etc/sysctl.d/99-nika-hugepages.conf` and reboot.
 
-   Size it for the base image (12 GiB) plus the lab images you keep: each holds
-   the memory its lab uses, compressed to 0.3–4 GiB, and release 0.2.0's test
-   split needs 23 GiB ([per environment](#per-environment)). Add free space for
-   builds: NIKA starts a build only while the root has room for the VM's whole
-   `vm_memory` (4–20 GiB) per running build. Rebuilding the base briefly needs
-   room for two bases.
+The installer frees the page cache and compacts memory before it reserves the
+pages. When the host's memory is too fragmented to find enough contiguous 2 MiB
+blocks, it asks you to reboot; the reservation then happens at boot.
 
-   `truncate` does not check that the disk holding the loop file has the space,
-   and btrfs on a loop file stops with I/O errors when that disk fills up. Size
-   the file to the real free space of that disk, which also holds NIKA's runtime
-   images (about 20 GiB). On a Kubernetes node, keep the disk well below 85%:
-   kubelet then deletes every unused Docker image.
+NIKA keeps the base image, lab and case images, trial copies and its Firecracker
+build in `runtime/firecracker/` in the NIKA checkout. Trial disks are
+copy-on-write clones of lab image disks, which needs btrfs (or XFS), and on
+btrfs NIKA stores images zstd-compressed. The installer sizes the loop file to
+the free space of the disk that holds `runtime/`, minus 20 GiB for Docker
+images, and at most 150 GiB; it stops when that leaves less than 60 GiB. A loop
+file that outgrows the real free space stops with I/O errors. On a Kubernetes
+node, keep the disk well below 85%: kubelet then deletes every unused Docker
+image.
 
-4. **Huge pages** (recommended; see [Huge pages](#huge-pages)). Reserve them at
-   boot: a running host's memory is soon too fragmented to find enough
-   contiguous 2 MiB blocks. The reserved memory is unavailable to everything
-   else. A copy takes huge pages only for the memory its lab uses (`nika
-   firecracker list` shows it per lab image: about 1 GiB for small Kathara labs,
-   2–5 GiB for ISP, k8s and SR Linux labs), but it can grow to its full
-   `vm_memory`; a VM that finds the pool empty crashes, so the runner admits a
-   trial only while the pool holds its full `vm_memory`. Reserve `vm_memory`
-   for each copy you want to run at once. For 24 GiB:
+The root needs room for the base image (12 GiB) plus the lab images you keep:
+each holds the memory its lab uses, compressed to 0.3–4 GiB, and release 0.2.0's
+test split needs 23 GiB ([per environment](#per-environment)). NIKA starts a
+build only while the root has room for the VM's whole `vm_memory` (4–20 GiB)
+per running build. Rebuilding the base briefly needs room for two bases.
 
-   ```shell
-   echo 'GRUB_CMDLINE_LINUX_DEFAULT="${GRUB_CMDLINE_LINUX_DEFAULT} hugepagesz=2M hugepages=12288"' \
-     | sudo tee /etc/default/grub.d/99-nika-hugepages.cfg
-   sudo update-grub
-   ```
-
-   On a host with plenty of free memory, you can reserve them now instead of
-   rebooting, and check that the count was reached. This reservation does not
-   survive a reboot:
-
-   ```shell
-   sudo sysctl vm.nr_hugepages=12288
-   grep HugePages_Total /proc/meminfo
-   ```
-
-5. **userfaultfd for the `kvm` group**, used by the page server that restores huge-page copies and case images:
-
-   ```shell
-   echo 'KERNEL=="userfaultfd", GROUP="kvm", MODE="0660"' \
-     | sudo tee /etc/udev/rules.d/99-nika-userfaultfd.rules
-   sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=userfaultfd
-   ```
-
-6. **Runtime images, k8s caches and the Kathara network plugin** on the host.
-   The base image copies the images, the plugin and `.nika_cache/k8s-images`
-   and `.nika_cache/helm` into the VM, which has no network of its own:
-
-   ```shell
-   nika images prepare
-   docker plugin ls | grep -q katharanp \
-     || docker plugin install --grant-all-permissions kathara/katharanp_vde:$(dpkg --print-architecture)
-   ```
-
-   NIKA's installer already installs the plugin.
-
-7. **Reboot** (for the huge pages), then check:
-
-   ```shell
-   grep HugePages_Total /proc/meminfo     # the reserved count
-   ls -l /dev/userfaultfd                 # crw-rw---- root kvm
-   findmnt -T runtime/firecracker         # btrfs or xfs
-   ```
+To keep the images elsewhere, such as on a separate disk, set
+`nika.execution.firecracker.root` to a directory on btrfs or XFS before you run
+the installer.
 
 ## Base image
 
@@ -170,31 +129,20 @@ it when this host's runtime images or Kathara plugins, or NIKA's base image
 setup, change. Other code changes do not: lab images receive the current
 checkout.
 
+The VM cannot build Docker images, so a run first builds the checkout's
+`nika/*` images on the host when they are missing or outdated, as a native
+deploy does, and then rebuilds the base with them. Other NIKA checkouts on the
+same host share these image tags. When one with different Dockerfiles deploys
+a lab while the base image is built, the build stops with an error that names
+the image; run it again when the other checkout is idle.
+
 The base is assembled in Docker containers, so it needs no `sudo`. The VM has no
 network of its own: while it is built, it reaches the network through a proxy on
 the host, over vsock.
 
-## Enable Firecracker runs
+## Run benchmarks
 
-In `config/nika.yaml`, for release 0.2.0 (its larger labs need more than the
-default 4 GiB of [VM memory](#vm-size)):
-
-```yaml
-nika:
-  execution:
-    mode: firecracker
-    firecracker:
-      huge_pages: true
-      vm_memory_overrides:
-        k8s_lab: 8GiB
-        llmd_lab: 8GiB
-        min3clos: 8GiB
-        isp_pdh: 20GiB
-        isp_di-yuan: 20GiB
-        isp_dfn-gwin: 20GiB
-```
-
-Then run benchmarks as usual:
+Run benchmarks as usual:
 
 ```shell
 nika benchmark run --release 0.2.0 --split test
@@ -210,42 +158,45 @@ the runner schedules for that:
    case timeout.
 2. **One variant at a time.** Trials of the same environment variant run next to
    each other, so its lab image's memory file stays in the page cache.
-3. **Admission by memory.** `--batch-size` caps concurrent trials. With huge
-   pages, a trial also waits until the huge pages free at the start of the run
-   can hold its copy's whole `vm_memory`, so a running copy never finds the pool
-   empty. Heavy labs (k8s, Containerlab, size `l`) no longer run alone: a
-   restore costs them no more than a light lab.
+3. **Admission by memory.** `--batch-size` caps concurrent trials. A trial
+   also waits until the huge pages free at the start of the run can hold its
+   copy's whole `vm_memory`, so a running copy never finds the pool empty. Heavy
+   labs (k8s, Containerlab, size `l`) no longer run alone: a restore costs them
+   no more than a light lab.
 
 ### Huge pages
 
-By default a restored copy maps the lab image's memory file and loads pages on first
-access. Copies of one lab image share those pages, but the first minute after a
-restore is slow, especially on hosts that are themselves VMs: lab daemons can
-miss their watchdog deadlines (for example FRR's `watchfrr` exits, and the
-startup verification restarts it).
-
-With `huge_pages: true`, VM memory uses the 2 MiB huge pages reserved in
-[host setup](#set-up-the-host-once) step 4, and a page server
+Firecracker execution needs huge pages (`huge_pages: true`, the default). VM
+memory uses the 2 MiB huge pages reserved in
+[host setup](#set-up-the-host-once), and a page server
 (`nika.firecracker.uffd`) copies the memory the lab uses into each copy right after
 the restore (well under a second for a small lab). Restored labs run at full
 speed at once: `dc_clos -s s` passes its verification again 4 s after a restore,
 against 25–44 s without huge pages, and image builds are about twice as fast.
 Every running copy needs its own huge pages for the memory its lab uses.
 
+`huge_pages: false` remains for experiments only. Copies then run on 4 KiB
+pages, and every page a lab touches after a restore costs a separate fault,
+which is expensive on hosts that are themselves VMs. Lab daemons can miss their
+watchdog deadlines (for example FRR's `watchfrr` exits), and with case images,
+where each copy receives its own memory from the page server, a `docker exec`
+in the lab takes 7–9 s while several copies restore at once.
+
 ### VM size
 
 Each VM gets `vm_cpus` vCPUs (default 4) and `vm_memory` (default 4 GiB), which
-fits most Kathara labs. Give larger labs more with `vm_memory_overrides`; an
-image build warns when a lab leaves less than a quarter of its VM memory free.
-The [example above](#enable-firecracker-runs) covers release 0.2.0. Cisco XRd
-(`iosxr_simple_bgp`) needs 8 GiB as well; its build otherwise runs out of memory:
+fits most Kathara labs. Larger labs get more by default: 8 GiB for `k8s_lab`,
+`llmd_lab`, `min3clos` and Cisco XRd (`iosxr_simple_bgp`), and 20 GiB for
+`isp_pdh`, `isp_di-yuan` and `isp_dfn-gwin`. An image build warns when a lab
+leaves less than a quarter of its VM memory free; give such a lab more with
+`vm_memory_overrides`, which takes precedence over these sizes:
 
 ```yaml
 nika:
   execution:
     firecracker:
       vm_memory_overrides:
-        iosxr_simple_bgp: 8GiB
+        k8s_lab: 12GiB
 ```
 
 Few vCPUs per VM keep one copy's bursts (verification, injection, the agent's
@@ -290,9 +241,7 @@ Case images change how trials start:
 The restore times above assume the lab image's memory is in the page cache,
 which is usual because trials of one environment variant run together. The first
 restore of a variant reads that memory from disk: 10–40 s for most labs and
-about 100 s for `isp_pdh` (15 GiB). Without huge pages, copies of a case image
-receive their memory from the page server instead of sharing the lab image
-file, so each copy holds the memory its lab uses (1–8 GiB).
+about 100 s for `isp_pdh` (15 GiB).
 
 ## What changes in a trial
 
@@ -396,7 +345,7 @@ longer in their median than in the native run, which ran fewer trials at once.
 While a lab image is built, its snapshot temporarily needs the VM's whole
 `vm_memory` (4–20 GiB) of free disk. Disk sizes are with btrfs, where NIKA stores
 images zstd-compressed (about 3.5× smaller); on XFS they are uncompressed. See
-[host setup](#set-up-the-host-once) step 3 for sizing the Firecracker root.
+[Huge pages and disk](#huge-pages-and-disk).
 
 ### Compatibility and scores
 
@@ -464,7 +413,8 @@ Case images pay off after 0.5–7 more runs, depending on how long injection tak
   The router VM then spends all its time on timer interrupts, never leaves its
   BIOS, and verification fails. Labs without inner VMs work at any depth. These
   labs are tested on AMD; the Intel (VMX) path is implemented but not tested.
-* **The first operations after a 4 KiB-page restore run slower.** This is most
-  visible on hosts that are themselves VMs; huge pages remove it.
+* **Huge pages are required.** Without them (`huge_pages: false`), restored
+  labs run slowly for their first minute, and much longer when several case
+  images restore at once (see [Huge pages](#huge-pages)).
 * **Only benchmark runs use Firecracker.** `nika env run`, `nika case run` and
   task-mode `nika agent run` still deploy from scratch.

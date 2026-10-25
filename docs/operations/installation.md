@@ -69,7 +69,7 @@ Re-run `./scripts/install.sh` after `git pull` or on a host with an older or par
 - Reinstalls gnmic into `.venv/bin` when the `gnmic` on `PATH` differs from the pinned version, and installs Containerlab there when the `clab` on `PATH` is older than the minimum version. A newer Containerlab is kept, including one installed from a package by an older installer.
 - Rewrites an inotify sysctl file from an older installer into the current format.
 
-The installer preserves existing `.env` and `config/nika.yaml` settings, except when `--with-agentenv` adds the service credentials and selects the AgentENV sandbox runtime. When `config/nika.yaml` fails validation (for example, it uses a key that this version removed), the installer prints the validation error. Compare the file with `config/nika.example.yaml` and fix it.
+The installer preserves existing `.env` and `config/nika.yaml` settings, except when `--with-agentenv` adds the service credentials and selects the AgentENV sandbox runtime, or `--with-firecracker` selects Firecracker execution. When `config/nika.yaml` fails validation (for example, it uses a key that this version removed), the installer prints the validation error. Compare the file with `config/nika.example.yaml` and fix it.
 
 A second re-run prints `No stale NIKA images` and builds nothing.
 
@@ -136,6 +136,25 @@ Vendor artifacts land under `.nika_cache/vendor/` (gitignored): XRd tarballs as 
 
 Manual fallback for each lab: [IOS-XR](network-scenarios.md#ios-xr-simple-bgp-scenario), [RouterOS](network-scenarios.md#routeros-simple-bgp-scenario).
 
+## Set up Firecracker execution
+
+Benchmark runs that deploy every environment from scratch spend most of their time outside the agent. [Firecracker execution](firecracker.md) restores each trial's environment from a saved microVM instead.
+
+Prerequisites:
+
+- An x86-64 host with KVM (`/dev/kvm`).
+- At least 80 GiB of free disk on the disk that holds the checkout. The installer mounts a btrfs loop file at `runtime/firecracker` and leaves 20 GiB free for Docker images.
+
+> **Warning:** The installer reserves half of the host's memory as huge pages. Other applications cannot use that memory until you [uninstall NIKA](#uninstall).
+
+To set up the host and select Firecracker execution in `config/nika.yaml`:
+
+```shell
+./scripts/install.sh --with-firecracker
+```
+
+The installer ends with the steps it cannot do itself, such as a reboot. See [Set up the host](firecracker.md#set-up-the-host-once) for what it changes and how the memory and disk are sized.
+
 ## Allow Containerlab link faults
 
 Link faults on Containerlab labs (packet loss, corruption, rate limits, link down, and link flaps) change the host side of each lab link. NIKA runs `tc`, `ip`, `nsenter`, and `sh` on the host through `sudo -n`, so your user needs passwordless `sudo` for those commands. Kathará labs do not need this.
@@ -169,10 +188,10 @@ The last command now prints the loopback qdisc without a password prompt.
 | --- | --- |
 | Running sessions, Kathará and Containerlab labs, the Batfish container, the AgentENV container | Docker and your docker group membership; sbx and your kvm group membership |
 | Docker images NIKA built or pulled, including vendor router images, build parents such as `debian:bookworm-slim`, and legacy tags | A uv installed outside the repository |
-| The Kathará Docker network plugin and `~/.config/kathara.conf` | apt packages that older installers added: clang, skopeo |
+| The Kathará Docker network plugin and `~/.config/kathara.conf` | apt packages that installers added: btrfs-progs, and clang and skopeo from older ones |
 | `/etc/sysctl.d/99-nika-inotify.conf`, with the original inotify limits restored | The source tree |
 | `/etc/sudoers.d/nika-host-tc` | `.env` and `config/` |
-| The [Firecracker](firecracker.md) host settings: the userfaultfd udev rule and the GRUB huge-pages file (huge pages stay reserved until the next reboot) | |
+| The [Firecracker](firecracker.md) host settings: the userfaultfd udev rule, `/etc/sysctl.d/99-nika-hugepages.conf` with the original huge-page reservation restored, and the GRUB huge-pages file of older manual setups (its huge pages stay reserved until the next reboot) | |
 | The `clab_admins` group, plus the Containerlab package, `/etc/containerlab`, and `/usr/local/bin/gnmic` that older installers added | `results/` |
 | `.venv` (including `clab` and `gnmic`), `.nika_cache` (including uv and its cache, XRd tarballs, and CHR downloads), and `runtime/`, including [Firecracker](firecracker.md) images (a btrfs loop file mounted at `runtime/firecracker` is unmounted and its `/etc/fstab` line removed first) | Firecracker images in a `root` you set outside the checkout |
 

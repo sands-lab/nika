@@ -1,7 +1,9 @@
 """The base image every lab image starts from, built automatically on first use.
 
 :func:`ensure_base` builds ``<root>/base/`` when it is missing or its key (the
-builder version, this host's runtime images and Kathara plugins) changed:
+builder version, this host's runtime images and Kathara plugins) changed. It
+first builds this checkout's ``nika/*`` images on the host when they are
+missing or stale, as a native deploy would. Then:
 
 1. **Root filesystem, with Docker** (no root needed): an ``ubuntu:24.04``
    container installs the kernel, systemd, Docker and the guest services and
@@ -235,6 +237,7 @@ def _finish_in_firecracker(build_dir: Path, kernel_version: str, key: str) -> No
         _log(f"copying {len(local)} locally built image(s) from this host")
         for ref in local:
             _log(f"  {ref}")
+            _check_build_hash(ref)
             _load_image(uds, ref)
         vendor = _vendor_images()
         if vendor:
@@ -496,6 +499,42 @@ def _build_rootfs(build_dir: Path) -> str:
         subprocess.run(["docker", "rm", "-f", name], capture_output=True, check=False)
 
 
+def _ensure_host_images(root: Path) -> None:
+    """Build this checkout's ``nika/*`` images on the host, as a native deploy does.
+
+    The base image copies them by tag. A stale one (NIKA updated without
+    re-running the installer, or a build by another checkout on this host)
+    would need a rebuild in the guest, which has no network, so every lab
+    image build would fail.
+    """
+    from nika.net_env.utils.kathara.docker_files.docker_images import (
+        NIKA_IMAGE_DOCKERFILES,
+        ensure_nika_docker_images,
+    )
+
+    locks = root / "locks"
+    locks.mkdir(parents=True, exist_ok=True)
+    with open(locks / "host-images.lock", "a") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        ensure_nika_docker_images(NIKA_IMAGE_DOCKERFILES)
+
+
+def _check_build_hash(ref: str) -> None:
+    """Fail when a ``nika/*`` image no longer matches this checkout."""
+    from nika.net_env.utils.kathara.docker_files.docker_images import (
+        NIKA_IMAGE_DOCKERFILES,
+        _image_build_hash,
+        build_hash,
+    )
+
+    if ref in NIKA_IMAGE_DOCKERFILES and _image_build_hash(ref) != build_hash(ref):
+        raise VmmError(
+            f"{ref} on this host changed while the base image was built: another "
+            "NIKA checkout with different Dockerfiles rebuilt it. Run Firecracker "
+            "benchmarks while no other checkout deploys labs on this host."
+        )
+
+
 def _runtime_images() -> list[str]:
     return subprocess.run(
         [str(Path(sys.executable).parent / "nika"), "images", "list"],
@@ -567,6 +606,8 @@ def ensure_base() -> Path:
     """Return ``<root>/base``, building it first when missing or outdated."""
     root = firecracker_root()
     base = root / "base"
+    # Before the key, which covers their image IDs: a rebuilt image rebuilds the base.
+    _ensure_host_images(root)
     if _current(base):
         return base
     locks = root / "locks"

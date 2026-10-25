@@ -33,6 +33,10 @@ def test_firecracker_settings_default_off_and_validated() -> None:
         FirecrackerSettings(vm_memory="8G")
     with pytest.raises(ValidationError):
         FirecrackerSettings(vm_memory_overrides={"isp_pdh": "20480MiB"})
+    # User overrides merge over the built-in sizes of large labs.
+    overrides = FirecrackerSettings(vm_memory_overrides={"k8s_lab": "12GiB"})
+    assert overrides.vm_memory_overrides["k8s_lab"] == "12GiB"
+    assert overrides.vm_memory_overrides["isp_pdh"] == "20GiB"
 
 
 def test_override_routes_lab_ops_and_maps_gateway_port() -> None:

@@ -36,12 +36,14 @@ Removes everything NIKA set up on this host:
     .nika_cache (with uv and its cache when the installer added them), runtime/
     (including Firecracker images, after unmounting runtime/firecracker and
     removing its /etc/fstab entry when the host setup mounted a loop file there)
-  - the Firecracker host settings: the userfaultfd udev rule and the GRUB
-    huge-pages file (huge pages stay reserved until the next reboot)
+  - the Firecracker host settings: the userfaultfd udev rule, the huge-pages
+    sysctl file (original reservation restored), and the GRUB huge-pages file
+    of older manual setups (its huge pages stay reserved until the next reboot)
 
 Keeps Docker and docker group membership, sbx and kvm group membership, a uv
-installed outside the repo, apt packages that older installers added (clang,
-skopeo), the source tree, .env, config/, and results/.
+installed outside the repo, apt packages that installers added (btrfs-progs,
+and clang and skopeo from older ones), the source tree, .env, config/, and
+results/.
 
 Options:
   -y, --yes             Do not ask for confirmation
@@ -295,9 +297,25 @@ FIRECRACKER_ROOT="${ROOT}/runtime/firecracker"
 
 FIRECRACKER_UDEV_RULE=/etc/udev/rules.d/99-nika-userfaultfd.rules
 FIRECRACKER_GRUB_CFG=/etc/default/grub.d/99-nika-hugepages.cfg
+HUGEPAGES_CONF=/etc/sysctl.d/99-nika-hugepages.conf
+
+restore_hugepages() {
+  # install.sh --with-firecracker; the "# nika-original" line keeps the value
+  # before it.
+  [[ -f "${HUGEPAGES_CONF}" ]] || return 0
+  local original
+  original="$(sed -n 's/^# nika-original vm\.nr_hugepages=//p' "${HUGEPAGES_CONF}")"
+  ${SUDO} rm -f "${HUGEPAGES_CONF}"
+  if [[ "${original}" =~ ^[0-9]+$ ]]; then
+    ${SUDO} sysctl -qw "vm.nr_hugepages=${original}"
+  fi
+  # Re-apply any other host sysctl files that set the same key.
+  ${SUDO} sysctl --system >/dev/null
+  log "Removed ${HUGEPAGES_CONF} and released its huge pages"
+}
 
 stop_firecracker() {
-  # Host settings from docs/operations/firecracker.md.
+  # Host settings from install.sh --with-firecracker and older manual setups.
   if [[ -f "${FIRECRACKER_UDEV_RULE}" ]]; then
     ${SUDO} rm -f "${FIRECRACKER_UDEV_RULE}"
     ${SUDO} udevadm control --reload-rules 2>/dev/null || true
@@ -372,6 +390,7 @@ main() {
   restore_inotify
   remove_host_tools
   stop_firecracker
+  restore_hugepages
   remove_files
   log "NIKA removed. Kept: Docker, apt packages, source tree, .env, config/, results/"
 }
