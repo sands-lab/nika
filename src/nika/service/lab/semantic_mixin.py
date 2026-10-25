@@ -11,6 +11,20 @@ from typing import Literal
 from nika.service.lab.protocols import SupportsExec
 from nika.utils.parallel import bounded_parallel_map
 
+_TIMEOUT_SENTINEL = "[TIMEOUT]"
+
+
+def _loads_exec_json(output: str, *, command: str, node: str):
+    """Parse JSON from ``exec_cmd``. A timeout sentinel is not a parse error."""
+    if output.startswith(_TIMEOUT_SENTINEL):
+        raise RuntimeError(f"Timed out running `{command}` on {node}: {output.strip()}")
+    try:
+        return json.loads(output)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            f"Failed to parse `{command}` output on {node}: {exc}"
+        ) from exc
+
 
 class SemanticOpsMixin:
     """Host, network, process, and service operations via ``exec_cmd``."""
@@ -44,12 +58,7 @@ class SemanticOpsMixin:
         with_prefix: bool = False,
     ) -> str | None:
         output = self.exec_cmd(node, "ip -j addr")
-        try:
-            ifaces = json.loads(output)
-        except json.JSONDecodeError as exc:
-            raise RuntimeError(
-                f"Failed to parse `ip -j addr` output on {node}: {exc}"
-            ) from exc
+        ifaces = _loads_exec_json(output, command="ip -j addr", node=node)
 
         def format_ip(ip: str, prefix: int | None) -> str:
             if with_prefix and prefix is not None:
@@ -100,12 +109,7 @@ class SemanticOpsMixin:
 
     def get_default_gateway(self: SupportsExec, node: str) -> str | None:
         output = self.exec_cmd(node, "ip -j route")
-        try:
-            routes = json.loads(output)
-        except json.JSONDecodeError as exc:
-            raise RuntimeError(
-                f"Failed to parse `ip -j route` output on {node}: {exc}"
-            ) from exc
+        routes = _loads_exec_json(output, command="ip -j route", node=node)
         for route in routes:
             if route.get("dst") == "default":
                 gateway = route.get("gateway")
@@ -117,12 +121,7 @@ class SemanticOpsMixin:
         self: SupportsExec, node: str, *, include_loopback: bool = False
     ) -> list[str]:
         output = self.exec_cmd(node, "ip -j addr")
-        try:
-            ifaces = json.loads(output)
-        except json.JSONDecodeError as exc:
-            raise RuntimeError(
-                f"Failed to parse `ip -j addr` output on {node}: {exc}"
-            ) from exc
+        ifaces = _loads_exec_json(output, command="ip -j addr", node=node)
         names: list[str] = []
         for link in ifaces:
             name = link.get("ifname")
