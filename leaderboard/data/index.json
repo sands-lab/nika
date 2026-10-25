@@ -1273,6 +1273,101 @@
       "rank": 6
     },
     {
+      "id": "0.2.0/20261025_claude_code_ornith_1_5_122b",
+      "dirname": "20261025_claude_code_ornith_1_5_122b",
+      "submission_name": "Claude Code + Ornith-1.5-122B",
+      "authors": "NIKA Team",
+      "org": null,
+      "site": "https://sands-lab.github.io/nika/",
+      "report": "https://arxiv.org/abs/2512.16381",
+      "logo": null,
+      "github": "https://github.com/sands-lab/nika",
+      "email": null,
+      "trajectories_url": "https://huggingface.co/datasets/nika-bench/nika-trajectories/tree/main/trajectories/0.2.0/20261025_claude_code_ornith_1_5_122b",
+      "trajectories_relpath": "trajectories/0.2.0/20261025_claude_code_ornith_1_5_122b",
+      "model": "Ornith-1.5-122B",
+      "model_id": "ornith-1.5-122b",
+      "submitted_model": "Ornith-1.5-122B",
+      "framework": "Claude Code",
+      "agent_type": "cli.claude",
+      "llm_provider": "custom",
+      "tools": [
+        "containerlab_srl_mcp_server",
+        "k8s_mcp_server",
+        "kathara_base_mcp_server",
+        "pingmesh_mcp_server",
+        "packet_capture_mcp_server",
+        "kathara_frr_mcp_server",
+        "kathara_bmv2_mcp_server",
+        "kathara_sdn_mcp_server",
+        "kathara_telemetry_mcp_server",
+        "task_mcp_server"
+      ],
+      "skills": [],
+      "optimization_methods": [],
+      "tags": [],
+      "extra": {
+        "model_repository": "ornith-ai/Ornith-1.5-122B",
+        "model_revision": "7681ef608624e7532d8164128bcffdbdbaf1b1af",
+        "served_model_id": "ornith-ai/Ornith-1.5-122B",
+        "serving": "self-hosted vLLM 0.24, original BF16 weights, tensor parallel 2 on 2x H200 141GB per server, 262144-token context, qwen3_xml tool parser, qwen3 reasoning parser",
+        "proxy": "local LiteLLM 1.106.2, native Anthropic /v1/messages pass-through to vLLM (no OpenAI translation)",
+        "claude_code_version": "2.1.280",
+        "execution": "firecracker",
+        "max_steps": 100,
+        "max_tokens": 8192,
+        "agent_timeout_sec": 1800,
+        "case_timeout_sec": 2400,
+        "batch_size": 16,
+        "heavy_batch_size": 1,
+        "nika_commit": "ce0d0ba598ba1a6a09b712f8b52bab6a54c0806d"
+      },
+      "benchmark_version": "0.2.0",
+      "split": "test",
+      "case_count": 85,
+      "n_trials": 3,
+      "primary_metric": "rca_f1",
+      "mean_rca_f1": 0.4609909803921569,
+      "mean_localization_f1": 0.5354105882352943,
+      "mean_detection_score": 0.7529411764705882,
+      "n_trials_expected": 255,
+      "n_trials_present": 255,
+      "n_success": 220,
+      "n_agent_failed": 35,
+      "success_rate": 0.862745,
+      "token_totals": {
+        "in_tokens": 163512769,
+        "out_tokens": 9055444
+      },
+      "steps_totals": {
+        "steps": 8971,
+        "tool_calls": 9774,
+        "tool_errors": 0
+      },
+      "mean_tokens": 676738.09,
+      "mean_steps": 35.18,
+      "total_tokens": 172568213,
+      "max_steps": 100,
+      "case_timeout_sec": 2400,
+      "created_at": "2026-10-25T09:39:57+00:00",
+      "run_id": "faf28950bc7b0343",
+      "official": true,
+      "nika_git_commit": "ce0d0ba598ba1a6a09b712f8b52bab6a54c0806d",
+      "name": "Ornith-1.5-122B · Claude Code",
+      "rca_f1_ci": [
+        0.375107,
+        0.548444
+      ],
+      "beaten_by": [
+        "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
+        "0.2.0/20261011_react_qwen3_8_27b_fp8",
+        "0.2.0/20261016_claude_code_claude_opus_5_5",
+        "0.2.0/20261016_claude_code_claude_sonnet_5_5",
+        "0.2.0/20261017_codex_gpt_6_1_sol"
+      ],
+      "rank": 6
+    },
+    {
       "id": "0.2.0/20261014_react_qwen3_5_27b",
       "dirname": "20261014_react_qwen3_5_27b",
       "submission_name": "ReAct + Qwen3.5-27B",
@@ -1355,9 +1450,10 @@
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
-        "0.2.0/20261017_codex_gpt_6_1_sol"
+        "0.2.0/20261017_codex_gpt_6_1_sol",
+        "0.2.0/20261025_claude_code_ornith_1_5_122b"
       ],
-      "rank": 7
+      "rank": 8
     },
     {
       "id": "0.2.0/20261014_claude_code_qwen3_5_27b",
@@ -1442,9 +1538,10 @@
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
-        "0.2.0/20261017_codex_gpt_6_1_sol"
+        "0.2.0/20261017_codex_gpt_6_1_sol",
+        "0.2.0/20261025_claude_code_ornith_1_5_122b"
       ],
-      "rank": 7
+      "rank": 8
     },
     {
       "id": "0.2.0/20261012_claude_code_gemma_4_31b_it",
@@ -1530,9 +1627,10 @@
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
-        "0.2.0/20261017_codex_gpt_6_1_sol"
+        "0.2.0/20261017_codex_gpt_6_1_sol",
+        "0.2.0/20261025_claude_code_ornith_1_5_122b"
       ],
-      "rank": 7
+      "rank": 8
     },
     {
       "id": "0.2.0/20261016_claude_code_gpt_oss_120b",
@@ -1620,9 +1718,10 @@
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
-        "0.2.0/20261017_codex_gpt_6_1_sol"
+        "0.2.0/20261017_codex_gpt_6_1_sol",
+        "0.2.0/20261025_claude_code_ornith_1_5_122b"
       ],
-      "rank": 8
+      "rank": 9
     },
     {
       "id": "0.2.0/20261013_claude_code_telecomgpt_r1",
@@ -1710,9 +1809,10 @@
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
-        "0.2.0/20261017_codex_gpt_6_1_sol"
+        "0.2.0/20261017_codex_gpt_6_1_sol",
+        "0.2.0/20261025_claude_code_ornith_1_5_122b"
       ],
-      "rank": 10
+      "rank": 11
     },
     {
       "id": "0.2.0/20261013_react_telecomgpt_r1",
@@ -1800,9 +1900,10 @@
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
-        "0.2.0/20261017_codex_gpt_6_1_sol"
+        "0.2.0/20261017_codex_gpt_6_1_sol",
+        "0.2.0/20261025_claude_code_ornith_1_5_122b"
       ],
-      "rank": 10
+      "rank": 11
     },
     {
       "id": "0.2.0/20261012_react_gemma_4_31b_it",
@@ -1891,9 +1992,10 @@
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
-        "0.2.0/20261017_codex_gpt_6_1_sol"
+        "0.2.0/20261017_codex_gpt_6_1_sol",
+        "0.2.0/20261025_claude_code_ornith_1_5_122b"
       ],
-      "rank": 11
+      "rank": 12
     },
     {
       "id": "0.2.0/20261007_qwen3_6_35b_a3b_claudecode",
@@ -1967,9 +2069,10 @@
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261016_claude_code_gpt_oss_120b",
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
-        "0.2.0/20261017_codex_gpt_6_1_sol"
+        "0.2.0/20261017_codex_gpt_6_1_sol",
+        "0.2.0/20261025_claude_code_ornith_1_5_122b"
       ],
-      "rank": 13
+      "rank": 14
     },
     {
       "id": "0.2.0/20261019_claude_code_qwen3_coder_next_fp8",
@@ -2063,9 +2166,10 @@
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261016_claude_code_gpt_oss_120b",
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
-        "0.2.0/20261017_codex_gpt_6_1_sol"
+        "0.2.0/20261017_codex_gpt_6_1_sol",
+        "0.2.0/20261025_claude_code_ornith_1_5_122b"
       ],
-      "rank": 13
+      "rank": 14
     },
     {
       "id": "0.2.0/20261008_qwen3_6_35b_a3b_codex",
@@ -2140,9 +2244,10 @@
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261016_claude_code_gpt_oss_120b",
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
-        "0.2.0/20261017_codex_gpt_6_1_sol"
+        "0.2.0/20261017_codex_gpt_6_1_sol",
+        "0.2.0/20261025_claude_code_ornith_1_5_122b"
       ],
-      "rank": 14
+      "rank": 15
     },
     {
       "id": "0.2.0/20261007_qwen3_6_35b_a3b_langgraph",
@@ -2218,9 +2323,10 @@
         "0.2.0/20261016_claude_code_gpt_oss_120b",
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
-        "0.2.0/20261019_claude_code_qwen3_coder_next_fp8"
+        "0.2.0/20261019_claude_code_qwen3_coder_next_fp8",
+        "0.2.0/20261025_claude_code_ornith_1_5_122b"
       ],
-      "rank": 15
+      "rank": 16
     },
     {
       "id": "0.2.0/20261020_codex_qwen3_coder_next_fp8",
@@ -2320,9 +2426,10 @@
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261016_claude_code_gpt_oss_120b",
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
-        "0.2.0/20261017_codex_gpt_6_1_sol"
+        "0.2.0/20261017_codex_gpt_6_1_sol",
+        "0.2.0/20261025_claude_code_ornith_1_5_122b"
       ],
-      "rank": 17
+      "rank": 18
     },
     {
       "id": "0.2.0/20261014_claude_code_glm_4_7_flash",
@@ -2418,9 +2525,10 @@
         "0.2.0/20261016_claude_code_gpt_oss_120b",
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
-        "0.2.0/20261019_claude_code_qwen3_coder_next_fp8"
+        "0.2.0/20261019_claude_code_qwen3_coder_next_fp8",
+        "0.2.0/20261025_claude_code_ornith_1_5_122b"
       ],
-      "rank": 18
+      "rank": 19
     },
     {
       "id": "0.2.0/20261015_react_glm_4_7_flash",
@@ -2517,9 +2625,10 @@
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261019_claude_code_qwen3_coder_next_fp8",
-        "0.2.0/20261020_codex_qwen3_coder_next_fp8"
+        "0.2.0/20261020_codex_qwen3_coder_next_fp8",
+        "0.2.0/20261025_claude_code_ornith_1_5_122b"
       ],
-      "rank": 19
+      "rank": 20
     },
     {
       "id": "0.2.0/20261008_claude_cli_otel_2_0_llm_31b_it",
@@ -2625,9 +2734,10 @@
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261019_claude_code_qwen3_coder_next_fp8",
-        "0.2.0/20261020_codex_qwen3_coder_next_fp8"
+        "0.2.0/20261020_codex_qwen3_coder_next_fp8",
+        "0.2.0/20261025_claude_code_ornith_1_5_122b"
       ],
-      "rank": 21
+      "rank": 22
     }
   ]
 }

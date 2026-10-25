@@ -269,6 +269,12 @@
           "retrieved_via": "openrouter-api"
         }
       ]
+    },
+    "ornith-1.5-122b": {
+      "basis": "hosted_open_weight",
+      "provider": "none",
+      "status": "unavailable",
+      "note": "This run used self-hosted vLLM on ORIX GPUs. No verified, currently available public per-token price was established for this model. Token pricing is unavailable, not zero, and does not represent the compute cost of this run."
     }
   }
 }
