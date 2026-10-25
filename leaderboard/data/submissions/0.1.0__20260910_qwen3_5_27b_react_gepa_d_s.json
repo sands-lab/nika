@@ -59,6 +59,7 @@
   "mean_tokens": 0.0,
   "mean_steps": 0.0,
   "total_tokens": 0,
+  "task_tokens": null,
   "max_steps": null,
   "case_timeout_sec": null,
   "created_at": "2026-09-10T12:00:00+00:00",

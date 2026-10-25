@@ -53,6 +53,7 @@
   "mean_tokens": 119774.893,
   "mean_steps": 6.973,
   "total_tokens": 35932468,
+  "task_tokens": null,
   "max_steps": null,
   "case_timeout_sec": null,
   "created_at": "2026-09-10T12:00:00+00:00",
