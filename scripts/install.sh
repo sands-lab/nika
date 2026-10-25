@@ -2,7 +2,8 @@
 # Install uv, lab deps (Kathará), Containerlab, and gnmic into the repo (.venv and
 # .nika_cache) without apt, then build/pull every runtime image. Re-runs upgrade
 # outdated parts and prune stale ones. Optionally switch git track, install sbx with
-# KVM access, and prepare vendor router images (RouterOS CHR, Cisco XRd).
+# KVM access, prepare vendor router images (RouterOS CHR, Cisco XRd), and set up
+# the host for Firecracker benchmark execution.
 # Usage: ./scripts/install.sh [options]
 set -euo pipefail
 
@@ -33,6 +34,11 @@ AGENTENV_CONTAINER="${AGENTENV_CONTAINER:-nika-agentenv}"
 AGENTENV_PORT="${AGENTENV_PORT:-8800}"
 UBLK_MODULES_CONF=/etc/modules-load.d/nika-agentenv-ublk.conf
 UBLK_MODPROBE_CONF=/etc/modprobe.d/nika-agentenv-ublk.conf
+WITH_FIRECRACKER=0
+HUGEPAGES_CONF=/etc/sysctl.d/99-nika-hugepages.conf
+USERFAULTFD_RULE=/etc/udev/rules.d/99-nika-userfaultfd.rules
+# Host steps the installer cannot do itself, printed at the end.
+MANUAL_STEPS=()
 SKIP_IMAGES=0
 XRD_TARBALL="${NIKA_XRD_TARBALL:-}"
 ORIG_ARGS=("$@")
@@ -89,6 +95,16 @@ Options:
       sbx ships only as a package, so this step uses apt. Run 'sbx login'
       afterwards.
 
+  --with-firecracker
+      Set up this host to run benchmark trials in Firecracker microVMs
+      (docs/operations/firecracker.md) and select it in config/nika.yaml:
+      KVM access, half of host memory as huge pages (reserved now and at
+      boot), the userfaultfd device for the kvm group, a btrfs loop file of
+      the free disk minus 20 GiB (60-150 GiB) mounted at runtime/firecracker
+      (installs btrfs-progs with apt when mkfs.btrfs is missing), and the
+      Kathara network plugin. Needs x86-64 and /dev/kvm. Prints what is left
+      to do by hand, such as a reboot.
+
   --skip-images
       Skip building/pulling runtime images (labs then prepare them on first deploy).
 
@@ -99,6 +115,7 @@ Examples:
   ./scripts/install.sh --track stable
   ./scripts/install.sh --with-agentenv
   ./scripts/install.sh --with-sbx
+  ./scripts/install.sh --with-agentenv --with-firecracker
   ./scripts/install.sh --track latest --with-vendor-images
   ./scripts/install.sh --with-vendor-images --xrd-tarball ~/xrd-control-plane-container-x86_64-26.2.1.tgz
 EOF
@@ -119,6 +136,7 @@ while [[ $# -gt 0 ]]; do
     --with-vendor-images) WITH_VENDOR_IMAGES=1; shift ;;
     --with-sbx) WITH_SBX=1; shift ;;
     --with-agentenv) WITH_AGENTENV=1; shift ;;
+    --with-firecracker) WITH_FIRECRACKER=1; shift ;;
     --skip-images) SKIP_IMAGES=1; shift ;;
     --xrd-tarball)
       [[ $# -ge 2 ]] || { echo "error: --xrd-tarball requires a path" >&2; exit 2; }
@@ -204,6 +222,14 @@ check_prerequisites() {
   fi
   if ! vrf_module_available; then
     missing+=("vrf kernel module, needed by scenarios with Linux VRF devices such as enterprise_branch in the benchmark (on Ubuntu: sudo apt-get install linux-modules-extra-\$(uname -r))")
+  fi
+  if [[ "${WITH_FIRECRACKER}" -eq 1 ]]; then
+    if [[ "$(uname -m)" != x86_64 ]]; then
+      missing+=("an x86-64 host, for --with-firecracker")
+    fi
+    if [[ ! -e /dev/kvm ]]; then
+      missing+=("KVM (/dev/kvm), for --with-firecracker: enable virtualization in the BIOS, or nested virtualization when this host is a VM")
+    fi
   fi
   [[ ${#missing[@]} -eq 0 ]] && return
   printf 'error: missing host prerequisites; install them, then re-run ./scripts/install.sh:\n' >&2
@@ -618,8 +644,8 @@ install_sbx() {
 }
 
 ensure_kvm_access() {
-  # sbx boots each sandbox as a KVM microVM; without read/write on /dev/kvm,
-  # 'sbx create' fails with "KVM error: Permission denied".
+  # sbx sandboxes and Firecracker labs are KVM microVMs; without read/write on
+  # /dev/kvm, 'sbx create' fails with "KVM error: Permission denied".
   if [[ ! -e /dev/kvm ]]; then
     warn "/dev/kvm not found; sbx needs KVM (enable hardware or nested virtualization)"
     return
@@ -631,14 +657,19 @@ ensure_kvm_access() {
   local group
   group="$(stat -c %G /dev/kvm)"
   if [[ "${group}" == root ]]; then
-    warn "/dev/kvm is owned by group root; grant ${USER} read/write on it for sbx"
+    MANUAL_STEPS+=("Grant ${USER} read/write on /dev/kvm (owned by group root)")
     return
   fi
-  need_cmd sudo
-  sudo usermod -aG "${group}" "${USER}"
-  log "Added ${USER} to the ${group} group for /dev/kvm"
-  warn "Open a new login shell (or run 'newgrp ${group}'), then run 'sbx daemon stop'"
-  warn "so the next NIKA run starts sandboxd with the new group"
+  if ! id -nG "${USER}" | tr ' ' '\n' | grep -qx "${group}"; then
+    need_cmd sudo
+    sudo usermod -aG "${group}" "${USER}"
+    log "Added ${USER} to the ${group} group for /dev/kvm"
+  fi
+  local step="Open a new login shell (or run 'newgrp ${group}') to use /dev/kvm"
+  if [[ "${WITH_SBX}" -eq 1 ]]; then
+    step+=", then run 'sbx daemon stop' so the next NIKA run starts sandboxd with the new group"
+  fi
+  MANUAL_STEPS+=("${step}")
 }
 
 ensure_ublk_module() {
@@ -781,6 +812,157 @@ prompt_for_xrd_tarball() {
   done
 }
 
+# Firecracker host setup (docs/operations/firecracker.md). Set by setup_firecracker.
+FC_SUDO=""
+
+ensure_nested_virt() {
+  # Labs that run VMs themselves (vrnetlab RouterOS) need nested KVM.
+  local param value
+  for param in /sys/module/kvm_amd/parameters/nested /sys/module/kvm_intel/parameters/nested; do
+    [[ -r "${param}" ]] || continue
+    value="$(cat "${param}")"
+    if [[ "${value}" == [1Y] ]]; then
+      log "KVM nested virtualization is on"
+    else
+      MANUAL_STEPS+=("For RouterOS labs in Firecracker, turn on KVM nested virtualization (${param} is ${value})")
+    fi
+    return
+  done
+}
+
+ensure_userfaultfd() {
+  # The page server that restores copies onto huge pages opens /dev/userfaultfd.
+  getent group kvm >/dev/null 2>&1 || die "group kvm not found; Firecracker needs /dev/kvm owned by group kvm"
+  printf 'KERNEL=="userfaultfd", GROUP="kvm", MODE="0660"\n' \
+    | ${FC_SUDO} tee "${USERFAULTFD_RULE}" >/dev/null
+  if [[ ! -e /dev/userfaultfd ]]; then
+    MANUAL_STEPS+=("Firecracker restores need /dev/userfaultfd, which kernel $(uname -r) lacks: use Linux 6.1 or newer")
+    return
+  fi
+  ${FC_SUDO} udevadm control --reload-rules
+  ${FC_SUDO} udevadm trigger --name-match=userfaultfd
+  ${FC_SUDO} udevadm settle 2>/dev/null || true
+  if [[ "$(stat -c %G /dev/userfaultfd)" == kvm ]]; then
+    log "/dev/userfaultfd belongs to group kvm (persisted in ${USERFAULTFD_RULE})"
+  else
+    MANUAL_STEPS+=("Give group kvm read/write on /dev/userfaultfd: the udev rule ${USERFAULTFD_RULE} did not apply")
+  fi
+}
+
+ensure_hugepages() {
+  # Each running copy holds its VM memory in 2 MiB huge pages; reserved memory
+  # is unavailable to everything else. "# nika-original" keeps the
+  # pre-install value for scripts/uninstall.sh.
+  local total_kib pages current original reserved
+  total_kib="$(awk '/^MemTotal:/ {print $2}' /proc/meminfo)"
+  pages=$(( total_kib / 2 / 2048 ))  # 2 MiB pages
+  current="$(sysctl -n vm.nr_hugepages)"
+  original="${current}"
+  if [[ -f "${HUGEPAGES_CONF}" ]]; then
+    original="$(sed -n 's/^# nika-original vm\.nr_hugepages=//p' "${HUGEPAGES_CONF}")"
+  fi
+  # Keep a larger reservation the host already has.
+  if (( current > pages )); then
+    pages="${current}"
+  fi
+  printf '# nika-original vm.nr_hugepages=%s\nvm.nr_hugepages=%s\n' "${original}" "${pages}" \
+    | ${FC_SUDO} tee "${HUGEPAGES_CONF}" >/dev/null
+  if (( current != pages )); then
+    # Free the page cache and compact memory so that enough contiguous 2 MiB
+    # blocks exist without a reboot.
+    sync
+    ${FC_SUDO} sh -c 'echo 3 > /proc/sys/vm/drop_caches; echo 1 > /proc/sys/vm/compact_memory'
+    ${FC_SUDO} sysctl -qw "vm.nr_hugepages=${pages}"
+  fi
+  reserved="$(awk '/^HugePages_Total:/ {print $2}' /proc/meminfo)"
+  if (( reserved < pages )); then
+    MANUAL_STEPS+=("Reboot to reserve all huge pages: only $(( reserved / 512 )) of $(( pages / 512 )) GiB fit into memory now; ${HUGEPAGES_CONF} reserves them at boot")
+  else
+    log "Reserved $(( pages / 512 )) GiB of huge pages (persisted in ${HUGEPAGES_CONF})"
+  fi
+  if (( pages < 20 * 512 )); then
+    warn "$(( pages / 512 )) GiB of huge pages cannot hold a 20 GiB VM (isp_pdh, isp_di-yuan, isp_dfn-gwin)"
+  fi
+}
+
+ensure_firecracker_root() {
+  # Trial disks are reflink clones of image disks, so the root must be on btrfs
+  # or XFS. The default root gets a btrfs loop file in runtime/, which
+  # scripts/uninstall.sh unmounts and deletes.
+  local root fstype image="${ROOT}/runtime/firecracker.img"
+  root="$(uv run --no-sync python -c \
+    'from nika.firecracker.config import firecracker_settings; print(firecracker_settings().root)')"
+  [[ "${root}" == /* ]] || root="${ROOT}/${root}"
+  mkdir -p "${root}"
+  fstype="$(findmnt -no FSTYPE -T "${root}")"
+  if [[ "${fstype}" == btrfs || "${fstype}" == xfs ]]; then
+    log "Firecracker root ${root} is on ${fstype}"
+    return
+  fi
+  [[ "${root}" == "${ROOT}/runtime/firecracker" ]] \
+    || die "Firecracker root ${root} is on ${fstype}; nika.execution.firecracker.root needs btrfs or XFS"
+  [[ "${root}" != *[[:space:]]* ]] || die "cannot mount ${root} from /etc/fstab: its path contains whitespace"
+  [[ -z "$(ls -A "${root}")" ]] \
+    || die "${root} holds files on ${fstype}; delete them ('uv run nika firecracker clean --all', then the directory) and re-run"
+  if [[ ! -f "${image}" ]]; then
+    if ! command -v mkfs.btrfs >/dev/null 2>&1; then
+      command -v apt-get >/dev/null 2>&1 \
+        || die "mkfs.btrfs not found; install btrfs-progs, then re-run ./scripts/install.sh --with-firecracker"
+      log "Installing btrfs-progs"
+      ${FC_SUDO} apt-get install -y btrfs-progs >/dev/null
+    fi
+    local avail size
+    avail="$(df --output=avail -BG "${ROOT}/runtime" | tail -n1 | tr -dc 0-9)"
+    # Leave room for Docker images: a loop file that outgrows the free disk
+    # fails with I/O errors.
+    size=$(( avail - 20 < 150 ? avail - 20 : 150 ))
+    (( size >= 60 )) \
+      || die "the Firecracker root needs 60 GiB, but the disk holding ${ROOT}/runtime has only ${avail} GiB free (20 GiB stay free); free disk space, or set nika.execution.firecracker.root to a directory on btrfs or XFS"
+    log "Creating a ${size} GiB btrfs loop file at ${image}"
+    truncate -s "${size}G" "${image}"
+    mkfs.btrfs -q "${image}"
+  fi
+  if ! grep -qF " ${root} " /etc/fstab; then
+    printf '%s %s btrfs loop,noatime,nofail 0 0\n' "${image}" "${root}" \
+      | ${FC_SUDO} tee -a /etc/fstab >/dev/null
+  fi
+  if command -v systemctl >/dev/null 2>&1; then
+    ${FC_SUDO} systemctl daemon-reload
+  fi
+  ${FC_SUDO} mount "${root}"
+  ${FC_SUDO} chown "$(id -u):$(id -g)" "${root}"
+  log "Mounted a btrfs loop file at ${root} (persisted in /etc/fstab)"
+}
+
+ensure_kathara_plugin() {
+  # Lab images get this host's Kathara network plugin: they have no network.
+  if docker plugin ls --format '{{.Name}}' | grep -q '^kathara/katharanp'; then
+    log "Kathara network plugin already installed"
+    return
+  fi
+  log "Installing the Kathara network plugin"
+  docker plugin install --grant-all-permissions "kathara/katharanp_vde:$(host_arch)" >/dev/null
+}
+
+setup_firecracker() {
+  log "Setting up the host for Firecracker execution"
+  if [[ "$(id -u)" -ne 0 ]]; then
+    need_cmd sudo
+    FC_SUDO=sudo
+  fi
+  # mkfs.btrfs, sysctl and udevadm live in sbin, which some distributions
+  # leave off a user's PATH.
+  PATH="${PATH}:/usr/sbin:/sbin"
+  ensure_kvm_access
+  ensure_nested_virt
+  ensure_userfaultfd
+  ensure_hugepages
+  ensure_firecracker_root
+  ensure_kathara_plugin
+  uv run nika config set nika.execution.mode=firecracker >/dev/null
+  log "config/nika.yaml now runs benchmark trials in Firecracker; the first run builds the base image (about 20 min)"
+}
+
 validate_config() {
   # Never rewritten: obsolete keys fail validation and must be fixed by hand.
   if [[ -f config/nika.yaml ]] && ! uv run nika config show >/dev/null; then
@@ -846,6 +1028,10 @@ Every agent runs in a sandbox: install a runtime with --with-agentenv (recommend
 or --with-sbx (then sbx login). See docs/operations/agent-sandbox.md
 Remove NIKA again: ./scripts/uninstall.sh
 EOF
+  if [[ ${#MANUAL_STEPS[@]} -gt 0 ]]; then
+    printf '\nStill to do by hand:\n'
+    printf '  - %s\n' "${MANUAL_STEPS[@]}"
+  fi
 }
 
 main() {
@@ -879,6 +1065,11 @@ main() {
   prepare_images
   if [[ "${WITH_VENDOR_IMAGES}" -eq 1 ]]; then
     install_vendor_images
+  fi
+  # After the images, which the base image copies, and so that the loop file
+  # is sized to the disk they leave free.
+  if [[ "${WITH_FIRECRACKER}" -eq 1 ]]; then
+    setup_firecracker
   fi
   print_next_steps
 }

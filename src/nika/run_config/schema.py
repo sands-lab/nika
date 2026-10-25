@@ -25,6 +25,20 @@ class RemoteSettings(BaseModel):
     artifact_root: str | None = None
 
 
+# VM memory of labs that outgrow the default ``vm_memory``: k8s and SR Linux
+# labs, large ISP topologies, and Cisco XRd (whose build otherwise runs out of
+# memory). ``vm_memory_overrides`` entries take precedence.
+DEFAULT_VM_MEMORY_OVERRIDES = {
+    "k8s_lab": "8GiB",
+    "llmd_lab": "8GiB",
+    "min3clos": "8GiB",
+    "iosxr_simple_bgp": "8GiB",
+    "isp_pdh": "20GiB",
+    "isp_di-yuan": "20GiB",
+    "isp_dfn-gwin": "20GiB",
+}
+
+
 def _gib(value: str) -> str:
     if not value.endswith("GiB") or not value[:-3].isdigit():
         raise ValueError(f"VM memory must look like '8GiB', got {value!r}")
@@ -49,12 +63,16 @@ class FirecrackerSettings(BaseModel):
     vm_cpus: int = Field(default=4, ge=1)
     # Most Kathara labs use under 2 GiB; with huge pages, admission reserves all of it.
     vm_memory: str = "4GiB"
-    # Scenario id -> VM memory, for larger labs (k8s, SR Linux). Image builds
-    # warn when a lab leaves too little of its VM memory free.
-    vm_memory_overrides: dict[str, str] = Field(default_factory=dict)
-    # Back VM memory with 2 MiB huge pages reserved on the host (vm.nr_hugepages):
-    # restored labs run at full speed at once, but copies do not share memory.
-    huge_pages: bool = False
+    # Scenario id -> VM memory, for larger labs, merged over
+    # DEFAULT_VM_MEMORY_OVERRIDES. Image builds warn when a lab leaves too
+    # little of its VM memory free.
+    vm_memory_overrides: dict[str, str] = Field(
+        default_factory=lambda: dict(DEFAULT_VM_MEMORY_OVERRIDES)
+    )
+    # Back VM memory with 2 MiB huge pages reserved on the host (vm.nr_hugepages),
+    # which Firecracker execution requires. Without them (false), the guest runs
+    # on 4 KiB pages and concurrent case-image restores slow the lab for seconds.
+    huge_pages: bool = True
     # Re-run the startup lab verification after each restore, as a cold deploy does.
     verify_after_restore: bool = True
     # Also keep each failure case as a case image (snapshot after injection, its
@@ -75,7 +93,10 @@ class FirecrackerSettings(BaseModel):
     @field_validator("vm_memory_overrides")
     @classmethod
     def _overrides_in_gib(cls, value: dict[str, str]) -> dict[str, str]:
-        return {scenario: _gib(memory) for scenario, memory in value.items()}
+        return {
+            scenario: _gib(memory)
+            for scenario, memory in {**DEFAULT_VM_MEMORY_OVERRIDES, **value}.items()
+        }
 
 
 class SandboxSettings(BaseModel):
