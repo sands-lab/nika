@@ -20,6 +20,12 @@ def tap_owner(lab_name: str) -> str:
     return "tap:" + hashlib.sha256(lab_name.encode()).hexdigest()
 
 
+def _owner_aliases(lab_name: str) -> tuple[str, str]:
+    """Current alias plus the ``nika:``-prefixed one older sessions recorded."""
+    owner = tap_owner(lab_name)
+    return owner, "nika:" + owner
+
+
 # sysfs works in BusyBox images whose `ip` lacks -j and alias (e.g. Routinator);
 # reading it works even where /sys is read-only.
 _LIST_TAPS = r"""
@@ -38,12 +44,12 @@ def record_container_taps(container, lab_name: str) -> None:
         raise RuntimeCapabilityError(
             f"Cannot inspect TAPs in {container.name}: {result.output!r}"
         )
-    owner = tap_owner(lab_name)
+    owner, legacy = _owner_aliases(lab_name)
     for line in result.output.decode().splitlines():
         ifname, _, alias = line.partition("\t")
         if alias == owner:
             continue
-        if alias:
+        if alias and alias != legacy:
             raise RuntimeCapabilityError(
                 f"TAP {container.name}:{ifname} already has alias {alias!r}"
             )
@@ -68,11 +74,11 @@ def owned_host_taps(lab_name: str) -> list[dict]:
         text=True,
         timeout=30,
     )
-    owner = tap_owner(lab_name)
+    aliases = _owner_aliases(lab_name)
     return [
         link
         for link in json.loads(result.stdout)
-        if link.get("ifalias") == owner
+        if link.get("ifalias") in aliases
         and link.get("linkinfo", {}).get("info_data", {}).get("type") == "tap"
     ]
 
@@ -84,12 +90,11 @@ def cleanup_host_taps(lab_name: str) -> None:
         return
     # Recheck the alias and kernel identity immediately before each deletion.
     # A helper avoids adding a host-sudo requirement to Kathara deployments.
-    owner = tap_owner(lab_name)
     commands = []
     for link in links:
         name = shlex.quote(link["ifname"])
         commands.append(
-            f'test "$(cat /sys/class/net/{name}/ifalias)" = {shlex.quote(owner)} '
+            f'test "$(cat /sys/class/net/{name}/ifalias)" = {shlex.quote(link["ifalias"])} '
             f'&& test "$(cat /sys/class/net/{name}/ifindex)" = {link["ifindex"]} '
             f"&& ip link delete dev {name}"
         )
