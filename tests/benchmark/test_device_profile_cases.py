@@ -297,3 +297,50 @@ def test_profile_validation_resumes_and_preserves_other_writers(tmp_path, monkey
     )
     validation.validate_cells([changed], results_path=path, echo=lambda message: None)
     assert len(calls) == 2
+
+
+def test_failure_compatibility_requires_a_shared_backend() -> None:
+    corruption = get_problem_class("link_packet_corruption")
+    assert corruption.is_compatible("enterprise_branch")
+    assert not corruption.is_compatible("min3clos")
+    # Multi-backend scenarios retain a usable Kathara deployment.
+    assert corruption.is_compatible("isp_abilene")
+    assert corruption.is_compatible("isp_abilene", backend="kathara")
+    assert not corruption.is_compatible("isp_abilene", backend="containerlab")
+    specs = list(iter_failure_case_specs())
+    assert not any(
+        problem == "link_packet_corruption" and scenario == "min3clos"
+        for problem, scenario, *_ in specs
+    )
+
+
+def test_compatibility_obeys_declared_path_bdp_ceiling() -> None:
+    from nika.net_env.net_env_pool import scenario_path_bdp_limit_bytes
+    from nika.problems.base import ProblemBase
+
+    class NeedsLargeBdp(ProblemBase):
+        minimum_path_bdp_bytes = 65536
+
+    assert scenario_path_bdp_limit_bytes("enterprise_branch", "routeros") == 10000
+    assert not get_problem_class("tcp_receive_window_limited").is_compatible(
+        "enterprise_branch", "routeros"
+    )
+    assert not NeedsLargeBdp.is_compatible("enterprise_branch", "routeros")
+    assert NeedsLargeBdp.is_compatible("enterprise_branch", "frr")
+    assert NeedsLargeBdp.is_compatible("enterprise_branch", "iosxr")
+    assert NeedsLargeBdp.is_compatible("enterprise_branch")
+    assert scenario_path_bdp_limit_bytes("dc_clos", "routeros") is None
+    NeedsLargeBdp.minimum_path_bdp_bytes = 10000
+    assert NeedsLargeBdp.is_compatible("enterprise_branch", "routeros")
+
+
+def test_containerlab_catalog_task_id_round_trip() -> None:
+    from nika.workflows.benchmark.generate import default_pool_dir
+    from nika.workflows.benchmark.trials import task_id_for_row
+    from nika.workflows.case import load_example_cases
+
+    catalog = default_pool_dir() / "min3clos" / "host_static_blackhole.yaml"
+    rows = load_example_cases(catalog)
+    assert rows
+    row = rows[0]
+    assert load_example_cases(catalog, task_id=task_id_for_row(row)) == [row]

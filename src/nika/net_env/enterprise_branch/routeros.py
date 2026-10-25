@@ -10,7 +10,7 @@ The RouterOS edge keeps the FRR edge's forwarding and isolation model:
 * BGP VPN route targets leak the overlay's BGP routes into each business VRF
   and export each business VRF's connected LAN to the overlay. This matches
   FRR's ``import vrf default`` and ``import vrf vrf_<role>``: business VRFs
-  never import each other's local LANs, and local-only VRFs import nothing.
+  also import each other's local LANs, and local-only VRFs import nothing.
 * Local-only VRFs reach the Internet through a cross-VRF default route,
   source NAT and a forward drop towards 10.0.0.0/8.
 * Overlay egress QoS uses packet marks and a queue tree that mirror the HTB
@@ -281,7 +281,7 @@ def _render_vrf_leaking(edge: RouterOsEdge) -> list[str]:
         _vpn(
             edge,
             lan.vrf,
-            imports=["overlay"],
+            imports=["overlay", *(other.role for other in business if other != lan)],
             export=lan.role,
             redistribute="connected",
         )

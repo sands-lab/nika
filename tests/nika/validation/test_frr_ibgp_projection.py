@@ -237,6 +237,7 @@ def test_selected_isis_ibgp_benchmark_failures_preserve_original_design():
         )
     }
     assert selected
+    transit_acl_seen = False
 
     for profile in selected.values():
         spec = build_benchmark_isp_experiment(profile)
@@ -339,11 +340,26 @@ def test_selected_isis_ibgp_benchmark_failures_preserve_original_design():
                     for intent in resolved.healthy.intents
                     if intent.adjacency and intent.adjacency.protocol == "bgp"
                 }
-                assert any(
-                    adjacency is not None
-                    and target not in (adjacency.local_node, adjacency.remote_node)
-                    for identifier in failure.expected_failed_ids
-                    if (adjacency := healthy_adjacencies.get(identifier))
+                expected_blocked = set()
+                for identifier, adjacency in healthy_adjacencies.items():
+                    paths = [
+                        path
+                        for requirement in spec.behavior
+                        for path in requirement.paths
+                        if (path[0], path[-1])
+                        == (adjacency.local_node, adjacency.remote_node)
+                    ]
+                    assert paths
+                    if all(target in path for path in paths):
+                        expected_blocked.add(identifier)
+                actual_blocked = (
+                    set(failure.expected_failed_ids) & healthy_adjacencies.keys()
+                )
+                assert actual_blocked == expected_blocked
+                transit_acl_seen |= any(
+                    target not in (adjacency.local_node, adjacency.remote_node)
+                    for identifier in actual_blocked
+                    if (adjacency := healthy_adjacencies[identifier])
                 )
             if case["problem"] == "bgp_hijacking":
                 prefix = case["inject"]["target_network"]
@@ -378,3 +394,6 @@ def test_selected_isis_ibgp_benchmark_failures_preserve_original_design():
                 cleanup = failure.recovery_commands[case["inject"]["host_name"]]
                 assert any("ip route del local" in command for command in cleanup)
                 assert any("ip addr del" in command for command in cleanup)
+
+    # The fixed release examples retain coverage of non-endpoint session loss.
+    assert transit_acl_seen

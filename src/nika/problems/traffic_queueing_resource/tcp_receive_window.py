@@ -15,6 +15,7 @@ from nika.problems.traffic_queueing_resource.tcp_rwnd_helpers import (
     DEFAULT_BDP_DIVISOR,
     DEFAULT_BUFFER_CEIL_BYTES,
     DEFAULT_BUFFER_FLOOR_BYTES,
+    MIN_BDP_BYTES,
     SYSCTL_MODERATE,
     SYSCTL_RMEM_MAX,
     SYSCTL_TCP_RMEM,
@@ -82,6 +83,7 @@ class TcpReceiveWindowLimited(ProblemBase):
     TAGS: list[str] = ["http"]
     # Temporary: needs privileged hosts + enough path BDP (WAN RTT).
     COMPATIBLE_COLUMNS = frozenset({"enterprise_branch"})
+    minimum_path_bdp_bytes = MIN_BDP_BYTES
     Params = TcpReceiveWindowLimitedParams
 
     @classmethod

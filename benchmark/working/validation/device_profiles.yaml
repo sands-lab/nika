@@ -3,6 +3,317 @@ generated_by: nika benchmark validate-profiles
 cells:
 - environment: campus_lan
   device_profile: iosxr
+  failure: arp_acl_block
+  scenario: campus_lan
+  task_id: campus_lan__arp_acl_block__s__h5e39821a1b89
+  inject:
+    host_name: pc_1_1_1_1
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-24T19:35:56Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 252
+- environment: campus_lan
+  device_profile: iosxr
+  failure: arp_cache_poisoning
+  scenario: campus_lan
+  task_id: campus_lan__arp_cache_poison__h4fb7bace8a46
+  inject:
+    host_name: pc_1_1_1_1
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-24T19:40:07Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 270
+- environment: campus_lan
+  device_profile: iosxr
+  failure: dhcp_missing_subnet
+  scenario: campus_lan
+  task_id: campus_lan__dhcp_missing_sub__h4cd92e004fae
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_1_1_1_1
+    subnet: 10.1.1.0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-24T19:44:37Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 267
+- environment: campus_lan
+  device_profile: iosxr
+  failure: dhcp_service_down
+  scenario: campus_lan
+  task_id: campus_lan__dhcp_service_dow__hc653793ebae6
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_1_1_1_1
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-24T19:49:04Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 259
+- environment: campus_lan
+  device_profile: iosxr
+  failure: dhcp_spoofed_dns
+  scenario: campus_lan
+  task_id: campus_lan__dhcp_spoofed_dns__h1169a7593c42
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_1_1_1_1
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-24T19:53:23Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 269
+- environment: campus_lan
+  device_profile: iosxr
+  failure: dhcp_spoofed_gateway
+  scenario: campus_lan
+  task_id: campus_lan__dhcp_spoofed_gat__h7c0e4b706b3d
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_1_1_1_1
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-24T22:44:41Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 270
+- environment: campus_lan
+  device_profile: iosxr
+  failure: dhcp_spoofed_subnet
+  scenario: campus_lan
+  task_id: campus_lan__dhcp_spoofed_sub__h80af28c28ee1
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_1_1_1_1
+    subnet: 10.1.1.0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-24T22:53:56Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 249
+- environment: campus_lan
+  device_profile: iosxr
+  failure: dns_lookup_latency
+  scenario: campus_lan
+  task_id: campus_lan__dns_lookup_laten__hb8f4a70a3e9c
+  inject:
+    delay_ms: '1000'
+    host_name: dns_server
+    intf_name: eth0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-24T22:58:20Z'
+  status: validated
+  recovery: restored
+  duration_sec: 249
+- environment: campus_lan
+  device_profile: iosxr
+  failure: dns_port_blocked
+  scenario: campus_lan
+  task_id: campus_lan__dns_port_blocked__h7baed7efeca3
+  inject:
+    host_name: dns_server
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-24T23:02:43Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 254
+- environment: campus_lan
+  device_profile: iosxr
+  failure: dns_record_error
+  scenario: campus_lan
+  task_id: campus_lan__dns_record_error__h79597ea16c92
+  inject:
+    host_name: dns_server
+    target_domain: local
+    target_website: web0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-24T23:07:12Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 249
+- environment: campus_lan
+  device_profile: iosxr
+  failure: dns_service_down
+  scenario: campus_lan
+  task_id: campus_lan__dns_service_down__h81a940076411
+  inject:
+    host_name: dns_server
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-24T23:11:35Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 257
+- environment: campus_lan
+  device_profile: iosxr
+  failure: frr_service_down
+  scenario: campus_lan
+  task_id: campus_lan__frr_service_down__hc4372d1fe4c4
+  inject:
+    host_name: router_dist_1_1
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-24T23:16:06Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 261
+- environment: campus_lan
+  device_profile: iosxr
+  failure: host_incorrect_dns
+  scenario: campus_lan
+  task_id: campus_lan__host_incorrect_d__h39f7ead7527f
+  inject:
+    host_name: pc_1_1_1_1
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-24T23:20:41Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 237
+- environment: campus_lan
+  device_profile: iosxr
+  failure: host_incorrect_gateway
+  scenario: campus_lan
+  task_id: campus_lan__host_incorrect_g__h15cdf0fbace6
+  inject:
+    host_name: pc_1_1_1_1
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-24T23:24:53Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 251
+- environment: campus_lan
+  device_profile: iosxr
+  failure: host_incorrect_ip
+  scenario: campus_lan
+  task_id: campus_lan__host_incorrect_i__h782a5541f580
+  inject:
+    host_name: pc_2_1_1_1
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-24T23:29:18Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 255
+- environment: campus_lan
+  device_profile: iosxr
+  failure: host_incorrect_netmask
+  scenario: campus_lan
+  task_id: campus_lan__host_incorrect_n__h0635595707d2
+  inject:
+    host_name: pc_1_1_1_1
+    netmask_prefix: '8'
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-24T23:33:47Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 247
+- environment: campus_lan
+  device_profile: iosxr
+  failure: host_ip_conflict
+  scenario: campus_lan
+  task_id: campus_lan__host_ip_conflict__hc2b07971dd48
+  inject:
+    host_name: web_server_0
+    host_name_2: web_server_3
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-24T23:38:09Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 254
+- environment: campus_lan
+  device_profile: iosxr
+  failure: host_missing_ip
+  scenario: campus_lan
+  task_id: campus_lan__host_missing_ip__h52667b5bb312
+  inject:
+    host_name: pc_2_1_1_1
+    intf_name: eth0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-24T23:42:37Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 247
+- environment: campus_lan
+  device_profile: iosxr
+  failure: http_acl_block
+  scenario: campus_lan
+  task_id: campus_lan__http_acl_block__h95d4635d333d
+  inject:
+    host_name: pc_1_1_1_1
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-24T23:46:58Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 260
+- environment: campus_lan
+  device_profile: iosxr
+  failure: icmp_acl_block
+  scenario: campus_lan
+  task_id: campus_lan__icmp_acl_block__h0bee334089cf
+  inject:
+    host_name: pc_1_1_1_1
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-24T23:51:33Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 256
+- environment: campus_lan
+  device_profile: iosxr
+  failure: incast_traffic_network_limitation
+  scenario: campus_lan
+  task_id: campus_lan__incast_traffic_n__h9b07051c704f
+  inject:
+    duration: '3600'
+    host_name: web_server_0
+    observer_device: pc_1_1_1_1
+    probe_dst_ip: 10.200.0.3
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-24T23:56:03Z'
+  status: validated
+  recovery: restored
+  duration_sec: 255
+- environment: campus_lan
+  device_profile: iosxr
   failure: link_capacity_bottleneck
   scenario: campus_lan
   task_id: campus_lan__link_capacity_bo__h961685a310e5
@@ -13,12 +324,27 @@ cells:
     limit: 500kb
     rate: 30kbit
   native_target: true
-  nika_commit: 674d90c1ffbd
+  nika_commit: 0f9cdd835822
   image: ios-xr/xrd-control-plane:26.2.1
-  date: '2026-10-24T08:32:32Z'
+  date: '2026-10-24T16:13:01Z'
   status: validated
   recovery: restored
-  duration_sec: 263
+  duration_sec: 276
+- environment: campus_lan
+  device_profile: iosxr
+  failure: link_detach
+  scenario: campus_lan
+  task_id: campus_lan__link_detach__s__h3d4f26287dd7
+  inject:
+    host_name: dhcp_server
+    intf_name: eth0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T00:00:33Z'
+  status: validated
+  recovery: restored
+  duration_sec: 251
 - environment: campus_lan
   device_profile: iosxr
   failure: link_down
@@ -28,12 +354,12 @@ cells:
     host_name: router_core_1
     intf_name: eth0
   native_target: true
-  nika_commit: fa3e070e38e7
+  nika_commit: 0f9cdd835822
   image: ios-xr/xrd-control-plane:26.2.1
-  date: '2026-10-23T08:02:44Z'
+  date: '2026-10-24T16:17:37Z'
   status: validated
   recovery: restored
-  duration_sec: 255
+  duration_sec: 256
 - environment: campus_lan
   device_profile: iosxr
   failure: link_flap
@@ -47,12 +373,12 @@ cells:
     probe_dst_ip: 10.200.0.3
     up_time: '1'
   native_target: true
-  nika_commit: 674d90c1ffbd
+  nika_commit: 0f9cdd835822
   image: ios-xr/xrd-control-plane:26.2.1
-  date: '2026-10-24T08:39:21Z'
+  date: '2026-10-24T16:21:53Z'
   status: validated
   recovery: restored
-  duration_sec: 269
+  duration_sec: 272
 - environment: campus_lan
   device_profile: iosxr
   failure: link_packet_corruption
@@ -65,12 +391,432 @@ cells:
     observer_device: pc_1_1_1_1
     probe_dst_ip: 10.200.0.3
   native_target: true
-  nika_commit: 674d90c1ffbd
+  nika_commit: 0f9cdd835822
   image: ios-xr/xrd-control-plane:26.2.1
-  date: '2026-10-24T08:43:50Z'
+  date: '2026-10-24T16:26:25Z'
   status: validated
   recovery: restored
   duration_sec: 267
+- environment: campus_lan
+  device_profile: iosxr
+  failure: load_balancer_overload
+  scenario: campus_lan
+  task_id: campus_lan__load_balancer_ov__h08e4e0d948da
+  inject:
+    backend_cpu_host: backend_web_0
+    backend_probe_host: load_balancer
+    backend_url: http://20.200.0.2/small
+    client_host: pc_1_1_1_1
+    concurrency: '200'
+    control_url: http://web0.local/small
+    cpu_quota: '0.2'
+    duration_sec: '300'
+    host_name: load_balancer
+    load_client_hosts: pc_2_1_1_1
+    load_workers: '4'
+    probe_concurrency: '4'
+    probe_requests: '60'
+    vip_url: http://web99.local/small
+    warmup_sec: '5'
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T00:04:58Z'
+  status: validated
+  recovery: restored
+  duration_sec: 337
+- environment: campus_lan
+  device_profile: iosxr
+  failure: mac_address_conflict
+  scenario: campus_lan
+  task_id: campus_lan__mac_address_conf__hada7b324159b
+  inject:
+    host_name: load_balancer
+    host_name_2: pc_1_1_1_1
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T00:10:49Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 254
+- environment: campus_lan
+  device_profile: iosxr
+  failure: ospf_acl_block
+  scenario: campus_lan
+  task_id: campus_lan__ospf_acl_block__hdf4cc7bfc3fb
+  inject:
+    host_name: router_dist_1_1
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T00:15:17Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 261
+- environment: campus_lan
+  device_profile: iosxr
+  failure: ospf_area_misconfiguration
+  scenario: campus_lan
+  task_id: campus_lan__ospf_area_miscon__h05ef850dac27
+  inject:
+    host_name: router_dist_1_1
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T00:19:52Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 261
+- environment: campus_lan
+  device_profile: iosxr
+  failure: ospf_neighbor_missing
+  scenario: campus_lan
+  task_id: campus_lan__ospf_neighbor_mi__h8e92a5ffd49d
+  inject:
+    host_name: router_dist_1_1
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T00:24:28Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 256
+- environment: campus_lan
+  device_profile: iosxr
+  failure: receiver_resource_contention
+  scenario: campus_lan
+  task_id: campus_lan__receiver_resourc__h808a926391bf
+  inject:
+    duration: '3600'
+    host_name: pc_1_1_1_1
+    large_url: https://web0.local/packages/catalog.txt
+    peer_host: web_server_0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T00:28:57Z'
+  status: validated
+  recovery: restored
+  duration_sec: 411
+- environment: campus_lan
+  device_profile: iosxr
+  failure: sender_resource_contention
+  scenario: campus_lan
+  task_id: campus_lan__sender_resource__hd55ea0313c81
+  inject:
+    client_host: pc_1_1_1_1
+    cpu_quota: '0.05'
+    dst_ip: 10.200.0.3
+    duration: '3600'
+    host_name: web_server_0
+    large_url: http://10.200.0.3:8080/large.bin
+    small_url: http://10.200.0.3:8080/small.bin
+    stress_cpus: '16'
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T00:36:02Z'
+  status: validated
+  recovery: restored
+  duration_sec: 403
+- environment: campus_lan
+  device_profile: iosxr
+  failure: web_dos_attack
+  scenario: campus_lan
+  task_id: campus_lan__web_dos_attack__h6d43d20f48e4
+  inject:
+    attacker_device: pc_1_1_1_1
+    host_name: web_server_0
+    observer_device: pc_2_1_1_1
+    probe_url: http://10.200.0.3/
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T00:43:00Z'
+  status: validated
+  recovery: restored
+  duration_sec: 267
+- environment: campus_lan
+  device_profile: routeros
+  failure: arp_acl_block
+  scenario: campus_lan
+  task_id: campus_lan__arp_acl_block__s__hccf4441b2fb1
+  inject:
+    host_name: pc_1_1_1_1
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T21:35:56Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 130
+- environment: campus_lan
+  device_profile: routeros
+  failure: arp_cache_poisoning
+  scenario: campus_lan
+  task_id: campus_lan__arp_cache_poison__hab93ced9fbc2
+  inject:
+    host_name: pc_1_1_1_1
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T21:39:43Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 140
+- environment: campus_lan
+  device_profile: routeros
+  failure: dhcp_missing_subnet
+  scenario: campus_lan
+  task_id: campus_lan__dhcp_missing_sub__hd6c0f7853673
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_1_1_1_1
+    subnet: 10.1.1.0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T21:42:03Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 143
+- environment: campus_lan
+  device_profile: routeros
+  failure: dhcp_service_down
+  scenario: campus_lan
+  task_id: campus_lan__dhcp_service_dow__h6f72f23f2d0f
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_1_1_1_1
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T21:44:26Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 137
+- environment: campus_lan
+  device_profile: routeros
+  failure: dhcp_spoofed_dns
+  scenario: campus_lan
+  task_id: campus_lan__dhcp_spoofed_dns__h5588b8a19097
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_1_1_1_1
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T21:46:44Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 140
+- environment: campus_lan
+  device_profile: routeros
+  failure: dhcp_spoofed_gateway
+  scenario: campus_lan
+  task_id: campus_lan__dhcp_spoofed_gat__h8d2b09d28e2f
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_1_1_1_1
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T21:49:04Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 140
+- environment: campus_lan
+  device_profile: routeros
+  failure: dhcp_spoofed_subnet
+  scenario: campus_lan
+  task_id: campus_lan__dhcp_spoofed_sub__hd19e976c6c47
+  inject:
+    host_name: dhcp_server
+    host_name_2: pc_1_1_1_1
+    subnet: 10.1.1.0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T21:51:24Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 140
+- environment: campus_lan
+  device_profile: routeros
+  failure: dns_lookup_latency
+  scenario: campus_lan
+  task_id: campus_lan__dns_lookup_laten__haff01a90a2ff
+  inject:
+    delay_ms: '1000'
+    host_name: dns_server
+    intf_name: eth0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T21:53:44Z'
+  status: validated
+  recovery: restored
+  duration_sec: 129
+- environment: campus_lan
+  device_profile: routeros
+  failure: dns_port_blocked
+  scenario: campus_lan
+  task_id: campus_lan__dns_port_blocked__hd8b514c138da
+  inject:
+    host_name: dns_server
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T21:55:53Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 133
+- environment: campus_lan
+  device_profile: routeros
+  failure: dns_record_error
+  scenario: campus_lan
+  task_id: campus_lan__dns_record_error__h28a79da8a00e
+  inject:
+    host_name: dns_server
+    target_domain: local
+    target_website: web0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T21:58:06Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 140
+- environment: campus_lan
+  device_profile: routeros
+  failure: dns_service_down
+  scenario: campus_lan
+  task_id: campus_lan__dns_service_down__h6966c0758fa1
+  inject:
+    host_name: dns_server
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T22:00:26Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 128
+- environment: campus_lan
+  device_profile: routeros
+  failure: host_incorrect_dns
+  scenario: campus_lan
+  task_id: campus_lan__host_incorrect_d__h88f2075d3932
+  inject:
+    host_name: pc_1_1_1_1
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T22:02:35Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 128
+- environment: campus_lan
+  device_profile: routeros
+  failure: host_incorrect_gateway
+  scenario: campus_lan
+  task_id: campus_lan__host_incorrect_g__h665ffbea056e
+  inject:
+    host_name: pc_1_1_1_1
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T22:04:43Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 140
+- environment: campus_lan
+  device_profile: routeros
+  failure: host_incorrect_ip
+  scenario: campus_lan
+  task_id: campus_lan__host_incorrect_i__h1253c3a2066c
+  inject:
+    host_name: pc_1_1_1_1
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T22:07:03Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 137
+- environment: campus_lan
+  device_profile: routeros
+  failure: host_incorrect_netmask
+  scenario: campus_lan
+  task_id: campus_lan__host_incorrect_n__h7291bfccf858
+  inject:
+    host_name: pc_1_1_1_1
+    netmask_prefix: '8'
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T22:09:20Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 130
+- environment: campus_lan
+  device_profile: routeros
+  failure: host_ip_conflict
+  scenario: campus_lan
+  task_id: campus_lan__host_ip_conflict__h62c8c55d21e3
+  inject:
+    host_name: web_server_0
+    host_name_2: web_server_3
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T22:11:30Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 140
+- environment: campus_lan
+  device_profile: routeros
+  failure: host_missing_ip
+  scenario: campus_lan
+  task_id: campus_lan__host_missing_ip__h4b791189a84e
+  inject:
+    host_name: pc_2_1_1_1
+    intf_name: eth0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T22:13:50Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 129
+- environment: campus_lan
+  device_profile: routeros
+  failure: http_acl_block
+  scenario: campus_lan
+  task_id: campus_lan__http_acl_block__ha1af26f913db
+  inject:
+    host_name: pc_1_1_1_1
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T22:16:00Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 131
+- environment: campus_lan
+  device_profile: routeros
+  failure: icmp_acl_block
+  scenario: campus_lan
+  task_id: campus_lan__icmp_acl_block__h641f92a0c605
+  inject:
+    host_name: pc_1_1_1_1
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T22:18:11Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 139
 - environment: campus_lan
   device_profile: routeros
   failure: icmp_frag_needed_filter_misconfiguration
@@ -79,12 +825,12 @@ cells:
   inject:
     host_name: router_core_2
   native_target: true
-  nika_commit: 17b766b5aaa1
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T08:26:56Z'
+  date: '2026-10-24T16:30:53Z'
   status: validated
   recovery: not_defined
-  duration_sec: 140
+  duration_sec: 136
 - environment: campus_lan
   device_profile: routeros
   failure: link_capacity_bottleneck
@@ -97,12 +843,27 @@ cells:
     limit: 500kb
     rate: 30kbit
   native_target: true
-  nika_commit: 674d90c1ffbd
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-24T08:48:17Z'
+  date: '2026-10-24T16:33:09Z'
   status: validated
   recovery: restored
-  duration_sec: 157
+  duration_sec: 153
+- environment: campus_lan
+  device_profile: routeros
+  failure: link_detach
+  scenario: campus_lan
+  task_id: campus_lan__link_detach__s__h45c5808434f8
+  inject:
+    host_name: dhcp_server
+    intf_name: eth0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T22:20:31Z'
+  status: validated
+  recovery: restored
+  duration_sec: 129
 - environment: campus_lan
   device_profile: routeros
   failure: link_down
@@ -112,12 +873,12 @@ cells:
     host_name: router_core_1
     intf_name: eth0
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T08:41:18Z'
+  date: '2026-10-24T16:35:42Z'
   status: validated
   recovery: restored
-  duration_sec: 138
+  duration_sec: 132
 - environment: campus_lan
   device_profile: routeros
   failure: link_flap
@@ -131,12 +892,12 @@ cells:
     probe_dst_ip: 10.200.0.3
     up_time: '1'
   native_target: true
-  nika_commit: 6991e9f132ba
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-24T08:50:54Z'
+  date: '2026-10-24T16:37:55Z'
   status: validated
   recovery: restored
-  duration_sec: 158
+  duration_sec: 153
 - environment: campus_lan
   device_profile: routeros
   failure: link_packet_corruption
@@ -149,12 +910,55 @@ cells:
     observer_device: pc_1_1_1_1
     probe_dst_ip: 10.200.0.3
   native_target: true
-  nika_commit: 6991e9f132ba
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-24T08:53:32Z'
+  date: '2026-10-24T16:40:29Z'
   status: validated
   recovery: restored
-  duration_sec: 158
+  duration_sec: 151
+- environment: campus_lan
+  device_profile: routeros
+  failure: load_balancer_overload
+  scenario: campus_lan
+  task_id: campus_lan__load_balancer_ov__h9bdf475fb63d
+  inject:
+    backend_cpu_host: backend_web_0
+    backend_probe_host: load_balancer
+    backend_url: http://20.200.0.2/small
+    client_host: pc_1_1_1_1
+    concurrency: '200'
+    control_url: http://web0.local/small
+    cpu_quota: '0.2'
+    duration_sec: '300'
+    host_name: load_balancer
+    load_client_hosts: pc_2_1_1_1
+    load_workers: '4'
+    probe_concurrency: '4'
+    probe_requests: '60'
+    vip_url: http://web99.local/small
+    warmup_sec: '5'
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T22:22:41Z'
+  status: validated
+  recovery: restored
+  duration_sec: 213
+- environment: campus_lan
+  device_profile: routeros
+  failure: mac_address_conflict
+  scenario: campus_lan
+  task_id: campus_lan__mac_address_conf__hc116fcac2798
+  inject:
+    host_name: dhcp_server
+    host_name_2: web_server_0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-25T00:47:40Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 140
 - environment: campus_lan
   device_profile: routeros
   failure: mtu_mismatch
@@ -165,9 +969,9 @@ cells:
     intf_name: eth0
     mtu: '500'
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T08:43:37Z'
+  date: '2026-10-24T16:43:00Z'
   status: validated
   recovery: not_defined
   duration_sec: 132
@@ -179,12 +983,95 @@ cells:
   inject:
     host_name: router_core_1
   native_target: true
-  nika_commit: 0f1b8496bf6a
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T14:26:26Z'
+  date: '2026-10-24T16:45:12Z'
   status: validated
   recovery: not_defined
-  duration_sec: 143
+  duration_sec: 133
+- environment: campus_lan
+  device_profile: routeros
+  failure: receiver_resource_contention
+  scenario: campus_lan
+  task_id: campus_lan__receiver_resourc__hd90dc57c19d7
+  inject:
+    duration: '3600'
+    host_name: pc_1_1_1_1
+    large_url: https://web0.local/packages/catalog.txt
+    peer_host: web_server_0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-25T00:50:14Z'
+  status: validated
+  recovery: restored
+  duration_sec: 394
+- environment: campus_lan
+  device_profile: routeros
+  failure: sender_resource_contention
+  scenario: campus_lan
+  task_id: campus_lan__sender_resource__h1d0c559bc81b
+  inject:
+    client_host: pc_1_1_1_1
+    cpu_quota: '0.05'
+    dst_ip: 10.200.0.3
+    duration: '3600'
+    host_name: web_server_0
+    large_url: http://10.200.0.3:8080/large.bin
+    small_url: http://10.200.0.3:8080/small.bin
+    stress_cpus: '16'
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-25T00:57:03Z'
+  status: validated
+  recovery: restored
+  duration_sec: 1083
+- environment: campus_lan
+  device_profile: routeros
+  failure: web_dos_attack
+  scenario: campus_lan
+  task_id: campus_lan__web_dos_attack__h2c33603fa78a
+  inject:
+    attacker_device: pc_1_1_1_1
+    host_name: web_server_0
+    observer_device: pc_2_1_1_1
+    probe_url: http://10.200.0.3/
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-25T01:15:21Z'
+  status: validated
+  recovery: restored
+  duration_sec: 145
+- environment: dc_clos
+  device_profile: iosxr
+  failure: arp_acl_block
+  scenario: dc_clos
+  task_id: dc_clos__arp_acl_block__s__i__hfe6af5f48dd3
+  inject:
+    host_name: client_0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T01:18:00Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 287
+- environment: dc_clos
+  device_profile: iosxr
+  failure: arp_cache_poisoning
+  scenario: dc_clos
+  task_id: dc_clos__arp_cache_poisoning__h268b63805489
+  inject:
+    host_name: client_0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T01:23:01Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 291
 - environment: dc_clos
   device_profile: iosxr
   failure: bgp_acl_block
@@ -193,12 +1080,12 @@ cells:
   inject:
     host_name: leaf_router_0_0
   native_target: true
-  nika_commit: 0f1b8496bf6a
+  nika_commit: 0f9cdd835822
   image: ios-xr/xrd-control-plane:26.2.1
-  date: '2026-10-23T14:28:49Z'
+  date: '2026-10-24T16:47:26Z'
   status: validated
   recovery: not_defined
-  duration_sec: 281
+  duration_sec: 307
 - environment: dc_clos
   device_profile: iosxr
   failure: bgp_asn_misconfig
@@ -207,12 +1094,12 @@ cells:
   inject:
     host_name: leaf_router_0_0
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: 0f9cdd835822
   image: ios-xr/xrd-control-plane:26.2.1
-  date: '2026-10-23T08:45:49Z'
+  date: '2026-10-24T16:52:33Z'
   status: validated
   recovery: not_defined
-  duration_sec: 300
+  duration_sec: 301
 - environment: dc_clos
   device_profile: iosxr
   failure: bgp_hijacking
@@ -221,9 +1108,9 @@ cells:
   inject:
     host_name: leaf_router_0_0
   native_target: true
-  nika_commit: 6991e9f132ba
+  nika_commit: 0f9cdd835822
   image: ios-xr/xrd-control-plane:26.2.1
-  date: '2026-10-24T09:47:13Z'
+  date: '2026-10-24T16:57:35Z'
   status: validated
   recovery: not_defined
   duration_sec: 337
@@ -235,12 +1122,159 @@ cells:
   inject:
     host_name: leaf_router_0_0
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: 0f9cdd835822
   image: ios-xr/xrd-control-plane:26.2.1
-  date: '2026-10-23T08:51:51Z'
+  date: '2026-10-24T17:03:12Z'
   status: validated
   recovery: not_defined
-  duration_sec: 294
+  duration_sec: 289
+- environment: dc_clos
+  device_profile: iosxr
+  failure: dns_lookup_latency
+  scenario: dc_clos
+  task_id: dc_clos__dns_lookup_latency__ha8591d60283d
+  inject:
+    delay_ms: '1000'
+    host_name: dns_pod0
+    intf_name: eth0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T01:28:07Z'
+  status: validated
+  recovery: restored
+  duration_sec: 283
+- environment: dc_clos
+  device_profile: iosxr
+  failure: dns_port_blocked
+  scenario: dc_clos
+  task_id: dc_clos__dns_port_blocked__s__hbf2043d695cd
+  inject:
+    host_name: dns_pod0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T01:33:04Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 284
+- environment: dc_clos
+  device_profile: iosxr
+  failure: dns_record_error
+  scenario: dc_clos
+  task_id: dc_clos__dns_record_error__s__h7bece24f547a
+  inject:
+    host_name: dns_pod0
+    target_domain: pod0
+    target_website: web0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T01:38:03Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 284
+- environment: dc_clos
+  device_profile: iosxr
+  failure: dns_service_down
+  scenario: dc_clos
+  task_id: dc_clos__dns_service_down__s__h7b869fdc4a26
+  inject:
+    host_name: dns_pod0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T01:43:02Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 284
+- environment: dc_clos
+  device_profile: iosxr
+  failure: host_incorrect_dns
+  scenario: dc_clos
+  task_id: dc_clos__host_incorrect_dns__h9fd4f7433f3b
+  inject:
+    host_name: client_0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T01:48:01Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 281
+- environment: dc_clos
+  device_profile: iosxr
+  failure: host_incorrect_gateway
+  scenario: dc_clos
+  task_id: dc_clos__host_incorrect_gate__ha51b1bf1afe8
+  inject:
+    host_name: client_0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T01:52:57Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 280
+- environment: dc_clos
+  device_profile: iosxr
+  failure: host_incorrect_ip
+  scenario: dc_clos
+  task_id: dc_clos__host_incorrect_ip__h4f86b49ff590
+  inject:
+    host_name: client_0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T01:57:51Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 290
+- environment: dc_clos
+  device_profile: iosxr
+  failure: host_incorrect_netmask
+  scenario: dc_clos
+  task_id: dc_clos__host_incorrect_netm__hf53a4e02c7e2
+  inject:
+    host_name: client_0
+    netmask_prefix: '8'
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T02:02:55Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 289
+- environment: dc_clos
+  device_profile: iosxr
+  failure: host_ip_conflict
+  scenario: dc_clos
+  task_id: dc_clos__host_ip_conflict__s__h10f208000fca
+  inject:
+    host_name: client_0
+    host_name_2: dns_pod0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T02:07:59Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 283
+- environment: dc_clos
+  device_profile: iosxr
+  failure: host_missing_ip
+  scenario: dc_clos
+  task_id: dc_clos__host_missing_ip__s__h40b21e6b274f
+  inject:
+    host_name: client_0
+    intf_name: eth0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T02:12:57Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 268
 - environment: dc_clos
   device_profile: iosxr
   failure: host_static_blackhole
@@ -249,12 +1283,40 @@ cells:
   inject:
     host_name: leaf_router_0_0
   native_target: true
-  nika_commit: 0f1b8496bf6a
+  nika_commit: 0f9cdd835822
   image: ios-xr/xrd-control-plane:26.2.1
-  date: '2026-10-23T14:44:05Z'
+  date: '2026-10-24T17:08:01Z'
   status: validated
   recovery: not_defined
-  duration_sec: 294
+  duration_sec: 304
+- environment: dc_clos
+  device_profile: iosxr
+  failure: http_acl_block
+  scenario: dc_clos
+  task_id: dc_clos__http_acl_block__s__h52d13bad46ad
+  inject:
+    host_name: client_0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T02:17:39Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 285
+- environment: dc_clos
+  device_profile: iosxr
+  failure: icmp_acl_block
+  scenario: dc_clos
+  task_id: dc_clos__icmp_acl_block__s__h1a92b64656e8
+  inject:
+    host_name: client_0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T02:22:39Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 272
 - environment: dc_clos
   device_profile: iosxr
   failure: link_capacity_bottleneck
@@ -267,12 +1329,27 @@ cells:
     limit: 500kb
     rate: 30kbit
   native_target: true
-  nika_commit: 6991e9f132ba
+  nika_commit: 0f9cdd835822
   image: ios-xr/xrd-control-plane:26.2.1
-  date: '2026-10-24T08:56:10Z'
+  date: '2026-10-24T17:13:05Z'
   status: validated
   recovery: restored
-  duration_sec: 326
+  duration_sec: 302
+- environment: dc_clos
+  device_profile: iosxr
+  failure: link_detach
+  scenario: dc_clos
+  task_id: dc_clos__link_detach__s__ios__h95411de166a1
+  inject:
+    host_name: client_0
+    intf_name: eth0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T02:27:25Z'
+  status: validated
+  recovery: restored
+  duration_sec: 279
 - environment: dc_clos
   device_profile: iosxr
   failure: link_down
@@ -282,12 +1359,12 @@ cells:
     host_name: leaf_router_0_0
     intf_name: eth0
   native_target: true
-  nika_commit: c5409b2ed4b4
+  nika_commit: 0f9cdd835822
   image: ios-xr/xrd-control-plane:26.2.1
-  date: '2026-10-24T14:10:36Z'
+  date: '2026-10-24T17:18:07Z'
   status: validated
   recovery: restored
-  duration_sec: 289
+  duration_sec: 282
 - environment: dc_clos
   device_profile: iosxr
   failure: link_flap
@@ -301,12 +1378,12 @@ cells:
     probe_dst_ip: 10.0.1.2
     up_time: '1'
   native_target: true
-  nika_commit: 6991e9f132ba
+  nika_commit: 0f9cdd835822
   image: ios-xr/xrd-control-plane:26.2.1
-  date: '2026-10-24T09:01:36Z'
+  date: '2026-10-24T17:22:50Z'
   status: validated
   recovery: restored
-  duration_sec: 293
+  duration_sec: 318
 - environment: dc_clos
   device_profile: iosxr
   failure: link_packet_corruption
@@ -319,12 +1396,111 @@ cells:
     observer_device: client_0
     probe_dst_ip: 10.0.1.2
   native_target: true
-  nika_commit: 6991e9f132ba
+  nika_commit: 0f9cdd835822
   image: ios-xr/xrd-control-plane:26.2.1
-  date: '2026-10-24T09:06:30Z'
+  date: '2026-10-24T17:28:08Z'
   status: validated
   recovery: restored
-  duration_sec: 294
+  duration_sec: 278
+- environment: dc_clos
+  device_profile: iosxr
+  failure: mac_address_conflict
+  scenario: dc_clos
+  task_id: dc_clos__mac_address_conflic__hceea3e8ca081
+  inject:
+    host_name: webserver0_pod0
+    host_name_2: client_0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T02:32:18Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 280
+- environment: dc_clos
+  device_profile: iosxr
+  failure: receiver_resource_contention
+  scenario: dc_clos
+  task_id: dc_clos__receiver_resource_c__ha9c96ce93d6d
+  inject:
+    duration: '3600'
+    host_name: client_0
+    large_url: http://web0.pod0/large.bin
+    peer_host: webserver0_pod0
+    stress_cpus: '4'
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T02:37:12Z'
+  status: validated
+  recovery: restored
+  duration_sec: 368
+- environment: dc_clos
+  device_profile: iosxr
+  failure: sender_resource_contention
+  scenario: dc_clos
+  task_id: dc_clos__sender_resource_con__hcb6e6214ef91
+  inject:
+    client_host: client_0
+    cpu_quota: '0.05'
+    dst_ip: 10.0.1.2
+    duration: '3600'
+    host_name: webserver0_pod0
+    large_url: http://web0.pod0/large.bin
+    small_url: http://web0.pod0/small.bin
+    stress_cpus: '16'
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T02:43:35Z'
+  status: validated
+  recovery: restored
+  duration_sec: 403
+- environment: dc_clos
+  device_profile: iosxr
+  failure: web_dos_attack
+  scenario: dc_clos
+  task_id: dc_clos__web_dos_attack__s__h96f1e3dfe6f3
+  inject:
+    attacker_device: client_0
+    host_name: webserver0_pod0
+    observer_device: dns_pod0
+    probe_url: http://10.0.1.2/small.bin
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T02:50:32Z'
+  status: validated
+  recovery: restored
+  duration_sec: 296
+- environment: dc_clos
+  device_profile: routeros
+  failure: arp_acl_block
+  scenario: dc_clos
+  task_id: dc_clos__arp_acl_block__s__r__h5e107053c57f
+  inject:
+    host_name: client_0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T19:58:46Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 80
+- environment: dc_clos
+  device_profile: routeros
+  failure: arp_cache_poisoning
+  scenario: dc_clos
+  task_id: dc_clos__arp_cache_poisoning__hb23ec7a87059
+  inject:
+    host_name: client_0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T20:00:07Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 80
 - environment: dc_clos
   device_profile: routeros
   failure: bgp_acl_block
@@ -333,12 +1509,12 @@ cells:
   inject:
     host_name: spine_router_0_0
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T09:12:46Z'
+  date: '2026-10-24T17:32:47Z'
   status: validated
   recovery: not_defined
-  duration_sec: 83
+  duration_sec: 86
 - environment: dc_clos
   device_profile: routeros
   failure: bgp_asn_misconfig
@@ -347,12 +1523,12 @@ cells:
   inject:
     host_name: leaf_router_0_0
   native_target: true
-  nika_commit: c5409b2ed4b4
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-24T14:15:25Z'
+  date: '2026-10-24T17:34:13Z'
   status: validated
   recovery: not_defined
-  duration_sec: 81
+  duration_sec: 79
 - environment: dc_clos
   device_profile: routeros
   failure: bgp_hijacking
@@ -361,12 +1537,12 @@ cells:
   inject:
     host_name: leaf_router_0_0
   native_target: true
-  nika_commit: 6991e9f132ba
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-24T09:52:49Z'
+  date: '2026-10-24T17:35:33Z'
   status: validated
   recovery: not_defined
-  duration_sec: 101
+  duration_sec: 87
 - environment: dc_clos
   device_profile: routeros
   failure: bgp_missing_route_advertisement
@@ -375,12 +1551,159 @@ cells:
   inject:
     host_name: leaf_router_0_0
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T09:19:27Z'
+  date: '2026-10-24T17:37:00Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 83
+- environment: dc_clos
+  device_profile: routeros
+  failure: dns_lookup_latency
+  scenario: dc_clos
+  task_id: dc_clos__dns_lookup_latency__h360b9f608504
+  inject:
+    delay_ms: '1000'
+    host_name: dns_pod0
+    intf_name: eth0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T20:01:27Z'
+  status: validated
+  recovery: restored
+  duration_sec: 81
+- environment: dc_clos
+  device_profile: routeros
+  failure: dns_port_blocked
+  scenario: dc_clos
+  task_id: dc_clos__dns_port_blocked__s__hfa0dda48b806
+  inject:
+    host_name: dns_pod0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T20:02:48Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 83
+- environment: dc_clos
+  device_profile: routeros
+  failure: dns_record_error
+  scenario: dc_clos
+  task_id: dc_clos__dns_record_error__s__hf401db7038ac
+  inject:
+    host_name: dns_pod0
+    target_domain: pod0
+    target_website: web0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T20:04:12Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 80
+- environment: dc_clos
+  device_profile: routeros
+  failure: dns_service_down
+  scenario: dc_clos
+  task_id: dc_clos__dns_service_down__s__h5e3c98804d49
+  inject:
+    host_name: dns_pod0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T20:05:32Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 80
+- environment: dc_clos
+  device_profile: routeros
+  failure: host_incorrect_dns
+  scenario: dc_clos
+  task_id: dc_clos__host_incorrect_dns__hfc823f5174bf
+  inject:
+    host_name: client_0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T20:06:53Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 78
+- environment: dc_clos
+  device_profile: routeros
+  failure: host_incorrect_gateway
+  scenario: dc_clos
+  task_id: dc_clos__host_incorrect_gate__h7b8dd2fa92cc
+  inject:
+    host_name: client_0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T20:08:11Z'
   status: validated
   recovery: not_defined
   duration_sec: 81
+- environment: dc_clos
+  device_profile: routeros
+  failure: host_incorrect_ip
+  scenario: dc_clos
+  task_id: dc_clos__host_incorrect_ip__h818ac8e40fd2
+  inject:
+    host_name: client_0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T20:09:33Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 84
+- environment: dc_clos
+  device_profile: routeros
+  failure: host_incorrect_netmask
+  scenario: dc_clos
+  task_id: dc_clos__host_incorrect_netm__heff375782840
+  inject:
+    host_name: client_0
+    netmask_prefix: '8'
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T20:10:57Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 80
+- environment: dc_clos
+  device_profile: routeros
+  failure: host_ip_conflict
+  scenario: dc_clos
+  task_id: dc_clos__host_ip_conflict__s__ha3dc003722b7
+  inject:
+    host_name: dns_pod0
+    host_name_2: webserver0_pod0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T20:12:17Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 83
+- environment: dc_clos
+  device_profile: routeros
+  failure: host_missing_ip
+  scenario: dc_clos
+  task_id: dc_clos__host_missing_ip__s__hb2f3d417293f
+  inject:
+    host_name: client_0
+    intf_name: eth0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T20:13:40Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 78
 - environment: dc_clos
   device_profile: routeros
   failure: host_static_blackhole
@@ -389,12 +1712,40 @@ cells:
   inject:
     host_name: leaf_router_0_0
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T09:22:05Z'
+  date: '2026-10-24T17:38:23Z'
   status: validated
   recovery: not_defined
   duration_sec: 80
+- environment: dc_clos
+  device_profile: routeros
+  failure: http_acl_block
+  scenario: dc_clos
+  task_id: dc_clos__http_acl_block__s__h1b98cfb015f2
+  inject:
+    host_name: client_0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T20:14:58Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 80
+- environment: dc_clos
+  device_profile: routeros
+  failure: icmp_acl_block
+  scenario: dc_clos
+  task_id: dc_clos__icmp_acl_block__s__h31d7e4efaab6
+  inject:
+    host_name: client_0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T20:16:19Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 82
 - environment: dc_clos
   device_profile: routeros
   failure: icmp_frag_needed_filter_misconfiguration
@@ -403,12 +1754,12 @@ cells:
   inject:
     host_name: leaf_router_0_1
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T09:23:25Z'
+  date: '2026-10-24T17:39:44Z'
   status: validated
   recovery: not_defined
-  duration_sec: 80
+  duration_sec: 82
 - environment: dc_clos
   device_profile: routeros
   failure: link_capacity_bottleneck
@@ -421,12 +1772,27 @@ cells:
     limit: 500kb
     rate: 30kbit
   native_target: true
-  nika_commit: 6991e9f132ba
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-24T09:11:23Z'
+  date: '2026-10-24T17:41:06Z'
   status: validated
   recovery: restored
-  duration_sec: 103
+  duration_sec: 93
+- environment: dc_clos
+  device_profile: routeros
+  failure: link_detach
+  scenario: dc_clos
+  task_id: dc_clos__link_detach__s__rou__he8d794d51630
+  inject:
+    host_name: client_0
+    intf_name: eth0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T20:17:41Z'
+  status: validated
+  recovery: restored
+  duration_sec: 79
 - environment: dc_clos
   device_profile: routeros
   failure: link_down
@@ -436,12 +1802,12 @@ cells:
     host_name: leaf_router_0_0
     intf_name: eth0
   native_target: true
-  nika_commit: c5409b2ed4b4
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-24T14:16:46Z'
+  date: '2026-10-24T17:42:39Z'
   status: validated
   recovery: restored
-  duration_sec: 81
+  duration_sec: 80
 - environment: dc_clos
   device_profile: routeros
   failure: link_flap
@@ -455,12 +1821,12 @@ cells:
     probe_dst_ip: 10.0.1.2
     up_time: '1'
   native_target: true
-  nika_commit: 6991e9f132ba
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-24T09:13:07Z'
+  date: '2026-10-24T17:43:59Z'
   status: validated
   recovery: restored
-  duration_sec: 103
+  duration_sec: 90
 - environment: dc_clos
   device_profile: routeros
   failure: link_packet_corruption
@@ -473,12 +1839,27 @@ cells:
     observer_device: client_0
     probe_dst_ip: 10.0.1.2
   native_target: true
-  nika_commit: 6991e9f132ba
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-24T09:14:50Z'
+  date: '2026-10-24T17:45:29Z'
   status: validated
   recovery: restored
-  duration_sec: 103
+  duration_sec: 91
+- environment: dc_clos
+  device_profile: routeros
+  failure: mac_address_conflict
+  scenario: dc_clos
+  task_id: dc_clos__mac_address_conflic__hd9b62532fc11
+  inject:
+    host_name: webserver0_pod0
+    host_name_2: dns_pod0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T20:19:00Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 79
 - environment: dc_clos
   device_profile: routeros
   failure: mtu_mismatch
@@ -489,12 +1870,620 @@ cells:
     intf_name: eth2
     mtu: '500'
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T09:26:03Z'
+  date: '2026-10-24T17:47:00Z'
   status: validated
   recovery: not_defined
-  duration_sec: 81
+  duration_sec: 82
+- environment: dc_clos
+  device_profile: routeros
+  failure: receiver_resource_contention
+  scenario: dc_clos
+  task_id: dc_clos__receiver_resource_c__h369163c68790
+  inject:
+    duration: '3600'
+    host_name: client_0
+    large_url: http://web0.pod0/large.bin
+    peer_host: webserver0_pod0
+    stress_cpus: '4'
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T20:20:19Z'
+  status: validated
+  recovery: restored
+  duration_sec: 504
+- environment: dc_clos
+  device_profile: routeros
+  failure: sender_resource_contention
+  scenario: dc_clos
+  task_id: dc_clos__sender_resource_con__h0ccfc2fa04e0
+  inject:
+    client_host: client_0
+    cpu_quota: '0.05'
+    dst_ip: 10.0.1.2
+    duration: '3600'
+    host_name: webserver0_pod0
+    large_url: http://web0.pod0/large.bin
+    small_url: http://web0.pod0/small.bin
+    stress_cpus: '16'
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T20:28:44Z'
+  status: validated
+  recovery: restored
+  duration_sec: 1028
+- environment: dc_clos
+  device_profile: routeros
+  failure: web_dos_attack
+  scenario: dc_clos
+  task_id: dc_clos__web_dos_attack__s__h2cd38e814b8d
+  inject:
+    attacker_device: client_0
+    host_name: webserver0_pod0
+    observer_device: dns_pod0
+    probe_url: http://10.0.1.2/small.bin
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T20:45:52Z'
+  status: validated
+  recovery: restored
+  duration_sec: 85
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: arp_acl_block
+  scenario: enterprise_branch
+  task_id: enterprise_branch__arp_acl_b__ha1e56e10fa45
+  inject:
+    host_name: br1_corp_pc
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T02:55:42Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 181
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: arp_cache_poisoning
+  scenario: enterprise_branch
+  task_id: enterprise_branch__arp_cache__hf226b8fd706c
+  inject:
+    host_name: br1_corp_pc
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T02:58:58Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 180
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: bgp_acl_block
+  scenario: enterprise_branch
+  task_id: enterprise_branch__bgp_acl_b__h628c31aec87b
+  inject:
+    host_name: br1_edge
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T03:02:12Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 173
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: bgp_asn_misconfig
+  scenario: enterprise_branch
+  task_id: enterprise_branch__bgp_asn_m__h0a93577706ca
+  inject:
+    host_name: br1_edge
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T03:05:19Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 184
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: bgp_hijacking
+  scenario: enterprise_branch
+  task_id: enterprise_branch__bgp_hijac__hbb6066b63759
+  inject:
+    export_prefix_list: LOCAL-ADV
+    host_name: br1_edge
+    observer_host: br2_corp_pc
+    probe_dst_ip: 10.10.10.2
+    symptom_host: br2_edge
+    target_network: 10.10.10.0/24
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T03:08:38Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 172
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: bgp_missing_route_advertisement
+  scenario: enterprise_branch
+  task_id: enterprise_branch__bgp_missi__h5cbad1eac647
+  inject:
+    host_name: br1_edge
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T03:11:45Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 170
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: device_forwarding_packet_corruption
+  scenario: enterprise_branch
+  task_id: enterprise_branch__device_fo__hace6d320418d
+  inject:
+    forwarding_device: hq_edge
+    intf_name: eth4
+    probe_dst_ip: 10.0.20.2
+    seed: '42'
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T03:14:49Z'
+  status: validated
+  recovery: restored
+  duration_sec: 182
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: frr_service_down
+  scenario: enterprise_branch
+  task_id: enterprise_branch__frr_servi__hfceb9e347f5f
+  inject:
+    host_name: br1_edge
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T03:18:05Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 184
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: host_incorrect_gateway
+  scenario: enterprise_branch
+  task_id: enterprise_branch__host_inco__h615152ef00ea
+  inject:
+    host_name: br1_corp_pc
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T03:21:23Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 182
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: host_incorrect_ip
+  scenario: enterprise_branch
+  task_id: enterprise_branch__host_inco__h6d7da7d8ff77
+  inject:
+    host_name: br1_corp_pc
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T03:24:39Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 175
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: host_incorrect_netmask
+  scenario: enterprise_branch
+  task_id: enterprise_branch__host_inco__h648f35641b71
+  inject:
+    host_name: br1_corp_pc
+    netmask_prefix: '8'
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T03:27:48Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 183
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: host_ip_conflict
+  scenario: enterprise_branch
+  task_id: enterprise_branch__host_ip_c__h6f0c814a0cb0
+  inject:
+    host_name: br2_corp_pc
+    host_name_2: hq_corp_pc
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T03:31:06Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 181
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: host_missing_ip
+  scenario: enterprise_branch
+  task_id: enterprise_branch__host_miss__h13f3d8ba9211
+  inject:
+    host_name: br1_corp_pc
+    intf_name: eth0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T03:34:21Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 179
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: host_static_blackhole
+  scenario: enterprise_branch
+  task_id: enterprise_branch__host_stat__hb9399e65ab76
+  inject:
+    host_name: br1_edge
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T03:37:34Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 173
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: http_acl_block
+  scenario: enterprise_branch
+  task_id: enterprise_branch__http_acl__h3d5c3cede330
+  inject:
+    host_name: br1_corp_pc
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T03:40:41Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 183
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: icmp_acl_block
+  scenario: enterprise_branch
+  task_id: enterprise_branch__icmp_acl__h2fd2f04788ef
+  inject:
+    host_name: br1_corp_pc
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T03:43:59Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 182
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: icmp_frag_needed_filter_misconfiguration
+  scenario: enterprise_branch
+  task_id: enterprise_branch__icmp_frag__h680c751e7dd0
+  inject:
+    host_name: br1_edge
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T03:47:15Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 173
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: incast_traffic_network_limitation
+  scenario: enterprise_branch
+  task_id: enterprise_branch__incast_tr__h02d2caff7bf7
+  inject:
+    duration: '3600'
+    host_name: hq_srv
+    observer_device: br1_corp_pc
+    probe_dst_ip: 10.0.20.2
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T04:10:06Z'
+  status: validated
+  recovery: restored
+  duration_sec: 205
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: link_capacity_bottleneck
+  scenario: enterprise_branch
+  task_id: enterprise_branch__link_capa__hde3a8d494e20
+  inject:
+    burst: 64kb
+    host_name: br1_corp_pc
+    intf_name: eth0
+    limit: 500kb
+    rate: 10kbit
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T03:53:50Z'
+  status: validated
+  recovery: restored
+  duration_sec: 192
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: link_detach
+  scenario: enterprise_branch
+  task_id: enterprise_branch__link_deta__h17b9d79ac033
+  inject:
+    host_name: br1_corp_pc
+    intf_name: eth0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T04:00:22Z'
+  status: validated
+  recovery: restored
+  duration_sec: 171
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: link_down
+  scenario: enterprise_branch
+  task_id: enterprise_branch__link_down__h20069cda1bfa
+  inject:
+    host_name: br1_corp_pc
+    intf_name: eth0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T04:03:27Z'
+  status: validated
+  recovery: restored
+  duration_sec: 183
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: link_flap
+  scenario: enterprise_branch
+  task_id: enterprise_branch__link_flap__h5fc51ca1ea3e
+  inject:
+    down_time: '1'
+    host_name: br1_corp_pc
+    intf_name: eth0
+    observer_device: br1_corp_pc
+    probe_dst_ip: 10.0.20.2
+    up_time: '1'
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T04:06:44Z'
+  status: validated
+  recovery: restored
+  duration_sec: 200
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: link_packet_corruption
+  scenario: enterprise_branch
+  task_id: enterprise_branch__link_pack__hbaabeabc2655
+  inject:
+    corruption_percentage: '10'
+    host_name: br1_corp_pc
+    intf_name: eth0
+    observer_device: br1_corp_pc
+    probe_dst_ip: 10.0.20.2
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T04:15:22Z'
+  status: validated
+  recovery: restored
+  duration_sec: 201
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: mac_address_conflict
+  scenario: enterprise_branch
+  task_id: enterprise_branch__mac_addre__h0d969355eb85
+  inject:
+    host_name: hq_guest_pc
+    host_name_2: dc2_srv
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T04:22:34Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 171
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: nat_mapping_removed_without_drain
+  scenario: enterprise_branch
+  task_id: enterprise_branch__nat_mappi__h09fbd63f5ab4
+  inject:
+    host_name: br1_edge
+    nat_ip_a: 198.18.1.10
+    nat_ip_b: 198.18.1.11
+    source_prefix: 10.1.40.0/24
+    wan_interface: eth2
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T04:25:40Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 194
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: receiver_resource_contention
+  scenario: enterprise_branch
+  task_id: enterprise_branch__receiver__hcb929d93009b
+  inject:
+    duration: '3600'
+    host_name: br1_corp_pc
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T04:29:09Z'
+  status: validated
+  recovery: restored
+  duration_sec: 358
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: sender_resource_contention
+  scenario: enterprise_branch
+  task_id: enterprise_branch__sender_re__hc99a07a40457
+  inject:
+    client_host: br1_corp_pc
+    cpu_quota: '0.05'
+    dst_ip: 10.0.20.2
+    duration: '3600'
+    host_name: hq_srv
+    large_url: http://10.0.20.2/large.bin
+    small_url: http://10.0.20.2/small.bin
+    stress_cpus: '16'
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T04:35:22Z'
+  status: validated
+  recovery: restored
+  duration_sec: 390
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: snat_port_pool_exhaustion
+  scenario: enterprise_branch
+  task_id: enterprise_branch__snat_port__hbb17cb6484de
+  inject:
+    host_name: br1_edge
+    port_end: '40063'
+    port_start: '40000'
+    public_ip: 198.18.1.10
+    source_prefix: 10.1.40.0/24
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T05:49:27Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 182
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: tcp_receive_window_limited
+  scenario: enterprise_branch
+  task_id: enterprise_branch__tcp_recei__hfafd8474e2b6
+  inject:
+    host_name: br1_corp_pc
+    large_url: http://10.0.20.2/large.bin
+    sender_host: hq_srv
+    sender_ip: 10.0.20.2
+    small_url: http://10.0.20.2/small.bin
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T05:52:44Z'
+  status: validated
+  recovery: restored
+  duration_sec: 203
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: vrf_dscp_remarking
+  scenario: enterprise_branch
+  task_id: enterprise_branch__vrf_dscp__h4c8a90d1df4b
+  inject:
+    corp_prefix: 10.0.10.0/24
+    direction: lan_to_overlay
+    dst_host: br1_corp_pc
+    host_name: hq_edge
+    intf_name: wg_br1
+    src_host: hq_corp_pc
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T05:56:22Z'
+  status: validated
+  recovery: restored
+  duration_sec: 288
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: web_dos_attack
+  scenario: enterprise_branch
+  task_id: enterprise_branch__web_dos_a__h98b42ea6cc87
+  inject:
+    attack_url: http://10.0.20.2/archive/
+    attacker_device: br1_corp_pc
+    host_name: hq_srv
+    observer_device: hq_corp_pc
+    probe_url: http://10.0.20.2/small.bin
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T06:01:24Z'
+  status: validated
+  recovery: restored
+  duration_sec: 290
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: wireguard_allowed_ips_misconfiguration
+  scenario: enterprise_branch
+  task_id: enterprise_branch__wireguard__h33040b38addb
+  inject:
+    host_name: br1_edge
+    intf_name: wg_hq
+    target_prefix: 10.0.20.0/24
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T06:06:29Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 185
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: wireguard_peer_key_misconfiguration
+  scenario: enterprise_branch
+  task_id: enterprise_branch__wireguard__h37d4190fb1f8
+  inject:
+    host_name: br1_edge
+    intf_name: wg_hq
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T06:09:49Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 175
+- environment: enterprise_branch
+  device_profile: routeros
+  failure: arp_acl_block
+  scenario: enterprise_branch
+  task_id: enterprise_branch__arp_acl_b__h41219abe56d9
+  inject:
+    host_name: br1_corp_pc
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T20:47:18Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 107
+- environment: enterprise_branch
+  device_profile: routeros
+  failure: arp_cache_poisoning
+  scenario: enterprise_branch
+  task_id: enterprise_branch__arp_cache__ha9262f797173
+  inject:
+    host_name: br1_corp_pc
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T20:49:04Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 95
 - environment: enterprise_branch
   device_profile: routeros
   failure: bgp_acl_block
@@ -503,12 +2492,12 @@ cells:
   inject:
     host_name: br1_edge
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T09:27:23Z'
+  date: '2026-10-24T17:48:22Z'
   status: validated
   recovery: not_defined
-  duration_sec: 111
+  duration_sec: 98
 - environment: enterprise_branch
   device_profile: routeros
   failure: bgp_asn_misconfig
@@ -517,12 +2506,12 @@ cells:
   inject:
     host_name: br1_edge
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T09:29:14Z'
+  date: '2026-10-24T17:50:00Z'
   status: validated
   recovery: not_defined
-  duration_sec: 94
+  duration_sec: 96
 - environment: enterprise_branch
   device_profile: routeros
   failure: bgp_hijacking
@@ -536,12 +2525,12 @@ cells:
     symptom_host: br2_edge
     target_network: 10.10.10.0/24
   native_target: true
-  nika_commit: 6991e9f132ba
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-24T09:54:30Z'
+  date: '2026-10-24T17:51:36Z'
   status: validated
   recovery: not_defined
-  duration_sec: 112
+  duration_sec: 90
 - environment: enterprise_branch
   device_profile: routeros
   failure: bgp_missing_route_advertisement
@@ -550,12 +2539,12 @@ cells:
   inject:
     host_name: br1_edge
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T09:32:35Z'
+  date: '2026-10-24T17:53:07Z'
   status: validated
   recovery: not_defined
-  duration_sec: 96
+  duration_sec: 86
 - environment: enterprise_branch
   device_profile: routeros
   failure: frr_service_down
@@ -564,12 +2553,85 @@ cells:
   inject:
     host_name: isp1_core
   native_target: false
-  nika_commit: 0f1b8496bf6a
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T15:26:01Z'
+  date: '2026-10-24T20:50:39Z'
   status: validated
   recovery: not_defined
-  duration_sec: 98
+  duration_sec: 97
+- environment: enterprise_branch
+  device_profile: routeros
+  failure: host_incorrect_gateway
+  scenario: enterprise_branch
+  task_id: enterprise_branch__host_inco__hde3d04a91ff3
+  inject:
+    host_name: br1_corp_pc
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T20:52:17Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 82
+- environment: enterprise_branch
+  device_profile: routeros
+  failure: host_incorrect_ip
+  scenario: enterprise_branch
+  task_id: enterprise_branch__host_inco__hc56d9d77070c
+  inject:
+    host_name: br1_corp_pc
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T20:53:39Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 84
+- environment: enterprise_branch
+  device_profile: routeros
+  failure: host_incorrect_netmask
+  scenario: enterprise_branch
+  task_id: enterprise_branch__host_inco__ha7632cafd098
+  inject:
+    host_name: br1_corp_pc
+    netmask_prefix: '8'
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T20:55:02Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 107
+- environment: enterprise_branch
+  device_profile: routeros
+  failure: host_ip_conflict
+  scenario: enterprise_branch
+  task_id: enterprise_branch__host_ip_c__hd9591b658724
+  inject:
+    host_name: hq_corp_pc
+    host_name_2: br2_corp_pc
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T20:56:50Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 81
+- environment: enterprise_branch
+  device_profile: routeros
+  failure: host_missing_ip
+  scenario: enterprise_branch
+  task_id: enterprise_branch__host_miss__hae7acbc2f4c3
+  inject:
+    host_name: br1_corp_pc
+    intf_name: eth0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T20:58:11Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 93
 - environment: enterprise_branch
   device_profile: routeros
   failure: host_static_blackhole
@@ -578,12 +2640,40 @@ cells:
   inject:
     host_name: br1_edge
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T09:35:43Z'
+  date: '2026-10-24T17:54:33Z'
   status: validated
   recovery: not_defined
-  duration_sec: 97
+  duration_sec: 83
+- environment: enterprise_branch
+  device_profile: routeros
+  failure: http_acl_block
+  scenario: enterprise_branch
+  task_id: enterprise_branch__http_acl__hbc6ab0282415
+  inject:
+    host_name: br1_corp_pc
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T20:59:44Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 93
+- environment: enterprise_branch
+  device_profile: routeros
+  failure: icmp_acl_block
+  scenario: enterprise_branch
+  task_id: enterprise_branch__icmp_acl__h7ecc92a58a39
+  inject:
+    host_name: br1_corp_pc
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T21:01:17Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 93
 - environment: enterprise_branch
   device_profile: routeros
   failure: icmp_frag_needed_filter_misconfiguration
@@ -592,12 +2682,12 @@ cells:
   inject:
     host_name: br1_edge
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T09:37:20Z'
+  date: '2026-10-24T17:55:56Z'
   status: validated
   recovery: not_defined
-  duration_sec: 94
+  duration_sec: 96
 - environment: enterprise_branch
   device_profile: routeros
   failure: link_capacity_bottleneck
@@ -610,9 +2700,24 @@ cells:
     limit: 500kb
     rate: 10kbit
   native_target: true
-  nika_commit: 6991e9f132ba
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-24T09:18:17Z'
+  date: '2026-10-24T17:57:32Z'
+  status: validated
+  recovery: restored
+  duration_sec: 104
+- environment: enterprise_branch
+  device_profile: routeros
+  failure: link_detach
+  scenario: enterprise_branch
+  task_id: enterprise_branch__link_deta__h9c63e7ee789f
+  inject:
+    host_name: br1_corp_pc
+    intf_name: eth0
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T21:02:50Z'
   status: validated
   recovery: restored
   duration_sec: 94
@@ -625,12 +2730,12 @@ cells:
     host_name: br1_edge
     intf_name: eth1
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T09:38:55Z'
+  date: '2026-10-24T17:59:16Z'
   status: validated
   recovery: restored
-  duration_sec: 93
+  duration_sec: 82
 - environment: enterprise_branch
   device_profile: routeros
   failure: link_flap
@@ -644,12 +2749,12 @@ cells:
     probe_dst_ip: 10.0.20.2
     up_time: '1'
   native_target: true
-  nika_commit: 6991e9f132ba
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-24T09:19:51Z'
+  date: '2026-10-24T18:00:38Z'
   status: validated
   recovery: restored
-  duration_sec: 106
+  duration_sec: 105
 - environment: enterprise_branch
   device_profile: routeros
   failure: link_packet_corruption
@@ -662,12 +2767,27 @@ cells:
     observer_device: br1_corp_pc
     probe_dst_ip: 10.0.20.2
   native_target: true
-  nika_commit: 6991e9f132ba
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-24T09:21:38Z'
+  date: '2026-10-24T18:02:23Z'
   status: validated
   recovery: restored
-  duration_sec: 105
+  duration_sec: 92
+- environment: enterprise_branch
+  device_profile: routeros
+  failure: mac_address_conflict
+  scenario: enterprise_branch
+  task_id: enterprise_branch__mac_addre__hf0871fd1334d
+  inject:
+    host_name: hq_guest_pc
+    host_name_2: hq_corp_pc
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T21:04:25Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 81
 - environment: enterprise_branch
   device_profile: routeros
   failure: mtu_mismatch
@@ -678,12 +2798,12 @@ cells:
     intf_name: eth2
     mtu: '500'
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T09:40:27Z'
+  date: '2026-10-24T18:03:55Z'
   status: validated
   recovery: not_defined
-  duration_sec: 93
+  duration_sec: 81
 - environment: enterprise_branch
   device_profile: routeros
   failure: nat_mapping_removed_without_drain
@@ -696,12 +2816,48 @@ cells:
     source_prefix: 10.1.40.0/24
     wan_interface: eth2
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T09:42:00Z'
+  date: '2026-10-24T18:05:44Z'
   status: validated
   recovery: not_defined
-  duration_sec: 95
+  duration_sec: 108
+- environment: enterprise_branch
+  device_profile: routeros
+  failure: receiver_resource_contention
+  scenario: enterprise_branch
+  task_id: enterprise_branch__receiver__h446c6c91a668
+  inject:
+    duration: '3600'
+    host_name: br1_corp_pc
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T21:05:46Z'
+  status: validated
+  recovery: restored
+  duration_sec: 487
+- environment: enterprise_branch
+  device_profile: routeros
+  failure: sender_resource_contention
+  scenario: enterprise_branch
+  task_id: enterprise_branch__sender_re__h30fe70168e97
+  inject:
+    client_host: br1_corp_pc
+    cpu_quota: '0.05'
+    dst_ip: 10.0.20.2
+    duration: '3600'
+    host_name: hq_srv
+    large_url: http://10.0.20.2/large.bin
+    small_url: http://10.0.20.2/small.bin
+    stress_cpus: '16'
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T21:13:53Z'
+  status: validated
+  recovery: restored
+  duration_sec: 1002
 - environment: enterprise_branch
   device_profile: routeros
   failure: snat_port_pool_exhaustion
@@ -714,12 +2870,12 @@ cells:
     public_ip: 198.18.1.10
     source_prefix: 10.1.40.0/24
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T09:43:36Z'
+  date: '2026-10-24T18:09:50Z'
   status: validated
   recovery: not_defined
-  duration_sec: 94
+  duration_sec: 82
 - environment: enterprise_branch
   device_profile: routeros
   failure: vrf_dscp_remarking
@@ -733,12 +2889,30 @@ cells:
     intf_name: wg_br1
     src_host: hq_corp_pc
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T09:45:10Z'
+  date: '2026-10-24T18:11:12Z'
   status: validated
   recovery: restored
-  duration_sec: 241
+  duration_sec: 248
+- environment: enterprise_branch
+  device_profile: routeros
+  failure: web_dos_attack
+  scenario: enterprise_branch
+  task_id: enterprise_branch__web_dos_a__h171dd2d531ba
+  inject:
+    attack_url: http://10.0.20.2/archive/
+    attacker_device: br1_corp_pc
+    host_name: hq_srv
+    observer_device: hq_corp_pc
+    probe_url: http://10.0.20.2/small.bin
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T22:41:06Z'
+  status: validated
+  recovery: restored
+  duration_sec: 99
 - environment: enterprise_branch
   device_profile: routeros
   failure: wireguard_allowed_ips_misconfiguration
@@ -749,12 +2923,12 @@ cells:
     intf_name: wg_hq
     target_prefix: 10.0.20.0/24
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T09:49:11Z'
+  date: '2026-10-24T18:15:20Z'
   status: validated
   recovery: not_defined
-  duration_sec: 98
+  duration_sec: 100
 - environment: enterprise_branch
   device_profile: routeros
   failure: wireguard_peer_key_misconfiguration
@@ -764,12 +2938,12 @@ cells:
     host_name: br1_edge
     intf_name: wg_hq
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T09:50:49Z'
+  date: '2026-10-24T18:17:00Z'
   status: validated
   recovery: not_defined
-  duration_sec: 108
+  duration_sec: 95
 - environment: isp
   device_profile: iosxr
   failure: bgp_acl_block
@@ -778,12 +2952,12 @@ cells:
   inject:
     host_name: atlam5
   native_target: true
-  nika_commit: 0f1b8496bf6a
+  nika_commit: 0f9cdd835822
   image: ios-xr/xrd-control-plane:26.2.1
-  date: '2026-10-23T14:48:59Z'
+  date: '2026-10-24T18:18:35Z'
   status: validated
   recovery: not_defined
-  duration_sec: 292
+  duration_sec: 336
 - environment: isp
   device_profile: iosxr
   failure: bgp_asn_misconfig
@@ -792,12 +2966,12 @@ cells:
   inject:
     host_name: atlam5
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: 0f9cdd835822
   image: ios-xr/xrd-control-plane:26.2.1
-  date: '2026-10-23T09:52:37Z'
+  date: '2026-10-24T18:24:11Z'
   status: validated
   recovery: not_defined
-  duration_sec: 432
+  duration_sec: 318
 - environment: isp
   device_profile: iosxr
   failure: bgp_hijacking
@@ -810,12 +2984,12 @@ cells:
     symptom_host: atlang
     target_network: 198.18.0.0/24
   native_target: true
-  nika_commit: 6991e9f132ba
+  nika_commit: 0f9cdd835822
   image: ios-xr/xrd-control-plane:26.2.1
-  date: '2026-10-24T09:56:22Z'
+  date: '2026-10-24T18:29:30Z'
   status: validated
   recovery: not_defined
-  duration_sec: 354
+  duration_sec: 398
 - environment: isp
   device_profile: iosxr
   failure: bgp_missing_route_advertisement
@@ -828,12 +3002,12 @@ cells:
     probe_dst_ip: 203.0.113.1
     symptom_host: atlam5
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: 0f9cdd835822
   image: ios-xr/xrd-control-plane:26.2.1
-  date: '2026-10-23T09:59:48Z'
+  date: '2026-10-24T18:36:07Z'
   status: validated
   recovery: not_defined
-  duration_sec: 311
+  duration_sec: 307
 - environment: isp
   device_profile: iosxr
   failure: host_static_blackhole
@@ -842,12 +3016,26 @@ cells:
   inject:
     host_name: atlam5
   native_target: true
-  nika_commit: 0f1b8496bf6a
+  nika_commit: 0f9cdd835822
   image: ios-xr/xrd-control-plane:26.2.1
-  date: '2026-10-23T15:01:26Z'
+  date: '2026-10-24T18:41:15Z'
   status: validated
   recovery: not_defined
-  duration_sec: 306
+  duration_sec: 290
+- environment: isp
+  device_profile: iosxr
+  failure: icmp_acl_block
+  scenario: isp_abilene
+  task_id: isp_abilene__icmp_acl_block__h53d1662b321a
+  inject:
+    host_name: pc_atlam5
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-10-25T06:12:59Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 193
 - environment: isp
   device_profile: iosxr
   failure: link_capacity_bottleneck
@@ -863,12 +3051,12 @@ cells:
     rate: 30kbit
     symptom_host: pc_atlam5
   native_target: true
-  nika_commit: f8b517692335
+  nika_commit: 0f9cdd835822
   image: ios-xr/xrd-control-plane:26.2.1
-  date: '2026-10-24T10:12:30Z'
+  date: '2026-10-24T18:46:05Z'
   status: validated
   recovery: restored
-  duration_sec: 209
+  duration_sec: 215
 - environment: isp
   device_profile: iosxr
   failure: link_down
@@ -881,12 +3069,12 @@ cells:
     probe_dst_ip: 10.254.0.6
     symptom_host: pc_atlam5
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: 0f9cdd835822
   image: ios-xr/xrd-control-plane:26.2.1
-  date: '2026-10-23T10:04:59Z'
+  date: '2026-10-24T18:49:41Z'
   status: validated
   recovery: restored
-  duration_sec: 193
+  duration_sec: 192
 - environment: isp
   device_profile: iosxr
   failure: link_flap
@@ -901,12 +3089,12 @@ cells:
     symptom_host: pc_atlam5
     up_time: '1'
   native_target: true
-  nika_commit: 6991e9f132ba
+  nika_commit: 0f9cdd835822
   image: ios-xr/xrd-control-plane:26.2.1
-  date: '2026-10-24T09:30:24Z'
+  date: '2026-10-24T18:52:53Z'
   status: validated
   recovery: restored
-  duration_sec: 430
+  duration_sec: 335
 - environment: isp
   device_profile: iosxr
   failure: link_packet_corruption
@@ -920,12 +3108,12 @@ cells:
     probe_dst_ip: 10.254.0.6
     symptom_host: pc_atlam5
   native_target: true
-  nika_commit: 6991e9f132ba
+  nika_commit: 0f9cdd835822
   image: ios-xr/xrd-control-plane:26.2.1
-  date: '2026-10-24T09:37:34Z'
+  date: '2026-10-24T18:58:29Z'
   status: validated
   recovery: restored
-  duration_sec: 564
+  duration_sec: 205
 - environment: isp
   device_profile: routeros
   failure: bgp_acl_block
@@ -934,12 +3122,12 @@ cells:
   inject:
     host_name: atlam5
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T10:08:12Z'
+  date: '2026-10-24T19:01:54Z'
   status: validated
   recovery: not_defined
-  duration_sec: 158
+  duration_sec: 150
 - environment: isp
   device_profile: routeros
   failure: bgp_asn_misconfig
@@ -948,12 +3136,12 @@ cells:
   inject:
     host_name: atlam5
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T10:10:50Z'
+  date: '2026-10-24T19:04:24Z'
   status: validated
   recovery: not_defined
-  duration_sec: 160
+  duration_sec: 151
 - environment: isp
   device_profile: routeros
   failure: bgp_hijacking
@@ -966,9 +3154,9 @@ cells:
     symptom_host: atlang
     target_network: 198.18.0.0/24
   native_target: true
-  nika_commit: 6991e9f132ba
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-24T10:02:16Z'
+  date: '2026-10-24T19:06:55Z'
   status: validated
   recovery: not_defined
   duration_sec: 150
@@ -984,12 +3172,12 @@ cells:
     probe_dst_ip: 203.0.113.1
     symptom_host: atlam5
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T10:16:58Z'
+  date: '2026-10-24T19:09:25Z'
   status: validated
   recovery: not_defined
-  duration_sec: 161
+  duration_sec: 143
 - environment: isp
   device_profile: routeros
   failure: host_static_blackhole
@@ -998,12 +3186,26 @@ cells:
   inject:
     host_name: atlam5
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T10:22:01Z'
+  date: '2026-10-24T19:11:48Z'
   status: validated
   recovery: not_defined
-  duration_sec: 159
+  duration_sec: 134
+- environment: isp
+  device_profile: routeros
+  failure: icmp_acl_block
+  scenario: isp_abilene
+  task_id: isp_abilene__icmp_acl_block__h824a86c14042
+  inject:
+    host_name: pc_atlam5
+  native_target: false
+  nika_commit: 0f9cdd835822
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-10-24T21:34:12Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 104
 - environment: isp
   device_profile: routeros
   failure: icmp_frag_needed_filter_misconfiguration
@@ -1012,12 +3214,12 @@ cells:
   inject:
     host_name: atlam5
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T10:24:40Z'
+  date: '2026-10-24T19:14:03Z'
   status: validated
   recovery: not_defined
-  duration_sec: 146
+  duration_sec: 127
 - environment: isp
   device_profile: routeros
   failure: link_down
@@ -1030,12 +3232,12 @@ cells:
     probe_dst_ip: 10.254.0.6
     symptom_host: pc_atlam5
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T10:27:07Z'
+  date: '2026-10-24T19:16:09Z'
   status: validated
   recovery: restored
-  duration_sec: 141
+  duration_sec: 112
 - environment: isp
   device_profile: routeros
   failure: mtu_mismatch
@@ -1046,12 +3248,12 @@ cells:
     intf_name: eth1
     mtu: '500'
   native_target: true
-  nika_commit: e13aec0c7399
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T10:29:28Z'
+  date: '2026-10-24T19:18:02Z'
   status: validated
   recovery: not_defined
-  duration_sec: 152
+  duration_sec: 122
 - environment: isp
   device_profile: routeros
   failure: ospf_area_misconfiguration
@@ -1060,9 +3262,9 @@ cells:
   inject:
     host_name: atlam5
   native_target: true
-  nika_commit: 0f1b8496bf6a
+  nika_commit: 0f9cdd835822
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-23T15:06:32Z'
+  date: '2026-10-24T19:20:04Z'
   status: validated
   recovery: not_defined
-  duration_sec: 110
+  duration_sec: 104

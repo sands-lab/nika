@@ -873,3 +873,34 @@ def test_dns_record_error_pairs_dns_host_with_owned_zone(topo_size: str) -> None
             },
             "m",
         )
+
+
+def test_incast_payload_fits_tunnel_mtu() -> None:
+    from nika.problems.traffic_queueing_resource.link import (
+        IncastTrafficNetworkLimitationParams,
+    )
+
+    params = IncastTrafficNetworkLimitationParams(host_name="receiver")
+    assert params.packet_size + 20 + 8 <= 1420
+
+
+def test_incast_requires_live_sender_executables() -> None:
+    from types import SimpleNamespace
+    from nika.problems.traffic_queueing_resource.link import (
+        IncastTrafficNetworkLimitation,
+        IncastTrafficNetworkLimitationParams,
+    )
+
+    executables = {
+        "launcher": "/usr/bin/dash",
+        "dead": "",
+        "sender": "/usr/bin/iperf3",
+        "raw": "/usr/bin/python3.11",
+    }
+    problem = object.__new__(IncastTrafficNetworkLimitation)
+    problem.runtime = SimpleNamespace(
+        exec=lambda host, *args, **kwargs: executables[host]
+    )
+    problem._burst_pids = {host: pid for pid, host in enumerate(executables, 1)}
+    params = IncastTrafficNetworkLimitationParams(host_name="receiver")
+    assert problem._fan_in_senders(params) == ["sender", "raw"]

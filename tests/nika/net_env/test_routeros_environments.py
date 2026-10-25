@@ -67,9 +67,11 @@ def test_enterprise_routeros_keeps_vrf_leaking_tunnels_and_guest_nat():
         _build("enterprise_branch", "frr"),
     )
     _assert_links_unchanged(native, frr)
+    assert frr.hosts
+    assert set(frr.hosts) == set(native.hosts)
     assert set(native.native_routers) == {"hq_edge", "dc2_edge", "br1_edge", "br2_edge"}
     branch = native.deployment_configs["br1_edge"]
-    # Business VRFs import only overlay BGP routes; guest imports nothing.
+    # Business VRFs import overlay and other local business LANs; guest imports nothing.
     assert "/routing bgp vpn add name=vrf_corp vrf=vrf_corp" in branch
     assert "import.route-targets=65001:1 export.route-targets=65001:10" in branch
     assert "vrf=vrf_guest" not in branch
@@ -79,6 +81,8 @@ def test_enterprise_routeros_keeps_vrf_leaking_tunnels_and_guest_nat():
     assert "address=198.18.1.10/32 interface=ether4" in branch
     assert 'chain=POLICY-OUT rule="if (dst == 10.1.10.0/24) { accept; }"' in branch
     hub = native.deployment_configs["hq_edge"]
+    assert "import.route-targets=65000:1,65000:20 export.route-targets=65000:10" in hub
+    assert "import.route-targets=65000:1,65000:10 export.route-targets=65000:20" in hub
     assert "nexthop-choice=force-self" in hub
     assert "queue tree add name=wg_br1-ef parent=wg_br1" in hub
     # WAN propagation delay stays on the container link.

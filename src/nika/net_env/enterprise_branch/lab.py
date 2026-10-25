@@ -279,6 +279,7 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
 
         apply_routing_parameters(self, routing_parameters)
 
+        self.load_machines()
         self.desc = (
             "Enterprise hub-and-spoke Branch VPN over provider IP underlay. "
             "Site Edge routers terminate WireGuard tunnels and run eBGP for "

@@ -219,11 +219,17 @@ class BurstTrafficGenerator:
                     sender_pids[flow.source] = int(output)
             else:
                 command = (
-                    f"sleep {delay:.6f}; iperf3 -c {destination_ip} -p {flow.destination_port} "
+                    f"sleep {delay:.6f}; exec iperf3 -c {destination_ip} -p {flow.destination_port} "
                     f"{udp} -b {rate} -l {packet_size} -t {duration} "
-                    f"--cport {flow.source_port} >/tmp/burst-{flow.flow_id}.log 2>&1"
+                    f"--cport {flow.source_port}"
                 )
-                self.runtime.exec(flow.source, command + " &", timeout=10)
+                output = self.runtime.exec(
+                    flow.source,
+                    f"({command}) >/tmp/burst-{flow.flow_id}.log 2>&1 & echo $!",
+                    timeout=10,
+                ).strip()
+                if output.isdigit():
+                    sender_pids[flow.source] = int(output)
         return {
             "event": "traffic_profile",
             "profile": "burst",

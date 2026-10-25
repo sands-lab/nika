@@ -121,6 +121,8 @@ failure:
 
 A case targets a native router only when the failure can run there. A failure declares the native router operations it needs in `native_router_operations`, and each vendor provider implements a set of operations (see [Create benchmark tasks](../development/creating-benchmark-tasks.md#add-an-injectable-failure)). Other targets stay on FRR and Linux nodes. In `campus_lan` and `enterprise_branch` only some router roles convert, so many cases of these profiles target FRR routers and hosts in a mixed-vendor lab. Ground truth names NIKA nodes and Linux interface names, as for FRR rows.
 
+Compatibility also requires a backend supported by both the failure and the environment. For failures with a minimum path bandwidth-delay product (BDP), generation checks any declared nominal RTT and profile bandwidth limit. The shipped RouterOS CHR profile uses the [free license's 1 Mbps per-interface limit](https://help.mikrotik.com/docs/spaces/ROS/pages/18350234/Cloud%2BHosted%2BRouter%2BCHR), so the enterprise WAN's designed 80 ms RTT cannot provide the 64 KiB BDP required by `tcp_receive_window_limited`. The pool excludes that deployment; runtime calibration still checks the actual flow before changing receiver buffers.
+
 `ProblemBase.is_compatible(scenario, device_profile)` and `runs_on_device_profile` record this compatibility; the coverage matrix below shows it per environment and profile, with the last result of `nika benchmark validate-profiles` (see [Validate device-profile cells](../development/creating-benchmark-tasks.md#validate-device-profile-cells)). `nika benchmark generate --validated-only` keeps native rows only for validated cells.
 
 These rows need licensed vendor images (`./scripts/install.sh --with-vendor-images`) and run as heavy trials, one at a time. Like `routeros_simple_bgp`, they stay in the pool. `nika benchmark select` and releases leave out every row that needs a licensed image.
@@ -422,7 +424,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
-<td align="center">○</td>
+<td align="center"></td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
@@ -2694,7 +2696,7 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center"></td>
-<td align="center">○</td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -2884,19 +2886,19 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
-<td align="center">◆</td>
+<td align="center">◆✓</td>
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
 <td align="center">◆</td>
 </tr>
 <tr>
 <td><code>link_detach</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
 <td align="center">○</td>
 <td align="center">○</td>
 </tr>
@@ -2906,7 +2908,7 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
-<td align="center">◆</td>
+<td align="center">◆✓</td>
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
@@ -2917,7 +2919,7 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
-<td align="center">◆</td>
+<td align="center">◆✓</td>
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
 <td align="center">◆</td>
@@ -2928,7 +2930,7 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
-<td align="center">◆</td>
+<td align="center">◆✓</td>
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
 <td align="center">◆</td>
@@ -2939,7 +2941,7 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center"></td>
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
-<td align="center">◆</td>
+<td align="center">◆✓</td>
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
@@ -2961,25 +2963,25 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center"></td>
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
-<td align="center">◆</td>
+<td align="center">◆✓</td>
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
 </tr>
 <tr>
 <td><code>frr_service_down</code></td>
+<td align="center">○✓</td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">○✓</td>
 <td align="center">○✓</td>
 <td align="center">○</td>
 <td align="center">○</td>
 </tr>
 <tr>
 <td><code>ospf_area_misconfiguration</code></td>
-<td align="center">○</td>
+<td align="center">○✓</td>
 <td align="center">◆✓</td>
 <td align="center"></td>
 <td align="center"></td>
@@ -2990,7 +2992,7 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 </tr>
 <tr>
 <td><code>ospf_neighbor_missing</code></td>
-<td align="center">○</td>
+<td align="center">○✓</td>
 <td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
@@ -3001,12 +3003,12 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 </tr>
 <tr>
 <td><code>arp_acl_block</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
 <td align="center"></td>
 <td align="center"></td>
 </tr>
@@ -3016,7 +3018,7 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center"></td>
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
-<td align="center">◆</td>
+<td align="center">◆✓</td>
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
@@ -3027,17 +3029,17 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
-<td align="center">○</td>
+<td align="center">○✓</td>
 <td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 </tr>
 <tr>
 <td><code>dns_port_blocked</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -3049,32 +3051,32 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center"></td>
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
-<td align="center">◆</td>
+<td align="center">◆✓</td>
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
 </tr>
 <tr>
 <td><code>http_acl_block</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
 <td align="center"></td>
 <td align="center"></td>
 </tr>
 <tr>
 <td><code>icmp_acl_block</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
 </tr>
 <tr>
 <td><code>icmp_frag_needed_filter_misconfiguration</code></td>
@@ -3082,7 +3084,7 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center">◆✓</td>
 <td align="center">○</td>
 <td align="center">◆✓</td>
-<td align="center">○</td>
+<td align="center">○✓</td>
 <td align="center">◆✓</td>
 <td align="center">○</td>
 <td align="center">◆✓</td>
@@ -3100,7 +3102,7 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 </tr>
 <tr>
 <td><code>ospf_acl_block</code></td>
-<td align="center">○</td>
+<td align="center">○✓</td>
 <td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
@@ -3115,7 +3117,7 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">○</td>
+<td align="center">○✓</td>
 <td align="center">◆✓</td>
 <td align="center"></td>
 <td align="center"></td>
@@ -3126,7 +3128,7 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">○</td>
+<td align="center">○✓</td>
 <td align="center">◆✓</td>
 <td align="center"></td>
 <td align="center"></td>
@@ -3137,15 +3139,15 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">○</td>
+<td align="center">○✓</td>
 <td align="center">◆✓</td>
 <td align="center"></td>
 <td align="center"></td>
 </tr>
 <tr>
 <td><code>load_balancer_overload</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -3159,7 +3161,7 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">○</td>
+<td align="center">○✓</td>
 <td align="center">◆✓</td>
 <td align="center"></td>
 <td align="center"></td>
@@ -3170,15 +3172,15 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">○</td>
+<td align="center">○✓</td>
 <td align="center">◆✓</td>
 <td align="center"></td>
 <td align="center"></td>
 </tr>
 <tr>
 <td><code>dhcp_missing_subnet</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -3188,8 +3190,8 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 </tr>
 <tr>
 <td><code>dhcp_service_down</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -3199,10 +3201,10 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 </tr>
 <tr>
 <td><code>dns_lookup_latency</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -3210,10 +3212,10 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 </tr>
 <tr>
 <td><code>dns_record_error</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -3221,10 +3223,10 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 </tr>
 <tr>
 <td><code>dns_service_down</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -3232,10 +3234,10 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 </tr>
 <tr>
 <td><code>host_incorrect_dns</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -3243,99 +3245,99 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 </tr>
 <tr>
 <td><code>host_incorrect_gateway</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
 <td align="center"></td>
 <td align="center"></td>
 </tr>
 <tr>
 <td><code>host_incorrect_ip</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
 <td align="center"></td>
 <td align="center"></td>
 </tr>
 <tr>
 <td><code>host_incorrect_netmask</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
 <td align="center"></td>
 <td align="center"></td>
 </tr>
 <tr>
 <td><code>host_ip_conflict</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
 <td align="center"></td>
 <td align="center"></td>
 </tr>
 <tr>
 <td><code>host_missing_ip</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
 <td align="center"></td>
 <td align="center"></td>
 </tr>
 <tr>
 <td><code>mac_address_conflict</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
 <td align="center"></td>
 <td align="center"></td>
 </tr>
 <tr>
 <td><code>receiver_resource_contention</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
 <td align="center"></td>
 <td align="center"></td>
 </tr>
 <tr>
 <td><code>sender_resource_contention</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
 <td align="center"></td>
 <td align="center"></td>
 </tr>
 <tr>
 <td><code>incast_traffic_network_limitation</code></td>
+<td align="center">○✓</td>
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">○✓</td>
 <td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
@@ -3346,19 +3348,19 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">○✓</td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 </tr>
 <tr>
 <td><code>arp_cache_poisoning</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
 <td align="center"></td>
 <td align="center"></td>
 </tr>
@@ -3368,15 +3370,15 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center"></td>
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
-<td align="center">◆</td>
+<td align="center">◆✓</td>
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
 </tr>
 <tr>
 <td><code>dhcp_spoofed_dns</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -3386,8 +3388,8 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 </tr>
 <tr>
 <td><code>dhcp_spoofed_gateway</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -3397,8 +3399,8 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 </tr>
 <tr>
 <td><code>dhcp_spoofed_subnet</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -3408,12 +3410,12 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 </tr>
 <tr>
 <td><code>web_dos_attack</code></td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
+<td align="center">○✓</td>
 <td align="center"></td>
 <td align="center"></td>
 </tr>
