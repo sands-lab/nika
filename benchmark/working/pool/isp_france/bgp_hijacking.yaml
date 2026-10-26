@@ -11,10 +11,44 @@ failure:
     device_profile: frr
     inject:
       host_name: n01
-      peer_host: pc_n01
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n02
-      target_network: 198.18.0.0/24
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n09
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n01
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n01
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n09
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n01
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n01
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n09
+      target_network: 203.0.115.0/24
     root_causes:
     - resource:
         kind: node
@@ -28,10 +62,44 @@ failure:
     device_profile: frr
     inject:
       host_name: n02
-      peer_host: pc_n01
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n02
-      target_network: 198.18.0.0/24
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n09
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n02
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n02
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n09
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n02
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n02
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.115.1
+      symptom_host: n09
+      target_network: 203.0.115.0/24
     root_causes:
     - resource:
         kind: node
@@ -45,10 +113,27 @@ failure:
     device_profile: frr
     inject:
       host_name: n03
-      peer_host: pc_n01
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n02
-      target_network: 198.18.0.0/24
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n09
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n03
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n03
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n09
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -62,10 +147,27 @@ failure:
     device_profile: frr
     inject:
       host_name: n04
-      peer_host: pc_n01
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n02
-      target_network: 198.18.0.0/24
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n09
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n04
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n04
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n09
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -79,10 +181,27 @@ failure:
     device_profile: frr
     inject:
       host_name: n05
-      peer_host: pc_n01
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n02
-      target_network: 198.18.0.0/24
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n09
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n05
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n05
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n09
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -96,10 +215,27 @@ failure:
     device_profile: frr
     inject:
       host_name: n06
-      peer_host: pc_n01
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n02
-      target_network: 198.18.0.0/24
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n09
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n06
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n06
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n09
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -113,10 +249,27 @@ failure:
     device_profile: frr
     inject:
       host_name: n07
-      peer_host: pc_n01
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n02
-      target_network: 198.18.0.0/24
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n09
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n07
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n07
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n09
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -130,10 +283,27 @@ failure:
     device_profile: frr
     inject:
       host_name: n08
-      peer_host: pc_n01
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n02
-      target_network: 198.18.0.0/24
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n09
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n08
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n08
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n09
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -147,10 +317,27 @@ failure:
     device_profile: frr
     inject:
       host_name: n09
-      peer_host: pc_n01
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n02
-      target_network: 198.18.0.0/24
+      observer_host: pc_n10
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n10
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n09
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n09
+      observer_host: pc_n15
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n15
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -164,10 +351,27 @@ failure:
     device_profile: frr
     inject:
       host_name: n10
-      peer_host: pc_n01
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n02
-      target_network: 198.18.0.0/24
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n09
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n10
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n10
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n09
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -181,10 +385,27 @@ failure:
     device_profile: frr
     inject:
       host_name: n11
-      peer_host: pc_n01
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n02
-      target_network: 198.18.0.0/24
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n09
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n11
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n11
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n09
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -198,10 +419,27 @@ failure:
     device_profile: frr
     inject:
       host_name: n12
-      peer_host: pc_n01
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n02
-      target_network: 198.18.0.0/24
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n09
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n12
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n12
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n09
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -215,10 +453,27 @@ failure:
     device_profile: frr
     inject:
       host_name: n13
-      peer_host: pc_n01
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n02
-      target_network: 198.18.0.0/24
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n09
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n13
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n13
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n09
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -232,10 +487,27 @@ failure:
     device_profile: frr
     inject:
       host_name: n14
-      peer_host: pc_n01
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n02
-      target_network: 198.18.0.0/24
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n09
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n14
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n14
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n09
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -249,10 +521,27 @@ failure:
     device_profile: frr
     inject:
       host_name: n15
-      peer_host: pc_n01
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n02
-      target_network: 198.18.0.0/24
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n09
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n15
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n15
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n09
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -266,10 +555,27 @@ failure:
     device_profile: frr
     inject:
       host_name: n16
-      peer_host: pc_n01
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n02
-      target_network: 198.18.0.0/24
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n09
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n16
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n16
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n09
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -283,10 +589,27 @@ failure:
     device_profile: frr
     inject:
       host_name: n17
-      peer_host: pc_n01
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n02
-      target_network: 198.18.0.0/24
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n09
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n17
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n17
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n09
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -300,10 +623,27 @@ failure:
     device_profile: frr
     inject:
       host_name: n18
-      peer_host: pc_n01
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n02
-      target_network: 198.18.0.0/24
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n09
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n18
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n18
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n09
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -317,10 +657,27 @@ failure:
     device_profile: frr
     inject:
       host_name: n19
-      peer_host: pc_n01
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n02
-      target_network: 198.18.0.0/24
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n09
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n19
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n19
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n09
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -334,10 +691,27 @@ failure:
     device_profile: frr
     inject:
       host_name: n20
-      peer_host: pc_n01
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n02
-      target_network: 198.18.0.0/24
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n09
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n20
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n20
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n09
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -351,10 +725,27 @@ failure:
     device_profile: frr
     inject:
       host_name: n21
-      peer_host: pc_n01
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n02
-      target_network: 198.18.0.0/24
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n09
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n21
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n21
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n09
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -368,10 +759,27 @@ failure:
     device_profile: frr
     inject:
       host_name: n22
-      peer_host: pc_n01
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n02
-      target_network: 198.18.0.0/24
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n09
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: n22
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n22
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n09
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -385,10 +793,10 @@ failure:
     device_profile: frr
     inject:
       host_name: n23
-      peer_host: pc_n01
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n02
-      target_network: 198.18.0.0/24
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n09
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -401,15 +809,15 @@ failure:
     backend: kathara
     device_profile: frr
     inject:
-      host_name: n24
-      peer_host: pc_n01
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n02
-      target_network: 198.18.0.0/24
+      host_name: n25
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.113.1
+      symptom_host: n09
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
-        node: n24
+        node: n25
       fault_type: bgp_hijacking
   - topo_size: m
     igp: isis
@@ -419,10 +827,10 @@ failure:
     device_profile: frr
     inject:
       host_name: n25
-      peer_host: pc_n01
-      probe_dst_ip: 198.18.0.1
-      symptom_host: n02
-      target_network: 198.18.0.0/24
+      observer_host: pc_n09
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n09
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node

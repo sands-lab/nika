@@ -136,71 +136,106 @@ from nika.validation.symptom.path_probes import (
 )
 
 
-# EF latency under the same competing bulk load must rise this much (ratio and
-# absolute) over the healthy reading before the remark counts as degrading it.
-_EF_LATENCY_RATIO = 3.0
-_EF_LATENCY_DELTA_MS = 100.0
+# Receive loss of the realtime call on the remark target's path must reach
+# this level (and rise this far over the healthy reading) to count as degraded.
+_RTP_LOSS_PERCENT = 10.0
+_RTP_LOSS_DELTA = 8.0
+_RTP_INTERVALS = 3
+_RTP_BASELINE_ATTEMPTS = 3
+_RTP_HEALTHY_LOSS_PERCENT = 5.0
+_RTP_WAIT_SEC = 50.0
 
 
-def _ef_under_load(problem: Any, params: Any) -> dict[str, Any]:
-    """EF flow metrics while the CORP bulk load competes on the overlay egress.
+def _rtp_quality(problem: Any, params: Any) -> dict[str, Any]:
+    """Call statistics the receiving softphone logs for the sender's stream.
 
-    Uses the inject's running workload when there is one, so the load is not
-    doubled; otherwise runs the same traffic matrix for one measurement.
+    Reads only intervals that start after the probe does. The scenario's own
+    call carries the traffic, so the probe adds no load of its own.
     """
-    from nika.traffic import corp_qos_compete as qos
+    from nika.net_env.enterprise_branch.workload import MEDIA_LOG
+    from nika.problems.traffic_queueing_resource.tcp_rwnd_helpers import primary_ipv4
+    from nika.traffic.apps.media_peer import parse_stats
 
-    handle = getattr(problem, "_workload", None)
-    started = handle is None
-    if started:
-        matrix = qos.build_compete_matrix(
-            problem.runtime,
-            topo_size=problem._topo_size(),
-            edge=params.host_name,
-            intf_name=params.intf_name,
-            src_host=params.src_host,
-            dst_host=params.dst_host,
-        )
-        handle = qos.start(problem.runtime, matrix, duration_sec=60)
-    try:
-        if started:
-            time.sleep(4.0)
-        return problem._metrics_dict(qos.measure(handle)) or {}
-    finally:
-        if started:
-            qos.stop(handle)
+    runtime = problem.runtime
+    src_ip = primary_ipv4(runtime, params.src_host)
+    start = runtime.exec(params.dst_host, "date -u +%Y-%m-%dT%H:%M:%SZ").strip()
+    deadline = time.monotonic() + _RTP_WAIT_SEC
+    fresh: list[dict[str, Any]] = []
+    while True:
+        out = runtime.exec(params.dst_host, f"tail -n 200 {MEDIA_LOG} 2>/dev/null")
+        rows = [parse_stats(line) for line in out.splitlines()]
+        fresh = [
+            r for r in rows if r and r["source"] == src_ip and str(r["time"]) > start
+        ]
+        if len(fresh) >= _RTP_INTERVALS or time.monotonic() > deadline:
+            break
+        time.sleep(5.0)
+    rx = sum(int(r["rx"]) for r in fresh)
+    lost = sum(int(r["lost"]) for r in fresh)
+    return {
+        "src_ip": src_ip,
+        "intervals": fresh,
+        "loss_percent": 100.0 * lost / (rx + lost) if rx + lost else None,
+        "max_jitter_ms": max((float(r["jitter"]) for r in fresh), default=None),
+        "error": None if fresh else "no_call_statistics",
+    }
 
 
 def _vrf_dscp_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
-    """EF latency under competing bulk load on the healthy lab (worst of two)."""
-    samples = [_ef_under_load(problem, params) for _ in range(2)]
-    latencies = [s.get("latency_ms") for s in samples]
-    ok = all(isinstance(v, float) for v in latencies) and not any(
-        s.get("error") for s in samples
-    )
-    problem._audit_ef_baseline = max(latencies) if ok else None
-    return ok, {"samples": samples, "baseline_latency_ms": problem._audit_ef_baseline}
+    """Healthy receive loss of the call on the remark target's path.
+
+    Host saturation can spike one reading, so it is re-measured while the
+    pooled loss stays above ``_RTP_HEALTHY_LOSS_PERCENT``; a reading that
+    never settles marks the baseline unreliable.
+    """
+    attempts: list[dict[str, Any]] = []
+    for _ in range(_RTP_BASELINE_ATTEMPTS):
+        sample = _rtp_quality(problem, params)
+        attempts.append(sample)
+        loss = sample["loss_percent"]
+        if isinstance(loss, float) and loss <= _RTP_HEALTHY_LOSS_PERCENT:
+            break
+    loss = attempts[-1]["loss_percent"]
+    reliable = isinstance(loss, float) and loss <= _RTP_HEALTHY_LOSS_PERCENT
+    problem._audit_rtp_baseline = loss
+    problem._audit_rtp_sham = None
+    return reliable, {
+        **attempts[-1],
+        "baseline_reliable": reliable,
+        "attempt_loss_percent": [a["loss_percent"] for a in attempts],
+        **({} if reliable else {"error": "healthy_baseline_unreliable"}),
+    }
 
 
 def _vrf_dscp_remarking(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
-    """Under the same bulk load, the demoted EF flow queues behind bulk traffic."""
-    base = getattr(problem, "_audit_ef_baseline", None)
+    """Demoted media competes with bulk in best effort and loses packets.
+
+    The healthy reference is the lower of the baseline and the sham reading
+    (the first read after the baseline, before inject), so one noisy healthy
+    measurement cannot hide the delta.
+    """
+    base = getattr(problem, "_audit_rtp_baseline", None)
     if not isinstance(base, float):
-        return False, {"error": "no_healthy_ef_baseline"}
-    current = _ef_under_load(problem, params)
-    latency = current.get("latency_ms")
+        return False, {"error": "no_healthy_rtp_baseline"}
+    sham = getattr(problem, "_audit_rtp_sham", None)
+    current = _rtp_quality(problem, params)
+    loss = current["loss_percent"]
+    if sham is None and isinstance(loss, float):
+        problem._audit_rtp_sham = loss
+    reference = base if sham is None else min(base, sham)
     verified = (
-        isinstance(latency, float)
-        and latency >= base * _EF_LATENCY_RATIO
-        and latency - base >= _EF_LATENCY_DELTA_MS
+        isinstance(loss, float)
+        and loss >= _RTP_LOSS_PERCENT
+        and loss - reference >= _RTP_LOSS_DELTA
     )
     return verified, build_verify_result(
         fault_type=problem.root_cause_name,
         verified=verified,
         details={
-            "baseline_latency_ms": base,
+            "baseline_loss_percent": base,
+            "sham_loss_percent": sham,
+            "reference_loss_percent": reference,
             "current": current,
-            "latency_ratio": latency / base if isinstance(latency, float) else None,
         },
     )
 
@@ -232,6 +267,7 @@ _CUSTOM: dict[str, Any] = {
     "k8s_worker_apiserver_partition": worker_partition,
     "silent_egress_packet_loss": silent_loss,
     "load_balancer_overload": lb_overload,
+    "lb_connection_state_exhaustion": lb_race,
     "snat_port_pool_exhaustion": snat_pool_exhaustion,
     "nat_mapping_removed_without_drain": nat_mapping_removed,
     "mac_address_conflict": mac_conflict,
@@ -297,6 +333,7 @@ _CUSTOM_BASELINE: dict[str, Any] = {
     "int_insufficient_mtu_headroom": int_headroom_baseline,
     "tcp_syn_flood_attack": syn_flood_baseline,
     "lb_pending_connection_update_race": lb_race_baseline,
+    "lb_connection_state_exhaustion": lb_race_baseline,
     "flow_rule_shadowing": flow_shadow_baseline,
     "flow_rule_loop": flow_loop_baseline,
     "p4_ecn_threshold_misconfiguration": ecn_marking_baseline,

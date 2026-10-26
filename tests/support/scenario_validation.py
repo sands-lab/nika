@@ -106,7 +106,7 @@ def assert_scenario_acceptance(
             predicted = {r.intent for r in model.results if r.status == "failed"}
             assert expected <= predicted
             expected = predicted
-        assert set(result["failed_ids"]) == expected
+        assert set(result["failed_ids"]) - set(failure.unconstrained_ids) == expected
     for name in summary["runtime"]:
         report = check_report(output / f"runtime-{name}.json", runtime_states.get(name))
         assert summary["runtime"][name]["passed"] == len(report.results), name

@@ -21,7 +21,7 @@ from nika.net_env.verify import (
 from nika.problems.base import build_verify_result
 from nika.runtime.base import LabRuntime
 from nika.runtime.spec import NodeRole
-from nika.validation.symptom.addressing_probes import lab_addresses
+from nika.validation.symptom.addressing_probes import healthy_read, lab_addresses
 from nika.validation.symptom.probe import _resolve_path
 
 # Echo train for frame loss: 300 echoes every 30 ms.
@@ -30,6 +30,8 @@ ECHO_INTERVAL_SEC = 0.03
 LOSS_MIN_PERCENT = 2.0
 IPERF_SECONDS = 5
 THROUGHPUT_MAX_RATIO = 0.5
+# Healthy-path echo loss the baseline tolerates.
+_HEALTHY_ECHO_LOSS_MAX = 0.5
 CAPACITY_MAX_RATIO = 0.1
 # Short timed TCP transfers over many fresh connections, so many five-tuples
 # cross the device whatever subset of flows it corrupts. A timed test also ends
@@ -119,9 +121,15 @@ def link_corruption_baseline(problem: Any, params: Any) -> tuple[bool, dict[str,
     ends = _ends(problem, params)
     if "error" in ends:
         return False, ends
-    reading = _link_corruption_reading(problem, ends)
+    # A busy host can drop a few healthy echoes; re-read before judging the path.
+    reading, _reads = healthy_read(
+        lambda: _link_corruption_reading(problem, ends),
+        lambda r: 0.0 if r["echo_loss_percent"] <= _HEALTHY_ECHO_LOSS_MAX else 1.0,
+    )
     problem._audit_corruption = {"ends": ends, "before": reading}
-    ok = reading["echo_loss_percent"] <= 0.5 and bool(reading["tcp"]["received_bps"])
+    ok = reading["echo_loss_percent"] <= _HEALTHY_ECHO_LOSS_MAX and bool(
+        reading["tcp"]["received_bps"]
+    )
     return ok, {**ends, **reading}
 
 
@@ -139,7 +147,7 @@ def evaluate_link_corruption_symptom(
     frame_loss = (
         after["echo_received"] > 0
         and after["echo_loss_percent"] >= LOSS_MIN_PERCENT
-        and before["echo_loss_percent"] <= 0.5
+        and before["echo_loss_percent"] <= _HEALTHY_ECHO_LOSS_MAX
     )
     goodput_drop = (
         bool(before_bps)

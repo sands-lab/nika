@@ -765,6 +765,20 @@ def require_distinct_hosts(
 # ----------------------------------------------------------------------
 
 
+def workload_exercises(problem_cls: Any, net_env: Any, inject: Mapping) -> bool:
+    """Whether the scenario workload exercises the target ``inject`` depends on.
+
+    True when the failure declares no ``SYMPTOM_WORKLOAD`` or the scenario
+    declares no business workload.
+    """
+    kind = getattr(problem_cls, "SYMPTOM_WORKLOAD", None)
+    workload = net_env.business_workload() if kind else None
+    if workload is None:
+        return True
+    target = problem_cls.symptom_workload_target(inject)
+    return target is not None and workload.covers(kind, target)
+
+
 def unique(rows: list[dict[str, str]]) -> list[dict[str, str]]:
     by_key = {tuple(sorted(row.items())): row for row in rows}
     return [by_key[key] for key in sorted(by_key)]

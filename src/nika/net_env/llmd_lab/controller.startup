@@ -8,6 +8,12 @@ stage_wait "k3s API" 600 kubectl --request-timeout=5s get --raw=/readyz
 stage_wait "host image preload" 900 test -f /var/run/images-preloaded
 
 chmod +x /usr/local/bin/helm
+# Cluster add-ons (CoreDNS) run on the control plane, as in a typical k3s
+# deployment, so cluster DNS has one well-known home.
+stage_wait "coredns deployment" 300 kubectl --request-timeout=15s -n kube-system get deployment coredns
+stage_run "place coredns on the control plane" kubectl --request-timeout=30s -n kube-system patch deployment coredns --type merge -p '{"spec":{"template":{"spec":{"nodeSelector":{"node-role.kubernetes.io/control-plane":"true"}}}}}'
+stage_wait "coredns rollout" 300 kubectl --request-timeout=15s -n kube-system rollout status deployment/coredns --timeout=5s
+
 stage_run "apply MetalLB" kubectl --request-timeout=30s apply -f /k8s/metallb.yaml
 stage_ready "MetalLB controller" -n metallb-system --selector component=controller
 stage_ready "MetalLB speakers" -n metallb-system --selector component=speaker
@@ -31,4 +37,11 @@ for f in /k8s/pd-*.yaml; do
 done
 stage_ready "endpoint picker" -n llm-d -l app=llm-d-epp
 stage_ready "inference workloads" -n llm-d -l app=llm-d-pd
+
+# Per-node monitoring agents send inference requests to the gateway by Service name.
+stage_run "apply /k8s/uptime-agent.yaml" kubectl --request-timeout=30s apply -f /k8s/uptime-agent.yaml
+stage_wait "uptime-agent rollout" 300 kubectl --request-timeout=15s rollout status -n monitoring daemonset/uptime-agent --timeout=5s
+# Bootstrap leaves transient Warning events (image pulls via the temporary mirror,
+# rollouts, readiness during boot). A long-running cluster would have aged them out.
+stage_run "clear bootstrap warning events" kubectl --request-timeout=30s delete events -A --field-selector type=Warning
 touch /var/run/startup-complete

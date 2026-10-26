@@ -493,6 +493,7 @@ def validate_inject_params(
     params: dict[str, Any],
     *,
     problems: list[str] | None = None,
+    release: str | None = None,
 ) -> None:
     """Raise ValueError if inject params do not satisfy the problem schema."""
     resolved_problems = list(problems or row_problems({"problem": problem}))
@@ -519,13 +520,14 @@ def validate_inject_params(
         problem_inst = get_problem_instance(
             problem_names=resolved_problems,
             scenario_name=scenario,
+            release=release,
             **kwargs,
         )
         if hasattr(problem_inst, "resolve_params"):
             problem_inst.resolve_params(nested)
         return
 
-    problem_cls = get_problem_class(resolved_problems[0], scenario)
+    problem_cls = get_problem_class(resolved_problems[0], scenario, release)
     if problem_cls is None:
         raise ValueError(f"Unknown problem {resolved_problems[0]!r}")
     params_class = getattr(problem_cls, "Params", None)
@@ -855,6 +857,7 @@ def run_single_case(
     rpki: bool | None = None,
     backend: str | None = None,
     device_profile: str | None = None,
+    telemetry: list[str] | None = None,
     verbose: bool = False,
     progress: BenchmarkProgress | None = None,
     progress_label: str | None = None,
@@ -883,18 +886,21 @@ def run_single_case(
         rpki=rpki,
         backend=backend,
         device_profile=device_profile,
+        telemetry=telemetry,
     )
-    isp_bits = [
+    deploy_bits = [
         f"{_ISP_BANNER_LABELS[key]}: {'on' if key == 'rpki' else row[key]}"
         for key in ISP_DEPLOY_KEYS
         if row.get(key)
     ]
+    if telemetry:
+        deploy_bits.append(f"Telemetry: {', '.join(telemetry)}")
     # Batch trials stay quiet unless -v; bare single-case CLI keeps the banner.
     if verbose or not trial_id:
         print(
             f"Running benchmark for Problem: {problem}, Scenario: {scenario}, "
             f"Topo Size: {topo_size}"
-            + (f", {', '.join(isp_bits)}" if isp_bits else "")
+            + (f", {', '.join(deploy_bits)}" if deploy_bits else "")
             + (f", Trial: {trial_id}" if trial_id else ""),
             flush=True,
         )
@@ -921,6 +927,7 @@ def run_single_case(
         topo_size or "",
         inject_params,
         problems=resolved_problems,
+        release=(release_meta or {}).get("version"),
     )
 
     predetermined_dir: str | None = None
@@ -945,11 +952,12 @@ def run_single_case(
     if progress is not None and progress_label and predetermined_dir:
         progress.attach_session(progress_label, predetermined_dir)
 
+    image_lab = active_trial_lab()
+
     _phase("deploy")
     # Trial directory stays ``trials/{trial_id}``; SessionStore key must also
     # incorporate result_dir so parallel same-task runs do not share a lab.
     store_session_id = store_session_id_for_trial(trial_id, result_dir) or trial_id
-    image_lab = active_trial_lab()
     if image_lab is not None:
         # Firecracker execution: the lab was restored from a lab image; adopt it.
         session_id = image_lab.attach(
@@ -972,6 +980,7 @@ def run_single_case(
             rpki=rpki,
             backend=backend,
             device_profile=device_profile,
+            telemetry=telemetry,
         )
     session_dir = Path(predetermined_dir) if predetermined_dir else None
     gt_written = False
@@ -986,6 +995,9 @@ def run_single_case(
             pass
         else:
             _phase("inject")
+            # inject_failure resolves release-scoped failure variants from the
+            # session's benchmark_version, so stamp it first.
+            _stamp_release_meta(session_id, release_meta)
             inject_failure(
                 problem_names=resolved_problems,
                 session_id=session_id,
@@ -1249,6 +1261,7 @@ def _run_trial_case(
         trial_index=trial.trial_index,
         case_key=trial.case_key,
         **{key: row.get(key) for key in ISP_DEPLOY_KEYS},
+        telemetry=row.get("telemetry"),
         verbose=verbose,
         progress=progress,
         progress_label=trial.label if progress is not None else None,

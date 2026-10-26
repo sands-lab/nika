@@ -7,7 +7,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
-from nika.config import REPO_ROOT
+from nika.config import CACHE_DIR
 from nika.net_env.isp.traffic.models import (
     DEFAULT_DEMAND_INTERVAL_SEC,
     TrafficFlow,
@@ -33,7 +33,7 @@ DYNAMIC_TRAFFIC_CATALOG: dict[str, dict[str, Any]] = {
 
 
 def default_cache_root() -> Path:
-    return REPO_ROOT / ".nika_cache"
+    return CACHE_DIR
 
 
 def dynamic_cache_dir(topology: str, *, cache_root: Path | None = None) -> Path:

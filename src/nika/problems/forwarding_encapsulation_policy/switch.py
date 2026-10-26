@@ -55,12 +55,13 @@ class Bmv2SwitchDown(ProblemBase):
 
     def verify_fault(self, params: Bmv2SwitchDownParams) -> dict:
         """Verify the BMv2 dataplane process is not running (artifact gate)."""
-        # Exclude zombies: pkill -9 can leave a <defunct> entry that still
-        # matches pgrep -af '[s]imple_switch'.
+        # Exclude zombies and exiting processes: after pkill -9 a <defunct>
+        # entry, or one whose cmdline is already gone ("PID [comm]"), can
+        # still match pgrep -af '[s]imple_switch'.
         pgrep_output = self.runtime.exec(
             params.host_name,
             "pgrep -af '[s]imple_switch' 2>/dev/null "
-            "| grep -v '<defunct>' || echo NONE",
+            "| grep -v -e '<defunct>' -e '^[0-9]* \\[' || echo NONE",
         ).strip()
         verified = pgrep_output == "NONE" or "simple_switch" not in pgrep_output
         return build_verify_result(

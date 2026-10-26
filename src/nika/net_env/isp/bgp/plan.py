@@ -60,6 +60,33 @@ class BgpNodePlan:
     import_policies: tuple[tuple[str, tuple[BgpPolicyTerm, ...]], ...] = ()
 
 
+# Address block of the customer site in plain eBGP labs.
+CUSTOMER_PREFIX = "198.51.110.0/24"
+
+
+@dataclass(frozen=True)
+class BgpCustomerSite:
+    """Customer single-homed to ``provider`` whose route only ``partner`` learns.
+
+    The customer uses the web service of the partner's AS. At the customer's
+    request ("announce only to this neighbor", a common provider action
+    community), the provider announces the customer prefix on its session to
+    ``partner`` and nowhere else; the partner AS keeps it internal. The
+    partner AS therefore reaches the customer only over that one session.
+    """
+
+    host_name: str
+    provider: str
+    partner: str
+    provider_ip: str  # provider address on the provider-partner link
+    partner_ip: str
+    partner_asn: int
+    prefix: str
+    gateway: str
+    address: str
+    service_address: str  # business service of the partner AS
+
+
 @dataclass(frozen=True)
 class BgpPlan:
     mode: IspBgpMode
@@ -71,6 +98,19 @@ class BgpPlan:
     expect_reachable: tuple[tuple[str, str], ...]  # (observer_device, prefix)
     deny_prefixes: tuple[str, ...]
     inventory: dict[str, Any]
+    customer_site: BgpCustomerSite | None = None
+
+    def stub_interfaces(self) -> dict[str, tuple[str, ...]]:
+        """Router addresses (``address/len``) on stub links outside the routing config.
+
+        These connected prefixes come from lab startup, not from the FRR
+        config, yet BGP may originate them (the customer site's link).
+        """
+        site = self.customer_site
+        if site is None:
+            return {}
+        plen = site.prefix.rsplit("/", 1)[1]
+        return {site.provider: (f"{site.gateway}/{plen}",)}
 
 
 def compile_bgp_plan(
@@ -79,11 +119,14 @@ def compile_bgp_plan(
     *,
     rpki: bool = False,
     rtbh: bool = False,
+    customer_site: bool = True,
 ) -> BgpPlan | None:
     """Build a BGP plan from a NIKA preset, or None when mode is none.
 
     ``rpki=True`` overlays the offline RPKI/ROV profile onto eBGP.
     ``rtbh=True`` overlays the RTBH community blackhole profile onto eBGP.
+    ``customer_site`` adds a :class:`BgpCustomerSite` to plain eBGP plans
+    (backends that cannot attach it pass False).
     """
     resolved = normalize_bgp_mode(
         mode if isinstance(mode, str) or mode is None else mode
@@ -122,7 +165,7 @@ def compile_bgp_plan(
             from nika.net_env.isp.bgp.rtbh_profile import apply_rtbh_profile
 
             return apply_rtbh_profile(plan)
-        return plan
+        return _with_customer_site(plan) if customer_site else plan
     raise BgpConfigError(f"Unsupported bgp_mode {resolved!r}.")
 
 
@@ -510,6 +553,89 @@ def _compile_ebgp(
         deny_prefixes=("10.0.0.0/8", "10.255.0.0/16"),
         inventory=inventory,
     )
+
+
+def _customer_session(plan: BgpPlan) -> BgpSession | None:
+    """The provider-to-partner session that carries the customer route.
+
+    The partner is an AS the provider's AS meets at a single interconnect when
+    there is one (otherwise at several). The customer prefers a provider PoP
+    that hosts its AS's business prefix.
+    """
+    ebgp = [s for s in plan.sessions if s.session_type == "ebgp"]
+    if not ebgp:
+        return None
+    links_per_as_pair: dict[tuple[int, int], int] = {}
+    for sess in ebgp:
+        pair = (
+            min(sess.local_asn, sess.remote_asn),
+            max(sess.local_asn, sess.remote_asn),
+        )
+        links_per_as_pair[pair] = links_per_as_pair.get(pair, 0) + 1
+    originators = {o.device for o in plan.originated}
+
+    def rank(sess: BgpSession) -> tuple:
+        pair = (
+            min(sess.local_asn, sess.remote_asn),
+            max(sess.local_asn, sess.remote_asn),
+        )
+        # Each direction of a session is listed once.
+        sole = 0 if links_per_as_pair[pair] == 2 else 1
+        provider_hosts = 0 if sess.remote_device in originators else 1
+        either_hosts = (
+            0
+            if sess.local_device in originators or sess.remote_device in originators
+            else 1
+        )
+        return (
+            sole,
+            provider_hosts,
+            either_hosts,
+            sess.local_device,
+            sess.remote_device,
+            sess.remote_ip,
+        )
+
+    # ``local`` is the partner side; ``remote`` the provider of the customer.
+    return min(ebgp, key=rank)
+
+
+def _with_customer_site(plan: BgpPlan) -> BgpPlan:
+    sess = _customer_session(plan)
+    asn_of = {node.device_name: node.asn for node in plan.nodes}
+    if sess is None:
+        return plan
+    partner_asn = asn_of[sess.local_device]
+    service = next(
+        (o for o in plan.originated if asn_of[o.device] == partner_asn), None
+    )
+    if service is None:
+        return plan
+    net = IPv4Network(CUSTOMER_PREFIX)
+    site = BgpCustomerSite(
+        host_name=f"cust_{sess.remote_device}",
+        provider=sess.remote_device,
+        partner=sess.local_device,
+        provider_ip=sess.remote_ip,
+        partner_ip=sess.local_ip,
+        partner_asn=partner_asn,
+        prefix=str(net),
+        gateway=str(net.network_address + 1),
+        address=str(net.network_address + 10),
+        service_address=service.ping_address,
+    )
+    inventory = dict(plan.inventory)
+    inventory["customer_site"] = {
+        "host": site.host_name,
+        "provider": site.provider,
+        "partner": site.partner,
+        "provider_ip": site.provider_ip,
+        "partner_ip": site.partner_ip,
+        "prefix": site.prefix,
+        "address": site.address,
+        "service_address": site.service_address,
+    }
+    return replace(plan, customer_site=site, inventory=inventory)
 
 
 def scope_igp_to_bgp_as(isp_plan: IspPlan, bgp_plan: BgpPlan | None) -> IspPlan:

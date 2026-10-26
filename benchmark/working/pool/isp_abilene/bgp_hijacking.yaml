@@ -11,10 +11,44 @@ failure:
     device_profile: frr
     inject:
       host_name: atlam5
-      peer_host: pc_atlam5
-      probe_dst_ip: 198.18.0.1
+      observer_host: pc_atlang
+      probe_dst_ip: 203.0.115.1
       symptom_host: atlang
-      target_network: 198.18.0.0/24
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: atlam5
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: atlam5
+      observer_host: pc_dnvrng
+      probe_dst_ip: 203.0.113.1
+      symptom_host: dnvrng
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: atlam5
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: atlam5
+      observer_host: pc_losang
+      probe_dst_ip: 203.0.114.1
+      symptom_host: losang
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -28,10 +62,44 @@ failure:
     device_profile: frr
     inject:
       host_name: atlang
-      peer_host: pc_atlam5
-      probe_dst_ip: 198.18.0.1
-      symptom_host: atlang
-      target_network: 198.18.0.0/24
+      observer_host: pc_dnvrng
+      probe_dst_ip: 203.0.113.1
+      symptom_host: dnvrng
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: atlang
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: atlang
+      observer_host: pc_losang
+      probe_dst_ip: 203.0.114.1
+      symptom_host: losang
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: atlang
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: atlang
+      observer_host: pc_losang
+      probe_dst_ip: 203.0.115.1
+      symptom_host: losang
+      target_network: 203.0.115.0/24
     root_causes:
     - resource:
         kind: node
@@ -45,10 +113,27 @@ failure:
     device_profile: frr
     inject:
       host_name: chinng
-      peer_host: pc_atlam5
-      probe_dst_ip: 198.18.0.1
-      symptom_host: atlang
-      target_network: 198.18.0.0/24
+      observer_host: pc_dnvrng
+      probe_dst_ip: 203.0.113.1
+      symptom_host: dnvrng
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: chinng
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: chinng
+      observer_host: pc_losang
+      probe_dst_ip: 203.0.114.1
+      symptom_host: losang
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -62,10 +147,27 @@ failure:
     device_profile: frr
     inject:
       host_name: dnvrng
-      peer_host: pc_atlam5
-      probe_dst_ip: 198.18.0.1
-      symptom_host: atlang
-      target_network: 198.18.0.0/24
+      observer_host: pc_losang
+      probe_dst_ip: 203.0.113.1
+      symptom_host: losang
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: dnvrng
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: dnvrng
+      observer_host: pc_losang
+      probe_dst_ip: 203.0.114.1
+      symptom_host: losang
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -79,10 +181,44 @@ failure:
     device_profile: frr
     inject:
       host_name: hstnng
-      peer_host: pc_atlam5
-      probe_dst_ip: 198.18.0.1
+      observer_host: pc_atlang
+      probe_dst_ip: 203.0.115.1
       symptom_host: atlang
-      target_network: 198.18.0.0/24
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: hstnng
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hstnng
+      observer_host: pc_dnvrng
+      probe_dst_ip: 203.0.113.1
+      symptom_host: dnvrng
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: hstnng
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hstnng
+      observer_host: pc_losang
+      probe_dst_ip: 203.0.114.1
+      symptom_host: losang
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -96,10 +232,44 @@ failure:
     device_profile: frr
     inject:
       host_name: iplsng
-      peer_host: pc_atlam5
-      probe_dst_ip: 198.18.0.1
+      observer_host: pc_atlang
+      probe_dst_ip: 203.0.115.1
       symptom_host: atlang
-      target_network: 198.18.0.0/24
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: iplsng
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: iplsng
+      observer_host: pc_dnvrng
+      probe_dst_ip: 203.0.113.1
+      symptom_host: dnvrng
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: iplsng
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: iplsng
+      observer_host: pc_losang
+      probe_dst_ip: 203.0.114.1
+      symptom_host: losang
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -113,10 +283,27 @@ failure:
     device_profile: frr
     inject:
       host_name: kscyng
-      peer_host: pc_atlam5
-      probe_dst_ip: 198.18.0.1
-      symptom_host: atlang
-      target_network: 198.18.0.0/24
+      observer_host: pc_dnvrng
+      probe_dst_ip: 203.0.113.1
+      symptom_host: dnvrng
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: kscyng
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: kscyng
+      observer_host: pc_losang
+      probe_dst_ip: 203.0.114.1
+      symptom_host: losang
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -130,10 +317,27 @@ failure:
     device_profile: frr
     inject:
       host_name: losang
-      peer_host: pc_atlam5
-      probe_dst_ip: 198.18.0.1
-      symptom_host: atlang
-      target_network: 198.18.0.0/24
+      observer_host: pc_dnvrng
+      probe_dst_ip: 203.0.113.1
+      symptom_host: dnvrng
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: losang
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: losang
+      observer_host: pc_nycmng
+      probe_dst_ip: 203.0.114.1
+      symptom_host: nycmng
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -147,10 +351,27 @@ failure:
     device_profile: frr
     inject:
       host_name: nycmng
-      peer_host: pc_atlam5
-      probe_dst_ip: 198.18.0.1
-      symptom_host: atlang
-      target_network: 198.18.0.0/24
+      observer_host: pc_dnvrng
+      probe_dst_ip: 203.0.113.1
+      symptom_host: dnvrng
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: nycmng
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: nycmng
+      observer_host: pc_losang
+      probe_dst_ip: 203.0.114.1
+      symptom_host: losang
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -164,10 +385,10 @@ failure:
     device_profile: frr
     inject:
       host_name: snvang
-      peer_host: pc_atlam5
-      probe_dst_ip: 198.18.0.1
-      symptom_host: atlang
-      target_network: 198.18.0.0/24
+      observer_host: pc_losang
+      probe_dst_ip: 203.0.114.1
+      symptom_host: losang
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -180,15 +401,15 @@ failure:
     backend: kathara
     device_profile: frr
     inject:
-      host_name: sttlng
-      peer_host: pc_atlam5
-      probe_dst_ip: 198.18.0.1
-      symptom_host: atlang
-      target_network: 198.18.0.0/24
+      host_name: washng
+      observer_host: pc_dnvrng
+      probe_dst_ip: 203.0.113.1
+      symptom_host: dnvrng
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
-        node: sttlng
+        node: washng
       fault_type: bgp_hijacking
   - topo_size: s
     igp: isis
@@ -198,10 +419,10 @@ failure:
     device_profile: frr
     inject:
       host_name: washng
-      peer_host: pc_atlam5
-      probe_dst_ip: 198.18.0.1
-      symptom_host: atlang
-      target_network: 198.18.0.0/24
+      observer_host: pc_losang
+      probe_dst_ip: 203.0.114.1
+      symptom_host: losang
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node

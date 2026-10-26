@@ -12,6 +12,7 @@ GNMIC_VERSION="${GNMIC_VERSION:-0.48.0}"
 CLAB_VERSION="${CLAB_VERSION:-0.79.0}"
 CLAB_MIN_VERSION="${CLAB_MIN_VERSION:-0.79.0}"
 INOTIFY_CONF=/etc/sysctl.d/99-nika-inotify.conf
+NEIGH_CONF=/etc/sysctl.d/99-nika-neigh.conf
 VRF_MODULES_CONF=/etc/modules-load.d/nika-vrf.conf
 
 # Keep in sync with lab.py IMAGE constants.
@@ -54,7 +55,7 @@ with an error before changing anything when either is missing. Installs uv (when
 the clab and gnmic binaries to .venv/bin, and uv with its cache to
 .nika_cache/. Containerlab needs sudo once for its setuid bit and the
 clab_admins group. Raises and persists host inotify limits for k3s and XRd
-labs, and loads and persists the vrf kernel module. Creates .env
+labs and neighbor table limits for large or concurrent labs, and loads and persists the vrf kernel module. Creates .env
 and config/nika.yaml from examples when missing, and enables the repo git
 hooks that copy config/custom/ into new worktrees.
 
@@ -80,7 +81,8 @@ Options:
 
   --xrd-tarball PATH
       Path to a Cisco XRd Control Plane container .tgz (no public URL).
-      Or set NIKA_XRD_TARBALL, or put .nika_cache/vendor/xrd-*.tgz under the repo.
+      Or set NIKA_XRD_TARBALL, or put .nika_cache/vendor/xrd-*.tgz under
+      the main NIKA checkout (shared by git worktrees).
 
   --with-agentenv
       Recommended. Every agent runs in a sandbox; this runs AgentENV, an
@@ -166,7 +168,14 @@ esac
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-NIKA_CACHE="${ROOT}/.nika_cache"
+# runtime/ and .nika_cache/ live at the main checkout, shared by worktrees.
+if common="$(git -C "${ROOT}" rev-parse --git-common-dir 2>/dev/null)" && [[ -n "${common}" ]]; then
+  [[ "${common}" == /* ]] || common="${ROOT}/${common}"
+  NIKA_STATE="$(cd "$(dirname -- "${common}")" && pwd -P)"
+else
+  NIKA_STATE="${ROOT}"
+fi
+NIKA_CACHE="${NIKA_STATE}/.nika_cache"
 VENDOR_CACHE="${NIKA_VENDOR_CACHE:-${NIKA_CACHE}/vendor}"
 # uv resolves a relative UV_PROJECT_ENVIRONMENT against the project root.
 VENV_DIR="${UV_PROJECT_ENVIRONMENT:-.venv}"
@@ -570,29 +579,32 @@ find_xrd_tarball() {
   return 1
 }
 
-ensure_inotify_limits() {
-  # k3s (k8s_lab, llmd_lab) and Cisco XRd exhaust the kernel default of 128
-  # instances; every running container's shim also holds one. Never lower a
+ensure_sysctl_floor() {
+  # Usage: ensure_sysctl_floor CONF LABEL WHO key=min...
+  # Raise each key to at least min and persist it in CONF. Never lower a
   # value the host already set higher. "# nika-original" lines keep the
   # pre-install values for scripts/uninstall.sh; a conf written by an older
   # installer has none, so its originals are unknown.
-  local conf="${INOTIFY_CONF}"
-  local key value original settings=""
-  for key in max_user_instances max_user_watches; do
-    value="$(sysctl -n "fs.inotify.${key}")"
+  local conf="$1" label="$2" who="$3"
+  shift 3
+  local pair key floor value original settings=""
+  for pair in "$@"; do
+    key="${pair%%=*}"
+    floor="${pair#*=}"
+    value="$(sysctl -n "${key}")"
     original="${value}"
     if [[ -f "${conf}" ]]; then
-      original="$(sed -n "s/^# nika-original fs\.inotify\.${key}=//p" "${conf}")"
+      original="$(sed -n "s/^# nika-original ${key//./\\.}=//p" "${conf}")"
       if [[ -z "${original}" ]]; then
         original=unknown
         log "Migrating ${conf} from an older installer (original ${key} unknown)"
       fi
     fi
-    if (( value < 64000 )); then
-      value=64000
+    if (( value < floor )); then
+      value="${floor}"
     fi
-    settings="# nika-original fs.inotify.${key}=${original}"$'\n'"${settings}"
-    settings+="fs.inotify.${key}=${value}"$'\n'
+    settings="# nika-original ${key}=${original}"$'\n'"${settings}"
+    settings+="${key}=${value}"$'\n'
   done
 
   local sudo=""
@@ -601,12 +613,33 @@ ensure_inotify_limits() {
   fi
   if printf '%s' "${settings}" | ${sudo} tee "${conf}" >/dev/null \
     && ${sudo} sysctl -p "${conf}" >/dev/null; then
-    log "Raised inotify limits (persisted in ${conf})"
+    log "Raised ${label} (persisted in ${conf})"
     return
   fi
-  warn "Could not raise inotify limits; k8s_lab, llmd_lab, and iosxr_simple_bgp need:"
-  warn "  sudo sysctl -w fs.inotify.max_user_instances=64000"
-  warn "  sudo sysctl -w fs.inotify.max_user_watches=64000"
+  warn "Could not raise ${label}; ${who} need:"
+  for pair in "$@"; do
+    warn "  sudo sysctl -w ${pair}"
+  done
+}
+
+ensure_host_limits() {
+  # k3s (k8s_lab, llmd_lab) and Cisco XRd exhaust the kernel default of 128
+  # inotify instances; every running container's shim also holds one.
+  ensure_sysctl_floor "${INOTIFY_CONF}" "inotify limits" \
+    "k8s_lab, llmd_lab, and iosxr_simple_bgp" \
+    fs.inotify.max_user_instances=64000 fs.inotify.max_user_watches=64000
+  # One kernel neighbor (ARP/NDP) table, with one gc_thresh limit, serves
+  # every container network namespace. Large or concurrent labs overflow the
+  # default of 1024 entries and lose packets ("neighbor table overflow" in
+  # dmesg, ENOBUFS on send), which flaps BGP/IGP sessions in healthy labs.
+  ensure_sysctl_floor "${NEIGH_CONF}" "neighbor table limits" \
+    "large or concurrent labs" \
+    net.ipv4.neigh.default.gc_thresh1=8192 \
+    net.ipv4.neigh.default.gc_thresh2=16384 \
+    net.ipv4.neigh.default.gc_thresh3=32768 \
+    net.ipv6.neigh.default.gc_thresh1=8192 \
+    net.ipv6.neigh.default.gc_thresh2=16384 \
+    net.ipv6.neigh.default.gc_thresh3=32768
 }
 
 ensure_vrf_module() {
@@ -1054,7 +1087,7 @@ main() {
   bootstrap_config
   validate_config
   check_host_tools
-  ensure_inotify_limits
+  ensure_host_limits
   if [[ "${WITH_AGENTENV}" -eq 1 ]]; then
     install_agentenv
   fi

@@ -65,7 +65,6 @@ def test_timed_release_faults_cover_the_default_trial_budget() -> None:
         "sender_resource_contention",
         "receiver_resource_contention",
         "tcp_syn_flood_attack",
-        "incast_traffic_network_limitation",
     }
     timeout = BenchmarkSettings.model_fields["case_timeout_sec"].default
     for split in ("dev", "test"):

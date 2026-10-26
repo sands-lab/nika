@@ -108,3 +108,18 @@ def test_frr_passive_edge_no_ospf_neighbor() -> None:
     passive = next(i for i in node.interfaces if i.passive)
     assert f"passive-interface {passive.name}" in node.frr_conf
     assert f"neighbor {passive.peer_address}" not in node.frr_conf
+
+
+def test_frr_isis_passive_edge_is_interface_scoped() -> None:
+    plan = compile_isp_plan(IspConfig(topology="polska", igp="isis"))
+    series = resolve_traffic_series("polska", "demands")
+    assert series is not None
+    attachment = attach_traffic_stubs(plan, series)
+    node = next(
+        n for n in attachment.plan.nodes if any(i.passive for i in n.interfaces)
+    )
+    passive = next(i for i in node.interfaces if i.passive)
+    # isisd has no router-level passive-interface; the interface must carry it.
+    block = node.frr_conf.split(f"interface {passive.name}\n", 1)[1].split("!", 1)[0]
+    assert " isis passive" in block
+    assert "passive-interface" not in node.frr_conf

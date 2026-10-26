@@ -10,6 +10,7 @@ limits Claude Code cannot discover itself (``CLAUDE_CODE_MAX_*_TOKENS``).
 from __future__ import annotations
 
 import os
+from typing import Any
 
 from agent.llm.endpoints import (
     ENV_ANTHROPIC_API_KEY,
@@ -24,6 +25,30 @@ MCP_CONNECT_WAIT_ENV = {
     "MCP_TIMEOUT": "120000",
     "CLAUDE_CODE_MCP_STARTUP_WAIT_MS": "120000",
 }
+
+# Built-in tools that reach the internet. The agent gets the network only
+# through its MCP tools.
+NETWORK_TOOLS = ("WebSearch", "WebFetch")
+
+# Keep claude.ai connectors and background traffic out of runs.
+ISOLATION_ENV = {
+    "ENABLE_CLAUDEAI_MCP_SERVERS": "false",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+}
+
+
+def isolation_args() -> list[str]:
+    """``claude`` flags that leave the agent only its ``--mcp-config`` servers.
+
+    Other MCP servers (user or plugin settings of the sandbox template) do not
+    load, and the network built-ins are removed.
+    """
+    return ["--strict-mcp-config", f"--disallowedTools={','.join(NETWORK_TOOLS)}"]
+
+
+def sdk_isolation_options() -> dict[str, Any]:
+    """``ClaudeAgentOptions`` fields matching :func:`isolation_args`."""
+    return {"strict_mcp_config": True, "disallowed_tools": list(NETWORK_TOOLS)}
 
 
 def resolve_claude_model(model: str | None) -> str:
@@ -60,7 +85,7 @@ def claude_env(
 
     With *alias_auth_token*, an API key is also offered as the auth token.
     """
-    env = dict(MCP_CONNECT_WAIT_ENV)
+    env = {**MCP_CONNECT_WAIT_ENV, **ISOLATION_ENV}
     # Keep the sandbox's installed Claude Code version for the whole run.
     env["DISABLE_AUTOUPDATER"] = "1"
     api_key = os.environ.get(ENV_ANTHROPIC_API_KEY, "").strip()

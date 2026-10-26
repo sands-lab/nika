@@ -18,7 +18,7 @@ The resource catalog uses these canonical IDs:
 | Node | `node/{name}` | `node/pc1` |
 | Interface | `interface/{node}/{interface}` | `interface/pc1/eth0` |
 | Link | `link/{sorted node:intf joined by --}` | `link/pc1:eth0--router1:eth0` |
-| Kubernetes object | `k8s/{kind}/{namespace}/{name}` | `k8s/Service/kube-system/kube-dns` |
+| Kubernetes object | `k8s/{kind}/{namespace}/{name}` | `k8s/NetworkPolicy/word-ns/default-deny-ingress` |
 
 Owner kind follows the mutated catalog object. Controller-side cable faults (`link_down`, `link_flap`, `link_packet_corruption`) use the undirected link TP set. Interface removals, egress hooks, and queueing faults stay on `interface/...`.
 
@@ -89,15 +89,9 @@ Candidate options and frozen releases store materialized `root_causes` so review
 
 ## Submit a diagnosis
 
-During the submission phase, the agent receives a frozen diagnosis report plus a
-prompt-only catalog: `fault_ontology` entries `{id, description, owner_kind}` and
-`resources` entries `{id, kind}`. `description` explains what each failure ID means
-at a conceptual level and must not leak injection or differential diagnosis shortcuts;
-`submit()` still requires the exact ontology `id` as `fault_type`.
+During the submission phase, the agent receives a frozen diagnosis report plus a prompt-only catalog: `fault_ontology` entries `{id, description, owner_kind}` and `resources` entries `{id, kind}`. `description` explains what each failure ID means; it must not include injection method or differential diagnosis shortcuts. `submit()` still requires the exact ontology `id` as `fault_type`.
 
-`fault_ontology` always lists every registered fault type except the `healthy`
-sentinel. The list is the same for `--release`, `--config`, and single-case runs,
-so the candidate set never reveals which faults a case file contains.
+`fault_ontology` always lists every registered fault type except the `healthy` sentinel. The list is the same for `--release`, `--config`, and single-case runs.
 
 1. Read the frozen resource inventory and fault ontology from the submission context.
 2. Call `submit()` with the selected pairs.
@@ -118,16 +112,11 @@ The task server rejects an unknown `resource_id` or `fault_type` and does not wr
 
 ## Score a submission
 
-Exact eval and leaderboard scoring contract. Implementation:
-[`scoring.py`](../../src/nika/evaluator/scoring.py),
-[`score_status.py`](../../src/nika/evaluator/score_status.py),
-[`aggregate.py`](../../src/nika/workflows/leaderboard/aggregate.py).
+Exact eval and leaderboard scoring contract. Implementation: [`scoring.py`](../../src/nika/evaluator/scoring.py), [`score_status.py`](../../src/nika/evaluator/score_status.py), [`aggregate.py`](../../src/nika/workflows/leaderboard/aggregate.py).
 
 ### Per-trial rule-based metrics
 
-NIKA writes `eval_metrics.json` when a trial closes (or when you run
-`nika eval metrics`). Detection is binary. RCA metrics compare predicted and
-expected sets. Duplicate pairs do not change a score.
+NIKA writes `eval_metrics.json` when a trial closes (or when you run `nika eval metrics`). Detection is binary. RCA metrics compare predicted and expected sets. Duplicate pairs do not change a score. Scores written before the containment and healthy-verdict rules below change when you regrade with `nika eval metrics`.
 
 | Metric group | Compared set | Fields |
 | --- | --- | --- |
@@ -136,47 +125,41 @@ expected sets. Duplicate pairs do not change a score.
 | Localization | `resource_id` | `localization_precision`, `localization_recall`, `localization_f1` |
 | Fault type | `fault_type` | `fault_type_precision`, `fault_type_recall`, `fault_type_f1` |
 
-`rca_accuracy` and `localization_accuracy` equal the corresponding recall
-(backward-compatible aliases).
+`rca_accuracy` and `localization_accuracy` equal the corresponding recall (backward-compatible aliases).
 
-For a predicted set `P` and ground-truth set `T`:
+For a predicted set `P` and ground-truth set `T`, let `M` be the number of matched pairs in a one-to-one matching between `P` and `T`:
 
-- `precision = |P ∩ T| / |P|` (0 if `P` is empty)
-- `recall = |P ∩ T| / |T|` (0 if `T` is empty)
+- `precision = M / |P|` (0 if `P` is empty)
+- `recall = M / |T|` (0 if `T` is empty)
 - `F1 = 2 * precision * recall / (precision + recall)` (0 if both are 0)
 
-Special case: when both `P` and `T` are empty, precision, recall, and F1
-are all `1.0`. That is the correct score for a healthy case with an empty
-`root_causes` submission. An agent that never submits must not reach this
-path (see `score_status` below).
+Fault types match only when they are identical. A predicted resource matches a ground-truth resource when it has the same `resource_id`, or when it is a more specific part of it:
 
-Unparseable agent `root_causes` score as `0.0` under `scored`. Unparseable
-`is_anomaly` also scores `0.0`. Trace counters (`in_tokens`, `out_tokens`,
-`steps`, `tool_calls`, `tool_errors`) are recorded separately.
-`in_tokens` is uncached prompt tokens plus Anthropic cache creation and
-cache read. OpenAI-style `prompt_tokens` already include cached tokens, so
-those are not added again. Traces go through `agent.utils.usage.normalize_usage`.
+| Ground-truth resource | Also matched by |
+| --- | --- |
+| `node/{node}` | any `interface/{node}/{ifname}` on that node |
+| `link/{tps}` | `interface/{node}/{ifname}` for an endpoint `{node}:{ifname}` of that link |
+
+Joint RCA uses the same rule for the resource half of each pair. Each ground-truth item is matched at most once, so naming both ends of a faulty link scores one true positive and one false positive. A coarser prediction, such as `node/{node}` for an interface fault, does not match.
+
+Special case: when both `P` and `T` are empty, precision, recall, and F1 are all `1.0` only if the submission also says `is_anomaly: false`. That is the correct score for a healthy case. A healthy case submitted as `is_anomaly: true` with an empty `root_causes` list scores `0.0`. An agent that never submits must not reach this path (see `score_status` below).
+
+Unparseable agent `root_causes` score as `0.0` under `scored`. Unparseable `is_anomaly` also scores `0.0`. Trace counters (`in_tokens`, `out_tokens`, `steps`, `tool_calls`, `tool_errors`) are recorded separately. `in_tokens` is uncached prompt tokens plus Anthropic cache creation and cache read. OpenAI-style `prompt_tokens` already include cached tokens, so those are not added again. Traces go through `agent.utils.usage.normalize_usage`.
 
 Score columns are only values in `[0, 1]` or `null`. They never store `-1`.
 
+`eval_metrics.json` records `validity_flags`; see [run-validity gates](leaderboard-submission.md#run-validity-gates).
+
 ### Trial `score_status`
 
-Each finished trial stores `score_status` on `run.json`. Decision order asks
-one question first: does `submission.json` exist?
+Each finished trial stores `score_status` on `run.json`. Decision order asks one question first: does `submission.json` exist?
 
 1. **Has submission**
    - Grading succeeds → `scored` (score columns hold the computed `[0, 1]` values).
-   - Ground truth missing/corrupt or the scorer raises → `grading_error`
-     (score columns are `null`). Fix GT or scoring code and regrade. Do not
-     re-run the agent.
+   - Ground truth missing/corrupt or the scorer raises → `grading_error` (score columns are `null`). Fix GT or scoring code and regrade. Do not re-run the agent.
 2. **No submission**
-   - Ground truth missing (env/inject never completed) or clear env / LLM API /
-     MCP failure evidence → `infra_error` (score columns are `null`). Resume
-     and `--retry-passes` re-run these trials. Any residual `infra_error` after
-     retries rejects a leaderboard pack.
-   - Otherwise (timeout, max steps, crash, early exit, failed `submit`
-     validation, unknown cause) → `no_submission` (score columns are
-     explicit `0.0`). Do not re-run.
+   - Ground truth missing (env/inject never completed) or clear env / LLM API / MCP failure evidence → `infra_error` (score columns are `null`). Resume and `--retry-passes` re-run these trials. Any residual `infra_error` after retries rejects a leaderboard pack.
+   - Otherwise (timeout, max steps, crash, early exit, failed `submit` validation, unknown cause) → `no_submission` (score columns are explicit `0.0`). Do not re-run.
 
 | Status | Score columns | Primary contribution | Follow-up |
 | --- | --- | --- | --- |
@@ -190,38 +173,30 @@ Lifecycle `outcome` stays `success` or `agent_failed` for resume and pack:
 - `scored` / `grading_error` with a submission → `success`
 - `no_submission` / residual `infra_error` → `agent_failed`
 
-If the agent already wrote `submission.json` and cleanup later hits an infra
-fault, status stays on the submission path (`scored` or `grading_error`).
+If the agent already wrote `submission.json` and cleanup later hits an infra fault, status stays on the submission path (`scored` or `grading_error`).
 
 ### Aggregate (leaderboard and `nika eval summary`)
 
-Primary means use a fixed denominator
-`N = case_count × n_trials`:
+Primary means use a fixed denominator `N = case_count × n_trials`:
 
 `mean = (sum of per-trial contributions) / N`
 
-Each contribution is the trial's score when `score_status=scored`, and `0`
-for every other status (including `null` scores and trials that never
-landed). Missing expected trials contribute `0`.
+Each contribution is the trial's score when `score_status=scored`, and `0` for every other status (including `null` scores and trials that never landed). Missing expected trials contribute `0`.
 
 Always report these as a pair:
 
 - `submission_rate = n(scored) / N`
-- `conditional_mean_*` over the `scored` subset only (`null` when
-  `n(scored)=0`)
+- `conditional_mean_*` over the `scored` subset only (`null` when `n(scored)=0`)
 
 Also report:
 
 - `status_counts` for each `score_status`
 - fault-case means for `rca_f1` and `localization_f1`
-- healthy-case mean for `detection_score` (RCA/localization are not meaningful
-  for healthy controls)
+- healthy-case mean for `detection_score` (RCA/localization are not meaningful for healthy controls)
 
-Leaderboard pack/validate rejects a package when any trial has
-`grading_error` or residual `infra_error`.
+Leaderboard pack/validate rejects a package when any trial has `grading_error` or residual `infra_error`.
 
-Example: three trials with primary scores `[1.0, no_submission, no_submission]`
-yield primary mean `1/3`, `submission_rate=1/3`, and conditional mean `1.0`.
+Example: three trials with primary scores `[1.0, no_submission, no_submission]` yield primary mean `1/3`, `submission_rate=1/3`, and conditional mean `1.0`.
 
 ### Run offline eval
 
@@ -230,10 +205,7 @@ nika eval metrics --result_dir results/my_run
 nika eval summary --result_dir results/my_run
 ```
 
-`nika eval metrics` with `--result_dir` and no `--session_id` processes every
-closed session under that directory. Benchmark runs already write metrics when
-each case closes. `nika eval summary` uses the same aggregation as
-`nika leaderboard pack`. CLI options: [nika eval](../operations/cli-reference.md#nika-eval).
+`nika eval metrics` with `--result_dir` and no `--session_id` processes every closed session under that directory. Benchmark runs already write metrics when each case closes. `nika eval summary` uses the same aggregation as `nika leaderboard pack`. CLI options: [nika eval](../operations/cli-reference.md#nika-eval).
 
 ## Materialize labels on a case matrix
 

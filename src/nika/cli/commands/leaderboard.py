@@ -17,11 +17,19 @@ leaderboard_app = typer.Typer(
 @leaderboard_app.command("validate")
 def leaderboard_validate(
     package: Path = typer.Argument(..., help="Scores package directory to validate."),
+    max_harness_rate: float = typer.Option(
+        0.05,
+        "--max-harness-rate",
+        min=0.0,
+        max=1.0,
+        help="Fail when truncated_final_turn or infra_error flags exceed this "
+        "fraction of trials; other run-validity flags only warn.",
+    ),
 ) -> None:
     """Validate a scores package locally or in leaderboard GitHub CI."""
     from nika.workflows.leaderboard.validate import validate_leaderboard_submission
 
-    report = validate_leaderboard_submission(package)
+    report = validate_leaderboard_submission(package, max_harness_rate=max_harness_rate)
     for warning in report.warnings:
         typer.secho(warning, fg=typer.colors.YELLOW, err=True)
     if not report.ok:

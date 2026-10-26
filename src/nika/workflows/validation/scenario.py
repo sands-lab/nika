@@ -600,7 +600,7 @@ def validate_scenario_design(
                     "runtime %s %s %s", spec.scenario, name, summary["runtime"][name]
                 )
 
-            def reject(name, expected_failed_ids):
+            def reject(name, expected_failed_ids, unconstrained_ids=()):
                 contracts = [spec.healthy] + (
                     [spec.runtime_requirements] if spec.runtime_requirements else []
                 )
@@ -621,9 +621,9 @@ def validate_scenario_design(
                         report.write(output / f"{name}-{index}.json")
                     results = [r for report in reports for r in report.results]
                     failed = {r.intent for r in results if r.status == "failed"}
-                    if failed == set(expected_failed_ids) and all(
-                        r.status in {"passed", "failed"} for r in results
-                    ):
+                    if failed - set(unconstrained_ids) == set(
+                        expected_failed_ids
+                    ) and all(r.status in {"passed", "failed"} for r in results):
                         return sorted(failed)
                     if time.monotonic() > deadline:
                         raise RuntimeError(
@@ -684,6 +684,7 @@ def validate_scenario_design(
                         predicted_failures.get(
                             failure.name, failure.expected_failed_ids
                         ),
+                        failure.unconstrained_ids,
                     )
                     summary.setdefault("failure_compatibility", {})[failure.name] = {
                         "problem": failure.problem,

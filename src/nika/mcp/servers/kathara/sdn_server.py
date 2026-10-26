@@ -23,13 +23,15 @@ def _json(payload: object) -> str:
 
 @safe_tool
 @mcp.tool()
-def sdn_onos_rest(path: str) -> str:
+def sdn_onos_rest(path: str, device: str | None = None) -> str:
     """GET an ONOS REST API path (e.g. /onos/v1/devices, /onos/v1/flows).
 
-    Runs curl from fabric_mgr against the lab ONOS controller. Returns JSON
-    body plus controller addressing metadata.
+    Runs curl from fabric_mgr against the lab ONOS controller. Returns a
+    compact summary first (item counts, per-device counts, states), then the
+    JSON body. Pass device (e.g. of:0000000000000001) to keep only that
+    device's items.
     """
-    return _json(_api().sdn_onos_rest(path))
+    return _json(_api().sdn_onos_rest(path, device))
 
 
 if __name__ == "__main__":

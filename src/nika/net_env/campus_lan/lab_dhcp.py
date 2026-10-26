@@ -6,6 +6,7 @@ from typing import Literal
 from Kathara.manager.Kathara import Kathara, Machine
 from Kathara.model.Lab import Lab
 
+from nika.net_env.utils.download_object import download_object_commands
 from nika.config import pkg_path
 from nika.net_env.base import NetworkEnvBase
 from nika.runtime.spec import NodeRole
@@ -744,6 +745,7 @@ class CampusLanDhcp(NetworkEnvBase):
             web_meta.cmd_list.extend(
                 [
                     "python3 /usr/local/bin/package-catalog.py",
+                    *download_object_commands("/var/www"),
                     "service nginx start",
                 ]
             )
@@ -827,13 +829,17 @@ class CampusLanDhcp(NetworkEnvBase):
         # load machines after initialization
         self.load_machines()
         self.desc = (
-            "An enterprise hierarchical network using OSPF with multiple areas, built from three core routers, distribution routers, and bridged access switches."
+            "An enterprise hierarchical network using OSPF with multiple areas, built from three core routers, distribution routers, and bridged access switches. "
             "User hosts sit in subnets of the form 10.<core>.<dist>.0/24, obtain their IP configuration via DHCP (with dist-layer DHCP relay to a central DHCP server), "
             "and reach a server farm in 10.200.0.0/24 that hosts a DNS server for the local zone, several web servers (web0.local…web3.local), "
-            "Lab PC users refresh their software catalog from the campus software repository on web0.local: they download https://web0.local/packages/catalog.txt "
-            "over HTTPS (trusted through the campus CA) with gzip content encoding and expect the complete catalog within a few seconds. "
-            "An Nginx HTTP load balancer published as web99.local, which load-balances requests to three backend web servers."
-            "Note that by design the backend web servers should not be directly accessible from the hosts. "
+            "and an Nginx HTTP load balancer published as web99.local, which load-balances requests to three backend web servers. "
+            "PC users browse web0-web3.local and web99.local throughout the day. "
+            "The teaching-lab PCs are the hosts in the 10.2.<dist>.0/24 access blocks behind router_core_2; every few minutes each of them refreshes "
+            "its software catalog from the campus software repository on web0.local: it downloads https://web0.local/packages/catalog.txt "
+            "over HTTPS (trusted through the campus CA) with gzip content encoding and expects the complete catalog within a few seconds. "
+            "Note that by design the backend web servers should not be directly accessible from the hosts: "
+            "the load balancer's second interface (20.200.0.1/24) is a private link to its backends, answers only on the load balancer itself, "
+            "and is not advertised to the rest of the network. "
             "All infrastructure and server networks are advertised by FRR OSPF so that hosts can resolve and access the web services end-to-end."
         )
 

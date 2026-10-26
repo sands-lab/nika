@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Literal
+
+from nika.telemetry import NETFLOW, PROMETHEUS, SYSLOG
 
 Backend = Literal["kathara", "containerlab"]
 Role = Literal[
@@ -97,6 +100,24 @@ MCP_SERVER_SPECS: dict[str, MCPServerSpec] = {
         role="telemetry",
         module="nika.mcp.servers.kathara.telemetry_server",
     ),
+    "kathara_netflow_mcp_server": MCPServerSpec(
+        name="kathara_netflow_mcp_server",
+        backend=None,
+        role="telemetry",
+        module="nika.mcp.servers.kathara.netflow_server",
+    ),
+    "kathara_prometheus_mcp_server": MCPServerSpec(
+        name="kathara_prometheus_mcp_server",
+        backend=None,
+        role="telemetry",
+        module="nika.mcp.servers.kathara.prometheus_server",
+    ),
+    "kathara_syslog_mcp_server": MCPServerSpec(
+        name="kathara_syslog_mcp_server",
+        backend=None,
+        role="telemetry",
+        module="nika.mcp.servers.kathara.syslog_server",
+    ),
     # Host-side Kubernetes MCP (session kubeconfig → published API port)
     "k8s_mcp_server": MCPServerSpec(
         name="k8s_mcp_server",
@@ -167,8 +188,13 @@ def select_diagnosis_servers(
     scenario_name: str,
     *,
     backend: str | None = None,
+    telemetry: Iterable[str] = (),
 ) -> list[str]:
-    """Return MCP server names needed for diagnosis on *scenario*."""
+    """Return MCP server names needed for diagnosis on *scenario*.
+
+    ``telemetry`` lists the kinds the session was started with (see
+    ``nika.telemetry.telemetry_for_session``).
+    """
     backend = _resolve_diagnosis_backend(scenario_name, backend)
 
     tokens = _scenario_tokens(scenario_name)
@@ -192,6 +218,12 @@ def select_diagnosis_servers(
         servers.append("kathara_sdn_mcp_server")
     if tokens & TELEMETRY_KEYWORDS:
         servers.append("kathara_telemetry_mcp_server")
+    if NETFLOW in telemetry:
+        servers.append("kathara_netflow_mcp_server")
+    if PROMETHEUS in telemetry:
+        servers.append("kathara_prometheus_mcp_server")
+    if SYSLOG in telemetry:
+        servers.append("kathara_syslog_mcp_server")
     if tokens & KUBERNETES_KEYWORDS and _k8s_mcp_enabled():
         servers.append(K8S_MCP_SERVER)
 

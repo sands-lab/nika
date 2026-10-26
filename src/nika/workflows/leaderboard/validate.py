@@ -11,7 +11,11 @@ import yaml
 from pydantic import ValidationError
 
 from nika.config import REPO_ROOT
-from nika.workflows.benchmark.release import ReleaseError, load_release
+from nika.evaluator.validity import DEFAULT_MAX_HARNESS_RATE, validity_findings
+from nika.workflows.benchmark.release import (
+    ReleaseError,
+    load_release,
+)
 from nika.workflows.benchmark.trials import expand_trials
 from nika.workflows.leaderboard.aggregate import (
     aggregate_trial_results,
@@ -71,8 +75,14 @@ def _resolve_submission_dir(path: str | Path) -> Path:
 
 def validate_leaderboard_submission(
     submission_dir: str | Path,
+    *,
+    max_harness_rate: float = DEFAULT_MAX_HARNESS_RATE,
 ) -> ValidationReport:
-    """Validate a leaderboard submission package. Returns a report (does not raise)."""
+    """Validate a leaderboard submission package. Returns a report (does not raise).
+
+    Run-validity flags warn; ``truncated_final_turn`` or ``infra_error`` above
+    ``max_harness_rate`` of trials fails, since those are harness faults.
+    """
     errors: list[str] = []
     warnings: list[str] = []
     root = _resolve_submission_dir(submission_dir)
@@ -219,6 +229,13 @@ def validate_leaderboard_submission(
                 errors.append(
                     f"grading_error trials forbidden in submission (found {n_grading})"
                 )
+            v_errors, v_warnings = validity_findings(
+                recomputed.validity_counts,
+                len(trial_results),
+                max_harness_rate=max_harness_rate,
+            )
+            errors.extend(v_errors)
+            warnings.extend(f"run validity: {w}" for w in v_warnings)
             if n_infra:
                 errors.append(
                     f"residual infra_error trials forbidden in submission "

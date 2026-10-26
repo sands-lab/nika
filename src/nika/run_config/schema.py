@@ -309,11 +309,17 @@ class NikaSettings(BaseModel):
         """Ignore ``nika.observability``, which saved run configs still hold.
 
         It configured Langfuse tracing; the model proxy now records every
-        model call in ``model_calls.jsonl``.
+        model call in ``model_calls.jsonl``. Also ignore ``nika.telemetry``:
+        the management subnet is fixed in code, not a run-config field.
         """
-        if not isinstance(data, dict) or "observability" not in data:
+        if not isinstance(data, dict):
+            return data
+        if "observability" not in data and "telemetry" not in data:
             return data
         data = dict(data)
+        data.pop("telemetry", None)
+        if "observability" not in data:
+            return data
         observability = data.pop("observability")
         if isinstance(observability, dict) and observability.get("langfuse_enabled"):
             # A UserWarning, because Python hides DeprecationWarning by default.
@@ -461,6 +467,11 @@ class AgentSettings(BaseModel):
     reasoning_effort: str | None = None
     # Output-token cap per model response. Not applied by Codex agents or SADE.
     max_tokens: int = 8192
+    # Sampling. None = do not send, so the server applies the model's own
+    # generation defaults. Applied by byo.langgraph and byo.mcp_agent.
+    temperature: float | None = None
+    top_p: float | None = None
+    seed: int | None = None
     llm: AgentLlmSettings = Field(default_factory=AgentLlmSettings)
     access: AgentAccessSettings = Field(default_factory=AgentAccessSettings)
     submission: AgentSubmissionSettings = Field(default_factory=AgentSubmissionSettings)
@@ -500,6 +511,29 @@ class AgentSettings(BaseModel):
         if value < 1:
             raise ValueError("agent.max_tokens must be >= 1")
         return value
+
+    @field_validator("temperature")
+    @classmethod
+    def _temperature_non_negative(cls, value: float | None) -> float | None:
+        if value is not None and value < 0:
+            raise ValueError("agent.temperature must be >= 0")
+        return value
+
+    @field_validator("top_p")
+    @classmethod
+    def _top_p_in_range(cls, value: float | None) -> float | None:
+        if value is not None and not 0 < value <= 1:
+            raise ValueError("agent.top_p must be in (0, 1]")
+        return value
+
+    def sampling_params(self) -> dict[str, float | int]:
+        """Explicitly configured sampling parameters (unset ones are omitted)."""
+        params = {
+            "temperature": self.temperature,
+            "top_p": self.top_p,
+            "seed": self.seed,
+        }
+        return {key: value for key, value in params.items() if value is not None}
 
     @field_validator("timeout_sec")
     @classmethod

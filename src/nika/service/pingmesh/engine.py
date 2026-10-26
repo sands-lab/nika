@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import statistics
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
+from nika.net_env.probe_intent import ProbeIntent
 from nika.service.pingmesh.endpoints import discover_endpoints, resolve_endpoint_ip
 from nika.service.pingmesh.parser import parse_ping_output
-from nika.service.shell import ping_exec_timeout
 from nika.service.pingmesh.types import (
     AnomalyType,
     PingAnomaly,
@@ -18,12 +20,32 @@ from nika.service.pingmesh.types import (
     PingPairResult,
     PingStats,
 )
+from nika.service.shell import ping_exec_timeout
 
 MIN_COUNT = 1
 MAX_COUNT = 20
 DEFAULT_COUNT = 4
 DEFAULT_HIGH_LATENCY_MS = 100.0
 DEFAULT_MAX_PAIRS = 64
+# Share of the pair budget reserved for pairs the scenario isolates by design,
+# so policy violations stay observable without crowding out expected pairs.
+ISOLATED_PAIR_SHARE = 4
+# Bounds snapshot size so the agent-facing tool output is never truncated.
+MAX_LISTED_ANOMALIES = 40
+RESOLVE_TIMEOUT_SEC = 20.0
+# Concurrent execs stay below the default thread-pool size so queued probes are
+# not mistaken for timed-out ones.
+MAX_CONCURRENT_PROBES = 16
+# Seconds past the last echo request before ping gives up on a silent pair.
+PING_DEADLINE_SLACK_SEC = 2
+EXEC_TIMEOUT_SENTINEL = "[TIMEOUT]"
+_ANOMALY_ORDER: dict[AnomalyType, int] = {
+    "policy_violation": 0,
+    "unreachable": 1,
+    "unknown": 2,
+    "packet_loss": 3,
+    "high_latency": 4,
+}
 
 
 def _clamp_count(count: int) -> int:
@@ -45,31 +67,62 @@ def _validate_selection(
     return selected
 
 
+def _round_robin_pairs(
+    sources: list[str],
+    targets: list[str],
+    include: Callable[[str, str], bool],
+) -> list[tuple[str, str]]:
+    """Pairs ordered so every prefix covers all sources and spreads over targets.
+
+    Each source walks the target list starting after its own position, and the
+    walks are interleaved one pair per source per round. Cutting the result at
+    any length therefore samples every source evenly instead of exhausting the
+    first sources alphabetically.
+    """
+    walks: list[list[tuple[str, str]]] = []
+    for index, src in enumerate(sources):
+        start = targets.index(src) + 1 if src in targets else index
+        rotated = targets[start:] + targets[:start]
+        walks.append(
+            [(src, dst) for dst in rotated if dst != src and include(src, dst)]
+        )
+    rounds = max((len(walk) for walk in walks), default=0)
+    return [walk[r] for r in range(rounds) for walk in walks if r < len(walk)]
+
+
 def _build_pairs(
     sources: list[str],
     targets: list[str],
     max_pairs: int,
-) -> list[tuple[str, str]]:
-    pairs: list[tuple[str, str]] = []
-    for src in sources:
-        for dst in targets:
-            if src == dst:
-                continue
-            pairs.append((src, dst))
-            if len(pairs) >= max_pairs:
-                return pairs
-    return pairs
+    *,
+    is_isolated: Callable[[str, str], bool] | None = None,
+) -> tuple[list[tuple[str, str]], int]:
+    """Return ``(pairs to probe, candidate pair count)``.
+
+    Pairs the scenario isolates by design are sampled separately and capped at a
+    quarter of the budget (unused budget flows back to expected pairs).
+    """
+    isolated = is_isolated or (lambda _src, _dst: False)
+    expected = _round_robin_pairs(sources, targets, lambda a, b: not isolated(a, b))
+    blocked = _round_robin_pairs(sources, targets, isolated)
+    candidates = len(expected) + len(blocked)
+    max_pairs = max(max_pairs, 0)
+    blocked_quota = min(len(blocked), max_pairs // ISOLATED_PAIR_SHARE)
+    expected_quota = min(len(expected), max_pairs - blocked_quota)
+    blocked_quota = min(len(blocked), max_pairs - expected_quota)
+    return expected[:expected_quota] + blocked[:blocked_quota], candidates
 
 
-def _is_reachable(stats: PingStats) -> bool:
-    status = stats.get("status")
-    loss = stats.get("loss_percent")
-    rx = stats.get("rx")
-    if status == "down" or loss == 100 or rx == 0:
-        return False
-    if status == "unknown":
-        return False
-    return True
+def _row_reachable(row: PingPairResult) -> bool:
+    return row.get("status") in ("ok", "unstable")
+
+
+def _failed_stats(status: str, detail: str) -> PingStats:
+    return {"status": status, "detail": detail}  # type: ignore[typeddict-item]
+
+
+def _anomaly(source: str, target: str, kind: AnomalyType, detail: str) -> PingAnomaly:
+    return {"source": source, "target": target, "type": kind, "detail": detail}
 
 
 def _classify_anomalies(
@@ -78,113 +131,179 @@ def _classify_anomalies(
     stats: PingStats,
     *,
     high_latency_ms: float,
+    isolated: bool = False,
 ) -> list[PingAnomaly]:
     status = stats.get("status", "unknown")
     loss = stats.get("loss_percent")
     rx = stats.get("rx")
     rtt_avg = stats.get("rtt_avg_ms")
-    anomalies: list[PingAnomaly] = []
 
-    if status == "unknown":
-        anomalies.append(
-            {
-                "source": source,
-                "target": target,
-                "type": "unknown",
-                "detail": "Unable to parse ping output or resolve target",
-            }
-        )
-        return anomalies
+    if status in ("unknown", "timeout", "error"):
+        detail = stats.get("detail") or "Unable to parse ping output"
+        return [_anomaly(source, target, "unknown", detail)]
 
-    if status == "down" or loss == 100 or rx == 0:
+    unreachable = status == "down" or loss == 100 or rx == 0
+    if isolated:
+        if unreachable:
+            return []
+        return [
+            _anomaly(
+                source,
+                target,
+                "policy_violation",
+                "reachable although the scenario design isolates this pair",
+            )
+        ]
+
+    if unreachable:
         detail = f"{loss or 100}% packet loss" if loss is not None else "no replies"
-        anomalies.append(
-            {
-                "source": source,
-                "target": target,
-                "type": "unreachable",
-                "detail": detail,
-            }
-        )
-        return anomalies
+        return [_anomaly(source, target, "unreachable", detail)]
 
+    anomalies: list[PingAnomaly] = []
     if (loss is not None and 0 < loss < 100) or status == "unstable":
         anomalies.append(
-            {
-                "source": source,
-                "target": target,
-                "type": "packet_loss",
-                "detail": f"{loss}% packet loss",
-            }
+            _anomaly(source, target, "packet_loss", f"{loss}% packet loss")
         )
-
     if rtt_avg is not None and rtt_avg > high_latency_ms:
         anomalies.append(
-            {
-                "source": source,
-                "target": target,
-                "type": "high_latency",
-                "detail": f"avg RTT {rtt_avg}ms exceeds {high_latency_ms}ms",
-            }
+            _anomaly(
+                source,
+                target,
+                "high_latency",
+                f"avg RTT {rtt_avg}ms exceeds {high_latency_ms:g}ms",
+            )
         )
-
     return anomalies
+
+
+def _rtt_summary(results: list[PingPairResult]) -> dict[str, float]:
+    rtts = [
+        row["rtt_avg_ms"]
+        for row in results
+        if _row_reachable(row)
+        and row.get("expected") != "isolated"
+        and row.get("rtt_avg_ms") is not None
+    ]
+    if not rtts:
+        return {}
+    return {
+        "min": round(min(rtts), 3),
+        "median": round(statistics.median(rtts), 3),
+        "max": round(max(rtts), 3),
+    }
 
 
 def _build_summary(
     results: list[PingPairResult],
     anomalies: list[PingAnomaly],
+    *,
+    candidate_pairs: int,
+    latency_threshold_ms: float,
 ) -> PingMeshSummary:
-    counts: dict[AnomalyType, int] = {
-        "unreachable": 0,
-        "packet_loss": 0,
-        "high_latency": 0,
-        "unknown": 0,
-    }
+    counts: dict[AnomalyType, int] = dict.fromkeys(_ANOMALY_ORDER, 0)
     for anomaly in anomalies:
         counts[anomaly["type"]] += 1
 
-    reachable_pairs = sum(1 for row in results if row.get("reachable"))
-    return {
+    isolated_rows = [row for row in results if row.get("expected") == "isolated"]
+    summary: PingMeshSummary = {
+        "candidate_pairs": candidate_pairs,
         "total_pairs": len(results),
-        "reachable_pairs": reachable_pairs,
+        "capped": len(results) < candidate_pairs,
+        "reachable_pairs": sum(
+            1
+            for row in results
+            if _row_reachable(row) and row.get("expected") != "isolated"
+        ),
         "anomaly_count": len(anomalies),
+        "policy_violation": counts["policy_violation"],
         "unreachable": counts["unreachable"],
         "packet_loss": counts["packet_loss"],
         "high_latency": counts["high_latency"],
         "unknown": counts["unknown"],
+        "latency_threshold_ms": latency_threshold_ms,
     }
+    if isolated_rows:
+        summary["isolated_pairs"] = len(isolated_rows)
+        summary["isolated_confirmed"] = sum(
+            1 for row in isolated_rows if row.get("status") == "down"
+        )
+    rtt = _rtt_summary(results)
+    if rtt:
+        summary["rtt_ms"] = rtt
+    return summary
 
 
 def _stats_to_pair_result(
     source: str,
     target: str,
-    target_ip: str | None,
     stats: PingStats,
+    *,
+    isolated: bool = False,
 ) -> PingPairResult:
-    return {
+    row: PingPairResult = {
         "source": source,
         "target": target,
-        "target_ip": target_ip,
-        "reachable": _is_reachable(stats),
         "loss_percent": stats.get("loss_percent"),
-        "rtt_min_ms": stats.get("rtt_min_ms"),
         "rtt_avg_ms": stats.get("rtt_avg_ms"),
-        "rtt_max_ms": stats.get("rtt_max_ms"),
-        "rtt_mdev_ms": stats.get("rtt_mdev_ms"),
         "status": stats.get("status", "unknown"),
     }
+    if isolated:
+        row["expected"] = "isolated"
+    return row
 
 
 async def _probe_pair(
     api: Any,
     source: str,
-    target_ip: str,
+    target_ip: str | None,
     count: int,
+    slots: asyncio.Semaphore,
 ) -> PingStats:
-    command = f"ping -c {count} -n -q {target_ip}"
-    output = await api.exec_cmd_async(source, command, timeout=ping_exec_timeout(count))
-    return parse_ping_output(output)
+    """Probe one pair; a failure of this pair never aborts the rest."""
+    if not target_ip:
+        return _failed_stats("unknown", "target address could not be resolved")
+    budget = ping_exec_timeout(count)
+    deadline = count + PING_DEADLINE_SLACK_SEC
+    command = f"ping -c {count} -w {deadline} -n -q {target_ip}"
+    try:
+        async with slots:
+            output = await asyncio.wait_for(
+                api.exec_cmd_async(source, command, timeout=budget),
+                timeout=budget + 5,
+            )
+    except asyncio.TimeoutError:
+        return _failed_stats("timeout", f"probe from {source} timed out")
+    except Exception as exc:  # noqa: BLE001 - one pair must not fail the snapshot
+        return _failed_stats(
+            "error", f"probe from {source} failed: {type(exc).__name__}"
+        )
+    if not isinstance(output, str):
+        return _failed_stats("unknown", "Unable to parse ping output")
+    if output.startswith(EXEC_TIMEOUT_SENTINEL):
+        return _failed_stats("timeout", f"probe from {source} timed out")
+    stats = parse_ping_output(output)
+    if stats.get("status") == "unknown":
+        excerpt = " ".join(output.split())[:100]
+        stats["detail"] = (
+            f"unparsable ping output: {excerpt}" if excerpt else "no ping output"
+        )
+    return stats
+
+
+async def _resolve_endpoint_ips(api: Any, names: list[str]) -> dict[str, str | None]:
+    """Resolve probe addresses concurrently; an unresolvable endpoint maps to None."""
+
+    async def resolve(name: str) -> str | None:
+        try:
+            return await asyncio.wait_for(
+                asyncio.to_thread(resolve_endpoint_ip, api, name),
+                timeout=RESOLVE_TIMEOUT_SEC,
+            )
+        except Exception:  # noqa: BLE001 - includes timeouts and exec failures
+            return None
+
+    addresses = await asyncio.gather(*(resolve(name) for name in names))
+    return dict(zip(names, addresses))
 
 
 async def run_pingmesh_snapshot(
@@ -195,8 +314,16 @@ async def run_pingmesh_snapshot(
     count: int = DEFAULT_COUNT,
     high_latency_ms: float = DEFAULT_HIGH_LATENCY_MS,
     max_pairs: int = DEFAULT_MAX_PAIRS,
+    intent: ProbeIntent | None = None,
+    include_healthy: bool = False,
 ) -> PingMeshSnapshot:
-    """Execute a PingMesh snapshot and return structured results."""
+    """Execute a PingMesh snapshot and return structured results.
+
+    ``intent`` carries the scenario's designed isolation and RTT; pairs it
+    isolates are reported as ``policy_violation`` only if they become reachable,
+    and the latency threshold never drops below the design RTT plus headroom.
+    Per-pair rows are returned only with ``include_healthy``.
+    """
     discovered = discover_endpoints(api)
     if not discovered:
         raise ValueError("No endpoint hosts found in the current lab session.")
@@ -209,44 +336,62 @@ async def run_pingmesh_snapshot(
         raise ValueError("No target endpoints selected for PingMesh.")
 
     count = _clamp_count(count)
-    endpoint_ips = {name: resolve_endpoint_ip(api, name) for name in discovered}
-    pairs = _build_pairs(resolved_sources, resolved_targets, max_pairs)
+    threshold_ms = (
+        intent.latency_threshold_ms(high_latency_ms) if intent else high_latency_ms
+    )
+    is_isolated = intent.isolation_matcher() if intent else (lambda _a, _b: False)
+    pairs, candidate_pairs = _build_pairs(
+        resolved_sources, resolved_targets, max_pairs, is_isolated=is_isolated
+    )
 
-    coroutines = []
-    pair_meta: list[tuple[str, str, str | None]] = []
-    for src, dst in pairs:
-        dst_ip = endpoint_ips.get(dst)
-        pair_meta.append((src, dst, dst_ip))
-        if dst_ip:
-            coroutines.append(_probe_pair(api, src, dst_ip, count))
-        else:
-            coroutines.append(asyncio.sleep(0, result=parse_ping_output("")))
-
-    stats_list = await asyncio.gather(*coroutines)
+    probed = sorted({name for pair in pairs for name in pair})
+    endpoint_ips = await _resolve_endpoint_ips(api, probed)
+    slots = asyncio.Semaphore(MAX_CONCURRENT_PROBES)
+    stats_list = await asyncio.gather(
+        *(
+            _probe_pair(api, src, endpoint_ips.get(dst), count, slots)
+            for src, dst in pairs
+        )
+    )
 
     results: list[PingPairResult] = []
     anomalies: list[PingAnomaly] = []
-    for (src, dst, dst_ip), stats in zip(pair_meta, stats_list):
-        pair_result = _stats_to_pair_result(src, dst, dst_ip, stats)
-        results.append(pair_result)
+    for (src, dst), stats in zip(pairs, stats_list):
+        isolated = is_isolated(src, dst)
+        results.append(_stats_to_pair_result(src, dst, stats, isolated=isolated))
         anomalies.extend(
             _classify_anomalies(
                 src,
                 dst,
                 stats,
-                high_latency_ms=high_latency_ms,
+                high_latency_ms=threshold_ms,
+                isolated=isolated,
             )
         )
 
+    summary = _build_summary(
+        results,
+        anomalies,
+        candidate_pairs=candidate_pairs,
+        latency_threshold_ms=threshold_ms,
+    )
+    anomalies.sort(key=lambda row: _ANOMALY_ORDER[row["type"]])
     snapshot: PingMeshSnapshot = {
         "timestamp": datetime.now(UTC).isoformat(),
-        "endpoints": endpoint_ips,
-        "sources": resolved_sources,
-        "targets": resolved_targets,
-        "results": results,
-        "anomalies": anomalies,
-        "summary": _build_summary(results, anomalies),
+        "summary": summary,
+        "anomalies": anomalies[:MAX_LISTED_ANOMALIES],
     }
+    if len(anomalies) > MAX_LISTED_ANOMALIES:
+        snapshot["anomalies_omitted"] = len(anomalies) - MAX_LISTED_ANOMALIES
+    snapshot["endpoints"] = {name: endpoint_ips[name] for name in probed}
+    snapshot["sources"] = resolved_sources
+    snapshot["targets"] = resolved_targets
+    if include_healthy:
+        snapshot["results"] = results
+    else:
+        snapshot["note"] = (
+            "Healthy per-pair rows omitted; pass include_healthy=true for every probed pair."
+        )
     return snapshot
 
 

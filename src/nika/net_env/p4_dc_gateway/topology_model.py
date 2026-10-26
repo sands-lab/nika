@@ -26,12 +26,20 @@ COLLECTOR_TELEMETRY_IP = f"{TELEMETRY_PREFIX}.250"
 PIPELINE_NAME = "gateway"
 VIP_IP = "20.0.0.1"
 VIP_PORT = 80
+# Client access circuits are provider-encapsulated (PPPoE-style), so the path
+# MTU toward an external client is below the 1500-byte fabric MTU. Gateways
+# answer larger DF packets toward a client with ICMP Fragmentation Needed.
+CLIENT_ACCESS_MTU = 1400
 CONN_TABLE_CAPACITY = 256
 CONNECTION_LEARNING_DELAY_MS = 5
 # Gateway-local L4 agent (lb_agent.py): connection learner and pool updates.
+# Routine DIP pool updates (deploys, scaling): one per gateway every MIN-MAX seconds.
+POOL_UPDATE_INTERVAL_SEC = "60-180"
 LB_AGENT = "/lb_agent.py"
 LB_AGENT_CONFIG = "/etc/lb-agent/config.json"
 LB_AGENT_STATUS = "/var/lib/lb-agent/status.json"
+# INT collector output, read by the telemetry API and the verification probes.
+INT_REPORTS = "/var/lib/int-collector/int_reports.jsonl"
 
 # gateways, spines, leaves, external clients, HTTP services
 SIZE_TABLE: dict[TopoSize, tuple[int, int, int, int, int]] = {

@@ -86,6 +86,13 @@ def merge_native_codex_providers(config_path: Path) -> None:
     native = Path(native_home) / "config.toml"
     if not native.is_file() or native.resolve() == config_path.resolve():
         return
+    own = config_path.read_text(encoding="utf-8")
+    # Keys the task config already sets win; TOML rejects a duplicate key.
+    own_keys = {
+        line.split("=", 1)[0].strip()
+        for line in own.split("\n[", 1)[0].splitlines()
+        if "=" in line
+    }
     roots: list[str] = []
     providers: list[str] = []
     section = ""
@@ -93,19 +100,18 @@ def merge_native_codex_providers(config_path: Path) -> None:
         text = line.strip()
         if text.startswith("["):
             section = text
-        if not section and text.split("=", 1)[0].strip() in {
-            "model_provider",
-            "forced_login_method",
-        }:
+        key = text.split("=", 1)[0].strip()
+        if (
+            not section
+            and key in {"model_provider", "forced_login_method"}
+            and key not in own_keys
+        ):
             roots.append(line)
         elif section.startswith("[model_providers."):
             providers.append(line)
     if providers:
         config_path.write_text(
-            "".join(roots)
-            + config_path.read_text(encoding="utf-8")
-            + "\n"
-            + "".join(providers),
+            "".join(roots) + own + "\n" + "".join(providers),
             encoding="utf-8",
         )
 
@@ -297,6 +303,8 @@ def _build_mcp_toml(
     lines: list[str] = [
         'approval_policy = "never"',
         'sandbox_mode = "workspace-write"',
+        # The agent reaches the network only through its MCP tools.
+        'web_search = "disabled"',
     ]
     provider_id = _codex_model_provider_id(provider)
     resolved_base = (base_url or "").strip() or _codex_provider_base_url(provider)

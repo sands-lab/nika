@@ -3,12 +3,15 @@
 The failure registry skips this package. ``FAILURES`` holds 0.1.0 root causes
 absent from the current registry. ``SCENARIO_FAILURE_OVERRIDES`` holds 0.1.0
 implementations of a current failure ID that apply only on an original 0.1.0
-lab.
+lab. ``RELEASE_FAILURE_OVERRIDES`` holds those for current scenarios; they
+apply only to 0.1.0 release cases.
 """
 
 from __future__ import annotations
 
 from nika.problems.compat.v010.endpoint import HostCrash, SenderApplicationDelay
+from nika.problems.compat.v010.incast import IncastTrafficNetworkLimitation010
+from nika.problems.compat.v010.mtu import MtuMismatchTwoSided
 from nika.problems.compat.v010.p4_compile import (
     P4CompilationErrorParserState,
     P4HeaderDefinitionError,
@@ -72,6 +75,18 @@ SCENARIO_FAILURE_OVERRIDES: dict[tuple[str, str], type[ProblemBase]] = {
     ("rip_small_internet_vpn", VPNMembershipMissing.root_cause_name): (
         VPNMembershipMissing
     ),
+}
+
+# 0.1.0 implementations of failure IDs on scenarios that are still current.
+# They apply only to cases of release 0.1.0 (``release=RELEASE_VERSION``).
+RELEASE_FAILURE_OVERRIDES: dict[tuple[str, str], type[ProblemBase]] = {
+    ("dc_clos", MtuMismatchTwoSided.root_cause_name): MtuMismatchTwoSided,
+    **{
+        (scenario, IncastTrafficNetworkLimitation010.root_cause_name): (
+            IncastTrafficNetworkLimitation010
+        )
+        for scenario in ("campus_lan", "dc_clos")
+    },
 }
 
 

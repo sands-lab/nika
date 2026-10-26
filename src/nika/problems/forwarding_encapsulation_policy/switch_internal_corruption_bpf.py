@@ -29,7 +29,8 @@ class SwitchNamespaceBitflip:
         token = hashlib.blake2s(
             f"{self.runtime.lab_name}:{node}:{intf}:{seed}".encode(), digest_size=8
         ).hexdigest()
-        object_name = f".dp-{token}"
+        # ``tc filter show`` prints the object file name.
+        object_name = "tc_egress"
         source = Path(__file__).with_name("switch_internal_corruption.bpf.c")
         archive = io.BytesIO()
         with tarfile.open(fileobj=archive, mode="w") as tar:

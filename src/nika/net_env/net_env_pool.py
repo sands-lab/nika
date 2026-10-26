@@ -793,8 +793,17 @@ def scenario_fixed_topo_size(scenario_name: str) -> str | None:
     return None
 
 
-def get_probe_path(scenario_name: str, *, topo_size: str = "s") -> ProbePath | None:
-    """Default probe path declared by the scenario's lab class, if any."""
+def get_probe_path(
+    scenario_name: str,
+    *,
+    topo_size: str = "s",
+    deploy_overrides: Mapping[str, Any] | None = None,
+) -> ProbePath | None:
+    """Default probe path declared by the scenario's lab class, if any.
+
+    ``deploy_overrides`` are deploy arguments of the running case (e.g. the ISP
+    ``bgp_mode``) layered over the scenario's deploy defaults.
+    """
     try:
         spec = _require_scenario(scenario_name)
     except (KeyError, ValueError):
@@ -805,7 +814,8 @@ def get_probe_path(scenario_name: str, *, topo_size: str = "s") -> ProbePath | N
         )
         cls = _load_net_env_class(scenario_name, backend=backend)
         return cls.default_probe_path(
-            topo_size=topo_size, **(spec.deploy_defaults or {})
+            topo_size=topo_size,
+            **{**(spec.deploy_defaults or {}), **(deploy_overrides or {})},
         )
     except Exception as exc:  # noqa: BLE001
         system_logger.warning(f"No default probe path for {scenario_name!r}: {exc}")

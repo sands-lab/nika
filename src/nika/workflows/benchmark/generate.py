@@ -40,6 +40,7 @@ from nika.workflows.benchmark.isp_options import (
     isp_stack_for_backend,
     isp_topo_from_scenario,
 )
+from nika.workflows.benchmark.load_config import CASE_PROFILE_FIELDS
 from nika.workflows.benchmark.resume import benchmark_option_id
 
 WORKING_DIRNAME = "working"
@@ -537,7 +538,7 @@ def _document_option_ids(document: dict[str, Any]) -> list[str]:
                 "scenario": document["scenario"]["name"],
                 "problem": document["failure"]["fault_type"],
                 "inject": case["inject"],
-                **{key: case[key] for key in _PROFILE_FIELDS if key in case},
+                **{key: case[key] for key in CASE_PROFILE_FIELDS if key in case},
             }
             ids.append(benchmark_option_id(row))
         return ids
@@ -547,7 +548,7 @@ def _document_option_ids(document: dict[str, Any]) -> list[str]:
             "scenario": document["scenario"]["name"],
             "problem": HEALTHY_PROBLEM,
             "inject": {},
-            **{key: variant[key] for key in _PROFILE_FIELDS if key in variant},
+            **{key: variant[key] for key in CASE_PROFILE_FIELDS if key in variant},
         }
         ids.append(benchmark_option_id(row))
     return ids

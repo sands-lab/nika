@@ -154,7 +154,7 @@ def load_blackhole_pipeline(
 
     Staging files use a neutral name and the switch-side build files are removed,
     so the lab filesystem does not name the fault. Call
-    :func:`remove_staged_pipeline` after ``set-pipeline``.
+    :func:`remove_staged_pipeline` after pushing the pipeline.
     """
     from nika.net_env.p4_dc_fabric.fabric_manager.apply import (
         FABRIC_DIR,

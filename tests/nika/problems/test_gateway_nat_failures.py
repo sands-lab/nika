@@ -47,3 +47,10 @@ def test_nat_benchmark_params_use_routed_branch_aliases() -> None:
         "nat_mapping_removed_without_drain", "enterprise_branch", "m", seed=1
     )
     assert params_m["wan_interface"] == "eth3"
+
+
+def test_gateway_benchmark_params_target_the_gateway() -> None:
+    params = resolve_inject_params(
+        "lb_connection_state_exhaustion", "p4_dc_gateway", "s", seed=1
+    )
+    assert params == {"host_name": "gateway_1", "max_connections": "4"}

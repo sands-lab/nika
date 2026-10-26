@@ -101,6 +101,63 @@ Both values should be `64000`. After `nika env run`, lab verification completes:
 - A single quiet `nika env run k8s_lab` can pass with `max_user_instances=128` if `max_user_watches` is already large. Repeated k3s starts (for example full 0.2.0-style matrices) hit the limit sooner.
 - After an OOM or hard reset, run the `sysctl` check again before the next XR or k3s lab.
 
+## Host neighbor table overflows (large or concurrent labs)
+
+Raise the kernel neighbor (ARP/NDP) table limits on the Docker host before you run large labs or several labs at once. One table serves every container network namespace on the host, and the kernel default `gc_thresh3` is `1024`. A `dc_clos` size `l` lab next to other labs, or a large ISP topology, can exceed it.
+
+### Match these symptoms
+
+- Lab verification passes, then hosts lose connectivity at random. BGP sessions sit in `Connect` or keep resetting, and name lookups or HTTP probes time out.
+- `ping` inside a container prints `sendmsg: No buffer space available`.
+- The host kernel log repeats:
+
+```text
+neighbour: arp_cache: neighbor table overflow!
+```
+
+### Cause
+
+`net.ipv4.neigh.default.gc_thresh3` (or the IPv6 key) is still at the kernel default. When the shared table is full, the kernel cannot resolve a new next hop and drops the packet. Agents and verification then see symptoms that no injected fault caused.
+
+### Fix
+
+1. Check the kernel log and the current limits:
+
+```shell
+sudo dmesg | grep -c "neighbor table overflow"
+sysctl net.ipv4.neigh.default.gc_thresh3 net.ipv6.neigh.default.gc_thresh3
+```
+
+2. Rerun the installer, which raises the limits and persists them in `/etc/sysctl.d/99-nika-neigh.conf`:
+
+```shell
+./scripts/install.sh --skip-images
+```
+
+Or set them by hand and persist them:
+
+```shell
+sudo tee /etc/sysctl.d/99-nika-neigh.conf <<'EOF'
+net.ipv4.neigh.default.gc_thresh1=8192
+net.ipv4.neigh.default.gc_thresh2=16384
+net.ipv4.neigh.default.gc_thresh3=32768
+net.ipv6.neigh.default.gc_thresh1=8192
+net.ipv6.neigh.default.gc_thresh2=16384
+net.ipv6.neigh.default.gc_thresh3=32768
+EOF
+sudo sysctl -p /etc/sysctl.d/99-nika-neigh.conf
+```
+
+3. Close the affected sessions and redeploy them. Labs that came up during the overflow can keep broken sessions.
+
+### Confirm success
+
+```shell
+sysctl net.ipv4.neigh.default.gc_thresh3 net.ipv6.neigh.default.gc_thresh3
+```
+
+Both values are at least `32768`, and the overflow count in `dmesg` stops growing while labs run.
+
 ## Host kernel lacks the vrf module (enterprise_branch)
 
 Every `enterprise_branch` Site Edge binds its business LANs to Linux VRF devices. Containers cannot load kernel modules, so the Docker host must provide `vrf`.

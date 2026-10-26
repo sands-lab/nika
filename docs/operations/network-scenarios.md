@@ -19,7 +19,7 @@ Install with [`./scripts/install.sh`](../../scripts/install.sh). Installer optio
 
 Every Containerlab scenario runs Nokia SR Linux, which NIKA configures over gNMI, so `gnmic` is required for all of them. `min3clos` is Containerlab-only. `isp_<topology>` scenarios use Containerlab when you pass `--backend containerlab`.
 
-Containerlab scenarios pull the Nokia SR Linux and multi-arch `wbitt/network-multitool` images. Kubernetes scenarios download k3s and workload images during deployment. `iosxr_simple_bgp` needs a Cisco XRd Control Plane image that you load manually (or via `./scripts/install.sh --with-vendor-images --xrd-tarball …`). See [IOS-XR simple BGP](#ios-xr-simple-bgp-scenario). `routeros_simple_bgp` needs a MikroTik RouterOS `vrnetlab` image (build with `./scripts/install.sh --with-vendor-images`; clone lands under `.nika_cache/vendor/vrnetlab`); see [RouterOS simple BGP](#routeros-simple-bgp-scenario).
+Containerlab scenarios pull the Nokia SR Linux image and run their Linux hosts on the locally built `nika/base` image. Kubernetes scenarios download k3s and workload images during deployment. `iosxr_simple_bgp` needs a Cisco XRd Control Plane image that you load manually (or via `./scripts/install.sh --with-vendor-images --xrd-tarball …`). See [IOS-XR simple BGP](#ios-xr-simple-bgp-scenario). `routeros_simple_bgp` needs a MikroTik RouterOS `vrnetlab` image (build with `./scripts/install.sh --with-vendor-images`; clone lands under `.nika_cache/vendor/vrnetlab`); see [RouterOS simple BGP](#routeros-simple-bgp-scenario).
 
 ### Concurrency and `--batch-size`
 
@@ -33,6 +33,7 @@ Heavy and light trials never run at the same time. With the default `--heavy-bat
 Why heavy labs need a separate cap:
 
 - `k8s_lab` and `llmd_lab` each run six privileged k3s nodes. Concurrent labs exhaust host inotify capacity and the k3s server exits. `iosxr_simple_bgp` needs the same raised limits. See [Host inotify limits too low](troubleshooting.md#host-inotify-limits-too-low-k3s--xrd).
+- Every lab adds entries to the host's shared neighbor table. Large or concurrent labs overflow the kernel default and drop packets at random. See [Host neighbor table overflows](troubleshooting.md#host-neighbor-table-overflows-large-or-concurrent-labs).
 - Containerlab scenarios apply their post-deploy SR Linux configuration over gRPC. Under concurrent load the SR Linux management server rejects the keepalives with `ENHANCE_YOUR_CALM` and `too_many_pings`, and `clab deploy` fails. NIKA destroys the partial lab and retries the deploy once. Within one lab, NIKA also passes `clab deploy --max-workers` from `nika.lab.containerlab_max_workers` (default `2`). Lower it if deploy OOMs; see [Containerlab deploy OOM](troubleshooting.md#containerlab-deploy-oom-on-memory-tight-hosts).
 
 ## Scenario catalog
@@ -83,9 +84,11 @@ NIKA builds one Clos fabric from code. Each router runs FRR eBGP. Inter-router l
 | `m` | 2 | 4 | 4 |
 | `l` | 4 | 8 | 8 |
 
-Super-spines use AS 65000, spines use AS 651xx, and leaves use AS 652xx.
+Super-spine `n` uses AS 65000+`n`, spines use AS 651xx, and leaves use AS 652xx. Because the super-spines have distinct ASNs, external clients of different pods reach each other as well as the DNS and web services. Each pod's BIND server is authoritative only for its own pod zone, and clients fall back across the pod servers.
 
 Each pod has one authoritative BIND server, HTTP servers on the remaining leaves, and an external client on the super-spine (`192.168.<pod>.0/24`). Clients resolve names such as `web0.pod0`. Use this when the failure needs DNS or HTTP observability.
+
+Business traffic: the users behind each client browse every pod's web servers by name every few seconds and download `large.bin` (2 MB) from one of them every few minutes.
 
 ```shell
 uv run nika env run dc_clos -s s
@@ -111,7 +114,13 @@ user PCs -- access switches -- distribution routers
 | `m` | 4 | 8 | 16 |
 | `l` | 8 | 32 | 128 |
 
-Hosts acquire addresses from `dhcp_server`; distribution routers relay DHCP. Dist/access names stay `router_dist_*` / `server_access_router`. The farm adds an NGINX load balancer at `web99.local` and three backend webs on `20.200.0.0/24`. Each `webN.local` server runs NGINX, which serves the campus software repository over HTTP and HTTPS and proxies other paths to the mock page service. Lab PCs refresh their software catalog by downloading the gzip-encoded `https://web0.local/packages/catalog.txt` (64 MiB decoded), trusting the repository through the campus CA. Each PC also has a local archive job configured with one worker in `/etc/archive-job.json`. It verifies OSPF adjacency, cross-branch reachability, DNS, and HTTP.
+Hosts acquire addresses from `dhcp_server`; distribution routers relay DHCP. Dist/access names stay `router_dist_*` / `server_access_router`.
+
+The farm adds an NGINX load balancer at `web99.local` and three backend webs on `20.200.0.0/24`. Each `webN.local` server runs NGINX, which serves the campus software repository over HTTP and HTTPS and proxies other paths to the mock page service.
+
+Every PC browses `web0`-`web3.local` and `web99.local` every few tens of seconds. The teaching-lab PCs, every PC in the `10.2.<dist>.0/24` access blocks behind `router_core_2`, refresh their software catalog every few minutes by downloading the gzip-encoded `https://web0.local/packages/catalog.txt` (64 MiB decoded), trusting the repository through the campus CA. Each PC also has a local archive job configured with one worker in `/etc/archive-job.json`.
+
+Verification checks OSPF adjacency, cross-branch reachability, DNS, and HTTP.
 
 ```shell
 uv run nika env run campus_lan -s s
@@ -125,7 +134,7 @@ NIKA builds a multi-site enterprise WAN from one production template: HQ and a s
 
 Each site has business LANs bound into Linux VRFs on the Site Edge (`vrf_corp`, `vrf_server`, `vrf_guest`, and on `m`/`l` `vrf_iot`), so the Docker host needs the `vrf` kernel module (see [Host kernel lacks the vrf module](troubleshooting.md#host-kernel-lacks-the-vrf-module-enterprise_branch)). Sites do not mesh over physical links. Edges attach to both providers for IP underlay reachability between tunnel endpoints only. WAN PE links, WireGuard tunnels, and eBGP sessions stay in the default VRF.
 
-Site Edge routers terminate WireGuard site-to-site tunnels and run eBGP over those tunnels to exchange authorized business prefixes (CORP, SERVER). FRR imports those overlay prefixes into the matching business VRFs. SERVER is a shared-services domain: CORP and SERVER exchange prefixes through explicit route leaking only. GUEST and IOT stay local (default route via the provider with NAT) and are not advertised in overlay BGP. Cross-site traffic follows `LAN VRF → Site Edge → VPN tunnel → Provider underlay → Remote Edge → Remote LAN VRF`. Branch-to-branch traffic hairpins a hub. HQ and DC2 also peer directly over dual-provider WireGuard+eBGP.
+Site Edge routers terminate WireGuard site-to-site tunnels and run eBGP over those tunnels to exchange authorized business prefixes (CORP, SERVER). FRR imports those overlay prefixes into the matching business VRFs. SERVER is a shared-services domain: CORP and SERVER exchange prefixes through explicit route leaking only. GUEST and IOT stay local (default route via the provider with NAT) and are not advertised in overlay BGP. Cross-site traffic follows `LAN VRF → Site Edge → VPN tunnel → Provider underlay → Remote Edge → Remote LAN VRF`. Branch-to-branch traffic hairpins a hub. Guest and IOT isolation is a design property, not a fault, and the underlay delay below puts branch-to-hub RTT near 80 ms and branch-to-branch RTT near 160 ms. HQ and DC2 also peer directly over dual-provider WireGuard+eBGP. Inbound local preference (200 primary, 100 backup) makes each branch's isp1 tunnel to HQ the active path, so branch traffic to DC2 also transits HQ; the isp2 HQ tunnel and the direct DC2 tunnel stay established as backups.
 
 ```text
   HQ CORP/SERVER/GUEST[/IOT] -- hq_edge ==WG+eBGP== brN_edge -- Branch CORP/GUEST[/IOT]
@@ -143,7 +152,18 @@ Site Edge routers terminate WireGuard site-to-site tunnels and run eBGP over tho
 
 Every Site Edge is dual-homed to both providers. SERVER stays one host per hub (HTTP anchor). Enterprise LANs use `10.<site_id>.<role>.0/24` (role octet `10` CORP, `20` SERVER, `30` IOT, `40` GUEST). Provider PE links use `100.64.0.0/16`. Tunnel addressing uses `172.30.0.0/16`. HQ ASN is `65000`; branches use `65001+`; DC2 uses `65010`.
 
-Healthy Site Edges preserve DSCP on CORP overlay traffic and shape each WireGuard overlay egress with a dual-class HTB queue: EF (DSCP 46) gets a reserved high-priority class with a deep FIFO; CS0/BE is hard-capped with a deep byte-FIFO so competing bulk builds ~500ms standing delay. Per-size overlay egress capacity is `s` 8 mbit (EF 2), `m` 16 mbit (EF 3), `l` 32 mbit (EF 4). The lab does not start resident CORP QoS traffic; benchmark failures that need competition start ephemeral workloads during inject/verify.
+Healthy Site Edges preserve DSCP on CORP overlay traffic and shape each WireGuard overlay egress with a dual-class HTB queue: EF (DSCP 46) gets a reserved high-priority class; CS0/BE is hard-capped at the rest of the link and served by `fq_codel`, as WAN-edge QoS pairs fair queueing and AQM with the default class (Cisco `fair-queue` in `class-default`, OpenWrt SQM `simple.qos`). Bulk transfers keep no standing queue and pings skip ahead of them, while a flow sending above its fair share of the class is dropped. Per-size overlay egress capacity is `s` 8 mbit (EF 4), `m` and `l` 16 mbit (EF 7). Size `l` keeps the `m` rate because its eight branches share the same hubs and underlay.
+
+GUEST and IOT LANs break out to the Internet locally. Each Site Edge source-NATs them to its own routed public address `198.18.<site_id>.10` on the primary WAN (br1 also holds `198.18.1.11`), and `isp1_core` hosts the public web service `198.51.100.10` on its loopback.
+
+The scenario runs [business traffic](#business-traffic) in every task:
+
+| Traffic | Endpoints | Load |
+| --- | --- | --- |
+| File sync | `hq_srv:8080` (`filedist`, per-connection limit) to the first br1 CORP PC (`s`) or first two (`m`/`l`), one connection each, back to back; each transfer is logged to `/var/log/filesync.log` | `s` 2.4 / `m` 2.7 / `l` 2.7 mbit per connection: br1 total `s` 2.4 / `m` 5.4 / `l` 5.4 mbit, 60% of the 4 / 9 / 9 mbit BE ceiling of `hq_edge` `wg_br1` |
+| Calls (`softphone`, DSCP EF) | `hq_corp_pc` to the first CORP PC of every branch and DC2 | br1 video link `s` 3.85 / `m` 6.8 / `l` 6.8 mbit each way, within the EF reservation; G.711 voice elsewhere. Each softphone logs per-call receive packets, loss, and jitter every 10 s to `/var/log/softphone.log` |
+| Guest Internet (`webclient`) | First GUEST host of every site to `198.51.100.10` through the NAT | 48 long-poll sessions, page loads of 32 parallel 2-12 KB fetches every 8-15 s, a 256 KB upload every 1-3 min |
+| IoT telemetry (`iot-agent`, `m`/`l`) | First IOT host of every site to `198.51.100.10` through the NAT | 8 sessions posting every 10 s |
 
 ### Underlay WAN propagation delay
 
@@ -154,14 +174,14 @@ Each Site Edge↔provider underlay attachment applies one-way `netem delay 20ms`
 | Table 22 Bulk-Data SLA | 300 ms RTT ceiling | Healthy lab RTT stays well below |
 | Table 23 `SLA_BUSINESS_DATA` | 400 ms RTT, 2% loss, 100 ms jitter | Business-data AAR ceiling; BFD metrics are RTT |
 | Table 22 Transactional-Data SLA | 50 ms RTT | Tighter interactive apps; bulk paths may exceed this |
-| Table 6 Type 1–2 site bandwidth | up to 50 / 150 Mbps | Matches overlay `s`/`m`/`l` = 8 / 16 / 32 mbit |
+| Table 6 Type 1–2 site bandwidth | up to 50 / 150 Mbps | Overlay `s`/`m`/`l` = 8 / 16 / 16 mbit, scaled down for the lab |
 | Geography | Atlanta HQ, southeastern US stores | Regional branch–DC path |
 
 This delay is scenario fidelity for WAN BDP. It is not part of any failure root cause.
 
-SERVER-role hosts serve static HTTP objects at `http://<server>/small.bin` (16 KB) and `http://<server>/large.bin` (32 MB) for bulk-transfer probes. Host containers run privileged so TCP receive-buffer sysctls (`net.ipv4.tcp_rmem`, `tcp_moderate_rcvbuf`) are writable for receiver-window faults. Docker typically keeps `net.core.rmem_max` read-only; `tcp_rmem` max remains the effective TCP ceiling when it is below the host `rmem_max`.
+SERVER-role hosts serve static HTTP objects at `http://<server>/small.bin` (16 KB) and `http://<server>/large.bin` (1 MB, a few seconds over a healthy branch path), plus the 32 MB `projects.tar` the br1 file sync pulls. Host containers run privileged so TCP receive-buffer sysctls (`net.ipv4.tcp_rmem`, `tcp_moderate_rcvbuf`) are writable for receiver-window faults. Docker typically keeps `net.core.rmem_max` read-only; `tcp_rmem` max remains the effective TCP ceiling when it is below the host `rmem_max`.
 
-Use this scenario for underlay vs overlay diagnosis, VRF business isolation, hub-and-spoke VPN reachability, eBGP path preference with backup sessions at every scale, overlay-egress DSCP/QoS faults, and receiver-side TCP receive-window bottlenecks on branch–HQ paths. Verification covers VRF devices on every edge, every designed tunnel (underlay reachability, WireGuard, BGP both sides), per-VRF RIB contents (CORP sees CORP+SERVER leak; GUEST/IOT do not), hub interconnect, every branch CORP↔HQ CORP plus HTTP to HQ SERVER, every branch pair via the corp VRF overlay path, every provider without enterprise prefixes, GUEST/IOT isolation from CORP, every backup BGP session with primary-path preference, and HTB EF/BE classes on every WireGuard overlay egress.
+Use this scenario for underlay vs overlay diagnosis, VRF business isolation, hub-and-spoke VPN reachability, eBGP path preference with backup sessions at every scale, overlay-egress DSCP/QoS faults, and receiver-side TCP receive-window bottlenecks on branch–HQ paths. Verification covers VRF devices on every edge, every designed tunnel (underlay reachability, WireGuard, BGP both sides), per-VRF RIB contents (CORP sees CORP+SERVER leak; GUEST/IOT do not), hub interconnect, every branch CORP↔HQ CORP and CORP↔DC2 CORP plus HTTP to both hub SERVERs, every branch pair via the corp VRF overlay path, every provider without enterprise prefixes, GUEST/IOT isolation from CORP, every backup BGP session with primary-path preference, and HTB EF/BE classes on every WireGuard overlay egress.
 
 The ID `rip_small_internet_vpn` names the original 0.1.0 RIP mini-Internet lab, a separate lab that only release 0.1.0 uses. See [Run release 0.1.0](../compat/release-0.1.0.md).
 
@@ -175,7 +195,7 @@ uv run nika env run enterprise_branch -s s
 
 ### `sdn_l3_clos`
 
-Symmetric leaf-spine L3 Clos under centralized ONOS control. Switches are Open vSwitch (`fail-mode=secure`, OpenFlow 1.3). The out-of-band control network is `172.31.0.0/16` with ONOS at `172.31.0.100:6653`. On deploy, `ensure_nika_docker_images` builds `nika/onos` when missing or outdated and pulls `kathara/sdn` when missing. `nika/onos` is a multi-arch image: `kathara/base` plus a host-arch Temurin 11 JRE, with the ONOS Java tree copied from pinned `onosproject/onos:2.7-latest` (amd64-only upstream). That keeps Kathara's architecture check happy on Linux arm64 and amd64 without qemu. Each leaf owns rack prefix `10.0.<leaf>.0/24` with gateway `.1` and a shared virtual router MAC. Endpoints start at `.11` (one `web_*` nginx endpoint plus `client_*` workers per leaf). A host-side fabric manager installs proactive IPv4 forwarding and OpenFlow `SELECT` ECMP groups (stable five-tuple hash). No STP and no `NORMAL` learning fallback.
+Symmetric leaf-spine L3 Clos under centralized ONOS control. Switches are Open vSwitch (`fail-mode=secure`, OpenFlow 1.3). The out-of-band control network is `172.31.0.0/16` with ONOS at `172.31.0.100:6653`. On deploy, `ensure_nika_docker_images` builds `nika/onos` when missing or outdated and pulls `kathara/sdn` when missing. `nika/onos` is a multi-arch image: `kathara/base` plus a host-arch Temurin 11 JRE, with the ONOS Java tree copied from pinned `onosproject/onos:2.7-latest` (amd64-only upstream). That keeps Kathara's architecture check happy on Linux arm64 and amd64 without qemu. Each leaf owns rack prefix `10.0.<leaf>.0/24` with gateway `.1` and a shared virtual router MAC. Endpoints start at `.11` (one `web_*` nginx endpoint plus `client_*` workers per leaf). Business traffic: clients load pages and `small.bin` from the web servers every few seconds and download `large.bin` (16 MB) every few minutes. A host-side fabric manager installs proactive IPv4 forwarding and OpenFlow `SELECT` ECMP groups (stable five-tuple hash). No STP and no `NORMAL` learning fallback.
 
 ```text
                     ONOS
@@ -208,7 +228,7 @@ The two Kathara P4 scenarios start BMv2 `simple_switch_grpc` with no local table
 
 ### `p4_dc_fabric`
 
-Symmetric leaf-spine L3 Clos of BMv2 `simple_switch_grpc` switches under a NIKA P4Runtime fabric manager. The out-of-band control network is `172.31.0.0/16` with `fabric_mgr` at `172.31.0.101`. Switches start with `--no-p4` and listen on `:9559`. Deploy compiles the v1model IPv4 fabric program once on a leaf, then `SetForwardingPipelineConfig` plus table/group writes program every switch. Role is table state: same-rack `/32` to the host port, remote `/24` via ActionSelector ECMP over all spines. Endpoints use `/32` addresses on rack `10.0.<leaf>.0/24`, send all IPv4 via gateway `.1`, and keep a permanent neighbor for the shared virtual router MAC. Build `nika/fabric-controller` on deploy when missing or outdated (the image name must not contain `p4`; NIKA classifies `"p4" in image` as BMv2).
+Symmetric leaf-spine L3 Clos of BMv2 `simple_switch_grpc` switches under a NIKA P4Runtime fabric manager. The out-of-band control network is `172.31.0.0/16` with `fabric_mgr` at `172.31.0.101`. Switches start with `--no-p4` and listen on `:9559`. Deploy compiles the v1model IPv4 fabric program once on a leaf, then `SetForwardingPipelineConfig` plus table/group writes program every switch. Role is table state: same-rack `/32` to the host port, remote `/24` via ActionSelector ECMP over all spines. Endpoints use `/32` addresses on rack `10.0.<leaf>.0/24`, send all IPv4 via gateway `.1`, and keep a permanent neighbor for the shared virtual router MAC. Business traffic: clients load pages and `small.bin` from the web servers and download `large.bin` (2 MB) every few minutes; `web_2` runs a search front end that about once a second queries up to four index shards on other web servers (UDP 11311), which all answer at once with 24 datagrams of 1400 bytes. Build `nika/fabric-controller` on deploy when missing or outdated (the image name must not contain `p4`; NIKA classifies `"p4" in image` as BMv2).
 
 ```text
                  fabric_mgr
@@ -247,7 +267,17 @@ This benchmark scenario connects one external client to each gateway, fully mesh
 | `m` | 4 | 4 | 4 | 4 | 8 |
 | `l` | 8 | 8 | 8 | 8 | 16 |
 
-The shared v1model pipeline provides IPv4 LPM, five-tuple ActionSelector ECMP, packet and byte counters, fixed INT-MX source and sink processing, four-position SYN and non-SYN counting Bloom filters, per-port ECN thresholds, queue occupancy, and private post-counter failure hooks. BMv2 sends packets as fast as its CPU allows, so its egress queue stays empty. Each egress port therefore keeps a virtual queue that drains one packet per 16384 µs (about 61 packets per second) and holds at most 64 packets. The `queue_occupancy` register reports that depth, and ECN marks ECT packets when the depth reaches the port threshold. The virtual queue never drops packets. Each gateway also serves the TCP VIP `20.0.0.1:80` as a SilkRoad-style stateful L4 load balancer: a versioned 64-bucket DIP pool picks a backend for a new connection, and a gateway-local agent (`lb_agent.py`) learns the connection about 5 ms after its SYN by pinning the five-tuple to that DIP in the 256-entry `lb_conn_table` (RST, FIN and idleness remove it). The agent also performs routine pool updates (a VIP version flip); learned connections keep their DIP across them. BMv2 and INT MCP tools for this lab are documented under [MCP servers](../agents/mcp-servers.md#p4--bmv2-kathara_bmv2_mcp_server) and [Telemetry](../agents/mcp-servers.md#telemetry-kathara_telemetry_mcp_server).
+The shared v1model pipeline provides IPv4 LPM, five-tuple ActionSelector ECMP, packet and byte counters, fixed INT-MX source and sink processing, four-position SYN and non-SYN counting Bloom filters, per-port ECN thresholds, and queue occupancy.
+
+BMv2 sends packets as fast as its CPU allows, so its egress queue stays empty. Each egress port therefore keeps a virtual queue that drains one packet per 16384 µs (about 61 packets per second) and holds at most 64 packets. The `queue_occupancy` register reports that depth, and ECN marks ECT packets when the depth reaches the port threshold. The virtual queue never drops packets.
+
+Each gateway serves the TCP VIP `20.0.0.1:80` as a SilkRoad-style stateful L4 load balancer. A versioned 64-bucket DIP pool picks a backend for a new connection, and a gateway-local agent (`lb_agent.py`) learns the connection about 5 ms after its SYN by pinning the five-tuple to that DIP in the 256-entry `lb_conn_table` (RST, FIN, and idleness remove it). The agent reads its learning delay and connection limit (`max_connections`, 256) from `/etc/lb-agent/config.json`. A connection it cannot pin because the table is full stays mapped by the pool hash alone. The two backends of the VIP (`service_1_1`, `service_1_2`) are meant to be reached through `20.0.0.1:80`. The gateway rewrites the source of a reply to the VIP only for connections it translated, so a client that connects to a backend address directly talks to an ordinary host.
+
+The agent also performs a routine pool update (a VIP version flip, as during deploys or scaling) on every gateway every 60 to 180 seconds, after waiting up to 100 ms for pending connections to be learned. Learned connections keep their DIP across it. It logs each update, a full table, and any reset of a connection it has not learned, in `/tmp/lb-agent.log` on the gateway.
+
+External clients reach their gateway over a provider access circuit with a 1400-byte path MTU (the gateway's `egress_mtu` entry for the client port). For a larger packet with DF set toward a client, the gateway returns ICMP Fragmentation Needed to the sender, so services rely on path MTU discovery for large downloads. The fabric is north-south only: gateways and leaves carry routes for clients and for services, so client-to-client and cross-leaf service-to-service pairs have no path by design.
+
+Users at each client site keep keep-alive browsing sessions to the VIP (some reopen every 10 to 30 seconds), load `small.bin` from the services directly, and download `large.bin` (2 MB) through the VIP or from a service every few minutes. `service_1_1` runs a status collector that every few seconds polls the agent at every client site (UDP 11311), and all sites answer at once with 24 datagrams of 1400 bytes. The fabric controller logs every P4Runtime Write it sends, with the status of each update, in `/var/log/p4rt/controller.log` on `fabric_mgr`. BMv2 and INT MCP tools for this lab are documented under [MCP servers](../agents/mcp-servers.md#p4--bmv2-kathara_bmv2_mcp_server) and [Telemetry](../agents/mcp-servers.md#telemetry-kathara_telemetry_mcp_server).
 
 ```shell
 uv run nika env run p4_dc_gateway -s s
@@ -440,7 +470,14 @@ uv run nika env run isp_abilene --device-profile routeros --igp isis
 | `--constant-metric` | Positive integer | `10` | Sets constant and fallback metrics |
 | `--bgp-mode` | `none`, `ibgp_rr`, `ebgp` | `none` | Adds a NIKA-defined BGP preset |
 
-`ibgp_rr` uses AS 65000, selects up to two route reflectors, and originates up to three TEST-NET business prefixes. Originators hold these prefixes on a `lo1` dummy interface that no IGP runs on, so only BGP carries them. `ebgp` partitions the physical graph into up to three connected AS regions. Each AS uses one route reflector, and each physical AS boundary carries an eBGP session. The IGP forms adjacencies inside each AS and treats inter-AS interfaces as passive.
+`ibgp_rr` uses AS 65000, selects up to two route reflectors, and originates up to three TEST-NET business prefixes. Originators hold these prefixes on a `lo1` dummy interface that no IGP runs on, so only BGP carries them. `ebgp` partitions the physical graph into up to three connected AS regions. Each AS uses one route reflector, and each physical AS boundary carries an eBGP session. The IGP forms adjacencies inside each AS and treats inter-AS interfaces as passive. ASes exchange only the originated business prefixes, so each `pc_<router>` stub subnet is internal to its AS: stubs reach stubs in their own AS, not in other ASes.
+
+Every ISP environment runs [business traffic](#business-traffic) that follows the topology's SNDlib demand matrix:
+
+- **Data-set syncs.** Each `pc_<router>` stub publishes an 8 MB data set over HTTP on port 8080 and repeatedly syncs the data set of the PoP it has the largest demand from; a PoP that no stub pulls from is synced by its own largest-demand destination. Each transfer is paced at 0.3–2.5 Mbit/s, scaled from its demand. In `ebgp` mode the pairs stay inside one AS.
+- **Sessions.** On Kathara, each business prefix hosts a web/push service on its originator's service address (the prefix's `.1`), and the three stubs that send that PoP the most demand keep persistent sessions and page loads to it. Without BGP, and on Containerlab, the busiest PoP's stub hosts the service instead.
+
+In `abilene`, `atlam5` reaches `atlang` over a GRE tunnel whose IP MTU is 1476 on both ends, so full-size TCP across that link relies on Path MTU Discovery.
 
 ### Named ISP specials
 
@@ -458,6 +495,8 @@ uv run nika env run isp_abilene_ebgp_rpki
 uv run nika env run isp_abilene_ebgp_rtbh
 uv run nika env run isp_dfn-bwin_ebgp_rtbh
 ```
+
+In the RPKI specials, AS65001 originates `203.0.113.0/24` and `203.0.114.0/24` under matching ROAs. AS65002 also routes both prefixes inside its network to an on-net cache and keeps them out of eBGP with an export-deny prefix list. One AS65003 border router validates received routes against an offline Routinator cache.
 
 NIKA ranks the 26 vendored SNDlib graphs by node count, breaks ties by topology name, and divides the ordered catalog into fixed tiers of 8, 9, and 9 graphs for sampling metadata. Representative graphs: `isp_abilene` (`s`, 12 nodes), `isp_france` (`m`, 25 nodes), `isp_pioro40` (`l`, 40 nodes).
 
@@ -477,7 +516,7 @@ NIKA ranks the 26 vendored SNDlib graphs by node count, breaks ties by topology 
 | `sun` | 27 | 102 | 67 | `ta1` | 24 | 55 | 396 |
 | `ta2` | 65 | 108 | 1,869 | `zib54` | 54 | 81 | 1,501 |
 
-Traffic does not start with the lab. Replay the static demand matrix or a cached dynamic series after deployment:
+To load the backbone with the full demand matrix or a cached dynamic series on top of the business traffic, replay it with iperf after deployment:
 
 ```shell
 uv run nika traffic run matrix-replay --mode demands --unit K \
@@ -518,7 +557,9 @@ NIKA ports Containerlab's `min-clos` example into its runtime and verification c
 client1 -- leaf1 -- spine -- leaf2 -- client2
 ```
 
-The fabric uses eBGP (leaf AS 65001 and 65002, spine AS 65056). Its SR Linux configuration also enables OSPFv2 and IS-IS on fabric interfaces. NIKA waits for gNMI, applies YAML with `gnmic`, configures both clients, and checks BGP plus cross-leaf traffic. Use this fixed scenario for SR Linux and Containerlab tests that do not need the larger SNDlib compiler.
+The fabric uses eBGP (leaf AS 65001 and 65002, spine AS 65056). Its SR Linux configuration also enables OSPFv2 and IS-IS on fabric interfaces and the `system0` loopbacks (`30.0.0.1`-`30.0.0.3`, `3000:30::1`-`3000:30::3`). Fabric and client links are dual-stack. NIKA waits for gNMI, applies YAML with `gnmic`, configures both clients, and checks BGP plus IPv4 and IPv6 cross-leaf and loopback reachability. Use this fixed scenario for SR Linux and Containerlab tests that do not need the larger SNDlib compiler.
+
+The clients run [business traffic](#business-traffic): they replicate data sets over HTTP (2 Mbit/s from `client1` to `client2`, 1 Mbit/s back), and `client1` keeps web sessions to a service on `client2`.
 
 ## Kubernetes scenarios
 
@@ -548,6 +589,10 @@ NIKA defines a two-pod FRR fat-tree around the cluster. Pod 1 hosts the k3s node
 
 The k3s workers connect to `https://201.1.1.2:6443`, matching the controller's advertised API address. This avoids closing bootstrap connections when agents discover the server endpoint. The ingress service uses `externalTrafficPolicy: Local`; its controller pod must run on `worker1` through `worker5`, which have configured MetalLB BGP peers. Required node affinity enforces that placement so MetalLB can advertise the ingress VIP.
 
+`dc_exit` is a plain Linux router with static routes (no routing daemon): it enters the data center through both `leaf_2_*` routers and defaults toward `as1r1`. MetalLB addresses (`101.0.0.0/8`) are served on their service ports only. The k3s workers and the `leaf_2_*` routers discard unused addresses in the `101.0.0.0/8` and `201.0.0.0/8` aggregates, so ICMP to the ingress VIP times out instead of looping while HTTP and HTTPS work.
+
+The client browses both applications through the ingress (`http://datacenter.com/word` and `/weather`) every few seconds, and a per-node `uptime-agent` DaemonSet in the `monitoring` namespace calls them through their Service names.
+
 Use this scenario for faults that combine Kubernetes state with routed underlay behavior. Verification checks the BGP fabric, six Ready nodes, cross-leaf reachability, ingress addressing, and both applications.
 
 ### `llmd_lab`
@@ -564,7 +609,121 @@ controller  worker1  worker2  worker3  worker4  worker5  client
                    prefill and decode pods
 ```
 
+The client sends chat completions to the gateway (`http://llmd/v1/chat/completions`) every few seconds and repeatedly downloads a dataset from the web server (`http://200.0.0.8/dataset.bin`); a per-node `uptime-agent` DaemonSet in the `monitoring` namespace sends inference requests to the gateway Service.
+
 Use this scenario for Kubernetes service, DNS, policy, and inference-routing faults without a routed fabric. Verification checks node readiness, llm-d and gateway pods, the LoadBalancer address, model discovery, and a simulated chat completion.
+
+## Business traffic
+
+Many faults only hurt traffic that is actually flowing: a NAT that drops live sessions, a QoS policy that demotes voice, a receive window that slows downloads. An environment can therefore declare the traffic its users and services generate at all times. NIKA starts that background business traffic on every session start (`nika env run`, benchmark trials, audits) after lab verification and before any fault is injected, so healthy and faulty tasks carry the same traffic and long-lived flows already exist when a fault lands. The programs run inside the lab nodes and stop when the lab is undeployed.
+
+Background business traffic belongs to the environment. Some incidents also start traffic of their own after injection. `tcp_syn_flood_attack` launches SYN generators; `web_dos_attack` and `load_balancer_overload` start ApacheBench workers. Those generators are part of the injected incident, not the environment workload. See the [failure reference](failures.md#registered-failures).
+
+`enterprise_branch`, `campus_lan`, `dc_clos`, `sdn_l3_clos`, `p4_dc_fabric`, `p4_dc_gateway`, `k8s_lab`, `llmd_lab`, the ISP environments (SNDlib and Topology Zoo), and `min3clos` declare business traffic. Other environments run quiet.
+
+To declare traffic for an environment, return a `BusinessWorkload` from the environment's `business_workload()` method ([`nika.traffic.workload`](../../src/nika/traffic/workload.py)):
+
+```python
+from nika.traffic.workload import (
+    BULK_DOWNLOAD,
+    BusinessWorkload,
+    WorkloadExercise,
+    WorkloadProcess,
+)
+
+class MyEnv(NetworkEnvBase):
+    def business_workload(self) -> BusinessWorkload | None:
+        return BusinessWorkload(
+            processes=(
+                WorkloadProcess("srv", "file_server", "filedist", ("--rate", "5000k")),
+                WorkloadProcess("pc1", "file_sync", "filesync", ("http://10.0.0.2:8080/large.bin",)),
+            ),
+            exercises=(WorkloadExercise(BULK_DOWNLOAD, ("pc1",)),),
+        )
+```
+
+- `WorkloadProcess(node, app, command, args)` runs the standalone program `app` from [`nika/traffic/apps/`](../../src/nika/traffic/apps/) on `node`, installed as `/usr/local/bin/<command>`. Choose neutral command names that describe the service, since agents see them in `ps`. Each `(node, command)` pair is unique. Starting is idempotent. If any process does not stay up, the session start fails.
+- `exercises` records what the traffic guarantees, as an `(kind, target)` pair. A failure whose symptom needs traffic sets `SYMPTOM_WORKLOAD` to a kind and implements `symptom_workload_target(inject)`. Benchmark target generation and inject validation then keep only targets the workload exercises.
+- `settle_sec` (default 20 s) is how long session start waits after launch so sessions and bulk flows are established.
+
+| Exercise kind | Target | Guarantee |
+| --- | --- | --- |
+| `realtime_bulk_contention` | `(router, egress_interface)` | DSCP EF media and best-effort bulk share the egress; bulk stays below the best-effort ceiling, EF media moved into best effort would exceed it |
+| `bulk_download` | `(receiver,)` | Repeated TCP bulk transfers into the host |
+| `bulk_transit` | `(node, egress_interface)` | At least 1.5 Mbit/s of sustained TCP bulk transfers leave the interface |
+| `nat_sessions` | `(nat_router, inside_prefix)` | Persistent and bursty TCP sessions through the router's source NAT, more concurrent connections to one destination than a 64-port pool holds |
+| `vip_keepalive_sessions` | `(gateway,)` | Short-lived keep-alive sessions to the stateful L4 VIP, so new connections keep opening through the gateway |
+| `fan_in_bursts` | `(receiver,)` | Several workers answer the receiver's query at the same moment, each with a block of back-to-back datagrams, so the answers converge on the receiver's last-hop egress port |
+
+| App | Behavior |
+| --- | --- |
+| `file_server` | Static HTTP server with a per-connection pacing limit (`--rate`); a request can ask for a lower rate with `?rate=` |
+| `file_sync` | Downloads URLs in a loop with a random pause; `--parallel` syncs each URL on its own connection |
+| `media_peer` | Sends and receives constant-rate RTP over UDP, marked DSCP EF (`--peer HOST:PORT/KBPS[/BYTES]`); logs per-stream receive loss and RFC 3550 jitter to `--log` |
+| `web_service` | HTTP/1.1 service with long-poll, object, and upload routes |
+| `web_client` | Persistent long-poll or telemetry sessions, parallel page loads, and uploads |
+| `browser` | Users fetching random URLs over HTTP or HTTPS with a random pause, resolving names each time; optional gzip decoding and keep-alive connections |
+| `fanout` | Partition/aggregate over UDP: an `aggregator` queries every `worker` at once and each answers with a block of datagrams |
+
+Keep the traffic light enough for size `l` and keep healthy links below saturation, so that ping-based probes do not read the background traffic as a fault.
+
+## Telemetry
+
+Agents can investigate an environment with the evidence operators read from monitoring systems: flow records (NetFlow, IPFIX, or sFlow), device metrics (Prometheus), and syslog. Attach any combination of those kinds when you start a session:
+
+```shell
+uv run nika env run dc_clos -s s --telemetry netflow --telemetry prometheus --telemetry syslog
+```
+
+The same field belongs on a benchmark YAML row. Save this as `telemetry.yaml` and run it:
+
+```yaml
+cases:
+  - scenario: dc_clos
+    topo_size: s
+    problem: link_down
+    telemetry: [netflow, prometheus, syslog]
+    inject:
+      host_name: leaf_router_0_0
+      intf_name: eth0
+```
+
+```shell
+uv run nika benchmark run --config telemetry.yaml
+```
+
+A task with `telemetry` has a different task ID from the same environment and incident without it. Telemetry runs on Kathara or Containerlab only.
+
+| Kind | Collector | Agent tool |
+| --- | --- | --- |
+| `netflow` | `nfcapd` (IPFIX/NetFlow) or `sfcapd` (sFlow) | [`netflow_query`](../agents/mcp-servers.md#netflow-kathara_netflow_mcp_server) |
+| `prometheus` | Prometheus | [`prometheus_query`](../agents/mcp-servers.md#prometheus-kathara_prometheus_mcp_server) |
+| `syslog` | rsyslogd (UDP 514) | [`syslog_query`](../agents/mcp-servers.md#syslog-kathara_syslog_mcp_server) |
+
+NIKA probes each device at runtime and configures only the exporters that device supports. Devices that lack an exporter stay unconfigured. If no device supports a requested kind, the environment still deploys and that collector stays empty. `telemetry_configured` in the session log lists the versions that were found.
+
+Records stay empty until devices export traffic, counters, or log lines. Flow records become queryable about 20 seconds after the traffic. Metric names and PromQL live with [`prometheus_query`](../agents/mcp-servers.md#prometheus-kathara_prometheus_mcp_server).
+
+| Platform | `netflow` | `prometheus` | `syslog` |
+| --- | --- | --- | --- |
+| Kathara FRR (`nika/frr`) | IPFIX (`pmacctd`) | node_exporter and BGP gauges | `/dev/log` forwarder |
+| Kathara Linux (`nika/base`) | not exported | node_exporter | `/dev/log` forwarder |
+| SDN Open vSwitch | OVS NetFlow | OpenFlow port counters | `/dev/log` |
+| P4 BMv2 | not exported | pipeline counters | `/dev/log` from `fabric_mgr` |
+| Containerlab SR Linux | sFlow on extra ethernet | gNMI interfaces and BGP | UDP 514 |
+| Containerlab Linux clients | not exported | not exported | not exported |
+| XRd | not exported | `xr_cli` interfaces and BGP | Linux `/dev/log` forwarder |
+| RouterOS | traffic-flow v9 | SSH interfaces and BGP | remote logging |
+
+`p4_dc_gateway` also records INT-MX hop reports; query those with [`int_query_telemetry`](../agents/mcp-servers.md#telemetry-kathara_telemetry_mcp_server). The INT collector is not a NIKA exporter.
+
+### Management network
+
+Kathara adds an out-of-band LAN, `telemetry_switch`, and `telemetry_collector`. Each exporting device joins on an extra interface after its scenario interfaces, in VRF `mgmt` (table 4242), so routing protocols never advertise it. node_exporter answers only on that network, and the management interface is left out of Prometheus metrics. vrnetlab maps the extra NIC into RouterOS, so NIKA addresses it there instead of in a Linux VRF and does not add it to OSPF.
+
+Containerlab joins the collector to the lab management network. sFlow cannot use that network, so SR Linux flow records use an extra ethernet port and `ip-vrf` `telemetry`. Prometheus collects SR Linux metrics through gNMI on the lab management network. SR Linux sends syslog to the collector over UDP port 514 on that network; NIKA configures the logging destination through gNMI.
+
+The collector is off the topology: it has no scenario interfaces, no injected failures, and no packet captures. NIKA starts collectors and exporters after the environment is verified.
 
 ## Inspect and close a scenario
 

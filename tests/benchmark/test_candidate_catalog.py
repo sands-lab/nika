@@ -9,6 +9,8 @@ import yaml
 from nika.workflows.benchmark.inject_enumerate import enumerate_inject_params
 from nika.workflows.benchmark.inject_resolve import validate_benchmark_case
 from nika.config import BENCHMARK_DIR
+from nika.problems.registry import get_problem_class
+from nika.problems.support.benchmark_targets import workload_exercises
 from nika.problems.rca.inventory import load_offline_net_env
 from nika.problems.rca.materialize import ground_truth_for_case
 from nika.workflows.benchmark.load_config import (
@@ -200,7 +202,6 @@ def test_link_family_problems_share_inject_targets() -> None:
     for problem in (
         "link_flap",
         "link_packet_corruption",
-        "link_capacity_bottleneck",
     ):
         options = enumerate_inject_params(problem, "campus_lan", "s", net_env=net_env)
         targets = {(row["host_name"], row["intf_name"]) for row in options}
@@ -210,6 +211,24 @@ def test_link_family_problems_share_inject_targets() -> None:
         assert len(targets) > 1
         for inject in options:
             validate_benchmark_case("campus_lan", problem, inject, "s", net_env=net_env)
+
+    # link_capacity_bottleneck needs the scenario's bulk transit traffic to load
+    # the shaped link: campus_lan declares a workload without it, so it offers
+    # no target there, and where it does offer targets all are exercised ones.
+    assert not enumerate_inject_params(
+        "link_capacity_bottleneck", "campus_lan", "s", net_env=net_env
+    )
+    clos = load_offline_net_env("min3clos", "s")
+    capacity = enumerate_inject_params(
+        "link_capacity_bottleneck", "min3clos", "s", net_env=clos
+    )
+    assert capacity
+    capacity_cls = get_problem_class("link_capacity_bottleneck")
+    for inject in capacity:
+        assert workload_exercises(capacity_cls, clos, inject)
+        validate_benchmark_case(
+            "min3clos", "link_capacity_bottleneck", inject, "s", net_env=clos
+        )
 
 
 def test_bundled_candidate_catalog_loads_all_options() -> None:

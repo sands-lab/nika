@@ -30,22 +30,17 @@ def render_srl_node_config(
     for iface in ifaces:
         eth = srl_ethernet_name(iface.name)
         sub = srl_subinterface(iface.name)
-        interface_rows.append(
-            {
-                "name": eth,
+        subinterface: dict[str, Any] = {
+            "index": 0,
+            "ipv4": {
                 "admin-state": "enable",
-                "subinterface": [
-                    {
-                        "index": 0,
-                        "ipv4": {
-                            "admin-state": "enable",
-                            "address": [
-                                {"ip-prefix": f"{iface.address}/{iface.prefixlen}"}
-                            ],
-                        },
-                    }
-                ],
-            }
+                "address": [{"ip-prefix": f"{iface.address}/{iface.prefixlen}"}],
+            },
+        }
+        if iface.mtu:
+            subinterface["ip-mtu"] = iface.mtu
+        interface_rows.append(
+            {"name": eth, "admin-state": "enable", "subinterface": [subinterface]}
         )
         ni_ifaces.append({"name": sub})
 

@@ -1,18 +1,26 @@
 #!/usr/bin/env python3
-"""P4Runtime fabric manager (runs inside fabric_mgr)."""
+"""P4Runtime fabric manager (runs inside fabric_mgr).
+
+``apply`` pushes the pipeline and the forwarding intent to every switch and
+records each Write it sends, with the per-update status, in ``LOG_PATH``.
+``read``, ``read-table`` and ``counters`` query the live P4Runtime state.
+"""
 
 from __future__ import annotations
 
 import argparse
 import ipaddress
 import json
+import os
 import queue
 import sys
 import threading
+from datetime import datetime, timezone
 from typing import Any, Iterable
 
 import grpc
 from google.protobuf import text_format
+from google.rpc import code_pb2, status_pb2
 from p4.config.v1 import p4info_pb2
 from p4.v1 import p4runtime_pb2, p4runtime_pb2_grpc
 
@@ -22,6 +30,7 @@ PROFILE = "ecmp_selector"
 COUNTER_INGRESS = "ingress_port_counter"
 COUNTER_EGRESS = "egress_port_counter"
 ELECTION_LOW = 1
+LOG_PATH = "/var/log/p4rt/controller.log"
 
 
 def _die(msg: str, code: int = 1) -> None:
@@ -235,6 +244,33 @@ class SwitchClient:
         self.channel.close()
 
 
+_UPDATE_TYPES = {
+    "INSERT": p4runtime_pb2.Update.INSERT,
+    "MODIFY": p4runtime_pb2.Update.MODIFY,
+    "DELETE": p4runtime_pb2.Update.DELETE,
+}
+_ATOMICITY = {
+    "CONTINUE_ON_ERROR": p4runtime_pb2.WriteRequest.CONTINUE_ON_ERROR,
+    "ROLLBACK_ON_ERROR": p4runtime_pb2.WriteRequest.ROLLBACK_ON_ERROR,
+    "DATAPLANE_ATOMIC": p4runtime_pb2.WriteRequest.DATAPLANE_ATOMIC,
+}
+
+
+def _update(entity: p4runtime_pb2.Entity, kind: str) -> p4runtime_pb2.Update:
+    update = p4runtime_pb2.Update()
+    update.type = _UPDATE_TYPES[kind]
+    update.entity.CopyFrom(entity)
+    return update
+
+
+def _encode_value(value: int | str, bitwidth: int) -> bytes:
+    if isinstance(value, str) and "." in value:
+        return encode_ipv4(value)
+    if isinstance(value, str) and ":" in value:
+        return encode_mac(value)
+    return encode_u(int(value), bitwidth)
+
+
 def _fwd_action(index: P4InfoIndex, src_mac: str, dst_mac: str, port: int):
     action = p4runtime_pb2.Action()
     action.action_id = index.action_id(ACTION_FWD)
@@ -249,38 +285,35 @@ def _fwd_action(index: P4InfoIndex, src_mac: str, dst_mac: str, port: int):
     return action
 
 
-def member_entity(index: P4InfoIndex, member: dict[str, Any], *, insert: bool):
+def member_entity(index: P4InfoIndex, member: dict[str, Any], *, kind: str = "INSERT"):
     entity = p4runtime_pb2.Entity()
     item = entity.action_profile_member
     item.action_profile_id = index.profile_id(PROFILE)
     item.member_id = int(member["member_id"])
-    item.action.CopyFrom(
-        _fwd_action(index, member["src_mac"], member["dst_mac"], int(member["port"]))
-    )
-    update = p4runtime_pb2.Update()
-    update.type = p4runtime_pb2.Update.INSERT if insert else p4runtime_pb2.Update.MODIFY
-    update.entity.CopyFrom(entity)
-    return update
+    if kind != "DELETE":
+        item.action.CopyFrom(
+            _fwd_action(
+                index, member["src_mac"], member["dst_mac"], int(member["port"])
+            )
+        )
+    return _update(entity, kind)
 
 
-def group_entity(index: P4InfoIndex, group: dict[str, Any], *, insert: bool):
+def group_entity(index: P4InfoIndex, group: dict[str, Any], *, kind: str = "INSERT"):
     entity = p4runtime_pb2.Entity()
     item = entity.action_profile_group
     item.action_profile_id = index.profile_id(PROFILE)
     item.group_id = int(group["group_id"])
-    for member_id in group["member_ids"]:
-        mem = item.members.add()
-        mem.member_id = int(member_id)
-        mem.weight = 1
-    update = p4runtime_pb2.Update()
-    update.type = p4runtime_pb2.Update.INSERT if insert else p4runtime_pb2.Update.MODIFY
-    update.entity.CopyFrom(entity)
-    return update
+    if kind != "DELETE":
+        for member_id in group["member_ids"]:
+            mem = item.members.add()
+            mem.member_id = int(member_id)
+            mem.weight = 1
+    return _update(entity, kind)
 
 
-def lpm_entity(index: P4InfoIndex, entry: dict[str, Any], *, insert: bool):
-    prefix = entry["prefix"]
-    network = ipaddress.IPv4Network(prefix, strict=False)
+def lpm_entity(index: P4InfoIndex, entry: dict[str, Any], *, kind: str = "INSERT"):
+    network = ipaddress.IPv4Network(entry["prefix"], strict=False)
     entity = p4runtime_pb2.Entity()
     table = entity.table_entry
     table.table_id = index.table_id(TABLE_IPV4)
@@ -288,160 +321,193 @@ def lpm_entity(index: P4InfoIndex, entry: dict[str, Any], *, insert: bool):
     mf.field_id = index.match_field_id(TABLE_IPV4, "dstAddr")
     mf.lpm.value = encode_ipv4(str(network.network_address))
     mf.lpm.prefix_len = int(network.prefixlen)
-    table.action.action_profile_group_id = int(entry["group_id"])
-    update = p4runtime_pb2.Update()
-    update.type = p4runtime_pb2.Update.INSERT if insert else p4runtime_pb2.Update.DELETE
-    update.entity.CopyFrom(entity)
-    return update
+    if kind != "DELETE":
+        table.action.action_profile_group_id = int(entry["group_id"])
+    return _update(entity, kind)
 
 
-def direct_lpm_entity(
-    index: P4InfoIndex, table_name: str, action_name: str, prefix: str
-):
-    network = ipaddress.IPv4Network(prefix, strict=False)
-    entity = p4runtime_pb2.Entity()
-    table = entity.table_entry
-    table.table_id = index.table_id(table_name)
-    mf = table.match.add()
-    mf.field_id = index.match_field_id(table_name, "dstAddr")
-    mf.lpm.value = encode_ipv4(str(network.network_address))
-    mf.lpm.prefix_len = int(network.prefixlen)
-    table.action.action.action_id = index.action_id(action_name)
-    update = p4runtime_pb2.Update()
-    update.type = p4runtime_pb2.Update.INSERT
-    update.entity.CopyFrom(entity)
-    return update
-
-
-def default_action_entity(
-    index: P4InfoIndex, table_name: str, action_name: str, params: dict[str, int]
-):
-    entity = p4runtime_pb2.Entity()
-    entry = entity.table_entry
-    entry.table_id = index.table_id(table_name)
-    entry.is_default_action = True
-    entry.action.action.action_id = index.action_id(action_name)
-    for name, value in params.items():
-        param = entry.action.action.params.add()
-        param.param_id = index.action_param_id(action_name, name)
-        param.value = encode_u(value, index.action_param_bitwidth(action_name, name))
-    update = p4runtime_pb2.Update()
-    update.type = p4runtime_pb2.Update.MODIFY
-    update.entity.CopyFrom(entity)
-    return update
-
-
-def exact_table_entity(
+def table_entity(
     index: P4InfoIndex,
     table_name: str,
-    field_name: str,
-    key: int,
-    action_name: str,
-    params: dict[str, int],
     *,
-    modify: bool = False,
+    match: dict[str, int | str] | None = None,
+    action: str | None = None,
+    params: dict[str, int | str] | None = None,
+    default: bool = False,
+    priority: int = 0,
+    kind: str = "INSERT",
 ):
+    """Build one direct table entry.
+
+    Keys are ints, dotted IPv4, ``a.b.c.d/len`` (LPM) or ``value&&&mask``
+    (ternary, which also needs a *priority*).
+    """
     entity = p4runtime_pb2.Entity()
     entry = entity.table_entry
     entry.table_id = index.table_id(table_name)
-    match = entry.match.add()
-    match.field_id = index.match_field_id(table_name, field_name)
-    match.exact.value = encode_u(
-        key, index.match_field_bitwidth(table_name, field_name)
+    entry.is_default_action = bool(default)
+    entry.priority = int(priority)
+    for field, value in (match or {}).items():
+        mf = entry.match.add()
+        mf.field_id = index.match_field_id(table_name, field)
+        width = index.match_field_bitwidth(table_name, field)
+        if isinstance(value, str) and "&&&" in value:
+            raw_value, raw_mask = value.split("&&&")
+            mf.ternary.value = _encode_value(raw_value, width)
+            mf.ternary.mask = _encode_value(raw_mask, width)
+        elif isinstance(value, str) and "/" in value:
+            network = ipaddress.IPv4Network(value, strict=False)
+            mf.lpm.value = encode_ipv4(str(network.network_address))
+            mf.lpm.prefix_len = int(network.prefixlen)
+        else:
+            mf.exact.value = _encode_value(value, width)
+    if action is not None and kind != "DELETE":
+        entry.action.action.action_id = index.action_id(action)
+        for name, value in (params or {}).items():
+            param = entry.action.action.params.add()
+            param.param_id = index.action_param_id(action, name)
+            param.value = _encode_value(
+                value, index.action_param_bitwidth(action, name)
+            )
+    return _update(entity, kind)
+
+
+def build_update(index: P4InfoIndex, spec: dict[str, Any]) -> p4runtime_pb2.Update:
+    """Turn one JSON update description into a P4Runtime ``Update``."""
+    kind = str(spec.get("type", "INSERT")).upper()
+    if "member" in spec:
+        return member_entity(index, spec["member"], kind=kind)
+    if "group" in spec:
+        return group_entity(index, spec["group"], kind=kind)
+    if "lpm" in spec:
+        return lpm_entity(index, spec["lpm"], kind=kind)
+    return table_entity(
+        index,
+        spec["table"],
+        match=spec.get("match"),
+        action=spec.get("action"),
+        params=spec.get("params"),
+        default=bool(spec.get("default")),
+        priority=int(spec.get("priority") or 0),
+        kind=kind,
     )
-    entry.action.action.action_id = index.action_id(action_name)
-    for name, value in params.items():
-        param = entry.action.action.params.add()
-        param.param_id = index.action_param_id(action_name, name)
-        param.value = encode_u(value, index.action_param_bitwidth(action_name, name))
-    update = p4runtime_pb2.Update()
-    update.type = p4runtime_pb2.Update.MODIFY if modify else p4runtime_pb2.Update.INSERT
-    update.entity.CopyFrom(entity)
-    return update
 
 
-def exact_ipv4_table_entity(
-    index: P4InfoIndex, table_name: str, action_name: str, address: str
-):
-    entity = p4runtime_pb2.Entity()
+def write_updates(
+    client: SwitchClient,
+    updates: list[p4runtime_pb2.Update],
+    atomicity: str = "CONTINUE_ON_ERROR",
+) -> list[dict[str, str]]:
+    """Send one Write and return the per-update status the device reports."""
+    statuses = [{"code": "OK", "message": ""} for _ in updates]
+    if not updates:
+        return statuses
+    try:
+        client.write(updates, _ATOMICITY[atomicity])
+    except grpc.RpcError as exc:
+        details = [
+            status_pb2.Status.FromString(value).details
+            for key, value in exc.trailing_metadata() or []
+            if key == "grpc-status-details-bin"
+        ]
+        if not details or len(details[0]) != len(updates):
+            code = exc.code().name if exc.code() else "UNKNOWN"
+            for status in statuses:
+                status.update(code=code, message=str(exc.details() or ""))
+            return statuses
+        for status, detail in zip(statuses, details[0]):
+            error = p4runtime_pb2.Error()
+            detail.Unpack(error)
+            status.update(
+                code=code_pb2.Code.Name(error.canonical_code),
+                message=error.message,
+            )
+    return statuses
+
+
+def describe_update(index: P4InfoIndex, update: p4runtime_pb2.Update) -> str:
+    """One-line, human-readable form of an update for the controller log."""
+    kind = p4runtime_pb2.Update.Type.Name(update.type)
+    entity = update.entity
+    if entity.HasField("action_profile_member"):
+        item = entity.action_profile_member
+        params = {p.param_id: p.value for p in item.action.params}
+        port = decode_u(params.get(index.action_param_id(ACTION_FWD, "port"), b""))
+        dst = decode_mac(params.get(index.action_param_id(ACTION_FWD, "dstAddr"), b""))
+        return f"{kind} action_profile_member member_id={item.member_id} port={port} dst_mac={dst}"
+    if entity.HasField("action_profile_group"):
+        item = entity.action_profile_group
+        members = [int(m.member_id) for m in item.members]
+        return f"{kind} action_profile_group group_id={item.group_id} members={members}"
     entry = entity.table_entry
-    entry.table_id = index.table_id(table_name)
-    match = entry.match.add()
-    match.field_id = index.match_field_id(table_name, "dstAddr")
-    match.exact.value = encode_ipv4(address)
-    entry.action.action.action_id = index.action_id(action_name)
-    update = p4runtime_pb2.Update()
-    update.type = p4runtime_pb2.Update.INSERT
-    update.entity.CopyFrom(entity)
-    return update
+    names = {int(t.preamble.id): t for t in index.p4info.tables}
+    table = names.get(int(entry.table_id))
+    fields = {int(f.id): _short(f.name) for f in table.match_fields} if table else {}
+    keys = []
+    for mf in entry.match:
+        name = fields.get(int(mf.field_id), str(mf.field_id))
+        if mf.HasField("lpm"):
+            keys.append(f"{name}={decode_prefix(mf.lpm.value, mf.lpm.prefix_len)}")
+        elif mf.HasField("exact"):
+            keys.append(f"{name}={decode_u(mf.exact.value)}")
+    if entry.is_default_action:
+        keys.append("default")
+    which = entry.action.WhichOneof("type")
+    if which == "action_profile_group_id":
+        target = f"group_id={entry.action.action_profile_group_id}"
+    elif which == "action":
+        actions = {int(a.preamble.id): a for a in index.p4info.actions}
+        action = actions.get(int(entry.action.action.action_id))
+        target = _short(action.preamble.name) if action else "action"
+    else:
+        target = "-"
+    table_name = _short(table.preamble.name) if table else str(entry.table_id)
+    return f"{kind} table_entry {table_name} {' '.join(keys)} -> {target}"
 
 
-def exact_fields_entity(
+def _log(lines: list[str]) -> None:
+    try:
+        os.makedirs(os.path.dirname(LOG_PATH), exist_ok=True)
+        with open(LOG_PATH, "a", encoding="utf-8") as handle:
+            for line in lines:
+                handle.write(line + "\n")
+    except OSError:
+        pass
+
+
+def _now() -> str:
+    return (
+        datetime.now(timezone.utc)
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z")
+    )
+
+
+def controller_write(
+    client: SwitchClient,
     index: P4InfoIndex,
-    table_name: str,
-    fields: dict[str, int | str],
-    action_name: str,
-    params: dict[str, int | str],
-    *,
-    modify: bool = False,
-):
-    """Build an exact-match entry for small gateway runtime tables."""
-    entity = p4runtime_pb2.Entity()
-    entry = entity.table_entry
-    entry.table_id = index.table_id(table_name)
-    for field, value in fields.items():
-        match = entry.match.add()
-        match.field_id = index.match_field_id(table_name, field)
-        width = index.match_field_bitwidth(table_name, field)
-        match.exact.value = (
-            encode_ipv4(value) if isinstance(value, str) else encode_u(value, width)
+    device: str,
+    updates: list[p4runtime_pb2.Update],
+    atomicity: str = "CONTINUE_ON_ERROR",
+) -> list[dict[str, str]]:
+    """Write *updates* and record the request and its outcome in the log."""
+    statuses = write_updates(client, updates, atomicity)
+    failed = sum(1 for status in statuses if status["code"] != "OK")
+    stamp = _now()
+    lines = [
+        f"{stamp} Write device={device} device_id={client.device_id} "
+        f"election_id={ELECTION_LOW} atomicity={atomicity} "
+        f"updates={len(updates)} failed={failed}"
+    ]
+    for position, (update, status) in enumerate(zip(updates, statuses)):
+        outcome = status["code"]
+        if status["message"]:
+            outcome += f" ({status['message']})"
+        lines.append(
+            f"{stamp}   [{position}] {describe_update(index, update)}: {outcome}"
         )
-    entry.action.action.action_id = index.action_id(action_name)
-    for name, value in params.items():
-        param = entry.action.action.params.add()
-        param.param_id = index.action_param_id(action_name, name)
-        width = index.action_param_bitwidth(action_name, name)
-        param.value = (
-            encode_ipv4(value) if isinstance(value, str) else encode_u(value, width)
-        )
-    update = p4runtime_pb2.Update()
-    update.type = p4runtime_pb2.Update.MODIFY if modify else p4runtime_pb2.Update.INSERT
-    update.entity.CopyFrom(entity)
-    return update
-
-
-def exact_fields_delete_entity(
-    index: P4InfoIndex,
-    table_name: str,
-    fields: dict[str, int | str],
-):
-    """Build a DELETE for an exact-match gateway runtime table entry."""
-    entity = p4runtime_pb2.Entity()
-    entry = entity.table_entry
-    entry.table_id = index.table_id(table_name)
-    for field, value in fields.items():
-        match = entry.match.add()
-        match.field_id = index.match_field_id(table_name, field)
-        width = index.match_field_bitwidth(table_name, field)
-        match.exact.value = (
-            encode_ipv4(value) if isinstance(value, str) else encode_u(value, width)
-        )
-    update = p4runtime_pb2.Update()
-    update.type = p4runtime_pb2.Update.DELETE
-    update.entity.CopyFrom(entity)
-    return update
-
-
-def _lb_conn_fields(
-    src_addr: str, src_port: int, dst_addr: str, dst_port: int
-) -> dict[str, int | str]:
-    return {
-        "srcAddr": src_addr,
-        "dstAddr": dst_addr,
-        "protocol": 6,
-        "srcPort": src_port,
-        "dstPort": dst_port,
-    }
+    _log(lines)
+    return statuses
 
 
 def connect(switch: dict[str, Any]) -> SwitchClient:
@@ -455,111 +521,171 @@ def apply_switch(
     p4info: p4info_pb2.P4Info,
     device_config: bytes,
 ) -> None:
+    name = str(switch.get("name") or switch["address"])
     client.set_pipeline(p4info, device_config)
-    updates = [member_entity(index, m, insert=True) for m in switch["members"]]
-    updates.extend(group_entity(index, g, insert=True) for g in switch["groups"])
-    updates.extend(lpm_entity(index, e, insert=True) for e in switch["ipv4_lpm"])
-    client.write(updates, p4runtime_pb2.WriteRequest.CONTINUE_ON_ERROR)
-    if "role_id" in switch:
-        runtime_updates = [
-            (
-                "runtime_role",
-                default_action_entity(
-                    index, "runtime_role", "set_role", {"role": switch["role_id"]}
-                ),
-            )
+    _log(
+        [
+            f"{_now()} SetForwardingPipelineConfig device={name} "
+            f"device_id={client.device_id} action=VERIFY_AND_COMMIT: OK"
         ]
-        for raw_port, threshold in switch.get("ecn", {}).items():
-            port = int(raw_port)
-            runtime_updates.extend(
-                (
-                    (
-                        f"ecn_config[{port}]",
-                        exact_table_entity(
-                            index,
-                            "ecn_config",
-                            "egress_port",
-                            port,
-                            "set_ecn_threshold",
-                            {"threshold": int(threshold)},
-                        ),
-                    ),
-                    (
-                        f"int_mtu_config[{port}]",
-                        exact_table_entity(
-                            index,
-                            "int_mtu_config",
-                            "egress_spec",
-                            port,
-                            "set_int_mtu",
-                            {"mtu": int(switch["int"]["mtu"])},
-                        ),
-                    ),
-                )
+    )
+    updates = [member_entity(index, m) for m in switch["members"]]
+    updates.extend(group_entity(index, g) for g in switch["groups"])
+    updates.extend(lpm_entity(index, e) for e in switch["ipv4_lpm"])
+    failed = [
+        status
+        for status in controller_write(client, index, name, updates)
+        if status["code"] != "OK"
+    ]
+    if failed:
+        raise RuntimeError(f"failed to write forwarding state on {name}: {failed}")
+    if "role_id" not in switch:
+        return
+    runtime_updates = [
+        table_entity(
+            index,
+            "runtime_role",
+            action="set_role",
+            params={"role": switch["role_id"]},
+            default=True,
+            kind="MODIFY",
+        )
+    ]
+    for raw_port, threshold in switch.get("ecn", {}).items():
+        port = int(raw_port)
+        runtime_updates.append(
+            table_entity(
+                index,
+                "ecn_config",
+                match={"egress_port": port},
+                action="set_ecn_threshold",
+                params={"threshold": int(threshold)},
             )
-        if switch.get("role") == "gateway":
+        )
+        runtime_updates.append(
+            table_entity(
+                index,
+                "int_mtu_config",
+                match={"egress_spec": port},
+                action="set_int_mtu",
+                params={"mtu": int(switch["int"]["mtu"])},
+            )
+        )
+    for raw_port, mtu in (switch.get("egress_mtu") or {}).items():
+        runtime_updates.append(
+            table_entity(
+                index,
+                "egress_mtu",
+                match={"egress_spec": int(raw_port)},
+                action="set_egress_mtu",
+                params={"mtu": int(mtu)},
+            )
+        )
+    if switch.get("role") == "gateway":
+        runtime_updates.append(
+            table_entity(
+                index,
+                "int_watchlist",
+                match={"dstAddr": "10.0.0.0/8"},
+                action="watch_int",
+            )
+        )
+        # Edge ICMP hardening: drop timestamp and address-mask requests
+        # (RFC 6918 deprecates the latter).
+        for icmp_type in (13, 17):
             runtime_updates.append(
-                (
-                    "int_watchlist",
-                    direct_lpm_entity(
-                        index, "int_watchlist", "watch_int", "10.0.0.0/8"
-                    ),
+                table_entity(
+                    index,
+                    "icmp_acl",
+                    match={"type": icmp_type, "code": 0},
+                    action="drop",
                 )
             )
-            lb = switch.get("l4_load_balancer") or {}
-            if lb:
-                vip = lb["vip"]
+        lb = switch.get("l4_load_balancer") or {}
+        if lb:
+            vip = lb["vip"]
+            runtime_updates.append(
+                table_entity(
+                    index,
+                    "lb_vip",
+                    match={
+                        "dstAddr": vip["ip"],
+                        "dstPort": int(vip["port"]),
+                        "protocol": 6,
+                    },
+                    action="set_lb_vip",
+                    params={"version": int(lb["pool_version"])},
+                )
+            )
+            backends = lb["backends"]
+            for bucket in range(int(lb["hash"]["buckets"])):
                 runtime_updates.append(
-                    (
-                        "lb_vip",
-                        exact_fields_entity(
-                            index,
-                            "lb_vip",
-                            {
-                                "dstAddr": vip["ip"],
-                                "dstPort": int(vip["port"]),
-                                "protocol": 6,
-                            },
-                            "set_lb_vip",
-                            {"version": int(lb["pool_version"])},
-                        ),
+                    table_entity(
+                        index,
+                        "lb_pool",
+                        match={
+                            "lbPoolVersion": int(lb["pool_version"]),
+                            "lbBucket": bucket,
+                        },
+                        action="set_pool_dip",
+                        params={"dip": backends[bucket % len(backends)]["dip"]},
                     )
                 )
-                backends = lb["backends"]
-                for bucket in range(int(lb["hash"]["buckets"])):
-                    runtime_updates.append(
-                        (
-                            f"lb_pool[{bucket}]",
-                            exact_fields_entity(
-                                index,
-                                "lb_pool",
-                                {
-                                    "lbPoolVersion": int(lb["pool_version"]),
-                                    "lbBucket": bucket,
-                                },
-                                "set_pool_dip",
-                                {"dip": backends[bucket % len(backends)]["dip"]},
-                            ),
-                        )
-                    )
-        for label, update in runtime_updates:
-            try:
-                client.write([update], p4runtime_pb2.WriteRequest.CONTINUE_ON_ERROR)
-            except grpc.RpcError as exc:
-                raise RuntimeError(f"failed to write {label}: {exc}") from exc
+    failed = [
+        (describe_update(index, update), status)
+        for update, status in zip(
+            runtime_updates, controller_write(client, index, name, runtime_updates)
+        )
+        if status["code"] != "OK"
+    ]
+    if failed:
+        raise RuntimeError(f"failed to write runtime configuration on {name}: {failed}")
+
+
+def read_counters(client: SwitchClient, index: P4InfoIndex) -> dict[str, dict]:
+    """Return non-zero P4Runtime counters, without the rest of switch state."""
+    counters: dict[str, dict] = {
+        "ingress": {},
+        "egress": {},
+        "flow_syn": {},
+        "flow_non_syn": {},
+    }
+    for name, bucket in (
+        (COUNTER_INGRESS, "ingress"),
+        (COUNTER_EGRESS, "egress"),
+        ("flow_syn_total", "flow_syn"),
+        ("flow_non_syn_total", "flow_non_syn"),
+    ):
+        if name not in index.counters:
+            continue
+        cent = p4runtime_pb2.Entity()
+        cent.counter_entry.counter_id = index.counter_id(name)
+        for entity in client.read_entities(cent):
+            if entity.HasField("counter_entry"):
+                entry = entity.counter_entry
+                packets = int(entry.data.packet_count)
+                bytes_ = int(entry.data.byte_count)
+                if packets or bytes_:
+                    counters[bucket][int(entry.index.index)] = {
+                        "packets": packets,
+                        "bytes": bytes_,
+                    }
+    return counters
 
 
 def observed_switch(client: SwitchClient, index: P4InfoIndex) -> dict[str, Any]:
     pipeline = client.get_pipeline()
     # The programs carry no @pkginfo name, so compare the loaded P4Info tables
     # with the P4Info this manager programs.
-    pipeline["matches_intent"] = bool(pipeline.get("ok")) and pipeline.get(
-        "tables"
-    ) == sorted(t.preamble.name for t in index.p4info.tables)
+    loaded = set(pipeline.pop("tables", None) or [])
+    missing = sorted({t.preamble.name for t in index.p4info.tables} - loaded)
+    pipeline.pop("table_count", None)
+    pipeline["missing_tables"] = missing
+    pipeline["matches_intent"] = bool(pipeline.get("ok")) and not missing
     members = []
     groups = []
     ipv4_lpm = []
-    counters = {"ingress": {}, "egress": {}, "flow_syn": {}, "flow_non_syn": {}}
+    counters = read_counters(client, index)
     registers: dict[str, Any] = {}
     runtime_config: dict[str, list[dict[str, int]]] = {}
 
@@ -605,27 +731,6 @@ def observed_switch(client: SwitchClient, index: P4InfoIndex) -> dict[str, Any]:
                 }
             )
 
-    for name, bucket in (
-        (COUNTER_INGRESS, "ingress"),
-        (COUNTER_EGRESS, "egress"),
-        ("flow_syn_total", "flow_syn"),
-        ("flow_non_syn_total", "flow_non_syn"),
-    ):
-        if name not in index.counters:
-            continue
-        cent = p4runtime_pb2.Entity()
-        cent.counter_entry.counter_id = index.counter_id(name)
-        for entity in client.read_entities(cent):
-            if entity.HasField("counter_entry"):
-                entry = entity.counter_entry
-                packets = int(entry.data.packet_count)
-                bytes_ = int(entry.data.byte_count)
-                if packets or bytes_:
-                    counters[bucket][int(entry.index.index)] = {
-                        "packets": packets,
-                        "bytes": bytes_,
-                    }
-
     for name in ("queue_occupancy",):
         if name not in index.registers:
             continue
@@ -641,8 +746,9 @@ def observed_switch(client: SwitchClient, index: P4InfoIndex) -> dict[str, Any]:
     for table_name in (
         "ecn_config",
         "int_mtu_config",
+        "egress_mtu",
         "runtime_role",
-        "icmp_frag_needed_acl",
+        "icmp_acl",
     ):
         if table_name not in index.tables:
             continue
@@ -717,6 +823,22 @@ def intent_vs_observed(switch: dict[str, Any], observed: dict[str, Any]) -> list
     return mismatches
 
 
+def switch_summary(observed: dict[str, Any], mismatches: list[str]) -> dict[str, Any]:
+    """Compact per-switch digest printed ahead of the full read output."""
+    pipeline = observed.get("pipeline") or {}
+    return {
+        "pipeline_ok": bool(pipeline.get("ok")),
+        "pipeline_matches_intent": bool(pipeline.get("matches_intent")),
+        "members": len(observed.get("members") or []),
+        "groups": len(observed.get("groups") or []),
+        "ipv4_lpm": len(observed.get("ipv4_lpm") or []),
+        "mismatches": mismatches,
+        "nonzero_counter_ports": {
+            kind: len(ports) for kind, ports in observed["counters"].items()
+        },
+    }
+
+
 def cmd_apply(args: argparse.Namespace) -> None:
     intent = load_json(args.intent)
     p4info = load_p4info(args.p4info)
@@ -756,6 +878,7 @@ def cmd_read(args: argparse.Namespace) -> None:
         [args.switch] if args.switch else list(intent["switches"])
     )
     payload = {}
+    summary = {}
     for name in names:
         switch = intent["switches"][name]
         client = connect(switch)
@@ -763,266 +886,78 @@ def cmd_read(args: argparse.Namespace) -> None:
             observed = observed_switch(client, index)
             payload[name] = observed
             payload[name]["mismatches"] = intent_vs_observed(switch, observed)
+            summary[name] = switch_summary(observed, payload[name]["mismatches"])
         finally:
             client.close()
-    print(json.dumps({"ok": True, "switches": payload}, default=str))
+    # Summary first: tool output is head/tail truncated, so it must lead.
+    print(
+        json.dumps({"ok": True, "summary": summary, "switches": payload}, default=str)
+    )
+
+
+def table_rows(
+    client: SwitchClient, index: P4InfoIndex, table_name: str
+) -> list[dict[str, Any]]:
+    """Read every entry of one table with decoded keys, action and params."""
+    table = index.tables[table_name]
+    fields = {int(f.id): _short(f.name) for f in table.match_fields}
+    actions = {int(a.preamble.id): a for a in index.p4info.actions}
+    request = p4runtime_pb2.Entity()
+    request.table_entry.table_id = index.table_id(table_name)
+    rows = []
+    for entity in client.read_entities(request):
+        if not entity.HasField("table_entry"):
+            continue
+        entry = entity.table_entry
+        match: dict[str, Any] = {}
+        for mf in entry.match:
+            name = fields.get(int(mf.field_id), str(mf.field_id))
+            if mf.HasField("exact"):
+                match[name] = decode_u(mf.exact.value)
+            elif mf.HasField("lpm"):
+                match[name] = decode_prefix(mf.lpm.value, mf.lpm.prefix_len)
+            elif mf.HasField("ternary"):
+                match[name] = [
+                    decode_u(mf.ternary.value),
+                    decode_u(mf.ternary.mask),
+                ]
+        action = actions.get(int(entry.action.action.action_id))
+        names = {int(p.id): p.name for p in action.params} if action else {}
+        rows.append(
+            {
+                "match": match,
+                "priority": int(entry.priority),
+                "action": _short(action.preamble.name) if action else None,
+                "params": {
+                    names.get(int(p.param_id), str(p.param_id)): decode_u(p.value)
+                    for p in entry.action.action.params
+                },
+            }
+        )
+    return rows
 
 
 def cmd_read_table(args: argparse.Namespace) -> None:
     """Dump every entry of one table, keyed by the table name."""
     intent = load_json(args.intent)
-    p4info = load_p4info(args.p4info)
-    index = P4InfoIndex(p4info)
-    table = index.tables[args.table]
-    fields = {int(f.id): _short(f.name) for f in table.match_fields}
-    actions = {int(a.preamble.id): a for a in p4info.actions}
-    request = p4runtime_pb2.Entity()
-    request.table_entry.table_id = index.table_id(args.table)
-    client = connect(intent["switches"][args.switch])
-    rows = []
-    try:
-        for entity in client.read_entities(request):
-            if not entity.HasField("table_entry"):
-                continue
-            entry = entity.table_entry
-            match: dict[str, Any] = {}
-            for mf in entry.match:
-                name = fields.get(int(mf.field_id), str(mf.field_id))
-                if mf.HasField("exact"):
-                    match[name] = decode_u(mf.exact.value)
-                elif mf.HasField("lpm"):
-                    match[name] = decode_prefix(mf.lpm.value, mf.lpm.prefix_len)
-            action = actions.get(int(entry.action.action.action_id))
-            names = {int(p.id): p.name for p in action.params} if action else {}
-            rows.append(
+    index = P4InfoIndex(load_p4info(args.p4info))
+    if args.table not in index.tables:
+        print(
+            json.dumps(
                 {
-                    "match": match,
-                    "action": _short(action.preamble.name) if action else None,
-                    "params": {
-                        names.get(int(p.param_id), str(p.param_id)): decode_u(p.value)
-                        for p in entry.action.action.params
-                    },
+                    "ok": False,
+                    "error": f"unknown table {args.table}",
+                    "tables": sorted(index.tables),
                 }
             )
+        )
+        return
+    client = connect(intent["switches"][args.switch])
+    try:
+        rows = table_rows(client, index, args.table)
     finally:
         client.close()
     print(json.dumps({"ok": True, "switch": args.switch, "tables": {args.table: rows}}))
-
-
-def cmd_delete_lpm(args: argparse.Namespace) -> None:
-    intent = load_json(args.intent)
-    p4info = load_p4info(args.p4info)
-    index = P4InfoIndex(p4info)
-    switch = intent["switches"][args.switch]
-    entry = next(e for e in switch["ipv4_lpm"] if e["prefix"] == args.prefix)
-    client = connect(switch)
-    try:
-        client.write(
-            [lpm_entity(index, entry, insert=False)],
-            p4runtime_pb2.WriteRequest.CONTINUE_ON_ERROR,
-        )
-        observed = observed_switch(client, index)
-        present = any(e.get("prefix") == args.prefix for e in observed["ipv4_lpm"])
-        print(
-            json.dumps(
-                {
-                    "ok": not present,
-                    "prefix": args.prefix,
-                    "present": present,
-                    "ipv4_lpm": observed["ipv4_lpm"],
-                }
-            )
-        )
-    finally:
-        client.close()
-
-
-def cmd_modify_lpm_group(args: argparse.Namespace) -> None:
-    intent = load_json(args.intent)
-    p4info = load_p4info(args.p4info)
-    index = P4InfoIndex(p4info)
-    switch = intent["switches"][args.switch]
-    entry = dict(next(e for e in switch["ipv4_lpm"] if e["prefix"] == args.prefix))
-    client = connect(switch)
-    try:
-        client.write(
-            [lpm_entity(index, entry, insert=False)],
-            p4runtime_pb2.WriteRequest.CONTINUE_ON_ERROR,
-        )
-        entry["group_id"] = int(args.group_id)
-        client.write(
-            [lpm_entity(index, entry, insert=True)],
-            p4runtime_pb2.WriteRequest.CONTINUE_ON_ERROR,
-        )
-        observed = observed_switch(client, index)
-        got = next(
-            (e for e in observed["ipv4_lpm"] if e.get("prefix") == args.prefix),
-            None,
-        )
-        print(
-            json.dumps(
-                {
-                    "ok": got is not None
-                    and int(got["group_id"]) == int(args.group_id),
-                    "prefix": args.prefix,
-                    "group_id": None if got is None else got["group_id"],
-                }
-            )
-        )
-    finally:
-        client.close()
-
-
-def cmd_modify_member(args: argparse.Namespace) -> None:
-    intent = load_json(args.intent)
-    p4info = load_p4info(args.p4info)
-    index = P4InfoIndex(p4info)
-    switch = intent["switches"][args.switch]
-    member = dict(
-        next(m for m in switch["members"] if int(m["member_id"]) == int(args.member_id))
-    )
-    if args.dst_mac:
-        member["dst_mac"] = args.dst_mac
-    if args.port is not None:
-        member["port"] = int(args.port)
-    client = connect(switch)
-    try:
-        client.write(
-            [member_entity(index, member, insert=False)],
-            p4runtime_pb2.WriteRequest.CONTINUE_ON_ERROR,
-        )
-        observed = observed_switch(client, index)
-        got = next(
-            m for m in observed["members"] if int(m["member_id"]) == int(args.member_id)
-        )
-        print(
-            json.dumps(
-                {
-                    "ok": True,
-                    "member": got,
-                    "expected_port": int(member["port"]),
-                    "expected_dst_mac": member["dst_mac"].lower(),
-                }
-            )
-        )
-    finally:
-        client.close()
-
-
-def cmd_delete_group_member(args: argparse.Namespace) -> None:
-    intent = load_json(args.intent)
-    p4info = load_p4info(args.p4info)
-    index = P4InfoIndex(p4info)
-    switch = intent["switches"][args.switch]
-    group = dict(
-        next(g for g in switch["groups"] if int(g["group_id"]) == int(args.group_id))
-    )
-    group["member_ids"] = [
-        mid for mid in group["member_ids"] if int(mid) != int(args.member_id)
-    ]
-    client = connect(switch)
-    try:
-        client.write(
-            [group_entity(index, group, insert=False)],
-            p4runtime_pb2.WriteRequest.CONTINUE_ON_ERROR,
-        )
-        observed = observed_switch(client, index)
-        got = next(
-            g for g in observed["groups"] if int(g["group_id"]) == int(args.group_id)
-        )
-        print(
-            json.dumps(
-                {
-                    "ok": int(args.member_id)
-                    not in [int(m) for m in got["member_ids"]],
-                    "group": got,
-                }
-            )
-        )
-    finally:
-        client.close()
-
-
-def cmd_set_pipeline(args: argparse.Namespace) -> None:
-    intent = load_json(args.intent)
-    p4info = load_p4info(args.p4info)
-    with open(args.json, "rb") as handle:
-        device_config = handle.read()
-    switch = intent["switches"][args.switch]
-    client = connect(switch)
-    try:
-        err = None
-        try:
-            client.set_pipeline(p4info, device_config)
-        except grpc.RpcError as exc:
-            err = str(exc)
-        pipeline = client.get_pipeline()
-        print(
-            json.dumps(
-                {
-                    "ok": True,
-                    "set_error": err,
-                    "pipeline": pipeline,
-                }
-            )
-        )
-    finally:
-        client.close()
-
-
-def cmd_fill_table(args: argparse.Namespace) -> None:
-    intent = load_json(args.intent)
-    p4info = load_p4info(args.p4info)
-    index = P4InfoIndex(p4info)
-    switch = intent["switches"][args.switch]
-    size = int(args.size)
-    group_id = int(switch["ipv4_lpm"][0]["group_id"])
-    client = connect(switch)
-    added = 0
-    failed = None
-    try:
-        observed = observed_switch(client, index)
-        existing = {e["prefix"] for e in observed["ipv4_lpm"] if e.get("prefix")}
-        occupancy = len(existing)
-        if occupancy < size:
-            for net in range(0, 256):
-                stop = False
-                for host in range(0, 256):
-                    if occupancy + added >= size:
-                        stop = True
-                        break
-                    prefix = f"198.{net}.{host}.1/32"
-                    if prefix in existing:
-                        continue
-                    entry = {"prefix": prefix, "group_id": group_id}
-                    try:
-                        client.write(
-                            [lpm_entity(index, entry, insert=True)],
-                            p4runtime_pb2.WriteRequest.CONTINUE_ON_ERROR,
-                        )
-                        added += 1
-                        existing.add(prefix)
-                    except grpc.RpcError as exc:
-                        failed = str(exc)
-                        stop = True
-                        break
-                if stop or failed is not None:
-                    break
-            observed = observed_switch(client, index)
-            occupancy = len(observed["ipv4_lpm"])
-        print(
-            json.dumps(
-                {
-                    "ok": occupancy >= size,
-                    "occupancy": occupancy,
-                    "size": size,
-                    "added": added,
-                    "write_error": failed,
-                }
-            )
-        )
-    finally:
-        client.close()
 
 
 def cmd_counters(args: argparse.Namespace) -> None:
@@ -1031,241 +966,28 @@ def cmd_counters(args: argparse.Namespace) -> None:
     index = P4InfoIndex(p4info)
     names = [args.switch] if args.switch else list(intent["switches"])
     payload = {}
+    summary = {}
     for name in names:
         client = connect(intent["switches"][name])
         try:
             observed = observed_switch(client, index)
             payload[name] = observed["counters"]
+            summary[name] = {
+                kind: {
+                    "ports": len(ports),
+                    "packets": sum(c["packets"] for c in ports.values()),
+                }
+                for kind, ports in observed["counters"].items()
+            }
         finally:
             client.close()
-    print(json.dumps({"ok": True, "counters": payload}))
-
-
-def cmd_gateway_config(args: argparse.Namespace) -> None:
-    intent = load_json(args.intent)
-    p4info = load_p4info(args.p4info)
-    index = P4InfoIndex(p4info)
-    client = connect(intent["switches"][args.switch])
-    try:
-        if args.kind == "silent-drop":
-            update = exact_ipv4_table_entity(
-                index, "internal_fault_drop", "fault_drop", args.address
-            )
-        elif args.kind == "icmp-frag-needed":
-            update = exact_fields_entity(
-                index,
-                "icmp_frag_needed_acl",
-                {"type": 3, "code": 4},
-                "icmp_frag_needed_drop",
-                {},
-            )
-        else:
-            spec = {
-                "loss": (
-                    "internal_fault_loss_config",
-                    "egress_spec",
-                    "set_fault_loss_threshold",
-                    "threshold",
-                ),
-                "ecn": (
-                    "ecn_config",
-                    "egress_port",
-                    "set_ecn_threshold",
-                    "threshold",
-                ),
-                "int-mtu": (
-                    "int_mtu_config",
-                    "egress_spec",
-                    "set_int_mtu",
-                    "mtu",
-                ),
-            }[args.kind]
-            table, field, action, param = spec
-            update = exact_table_entity(
-                index,
-                table,
-                field,
-                args.port,
-                action,
-                {param: args.value},
-                modify=args.kind in {"ecn", "int-mtu"},
-            )
-        client.write([update], p4runtime_pb2.WriteRequest.CONTINUE_ON_ERROR)
-        print(
-            json.dumps(
-                {
-                    "ok": True,
-                    "switch": args.switch,
-                    "kind": args.kind,
-                    "port": args.port,
-                    "value": args.value,
-                    "address": args.address,
-                }
-            )
-        )
-    finally:
-        client.close()
-
-
-def _gateway_lb_entries(client: SwitchClient, index: P4InfoIndex) -> dict[str, int]:
-    """Count the live L4 tables; this is the fault evidence API."""
-    names = ("lb_vip", "lb_conn_table", "lb_transit_table", "lb_pool")
-    counts: dict[str, int] = {}
-    for name in names:
-        entity = p4runtime_pb2.Entity()
-        entity.table_entry.table_id = index.table_id(name)
-        counts[name] = sum(
-            1
-            for item in client.read_entities(entity)
-            if item.HasField("table_entry")
-            and item.table_entry.table_id == index.table_id(name)
-        )
-    return counts
-
-
-def cmd_gateway_lb(args: argparse.Namespace) -> None:
-    """Program the real gateway L4 tables used by the fault injectors."""
-    intent = load_json(args.intent)
-    p4info = load_p4info(args.p4info)
-    index = P4InfoIndex(p4info)
-    switch = intent["switches"][args.switch]
-    lb = switch["l4_load_balancer"]
-    vip = lb["vip"]
-    backends = lb["backends"]
-    client = connect(switch)
-    try:
-        if args.kind == "state":
-            print(
-                json.dumps(
-                    {
-                        "ok": True,
-                        "switch": args.switch,
-                        "tables": _gateway_lb_entries(client, index),
-                    }
-                )
-            )
-            return
-
-        updates: list[p4runtime_pb2.Update] = []
-        inserted = 0
-        if args.kind == "exhaust":
-            occupied = _gateway_lb_entries(client, index)["lb_conn_table"]
-            if occupied > args.capacity:
-                raise ValueError(
-                    f"connection table already has {occupied} entries, "
-                    f"above requested capacity {args.capacity}"
-                )
-            inserted = args.capacity - occupied
-            offset_start = int(args.offset_start)
-            for offset in range(offset_start, offset_start + inserted):
-                updates.append(
-                    exact_fields_entity(
-                        index,
-                        "lb_conn_table",
-                        _lb_conn_fields(
-                            "192.0.2.10",
-                            20000 + offset,
-                            vip["ip"],
-                            int(vip["port"]),
-                        ),
-                        "set_lb_dip",
-                        {"dip": backends[0]["dip"]},
-                    )
-                )
-        elif args.kind == "learn":
-            if not all(
-                value is not None
-                for value in (
-                    args.src_addr,
-                    args.src_port,
-                    args.dst_addr,
-                    args.dst_port,
-                    args.dip,
-                )
-            ):
-                raise ValueError(
-                    "learn requires --src-addr --src-port --dst-addr --dst-port --dip"
-                )
-            updates.append(
-                exact_fields_entity(
-                    index,
-                    "lb_conn_table",
-                    _lb_conn_fields(
-                        args.src_addr,
-                        int(args.src_port),
-                        args.dst_addr,
-                        int(args.dst_port),
-                    ),
-                    "set_lb_dip",
-                    {"dip": args.dip},
-                )
-            )
-        elif args.kind == "delete-conn":
-            if not all(
-                value is not None
-                for value in (
-                    args.src_addr,
-                    args.src_port,
-                    args.dst_addr,
-                    args.dst_port,
-                )
-            ):
-                raise ValueError(
-                    "delete-conn requires --src-addr --src-port --dst-addr --dst-port"
-                )
-            updates.append(
-                exact_fields_delete_entity(
-                    index,
-                    "lb_conn_table",
-                    _lb_conn_fields(
-                        args.src_addr,
-                        int(args.src_port),
-                        args.dst_addr,
-                        int(args.dst_port),
-                    ),
-                )
-            )
-        elif args.kind == "unsafe-update":
-            updates.append(
-                exact_fields_entity(
-                    index,
-                    "lb_vip",
-                    {"dstAddr": vip["ip"], "dstPort": int(vip["port"]), "protocol": 6},
-                    "set_lb_vip",
-                    {"version": 2},
-                    modify=True,
-                )
-            )
-            for bucket in range(int(lb["hash"]["buckets"])):
-                updates.append(
-                    exact_fields_entity(
-                        index,
-                        "lb_pool",
-                        {"lbPoolVersion": 2, "lbBucket": bucket},
-                        "set_pool_dip",
-                        {"dip": backends[1]["dip"]},
-                    )
-                )
-        else:
-            raise ValueError(f"unsupported gateway L4 operation: {args.kind}")
-
-        if updates:
-            client.write(updates, p4runtime_pb2.WriteRequest.CONTINUE_ON_ERROR)
-        result = {
-            "ok": True,
-            "switch": args.switch,
-            "kind": args.kind,
-            "tables": _gateway_lb_entries(client, index),
-        }
-        if args.kind == "exhaust":
-            result["inserted"] = inserted
-        print(json.dumps(result))
-    finally:
-        client.close()
+    print(json.dumps({"ok": True, "summary": summary, "counters": payload}))
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="P4Runtime fabric manager")
+    parser = argparse.ArgumentParser(
+        description="P4Runtime fabric manager", fromfile_prefix_chars="@"
+    )
     parser.add_argument("--intent", default="/tmp/p4_fabric/intent.json")
     parser.add_argument("--p4info", default="/tmp/p4_fabric/fabric.p4info.txt")
     parser.add_argument("--json", default="/tmp/p4_fabric/fabric.json")
@@ -1286,70 +1008,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_table.add_argument("--table", required=True)
     p_table.set_defaults(func=cmd_read_table)
 
-    p_del = sub.add_parser("delete-lpm")
-    p_del.add_argument("--switch", required=True)
-    p_del.add_argument("--prefix", required=True)
-    p_del.set_defaults(func=cmd_delete_lpm)
-
-    p_modg = sub.add_parser("modify-lpm-group")
-    p_modg.add_argument("--switch", required=True)
-    p_modg.add_argument("--prefix", required=True)
-    p_modg.add_argument("--group-id", required=True)
-    p_modg.set_defaults(func=cmd_modify_lpm_group)
-
-    p_mod = sub.add_parser("modify-member")
-    p_mod.add_argument("--switch", required=True)
-    p_mod.add_argument("--member-id", required=True)
-    p_mod.add_argument("--dst-mac")
-    p_mod.add_argument("--port", type=int)
-    p_mod.set_defaults(func=cmd_modify_member)
-
-    p_dg = sub.add_parser("delete-group-member")
-    p_dg.add_argument("--switch", required=True)
-    p_dg.add_argument("--group-id", required=True)
-    p_dg.add_argument("--member-id", required=True)
-    p_dg.set_defaults(func=cmd_delete_group_member)
-
-    p_pipe = sub.add_parser("set-pipeline")
-    p_pipe.add_argument("--switch", required=True)
-    p_pipe.set_defaults(func=cmd_set_pipeline)
-
-    p_fill = sub.add_parser("fill-table")
-    p_fill.add_argument("--switch", required=True)
-    p_fill.add_argument("--size", type=int, default=256)
-    p_fill.set_defaults(func=cmd_fill_table)
-
     p_ctr = sub.add_parser("counters")
     p_ctr.add_argument("--switch")
     p_ctr.set_defaults(func=cmd_counters)
-
-    p_config = sub.add_parser("gateway-config")
-    p_config.add_argument("--switch", required=True)
-    p_config.add_argument(
-        "--kind",
-        required=True,
-        choices=("silent-drop", "loss", "ecn", "int-mtu", "icmp-frag-needed"),
-    )
-    p_config.add_argument("--port", type=int)
-    p_config.add_argument("--value", type=int)
-    p_config.add_argument("--address")
-    p_config.set_defaults(func=cmd_gateway_config)
-
-    p_lb = sub.add_parser("gateway-lb")
-    p_lb.add_argument("--switch", required=True)
-    p_lb.add_argument(
-        "--kind",
-        required=True,
-        choices=("state", "exhaust", "unsafe-update", "learn", "delete-conn"),
-    )
-    p_lb.add_argument("--capacity", type=int, default=256)
-    p_lb.add_argument("--offset-start", type=int, default=0)
-    p_lb.add_argument("--src-addr")
-    p_lb.add_argument("--src-port", type=int)
-    p_lb.add_argument("--dst-addr")
-    p_lb.add_argument("--dst-port", type=int)
-    p_lb.add_argument("--dip")
-    p_lb.set_defaults(func=cmd_gateway_lb)
     return parser
 
 

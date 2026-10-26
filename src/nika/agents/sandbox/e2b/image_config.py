@@ -17,9 +17,9 @@ from dataclasses import asdict, dataclass
 
 import httpx
 
-from nika.config import REPO_ROOT
+from nika.config import CACHE_DIR
 
-_CACHE_DIR = REPO_ROOT / ".nika_cache" / "image-configs"
+_CACHE_DIR = CACHE_DIR / "image-configs"
 _DOCKER_HUB = "registry-1.docker.io"
 _ACCEPT = ", ".join(
     (

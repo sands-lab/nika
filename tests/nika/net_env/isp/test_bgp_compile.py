@@ -363,3 +363,36 @@ def test_catalog_ebgp_has_connected_as_scoped_igp_and_linear_sessions(
             traffic.plan, traffic=traffic, bgp_plan=bgp
         ).to_json()
     )
+
+
+@pytest.mark.parametrize("topology", ["abilene", "geant"])
+def test_ebgp_customer_route_rides_one_session(topology: str) -> None:
+    """Only the provider exports the customer route, and only to the partner."""
+    isp_plan = compile_isp_plan(IspConfig(topology=topology, igp="ospf"))
+    plan = compile_bgp_plan(isp_plan, "ebgp")
+    site = plan.customer_site
+    assert site is not None
+    asn_of = {n.device_name: n.asn for n in plan.nodes}
+    assert asn_of[site.provider] != asn_of[site.partner] == site.partner_asn
+    service_asns = {
+        asn_of[o.device]
+        for o in plan.originated
+        if o.ping_address == site.service_address
+    }
+    assert service_asns == {site.partner_asn}
+    for node in plan.nodes:
+        frag = render_bgp_frr_fragment(node, plan)
+        assert "route-map BGP-IN permit 15" in frag
+        exports = [
+            line.split()[1]
+            for line in frag.splitlines()
+            if "route-map BGP-OUT-AS" in line and line.strip().startswith("neighbor")
+        ]
+        if node.device_name == site.provider:
+            assert exports == [site.partner_ip]
+            assert f"network {site.prefix}" in frag
+        else:
+            assert not exports
+            assert f"network {site.prefix}" not in frag
+    assert compile_bgp_plan(isp_plan, "ebgp", rpki=True).customer_site is None
+    assert compile_bgp_plan(isp_plan, "ebgp", customer_site=False).customer_site is None

@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 
+import hashlib
 import json
 
 from nika.problems.rca import node_resource
@@ -20,8 +21,12 @@ class ArpCachePoisoningParams(BaseModel):
     """Parameters for injecting an ARP cache poisoning fault."""
 
     host_name: str = Field(description="Target host name.")
-    fake_mac: str = Field(
-        default="00:11:22:33:44:55", description="Forged MAC address."
+    fake_mac: str | None = Field(
+        default=None,
+        description=(
+            "Forged MAC address. Defaults to a unicast address derived from the "
+            "host and neighbor, like the address of an unrelated NIC."
+        ),
     )
     target_ip: str | None = Field(
         default=None,
@@ -94,18 +99,46 @@ class ArpCachePoisoning(ProblemBase):
             raise ValueError(f"No default gateway on {host_name}")
         return gateway, None
 
+    def _fake_mac(self, params: ArpCachePoisoningParams, neighbor: str) -> str:
+        """Forged MAC: ``params.fake_mac`` or a stable locally administered one.
+
+        A placeholder such as ``00:11:22:33:44:55`` reads as injected on its own.
+        """
+        if params.fake_mac:
+            return params.fake_mac
+        digest = bytearray(
+            hashlib.sha256(f"{params.host_name}:{neighbor}".encode()).digest()[:6]
+        )
+        digest[0] = (digest[0] & 0xFC) | 0x02
+        return ":".join(f"{byte:02x}" for byte in digest)
+
     def inject_fault(self, params: ArpCachePoisoningParams):
         gateway, dev = self._arp_target(params)
         self._poisoned_neighbor = gateway
+        fake_mac = self._fake_mac(params, gateway)
+        original = self.runtime.exec(
+            params.host_name, f"ip neigh show {gateway} 2>/dev/null"
+        )
         # Clos/P4 install nud permanent GW neigh; arp -s does not reliably override.
         self.runtime.exec(params.host_name, "ip neigh flush nud permanent")
         self.runtime.exec(params.host_name, "ip neigh flush all")
-        replace = f"ip neigh replace {gateway} lladdr {params.fake_mac} nud permanent"
+        replace = f"ip neigh replace {gateway} lladdr {fake_mac} nud permanent"
         if dev:
             replace += f" dev {dev}"
         self.runtime.exec(params.host_name, replace)
-        # P2P Clos/P4 leaves match L3 only (ignore eth_dst). inet/output cannot see
-        # Ethernet headers on locally generated packets; netdev egress can.
+        if "PERMANENT" not in original:
+            # A learned neighbor sits behind a router or bridge port that
+            # discards frames for a MAC it does not own: the forged entry alone
+            # blackholes the traffic, and the host carries no extra state.
+            return
+        if self.net_env.ROUTERS_CHECK_DST_MAC:
+            # The routers only route frames addressed to their own interface
+            # MAC, so the forged entry alone blackholes the traffic.
+            return
+        # Other static-neighbor fabrics (P4 leaves) forward on L3 alone and
+        # ignore eth_dst, so frames to the forged MAC would still arrive. Drop
+        # them at the host's egress instead. inet/output cannot see Ethernet
+        # headers on locally generated packets; netdev egress can.
         egress_dev = dev or "eth0"
         self.runtime.exec(
             params.host_name,
@@ -125,7 +158,7 @@ class ArpCachePoisoning(ProblemBase):
         )
         self.runtime.exec(
             params.host_name,
-            f"nft add rule netdev filter egress ether daddr {params.fake_mac} drop",
+            f"nft add rule netdev filter egress ether daddr {fake_mac} drop",
         )
 
     def verify_fault(self, params: ArpCachePoisoningParams) -> dict:
@@ -133,8 +166,9 @@ class ArpCachePoisoning(ProblemBase):
         gateway = self._poisoned_neighbor
         if gateway is None:
             gateway, _dev = self._arp_target(params)
+        fake_mac = self._fake_mac(params, gateway)
         neigh_output = self.runtime.exec(
-            params.host_name, f"ip neigh show | grep '{params.fake_mac}'"
+            params.host_name, f"ip neigh show | grep -i '{fake_mac}'"
         ).strip()
         gw_entry = ""
         if gateway:
@@ -142,7 +176,7 @@ class ArpCachePoisoning(ProblemBase):
                 params.host_name, f"ip neigh show {gateway} 2>/dev/null"
             ).strip()
         verified = bool(neigh_output) and (
-            not gateway or params.fake_mac.lower() in gw_entry.lower()
+            not gateway or fake_mac.lower() in gw_entry.lower()
         )
         return build_verify_result(
             fault_type=self.root_cause_name,
@@ -150,7 +184,7 @@ class ArpCachePoisoning(ProblemBase):
             details={
                 "host": params.host_name,
                 "gateway": gateway,
-                "fake_mac": params.fake_mac,
+                "fake_mac": fake_mac,
                 "neigh_entry": neigh_output,
                 "gateway_neigh": gw_entry,
             },

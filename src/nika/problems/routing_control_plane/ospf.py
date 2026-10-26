@@ -5,6 +5,7 @@ import re
 from pydantic import BaseModel, Field
 
 from nika.problems.rca import node_resource
+from nika.problems.support.frr import FRR_CONF, frr_config_command
 from nika.problems.base import (
     FailureDomain,
     build_verify_result,
@@ -30,14 +31,10 @@ def ospf_networks(config: str) -> list[tuple[str, str]]:
 
 _INTERFACE_RE = re.compile(r"^interface\s+(\S+)\s*$")
 _INTERFACE_AREA_RE = re.compile(r"^\s+ip ospf area\s+(\S+)\s*$")
-_COMMENTED_INTERFACE_AREA_RE = re.compile(r"^\s+!\s+ip ospf area\s+(\S+)\s*$")
 
 
-def _ospf_interface_areas(
-    config: str, *, commented: bool = False
-) -> list[tuple[str, str]]:
-    """Extract active or commented ``(interface, area)`` bindings from FRR config."""
-    pattern = _COMMENTED_INTERFACE_AREA_RE if commented else _INTERFACE_AREA_RE
+def _ospf_interface_areas(config: str) -> list[tuple[str, str]]:
+    """Extract ``(interface, area)`` bindings from FRR config."""
     bindings = []
     interface = None
     for line in config.splitlines():
@@ -45,7 +42,7 @@ def _ospf_interface_areas(
             interface = match[1]
         elif line and not line[0].isspace() and not line.startswith("!"):
             interface = None
-        elif interface and (match := pattern.fullmatch(line)):
+        elif interface and (match := _INTERFACE_AREA_RE.fullmatch(line)):
             bindings.append((interface, match[1]))
     return bindings
 
@@ -128,37 +125,42 @@ class OSPFAreaMisconfig(ProblemBase):
         wrong_area = "66" if correct_area != "66" else "99"
         # Keep the original area set in memory; a .bak file would expose it.
         self._orig_areas = {binding[-1] for binding in statements + interface_bindings}
+        # Move the bindings in the running daemon (no restart), then keep the
+        # startup file consistent with it.
         if statements:
-            # Move the statements in the running daemon (no restart), then keep
-            # the startup file consistent with it.
-            moves = " ".join(
-                f"-c 'no network {prefix} area {area}' -c 'network {prefix} area {wrong_area}'"
+            moves = [
+                line
                 for prefix, area in statements
                 if area == correct_area
+                for line in (
+                    f"no network {prefix} area {area}",
+                    f"network {prefix} area {wrong_area}",
+                )
+            ]
+            self.runtime.exec(
+                params.host_name, frr_config_command("router ospf", *moves)
             )
             self.runtime.exec(
                 params.host_name,
-                f"vtysh -c 'configure terminal' -c 'router ospf' {moves} -c 'end'",
-            )
-            self.runtime.exec(
-                params.host_name,
-                f"sed -i -E 's/(area ){correct_area}$/\\1{wrong_area}/g' /etc/frr/frr.conf",
+                f"sed -i -E 's/(area ){correct_area}$/\\1{wrong_area}/g' {FRR_CONF}",
             )
         else:
-            moves = " ".join(
-                f"-c 'interface {interface}' -c 'no ip ospf area {area}' -c 'ip ospf area {wrong_area}'"
+            moves = [
+                line
                 for interface, area in interface_bindings
                 if area == correct_area
-            )
-            self.runtime.exec(
-                params.host_name,
-                f"vtysh -c 'configure terminal' {moves} -c 'end'",
-            )
+                for line in (
+                    f"interface {interface}",
+                    f"no ip ospf area {area}",
+                    f"ip ospf area {wrong_area}",
+                )
+            ]
+            self.runtime.exec(params.host_name, frr_config_command(*moves))
             self.runtime.exec(
                 params.host_name,
                 "sed -i -E "
                 f"'s/^([[:space:]]*ip ospf area ){re.escape(correct_area)}$/\\1{wrong_area}/' "
-                "/etc/frr/frr.conf",
+                f"{FRR_CONF}",
             )
         self.logger.info(
             f"Injected OSPF area misconfiguration on {params.host_name} from area {correct_area} to {wrong_area}."
@@ -286,14 +288,16 @@ class OSPFNeighborMissing(ProblemBase):
         )
 
     def inject_fault(self, params: OSPFNeighborMissingParams):
-        # Drop the one binding that brings a single adjacency into OSPF.
+        # Drop the one binding that brings a single adjacency into OSPF, the
+        # way a deleted ``network`` line loses that neighbor and only it. The
+        # startup file loses the line too, leaving no commented-out line that
+        # points at the change.
         kind, binding, area = self._single_adjacency_binding(params.host_name)
         if kind == "network":
             prefix = binding
             self.runtime.exec(
                 params.host_name,
-                "vtysh -c 'configure terminal' -c 'router ospf' "
-                f"-c 'no network {prefix} area {area}' -c 'end'",
+                frr_config_command("router ospf", f"no network {prefix} area {area}"),
             )
             line = f"network {prefix} area {area}".replace(".", "\\.").replace(
                 "/", "\\/"
@@ -301,24 +305,24 @@ class OSPFNeighborMissing(ProblemBase):
             self.runtime.exec(
                 params.host_name,
                 "sed -i -E "
-                f"'{_OSPF_BLOCK_RANGE} s/^([[:space:]]+)({line})[[:space:]]*$/\\1# \\2/' "
-                "/etc/frr/frr.conf",
+                f"'{_OSPF_BLOCK_RANGE} {{/^[[:space:]]+{line}[[:space:]]*$/d}}' "
+                f"{FRR_CONF}",
             )
         else:
             interface = binding
             self.runtime.exec(
                 params.host_name,
-                "vtysh -c 'configure terminal' "
-                f"-c 'interface {interface}' -c 'no ip ospf area {area}' -c 'end'",
+                frr_config_command(f"interface {interface}", f"no ip ospf area {area}"),
             )
             interface_pattern = re.escape(interface)
             self.runtime.exec(
                 params.host_name,
                 "sed -i -E "
                 f"'/^interface {interface_pattern}$/,/^[^[:space:]!#]/ "
-                f"s/^([[:space:]]*)ip ospf area {re.escape(area)}$/\\1! ip ospf area {area}/' "
-                "/etc/frr/frr.conf",
+                f"{{/^[[:space:]]*ip ospf area {re.escape(area)}$/d}}' "
+                f"{FRR_CONF}",
             )
+        self._dropped_binding = (kind, binding, area)
         self.logger.info(
             f"Injected OSPF neighbor missing on {params.host_name} "
             f"(removed {kind} binding {binding} area {area})."
@@ -326,50 +330,45 @@ class OSPFNeighborMissing(ProblemBase):
 
     def verify_fault(self, params: OSPFNeighborMissingParams) -> dict:
         """Verify one OSPF binding is gone while the other bindings remain."""
-        file_config = self.runtime.exec(params.host_name, "cat /etc/frr/frr.conf")
+        kind, binding, area = getattr(self, "_dropped_binding", None) or (
+            None,
+            None,
+            None,
+        )
+        file_config = self.runtime.exec(params.host_name, f"cat {FRR_CONF}")
         running_config = self.runtime.exec(
             params.host_name, "vtysh -c 'show running-config' 2>/dev/null"
         )
-        commented = re.findall(
-            r"^\s*#\s*network\s+(\S+)\s+area\s+(\S+)",
-            self.runtime.exec(
-                params.host_name,
-                f"sed -n -E '{_OSPF_BLOCK_RANGE} p' /etc/frr/frr.conf 2>/dev/null",
-            ),
-            re.MULTILINE,
-        )
-        dropped_interfaces = _ospf_interface_areas(file_config, commented=True)
         file_networks, file_interfaces = _ospf_area_bindings(file_config)
         running_networks, running_interfaces = _ospf_area_bindings(running_config)
-        dropped = [tuple(item) for item in commented]
-        if dropped_interfaces:
+        if kind == "interface":
             verified = (
-                len(dropped_interfaces) == 1
-                and not dropped
+                (binding, area) not in running_interfaces
+                and (binding, area) not in file_interfaces
                 and set(file_interfaces) == set(running_interfaces)
-                and dropped_interfaces[0] not in running_interfaces
                 and bool(running_interfaces)
                 and not file_networks
                 and not running_networks
             )
-            dropped_interface_binding = list(dropped_interfaces[0])
         else:
             verified = (
-                len(dropped) == 1
-                and dropped[0] not in running_networks
-                and len(running_networks) > 0
+                kind == "network"
+                and (binding, area) not in running_networks
+                and (binding, area) not in file_networks
                 and set(file_networks) == set(running_networks)
+                and bool(running_networks)
                 and not file_interfaces
                 and not running_interfaces
             )
-            dropped_interface_binding = None
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=verified,
             details={
                 "host": params.host_name,
-                "dropped_network": list(dropped[0]) if dropped else None,
-                "dropped_interface_binding": dropped_interface_binding,
+                "dropped_network": [binding, area] if kind == "network" else None,
+                "dropped_interface_binding": (
+                    [binding, area] if kind == "interface" else None
+                ),
                 "running_network_count": len(running_networks),
                 "running_interface_binding_count": len(running_interfaces),
             },

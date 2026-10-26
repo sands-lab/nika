@@ -14,6 +14,7 @@ from nika.net_env.isp.igp.plan import (
     build_inventory,
     slugify,
 )
+from nika.net_env.isp.workload import BULK_OBJECT_STARTUP
 from nika.net_env.isp.traffic.models import (
     DEFAULT_EDGE_POOL_CIDR,
     TrafficMatrixSeries,
@@ -149,6 +150,7 @@ def attach_traffic_stubs(
                 startup_commands=(
                     f"ip addr add {host_ip}/30 dev {host_iface}",
                     f"ip route replace default via {router_ip}",
+                    BULK_OBJECT_STARTUP,
                 ),
             )
         )
@@ -325,6 +327,8 @@ def _startup_with_ifaces(
     cmds = [f"ip addr add {loopback}/32 dev lo"]
     for iface in interfaces:
         cmds.append(f"ip addr add {iface.address}/{iface.prefixlen} dev {iface.name}")
+        if iface.mtu:
+            cmds.append(f"ip link set dev {iface.name} mtu {iface.mtu}")
     cmds.extend(
         [
             "service frr start",

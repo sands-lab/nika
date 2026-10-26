@@ -18,7 +18,7 @@ import yaml
 from Kathara.manager.Kathara import Kathara
 from Kathara.model.Lab import Lab
 
-from nika.config import REPO_ROOT, RUNTIME_DIR
+from nika.config import CACHE_DIR, RUNTIME_DIR
 from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.net_env.utils.k8s_workload_cache import (
     K3S_IMAGE,
@@ -26,6 +26,12 @@ from nika.net_env.utils.k8s_workload_cache import (
     mount_workload_cache,
 )
 from nika.runtime.spec import NodeRole
+from nika.traffic.workload import (
+    BULK_DOWNLOAD,
+    BusinessWorkload,
+    WorkloadExercise,
+    WorkloadProcess,
+)
 from nika.utils.net import pick_free_port
 from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 
@@ -33,6 +39,9 @@ cur_path = os.path.dirname(os.path.abspath(__file__))
 
 _K3S_IMAGE = K3S_IMAGE
 _BASE_IMAGE = nika_image("base")
+
+# Per-node monitoring agent (``controller/k8s/uptime-agent.yaml``).
+_AGENT_IMAGE = "busybox:1.37.0-musl@sha256:5cec3fc171c87218698e85a52af7087de727372aae264a787b8112901a5b0092"
 
 _KUBECONFIG_REMOTE_PATH = "/etc/rancher/k3s/k3s.yaml"
 
@@ -65,7 +74,7 @@ _HELM_CHART_SPECS = (
 
 def _ensure_helm_binary() -> Path:
     """Download Helm on the host (k3s busybox wget has no HTTPS) and stage it for Kathara."""
-    cache_dir = REPO_ROOT / ".nika_cache" / "helm" / _HELM_VERSION
+    cache_dir = CACHE_DIR / "helm" / _HELM_VERSION
     helm_bin = cache_dir / f"helm-{_HELM_ARCHITECTURE}"
     if helm_bin.is_file() and os.access(helm_bin, os.X_OK):
         return helm_bin
@@ -99,7 +108,7 @@ def ensure_helm_charts() -> list[Path]:
     """Download AgentGateway Helm charts on the host and return cached tgz paths."""
     import subprocess
 
-    cache_dir = REPO_ROOT / ".nika_cache" / "helm" / "charts"
+    cache_dir = CACHE_DIR / "helm" / "charts"
     cache_dir.mkdir(parents=True, exist_ok=True)
     helm_bin = _ensure_helm_binary()
     chart_paths: list[Path] = []
@@ -156,6 +165,7 @@ class LLMDInferenceCluster(NetworkEnvBase):
         # with the same release tag.
         "cr.agentgateway.dev/controller:v1.1.0@sha256:0c4179780a3353a20f403ed51c764127f2806b6aa1a5ecb6da7655b5b27d7926",
         "cr.agentgateway.dev/agentgateway:v1.1.0@sha256:b5fd647604aa37eb2da372206a6681dfd613461e2445d89ba0b80e8439a4ff29",
+        _AGENT_IMAGE,
     )
     VERIFY_MAX_WAIT_SEC = 1800
     VERIFY_RETRY_DELAY_SEC = 2
@@ -173,7 +183,20 @@ class LLMDInferenceCluster(NetworkEnvBase):
         self.desc = (
             "A star-topology Kubernetes (k3s) cluster running llm-d with disaggregated "
             "Prefill/Decode inference. All workload images are prepared on the host; "
-            "uses Gateway API and inference extensions."
+            "uses Gateway API and inference extensions. "
+            "The client sends inference requests to the llm-d gateway and pulls "
+            "a dataset from the web server at all times, and a monitoring agent "
+            "on every k3s node sends requests to the gateway through its "
+            "Service name. Hosts resolve lab names (client, web, controller, "
+            "workers, llmd) through static /etc/hosts entries; the lab runs no "
+            "DNS server for lab names (cluster DNS serves pods only). "
+            # Shown for every task on this lab, not only Kubernetes faults: a
+            # note that appeared only with those faults would reveal the class.
+            "`kubectl` works only on controller (the k3s server); the worker "
+            "devices ship the binary but have no kubeconfig. A faulty resource "
+            "may be a lab device (identified by its device name) or a Kubernetes "
+            "object (identified by kind, namespace and name, as listed in the "
+            "resource inventory)."
         )
         self.kubernetes_nodes = []
 
@@ -249,8 +272,8 @@ class LLMDInferenceCluster(NetworkEnvBase):
 
         # Dedicated HTTP endpoint for application-layer faults (separate from
         # the probe client so CPU-quota injects do not starve curl itself).
-        # nika/base includes stress-ng; pin NanoCpus at create time so recover
-        # can restore a non-zero quota (Docker ignores NanoCpus:0 clears).
+        # Pin NanoCpus at create time so recover can restore a non-zero quota
+        # (Docker ignores NanoCpus:0 clears).
         web = self.lab.new_machine(
             "web", **{"image": nika_image("base"), "cpus": 1.0, "mem": "512m"}
         )
@@ -335,6 +358,51 @@ class LLMDInferenceCluster(NetworkEnvBase):
             "controllers": roles["k8s_controllers"],
             "l2_endpoints": sorted(clients, key=lambda h: h != "client"),
         }
+
+    def business_workload(self) -> BusinessWorkload:
+        # The client app talks to the gateway VIP and syncs a dataset from the
+        # web server; the in-cluster monitoring agents
+        # (``controller/k8s/uptime-agent.yaml``) reach the gateway through
+        # cluster DNS. The dataset transfers run from the web server to the
+        # client, so a starved sender or receiver slows them.
+        chat = (
+            '{"model":"llm-d-sim","max_tokens":16,'
+            '"messages":[{"role":"user","content":"Summarize the weekly report."}]}'
+        )
+        return BusinessWorkload(
+            processes=(
+                WorkloadProcess(
+                    node="client",
+                    app="api_client",
+                    command="chat-app",
+                    args=(
+                        "http://llmd/v1/chat/completions",
+                        "--body",
+                        chat,
+                        "--workers",
+                        "2",
+                        "--every",
+                        "4-10",
+                        "--seed",
+                        "1",
+                    ),  # fmt: skip
+                ),
+                WorkloadProcess(
+                    node="client",
+                    app="file_sync",
+                    command="dataset-sync",
+                    args=(
+                        "http://200.0.0.8/dataset.bin",
+                        "--pause",
+                        "5-15",
+                        "--seed",
+                        "1",
+                    ),  # fmt: skip
+                ),
+            ),
+            exercises=(WorkloadExercise(BULK_DOWNLOAD, ("client",)),),
+            settle_sec=5.0,
+        )
 
     @classmethod
     def default_probe_path(cls, *, topo_size: str = "s", **deploy_kwargs) -> ProbePath:

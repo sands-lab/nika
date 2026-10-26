@@ -60,7 +60,7 @@ class SandboxDefinition(BaseModel):
     # pip requirement specifiers, installed from PyPI after NIKA's pinned
     # ``langgraph`` set; default: the project's [project].dependencies.
     install: list[str] | None = None
-    # Hosts the sandbox may reach besides the MCP gateway and model proxy.
+    # Hosts the sandbox may reach while it is prepared, before the agent starts.
     egress: list[str] = Field(default_factory=list)
 
 

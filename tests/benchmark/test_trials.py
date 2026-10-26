@@ -9,7 +9,10 @@ from unittest.mock import patch
 
 import pytest
 
+from nika.workflows.benchmark.candidate_context import row_to_case
 from nika.workflows.benchmark.healthy import HEALTHY_PROBLEM
+from nika.workflows.benchmark.load_config import normalize_benchmark_row
+from nika.workflows.benchmark.migrate import materialize_case
 from nika.workflows.benchmark.release import (
     JOB_FILENAME,
     RUN_CONFIG_FILENAME,
@@ -944,6 +947,20 @@ class TestReleaseRunMetadata:
         }
         assert case_key_for_row(ROW_A) != case_key_for_row(other)
         assert benchmark_row_fingerprint(ROW_A) != benchmark_row_fingerprint(other)
+
+    def test_telemetry_separates_cases_and_keeps_existing_identity(self) -> None:
+        row = normalize_benchmark_row({**ROW_A, "telemetry": ["netflow"]})
+        assert row["telemetry"] == ["netflow"]
+        assert "telemetry" not in normalize_benchmark_row(ROW_A)
+        assert case_key_for_row(row) != case_key_for_row(ROW_A)
+        assert benchmark_row_fingerprint(row) != benchmark_row_fingerprint(ROW_A)
+        # Rows without telemetry keep the identity published releases rely on.
+        assert case_key_for_row(ROW_A) == "dc_clos__link_down__s__h0477bc828c02"
+        with pytest.raises(ValueError, match="Unknown telemetry"):
+            normalize_benchmark_row({**ROW_A, "telemetry": ["sflow"]})
+        # Selection export and release materialization keep the field.
+        assert row_to_case(row)["telemetry"] == ["netflow"]
+        assert materialize_case(row)["telemetry"] == ["netflow"]
 
     def test_long_trial_directory_keeps_readable_case_prefix(self) -> None:
         row = {

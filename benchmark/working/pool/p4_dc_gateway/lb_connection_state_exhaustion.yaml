@@ -1,0 +1,32 @@
+scenario:
+  name: p4_dc_gateway
+failure:
+  fault_type: lb_connection_state_exhaustion
+  cases:
+  - topo_size: s
+    inject:
+      host_name: gateway_1
+      max_connections: '4'
+    root_causes:
+    - resource:
+        kind: node
+        node: gateway_1
+      fault_type: lb_connection_state_exhaustion
+  - topo_size: m
+    inject:
+      host_name: gateway_1
+      max_connections: '4'
+    root_causes:
+    - resource:
+        kind: node
+        node: gateway_1
+      fault_type: lb_connection_state_exhaustion
+  - topo_size: l
+    inject:
+      host_name: gateway_1
+      max_connections: '4'
+    root_causes:
+    - resource:
+        kind: node
+        node: gateway_1
+      fault_type: lb_connection_state_exhaustion

@@ -1,5 +1,6 @@
 import os
 import stat
+import subprocess
 import sys
 from pathlib import Path
 
@@ -20,7 +21,36 @@ if sys.prefix != sys.base_prefix and str(_ENV_BIN) not in os.environ.get(
 ).split(os.pathsep):
     os.environ["PATH"] = os.pathsep.join([str(_ENV_BIN), os.environ.get("PATH", "")])
 
-RUNTIME_DIR = REPO_ROOT / "runtime"
+
+def resolve_state_dir() -> Path:
+    """Return the root of all NIKA state (``runtime/`` and ``.nika_cache/``).
+
+    Git checkouts share the main working tree: the parent of
+    ``git rev-parse --git-common-dir``. Otherwise this is the repository
+    root of the installed package.
+    """
+    try:
+        completed = subprocess.run(
+            ["git", "rev-parse", "--git-common-dir"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return REPO_ROOT
+    raw = completed.stdout.strip()
+    if completed.returncode != 0 or not raw:
+        return REPO_ROOT
+    common = Path(raw)
+    if not common.is_absolute():
+        common = REPO_ROOT / common
+    return common.resolve().parent
+
+
+STATE_DIR = resolve_state_dir()
+RUNTIME_DIR = STATE_DIR / "runtime"
+CACHE_DIR = STATE_DIR / ".nika_cache"
 SESSIONS_DIR = RUNTIME_DIR / "sessions"
 SESSIONS_DB = RUNTIME_DIR / "sessions.db"
 BENCHMARK_RUNS_DIR = RUNTIME_DIR / "benchmark_runs"

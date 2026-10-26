@@ -173,6 +173,8 @@ class TrialResult(BaseModel):
     metrics: dict[str, float | int | None] = Field(default_factory=dict)
     gt_fault_types: list[str] = Field(default_factory=list)
     predicted_fault_types: list[str] | None = None
+    # Run-validity flags (see ``nika.evaluator.validity``); empty for clean trials.
+    validity_flags: list[str] = Field(default_factory=list)
 
     @field_validator("gt_fault_types")
     @classmethod
@@ -237,3 +239,5 @@ class AggregatedMetrics(BaseModel):
     healthy_mean_detection_score: float = 0.0
     token_totals: dict[str, int] = Field(default_factory=dict)
     steps_totals: dict[str, int] = Field(default_factory=dict)
+    # Trials per run-validity flag; flags that never fired are omitted.
+    validity_counts: dict[str, int] = Field(default_factory=dict)

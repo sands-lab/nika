@@ -5,12 +5,14 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import time
 
 import pytest
 from langchain_mcp_adapters.client import MultiServerMCPClient
 
-from nika.agents.mcp_config import MCPServerConfig
+from nika.agents.mcp_config import MCPServerConfig, load_session_mcp_config
 from nika.mcp.gateway.lifecycle import mcp_gateway_for_session
+from nika.runtime.factory import runtime_for_session
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.integration_pipeline import tool_text_list
 from tests.support.prerequisites import docker_available, docker_image_available
@@ -217,18 +219,18 @@ class TestP4McpLive(IntegrationTestCase):
                     client = MultiServerMCPClient(connections=config)
                     tools = {t.name: t for t in await client.get_tools()}
                     assert set(tools) == {"p4rt_exec"}
-                    return _text(
-                        await tools["p4rt_exec"].ainvoke(
-                            {"args": "read --switch leaf_1"}
-                        )
+                    read = await tools["p4rt_exec"].ainvoke(
+                        {"args": "read --switch leaf_1"}
                     )
+                    write = await tools["p4rt_exec"].ainvoke({"args": "apply"})
+                    return _text(read), _text(write)
 
-                raw = asyncio.run(_run())
+                raw, rejected = asyncio.run(_run())
 
             _assert_ok("p4rt_exec", raw)
             payload = json.loads(raw)
-            assert "internal_fault" not in raw
             assert "switches" in payload or payload.get("ok") is True
+            assert rejected.startswith("error:")
         finally:
             self._close_session(session_id)
 
@@ -293,5 +295,132 @@ class TestTelemetryMcpLive(IntegrationTestCase):
             assert any(
                 row.get("trace_complete") and row.get("hop_sequence") for row in traces
             )
+        finally:
+            self._close_session(session_id)
+
+
+def _tool_rows(name: str, raw: object) -> list[dict]:
+    rows: list[dict] = []
+    for text in tool_text_list(raw):
+        _assert_ok(name, text)
+        rows.append(json.loads(text))
+    return rows
+
+
+@pytest.mark.skipif(not docker_available(), reason="Docker not available")
+class TestNetflowMcpLive(IntegrationTestCase):
+    """isp_abilene + telemetry netflow: IPFIX records show the path and a reroute."""
+
+    SCENARIO = "isp_abilene"
+    # pc_chinng -> pc_iplsng crosses the direct chinng-iplsng link (chinng eth0).
+    SRC, DST_IP = "pc_chinng", "10.254.0.22"
+    FLOW_FILTER = "src ip 10.254.0.10 and dst ip 10.254.0.22"
+
+    def test_netflow_query_shows_reroute_after_link_down(self) -> None:
+        session_id = self._start_env(self.SCENARIO, ["--telemetry", "netflow"])
+        try:
+            row = self._assert_session_ready(session_id, self.SCENARIO)
+            runtime = runtime_for_session(row)
+            # A ping loop survives the unreachable window while IS-IS reconverges.
+            runtime.exec(
+                self.SRC,
+                "nohup sh -c 'while true; do ping -q -c 5 -i 0.2 -W 1 "
+                f"{self.DST_IP}; done' >/dev/null 2>&1 &",
+            )
+            with mcp_gateway_for_session(session_id, scenario_name=self.SCENARIO):
+                # Selected from the session's telemetry, not from scenario tags.
+                config = load_session_mcp_config(session_id, self.SCENARIO)
+                assert "kathara_netflow_mcp_server" in config
+
+                async def _query(**args) -> list[dict]:
+                    client = MultiServerMCPClient(connections=config)
+                    tools = {t.name: t for t in await client.get_tools()}
+                    return _tool_rows(
+                        "netflow_query", await tools["netflow_query"].ainvoke(args)
+                    )
+
+                def _exporters(start_time: str) -> set[str]:
+                    rows = asyncio.run(
+                        _query(
+                            start_time=start_time,
+                            filter=self.FLOW_FILTER,
+                            aggregate_by=["router"],
+                        )
+                    )
+                    return {row["exporter"] for row in rows}
+
+                before: set[str] = set()
+                deadline = time.monotonic() + 120
+                while before != {"chinng", "iplsng"} and time.monotonic() < deadline:
+                    time.sleep(10)
+                    before = _exporters("-60")
+                assert before == {"chinng", "iplsng"}
+
+                self._inject_failure(
+                    "link_down",
+                    {"host_name": "chinng", "intf_name": "eth0"},
+                    session_id=session_id,
+                )
+                window_start = str(time.time() + 20)
+                # Exporters' records land a few seconds apart, so wait for them all.
+                rerouted = {"chinng", "nycmng", "iplsng"}
+                after: set[str] = set()
+                deadline = time.monotonic() + 180
+                while not rerouted <= after and time.monotonic() < deadline:
+                    time.sleep(10)
+                    after = _exporters(window_start)
+            assert rerouted <= after
+        finally:
+            self._close_session(session_id)
+
+
+@pytest.mark.skipif(not docker_available(), reason="Docker not available")
+class TestPrometheusMcpLive(IntegrationTestCase):
+    """isp_abilene + telemetry prometheus: metrics show a link going down."""
+
+    SCENARIO = "isp_abilene"
+    LINK_UP = 'node_network_up{node="chinng",device="eth0"}'
+
+    def test_prometheus_query_shows_link_down(self) -> None:
+        session_id = self._start_env(self.SCENARIO, ["--telemetry", "prometheus"])
+        try:
+            self._assert_session_ready(session_id, self.SCENARIO)
+            with mcp_gateway_for_session(session_id, scenario_name=self.SCENARIO):
+                # Selected from the session's telemetry, not from scenario tags.
+                config = load_session_mcp_config(session_id, self.SCENARIO)
+                assert "kathara_prometheus_mcp_server" in config
+                assert "kathara_netflow_mcp_server" not in config
+
+                async def _query(**args) -> list[dict]:
+                    client = MultiServerMCPClient(connections=config)
+                    tools = {t.name: t for t in await client.get_tools()}
+                    raw = await tools["prometheus_query"].ainvoke(args)
+                    return _tool_rows("prometheus_query", raw)
+
+                # A counter is there from the first scrape; rate() needs two.
+                routers = asyncio.run(
+                    _query(
+                        query='node_network_receive_bytes_total{device="eth0"}',
+                        limit=100,
+                    )
+                )
+                assert {"chinng", "iplsng", "nycmng"} <= {r["node"] for r in routers}
+                assert [
+                    r["value"] for r in asyncio.run(_query(query=self.LINK_UP))
+                ] == [1.0]
+
+                self._inject_failure(
+                    "link_down",
+                    {"host_name": "chinng", "intf_name": "eth0"},
+                    session_id=session_id,
+                )
+                state: list[float] = []
+                deadline = time.monotonic() + 60
+                while state != [0.0] and time.monotonic() < deadline:
+                    time.sleep(5)
+                    state = [
+                        r["value"] for r in asyncio.run(_query(query=self.LINK_UP))
+                    ]
+            assert state == [0.0]
         finally:
             self._close_session(session_id)

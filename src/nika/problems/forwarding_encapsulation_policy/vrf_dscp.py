@@ -2,45 +2,51 @@
 
 from __future__ import annotations
 
+import re
 import time
+from collections.abc import Mapping
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from nika.traffic import corp_qos_compete as qos_traffic
 from nika.net_env.enterprise_branch.topology import (
     DSCP_CS0,
     DSCP_EF,
-    TOS_EF,
     TopoSize,
     dscp_remark_inject_targets,
 )
-from nika.net_env.verify import http_ok, ping_stats
 from nika.problems.base import (
     FailureDomain,
     build_verify_result,
     ProblemBase,
 )
 from nika.problems.rca import interface_resource
-from nika.problems.support.benchmark_targets import replace
-from nika.problems.support.router_ops import native_fault_ops, router_fault_ops
+from nika.problems.support.benchmark_targets import replace, workload_exercises
+from nika.problems.support.router_ops import native_fault_ops
 from nika.runtime.base import RuntimeCapabilityError
+from nika.traffic.workload import REALTIME_BULK_CONTENTION
 from nika.utils.logger import system_logger
 
 # iptables-nft naming, as an operator QoS policy would use.
 _NFT_TABLE = "mangle"
 _NFT_CHAIN = "POSTROUTING"
-_SETTLE_SEC = 4
-_PROBE_PORT = 5198
-# The remark only degrades EF under contention, so bulk must outlive a trial.
-_WORKLOAD_SEC = 3600
+# The scenario's EF media crosses the egress many times a second.
+_MATCH_WAIT_SEC = 10.0
+_COUNTER_RE = re.compile(r"counter packets (\d+)")
 
 
-def _remark_targets(net_env: Any, scenario: str) -> list[Any]:
+def _remark_targets(cls: type, net_env: Any, scenario: str) -> list[Any]:
+    """Remark targets whose egress the scenario workload loads with EF + bulk."""
     targets = getattr(net_env, "dscp_remark_targets", None)
     if targets is None:
         raise ValueError(f"Scenario {scenario!r} has no Site Edge DSCP remark targets")
-    return targets()
+    return [
+        target
+        for target in targets()
+        if workload_exercises(
+            cls, net_env, {"host_name": target.edge, "intf_name": target.intf_name}
+        )
+    ]
 
 
 class VrfDscpRemarkingParams(BaseModel):
@@ -67,7 +73,9 @@ class VrfDscpRemarking(ProblemBase):
 
     Healthy labs preserve DSCP and classify EF vs BE on WireGuard egress.
     Inject rewrites EF (46) to CS0 (0) for CORP traffic leaving the selected
-    overlay iface so realtime flows share the congested BE class.
+    overlay iface. The scenario's own EF media then leaves its reserved class
+    for best effort, where it competes with bulk transfers for less capacity
+    than it needs and loses packets to the class's fair queueing.
     """
 
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
@@ -89,25 +97,29 @@ class VrfDscpRemarking(ProblemBase):
     )
     Params = VrfDscpRemarkingParams
     BENCHMARK_TUNNEL_IFACE = True
+    SYMPTOM_WORKLOAD = REALTIME_BULK_CONTENTION
     symptom_desc = (
         "High-priority CORP realtime traffic that should keep DSCP EF is "
         "incorrectly remarked to CS0/BE at a Site Edge LAN→overlay boundary. "
         "Under competing bulk load on the same WireGuard egress, the realtime "
-        "flow shows elevated latency, jitter, or loss while WireGuard, eBGP, "
-        "VRF RIB, and other VRFs remain healthy."
+        "flow loses packets and gains jitter at the receiving endpoint, and "
+        "the egress EF class stops carrying it, while WireGuard, eBGP, VRF "
+        "RIB, and other VRFs remain healthy."
     )
     supported_backends: tuple[str, ...] = ("kathara",)
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
         self.logger = system_logger
-        self._workload: qos_traffic.CompeteHandle | None = None
-        self._baseline: qos_traffic.FlowMetrics | None = None
         self._corp_prefix: str | None = None
 
     @classmethod
+    def symptom_workload_target(cls, inject: Mapping[str, str]) -> tuple[str, ...]:
+        return (inject.get("host_name") or "", inject.get("intf_name") or "")
+
+    @classmethod
     def benchmark_inject_params(cls, ctx):
-        targets = _remark_targets(ctx.net_env, ctx.scenario)
+        targets = _remark_targets(cls, ctx.net_env, ctx.scenario)
         if not targets:
             raise ValueError(
                 "No DSCP remark inject targets for enterprise_branch "
@@ -134,7 +146,7 @@ class VrfDscpRemarking(ProblemBase):
                 dst_host=target.dst_host,
                 corp_prefix=target.corp_prefix,
             )
-            for target in _remark_targets(ctx.net_env, ctx.scenario)
+            for target in _remark_targets(cls, ctx.net_env, ctx.scenario)
         ]
 
     @classmethod
@@ -148,7 +160,7 @@ class VrfDscpRemarking(ProblemBase):
             )
         eligible_keys = {
             (t.edge, t.intf_name, t.src_host, t.dst_host)
-            for t in _remark_targets(ctx.net_env, ctx.scenario)
+            for t in _remark_targets(cls, ctx.net_env, ctx.scenario)
         }
         key = (
             inject.get("host_name") or "",
@@ -177,22 +189,9 @@ class VrfDscpRemarking(ProblemBase):
             return params.corp_prefix
         size = self._topo_size()
         for target in dscp_remark_inject_targets(size):
-            if (
-                target.edge == params.host_name
-                and target.intf_name == params.intf_name
-                and target.src_host == params.src_host
-                and target.dst_host == params.dst_host
-            ):
-                return target.corp_prefix
-        # Fallback: match edge+iface only.
-        for target in dscp_remark_inject_targets(size):
             if target.edge == params.host_name and target.intf_name == params.intf_name:
                 return target.corp_prefix
-        site = (
-            params.host_name[: -len("_edge")]
-            if params.host_name.endswith("_edge")
-            else params.host_name
-        )
+        site = params.host_name.removesuffix("_edge")
         from nika.net_env.enterprise_branch.topology import (
             build_topo_spec,
         )
@@ -217,38 +216,15 @@ class VrfDscpRemarking(ProblemBase):
                 f"Unsupported direction {params.direction!r}; "
                 "only lan_to_overlay is supported."
             )
-        size = self._topo_size()
         self._corp_prefix = self._resolve_corp_prefix(params)
-        matrix = qos_traffic.build_compete_matrix(
-            self.runtime,
-            topo_size=size,
-            edge=params.host_name,
-            intf_name=params.intf_name,
-            src_host=params.src_host,
-            dst_host=params.dst_host,
-        )
-        self._workload = qos_traffic.start(
-            self.runtime, matrix, duration_sec=_WORKLOAD_SEC
-        )
-        time.sleep(_SETTLE_SEC)
-        self._baseline = qos_traffic.measure(self._workload)
-        self.logger.info(
-            f"QoS baseline on {params.host_name}/{params.intf_name}: "
-            f"latency={self._baseline.latency_ms} jitter={self._baseline.jitter_ms} "
-            f"loss={self._baseline.lost_percent}"
-        )
-        self._install_remark(params, self._corp_prefix)
-        time.sleep(_SETTLE_SEC)
-
-    def _install_remark(self, params: VrfDscpRemarkingParams, corp_prefix: str) -> None:
         edge = params.host_name
         iface = params.intf_name
         ops = native_fault_ops(self, edge, "add_dscp_remark")
         if ops is not None:
-            ops.add_dscp_remark(iface, corp_prefix, DSCP_EF, DSCP_CS0)
+            ops.add_dscp_remark(iface, self._corp_prefix, DSCP_EF, DSCP_CS0)
             self.logger.info(
                 f"Injected DSCP EF→CS0 remark on {edge} oif={iface} "
-                f"saddr={corp_prefix} ({ops.profile})"
+                f"saddr={self._corp_prefix} ({ops.profile})"
             )
             return
         # Ensure mangle table/chain, then EF→CS0 on CORP traffic leaving overlay.
@@ -258,28 +234,36 @@ class VrfDscpRemarking(ProblemBase):
             "{ type filter hook postrouting priority mangle ; }' 2>/dev/null || true",
             f"nft flush chain ip {_NFT_TABLE} {_NFT_CHAIN} 2>/dev/null || true",
             f"nft add rule ip {_NFT_TABLE} {_NFT_CHAIN} "
-            f'oifname "{iface}" ip saddr {corp_prefix} ip dscp {DSCP_EF} '
-            f"counter ip dscp set {DSCP_CS0}",
+            f'oifname "{iface}" ip saddr {self._corp_prefix} '
+            f"ip dscp {DSCP_EF} counter ip dscp set {DSCP_CS0}",
         ]
         for cmd in cmds:
             self.runtime.exec(edge, cmd)
         self.logger.info(
-            f"Injected DSCP EF→CS0 remark on {edge} oif={iface} saddr={corp_prefix}"
+            f"Injected DSCP EF→CS0 remark on {edge} oif={iface} "
+            f"saddr={self._corp_prefix}"
+        )
+
+    def _chain(self, params: VrfDscpRemarkingParams) -> str:
+        return self.runtime.exec(
+            params.host_name,
+            f"nft list chain ip {_NFT_TABLE} {_NFT_CHAIN} 2>/dev/null || true",
         )
 
     def _remark_present(self, params: VrfDscpRemarkingParams) -> bool:
         ops = native_fault_ops(self, params.host_name, "dscp_remark_present")
         if ops is not None:
             return ops.dscp_remark_present(params.intf_name, DSCP_EF, DSCP_CS0)
-        out = self.runtime.exec(
-            params.host_name,
-            f"nft list chain ip {_NFT_TABLE} {_NFT_CHAIN} 2>/dev/null || true",
-        )
+        out = self._chain(params)
         return (
             params.intf_name in out
             and ("dscp set 0" in out or "dscp set cs0" in out.lower())
             and ("dscp ef" in out.lower() or f"dscp {DSCP_EF}" in out)
         )
+
+    def _remarked_packets(self, params: VrfDscpRemarkingParams) -> int:
+        match = _COUNTER_RE.search(self._chain(params))
+        return int(match.group(1)) if match else 0
 
     def _remove_remark(self, params: VrfDscpRemarkingParams) -> None:
         ops = native_fault_ops(self, params.host_name, "remove_dscp_remark")
@@ -293,161 +277,37 @@ class VrfDscpRemarking(ProblemBase):
             f"nft delete table ip {_NFT_TABLE} 2>/dev/null || true",
         )
 
-    def _smoke_ok(self, params: VrfDscpRemarkingParams) -> dict[str, bool]:
-        ops = native_fault_ops(self, params.host_name, "vrf_routes")
-        if ops is not None:
-            return self._native_smoke(params, ops)
-        checks: dict[str, bool] = {}
-        link = self.runtime.exec(
-            params.host_name, f"ip -o link show {params.intf_name}"
-        ).strip()
-        checks["wg_iface_up"] = bool(link) and "state DOWN" not in link
-        # The fault itself drops much of the EF traffic; any reply shows the path is up.
-        checks["ef_path_ping"] = (
-            ping_stats(
-                self.runtime,
-                params.src_host,
-                qos_traffic.host_ip(self.runtime, params.dst_host),
-                count=5,
-            ).received
-            > 0
-        )
-        checks["hq_server_http"] = http_ok(
-            self.runtime, params.src_host, "http://10.0.20.2/"
-        ) or http_ok(self.runtime, "br1_corp_pc", "http://10.0.20.2/")
-        bgp = self.runtime.exec(params.host_name, "vtysh -c 'show bgp summary'")
-        checks["bgp_alive"] = any(
-            len(line.split()) >= 10 and line.split()[9].isdigit()
-            for line in bgp.splitlines()
-        )
-        corp_rib = self.runtime.exec(
-            params.host_name,
-            "vtysh -c 'show ip route vrf vrf_corp' 2>/dev/null || true",
-        )
-        if not corp_rib.strip():
-            corp_rib = self.runtime.exec(
-                params.host_name, "ip route show vrf vrf_corp 2>/dev/null || true"
-            )
-        checks["vrf_corp_rib"] = "10." in corp_rib
-        return checks
-
-    def _native_smoke(self, params: VrfDscpRemarkingParams, ops) -> dict[str, bool]:
-        return {
-            "wg_iface_up": ops.interface_up(params.intf_name),
-            # The fault itself drops much of the EF traffic; any reply shows the path is up.
-            "ef_path_ping": ping_stats(
-                self.runtime,
-                params.src_host,
-                qos_traffic.host_ip(self.runtime, params.dst_host),
-                count=5,
-            ).received
-            > 0,
-            "hq_server_http": http_ok(
-                self.runtime, params.src_host, "http://10.0.20.2/"
-            )
-            or http_ok(self.runtime, "br1_corp_pc", "http://10.0.20.2/"),
-            "bgp_alive": bool(ops.bgp_established_peers()),
-            "vrf_corp_rib": any(
-                p.startswith("10.") for p in ops.vrf_routes("vrf_corp")
-            ),
-        }
-
-    def _edge_tos(self, params: VrfDscpRemarkingParams, dst_ip: str) -> int | None:
-        # A native router's tunnel is out of the container's capture reach;
-        # the source and destination samples still bound the remark.
-        if router_fault_ops(self, params.host_name) is not None:
-            return None
-        return qos_traffic.sample_dscp_tos(
-            self.runtime,
-            capture_host=params.host_name,
-            capture_iface=params.intf_name,
-            src_host=params.src_host,
-            dst_ip=dst_ip,
-            send_tos=TOS_EF,
-        )
-
-    def _metrics_dict(
-        self, metrics: qos_traffic.FlowMetrics | None
-    ) -> dict[str, Any] | None:
-        if metrics is None:
-            return None
-        return {
-            "latency_ms": metrics.latency_ms,
-            "latency_mdev_ms": metrics.latency_mdev_ms,
-            "jitter_ms": metrics.jitter_ms,
-            "lost_percent": metrics.lost_percent,
-            "bits_per_second": metrics.bits_per_second,
-            "packets": metrics.packets,
-            "error": metrics.error,
-        }
-
     def verify_fault(self, params: VrfDscpRemarkingParams) -> dict[str, Any]:
+        """The remark rule is installed and live EF traffic is hitting it."""
         remark_ok = self._remark_present(params)
-        dst_ip = qos_traffic.host_ip(self.runtime, params.dst_host)
-
-        # Pause bulk so DSCP probes are not dropped by the short BE FIFO.
-        if self._workload is not None:
-            qos_traffic.pause_bulk(self._workload)
-            time.sleep(1.0)
-
-        src_tos = qos_traffic.sample_dscp_tos(
-            self.runtime,
-            capture_host=params.src_host,
-            capture_iface="eth0",
-            src_host=params.src_host,
-            dst_ip=dst_ip,
-            send_tos=TOS_EF,
-        )
-        edge_tos = self._edge_tos(params, dst_ip)
-        dst_tos = qos_traffic.sample_dscp_tos(
-            self.runtime,
-            capture_host=params.dst_host,
-            capture_iface="eth0",
-            src_host=params.src_host,
-            dst_ip=dst_ip,
-            send_tos=TOS_EF,
-        )
-        samples_confirm = (
-            src_tos == TOS_EF and dst_tos == 0 and (edge_tos is None or edge_tos == 0)
-        )
-
-        if self._workload is not None:
-            qos_traffic.resume_bulk(self._workload, duration_sec=_WORKLOAD_SEC)
-            time.sleep(2.0)
-
-        details: dict[str, Any] = {
-            "remark_present": remark_ok,
-            "src_tos": src_tos,
-            "edge_tos": edge_tos,
-            "dst_tos": dst_tos,
-            "samples_confirm": samples_confirm,
-        }
-        if self._workload is not None and self._baseline is not None:
-            current = qos_traffic.measure(self._workload)
-            perf_ok = qos_traffic.degraded(self._baseline, current)
-            smoke = self._smoke_ok(params)
-            details.update(
-                {
-                    "baseline": self._metrics_dict(self._baseline),
-                    "current": self._metrics_dict(current),
-                    "perf_degraded": perf_ok,
-                    "smoke": smoke,
-                    "symptom": (
-                        "CORP EF traffic is remarked to CS0 at the Site Edge overlay "
-                        "egress and, under competing bulk load, shows elevated "
-                        "latency/jitter/loss versus the healthy baseline."
-                    ),
-                }
+        ops = native_fault_ops(self, params.host_name, "dscp_remark_present")
+        if ops is not None:
+            return build_verify_result(
+                fault_type=self.root_cause_name,
+                verified=bool(remark_ok),
+                details={
+                    "remark_present": remark_ok,
+                    "intf": params.intf_name,
+                    "profile": ops.profile,
+                },
             )
-        # Inject gate: remark artifact. DSCP/perf evidence retained in details for matrix.
+        remarked = self._remarked_packets(params)
+        deadline = time.monotonic() + _MATCH_WAIT_SEC
+        while remark_ok and remarked == 0 and time.monotonic() < deadline:
+            time.sleep(1.0)
+            remarked = self._remarked_packets(params)
         return build_verify_result(
             fault_type=self.root_cause_name,
-            verified=bool(remark_ok),
-            details=details,
+            verified=bool(remark_ok and remarked > 0),
+            details={
+                "remark_present": remark_ok,
+                "remarked_packets": remarked,
+                "intf": params.intf_name,
+            },
         )
 
     def recheck_artifact(self, params: VrfDscpRemarkingParams) -> dict[str, Any]:
-        """Re-read the nft remark rule. Does not sample DSCP or send bulk traffic."""
+        """Re-read the nft remark rule. Does not send traffic."""
         remark_ok = bool(self._remark_present(params))
         return {
             "present": remark_ok,
@@ -458,51 +318,8 @@ class VrfDscpRemarking(ProblemBase):
         }
 
     def recover_fault(self, params: VrfDscpRemarkingParams) -> dict[str, Any]:
-        """Remove remarking, confirm DSCP/performance recovery, then stop workload."""
+        """Remove the remark rule."""
         self._remove_remark(params)
-        time.sleep(2.0)
-        recovered_metrics = None
-        if self._workload is not None:
-            recovered_metrics = qos_traffic.measure(self._workload)
-
-        dst_ip = qos_traffic.host_ip(self.runtime, params.dst_host)
-        if self._workload is not None:
-            qos_traffic.pause_bulk(self._workload)
-            time.sleep(1.0)
-        dst_tos = qos_traffic.sample_dscp_tos(
-            self.runtime,
-            capture_host=params.dst_host,
-            capture_iface="eth0",
-            src_host=params.src_host,
-            dst_ip=dst_ip,
-            send_tos=TOS_EF,
-        )
-        edge_tos = self._edge_tos(params, dst_ip)
-        if self._workload is not None:
-            qos_traffic.resume_bulk(self._workload)
-        dscp_restored = dst_tos == TOS_EF and (edge_tos is None or edge_tos == TOS_EF)
-        perf_restored = True
-        if self._baseline is not None and recovered_metrics is not None:
-            perf_restored = not qos_traffic.degraded(
-                self._baseline,
-                recovered_metrics,
-                latency_factor=2.0,
-                jitter_factor=2.0,
-            )
-        if self._workload is not None:
-            qos_traffic.stop(self._workload)
-            self._workload = None
-
         remark_gone = not self._remark_present(params)
-        ok = remark_gone and dscp_restored and perf_restored
-        details = {
-            "remark_gone": remark_gone,
-            "dst_tos": dst_tos,
-            "edge_tos": edge_tos,
-            "dscp_restored": dscp_restored,
-            "perf_restored": perf_restored,
-            "baseline": self._metrics_dict(self._baseline),
-            "recovered": self._metrics_dict(recovered_metrics),
-        }
-        self.logger.info(f"recover_fault vrf_dscp_remarking: ok={ok} details={details}")
-        return {"verified": ok, "details": details}
+        self.logger.info(f"recover_fault vrf_dscp_remarking: ok={remark_gone}")
+        return {"verified": remark_gone, "details": {"remark_gone": remark_gone}}

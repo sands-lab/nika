@@ -103,6 +103,9 @@ def test_translation_keeps_areas_static_routes_and_underlay_delay() -> None:
     )
     provider = enterprise.deployment_configs["isp1_core"]
     assert "  198.18.1.10/32 100.64.0.17" in provider
+    assert (
+        "interface Loopback0\n ipv4 address 198.51.100.10/32\n no shutdown" in provider
+    )
     # XR traffic still passes the container qdiscs, but the XRd image has no
     # tc: the provider's WAN delay is applied from the router's namespace.
     assert (
@@ -110,6 +113,16 @@ def test_translation_keeps_areas_static_routes_and_underlay_delay() -> None:
         in enterprise.native_netns_commands["isp1_core"]
     )
     assert "netem" not in enterprise.lab.fs.readtext("isp1_core.startup")
+
+
+@pytest.mark.parametrize("scenario", ["campus_lan", "dc_clos", "enterprise_branch"])
+def test_iosxr_workload_stays_off_native_routers(scenario) -> None:
+    env = get_net_env_instance(scenario, topo_size="s", device_profile="iosxr")
+    workload = env.business_workload()
+    assert workload is not None and workload.processes
+    native = set(env.native_routers)
+    assert native
+    assert set(workload.nodes).isdisjoint(native)
 
 
 def test_solved_parameters_translate_with_the_router_design() -> None:

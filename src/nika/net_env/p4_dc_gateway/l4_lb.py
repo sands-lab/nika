@@ -74,12 +74,20 @@ class L4GatewayState:
         return len(self.connections)
 
 
-def set_learning_delay(runtime: LabRuntime, gateway: str, delay_ms: int) -> None:
-    """Set the gateway agent's connection-learning delay (read once a second)."""
-    config = json.dumps({"learning_delay_ms": int(delay_ms)})
+def set_agent_config(runtime: LabRuntime, gateway: str, **values: int) -> None:
+    """Change gateway agent settings, keeping the others (read once a second)."""
+    raw = runtime.exec(gateway, f"cat {LB_AGENT_CONFIG} 2>/dev/null", timeout=20)
+    try:
+        config = json.loads(raw)
+    except ValueError:
+        config = {}
+    if not isinstance(config, dict):
+        config = {}
+    config.update({key: int(value) for key, value in values.items()})
+    text = json.dumps(config, indent=2)
     runtime.exec(
         gateway,
-        f"printf '%s' {shlex.quote(config)} > {LB_AGENT_CONFIG}.tmp && "
+        f"printf '%s\\n' {shlex.quote(text)} > {LB_AGENT_CONFIG}.tmp && "
         f"mv {LB_AGENT_CONFIG}.tmp {LB_AGENT_CONFIG}",
         timeout=20,
     )

@@ -62,6 +62,7 @@ Relative result paths resolve from the repository root. NIKA rejects unknown YAM
 | `agent.submit_reject_limit` | `5` | Max consecutive `submit()` validation failures. After the last one, `submit()` refuses every later call for the session, including valid ones. Set `0` to disable the cap. |
 | `agent.reasoning_effort` | `null` | Reasoning effort. When unset, built-in harnesses use `medium` and `community.sade` and added agents get none. Accepted levels depend on the agent; see [Reasoning effort](../agents/agent-reference.md#reasoning-effort). |
 | `agent.max_tokens` | `8192` | Output-token cap per model response. BYO agents pass it to the model client; `cli.claude` and `sdk.claude_sdk` set `CLAUDE_CODE_MAX_OUTPUT_TOKENS`. `cli.codex`, `sdk.codex_sdk`, and `community.sade` do not apply it and record `null`. Benchmark runs record it in the run identity. Must be at least `1`. |
+| `agent.temperature`, `agent.top_p`, `agent.seed` | `null` | Sampling parameters for `byo.langgraph` and `byo.mcp_agent`. Unset values are omitted from the request. `temperature` must be at least `0`, `top_p` in `(0, 1]`. Anthropic and DeepSeek clients ignore `seed`. Benchmark runs and `run.json` record the explicit values, or `"server default"`, as `sampling`. |
 | `agent.llm.timeout_sec` | `480` | LLM request timeout used by the `byo.langgraph` model factory. Must be non-negative. With streaming it bounds the wait between chunks, not the whole response. |
 | `agent.llm.max_retries` | `2` | LLM retries used by the `byo.langgraph` model factory. Must be non-negative. |
 | `agent.llm.stream` | `true` | Stream LLM responses in the `byo.langgraph` model factory. Set `false` for OpenAI-compatible servers that do not support streaming or `stream_options`. |
@@ -70,7 +71,7 @@ Relative result paths resolve from the repository root. NIKA rejects unknown YAM
 | `agent.submission.model` | `null` | `unstructured` only, required. Mapping model id. Its output is capped by `agent.max_tokens`, also for agents that ignore that setting. |
 | `agent.submission.base_url` | `null` | `unstructured` only. Endpoint for `provider: custom`; defaults to `agent.base_url`. |
 | `agent.submission.samples` | `1` | `unstructured` only. Independent mappings of the report; NIKA submits the most frequent valid answer (ties go to the earliest). Each mapping gets one corrective retry when its answer is invalid. |
-| `agent.submission.temperature` | `null` | `unstructured` only. Sampling temperature of the mapping model; `null` keeps the provider default, which is `0` for `custom`. With `samples` above `1`, set it above `0`, or every sample gives the same answer. |
+| `agent.submission.temperature` | `null` | `unstructured` only. Sampling temperature of the mapping model; `null` keeps the provider default, which is `0` for `custom`. |
 | `agent.access.role` | `default` | Diagnosis access role for the run. `--role` on `agent run` / `benchmark run` overrides it. The role must exist in `agent.access.roles`. Benchmark runs record it in the run identity. |
 | `agent.access.roles.<role>.tools` | `["*"]` | MCP tools the agent may call during diagnosis. `*` allows every tool. Submission always allows only `submit`. |
 | `agent.access.roles.<role>.node_roles` | `["*"]` | Scenario node roles that node-targeted tools may address. `*` allows every role. |
@@ -116,6 +117,10 @@ Leaderboard trajectory submit reads `HF_TOKEN` from `.env` / the environment. Se
 | `nika.judge.model` | `gpt-5-mini` | Judge model used when the CLI does not override it. |
 | `nika.k8s.access` | `auto` | `auto` and `mcp` register the Kubernetes MCP server. `kubectl_only` skips it. |
 | `nika.k8s.apiserver` | `null` | Optional Kubernetes API server override for the host-side client. |
+
+### State directory
+
+NIKA stores `runtime/` and `.nika_cache/` at the root of the main Git checkout (the parent of `git rev-parse --git-common-dir`), so every worktree of the same repository shares sessions and caches. When the source tree is not a Git checkout, they live at the repository root.
 
 ### Lab lifecycle settings
 

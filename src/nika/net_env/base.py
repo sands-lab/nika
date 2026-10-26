@@ -1,13 +1,18 @@
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import ClassVar, Set
+from typing import TYPE_CHECKING, ClassVar, Set
 
 from nika.runtime.base import LabRuntime
 from nika.runtime.factory import runtime_for_net_env
 from nika.runtime.spec import LabSpec, MachineInventory, NodeIdentity, NodeRole
 
 from nika.net_env.contract import ValidationContract
+from nika.net_env.probe_intent import ProbeIntent
+
+if TYPE_CHECKING:
+    from nika.traffic.workload import BusinessWorkload
 
 
 @dataclass(frozen=True)
@@ -39,6 +44,9 @@ class NetworkEnvBase:
     # on the host, and in-cluster images cached as tars and loaded into k3s.
     K8S_HOST_IMAGES: ClassVar[tuple[str, ...]] = ()
     K8S_WORKLOAD_IMAGES: ClassVar[tuple[str, ...]] = ()
+    # Routers route only frames addressed to their own interface MAC, as real
+    # L3 devices do (scenario-declared forwarding behaviour).
+    ROUTERS_CHECK_DST_MAC: ClassVar[bool] = False
     """
     Base class for network environments."""
 
@@ -194,10 +202,15 @@ class NetworkEnvBase:
 
         Output format: [(host1:intf1, host2:intf2), ...]
         """
+        from nika.telemetry import is_telemetry_link
+
         topology = defaultdict(list)
         machines = self.lab.machines
         for machine, stat in machines.items():
             for intf_num, intf in stat.interfaces.items():
+                # The telemetry management network is out-of-band, not a scenario link.
+                if is_telemetry_link(intf.link.name):
+                    continue
                 topology[intf.link.name].append(f"{machine}:eth{intf_num}")
         # sorted by the link name A, B, C, ...
         topology = sorted(topology.items(), key=lambda x: x[0])
@@ -210,19 +223,35 @@ class NetworkEnvBase:
             topo_list.append((machines[0], machines[1]))
         return topo_list
 
-    def _router_platform_label(self) -> str:
-        router_caps: set[str] = set()
+    @staticmethod
+    def _platform_label(capabilities: Iterable[str]) -> str:
+        caps = set(capabilities)
+        if "routeros" in caps:
+            return "MikroTik RouterOS"
+        if "iosxr" in caps:
+            return "IOS-XR"
+        if "nokia_srlinux" in caps or "srlinux" in caps:
+            return "Nokia SR Linux"
+        if "frr" not in caps and "linux" in caps:
+            return "Linux, static routes"
+        return "FRRRouting"
+
+    def frr_routers(self) -> list[str]:
+        """Routers declared as FRR (they run mgmtd and keep a commit history)."""
+        return sorted(
+            name
+            for name, identity in self.machine_identities.items()
+            if identity.role is NodeRole.ROUTER and "frr" in identity.capabilities
+        )
+
+    def _router_platform_groups(self) -> dict[str, list[str]]:
+        """Routers grouped by the platform their declared capabilities imply."""
+        groups: dict[str, list[str]] = {}
         for name in self.routers or []:
             identity = self.machine_identities.get(name)
-            if identity is not None:
-                router_caps.update(identity.capabilities)
-        if "routeros" in router_caps:
-            return "MikroTik RouterOS"
-        if "iosxr" in router_caps:
-            return "IOS-XR"
-        if "nokia_srlinux" in router_caps or "srlinux" in router_caps:
-            return "Nokia SR Linux"
-        return "FRRRouting"
+            label = self._platform_label(identity.capabilities if identity else ())
+            groups.setdefault(label, []).append(name)
+        return groups
 
     def _format_role_inventory_lines(self) -> str:
         """Role / service inventory lines for the agent-facing network brief."""
@@ -240,9 +269,8 @@ class NetworkEnvBase:
                 lines.append(
                     f"{server_type.capitalize()} Servers: {', '.join(server_list)}"
                 )
-        if self.routers:
-            label = self._router_platform_label()
-            lines.append(f"Routers ({label}): {', '.join(self.routers)}")
+        for label, names in self._router_platform_groups().items():
+            lines.append(f"Routers ({label}): {', '.join(names)}")
         if self.links:
             lines.append(f"Links: {', '.join(self.links)}")
         return "".join(f"{line}\n" for line in lines)
@@ -315,15 +343,35 @@ class NetworkEnvBase:
         """Return the scenario's backend-independent healthy baseline contract."""
         return self.validation_contract
 
+    def probe_intent(self) -> ProbeIntent | None:
+        """Designed isolation and RTT expectations for fleet-wide reachability probes.
+
+        Scenarios whose healthy baseline intentionally isolates endpoint pairs or
+        adds WAN latency override this; the default declares nothing.
+        """
+        return None
+
     def post_deploy(self):
         """Run once the lab is deployed and verified."""
         return
 
-    def reconcile_dataplane_after_port_reconnect(
-        self, runtime: LabRuntime, nodes: list[str]
-    ) -> None:
-        """Re-apply controller-managed forwarding after a switch port was moved."""
-        return
+    def business_workload(self) -> "BusinessWorkload | None":
+        """Always-on traffic of the scenario's users and services.
+
+        Return ``None`` for a quiet lab. The workload must be symmetric across
+        cases: it never depends on a fault. See :mod:`nika.traffic.workload`.
+        """
+        return None
+
+    def start_business_workload(self) -> "BusinessWorkload | None":
+        """Start ``business_workload()`` on the deployed lab (idempotent)."""
+        workload = self.business_workload()
+        if workload is None or not workload.processes:
+            return None
+        from nika.traffic.workload import start_workload
+
+        start_workload(self._build_runtime(), workload)
+        return workload
 
     @classmethod
     def prepare_k8s_image_cache(cls) -> None:

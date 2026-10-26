@@ -14,11 +14,6 @@ failure:
         node: router_core_2
         name: eth0
       fault_type: mtu_mismatch
-    - resource:
-        kind: interface
-        node: router_core_1
-        name: eth0
-      fault_type: mtu_mismatch
   - topo_size: s
     device_profile: routeros
     inject:
@@ -29,11 +24,6 @@ failure:
     - resource:
         kind: interface
         node: router_core_2
-        name: eth0
-      fault_type: mtu_mismatch
-    - resource:
-        kind: interface
-        node: router_core_1
         name: eth0
       fault_type: mtu_mismatch
   - topo_size: m
@@ -47,11 +37,6 @@ failure:
         node: router_dist_1_1
         name: eth0
       fault_type: mtu_mismatch
-    - resource:
-        kind: interface
-        node: router_core_1
-        name: eth2
-      fault_type: mtu_mismatch
   - topo_size: l
     inject:
       host_name: router_core_2
@@ -61,10 +46,5 @@ failure:
     - resource:
         kind: interface
         node: router_core_2
-        name: eth0
-      fault_type: mtu_mismatch
-    - resource:
-        kind: interface
-        node: router_core_1
         name: eth0
       fault_type: mtu_mismatch

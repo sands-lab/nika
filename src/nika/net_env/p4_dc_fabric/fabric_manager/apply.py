@@ -6,6 +6,7 @@ import io
 import json
 import tarfile
 import time
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -18,12 +19,14 @@ from nika.utils.logger import system_logger
 
 logger = system_logger
 
+PIPELINE_SOURCE = Path(__file__).resolve().parents[1] / "fabric.p4"
+
 FABRIC_DIR = "/tmp/p4_fabric"
-MANAGER = "/opt/p4rt/p4rt_manager.py"
+MANAGER_DIR = "/opt/p4rt"
+MANAGER = f"{MANAGER_DIR}/p4rt_manager.py"
 INTENT_PATH = f"{FABRIC_DIR}/intent.json"
 P4INFO_PATH = f"{FABRIC_DIR}/fabric.p4info.txt"
 JSON_PATH = f"{FABRIC_DIR}/fabric.json"
-LAST_PATH = f"{FABRIC_DIR}/last.json"
 
 
 def _exec(runtime: LabRuntime, host: str, cmd: str, timeout: float = 60.0) -> str:
@@ -55,9 +58,30 @@ def _copy_in(runtime: LabRuntime, host: str, dest_path: str, content: bytes) -> 
     with tarfile.open(fileobj=buf, mode="w") as tar:
         info = tarfile.TarInfo(name=name)
         info.size = len(content)
+        info.mtime = int(time.time())
         tar.addfile(info, io.BytesIO(content))
     buf.seek(0)
     container.put_archive(parent, buf.getvalue())
+
+
+# Manager runs per call, and the pause between them, on non-JSON output.
+MANAGER_ATTEMPTS = 3
+MANAGER_RETRY_DELAY_SEC = 3.0
+
+
+def parse_json_output(raw: str) -> dict[str, Any] | None:
+    """Return the last one-line JSON object in a command's merged output."""
+    for line in reversed(raw.splitlines()):
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(payload, dict):
+            return payload
+    return None
 
 
 def run_manager(
@@ -67,23 +91,27 @@ def run_manager(
     p4info: str = P4INFO_PATH,
     json_path: str = JSON_PATH,
 ) -> dict[str, Any]:
-    cmd = (
-        f"python3 {MANAGER} --intent {INTENT_PATH} --p4info {p4info} "
-        f"--json {json_path} {' '.join(args)} > {LAST_PATH} 2> {FABRIC_DIR}/last.err; "
-        f"echo $?"
-    )
-    status = _exec(runtime, "fabric_mgr", cmd, timeout=timeout).strip()
-    raw = _copy_out(runtime, "fabric_mgr", LAST_PATH).decode("utf-8", errors="replace")
-    try:
-        payload = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        err = _copy_out(runtime, "fabric_mgr", f"{FABRIC_DIR}/last.err").decode(
-            "utf-8", errors="replace"
-        )[-800:]
-        raise RuntimeError(
-            f"fabric manager returned non-JSON (status={status}): {err or raw[:800]}"
-        ) from exc
-    return payload
+    """Run the controller's manager and return its JSON reply.
+
+    The arguments travel in a request file that is unlinked before the
+    manager starts, so neither the process list nor the controller's
+    filesystem shows which switch a check reads.
+    """
+    argv = ["--intent", INTENT_PATH, "--p4info", p4info, "--json", json_path, *args]
+    raw = ""
+    # A P4Runtime call can fail transiently (e.g. a Read deadline on a busy
+    # host); the manager then exits with a traceback instead of JSON.
+    for attempt in range(MANAGER_ATTEMPTS):
+        if attempt:
+            time.sleep(MANAGER_RETRY_DELAY_SEC)
+        request = f"{FABRIC_DIR}/.req-{uuid.uuid4().hex[:12]}"
+        _copy_in(runtime, "fabric_mgr", request, ("\n".join(argv) + "\n").encode())
+        cmd = f"exec 3<{request}; rm -f {request}; python3 {MANAGER} @/dev/fd/3"
+        raw = _exec(runtime, "fabric_mgr", cmd, timeout=timeout)
+        payload = parse_json_output(raw)
+        if payload is not None:
+            return payload
+    raise RuntimeError(f"fabric manager returned non-JSON: {raw[-800:]}")
 
 
 def load_intent(runtime: LabRuntime) -> dict[str, Any]:
@@ -121,6 +149,32 @@ def compile_pipeline_on_switch(
         raise RuntimeError(f"p4c failed on {switch} for {program}: {output[-800:]}")
 
 
+def compile_pipeline(
+    runtime: LabRuntime, switch: str, source: Path, stem: str
+) -> tuple[bytes, bytes]:
+    """Compile *source* on *switch* and return its (P4Info, BMv2 JSON).
+
+    The source and build outputs are staged under /tmp only for the build
+    and removed afterwards; the controller keeps the compiled artifacts.
+    """
+    program = f"/tmp/{stem}.p4"
+    _copy_in(runtime, switch, program, source.read_bytes())
+    try:
+        compile_pipeline_on_switch(
+            runtime, switch, program, f"{stem}.p4info.txt", f"{stem}.json"
+        )
+        p4info = _copy_out(runtime, switch, f"/tmp/{stem}.p4info.txt")
+        device_json = _copy_out(runtime, switch, f"/tmp/{stem}.json")
+    finally:
+        _exec(
+            runtime,
+            switch,
+            f"rm -f {program} /tmp/{stem}.p4i /tmp/{stem}.json /tmp/{stem}.p4info.txt",
+            timeout=20,
+        )
+    return p4info, device_json
+
+
 def _wait_for_grpc(
     runtime: LabRuntime, model: ClosFabricModel, timeout_sec: float
 ) -> None:
@@ -151,15 +205,11 @@ def reconcile_fabric(
     _wait_for_grpc(runtime, model, wait_grpc_sec)
     _exec(runtime, "fabric_mgr", f"mkdir -p {FABRIC_DIR}", timeout=10)
 
-    compiler = model.leaves[0]
-    compile_pipeline_on_switch(
-        runtime, compiler, "fabric.p4", "fabric.p4info.txt", "fabric.json"
+    p4info, device_json = compile_pipeline(
+        runtime, model.leaves[0], PIPELINE_SOURCE, "fabric"
     )
-    for src_name, dest in (
-        ("/tmp/fabric.json", JSON_PATH),
-        ("/tmp/fabric.p4info.txt", P4INFO_PATH),
-    ):
-        _copy_in(runtime, "fabric_mgr", dest, _copy_out(runtime, compiler, src_name))
+    _copy_in(runtime, "fabric_mgr", P4INFO_PATH, p4info)
+    _copy_in(runtime, "fabric_mgr", JSON_PATH, device_json)
 
     intent = build_forwarding_intent(model)
     _copy_in(
@@ -174,18 +224,6 @@ def reconcile_fabric(
         raise RuntimeError(f"P4Runtime apply failed: {result}")
 
     observed = run_manager(runtime, "read", timeout=120)
-    _copy_in(
-        runtime,
-        "fabric_mgr",
-        f"{FABRIC_DIR}/observed.json",
-        json.dumps(observed, indent=2, default=str).encode(),
-    )
-    _copy_in(
-        runtime,
-        "fabric_mgr",
-        f"{FABRIC_DIR}/endpoint_state.json",
-        json.dumps({"endpoints": intent["endpoints"]}, indent=2).encode(),
-    )
     logger.info(
         "Programmed P4 fabric %s: %s switches",
         model.topo_size,

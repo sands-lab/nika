@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections import OrderedDict
+from collections import OrderedDict, deque
 from pathlib import Path
 
 import pytest
@@ -12,11 +12,13 @@ from nika.net_env.p4_dc_gateway.collector import append_hop, compact_output
 pytestmark = pytest.mark.unit
 
 
-def _hop(flow: str, packet: str, *, sink: bool = False, switch_id: int = 1) -> dict:
+def _hop(
+    flow: str, packet: str, *, sink: bool = False, switch_id: int = 1, ts: int = 1_000
+) -> dict:
     return {
         "flow_id": flow,
         "packet_id": packet,
-        "packet_timestamp": 1_000,
+        "packet_timestamp": ts,
         "src": "192.0.2.10",
         "dst": "10.0.1.11",
         "protocol": 6,
@@ -27,30 +29,44 @@ def _hop(flow: str, packet: str, *, sink: bool = False, switch_id: int = 1) -> d
     }
 
 
-def test_late_hops_merge_after_sink() -> None:
+def test_every_hop_persists_current_trace() -> None:
     traces: OrderedDict[tuple[str, str], list[dict]] = OrderedDict()
-    assert append_hop(traces, _hop("f", "1"), max_traces=8, max_hops=32) == []
-    first = append_hop(
-        traces, _hop("f", "1", sink=True, switch_id=2), max_traces=8, max_hops=32
+    (partial,) = append_hop(traces, _hop("f", "1"))
+    assert partial["sink_seen"] is False
+    assert partial["trace_complete"] is False
+    (full,) = append_hop(traces, _hop("f", "1", sink=True, switch_id=2, ts=2_000))
+    assert full["trace_complete"] is True
+    assert [hop["switch_id"] for hop in full["hop_sequence"]] == [1, 2]
+
+
+def test_late_hops_merge_after_sink_until_expiry() -> None:
+    traces: OrderedDict[tuple[str, str], list[dict]] = OrderedDict()
+    completed: deque = deque()
+    append_hop(
+        traces,
+        _hop("f", "1", sink=True, switch_id=2, ts=2_000),
+        completed=completed,
+        now=0.0,
     )
-    assert first[0]["sink_seen"] is True
-    assert ("f", "1") in traces
-    late = append_hop(traces, _hop("f", "1", switch_id=3), max_traces=8, max_hops=32)
-    assert {hop["switch_id"] for hop in late[0]["hop_sequence"]} == {1, 2, 3}
+    (late,) = append_hop(
+        traces, _hop("f", "1", switch_id=1, ts=1_000), completed=completed, now=5.0
+    )
+    assert [hop["switch_id"] for hop in late["hop_sequence"]] == [1, 2]
+    assert late["trace_complete"] is True
+    append_hop(traces, _hop("g", "1"), completed=completed, now=11.0)
+    assert ("f", "1") not in traces
 
 
-def test_oldest_incomplete_evicted_when_full() -> None:
+def test_oldest_trace_dropped_when_full() -> None:
     traces: OrderedDict[tuple[str, str], list[dict]] = OrderedDict()
-    for index in range(2):
-        assert append_hop(traces, _hop("f", str(index)), max_traces=2) == []
-    records = append_hop(traces, _hop("f", "2"), max_traces=2)
-    assert records[0]["packet_id"] == "0"
+    for index in range(3):
+        append_hop(traces, _hop("f", str(index)), max_traces=2)
     assert set(traces) == {("f", "1"), ("f", "2")}
 
 
 def test_hop_cap_flushes_and_drops_key() -> None:
     traces: OrderedDict[tuple[str, str], list[dict]] = OrderedDict()
-    assert append_hop(traces, _hop("f", "1"), max_hops=2) == []
+    append_hop(traces, _hop("f", "1"), max_hops=2)
     records = append_hop(traces, _hop("f", "1", switch_id=2), max_hops=2)
     assert len(records[0]["hop_sequence"]) == 2
     assert traces == {}

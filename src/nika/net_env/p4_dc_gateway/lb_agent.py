@@ -8,11 +8,17 @@ which DIP the current pool version chose.  ``learning_delay_ms`` after the SYN
 the learner pins that 5-tuple to that DIP in the size-limited
 ``lb_conn_table``; RST, FIN (after a short grace) and idleness remove it.
 Until a connection is learned, its packets are mapped by the pool hash alone.
-The delay is read from ``--config``; the live state is written to ``--status``.
+The learner pins at most ``max_connections`` connections; when the table is
+full, a new connection stays unpinned and that is logged.  The delay and the
+limit are read from ``--config``; the live state is written to ``--status``.
 
-``update`` is the routine pool update: it flips the VIP to the other pool
-version, whose buckets map to a rotated DIP list.  Learned connections keep
-their DIP; pending ones follow the new pool.
+A routine pool update flips the VIP to the other pool version, whose buckets
+map to a rotated DIP list, as operators do during deploys and scaling.
+``serve`` performs one every ``--update-interval`` seconds (random within the
+range); ``update`` performs one on demand.  Learned connections keep their DIP;
+pending ones follow the new pool.  Before flipping, the agent waits up to
+``DRAIN_WAIT_SEC`` for pending connections to be learned, then flips anyway.
+Updates and resets of unlearned connections are logged.
 
 The learner holds P4Runtime election id 0, below the fabric manager's, so a
 manager connection preempts it and it resumes as primary afterwards; writes
@@ -27,6 +33,7 @@ import heapq
 import json
 import os
 import queue
+import random
 import socket
 import struct
 import threading
@@ -40,8 +47,10 @@ SO_ATTACH_FILTER = 26
 PACKET_OUTGOING = 4
 TCP_FIN, TCP_SYN, TCP_RST, TCP_ACK = 0x01, 0x02, 0x04, 0x10
 FIN_GRACE_SEC = 2.0
+FULL_LOG_SEC = 10.0
 PENDING_TIMEOUT_SEC = 10.0
 IDLE_TIMEOUT_SEC = 300.0
+DRAIN_WAIT_SEC = 0.1
 RETRY_SEC = 0.05
 RECONNECT_SEC = 1.0
 _RETRYABLE = (
@@ -52,6 +61,11 @@ _RETRYABLE = (
 LEARNER_ELECTION_ID = 0
 OPERATOR_ELECTION_ID = 1
 Update = p4runtime_pb2.Update
+
+
+def log(message: str) -> None:
+    stamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+    print(f"{stamp} lb-agent: {message}", flush=True)
 
 
 def _value(raw: bytes) -> bytes:
@@ -191,22 +205,67 @@ def parse_tcp(frame: bytes):
     )
 
 
-def read_delay(path: str, default: int) -> int:
+def read_config(path: str, current: dict[str, int]) -> dict[str, int]:
+    """Agent settings from ``path``; a missing or bad value keeps ``current``."""
     try:
         with open(path, encoding="utf-8") as handle:
-            return int(json.load(handle)["learning_delay_ms"])
-    except (OSError, ValueError, KeyError, TypeError):
-        return default
+            raw = json.load(handle)
+    except (OSError, ValueError):
+        return dict(current)
+    config = dict(current)
+    for key in current:
+        try:
+            config[key] = int(raw[key])
+        except (KeyError, TypeError, ValueError):
+            pass
+    return config
+
+
+def flip_pool(switch: Switch, vip: str, vip_port: int) -> tuple[int, int]:
+    """Point the VIP at the other pool version, creating it on first use."""
+    vip_key = [socket.inet_aton(vip), struct.pack("!H", vip_port), bytes([6])]
+    current = switch.read("lb_vip")[0].action.action.params[0].value[-1]
+    target = 2 if current == 1 else 1
+    pools: dict[int, dict[int, bytes]] = {}
+    for entry in switch.read("lb_pool"):
+        version = entry.match[0].exact.value[-1]
+        bucket = entry.match[1].exact.value[-1]
+        dip = entry.action.action.params[0].value.rjust(4, b"\0")
+        pools.setdefault(version, {})[bucket] = dip
+    if target not in pools:
+        layout = pools[current]
+        dips = sorted(set(layout.values()))
+        switch.write(
+            Update.INSERT,
+            [
+                switch.entry(
+                    "lb_pool",
+                    [bytes([target]), bytes([bucket])],
+                    "set_pool_dip",
+                    dips[(dips.index(dip) + 1) % len(dips)],
+                )
+                for bucket, dip in sorted(layout.items())
+            ],
+        )
+    switch.write(
+        Update.MODIFY,
+        [switch.entry("lb_vip", vip_key, "set_lb_vip", bytes([target]))],
+    )
+    return current, target
 
 
 def serve(args: argparse.Namespace) -> None:
     interfaces = set(json.loads(args.ports))
     os.makedirs(os.path.dirname(args.config), exist_ok=True)
     os.makedirs(os.path.dirname(args.status), exist_ok=True)
+    defaults = {
+        "learning_delay_ms": args.learning_delay_ms,
+        "max_connections": args.max_connections,
+    }
     if not os.path.exists(args.config):
         with open(args.config, "w", encoding="utf-8") as handle:
-            json.dump({"learning_delay_ms": args.learning_delay_ms}, handle)
-    delay_ms = read_delay(args.config, args.learning_delay_ms)
+            json.dump(defaults, handle, indent=2)
+    config = read_config(args.config, defaults)
     capture = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(ETH_P_ALL))
     attach_port_filter(capture, args.vip_port)
     capture.settimeout(0.02)
@@ -218,8 +277,30 @@ def serve(args: argparse.Namespace) -> None:
     # (when, action, key, syn_time): a learn only applies to the SYN that scheduled it.
     due: list[tuple[float, str, tuple[str, int], float]] = []
     stats = {"installs": 0, "insert_failures": 0, "deletes": 0, "last_learn_ms": None}
+    # Table-full reports, at most one log line per FULL_LOG_SEC.
+    full_log = {"at": 0.0, "suppressed": 0}
     next_status = 0.0
     reconnect_at = 0.0
+    low, _, high = args.update_interval.partition("-")
+    rng = random.Random(args.device_id)
+    interval = (float(low), float(high or low))
+    next_update = (
+        time.time() + rng.uniform(*interval) if interval[1] > 0 else float("inf")
+    )
+    drain_until: float | None = None
+    last_update = 0.0
+
+    def connect() -> Switch | None:
+        nonlocal switch, reconnect_at
+        if switch is None or not switch.alive:
+            if switch is not None:
+                switch.close()
+                switch = None
+            if time.time() < reconnect_at:
+                return None
+            reconnect_at = time.time() + RECONNECT_SEC
+            switch = Switch(args.device_id, LEARNER_ELECTION_ID)
+        return switch
 
     def conn_key(key: tuple[str, int]) -> list[bytes]:
         return [
@@ -232,16 +313,10 @@ def serve(args: argparse.Namespace) -> None:
 
     def write(kind: int, key: tuple[str, int], dip: str | None = None) -> bool | None:
         """True on success, None to retry later, False to give up."""
-        nonlocal switch, reconnect_at
+        nonlocal switch
         try:
-            if switch is None or not switch.alive:
-                if switch is not None:
-                    switch.close()
-                    switch = None
-                if time.time() < reconnect_at:
-                    return None
-                reconnect_at = time.time() + RECONNECT_SEC
-                switch = Switch(args.device_id, LEARNER_ELECTION_ID)
+            if connect() is None:
+                return None
             action = "set_lb_dip" if dip else None
             arg = socket.inet_aton(dip) if dip else b""
             entry = switch.entry("lb_conn_table", conn_key(key), action, arg)
@@ -263,7 +338,12 @@ def serve(args: argparse.Namespace) -> None:
                 return None
             return False  # table full, entry gone after a pipeline reload
         except KeyError:
-            return False  # a different pipeline without the L4 tables
+            # The cached P4Info predates the pipeline (BMv2 starts without one
+            # and a manager pushes it later): reconnect to read it afresh.
+            if switch is not None:
+                switch.close()
+            switch = None
+            return None
         except Exception:
             if switch is not None:
                 switch.close()
@@ -297,6 +377,15 @@ def serve(args: argparse.Namespace) -> None:
                 and flags & TCP_RST
             ):
                 # A backend reset the connection.
+                if (dst, dport) not in learned:
+                    log(
+                        f"backend reset connection from {dst}:{dport} "
+                        f"(not in lb_conn_table; "
+                        f"{'pending' if (dst, dport) in pending else 'unknown'}; "
+                        f"last pool update {now - last_update:.0f}s ago)"
+                        if last_update
+                        else f"backend reset connection from {dst}:{dport}"
+                    )
                 heapq.heappush(due, (now, "forget", (dst, dport), 0.0))
             elif (
                 outgoing
@@ -311,7 +400,13 @@ def serve(args: argparse.Namespace) -> None:
                 pending[key][1] = dst
                 started = pending[key][0]
                 heapq.heappush(
-                    due, (started + delay_ms / 1000.0, "learn", key, started)
+                    due,
+                    (
+                        started + config["learning_delay_ms"] / 1000.0,
+                        "learn",
+                        key,
+                        started,
+                    ),
                 )
         while due and due[0][0] <= now:
             _, action, key, stamp = heapq.heappop(due)
@@ -321,7 +416,10 @@ def serve(args: argparse.Namespace) -> None:
                 and pending[key][0] == stamp
                 and pending[key][1] is not None
             ):
-                result = write(Update.INSERT, key, pending[key][1])
+                if len(learned) >= config["max_connections"]:
+                    result = False
+                else:
+                    result = write(Update.INSERT, key, pending[key][1])
                 if result is None:
                     heapq.heappush(due, (now + RETRY_SEC, action, key, stamp))
                     break
@@ -333,6 +431,16 @@ def serve(args: argparse.Namespace) -> None:
                 else:
                     stats["insert_failures"] += 1
                     last_seen.pop(key, None)
+                    if now - full_log["at"] >= FULL_LOG_SEC:
+                        more = full_log["suppressed"]
+                        log(
+                            f"lb_conn_table full: connection from {key[0]}:{key[1]} "
+                            f"not learned"
+                            + (f" ({more} more since last report)" if more else "")
+                        )
+                        full_log.update(at=now, suppressed=0)
+                    else:
+                        full_log["suppressed"] += 1
             elif action == "forget":
                 pending.pop(key, None)
                 if key in learned:
@@ -343,9 +451,40 @@ def serve(args: argparse.Namespace) -> None:
                     del learned[key]
                     stats["deletes"] += int(result)
                 last_seen.pop(key, None)
+        if now >= next_update:
+            if pending and drain_until is None:
+                drain_until = now + DRAIN_WAIT_SEC
+            if not pending or now >= (drain_until or now):
+                unlearned = sorted(started for started, _dip in pending.values())
+                try:
+                    if connect() is None:
+                        raise ConnectionError("P4Runtime unavailable")
+                    current, target = flip_pool(switch, args.vip, args.vip_port)
+                except (grpc.RpcError, ConnectionError, KeyError, IndexError) as exc:
+                    log(f"pool update failed, retrying: {exc!r}"[:200])
+                    if isinstance(exc, KeyError) and switch is not None:
+                        switch.close()
+                        switch = None
+                    next_update = now + RECONNECT_SEC
+                else:
+                    last_update = time.time()
+                    log(
+                        f"pool update: {args.vip}:{args.vip_port} "
+                        f"version {current} -> {target}; "
+                        f"{len(learned)} connections keep their backend"
+                    )
+                    if unlearned:
+                        log(
+                            f"WARNING pool update with {len(unlearned)} connection(s) "
+                            f"not yet in lb_conn_table; "
+                            f"they follow pool version {target}"
+                        )
+                    next_update = now + rng.uniform(*interval)
+                drain_until = None
         if now >= next_status:
             next_status = now + 1.0
-            delay_ms = read_delay(args.config, delay_ms)
+            config = read_config(args.config, config)
+            delay_ms = config["learning_delay_ms"]
             for key, (started, _dip) in list(pending.items()):
                 if now - started > PENDING_TIMEOUT_SEC + delay_ms / 1000.0:
                     pending.pop(key, None)
@@ -357,6 +496,7 @@ def serve(args: argparse.Namespace) -> None:
                 "pid": os.getpid(),
                 "time": now,
                 "learning_delay_ms": delay_ms,
+                "max_connections": config["max_connections"],
                 "pending": len(pending),
                 "learned": len(learned),
                 **stats,
@@ -370,38 +510,7 @@ def update(args: argparse.Namespace) -> None:
     """Flip the VIP to the other pool version (a routine DIP pool update)."""
     switch = Switch(args.device_id, OPERATOR_ELECTION_ID)
     try:
-        vip_key = [
-            socket.inet_aton(args.vip),
-            struct.pack("!H", args.vip_port),
-            bytes([6]),
-        ]
-        current = switch.read("lb_vip")[0].action.action.params[0].value[-1]
-        target = 2 if current == 1 else 1
-        pools: dict[int, dict[int, bytes]] = {}
-        for entry in switch.read("lb_pool"):
-            version = entry.match[0].exact.value[-1]
-            bucket = entry.match[1].exact.value[-1]
-            dip = entry.action.action.params[0].value.rjust(4, b"\0")
-            pools.setdefault(version, {})[bucket] = dip
-        if target not in pools:
-            layout = pools[current]
-            dips = sorted(set(layout.values()))
-            switch.write(
-                Update.INSERT,
-                [
-                    switch.entry(
-                        "lb_pool",
-                        [bytes([target]), bytes([bucket])],
-                        "set_pool_dip",
-                        dips[(dips.index(dip) + 1) % len(dips)],
-                    )
-                    for bucket, dip in sorted(layout.items())
-                ],
-            )
-        switch.write(
-            Update.MODIFY,
-            [switch.entry("lb_vip", vip_key, "set_lb_vip", bytes([target]))],
-        )
+        current, target = flip_pool(switch, args.vip, args.vip_port)
         print(
             json.dumps(
                 {
@@ -428,6 +537,12 @@ def main() -> None:
         "--ports", required=True, help="JSON list of dataplane interfaces"
     )
     sub.choices["serve"].add_argument("--learning-delay-ms", type=int, default=5)
+    sub.choices["serve"].add_argument("--max-connections", type=int, default=256)
+    sub.choices["serve"].add_argument(
+        "--update-interval",
+        default="60-180",
+        help="seconds between routine pool updates, MIN-MAX; 0 disables",
+    )
     sub.choices["serve"].add_argument("--config", required=True)
     sub.choices["serve"].add_argument("--status", required=True)
     args = parser.parse_args()

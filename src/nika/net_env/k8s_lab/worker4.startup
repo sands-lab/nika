@@ -4,6 +4,11 @@ ip address add 201.2.2.2/24 dev eth0
 # Configure default route toward leaf_1_2
 ip route add default via 201.2.2.1 dev eth0
 
+# MetalLB addresses are only served on their service ports (kube-proxy DNATs
+# them before routing). Anything else addressed to the pool, ICMP included,
+# is discarded here instead of bouncing back up the default route.
+ip route add blackhole 101.0.0.0/8 proto static
+
 # Required for the PV
 mkdir -p /mnt/data
 

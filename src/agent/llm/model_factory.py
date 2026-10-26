@@ -345,6 +345,7 @@ def load_model(
             kwargs["base_url"] = base
         if api_key:
             kwargs["api_key"] = api_key
+        kwargs.update(client.sampling())
         return _openai_model(retries=retries, stream=stream, **kwargs)
 
     if llm_provider == "deepseek":
@@ -357,6 +358,7 @@ def load_model(
             "timeout": timeout,
             "max_retries": retries,
             "max_tokens": max_tokens,
+            **client.sampling(seed=False),
         }
         if stream:
             # A custom base_url turns streamed usage off by default.
@@ -374,8 +376,8 @@ def load_model(
             "api_key": api_key
             or openai_api_key(llm_provider)
             or UNAUTHENTICATED_API_KEY,
-            "temperature": 0,
             "timeout": timeout,
+            **client.sampling(),
         }
         # Only low/medium/high reach the server: OpenAI-compat servers (vLLM)
         # reject levels like ``xhigh``. Thinking is enabled via extra_body.
@@ -405,6 +407,7 @@ def load_model(
             kwargs["reasoning_effort"] = reasoning_effort
         if max_tokens is not None:
             kwargs["max_tokens"] = max_tokens
+        kwargs.update(client.sampling(seed=False))
         return ChatAnthropic(**kwargs)
 
     raise ValueError(f"Unsupported llm provider: {llm_provider}")

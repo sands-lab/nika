@@ -78,6 +78,22 @@ def test_iosxr_interfaces_precede_routing_modes(igp, bgp_mode) -> None:
     assert originating
 
 
+def test_native_isp_omits_the_kathara_customer_site_and_runs_stub_workload() -> None:
+    from nika.net_env.net_env_pool import get_net_env_instance
+
+    env = get_net_env_instance(
+        "isp_abilene", device_profile="iosxr", igp="ospf", bgp_mode="ebgp"
+    )
+    assert env.bgp_plan is not None
+    assert env.bgp_plan.customer_site is None
+    assert "customer_site" not in env.bgp_plan.inventory
+    stubs = {host.host_name for host in env.traffic.hosts}
+    workload = env.business_workload()
+    assert workload.processes
+    assert set(workload.nodes) <= stubs
+    assert env.probe_intent() is not None
+
+
 def test_iosxr_isis_adjacency_table_parses() -> None:
     from nika.net_env.isp.iosxr import parse_iosxr_isis_adjacencies
 

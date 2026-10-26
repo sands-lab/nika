@@ -10,9 +10,24 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from nika.runtime.base import LabRuntime
 
-# Agents can list processes and files on lab nodes, so worker argv and log
-# paths use neutral load-test names that do not identify the injected fault.
-AB_WORKER_TAG = "ab-loop-"
+# Agents can list processes and files on lab nodes, so worker argv, process
+# names, and log paths read like an ordinary (if misbehaving) HTTP client:
+# a cache-warming job retrying in a loop, not a load-test harness. Each
+# worker's wrapper shell and the `ab` process it runs are both exec'd under
+# this tag so neither "ab-loop" nor a bare "ab -n <huge number>" shows up in
+# `ps`; `ab` itself is run bounded by wall time (-t), like a periodic job,
+# instead of an unrealistic request count.
+AB_WORKER_TAG = "cache-warmer-"
+# Neutral hardlink of `ab` shipped in nika/base (Dockerfile.base). `exec -a`
+# alone only renames argv[0]; the kernel-recorded comm (ps -o comm, top)
+# comes from the basename actually resolved by exec, so the worker must run
+# this name, not the literal `ab` binary, for both argv and comm to read
+# the same neutral "cache-warmer" name.
+AB_BINARY = "cache-warmer"
+# One run lasts minutes so the load is continuous; ab stops a timed run at
+# -n requests, so set it high enough for the run to reach its time limit.
+_AB_RUN_SECONDS = 300
+_AB_RUN_REQUESTS = 1_000_000
 _AB_WORKER_LOG = "/var/tmp/http-load-{worker}.log"
 _AB_INSTALL_LOG = "/var/tmp/apt-apache2-utils.log"
 
@@ -112,25 +127,35 @@ def _worker_pattern() -> str:
 
 
 def ensure_ab(runtime: "LabRuntime", host: str) -> None:
-    """Install apache2-utils on ``host`` when ``ab`` is missing."""
+    """Install apache2-utils on ``host`` when ``ab`` is missing.
+
+    Also ensures the neutral ``cache-warmer`` hardlink nika/base normally
+    ships (Dockerfile.base) exists, so hosts on an older/unrebuilt image
+    still get a neutral comm.
+    """
     check = runtime.exec(
         host, "command -v ab >/dev/null 2>&1 && echo OK || echo MISSING", timeout=10
     ).strip()
-    if "OK" in check:
-        return
-    install = runtime.exec(
+    if "OK" not in check:
+        install = runtime.exec(
+            host,
+            "export DEBIAN_FRONTEND=noninteractive; "
+            "apt-get update -qq && "
+            f"apt-get install -y -qq apache2-utils >{_AB_INSTALL_LOG} 2>&1; "
+            "command -v ab >/dev/null 2>&1 && echo OK || echo FAIL",
+            timeout=180,
+        ).strip()
+        if "OK" not in install:
+            log = runtime.exec(
+                host, f"tail -n 40 {_AB_INSTALL_LOG} 2>/dev/null || true", timeout=10
+            )
+            raise RuntimeError(f"apachebench (ab) unavailable on {host}: {log!r}")
+    runtime.exec(
         host,
-        "export DEBIAN_FRONTEND=noninteractive; "
-        "apt-get update -qq && "
-        f"apt-get install -y -qq apache2-utils >{_AB_INSTALL_LOG} 2>&1; "
-        "command -v ab >/dev/null 2>&1 && echo OK || echo FAIL",
-        timeout=180,
-    ).strip()
-    if "OK" not in install:
-        log = runtime.exec(
-            host, f"tail -n 40 {_AB_INSTALL_LOG} 2>/dev/null || true", timeout=10
-        )
-        raise RuntimeError(f"apachebench (ab) unavailable on {host}: {log!r}")
+        f"command -v {AB_BINARY} >/dev/null 2>&1 || "
+        f'ln "$(command -v ab)" /usr/local/bin/{AB_BINARY} 2>/dev/null || true',
+        timeout=10,
+    )
 
 
 def start_ab_workers(
@@ -144,10 +169,15 @@ def start_ab_workers(
 ) -> None:
     """Replace any running workers on ``host`` with ``workers`` looping ``ab`` runs."""
     stop_ab_workers(runtime, host)
+    # "$0" is the worker's own wrapper name (set below via the trailing bash
+    # -c argument); exec'ing ab under it in a subshell keeps the outer loop
+    # alive (a bare `exec` would replace the loop itself) while making both
+    # the wrapper and the ab child show the same ordinary-looking name in ps.
     inner = (
         "while true; do "
-        f"ab -n 200000000 -c {int(concurrency)} {shlex.quote(url)}; "
-        "sleep 0.05; done"
+        f'( exec -a "$0" {AB_BINARY} -t {_AB_RUN_SECONDS} -n {_AB_RUN_REQUESTS} '
+        f"-c {int(concurrency)} {shlex.quote(url)} ); "
+        "sleep 0.2; done"
     )
     cmds = [
         "nohup bash -c "
@@ -158,7 +188,7 @@ def start_ab_workers(
     ]
     runtime.exec(
         host,
-        "command -v ab >/dev/null 2>&1 || exit 127; " + " ".join(cmds),
+        f"command -v {AB_BINARY} >/dev/null 2>&1 || exit 127; " + " ".join(cmds),
         timeout=timeout,
     )
 
@@ -178,7 +208,9 @@ def count_ab_workers(runtime: "LabRuntime", host: str) -> tuple[int, int, str]:
         timeout=10,
     ).strip()
     ab_output = runtime.exec(
-        host, "ps -eo comm 2>/dev/null | grep -c '^ab$' || true", timeout=10
+        host,
+        f"ps -eo comm 2>/dev/null | grep -c '^{AB_BINARY}$' || true",
+        timeout=10,
     ).strip()
     state = f"workers={worker_output!r} ab={ab_output!r}"
     return _last_int(worker_output), _last_int(ab_output), state
@@ -189,7 +221,7 @@ def stop_ab_workers(runtime: "LabRuntime", host: str) -> None:
     runtime.exec(
         host,
         f"pkill -f '{_worker_pattern()}' 2>/dev/null || true; "
-        "pkill -x ab 2>/dev/null || true",
+        f"pkill -x {AB_BINARY} 2>/dev/null || true",
         timeout=15,
     )
 

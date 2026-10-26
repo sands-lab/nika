@@ -120,6 +120,9 @@ def _collect(
                     add(edge, command, 15)
         if not tunnel.primary and tunnel.spoke in spec.branch_names():
             add(left, view.bgp_route(hq_corp.prefix))
+    dc2 = _corp_lan(spec, "dc2")
+    dc2_ip = _lan_host_ip(dc2)
+    dc2_srv_ip = _lan_host_ip(_server_lan(spec, "dc2"))
     for spoke in spec.branch_names():
         edge, corp = edge_name_for(spoke), _corp_lan(spec, spoke)
         add(edge, view.bgp_rib)
@@ -132,8 +135,10 @@ def _collect(
         ping(corp.host_name, hq_ip)
         ping(hq_corp.host_name, _lan_host_ip(corp))
         add(corp.host_name, http_command(f"http://{srv_ip}/"))
-    dc2 = _corp_lan(spec, "dc2")
-    ping(hq_corp.host_name, _lan_host_ip(dc2))
+        ping(corp.host_name, dc2_ip)
+        ping(dc2.host_name, _lan_host_ip(corp))
+        add(corp.host_name, http_command(f"http://{dc2_srv_ip}/"))
+    ping(hq_corp.host_name, dc2_ip)
     ping(dc2.host_name, hq_ip)
     add(dc2.host_name, http_command(f"http://{srv_ip}/"))
     spokes = spec.branch_names()
@@ -345,9 +350,12 @@ def verify_enterprise_branch_lab(
     for spoke_result in bounded_parallel_map(spoke_overlay_checks, spokes):
         checks.update(spoke_result)
 
-    # --- E2E: every branch CORP <-> HQ CORP and HTTP to HQ SERVER ---
+    # --- E2E: every branch CORP <-> HQ and DC2 CORP, HTTP to both SERVERs ---
     hq_corp_ip = _lan_host_ip(hq_corp)
     hq_srv_ip = _lan_host_ip(hq_srv)
+    dc2_corp = _corp_lan(spec, "dc2")
+    dc2_corp_ip = _lan_host_ip(dc2_corp)
+    dc2_srv_ip = _lan_host_ip(_server_lan(spec, "dc2"))
 
     def spoke_e2e_checks(spoke: str) -> dict[str, bool]:
         corp = _corp_lan(spec, spoke)
@@ -358,13 +366,17 @@ def verify_enterprise_branch_lab(
             f"e2e_{spoke}_http_hq_server": http_ok(
                 runtime, corp.host_name, f"http://{hq_srv_ip}/"
             ),
+            f"e2e_{spoke}_to_dc2_corp": ping_ok(runtime, corp.host_name, dc2_corp_ip),
+            f"e2e_dc2_to_{spoke}_corp": ping_ok(runtime, dc2_corp.host_name, corp_ip),
+            f"e2e_{spoke}_http_dc2_server": http_ok(
+                runtime, corp.host_name, f"http://{dc2_srv_ip}/"
+            ),
         }
 
     for spoke_result in bounded_parallel_map(spoke_e2e_checks, spokes):
         checks.update(spoke_result)
 
     # --- Hub interconnect: HQ CORP <-> DC2 CORP + HTTP ---
-    dc2_corp = _corp_lan(spec, "dc2")
     checks["e2e_hq_to_dc2_corp"] = ping_ok(
         runtime, hq_corp.host_name, _lan_host_ip(dc2_corp)
     )

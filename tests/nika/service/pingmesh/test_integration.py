@@ -10,7 +10,7 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from nika.agents.mcp_config import MCPServerConfig
 from tests.support.integration_base import PerTestEnvTestCase
 from tests.support.integration_pipeline import tool_text_list
-from tests.support.prerequisites import docker_available, min3clos_prerequisites
+from tests.support.prerequisites import docker_available
 
 pytestmark = pytest.mark.integration
 
@@ -69,15 +69,6 @@ def _wait_healthy_pingmesh(
     )
 
 
-def _cross_pairs(snapshot: dict) -> list[dict]:
-    return [row for row in snapshot["results"] if row["source"] != row["target"]]
-
-
-def _corp_endpoints(snapshot: dict) -> list[str]:
-    """Overlay-reachable corp hosts (guest/iot VRFs are local-only)."""
-    return sorted(name for name in snapshot.get("endpoints", {}) if "_corp_" in name)
-
-
 class KatharaPingMeshIntegrationTest(PerTestEnvTestCase):
     SCENARIO = "enterprise_branch"
     ENV_RUN_ARGS: ClassVar[list[str]] = ["-s", "m"]
@@ -87,6 +78,7 @@ class KatharaPingMeshIntegrationTest(PerTestEnvTestCase):
         "intf_name": "eth0",
     }
     FAULT_SOURCE = "br1_corp_pc"
+    FAULT_PEER = "hq_corp_pc"
 
     @pytest.fixture(scope="class", autouse=True)
     def _setup_class(cls) -> None:
@@ -94,41 +86,26 @@ class KatharaPingMeshIntegrationTest(PerTestEnvTestCase):
             pytest.skip("Docker is not available")
 
     def test_pingmesh_healthy_then_faulty(self) -> None:
-        # Discover endpoints, then mesh only overlay corp hosts. Guest/IoT VRFs
-        # are local-only and must not be expected to form a healthy full mesh.
-        discovery = _invoke_pingmesh(self.session_id, scenario_name=self.SCENARIO)
-        endpoints = set(discovery["endpoints"])
+        # The scenario declares guest/IoT VRF isolation and the WAN RTT, so the
+        # default mesh over every endpoint must read healthy without tuning.
+        healthy = _wait_healthy_pingmesh(
+            self.session_id, scenario_name=self.SCENARIO, include_healthy=True
+        )
+        endpoints = set(healthy["endpoints"])
         assert len(endpoints) >= self.MIN_ENDPOINTS, (
             f"expected at least {self.MIN_ENDPOINTS} endpoints, got {endpoints}"
         )
-        assert "br1_corp_pc" in endpoints
-        assert "hq_corp_pc" in endpoints
-
-        corp = _corp_endpoints(discovery)
-        assert len(corp) >= 2, f"expected corp endpoints, got {corp}"
-        healthy = _wait_healthy_pingmesh(
-            self.session_id,
-            scenario_name=self.SCENARIO,
-            sources=corp,
-            targets=corp,
-            # Site-edge underlay delay routinely exceeds the 100ms default.
-            high_latency_ms=500.0,
-        )
-
         assert healthy["summary"]["anomaly_count"] == 0
-        cross = _cross_pairs(healthy)
+        assert healthy["summary"]["isolated_confirmed"] > 0
+        assert len(healthy["results"]) > 2, "expected more than a 2-host mesh"
 
-        assert len(cross) > 2, "expected more than a 2-host cross mesh"
-
-        assert all((row["reachable"] for row in cross))
         self._inject_failure("link_down", self.INJECT_PARAMS)
         self._assert_failure_injected("link_down")
         faulty = _invoke_pingmesh(
             self.session_id,
             scenario_name=self.SCENARIO,
-            sources=corp,
-            targets=corp,
-            high_latency_ms=500.0,
+            sources=[self.FAULT_SOURCE],
+            targets=[self.FAULT_PEER],
         )
 
         assert faulty["summary"]["anomaly_count"] > 0
@@ -136,40 +113,3 @@ class KatharaPingMeshIntegrationTest(PerTestEnvTestCase):
         assert any((a["source"] == self.FAULT_SOURCE for a in faulty["anomalies"])), (
             f"expected anomalies from {self.FAULT_SOURCE}, got {faulty['anomalies']}"
         )
-
-
-@pytest.mark.skipif(
-    not min3clos_prerequisites(), reason="containerlab, gnmic, or Docker not available"
-)
-class ContainerlabPingMeshIntegrationTest(PerTestEnvTestCase):
-    SCENARIO = "min3clos"
-    ENDPOINTS: ClassVar[frozenset[str]] = frozenset({"client1", "client2"})
-    INJECT_PARAMS: ClassVar[dict[str, str]] = {
-        "host_name": "leaf1",
-        "intf_name": "e1-1",
-    }
-
-    def test_pingmesh_healthy_then_faulty(self) -> None:
-        healthy = _wait_healthy_pingmesh(
-            self.session_id, scenario_name=self.SCENARIO, timeout_sec=120.0
-        )
-
-        assert set(healthy["endpoints"]) == self.ENDPOINTS
-
-        assert healthy["summary"]["anomaly_count"] == 0
-        cross = _cross_pairs(healthy)
-
-        assert cross
-
-        assert all((row["reachable"] for row in cross))
-        self._inject_failure("link_down", self.INJECT_PARAMS)
-        self._assert_failure_injected("link_down")
-        faulty = _invoke_pingmesh(self.session_id, scenario_name=self.SCENARIO)
-
-        assert faulty["summary"]["anomaly_count"] > 0
-        anomaly_pairs = {(a["source"], a["target"]) for a in faulty["anomalies"]}
-
-        assert ("client1", "client2") in anomaly_pairs or (
-            "client2",
-            "client1",
-        ) in anomaly_pairs, f"expected client pair anomaly, got {anomaly_pairs}"

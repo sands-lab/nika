@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from nika.net_env.p4_dc_gateway.topology_model import (
+    CLIENT_ACCESS_MTU,
     CONN_TABLE_CAPACITY,
     CONNECTION_LEARNING_DELAY_MS,
     P4RUNTIME_PORT,
@@ -104,6 +105,9 @@ def build_gateway_intent(model: GatewayFabricModel) -> dict[str, Any]:
             },
         }
         if info.role == "gateway":
+            access = model.port_to_peer(switch, model.client_on_gateway(switch).name)
+            assert access is not None
+            switches[switch]["egress_mtu"] = {str(access.bmv2_port): CLIENT_ACCESS_MTU}
             switches[switch]["l4_load_balancer"] = {
                 "vip": {"ip": VIP_IP, "port": VIP_PORT},
                 "backends": [

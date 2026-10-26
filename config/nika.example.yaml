@@ -31,9 +31,12 @@ agent:
   # reasoning_effort: medium
   # Output-token cap per model response. Not applied by Codex agents or SADE.
   max_tokens: 8192
-  # How the frozen report becomes the scored answer. structured (default): the
-  # agent's own model calls submit(). unstructured: the model below maps the
-  # report for every agent type; such runs cannot be packed for the leaderboard.
+  # Sampling for byo.langgraph and byo.mcp_agent. Unset values are omitted.
+  # temperature: 0.6
+  # top_p: 0.95
+  # seed: 0
+  # How the frozen report becomes the scored answer. structured: the agent's
+  # own model calls submit(). unstructured: the model below maps the report.
   # submission:
   #   mode: unstructured
   #   provider: custom
@@ -105,8 +108,7 @@ nika:
     # Memory per sandbox. Null lets sbx use half of host memory (e2b: service
     # default).
     memory: 4g
-    # sbx: install SDK agents from cached wheels instead of downloading
-    # packages. e2b templates already contain them.
+    # sbx: install SDK agents from cached wheels instead of downloading packages.
     offline_sdk_wheels: true
     # sbx: route sandboxd and sbx traffic through this proxy.
     upstream_proxy: null

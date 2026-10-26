@@ -18,8 +18,8 @@ from nika.problems.base import build_verify_result
 from nika.runtime.base import LabRuntime
 
 _PORT = 18080
-_SERVER_LOG = "/tmp/nika-audit-nat-peers.log"
-_FLOW_STATUS = "/tmp/nika-audit-nat-flow.status"
+_SERVER_LOG = "/tmp/probe-nat-peers.log"
+_FLOW_STATUS = "/tmp/probe-nat-flow.status"
 
 _SERVER = rf"""
 import socket, threading

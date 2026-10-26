@@ -4,9 +4,13 @@ from __future__ import annotations
 
 import json
 import re
+import io
 import shlex
+import subprocess
+import tarfile
 from typing import Any
 
+from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 from nika.runtime.base import LabRuntime
 from nika.service.packet_capture.limits import clamp_inspect_limit, default_limits
 from nika.service.packet_capture.models import InspectView
@@ -17,23 +21,55 @@ class TsharkNotFoundError(RuntimeError):
     """Raised when a lab node has no tshark binary available."""
 
 
+def has_tshark(runtime: LabRuntime, device: str) -> bool:
+    return bool(runtime.exec(device, "command -v tshark || true", timeout=5).strip())
+
+
 def require_tshark(runtime: LabRuntime, device: str) -> str:
     output = runtime.exec(device, "command -v tshark || true", timeout=5)
     path = output.strip()
     if not path:
         raise TsharkNotFoundError(
-            f"Node {device!r} has no tshark installed for capture inspection. "
-            "Inspect the capture on a node that has tshark."
+            f"Node {device!r} has no tshark installed for capture inspection."
         )
     return path
 
 
+def _read_pcap(runtime: LabRuntime, device: str, remote_path: str) -> bytes:
+    """Copy one capture file out of a lab node (Docker archive stream)."""
+    stream, _stat = runtime.get_container(device).get_archive(remote_path)
+    with tarfile.open(fileobj=io.BytesIO(b"".join(stream))) as archive:
+        member = next(m for m in archive.getmembers() if m.isfile())
+        extracted = archive.extractfile(member)
+        assert extracted is not None
+        return extracted.read()
+
+
+def _host_tshark(
+    args: list[str], *, stdin: bytes | None = None, timeout: float = 60.0
+) -> str:
+    """Run tshark in a throwaway, network-less container of a NIKA image."""
+    cmd = ["docker", "run", "--rm", "-i", "--network", "none"]
+    cmd += [nika_image("base"), "tshark", *args]
+    try:
+        proc = subprocess.run(
+            cmd,
+            input=stdin or b"",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=timeout,
+            check=False,
+        )
+    except subprocess.TimeoutExpired:
+        return "[TIMEOUT]"
+    return proc.stdout.decode("utf-8", errors="replace")
+
+
 def tshark_version(runtime: LabRuntime, device: str) -> str | None:
-    output = runtime.exec(
-        device,
-        "tshark -v 2>&1 | head -n 1 || true",
-        timeout=5,
-    )
+    if has_tshark(runtime, device):
+        output = runtime.exec(device, "tshark -v 2>&1 | head -n 1 || true", timeout=5)
+    else:
+        output = _host_tshark(["-v"], timeout=30)
     return output.strip().splitlines()[0] if output.strip() else None
 
 
@@ -45,9 +81,15 @@ def _run_tshark(
     *,
     timeout: float = 60.0,
 ) -> str:
-    require_tshark(runtime, device)
-    quoted = " ".join(shlex.quote(part) for part in args)
-    output = runtime.exec(device, f"tshark {quoted} 2>/dev/null", timeout=timeout)
+    """Run tshark on the node, or host-side on a streamed copy if it lacks tshark."""
+    if has_tshark(runtime, device):
+        quoted = " ".join(shlex.quote(part) for part in args)
+        output = runtime.exec(device, f"tshark {quoted} 2>/dev/null", timeout=timeout)
+    else:
+        stdin_args = ["-" if part == remote_path else part for part in args]
+        output = _host_tshark(
+            stdin_args, stdin=_read_pcap(runtime, device, remote_path), timeout=timeout
+        )
     if output.startswith("[TIMEOUT]"):
         raise RuntimeError("tshark timed out during capture inspection")
     return output

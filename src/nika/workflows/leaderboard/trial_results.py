@@ -18,6 +18,7 @@ from nika.evaluator.score_status import (
     ScoreStatus,
     infer_score_status_from_artifacts,
 )
+from nika.evaluator.validity import detect_trial_validity
 from nika.workflows.leaderboard.aggregate import extract_trial_metrics
 from nika.workflows.leaderboard.schema import TrialResult
 
@@ -141,6 +142,9 @@ def trial_result_from_dir(
         else {}
     )
     score_status = resolve_trial_score_status(session_dir, run_meta=run_meta)
+    validity = detect_trial_validity(
+        session_dir, run_meta=run_meta, score_status=score_status
+    )
 
     return TrialResult(
         trial_id=trial_id,
@@ -153,4 +157,5 @@ def trial_result_from_dir(
         metrics=metrics,
         gt_fault_types=gt_fault_types(session_dir, problem=problem),
         predicted_fault_types=predicted_fault_types(session_dir),
+        validity_flags=validity.flags,
     )

@@ -47,6 +47,7 @@ LOCAL_ONLY_KEYS = (
     "llm_provider",
     "reasoning_effort",
     "max_tokens",
+    "sampling",
     # The agent's sandbox runs on this host; session close removes it.
     "sandbox_backend",
     "sandbox_url",
@@ -282,6 +283,7 @@ def remote_start_net_env(
     backend: str | None = None,
     device_profile: str | None = None,
     static_validation: bool = False,
+    telemetry: list[str] | None = None,
 ) -> str:
     """Deploy a lab on the remote host and mirror the session locally."""
     suffix = uuid4().hex[:6]
@@ -307,6 +309,7 @@ def remote_start_net_env(
             backend=backend,
             device_profile=device_profile,
             static_validation=static_validation,
+            telemetry=list(telemetry or []),
         )
     )
     session = _mirror_session_locally(

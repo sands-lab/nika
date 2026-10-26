@@ -8,7 +8,7 @@ from pathlib import Path
 
 from docker.errors import APIError
 
-from nika.config import REPO_ROOT
+from nika.config import CACHE_DIR
 from nika.net_env.utils.kathara.docker_files.docker_images import (
     IMAGE_LABEL,
     LEGACY_NIKA_IMAGE_NAMES,
@@ -235,7 +235,7 @@ def prune_stale_caches() -> list[str]:
         {cache_tar_path(image).name for image in _k8s_workload_images()},
         "k8s image archive",
     )
-    helm_root = REPO_ROOT / ".nika_cache" / "helm"
+    helm_root = CACHE_DIR / "helm"
     prune(helm_root, {_HELM_VERSION, "charts"}, "Helm cache")
     prune(
         helm_root / "charts",
@@ -244,9 +244,7 @@ def prune_stale_caches() -> list[str]:
     )
 
     routeros_version = ROUTEROS_IMAGE.rsplit(":", 1)[1]
-    vendor = Path(
-        os.environ.get("NIKA_VENDOR_CACHE") or REPO_ROOT / ".nika_cache" / "vendor"
-    )
+    vendor = Path(os.environ.get("NIKA_VENDOR_CACHE") or CACHE_DIR / "vendor")
     if vendor.is_dir():
         for entry in sorted(vendor.glob("chr-*")):
             current = entry.name.startswith(

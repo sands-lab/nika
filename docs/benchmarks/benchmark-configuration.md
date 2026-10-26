@@ -6,7 +6,7 @@ Implementation: [`benchmark/`](../../benchmark/) stores matrices and releases; [
 
 ## Frozen release (`nika-bench@0.2.0`)
 
-`0.2.0` publishes public Dev and Test splits from the current failure registry. Both splits cover every failure registered when the version was frozen, except `lb_connection_state_exhaustion`, which 0.2.0 held out and which has since been removed from the registry (see the release README). Labels are public for reproducibility. Each version directory under [`benchmark/releases/`](../../benchmark/releases/) includes a `README.md` with suite shape, scenario and failure coverage, and links to the scenario and failure references.
+`0.2.0` publishes public Dev and Test splits. Labels are public for reproducibility. Each version directory under [`benchmark/releases/`](../../benchmark/releases/) includes a `README.md` with suite shape, scenario and failure coverage, and links to the scenario and failure references.
 
 ```shell
 nika benchmark releases
@@ -59,7 +59,7 @@ The runner loads each catalog case as an executable row before creating trials. 
 
 Pool files live at `working/pool/{scenario}/{fault_type}.yaml` (plus `healthy.yaml`). There is no separate manifest file; loaders scan the pool directory.
 
-Failure group files use `scenario` → `failure` → `cases`. Each case carries the deploy profile (`topo_size`, for base ISP scenarios `igp` / `bgp_mode` / `backend` / `device_profile`, and `device_profile` for other environments with native router profiles), scalar `inject`, and materialized `root_causes` in the same shape as frozen release cases. A row without `device_profile` deploys the environment's default routers, including native routers in vendor-specific environments.
+Failure group files use `scenario` → `failure` → `cases`. Each case carries the deploy profile (`topo_size`, optional [`telemetry`](../operations/network-scenarios.md#telemetry), for base ISP scenarios `igp` / `bgp_mode` / `backend` / `device_profile`, and `device_profile` for other environments with native router profiles), scalar `inject`, and materialized `root_causes` in the same shape as frozen release cases. A row without `device_profile` deploys the environment's default routers, including native routers in vendor-specific environments.
 
 ```yaml
 scenario:
@@ -1639,6 +1639,36 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>lb_connection_state_exhaustion</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 </tr>

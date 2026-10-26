@@ -114,6 +114,46 @@ class BurstTrafficGenerator:
     def __init__(self, runtime: LabRuntime):
         self.runtime = runtime
 
+    def _resolve_flows(
+        self,
+        sources: list[str],
+        destination: str,
+        protocol: Literal["udp", "tcp"],
+        seed: int,
+        flows_per_source: int,
+    ) -> tuple[list[BurstFlow], str]:
+        flows = build_burst_flows(
+            sources, destination, protocol, seed, flows_per_source=flows_per_source
+        )
+        # Data-plane address: ``hostname -I`` lists the management IP first on
+        # containerlab nodes.
+        destination_ip = self.runtime.get_data_plane_host_ip(destination)
+        if not destination_ip:
+            raise RuntimeError(
+                f"Could not resolve an IPv4 address for {destination!r}."
+            )
+        resolved_flows = []
+        for flow in flows:
+            source_ip = self.runtime.get_data_plane_host_ip(flow.source)
+            if not source_ip:
+                raise RuntimeError(
+                    f"Could not resolve an IPv4 address for {flow.source!r}."
+                )
+            resolved_flows.append(
+                replace(
+                    flow,
+                    source_ip=source_ip,
+                    flow_id=flow_id_for_five_tuple(
+                        source_ip,
+                        destination_ip,
+                        protocol,
+                        flow.source_port,
+                        flow.destination_port,
+                    ),
+                )
+            )
+        return resolved_flows, destination_ip
+
     def _enable_tcp_ecn_until(self, host: str, seconds: float) -> None:
         """Enable TCP ECN on *host*, then restore its prior value after *seconds*."""
         prior = self.runtime.exec(
@@ -144,38 +184,10 @@ class BurstTrafficGenerator:
     ) -> dict:
         if raw_udp and protocol != "udp":
             raise ValueError("raw_udp requires protocol='udp'")
-        flows = build_burst_flows(
-            sources, destination, protocol, seed, flows_per_source=flows_per_source
+        flows, destination_ip = self._resolve_flows(
+            sources, destination, protocol, seed, flows_per_source
         )
-        # Data-plane address: ``hostname -I`` lists the management IP first on
-        # containerlab nodes.
-        destination_ip = self.runtime.get_data_plane_host_ip(destination)
-        if not destination_ip:
-            raise RuntimeError(
-                f"Could not resolve an IPv4 address for {destination!r}."
-            )
         start_time = max(time.time() + 1.0, synchronized_start)
-        resolved_flows = []
-        for flow in flows:
-            source_ip = self.runtime.get_data_plane_host_ip(flow.source)
-            if not source_ip:
-                raise RuntimeError(
-                    f"Could not resolve an IPv4 address for {flow.source!r}."
-                )
-            resolved_flows.append(
-                replace(
-                    flow,
-                    source_ip=source_ip,
-                    flow_id=flow_id_for_five_tuple(
-                        source_ip,
-                        destination_ip,
-                        protocol,
-                        flow.source_port,
-                        flow.destination_port,
-                    ),
-                )
-            )
-        flows = resolved_flows
         sink_pids: list[int] = []
         if raw_udp:
             sink_seconds = max(0.0, start_time - time.time()) + duration + 5

@@ -8,8 +8,13 @@ import shlex
 import time
 from typing import Any
 
-from nika.net_env.p4_dc_fabric.fabric_manager.apply import INTENT_PATH, P4INFO_PATH
+from nika.net_env.p4_dc_fabric.fabric_manager.apply import (
+    INTENT_PATH,
+    MANAGER_DIR,
+    P4INFO_PATH,
+)
 from nika.net_env.verify import http_ok, ping_stats
+from nika.traffic.workload import paused_workload
 from nika.problems.base import build_verify_result
 from nika.net_env.net_env_pool import get_probe_path
 from nika.problems.forwarding_encapsulation_policy.p4_runtime import (
@@ -28,9 +33,12 @@ from nika.problems.forwarding_encapsulation_policy.p4runtime_helpers import (
 # group. The CRC16 selector is linear, so the ports are spread over the range.
 _SWEEP_SOURCES = [10007 + 211 * index for index in range(256)]
 _SWEEP_PORT = 19411
-_SWEEP_LOG = "/tmp/nika-audit-sweep.log"
-_SWEEP_PID = "/tmp/nika-audit-sweep.pid"
+_SWEEP_LOG = "/tmp/probe-sweep.log"
+_SWEEP_PID = "/tmp/probe-sweep.pid"
 _SWEEP_MIN_DELIVERED = 0.98
+# BMv2 paths carry about 5 Mbit/s, so a 2 MB transfer the kernel already holds
+# drains within a few seconds of its program stopping.
+_QUIET_SETTLE_SEC = 8.0
 _SWEEP_LISTEN = r"""
 import socket, sys
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -120,7 +128,18 @@ def _sweep(
     """Send every flow once; return delivered flows and per-port packet deltas.
 
     With ``next_hops`` the deltas are also read on each member's next hop.
+    Port counters count every packet, so the scenario workload holds still
+    while the sweep runs.
     """
+    with paused_workload(
+        problem.runtime, problem.net_env.business_workload(), _QUIET_SETTLE_SEC
+    ):
+        return _sweep_counted(problem, ends, next_hops=next_hops)
+
+
+def _sweep_counted(
+    problem: Any, ends: dict[str, Any], *, next_hops: bool
+) -> dict[str, Any]:
     runtime = problem.runtime
     started = runtime.exec(
         ends["target"],
@@ -273,7 +292,7 @@ _TABLE_FULL_CODES = {"RESOURCE_EXHAUSTED"}
 _TABLE_FULL_MESSAGE = "Error when adding match entry to target"
 _TRY_INSERT = r"""
 import json, sys
-sys.path.insert(0, "/opt/p4rt")
+sys.path.insert(0, sys.argv[5])
 import grpc
 import p4rt_manager as m
 from google.rpc import code_pb2, status_pb2
@@ -286,7 +305,7 @@ client = m.connect(switch)
 out = {"prefix": prefix, "inserted": False, "codes": [], "messages": []}
 try:
     try:
-        client.write([m.lpm_entity(index, entry, insert=True)], mode)
+        client.write([m.lpm_entity(index, entry)], mode)
         out["inserted"] = True
     except grpc.RpcError as exc:
         out["codes"].append(exc.code().name)
@@ -300,7 +319,7 @@ try:
                 out["codes"].append(code_pb2.Code.Name(error.canonical_code))
                 out["messages"].append(error.message)
     if out["inserted"]:
-        client.write([m.lpm_entity(index, entry, insert=False)], mode)
+        client.write([m.lpm_entity(index, entry, kind="DELETE")], mode)
     lpm = m.observed_switch(client, index)["ipv4_lpm"]
     out["occupancy"] = len(lpm)
     out["present_after"] = any(e.get("prefix") == prefix for e in lpm)
@@ -313,8 +332,8 @@ print(json.dumps(out))
 def _try_insert(problem: Any, switch: str) -> dict[str, Any]:
     """Insert and remove one unused LPM entry through the P4Runtime manager."""
     cmd = (
-        f"python3 -c {shlex.quote(_TRY_INSERT)} {switch} {_PROBE_PREFIX} "
-        f"{INTENT_PATH} {P4INFO_PATH}"
+        f"python3 -B -c {shlex.quote(_TRY_INSERT)} {switch} {_PROBE_PREFIX} "
+        f"{INTENT_PATH} {P4INFO_PATH} {MANAGER_DIR}"
     )
     try:
         out = problem.runtime.exec("fabric_mgr", cmd, timeout=60)
@@ -395,16 +414,31 @@ def table_exhaustion(problem: Any, params: Any) -> tuple[bool, dict]:
 # captures inbound only: a backend legitimately sends to the victim address.
 _CROSS_PINGS = 10
 _CROSS_HTTP_TRIES = 4
-_CROSS_LOG = "/tmp/nika-audit-cross.log"
-_CROSS_PID = "/tmp/nika-audit-cross.pid"
+_CROSS_LOG = "/tmp/probe-cross.log"
+_CROSS_PID = "/tmp/probe-cross.pid"
 _CROSS_MAX_LOSS = 10.0
 _CROSS_MIN_LOSS = 90.0
 
 
 def _crossed_reading(problem: Any, params: Any) -> dict[str, Any]:
-    """Probe both routes and an untouched one; capture victim traffic on the host."""
+    """Probe both routes and an untouched one; capture victim traffic on the host.
+
+    Under the fault, the scenario workload's own traffic to the host loops
+    too and can load the shared switch, so it holds still during the reading.
+    """
+    with paused_workload(
+        problem.runtime, problem.net_env.business_workload(), _QUIET_SETTLE_SEC
+    ):
+        return _crossed_reading_quiet(problem, params)
+
+
+def _crossed_reading_quiet(problem: Any, params: Any) -> dict[str, Any]:
     runtime = problem.runtime
-    pair = partial_write_routes(load_intent(runtime), params.host_name)
+    # After injection the stored intent carries the re-derived group IDs;
+    # probe the routes the fault picked from the original intent.
+    pair = getattr(problem, "_pair", None) or partial_write_routes(
+        load_intent(runtime), params.host_name
+    )
     path = get_probe_path(
         problem.scenario_name or "", topo_size=problem.net_env.model.topo_size
     )

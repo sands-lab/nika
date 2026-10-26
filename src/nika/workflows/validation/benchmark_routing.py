@@ -14,7 +14,7 @@ from textwrap import indent
 import yaml
 from nika.net_env.isp.igp.frr import ISIS_PROCESS
 from nika.net_env.isp.igp.ifaces import srl_e1_name
-from ipaddress import IPv4Network
+from ipaddress import IPv4Address, IPv4Network
 
 
 from nika.net_env.contract import (
@@ -42,7 +42,13 @@ from nika.net_env.isp.identity import is_isp_scenario
 from nika.net_env.utils.kathara.frr_origin import BGP_ORIGIN_IFACE
 from nika.net_env.isp.igp.config import DEFAULT_IGP
 from nika.net_env.isp.profiles import default_device_profile
-from nika.net_env.isp.igp.plan import active_igp_links, igp_components, shortest_paths
+from nika.net_env.isp.bgp.hijack import best_origin
+from nika.net_env.isp.igp.plan import (
+    active_igp_links,
+    igp_components,
+    shortest_distances,
+    shortest_paths,
+)
 from nika.net_env.net_env_pool import list_all_net_envs, resolve_scenario_backend
 from nika.problems.rca.inventory import load_offline_net_env
 from nika.problems.routing_control_plane.bgp import (
@@ -502,11 +508,35 @@ def build_benchmark_isp_experiment(
             if case["problem"] != "bgp_hijacking":
                 continue
             prefix = str(IPv4Network(case["inject"]["target_network"]))
-            if any(o.prefix == prefix for o in env.bgp_plan.originated):
-                raise ValueError(
-                    "Unauthorized-origin control requires an unowned prefix"
-                )
             observer = case["inject"]["symptom_host"]
+            owner = next(
+                (o for o in env.bgp_plan.originated if o.prefix == prefix), None
+            )
+            if owner is not None:
+                # The hijacker answers the whole prefix itself, so only replies
+                # addressed into the prefix show whether the owner still gets them.
+                if (observer, prefix) not in unauthorized:
+                    unauthorized.add((observer, prefix))
+                    intents.append(
+                        ValidationIntent(
+                            id=f"origin.{observer}.{prefix.replace('/', '-')}",
+                            description="Replies to an owned business prefix must return to its original origin.",
+                            property="reachability",
+                            expected="reachable",
+                            source=NetworkEntity(
+                                kind="node",
+                                name=owner.device,
+                                address=owner.ping_address,
+                            ),
+                            destination=NetworkEntity(
+                                kind="node",
+                                name=observer,
+                                address=nodes[observer].loopback,
+                            ),
+                            traffic=TrafficSelector(protocol="icmp", round_trip=True),
+                        )
+                    )
+                continue
             observers = {observer}
             if observer == case["inject"]["host_name"]:
                 # A local connected route alone cannot demonstrate propagation.
@@ -717,6 +747,7 @@ def build_benchmark_isp_experiment(
         }:
             params, problem = case["inject"], case["problem"]
             target = params["host_name"]
+            uncertain = set()
             name = "benchmark-" + problem.replace("_", "-")
             same_problem = [f for f in fault_checks if f.problem == problem]
             if any(f.params == params for f in same_problem):
@@ -798,6 +829,10 @@ def build_benchmark_isp_experiment(
                 )
             else:
                 prefix = str(IPv4Network(params["target_network"]))
+                owner = next(
+                    (o.device for o in env.bgp_plan.originated if o.prefix == prefix),
+                    None,
+                )
                 failed = tuple(
                     sorted(
                         i.id
@@ -806,6 +841,91 @@ def build_benchmark_isp_experiment(
                         and i.destination.address == prefix
                     )
                 )
+                if owner is not None:
+                    # Each router forwards on its own best origin (original IGP
+                    # cost, then router ID), so a packet into the prefix reaches
+                    # the owner only if no router on its way selects the hijacker.
+                    graph = {node: [] for node in nodes}
+                    for edge in links:
+                        graph[edge.endpoint_a].append((edge.endpoint_b, edge.metric))
+                        graph[edge.endpoint_b].append((edge.endpoint_a, edge.metric))
+                    cost = {node: shortest_distances(graph, node) for node in nodes}
+                    asn = {n.device_name: n.asn for n in env.bgp_plan.nodes}
+                    router_id = {n.device_name: n.router_id for n in env.bgp_plan.nodes}
+                    reflectors = [
+                        n.device_name
+                        for n in env.bgp_plan.nodes
+                        if "rr" in n.roles and n.asn == asn[owner]
+                    ]
+
+                    def delivered(node, seen=()):
+                        if node in (owner, target):
+                            return {node}
+                        if node in seen:
+                            return {None}
+                        origin = best_origin(
+                            node, [owner, target], reflectors, cost, router_id
+                        )
+                        return set().union(
+                            *(
+                                delivered(hop, (*seen, node))
+                                for hop in {
+                                    path[1]
+                                    for path in shortest_paths(graph, node, origin)
+                                }
+                            )
+                        )
+
+                    def endpoint(node):
+                        ends = delivered(node)
+                        if len(ends) != 1:
+                            raise ValueError(
+                                "Hijack diversion with mixed ECMP outcomes requires flow-hash semantics"
+                            )
+                        return ends.pop()
+
+                    def inside(entity):
+                        return bool(entity.address) and IPv4Address(
+                            entity.address.split("/")[0]
+                        ) in IPv4Network(prefix)
+
+                    # Replies into the prefix are lost unless they reach the
+                    # owner; requests into it are answered by either origin.
+                    failed = tuple(
+                        sorted(
+                            i.id
+                            for i in healthy.intents
+                            if i.property == "reachability"
+                            and (
+                                (
+                                    inside(i.source)
+                                    and endpoint(i.destination.name) != owner
+                                )
+                                or (
+                                    inside(i.destination)
+                                    and endpoint(i.source.name) is None
+                                )
+                            )
+                        )
+                    )
+                    observer = (
+                        f"origin.{params['symptom_host']}.{prefix.replace('/', '-')}"
+                    )
+                    if observer not in failed:
+                        raise ValueError(
+                            "Benchmark hijack of an owned prefix must divert its observer"
+                        )
+                    # Completed metrics keep paths but not each router's owner
+                    # versus hijacker cost order, so only the declared observer
+                    # is a guaranteed violation; other flows into the prefix
+                    # are left unconstrained in the fault state.
+                    uncertain = {
+                        i.id
+                        for i in healthy.intents
+                        if i.property == "reachability"
+                        and (inside(i.source) or inside(i.destination))
+                    } - {observer}
+                    failed = (observer,)
                 recovery_commands = {
                     target: (
                         f"vtysh -c 'configure terminal' -c 'interface {BGP_ORIGIN_IFACE}' -c 'no ip address {prefix}' -c 'end'",
@@ -827,10 +947,16 @@ def build_benchmark_isp_experiment(
                                     "property": "reachability",
                                     "expected": "reachable",
                                 }
+                                if i.property == "isolation"
+                                else {
+                                    "property": "isolation",
+                                    "expected": "unreachable",
+                                }
                             )
                             if i.id in failed
                             else i
                             for i in healthy.intents
+                            if i.id not in uncertain
                         )
                     }
                 )
@@ -842,6 +968,7 @@ def build_benchmark_isp_experiment(
                     restore_nodes=(target,),
                     requirements=positive,
                     expected_failed_ids=failed,
+                    unconstrained_ids=tuple(sorted(uncertain)),
                     recovery_commands=recovery_commands,
                     restore_nft_nodes=nft_nodes,
                     static_edits=static_edits,

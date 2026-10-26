@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import ipaddress
 import re
-from typing import Any
+import time
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 from nika.net_env.verify import exec_or_empty, ping_stats
 from nika.problems.base import build_verify_result
@@ -18,6 +20,14 @@ from nika.runtime.spec import NodeRole
 
 _HOST_PREFIXES = ("client", "pc", "web", "service", "host", "server")
 _ECHO_COUNT = 10
+# Healthy-baseline reads: a healthy path may shed an occasional echo (the
+# enterprise WAN loses about 1 in 3000 under host scheduling noise), so a
+# lossy read is repeated before the path is called unhealthy. A freshly
+# deployed lab under host load can also lose a path for about a minute while
+# routing settles, so the reads span roughly 70 s.
+HEALTHY_READS = 6
+HEALTHY_READ_GAP_SEC = 5.0
+_T = TypeVar("_T")
 _ARP_COUNT = 4
 _FLAP_ECHOES = 50
 # While the bridge points the shared MAC at one port, echoes to both holders
@@ -43,8 +53,29 @@ def lab_addresses(runtime: LabRuntime) -> dict[str, list[tuple[str, str]]]:
     return found
 
 
+def healthy_read(
+    read: Callable[[], _T], loss_percent: Callable[[_T], float]
+) -> tuple[_T, int]:
+    """Repeat a healthy-baseline read until it has no loss; return it and the read count.
+
+    A path that stays lossy fails every read, so only transient loss is absorbed.
+    Fault-time predicates must not use this.
+    """
+    for attempt in range(HEALTHY_READS):
+        if attempt:
+            time.sleep(HEALTHY_READ_GAP_SEC)
+        result = read()
+        if loss_percent(result) == 0.0:
+            break
+    return result, attempt + 1
+
+
 def _reachable(runtime: LabRuntime, src: str, ip: str) -> bool:
-    return ping_stats(runtime, src, ip, count=3, interval_sec=0.2).loss_percent == 0.0
+    """The address is live and routed from ``src``: at least one of 3 echoes answers.
+
+    Whether the path is clean is the baseline's read, which retries lossy reads.
+    """
+    return ping_stats(runtime, src, ip, count=3, interval_sec=0.2).loss_percent < 100.0
 
 
 def _observers(runtime: LabRuntime, target_ip: str, exclude: set[str]) -> dict:
@@ -76,6 +107,11 @@ def _loss(runtime: LabRuntime, src: str, ip: str) -> float:
     ).loss_percent
 
 
+def _healthy_loss(runtime: LabRuntime, src: str, ip: str) -> float:
+    loss, _reads = healthy_read(lambda: _loss(runtime, src, ip), lambda value: value)
+    return loss
+
+
 def address_baseline(
     problem: Any, host: str, intf: str = "eth0"
 ) -> tuple[bool, dict[str, Any]]:
@@ -87,8 +123,8 @@ def address_baseline(
         return False, {"error": "no_peer_reaches_target", "target_host": host}
     ends = {**ends, "target_host": host}
     problem._audit_address_ends = ends
-    target_loss = _loss(runtime, ends["observer"], ends["target_ip"])
-    control_loss = _loss(runtime, ends["observer"], ends["control_ip"])
+    target_loss = _healthy_loss(runtime, ends["observer"], ends["target_ip"])
+    control_loss = _healthy_loss(runtime, ends["observer"], ends["control_ip"])
     ok = target_loss == 0.0 and control_loss == 0.0
     return ok, {
         **ends,
@@ -211,7 +247,10 @@ def mac_conflict_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, An
     problem._audit_mac_ends = ends
     if not ends or "error" in ends:
         return False, ends or {"error": "owner_has_no_address"}
-    reading = _mac_conflict_reading(problem, ends)
+    reading, _reads = healthy_read(
+        lambda: _mac_conflict_reading(problem, ends),
+        lambda read: max((1e9 if v is None else v) for v in read.values()),
+    )
     ok = all(loss == 0.0 for loss in reading.values())
     return ok, {**ends, "echoes": _FLAP_ECHOES, **reading}
 
@@ -314,8 +353,8 @@ def netmask_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     if not ends["control_observer"]:
         return False, {**ends, "error": "no_sibling_in_the_real_subnet"}
     runtime = problem.runtime
-    target_loss = _loss(runtime, ends["observer"], ends["target_ip"])
-    control_loss = _loss(runtime, ends["control_observer"], ends["target_ip"])
+    target_loss = _healthy_loss(runtime, ends["observer"], ends["target_ip"])
+    control_loss = _healthy_loss(runtime, ends["control_observer"], ends["target_ip"])
     ok = target_loss == 0.0 and control_loss == 0.0
     return ok, {
         **ends,

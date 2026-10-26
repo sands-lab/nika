@@ -479,3 +479,13 @@ def test_profile_config_set_on_profile(tmp_path: Path) -> None:
     assert cfg.agent.provider == "openai"
     assert cfg.agent.model == "gpt-5-mini"
     assert cfg.agent.reasoning_effort == "medium"
+
+
+def test_agent_sampling_defaults_unset_and_bounds() -> None:
+    assert RunConfig().agent.sampling_params() == {}
+    cfg = RunConfig.model_validate({"agent": {"temperature": 0, "seed": 1}})
+    assert cfg.agent.sampling_params() == {"temperature": 0, "seed": 1}
+    with pytest.raises(ValidationError, match="agent.top_p"):
+        RunConfig.model_validate({"agent": {"top_p": 0}})
+    with pytest.raises(ValidationError, match="agent.temperature"):
+        RunConfig.model_validate({"agent": {"temperature": -1}})

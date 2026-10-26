@@ -9,6 +9,10 @@ same lab:
 4. the artifact and the symptom again after ``PERSISTENCE_WAIT_SEC`` and after
    a further ``FINAL_WAIT_SEC``.
 
+It also runs the stages in ``experiment.audit.agent_view``:
+what an agent's default tools show on the healthy lab, and a scan of the state
+inject added for artifacts that name NIKA or the fault.
+
 It closes only the session it started.
 """
 
@@ -28,7 +32,12 @@ from experiment.audit.environment import (
     identity_from_row,
 )
 from experiment.audit.provenance import capture_provenance
-from nika.net_env.verify import http_ok, ping_ok
+from nika.net_env.verify import (
+    LabVerifyTimeoutError,
+    http_ok,
+    ping_ok,
+    verify_lab_with_retry,
+)
 from nika.problems.rca.inventory import (
     canonical_link_name,
     iter_link_termination_points,
@@ -48,9 +57,6 @@ from nika.workflows.benchmark.healthy import is_healthy_case
 # not persist. The final read comes one more window later.
 PERSISTENCE_WAIT_SEC = 60.0
 FINAL_WAIT_SEC = 60.0
-# Lab checks that may retry before the first healthy reading.
-LAB_ATTEMPTS = 3
-LAB_RETRY_DELAY_SEC = 5.0
 # Stages whose pass means "the symptom is present". A probe command that timed
 # out or raised there reads as a broken path, so it fails the stage instead.
 _SYMPTOM_STAGES = frozenset({"symptom", "persistence_symptom", "final_symptom"})
@@ -211,6 +217,19 @@ def _independent_control_ip(
         if item.strip() in endpoints
     }
     behind |= {ep for eps in links for ep in eps if _node(ep) in actors}
+    # A destination inside a prefix the fault withdraws or hijacks is the fault.
+    nets = []
+    for value in values.values() if isinstance(values, dict) else []:
+        if isinstance(value, str) and "/" in value:
+            try:
+                nets.append(ipaddress.ip_network(value, strict=False))
+            except ValueError:
+                pass
+    in_fault_prefix = any(
+        ipaddress.ip_address(dst_ip) in net
+        for net in nets
+        if ipaddress.ip_address(dst_ip).version == net.version
+    )
     siblings: list[tuple[set[str], list[str]]] = []
     for eps in links:
         hit = [ep for ep in eps if ep in faulted]
@@ -291,7 +310,7 @@ def _independent_control_ip(
         for ep in ports
     ]
     own = [ep for eps in links for ep in eps if _node(ep) == source]
-    if not any(address(ep) in (None, dst_ip) for ep in behind):
+    if not in_fault_prefix and not any(address(ep) in (None, dst_ip) for ep in behind):
         if not any(address(ep) == dst_ip for ep in own):
             return source, dst_ip
         neighbors += [ep for eps in links if set(own) & set(eps) for ep in eps]
@@ -411,23 +430,22 @@ def _artifact_stage(stage: str, raw: dict[str, Any]) -> StageResult:
 
 
 def _lab_stage(name: str, net_env: Any) -> StageResult:
-    """Run the scenario's full ``verify_lab``, retrying a few times after deploy."""
-    attempts: list[dict[str, Any]] = []
-    for attempt in range(LAB_ATTEMPTS):
-        result = net_env.verify_lab()
-        if result is None:
-            return _stage(name, "unsupported", "no_verify_lab")
-        checks = result.get("checks") or {}
-        ok = bool(result.get("verified")) and bool(checks) and all(checks.values())
-        attempts.append(
-            {"verified": ok, "failed": sorted(k for k, v in checks.items() if not v)}
-        )
-        if ok or attempt + 1 == LAB_ATTEMPTS:
-            stage = _from_observation(name, result, ok=ok)
-            stage.evidence = {**stage.evidence, "attempts": attempts}
-            return stage
-        time.sleep(LAB_RETRY_DELAY_SEC)
-    raise AssertionError("unreachable")
+    """Verify the lab within the same retry window as production startup."""
+    try:
+        result = verify_lab_with_retry(net_env)
+    except LabVerifyTimeoutError as exc:
+        stage = _from_observation(name, exc.last_result, ok=False)
+        stage.evidence = {
+            **stage.evidence,
+            "failed": sorted(exc.failed_checks),
+            "max_wait_sec": exc.max_wait_sec,
+        }
+        return stage
+    if result is None:
+        return _stage(name, "unsupported", "no_verify_lab")
+    checks = result.get("checks") or {}
+    ok = bool(result.get("verified")) and bool(checks) and all(checks.values())
+    return _from_observation(name, result, ok=ok)
 
 
 def _sham_stage(observe: Callable[[], tuple[bool, dict[str, Any]]]) -> StageResult:
@@ -467,6 +485,55 @@ def _custom_baseline_stage(fault: str, problem: Any, parsed: Any) -> StageResult
     )
 
 
+def _agent_view_stage(name: str, measure: Callable[[], dict[str, Any]]) -> StageResult:
+    """Healthy agent view: fail on checks that failed in every round."""
+
+    def stage() -> StageResult:
+        try:
+            evidence = measure()
+        except Exception as exc:  # noqa: BLE001 - an audit-side error is not a case failure
+            return _stage(name, "no_evidence", f"{type(exc).__name__}: {exc}"[:500])
+        violated = int(evidence.get("violated_count") or 0)
+        if violated:
+            return _stage(
+                name,
+                "fail",
+                f"{violated} check(s) an agent would read as a fault failed in every round",
+                evidence,
+            )
+        if not any(evidence.get("checks", {}).values()):
+            return _stage(name, "no_evidence", "no agent-view check ran", evidence)
+        return _stage(name, "pass", evidence=evidence)
+
+    return _timed(name, stage)
+
+
+def _leak_stage(measure: Callable[[], dict[str, Any]]) -> StageResult:
+    """Injection leak scan: fail on any fault-revealing artifact."""
+
+    def stage() -> StageResult:
+        try:
+            evidence = measure()
+        except Exception as exc:  # noqa: BLE001 - an audit-side error is not a case failure
+            return _stage(
+                "leak_scan", "no_evidence", f"{type(exc).__name__}: {exc}"[:500]
+            )
+        flagged = int(evidence.get("flagged_count") or 0)
+        if flagged:
+            return _stage(
+                "leak_scan",
+                "fail",
+                f"inject left {flagged} artifact(s) that name NIKA or the fault, "
+                "or copy pre-fault state",
+                evidence,
+            )
+        if not evidence.get("nodes_scanned"):
+            return _stage("leak_scan", "no_evidence", "no node was readable", evidence)
+        return _stage("leak_scan", "pass", evidence=evidence)
+
+    return _timed("leak_scan", stage)
+
+
 def audit_open_session(session_id: str, row: dict[str, Any]) -> CaseAudit:
     """Audit a case whose lab is already deployed. Does not close the session."""
     from nika.net_env.isp.identity import is_isp_scenario
@@ -496,8 +563,24 @@ def audit_open_session(session_id: str, row: dict[str, Any]) -> CaseAudit:
         )
 
     stages.append(_timed("baseline_lab", lambda: _lab_stage("baseline_lab", net_env)))
+
+    def view(name: str) -> StageResult:
+        from experiment.audit.agent_view import run_agent_view
+
+        return _agent_view_stage(
+            name,
+            lambda: run_agent_view(
+                session_id, net_env, identity.scenario, identity.topo_size
+            ),
+        )
+
     if is_healthy_case(fault):
-        time.sleep(PERSISTENCE_WAIT_SEC + FINAL_WAIT_SEC)
+        clock = time.monotonic()
+        stages.append(view("agent_view"))
+        # The agent view runs inside the wait, so final_lab keeps its offset.
+        time.sleep(
+            max(0.0, PERSISTENCE_WAIT_SEC + FINAL_WAIT_SEC - (time.monotonic() - clock))
+        )
         stages.append(_timed("final_lab", lambda: _lab_stage("final_lab", net_env)))
         return done()
 
@@ -538,6 +621,21 @@ def audit_open_session(session_id: str, row: dict[str, Any]) -> CaseAudit:
 
     stages.append(_timed("baseline_path", baseline))
     stages.append(_timed("sham_symptom", lambda: _sham_stage(observe)))
+    scan: Any = None
+    scan_error = "the pre-inject snapshot did not run"
+    from experiment.audit.agent_view import leak_scan_for
+
+    stages.append(view("baseline_agent_view"))
+    try:
+        scan = leak_scan_for(net_env, fault)
+        scan.capture_before()
+    except Exception as exc:  # noqa: BLE001 - recorded by the leak stage
+        scan, scan_error = None, f"{type(exc).__name__}: {exc}"
+
+    def leak() -> dict[str, Any]:
+        if scan is None:
+            raise RuntimeError(scan_error)
+        return scan.capture_after_and_diff()
 
     def inject() -> StageResult:
         problem.inject_fault(parsed)
@@ -552,6 +650,8 @@ def audit_open_session(session_id: str, row: dict[str, Any]) -> CaseAudit:
         )
 
     stages.append(_timed("inject_artifact", inject))
+    # Read right after inject, before the audit's own probes touch the lab.
+    stages.append(_leak_stage(leak))
     symptom_payload: dict[str, Any] = {}
 
     def symptom() -> StageResult:

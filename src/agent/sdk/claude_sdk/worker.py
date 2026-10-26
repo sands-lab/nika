@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from agent.cli.claude.config import claude_env
+from agent.cli.claude.config import claude_env, sdk_isolation_options
 from agent.protocols import PHASES, SUBMISSION
 from agent.sdk.claude_sdk.transcript import ClaudeSdkTranscript, run_claude_sdk_query
 from agent.sdk.mcp import to_sdk_mcp_servers
@@ -70,6 +70,7 @@ class ClaudeSdkWorker:
             "permission_mode": "bypassPermissions",
             "env": sdk_env,
             "effort": map_anthropic_effort(self.reasoning_effort),
+            **sdk_isolation_options(),
         }
         skills_dir = claude_skills_package_dir()
         if skills_dir is not None and self.phase != SUBMISSION:

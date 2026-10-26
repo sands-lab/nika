@@ -23,6 +23,12 @@ echo "[startup] k3s API ready; waiting for host image preload"
 # Wait for the host-side preload orchestrator to finish all k3s nodes.
 stage_wait "host image preload" 900 test -f /var/run/images-preloaded
 
+# Cluster add-ons (CoreDNS) run on the control plane, as in a typical k3s
+# deployment, so cluster DNS has one well-known home.
+stage_wait "coredns deployment" 300 kubectl --request-timeout=15s -n kube-system get deployment coredns
+stage_run "place coredns on the control plane" kubectl --request-timeout=30s -n kube-system patch deployment coredns --type merge -p '{"spec":{"template":{"spec":{"nodeSelector":{"node-role.kubernetes.io/control-plane":"true"}}}}}'
+stage_wait "coredns rollout" 300 kubectl --request-timeout=15s -n kube-system rollout status deployment/coredns --timeout=5s
+
 # Start MetalLB
 echo "[startup] applying MetalLB"
 stage_run "apply /k8s/metallb-frr.yaml" kubectl --request-timeout=30s apply -f /k8s/metallb-frr.yaml
@@ -78,4 +84,11 @@ stage_run "scale replicas" kubectl --request-timeout=30s scale -n weather-ns dep
 stage_wait "word-dply rollout" 300 kubectl --request-timeout=15s rollout status -n word-ns deployment/word-dply --timeout=5s
 stage_wait "weather-dply rollout" 300 kubectl --request-timeout=15s rollout status -n weather-ns deployment/weather-dply --timeout=5s
 echo "[startup] sample apps ready"
+
+# Per-node monitoring agents call the sample apps through their Service names.
+stage_run "apply /shared/uptime-agent.yaml" kubectl --request-timeout=30s apply -f /shared/uptime-agent.yaml
+stage_wait "uptime-agent rollout" 300 kubectl --request-timeout=15s rollout status -n monitoring daemonset/uptime-agent --timeout=5s
+# Bootstrap leaves transient Warning events (image pulls via the temporary mirror,
+# rollouts, readiness during boot). A long-running cluster would have aged them out.
+stage_run "clear bootstrap warning events" kubectl --request-timeout=30s delete events -A --field-selector type=Warning
 touch /var/run/startup-complete

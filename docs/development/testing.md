@@ -313,8 +313,8 @@ MCP gateway wiring and MCP server tool delegation are **not** unit-tested in iso
 |--------------------|---------|
 | `pingmesh/test_parser.py` | Ping output parsing (`loss`, RTT, unreachable) |
 | `pingmesh/test_endpoints.py` | Endpoint discovery and Containerlab data-plane IP selection |
-| `pingmesh/test_engine.py` | Snapshot orchestration, anomaly summary, parameter bounds |
-| `pingmesh/test_integration.py` | Live PingMesh MCP: healthy mesh → inject `link_down` → faulty mesh |
+| `pingmesh/test_engine.py` | Snapshot orchestration, pair sampling, per-pair timeouts, scenario isolation intent, anomaly summary |
+| `pingmesh/test_integration.py` | Live PingMesh MCP: default mesh is healthy (designed isolation confirmed) → inject `link_down` → faulty mesh |
 | `kathara/test_kathara_*.py` | Live Kathara API smoke tests (Docker) |
 | `containerlab/test_containerlab_api.py` | Live Containerlab API smoke tests |
 | `containerlab/test_srl_api.py` | SRL API parsing/script logic (mocked runtime) |

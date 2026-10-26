@@ -1,5 +1,6 @@
 from __future__ import annotations
 import pytest
+import asyncio
 import json
 import os
 import unittest.mock
@@ -111,3 +112,32 @@ class ClaudeWorkerConfigTest:
 
         config = json.loads(worker._mcp_config_path.read_text())
         assert set(config["mcpServers"]) == expected_servers
+
+
+def test_claude_runs_with_only_its_mcp_tools(tmp_path, agent_task) -> None:
+    """``claude -p`` loads only its MCP config and no network built-ins."""
+    agent_task()
+    worker = ClaudeWorker(
+        session_id="sess-123",
+        session_dir=str(tmp_path),
+        phase="diagnosis",
+        model="test-model",
+        llm_provider="anthropic",
+    )
+    captured: dict = {}
+
+    async def fake_exec(*cmd, env, **_kwargs):
+        captured.update(cmd=list(cmd), env=env)
+        raise FileNotFoundError
+
+    with unittest.mock.patch(
+        "agent.cli.claude.claude_worker.asyncio.create_subprocess_exec",
+        side_effect=fake_exec,
+    ):
+        asyncio.run(worker.run("prompt"))
+
+    cmd = captured["cmd"]
+    assert "--strict-mcp-config" in cmd
+    assert "--disallowedTools=WebSearch,WebFetch" in cmd
+    assert cmd[-1] == "prompt"
+    assert captured["env"]["ENABLE_CLAUDEAI_MCP_SERVERS"] == "false"

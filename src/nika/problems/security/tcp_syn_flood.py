@@ -2,14 +2,15 @@
 
 from __future__ import annotations
 
+import shlex
 import time
 
 from pydantic import BaseModel, Field
 
 from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
 from nika.problems.rca import node_resource
+from nika.problems.support.process_identity import NEUTRAL_PROBE_NAME, exec_as
 
-_REPORTS = "/var/lib/int-collector/int_reports.jsonl"
 _COLLECTOR_FRESH_SEC = 30.0
 
 
@@ -60,19 +61,32 @@ class TcpSynFloodAttack(ProblemBase):
         interval_us = max(1, 1_000_000 // params.rate_pps)
         per_flow_interval_us = max(1, round(1_000_000 * params.flows / params.rate_pps))
         base_port = 20000 + (params.seed % 20000)
+        # Each flow's SYN generator runs the neutrally named `latency-probe`
+        # hardlink (see process_identity.py), so `ps` shows a plausible
+        # host-monitoring process in both argv and kernel comm, not the raw
+        # flood tool.
+        flow_cmd = exec_as(
+            NEUTRAL_PROBE_NAME,
+            f'{NEUTRAL_PROBE_NAME} -S -s "$1" -p {params.target_port} '
+            f"-i u{per_flow_interval_us} {params.target_ip}",
+        )
         command = (
             f"for source_port in $(seq {base_port} {base_port + params.flows - 1}); do "
-            f"timeout {params.duration}s hping3 -S -s $source_port "
-            f"-p {params.target_port} -i u{per_flow_interval_us} "
-            f"{params.target_ip} >/dev/null 2>&1 & done"
+            f"timeout {params.duration}s bash -c {shlex.quote(flow_cmd)} "
+            '_ "$source_port" >/dev/null 2>&1 & done'
         )
         self.runtime.exec(params.attacker_device, command, timeout=10)
         self._profile = {**params.model_dump(), "interval_us": interval_us}
 
     def verify_fault(self, params: TcpSynFloodAttackParams) -> dict:
         """Verify SYN flood processes and that INT collection is still live."""
+        from nika.net_env.p4_dc_gateway.topology_model import INT_REPORTS
+
         # Bracket the first character so pgrep does not match its own shell.
-        pattern = f"[h]ping3 -S .*-p {params.target_port} .*{params.target_ip}"
+        pattern = (
+            f"[{NEUTRAL_PROBE_NAME[0]}]{NEUTRAL_PROBE_NAME[1:]} -S "
+            f".*-p {params.target_port} .*{params.target_ip}"
+        )
         output = self.runtime.exec(
             params.attacker_device,
             f"pgrep -fc '{pattern}' 2>/dev/null || true",
@@ -93,7 +107,7 @@ class TcpSynFloodAttack(ProblemBase):
         )
         mtime_raw = self.runtime.exec(
             "collector",
-            f"stat -c %Y {_REPORTS} 2>/dev/null || echo 0",
+            f"stat -c %Y {INT_REPORTS} 2>/dev/null || echo 0",
             timeout=10,
         ).strip()
         try:

@@ -129,6 +129,12 @@ def test_bgp_max_prefix_target_ebgp() -> None:
     assert params["peer_name"]
     assert params["neighbor_ip"]
     assert params["receiver_name"] != params["peer_name"]
+    # The session that carries the customer route, the only way it arrives.
+    site = bgp.customer_site
+    assert (params["receiver_name"], params["peer_name"]) == (
+        site.partner,
+        site.provider,
+    )
     pair = {params["receiver_name"], params["peer_name"]}
     sessions = [
         s
@@ -137,3 +143,15 @@ def test_bgp_max_prefix_target_ebgp() -> None:
         and {s["local_device"], s["remote_device"]} == pair
     ]
     assert sessions
+
+
+def test_default_probe_path_stays_inside_one_as_under_ebgp() -> None:
+    from nika.net_env.isp.inject_targets import isp_topology_probe_path
+
+    plan = compile_isp_plan(IspConfig(topology="dfn-bwin"))
+    asn_of = {n.device_name: n.asn for n in compile_bgp_plan(plan, "ebgp").nodes}
+    path = isp_topology_probe_path("dfn-bwin", "ebgp")
+    peer_router = path.peer_host.removeprefix("pc_")
+    assert asn_of[path.control_plane_host] == asn_of[peer_router]
+    # Other modes keep the first backbone link, which crosses ASes here.
+    assert isp_topology_probe_path("dfn-bwin") != path
