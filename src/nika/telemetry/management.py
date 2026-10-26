@@ -6,9 +6,11 @@ container for each requested kind, gives a management address to each device
 that supports at least one, and starts that kind's exporters there and its
 services on the collector. A kind no device supports is not an error.
 
-Each kind module (``netflow``, ``prometheus``) provides ``probe``,
+Each kind module (``netflow``, ``prometheus``, ``syslog``) provides ``probe``,
 ``device_files``, ``device_lines``, ``collector_files``, ``collector_lines``
-and ``running``.
+and ``running``. ``device_files`` / ``device_lines`` take the probed
+``version`` so a kind can pick pmacct vs OVS NetFlow, or node_exporter vs
+OpenFlow vs P4 counters.
 """
 
 from __future__ import annotations
@@ -25,8 +27,10 @@ from nika.telemetry import (
     MGMT_VRF,
     NETFLOW,
     PROMETHEUS,
+    SYSLOG,
     netflow,
     prometheus,
+    syslog,
     telemetry_link,
 )
 from nika.utils.parallel import bounded_parallel_map
@@ -37,7 +41,7 @@ if TYPE_CHECKING:
     from nika.net_env.base import NetworkEnvBase
     from nika.runtime.base import LabRuntime
 
-KINDS = {NETFLOW: netflow, PROMETHEUS: prometheus}
+KINDS = {NETFLOW: netflow, PROMETHEUS: prometheus, SYSLOG: syslog}
 TELEMETRY_COLLECTOR = "telemetry_collector"
 TELEMETRY_SWITCH = "telemetry_switch"
 # Routing table of each device's ``MGMT_VRF``.
@@ -81,7 +85,7 @@ def attach(
     its scenario interfaces; none is configured yet.
     """
     lab = net_env.lab
-    devices = sorted(lab.machines)
+    devices = _exporting_devices(net_env)
     _add_node(net_env, TELEMETRY_SWITCH, nika_image("base"), capabilities=("linux",))
     _add_node(
         net_env,
@@ -125,6 +129,22 @@ def attach(
         "addresses": {},
         "kinds": {kind: {"versions": {}} for kind in kinds},
     }
+
+
+def _exporting_devices(net_env: NetworkEnvBase) -> list[str]:
+    """Devices that export telemetry. Skip INT-MX sinks.
+
+    A node whose capabilities are only ``linux`` and ``telemetry`` receives
+    hop reports; it does not export NetFlow, Prometheus, or syslog.
+    """
+    names: list[str] = []
+    for name in sorted(net_env.lab.machines):
+        identity = net_env.machine_identities.get(name)
+        caps = set(identity.capabilities) if identity else set()
+        if caps <= {"linux", "telemetry"} and "telemetry" in caps:
+            continue
+        names.append(name)
+    return names
 
 
 def _add_node(
@@ -201,28 +221,59 @@ def configure(runtime: LabRuntime, plan: dict[str, Any]) -> dict[str, Any]:
     collector_ip, prefixlen, addresses = address_plan(plan["subnet"], configured)
 
     def start(name: str) -> None:
-        device = plan["devices"][name]
-        own = [KINDS[kind] for kind in kinds if name in versions[kind]]
+        from nika.telemetry import routeros
+
+        device = {**plan["devices"][name], "prefixlen": prefixlen}
+        own = [
+            (KINDS[kind], versions[kind][name])
+            for kind in kinds
+            if name in versions[kind]
+        ]
         files: dict[str, str] = {}
-        for kind in own:
-            files.update(kind.device_files(device, addresses[name], collector_ip))
-        lines = setup_lines(
-            mgmt_iface=device["mgmt_iface"],
-            address=addresses[name],
-            prefixlen=prefixlen,
-            collector=collector_ip,
-        )
-        for kind in own:
-            lines += kind.device_lines(device, addresses[name])
+        for kind, version in own:
+            files.update(
+                kind.device_files(
+                    device, addresses[name], collector_ip, version=version
+                )
+            )
+        if any(routeros.is_ros(version) for _, version in own):
+            flow_dest = ""
+            if NETFLOW in versions and name in versions[NETFLOW]:
+                flow_dest = collector_ip
+            files[routeros.SETUP_SCRIPT] = routeros.setup_script(
+                device, addresses[name], collector=flow_dest
+            )
+            lines = [f"sh {routeros.SETUP_SCRIPT}"]
+        else:
+            lines = setup_lines(
+                mgmt_iface=device["mgmt_iface"],
+                address=addresses[name],
+                prefixlen=prefixlen,
+                collector=collector_ip,
+            )
+        for kind, version in own:
+            lines += kind.device_lines(device, addresses[name], version=version)
         _run(runtime, name, files, lines)
 
     bounded_parallel_map(start, configured, max_workers=DEVICE_EXEC_WORKERS)
     files: dict[str, str] = {}
     lines: list[str] = []
+    from nika.telemetry import routeros
+
+    ros_hidden = ",".join(
+        sorted(
+            {
+                routeros.linux_to_ether(plan["devices"][name]["mgmt_iface"])
+                for name, version in versions.get(PROMETHEUS, {}).items()
+                if routeros.is_ros(version)
+            }
+        )
+    )
     for kind in kinds:
         targets = {name: addresses[name] for name in versions[kind]}
-        files.update(KINDS[kind].collector_files(targets))
-        lines += KINDS[kind].collector_lines()
+        files.update(KINDS[kind].collector_files(targets, versions=versions[kind]))
+        extra = {"hidden": ros_hidden} if kind == PROMETHEUS and ros_hidden else {}
+        lines += KINDS[kind].collector_lines(targets, versions=versions[kind], **extra)
     _run(runtime, plan["collector"], files, lines)
     return {
         **plan,

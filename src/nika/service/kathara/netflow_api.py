@@ -146,6 +146,21 @@ class NetflowAPIMixin:
         return rows
 
 
+class _ExecNetflow(NetflowAPIMixin):
+    """Bind ``NetflowAPIMixin`` to any lab API that implements ``exec_cmd``."""
+
+    def __init__(self, api) -> None:
+        self._api = api
+
+    def exec_cmd(self, host_name: str, command: str, timeout: float = 10) -> str:
+        return self._api.exec_cmd(host_name, command, timeout=timeout)
+
+
+def netflow_query_for(api, **kwargs) -> list[dict]:
+    """Query flow records through ``api.exec_cmd``."""
+    return _ExecNetflow(api).netflow_query(**kwargs)
+
+
 class KatharaNetflowAPI(KatharaBaseAPI, NetflowAPIMixin):
     """Kathara API for IPFIX flow records."""
 

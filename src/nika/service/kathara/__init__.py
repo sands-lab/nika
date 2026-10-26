@@ -10,6 +10,7 @@ from nika.service.kathara.prometheus_api import (
     KatharaPrometheusAPI,
     PrometheusAPIMixin,
 )
+from nika.service.kathara.syslog_api import KatharaSyslogAPI, SyslogAPIMixin
 from nika.service.kathara.routeros_api import KatharaRouterOSAPI, RouterOSAPIMixin
 from nika.service.kathara.sdn_api import KatharaSdnAPI, SdnAPIMixin
 from nika.service.kathara.tc_api import KatharaTCAPI, TCMixin
@@ -25,6 +26,7 @@ __all__ = [
     "KatharaNetflowAPI",
     "KatharaNFTableAPI",
     "KatharaPrometheusAPI",
+    "KatharaSyslogAPI",
     "KatharaRouterOSAPI",
     "KatharaSdnAPI",
     "KatharaTCAPI",
@@ -42,6 +44,7 @@ class KatharaAPIALL(
     NetflowAPIMixin,
     PrometheusAPIMixin,
     RouterOSAPIMixin,
+    SyslogAPIMixin,
     NFTableMixin,
     TCMixin,
     TelemetryAPIMixin,

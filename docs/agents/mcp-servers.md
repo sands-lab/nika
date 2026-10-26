@@ -32,17 +32,18 @@ Use `exec_shell(host_name, command, timeout=10)` for ordinary commands. Set `tim
 | `kathara_bmv2_mcp_server` | Kathara P4 scenarios | `p4rt_exec` runs read-only P4Runtime queries through the fabric controller `fabric_mgr`. |
 | `kathara_sdn_mcp_server` | Kathara SDN scenarios | `sdn_onos_rest` queries ONOS REST through `fabric_mgr`. |
 | `kathara_telemetry_mcp_server` | Kathara telemetry scenarios | `int_query_telemetry` filters observed INT-MX packet and hop records. |
-| `kathara_netflow_mcp_server` | Sessions started with `telemetry: [netflow]` | `netflow_query` reads and aggregates IPFIX flow records stored by `telemetry_collector`. |
+| `kathara_netflow_mcp_server` | Sessions started with `telemetry: [netflow]` | `netflow_query` reads and aggregates flow records stored by `telemetry_collector` (IPFIX, NetFlow, or sFlow). |
 | `kathara_prometheus_mcp_server` | Sessions started with `telemetry: [prometheus]` | `prometheus_query` runs PromQL against the device metrics Prometheus stores on `telemetry_collector`. |
+| `kathara_syslog_mcp_server` | Sessions started with `telemetry: [syslog]` | `syslog_query` reads device syslog stored by `telemetry_collector`. |
 | `k8s_mcp_server` | Kubernetes scenarios when `nika.k8s.access` permits MCP | `k8s_list_events` queries session-scoped Kubernetes events. |
 
 ### SDN (`kathara_sdn_mcp_server`)
 
-Call `sdn_onos_rest` with paths such as `/onos/v1/devices` or `/onos/v1/flows`. Use `exec_shell` on a switch for `ovs-ofctl` or `ovs-vsctl`, and on `onos` to inspect controller logs.
+Call `sdn_onos_rest` with paths such as `/onos/v1/devices`, `/onos/v1/flows`, or `/onos/v1/statistics/ports`. Use `exec_shell` on a switch for `ovs-ofctl` or `ovs-vsctl`, and on `onos` to inspect controller logs. Enable [NetFlow and Prometheus telemetry](../operations/network-scenarios.md#telemetry) when the agent should query stored flow records and OpenFlow port time series.
 
 ### P4 / BMv2 (`kathara_bmv2_mcp_server`)
 
-Call `p4rt_exec` with `read`, `read --switch leaf_1`, `read-table --switch leaf_1 --table ipv4_lpm`, or `counters`; `--help` lists these commands. The tool rejects every other subcommand and option, so an agent cannot change switch state through it. Use `exec_shell` for ordinary switch and controller commands, such as reading the controller's write log in `/var/log/p4rt/controller.log`.
+Call `p4rt_exec` with `read`, `read --switch leaf_1`, `read-table --switch leaf_1 --table ipv4_lpm`, or `counters`; `--help` lists these commands. The tool rejects every other subcommand and option, so an agent cannot change switch state through it. Its response removes private post-counter fault fields. Use `exec_shell` for ordinary switch and controller commands, such as reading the controller's write log in `/var/log/p4rt/controller.log`. Enable [Prometheus telemetry](../operations/network-scenarios.md#telemetry) when the agent should query pipeline-counter time series. On `p4_dc_gateway`, `int_query_telemetry` returns observed INT-MX traces.
 
 ### Telemetry (`kathara_telemetry_mcp_server`)
 
@@ -52,13 +53,17 @@ Call `int_query_telemetry` with a start time and optional flow or packet filters
 
 Call `netflow_query` with a time window, for example `start_time="-600"` for the last ten minutes. To narrow the results, pass `exporter` (a device name) and an nfdump `filter` such as `proto udp and dst ip 10.254.0.6`. To sum packets, bytes, and flows, set `aggregate_by` to one or more of `router`, `inif`, `proto`, `srcip`, `srcport`, `dstip`, and `dstport`. Rows are sorted by `order_by` (`bytes`, `packets`, or `flows`), and `limit` sets how many are returned.
 
-Devices export only the traffic they receive, so a flow appears once for each device on its path. `in_if` is the kernel ifindex of the receiving interface; running `ip -o link` on that device maps it to an interface name. Records become queryable about 20 seconds after the traffic. The server is selected when a session enables `netflow` [telemetry](../operations/network-scenarios.md#telemetry).
+Devices export only the traffic they receive, so a flow appears once for each device on its path. On FRR exporters, `in_if` is the kernel ifindex; `ip -o link` maps it to a name. On OVS exporters in `sdn_l3_clos`, `in_if` is the OpenFlow port; `ovs-ofctl dump-ports-desc` maps it. On Containerlab SR Linux, `in_if` is the sFlow ifIndex. On Kathara RouterOS, `in_if` is the traffic-flow interface index. Records become queryable about 20 seconds after the traffic. The server is selected when a session enables `netflow` [telemetry](../operations/network-scenarios.md#telemetry).
 
 ### Prometheus (`kathara_prometheus_mcp_server`)
 
-Call `prometheus_query` with a PromQL expression, for example `node_network_up == 0` for interfaces that are down, or `rate(node_network_receive_bytes_total{node="chinng"}[30s])` for receive rates on one device. Each series carries the device as `node`; `device` is the interface name, as node_exporter uses it. Omit `start_time` for an instant query. With `start_time` (for example `"-600"`), the tool returns a range at `step` resolution. `limit` sets how many series are returned.
+Call `prometheus_query` with a PromQL expression, for example `node_network_up == 0` for interfaces that are down, `rate(node_network_receive_bytes_total{node="chinng"}[30s])` for receive rates on one Linux node, `frr_bgp_peer_up{node="leaf_router_0_0"}` for an FRR BGP session, `openflow_port_rx_bytes{node="leaf_1"}` for an OVS port, `p4_ingress_packets{node="spine_1"}` for a BMv2 pipeline counter, `srl_interface_in_packets{node="leaf1"}` or `srl_bgp_peer_up{node="leaf1"}` for SR Linux, `xr_interface_in_packets{node="router1"}` or `xr_bgp_peer_up{node="router1"}` for XRd, or `routeros_interface_rx_packets{node="router1"}` for RouterOS. Each series carries the device as `node`; `device` is an interface name on Linux, OVS, SR Linux, IOS XR, and RouterOS series, and `neighbor` is a BGP peer. Omit `start_time` for an instant query. With `start_time` (for example `"-600"`), the tool returns a range at `step` resolution. `limit` sets how many series are returned.
 
-Metrics cover each device's network stack: interface counters and state (`node_network_*`), protocol statistics (`node_netstat_*`), sockets (`node_sockstat_*`), conntrack (`node_nf_conntrack_*`), and ARP (`node_arp_*`). `up` shows whether a device answers its scrape. Devices are scraped every 5 seconds. The server is selected when a session enables `prometheus` [telemetry](../operations/network-scenarios.md#telemetry).
+Linux nodes export the network stack: interface counters and state (`node_network_*`), protocol statistics (`node_netstat_*`), sockets (`node_sockstat_*`), conntrack (`node_nf_conntrack_*`), and ARP (`node_arp_*`). FRR routers also export BGP peer gauges (`frr_bgp_peer_up`, `frr_bgp_peer_prefixes`). OVS switches export OpenFlow port counters (`openflow_port_*`). P4 fabrics export ingress and egress pipeline counters (`p4_ingress_*`, `p4_egress_*`) and, on the gateway pipeline, SYN and non-SYN flow totals. SR Linux nodes export interface octet, packet, error, discard, and oper-state series (`srl_interface_*`) plus BGP sessions (`srl_bgp_peer_up`). XRd routers export `xr_interface_*` and `xr_bgp_peer_*`. RouterOS routers export `routeros_interface_*` and `routeros_bgp_peer_up`. `up` shows whether a device answers its scrape. Devices are scraped every 5 seconds. The server is selected when a session enables `prometheus` [telemetry](../operations/network-scenarios.md#telemetry).
+
+### Syslog (`kathara_syslog_mcp_server`)
+
+Call `syslog_query` with a time window, for example `start_time="-600"` for the last ten minutes. Pass `host` for one device, `program` for a syslog tag such as `bgpd`, and `contains` for a message substring. Rows are `{time, host, program, message}`. Linux and OVS devices forward `/dev/log` over the management VRF after FRR `log syslog`. SR Linux sends remote syslog from the mgmt network-instance on the lab management network. XRd uses that Linux forwarder because extra Kathara NICs stay on Linux. RouterOS uses a remote logging action. The server is selected when a session enables `syslog` [telemetry](../operations/network-scenarios.md#telemetry).
 
 ### Kubernetes (`k8s_mcp_server`)
 

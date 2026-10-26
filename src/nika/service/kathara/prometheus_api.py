@@ -89,6 +89,21 @@ def _number(value: str) -> float | str:
     return number if math.isfinite(number) else value
 
 
+class _ExecPrometheus(PrometheusAPIMixin):
+    """Bind ``PrometheusAPIMixin`` to any lab API that implements ``exec_cmd``."""
+
+    def __init__(self, api) -> None:
+        self._api = api
+
+    def exec_cmd(self, host_name: str, command: str, timeout: float = 10) -> str:
+        return self._api.exec_cmd(host_name, command, timeout=timeout)
+
+
+def prometheus_query_for(api, **kwargs) -> list[dict]:
+    """Query Prometheus through ``api.exec_cmd``."""
+    return _ExecPrometheus(api).prometheus_query(**kwargs)
+
+
 class KatharaPrometheusAPI(KatharaBaseAPI, PrometheusAPIMixin):
     """Kathara API for Prometheus device metrics."""
 

@@ -12,6 +12,7 @@ from nika.mcp.servers.kathara.frr_server import mcp as frr_mcp
 from nika.mcp.servers.kathara.iosxr_server import mcp as iosxr_mcp
 from nika.mcp.servers.kathara.netflow_server import mcp as netflow_mcp
 from nika.mcp.servers.kathara.prometheus_server import mcp as prometheus_mcp
+from nika.mcp.servers.kathara.syslog_server import mcp as syslog_mcp
 from nika.mcp.servers.kathara.routeros_server import mcp as routeros_mcp
 from nika.mcp.servers.kathara.sdn_server import mcp as sdn_mcp
 
@@ -30,6 +31,7 @@ async def test_generic_and_specialized_tool_catalog() -> None:
         (sdn_mcp, {"sdn_onos_rest"}),
         (netflow_mcp, {"netflow_query"}),
         (prometheus_mcp, {"prometheus_query"}),
+        (syslog_mcp, {"syslog_query"}),
     )
     for server, names in expected:
         assert {tool.name for tool in await server.list_tools()} == names
@@ -52,9 +54,36 @@ def test_telemetry_servers_only_selected_with_session_telemetry() -> None:
         return {
             s
             for s in servers
-            if s.endswith(("netflow_mcp_server", "prometheus_mcp_server"))
+            if s.endswith(
+                ("netflow_mcp_server", "prometheus_mcp_server", "syslog_mcp_server")
+            )
         }
 
     assert telemetry_servers(()) == set()
     assert telemetry_servers(("netflow",)) == {"kathara_netflow_mcp_server"}
     assert telemetry_servers(("prometheus",)) == {"kathara_prometheus_mcp_server"}
+    assert telemetry_servers(("syslog",)) == {"kathara_syslog_mcp_server"}
+    assert "kathara_netflow_mcp_server" in select_diagnosis_servers(
+        "sdn_l3_clos", backend="kathara", telemetry=("netflow",)
+    )
+    assert "kathara_prometheus_mcp_server" in select_diagnosis_servers(
+        "p4_dc_fabric", backend="kathara", telemetry=("prometheus",)
+    )
+    assert "kathara_telemetry_mcp_server" in select_diagnosis_servers(
+        "p4_dc_gateway", backend="kathara"
+    )
+    assert "kathara_netflow_mcp_server" in select_diagnosis_servers(
+        "min3clos", backend="containerlab", telemetry=("netflow",)
+    )
+    assert "kathara_prometheus_mcp_server" in select_diagnosis_servers(
+        "min3clos", backend="containerlab", telemetry=("prometheus",)
+    )
+    assert "kathara_netflow_mcp_server" in select_diagnosis_servers(
+        "isp_abilene", backend="containerlab", telemetry=("netflow",)
+    )
+    assert "kathara_prometheus_mcp_server" in select_diagnosis_servers(
+        "iosxr_simple_bgp", backend="kathara", telemetry=("prometheus",)
+    )
+    assert "kathara_netflow_mcp_server" in select_diagnosis_servers(
+        "routeros_simple_bgp", backend="kathara", telemetry=("netflow",)
+    )

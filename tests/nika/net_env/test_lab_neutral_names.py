@@ -75,9 +75,14 @@ def test_telemetry_device_side_does_not_name_the_host() -> None:
             collector=collector,
         )
         for kind in management.KINDS.values():
-            files = kind.device_files(device, addresses[name], collector)
-            device_side += [*files, *files.values()]
-            device_side += kind.device_lines(device, addresses[name])
+            for version in ("", "ovs-3.1.0", "1.5.0+p4"):
+                files = kind.device_files(
+                    device, addresses[name], collector, version=version
+                )
+                device_side += [*files, *files.values()]
+                device_side += kind.device_lines(
+                    device, addresses[name], version=version
+                )
     for kind in management.KINDS.values():
         files = kind.collector_files(addresses)
         device_side += [*files, *files.values(), *kind.collector_lines()]

@@ -32,6 +32,7 @@ TOOL_NODE_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "int_query_telemetry": (),
     "netflow_query": (),
     "prometheus_query": (),
+    "syslog_query": (),
     "k8s_list_events": (),
 }
 
@@ -43,6 +44,7 @@ TOOL_IMPLICIT_TARGETS: dict[str, tuple[str, ...]] = {
     "int_query_telemetry": ("collector",),
     "netflow_query": ("telemetry_collector",),
     "prometheus_query": ("telemetry_collector",),
+    "syslog_query": ("telemetry_collector",),
     **{
         name: _K8S_CONTROL_NODE
         for name in TOOL_NODE_ARGUMENTS

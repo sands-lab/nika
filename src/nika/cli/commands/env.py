@@ -108,7 +108,7 @@ def env_run(
         None,
         "--telemetry",
         help=(
-            "Telemetry to attach, repeatable (supported: netflow, prometheus). "
+            "Telemetry to attach, repeatable (supported: netflow, prometheus, syslog). "
             "Devices without support stay unconfigured."
         ),
     ),

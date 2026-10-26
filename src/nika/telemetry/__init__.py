@@ -13,7 +13,8 @@ if TYPE_CHECKING:
 
 NETFLOW = "netflow"
 PROMETHEUS = "prometheus"
-TELEMETRY_KINDS: tuple[str, ...] = (NETFLOW, PROMETHEUS)
+SYSLOG = "syslog"
+TELEMETRY_KINDS: tuple[str, ...] = (NETFLOW, PROMETHEUS, SYSLOG)
 # Prefix of the Kathara links of the out-of-band management network shared by
 # every telemetry kind. Link names stay on the host; not a scenario link.
 TELEMETRY_LINK_PREFIX = "nika_telemetry_"
@@ -71,10 +72,10 @@ def telemetry_field(value: str | Iterable[str] | None) -> dict[str, list[str]]:
 
 
 def require_telemetry_backend(kinds: tuple[str, ...], backend: str) -> None:
-    """Reject telemetry on backends that cannot attach it (only Kathara can)."""
-    if kinds and backend != "kathara":
+    """Reject telemetry on backends that cannot attach it."""
+    if kinds and backend not in {"kathara", "containerlab"}:
         raise ValueError(
-            f"Telemetry {list(kinds)} is only supported on the Kathara backend, "
+            f"Telemetry {list(kinds)} is only supported on Kathara or Containerlab, "
             f"not {backend!r}."
         )
 
@@ -93,7 +94,12 @@ def apply_telemetry(net_env: NetworkEnvBase, kinds: Iterable[str]) -> dict[str, 
     from nika.telemetry import management
 
     subnet = get_run_config().nika.telemetry.subnet
-    return management.attach(net_env, subnet, normalize_telemetry(kinds))
+    kinds = normalize_telemetry(kinds)
+    if getattr(net_env, "backend", None) == "containerlab":
+        from nika.telemetry import containerlab as clab_telemetry
+
+        return clab_telemetry.attach(net_env, subnet, kinds)
+    return management.attach(net_env, subnet, kinds)
 
 
 def configure_telemetry(runtime: LabRuntime, plan: dict[str, Any]) -> dict[str, Any]:
@@ -104,6 +110,10 @@ def configure_telemetry(runtime: LabRuntime, plan: dict[str, Any]) -> dict[str, 
     """
     from nika.telemetry import management
 
+    if plan.get("backend") == "containerlab":
+        from nika.telemetry import containerlab as clab_telemetry
+
+        return clab_telemetry.configure(runtime, plan)
     return management.configure(runtime, plan)
 
 
@@ -111,4 +121,8 @@ def telemetry_running(runtime: LabRuntime, plan: dict[str, Any]) -> bool:
     """Every requested kind has its collector service and device exporters running."""
     from nika.telemetry import management
 
+    if plan.get("backend") == "containerlab":
+        from nika.telemetry import containerlab as clab_telemetry
+
+        return clab_telemetry.running(runtime, plan)
     return management.running(runtime, plan)
