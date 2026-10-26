@@ -409,6 +409,16 @@ def default_release_ref() -> str:
     return DEFAULT_RELEASE_VERSION
 
 
+def _start_progress_monitoring() -> None:
+    """Export this run's progress to Prometheus when observability is on."""
+    from nika.metrics.stack import start_monitoring
+
+    try:
+        start_monitoring()
+    except Exception as exc:  # noqa: BLE001 - monitoring is optional
+        print(f"WARNING: benchmark progress monitoring unavailable: {exc}")
+
+
 def _stamp_release_meta(session_id: str, release_meta: dict | None) -> None:
     if not release_meta:
         return
@@ -1634,9 +1644,9 @@ def run_benchmark_trials(
     # Legacy scoped-run fields: they shrank the job to one launch's selection.
     job.pop("task_ids", None)
     job.pop("planned_trial_count", None)
-    run_id = None
-    if release_meta:
-        run_id = release_meta.get("run_id") or release_meta.get("job_id")
+    run_id = (
+        release_meta.get("run_id") or release_meta.get("job_id") or job.get("run_id")
+    )
     inspect_url: str | None = None
 
     def _emit_report() -> None:
@@ -1834,6 +1844,7 @@ def run_benchmark_trials(
             agent_type=job.get("agent_type"),
             model=job.get("model"),
         )
+        _start_progress_monitoring()
     if check_images:
         from nika.agents.sandbox.backend import prepare_sandbox_templates
 

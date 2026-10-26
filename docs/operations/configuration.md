@@ -158,6 +158,16 @@ The CLI flag `--static-validation` overrides this setting for one run. Use `--no
 
 Default production and benchmark paths use light runtime checks without Batfish or failure-effect validation. For the deep maintainer path, set `depth: full`, `failure_effect: true`, and optionally `static_validation.enabled: true`.
 
+### Monitoring
+
+`nika observability on` applies these settings to the monitoring stack; run it again after a change. See [monitor benchmarks and lab resources](resource-monitoring.md).
+
+| Key | Default | Meaning and constraints |
+| --- | --- | --- |
+| `nika.metrics.scrape_interval` | `15s` | How often Prometheus scrapes and cAdvisor samples, from `5s` to `60s`. |
+| `nika.metrics.remote_write.url` | `null` | Remote-write endpoint that also receives NIKA's series, such as Grafana Cloud's Prometheus. The token is `NIKA_METRICS_REMOTE_WRITE_TOKEN` in `.env`. |
+| `nika.metrics.remote_write.username` | `null` | Basic-auth username, such as the Grafana Cloud instance ID. Null sends the token as a bearer token. |
+
 ## `benchmark` settings
 
 | Key | Default | Meaning and constraints |

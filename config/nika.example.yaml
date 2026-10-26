@@ -155,6 +155,16 @@ nika:
     depth: light
     # Compare healthy and faulty contract evidence after fault injection.
     failure_effect: false
+  metrics:
+    # Monitoring stack of `nika observability on`
+    # (docs/operations/resource-monitoring.md). Run `on` again to apply changes.
+    # How often to sample lab and host resources: 5s to 60s.
+    scrape_interval: 15s
+    remote_write:
+      # Also push the recorded series to a hosted Prometheus, such as Grafana
+      # Cloud. The token is NIKA_METRICS_REMOTE_WRITE_TOKEN in .env.
+      url: null
+      username: null
 
 # Configure benchmark execution.
 benchmark:

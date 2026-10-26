@@ -220,6 +220,27 @@ def _resolve_isp_kwargs(
     }
 
 
+def _start_resource_monitoring(session: Session, session_id: str) -> None:
+    """Attribute this lab's containers in Prometheus when observability is on.
+
+    Monitoring is best effort: a failing exporter must not fail the deploy.
+    """
+    from nika.metrics.stack import start_monitoring
+
+    try:
+        if not start_monitoring():
+            return
+    except Exception as exc:  # noqa: BLE001 - monitoring is optional
+        log_error_event(
+            "observability_failed",
+            f"Resource monitoring unavailable for {session_id}: {exc}",
+            session_id=session_id,
+            error=str(exc),
+        )
+        return
+    session.update_session("resource_metrics", True)
+
+
 def start_net_env(
     scenario: str,
     topo_size: str | None,
@@ -394,6 +415,7 @@ def start_net_env(
         metadata=metadata,
     )
     bind_session_dir(session.session_dir)
+    _start_resource_monitoring(session, resolved_session_id)
 
     contract = net_env.get_validation_contract()
     if contract is not None:

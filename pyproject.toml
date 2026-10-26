@@ -42,6 +42,7 @@ dependencies = [
     "starlette>=1.0.0,<2",
     "uvicorn>=0.47.0,<0.48",
     "zstandard>=0.25.0,<0.26",
+    "prometheus-client>=0.26.0,<1",
 ]
 
 [project.optional-dependencies]
@@ -68,6 +69,7 @@ include = ["nika*", "agent*"]
 "nika.validation.netkat" = ["KatchBatch.java"]
 "nika.inspect" = ["www/dist/**/*"]
 "nika.firecracker" = ["*.patch"]
+"nika.metrics" = ["stack/*.yml", "stack/grafana/**/*"]
 "nika.net_env.compat.v010.p4_bloom_filter" = ["*.p4", "cmds/*.txt"]
 "nika.net_env.compat.v010.p4_counter" = ["p4_src/*.p4", "cmds/*.txt"]
 "nika.net_env.compat.v010.p4_mpls" = ["*.p4", "cmds/*/*.txt", "cmds/*/*.py", "startups/*.startup"]

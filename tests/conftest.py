@@ -23,6 +23,23 @@ def _is_sandbox_e2e_test(node_path: str) -> bool:
 
 
 @pytest.fixture(autouse=True)
+def isolate_host_monitoring(request: pytest.FixtureRequest, monkeypatch, tmp_path):
+    """Keep benchmark progress documents out of the checkout's ``runtime/``.
+
+    Offline tests also must not start exporters on a host with observability on.
+    """
+    monkeypatch.setattr(
+        "nika.workflows.benchmark.run_progress.BENCHMARK_RUNS_DIR",
+        tmp_path / "benchmark_runs",
+    )
+    if not request.node.get_closest_marker(
+        "e2e"
+    ) and not request.node.get_closest_marker("integration"):
+        monkeypatch.setattr("nika.metrics.stack.is_observability_on", lambda: False)
+    yield
+
+
+@pytest.fixture(autouse=True)
 def sandbox_e2e_serial(request: pytest.FixtureRequest):
     """Serialize sandbox E2E tests that share sbx / MCP gateway resources."""
     node_path = str(request.node.fspath)

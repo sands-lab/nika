@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -33,9 +34,14 @@ def write_progress(
     model: str | None = None,
     runs_dir: Path | None = None,
 ) -> Path:
-    """Create or overwrite the progress document for ``run_id``."""
+    """Create or overwrite the progress document for ``run_id``.
+
+    ``pid`` is the orchestrator process, so readers can tell a live run from
+    one that stopped without marking itself finished.
+    """
     path = progress_path(run_id, runs_dir=runs_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
+    now = _utc_now_iso()
     payload = {
         "run_id": run_id,
         "result_dir": str(Path(result_dir).resolve()),
@@ -43,7 +49,9 @@ def write_progress(
         "total_trials": int(total_trials),
         "completed_trials": int(completed_trials),
         "pending_trials": int(pending_trials),
-        "updated_at": _utc_now_iso(),
+        "started_at": now,
+        "updated_at": now,
+        "pid": os.getpid(),
         "benchmark_id": benchmark_id,
         "version": version,
         "agent_type": agent_type,
@@ -126,3 +134,31 @@ def mark_finished(
         encoding="utf-8",
     )
     return path
+
+
+def list_progress_docs(*, runs_dir: Path | None = None) -> list[dict[str, Any]]:
+    """Return every readable progress document."""
+    root = Path(runs_dir) if runs_dir is not None else BENCHMARK_RUNS_DIR
+    docs: list[dict[str, Any]] = []
+    for path in sorted(root.glob("*.json")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError):
+            continue
+        if isinstance(data, dict) and data.get("result_dir"):
+            data.setdefault("run_id", path.stem)
+            docs.append(data)
+    return docs
+
+
+def is_run_live(doc: dict[str, Any]) -> bool:
+    """True while a ``running`` document's orchestrator process still exists."""
+    if doc.get("status") != "running":
+        return False
+    try:
+        os.kill(int(doc["pid"]), 0)
+    except (KeyError, TypeError, ValueError, ProcessLookupError):
+        return False
+    except PermissionError:
+        return True
+    return True
