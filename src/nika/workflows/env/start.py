@@ -1,6 +1,7 @@
 """Start a network lab for one scenario and persist a new session."""
 
 import time
+from collections.abc import Iterable
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -45,7 +46,16 @@ from nika.net_env.net_env_pool import (
     scenario_requires_topo_size,
 )
 from nika.net_env.verify import LabVerifyTimeoutError, verify_lab_with_retry
+from nika.problems.support.polling import wait_until
 from nika.run_config.loader import get_run_config
+from nika.telemetry import (
+    apply_telemetry,
+    configure_telemetry,
+    normalize_telemetry,
+    require_telemetry_backend,
+    telemetry_ready_timeout,
+    telemetry_running,
+)
 from nika.utils.logger import (
     bind_session_dir,
     elapsed_ms,
@@ -221,6 +231,35 @@ def _resolve_isp_kwargs(
     }
 
 
+def _configure_telemetry(net_env: Any, session: Session, *, scenario: str) -> None:
+    """Configure wired telemetry on the devices that support it, then wait for it.
+
+    Runs once the lab passes its checks. Devices without support stay
+    unconfigured; only a configured probe or collector that does not start fails.
+    """
+    runtime = net_env._build_runtime()
+    plan = configure_telemetry(runtime, net_env.metadata["telemetry"])
+    net_env.metadata["telemetry"] = plan
+    session.update_session("metadata", dict(net_env.metadata))
+    for kind, info in plan["kinds"].items():
+        log_event(
+            "telemetry_configured",
+            f"Telemetry {kind} configured on {len(info['versions'])} of "
+            f"{len(plan['devices'])} devices ({net_env.name})",
+            scenario=scenario,
+            lab_name=net_env.name,
+            kind=kind,
+            versions=info["versions"],
+            unconfigured=sorted(set(plan["devices"]) - set(info["versions"])),
+        )
+    timeout = telemetry_ready_timeout(plan)
+    if not wait_until(lambda: telemetry_running(runtime, plan), timeout, interval_s=5):
+        raise RuntimeError(
+            f"Telemetry {sorted(plan['kinds'])} collectors or exporters are not running "
+            f"after {timeout:.0f}s."
+        )
+
+
 def start_net_env(
     scenario: str,
     topo_size: str | None,
@@ -243,11 +282,13 @@ def start_net_env(
     routing_parameters: dict | None = None,
     routing_model: str | None = None,
     routing_configs: dict[str, str] | None = None,
+    telemetry: Iterable[str] | None = None,
 ) -> str:
     """Deploy the lab for ``scenario`` and create a new runtime session."""
     from nika.remote.config import is_remote_enabled
 
     canonical = resolve_scenario_id(scenario)
+    telemetry_kinds = normalize_telemetry(telemetry)
     static_validation_enabled = (
         static_validation
         if static_validation is not None
@@ -283,6 +324,7 @@ def start_net_env(
             backend=backend,
             device_profile=device_profile,
             static_validation=static_validation_enabled,
+            telemetry=list(telemetry_kinds),
         )
 
     size = _normalize_topo_size(topo_size)
@@ -329,6 +371,7 @@ def start_net_env(
         isp_kwargs["routing_model"] = routing_model
     if routing_configs is not None:
         isp_kwargs["routing_configs"] = routing_configs
+    require_telemetry_backend(telemetry_kinds, resolved_backend)
 
     refresh_logger()
     suffix = uuid4().hex[:6]
@@ -365,6 +408,10 @@ def start_net_env(
             prepare_runtime()
     if resolved_backend == "containerlab":
         net_env._ensure_runtime_files()
+    if telemetry_kinds:
+        # Wire the telemetry network before deploy; the lab check phase later
+        # configures only the devices that support it.
+        net_env.metadata["telemetry"] = apply_telemetry(net_env, telemetry_kinds)
 
     session = Session()
     scenario_params: dict = {"lab_name": net_env.name, "backend": resolved_backend}
@@ -378,6 +425,8 @@ def start_net_env(
         net_env.metadata[PROBE_INTENT_METADATA_KEY] = probe_intent.model_dump(
             mode="json"
         )
+    if telemetry_kinds:
+        scenario_params["telemetry"] = list(telemetry_kinds)
     topology_file = getattr(net_env, "topology_file", None)
     runtime_workdir = getattr(net_env, "runtime_workdir", None)
     metadata = getattr(net_env, "metadata", None)
@@ -543,6 +592,9 @@ def start_net_env(
                 failed_checks=[],
                 duration_ms=verify_duration_ms,
             )
+
+        if telemetry_kinds:
+            _configure_telemetry(net_env, session, scenario=scenario)
 
         try:
             net_env.post_deploy()

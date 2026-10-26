@@ -1,5 +1,8 @@
 FROM kathara/frr:latest@sha256:3b7a3f630d8ecd9efddd4586ba2f0a41e2c462f13bc81dee8e3c6ebac183f57c
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends stress-ng isc-dhcp-server isc-dhcp-relay nftables wireguard wireguard-tools tcpdump tshark conntrack && \
+    apt-get install -y --no-install-recommends stress-ng isc-dhcp-server isc-dhcp-relay nftables wireguard wireguard-tools tcpdump tshark conntrack pmacct prometheus-node-exporter socat && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Telemetry agents (pmacct for NetFlow, node_exporter and socat for Prometheus)
+# stay idle unless a case enables them.

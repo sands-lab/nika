@@ -50,6 +50,7 @@ NIKA_IMAGE_DOCKERFILES: dict[str, str] = {
     nika_image("tc-bpf"): "Dockerfile.tc-bpf",
     nika_image("skopeo"): "Dockerfile.skopeo",
     nika_image("routinator"): "../isp/rpki/Dockerfile.routinator",
+    nika_image("telemetry-collector"): "Dockerfile.telemetry-collector",
 }
 
 # Upstream images NIKA labs deploy directly, pinned to the last verified

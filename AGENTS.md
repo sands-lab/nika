@@ -74,6 +74,7 @@ A test that creates external resources must clean up only what it owns, includin
 * Remove temporary or overly specific test code.
 * Review the diff for unintended changes.
 * Run `uv run ruff format` and `uv run ruff check`.
+* Before you create a commit and push it, if `README.md` or `docs/` changed, apply the [NIKA documentation skill](.agents/skills/nika-docs/SKILL.md) and confirm Letta Docs Review is PASS; read the latest review comment on the PR and fix blocking findings first.
 
 A test is not complete if its assertions pass but its resources remain, or if it does not exercise the intended runtime behavior.
 

@@ -642,6 +642,37 @@ def apply_switch(
         raise RuntimeError(f"failed to write runtime configuration on {name}: {failed}")
 
 
+def read_counters(client: SwitchClient, index: P4InfoIndex) -> dict[str, dict]:
+    """Return non-zero P4Runtime counters, without the rest of switch state."""
+    counters: dict[str, dict] = {
+        "ingress": {},
+        "egress": {},
+        "flow_syn": {},
+        "flow_non_syn": {},
+    }
+    for name, bucket in (
+        (COUNTER_INGRESS, "ingress"),
+        (COUNTER_EGRESS, "egress"),
+        ("flow_syn_total", "flow_syn"),
+        ("flow_non_syn_total", "flow_non_syn"),
+    ):
+        if name not in index.counters:
+            continue
+        cent = p4runtime_pb2.Entity()
+        cent.counter_entry.counter_id = index.counter_id(name)
+        for entity in client.read_entities(cent):
+            if entity.HasField("counter_entry"):
+                entry = entity.counter_entry
+                packets = int(entry.data.packet_count)
+                bytes_ = int(entry.data.byte_count)
+                if packets or bytes_:
+                    counters[bucket][int(entry.index.index)] = {
+                        "packets": packets,
+                        "bytes": bytes_,
+                    }
+    return counters
+
+
 def observed_switch(client: SwitchClient, index: P4InfoIndex) -> dict[str, Any]:
     pipeline = client.get_pipeline()
     # The programs carry no @pkginfo name, so compare the loaded P4Info tables
@@ -654,7 +685,7 @@ def observed_switch(client: SwitchClient, index: P4InfoIndex) -> dict[str, Any]:
     members = []
     groups = []
     ipv4_lpm = []
-    counters = {"ingress": {}, "egress": {}, "flow_syn": {}, "flow_non_syn": {}}
+    counters = read_counters(client, index)
     registers: dict[str, Any] = {}
     runtime_config: dict[str, list[dict[str, int]]] = {}
 
@@ -699,27 +730,6 @@ def observed_switch(client: SwitchClient, index: P4InfoIndex) -> dict[str, Any]:
                     "group_id": int(item.action.action_profile_group_id),
                 }
             )
-
-    for name, bucket in (
-        (COUNTER_INGRESS, "ingress"),
-        (COUNTER_EGRESS, "egress"),
-        ("flow_syn_total", "flow_syn"),
-        ("flow_non_syn_total", "flow_non_syn"),
-    ):
-        if name not in index.counters:
-            continue
-        cent = p4runtime_pb2.Entity()
-        cent.counter_entry.counter_id = index.counter_id(name)
-        for entity in client.read_entities(cent):
-            if entity.HasField("counter_entry"):
-                entry = entity.counter_entry
-                packets = int(entry.data.packet_count)
-                bytes_ = int(entry.data.byte_count)
-                if packets or bytes_:
-                    counters[bucket][int(entry.index.index)] = {
-                        "packets": packets,
-                        "bytes": bytes_,
-                    }
 
     for name in ("queue_occupancy",):
         if name not in index.registers:

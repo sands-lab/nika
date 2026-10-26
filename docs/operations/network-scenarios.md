@@ -667,6 +667,64 @@ class MyEnv(NetworkEnvBase):
 
 Keep the traffic light enough for size `l` and keep healthy links below saturation, so that ping-based probes do not read the background traffic as a fault.
 
+## Telemetry
+
+Agents can investigate an environment with the evidence operators read from monitoring systems: flow records (NetFlow, IPFIX, or sFlow), device metrics (Prometheus), and syslog. Attach any combination of those kinds when you start a session:
+
+```shell
+uv run nika env run dc_clos -s s --telemetry netflow --telemetry prometheus --telemetry syslog
+```
+
+The same field belongs on a benchmark YAML row. Save this as `telemetry.yaml` and run it:
+
+```yaml
+cases:
+  - scenario: dc_clos
+    topo_size: s
+    problem: link_down
+    telemetry: [netflow, prometheus, syslog]
+    inject:
+      host_name: leaf_router_0_0
+      intf_name: eth0
+```
+
+```shell
+uv run nika benchmark run --config telemetry.yaml
+```
+
+A task with `telemetry` has a different task ID from the same environment and incident without it. Telemetry runs on Kathara or Containerlab only.
+
+| Kind | Collector | Agent tool |
+| --- | --- | --- |
+| `netflow` | `nfcapd` (IPFIX/NetFlow) or `sfcapd` (sFlow) | [`netflow_query`](../agents/mcp-servers.md#netflow-kathara_netflow_mcp_server) |
+| `prometheus` | Prometheus | [`prometheus_query`](../agents/mcp-servers.md#prometheus-kathara_prometheus_mcp_server) |
+| `syslog` | rsyslogd (UDP 514) | [`syslog_query`](../agents/mcp-servers.md#syslog-kathara_syslog_mcp_server) |
+
+NIKA probes each device at runtime and configures only the exporters that device supports. Devices that lack an exporter stay unconfigured. If no device supports a requested kind, the environment still deploys and that collector stays empty. `telemetry_configured` in the session log lists the versions that were found.
+
+Records stay empty until devices export traffic, counters, or log lines. Flow records become queryable about 20 seconds after the traffic. Metric names and PromQL live with [`prometheus_query`](../agents/mcp-servers.md#prometheus-kathara_prometheus_mcp_server).
+
+| Platform | `netflow` | `prometheus` | `syslog` |
+| --- | --- | --- | --- |
+| Kathara FRR (`nika/frr`) | IPFIX (`pmacctd`) | node_exporter and BGP gauges | `/dev/log` forwarder |
+| Kathara Linux (`nika/base`) | not exported | node_exporter | `/dev/log` forwarder |
+| SDN Open vSwitch | OVS NetFlow | OpenFlow port counters | `/dev/log` |
+| P4 BMv2 | not exported | pipeline counters | `/dev/log` from `fabric_mgr` |
+| Containerlab SR Linux | sFlow on extra ethernet | gNMI interfaces and BGP | UDP 514 |
+| Containerlab Linux clients | not exported | not exported | not exported |
+| XRd | not exported | `xr_cli` interfaces and BGP | Linux `/dev/log` forwarder |
+| RouterOS | traffic-flow v9 | SSH interfaces and BGP | remote logging |
+
+`p4_dc_gateway` also records INT-MX hop reports; query those with [`int_query_telemetry`](../agents/mcp-servers.md#telemetry-kathara_telemetry_mcp_server). The INT collector is not a NIKA exporter.
+
+### Management network
+
+Kathara adds an out-of-band LAN, `telemetry_switch`, and `telemetry_collector`. Each exporting device joins on an extra interface after its scenario interfaces, in VRF `mgmt` (table 4242), so routing protocols never advertise it. node_exporter answers only on that network, and the management interface is left out of Prometheus metrics. vrnetlab maps the extra NIC into RouterOS, so NIKA addresses it there instead of in a Linux VRF and does not add it to OSPF.
+
+Containerlab joins the collector to the lab management network. sFlow cannot use that network, so SR Linux flow records use an extra ethernet port and `ip-vrf` `telemetry`. Prometheus collects SR Linux metrics through gNMI on the lab management network. SR Linux sends syslog to the collector over UDP port 514 on that network; NIKA configures the logging destination through gNMI.
+
+The collector is off the topology: it has no scenario interfaces, no injected failures, and no packet captures. NIKA starts collectors and exporters after the environment is verified.
+
 ## Inspect and close a scenario
 
 Each deployment creates a session and stores runtime state under `runtime/`. Use the session commands instead of deleting runtime files or backend objects.

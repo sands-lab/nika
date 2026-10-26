@@ -1,4 +1,5 @@
 import json
+import time
 from datetime import datetime
 
 from nika.net_env.p4_dc_gateway.topology_model import INT_REPORTS
@@ -27,6 +28,17 @@ def collapse_traces(
         if row.get("trace_complete")
         or now_ns - int(row["packet_timestamp"]) >= grace_ns
     ]
+
+
+def time_bound_seconds(value: str) -> float:
+    """Return a time bound of the flow and metric tools as Unix seconds.
+
+    The bound is Unix seconds or nanoseconds, ISO-8601, or ``-N`` for N seconds
+    ago.
+    """
+    if value.startswith("-") and value[1:].replace(".", "", 1).isdigit():
+        return time.time() - float(value[1:])
+    return TelemetryAPIMixin._time_bound_ns(value) / 1_000_000_000
 
 
 class TelemetryAPIMixin:

@@ -251,11 +251,17 @@ class NikaSettings(BaseModel):
         """Ignore ``nika.observability``, which saved run configs still hold.
 
         It configured Langfuse tracing; the model proxy now records every
-        model call in ``model_calls.jsonl``.
+        model call in ``model_calls.jsonl``. Also ignore ``nika.telemetry``:
+        the management subnet is fixed in code, not a run-config field.
         """
-        if not isinstance(data, dict) or "observability" not in data:
+        if not isinstance(data, dict):
+            return data
+        if "observability" not in data and "telemetry" not in data:
             return data
         data = dict(data)
+        data.pop("telemetry", None)
+        if "observability" not in data:
+            return data
         observability = data.pop("observability")
         if isinstance(observability, dict) and observability.get("langfuse_enabled"):
             # A UserWarning, because Python hides DeprecationWarning by default.

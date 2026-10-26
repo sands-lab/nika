@@ -4,7 +4,13 @@ from nika.service.kathara.frr_api import FRRAPIMixin, KatharaFRRAPI
 from nika.service.kathara.intf_api import IntfAPIMixin, KatharaIntfAPI
 from nika.service.kathara.iosxr_api import IOSXRAPIMixin, KatharaIOSXRAPI
 from nika.service.kathara.k8s_api import KatharaK8sAPI, K8sAPIMixin
+from nika.service.kathara.netflow_api import KatharaNetflowAPI, NetflowAPIMixin
 from nika.service.kathara.nftable_api import KatharaNFTableAPI, NFTableMixin
+from nika.service.kathara.prometheus_api import (
+    KatharaPrometheusAPI,
+    PrometheusAPIMixin,
+)
+from nika.service.kathara.syslog_api import KatharaSyslogAPI, SyslogAPIMixin
 from nika.service.kathara.routeros_api import KatharaRouterOSAPI, RouterOSAPIMixin
 from nika.service.kathara.sdn_api import KatharaSdnAPI, SdnAPIMixin
 from nika.service.kathara.tc_api import KatharaTCAPI, TCMixin
@@ -17,7 +23,10 @@ __all__ = [
     "KatharaFRRAPI",
     "KatharaIntfAPI",
     "KatharaIOSXRAPI",
+    "KatharaNetflowAPI",
     "KatharaNFTableAPI",
+    "KatharaPrometheusAPI",
+    "KatharaSyslogAPI",
     "KatharaRouterOSAPI",
     "KatharaSdnAPI",
     "KatharaTCAPI",
@@ -32,7 +41,10 @@ class KatharaAPIALL(
     FRRAPIMixin,
     IntfAPIMixin,
     IOSXRAPIMixin,
+    NetflowAPIMixin,
+    PrometheusAPIMixin,
     RouterOSAPIMixin,
+    SyslogAPIMixin,
     NFTableMixin,
     TCMixin,
     TelemetryAPIMixin,
