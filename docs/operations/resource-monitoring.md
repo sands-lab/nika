@@ -38,7 +38,11 @@ Host memory is the memory in use (total minus available, as in `free`). Environm
 
 ## Share a run's dashboard
 
-To follow a benchmark run from a phone or another computer, or to send it to a collaborator, NIKA can give each run a public link to its dashboard. Sharing is off by default. Turn it on in `config/nika.yaml`:
+To follow a benchmark run from a phone or another computer, or to send it to a collaborator, NIKA can give each run a public link to its dashboard. Sharing is off by default.
+
+A link opens this host's whole Grafana, not just one run. The run in the link is a dashboard filter, not an access restriction: anyone who opens the link can select every other run on the host and query all the monitoring data that Grafana can read. Benchmark session ids also name the injected failure, so keep links away from agents under evaluation. `allowed_emails` limits who can open a link; it does not limit which runs they see.
+
+Turn sharing on in `config/nika.yaml`:
 
 ```yaml
 nika:
@@ -61,9 +65,13 @@ uv run nika observability links --result-dir <run dir>   # one run, from its das
 uv run nika observability unshare <run_id>               # revoke a link before it expires
 ```
 
+A new link can take up to a minute to start working while its address propagates.
+
 `nika observability off` also closes every link.
 
-Anyone with the link can view the dashboard and query the monitoring data, and benchmark session ids name the injected failure, so keep links away from agents under evaluation. To restrict viewers, list their addresses in `allowed_emails` (a pattern such as `'*@example.com'` works too). Visitors then confirm their address with a one-time code that Cloudflare emails them.
+Without `allowed_emails`, anyone with the link can open it. To restrict viewers, list their addresses in `allowed_emails` (a pattern such as `'*@example.com'` works too). Visitors then confirm their address with a one-time code that Cloudflare emails them.
+
+The `share` settings apply when NIKA opens a link. A link that is already open keeps the access and lifetime it started with, including when its run is resumed, and `nika observability on` does not change it. To apply new settings to a run, revoke its link with `uv run nika observability unshare <run_id>`, then open a new one with `uv run nika observability share --result-dir <run dir>`. The same command shares a run that has finished, or one whose link has expired.
 
 Each link is a [Cloudflare Quick Tunnel](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/) from the lab host to the local Grafana. It needs no Cloudflare account, but the host must reach Cloudflare on outbound port 7844, and Cloudflare offers Quick Tunnels without an uptime guarantee. NIKA runs one `cloudflared` container per run and records the link in the run's result directory (`dashboard.json`) and in its progress document.
 

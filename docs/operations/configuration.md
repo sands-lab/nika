@@ -165,7 +165,7 @@ Default production and benchmark paths use light runtime checks without Batfish 
 
 ### Monitoring
 
-`nika observability on` applies these settings to the monitoring stack; run it again after a change. See [monitor benchmarks and lab resources](resource-monitoring.md).
+`nika observability on` applies the sampling and remote-write settings to the monitoring stack; run it again after changing them. The `share` settings apply to each new run link: changing them, or running `on` again, leaves links that are already open as they are. See [monitor benchmarks and lab resources](resource-monitoring.md) and, for revoking open links, [share a run's dashboard](resource-monitoring.md#share-a-runs-dashboard).
 
 | Key | Default | Meaning and constraints |
 | --- | --- | --- |
