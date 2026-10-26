@@ -70,6 +70,11 @@ LAZY_COMMANDS.update(
             "inspect_app",
             "Browse session trajectories in a local web UI.",
         ),
+        "observability": LazyCommandSpec(
+            "nika.cli.commands.observability",
+            "observability_app",
+            "Monitor lab resources and benchmark progress in Grafana.",
+        ),
         "tui": LazyCommandSpec(
             "nika.cli.commands.tui",
             "tui_app",

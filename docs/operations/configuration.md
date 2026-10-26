@@ -163,6 +163,20 @@ The CLI flag `--static-validation` overrides this setting for one run. Use `--no
 
 Default production and benchmark paths use light runtime checks without Batfish or failure-effect validation. For the deep maintainer path, set `depth: full`, `failure_effect: true`, and optionally `static_validation.enabled: true`.
 
+### Monitoring
+
+`nika observability on` applies the sampling and remote-write settings to the monitoring stack; run it again after changing them. The `share` settings apply to each new run link: changing them, or running `on` again, leaves links that are already open as they are. See [monitor benchmarks and lab resources](resource-monitoring.md) and, for revoking open links, [share a run's dashboard](resource-monitoring.md#share-a-runs-dashboard).
+
+| Key | Default | Meaning and constraints |
+| --- | --- | --- |
+| `nika.metrics.scrape_interval` | `15s` | How often Prometheus scrapes and cAdvisor samples, from `5s` to `60s`. |
+| `nika.metrics.remote_write.enabled` | `false` | Also push NIKA's series to `nika.metrics.remote_write.url`. Requires the URL and the token. |
+| `nika.metrics.remote_write.url` | `null` | Remote-write endpoint that also receives NIKA's series, such as Grafana Cloud's Prometheus. The token is `NIKA_METRICS_REMOTE_WRITE_TOKEN` in `.env`. |
+| `nika.metrics.remote_write.username` | `null` | Basic-auth username, such as the Grafana Cloud instance ID. Null sends the token as a bearer token. |
+| `nika.metrics.share.enabled` | `false` | Give each benchmark run a public dashboard link through a Cloudflare Quick Tunnel. |
+| `nika.metrics.share.ttl_days` | `7` | Days until a run's link stops working, from 1 to 30. |
+| `nika.metrics.share.allowed_emails` | `[]` | Addresses (or patterns such as `*@example.com`) allowed to view a link after an emailed one-time code. Empty: anyone with the link. |
+
 ## `benchmark` settings
 
 | Key | Default | Meaning and constraints |

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import warnings
 from typing import Any, Literal
 
@@ -231,6 +232,63 @@ class RuntimeValidationSettings(BaseModel):
     failure_effect: bool = False
 
 
+class RemoteWriteSettings(BaseModel):
+    """Push recorded metrics to a hosted Prometheus such as Grafana Cloud.
+
+    Off by default. The password or API token is read from
+    ``NIKA_METRICS_REMOTE_WRITE_TOKEN``.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    url: str | None = None
+    username: str | None = None
+
+    @model_validator(mode="after")
+    def _url_when_enabled(self) -> RemoteWriteSettings:
+        if self.enabled and not self.url:
+            raise ValueError("nika.metrics.remote_write.enabled requires url")
+        return self
+
+
+class ShareSettings(BaseModel):
+    """Public dashboard link for each benchmark run, through a Cloudflare tunnel.
+
+    Off by default. Without ``allowed_emails``, anyone with the link can view
+    the dashboard; with it, viewers confirm one of these addresses by a
+    one-time code.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    ttl_days: int = Field(default=7, ge=1, le=30)
+    allowed_emails: list[str] = Field(default_factory=list)
+
+
+class MetricsSettings(BaseModel):
+    """Monitoring stack started by ``nika observability on``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    # How often Prometheus scrapes and cAdvisor samples, such as 15s or 30s.
+    scrape_interval: str = "15s"
+    remote_write: RemoteWriteSettings = Field(default_factory=RemoteWriteSettings)
+    share: ShareSettings = Field(default_factory=ShareSettings)
+
+    @field_validator("scrape_interval")
+    @classmethod
+    def _interval(cls, value: str) -> str:
+        if not re.fullmatch(r"[1-9][0-9]*s|1m", value) or (
+            value.endswith("s") and not 5 <= int(value[:-1]) <= 60
+        ):
+            raise ValueError(
+                f"scrape_interval must be between 5s and 60s (or 1m), got {value!r}"
+            )
+        return value
+
+
 class ExecutionSettings(BaseModel):
     """Where benchmark trials run their labs."""
 
@@ -287,6 +345,7 @@ class NikaSettings(BaseModel):
     runtime_validation: RuntimeValidationSettings = Field(
         default_factory=RuntimeValidationSettings
     )
+    metrics: MetricsSettings = Field(default_factory=MetricsSettings)
 
 
 class AgentLlmSettings(BaseModel):

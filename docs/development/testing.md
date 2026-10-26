@@ -27,6 +27,7 @@ Source: [`tests/`](../../tests/) contains the suites, and [`tests/support/`](../
 | `tests/nika/service/` | `src/nika/service/` | Service-layer unit and live API smoke tests |
 | `tests/nika/runtime/` | `src/nika/runtime/` | Runtime/backend unit tests and session index |
 | `tests/nika/evaluator/` | `src/nika/evaluator/` | Rule-based scoring unit tests |
+| `tests/nika/metrics/` | `src/nika/metrics/` | Exporter attribution of sessions and benchmark runs; dashboard series |
 | `tests/support/` | Not applicable | Shared bases, prerequisites, and pipeline helpers |
 
 Local lab integration tests need the `labs` dependency group, which `uv sync` installs by default.

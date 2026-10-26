@@ -1,0 +1,98 @@
+# Resource monitoring stack for NIKA labs, managed by `nika observability on|off`.
+# All ports bind to 127.0.0.1: these metrics name sessions and must stay
+# operator-side, out of reach of the agents under test.
+name: nika-metrics
+
+services:
+  cadvisor:
+    image: ghcr.io/google/cadvisor:v0.60.6
+    command:
+      - --docker_only=true
+      - --housekeeping_interval=${NIKA_METRICS_INTERVAL:?}
+      - --store_container_labels=false
+      - --disable_metrics=advtcp,cpu_topology,cpuset,disk,hugetlb,memory_numa,percpu,perf_event,process,referenced_memory,resctrl,sched,tcp,udp
+    privileged: true
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    ports:
+      - 127.0.0.1:8098:8080
+    restart: unless-stopped
+
+  # Whole-host CPU and memory (MemAvailable), which cAdvisor's root cgroup
+  # overstates by counting page cache.
+  node-exporter:
+    image: prom/node-exporter:v1.12.1
+    network_mode: host
+    pid: host
+    command:
+      - --path.rootfs=/host
+      - --web.listen-address=127.0.0.1:9109
+      - --collector.disable-defaults
+      - --collector.cpu
+      - --collector.meminfo
+      - --collector.loadavg
+    volumes:
+      - /:/host:ro,rslave
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.15.1
+    # Host networking lets Prometheus reach the session exporters, which run
+    # on the host and listen on 127.0.0.1 only.
+    network_mode: host
+    # nobody, plus the operator's group to read the rendered configuration.
+    user: "65534:${NIKA_METRICS_GID:?}"
+    command:
+      - --config.file=/etc/prometheus/nika/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=30d
+      - --web.listen-address=127.0.0.1:9090
+    volumes:
+      # prometheus.yml, rules.yml, and the remote-write token, rendered by
+      # `nika observability on` from config/nika.yaml and .env.
+      - ${NIKA_METRICS_CONFIG_DIR:?}:/etc/prometheus/nika:ro
+      - ${NIKA_METRICS_TARGETS_DIR:?}:/etc/prometheus/targets:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      - cadvisor
+      - node-exporter
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:13.2.4
+    # Host networking: Prometheus listens on the host's 127.0.0.1.
+    network_mode: host
+    environment:
+      GF_SERVER_HTTP_ADDR: 127.0.0.1
+      GF_SERVER_HTTP_PORT: "3000"
+      # Read-only dashboards without a login; sign in as admin to edit.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/nika-benchmark.json
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
+      GF_NEWS_NEWS_FEED_ENABLED: "false"
+      NIKA_METRICS_INTERVAL: ${NIKA_METRICS_INTERVAL:?}
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  prometheus-data:
+  grafana-data:
