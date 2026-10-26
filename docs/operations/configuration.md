@@ -163,6 +163,12 @@ The CLI flag `--static-validation` overrides this setting for one run. Use `--no
 
 Default production and benchmark paths use light runtime checks without Batfish or failure-effect validation. For the deep maintainer path, set `depth: full`, `failure_effect: true`, and optionally `static_validation.enabled: true`.
 
+### Telemetry
+
+| Key | Default | Meaning and constraints |
+| --- | --- | --- |
+| `nika.telemetry.subnet` | `172.28.0.0/16` | Address range of the Kathara out-of-band management LAN, and of the extra sFlow LAN on Containerlab. IPv4, `/28` or larger, and disjoint from scenario addressing. See [Telemetry](network-scenarios.md#telemetry). |
+
 ## `benchmark` settings
 
 | Key | Default | Meaning and constraints |

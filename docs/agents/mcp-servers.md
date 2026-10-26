@@ -57,9 +57,22 @@ Devices export only the traffic they receive, so a flow appears once for each de
 
 ### Prometheus (`kathara_prometheus_mcp_server`)
 
-Call `prometheus_query` with a PromQL expression, for example `node_network_up == 0` for interfaces that are down, `rate(node_network_receive_bytes_total{node="chinng"}[30s])` for receive rates on one Linux node, `frr_bgp_peer_up{node="leaf_router_0_0"}` for an FRR BGP session, `openflow_port_rx_bytes{node="leaf_1"}` for an OVS port, `p4_ingress_packets{node="spine_1"}` for a BMv2 pipeline counter, `srl_interface_in_packets{node="leaf1"}` or `srl_bgp_peer_up{node="leaf1"}` for SR Linux, `xr_interface_in_packets{node="router1"}` or `xr_bgp_peer_up{node="router1"}` for XRd, or `routeros_interface_rx_packets{node="router1"}` for RouterOS. Each series carries the device as `node`; `device` is an interface name on Linux, OVS, SR Linux, IOS XR, and RouterOS series, and `neighbor` is a BGP peer. Omit `start_time` for an instant query. With `start_time` (for example `"-600"`), the tool returns a range at `step` resolution. `limit` sets how many series are returned.
+Call `prometheus_query` with a PromQL expression. Each series carries the device as `node`; `device` is an interface name on Linux, OVS, SR Linux, IOS XR, and RouterOS series, and `neighbor` is a BGP peer. Omit `start_time` for an instant query. With `start_time` (for example `"-600"`), the tool returns a range at `step` resolution. `limit` sets how many series are returned. Kathara exporters are scraped every 5 seconds; SR Linux uses a 15-second scrape. `up` shows whether a device answers its scrape. The server is selected when a session enables `prometheus` [telemetry](../operations/network-scenarios.md#telemetry).
 
-Linux nodes export the network stack: interface counters and state (`node_network_*`), protocol statistics (`node_netstat_*`), sockets (`node_sockstat_*`), conntrack (`node_nf_conntrack_*`), and ARP (`node_arp_*`). FRR routers also export BGP peer gauges (`frr_bgp_peer_up`, `frr_bgp_peer_prefixes`). OVS switches export OpenFlow port counters (`openflow_port_*`). P4 fabrics export ingress and egress pipeline counters (`p4_ingress_*`, `p4_egress_*`) and, on the gateway pipeline, SYN and non-SYN flow totals. SR Linux nodes export interface octet, packet, error, discard, and oper-state series (`srl_interface_*`) plus BGP sessions (`srl_bgp_peer_up`). XRd routers export `xr_interface_*` and `xr_bgp_peer_*`. RouterOS routers export `routeros_interface_*` and `routeros_bgp_peer_up`. `up` shows whether a device answers its scrape. Devices are scraped every 5 seconds. The server is selected when a session enables `prometheus` [telemetry](../operations/network-scenarios.md#telemetry).
+| Query | What it shows |
+| --- | --- |
+| `node_network_up == 0` | Linux interfaces that are down |
+| `rate(node_network_receive_bytes_total{node="chinng"}[30s])` | Receive rate on one Linux node |
+| `frr_bgp_peer_up{node="leaf_router_0_0"}` | FRR BGP session |
+| `openflow_port_rx_bytes{node="leaf_1"}` | OVS port counters |
+| `p4_ingress_packets{node="spine_1"}` | BMv2 pipeline counters |
+| `srl_interface_in_packets{node="leaf1"}` | SR Linux interface packets |
+| `srl_bgp_peer_up{node="leaf1"}` | SR Linux BGP session |
+| `xr_interface_in_packets{node="router1"}` | XRd interface packets |
+| `xr_bgp_peer_up{node="router1"}` | XRd BGP session |
+| `routeros_interface_rx_packets{node="router1"}` | RouterOS interface packets |
+
+Linux nodes export the network stack: `node_network_*`, `node_netstat_*`, `node_sockstat_*`, `node_nf_conntrack_*`, and `node_arp_*`. FRR also exports `frr_bgp_peer_up` and `frr_bgp_peer_prefixes`. OVS exports `openflow_port_*`. P4 fabrics export `p4_ingress_*` and `p4_egress_*`, and on the gateway pipeline SYN and non-SYN flow totals. SR Linux exports `srl_interface_*` and `srl_bgp_peer_up`. XRd exports `xr_interface_*` and `xr_bgp_peer_*`. RouterOS exports `routeros_interface_*` and `routeros_bgp_peer_up`.
 
 ### Syslog (`kathara_syslog_mcp_server`)
 

@@ -669,56 +669,67 @@ Keep the traffic light enough for size `l` and keep healthy links below saturati
 
 ## Telemetry
 
-Agents can investigate an environment with the evidence operators read from monitoring systems, as well as with device commands: flow records (NetFlow/IPFIX), device metrics (Prometheus), and syslog. To collect them, turn on telemetry when you deploy the environment:
+Agents can investigate an environment with the evidence operators read from monitoring systems: flow records (NetFlow, IPFIX, or sFlow), device metrics (Prometheus), and syslog. Attach any combination of those kinds when you start a session:
 
 ```shell
-uv run nika env run isp_abilene --telemetry netflow --telemetry prometheus --telemetry syslog
+uv run nika env run dc_clos -s s --telemetry netflow --telemetry prometheus --telemetry syslog
 ```
 
-In a benchmark task, set the same option in the case:
+The same field belongs on a benchmark YAML row. Save this as `telemetry.yaml` and run it:
 
 ```yaml
-- scenario: isp_abilene
-  problem: link_down
-  telemetry: [netflow, prometheus, syslog]
-  ...
+cases:
+  - scenario: dc_clos
+    topo_size: s
+    problem: link_down
+    telemetry: [netflow, prometheus, syslog]
+    inject:
+      host_name: leaf_router_0_0
+      intf_name: eth0
 ```
 
-| Type | Exporter on each device | Collector | Agent tool |
+```shell
+uv run nika benchmark run --config telemetry.yaml
+```
+
+A task with `telemetry` has a different task ID from the same environment and incident without it. Telemetry runs on Kathara or Containerlab only.
+
+| Kind | Collector | Agent tool |
+| --- | --- | --- |
+| `netflow` | `nfcapd` (IPFIX/NetFlow) or `sfcapd` (sFlow) | [`netflow_query`](../agents/mcp-servers.md#netflow-kathara_netflow_mcp_server) |
+| `prometheus` | Prometheus | [`prometheus_query`](../agents/mcp-servers.md#prometheus-kathara_prometheus_mcp_server) |
+| `syslog` | rsyslogd (UDP 514) | [`syslog_query`](../agents/mcp-servers.md#syslog-kathara_syslog_mcp_server) |
+
+NIKA probes each device at runtime and configures only the exporters that device supports. Devices that lack an exporter stay unconfigured. If no device supports a requested kind, the environment still deploys and that collector stays empty. `telemetry_configured` in the session log lists the versions that were found.
+
+Records stay empty until devices export traffic, counters, or log lines. Flow records become queryable about 20 seconds after the traffic. Metric names and PromQL live with [`prometheus_query`](../agents/mcp-servers.md#prometheus-kathara_prometheus_mcp_server).
+
+| Platform | `netflow` | `prometheus` | `syslog` |
 | --- | --- | --- | --- |
-| `netflow` | pmacct on FRR (one probe per scenario interface), OVS NetFlow on SDN switches, sFlow on Containerlab SR Linux, or traffic-flow NetFlow v9 on Kathara RouterOS, exporting ingress flows | `nfcapd` or `sfcapd` | [`netflow_query`](../agents/mcp-servers.md#netflow-kathara_netflow_mcp_server) |
-| `prometheus` | node_exporter on Linux hosts and FRR routers (interface counters and state, protocol statistics, sockets, conntrack, ARP) plus FRR BGP peer gauges; OpenFlow port counters on OVS switches; P4 pipeline counters on BMv2 fabrics; gNMI interface counters, errors, discards, oper-state, and BGP sessions on SR Linux; `xr_cli` interface counters, errors, drops, oper-state, and BGP sessions on XRd; SSH interface counters, errors, drops, oper-state, and BGP sessions on RouterOS | Prometheus, scraping every 5 s | [`prometheus_query`](../agents/mcp-servers.md#prometheus-kathara_prometheus_mcp_server) |
-| `syslog` | FRR and OVS send `/dev/log` over the management VRF; Containerlab SR Linux uses a gNMI remote-server from the mgmt network-instance on the lab management network; XRd uses the same Linux forwarder because extra Kathara NICs stay on Linux; RouterOS remote logging on the extra ether | `rsyslogd` UDP 514 | [`syslog_query`](../agents/mcp-servers.md#syslog-kathara_syslog_mcp_server) |
+| Kathara FRR (`nika/frr`) | IPFIX (`pmacctd`) | node_exporter and BGP gauges | `/dev/log` forwarder |
+| Kathara Linux (`nika/base`) | not exported | node_exporter | `/dev/log` forwarder |
+| SDN Open vSwitch | OVS NetFlow | OpenFlow port counters | `/dev/log` |
+| P4 BMv2 | not exported | pipeline counters | `/dev/log` from `fabric_mgr` |
+| Containerlab SR Linux | sFlow on extra ethernet | gNMI interfaces and BGP | gNMI remote-server |
+| Containerlab Linux clients | not exported | not exported | not exported |
+| XRd | not exported | `xr_cli` interfaces and BGP | Linux `/dev/log` forwarder |
+| RouterOS | traffic-flow v9 | SSH interfaces and BGP | remote logging |
 
-The same flags work on Kathara routing (including `--device-profile iosxr` or `routeros`), SDN, and P4 environments, and on Containerlab SR Linux (`min3clos`, `isp_* --backend containerlab`):
+`p4_dc_gateway` also records INT-MX hop reports; query those with [`int_query_telemetry`](../agents/mcp-servers.md#telemetry-kathara_telemetry_mcp_server). The INT collector is not a NIKA exporter.
+
+Change [`nika.telemetry.subnet`](configuration.md#telemetry) when the default `172.28.0.0/16` overlaps scenario addressing. Use a range that is not already in the environment, for example `172.26.0.0/16`:
 
 ```shell
-uv run nika env run sdn_l3_clos -s s --telemetry netflow --telemetry prometheus --telemetry syslog
-uv run nika env run p4_dc_fabric -s s --telemetry prometheus --telemetry syslog
-uv run nika env run min3clos --telemetry netflow --telemetry prometheus --telemetry syslog
-uv run nika env run iosxr_simple_bgp --telemetry prometheus --telemetry syslog
-uv run nika env run routeros_simple_bgp --telemetry netflow --telemetry prometheus --telemetry syslog
-uv run nika env run campus_lan -s s --device-profile iosxr --telemetry prometheus --telemetry syslog
-uv run nika env run isp_abilene --backend containerlab --telemetry netflow --telemetry prometheus --telemetry syslog
+uv run nika config set nika.telemetry.subnet=172.26.0.0/16
 ```
 
-A task with telemetry has a different task ID from the same task without it, so their results are kept apart.
+### Management network
 
-These kinds share a collector node named `telemetry_collector` that stays off the topology given to agents and failures.
+Kathara adds an out-of-band LAN, `telemetry_switch`, and `telemetry_collector`. Each exporting device joins on an extra interface after its scenario interfaces, in VRF `mgmt` (table 4242), so routing protocols never advertise it. node_exporter answers only on that network, and the management interface is left out of Prometheus metrics. vrnetlab maps the extra NIC into RouterOS, so NIKA addresses it there instead of in a Linux VRF and does not add it to OSPF.
 
-On Kathara, that collector sits on an extra out-of-band LAN: NIKA adds a `telemetry_switch` node, and every device joins on an extra interface after its scenario interfaces. Linux and XRd devices keep that interface in a VRF named `mgmt`, so routing protocols never advertise it, even with `redistribute connected` or `redistribute kernel`. node_exporter answers only on that network. The management interface is also left out of Prometheus metrics. vrnetlab maps the extra NIC into RouterOS, so NIKA addresses it there instead of in a Linux VRF and does not add it to OSPF.
+Containerlab joins the collector to the lab management network. sFlow cannot use that network, so SR Linux flow records use an extra ethernet port and `ip-vrf` `telemetry`; `nika.telemetry.subnet` is that sFlow LAN. Prometheus and syslog scrape SR Linux over gNMI on the lab management network.
 
-On Containerlab, the collector joins the existing lab management network. Prometheus scrapes SR Linux over gNMI on that network. SR Linux has no IPFIX, and sFlow cannot use the management network, so `netflow` adds one extra ethernet per router in an ip-vrf toward the collector. Those links are not scenario topology. `nika.telemetry.subnet` is the address range of that sFlow LAN. The same attach path covers `min3clos` and `isp_*` topologies: every `nokia_srlinux` node is configured, and Linux clients are left unconfigured.
-
-Once the environment passes its checks, NIKA configures each type on the devices whose image has its exporter, then waits until the exporters and collectors are running. `nika/frr` includes pmacct, node_exporter, and socat, so the routers of FRR-based environments export flows, kernel network metrics, BGP peer gauges, and syslog from `/dev/log` after FRR `log syslog`. `nika/base` includes node_exporter and socat, so hosts on it export metrics and can forward syslog. OVS switches in `sdn_l3_clos` export NetFlow from the datapath bridge, OpenFlow port counters, and syslog, which is the transit path those labs forward on. `p4_dc_fabric` and `p4_dc_gateway` export P4 ingress and egress counters from `fabric_mgr` and forward syslog from that node. `p4_dc_gateway` also records INT-MX hop traces on its scenario collector; agents read them with [`int_query_telemetry`](../agents/mcp-servers.md#telemetry-kathara_telemetry_mcp_server). Containerlab SR Linux routers export sFlow plus gNMI interface counters, errors, discards, oper-state, BGP session gauges, and remote syslog on the lab management network; Linux clients on those labs do not. XRd Control Plane routers export `xr_cli` interface counters, errors, drops, oper-state, and BGP sessions, plus Linux syslog over the management VRF, and have no collector-reachable IPFIX path. Kathara RouterOS routers export traffic-flow records, SSH interface counters, errors, drops, oper-state, BGP sessions, and remote syslog. A device without a type's exporter stays unconfigured for that type. If no device supports a type, the environment still deploys and that type's collector receives no data. The `telemetry_configured` events in the session log list the exporter version of each configured device and the devices left unconfigured. Telemetry requires the Kathara or Containerlab backend.
-
-The management (Kathara) or sFlow (Containerlab) network uses `172.28.0.0/16` by default. If an environment already uses that range, choose a free one in `config/nika.yaml`:
-
-```yaml
-nika:
-  telemetry:
-    subnet: 172.28.0.0/16
-```
+The collector is off the topology: it has no scenario interfaces, no injected failures, and no packet captures. NIKA starts collectors and exporters after the environment is verified.
 
 ## Inspect and close a scenario
 
