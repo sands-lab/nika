@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from nika.run_config.schema import RunConfig
-from nika.workflows.benchmark import admission
+from experiment.audit import admission
 
 pytestmark = pytest.mark.unit
 
@@ -85,13 +84,3 @@ def test_max_wait_admits_anyway(tmp_path) -> None:
     waited, events = _wait(tmp_path, clock, [50.0] * 10, max_wait_sec=45)
     assert len(events) == 3
     assert waited >= 45
-
-
-def test_benchmark_defaults_and_validation() -> None:
-    cfg = RunConfig().benchmark.admission
-    assert cfg.enabled and cfg.load_per_cpu == 1.0
-    assert cfg.memory_floor_gib == dict(admission.MEMORY_FLOOR_GIB)
-    with pytest.raises(ValueError):
-        RunConfig.model_validate(
-            {"benchmark": {"admission": {"spacing_sec": {"x": 1}}}}
-        )

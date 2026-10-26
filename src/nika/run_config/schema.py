@@ -15,7 +15,6 @@ from pydantic import (
 )
 
 from nika.agents.provider_env import validate_provider_for_agent
-from nika.workflows.benchmark.admission import MEMORY_FLOOR_GIB, SPACING_SEC
 
 
 class RemoteSettings(BaseModel):
@@ -269,8 +268,6 @@ class NikaSettings(BaseModel):
         return data
 
     result_dir: str = "results"
-    # Root for runtime/ and .nika_cache/. Null = repo root. NIKA_HOME overrides.
-    state_dir: str | None = None
     remote: RemoteSettings = Field(default_factory=RemoteSettings)
     execution: ExecutionSettings = Field(default_factory=ExecutionSettings)
     sandbox: SandboxSettings = Field(default_factory=SandboxSettings)
@@ -488,39 +485,6 @@ class AgentSettings(BaseModel):
         return value
 
 
-class AdmissionSettings(BaseModel):
-    """Host-load gate that delays each trial's lab deploy until the host can take it."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    enabled: bool = True
-    # Admit while the 1-minute load average is below this many times the CPU count.
-    load_per_cpu: float = 1.0
-    # Admit while free memory is at least this many GiB for the trial's class.
-    memory_floor_gib: dict[str, float] = Field(
-        default_factory=lambda: dict(MEMORY_FLOOR_GIB)
-    )
-    # Seconds the next admission waits after a lab of this class was admitted.
-    spacing_sec: dict[str, float] = Field(default_factory=lambda: dict(SPACING_SEC))
-    # Admit anyway after waiting this long. 0 waits indefinitely.
-    max_wait_sec: int = 1800
-
-    @field_validator("memory_floor_gib", "spacing_sec")
-    @classmethod
-    def _known_classes(cls, value: dict[str, float]) -> dict[str, float]:
-        unknown = set(value) - set(MEMORY_FLOOR_GIB)
-        if unknown:
-            raise ValueError(f"unknown resource classes: {sorted(unknown)}")
-        return value
-
-    @field_validator("load_per_cpu", "max_wait_sec")
-    @classmethod
-    def _positive(cls, value: float) -> float:
-        if value < 0:
-            raise ValueError("must be >= 0")
-        return value
-
-
 class BenchmarkSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -533,7 +497,6 @@ class BenchmarkSettings(BaseModel):
     retry_passes: int = 0
     resume: bool = True
     session_tag: str | None = None
-    admission: AdmissionSettings = Field(default_factory=AdmissionSettings)
 
     @field_validator("batch_size", "heavy_batch_size")
     @classmethod

@@ -32,7 +32,7 @@ nika env run dc_clos -s s
 
 `uv run nika ...` also works, but uv then checks the environment on every call and keeps its cache in `~/.cache/uv`. NIKA itself never calls uv. The installer points the uv cache and uv-managed Python at `.nika_cache/uv/` only while it runs, so re-run `./scripts/install.sh` after `git pull` to update dependencies without touching your home directory. It does not change uv settings for your other projects.
 
-To keep sessions and caches outside the checkout, for instance on local disk when the checkout is on NFS or shared by several copies, export `NIKA_HOME=/var/lib/nika` (or another local path) before installing and running NIKA. See [State directory](configuration.md#state-directory).
+NIKA stores `runtime/` and `.nika_cache/` at the root of the main Git checkout (the parent of `git rev-parse --git-common-dir`), so every worktree of the same repository shares sessions and caches. When the source tree is not a Git checkout, they live at the repository root. See [State directory](configuration.md#state-directory).
 
 Some parts still live outside the repository because they belong to the host:
 

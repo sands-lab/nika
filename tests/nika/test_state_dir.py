@@ -1,5 +1,8 @@
 """State root resolution and Docker bind-mount preflight."""
 
+import os
+import subprocess
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -9,43 +12,62 @@ from nika.net_env.utils import k8s_workload_cache as cache
 
 pytestmark = pytest.mark.unit
 
-
-@pytest.fixture
-def run_cfg(tmp_path, monkeypatch):
-    def write(state_dir):
-        path = tmp_path / "nika.yaml"
-        path.write_text(
-            f"nika:\n  state_dir: {state_dir}\n" if state_dir else "nika: {}\n"
-        )
-        monkeypatch.setenv("NIKA_RUN_CONFIG", str(path))
-
-    return write
+_GIT_IDENT = {
+    "GIT_AUTHOR_NAME": "nika",
+    "GIT_AUTHOR_EMAIL": "nika@test",
+    "GIT_COMMITTER_NAME": "nika",
+    "GIT_COMMITTER_EMAIL": "nika@test",
+}
 
 
-def test_default_is_repo_root(run_cfg, monkeypatch):
-    monkeypatch.delenv("NIKA_HOME", raising=False)
-    run_cfg(None)
+def _git(cwd: Path, *args: str) -> None:
+    subprocess.run(
+        ["git", *args],
+        cwd=cwd,
+        check=True,
+        capture_output=True,
+        env={**os.environ, **_GIT_IDENT},
+    )
+
+
+def test_git_common_dir_parent_is_state_dir() -> None:
+    raw = subprocess.run(
+        ["git", "rev-parse", "--git-common-dir"],
+        cwd=config.REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    common = Path(raw)
+    if not common.is_absolute():
+        common = config.REPO_ROOT / common
+    assert config.resolve_state_dir() == common.resolve().parent
+
+
+def test_worktree_shares_main_checkout(tmp_path, monkeypatch) -> None:
+    main = tmp_path / "main"
+    worktree = tmp_path / "worktree"
+    main.mkdir()
+    _git(main, "init")
+    _git(main, "commit", "--allow-empty", "-m", "init")
+    _git(main, "worktree", "add", str(worktree), "HEAD")
+    monkeypatch.setattr(config, "REPO_ROOT", worktree)
+    assert config.resolve_state_dir() == main.resolve()
+
+
+def test_fallback_when_not_a_git_checkout(monkeypatch) -> None:
+    def _no_git(*_args, **_kwargs):
+        raise OSError("no git")
+
+    monkeypatch.setattr(config.subprocess, "run", _no_git)
     assert config.resolve_state_dir() == config.REPO_ROOT
-
-
-def test_config_key_then_env_override(run_cfg, monkeypatch, tmp_path):
-    monkeypatch.delenv("NIKA_HOME", raising=False)
-    run_cfg(str(tmp_path / "cfg"))
-    assert config.resolve_state_dir() == (tmp_path / "cfg").resolve()
-    monkeypatch.setenv("NIKA_HOME", str(tmp_path / "env"))
-    assert config.resolve_state_dir() == (tmp_path / "env").resolve()
-
-
-def test_relative_resolves_from_repo(monkeypatch):
-    monkeypatch.setenv("NIKA_HOME", "state")
-    assert config.resolve_state_dir() == (config.REPO_ROOT / "state").resolve()
 
 
 def test_nfs_bind_path_rejected(monkeypatch, tmp_path):
     monkeypatch.setattr(
         cache.subprocess, "run", lambda *a, **k: SimpleNamespace(stdout="nfs\n")
     )
-    with pytest.raises(RuntimeError, match="NIKA_HOME"):
+    with pytest.raises(RuntimeError, match="NFS"):
         cache.ensure_docker_bind_path(tmp_path / "missing" / "x")
 
 

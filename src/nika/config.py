@@ -1,5 +1,6 @@
 import os
 import stat
+import subprocess
 import sys
 from pathlib import Path
 
@@ -21,37 +22,30 @@ if sys.prefix != sys.base_prefix and str(_ENV_BIN) not in os.environ.get(
     os.environ["PATH"] = os.pathsep.join([str(_ENV_BIN), os.environ.get("PATH", "")])
 
 
-ENV_NIKA_HOME = "NIKA_HOME"
-
-
-def _configured_state_dir() -> str:
-    """Read ``nika.state_dir`` from the run-config YAML without importing the loader."""
-    import yaml
-
-    raw = os.environ.get("NIKA_RUN_CONFIG", "").strip()
-    path = Path(raw).expanduser() if raw else Path("config") / "nika.yaml"
-    if not path.is_absolute():
-        path = REPO_ROOT / path
-    try:
-        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-        return str((data.get("nika") or {}).get("state_dir") or "").strip()
-    except Exception:
-        return ""
-
-
 def resolve_state_dir() -> Path:
     """Return the root of all NIKA state (``runtime/`` and ``.nika_cache/``).
 
-    Precedence: ``NIKA_HOME`` env → ``nika.state_dir`` in run config → repo root.
-    Relative paths resolve from the repo root.
+    Git checkouts share the main working tree: the parent of
+    ``git rev-parse --git-common-dir``. Otherwise this is the repository
+    root of the installed package.
     """
-    raw = os.environ.get(ENV_NIKA_HOME, "").strip() or _configured_state_dir()
-    if not raw:
+    try:
+        completed = subprocess.run(
+            ["git", "rev-parse", "--git-common-dir"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except OSError:
         return REPO_ROOT
-    path = Path(raw).expanduser()
-    if not path.is_absolute():
-        path = REPO_ROOT / path
-    return path.resolve()
+    raw = completed.stdout.strip()
+    if completed.returncode != 0 or not raw:
+        return REPO_ROOT
+    common = Path(raw)
+    if not common.is_absolute():
+        common = REPO_ROOT / common
+    return common.resolve().parent
 
 
 STATE_DIR = resolve_state_dir()

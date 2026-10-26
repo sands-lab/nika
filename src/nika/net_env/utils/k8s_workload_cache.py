@@ -100,9 +100,7 @@ def ensure_docker_bind_path(path: Path) -> None:
     if fs.startswith("nfs"):
         raise RuntimeError(
             f"{path} is on an NFS filesystem ({fs}); the Docker daemon cannot "
-            "bind-mount it under root-squash. Set NIKA_HOME (or nika.state_dir) "
-            "to a local-disk directory such as /var/lib/nika and re-run "
-            "`scripts/install.sh` or `nika setup images` to repopulate the cache."
+            "bind-mount it under root-squash."
         )
 
 

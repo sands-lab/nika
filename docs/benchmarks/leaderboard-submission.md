@@ -28,13 +28,9 @@ To inspect packages before uploading, add `--dry-run` to the same command. This 
 
 The GitHub PR carries the `leaderboard-submit` label, which the leaderboard repository requires on submission PRs. Success prints both PR URLs. Maintainers still review and merge the two PRs before publishing the entry. The command does not merge PRs.
 
-The one-command form creates minimal metadata. Before publishing, review the
-entry's code link, project links, and harness display name. Use custom metadata
-below when you need to supply these details.
+The one-command form creates minimal metadata. Before publishing, review the entry's code link, project links, and harness display name. Use custom metadata below when you need to supply these details.
 
-For an open-weight model, `submit` also records which Hugging Face model the run
-served, so the leaderboard can find its release date and price. See
-[the open-weight model record](#record-the-open-weight-model).
+For an open-weight model, `submit` also records which Hugging Face model the run served, so the leaderboard can find its release date and price. See [the open-weight model record](#record-the-open-weight-model).
 
 ## Submit with custom metadata
 
@@ -89,8 +85,7 @@ In addition to metrics, each trial records fault-type labels for confusion-matri
 
 - `gt_fault_types`: unique `fault_type` values from session `ground_truth.json` `root_causes` (fallback: `[problem]`)
 - `predicted_fault_types`: unique `fault_type` values from session `submission.json` `root_causes`, or `null` when the file is missing or has no pairs
-
-- `validity_flags`: run-validity flags for the trial (empty when clean); see [run-validity gates](root-cause-evaluation.md#run-validity-gates)
+- `validity_flags`: run-validity flags for the trial (empty when clean); see [run-validity gates](#run-validity-gates)
 
 `results/rca_confusion.json` aggregates multi-label edges `(gt, predicted)` across trials and records `n_missing_prediction` / `missing_prediction_trial_ids`.
 
@@ -110,8 +105,7 @@ In addition to metrics, each trial records fault-type labels for confusion-matri
     submission.json                      # required when outcome=success
 ```
 
-Remote path (same slug, no `_trajectories` suffix):
-`trajectories/<release_version>/{YYYYMMDD}_{slug}/`.
+Remote path (same slug, no `_trajectories` suffix): `trajectories/<release_version>/{YYYYMMDD}_{slug}/`.
 
 `submit` packs only these per-trial files from each session directory:
 
@@ -165,18 +159,11 @@ Field notes:
 
 ## Model release dates, prices, and display names
 
-You do not supply release dates or prices. After your scores PR merges, the
-[leaderboard repository](https://github.com/sands-lab/nika-leaderboard) looks
-up the model's release date and reference price from public catalogs and opens a
-catalog PR for its maintainers to review. Until that PR merges, the website shows
-the entry's cost as `pending`; models with no public quote show `n/a`. Neither
-blocks your submission. See the leaderboard README for the catalog format and
-sources.
+You do not supply release dates or prices. After your scores PR merges, the [leaderboard repository](https://github.com/sands-lab/nika-leaderboard) looks up the model's release date and reference price from public catalogs and opens a catalog PR for its maintainers to review. Until that PR merges, the website shows the entry's cost as `pending`; models with no public quote show `n/a`. See the leaderboard README for the catalog format and sources.
 
 ### Record the open-weight model
 
-Open-weight prices and release dates come from the model's Hugging Face repo, so
-`submit` writes the repo and a pinned commit to `agent.extra`:
+Open-weight prices and release dates come from the model's Hugging Face repo, so `submit` writes the repo and a pinned commit to `agent.extra`:
 
 ```yaml
 agent:
@@ -186,16 +173,9 @@ agent:
     hf_revision_source: latest   # or: specified
 ```
 
-When a custom endpoint served the model under its Hugging Face ID, as vLLM does
-by default, `submit` finds the repo from the run's `model` and needs no extra
-flags. Unless you pass `--hf-revision`, it records the repo's latest revision at
-submit time and prints it. Pass `--hf-revision` when the run served an older
-commit, branch, or tag; `submit` stores its commit SHA.
+When a custom endpoint served the model under its Hugging Face ID, as vLLM does by default, `submit` finds the repo from the run's `model` and needs no extra flags. Unless you pass `--hf-revision`, it records the repo's latest revision at submit time and prints it. Pass `--hf-revision` when the run served an older commit, branch, or tag; `submit` stores its commit SHA.
 
-`submit` stops before packing when it cannot identify the model, for example
-when vLLM used `--served-model-name` or Ollama served a library model such as
-`gpt-oss:120b`. Pass the repo explicitly, or mark a proprietary model behind a
-custom endpoint:
+`submit` stops before packing when it cannot identify the model, for example when vLLM used `--served-model-name` or Ollama served a library model such as `gpt-oss:120b`. Pass the repo explicitly, or mark a proprietary model behind a custom endpoint:
 
 ```shell
 uv run nika leaderboard submit --result_dir results/my-run \
@@ -207,25 +187,11 @@ Runs against a vendor API (`openai`, `anthropic`, `deepseek`) record nothing.
 
 ### How the website prices runs
 
-The leaderboard uses vendor API list prices for proprietary models and public
-hosted-inference quotes for open weights. For open weights, this is a reference
-estimate for hosted inference, not the submitter's self-hosted GPU bill. Each
-run uses the quote that was current on its package date; a **Current prices**
-toggle re-prices every run at the latest quote.
+The leaderboard uses vendor API list prices for proprietary models and public hosted-inference quotes for open weights. For open weights, this is a reference estimate for hosted inference, not the submitter's self-hosted GPU bill. Each run uses the quote that was current on its package date; a **Current prices** toggle re-prices every run at the latest quote.
 
-The website computes the token-priced total as
-`(input_tokens × input_rate + output_tokens × output_rate) / 1,000,000`.
-Cost per run means one attempt at every case:
-`total_cost / reported_trials × case_count`. Token counts come from the packed
-run. The reference calculation does not apply cache discounts or add network
-emulation and GPU allocation costs.
+The website computes the token-priced total as `(input_tokens × input_rate + output_tokens × output_rate) / 1,000,000`. Cost per run means one attempt at every case: `total_cost / reported_trials × case_count`. Token counts come from the packed run. The reference calculation does not apply cache discounts or add network emulation and GPU allocation costs.
 
-Chart names use the model, normalized harness name, optimization methods, and
-skills. An optimization's `agent.extra.<method>_variant` field adds its variant,
-such as `gepa_variant: d+s`. Repeated configurations include the split and run
-identity to distinguish them. The submission detail page retains your original
-`info.name`. Packages use `YYYYMMDD_<framework>_<model>`; for example,
-`20261012_claude_code_gemma_4_31b_it`.
+Chart names use the model, normalized harness name, optimization methods, and skills. An optimization's `agent.extra.<method>_variant` field adds its variant, such as `gepa_variant: d+s`. Repeated configurations include the split and run identity to distinguish them. The submission detail page retains your original `info.name`. Packages use `YYYYMMDD_<framework>_<model>`; for example, `20261012_claude_code_gemma_4_31b_it`.
 
 ## `README.md`
 
@@ -236,11 +202,26 @@ Short system description, authors, and links to code / report / site (if any).
 - Identity matches the in-tree frozen release
 - Exact trial coverage (`case_count × n_trials`); metrics and `rca_confusion.json` match recomputed aggregates (non-`scored` trials count as 0 in primary means)
 - No `grading_error` or residual `infra_error` scoring status (`infra_error` is auto-retried during the run; leftovers reject the pack)
-- Additional run-validity check: warns on any validity flag; fails when `truncated_final_turn` or the `infra_error` validity flag exceeds 5% of trials (`nika leaderboard validate --max-harness-rate`). See [run-validity gates](root-cause-evaluation.md#run-validity-gates)
+- Run-validity flags (below): `nika leaderboard validate` warns on any flag and fails when `truncated_final_turn` or the `infra_error` validity flag exceeds `--max-harness-rate` of trials (default 5%)
 - Sibling trajectories package has the required per-trial files and matching trial set
 - No secrets or absolute paths in package text
 
 See also [root-cause ground truth and scoring](root-cause-evaluation.md#score-a-submission) for per-trial metrics, `score_status`, and aggregation.
+
+### Run-validity gates
+
+`nika.evaluator.validity` sets flags from artifacts in each trial directory (`messages.jsonl`, `submission.json`, `nika.jsonl`, `run.json`). Readers recompute them from those artifacts for older runs. `nika eval summary` prints per-flag trial counts and rates (`validity_counts` / `validity_rates` in the JSON report). `nika leaderboard pack` stores `validity_flags` in each trial `result.json` and `validity_counts` in `metrics.json`.
+
+| Flag | Meaning |
+| --- | --- |
+| `no_submission` | no readable `submission.json` with a `root_causes` list |
+| `empty_report` | frozen diagnosis report is empty or only opening narration before the first tool call |
+| `truncated_final_turn` | the last LLM turn of a phase hit the output limit (`finish_reason: length`, `stop_reason: max_tokens`, or output tokens equal `max_tokens` with no text) |
+| `max_steps_exhausted` | diagnosis hit `max_steps`; details record whether a wrap-up report exists |
+| `fault_absent_at_cleanup` | a `fault_presence_recheck` before cleanup read `absent`: the agent likely mutated the network or the fault self-healed |
+| `infra_error` | the trial failed to start, lacks ground truth, or has `score_status=infra_error` |
+
+Pack rejection on `score_status` has no threshold: any trial with `grading_error` or residual `infra_error` status rejects the package. A trial can carry the `infra_error` validity flag without that scoring status. The remaining flags only warn.
 
 ## Check the pull requests
 

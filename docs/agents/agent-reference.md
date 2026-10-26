@@ -187,7 +187,7 @@ sandbox:
   egress: [download.pytorch.org]   # reachable during setup only
 ```
 
-The sandbox installs NIKA's pinned `langgraph` package set first, then `install` from PyPI. When `[project].requires-python` excludes the sandbox's Python, both go into an environment with a matching interpreter, as for [custom agents](custom-agents.md). Pin versions in `install` or in `pyproject.toml` so runs stay reproducible. `egress` hosts are reachable only during this setup, on Docker Sandboxes. Once the agent starts, its sandbox reaches only the MCP gateway and the model proxy, so the agent reaches its model through `agent.provider`, not through a host in `egress` ([network egress](../operations/agent-sandbox.md#how-sandboxes-stay-isolated)). E2B sandboxes have no internet access. Files named `nika-agent.yaml` stay on the host.
+The sandbox installs NIKA's pinned `langgraph` package set first, then `install` from PyPI. When `[project].requires-python` excludes the sandbox's Python, both go into an environment with a matching interpreter, as for [custom agents](custom-agents.md). Pin versions in `install` or in `pyproject.toml` so runs stay reproducible. On Docker Sandboxes, `egress` hosts are reachable only while NIKA installs those packages. After setup, the sandbox reaches the session MCP gateway and the host model proxy; model requests use `agent.provider`. E2B installs packages into the template, so `egress` is unused. See [network egress](../operations/agent-sandbox.md#how-sandboxes-stay-isolated). Files named `nika-agent.yaml` stay on the host.
 
 ## Python MCP client
 

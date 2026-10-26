@@ -262,33 +262,5 @@ def validate_leaderboard_submission(
         )
 
     errors.extend(scan_package_dir(root))
-    warnings.extend(_trajectory_leak_warnings(root))
 
     return ValidationReport(ok=not errors, errors=errors, warnings=warnings)
-
-
-def _trajectory_leak_warnings(scores_root: Path) -> list[str]:
-    """Warn when the sibling trajectories show benchmark-identifying text.
-
-    Such text (see :mod:`nika.evaluator.leak_scan`) lets an agent recognize
-    the benchmark; it is a harness defect, not the submitter's.
-    """
-    from nika.evaluator.leak_scan import (
-        scan_trajectory,
-        summarize_hits,
-        trajectory_files,
-    )
-    from nika.workflows.leaderboard.validate_trajectories import (
-        sibling_trajectories_dir,
-    )
-
-    trajectories = sibling_trajectories_dir(scores_root)
-    files = trajectory_files([trajectories]) if trajectories.is_dir() else []
-    hits = [hit for path in files for hit in scan_trajectory(path)]
-    if not hits:
-        return []
-    return [
-        "trajectory leak scan: "
-        + summarize_hits(hits, n_trajectories=len(files))
-        + f" (details: nika eval leak-scan --no-tools {trajectories})"
-    ]

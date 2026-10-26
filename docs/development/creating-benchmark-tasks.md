@@ -182,26 +182,6 @@ Notes:
 - List instance attributes that should be recorded in session injection metadata in `RECORDED_ATTRS`.
 - Declare benchmark targets on the class; `nika benchmark generate` has no per-failure code. Override `benchmark_inject_params(ctx)` to return the canonical inject params for `ctx.scenario` (the default targets `ctx.host0`), drawing only from `ctx.rng` so cases stay reproducible. Set `BENCHMARK_TARGETS` (`"node"`, `"link"`, or `"canonical"`) to choose how variants are enumerated, plus `BENCHMARK_TARGET_ROLE`, `BENCHMARK_POINT_TO_POINT`, or `BENCHMARK_TUNNEL_IFACE` when they apply. Override `benchmark_inject_options`, `validate_benchmark_inject`, or `coordinate_benchmark_inject` (with `BENCHMARK_COORDINATES`) only for failure-specific enumeration, validation, or multi-fault pairing. Shared target helpers live in `problems/support/benchmark_targets.py`.
 
-### Injection must not leak through naming or asymmetry
-
-The agent reads the same state an operator would: processes, files, firewall rules, qdiscs, routing and switch tables, controller flows, Kubernetes objects, and tool output. If an injected object names the fault or is plainly synthetic, the agent can find the root cause by reading names instead of diagnosing symptoms. Make injected state look like plausible production state from the start; do not hide it later with output filtering.
-
-- **Names.** Do not use `nika`, `fault`, `inject`, the failure ID, or words that describe the effect (`blackhole`, `bitflip`, `drop_all`, `stress`) in rule comments, chain, table, set, qdisc, interface, VRF, namespace, P4 table and action, BPF program, file, script, process, or Kubernetes object names. Use what an operator would deploy: an ACL, a policer, a misconfigured existing entry, a maintenance job.
-- **Values.** Avoid placeholders that read as injected on their own, such as `00:11:22:33:44:55`, TEST-NET resolvers in a network that does not use them, or long sequential runs of generated prefixes. Derive values from the network: an unused neighbor of the real address, a stable MAC from a hash.
-- **Metadata.** Install controller flows and P4 entries through the same app, with the same priority scheme and table layout, as the scenario's own state. A flow at a priority nothing else uses stands out before any symptom does.
-- **Processes.** A resource hog should be a believable workload, such as an archive or compression job, not `stress-ng` or a `while true` loop. The agent should have to find the busy process and attribute it to the symptom.
-- **Asymmetry.** Prefer editing an object every peer has (a rule in the existing chain, an entry in an existing table) over creating one that exists only on the faulty device. A table that is empty everywhere except on one switch points at that switch. Keep helpers that only make the injection work, such as namespace holders or build containers, outside the lab nodes.
-- **Interfaces.** Do not re-create a lab interface to impair a link: the new interface gets a higher ifindex and zeroed counters, and BMv2 or OVS must re-attach it. On Kathara, impair point-to-point links with `KatharaVdeFaultProxy`, which takes over the link's VDE hub from outside the nodes; on Containerlab, shape the host-side veth peer with `HostTcController`.
-- **Leftovers.** Remove staged scripts, manifests, temporary files, and backups in the same step that uses them.
-
-The audit includes an agent-view leak scan. Run it for every failure you add or change. It snapshots what an agent can read on each node before and after inject and fails on added state that names NIKA or the fault:
-
-```shell
-uv run python -m experiment.audit.matrix --scenario my_scenario --fault my_fault --force --allow-dirty
-```
-
-When some residue is unavoidable, describe it in the failure's catalog entry.
-
 Verify the problem:
 
 ```shell

@@ -37,8 +37,6 @@ nika leaderboard submit --result_dir results/my-run --submission results/my-run/
 
 Official `--release` runs default to continuing past trial failures (`continue_on_error=True`) so one bad trial does not abort the job; use `--abort-on-error` to stop immediately. Ad-hoc `--config` batches still default from `benchmark.continue_on_error` in run config. The agent itself runs under `agent.timeout_sec` (default 1800s), which applies to every agent type. Per-case watchdogs use `--case-timeout` / `benchmark.case_timeout_sec` (default 2400s); a timed-out trial is finalized as counted `agent_failed` when the budget was spent on agent work, or as retryable `endpoint_failed` when the kill lands mid-LLM and LLM calls dominated the wall clock. NIKA stops a timed-out worker with SIGTERM and gives it up to 60 seconds to remove its sandbox, stop the MCP gateway, and undeploy the lab before SIGKILL.
 
-Before each trial deploys its lab, the runner waits until free memory meets the trial's resource-class floor and the 1-minute load average is below `benchmark.admission.load_per_cpu` times the CPU count, then applies the class spacing. This keeps deploy spikes from showing up as latency or loss in healthy labs. Waits are logged as `admission_wait` events in `nika.jsonl`, and the trial's `run.json` records `host_load_avg_at_agent_start`. See [`benchmark.admission.*`](../operations/configuration.md) to tune or disable it.
-
 Per-trial `run.json` is stamped with the same release identity fields plus `trial_id` / `trial_index` / `outcome`.
 
 ## Working matrix

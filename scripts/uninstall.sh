@@ -36,7 +36,7 @@ Removes everything NIKA set up on this host:
     from older installers) and the ${GNMIC_BIN} older installers added
   - ~/.config/kathara.conf and, in the repo, .venv (with clab and gnmic),
     .nika_cache (with uv and its cache when the installer added them) and
-    runtime/ under NIKA_HOME when set, else the repo (including Firecracker
+    runtime/ at the main NIKA checkout (including Firecracker
     images, after unmounting runtime/firecracker and removing its /etc/fstab
     entry when the host setup mounted a loop file there)
   - the Firecracker host settings: the userfaultfd udev rule, the huge-pages
@@ -71,9 +71,13 @@ done
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
-NIKA_STATE="${NIKA_HOME:-${ROOT}}"
-[[ "${NIKA_STATE}" == /* ]] || NIKA_STATE="${ROOT}/${NIKA_STATE}"
-NIKA_STATE="${NIKA_STATE%/}"
+# runtime/ and .nika_cache/ live at the main checkout, shared by worktrees.
+if common="$(git -C "${ROOT}" rev-parse --git-common-dir 2>/dev/null)" && [[ -n "${common}" ]]; then
+  [[ "${common}" == /* ]] || common="${ROOT}/${common}"
+  NIKA_STATE="$(cd "$(dirname -- "${common}")" && pwd -P)"
+else
+  NIKA_STATE="${ROOT}"
+fi
 NIKA_CACHE="${NIKA_STATE}/.nika_cache"
 NIKA_RUNTIME="${NIKA_STATE}/runtime"
 VENV_DIR="${UV_PROJECT_ENVIRONMENT:-.venv}"
@@ -373,7 +377,7 @@ remove_files() {
   fi
   local path
   local paths=("${NIKA_CACHE}" "${NIKA_RUNTIME}")
-  # Leftover checkout state when NIKA_HOME (or nika.state_dir) points elsewhere.
+  # Leftover checkout state when this tree is a worktree of another checkout.
   if [[ "${NIKA_CACHE}" != "${ROOT}/.nika_cache" ]]; then
     paths+=("${ROOT}/.nika_cache")
   fi

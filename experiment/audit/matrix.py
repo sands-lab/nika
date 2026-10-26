@@ -21,23 +21,22 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import IO, Any
 
+from experiment.audit import admission
 from experiment.audit.environment import (
     CaseAudit,
     StageResult,
     identity_from_row,
 )
+from experiment.audit.live import audit_case, declared_probe
 from experiment.audit.provenance import provenance_complete
-from nika.workflows.benchmark.release import read_git_commit
+from experiment.audit.report_doc import RESULTS_DIR
 from nika.net_env.net_env_pool import (
     scenario_fixed_topo_size,
 )
-from nika.workflows.benchmark import admission
+from nika.utils.session_artifacts import write_json_atomic
 from nika.workflows.benchmark.admit import resource_class_for_row
 from nika.workflows.benchmark.healthy import is_healthy_case
-from nika.utils.session_artifacts import write_json_atomic
-
-from experiment.audit.live import audit_case, declared_probe
-from experiment.audit.report_doc import RESULTS_DIR
+from nika.workflows.benchmark.release import read_git_commit
 
 _ROW_KEYS = (
     "scenario",

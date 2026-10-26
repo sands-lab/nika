@@ -1,17 +1,13 @@
-"""Host-load admission shared by benchmark trials and the release audit.
+"""Host-load admission for the release audit.
 
-A lab deploy claims memory and CPU for minutes. Starting several at once pushes
-the host load far above its core count, and healthy labs then show high latency
-or transient loss. ``wait_for_admission`` admits one lab at a time while free
-memory stays above a per-class floor and the 1-minute load average stays under
-a ceiling, then records the admission so the next lab waits out the class
-spacing before it reads memory.
+``wait_for_admission`` admits one lab at a time while free memory stays above
+a per-class floor and the 1-minute load average stays under a ceiling, then
+records the admission so the next lab waits out the class spacing.
 """
 
 from __future__ import annotations
 
 import fcntl
-import os
 import time
 from pathlib import Path
 from typing import IO, Callable, Mapping
@@ -19,10 +15,8 @@ from typing import IO, Callable, Mapping
 MEMORY_FLOOR_GIB: Mapping[str, float] = {"light": 8, "large": 16, "clab": 32, "k8s": 16}
 # SR Linux nodes keep claiming memory for minutes after a clab lab deploys.
 SPACING_SEC: Mapping[str, float] = {"light": 10, "large": 45, "clab": 180, "k8s": 90}
-RESOURCE_CLASSES = tuple(MEMORY_FLOOR_GIB)
 
 POLL_SEC = 20.0
-DEFAULT_LOCK_DIR = "/tmp/nika-admission-locks"
 
 
 def available_gib() -> float:
@@ -37,10 +31,6 @@ def load_average() -> tuple[float, float, float]:
     """1, 5 and 15 minute load averages from ``/proc/loadavg``."""
     one, five, fifteen = Path("/proc/loadavg").read_text(encoding="utf-8").split()[:3]
     return float(one), float(five), float(fifteen)
-
-
-def load_ceiling(per_cpu: float) -> float:
-    return per_cpu * (os.cpu_count() or 1)
 
 
 def has_capacity(

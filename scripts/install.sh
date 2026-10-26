@@ -82,7 +82,7 @@ Options:
   --xrd-tarball PATH
       Path to a Cisco XRd Control Plane container .tgz (no public URL).
       Or set NIKA_XRD_TARBALL, or put .nika_cache/vendor/xrd-*.tgz under
-      NIKA_HOME when set, else the repo.
+      the main NIKA checkout (shared by git worktrees).
 
   --with-agentenv
       Recommended. Every agent runs in a sandbox; this runs AgentENV, an
@@ -168,7 +168,14 @@ esac
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-NIKA_CACHE="${NIKA_HOME:-${ROOT}}/.nika_cache"
+# runtime/ and .nika_cache/ live at the main checkout, shared by worktrees.
+if common="$(git -C "${ROOT}" rev-parse --git-common-dir 2>/dev/null)" && [[ -n "${common}" ]]; then
+  [[ "${common}" == /* ]] || common="${ROOT}/${common}"
+  NIKA_STATE="$(cd "$(dirname -- "${common}")" && pwd -P)"
+else
+  NIKA_STATE="${ROOT}"
+fi
+NIKA_CACHE="${NIKA_STATE}/.nika_cache"
 VENDOR_CACHE="${NIKA_VENDOR_CACHE:-${NIKA_CACHE}/vendor}"
 # uv resolves a relative UV_PROJECT_ENVIRONMENT against the project root.
 VENV_DIR="${UV_PROJECT_ENVIRONMENT:-.venv}"
