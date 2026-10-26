@@ -235,8 +235,8 @@ Short system description, authors, and links to code / report / site (if any).
 
 - Identity matches the in-tree frozen release
 - Exact trial coverage (`case_count × n_trials`); metrics and `rca_confusion.json` match recomputed aggregates (non-`scored` trials count as 0 in primary means)
-- No `grading_error` or residual `infra_error` trials (`infra_error` is auto-retried during the run; leftovers reject the pack)
-- Run validity: warns on any flagged trial; fails when `truncated_final_turn` or `infra_error` exceeds 5% of trials (`nika leaderboard validate --max-harness-rate`)
+- No `grading_error` or residual `infra_error` scoring status (`infra_error` is auto-retried during the run; leftovers reject the pack)
+- Additional run-validity check: warns on any validity flag; fails when `truncated_final_turn` or the `infra_error` validity flag exceeds 5% of trials (`nika leaderboard validate --max-harness-rate`). See [run-validity gates](root-cause-evaluation.md#run-validity-gates)
 - Sibling trajectories package has the required per-trial files and matching trial set
 - No secrets or absolute paths in package text
 

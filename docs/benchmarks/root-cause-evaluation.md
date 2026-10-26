@@ -264,10 +264,16 @@ carries `validity_counts` / `validity_rates`. `nika leaderboard pack` stores
 `validity_flags` in each trial `result.json` and `validity_counts` in
 `metrics.json`.
 
-`nika leaderboard validate` warns on any flag. It fails only on
-harness-attributable invalidity: `truncated_final_turn` or `infra_error` on
-more than `--max-harness-rate` of trials (default `0.05`). The other flags can
-reflect agent behavior, so they stay warnings.
+`nika leaderboard validate` warns on any validity flag. Pack rejection on
+`score_status` is separate and has no threshold: any trial with
+`grading_error` or residual `infra_error` status still rejects the package,
+as in the aggregate rules above. An additional validity check fails when the
+harness-attributable flags `truncated_final_turn` or `infra_error` appear on
+more than `--max-harness-rate` of trials (default `0.05`). The `infra_error`
+validity flag is set when the trial failed to start, lacks ground truth, or
+has `score_status=infra_error`; a trial can carry that flag without that
+scoring status. The other flags can reflect agent behavior, so they stay
+warnings.
 
 ### Run offline eval
 
