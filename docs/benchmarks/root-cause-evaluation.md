@@ -156,17 +156,10 @@ Each finished trial stores `score_status` on `run.json`. Decision order asks one
 
 1. **Has submission**
    - Grading succeeds → `scored` (score columns hold the computed `[0, 1]` values).
-   - Ground truth missing/corrupt or the scorer raises → `grading_error`
-     (score columns are `null`). Fix GT or scoring code and regrade. Do not
-     re-run the agent.
+   - Ground truth missing/corrupt or the scorer raises → `grading_error` (score columns are `null`). Fix GT or scoring code and regrade. Do not re-run the agent.
 2. **No submission**
-   - Ground truth missing (env/inject never completed) or clear env / LLM API /
-     MCP failure evidence → `infra_error` (score columns are `null`). Resume
-     and `--retry-passes` re-run these trials. Any residual `infra_error` after
-     retries rejects a leaderboard pack.
-   - Otherwise (timeout, max steps, crash, early exit, failed `submit`
-     validation, unknown cause) → `no_submission` (score columns are
-     explicit `0.0`). Do not re-run.
+   - Ground truth missing (env/inject never completed) or clear env / LLM API / MCP failure evidence → `infra_error` (score columns are `null`). Resume and `--retry-passes` re-run these trials. Any residual `infra_error` after retries rejects a leaderboard pack.
+   - Otherwise (timeout, max steps, crash, early exit, failed `submit` validation, unknown cause) → `no_submission` (score columns are explicit `0.0`). Do not re-run.
 
 | Status | Score columns | Primary contribution | Follow-up |
 | --- | --- | --- | --- |
@@ -193,15 +186,13 @@ Each contribution is the trial's score when `score_status=scored`, and `0` for e
 Always report these as a pair:
 
 - `submission_rate = n(scored) / N`
-- `conditional_mean_*` over the `scored` subset only (`null` when
-  `n(scored)=0`)
+- `conditional_mean_*` over the `scored` subset only (`null` when `n(scored)=0`)
 
 Also report:
 
 - `status_counts` for each `score_status`
 - fault-case means for `rca_f1` and `localization_f1`
-- healthy-case mean for `detection_score` (RCA/localization are not meaningful
-  for healthy controls)
+- healthy-case mean for `detection_score` (RCA/localization are not meaningful for healthy controls)
 
 Leaderboard pack/validate rejects a package when any trial has `grading_error` or residual `infra_error`.
 

@@ -114,7 +114,13 @@ user PCs -- access switches -- distribution routers
 | `m` | 4 | 8 | 16 |
 | `l` | 8 | 32 | 128 |
 
-Hosts acquire addresses from `dhcp_server`; distribution routers relay DHCP. Dist/access names stay `router_dist_*` / `server_access_router`. The farm adds an NGINX load balancer at `web99.local` and three backend webs on `20.200.0.0/24`. Each `webN.local` server runs NGINX, which serves the campus software repository over HTTP and HTTPS and proxies other paths to the mock page service. Every PC browses `web0`-`web3.local` and `web99.local` every few tens of seconds. The teaching-lab PCs, every PC in the `10.2.<dist>.0/24` access blocks behind `router_core_2`, refresh their software catalog every few minutes by downloading the gzip-encoded (served only to clients that send `Accept-Encoding: gzip`; `curl_web_test` does) `https://web0.local/packages/catalog.txt` (64 MiB decoded), trusting the repository through the campus CA. Each PC also has a local archive job configured with one worker in `/etc/archive-job.json`. It verifies OSPF adjacency, cross-branch reachability, DNS, and HTTP.
+Hosts acquire addresses from `dhcp_server`; distribution routers relay DHCP. Dist/access names stay `router_dist_*` / `server_access_router`.
+
+The farm adds an NGINX load balancer at `web99.local` and three backend webs on `20.200.0.0/24`. Each `webN.local` server runs NGINX, which serves the campus software repository over HTTP and HTTPS and proxies other paths to the mock page service.
+
+Every PC browses `web0`-`web3.local` and `web99.local` every few tens of seconds. The teaching-lab PCs, every PC in the `10.2.<dist>.0/24` access blocks behind `router_core_2`, refresh their software catalog every few minutes by downloading the gzip-encoded `https://web0.local/packages/catalog.txt` (64 MiB decoded), trusting the repository through the campus CA. Each PC also has a local archive job configured with one worker in `/etc/archive-job.json`.
+
+Verification checks OSPF adjacency, cross-branch reachability, DNS, and HTTP.
 
 ```shell
 uv run nika env run campus_lan -s s
@@ -585,6 +591,8 @@ The k3s workers connect to `https://201.1.1.2:6443`, matching the controller's a
 
 `dc_exit` is a plain Linux router with static routes (no routing daemon): it enters the data center through both `leaf_2_*` routers and defaults toward `as1r1`. MetalLB addresses (`101.0.0.0/8`) are served on their service ports only. The k3s workers and the `leaf_2_*` routers discard unused addresses in the `101.0.0.0/8` and `201.0.0.0/8` aggregates, so ICMP to the ingress VIP times out instead of looping while HTTP and HTTPS work.
 
+The client browses both applications through the ingress (`http://datacenter.com/word` and `/weather`) every few seconds, and a per-node `uptime-agent` DaemonSet in the `monitoring` namespace calls them through their Service names.
+
 Use this scenario for faults that combine Kubernetes state with routed underlay behavior. Verification checks the BGP fabric, six Ready nodes, cross-leaf reachability, ingress addressing, and both applications.
 
 ### `llmd_lab`
@@ -601,6 +609,8 @@ controller  worker1  worker2  worker3  worker4  worker5  client
                    prefill and decode pods
 ```
 
+The client sends chat completions to the gateway (`http://llmd/v1/chat/completions`) every few seconds and repeatedly downloads a dataset from the web server (`http://200.0.0.8/dataset.bin`); a per-node `uptime-agent` DaemonSet in the `monitoring` namespace sends inference requests to the gateway Service.
+
 Use this scenario for Kubernetes service, DNS, policy, and inference-routing faults without a routed fabric. Verification checks node readiness, llm-d and gateway pods, the LoadBalancer address, model discovery, and a simulated chat completion.
 
 ## Business traffic
@@ -609,7 +619,7 @@ Many faults only hurt traffic that is actually flowing: a NAT that drops live se
 
 Background business traffic belongs to the environment. Some incidents also start traffic of their own after injection. `tcp_syn_flood_attack` launches SYN generators; `web_dos_attack` and `load_balancer_overload` start ApacheBench workers. Those generators are part of the injected incident, not the environment workload. See the [failure reference](failures.md#registered-failures).
 
-`enterprise_branch`, `campus_lan`, `dc_clos`, `sdn_l3_clos`, `p4_dc_fabric`, `p4_dc_gateway`, the SNDlib ISP environments, and `min3clos` declare business traffic. Other environments run quiet.
+`enterprise_branch`, `campus_lan`, `dc_clos`, `sdn_l3_clos`, `p4_dc_fabric`, `p4_dc_gateway`, `k8s_lab`, `llmd_lab`, the ISP environments (SNDlib and Topology Zoo), and `min3clos` declare business traffic. Other environments run quiet.
 
 To declare traffic for an environment, return a `BusinessWorkload` from the environment's `business_workload()` method ([`nika.traffic.workload`](../../src/nika/traffic/workload.py)):
 

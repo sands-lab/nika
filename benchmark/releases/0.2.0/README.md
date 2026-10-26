@@ -36,7 +36,7 @@ Failure descriptions were also tightened for `dhcp_spoofed_gateway`, `flow_rule_
 | `dev` | `dev.yaml` | 84 |
 | `test` | `test.yaml` | 85 |
 
-Across both splits: **169** executable rows, **29** scenario IDs, **74** of the **75** registered failures plus **healthy** baselines (18 healthy rows). Both splits cover every registered failure that a benchmark scenario can host and publish their labels. `lb_connection_state_exhaustion` is not part of this release: its 0.2.0 design failed construct validity in the release audit (the injector itself filled `gateway_1`'s connection table), and it was redesigned after 0.2.0 as a too-low connection limit on the gateway's L4 agent. Rows `dev-040` and `test-040` replace it with `p4_action_selector_member_misconfig` and `p4_table_resource_exhaustion` on the same scenario and size.
+Across both splits: **169** executable rows, **29** scenario IDs, **74** failures plus **healthy** baselines (18 healthy rows). Both splits publish their labels.
 
 ## Case catalog
 

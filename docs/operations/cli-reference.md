@@ -6,7 +6,7 @@ Implementation: [`main.py`](../../src/nika/cli/main.py) registers the command gr
 
 Entry point: `nika` (see `[project.scripts]` in `pyproject.toml`). During development use `uv run nika …`.
 
-Runtime paths (`runtime/`, `results/`, `benchmark/`) resolve from the repository root (derived from the installed `nika` package location). Credentials load from the repository-root `.env`; operational settings load from `config/nika.yaml`. See the [run configuration reference](configuration.md).
+Sessions (`runtime/`) and caches (`.nika_cache/`) live in the main Git checkout and are shared by all its worktrees (see [State directory](configuration.md#state-directory)). Everything else stays in the checkout the `nika` package is installed from: results default to its `results/`, benchmark data comes from its `benchmark/`, credentials load from its `.env`, and operational settings load from its `config/nika.yaml`. For example, a worktree at `/srv/nika-feature` of `/srv/nika` keeps sessions in `/srv/nika/runtime/` but writes results to `/srv/nika-feature/results/`. See the [run configuration reference](configuration.md).
 
 ## Command tree
 

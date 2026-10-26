@@ -6,7 +6,7 @@ Implementation: [`benchmark/`](../../benchmark/) stores matrices and releases; [
 
 ## Frozen release (`nika-bench@0.2.0`)
 
-`0.2.0` publishes public Dev and Test splits from the current failure registry. Both splits cover every registered failure that a benchmark scenario can host (`lb_connection_state_exhaustion` is held out; see the release README). Labels are public for reproducibility. Each version directory under [`benchmark/releases/`](../../benchmark/releases/) includes a `README.md` with suite shape, scenario and failure coverage, and links to the scenario and failure references.
+`0.2.0` publishes public Dev and Test splits. Labels are public for reproducibility. Each version directory under [`benchmark/releases/`](../../benchmark/releases/) includes a `README.md` with suite shape, scenario and failure coverage, and links to the scenario and failure references.
 
 ```shell
 nika benchmark releases
