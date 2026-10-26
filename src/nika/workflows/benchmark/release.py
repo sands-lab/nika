@@ -446,12 +446,24 @@ def _validate_release_splits(
     test_cases: list[dict[str, Any]],
     *,
     expected_failures: set[str],
+    frozen: bool = False,
 ) -> None:
+    """Check split isolation and failure coverage.
+
+    A new release must cover exactly ``expected_failures``. A frozen release
+    keeps its failures while the registry grows, so it only needs every failure
+    it lists to still be registered.
+    """
     verify_dev_test_isolation(dev_cases=dev_cases, test_cases=test_cases)
     failures = {
         str(row["problem"]) for row in dev_cases if not is_healthy_case(row["problem"])
     }
-    if failures != expected_failures:
+    if frozen:
+        if failures - expected_failures:
+            raise ReleaseError(
+                f"Release lists unregistered failures: {sorted(failures - expected_failures)}"
+            )
+    elif failures != expected_failures:
         missing = sorted(expected_failures - failures)
         extra = sorted(failures - expected_failures)
         raise ReleaseError(
@@ -562,12 +574,8 @@ def preflight_release(
                 dev_cases=dev, test_cases=test, allow_context_overlap=True
             )
         else:
-            # A release may hold out failures registered after it was frozen.
-            held_out = set(release.manifest.get("held_out_failures") or ())
             _validate_release_splits(
-                dev,
-                test,
-                expected_failures=_benchmark_failures() - held_out,
+                dev, test, expected_failures=_benchmark_failures(), frozen=True
             )
 
     _verify_mcp_policy(release.cases, release.tools)

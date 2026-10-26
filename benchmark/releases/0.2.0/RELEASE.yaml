@@ -8,8 +8,6 @@ splits:
     cases_file: test.yaml
     case_count: 85
 default_split_for_release: test
-held_out_failures:
-- lb_connection_state_exhaustion
 defaults:
   n_trials: 3
 scoring:
