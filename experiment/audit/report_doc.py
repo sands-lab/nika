@@ -356,14 +356,20 @@ def _split_counts(covered: list[dict]) -> str:
     )
 
 
+# Hosts that ran the stored records: heavy classes on the first, light on the second.
+_HOSTS = ("Host 1 (k8s, Containerlab, large)", "Host 2 (light)")
 _HOST = (
-    ("OS", "Ubuntu 24.04.5 LTS, Linux 6.8.0-142-generic"),
-    ("CPU", "16 vCPU"),
-    ("Memory", "62 GiB"),
-    ("Docker Engine", "29.8.1"),
-    ("Containerlab", "0.79.0"),
-    ("Kathara", "3.8.3"),
-    ("Python", "3.12.12, run through `uv`"),
+    (
+        "OS",
+        "Ubuntu 24.04.5 LTS, Linux 6.8.0-146-generic",
+        "Ubuntu 24.04.5 LTS, Linux 6.8.0-147-generic",
+    ),
+    ("CPU", "32 vCPU", "16 vCPU"),
+    ("Memory", "125 GiB", "62 GiB"),
+    ("Docker Engine", "29.9.0", "29.8.1"),
+    ("Containerlab", "0.79.0", "0.79.0"),
+    ("Kathara", "3.8.3", "3.8.3"),
+    ("Python", "3.12.14, run through `uv`", "3.12.12, run through `uv`"),
 )
 
 
@@ -372,12 +378,12 @@ def _environment_section(records: list[dict]) -> list[str]:
         "",
         "## Test environment",
         "",
-        "The release 0.2.0 audit ran on one host. Other NIKA workloads shared that host, so the matrix admits a case only when enough memory is free (see [Launch parameters](#launch-parameters)).",
+        "The release 0.2.0 audit ran on two hosts from the same commit, split by resource class. Other NIKA workloads could share a host, so the matrix admits a case only when enough memory is free (see [Launch parameters](#launch-parameters)).",
         "",
-        "| Component | Version |",
-        "| --- | --- |",
+        f"| Component | {' | '.join(_HOSTS)} |",
+        "| --- |" + " --- |" * len(_HOSTS),
     ]
-    lines.extend(f"| {name} | {value} |" for name, value in _HOST)
+    lines.extend(f"| {name} | {' | '.join(values)} |" for name, *values in _HOST)
     if not records:
         return lines
     provenances = [item["audit"]["provenance"] for item in records]
@@ -390,7 +396,7 @@ def _environment_section(records: list[dict]) -> list[str]:
             f"The audit ran from {started} to {completed} UTC.",
             f"Each case took {elapsed[len(elapsed) // 2] / 60:.1f} minutes at the median and {elapsed[-1] / 60:.1f} minutes at most, from lab deploy to undeploy.",
             "",
-            "Lab nodes used these images. Every node that used an image reference had the same image ID.",
+            "Lab nodes used these image references. The table lists every image ID observed for a reference across the stored records; each host used one ID per reference, and a reference used on both hosts can show two IDs because each host has its own image store. Each record keeps the image ID of every lab node (see [Results and this page](#results-and-this-page)).",
             "",
             "| Image | Image ID |",
             "| --- | --- |",

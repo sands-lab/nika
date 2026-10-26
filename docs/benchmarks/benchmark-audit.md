@@ -30,22 +30,22 @@ Each fault declares the kind of symptom it must cause. The Symptom checked colum
 
 ## Test environment
 
-The release 0.2.0 audit ran on one host. Other NIKA workloads shared that host, so the matrix admits a case only when enough memory is free (see [Launch parameters](#launch-parameters)).
+The release 0.2.0 audit ran on two hosts from the same commit, split by resource class. Other NIKA workloads could share a host, so the matrix admits a case only when enough memory is free (see [Launch parameters](#launch-parameters)).
 
-| Component | Version |
-| --- | --- |
-| OS | Ubuntu 24.04.5 LTS, Linux 6.8.0-142-generic |
-| CPU | 16 vCPU |
-| Memory | 62 GiB |
-| Docker Engine | 29.8.1 |
-| Containerlab | 0.79.0 |
-| Kathara | 3.8.3 |
-| Python | 3.12.12, run through `uv` |
+| Component | Host 1 (k8s, Containerlab, large) | Host 2 (light) |
+| --- | --- | --- |
+| OS | Ubuntu 24.04.5 LTS, Linux 6.8.0-146-generic | Ubuntu 24.04.5 LTS, Linux 6.8.0-147-generic |
+| CPU | 32 vCPU | 16 vCPU |
+| Memory | 125 GiB | 62 GiB |
+| Docker Engine | 29.9.0 | 29.8.1 |
+| Containerlab | 0.79.0 | 0.79.0 |
+| Kathara | 3.8.3 | 3.8.3 |
+| Python | 3.12.14, run through `uv` | 3.12.12, run through `uv` |
 
-The audit ran from 2026-10-24 20:10 to 2026-10-25 23:26 UTC.
+The audit ran from 2026-10-24 20:11 to 2026-10-26 03:11 UTC.
 Each case took 7.8 minutes at the median and 22.2 minutes at most, from lab deploy to undeploy.
 
-Lab nodes used these images. Every node that used an image reference had the same image ID.
+Lab nodes used these image references. The table lists every image ID observed for a reference across the stored records; each host used one ID per reference, and a reference used on both hosts can show two IDs because each host has its own image store. Each record keeps the image ID of every lab node (see [Results and this page](#results-and-this-page)).
 
 | Image | Image ID |
 | --- | --- |
