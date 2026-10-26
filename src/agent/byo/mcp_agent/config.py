@@ -124,12 +124,15 @@ def build_mcp_request_params(
     reasoning_effort: str | None = None,
     max_tokens: int | None = None,
     provider: str,
+    sampling: dict[str, float | int] | None = None,
 ):
     """Build mcp-agent ``RequestParams`` with provider-appropriate effort wiring.
 
     OpenAI/custom: ``reasoning_effort`` field.
     Anthropic: ``metadata.output_config.effort`` (merged into messages.create).
     DeepSeek: omit.
+    *sampling* (temperature, top_p, seed) is sent as set; Anthropic and
+    DeepSeek take no seed.
     """
     from mcp_agent.workflows.llm.augmented_llm import RequestParams
 
@@ -137,17 +140,23 @@ def build_mcp_request_params(
     kwargs: dict = {
         "model": model,
         "max_iterations": max_steps,
-        "temperature": 0,
         "use_history": False,
     }
     if max_tokens is not None:
         kwargs["maxTokens"] = max_tokens
     prov = require_provider(provider)
+    # mcp-agent merges ``metadata`` into the request, so unset sampling values
+    # stay out of it and the server applies its own defaults.
+    sampling = dict(sampling or {})
+    if prov in ("anthropic", "deepseek"):
+        sampling.pop("seed", None)
+    if sampling:
+        kwargs["metadata"] = sampling
     if effort is not None and prov == "anthropic":
         # Anthropic rejects "none"; omit output_config in that case.
         meta = anthropic_output_config(effort)
         if meta is not None:
-            kwargs["metadata"] = meta
+            kwargs["metadata"] = {**kwargs.get("metadata", {}), **meta}
     elif effort is not None and prov != "deepseek":
         kwargs["reasoning_effort"] = effort
     return RequestParams(**kwargs)

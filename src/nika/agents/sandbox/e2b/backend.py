@@ -2,9 +2,12 @@
 
 These sandboxes have no route to the NIKA host (AgentENV denies private
 ranges at node level) and no internet access (created with
-``allow_internet_access=False``). The agent reaches its MCP gateway and the
-host model proxy through the tunnel in :mod:`nika.agents.sandbox.tunnel`, which runs
-over the same command channel NIKA uses to drive the sandbox. With a remote
+``allow_internet_access=False``, checked after create). Agent packages are
+installed when the service builds the template, so the sandbox itself never
+needs egress, and an added agent's declared ``sandbox.egress`` is not used.
+The agent reaches its MCP gateway and the host model proxy through the
+tunnel in :mod:`nika.agents.sandbox.tunnel`, which runs over the same command
+channel NIKA uses to drive the sandbox. With a remote
 lab, the host end of the tunnel connects to the lab host's gateway. The model
 proxy adds the real provider key on the host, so the sandbox only holds a
 per-session token.
@@ -73,6 +76,17 @@ _LIFETIME_MARGIN_SEC = 1800
 _UNBOUNDED_AGENT_LIFETIME_SEC = 6 * 3600
 _SETUP_COMMAND_TIMEOUT_SEC = 900
 _UPLOAD_TIMEOUT_SEC = 900
+# Fails when the sandbox opens a connection to the internet (by name or by
+# address): the service must enforce ``allow_internet_access=False``.
+_EGRESS_PROBE = (
+    "python3 -c 'import socket,sys\n"
+    'for host in ("example.com", "1.1.1.1"):\n'
+    "    try:\n"
+    "        socket.create_connection((host, 443), timeout=3).close()\n"
+    "    except OSError:\n"
+    "        continue\n"
+    '    sys.exit("reached " + host)\n\''
+)
 # Disable page reclaim in microVMs that have it enabled
 _DISABLE_PAGE_RECLAIM = (
     "f=/sys/module/damon_reclaim/parameters/enabled; "
@@ -646,11 +660,23 @@ class E2bBackend(SandboxBackend):
             self._run_checked(_DISABLE_PAGE_RECLAIM, timeout=60, user="root")
             self._create_workspace_dir(self._workspace)
             self._upload(workspace_dir, ["."])
+            self._check_no_egress()
         except BaseException:
             if not self.config.keep_container:
                 self._kill_sandbox()
             raise
         return self._sandbox.sandbox_id
+
+    def _check_no_egress(self) -> None:
+        """Refuse a sandbox that can reach the internet (fail closed)."""
+        try:
+            self._run_checked(_EGRESS_PROBE, timeout=60)
+        except RuntimeError as exc:
+            raise RuntimeError(
+                "The e2b sandbox has internet access although it was created "
+                "with allow_internet_access=False; the sandbox service does "
+                f"not enforce egress isolation: {exc}"
+            ) from exc
 
     def sandbox_gateway_url(self, *, port: int, gateway_url: str) -> str:
         # The tunnel relay on the sandbox's loopback forwards to the gateway.

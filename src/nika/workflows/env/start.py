@@ -11,6 +11,7 @@ from nika.net_env.contract import (
     VALIDATION_RESULTS_FILENAME,
     ValidationReport,
 )
+from nika.net_env.probe_intent import PROBE_INTENT_METADATA_KEY
 from nika.net_env.isp.bgp.config import (
     DEFAULT_BGP_MODE,
     ISP_BGP_MODES,
@@ -372,6 +373,11 @@ def start_net_env(
     if is_isp_scenario(canonical):
         scenario_params["topo"] = getattr(net_env, "topo", None)
     scenario_params.update(isp_kwargs)
+    probe_intent = net_env.probe_intent()
+    if probe_intent is not None:
+        net_env.metadata[PROBE_INTENT_METADATA_KEY] = probe_intent.model_dump(
+            mode="json"
+        )
     topology_file = getattr(net_env, "topology_file", None)
     runtime_workdir = getattr(net_env, "runtime_workdir", None)
     metadata = getattr(net_env, "metadata", None)
@@ -550,6 +556,22 @@ def start_net_env(
                 session_id=resolved_session_id,
                 error=str(post_deploy_exc),
                 error_type=type(post_deploy_exc).__name__,
+            )
+
+        # Every case of a scenario carries the same traffic, so a workload
+        # that does not start fails the session start.
+        workload_started = time.perf_counter()
+        workload = net_env.start_business_workload()
+        if workload is not None:
+            log_event(
+                "env_workload",
+                f"Started business workload for {scenario} ({resolved_session_id}): "
+                f"{len(workload.processes)} processes on {len(workload.nodes)} nodes",
+                scenario=scenario,
+                session_id=resolved_session_id,
+                process_count=len(workload.processes),
+                node_count=len(workload.nodes),
+                duration_ms=elapsed_ms(workload_started),
             )
     except BaseException as exc:
         # Session is registered before deploy; clean up so interrupted starts

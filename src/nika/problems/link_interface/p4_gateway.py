@@ -8,7 +8,7 @@ from nika.problems.support.benchmark_targets import (
     p4_gateway_port_target,
     p4_port_options,
 )
-from nika.problems.support.p4_gateway import read_table, set_deterministic_loss
+from nika.runtime.kathara.vde_proxy import KatharaVdeFaultProxy
 
 
 class SilentEgressPacketLossParams(BaseModel):
@@ -22,16 +22,27 @@ class SilentEgressPacketLossParams(BaseModel):
 
 
 class SilentEgressPacketLoss(ProblemBase):
+    """A defective egress port silently discards a fraction of its packets.
+
+    The loss sits past the switch pipeline, on the transmit side of the port
+    (optics, SerDes, or MAC), in the hardware below anything the switch OS or
+    P4Runtime can read. The switch counts the packets out, the link stays up,
+    and the peer receives fewer than were sent. Only the port's transmit
+    direction loses packets, at random, so only flows hashed onto that uplink
+    see low-rate loss.
+    """
+
     failure_domain = FailureDomain.LINK_INTERFACE
     symptom_probe = "custom"
     symptom_class = "gray"
     root_cause_name = "silent_egress_packet_loss"
     description = "Egress silently drops a subset of packets."
     symptom_desc = (
-        "A deterministic packet subset disappears on one healthy egress interface."
+        "A fraction of packets disappears after one healthy egress interface."
     )
     TAGS = ["p4_runtime", "telemetry", "flow_tracking"]
     COMPATIBLE_COLUMNS = frozenset({"p4_dc_gateway"})
+    supported_backends = ("kathara",)
     Params = SilentEgressPacketLossParams
 
     @classmethod
@@ -51,36 +62,49 @@ class SilentEgressPacketLoss(ProblemBase):
         return [interface_resource(params.host_name, params.intf_name)]
 
     @staticmethod
-    def register_threshold(basis_points: int) -> int:
-        return round(65535 * basis_points / 10000)
+    def loss_percent(basis_points: int) -> float:
+        return basis_points / 100
 
     def inject_fault(self, params: SilentEgressPacketLossParams):
-        threshold = self.register_threshold(params.loss_basis_points)
-        self._result = set_deterministic_loss(
-            self.runtime, params.host_name, params.bmv2_port, threshold
+        # Lossy transmit path on the wire side of the port, outside every
+        # lab node: the proxy drops toward the peer only.
+        controller = KatharaVdeFaultProxy(self.runtime)
+        self._proxy = controller.insert(params.host_name, params.intf_name)
+        controller.set_netem_loss(
+            self._proxy, self.loss_percent(params.loss_basis_points)
         )
 
-    def verify_fault(self, params: SilentEgressPacketLossParams) -> dict:
-        """Read the switch's private loss threshold for the egress port."""
-        threshold = self.register_threshold(params.loss_basis_points)
-        rows = read_table(self.runtime, params.host_name, "internal_fault_loss_config")
-        observed = next(
-            (
-                row["params"].get("threshold")
-                for row in rows or []
-                if (row.get("match") or {}).get("egress_spec") == params.bmv2_port
-            ),
-            None,
+    def _proxy_state(self, params: SilentEgressPacketLossParams):
+        controller = KatharaVdeFaultProxy(self.runtime)
+        state = getattr(self, "_proxy", None) or controller.discover(
+            params.host_name, params.intf_name
         )
+        return controller, state
+
+    def verify_fault(self, params: SilentEgressPacketLossParams) -> dict:
+        """Read the loss on the transmit side of the port, outside the switch."""
+        controller, state = self._proxy_state(params)
+        qdisc = controller.qdisc_show(state) if state is not None else ""
+        expected = f"loss {self.loss_percent(params.loss_basis_points):g}%"
         return build_verify_result(
             fault_type=self.root_cause_name,
-            verified=observed == threshold,
+            verified=state is not None
+            and state.endpoint.node == params.host_name
+            and expected in qdisc,
             details={
                 "interface": params.intf_name,
                 "bmv2_port": params.bmv2_port,
                 "loss_basis_points": params.loss_basis_points,
-                "expected_threshold": threshold,
-                "observed_threshold": observed,
-                "readable": rows is not None,
+                "transmit_path": qdisc.strip(),
             },
         )
+
+    def recover_fault(self, params: SilentEgressPacketLossParams) -> dict:
+        controller, state = self._proxy_state(params)
+        if state is not None:
+            controller.remove(state)
+        self._proxy = None
+        return {
+            "verified": controller.discover(params.host_name, params.intf_name) is None,
+            "details": {"host": params.host_name, "intf": params.intf_name},
+        }

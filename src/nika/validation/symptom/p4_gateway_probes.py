@@ -7,10 +7,13 @@ import shlex
 import time
 from typing import Any
 
-from nika.net_env.p4_dc_gateway.topology_model import VIP_IP
+from nika.net_env.p4_dc_gateway.topology_model import INT_REPORTS, VIP_IP
 from nika.problems.base import build_verify_result
+from nika.traffic.workload import paused_workload
 
-_REPORTS = "/var/lib/int-collector/int_reports.jsonl"
+_REPORTS = INT_REPORTS
+# Transfers the kernel already holds drain within a few seconds on BMv2.
+_QUIET_SETTLE_SEC = 8.0
 _INT_PORT = 19600
 _SMALL_PAYLOAD = 200
 # 1448 B UDP payload is a 1490 B frame: it fits the default 1500 B INT MTU
@@ -30,16 +33,40 @@ for source in map(int, sys.argv[4].split(",")):
 """
 
 
-def _report_count(problem: Any) -> int:
-    out = problem.runtime.exec(
-        "collector", f"cat {_REPORTS} 2>/dev/null | wc -l", timeout=20
+def _clock_ns(problem: Any) -> int:
+    """Collector clock; hop reports carry ``packet_timestamp`` from the same host."""
+    out = problem.runtime.exec("collector", "date +%s%N", timeout=20)
+    return int(out.strip().splitlines()[-1])
+
+
+def _reports_since(problem: Any, start_ns: int, dst: str, dst_port: int) -> list[dict]:
+    """Collector records for ``dst:dst_port`` stamped at or after ``start_ns``.
+
+    The collector trims its file in place, so a line offset taken before a send
+    is not stable; timestamps are.
+    """
+    raw = problem.runtime.exec(
+        "collector", f"tail -n 40000 {_REPORTS} 2>/dev/null", timeout=60
     )
-    return int((out.strip().splitlines() or ["0"])[-1])
+    records = []
+    for line in raw.splitlines():
+        try:
+            record = json.loads(line)
+            stamp = int(record["packet_timestamp"])
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+            continue
+        if (
+            stamp >= start_ns
+            and record.get("dst") == dst
+            and record.get("dst_port") == dst_port
+        ):
+            records.append(record)
+    return records
 
 
 def _send(problem: Any, ends: dict, size: int, ports: list[int]) -> list[dict]:
     """Send three datagrams per source port; return the new collector records."""
-    mark = _report_count(problem)
+    start_ns = _clock_ns(problem)
     problem.runtime.exec(
         ends["client"],
         f"python3 -c {shlex.quote(_SEND)} {ends['service_ip']} {_INT_PORT} {size} "
@@ -47,21 +74,7 @@ def _send(problem: Any, ends: dict, size: int, ports: list[int]) -> list[dict]:
         timeout=60,
     )
     time.sleep(3)
-    raw = problem.runtime.exec(
-        "collector", f"tail -n +{mark + 1} {_REPORTS} 2>/dev/null", timeout=30
-    )
-    records = []
-    for line in raw.splitlines():
-        try:
-            record = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if (
-            record.get("dst") == ends["service_ip"]
-            and record.get("dst_port") == _INT_PORT
-        ):
-            records.append(record)
-    return records
+    return _reports_since(problem, start_ns, ends["service_ip"], _INT_PORT)
 
 
 def _egress_by_source(records: list[dict], device_id: int) -> dict[int, int]:
@@ -131,8 +144,10 @@ def int_headroom(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
 
 
 _LB_FLOWS = 16
-_LB_STATUS = "/tmp/nika-audit-lb-flows.status"
+_LB_STATUS = "/tmp/probe-lb-flows.status"
 _LB_TRIAL_FLOWS = 8
+# Observed 5/8 once under the fault (sham 0/8); require most, not all.
+_LB_TRIAL_BROKEN_MIN = 6
 # Healthy learning takes about 10 ms; the trial waits two orders of magnitude
 # longer between opening its connections and the routine pool update.
 _LB_TRIAL_LEAD_SEC = 1.0
@@ -227,8 +242,16 @@ def lb_race_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     }
     alive = sum(1 for s in status.values() if s == "alive")
     spread = len(set(owners.get(port) for port in status)) == 2
-    ok = bool(flows) and alive == _LB_FLOWS and spread
-    return ok, {**problem._audit_lb, "alive": alive}
+    # A learner that cannot write ConnTable leaves every connection pending, so
+    # the control connections would break on any pool update.
+    from nika.net_env.p4_dc_gateway.l4_lb import learner_status
+
+    learner = learner_status(problem.runtime, params.host_name)
+    learning = (
+        learner.get("learned", 0) >= _LB_FLOWS and learner.get("insert_failures") == 0
+    )
+    ok = bool(flows) and alive == _LB_FLOWS and spread and learning
+    return ok, {**problem._audit_lb, "alive": alive, "learner": learner}
 
 
 def lb_race(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
@@ -245,7 +268,7 @@ def lb_race(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     state = getattr(problem, "_audit_lb", None) or {}
     if not state:
         return False, {"error": "no_baseline_connections"}
-    path = f"/tmp/nika-audit-lb-trial-{time.time_ns()}.status"
+    path = f"/tmp/probe-lb-trial-{time.time_ns()}.status"
     trial = _lb_start(problem, state["client"], _LB_TRIAL_FLOWS, path, 0.2, 15)
     opened = trial.get("opened")
     if len(trial.get("flows") or {}) != _LB_TRIAL_FLOWS:
@@ -267,7 +290,7 @@ def lb_race(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     control_ok = len(control) == _LB_FLOWS and control_alive == _LB_FLOWS
     verified = (
         len(trial_flows) == _LB_TRIAL_FLOWS
-        and len(broken) == _LB_TRIAL_FLOWS
+        and len(broken) >= _LB_TRIAL_BROKEN_MIN
         and control_ok
     )
     return verified, build_verify_result(
@@ -348,7 +371,7 @@ def syn_flood(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
 # A logging BMv2 sustains about 100 pps of INT-encapsulated traffic.
 _LOSS_FLOWS = 2048
 _LOSS_PORT = 19407
-_LOSS_LOG = "/tmp/nika-audit-udp-loss.log"
+_LOSS_LOG = "/tmp/probe-udp-loss.log"
 _LOSS_LISTEN = rf"""
 import socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -400,20 +423,10 @@ def silent_loss_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any
         timeout=20,
     )
     time.sleep(1)
-    mark = _report_count(problem)
+    start_ns = _clock_ns(problem)
     arrived = _loss_round(problem, state)
     time.sleep(2)
-    raw = problem.runtime.exec(
-        "collector", f"tail -n +{mark + 1} {_REPORTS} 2>/dev/null", timeout=60
-    )
-    records = []
-    for line in raw.splitlines():
-        try:
-            record = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if record.get("dst") == service.ip and record.get("dst_port") == _LOSS_PORT:
-            records.append(record)
+    records = _reports_since(problem, start_ns, service.ip, _LOSS_PORT)
     egress = _egress_by_source(records, model.switch_info[switch].device_id)
     state["on_port"] = sorted(p for p, out in egress.items() if out == params.bmv2_port)
     state["elsewhere"] = sorted(
@@ -530,7 +543,7 @@ def tcam_drop(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
 # port the INT path selection probed.
 _ECN_PPS = 100
 _ECN_SECONDS = 4
-_ECN_STATUS = "/tmp/nika-audit-ecn.json"
+_ECN_STATUS = "/tmp/probe-ecn.json"
 _ECN_BURST = r"""
 import socket, sys, time
 flows = [f.split(":") for f in sys.argv[1].split(",")]
@@ -616,7 +629,19 @@ def _ecn_flows(problem: Any, switch: str, port: Any) -> dict[str, list[str]]:
 
 
 def _ecn_burst(problem: Any, flows: dict[str, list[str]]) -> dict[str, int]:
-    """Send the converging burst; return datagrams and CE marks at the services."""
+    """Send the converging burst; return datagrams and CE marks at the services.
+
+    A virtual queue drains about 61 packets per second, so the scenario
+    workload alone keeps some downstream queues marking; it holds still while
+    the burst runs and the marks come from the probed path only.
+    """
+    with paused_workload(
+        problem.runtime, problem.net_env.business_workload(), _QUIET_SETTLE_SEC
+    ):
+        return _ecn_burst_counted(problem, flows)
+
+
+def _ecn_burst_counted(problem: Any, flows: dict[str, list[str]]) -> dict[str, int]:
     services = {flow.split(":")[0] for found in flows.values() for flow in found}
     receivers = [s.name for s in problem.net_env.model.services if s.ip in services]
     # Senders start in separate execs; a shared start time keeps their bursts

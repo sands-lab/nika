@@ -8,29 +8,38 @@ from ipaddress import IPv4Interface, IPv4Network
 from Kathara.manager.Kathara import Kathara, Machine
 from Kathara.model.Lab import Lab
 
+from nika.net_env.utils.download_object import download_object_commands
 from nika.config import pkg_path
 from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.net_env.native_routers import NativeRouterEnv
+from nika.net_env.probe_intent import ProbeIntent
 from nika.net_env.enterprise_branch.addressing import (
     VRF_TABLE,
     edge_name_for,
     isp_name_for,
     lan_edge_ip,
     lan_host_ip,
+    nat_public_ip,
     vrf_name,
 )
 from nika.net_env.enterprise_branch.topology import (
     HTTP_LARGE_OBJECT_MB,
     HTTP_SMALL_OBJECT_KB,
+    SYNC_OBJECT,
+    SYNC_OBJECT_MB,
     LOCAL_ONLY_ROLES,
+    MAX_OVERLAY_RTT_MS,
     OVERLAY_ROLES,
+    PUBLIC_SERVICE_IP,
     SCALE,
     UNDERLAY_ONE_WAY_DELAY_MS,
     BuiltTunnel,
     DscpRemarkTarget,
+    HijackTarget,
     TunnelSpec,
     TopoSpec,
     TopoSize,
+    bgp_hijack_targets,
     build_topo_spec,
     dscp_remark_inject_targets,
     hub_iface_for,
@@ -45,6 +54,9 @@ from nika.net_env.enterprise_branch.wireguard import (
 )
 from nika.runtime.spec import NodeRole
 from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
+
+# Item count for the baseline archive/ directory listing on server hosts.
+ARCHIVE_ITEMS = 2000
 
 PROVIDER_DAEMONS = """\
 zebra=yes
@@ -284,9 +296,39 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
             "Enterprise hub-and-spoke Branch VPN over provider IP underlay. "
             "Site Edge routers terminate WireGuard tunnels and run eBGP for "
             "authorized business prefixes in per-role VRFs. Providers only "
-            "forward tunnel endpoint reachability."
+            "forward tunnel endpoint reachability. "
+            "HQ is the primary hub and DC2 a secondary data-center hub; HQ and "
+            "DC2 interconnect over one tunnel per provider. Each branch has a "
+            "primary tunnel to HQ over isp1, a backup tunnel to HQ over isp2, "
+            "and a backup tunnel to DC2 over isp1; BGP local preference favors "
+            "the primary, so branch traffic to DC2 and to other branches "
+            "transits HQ while the backups stay established but idle. "
+            "Guest and IoT VRFs (where present) are site-local by policy and are "
+            "not advertised over the overlay; corporate and server VRFs span all "
+            "sites. GUEST and IOT LANs break out "
+            "locally: the Site Edge source-NATs them to the site's public "
+            "address toward the public web service 198.51.100.10 behind isp1. "
+            "Underlay delay gives a branch-to-hub RTT of about 80 ms and a "
+            "branch-to-branch RTT (via the hub) of about 160 ms. "
+            "Users generate traffic at all times: CORP PCs of the br1 regional "
+            "office sync files continuously from the HQ file server (port "
+            "8080, rate-limited per connection), HQ CORP holds DSCP EF calls "
+            "with every site including a video link to br1, and guest users "
+            "browse and upload through the NAT."
         )
         self.apply_device_profile(device_profile)
+
+    def probe_intent(self) -> ProbeIntent | None:
+        """Overlay roles form one reachability domain; each local-only LAN its own."""
+        overlay = [h.name for h in self._hosts.values() if h.role in OVERLAY_ROLES]
+        local_only: dict[tuple[str, str], list[str]] = {}
+        for host in self._hosts.values():
+            if host.role in LOCAL_ONLY_ROLES:
+                local_only.setdefault((host.site, host.role), []).append(host.name)
+        return ProbeIntent.from_partitions(
+            [overlay, *local_only.values()],
+            max_expected_rtt_ms=MAX_OVERLAY_RTT_MS,
+        )
 
     def router_roles(self) -> dict[str, list[str]]:
         providers = {isp_name_for(provider) for provider in self.spec.providers}
@@ -439,13 +481,22 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
                     if lan.role == "server":
                         host.cmd_list.extend(
                             [
-                                "mkdir -p /var/www",
+                                "mkdir -p /var/www/archive",
                                 f"dd if=/dev/zero of=/var/www/small.bin "
                                 f"bs=1024 count={HTTP_SMALL_OBJECT_KB} "
                                 f"status=none 2>/dev/null || true",
                                 f"dd if=/dev/zero of=/var/www/large.bin "
                                 f"bs=1M count={HTTP_LARGE_OBJECT_MB} "
                                 f"status=none 2>/dev/null || true",
+                                f"dd if=/dev/zero of=/var/www/{SYNC_OBJECT} "
+                                f"bs=1M count={SYNC_OBJECT_MB} "
+                                f"status=none 2>/dev/null || true",
+                                # A published archive index: many small files
+                                # behind one directory listing, like a
+                                # release/download mirror.
+                                f"for i in $(seq 1 {ARCHIVE_ITEMS}); do "
+                                ": > /var/www/archive/item-$i; done",
+                                *download_object_commands("/var/www"),
                                 "cd /var/www && nohup python3 -m http.server 80 "
                                 ">/dev/null 2>&1 &",
                             ]
@@ -485,12 +536,14 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
                 isp.cmd_list.append(
                     f"tc qdisc replace dev {isp_dev} root netem delay {delay}ms || true"
                 )
-                # GUEST NAT uses two routed /32 aliases.  They model a managed
-                # NAT pool while keeping address withdrawal independent from
-                # the provider-facing /30 that carries the underlay.
-                if provider == site.wan_providers[0] and site.name == "br1":
-                    for suffix in ("10", "11"):
-                        public_ip = f"198.18.1.{suffix}"
+                # GUEST/IOT NAT uses routed /32 aliases on the primary WAN.
+                # They model a managed NAT pool while keeping address
+                # withdrawal independent from the provider-facing /30 that
+                # carries the underlay. br1 holds a second pool address.
+                if provider == site.wan_providers[0]:
+                    suffixes = (10, 11) if site.name == "br1" else (10,)
+                    for suffix in suffixes:
+                        public_ip = nat_public_ip(site.site_id, suffix)
                         edge.cmd_list.append(
                             f"ip addr add {public_ip}/32 dev {wan_dev}"
                         )
@@ -638,7 +691,7 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
                     )
                     edge.cmd_list.append(
                         f"nft add rule ip nat POSTROUTING ip saddr {lan.prefix} "
-                        "snat to 198.18.1.10 || true"
+                        f"snat to {nat_public_ip(site.site_id)} || true"
                     )
                     edge.cmd_list.append(
                         f"nft add rule ip filter FORWARD ip saddr {lan.prefix} "
@@ -675,6 +728,8 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
     def _write_isp_configs(self) -> None:
         for isp in self._isps.values():
             isp.cmd_list.insert(0, "sysctl -w net.ipv4.ip_forward=1")
+            if isp.provider == self.spec.providers[0]:
+                isp.cmd_list.append(f"ip addr add {PUBLIC_SERVICE_IP}/32 dev lo")
             isp.machine.create_file_from_string(PROVIDER_DAEMONS, "/etc/frr/daemons")
             isp.machine.create_file_from_path(
                 str(pkg_path("net_env/utils/kathara/bgp/vtysh.conf")),
@@ -714,47 +769,20 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
             "l2_endpoints": sorted(corp, key=lambda h: h != "br1_corp_pc"),
         }
 
-    def hijack_targets(self) -> list[dict[str, str]]:
-        """BGP hijacks a branch edge can make visible to another branch.
+    def business_workload(self):
+        from nika.net_env.enterprise_branch.workload import build_workload
+        from nika.traffic.workload import BusinessWorkload
 
-        Edges accept overlay prefixes only up to /24 and export only their
-        ``LOCAL-ADV`` prefixes, so a hijack is the equal-length /24 of a
-        third site's CORP LAN with ``LOCAL-ADV`` extended. The hub (HQ)
-        prefers the hijacker's path, so the observer branch's traffic to that
-        LAN follows it. One target per hijacking branch edge.
-        """
-        corp = {
-            host.site: host
-            for host in sorted(self._hosts.values(), key=lambda h: h.name)
-            if host.role == "corp" and host.name.endswith("_corp_pc")
-        }
-        branches = sorted(site for site in corp if site.startswith("br"))
-        targets = []
-        for hijacker in branches:
-            observer = next((b for b in branches if b != hijacker), None)
-            victim = next(
-                (
-                    site
-                    for site in sorted(corp, key=lambda s: (s.startswith("br"), s))
-                    if site not in {"hq", hijacker, observer}
-                ),
-                None,
-            )
-            if observer is None or victim is None:
-                continue
-            host = corp[victim]
-            prefix = IPv4Network(f"{host.ip}/24", strict=False)
-            targets.append(
-                {
-                    "host_name": f"{hijacker}_edge",
-                    "target_network": str(prefix),
-                    "export_prefix_list": "LOCAL-ADV",
-                    "symptom_host": f"{observer}_edge",
-                    "observer_host": corp[observer].name,
-                    "probe_dst_ip": host.ip,
-                }
-            )
-        return targets
+        workload = build_workload(self.spec, self.frr_routers())
+        native = set(self.native_routers)
+        if not native:
+            return workload
+        # Native routers (XRd providers, RouterOS edges) have no Python runtime.
+        return BusinessWorkload(
+            processes=tuple(p for p in workload.processes if p.node not in native),
+            exercises=workload.exercises,
+            settle_sec=workload.settle_sec,
+        )
 
     def _target_size(self) -> TopoSize:
         return self.topo_size if self.topo_size in SCALE else "s"
@@ -766,6 +794,10 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
     def remote_prefixes_for_spoke(self, spoke: str) -> list[str]:
         """Advertised CORP/SERVER prefixes not owned by ``spoke``."""
         return remote_advertised_prefixes_for_spoke(self._target_size(), spoke)
+
+    def bgp_hijack_targets(self) -> list[HijackTarget]:
+        """Originations that divert another site's traffic to the hijacker."""
+        return bgp_hijack_targets(self._target_size())
 
     def dscp_remark_targets(self) -> list[DscpRemarkTarget]:
         """Eligible LAN→overlay DSCP remark targets with EF path endpoints."""

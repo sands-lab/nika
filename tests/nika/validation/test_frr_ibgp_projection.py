@@ -361,7 +361,32 @@ def test_selected_isis_ibgp_benchmark_failures_preserve_original_design():
                     for identifier in actual_blocked
                     if (adjacency := healthy_adjacencies[identifier])
                 )
-            if case["problem"] == "bgp_hijacking":
+            if case["problem"] == "bgp_hijacking" and any(
+                origin.prefix == case["inject"]["target_network"]
+                for origin in metric_bound.bgp_plan.originated
+            ):
+                # A hijacked owned prefix diverts the observer's replies from
+                # the original origin to the hijacker.
+                prefix = case["inject"]["target_network"]
+                observer_id = f"origin.{case['inject']['symptom_host']}.{prefix.replace('/', '-')}"
+                assert observer_id in failure.expected_failed_ids
+                healthy_by_id = {
+                    intent.id: intent for intent in resolved.healthy.intents
+                }
+                restored_by_id = {
+                    intent.id: intent for intent in failure.requirements.intents
+                }
+                assert healthy_by_id[observer_id].property == "reachability"
+                assert all(
+                    healthy_by_id[identifier].property == "reachability"
+                    and restored_by_id[identifier].property == "isolation"
+                    and restored_by_id[identifier].expected == "unreachable"
+                    for identifier in failure.expected_failed_ids
+                )
+                cleanup = failure.recovery_commands[case["inject"]["host_name"]]
+                assert any("ip route del local" in command for command in cleanup)
+                assert any("ip addr del" in command for command in cleanup)
+            elif case["problem"] == "bgp_hijacking":
                 prefix = case["inject"]["target_network"]
                 original_isolations = [
                     intent

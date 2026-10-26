@@ -28,7 +28,10 @@ LEGITIMATE_ORIGIN_ASN = EBGP_BASE_ASN  # 65001
 LEAKER_ASN = EBGP_BASE_ASN + 1  # 65002
 ROV_OBSERVER_ASN = EBGP_BASE_ASN + 2  # 65003
 
-# VRP-authorized for LEGITIMATE_ORIGIN_ASN only; leaker originates after inject.
+# Content prefixes of LEGITIMATE_ORIGIN_ASN, which originates them with a
+# matching ROA. The leaker AS also routes them internally (an on-net cache of
+# that content) and keeps them out of eBGP with an export-deny prefix-list;
+# announcing them anyway gives a competing, RPKI-invalid origin.
 LEAK_PREFIXES: tuple[str, ...] = ("203.0.113.0/24", "203.0.114.0/24")
 
 # Routinator RTR attachment on the ROV observer (lab-local /30).
@@ -87,7 +90,10 @@ def apply_rpki_profile(plan: BgpPlan) -> BgpPlan:
         members[ROV_OBSERVER_ASN], ebgp_by_local, LEAKER_ASN
     )
     non_rov_observer = _pick_non_rov_observer(
-        members[LEGITIMATE_ORIGIN_ASN], ebgp_by_local, LEAKER_ASN
+        members[LEGITIMATE_ORIGIN_ASN], ebgp_by_local, leaker_device
+    )
+    origin_device = _pick_origin(
+        plan.originated, members[LEGITIMATE_ORIGIN_ASN], avoid=non_rov_observer
     )
     _assert_diagnosable(
         plan.topology_name,
@@ -99,15 +105,19 @@ def apply_rpki_profile(plan: BgpPlan) -> BgpPlan:
     )
 
     sessions = list(plan.sessions)
-    leak_originated = [
-        BgpOriginatedPrefix(
-            device=leaker_device,
-            prefix=prefix,
-            ping_address=leak_ping_address(prefix),
-        )
-        for prefix in LEAK_PREFIXES
-    ]
-    originated = tuple(plan.originated) + tuple(leak_originated)
+
+    def content(device: str) -> list[BgpOriginatedPrefix]:
+        return [
+            BgpOriginatedPrefix(
+                device=device, prefix=prefix, ping_address=leak_ping_address(prefix)
+            )
+            for prefix in LEAK_PREFIXES
+        ]
+
+    # Announced prefixes: the legitimate origin's. The leaker's copies stay
+    # internal to its AS, so only its own node plan carries them.
+    originated = tuple(plan.originated) + tuple(content(origin_device))
+    internal = content(leaker_device)
 
     by_dev_sessions: dict[str, list[BgpSession]] = {
         n.device_name: [] for n in plan.nodes
@@ -117,13 +127,13 @@ def apply_rpki_profile(plan: BgpPlan) -> BgpPlan:
     by_dev_orig: dict[str, list[BgpOriginatedPrefix]] = {
         n.device_name: [] for n in plan.nodes
     }
-    for pref in originated:
+    for pref in (*originated, *internal):
         by_dev_orig[pref.device].append(pref)
 
     nodes: list[BgpNodePlan] = []
     for node in plan.nodes:
         roles = list(node.roles)
-        if node.asn == LEGITIMATE_ORIGIN_ASN and "legitimate_origin" not in roles:
+        if node.device_name == origin_device and "legitimate_origin" not in roles:
             roles.append("legitimate_origin")
         if node.device_name == leaker_device:
             for role in ("leaker", "originator"):
@@ -165,6 +175,7 @@ def apply_rpki_profile(plan: BgpPlan) -> BgpPlan:
         _profile_inventory(
             nodes,
             leaker_device=leaker_device,
+            origin_device=origin_device,
             rov_observer=rov_observer,
             non_rov_observer=non_rov_observer,
         )
@@ -208,18 +219,32 @@ def _pick_rov_observer(
 def _pick_non_rov_observer(
     members: list[str],
     ebgp_by_local: dict[str, list[BgpSession]],
-    leaker_asn: int,
+    leaker_device: str,
 ) -> str:
+    """A router peering the leaker itself, so it receives the leaked routes."""
     peer_leaker = [
         d
         for d in members
-        if any(s.remote_asn == leaker_asn for s in ebgp_by_local.get(d, []))
+        if any(s.remote_device == leaker_device for s in ebgp_by_local.get(d, []))
     ]
     if peer_leaker:
         return sorted(peer_leaker)[0]
     borders = [d for d in members if ebgp_by_local.get(d)]
     pool = borders if borders else members
     return sorted(pool)[0]
+
+
+def _pick_origin(
+    originated: tuple[BgpOriginatedPrefix, ...], members: list[str], *, avoid: str
+) -> str:
+    """The origin AS's business-prefix router (not the observer) also hosts the content."""
+    owners = sorted(
+        {p.device for p in originated if p.device in members and p.device != avoid}
+    )
+    if owners:
+        return owners[0]
+    pool = [d for d in members if d != avoid] or members
+    return sorted(pool)[-1]
 
 
 def _assert_diagnosable(
@@ -271,6 +296,7 @@ def _profile_inventory(
     nodes: list[BgpNodePlan],
     *,
     leaker_device: str,
+    origin_device: str,
     rov_observer: str,
     non_rov_observer: str,
 ) -> dict[str, Any]:
@@ -278,6 +304,7 @@ def _profile_inventory(
         "inter_as_profile": PROFILE_NAME,
         "rpki": True,
         "legitimate_origin_asn": LEGITIMATE_ORIGIN_ASN,
+        "legitimate_origin_device": origin_device,
         "leaker_asn": LEAKER_ASN,
         "leaker_device": leaker_device,
         "rov_observer": rov_observer,
@@ -320,3 +347,15 @@ def slurm_document() -> dict[str, Any]:
             "bgpsecAssertions": [],
         },
     }
+
+
+def rpki_design_note(inventory: dict[str, Any]) -> str:
+    """Brief sentences on who may originate the content prefixes."""
+    prefixes = " and ".join(inventory.get("leak_prefixes") or LEAK_PREFIXES)
+    return (
+        f" AS{LEGITIMATE_ORIGIN_ASN} originates {prefixes} under matching ROAs."
+        f" AS{LEAKER_ASN} also routes them inside its network to an on-net cache"
+        " and does not announce them to other ASes."
+        f" {inventory.get('rov_observer')} validates received routes against"
+        " the RPKI cache."
+    )

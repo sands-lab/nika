@@ -6,6 +6,7 @@ from typing import Any
 
 from collections import Counter
 
+from nika.evaluator.validity import count_validity_flags
 from nika.evaluator.score_status import SCORE_STATUSES, ScoreStatus
 from nika.workflows.leaderboard.schema import (
     PRIMARY_METRIC,
@@ -147,6 +148,7 @@ def aggregate_trial_results(
             "tool_calls": tool_calls,
             "tool_errors": tool_errors,
         },
+        validity_counts=count_validity_flags(t.validity_flags for t in trials),
     )
 
 
@@ -160,6 +162,7 @@ def metrics_nearly_equal(a: AggregatedMetrics, b: AggregatedMetrics) -> list[str
         "n_success",
         "n_agent_failed",
         "status_counts",
+        "validity_counts",
     ):
         if getattr(a, field) != getattr(b, field):
             issues.append(

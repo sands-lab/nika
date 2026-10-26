@@ -21,6 +21,9 @@ from nika.net_env.verify import (
     ping_stats,
 )
 from nika.problems.base import build_verify_result
+from nika.problems.service_networking.load_balancer import (
+    _CONTROL_VS_VIP_MAX_RATIO,
+)
 from nika.problems.endpoint_application.transport import (
     _THROUGHPUT_MAX_RATIO as SENDER_MAX_RATIO,
 )
@@ -261,35 +264,72 @@ _SINK_SRC = (
 )
 _STREAM_BYTES = 64 * 1024 * 1024
 _STREAM_SEC = 15
-# Starved-receiver rates vary run to run; a median of three is stable.
 _STREAM_RUNS = 3
+# Share of the sender's busy time spent waiting on the receiver's advertised
+# window (Linux tcp_info ``tcpi_rwnd_limited / tcpi_busy_time``). A receiver
+# that drains its socket keeps the window open whatever the path or host load
+# does to the rate; a starved one lets it fill. Per stream, measured 0.35-0.84
+# under the dc_clos and llmd faults (lowest on a heavily loaded host, where
+# the sender slows too) and 0.00-0.02 healthy, also on a 10 Mbit or 20 ms path.
+_RECEIVER_MIN_RWND_SHARE = 0.2
+_HEALTHY_RWND_SHARE_MAX = 0.1
+# Offset of tcpi_busy_time, tcpi_rwnd_limited, tcpi_sndbuf_limited (u64 us)
+# in struct tcp_info (include/uapi/linux/tcp.h, Linux >= 4.10).
+_TCP_INFO_LIMITS_OFFSET = 168
 
 
 def _stream(runtime: Any, sender: str, receiver_ip: str) -> dict[str, Any]:
-    """Send up to ``_STREAM_BYTES`` for at most ``_STREAM_SEC``; report the rate."""
+    """Send up to ``_STREAM_BYTES`` for at most ``_STREAM_SEC``.
+
+    Reports the rate and how much of the transfer the receiver's window held
+    the sender back, read from the sender's own socket.
+    """
     src = (
-        "import socket,time\n"
+        "import socket,struct,time\n"
         f"s=socket.create_connection(({receiver_ip!r},{_SINK_PORT}),timeout=5)\n"
         "s.settimeout(1.0); buf=b'x'*65536; sent=0; t0=time.monotonic()\n"
         f"while sent<{_STREAM_BYTES} and time.monotonic()-t0<{_STREAM_SEC}:\n"
         "  try: sent+=s.send(buf)\n"
         "  except socket.timeout: pass\n"
-        "dt=time.monotonic()-t0; s.close(); print('SENT',sent,dt)\n"
+        "dt=time.monotonic()-t0\n"
+        "i=s.getsockopt(socket.IPPROTO_TCP,socket.TCP_INFO,256)\n"
+        f"busy,rwnd,sndbuf=struct.unpack_from('QQQ',i,{_TCP_INFO_LIMITS_OFFSET})\n"
+        "s.close(); print('SENT',sent,dt,busy,rwnd,sndbuf)\n"
     )
     out = runtime.exec(
         sender, f"python3 -c {shlex.quote(src)} 2>&1", timeout=_STREAM_SEC + 15
     )
     parts = out.split()
-    if "SENT" not in parts or len(parts) < parts.index("SENT") + 3:
+    if "SENT" not in parts or len(parts) < parts.index("SENT") + 6:
         return {"ok": False, "raw": out[-300:]}
-    sent = int(parts[parts.index("SENT") + 1])
-    seconds = float(parts[parts.index("SENT") + 2])
+    start = parts.index("SENT") + 1
+    sent, seconds, busy_us, rwnd_us, sndbuf_us = (
+        float(value) for value in parts[start : start + 5]
+    )
     return {
         "ok": True,
-        "bytes": sent,
+        "bytes": int(sent),
         "seconds": round(seconds, 2),
         "bps": sent * 8.0 / seconds if seconds > 0 else None,
+        "rwnd_limited_share": round(rwnd_us / busy_us, 3) if busy_us else None,
+        "sndbuf_limited_share": round(sndbuf_us / busy_us, 3) if busy_us else None,
     }
+
+
+def _start_sink(runtime: Any, host: str) -> None:
+    """(Re)start the draining sink on ``host`` and wait until it listens."""
+    # Two calls: `pkill -f` in the same shell line as the sink's command line
+    # matches that shell and kills it before the sink starts.
+    runtime.exec(host, f"pkill -f '[s]ink-{_SINK_PORT}' 2>/dev/null")
+    runtime.exec(
+        host,
+        f"nohup python3 -c {shlex.quote(_SINK_SRC)} sink-{_SINK_PORT} "
+        "</dev/null >/dev/null 2>&1 & "
+        # Wait until it listens, so the first stream is not refused.
+        f"for _ in $(seq 50); do ss -Hltn 'sport = :{_SINK_PORT}' | grep -q . "
+        "&& break; sleep 0.2; done",
+        timeout=20,
+    )
 
 
 def receiver_baseline(problem: Any, params: Any) -> tuple[bool, dict] | None:
@@ -303,18 +343,7 @@ def receiver_baseline(problem: Any, params: Any) -> tuple[bool, dict] | None:
     receiver_ip = runtime.get_host_ip(params.host_name, with_prefix=False)
     if not peers or not receiver_ip:
         return False, {"error": "no_sender_peer_or_receiver_ip"}
-    # Two calls: `pkill -f` in the same shell line as the sink's command line
-    # matches that shell and kills it before the sink starts.
-    runtime.exec(params.host_name, f"pkill -f '[s]ink-{_SINK_PORT}' 2>/dev/null")
-    runtime.exec(
-        params.host_name,
-        f"nohup python3 -c {shlex.quote(_SINK_SRC)} sink-{_SINK_PORT} "
-        "</dev/null >/dev/null 2>&1 & "
-        # Wait until it listens, so the first stream is not refused.
-        f"for _ in $(seq 50); do ss -Hltn 'sport = :{_SINK_PORT}' | grep -q . "
-        "&& break; sleep 0.2; done",
-        timeout=20,
-    )
+    _start_sink(runtime, params.host_name)
     streams = [_stream(runtime, peers[0], receiver_ip) for _ in range(_STREAM_RUNS)]
     rates = [s["bps"] for s in streams if s.get("bps")]
     ping = ping_stats(runtime, peers[0], receiver_ip, count=10, interval_sec=0.2)
@@ -323,14 +352,26 @@ def receiver_baseline(problem: Any, params: Any) -> tuple[bool, dict] | None:
         "receiver_ip": receiver_ip,
         "streams": streams,
         "median_bps": median_float(rates),
+        "rwnd_limited_share": _median_rwnd_share(streams),
         "ping_loss_percent": ping.loss_percent,
         "ping_rtt_ms": ping.rtt_avg_ms,
     }
     problem._audit_receiver_baseline = sample
     healthy = bool(
-        len(rates) == len(streams) and ping.loss_percent == 0.0 and sample["median_bps"]
+        len(rates) == len(streams)
+        and ping.loss_percent == 0.0
+        and sample["median_bps"]
+        and sample["rwnd_limited_share"] is not None
+        and sample["rwnd_limited_share"] <= _HEALTHY_RWND_SHARE_MAX
     )
     return healthy, sample
+
+
+def _median_rwnd_share(streams: list[dict[str, Any]]) -> float | None:
+    shares = [s.get("rwnd_limited_share") for s in streams]
+    if any(share is None for share in shares):
+        return None
+    return median_float(shares)
 
 
 def _receiver_campus(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
@@ -369,7 +410,11 @@ def _receiver_campus(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
 
 
 def receiver_contention(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
-    """The receiver drains a TCP stream far slower; its network path is healthy."""
+    """The receiver's closed window holds a TCP stream back; its path is healthy.
+
+    Throughput against the healthy reading is reported but not judged: host
+    load and the scenario's own traffic into the receiver move it both ways.
+    """
     if problem.scenario_name == "campus_lan":
         return _receiver_campus(problem, params)
     base = getattr(problem, "_audit_receiver_baseline", None)
@@ -384,13 +429,18 @@ def receiver_contention(problem: Any, params: Any) -> tuple[bool, dict[str, Any]
         return False, {"error": "stream_failed", "streams": streams}
     bps = median_float([s["bps"] or 0.0 for s in streams])
     ratio = bps / base["median_bps"] if bps is not None else None
+    rwnd_share = _median_rwnd_share(streams)
+    # A path-loss gate needs a sample where one lost probe under shared-host
+    # load stays below it (1 of 10 is 10%; 1 of 40 is 2.5%).
     ping = ping_stats(
-        runtime, base["sender"], base["receiver_ip"], count=10, interval_sec=0.2
+        runtime, base["sender"], base["receiver_ip"], count=40, interval_sec=0.2
     )
     control_ok = (
         ping.loss_percent is not None and ping.loss_percent <= _MAX_LOSS_PERCENT
     )
-    verified = bool(ratio is not None and ratio <= _THROUGHPUT_MAX_RATIO and control_ok)
+    verified = bool(
+        rwnd_share is not None and rwnd_share >= _RECEIVER_MIN_RWND_SHARE and control_ok
+    )
     return verified, build_verify_result(
         fault_type=problem.root_cause_name,
         verified=verified,
@@ -400,6 +450,7 @@ def receiver_contention(problem: Any, params: Any) -> tuple[bool, dict[str, Any]
             "streams": streams,
             "median_bps": bps,
             "throughput_ratio": ratio,
+            "rwnd_limited_share": rwnd_share,
             "ping_loss_percent": ping.loss_percent,
             "ping_rtt_ms": ping.rtt_avg_ms,
             "control_ok": control_ok,
@@ -425,15 +476,23 @@ def _iperf_median(runtime: Any, sender: str, receiver: str, ip: str) -> dict:
 
 
 def _rwnd_control_hosts(problem: Any, params: Any) -> list[str]:
-    """Other end hosts, those at the receiver's site first, so they share the path."""
+    """Other CORP hosts, those at the receiver's site first, so they share the path.
+
+    Hosts that the scenario's business traffic downloads into are skipped:
+    their own transfers come and go, so iperf3 readings to them vary.
+    """
+    from nika.traffic.workload import BULK_DOWNLOAD
+
     site = params.host_name.split("_", 1)[0]
+    workload = problem.net_env.business_workload()
+    busy = {t[0] for t in workload.targets(BULK_DOWNLOAD)} if workload else set()
     hosts = [
         h
         for h in problem.runtime.list_nodes() or []
-        if "_pc" in h and h not in {params.host_name, params.sender_host}
+        if "_pc" in h and h not in {params.host_name, params.sender_host, *busy}
     ]
     return sorted(
-        hosts, key=lambda h: (not h.startswith(f"{site}_"), "corp" not in h, h)
+        hosts, key=lambda h: ("corp" not in h, not h.startswith(f"{site}_"), h)
     )
 
 
@@ -477,7 +536,10 @@ def rwnd_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
 
 
 def rwnd_limited(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
-    """Bulk TCP into the receiver is window-bound; another receiver is not."""
+    """Bulk TCP into the receiver is window-bound; another receiver is not.
+
+    Throughput against the healthy iperf3 reading is reported, not judged.
+    """
     base = getattr(problem, "_audit_rwnd_baseline", None)
     if not base:
         return False, {"error": "no_healthy_baseline"}
@@ -491,6 +553,18 @@ def rwnd_limited(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     small = http_download_stats(
         runtime, params.host_name, params.small_url, max_time_sec=30
     )
+    # The decision reads the probe stream's own sender-side tcp_info: the
+    # share of its busy time spent waiting on the receiver's window does not
+    # move with host load or the receiver's own business traffic, as the
+    # throughput ratio against a healthy iperf3 median does. The sink starts
+    # after inject so its socket takes the receive buffer the fault set.
+    _start_sink(runtime, params.host_name)
+    streams = [
+        _stream(runtime, params.sender_host, base["receiver_ip"])
+        for _ in range(_STREAM_RUNS)
+    ]
+    streams_ok = all(s["ok"] for s in streams)
+    rwnd_share = _median_rwnd_share(streams) if streams_ok else None
 
     def ratio(now: dict, before: dict) -> float | None:
         if now["median_bps"] is None or not before["median_bps"]:
@@ -503,7 +577,7 @@ def rwnd_limited(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
         small.ok and control_ratio is not None and control_ratio >= _CONTROL_MIN_RATIO
     )
     verified = bool(
-        path_ratio is not None and path_ratio < _THROUGHPUT_MAX_RATIO and control_ok
+        rwnd_share is not None and rwnd_share >= _RECEIVER_MIN_RWND_SHARE and control_ok
     )
     return verified, build_verify_result(
         fault_type=problem.root_cause_name,
@@ -514,6 +588,8 @@ def rwnd_limited(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
             "control_path": control,
             "throughput_ratio": path_ratio,
             "control_throughput_ratio": control_ratio,
+            "streams": streams,
+            "rwnd_limited_share": rwnd_share,
             "small_http_ok": small.ok,
             "control_ok": control_ok,
         },
@@ -539,6 +615,13 @@ def _lb_sample(problem: Any, params: Any) -> dict[str, Any]:
     }
 
 
+def _median_with_timeouts(sample: dict[str, Any]) -> float | None:
+    """Median latency counting each failed request as the request timeout."""
+    failures = sample["attempts"] - sample["successes"]
+    values = [*(sample.get("samples_ms") or []), *[_LB_TIMEOUT_SEC * 1000.0] * failures]
+    return median_float(values)
+
+
 def lb_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     """The VIP and the parallel web server both answer before the surge."""
     sample = _lb_sample(problem, params)
@@ -556,9 +639,16 @@ def lb_overload(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
         return False, {"error": "no_healthy_baseline"}
     after = _lb_sample(problem, params)
     degraded = _slower(base["vip"], after["vip"])
-    control_ok = after["control"][
-        "error_rate"
-    ] <= _HEALTHY_ERROR_RATE_MAX and not _slower(base["control"], after["control"])
+    # Judge the control relative to the VIP: under business load its absolute
+    # latency jitters, but it must stay well below the degraded VIP.
+    vip_median = _median_with_timeouts(after["vip"])
+    control_median = after["control"].get("median_ms")
+    control_ok = bool(
+        after["control"]["error_rate"] <= _HEALTHY_ERROR_RATE_MAX
+        and control_median is not None
+        and vip_median is not None
+        and control_median < _CONTROL_VS_VIP_MAX_RATIO * vip_median
+    )
     lb_cpu = problem._cpu_ratio_of_quota(
         params.host_name,
         quota_cpus=problem._applied_quota(params),
@@ -572,6 +662,7 @@ def lb_overload(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
             "baseline": base,
             "after": after,
             "degraded": degraded,
+            "vip_median_ms_with_timeouts": vip_median,
             "lb_cpu_ratio_of_quota": lb_cpu,
             "applied_cpu_quota": problem._applied_quota(params),
             "control_ok": control_ok,

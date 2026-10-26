@@ -3,3 +3,13 @@ FROM kathara/base:latest@sha256:8a2e70ac8f51bb283b8549fd686f65f9a1ef4487fe2c8184
 RUN apt-get update && \
     apt-get install -y --no-install-recommends stress-ng isc-dhcp-server isc-dhcp-relay nftables tcpdump tshark python3-scapy conntrack && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Neutrally named hardlinks of ApacheBench and hping3, present in every
+# container built from this image (healthy and faulty alike). Running these
+# tools through their real names only disguises argv (e.g. via `exec -a`);
+# the kernel-recorded comm (ps -o comm, top) still comes from the basename
+# resolved at exec time, so it would still read "ab"/"hping3" regardless of
+# argv[0]. Invoking the hardlink instead gives both argv and comm a name
+# that reads as an ordinary host-local job (cache warmer, latency probe).
+RUN ln "$(command -v ab)" /usr/local/bin/cache-warmer && \
+    ln "$(command -v hping3)" /usr/local/bin/latency-probe

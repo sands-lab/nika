@@ -97,7 +97,7 @@ def _incast_e2e_cases() -> list[FailureE2ECase]:
             env_run_args=("-s", "s"),
             inject_seed=1,
         )
-        for scenario in ("dc_clos", "sdn_l3_clos", "p4_dc_gateway")
+        for scenario in ("p4_dc_gateway", "p4_dc_fabric")
     ]
 
 

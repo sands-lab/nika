@@ -5,11 +5,10 @@ failure:
   cases:
   - inject:
       control_node: controller
+      node_name: controller
       symptom_host: worker1
     root_causes:
     - resource:
-        kind: k8s
-        name: kube-dns
-        namespace: kube-system
-        k8s_kind: Service
+        kind: node
+        node: controller
       fault_type: k8s_coredns_isolated

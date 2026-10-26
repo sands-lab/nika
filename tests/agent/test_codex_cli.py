@@ -41,6 +41,7 @@ class CodexMcpTomlTest:
         )
         assert 'approval_policy = "never"' in toml
         assert 'sandbox_mode = "workspace-write"' in toml
+        assert 'web_search = "disabled"' in toml
         assert "[sandbox_workspace_write]" in toml
         assert "network_access = true" in toml
         assert "experimental_use_rmcp_client" not in toml

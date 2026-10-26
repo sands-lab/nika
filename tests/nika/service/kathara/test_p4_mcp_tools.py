@@ -7,7 +7,7 @@ import json
 import pytest
 
 from nika.mcp.servers.kathara import bmv2_server, telemetry_server
-from nika.service.kathara.bmv2_api import KatharaBMv2API, _sanitize_p4rt_payload
+from nika.service.kathara.bmv2_api import KatharaBMv2API
 from nika.mcp.servers.common import host_server
 
 pytestmark = pytest.mark.unit
@@ -109,36 +109,58 @@ def test_int_query_telemetry_tool_forwards_filters(monkeypatch) -> None:
     ]
 
 
-def test_p4rt_exec_sanitizes_private_fault_registers(monkeypatch) -> None:
+def _recording_api(monkeypatch) -> tuple[KatharaBMv2API, list[tuple[str, str]]]:
     api = KatharaBMv2API.__new__(KatharaBMv2API)
-    manager_state = {
-        "switches": {
-            "gateway_1": {
-                "pipeline": {"ok": True},
-                "registers": {
-                    "queue_occupancy": {"1": 4},
-                    "internal_fault_loss_threshold": {"1": 2},
-                },
-            }
-        }
-    }
+    calls: list[tuple[str, str]] = []
 
-    def _exec(_host: str, command: str, **_kwargs) -> str:
-        assert "p4rt_manager.py" in command
-        assert "read --switch gateway_1" in command
-        return json.dumps(manager_state)
+    def _exec(host: str, command: str, **_kwargs) -> str:
+        calls.append((host, command))
+        return json.dumps({"ok": True, "switches": {}})
 
     monkeypatch.setattr(api, "exec_cmd", _exec)
-    payload = json.loads(api.p4rt_exec("read --switch gateway_1"))
-    assert "internal_fault" not in json.dumps(payload)
-    assert payload["switches"]["gateway_1"]["registers"]["queue_occupancy"]["1"] == 4
+    return api, calls
 
 
-def test_sanitize_p4rt_payload_drops_internal_fault_keys() -> None:
-    cleaned = _sanitize_p4rt_payload(
-        {"ok": True, "internal_fault_x": 1, "nested": {"internal_fault_y": 2, "z": 3}}
-    )
-    assert cleaned == {"ok": True, "nested": {"z": 3}}
+def test_p4rt_exec_runs_read_only_queries(monkeypatch) -> None:
+    api, calls = _recording_api(monkeypatch)
+    json.loads(api.p4rt_exec("read --switch gateway_1"))
+    api.p4rt_exec("read-table --switch leaf_1 --table ipv4_lpm")
+    api.p4rt_exec("counters")
+    assert [cmd.split("p4rt_manager.py ", 1)[1] for _host, cmd in calls] == [
+        "read --switch gateway_1",
+        "read-table --switch leaf_1 --table ipv4_lpm",
+        "counters",
+    ]
+    assert {host for host, _cmd in calls} == {"fabric_mgr"}
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        "apply",
+        "apply --switch leaf_1",
+        "write --switch leaf_1",
+        "read --intent /tmp/other.json",
+        "--p4info /tmp/x read",
+        "read --switch leaf_1 --json /tmp/x",
+        "read @/tmp/args",
+        "read --switch 'leaf_1;id'",
+        "read-table --switch leaf_1",
+    ],
+)
+def test_p4rt_exec_rejects_writes_and_overrides(monkeypatch, args: str) -> None:
+    api, calls = _recording_api(monkeypatch)
+    assert api.p4rt_exec(args).startswith("error:")
+    assert calls == []
+
+
+def test_p4rt_exec_help_lists_only_read_commands(monkeypatch) -> None:
+    api, calls = _recording_api(monkeypatch)
+    text = api.p4rt_exec("--help")
+    assert calls == []
+    assert {"read", "read-table", "counters"} <= set(text.split())
+    for word in ("apply", "write", "--kind", "--intent", "--p4info", "--json"):
+        assert word not in text.split()
 
 
 def test_exec_shell_reads_tc_statistics(monkeypatch) -> None:
@@ -156,3 +178,30 @@ def test_exec_shell_reads_tc_statistics(monkeypatch) -> None:
         "qdisc"
     )
     assert calls == [("gateway_1", "tc -s qdisc show dev eth2")]
+
+
+def test_collapse_traces_keeps_latest_and_hides_in_flight() -> None:
+    from nika.service.kathara.telemetry_api import collapse_traces
+
+    def rec(pid: str, ts: int, complete: bool) -> dict:
+        return {
+            "flow_id": "f",
+            "packet_id": pid,
+            "packet_timestamp": ts,
+            "trace_complete": complete,
+        }
+
+    now = 10_000_000_000
+    rows = collapse_traces(
+        [
+            rec("a", 1, False),
+            rec("a", 2, True),  # completed: only this one survives
+            rec("b", now - 100, False),  # in flight: hidden
+            rec("c", now - 5_000_000_000, False),  # stale partial: reported
+        ],
+        now,
+    )
+    assert [(r["packet_id"], r["trace_complete"]) for r in rows] == [
+        ("a", True),
+        ("c", False),
+    ]

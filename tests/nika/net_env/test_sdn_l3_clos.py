@@ -16,6 +16,7 @@ from nika.net_env.sdn_l3_clos.fabric_manager.forwarding_rules import (
 )
 from nika.net_env.sdn_l3_clos.topology_model import (
     SIZE_TABLE,
+    VIRTUAL_ROUTER_MAC,
     build_clos_fabric_model,
     device_id,
     dpid_for_leaf,
@@ -69,6 +70,31 @@ def test_forwarding_rules_spine_prefixes() -> None:
     spine_flows = [f for f in rules["flows"] if f["switch"] == "spine_1"]
     assert len(spine_flows) == model.leaf_count
     assert all(f["device_id"] == device_id(dpid_for_spine(1)) for f in spine_flows)
+
+
+@pytest.mark.unit
+def test_leaf_routed_flows_only_accept_own_interface_mac() -> None:
+    """Leaf IPv4 routing matches the router's own MAC, like a real L3 switch."""
+    model = build_clos_fabric_model("s")
+    flows = [
+        f
+        for f in build_forwarding_rules(model)["flows"]
+        if f["switch"] == "leaf_1" and f["priority"] in (30000, 40000)
+    ]
+    spine_macs = {p.mac for p in model.ports["leaf_1"] if p.role == "spine"}
+    assert flows
+    for flow in flows:
+        mac = next(
+            p.split("=", 1)[1] for p in flow["match"].split(",") if "dl_dst=" in p
+        )
+        assert mac in {VIRTUAL_ROUTER_MAC, *spine_macs} or mac.endswith(":0b")
+        if flow["priority"] == 30000:
+            assert mac == VIRTUAL_ROUTER_MAC
+        ports = {p.name: str(i) for i, p in enumerate(model.ports["leaf_1"], start=1)}
+        body = fabric_apply._install_onos_flow_body(flow, ports)
+        assert {"type": "ETH_DST", "mac": mac} in body["selector"]["criteria"]
+    local = [f for f in flows if f["priority"] == 40000]
+    assert len(local) == len(model.endpoints_on_leaf(1)) * (2 + len(spine_macs))
 
 
 @pytest.mark.unit

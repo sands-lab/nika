@@ -19,11 +19,6 @@ failure:
         node: atlam5
         name: eth0
       fault_type: mtu_mismatch
-    - resource:
-        kind: interface
-        node: atlang
-        name: eth0
-      fault_type: mtu_mismatch
   - topo_size: s
     igp: isis
     bgp_mode: none
@@ -38,10 +33,5 @@ failure:
     - resource:
         kind: interface
         node: atlam5
-        name: eth1
-      fault_type: mtu_mismatch
-    - resource:
-        kind: interface
-        node: atlang
         name: eth1
       fault_type: mtu_mismatch

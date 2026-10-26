@@ -14,11 +14,22 @@ from agent.runtime.contract import ENV_WORKSPACE, TASK_FILENAME
 
 @dataclass(frozen=True)
 class LlmClientSettings:
-    """Timeout, retries and streaming of the agent's model client."""
+    """Timeout, retries, streaming and sampling of the agent's model client."""
 
     timeout_sec: float = 480.0
     max_retries: int = 2
     stream: bool = True
+    # Sampling. None = not sent, so the server applies the model's defaults.
+    temperature: float | None = None
+    top_p: float | None = None
+    seed: int | None = None
+
+    def sampling(self, *, seed: bool = True) -> dict[str, float | int]:
+        """The sampling parameters that are set; *seed* ``False`` drops the seed."""
+        params = {"temperature": self.temperature, "top_p": self.top_p}
+        if seed:
+            params["seed"] = self.seed
+        return {key: value for key, value in params.items() if value is not None}
 
 
 @dataclass(frozen=True)

@@ -6,7 +6,7 @@ import json
 from typing import Any
 
 from nika.net_env.p4_dc_fabric.fabric_manager.apply import run_manager
-from nika.net_env.p4_dc_gateway.topology_model import GatewayFabricModel
+from nika.net_env.p4_dc_gateway.topology_model import INT_REPORTS, GatewayFabricModel
 from nika.net_env.verify import (
     build_lab_verify_result,
     exec_or_empty,
@@ -77,7 +77,7 @@ def _collector_telemetry(
     raw = exec_or_empty(
         runtime,
         "collector",
-        "tail -n 2000 /var/lib/int-collector/int_reports.jsonl 2>/dev/null || true",
+        f"tail -n 2000 {INT_REPORTS} 2>/dev/null || true",
         timeout=20,
     )
     candidates: list[dict] = []
@@ -215,7 +215,7 @@ def verify_p4_dc_gateway_lab(
             [
                 VerifyCommand(
                     "collector",
-                    "tail -n 2000 /var/lib/int-collector/int_reports.jsonl 2>/dev/null || true",
+                    f"tail -n 2000 {INT_REPORTS} 2>/dev/null || true",
                 )
             ],
             nodes=runtime.nodes,

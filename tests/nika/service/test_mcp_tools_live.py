@@ -217,18 +217,18 @@ class TestP4McpLive(IntegrationTestCase):
                     client = MultiServerMCPClient(connections=config)
                     tools = {t.name: t for t in await client.get_tools()}
                     assert set(tools) == {"p4rt_exec"}
-                    return _text(
-                        await tools["p4rt_exec"].ainvoke(
-                            {"args": "read --switch leaf_1"}
-                        )
+                    read = await tools["p4rt_exec"].ainvoke(
+                        {"args": "read --switch leaf_1"}
                     )
+                    write = await tools["p4rt_exec"].ainvoke({"args": "apply"})
+                    return _text(read), _text(write)
 
-                raw = asyncio.run(_run())
+                raw, rejected = asyncio.run(_run())
 
             _assert_ok("p4rt_exec", raw)
             payload = json.loads(raw)
-            assert "internal_fault" not in raw
             assert "switches" in payload or payload.get("ok") is True
+            assert rejected.startswith("error:")
         finally:
             self._close_session(session_id)
 

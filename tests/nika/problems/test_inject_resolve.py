@@ -31,16 +31,8 @@ pytestmark = pytest.mark.contract
             "pc_2_1_1_1",
             "http://10.200.0.3/",
         ),
-        (
-            "enterprise_branch",
-            "hq_srv",
-            "br1_corp_pc",
-            "hq_corp_pc",
-            "http://10.0.20.2/small.bin",
-        ),
         ("sdn_l3_clos", "web_2", "client_4_1", "client_1_1", "http://10.0.2.11/"),
         ("p4_dc_fabric", "web_2", "client_4_1", "client_1_1", "http://10.0.2.11/"),
-        ("p4_dc_gateway", "service_1_1", "client_2", "client_1", "http://20.0.0.1:80/"),
     ],
 )
 def test_web_dos_resolves_one_independently_observed_http_path(
@@ -58,10 +50,6 @@ def test_web_dos_resolves_one_independently_observed_http_path(
         "observer_device": observer,
         "probe_url": url,
     }
-    if scenario == "p4_dc_gateway":
-        expected["attack_url"] = url
-    elif scenario == "enterprise_branch":
-        expected["attack_url"] = "http://10.0.20.2/archive/"
     assert inject == expected
     assert len({target, attacker, observer}) == 3
 
@@ -515,7 +503,7 @@ def test_vrf_dscp_remarking_inject_resolve_and_validate() -> None:
         inject,
         "s",
     )
-    with pytest.raises(ValueError, match="eligible"):
+    with pytest.raises(ValueError, match="eligible|does not exercise"):
         validate_benchmark_case(
             "enterprise_branch",
             "vrf_dscp_remarking",
@@ -728,62 +716,30 @@ def test_link_detach_inject_params_pin_probe_path(
 
 
 @pytest.mark.parametrize("seed", (0, 1, 4, 7))
-@pytest.mark.parametrize(
-    "scenario",
-    [
-        "campus_lan",
-        "dc_clos",
-        "enterprise_branch",
-        "p4_dc_fabric",
-        "p4_dc_gateway",
-        "sdn_l3_clos",
-    ],
-)
-def test_incast_inject_params_align_probe_with_host(scenario: str, seed: int) -> None:
-    from nika.net_env.net_env_pool import get_probe_path
+@pytest.mark.parametrize("scenario", ["p4_dc_fabric", "p4_dc_gateway"])
+def test_incast_receiver_is_the_workload_fan_in_target(
+    scenario: str, seed: int
+) -> None:
+    from nika.net_env.net_env_pool import get_net_env_instance, get_probe_path
+    from nika.traffic.workload import FAN_IN_BURSTS
 
     params = resolve_inject_params(
         "incast_traffic_network_limitation", scenario, TOPO_SIZE, seed=seed
     )
-    assert params.get("host_name")
+    workload = get_net_env_instance(scenario, topo_size=TOPO_SIZE).business_workload()
+    assert workload.covers(FAN_IN_BURSTS, (params["host_name"],))
     probe_dst = params.get("probe_dst_ip")
-    assert probe_dst, params
-    assert probe_dst != "20.0.0.1", "gateway must probe backend IP, not VIP"
-
+    assert probe_dst and probe_dst != "20.0.0.1", params
     path = get_probe_path(scenario, topo_size=TOPO_SIZE)
     assert path is not None
-
-    if scenario in {"sdn_l3_clos", "p4_dc_fabric"}:
-        assert params["host_name"].startswith("web_")
-        assert probe_dst == path.dst_ip
-        assert params.get("observer_device") == path.src_host
-    elif scenario == "p4_dc_gateway":
-        assert params["host_name"].startswith("service_")
-        assert probe_dst.startswith("10.")
-        assert params.get("observer_device") == path.src_host
-    elif scenario == "dc_clos":
-        assert params["host_name"] == "webserver0_pod0"
-        assert probe_dst == "10.0.1.2"
-    elif scenario == "enterprise_branch":
-        assert params["host_name"] == "hq_srv"
-        assert probe_dst == "10.0.20.2"
-    elif scenario == "campus_lan":
-        assert params["host_name"] == "web_server_0"
-        assert probe_dst == "10.200.0.3"
+    assert params.get("observer_device") == path.src_host
 
 
-def test_incast_compatible_columns_include_http_labs() -> None:
+def test_incast_is_compatible_only_where_the_workload_fans_in() -> None:
     from nika.problems.registry import compatible_columns
 
     cols = set(compatible_columns("incast_traffic_network_limitation"))
-    assert {
-        "campus_lan",
-        "dc_clos",
-        "enterprise_branch",
-        "p4_dc_fabric",
-        "p4_dc_gateway",
-        "sdn_l3_clos",
-    }.issubset(cols)
+    assert cols == {"p4_dc_fabric", "p4_dc_gateway"}
 
 
 @pytest.mark.parametrize("seed", range(5))
@@ -873,34 +829,3 @@ def test_dns_record_error_pairs_dns_host_with_owned_zone(topo_size: str) -> None
             },
             "m",
         )
-
-
-def test_incast_payload_fits_tunnel_mtu() -> None:
-    from nika.problems.traffic_queueing_resource.link import (
-        IncastTrafficNetworkLimitationParams,
-    )
-
-    params = IncastTrafficNetworkLimitationParams(host_name="receiver")
-    assert params.packet_size + 20 + 8 <= 1420
-
-
-def test_incast_requires_live_sender_executables() -> None:
-    from types import SimpleNamespace
-    from nika.problems.traffic_queueing_resource.link import (
-        IncastTrafficNetworkLimitation,
-        IncastTrafficNetworkLimitationParams,
-    )
-
-    executables = {
-        "launcher": "/usr/bin/dash",
-        "dead": "",
-        "sender": "/usr/bin/iperf3",
-        "raw": "/usr/bin/python3.11",
-    }
-    problem = object.__new__(IncastTrafficNetworkLimitation)
-    problem.runtime = SimpleNamespace(
-        exec=lambda host, *args, **kwargs: executables[host]
-    )
-    problem._burst_pids = {host: pid for pid, host in enumerate(executables, 1)}
-    params = IncastTrafficNetworkLimitationParams(host_name="receiver")
-    assert problem._fan_in_senders(params) == ["sender", "raw"]

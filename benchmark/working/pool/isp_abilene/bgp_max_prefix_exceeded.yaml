@@ -11,15 +11,15 @@ failure:
     device_profile: frr
     inject:
       flood_count: '120'
-      neighbor_ip: 10.0.0.21
-      peer_name: losang
-      receiver_name: hstnng
+      neighbor_ip: 10.0.0.23
+      peer_name: kscyng
+      receiver_name: iplsng
     root_causes:
     - resource:
         kind: node
-        node: hstnng
+        node: iplsng
       fault_type: bgp_max_prefix_exceeded
     - resource:
         kind: node
-        node: losang
+        node: kscyng
       fault_type: bgp_max_prefix_exceeded

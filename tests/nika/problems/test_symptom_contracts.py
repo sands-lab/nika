@@ -29,10 +29,19 @@ def test_symptom_contract_fields() -> None:
             assert failure in _CUSTOM, f"custom probe missing handler: {failure}"
 
 
+# Custom symptoms that the audit cannot admit without a same-metric healthy
+# baseline: BLOCKED faults whose frozen release cases cannot be made valid.
+# Do not add new entries; add a baseline instead.
+_CUSTOM_WITHOUT_BASELINE: frozenset[str] = frozenset()
+
+
 def test_custom_symptoms_declare_a_healthy_baseline() -> None:
     custom = {c.failure for c in list_symptom_contracts() if c.probe == "custom"}
     missing = {f for f in custom if f not in _CUSTOM_BASELINE}
-    assert not missing, f"custom symptoms without a baseline: {sorted(missing)}"
+    unexpected = missing - _CUSTOM_WITHOUT_BASELINE
+    assert not unexpected, f"custom symptoms without a baseline: {sorted(unexpected)}"
+    unknown = _CUSTOM_WITHOUT_BASELINE - custom
+    assert not unknown, f"exceptions that are not custom symptoms: {sorted(unknown)}"
 
 
 def test_gray_probe_bounds() -> None:

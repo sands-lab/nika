@@ -21,7 +21,7 @@ For an implicated host, inspect `ip route get <target-ip>` and the next-hop neig
 
 ## Phase D: Services and resource pressure
 
-Compare DNS responses and HTTP behavior from affected and healthy clients. Check service processes, listening sockets, CPU usage, and running stress or flood processes on the owner. Compare a load balancer's VIP with its backends to locate pressure.
+Compare DNS responses and HTTP behavior from affected and healthy clients. Check service processes, listening sockets, CPU usage, worker fan-out, cgroup CPU quota and throttling, and abusive client traffic on the owner. Compare a load balancer's VIP with its backends to locate pressure.
 
 ## Finish
 

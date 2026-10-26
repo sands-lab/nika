@@ -17,6 +17,7 @@ from nika.problems.base import (
 from nika.problems.rca import node_resource
 from nika.problems.support.benchmark_targets import choice, prefer_named
 from nika.problems.support.ab_helpers import (
+    AB_BINARY,
     AbSummary,
     ab_summary_to_dict,
     ab_worker_log_tail,
@@ -219,10 +220,13 @@ class LoadBalancerOverload(ProblemBase):
         timeout_sec: int,
     ) -> AbSummary:
         quoted = shlex.quote(url)
-        # No -k: short-lived HTTP/1.0 connections (Connection: close).
+        # No -k: short-lived HTTP/1.0 connections (Connection: close). Uses
+        # the neutral `cache-warmer` hardlink (see ab_helpers.AB_BINARY) so
+        # a `ps` snapshot during this probe reads the same as the
+        # background workers, not the raw `ab` binary name.
         cmd = (
-            f"ab -n {int(requests)} -c {int(concurrency)} -s {int(timeout_sec)} "
-            f"{quoted} 2>&1 || true"
+            f"{AB_BINARY} -n {int(requests)} -c {int(concurrency)} "
+            f"-s {int(timeout_sec)} {quoted} 2>&1 || true"
         )
         raw = self.runtime.exec(host, cmd, timeout=timeout_sec + 30)
         return parse_ab_output(raw)

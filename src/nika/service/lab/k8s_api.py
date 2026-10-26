@@ -18,9 +18,10 @@ DEFAULT_SERVICE_CIDR_PREFIX: int = 16
 KUBECTL_TIMEOUT_SEC: float = 60
 KUBECTL_EXEC_MARGIN_SEC: float = 15.0
 
+# Neutral markers and a per-call stderr file: the command line shows in the
+# node's process list and the file would outlive the call.
 _RC_MARK = "__RC="
 _ERR_MARK = "__ERR="
-_STDERR_FILE = "/tmp/.k8s_stderr"
 _TIMEOUT_SENTINEL = "[TIMEOUT]"
 
 
@@ -82,7 +83,10 @@ class K8sAPIMixin:
     ) -> KubectlResult:
         timeout = KUBECTL_TIMEOUT_SEC if timeout is None else timeout
         base = f"kubectl --kubeconfig={shlex.quote(kubeconfig)} --request-timeout={int(timeout)}s"
-        command = f"{base} {args} 2>{_STDERR_FILE}; printf '\\n{_RC_MARK}%s\\n{_ERR_MARK}\\n' $?; cat {_STDERR_FILE}"
+        command = (
+            f"e=$(mktemp); {base} {args} 2>$e; "
+            f"printf '\\n{_RC_MARK}%s\\n{_ERR_MARK}\\n' $?; cat $e; rm -f $e"
+        )
         raw = self.exec_cmd(node, command, timeout=timeout + KUBECTL_EXEC_MARGIN_SEC)
         if raw.startswith(_TIMEOUT_SENTINEL) or _RC_MARK not in raw:
             raise K8sTimeoutError(

@@ -154,3 +154,32 @@ def test_unselected_diagnosis_server_is_denied(gateway: TestClient) -> None:
     response = _call(gateway, "sess-a", transport_id, "nika_test_probe_binding")
     body = _result(response)
     assert body["error"]["message"] == ("Access denied: diagnosis_server_not_allowed")
+
+
+def test_unknown_session_is_an_error_not_an_empty_tool_list(
+    gateway: TestClient,
+) -> None:
+    register_session("sess-a", scenario_name="simple_bgp", access_policy=_OPEN)
+    headers = {**_ACCEPT, "X-Session-Id": "sess-typo"}
+    init = gateway.post(
+        _URL,
+        headers=headers,
+        json=_rpc(
+            {
+                "id": 1,
+                "method": "initialize",
+                "params": {
+                    "protocolVersion": "2025-06-18",
+                    "capabilities": {},
+                    "clientInfo": {"name": "test", "version": "0"},
+                },
+            }
+        ),
+    )
+    listed = gateway.post(
+        _URL, headers=headers, json=_rpc({"id": 2, "method": "tools/list"})
+    )
+    stream = gateway.get(_URL, headers=headers)
+    for response in (init, listed, stream):
+        assert response.status_code == 403
+        assert "Unknown X-Session-Id" in response.json()["error"]["message"]

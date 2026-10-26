@@ -15,6 +15,20 @@ Default split is `test`. Each case runs `n_trials=3` times (`case_count × 3` de
 
 Operator reference: [Benchmark configuration](../../../docs/benchmarks/benchmark-configuration.md). Leaderboard pack/validate: [Leaderboard submission](../../../docs/benchmarks/leaderboard-submission.md). Scoring: [Root-cause evaluation](../../../docs/benchmarks/root-cause-evaluation.md#score-a-submission).
 
+## Case corrections
+
+Some cases were retargeted or had their ground truth corrected. Split sizes and the scenario/failure set are unchanged.
+
+- `dev-006`, `test-006` `bgp_hijacking`: new victim prefix and hosts (`dev-006` observer `pc_newyork`; `test-006` on `hq_edge`).
+- `dev-009`, `test-009` `bgp_rpki_invalid_route_leak`: one leaking node each (`kscyng`, `es1_es`) instead of every border node.
+- `dev-007`, `test-007` `bgp_max_prefix_exceeded`: sessions `de1_de`–`nl1_nl` and `iplsng`–`kscyng` (`test-007` retargeted). Each session now carries the only route to a customer site (`cust_nl1_nl`, `cust_kscyng`), so the reset cuts that customer off from the web service it uses in the receiver's AS. Before, traffic rerouted through another AS and nothing became unreachable.
+- `dev-037` `k8s_coredns_isolated`: ground truth is node `controller` (also `test-037`), not the `kube-dns` Service.
+- `test-042` `link_capacity_bottleneck`: link `n_10:eth6--n_3:eth4` with a tighter shaper (`512kbit`, burst `16kb`, limit `32kb`).
+- `test-049` `mtu_mismatch`: single interface `at1_at:eth0` (ground truth previously listed two); `dev-049` description corrected.
+- `incast_traffic_network_limitation` `test-034`: the fixed `duration` parameter is removed.
+
+Failure descriptions were also tightened for `dhcp_spoofed_gateway`, `flow_rule_loop`, `flow_rule_shadowing`, `host_incorrect_gateway`, `receiver_resource_contention`, and `sender_resource_contention`. Scenario and fault behavior fixes behind these rows are summarized in the [benchmark audit](../../../docs/benchmarks/benchmark-audit.md).
+
 ## Suite shape
 
 | Split | Cases file | Cases |
@@ -22,7 +36,7 @@ Operator reference: [Benchmark configuration](../../../docs/benchmarks/benchmark
 | `dev` | `dev.yaml` | 84 |
 | `test` | `test.yaml` | 85 |
 
-Across both splits: **169** executable rows, **29** scenario IDs, **74** of the **75** registered failures plus **healthy** baselines (18 healthy rows). Both splits cover every registered failure that a benchmark scenario can host and publish their labels. `lb_connection_state_exhaustion` is held out (`INCOMPATIBLE_SCENARIOS` on `p4_dc_gateway`): each client reaches only its own gateway, so the frozen attacker cannot fill `gateway_1`'s connection table, and the injector itself wrote the symptom; the case failed construct validity in the release audit. Rows `dev-040` and `test-040` replace it with `p4_action_selector_member_misconfig` and `p4_table_resource_exhaustion` on the same scenario and size.
+Across both splits: **169** executable rows, **29** scenario IDs, **74** failures plus **healthy** baselines (18 healthy rows). Both splits publish their labels.
 
 ## Case catalog
 
@@ -44,23 +58,23 @@ Rows follow [`dev.yaml`](dev.yaml) order. Labels such as `dev-001` locate rows i
 | `dev-006` | `isp_janos-us`: SNDlib janos-us ISP topology | size `m`; kathara/frr; isis; ibgp_rr | `bgp_hijacking`: An unauthorized BGP prefix is advertised (hijack). | node `albany` |
 | `dev-007` | `isp_geant`: SNDlib geant ISP topology | size `m`; kathara/frr; ospf; ebgp | `bgp_max_prefix_exceeded`: BGP maximum-prefix limit is exceeded on a session. | node `de1_de`<br>node `nl1_nl` |
 | `dev-008` | `isp_pioro40`: SNDlib pioro40 ISP topology | size `l`; kathara/frr; isis; ibgp_rr | `bgp_missing_route_advertisement`: An expected BGP route advertisement is missing. | node `n7` |
-| `dev-009` | `isp_abilene_ebgp_rpki`: SNDlib abilene ISP topology with eBGP and offline RPKI | size `s`; kathara/frr | `bgp_rpki_invalid_route_leak`: RPKI-invalid prefixes are leaked into BGP. | node `dnvrng`<br>node `kscyng`<br>node `losang`<br>node `snvang`<br>node `sttlng` |
+| `dev-009` | `isp_abilene_ebgp_rpki`: SNDlib abilene ISP topology with eBGP and offline RPKI | size `s`; kathara/frr | `bgp_rpki_invalid_route_leak`: RPKI-invalid prefixes are leaked into BGP. | node `kscyng` |
 | `dev-010` | `p4_dc_fabric`: BMv2 P4Runtime L3 Clos with ActionSelector ECMP | size `l` | `bmv2_switch_down`: BMv2 switch dataplane process is down. | node `leaf_1` |
 | `dev-011` | `sdn_l3_clos`: ONOS-controlled OVS L3 Clos with ECMP | size `s` | `device_forwarding_packet_corruption`: A forwarding device silently corrupts selected packets. | node `leaf_2` |
 | `dev-012` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `m` | `dhcp_missing_subnet`: DHCP server is missing a subnet configuration. | node `dhcp_server` |
 | `dev-013` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `l` | `dhcp_service_down`: DHCP server process is down. | node `dhcp_server` |
 | `dev-014` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `s` | `dhcp_spoofed_dns`: DHCP distributes a spoofed DNS server option. | node `dhcp_server` |
-| `dev-015` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `l` | `dhcp_spoofed_gateway`: DHCP distributes a spoofed default gateway. | node `dhcp_server` |
+| `dev-015` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `l` | `dhcp_spoofed_gateway`: The DHCP server advertises an incorrect default gateway (router option) to the clients of a subnet. | node `dhcp_server` |
 | `dev-016` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `m` | `dhcp_spoofed_subnet`: DHCP distributes a spoofed subnet mask to clients. | node `dhcp_server` |
 | `dev-017` | `dc_clos`: FRR eBGP data-center Clos with DNS and HTTP services | size `s` | `dns_lookup_latency`: DNS lookups are abnormally slow. | node `dns_pod0` |
 | `dev-018` | `dc_clos`: FRR eBGP data-center Clos with DNS and HTTP services | size `m` | `dns_port_blocked`: DNS service port is blocked. | node `dns_pod0` |
 | `dev-019` | `dc_clos`: FRR eBGP data-center Clos with DNS and HTTP services | size `l` | `dns_record_error`: DNS returns an incorrect record for a name. | node `dns_pod0` |
 | `dev-020` | `dc_clos`: FRR eBGP data-center Clos with DNS and HTTP services | size `s` | `dns_service_down`: DNS server process is down. | node `dns_pod0` |
-| `dev-021` | `sdn_l3_clos`: ONOS-controlled OVS L3 Clos with ECMP | size `m` | `flow_rule_loop`: SDN flow rules create a forwarding loop. | node `leaf_1` |
-| `dev-022` | `sdn_l3_clos`: ONOS-controlled OVS L3 Clos with ECMP | size `l` | `flow_rule_shadowing`: A higher-priority SDN rule shadows intended forwarding. | node `spine_1` |
+| `dev-021` | `sdn_l3_clos`: ONOS-controlled OVS L3 Clos with ECMP | size `m` | `flow_rule_loop`: SDN flow rules on adjacent switches send packets back and forth, so they circulate until their TTL expires. | node `leaf_1` |
+| `dev-022` | `sdn_l3_clos`: ONOS-controlled OVS L3 Clos with ECMP | size `l` | `flow_rule_shadowing`: A higher-priority flow rule on one switch matches traffic before the intended rules and silently drops it. | node `spine_1` |
 | `dev-023` | `k8s_lab`: FRR fat-tree carrying a six-node k3s cluster | fixed size | `frr_service_down`: FRR routing daemon is unavailable. | node `leaf_1_1` |
 | `dev-024` | `dc_clos`: FRR eBGP data-center Clos with DNS and HTTP services | size `s` | `host_incorrect_dns`: Host is configured with an incorrect DNS resolver. | node `client_0` |
-| `dev-025` | `k8s_lab`: FRR fat-tree carrying a six-node k3s cluster | fixed size | `host_incorrect_gateway`: Host default gateway is incorrect. | node `client` |
+| `dev-025` | `k8s_lab`: FRR fat-tree carrying a six-node k3s cluster | fixed size | `host_incorrect_gateway`: The host's own default route points at an incorrect gateway (set locally, not learned from DHCP). | node `client` |
 | `dev-026` | `llmd_lab`: L2 k3s cluster running a simulated llm-d inference service | fixed size | `host_incorrect_ip`: Host IP address is incorrect. | interface `client:eth0` |
 | `dev-027` | `enterprise_branch`: hub-and-spoke enterprise WAN with WireGuard, eBGP, and VRFs | size `m` | `host_incorrect_netmask`: Host netmask/prefix length is incorrect. | interface `br1_corp_pc:eth0` |
 | `dev-028` | `enterprise_branch`: hub-and-spoke enterprise WAN with WireGuard, eBGP, and VRFs | size `l` | `host_ip_conflict`: Two hosts are configured with the same IP address. | interface `br1_corp_pc2:eth0` |
@@ -72,7 +86,7 @@ Rows follow [`dev.yaml`](dev.yaml) order. Labels such as `dev-001` locate rows i
 | `dev-034` | `p4_dc_gateway`: BMv2 gateway-spine-leaf fabric with ECMP, INT, ECN, queues, and load balancing | size `m` | `incast_traffic_network_limitation`: An egress port buffer is too shallow to absorb synchronized many-to-one bursts toward one receiver. | interface `leaf_1:eth4` |
 | `dev-035` | `p4_dc_gateway`: BMv2 gateway-spine-leaf fabric with ECMP, INT, ECN, queues, and load balancing | size `s` | `int_insufficient_mtu_headroom`: INT encapsulation lacks sufficient MTU headroom. | interface `gateway_1:eth1` |
 | `dev-036` | `llmd_lab`: L2 k3s cluster running a simulated llm-d inference service | fixed size | `k8s_clusterip_routing_broken`: Kubernetes ClusterIP forwarding is broken on a node. | node `controller` |
-| `dev-037` | `k8s_lab`: FRR fat-tree carrying a six-node k3s cluster | fixed size | `k8s_coredns_isolated`: Path to cluster DNS (CoreDNS) is isolated/blocked. | Kubernetes `kube-system/Service/kube-dns` |
+| `dev-037` | `k8s_lab`: FRR fat-tree carrying a six-node k3s cluster | fixed size | `k8s_coredns_isolated`: Path to cluster DNS (CoreDNS) is isolated/blocked. | node `controller` |
 | `dev-038` | `llmd_lab`: L2 k3s cluster running a simulated llm-d inference service | fixed size | `k8s_networkpolicy_deny`: Kubernetes NetworkPolicy denies ingress to selected pods. | Kubernetes `llm-d/NetworkPolicy/default-deny-ingress` |
 | `dev-039` | `llmd_lab`: L2 k3s cluster running a simulated llm-d inference service | fixed size | `k8s_worker_apiserver_partition`: Worker is partitioned from the Kubernetes API server. | node `worker1` |
 | `dev-040` | `p4_dc_gateway`: BMv2 gateway-spine-leaf fabric with ECMP, INT, ECN, queues, and load balancing | size `l` | `p4_action_selector_member_misconfig`: A P4 ActionSelector member is misconfigured. | node `leaf_1` |
@@ -84,7 +98,7 @@ Rows follow [`dev.yaml`](dev.yaml) order. Labels such as `dev-001` locate rows i
 | `dev-046` | `isp_india35`: SNDlib india35 ISP topology | size `l`; kathara/frr; isis; none | `link_packet_corruption`: A faulty link corrupts a fraction of the frames it carries. | link `n_0:eth0--n_24:eth0` |
 | `dev-047` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `s` | `load_balancer_overload`: Software load balancer is overloaded by offered HTTP load. | node `load_balancer` |
 | `dev-048` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `m` | `mac_address_conflict`: Two hosts share the same MAC address. | interface `pc_1_1_1_2:eth0` |
-| `dev-049` | `enterprise_branch`: hub-and-spoke enterprise WAN with WireGuard, eBGP, and VRFs | size `l` | `mtu_mismatch`: Path MTU is misconfigured on an intermediate hop. | interface `br1_edge:eth2` |
+| `dev-049` | `enterprise_branch`: hub-and-spoke enterprise WAN with WireGuard, eBGP, and VRFs | size `l` | `mtu_mismatch`: Interface MTU is misconfigured and mismatches its link peer. | interface `br1_edge:eth2` |
 | `dev-050` | `enterprise_branch`: hub-and-spoke enterprise WAN with WireGuard, eBGP, and VRFs | size `s` | `nat_mapping_removed_without_drain`: NAT mapping is removed before active flows drain. | node `br1_edge` |
 | `dev-051` | `isp_ta1`: SNDlib ta1 ISP topology | size `m`; kathara/frr; ospf; none | `ospf_acl_block`: OSPF control-plane traffic is blocked by an ACL. | node `n1` |
 | `dev-052` | `isp_germany50`: SNDlib germany50 ISP topology | size `l`; kathara/frr; ospf; none | `ospf_area_misconfiguration`: OSPF area is misconfigured between neighbors. | node `aachen` |
@@ -98,9 +112,9 @@ Rows follow [`dev.yaml`](dev.yaml) order. Labels such as `dev-001` locate rows i
 | `dev-060` | `p4_dc_gateway`: BMv2 gateway-spine-leaf fabric with ECMP, INT, ECN, queues, and load balancing | size `m` | `p4_tcam_entry_corruption`: A forwarding/TCAM entry is silently corrupted for one flow. | node `gateway_3` |
 | `dev-061` | `p4_dc_fabric`: BMv2 P4Runtime L3 Clos with ActionSelector ECMP | size `l` | `p4runtime_partial_write`: A P4Runtime update was only partially applied. | node `leaf_1` |
 | `dev-062` | `p4_dc_fabric`: BMv2 P4Runtime L3 Clos with ActionSelector ECMP | size `s` | `p4runtime_pipeline_mismatch`: Loaded P4 pipeline does not match the intended program. | node `leaf_1` |
-| `dev-063` | `llmd_lab`: L2 k3s cluster running a simulated llm-d inference service | fixed size | `receiver_resource_contention`: Receiver endpoint is under resource contention. | node `client` |
+| `dev-063` | `llmd_lab`: L2 k3s cluster running a simulated llm-d inference service | fixed size | `receiver_resource_contention`: The host that receives the data (the consuming end of a transfer) is CPU-starved, so it reads incoming data slowly. | node `client` |
 | `dev-064` | `sdn_l3_clos`: ONOS-controlled OVS L3 Clos with ECMP | size `m` | `sdn_controller_crash`: SDN controller is down. | node `onos` |
-| `dev-065` | `sdn_l3_clos`: ONOS-controlled OVS L3 Clos with ECMP | size `l` | `sender_resource_contention`: Sender/server endpoint is under CPU resource contention. | node `web_1` |
+| `dev-065` | `sdn_l3_clos`: ONOS-controlled OVS L3 Clos with ECMP | size `l` | `sender_resource_contention`: The host that sends the data (the serving end of a transfer) is CPU-starved, so it produces data slowly. | node `web_1` |
 | `dev-066` | `p4_dc_gateway`: BMv2 gateway-spine-leaf fabric with ECMP, INT, ECN, queues, and load balancing | size `s` | `silent_egress_packet_loss`: Egress silently drops a subset of packets. | interface `gateway_1:eth1` |
 | `dev-067` | `enterprise_branch`: hub-and-spoke enterprise WAN with WireGuard, eBGP, and VRFs | size `m` | `snat_port_pool_exhaustion`: SNAT source-port pool is exhausted. | node `br1_edge` |
 | `dev-068` | `sdn_l3_clos`: ONOS-controlled OVS L3 Clos with ECMP | size `l` | `southbound_port_block`: Controller southbound channel port is blocked. | node `onos` |
@@ -132,26 +146,26 @@ Rows follow [`test.yaml`](test.yaml) order. Labels such as `test-001` locate row
 | `test-003` | `isp_pdh`: SNDlib pdh ISP topology | size `s`; containerlab/nokia_srlinux; isis; ibgp_rr | `bgp_acl_block`: BGP control-plane traffic is blocked by an ACL. | node `n1` |
 | `test-004` | `k8s_lab`: FRR fat-tree carrying a six-node k3s cluster | fixed size | `bgp_asn_misconfig`: BGP local ASN is misconfigured relative to peer expectation. | node `leaf_1_1` |
 | `test-005` | `isp_dfn-bwin_ebgp_rtbh`: SNDlib dfn-bwin ISP topology with eBGP and RTBH | size `s`; kathara/frr | `bgp_blackhole_community_leak`: A provider blackhole BGP community is leaked on export. | node `frankfurt` |
-| `test-006` | `enterprise_branch`: hub-and-spoke enterprise WAN with WireGuard, eBGP, and VRFs | size `l` | `bgp_hijacking`: An unauthorized BGP prefix is advertised (hijack). | node `br1_edge` |
-| `test-007` | `isp_abilene`: SNDlib abilene ISP topology | size `s`; kathara/frr; ospf; ebgp | `bgp_max_prefix_exceeded`: BGP maximum-prefix limit is exceeded on a session. | node `hstnng`<br>node `losang` |
+| `test-006` | `enterprise_branch`: hub-and-spoke enterprise WAN with WireGuard, eBGP, and VRFs | size `l` | `bgp_hijacking`: An unauthorized BGP prefix is advertised (hijack). | node `hq_edge` |
+| `test-007` | `isp_abilene`: SNDlib abilene ISP topology | size `s`; kathara/frr; ospf; ebgp | `bgp_max_prefix_exceeded`: BGP maximum-prefix limit is exceeded on a session. | node `iplsng`<br>node `kscyng` |
 | `test-008` | `enterprise_branch`: hub-and-spoke enterprise WAN with WireGuard, eBGP, and VRFs | size `m` | `bgp_missing_route_advertisement`: An expected BGP route advertisement is missing. | node `br1_edge` |
-| `test-009` | `isp_geant_ebgp_rpki`: SNDlib geant ISP topology with eBGP and offline RPKI | size `m`; kathara/frr | `bgp_rpki_invalid_route_leak`: RPKI-invalid prefixes are leaked into BGP. | node `be1_be`<br>node `es1_es`<br>node `fr1_fr`<br>node `il1_il`<br>node `lu1_lu`<br>node `nl1_nl` |
+| `test-009` | `isp_geant_ebgp_rpki`: SNDlib geant ISP topology with eBGP and offline RPKI | size `m`; kathara/frr | `bgp_rpki_invalid_route_leak`: RPKI-invalid prefixes are leaked into BGP. | node `es1_es` |
 | `test-010` | `p4_dc_gateway`: BMv2 gateway-spine-leaf fabric with ECMP, INT, ECN, queues, and load balancing | size `s` | `bmv2_switch_down`: BMv2 switch dataplane process is down. | node `gateway_1` |
 | `test-011` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `l` | `device_forwarding_packet_corruption`: A forwarding device silently corrupts selected packets. | node `router_core_2` |
 | `test-012` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `l` | `dhcp_missing_subnet`: DHCP server is missing a subnet configuration. | node `dhcp_server` |
 | `test-013` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `m` | `dhcp_service_down`: DHCP server process is down. | node `dhcp_server` |
 | `test-014` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `l` | `dhcp_spoofed_dns`: DHCP distributes a spoofed DNS server option. | node `dhcp_server` |
-| `test-015` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `s` | `dhcp_spoofed_gateway`: DHCP distributes a spoofed default gateway. | node `dhcp_server` |
+| `test-015` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `s` | `dhcp_spoofed_gateway`: The DHCP server advertises an incorrect default gateway (router option) to the clients of a subnet. | node `dhcp_server` |
 | `test-016` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `s` | `dhcp_spoofed_subnet`: DHCP distributes a spoofed subnet mask to clients. | node `dhcp_server` |
 | `test-017` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `m` | `dns_lookup_latency`: DNS lookups are abnormally slow. | node `dns_server` |
 | `test-018` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `l` | `dns_port_blocked`: DNS service port is blocked. | node `dns_server` |
 | `test-019` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `m` | `dns_record_error`: DNS returns an incorrect record for a name. | node `dns_server` |
 | `test-020` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `m` | `dns_service_down`: DNS server process is down. | node `dns_server` |
-| `test-021` | `sdn_l3_clos`: ONOS-controlled OVS L3 Clos with ECMP | size `s` | `flow_rule_loop`: SDN flow rules create a forwarding loop. | node `leaf_1` |
-| `test-022` | `sdn_l3_clos`: ONOS-controlled OVS L3 Clos with ECMP | size `s` | `flow_rule_shadowing`: A higher-priority SDN rule shadows intended forwarding. | node `spine_1` |
+| `test-021` | `sdn_l3_clos`: ONOS-controlled OVS L3 Clos with ECMP | size `s` | `flow_rule_loop`: SDN flow rules on adjacent switches send packets back and forth, so they circulate until their TTL expires. | node `leaf_1` |
+| `test-022` | `sdn_l3_clos`: ONOS-controlled OVS L3 Clos with ECMP | size `s` | `flow_rule_shadowing`: A higher-priority flow rule on one switch matches traffic before the intended rules and silently drops it. | node `spine_1` |
 | `test-023` | `isp_germany50`: SNDlib germany50 ISP topology | size `l`; kathara/frr; isis; none | `frr_service_down`: FRR routing daemon is unavailable. | node `aachen` |
 | `test-024` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `m` | `host_incorrect_dns`: Host is configured with an incorrect DNS resolver. | node `pc_1_1_1_1` |
-| `test-025` | `dc_clos`: FRR eBGP data-center Clos with DNS and HTTP services | size `l` | `host_incorrect_gateway`: Host default gateway is incorrect. | node `client_0` |
+| `test-025` | `dc_clos`: FRR eBGP data-center Clos with DNS and HTTP services | size `l` | `host_incorrect_gateway`: The host's own default route points at an incorrect gateway (set locally, not learned from DHCP). | node `client_0` |
 | `test-026` | `p4_dc_gateway`: BMv2 gateway-spine-leaf fabric with ECMP, INT, ECN, queues, and load balancing | size `s` | `host_incorrect_ip`: Host IP address is incorrect. | interface `client_1:eth0` |
 | `test-027` | `k8s_lab`: FRR fat-tree carrying a six-node k3s cluster | fixed size | `host_incorrect_netmask`: Host netmask/prefix length is incorrect. | interface `worker3:eth0` |
 | `test-028` | `llmd_lab`: L2 k3s cluster running a simulated llm-d inference service | fixed size | `host_ip_conflict`: Two hosts are configured with the same IP address. | interface `web:eth0` |
@@ -163,19 +177,19 @@ Rows follow [`test.yaml`](test.yaml) order. Labels such as `test-001` locate row
 | `test-034` | `p4_dc_fabric`: BMv2 P4Runtime L3 Clos with ActionSelector ECMP | size `l` | `incast_traffic_network_limitation`: An egress port buffer is too shallow to absorb synchronized many-to-one bursts toward one receiver. | interface `leaf_2:eth0` |
 | `test-035` | `p4_dc_gateway`: BMv2 gateway-spine-leaf fabric with ECMP, INT, ECN, queues, and load balancing | size `m` | `int_insufficient_mtu_headroom`: INT encapsulation lacks sufficient MTU headroom. | interface `gateway_1:eth1` |
 | `test-036` | `k8s_lab`: FRR fat-tree carrying a six-node k3s cluster | fixed size | `k8s_clusterip_routing_broken`: Kubernetes ClusterIP forwarding is broken on a node. | node `controller` |
-| `test-037` | `llmd_lab`: L2 k3s cluster running a simulated llm-d inference service | fixed size | `k8s_coredns_isolated`: Path to cluster DNS (CoreDNS) is isolated/blocked. | Kubernetes `kube-system/Service/kube-dns` |
+| `test-037` | `llmd_lab`: L2 k3s cluster running a simulated llm-d inference service | fixed size | `k8s_coredns_isolated`: Path to cluster DNS (CoreDNS) is isolated/blocked. | node `controller` |
 | `test-038` | `k8s_lab`: FRR fat-tree carrying a six-node k3s cluster | fixed size | `k8s_networkpolicy_deny`: Kubernetes NetworkPolicy denies ingress to selected pods. | Kubernetes `word-ns/NetworkPolicy/default-deny-ingress` |
 | `test-039` | `k8s_lab`: FRR fat-tree carrying a six-node k3s cluster | fixed size | `k8s_worker_apiserver_partition`: Worker is partitioned from the Kubernetes API server. | node `worker1` |
 | `test-040` | `p4_dc_gateway`: BMv2 gateway-spine-leaf fabric with ECMP, INT, ECN, queues, and load balancing | size `s` | `p4_table_resource_exhaustion`: A P4 table has exhausted its capacity. | node `leaf_1` |
 | `test-041` | `p4_dc_gateway`: BMv2 gateway-spine-leaf fabric with ECMP, INT, ECN, queues, and load balancing | size `l` | `lb_pending_connection_update_race`: Pending connection races an unsafe load-balancer pool update. | node `gateway_1` |
-| `test-042` | `isp_di-yuan`: SNDlib di-yuan ISP topology | size `s`; kathara/frr; isis; none | `link_capacity_bottleneck`: Logical link capacity is bottlenecked below demand. | link `n_10:eth0--n_9:eth3` |
+| `test-042` | `isp_di-yuan`: SNDlib di-yuan ISP topology | size `s`; kathara/frr; isis; none | `link_capacity_bottleneck`: Logical link capacity is bottlenecked below demand. | link `n_10:eth6--n_3:eth4` |
 | `test-043` | `dc_clos`: FRR eBGP data-center Clos with DNS and HTTP services | size `m` | `link_detach`: Network attachment is detached; the interface is gone from the node. | interface `client_0:eth0` |
 | `test-044` | `enterprise_branch`: hub-and-spoke enterprise WAN with WireGuard, eBGP, and VRFs | size `l` | `link_down`: Carrier or operational link is down on the selected attachment. | link `br1_corp_pc2:eth0--br1_corp_pc3:eth0--br1_corp_pc4:eth0--br1_corp_pc:eth0--br1_edge:eth0` |
 | `test-045` | `sdn_l3_clos`: ONOS-controlled OVS L3 Clos with ECMP | size `s` | `link_flap`: Logical link flaps between up and down. | link `client_1_1:eth0--leaf_1:eth1` |
 | `test-046` | `enterprise_branch`: hub-and-spoke enterprise WAN with WireGuard, eBGP, and VRFs | size `m` | `link_packet_corruption`: A faulty link corrupts a fraction of the frames it carries. | link `br1_edge:eth3--isp1_core:eth2` |
 | `test-047` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `l` | `load_balancer_overload`: Software load balancer is overloaded by offered HTTP load. | node `load_balancer` |
 | `test-048` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `s` | `mac_address_conflict`: Two hosts share the same MAC address. | interface `web_server_1:eth0` |
-| `test-049` | `isp_geant_ebgp_rpki`: SNDlib geant ISP topology with eBGP and offline RPKI | size `m`; kathara/frr | `mtu_mismatch`: Path MTU is misconfigured on an intermediate hop. | interface `at1_at:eth0`<br>interface `ch1_ch:eth0` |
+| `test-049` | `isp_geant_ebgp_rpki`: SNDlib geant ISP topology with eBGP and offline RPKI | size `m`; kathara/frr | `mtu_mismatch`: Interface MTU is misconfigured and mismatches its link peer. | interface `at1_at:eth0` |
 | `test-050` | `enterprise_branch`: hub-and-spoke enterprise WAN with WireGuard, eBGP, and VRFs | size `l` | `nat_mapping_removed_without_drain`: NAT mapping is removed before active flows drain. | node `br1_edge` |
 | `test-051` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `s` | `ospf_acl_block`: OSPF control-plane traffic is blocked by an ACL. | node `router_core_1` |
 | `test-052` | `campus_lan`: hierarchical OSPF campus with DHCP, DNS, and a web farm | size `m` | `ospf_area_misconfiguration`: OSPF area is misconfigured between neighbors. | node `router_core_1` |
@@ -189,9 +203,9 @@ Rows follow [`test.yaml`](test.yaml) order. Labels such as `test-001` locate row
 | `test-060` | `p4_dc_gateway`: BMv2 gateway-spine-leaf fabric with ECMP, INT, ECN, queues, and load balancing | size `s` | `p4_tcam_entry_corruption`: A forwarding/TCAM entry is silently corrupted for one flow. | node `spine_1` |
 | `test-061` | `p4_dc_gateway`: BMv2 gateway-spine-leaf fabric with ECMP, INT, ECN, queues, and load balancing | size `m` | `p4runtime_partial_write`: A P4Runtime update was only partially applied. | node `leaf_1` |
 | `test-062` | `p4_dc_gateway`: BMv2 gateway-spine-leaf fabric with ECMP, INT, ECN, queues, and load balancing | size `l` | `p4runtime_pipeline_mismatch`: Loaded P4 pipeline does not match the intended program. | node `gateway_1` |
-| `test-063` | `dc_clos`: FRR eBGP data-center Clos with DNS and HTTP services | size `s` | `receiver_resource_contention`: Receiver endpoint is under resource contention. | node `client_0` |
+| `test-063` | `dc_clos`: FRR eBGP data-center Clos with DNS and HTTP services | size `s` | `receiver_resource_contention`: The host that receives the data (the consuming end of a transfer) is CPU-starved, so it reads incoming data slowly. | node `client_0` |
 | `test-064` | `sdn_l3_clos`: ONOS-controlled OVS L3 Clos with ECMP | size `l` | `sdn_controller_crash`: SDN controller is down. | node `onos` |
-| `test-065` | `llmd_lab`: L2 k3s cluster running a simulated llm-d inference service | fixed size | `sender_resource_contention`: Sender/server endpoint is under CPU resource contention. | node `web` |
+| `test-065` | `llmd_lab`: L2 k3s cluster running a simulated llm-d inference service | fixed size | `sender_resource_contention`: The host that sends the data (the serving end of a transfer) is CPU-starved, so it produces data slowly. | node `web` |
 | `test-066` | `p4_dc_gateway`: BMv2 gateway-spine-leaf fabric with ECMP, INT, ECN, queues, and load balancing | size `m` | `silent_egress_packet_loss`: Egress silently drops a subset of packets. | interface `gateway_1:eth1` |
 | `test-067` | `enterprise_branch`: hub-and-spoke enterprise WAN with WireGuard, eBGP, and VRFs | size `s` | `snat_port_pool_exhaustion`: SNAT source-port pool is exhausted. | node `br1_edge` |
 | `test-068` | `sdn_l3_clos`: ONOS-controlled OVS L3 Clos with ECMP | size `m` | `southbound_port_block`: Controller southbound channel port is blocked. | node `onos` |

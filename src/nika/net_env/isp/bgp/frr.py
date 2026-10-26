@@ -9,6 +9,8 @@ from nika.net_env.utils.kathara.frr_origin import BGP_ORIGIN_IFACE
 
 # Prefix-list of routes a router must not export to eBGP peers (RPKI profile).
 EXPORT_DENY_PREFIX_LIST = "EXPORT-DENY"
+# Customer routes every router accepts but only one session exports.
+CUSTOMER_PREFIX_LIST = "CUSTOMERS"
 
 
 def render_bgp_frr_fragment(node: BgpNodePlan, plan: BgpPlan) -> str:
@@ -73,6 +75,7 @@ def _route_maps(
     rtbh_import_policy: bool = False,
     blackhole_community: str | None = None,
     discard_next_hop: str | None = None,
+    customer_routes: bool = False,
 ) -> list[str]:
     lines: list[str] = []
     if export_deny_prefixes:
@@ -108,10 +111,47 @@ def _route_maps(
             "route-map BGP-IN permit 10",
             " match ip address prefix-list BUSINESS",
             "!",
-            "route-map BGP-IN deny 20",
-            "!",
         ]
     )
+    if customer_routes:
+        lines.extend(
+            [
+                "route-map BGP-IN permit 15",
+                f" match ip address prefix-list {CUSTOMER_PREFIX_LIST}",
+                "!",
+            ]
+        )
+    lines.extend(["route-map BGP-IN deny 20", "!"])
+    return lines
+
+
+def customer_export_route_map(partner_asn: int) -> str:
+    """Outbound route-map of the session that carries the customer route."""
+    return f"BGP-OUT-AS{partner_asn}"
+
+
+def _customer_lines(node: BgpNodePlan, plan: BgpPlan) -> list[str]:
+    site = plan.customer_site
+    if site is None:
+        return []
+    lines = [
+        f"ip prefix-list {CUSTOMER_PREFIX_LIST} seq 5 permit {site.prefix}",
+        "!",
+    ]
+    if node.device_name == site.provider:
+        name = customer_export_route_map(site.partner_asn)
+        lines.extend(
+            [
+                f"route-map {name} permit 10",
+                " match ip address prefix-list BUSINESS",
+                "!",
+                f"route-map {name} permit 15",
+                f" match ip address prefix-list {CUSTOMER_PREFIX_LIST}",
+                "!",
+                f"route-map {name} deny 20",
+                "!",
+            ]
+        )
     return lines
 
 
@@ -251,6 +291,7 @@ def _render_ebgp(node: BgpNodePlan, plan: BgpPlan) -> str:
     community = str(plan.inventory.get("blackhole_community") or "") or None
     lines.extend(_rtbh_discard_static(discard_nh if node.rtbh_import_policy else None))
     lines.extend(_leaker_outbound_route_maps(node.ebgp_outbound_route_maps))
+    lines.extend(_customer_lines(node, plan))
     lines.extend(
         _route_maps(
             rov_reject_invalid=node.rov_reject_invalid,
@@ -258,9 +299,17 @@ def _render_ebgp(node: BgpNodePlan, plan: BgpPlan) -> str:
             rtbh_import_policy=node.rtbh_import_policy,
             blackhole_community=community,
             discard_next_hop=discard_nh,
+            customer_routes=plan.customer_site is not None,
         )
     )
     outbound_by_neighbor = dict(node.ebgp_outbound_route_maps)
+    site = plan.customer_site
+    customer_originated: list[str] = []
+    if site is not None and node.device_name == site.provider:
+        outbound_by_neighbor[site.partner_ip] = customer_export_route_map(
+            site.partner_asn
+        )
+        customer_originated.append(site.prefix)
     inbound_by_neighbor = {}
     for index, (neighbor, terms) in enumerate(node.import_policies):
         name = f"NC-IN-{index}"
@@ -298,8 +347,8 @@ def _render_ebgp(node: BgpNodePlan, plan: BgpPlan) -> str:
             )
     lines.append(" !")
     lines.append(" address-family ipv4 unicast")
-    for pref in sorted(node.originated, key=lambda p: p.prefix):
-        lines.append(f"  network {pref.prefix}")
+    for prefix in sorted([p.prefix for p in node.originated] + customer_originated):
+        lines.append(f"  network {prefix}")
     for sess in sorted(node.sessions, key=lambda s: s.remote_ip):
         lines.append(f"  neighbor {sess.remote_ip} activate")
         if sess.session_type == "ebgp":

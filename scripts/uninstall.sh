@@ -7,6 +7,7 @@
 set -euo pipefail
 
 INOTIFY_CONF=/etc/sysctl.d/99-nika-inotify.conf
+NEIGH_CONF=/etc/sysctl.d/99-nika-neigh.conf
 VRF_MODULES_CONF=/etc/modules-load.d/nika-vrf.conf
 UBLK_MODULES_CONF=/etc/modules-load.d/nika-agentenv-ublk.conf
 UBLK_MODPROBE_CONF=/etc/modprobe.d/nika-agentenv-ublk.conf
@@ -28,14 +29,16 @@ Removes everything NIKA set up on this host:
   - Docker images NIKA built or pulled (nika/*, kathara/*, k3s, srlinux,
     vendor router images, build parents, legacy tags) unless a non-NIKA
     container still uses them, and the Kathara Docker network plugin
-  - the inotify sysctl file (original values restored), ${SUDOERS_FILE},
-    ${VRF_MODULES_CONF}, and the AgentENV ublk_drv module files
+  - the inotify and neighbor table sysctl files (original values restored),
+    ${SUDOERS_FILE}, ${VRF_MODULES_CONF}, and the AgentENV ublk_drv module
+    files
   - Containerlab (clab_admins group, plus the package and /etc/containerlab
     from older installers) and the ${GNMIC_BIN} older installers added
   - ~/.config/kathara.conf and, in the repo, .venv (with clab and gnmic),
-    .nika_cache (with uv and its cache when the installer added them), runtime/
-    (including Firecracker images, after unmounting runtime/firecracker and
-    removing its /etc/fstab entry when the host setup mounted a loop file there)
+    .nika_cache (with uv and its cache when the installer added them) and
+    runtime/ at the main NIKA checkout (including Firecracker
+    images, after unmounting runtime/firecracker and removing its /etc/fstab
+    entry when the host setup mounted a loop file there)
   - the Firecracker host settings: the userfaultfd udev rule, the huge-pages
     sysctl file (original reservation restored), and the GRUB huge-pages file
     of older manual setups (its huge pages stay reserved until the next reboot)
@@ -68,9 +71,18 @@ done
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
+# runtime/ and .nika_cache/ live at the main checkout, shared by worktrees.
+if common="$(git -C "${ROOT}" rev-parse --git-common-dir 2>/dev/null)" && [[ -n "${common}" ]]; then
+  [[ "${common}" == /* ]] || common="${ROOT}/${common}"
+  NIKA_STATE="$(cd "$(dirname -- "${common}")" && pwd -P)"
+else
+  NIKA_STATE="${ROOT}"
+fi
+NIKA_CACHE="${NIKA_STATE}/.nika_cache"
+NIKA_RUNTIME="${NIKA_STATE}/runtime"
 VENV_DIR="${UV_PROJECT_ENVIRONMENT:-.venv}"
 [[ "${VENV_DIR}" == /* ]] || VENV_DIR="${ROOT}/${VENV_DIR}"
-export PATH="${VENV_DIR}/bin:${ROOT}/.nika_cache/bin:${HOME}/.local/bin:${PATH}"
+export PATH="${VENV_DIR}/bin:${NIKA_CACHE}/bin:${HOME}/.local/bin:${PATH}"
 
 log() { printf '+ %s\n' "$*"; }
 warn() { printf '! %s\n' "$*" >&2; }
@@ -222,18 +234,21 @@ remove_images() {
   fi
 }
 
-restore_inotify() {
-  [[ -f "${INOTIFY_CONF}" ]] || return 0
+restore_sysctl_conf() {
+  # Usage: restore_sysctl_conf CONF LABEL
+  local conf="$1" label="$2"
+  [[ -f "${conf}" ]] || return 0
   local key original unknown=0
   local -A originals=()
-  for key in max_user_instances max_user_watches; do
-    originals[$key]="$(sed -n "s/^# nika-original fs\.inotify\.${key}=//p" "${INOTIFY_CONF}")"
-  done
-  ${SUDO} rm -f "${INOTIFY_CONF}"
-  for key in max_user_instances max_user_watches; do
+  while IFS='=' read -r key _; do
+    [[ -n "${key}" && "${key}" != \#* ]] || continue
+    originals[$key]="$(sed -n "s/^# nika-original ${key//./\\.}=//p" "${conf}")"
+  done < "${conf}"
+  ${SUDO} rm -f "${conf}"
+  for key in "${!originals[@]}"; do
     original="${originals[$key]}"
     if [[ "${original}" =~ ^[0-9]+$ ]]; then
-      ${SUDO} sysctl -qw "fs.inotify.${key}=${original}"
+      ${SUDO} sysctl -qw "${key}=${original}"
     else
       unknown=1
     fi
@@ -241,9 +256,9 @@ restore_inotify() {
   # Re-apply any other host sysctl files that set the same keys.
   ${SUDO} sysctl --system >/dev/null
   if [[ "${unknown}" -eq 1 ]]; then
-    warn "Original inotify limits were not recorded (older installer); kernel defaults return after reboot"
+    warn "Original ${label} were not recorded (older installer); kernel defaults return after reboot"
   fi
-  log "Removed ${INOTIFY_CONF} and restored inotify limits"
+  log "Removed ${conf} and restored ${label}"
 }
 
 remove_host_tools() {
@@ -360,7 +375,15 @@ remove_files() {
     rm -f "${kathara_conf}"
     log "Removed ${kathara_conf}"
   fi
-  local path paths=("${ROOT}/.nika_cache" "${ROOT}/runtime")
+  local path
+  local paths=("${NIKA_CACHE}" "${NIKA_RUNTIME}")
+  # Leftover checkout state when this tree is a worktree of another checkout.
+  if [[ "${NIKA_CACHE}" != "${ROOT}/.nika_cache" ]]; then
+    paths+=("${ROOT}/.nika_cache")
+  fi
+  if [[ "${NIKA_RUNTIME}" != "${ROOT}/runtime" ]]; then
+    paths+=("${ROOT}/runtime")
+  fi
   # Only a real virtualenv: UV_PROJECT_ENVIRONMENT may point anywhere.
   if [[ -f "${VENV_DIR}/pyvenv.cfg" ]]; then
     paths=("${VENV_DIR}" "${paths[@]}")
@@ -387,7 +410,8 @@ main() {
   stop_labs
   remove_agentenv
   remove_images
-  restore_inotify
+  restore_sysctl_conf "${INOTIFY_CONF}" "inotify limits"
+  restore_sysctl_conf "${NEIGH_CONF}" "neighbor table limits"
   remove_host_tools
   stop_firecracker
   restore_hugepages

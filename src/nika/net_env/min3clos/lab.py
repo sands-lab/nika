@@ -68,7 +68,11 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
             )
 
     def topology_replacements(self, lab_name: str) -> dict[str, str]:
-        from nika.net_env.isp.containerlab.lab import LINUX_IMAGE, SRL_IMAGE
+        from nika.net_env.isp.containerlab.lab import (
+            LINUX_CMD,
+            LINUX_IMAGE,
+            SRL_IMAGE,
+        )
         from nika.net_env.utils.containerlab.mgmt_subnet import (
             mgmt_ipv4_address,
             mgmt_ipv4_subnet,
@@ -88,6 +92,7 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
             "__MGMT_IPV6_SUBNET__": mgmt_ipv6_subnet(lab_name),
             "__SRL_IMAGE__": SRL_IMAGE,
             "__LINUX_IMAGE__": LINUX_IMAGE,
+            "__LINUX_CMD__": LINUX_CMD,
         }
         for name, index in hosts:
             replacements[f"__MGMT_IP_{name.upper()}__"] = mgmt_ipv4_address(
@@ -146,8 +151,14 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
         )
         setup_dst.chmod(0o755)
 
+    def _collect_lab_images(self) -> set[str]:
+        from nika.net_env.isp.containerlab.lab import LINUX_IMAGE
+
+        return {LINUX_IMAGE}
+
     def deploy(self) -> None:
         require_gnmic()
+        self._ensure_docker_images()
         already_existed = self.lab_exists()
         super().deploy()
         if already_existed:
@@ -225,6 +236,11 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
             "web": clients,
             "l2_endpoints": clients,
         }
+
+    def business_workload(self):
+        from nika.net_env.min3clos.workload import build_workload
+
+        return build_workload()
 
     @classmethod
     def default_probe_path(cls, *, topo_size: str = "s", **deploy_kwargs) -> ProbePath:

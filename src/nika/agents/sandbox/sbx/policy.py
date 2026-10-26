@@ -1,4 +1,9 @@
-"""Sandbox network policy helpers for MCP gateway and LLM API access."""
+"""Sandbox network policy helpers for MCP gateway and LLM API access.
+
+Once the agent attaches, a sandbox reaches only the session's MCP gateway and
+the host model proxy. Package indexes and the hosts an added agent declares
+(``sandbox.egress``) are reachable only while the sandbox is prepared.
+"""
 
 from __future__ import annotations
 
@@ -67,7 +72,7 @@ def _clean_hosts(hosts: Iterable[str]) -> list[str]:
 
 
 def allow_network_hosts(sandbox_name: str, *hosts: str) -> None:
-    """Allow *sandbox_name* outbound traffic to *hosts* (agent egress, PyPI)."""
+    """Allow *sandbox_name* outbound traffic to *hosts* (setup egress, PyPI)."""
     for host in _clean_hosts(hosts):
         run_sbx_checked(["policy", "allow", "network", "--sandbox", sandbox_name, host])
 
@@ -147,28 +152,35 @@ def allowed_network_resources(policy: Any, sandbox_name: str) -> list[str]:
 def sandbox_network_lockdown(
     sandbox_name: str,
     *,
-    keep_hosts: Sequence[str] = (),
+    setup_hosts: Sequence[str] = (),
     keep_resources: Sequence[str] = (),
     install_pypi: bool = False,
     install_python: bool = False,
 ) -> tuple[list[str], list[str]]:
     """Return ``(rest, install)`` resources to deny for *sandbox_name*.
 
-    Resources covering *keep_hosts* (an added agent's egress) or equal to
-    *keep_resources* stay allowed. With *install_pypi*, resources covering the
-    package index hosts form the second list, denied once installs finish;
-    with *install_python*, so do those covering uv's interpreter downloads.
+    Resources equal to *keep_resources* (the model proxy) stay allowed. The
+    second list holds the resources that stay open only while the sandbox is
+    prepared, denied once setup finishes: those covering *setup_hosts* (an
+    added agent's declared egress), the package index hosts with
+    *install_pypi*, and uv's interpreter downloads with *install_python*.
+    The *setup_hosts* themselves are in that list as well.
     """
     proc = run_sbx_checked(["policy", "ls", "--json"], timeout=120)
     resources = [
         r
         for r in allowed_network_resources(json.loads(proc.stdout), sandbox_name)
-        if r not in keep_resources and not resource_matches_host(r, keep_hosts)
+        if r not in keep_resources
     ]
-    install_hosts = (_PYPI_NETWORK_HOSTS if install_pypi else ()) + (
-        _PYTHON_DOWNLOAD_HOSTS if install_python else ()
+    install_hosts = (
+        tuple(setup_hosts)
+        + (_PYPI_NETWORK_HOSTS if install_pypi else ())
+        + (_PYTHON_DOWNLOAD_HOSTS if install_python else ())
     )
     install = [r for r in resources if resource_matches_host(r, install_hosts)]
+    # The declared hosts are denied by name too: the deny fails while their
+    # per-sandbox allow is still in place, so a sandbox never keeps them.
+    install += [h for h in _clean_hosts(setup_hosts) if h not in install]
     rest = [r for r in resources if r not in install]
     return rest, install
 

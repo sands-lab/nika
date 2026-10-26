@@ -8,7 +8,12 @@ from typing import Literal
 
 from nika.runtime.base import LabRuntime
 from nika.service.lab.reachability import PingReachabilityMixin
-from nika.service.shell import ShellResolver, iperf_server_commands, ping_exec_timeout
+from nika.service.shell import (
+    ShellResolver,
+    curl_web_test_command,
+    iperf_server_commands,
+    ping_exec_timeout,
+)
 
 
 class ContainerlabBaseAPI(PingReachabilityMixin):
@@ -104,16 +109,7 @@ class ContainerlabBaseAPI(PingReachabilityMixin):
         return self.exec_cmd(host_name, f"tc -s qdisc show dev {intf_name}")
 
     def curl_web_test(self, host_name: str, url: str, times: int = 5) -> str:
-        command = (
-            f"curl --connect-timeout 5 --max-time 10 "
-            f"-w 'namelookup:%{{time_namelookup}}, "
-            f"connect:%{{time_connect}}, "
-            f"appconnect:%{{time_appconnect}}, "
-            f"pretransfer:%{{time_pretransfer}}, "
-            f"starttransfer:%{{time_starttransfer}}, "
-            f"total:%{{time_total}}\\n' "
-            f"-o /dev/null -s {url}"
-        )
+        command = curl_web_test_command(url)
         res = ""
         for _ in range(times):
             res += self.exec_cmd(host_name, command) + "\n"

@@ -93,6 +93,11 @@ class CampusLan(NativeRouterEnv, NetworkEnvBase):
             "attacker_pool": pcs,
         }
 
+    def business_workload(self):
+        from nika.net_env.campus_lan.workload import build_workload
+
+        return build_workload(list(self.hosts or []), self.frr_routers())
+
     @classmethod
     def default_probe_path(cls, *, topo_size: str = "s", **deploy_kwargs) -> ProbePath:
         return ProbePath(

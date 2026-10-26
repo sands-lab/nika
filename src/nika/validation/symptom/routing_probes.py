@@ -16,7 +16,7 @@ import time
 from collections.abc import Callable, Iterable
 from typing import Any
 
-from nika.net_env.verify import exec_or_empty
+from nika.net_env.verify import exec_or_empty, ping_stats
 from nika.problems.base import build_verify_result
 from nika.problems.rca.inventory import iter_link_termination_points, parse_endpoint
 from nika.runtime.base import LabRuntime
@@ -497,11 +497,26 @@ def routing_all_lost(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     )
 
 
+def _customer_reach(problem: Any, params: Any) -> dict[str, Any] | None:
+    """Pings from the customer site whose only route rides the session."""
+    site = problem.customer_route(params.receiver_name, params.peer_name)
+    if site is None:
+        return None
+    host, target = str(site["host"]), str(site["service_address"])
+    stats = ping_stats(problem.runtime, host, target, count=5, interval_sec=0.2)
+    return {"customer_host": host, "service": target, "received": stats.received}
+
+
 def max_prefix_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
-    """The flooding peer's session to the receiver is up before inject."""
-    return adjacency_baseline(
+    """The flooding peer's session is up and the customer site reaches its service."""
+    ok, details = adjacency_baseline(
         problem, params.receiver_name, ("bgp",), bgp_observers=[params.peer_name]
     )
+    reach = _customer_reach(problem, params)
+    if reach is not None:
+        details["customer_reach"] = reach
+        ok = ok and reach["received"] > 0
+    return ok, details
 
 
 def _max_prefix_cease(lost: list[str], kept: list[str], notes: dict) -> bool:
@@ -514,10 +529,27 @@ def _max_prefix_cease(lost: list[str], kept: list[str], notes: dict) -> bool:
 
 
 def max_prefix_cease(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
-    """The peer's session is down with the receiver's max-prefix Cease notification."""
-    return watch_adjacencies(
+    """The peer's session is down with the receiver's max-prefix Cease notification.
+
+    The customer site whose route rode only that session loses its service.
+    """
+    ok, result = watch_adjacencies(
         problem,
         params.receiver_name,
         _max_prefix_cease,
         expect="peer_receives_cease_maximum_prefixes_and_session_stays_down",
+    )
+    reach = _customer_reach(problem, params)
+    if reach is None:
+        return ok, result
+    # Withdrawals reach the far end of the receiver's AS within seconds.
+    deadline = time.monotonic() + 30.0
+    while reach["received"] and time.monotonic() < deadline:
+        time.sleep(_POLL_SEC)
+        reach = _customer_reach(problem, params) or reach
+    ok = ok and reach["received"] == 0
+    details = dict(result.get("details") or {})
+    details["customer_reach"] = reach
+    return ok, build_verify_result(
+        fault_type=problem.root_cause_name, verified=ok, details=details
     )

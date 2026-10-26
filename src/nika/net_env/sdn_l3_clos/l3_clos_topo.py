@@ -11,6 +11,12 @@ from Kathara.model.Lab import Lab
 
 from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.runtime.spec import NodeRole
+from nika.net_env.utils.rack_workload import (
+    bulk_downloads,
+    client_processes,
+    web_content_commands,
+)
+from nika.traffic.workload import BusinessWorkload
 from nika.net_env.sdn_l3_clos.topology_model import (
     BASE_IMAGE,
     FABRIC_MGR_OOB_IP,
@@ -32,6 +38,11 @@ from nika.net_env.sdn_l3_clos.topology_model import (
 # ovs-vswitchd sizing (~1.25×ncpu upcall threads) aborts and ovs-vsctl hangs.
 _OVS_HANDLER_THREADS = 2
 _OVS_REVALIDATOR_THREADS = 1
+LARGE_OBJECT_MB = 16
+# Fabric-wide pace of large downloads: unpaced, each one fills its path, and
+# every fabric link is a userspace switch that spends CPU per packet. Each
+# client's pause therefore grows with the number of clients.
+LARGE_DOWNLOAD_EVERY_SEC = 60
 
 
 def _ovs_start_commands() -> list[str]:
@@ -74,6 +85,8 @@ class HostMeta:
 
 class SDNL3Clos(NetworkEnvBase):
     LAB_NAME = "sdn_l3_clos"
+    # Leaf IPv4 flows match the leaf's own MACs as eth_dst.
+    ROUTERS_CHECK_DST_MAC = True
     TOPO_LEVEL = "medium"
     # ONOS JVM + OF sessions + proactive reconcile need more than the default 180s.
     VERIFY_MAX_WAIT_SEC = 420
@@ -94,7 +107,11 @@ class SDNL3Clos(NetworkEnvBase):
             {self.model.endpoints_per_leaf} endpoints per leaf.
             Per-leaf rack prefix 10.0.<leaf>.0/24 with virtual gateway MAC {VIRTUAL_ROUTER_MAC}.
             OpenFlow 1.3 SELECT ECMP across spines; OOB control network 172.31.0.0/16;
-            OVS fail-mode=secure; no STP and no NORMAL fallback.""")
+            OVS fail-mode=secure; no STP and no NORMAL fallback.
+            Each leaf hosts one nginx web server (web_<leaf>, 10.0.<leaf>.11) and
+            client hosts. Clients load pages and small objects from the web
+            servers all the time and download large.bin ({LARGE_OBJECT_MB} MB)
+            from one of them now and then.""")
 
         spine_metas: list[SwitchMeta] = []
         leaf_metas: list[SwitchMeta] = []
@@ -217,7 +234,7 @@ class SDNL3Clos(NetworkEnvBase):
                 if ep.role == "web":
                     host_meta.cmd_list.extend(
                         [
-                            "mkdir -p /var/www/html",
+                            *web_content_commands(LARGE_OBJECT_MB),
                             f"echo 'sdn_l3_clos web_{leaf_id}' > /var/www/html/index.html",
                             "nginx || service nginx start || true",
                         ]
@@ -326,6 +343,22 @@ class SDNL3Clos(NetworkEnvBase):
         from nika.net_env.sdn_l3_clos.fabric_manager import reconcile_fabric
 
         reconcile_fabric(self._build_runtime(), self.model, wait_onos=True)
+
+    def business_workload(self) -> BusinessWorkload:
+        clients = [e.name for e in self.model.client_endpoints()]
+        webs = [e.ip for e in self.model.web_endpoints()]
+        mean = LARGE_DOWNLOAD_EVERY_SEC * len(clients)
+        return BusinessWorkload(
+            processes=tuple(
+                client_processes(
+                    clients,
+                    webs,
+                    page_pause="3-10",
+                    large_pause=f"{mean // 2}-{mean * 3 // 2}",
+                )
+            ),
+            exercises=tuple(bulk_downloads(clients)),
+        )
 
     def target_roles(self) -> dict[str, list[str]]:
         roles = super().target_roles()

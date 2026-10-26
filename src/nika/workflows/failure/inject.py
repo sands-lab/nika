@@ -87,11 +87,13 @@ def inject_failure(
     session = Session()
     session.load_running_session(session_id=session_id)
 
+    release = getattr(session, "benchmark_version", None)
     resolved_names = [
-        resolve_problem_name(name, session.scenario_name) for name in problem_names
+        resolve_problem_name(name, session.scenario_name, release)
+        for name in problem_names
     ]
     for original, resolved in zip(problem_names, resolved_names, strict=True):
-        if get_problem_class(resolved, session.scenario_name) is None:
+        if get_problem_class(resolved, session.scenario_name, release) is None:
             raise ValueError(f"Unknown problem name: {original}")
 
     session.update_session("problem_names", resolved_names)
@@ -111,6 +113,7 @@ def inject_failure(
     inject_problem = get_problem_instance(
         problem_names=resolved_names,
         scenario_name=session.scenario_name,
+        release=release,
         **scenario_params,
     )
     taxonomy = inject_problem.taxonomy_metadata()

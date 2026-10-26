@@ -6,6 +6,7 @@ from pathlib import Path
 
 from nika.config import resolve_results_root
 from nika.evaluator.llm_judge import LLMJudge
+from nika.evaluator.validity import detect_trial_validity
 from nika.evaluator.result_log import EVAL_METRICS_FILENAME, MESSAGES_FILENAME
 from nika.evaluator.trace_parser import AgentTraceParser
 from nika.evaluator.scoring import (
@@ -268,6 +269,9 @@ def _run_eval_metrics_one(
         trace_metrics=trace_metrics,
         infra_evidence=effective_infra,
     )
+    payload["validity_flags"] = detect_trial_validity(
+        session_dir, score_status=status
+    ).flags
     out_path = session_dir / EVAL_METRICS_FILENAME
     write_json_atomic(out_path, payload)
     _stamp_score_status(session_dir, status)

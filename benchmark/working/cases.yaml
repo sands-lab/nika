@@ -70,10 +70,10 @@ cases:
   problem: bgp_hijacking
   inject:
     host_name: n10
-    peer_host: pc_n1
-    probe_dst_ip: 198.18.0.1
-    symptom_host: n10
-    target_network: 198.18.0.0/24
+    observer_host: pc_n1
+    probe_dst_ip: 203.0.115.1
+    symptom_host: n1
+    target_network: 203.0.115.0/24
   topo_size: m
   igp: isis
   bgp_mode: ibgp_rr
@@ -516,28 +516,6 @@ cases:
       kind: node
       node: gateway_1
     fault_type: lb_pending_connection_update_race
-- scenario: isp_giul39
-  problem: link_capacity_bottleneck
-  inject:
-    burst: 64kb
-    host_name: n10
-    intf_name: eth0
-    limit: 500kb
-    peer_host: pc_n4
-    probe_dst_ip: 10.254.0.134
-    rate: 30kbit
-    symptom_host: pc_n10
-  topo_size: l
-  igp: isis
-  bgp_mode: none
-  rpki: false
-  backend: kathara
-  device_profile: frr
-  root_causes:
-  - resource:
-      kind: link
-      name: n10:eth0--n4:eth4
-    fault_type: link_capacity_bottleneck
 - scenario: isp_dfn-bwin
   problem: link_detach
   inject:
@@ -1075,11 +1053,11 @@ cases:
 - scenario: isp_brain
   problem: bgp_hijacking
   inject:
-    host_name: adh10
-    peer_host: pc_adh
-    probe_dst_ip: 198.18.0.1
+    host_name: adh
+    observer_host: pc_adh10
+    probe_dst_ip: 203.0.113.1
     symptom_host: adh10
-    target_network: 198.18.0.0/24
+    target_network: 203.0.113.0/24
   topo_size: l
   igp: isis
   bgp_mode: ibgp_rr
@@ -1089,7 +1067,7 @@ cases:
   root_causes:
   - resource:
       kind: node
-      node: adh10
+      node: adh
     fault_type: bgp_hijacking
 - scenario: isp_abilene
   problem: bgp_max_prefix_exceeded
@@ -1439,20 +1417,6 @@ cases:
       kind: node
       node: leaf_1_1
     fault_type: icmp_frag_needed_filter_misconfiguration
-- scenario: dc_clos
-  problem: incast_traffic_network_limitation
-  inject:
-    duration: '3600'
-    host_name: webserver0_pod0
-    observer_device: client_0
-    probe_dst_ip: 10.0.1.2
-  topo_size: m
-  root_causes:
-  - resource:
-      kind: interface
-      node: leaf_router_0_1
-      name: eth4
-    fault_type: incast_traffic_network_limitation
 - scenario: p4_dc_gateway
   problem: int_insufficient_mtu_headroom
   inject:
@@ -1530,14 +1494,14 @@ cases:
 - scenario: isp_dfn-bwin
   problem: link_capacity_bottleneck
   inject:
-    burst: 64kb
-    host_name: berlin
-    intf_name: e1-1
-    limit: 500kb
-    peer_host: pc_frankfurt
-    probe_dst_ip: 10.254.0.6
-    rate: 30kbit
-    symptom_host: pc_berlin
+    burst: 16kb
+    host_name: frankfurt
+    intf_name: e1-4
+    limit: 32kb
+    peer_host: pc_koeln
+    probe_dst_ip: 10.254.0.22
+    rate: 512kbit
+    symptom_host: pc_frankfurt
   topo_size: s
   igp: isis
   bgp_mode: none
@@ -1547,7 +1511,7 @@ cases:
   root_causes:
   - resource:
       kind: link
-      name: berlin:e1-1--frankfurt:e1-1
+      name: frankfurt:e1-4--koeln:e1-2
     fault_type: link_capacity_bottleneck
 - scenario: isp_di-yuan
   problem: link_detach

@@ -10,6 +10,7 @@ from nika.problems.base import (
     build_verify_result,
     ProblemBase,
 )
+from nika.problems.support.frr import frr_config_command, frr_save_config
 from nika.problems.support.benchmark_targets import (
     access_router_victim,
     require_role_member,
@@ -64,6 +65,22 @@ class BGPHijackingParams(BaseModel):
     )
 
 
+def _scenario_targets(net_env) -> list:
+    """Hijacks the scenario knows to win over the owner's route, if any."""
+    targets = getattr(net_env, "bgp_hijack_targets", None)
+    return list(targets()) if targets is not None else []
+
+
+def _target_params(target) -> dict[str, str]:
+    return {
+        "host_name": target.hijacker,
+        "target_network": target.prefix,
+        "symptom_host": target.observer,
+        "observer_host": target.observer_host,
+        "probe_dst_ip": target.probe_ip,
+    }
+
+
 class BGPHijacking(ProblemBase):
     failure_domain = FailureDomain.SECURITY
     symptom_probe = "custom"
@@ -83,24 +100,29 @@ class BGPHijacking(ProblemBase):
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
-        hijacks = getattr(ctx.net_env, "hijack_targets", None)
-        if hijacks is not None:
-            # The environment fixes which hijacks its routing policy lets
-            # through (enterprise_branch); see EnterpriseBranch.hijack_targets.
-            targets = hijacks()
-            if targets:
-                return dict(targets[0])
+        targets = _scenario_targets(ctx.net_env)
+        if targets:
+            return _target_params(ctx.rng.choice(targets))
         return access_router_victim(ctx, prefer_site_edge=False)
 
     @classmethod
     def benchmark_inject_options(cls, ctx, base):
-        hijacks = getattr(ctx.net_env, "hijack_targets", None)
-        if hijacks is not None:
-            return [dict(target) for target in hijacks()]
+        targets = _scenario_targets(ctx.net_env)
+        if targets:
+            return [_target_params(target) for target in targets]
         return super().benchmark_inject_options(ctx, base)
 
     @classmethod
     def validate_benchmark_inject(cls, ctx, inject):
+        targets = _scenario_targets(ctx.net_env)
+        if targets:
+            wanted = (inject.get("host_name"), inject.get("target_network"))
+            if wanted not in {(t.hijacker, t.prefix) for t in targets}:
+                raise ValueError(
+                    f"bgp_hijacking {wanted!r} does not divert a victim's traffic "
+                    f"on {ctx.scenario} (topo_size={ctx.topo_size!r})"
+                )
+            return
         require_role_member(
             ctx,
             cls.root_cause_name,
@@ -178,29 +200,34 @@ class BGPHijacking(ProblemBase):
             case "kathara":
                 asn_number = self.runtime.frr_get_bgp_asn_number(params.host_name)
                 # Off ``lo`` so the IGP does not carry it: only BGP spreads a hijack.
-                # The local-table route keeps answering every address in the
-                # prefix, as an address with that prefix on ``lo`` did.
                 self.runtime.exec(params.host_name, ENSURE_BGP_ORIGIN_IFACE_CMD)
+                # Behind a prefix-list export policy the operator error includes
+                # admitting the prefix there, or the hijack never leaves the router.
+                export = (
+                    [
+                        f"ip prefix-list {params.export_prefix_list} seq 1 permit {target_network}"
+                    ]
+                    if params.export_prefix_list
+                    else []
+                )
                 self.runtime.exec(
                     params.host_name,
-                    f"vtysh -c 'configure terminal' -c 'interface {BGP_ORIGIN_IFACE}' "
-                    f"-c 'ip address {target_network}' ",
+                    frr_config_command(
+                        f"interface {BGP_ORIGIN_IFACE}",
+                        f"ip address {target_network}",
+                        "exit",
+                        *export,
+                        f"router bgp {asn_number}",
+                        f"network {target_network}",
+                    ),
                 )
+                frr_save_config(self.runtime, params.host_name)
+                # The local-table route keeps answering every address in the
+                # prefix, as an address with that prefix on ``lo`` did.
                 self.runtime.exec(
                     params.host_name,
                     f"ip route replace local {target_network} "
                     f"dev {BGP_ORIGIN_IFACE} table local",
-                )
-                # Behind a prefix-list export policy the operator error includes
-                # admitting the prefix there, or the hijack never leaves the router.
-                export = (
-                    f"-c 'ip prefix-list {params.export_prefix_list} seq 1 permit {target_network}' "
-                    if params.export_prefix_list
-                    else ""
-                )
-                self.runtime.exec(
-                    params.host_name,
-                    f"vtysh -c 'configure terminal' {export}-c 'router bgp {asn_number}' -c 'network {target_network}' -c 'end' -c 'write memory' ",
                 )
                 self.logger.info(
                     f"Injected BGP hijacking on {params.host_name}: {target_network}."

@@ -47,6 +47,7 @@ LOCAL_ONLY_KEYS = (
     "llm_provider",
     "reasoning_effort",
     "max_tokens",
+    "sampling",
     # The agent's sandbox runs on this host; session close removes it.
     "sandbox_backend",
     "sandbox_url",

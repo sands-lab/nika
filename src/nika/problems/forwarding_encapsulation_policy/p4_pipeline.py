@@ -9,6 +9,7 @@ from nika.problems.forwarding_encapsulation_policy.p4runtime_helpers import (
     load_intent,
     run_manager,
 )
+from nika.problems.support.p4runtime_writes import p4runtime_write
 from nika.utils.logger import system_logger
 
 logger = system_logger
@@ -70,17 +71,20 @@ class P4TableEntryMissing(ProblemBase):
         prefix = fabric_table_entry_prefix(intent, params.host_name, self.scenario_name)
         if not prefix:
             raise RuntimeError(f"No IPv4 LPM prefix on {params.host_name}")
-        result = run_manager(
+        written = p4runtime_write(
             self.runtime,
-            "delete-lpm",
-            "--switch",
             params.host_name,
-            "--prefix",
-            prefix,
+            [{"type": "DELETE", "lpm": {"prefix": prefix}}],
+            read=True,
         )
-        if not result.get("ok") or result.get("present"):
+        present = any(
+            entry.get("prefix") == prefix
+            for entry in (written.get("observed") or {}).get("ipv4_lpm") or []
+        )
+        result = {"ok": written.get("ok"), "prefix": prefix, "present": present}
+        if not result["ok"] or present:
             raise RuntimeError(
-                f"delete-lpm failed for {prefix} on {params.host_name}: {result}"
+                f"LPM delete failed for {prefix} on {params.host_name}: {result}"
             )
         self._cleared_prefix = prefix
         # Brief settle so the data plane drops before symptom probes.
@@ -165,16 +169,19 @@ class P4TableEntryMisconfig(ProblemBase):
             raise RuntimeError(
                 f"No alternate ActionSelector group on {params.host_name}"
             )
-        result = run_manager(
+        result = p4runtime_write(
             self.runtime,
-            "modify-lpm-group",
-            "--switch",
             params.host_name,
-            "--prefix",
-            prefix,
-            "--group-id",
-            str(other),
+            [
+                {"type": "DELETE", "lpm": {"prefix": prefix}},
+                {"lpm": {"prefix": prefix, "group_id": int(other)}},
+            ],
+            sequential=True,
         )
+        if not result.get("ok"):
+            raise RuntimeError(
+                f"LPM rewrite failed for {prefix} on {params.host_name}: {result}"
+            )
         self._misconfig_details = {
             "prefix": prefix,
             "group_id": int(other),

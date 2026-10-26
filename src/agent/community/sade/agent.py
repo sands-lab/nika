@@ -25,7 +25,7 @@ from agent.utils.skills import CLAUDE_SETTING_SOURCES, skills_enabled
 from agent.utils.submission_context import submission_user_prompt
 from agent.utils.template import SUBMIT_PROMPT_TEMPLATE
 from agent.base import DiagnosisAgent
-from agent.cli.claude.config import claude_env
+from agent.cli.claude.config import claude_env, sdk_isolation_options
 
 from .prompts.sade_prompt import SADE_PROMPT
 
@@ -123,6 +123,7 @@ class SadeAgent(DiagnosisAgent):
             "hooks": {
                 "PostToolUse": [HookMatcher(hooks=[self._reminder_hook(transcript)])]
             },
+            **sdk_isolation_options(),
         }
         if skills_enabled():
             options_kwargs["setting_sources"] = CLAUDE_SETTING_SOURCES
@@ -151,6 +152,7 @@ class SadeAgent(DiagnosisAgent):
             max_turns=self.max_steps,
             permission_mode="bypassPermissions",
             env=sdk_env,
+            **sdk_isolation_options(),
         )
         return await run_claude_sdk_query(
             options,

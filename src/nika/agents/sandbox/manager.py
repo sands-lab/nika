@@ -20,7 +20,7 @@ import threading
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -119,13 +119,16 @@ class SandboxSession:
 
 
 def _run_settings() -> tuple[LlmClientSettings, float, bool]:
-    """``(llm client, MCP read timeout, skills)`` from the run config."""
+    """``(llm client, MCP read timeout, skills)`` from the run config.
+
+    The agent's client also carries ``agent.temperature``/``top_p``/``seed``.
+    """
     from nika.agents.provider_env import host_llm_client
     from nika.run_config.loader import get_run_config
 
     config = get_run_config()
     return (
-        host_llm_client(),
+        replace(host_llm_client(), **config.agent.sampling_params()),
         float(config.nika.mcp.read_timeout_sec),
         bool(config.agent.enable_skills),
     )

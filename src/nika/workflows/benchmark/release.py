@@ -446,12 +446,24 @@ def _validate_release_splits(
     test_cases: list[dict[str, Any]],
     *,
     expected_failures: set[str],
+    frozen: bool = False,
 ) -> None:
+    """Check split isolation and failure coverage.
+
+    A new release must cover exactly ``expected_failures``. A frozen release
+    keeps its failures while the registry grows, so it only needs every failure
+    it lists to still be registered.
+    """
     verify_dev_test_isolation(dev_cases=dev_cases, test_cases=test_cases)
     failures = {
         str(row["problem"]) for row in dev_cases if not is_healthy_case(row["problem"])
     }
-    if failures != expected_failures:
+    if frozen:
+        if failures - expected_failures:
+            raise ReleaseError(
+                f"Release lists unregistered failures: {sorted(failures - expected_failures)}"
+            )
+    elif failures != expected_failures:
         missing = sorted(expected_failures - failures)
         extra = sorted(failures - expected_failures)
         raise ReleaseError(
@@ -563,9 +575,7 @@ def preflight_release(
             )
         else:
             _validate_release_splits(
-                dev,
-                test,
-                expected_failures=_benchmark_failures(),
+                dev, test, expected_failures=_benchmark_failures(), frozen=True
             )
 
     _verify_mcp_policy(release.cases, release.tools)
@@ -627,6 +637,7 @@ def build_run_identity(
         resolve_agent_timeout,
         resolve_max_tokens,
         resolve_reasoning_effort,
+        resolve_sampling,
     )
 
     commit, dirty = read_git_commit()
@@ -642,6 +653,7 @@ def build_run_identity(
         "model": model,
         "max_steps": max_steps,
         "max_tokens": resolve_max_tokens(agent_type) if agent_type else None,
+        "sampling": resolve_sampling(agent_type) if agent_type else None,
         "agent_timeout_sec": resolve_agent_timeout(),
         "reasoning_effort": resolve_reasoning_effort(agent_type),
         "access_role": get_run_config().agent.access.role,

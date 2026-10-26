@@ -16,6 +16,7 @@ from nika.utils.agent_config import (
     resolve_max_steps,
     resolve_max_tokens,
     resolve_reasoning_effort,
+    resolve_sampling,
     resolve_submission_settings,
 )
 from nika.utils.logger import bind_session_dir, elapsed_ms, log_error_event, log_event
@@ -102,6 +103,9 @@ def start_agent(
     if max_tokens is not None:
         session.update_session("max_tokens", max_tokens)
     session.update_session("submission", submission.identity())
+    sampling = resolve_sampling(agent_type)
+    if sampling is not None:
+        session.update_session("sampling", sampling)
     session.start_session()
 
     bind_session_dir(session.session_dir)

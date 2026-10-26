@@ -41,7 +41,7 @@ MAX_DATA_INTERFACES = 30
 # and a watcher that mirrors each data interface's state with ``set_link``.
 # Link failures then reach RouterOS as carrier loss, as they do on FRR.
 LINK_MONITOR_PORT = 4100
-LINK_WATCHER_PATH = "/usr/local/bin/nika-link-carrier"
+LINK_WATCHER_PATH = "/usr/local/bin/link-carrier"
 _LINK_WATCHER = rf"""#!/bin/bash
 # Mirror container interface state into RouterOS VM NIC carriers.
 # Arguments: <container interface>:<vrnetlab NIC index> ...

@@ -17,10 +17,8 @@ pytestmark = pytest.mark.integration
 
 def _peer_on_link(runtime: KatharaRuntime, host: str, intf: str) -> tuple[str, str]:
     """Return the peer node and interface for a point-to-point link."""
-    endpoint, peer, _ = KatharaVdeFaultProxy(runtime)._endpoints(host, intf)
-    if endpoint.node == host and endpoint.intf == intf:
-        return peer.node, peer.intf
-    return endpoint.node, endpoint.intf
+    _endpoint, peer = KatharaVdeFaultProxy(runtime)._link_ends(host, intf)
+    return peer.node, peer.intf
 
 
 def _wait_for_dhcp_host(runtime: KatharaRuntime, host: str, intf: str = "eth0") -> None:
@@ -38,20 +36,18 @@ def _wait_for_dhcp_host(runtime: KatharaRuntime, host: str, intf: str = "eth0") 
 
 @pytest.mark.skipif(not docker_available(), reason="Docker required for VDE proxy")
 def test_vde_proxy_preserves_point_to_point_link_identity_and_connectivity() -> None:
-    """A split LAN plus bridge is transparent before netem is enabled."""
+    """The splice leaves the lab interface itself untouched."""
     env = SimpleBGP(lab_name="test_vde_proxy")
     runtime = KatharaRuntime(env)
     state = None
     try:
         runtime.deploy()
-        before = json.loads(runtime.exec("router1", "ip -j link show dev eth0"))[0]
+        before = json.loads(runtime.exec("router1", "ip -j -s link show dev eth0"))[0]
         proxy = KatharaVdeFaultProxy(runtime)
         state = proxy.insert("router1", "eth0")
         after = json.loads(runtime.exec("router1", "ip -j link show dev eth0"))[0]
-        assert after["ifname"] == "eth0"
-        assert after["address"] == before["address"]
-        assert after["mtu"] == before["mtu"]
-        assert after["ifalias"] == before["ifalias"]
+        for field in ("ifindex", "address", "mtu", "ifalias"):
+            assert after[field] == before[field], field
         assert "0% packet loss" in runtime.exec("router1", "ping -c 2 -W 2 193.10.11.2")
         assert "lladdr" in runtime.exec("router1", "ip neigh show 193.10.11.2")
 
@@ -78,6 +74,11 @@ def test_vde_proxy_preserves_point_to_point_link_identity_and_connectivity() -> 
         proxy.remove(state)
         state = None
         assert "0% packet loss" in runtime.exec("router1", "ping -c 2 -W 2 193.10.11.2")
+        final = json.loads(runtime.exec("router1", "ip -j -s link show dev eth0"))[0]
+        assert final["ifindex"] == before["ifindex"]
+        # Counters continue across inject and recover instead of restarting.
+        sent = before["stats64"]["tx"]["packets"]
+        assert final["stats64"]["tx"]["packets"] >= sent + 8
     finally:
         if state is not None:
             KatharaVdeFaultProxy(runtime).remove(state, suppress_errors=True)

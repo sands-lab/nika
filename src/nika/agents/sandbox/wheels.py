@@ -20,7 +20,7 @@ from pathlib import Path
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 
 from nika.agents.sandbox.locks import host_file_lock
-from nika.config import REPO_ROOT
+from nika.config import CACHE_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 WHEEL_DIRNAME = ".wheels"
 REQUIREMENTS_FILENAME = "requirements.txt"
 REQUIREMENTS_DIR = Path(__file__).resolve().parent / "requirements"
-_WHEEL_CACHE = REPO_ROOT / ".nika_cache" / "agent-wheels"
+_WHEEL_CACHE = CACHE_DIR / "agent-wheels"
 _CACHE_REQ_STAMP = ".requirements.txt"
 _TARGET_PYTHON = "3.14"
 # Virtualenv for an agent whose ``requires_python`` excludes the template's

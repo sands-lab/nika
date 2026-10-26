@@ -10,6 +10,9 @@ const bit<8> PROTO_ICMP = 1;
 const bit<8> PROTO_INT_MX = 253;
 const bit<8> ROLE_GATEWAY = 1;
 const bit<8> ROLE_LEAF = 3;
+const bit<32> VIP_ADDR = 0x14000001;      /* 20.0.0.1 */
+const bit<16> VIP_PORT = 80;
+const bit<32> CLIENT_GW_ADDR = 0xc0000201; /* 192.0.2.1 */
 
 typedef bit<9> port_t;
 typedef bit<48> mac_t;
@@ -28,17 +31,22 @@ header tcp_h {
 }
 header udp_h { bit<16> srcPort; bit<16> dstPort; bit<16> length; bit<16> checksum; }
 header icmp_h { bit<8> type; bit<8> code; bit<16> checksum; bit<32> rest; }
+header l4_head_h { bit<64> data; }
 header int_mx_h {
     bit<8> type; bit<1> m; bit<1> e; bit<6> reserved;
     bit<8> originalProtocol; bit<16> flowId; bit<16> packetId;
 }
 
-struct headers { ethernet_h ethernet; ipv4_h ipv4; tcp_h tcp; udp_h udp; icmp_h icmp; int_mx_h int_mx; }
+struct headers {
+    ethernet_h ethernet; ipv4_h ipv4; tcp_h tcp; udp_h udp; icmp_h icmp; int_mx_h int_mx;
+    ipv4_h icmp_quote_ipv4; l4_head_h icmp_quote_l4;
+}
 struct metadata {
     bit<16> srcPort; bit<16> dstPort; bit<8> role;
     bit<32> flowHash; bit<32> flowHash1; bit<32> flowHash2; bit<32> flowHash3;
-    bit<32> packetHash; bit<1> watched; bit<16> intMtu;
-    bit<16> faultLossThreshold; bit<32> ecnThreshold;
+    bit<1> watched; bit<16> intMtu;
+    bit<16> egressMtu; bit<1> icmpSent; bit<32> ecnThreshold;
+    bit<32> lbFlowIndex; ipv4_t lbFlowDip; mac_t rxSrcMac; mac_t rxDstMac;
     bit<1> lbVip; bit<1> lbConnHit; bit<1> lbTransitHit;
     bit<8> lbVersion; bit<8> lbPoolVersion; bit<8> lbBucket;
     ipv4_t lbDip;
@@ -70,7 +78,6 @@ control GatewayIngress(inout headers hdr, inout metadata meta,
     @name("flow_non_syn_count_3") register<bit<32>>(4096) nonSynCount3;
     @name("ecmp_selector") action_selector(HashAlgorithm.crc16, 32w256, 32w16) ecmpSelector;
     @name("drop") action drop() { mark_to_drop(standard_metadata); }
-    @name("fault_drop") action faultDrop() { mark_to_drop(standard_metadata); }
     @name("watch_int") action watchInt() { meta.watched = 1; }
     @name("set_role") action setRole(bit<8> role) { meta.role = role; }
     @name("runtime_role") table runtimeRole {
@@ -84,25 +91,16 @@ control GatewayIngress(inout headers hdr, inout metadata meta,
         size = 64;
         default_action = NoAction();
     }
-    @name("set_fault_loss_threshold")
-    action setFaultLossThreshold(bit<16> threshold) { meta.faultLossThreshold = threshold; }
-    @name("internal_fault_loss_config")
-    table internalFaultLossConfig {
+    @name("set_egress_mtu") action setEgressMtu(bit<16> mtu) { meta.egressMtu = mtu; }
+    @name("egress_mtu") table egressMtu {
         key = { standard_metadata.egress_spec: exact; }
-        actions = { setFaultLossThreshold; NoAction; }
+        actions = { setEgressMtu; NoAction; }
         size = 64;
         default_action = NoAction();
     }
     @name("int_watchlist") table intWatchlist {
         key = { hdr.ipv4.dstAddr: lpm; }
         actions = { watchInt; NoAction; }
-        size = 32;
-        default_action = NoAction();
-    }
-    @name("internal_fault_drop")
-    table internalFaultDrop {
-        key = { hdr.ipv4.dstAddr: exact; }
-        actions = { faultDrop; NoAction; }
         size = 32;
         default_action = NoAction();
     }
@@ -122,6 +120,9 @@ control GatewayIngress(inout headers hdr, inout metadata meta,
         actions = { setTransitVersion; NoAction; } size = 256; default_action = NoAction();
     }
     @name("set_pool_dip") action setPoolDip(ipv4_t dip) { meta.lbDip = dip; }
+    // DIP of each translated VIP flow, indexed by the client address and
+    // port, so only replies of those flows get the VIP source back.
+    @name("lb_flow_dip") register<ipv4_t>(4096) lbFlowDip;
     @name("lb_pool") table lbPool {
         key = { meta.lbPoolVersion: exact; meta.lbBucket: exact; }
         actions = { setPoolDip; NoAction; } size = 256; default_action = NoAction();
@@ -137,10 +138,9 @@ control GatewayIngress(inout headers hdr, inout metadata meta,
         hdr.tcp.checksum = ~sum[15:0];
         field = value;
     }
-    @name("icmp_frag_needed_drop") action icmpFragNeededDrop() { mark_to_drop(standard_metadata); }
-    @name("icmp_frag_needed_acl") table icmpFragNeededAcl {
+    @name("icmp_acl") table icmpAcl {
         key = { hdr.icmp.type: exact; hdr.icmp.code: exact; }
-        actions = { icmpFragNeededDrop; NoAction; } size = 4; default_action = NoAction();
+        actions = { drop; NoAction; } size = 8; default_action = NoAction();
     }
     @name("ipv4_forward") action forward(mac_t srcAddr, mac_t dstAddr, port_t port) {
         standard_metadata.egress_spec = port;
@@ -161,8 +161,9 @@ control GatewayIngress(inout headers hdr, inout metadata meta,
         ingressCounter.count((bit<32>)standard_metadata.ingress_port);
         if (!hdr.ipv4.isValid() || hdr.ipv4.ttl <= 1) { drop(); return; }
         meta.srcPort = 0; meta.dstPort = 0;
-        meta.intMtu = 0; meta.faultLossThreshold = 0;
-        meta.watched = 0;
+        meta.intMtu = 0; meta.egressMtu = 0; meta.icmpSent = 0;
+        meta.watched = 0; meta.lbFlowIndex = 0; meta.lbFlowDip = 0;
+        meta.rxSrcMac = hdr.ethernet.srcAddr; meta.rxDstMac = hdr.ethernet.dstAddr;
         meta.lbVip = 0; meta.lbConnHit = 0; meta.lbTransitHit = 0;
         meta.lbVersion = 0; meta.lbPoolVersion = 0; meta.lbBucket = 0; meta.lbDip = 0;
         if (hdr.tcp.isValid()) { meta.srcPort = hdr.tcp.srcPort; meta.dstPort = hdr.tcp.dstPort; }
@@ -175,8 +176,6 @@ control GatewayIngress(inout headers hdr, inout metadata meta,
              {hdr.ipv4.srcAddr, hdr.ipv4.dstAddr, hdr.ipv4.protocol, meta.srcPort, meta.dstPort}, (bit<32>)4096);
         hash(meta.flowHash3, HashAlgorithm.csum16, (bit<32>)47,
              {hdr.ipv4.srcAddr, hdr.ipv4.dstAddr, hdr.ipv4.protocol, meta.srcPort, meta.dstPort}, (bit<32>)4096);
-        hash(meta.packetHash, HashAlgorithm.crc32, (bit<32>)0,
-             {standard_metadata.packet_length, hdr.ipv4.identification, meta.flowHash}, (bit<32>)65535);
         runtimeRole.apply();
         if (meta.role == ROLE_GATEWAY && hdr.tcp.isValid()) {
             lbVip.apply();
@@ -189,9 +188,18 @@ control GatewayIngress(inout headers hdr, inout metadata meta,
                          {hdr.ipv4.srcAddr, hdr.ipv4.dstAddr, meta.srcPort, meta.dstPort}, (bit<8>)64);
                     lbPool.apply();
                 }
-                if (meta.lbDip != 0) { rewriteTcpAddr(hdr.ipv4.dstAddr, meta.lbDip); }
+                if (meta.lbDip != 0) {
+                    hash(meta.lbFlowIndex, HashAlgorithm.crc32, (bit<32>)0,
+                         {hdr.ipv4.srcAddr, meta.srcPort}, (bit<32>)4096);
+                    lbFlowDip.write(meta.lbFlowIndex, meta.lbDip);
+                    rewriteTcpAddr(hdr.ipv4.dstAddr, meta.lbDip);
+                }
+            } else if (hdr.tcp.flags[1:1] == 1 && hdr.tcp.flags[4:4] == 0) {
+                // A new connection that bypasses the VIP reuses no VIP mapping.
+                hash(meta.lbFlowIndex, HashAlgorithm.crc32, (bit<32>)0,
+                     {hdr.ipv4.srcAddr, meta.srcPort}, (bit<32>)4096);
+                lbFlowDip.write(meta.lbFlowIndex, 0);
             }
-            if (hdr.ipv4.srcAddr == 32w0x0a00010b || hdr.ipv4.srcAddr == 32w0x0a00010c) { rewriteTcpAddr(hdr.ipv4.srcAddr, 32w0x14000001); }
         }
         if (meta.role == ROLE_LEAF && hdr.int_mx.isValid()) {
             hdr.ipv4.protocol = hdr.int_mx.originalProtocol;
@@ -215,9 +223,51 @@ control GatewayIngress(inout headers hdr, inout metadata meta,
             }
         }
         ipv4Lpm.apply();
+        egressMtu.apply();
+        // Path MTU discovery (RFC 1191): a DF packet larger than the egress
+        // MTU becomes ICMP Fragmentation Needed back to its source, quoting
+        // the IP header and first 8 payload bytes as received.
+        if (meta.role == ROLE_GATEWAY && meta.egressMtu != 0
+            && hdr.ipv4.flags[1:1] == 1 && hdr.ipv4.totalLen > meta.egressMtu
+            && !hdr.int_mx.isValid()
+            && (hdr.tcp.isValid() || hdr.udp.isValid()
+                || (hdr.icmp.isValid() && hdr.icmp.type != 3))) {
+            hdr.icmp_quote_ipv4 = hdr.ipv4;
+            hdr.icmp_quote_ipv4.ttl = hdr.ipv4.ttl + 1;
+            hdr.icmp_quote_l4.setValid();
+            if (hdr.tcp.isValid()) {
+                hdr.icmp_quote_l4.data = hdr.tcp.srcPort ++ hdr.tcp.dstPort ++ hdr.tcp.seqNo;
+            } else if (hdr.udp.isValid()) {
+                hdr.icmp_quote_l4.data = hdr.udp.srcPort ++ hdr.udp.dstPort
+                    ++ hdr.udp.length ++ hdr.udp.checksum;
+            } else {
+                hdr.icmp_quote_l4.data = hdr.icmp.type ++ hdr.icmp.code
+                    ++ hdr.icmp.checksum ++ hdr.icmp.rest;
+            }
+            hdr.tcp.setInvalid(); hdr.udp.setInvalid();
+            hdr.icmp.setValid();
+            hdr.icmp.type = 3; hdr.icmp.code = 4; hdr.icmp.checksum = 0;
+            hdr.icmp.rest = (bit<32>)meta.egressMtu;
+            hdr.ipv4.dstAddr = hdr.ipv4.srcAddr; hdr.ipv4.srcAddr = CLIENT_GW_ADDR;
+            hdr.ipv4.diffserv = 0; hdr.ipv4.totalLen = 56; hdr.ipv4.identification = 0;
+            hdr.ipv4.flags = 0; hdr.ipv4.fragOffset = 0; hdr.ipv4.ttl = 64;
+            hdr.ipv4.protocol = PROTO_ICMP;
+            hdr.ethernet.srcAddr = meta.rxDstMac; hdr.ethernet.dstAddr = meta.rxSrcMac;
+            standard_metadata.egress_spec = standard_metadata.ingress_port;
+            truncate(70);
+            meta.icmpSent = 1;
+        }
+        // Replies of translated VIP flows leave with the VIP as source.
+        if (meta.role == ROLE_GATEWAY && hdr.tcp.isValid() && meta.lbVip == 0
+            && hdr.tcp.srcPort == VIP_PORT) {
+            hash(meta.lbFlowIndex, HashAlgorithm.crc32, (bit<32>)0,
+                 {hdr.ipv4.dstAddr, meta.dstPort}, (bit<32>)4096);
+            lbFlowDip.read(meta.lbFlowDip, meta.lbFlowIndex);
+            if (meta.lbFlowDip == hdr.ipv4.srcAddr) { rewriteTcpAddr(hdr.ipv4.srcAddr, VIP_ADDR); }
+        }
         // The L4 translation checksum covers the original TCP payload.  Do
         // not add INT between the IP and TCP headers on VIP traffic.
-        if (meta.lbVip == 0) { intWatchlist.apply(); }
+        if (meta.lbVip == 0 && meta.icmpSent == 0) { intWatchlist.apply(); }
         intMtuConfig.apply();
         if (meta.role == ROLE_GATEWAY && meta.watched == 1 && !hdr.int_mx.isValid()) {
             if (meta.intMtu == 0 || standard_metadata.packet_length + 7 <= (bit<32>)meta.intMtu) {
@@ -230,13 +280,9 @@ control GatewayIngress(inout headers hdr, inout metadata meta,
                 hdr.ipv4.totalLen = hdr.ipv4.totalLen + 7;
             }
         }
-        /* Ordinary counters precede both private fault hooks. */
-        internalFaultDrop.apply();
-        internalFaultLossConfig.apply();
-        if (meta.faultLossThreshold > 0 && meta.packetHash[15:0] < meta.faultLossThreshold) { faultDrop(); }
         // Apply this terminal ACL after routing: ipv4Lpm.forward otherwise
         // overwrites the egress drop set by icmpFragNeededDrop.
-        if (meta.role == ROLE_GATEWAY && hdr.icmp.isValid()) { icmpFragNeededAcl.apply(); }
+        if (meta.role == ROLE_GATEWAY && hdr.icmp.isValid()) { icmpAcl.apply(); }
     }
 }
 
@@ -284,9 +330,18 @@ control Compute(inout headers hdr, inout metadata meta) {
         {hdr.ipv4.version, hdr.ipv4.ihl, hdr.ipv4.diffserv, hdr.ipv4.totalLen,
          hdr.ipv4.identification, hdr.ipv4.flags, hdr.ipv4.fragOffset,
          hdr.ipv4.ttl, hdr.ipv4.protocol, hdr.ipv4.srcAddr, hdr.ipv4.dstAddr},
-        hdr.ipv4.hdrChecksum, HashAlgorithm.csum16); }
+        hdr.ipv4.hdrChecksum, HashAlgorithm.csum16);
+        update_checksum(hdr.icmp_quote_ipv4.isValid(),
+        {hdr.icmp.type, hdr.icmp.code, hdr.icmp.rest,
+         hdr.icmp_quote_ipv4.version, hdr.icmp_quote_ipv4.ihl, hdr.icmp_quote_ipv4.diffserv,
+         hdr.icmp_quote_ipv4.totalLen, hdr.icmp_quote_ipv4.identification,
+         hdr.icmp_quote_ipv4.flags, hdr.icmp_quote_ipv4.fragOffset, hdr.icmp_quote_ipv4.ttl,
+         hdr.icmp_quote_ipv4.protocol, hdr.icmp_quote_ipv4.hdrChecksum,
+         hdr.icmp_quote_ipv4.srcAddr, hdr.icmp_quote_ipv4.dstAddr, hdr.icmp_quote_l4.data},
+        hdr.icmp.checksum, HashAlgorithm.csum16); }
 }
 control GatewayDeparser(packet_out packet, in headers hdr) {
-    apply { packet.emit(hdr.ethernet); packet.emit(hdr.ipv4); packet.emit(hdr.int_mx); packet.emit(hdr.tcp); packet.emit(hdr.udp); packet.emit(hdr.icmp); }
+    apply { packet.emit(hdr.ethernet); packet.emit(hdr.ipv4); packet.emit(hdr.int_mx); packet.emit(hdr.tcp); packet.emit(hdr.udp); packet.emit(hdr.icmp);
+             packet.emit(hdr.icmp_quote_ipv4); packet.emit(hdr.icmp_quote_l4); }
 }
 V1Switch(GatewayParser(), Verify(), GatewayIngress(), GatewayEgress(), Compute(), GatewayDeparser()) main;

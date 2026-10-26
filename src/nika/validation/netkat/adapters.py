@@ -33,7 +33,7 @@ def endpoints_from_model(model):
 
 
 def openflow_network(model, candidate):
-    """Single-table IPv4 prefix rules and SELECT groups with explicit outputs."""
+    """Single-table IPv4 prefix (and destination-MAC) rules and SELECT groups."""
     groups = {(g["switch"], g["group_id"]): g for g in candidate["groups"]}
     rules = {s: [] for s in model.ports}
 
@@ -74,19 +74,21 @@ def openflow_network(model, candidate):
         if fields and fields[0] == "arp":
             continue  # Disjoint from the explicitly declared IPv4 input domain.
         if flow["table"] != 0 or any(
-            f != "ip" and not f.startswith("nw_dst=") for f in fields
+            f != "ip" and not f.startswith(("nw_dst=", "dl_dst=")) for f in fields
         ):
             raise ValueError(f"Unsupported OpenFlow match: {flow['match']}")
         prefixes = [
             f.removeprefix("nw_dst=") for f in fields if f.startswith("nw_dst=")
         ]
-        if len(prefixes) > 1:
+        macs = [f.removeprefix("dl_dst=") for f in fields if f.startswith("dl_dst=")]
+        if len(prefixes) > 1 or len(macs) > 1:
             raise ValueError("Multiple destination matches")
         rules[flow["switch"]].append(
             ForwardingRule(
                 prefix=prefixes[0] if prefixes else "0.0.0.0/0",
                 priority=flow["priority"],
                 actions=tuple(actions(flow["switch"], flow["actions"])),
+                destination_mac=macs[0] if macs else None,
             )
         )
     return ForwardingNetwork(

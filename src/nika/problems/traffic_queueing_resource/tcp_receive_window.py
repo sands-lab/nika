@@ -27,6 +27,7 @@ from nika.problems.traffic_queueing_resource.tcp_rwnd_helpers import (
     sysctl_get,
     write_sysctl_snapshot,
 )
+from nika.traffic.workload import BULK_DOWNLOAD
 from nika.utils.logger import system_logger
 
 
@@ -85,6 +86,11 @@ class TcpReceiveWindowLimited(ProblemBase):
     COMPATIBLE_COLUMNS = frozenset({"enterprise_branch"})
     minimum_path_bdp_bytes = MIN_BDP_BYTES
     Params = TcpReceiveWindowLimitedParams
+    SYMPTOM_WORKLOAD = BULK_DOWNLOAD
+
+    @classmethod
+    def symptom_workload_target(cls, inject):
+        return (inject.get("host_name") or "",)
 
     @classmethod
     def benchmark_inject_params(cls, ctx):

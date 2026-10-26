@@ -10,7 +10,6 @@ it started.
 from __future__ import annotations
 
 import argparse
-import fcntl
 import hashlib
 import json
 from itertools import zip_longest
@@ -22,18 +21,22 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import IO, Any
 
-from experiment.audit.environment import CaseAudit, StageResult, identity_from_row
+from experiment.audit import admission
+from experiment.audit.environment import (
+    CaseAudit,
+    StageResult,
+    identity_from_row,
+)
+from experiment.audit.live import audit_case, declared_probe
 from experiment.audit.provenance import provenance_complete
-from nika.workflows.benchmark.release import read_git_commit
+from experiment.audit.report_doc import RESULTS_DIR
 from nika.net_env.net_env_pool import (
     scenario_fixed_topo_size,
 )
+from nika.utils.session_artifacts import write_json_atomic
 from nika.workflows.benchmark.admit import resource_class_for_row
 from nika.workflows.benchmark.healthy import is_healthy_case
-from nika.utils.session_artifacts import write_json_atomic
-
-from experiment.audit.live import audit_case, declared_probe
-from experiment.audit.report_doc import RESULTS_DIR
+from nika.workflows.benchmark.release import read_git_commit
 
 _ROW_KEYS = (
     "scenario",
@@ -95,12 +98,23 @@ def result_path(row: dict[str, Any], repeat: int = 0) -> Path:
     )
 
 
+def agent_view_stages(row: dict[str, Any]) -> set[str]:
+    """Agent-view stages this case records."""
+    if is_healthy_case(str(row["problem"])):
+        return {"agent_view"}
+    return {"baseline_agent_view", "leak_scan"}
+
+
 def result_current(
-    row: dict[str, Any], repeat: int = 0, *, allow_dirty: bool = False
+    row: dict[str, Any],
+    repeat: int = 0,
+    *,
+    allow_dirty: bool = False,
 ) -> bool:
     """True when a stored run audited this case with its declared probe.
 
-    Records from a dirty tree count only with ``allow_dirty``.
+    Records from a dirty tree count only with ``allow_dirty``. A record also
+    needs the agent-view stages.
     """
     path = result_path(row, repeat)
     if not path.is_file():
@@ -113,6 +127,8 @@ def result_current(
         if is_healthy_case(str(row["problem"]))
         else declared_probe(str(row["problem"]))
     )
+    if agent_view_stages(row) - {s.stage for s in audit.stages}:
+        return False
     return (
         audit.identity.key() == identity_from_row(row).key()
         and audit.symptom_probe == probe
@@ -122,9 +138,8 @@ def result_current(
     )
 
 
-_MEMORY_FLOOR_GIB = {"light": 8, "large": 16, "clab": 32, "k8s": 16}
-# SR Linux nodes keep claiming memory for minutes after a clab lab deploys.
-_ADMISSION_SPACING_SEC = {"light": 10, "large": 45, "clab": 180, "k8s": 90}
+_MEMORY_FLOOR_GIB = admission.MEMORY_FLOOR_GIB
+_ADMISSION_SPACING_SEC = admission.SPACING_SEC
 # Labs keep growing after admission, so heavy classes also hold a slot for the whole case.
 _CLASS_SLOTS = {"light": 8, "large": 3, "clab": 1, "k8s": 2}
 _LOAD_CEILING = 2 * (os.cpu_count() or 1)
@@ -135,63 +150,24 @@ _ADMISSION_LOCK = (
 )
 
 
-def _available_gib() -> float:
-    for line in Path("/proc/meminfo").read_text(encoding="utf-8").splitlines():
-        if line.startswith("MemAvailable:"):
-            return int(line.split()[1]) / 1024 / 1024
-    return 0.0
-
-
 def _hold_class_slot(resource_class: str) -> IO[str]:
-    """Block until one of the class's slots is free; the slot lasts until the file closes."""
-    _ADMISSION_LOCK.parent.mkdir(parents=True, exist_ok=True)
-    while True:
-        for index in range(_CLASS_SLOTS[resource_class]):
-            handle = Path(f"{_ADMISSION_LOCK}.{resource_class}.{index}").open("w")
-            try:
-                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
-                handle.close()
-                continue
-            return handle
-        time.sleep(20)
+    return admission.hold_class_slot(
+        resource_class, slots=_CLASS_SLOTS, lock_path=_ADMISSION_LOCK
+    )
 
 
 def wait_for_slot(row: dict[str, Any]) -> None:
-    """Keep a per-class memory floor and a load ceiling while other NIKA workloads run.
-
-    Admissions are serialized. The lock file records the last admission, and
-    the next one waits out that lab's spacing before it reads memory, so the
-    check sees the memory the previous lab claimed while deploying.
-    """
-    resource_class = effective_class(row)
-    floor = _MEMORY_FLOOR_GIB[resource_class]
-    _ADMISSION_LOCK.parent.mkdir(parents=True, exist_ok=True)
-    while True:
-        # Release the lock between checks so a waiting heavy lab does not block
-        # smaller cases that still fit.
-        with _ADMISSION_LOCK.open("a+") as lock:
-            fcntl.flock(lock, fcntl.LOCK_EX)
-            lock.seek(0)
-            last = lock.read().split()
-            if len(last) == 2 and last[1] in _ADMISSION_SPACING_SEC:
-                settle = float(last[0]) + _ADMISSION_SPACING_SEC[last[1]] - time.time()
-                if settle > 0:
-                    time.sleep(settle)
-            memory = _available_gib()
-            load = os.getloadavg()[0]
-            if memory >= floor and load < _LOAD_CEILING:
-                lock.seek(0)
-                lock.truncate()
-                lock.write(f"{time.time()} {resource_class}")
-                lock.flush()
-                return
-        print(
-            f"waiting memory={memory:.1f}GiB floor={floor}GiB "
-            f"load={load:.0f} ceiling={_LOAD_CEILING} scenario={row['scenario']}",
+    """Keep a per-class memory floor and a load ceiling while other NIKA workloads run."""
+    admission.wait_for_admission(
+        effective_class(row),
+        lock_path=_ADMISSION_LOCK,
+        ceiling=_LOAD_CEILING,
+        on_wait=lambda info: print(
+            f"waiting memory={info['memory_gib']}GiB floor={info['floor_gib']}GiB "
+            f"load={info['load']:.0f} ceiling={_LOAD_CEILING} scenario={row['scenario']}",
             flush=True,
-        )
-        time.sleep(20)
+        ),
+    )
 
 
 def _evidence_text(stage: StageResult | None) -> str:
@@ -288,6 +264,9 @@ def diagnose(audit: CaseAudit, error: str | None = None) -> str:
         ):
             return "case: the corruption artifact stayed attached and the samples saw no ping loss"
         return "case: the symptom probe did not observe the network effect"
+    view = _agent_view_diagnosis(by_stage)
+    if view:
+        return view
     if audit.admission() == "pass":
         return "pass"
     if audit.admission() == "unsupported":
@@ -299,6 +278,31 @@ def diagnose(audit: CaseAudit, error: str | None = None) -> str:
             return "verify: the behavioral stages passed and this fault has no separate control path"
         return "verify: a recorded stage has no behavioral check"
     return audit.admission()
+
+
+def _agent_view_diagnosis(by_stage: dict[str, StageResult]) -> str | None:
+    """Name the first findings of a failed agent-view stage."""
+    leak = by_stage.get("leak_scan")
+    if leak is not None and leak.status == "fail":
+        items = [
+            f"{item.get('node')}:{item.get('path') or item.get('section')}"
+            f" ({','.join(item.get('why') or [])})"
+            for item in leak.evidence.get("flagged") or []
+        ]
+        return (
+            f"leak: inject left {len(items)} fault-revealing artifact(s): "
+            + "; ".join(items[:3])
+        )[:300]
+    for name in ("agent_view", "baseline_agent_view"):
+        stage = by_stage.get(name)
+        if stage is not None and stage.status == "fail":
+            violated = stage.evidence.get("violated") or []
+            count = stage.evidence.get("violated_count") or len(violated)
+            return (
+                f"agent-view: the healthy lab shows {count} fault-like reading(s): "
+                + "; ".join(violated[:3])
+            )[:300]
+    return None
 
 
 def _failed_audit(row: dict[str, Any], message: str) -> CaseAudit:
@@ -331,7 +335,8 @@ def run_audit_row(row: dict[str, Any]) -> dict[str, Any]:
         "audit": audit.model_dump(mode="json"),
         "diagnosis": diagnose(audit, None if error is None else error),
         "elapsed_sec": round(time.monotonic() - started, 1),
-        "error": None if error is None else error.splitlines()[0][:500],
+        # Keep the traceback tail: the first line alone hides where it failed.
+        "error": None if error is None else error[-4000:],
         "resource_class": effective_class(row),
     }
 

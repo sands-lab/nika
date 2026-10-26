@@ -8,6 +8,7 @@ from urllib.parse import urlsplit
 
 from pydantic import BaseModel, Field
 
+from nika.config import pkg_path
 from nika.net_env.verify import (
     http_download_stats,
     median_float,
@@ -27,12 +28,84 @@ from nika.problems.support.cpu_quota_helpers import (
     read_nano_cpus,
     set_nano_cpus,
 )
+from nika.traffic.workload import BULK_DOWNLOAD
 from nika.utils.logger import system_logger
 
-_CPU_STRESS_CMD = (
-    "nohup stress-ng --cpu {stress_cpus} --cpu-load 100 "
-    "--timeout {duration} </dev/null >/dev/null 2>&1 &"
-)
+# The competing workload is the local archive batch campus_lan hosts already
+# carry (gzip workers over a snapshot corpus), so the agent has to find and
+# attribute a busy maintenance job rather than read a stress tool from ``ps``.
+_ARCHIVE_JOB = "/usr/local/bin/archive-job.py"
+_ARCHIVE_CONFIG = "/etc/archive-job.json"
+_ARCHIVE_DATA = "/dev/shm/archive-job"
+_ARCHIVE_LOG = "/var/log/archive-job.log"
+_ARCHIVE_MAX_WORKERS = 16
+
+
+def _stage_archive_job(runtime: Any, host: str, workers: int) -> dict[str, Any]:
+    """Install the archive batch on ``host`` (if absent) sized to ``workers``.
+
+    Returns what recovery needs to put the node back: the files this call
+    created and the previous worker configuration.
+    """
+    present = runtime.exec(
+        host, f"ls {_ARCHIVE_JOB} {_ARCHIVE_CONFIG} 2>/dev/null; true", timeout=15
+    )
+    created: list[str] = []
+    if _ARCHIVE_JOB not in present:
+        source = pkg_path("net_env/utils/kathara/archive_job.py").read_text()
+        runtime.write_file(host, _ARCHIVE_JOB, source)
+        created.append(_ARCHIVE_JOB)
+    config = None
+    if _ARCHIVE_CONFIG in present:
+        config = runtime.exec(host, f"cat {_ARCHIVE_CONFIG}", timeout=15)
+    else:
+        created.append(_ARCHIVE_CONFIG)
+    runtime.write_file(
+        host,
+        _ARCHIVE_CONFIG,
+        json.dumps({"workers": max(1, min(_ARCHIVE_MAX_WORKERS, workers))}) + "\n",
+    )
+    runtime.exec(
+        host,
+        f"test -s {_ARCHIVE_DATA}/input.dat || python3 {_ARCHIVE_JOB} prepare",
+        timeout=60,
+    )
+    return {"created": created, "config": config}
+
+
+def _launch_archive_job(runtime: Any, host: str, duration: int) -> None:
+    """Start the batch without waiting inside a CPU-starved container."""
+    runtime.exec(
+        host,
+        f"nohup setsid python3 {_ARCHIVE_JOB} run --duration {int(duration)} "
+        f"</dev/null >>{_ARCHIVE_LOG} 2>&1 &",
+        timeout=15,
+    )
+
+
+def _archive_job_running(commands: list[str]) -> bool:
+    """Whether the batch driver and at least one gzip worker are running."""
+    return any(f"{_ARCHIVE_JOB} run" in cmd for cmd in commands) and any(
+        cmd.split()[:1] == ["gzip"] for cmd in commands
+    )
+
+
+def _remove_archive_job(runtime: Any, host: str, staged: dict[str, Any]) -> None:
+    """Stop the batch and restore the files staged by ``_stage_archive_job``."""
+    runtime.exec(
+        host,
+        f"python3 {_ARCHIVE_JOB} stop 2>/dev/null; "
+        "pkill -f '[a]rchive-job.py run' 2>/dev/null; true",
+        timeout=30,
+    )
+    if staged.get("config") is not None:
+        runtime.write_file(host, _ARCHIVE_CONFIG, staged["config"])
+    if staged.get("created"):
+        paths = " ".join(staged["created"])
+        runtime.exec(
+            host, f"rm -rf {paths} {_ARCHIVE_DATA} {_ARCHIVE_LOG} /run/archive-job.pid"
+        )
+
 
 _DOCROOT = "/var/www"
 _SMALL_OBJECT = f"{_DOCROOT}/small.bin"
@@ -117,14 +190,16 @@ class SenderResourceContentionParams(BaseModel):
     """Parameters for injecting HTTP-server CPU resource contention."""
 
     host_name: str = Field(description="Target HTTP server host name.")
-    duration: int = Field(default=3600, description="Stress duration in seconds.")
+    duration: int = Field(
+        default=3600, description="Competing workload duration in seconds."
+    )
     cpu_quota: float = Field(
         default=0.05,
         description="Docker CPU quota applied to the HTTP server (fractional CPUs).",
     )
     stress_cpus: int = Field(
         default=16,
-        description="Number of stress-ng CPU workers competing inside the quota.",
+        description="Number of CPU-bound archive workers competing inside the quota.",
     )
     client_host: str = Field(
         default="client_0",
@@ -154,7 +229,10 @@ class SenderResourceContention(ProblemBase):
     symptom_class = "degradation"
     dynamic_artifact = True
     root_cause_name: str = "sender_resource_contention"
-    description = "Sender/server endpoint is under CPU resource contention."
+    description = (
+        "The host that sends the data (the serving end of a transfer) is "
+        "CPU-starved, so it produces data slowly."
+    )
     TAGS: list[str] = ["http"]
     Params = SenderResourceContentionParams
     symptom_desc = (
@@ -163,6 +241,12 @@ class SenderResourceContention(ProblemBase):
         "routing, packet loss, and basic TCP connectivity remain healthy."
     )
     BENCHMARK_TARGETS = "canonical"
+    # The slowdown shows in the downloads the starved server sends to its client.
+    SYMPTOM_WORKLOAD = BULK_DOWNLOAD
+
+    @classmethod
+    def symptom_workload_target(cls, inject):
+        return (inject.get("client_host") or "",)
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
@@ -261,6 +345,7 @@ class SenderResourceContention(ProblemBase):
         self._baseline_time_s: float | None = None
         self._baseline_rtt_ms: float | None = None
         self._baseline_loss_percent: float | None = None
+        self._archive: dict[str, Any] | None = None
 
     def root_cause_resources(self, params: SenderResourceContentionParams):
         return [node_resource(params.host_name)]
@@ -410,7 +495,11 @@ class SenderResourceContention(ProblemBase):
         max_time_sec = max(20, min(180, int(baseline_time * (_TIME_MIN_RATIO + 1)) + 1))
         throughputs: list[float] = []
         times: list[float] = []
-        for _ in range(2):
+        # A starved sender host can also drop the exec that runs curl; such an
+        # attempt yields no measurement, so allow one more.
+        for attempt in range(3):
+            if attempt == 2 and throughputs:
+                break
             stats = http_download_stats(
                 self.runtime,
                 params.client_host,
@@ -454,6 +543,10 @@ class SenderResourceContention(ProblemBase):
         self._baseline_throughput_bps = bps
         self._baseline_time_s = time_s
 
+        # Stage the batch while the node still has CPU to spare.
+        self._archive = _stage_archive_job(
+            self.runtime, params.host_name, params.stress_cpus
+        )
         original = read_nano_cpus(self.runtime, params.host_name)
         self._original_nano_cpus = original
 
@@ -465,24 +558,17 @@ class SenderResourceContention(ProblemBase):
         # Restart the CPU-bound server under the new quota.
         self._ensure_http_objects(params)
 
-        self.runtime.exec(
-            params.host_name,
-            _CPU_STRESS_CMD.format(
-                stress_cpus=params.stress_cpus,
-                duration=params.duration,
-            ),
-            timeout=15,
-        )
-        # Let CFS + stress-ng saturate before verify/symptom samples.
-        deadline = time.time() + 15.0
+        _launch_archive_job(self.runtime, params.host_name, params.duration)
+        # Let CFS + the archive workers saturate before verify/symptom samples.
+        deadline = time.time() + 30.0
         while time.time() < deadline:
-            if self.runtime.process_running(params.host_name, "stress-ng"):
+            if _archive_job_running(container_commands(self.runtime, params.host_name)):
                 break
             time.sleep(0.5)
         time.sleep(8.0)
         system_logger.info(
             "Injected sender_resource_contention on %s: "
-            "cpu_quota=%.2f applied_quota=%.2f nano=%d stress_cpus=%d "
+            "cpu_quota=%.2f applied_quota=%.2f nano=%d workers=%d "
             "baseline_bps=%.0f baseline_time_s=%.3f rtt=%.2fms",
             params.host_name,
             params.cpu_quota,
@@ -495,9 +581,9 @@ class SenderResourceContention(ProblemBase):
         )
 
     def verify_fault(self, params: SenderResourceContentionParams) -> dict:
-        """Verify stress-ng and CPU quota are injected (artifact gate for inject)."""
+        """Verify the archive batch and CPU quota are injected (artifact gate)."""
         commands = container_commands(self.runtime, params.host_name)
-        stress_running = any("stress-ng" in cmd for cmd in commands)
+        stress_running = _archive_job_running(commands)
         cpu_http_running = any(
             cmd.startswith("python3") and _CPU_HTTP_SERVER in cmd for cmd in commands
         )
@@ -513,7 +599,7 @@ class SenderResourceContention(ProblemBase):
             details={
                 "host": params.host_name,
                 "client_host": params.client_host,
-                "stress_running": stress_running,
+                "workload_running": stress_running,
                 "cpu_http_running": cpu_http_running,
                 "nano_cpus": current_nano,
                 "expected_nano_cpus": expected_nano,
@@ -530,18 +616,17 @@ class SenderResourceContention(ProblemBase):
                 "details": {"error": "original_nano_cpus_missing"},
             }
 
-        self.runtime.exec(
-            params.host_name,
-            "pkill -f stress-ng 2>/dev/null || true",
-            timeout=10,
-        )
+        # Give the node its CPU back first so the batch stops promptly.
         set_nano_cpus(self.runtime, params.host_name, original)
+        _remove_archive_job(self.runtime, params.host_name, self._archive or {})
         deadline = time.monotonic() + 8.0
-        while self.runtime.process_running(params.host_name, "stress-ng"):
-            if time.monotonic() >= deadline:
-                break
+        while (
+            stress_running := _archive_job_running(
+                container_commands(self.runtime, params.host_name)
+            )
+        ) and time.monotonic() < deadline:
             time.sleep(0.25)
-
+        stress_gone = not stress_running
         restored_nano = read_nano_cpus(self.runtime, params.host_name)
         quota_restored = restored_nano == original
 
@@ -559,7 +644,9 @@ class SenderResourceContention(ProblemBase):
             restore_ratio = restored_bps / baseline_bps
             perf_restored = restore_ratio >= _RECOVER_THROUGHPUT_MIN_RATIO
 
-        stress_gone = not self.runtime.process_running(params.host_name, "stress-ng")
+        stress_gone = stress_gone and not _archive_job_running(
+            container_commands(self.runtime, params.host_name)
+        )
         ok = bool(stress_gone and quota_restored and perf_restored)
         system_logger.info(
             "recover_fault sender_resource_contention on %s: ok=%s "
@@ -573,7 +660,7 @@ class SenderResourceContention(ProblemBase):
             "verified": ok,
             "details": {
                 "host": params.host_name,
-                "stress_gone": stress_gone,
+                "workload_gone": stress_gone,
                 "restored_nano_cpus": restored_nano,
                 "expected_nano_cpus": original,
                 "quota_restored": quota_restored,
@@ -598,10 +685,12 @@ class ReceiverResourceContentionParams(BaseModel):
     """Parameters for injecting a receiver resource contention fault."""
 
     host_name: str = Field(description="Target receiver host name.")
-    duration: int = Field(default=3600, description="Stress duration in seconds.")
+    duration: int = Field(
+        default=3600, description="Competing workload duration in seconds."
+    )
     stress_cpus: int = Field(
         default=8,
-        description="Number of stress-ng CPU workers on the receiver.",
+        description="Number of CPU-bound archive workers on the receiver.",
     )
     archive_workers: int = Field(
         default=8,
@@ -625,10 +714,19 @@ class ReceiverResourceContention(ProblemBase):
     symptom_class = "degradation"
     dynamic_artifact = True
     root_cause_name: str = "receiver_resource_contention"
-    description = "Receiver endpoint is under resource contention."
+    description = (
+        "The host that receives the data (the consuming end of a transfer) is "
+        "CPU-starved, so it reads incoming data slowly."
+    )
     TAGS: list[str] = ["http"]
 
     Params = ReceiverResourceContentionParams
+    # The slowdown shows in the downloads the starved receiver reads.
+    SYMPTOM_WORKLOAD = BULK_DOWNLOAD
+
+    @classmethod
+    def symptom_workload_target(cls, inject):
+        return (inject.get("host_name") or "",)
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
@@ -652,6 +750,7 @@ class ReceiverResourceContention(ProblemBase):
         self._control_baseline_bps: float | None = None
         self._archive_pid: int | None = None
         self._archive_config: str | None = None
+        self._archive: dict[str, Any] | None = None
 
     def _archive_job(self, host: str, action: str) -> dict:
         output = self.runtime.exec(
@@ -826,10 +925,13 @@ class ReceiverResourceContention(ProblemBase):
                 raise RuntimeError("Archive workers did not start on the receiver")
             return
 
-        # Share one small CPU slice between stress-ng and the download.
-        # A multi-core container lets stress-ng and curl run side by side,
+        # Share one small CPU slice between the archive batch and the download.
+        # A multi-core container lets the batch and curl run side by side,
         # so the transfer never slows down. llmd/k3s rejects NanoCPUs updates;
-        # those nodes keep the stress-only path.
+        # those nodes keep the workload-only path.
+        self._archive = _stage_archive_job(
+            self.runtime, params.host_name, params.stress_cpus
+        )
         self._receiver_quota_applied = False
         try:
             self._original_nano_cpus = read_nano_cpus(self.runtime, params.host_name)
@@ -841,23 +943,16 @@ class ReceiverResourceContention(ProblemBase):
             self._receiver_quota_applied = True
         except Exception:  # noqa: BLE001
             self._receiver_quota_applied = False
-        self.runtime.exec(
-            params.host_name,
-            _CPU_STRESS_CMD.format(
-                stress_cpus=params.stress_cpus,
-                duration=params.duration,
-            ),
-            timeout=15,
-        )
-        deadline = time.time() + 15.0
+        _launch_archive_job(self.runtime, params.host_name, params.duration)
+        deadline = time.time() + 30.0
         while time.time() < deadline:
-            if self.runtime.process_running(params.host_name, "stress-ng"):
+            if _archive_job_running(container_commands(self.runtime, params.host_name)):
                 break
             time.sleep(0.5)
         time.sleep(5.0)
         system_logger.info(
             "Injected TCP receiver resource contention on %s: "
-            "stress_cpus=%d baseline_bps=%.0f url=%s",
+            "workers=%d baseline_bps=%.0f url=%s",
             params.host_name,
             params.stress_cpus,
             bps,
@@ -865,7 +960,7 @@ class ReceiverResourceContention(ProblemBase):
         )
 
     def verify_fault(self, params: ReceiverResourceContentionParams) -> dict:
-        """Verify stress-ng is running on the receiver."""
+        """Verify the archive batch is running on the receiver."""
         if self.scenario_name == "campus_lan":
             status = self._archive_job(params.host_name, "status")
             return build_verify_result(
@@ -875,15 +970,13 @@ class ReceiverResourceContention(ProblemBase):
                 and status.get("workers") == params.archive_workers,
                 details={"host": params.host_name, **status},
             )
-        if getattr(self, "_receiver_quota_applied", False):
-            commands = container_commands(self.runtime, params.host_name)
-            stress_running = any("stress-ng" in cmd for cmd in commands)
-        else:
-            stress_running = self.runtime.process_running(params.host_name, "stress-ng")
+        running = _archive_job_running(
+            container_commands(self.runtime, params.host_name)
+        )
         return build_verify_result(
             fault_type=self.root_cause_name,
-            verified=bool(stress_running),
-            details={"host": params.host_name, "stress_running": stress_running},
+            verified=running,
+            details={"host": params.host_name, "workload_running": running},
         )
 
     def recover_fault(self, params: ReceiverResourceContentionParams) -> dict:
@@ -916,16 +1009,6 @@ class ReceiverResourceContention(ProblemBase):
                     "downloads": self._last_downloads,
                 },
             }
-        self.runtime.exec(
-            params.host_name,
-            (
-                "pkill -9 -f '[s]tress-ng' 2>/dev/null || true; "
-                "pkill -9 stress-ng 2>/dev/null || true; "
-                "killall -9 stress-ng 2>/dev/null || true"
-            ),
-            timeout=15,
-        )
-        time.sleep(1.0)
         if getattr(self, "_receiver_quota_applied", False):
             try:
                 set_nano_cpus(
@@ -935,11 +1018,15 @@ class ReceiverResourceContention(ProblemBase):
                 )
             except Exception:  # noqa: BLE001
                 pass
-        stress_gone = not self.runtime.process_running(params.host_name, "stress-ng")
+        _remove_archive_job(self.runtime, params.host_name, self._archive or {})
+        time.sleep(1.0)
+        gone = not _archive_job_running(
+            container_commands(self.runtime, params.host_name)
+        )
         return {
-            "verified": bool(stress_gone),
+            "verified": gone,
             "details": {
                 "host": params.host_name,
-                "stress_gone": stress_gone,
+                "workload_gone": gone,
             },
         }

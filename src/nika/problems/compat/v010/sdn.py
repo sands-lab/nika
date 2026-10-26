@@ -24,7 +24,7 @@ def _restart_original_pox(runtime, host: str) -> None:
     runtime.exec(host, "pkill -f pox.py || true")
     runtime.exec(
         host,
-        f"nohup bash /hostlab/{host}.startup </dev/null >/tmp/pox.log 2>&1 &",
+        f"nohup bash /hostlab/{host}.startup </dev/null >/dev/null 2>&1 &",
     )
 
 
@@ -130,7 +130,7 @@ class SouthboundPortMismatch(ProblemBase):
             params.host_name,
             "nohup python3 /pox/pox.py openflow.of_01 "
             f"--port={params.mismatched_port} forwarding.l2_learning "
-            "</dev/null >/tmp/pox.log 2>&1 &",
+            "</dev/null >/dev/null 2>&1 &",
         )
 
     def verify_fault(self, params: SouthboundPortMismatchParams) -> dict:

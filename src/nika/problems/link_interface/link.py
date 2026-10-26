@@ -18,11 +18,15 @@ from nika.problems.rca.inventory import (
 from nika.problems.support.benchmark_targets import (
     endpoint_target,
     isp_link_target,
+    loaded_inventory,
     resolve_link_flap_params,
+    unique,
 )
+from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 from nika.runtime.base import RuntimeCapabilityError
 from nika.runtime.kathara.vde_proxy import KatharaVdeFaultProxy
 from nika.service.containerlab.host_tc import HostTcController
+from nika.traffic.workload import BULK_TRANSIT
 from nika.utils.logger import system_logger
 
 
@@ -415,6 +419,44 @@ class LinkFlap(ProblemBase):
 # ==========================================
 
 
+def _link_peer(net_env, node: str, intf: str) -> tuple[str, str] | None:
+    """Other end of the point-to-point link at ``node:intf``."""
+    needle = (node, intf)
+    for _key, raw in iter_link_termination_points(net_env):
+        ends = [parse_endpoint(str(item)) for item in raw]
+        if len(ends) == 2 and needle in ends:
+            return ends[1] if ends[0] == needle else ends[0]
+    return None
+
+
+def _link_row(ctx, row: dict, node: str, intf: str) -> dict[str, str] | None:
+    """``row`` moved to ``node:intf``, with ISP observers for that direction."""
+    from nika.net_env.isp.identity import is_isp_scenario
+
+    moved = {**row, "host_name": node, "intf_name": intf}
+    if is_isp_scenario(ctx.scenario):
+        from nika.net_env.isp.inject_targets import isp_link_symptom_targets
+
+        try:
+            moved.update(
+                isp_link_symptom_targets(loaded_inventory(ctx.net_env), node, intf)
+            )
+        except ValueError:
+            return None
+    return moved
+
+
+def _loaded_link_target(ctx, workload) -> dict[str, str] | None:
+    """First point-to-point link egress the workload loads with bulk traffic."""
+    for node, intf in sorted(workload.targets(BULK_TRANSIT)):
+        if _link_peer(ctx.net_env, node, intf) is None:
+            continue
+        row = _link_row(ctx, {}, node, intf)
+        if row is not None:
+            return row
+    return None
+
+
 class LinkCapacityBottleneckParams(BaseModel):
     """Parameters for injecting a link capacity bottleneck fault."""
 
@@ -459,11 +501,28 @@ class LinkCapacityBottleneck(ProblemBase):
 
     BENCHMARK_TARGETS = "link"
     BENCHMARK_POINT_TO_POINT = True
+    # A circuit below demand only shows under load: the shaped direction must
+    # carry the scenario's sustained bulk traffic.
+    SYMPTOM_WORKLOAD = BULK_TRANSIT
+
+    @classmethod
+    def symptom_workload_target(cls, inject):
+        return (inject.get("host_name") or "", inject.get("intf_name") or "")
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
         from nika.net_env.isp.identity import is_isp_scenario
 
+        workload = ctx.net_env.business_workload()
+        if workload is not None:
+            # A carrier circuit provisioned at a 512 kbit/s tier under a
+            # workload that needs at least three times that; control traffic
+            # (IGP hellos, BGP keepalives) still fits.
+            params = _loaded_link_target(ctx, workload)
+            if params is not None:
+                params.update(rate="512kbit", burst="16kb", limit="32kb")
+                return params
+            # No loaded link: workload validation rejects every target here.
         if is_isp_scenario(ctx.scenario):
             params = isp_link_target(ctx)
             rate = "30kbit"
@@ -478,6 +537,21 @@ class LinkCapacityBottleneck(ProblemBase):
         params["burst"] = "64kb"
         params["limit"] = "500kb"
         return params
+
+    @classmethod
+    def benchmark_inject_options(cls, ctx, base):
+        # The shaper acts on traffic leaving ``host_name:intf_name``. Under a
+        # business workload that loads one direction of a link, each end is a
+        # distinct target.
+        rows = super().benchmark_inject_options(ctx, base)
+        if ctx.net_env.business_workload() is None:
+            return rows
+        reverse = []
+        for row in rows:
+            peer = _link_peer(ctx.net_env, row["host_name"], row["intf_name"])
+            if peer is not None:
+                reverse.append(_link_row(ctx, row, *peer))
+        return unique(rows + [row for row in reverse if row is not None])
 
     symptom_desc = "Users report slow throughput across a link."
 
@@ -704,6 +778,7 @@ class LinkDetach(ProblemBase):
         super().__init__(scenario_name, **kwargs)
         self.faulty_intf = "eth0"
         self._detach_pid: str | None = None
+        self._detach_holder: str | None = None
         self._saved_addrs: list[str] = []
         self._saved_routes: list[str] = []
 
@@ -759,8 +834,56 @@ class LinkDetach(ProblemBase):
                 )
 
     def _inject_link_detach_kathara(self, params: LinkDetachParams) -> None:
+        """Move the attachment into a netns held outside the node.
+
+        A holder process inside the node (``unshare -n sleep infinity``) would
+        sit in its process list next to the missing interface. The holder is a
+        controller-side container labelled for the lab, so lab teardown removes
+        it even when recovery never runs.
+        """
         intf = resolve_default_intf(params.intf_name, self.net_env)
-        self._inject_link_detach(params, intf)
+        self.faulty_intf = intf
+        host = params.host_name
+        self._save_l3_state(host, intf)
+        node = self.runtime.get_container(host)
+        holder = node.client.containers.run(
+            nika_image("base"),
+            command=["sleep", "infinity"],
+            network_mode="none",
+            detach=True,
+            labels={"nika.lab_name": self.runtime.lab_name},
+        )
+        self._detach_holder = holder.id
+        holder.reload()
+        try:
+            self._move_netns(node, f"container:{node.id}", intf, holder)
+        except Exception:
+            holder.remove(force=True)
+            self._detach_holder = None
+            raise
+        deadline = time.time() + 5.0
+        while self.runtime.interface_exists(host, intf):
+            if time.time() > deadline:
+                raise RuntimeError(f"link_detach failed: {host}:{intf} still present")
+            time.sleep(0.2)
+        system_logger.info(f"Injected link detach on {host}:{intf} (host-side netns)")
+
+    @staticmethod
+    def _move_netns(node, network_mode: str, intf: str, target) -> None:
+        """Move ``intf`` from the netns of ``network_mode`` to ``target``'s."""
+        target.reload()
+        pid = int(target.attrs["State"]["Pid"])
+        output = node.client.containers.run(
+            nika_image("base"),
+            command=["ip", "link", "set", "dev", intf, "netns", str(pid)],
+            network_mode=network_mode,
+            pid_mode="host",
+            privileged=True,
+            remove=True,
+            stderr=True,
+        )
+        if output:
+            raise RuntimeError(f"moving {intf} to pid {pid}: {output!r}")
 
     def _inject_link_detach_containerlab(self, params: LinkDetachParams) -> None:
         intf = resolve_default_intf(params.intf_name, self.net_env)
@@ -848,6 +971,14 @@ class LinkDetach(ProblemBase):
         intf = resolve_default_intf(params.intf_name, self.net_env)
         host = params.host_name
         pid = self._detach_pid
+        if self._detach_holder:
+            node = self.runtime.get_container(host)
+            holder = node.client.containers.get(self._detach_holder)
+            try:
+                self._move_netns(node, f"container:{holder.id}", intf, node)
+            finally:
+                holder.remove(force=True)
+                self._detach_holder = None
         if pid:
             self.runtime.exec(
                 host,

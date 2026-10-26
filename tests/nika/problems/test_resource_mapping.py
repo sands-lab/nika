@@ -205,10 +205,12 @@ class ResourceMappingTest:
         )
         assert resource.id == "k8s/NetworkPolicy/word-ns/nika-deny-ingress"
 
-    def test_coredns_is_kube_dns_service(self) -> None:
+    def test_coredns_is_node_holding_drop_rules(self) -> None:
         env = _Env(("n1:eth0", "n2:eth0"))
-        resource = _resources("k8s_coredns_isolated", {"control_node": "n1"}, env)
-        assert resource.id == "k8s/Service/kube-system/kube-dns"
+        resource = _resources(
+            "k8s_coredns_isolated", {"control_node": "n1", "node_name": "n1"}, env
+        )
+        assert resource.id == "node/n1"
 
     def test_web_dos_is_victim_node(self) -> None:
         env = _Env(("web:eth0", "atk:eth0"))

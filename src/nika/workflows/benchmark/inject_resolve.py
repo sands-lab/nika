@@ -21,6 +21,7 @@ from nika.problems.support.benchmark_targets import (
     choice as _choice,
     device_interfaces as _device_interfaces,
     first as _first,
+    workload_exercises,
 )
 from nika.workflows.benchmark.isp_options import (
     is_isp_base_topology,
@@ -281,6 +282,7 @@ def validate_benchmark_case(
     *,
     isp_options: dict[str, str] | None = None,
     net_env=None,
+    release: str | None = None,
 ) -> None:
     """Raise ValueError if a benchmark row is inconsistent with tags or topology."""
     from nika.net_env.net_env_pool import resolve_scenario_id, scenario_tags
@@ -290,7 +292,7 @@ def validate_benchmark_case(
         registered_tags = scenario_tags(canonical)
     except ValueError:
         raise ValueError(f"Unknown scenario {scenario!r}") from None
-    problem_cls = get_problem_class(problem, canonical)
+    problem_cls = get_problem_class(problem, canonical, release)
     if problem_cls is None:
         raise ValueError(f"Unknown problem {problem!r}")
 
@@ -394,6 +396,19 @@ def validate_benchmark_case(
                 f"{problem} inject {needle} is not a link endpoint on {scenario} "
                 f"(topo_size={topo_size!r})"
             )
+
+    # Release 0.1.0 predates scenario workloads and its rows are immutable.
+    from nika.problems.compat.v010 import RELEASE_VERSION
+
+    if release != RELEASE_VERSION and not workload_exercises(
+        problem_cls, net_env, inject
+    ):
+        raise ValueError(
+            f"{problem} needs {problem_cls.SYMPTOM_WORKLOAD} traffic, but the "
+            f"{scenario} business workload does not exercise "
+            f"{problem_cls.symptom_workload_target(inject)} "
+            f"(topo_size={topo_size!r})"
+        )
 
     ctx = InjectValidationContext(
         scenario=scenario,

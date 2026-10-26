@@ -16,11 +16,67 @@ from nika.service.kathara.base_api import KatharaBaseAPI, _SupportsBase
 _ONOS_AUTH = "onos:rocks"
 
 
+def _item_devices(item: Any) -> set[str]:
+    """Device ids an ONOS list item refers to (device, flow, port, link, host)."""
+    if not isinstance(item, dict):
+        return set()
+    found = {
+        str(item[key]) for key in ("deviceId", "elementId", "device") if key in item
+    }
+    if str(item.get("id", "")).startswith("of:"):
+        found.add(str(item["id"]))
+    for end in ("src", "dst"):
+        if isinstance(item.get(end), dict) and "device" in item[end]:
+            found.add(str(item[end]["device"]))
+    for location in item.get("locations") or []:
+        if isinstance(location, dict) and "elementId" in location:
+            found.add(str(location["elementId"]))
+    return found
+
+
+def onos_summary(body: Any, device: str | None = None) -> tuple[dict[str, Any], Any]:
+    """Return (compact summary, body narrowed to ``device``) for an ONOS reply."""
+    if not isinstance(body, dict):
+        return {}, body
+    summary: dict[str, Any] = {}
+    narrowed: dict[str, Any] = {}
+    for key, value in body.items():
+        if not isinstance(value, list):
+            narrowed[key] = value
+            continue
+        if device:
+            value = [item for item in value if device in _item_devices(item)]
+        narrowed[key] = value
+        row: dict[str, Any] = {"count": len(value)}
+        per_device: dict[str, int] = {}
+        states: dict[str, int] = {}
+        for item in value:
+            for dev in _item_devices(item):
+                per_device[dev] = per_device.get(dev, 0) + 1
+            if isinstance(item, dict):
+                for field in ("state", "available"):
+                    if field in item:
+                        label = f"{field}={item[field]}"
+                        states[label] = states.get(label, 0) + 1
+        if per_device:
+            row["per_device"] = dict(sorted(per_device.items()))
+        if states:
+            row["states"] = dict(sorted(states.items()))
+        summary[key] = row
+    return summary, narrowed
+
+
 class SdnAPIMixin:
     """Operator-style SDN access: ONOS REST and OVS CLI on switches."""
 
-    def sdn_onos_rest(self: _SupportsBase, path: str) -> dict[str, Any]:
-        """GET an ONOS REST path via fabric_mgr (operator-style curl)."""
+    def sdn_onos_rest(
+        self: _SupportsBase, path: str, device: str | None = None
+    ) -> dict[str, Any]:
+        """GET an ONOS REST path via fabric_mgr (operator-style curl).
+
+        The reply leads with a compact summary (item counts, per-device counts,
+        states); ``device`` keeps only items that belong to that device id.
+        """
         normalized = path if path.startswith("/") else f"/{path}"
         url = f"http://{ONOS_OOB_IP}:{ONOS_REST_PORT}{normalized}"
         raw = self.exec_cmd(
@@ -33,10 +89,13 @@ class SdnAPIMixin:
             body: Any = json.loads(raw)
         except json.JSONDecodeError:
             body = {"raw": raw}
+        summary, body = onos_summary(body, device)
         return {
+            "path": normalized,
+            "device_filter": device,
+            "summary": summary,
             "onos_oob": f"{ONOS_OOB_IP}:{ONOS_REST_PORT}",
             "fabric_mgr_oob": FABRIC_MGR_OOB_IP,
-            "path": normalized,
             "body": body,
         }
 

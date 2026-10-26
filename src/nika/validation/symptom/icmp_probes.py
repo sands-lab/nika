@@ -67,7 +67,7 @@ def _endpoints(runtime: LabRuntime, node: str) -> dict[str, str]:
 
 def _delivered(runtime: LabRuntime, ends: dict[str, str]) -> dict[str, int]:
     """Count code 4 and code 3 messages that reach the receiver."""
-    capture = "/tmp/nika-audit-icmp.pcap"
+    capture = "/tmp/probe-icmp.pcap"
     runtime.exec(
         ends["receiver"],
         f"rm -f {capture}; (timeout 8 tcpdump -ni eth0 -w {capture} "

@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from nika.runtime.base import LabRuntime
+from nika.service.containerlab.srl_api import srl_linux_intf
 from nika.service.packet_capture.models import CaptureBackendKind, CaptureLimits
 
 
@@ -48,6 +49,33 @@ def remote_paths(capture_id: str) -> tuple[str, str]:
     return remote_path, pid_path
 
 
+def capture_device(runtime: LabRuntime, device: str, interface: str) -> str:
+    """Return the Linux device to capture on for the requested *interface*.
+
+    SR Linux nodes keep their data ports as ``e1-N`` in the container's
+    default netns; names such as ``ethernet-1/N`` or plan ``ethN`` map there
+    (the srbase-default ``e1-N.0`` subinterfaces only see CPU traffic). A
+    missing device raises instead of producing an empty capture.
+    """
+    name = interface.strip()
+    if getattr(runtime, "backend", None) == "containerlab" and runtime.uses_srl_router(
+        device
+    ):
+        name = srl_linux_intf(name)
+    if name == "any":
+        return name
+    quoted = _shell_quote(f"/sys/class/net/{name}")
+    missing = runtime.exec(device, f"[ -e {quoted} ] || echo missing", timeout=5)
+    if "missing" in missing:
+        available = runtime.exec(device, "ls /sys/class/net 2>/dev/null", timeout=5)
+        names = ", ".join(available.split()) or "unknown"
+        raise ValueError(
+            f"Interface {interface!r} does not exist on {device!r}. "
+            f"Available interfaces: {names}."
+        )
+    return name
+
+
 def start_capture(
     runtime: LabRuntime,
     *,
@@ -57,6 +85,7 @@ def start_capture(
     capture_filter: str | None,
     limits: CaptureLimits,
 ) -> RunningCapture:
+    interface = capture_device(runtime, device, interface)
     backend = detect_capture_backend(runtime, device)
     remote_path, pid_path = remote_paths(capture_id)
     quoted_iface = _shell_quote(interface)

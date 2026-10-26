@@ -331,6 +331,8 @@ def _parse_match(match: str, port_map: dict[str, str]) -> list[dict[str, Any]] |
             criteria.append({"type": "ETH_TYPE", "ethType": "0x800"})
         elif part == "arp":
             criteria.append({"type": "ETH_TYPE", "ethType": "0x806"})
+        elif part.startswith("dl_dst="):
+            criteria.append({"type": "ETH_DST", "mac": part.split("=", 1)[1]})
         elif part.startswith("nw_dst="):
             ip = part.split("=", 1)[1]
             if "/" not in ip:

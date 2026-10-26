@@ -72,12 +72,14 @@ class PingStats:
     rtt_avg_ms: float | None
     rtt_mdev_ms: float | None
     raw: str
+    rtt_min_ms: float | None = None
 
 
 def _parse_ping_stats(output: str, *, count: int) -> PingStats:
     transmitted = count
     received = 0
     loss_percent = 100.0
+    rtt_min_ms: float | None = None
     rtt_avg_ms: float | None = None
     rtt_mdev_ms: float | None = None
     for line in output.splitlines():
@@ -95,6 +97,7 @@ def _parse_ping_stats(output: str, *, count: int) -> PingStats:
             stats = line.split("=")[-1].strip().split()[0]
             fields = stats.split("/")
             if len(fields) >= 2:
+                rtt_min_ms = float(fields[0])
                 rtt_avg_ms = float(fields[1])
             if len(fields) >= 4:
                 rtt_mdev_ms = float(fields[3])
@@ -105,6 +108,7 @@ def _parse_ping_stats(output: str, *, count: int) -> PingStats:
         rtt_avg_ms=rtt_avg_ms,
         rtt_mdev_ms=rtt_mdev_ms,
         raw=output,
+        rtt_min_ms=rtt_min_ms,
     )
 
 
@@ -117,11 +121,13 @@ def ping_stats(
     interval_sec: float = 0.2,
     packet_size: int | None = None,
     df: bool = False,
+    tos: int | None = None,
 ) -> PingStats:
     """Run ping and parse loss and RTT statistics."""
     size_arg = f" -s {packet_size}" if packet_size is not None else ""
     interval_arg = f" -i {interval_sec}" if interval_sec > 0 else ""
     df_arg = " -M do" if df else ""
+    df_arg += f" -Q {tos}" if tos is not None else ""
     timeout = max(15.0, count * (interval_sec + 1.0) + 5.0)
     output = exec_or_empty(
         runtime,
@@ -453,9 +459,11 @@ def iperf_tcp_metrics(
         if data.get("error"):
             return None, None
         end = data.get("end") or {}
-        summary = end.get("sum_sent") or end.get("sum_received") or end.get("sum") or {}
+        # Delivered rate: the sender's count includes data still sitting in its
+        # socket buffer, which a short test against a slow path inflates.
+        summary = end.get("sum_received") or end.get("sum_sent") or end.get("sum") or {}
         bps = float(summary.get("bits_per_second") or 0.0)
-        retrans = summary.get("retransmits")
+        retrans = (end.get("sum_sent") or summary).get("retransmits")
         retrans_int = int(retrans) if retrans is not None else None
         return (bps if bps > 0 else None, retrans_int)
     except Exception:  # noqa: BLE001

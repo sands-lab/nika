@@ -90,6 +90,24 @@ def resolve_max_tokens(
     return _cfg(config).agent.max_tokens
 
 
+# Agents whose model clients take agent.temperature / top_p / seed.
+SAMPLING_AGENT_TYPES = frozenset({"byo.langgraph", "byo.mcp_agent"})
+SERVER_DEFAULT_SAMPLING = "server default"
+
+
+def resolve_sampling(
+    agent_type: str, *, config: RunConfig | None = None
+) -> dict[str, float | int] | str | None:
+    """Effective sampling for *agent_type*, for run metadata.
+
+    ``None`` when the agent does not apply ``agent.temperature`` and friends,
+    ``"server default"`` when none is set, else the explicit values sent.
+    """
+    if agent_type not in SAMPLING_AGENT_TYPES:
+        return None
+    return _cfg(config).agent.sampling_params() or SERVER_DEFAULT_SAMPLING
+
+
 def resolve_agent_model(
     agent_type: str,
     model: str | None = None,

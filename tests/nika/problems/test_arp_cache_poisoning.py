@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 
 import pytest
 
@@ -35,7 +36,8 @@ def test_verify_uses_neighbor_from_inject_when_route_lookup_times_out() -> None:
     runtime = _ArpRuntime()
     problem = ArpCachePoisoning(None)
     problem.runtime = runtime
-    params = ArpCachePoisoningParams(host_name="client")
+    problem.net_env = SimpleNamespace(ROUTERS_CHECK_DST_MAC=False)
+    params = ArpCachePoisoningParams(host_name="client", fake_mac=_FAKE_MAC)
     problem.inject_fault(params)
     runtime.timeout_routes = True
     runtime.calls.clear()

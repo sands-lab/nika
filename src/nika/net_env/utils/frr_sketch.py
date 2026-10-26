@@ -16,7 +16,7 @@ from ipaddress import IPv4Address, IPv4Interface, IPv4Network
 
 # FRR statements without forwarding semantics (logging and the vty shell).
 _IGNORED = re.compile(r"^(?:!.*|log .*|debug .*|line vty|frr (?:version|defaults) .*)$")
-_ADDRESS = re.compile(r"ip addr add (\S+) dev (eth\d+|br0)")
+_ADDRESS = re.compile(r"ip addr add (\S+) dev (eth\d+|br0|lo)")
 _STATIC = re.compile(r"ip route add (default|[0-9./]+) via ([0-9.]+)(?: dev eth\d+)?")
 _SHAPING = re.compile(r"tc qdisc (?:add|replace) dev (eth\d+) root netem .*")
 _BRIDGE_PORT = re.compile(r"brctl addif br0 (eth\d+)")
