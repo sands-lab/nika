@@ -64,3 +64,8 @@ def test_links_report_which_tunnels_still_run(tmp_path: Path) -> None:
         "live": True,
         "gone": False,
     }
+
+
+def test_sharing_a_directory_without_a_run_fails(tmp_path: Path) -> None:
+    with pytest.raises(RuntimeError, match="no benchmark run"):
+        share.share_result_dir(tmp_path)

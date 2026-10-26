@@ -220,6 +220,26 @@ def observability_links(
     _print_links(links, title="🔗 Run dashboards")
 
 
+@observability_app.command("share")
+def observability_share(
+    result_dir: Path = typer.Option(
+        ..., "--result-dir", help="Result directory of the benchmark run to share."
+    ),
+) -> None:
+    """Open a dashboard link for an existing benchmark run, such as a finished one."""
+    from nika.metrics.share import share_result_dir
+    from nika.metrics.stack import is_observability_on
+
+    if not is_observability_on():
+        _fail(RuntimeError("observability is off; run `nika observability on` first"))
+    with _console.status("Opening a Cloudflare tunnel…"):
+        try:
+            record = share_result_dir(result_dir)
+        except RuntimeError as exc:
+            _fail(exc)
+    _print_links([{**record, "live": True}], title="🔗 Run dashboard")
+
+
 @observability_app.command("unshare")
 def observability_unshare(
     run_id: str = typer.Argument(..., help="Benchmark run id."),

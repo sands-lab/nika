@@ -107,15 +107,18 @@ def share_run(
     *,
     started_at: datetime,
     run_name: str | None = None,
+    force: bool = False,
 ) -> dict[str, Any] | None:
-    """Open (or reuse) the public link of ``run_id``; None when sharing is off.
+    """Open (or reuse) the public link of ``run_id``.
 
-    Raises ``RuntimeError`` when the tunnel does not come up.
+    Returns None when sharing is off, unless ``force`` asks for a link anyway
+    (``nika observability share``). Raises ``RuntimeError`` when the tunnel
+    does not come up.
     """
     from nika.run_config.loader import get_run_config
 
     settings = get_run_config().nika.metrics.share
-    if not settings.enabled:
+    if not settings.enabled and not force:
         return None
     existing = read_dashboard(result_dir)
     if existing and existing.get("run_id") == run_id and is_live(existing):
@@ -248,3 +251,32 @@ def run_links() -> list[dict[str, Any]]:
     ]
     links.sort(key=lambda link: str(link["expires_at"] or ""), reverse=True)
     return links
+
+
+def share_result_dir(result_dir: str | Path) -> dict[str, Any]:
+    """Open a link for the benchmark run whose results are in ``result_dir``.
+
+    Raises ``RuntimeError`` when the directory holds no benchmark run.
+    """
+    from nika.workflows.benchmark.release import load_run_config
+    from nika.workflows.benchmark.run_progress import run_display_name
+
+    job = load_run_config(Path(result_dir))
+    run_id = (job or {}).get("run_id") or (job or {}).get("job_id")
+    if not job or not run_id:
+        raise RuntimeError(f"{result_dir} holds no benchmark run (no run.json)")
+    try:
+        started = datetime.fromisoformat(str(job.get("created_at")))
+    except ValueError:
+        started = datetime.now(timezone.utc)
+    record = share_run(
+        str(run_id),
+        result_dir,
+        started_at=started,
+        run_name=run_display_name(
+            job.get("model"), job.get("agent_type"), job.get("created_at")
+        ),
+        force=True,
+    )
+    assert record is not None  # force always shares
+    return record
