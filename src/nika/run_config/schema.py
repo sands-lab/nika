@@ -235,13 +235,36 @@ class RuntimeValidationSettings(BaseModel):
 class RemoteWriteSettings(BaseModel):
     """Push recorded metrics to a hosted Prometheus such as Grafana Cloud.
 
-    The password or API token is read from ``NIKA_METRICS_REMOTE_WRITE_TOKEN``.
+    Off by default. The password or API token is read from
+    ``NIKA_METRICS_REMOTE_WRITE_TOKEN``.
     """
 
     model_config = ConfigDict(extra="forbid")
 
+    enabled: bool = False
     url: str | None = None
     username: str | None = None
+
+    @model_validator(mode="after")
+    def _url_when_enabled(self) -> RemoteWriteSettings:
+        if self.enabled and not self.url:
+            raise ValueError("nika.metrics.remote_write.enabled requires url")
+        return self
+
+
+class ShareSettings(BaseModel):
+    """Public dashboard link for each benchmark run, through a Cloudflare tunnel.
+
+    Off by default. Without ``allowed_emails``, anyone with the link can view
+    the dashboard; with it, viewers confirm one of these addresses by a
+    one-time code.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool = False
+    ttl_days: int = Field(default=7, ge=1, le=30)
+    allowed_emails: list[str] = Field(default_factory=list)
 
 
 class MetricsSettings(BaseModel):
@@ -252,6 +275,7 @@ class MetricsSettings(BaseModel):
     # How often Prometheus scrapes and cAdvisor samples, such as 15s or 30s.
     scrape_interval: str = "15s"
     remote_write: RemoteWriteSettings = Field(default_factory=RemoteWriteSettings)
+    share: ShareSettings = Field(default_factory=ShareSettings)
 
     @field_validator("scrape_interval")
     @classmethod

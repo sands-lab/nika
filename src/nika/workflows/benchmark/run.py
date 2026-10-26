@@ -56,6 +56,7 @@ from nika.workflows.benchmark.display import (
     apply_worker_warning_env,
     confirm_run,
     print_deferred_warnings,
+    print_dashboard_link,
     print_inspect_hint,
     print_run_plan,
     quiet_third_party_logging,
@@ -105,6 +106,7 @@ from nika.workflows.benchmark.resume import (
     benchmark_row_from_case,
 )
 from nika.workflows.benchmark.run_progress import (
+    run_display_name,
     update_progress,
     write_progress,
 )
@@ -409,14 +411,54 @@ def default_release_ref() -> str:
     return DEFAULT_RELEASE_VERSION
 
 
-def _start_progress_monitoring() -> None:
+def _start_progress_monitoring() -> bool:
     """Export this run's progress to Prometheus when observability is on."""
     from nika.metrics.stack import start_monitoring
 
     try:
-        start_monitoring()
+        return start_monitoring()
     except Exception as exc:  # noqa: BLE001 - monitoring is optional
         print(f"WARNING: benchmark progress monitoring unavailable: {exc}")
+        return False
+
+
+def _share_dashboard(
+    run_id: str,
+    results_root: Path,
+    *,
+    run_name: str,
+    monitoring: bool,
+    output_mode: OutputMode,
+) -> str | None:
+    """Open the run's public dashboard link when ``nika.metrics.share`` is on."""
+    from datetime import timezone
+
+    from nika.run_config.loader import get_run_config
+
+    if not get_run_config().nika.metrics.share.enabled:
+        return None
+    if not monitoring:
+        print(
+            "WARNING: nika.metrics.share is enabled but observability is off; "
+            "run `nika observability on` to get a dashboard link."
+        )
+        return None
+    from nika.metrics.share import share_run
+
+    try:
+        record = share_run(
+            run_id,
+            results_root,
+            started_at=datetime.now(timezone.utc),
+            run_name=run_name,
+        )
+    except Exception as exc:  # noqa: BLE001 - the link is optional
+        print(f"WARNING: could not open the dashboard link: {exc}")
+        return None
+    if record is None:
+        return None
+    print_dashboard_link(record, output_mode=output_mode)
+    return str(record["url"])
 
 
 def _stamp_release_meta(session_id: str, release_meta: dict | None) -> None:
@@ -1648,6 +1690,7 @@ def run_benchmark_trials(
         release_meta.get("run_id") or release_meta.get("job_id") or job.get("run_id")
     )
     inspect_url: str | None = None
+    dashboard_url: str | None = None
 
     def _emit_report() -> None:
         """Print the visual summary for the finished run.
@@ -1680,6 +1723,8 @@ def run_benchmark_trials(
         except Exception as report_error:  # noqa: BLE001 - reporting is advisory
             print(f"WARNING: could not render run summary: {report_error}")
         print_inspect_hint(results_root, url=inspect_url, output_mode=output_mode)
+        if dashboard_url:
+            print_dashboard_link({"url": dashboard_url}, output_mode=output_mode)
         print_deferred_warnings(output_mode=output_mode)
 
     selected_ids = {trial.trial_id for trial in trials}
@@ -1832,6 +1877,10 @@ def run_benchmark_trials(
     else:
         write_json_atomic(results_root / RUN_CONFIG_FILENAME, job, sort_keys=True)
     if run_id:
+        # Named after the run's creation, which a resume keeps.
+        run_name = run_display_name(
+            job.get("model"), job.get("agent_type"), job.get("created_at")
+        )
         write_progress(
             str(run_id),
             result_dir=results_root,
@@ -1843,8 +1892,15 @@ def run_benchmark_trials(
             version=job.get("version"),
             agent_type=job.get("agent_type"),
             model=job.get("model"),
+            run_name=run_name,
         )
-        _start_progress_monitoring()
+        dashboard_url = _share_dashboard(
+            str(run_id),
+            results_root,
+            run_name=run_name,
+            monitoring=_start_progress_monitoring(),
+            output_mode=output_mode,
+        )
     if check_images:
         from nika.agents.sandbox.backend import prepare_sandbox_templates
 
@@ -1891,6 +1947,7 @@ def run_benchmark_trials(
             case_count=case_count,
             n_trials=n_trials,
             inspect_url=inspect_url,
+            dashboard_url=dashboard_url,
             output_mode=output_mode,
         ) as progress:
             for attempt in range(retry_passes + 1):

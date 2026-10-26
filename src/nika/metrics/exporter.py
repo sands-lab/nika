@@ -31,7 +31,11 @@ from prometheus_client.registry import Collector
 
 from nika.config import REPO_ROOT
 from nika.utils.session_store import SessionStore
-from nika.workflows.benchmark.run_progress import is_run_live, list_progress_docs
+from nika.workflows.benchmark.run_progress import (
+    is_run_live,
+    list_progress_docs,
+    run_display_name,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +69,15 @@ _CONTAINER_LABELS = (
     "node",
     "name",
 )
-_RUN_LABELS = ("run_id", "benchmark_id", "version", "agent_type", "model", "status")
+_RUN_LABELS = (
+    "run_id",
+    "run_name",
+    "benchmark_id",
+    "version",
+    "agent_type",
+    "model",
+    "status",
+)
 
 
 def _timestamp(raw: object) -> float | None:
@@ -77,19 +89,26 @@ def _timestamp(raw: object) -> float | None:
         return None
 
 
-def _session_run_id(session: dict[str, Any], runs: list[tuple[Path, str]]) -> str:
+_Run = tuple[Path, str, bool, float]  # result dir, run id, live, start time
+
+
+def _session_run_id(session: dict[str, Any], runs: list[_Run]) -> str:
     """Benchmark run whose results hold the session, else the stamped run id.
 
     The result directory is known from deployment on, while a release run
     stamps ``benchmark_run_id`` only after the lab is up; preferring it keeps
-    one ``run_id`` label for the whole session.
+    one ``run_id`` label for the whole session. Several runs can name the same
+    directory, for example a run started again after its results were
+    deleted: the most specific directory wins, then a live run, then the
+    latest start.
     """
     session_dir = session.get("session_dir")
     if session_dir:
         path = Path(str(session_dir)).resolve()
-        for result_dir, run_id in runs:
-            if path.is_relative_to(result_dir):
-                return run_id
+        matches = [run for run in runs if path.is_relative_to(run[0])]
+        if matches:
+            best = max(matches, key=lambda run: (len(run[0].parts), run[2], run[3]))
+            return best[1]
     return str(session.get("benchmark_run_id") or "")
 
 
@@ -164,7 +183,13 @@ class SessionCollector(Collector):
 
         docs = list_progress_docs(runs_dir=self._runs_dir)
         runs = [
-            (Path(str(doc["result_dir"])).resolve(), str(doc["run_id"])) for doc in docs
+            (
+                Path(str(doc["result_dir"])).resolve(),
+                str(doc["run_id"]),
+                is_run_live(doc),
+                _timestamp(doc.get("started_at")) or 0.0,
+            )
+            for doc in docs
         ]
         running_by_run: dict[str, int] = {}
 
@@ -233,9 +258,13 @@ class SessionCollector(Collector):
             status = str(doc.get("status") or "unknown")
             if status == "running" and not live_run:
                 status = "stopped"
+            run_name = doc.get("run_name") or run_display_name(
+                doc.get("model"), doc.get("agent_type"), doc.get("started_at")
+            )
             runs_info.add_metric(
                 [
                     run_id,
+                    str(run_name),
                     str(doc.get("benchmark_id") or ""),
                     str(doc.get("version") or ""),
                     str(doc.get("agent_type") or ""),

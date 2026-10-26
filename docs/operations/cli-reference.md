@@ -565,9 +565,13 @@ Record benchmark progress and lab CPU and memory per session, and view them in G
 
 ```shell
 nika observability on              # start Grafana (127.0.0.1:3000), Prometheus, cAdvisor, node exporter
-nika observability status
-nika observability off [--purge]   # stop; --purge also deletes history
+nika observability status          # services, settings, live run links
+nika observability links [--result-dir DIR]   # dashboard links of benchmark runs
+nika observability unshare RUN_ID  # revoke a run's dashboard link
+nika observability off [--purge]   # stop, close run links; --purge also deletes history
 ```
+
+With `nika.metrics.share.enabled`, every benchmark run gets a public dashboard link; see [share a run's dashboard](resource-monitoring.md#share-a-runs-dashboard).
 
 ## `nika remote`
 

@@ -137,7 +137,9 @@ def test_runs_whose_orchestrator_died_are_stopped_then_dropped(
 
     samples = _samples(SessionCollector(store, runs_dir=runs_dir))
 
-    assert [labels for labels, _ in samples["nika_benchmark_run_info"]] == [
+    (info,) = samples["nika_benchmark_run_info"]
+    assert info[0].pop("run_name").endswith(" UTC")
+    assert [info[0]] == [
         {
             "run_id": "crashed",
             "benchmark_id": "",
@@ -192,6 +194,7 @@ def test_remote_write_pushes_only_nika_series_with_token_file(
                     "metrics": {
                         "scrape_interval": "30s",
                         "remote_write": {
+                            "enabled": True,
                             "url": "https://example.test/api/prom/push",
                             "username": "123",
                         },
@@ -219,3 +222,47 @@ def test_remote_write_pushes_only_nika_series_with_token_file(
     assert token.stat().st_mode & 0o007 == 0
     rules = (tmp_path / "prometheus" / "rules.yml").read_text()
     assert "[120s]" in rules and "$rate_window" not in rules
+
+
+def test_remote_write_is_off_unless_enabled(
+    tmp_path: Path, monkeypatch, request: pytest.FixtureRequest
+) -> None:
+    from nika.metrics import stack
+    from nika.run_config.loader import reset_run_config, set_run_config
+    from nika.run_config.schema import RunConfig
+
+    request.addfinalizer(reset_run_config)
+    monkeypatch.setattr(stack, "PROMETHEUS_DIR", tmp_path / "prometheus")
+    monkeypatch.delenv(stack.REMOTE_WRITE_TOKEN_ENV, raising=False)
+    remote = {"url": "https://example.test/api/prom/push", "username": "123"}
+    set_run_config(
+        RunConfig.model_validate({"nika": {"metrics": {"remote_write": remote}}})
+    )
+
+    stack.render_prometheus_config()
+
+    config = yaml.safe_load((tmp_path / "prometheus" / "prometheus.yml").read_text())
+    assert "remote_write" not in config
+    assert not (tmp_path / "prometheus" / "remote_write_token").exists()
+    with pytest.raises(ValueError, match="requires url"):
+        RunConfig.model_validate(
+            {"nika": {"metrics": {"remote_write": {"enabled": True}}}}
+        )
+
+
+def test_restarted_run_in_the_same_directory_owns_its_sessions(
+    tmp_path: Path, store: SessionStore
+) -> None:
+    runs_dir = tmp_path / "benchmark_runs"
+    result_dir = tmp_path / "results"
+    write_progress("old", result_dir=result_dir, runs_dir=runs_dir)
+    old = runs_dir / "old.json"
+    doc = json.loads(old.read_text())
+    doc.update(status="finished", started_at="2026-10-26T14:55:00+00:00")
+    old.write_text(json.dumps(doc))
+    write_progress("new", result_dir=result_dir, runs_dir=runs_dir)
+    _session(store, "trial", result_dir / "trials" / "case__t01", remote=True)
+
+    samples = _samples(SessionCollector(store, runs_dir=runs_dir))
+
+    assert samples["nika_session_info"][0][0]["run_id"] == "new"

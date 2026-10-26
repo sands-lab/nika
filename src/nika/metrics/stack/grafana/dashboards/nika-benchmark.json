@@ -77,11 +77,11 @@
           "uid": "${datasource}"
         },
         "query": {
-          "query": "label_values(nika_benchmark_run_info{host=~\"$host\"}, run_id)",
+          "query": "query_result(max by (run_id, run_name) (last_over_time(nika_benchmark_run_info{host=~\"$host\"}[$__range])))",
           "refId": "run_id-var",
-          "qryType": 1
+          "qryType": 5
         },
-        "definition": "label_values(nika_benchmark_run_info{host=~\"$host\"}, run_id)",
+        "definition": "query_result(max by (run_id, run_name) (last_over_time(nika_benchmark_run_info{host=~\"$host\"}[$__range])))",
         "refresh": 2,
         "multi": true,
         "includeAll": true,
@@ -96,7 +96,7 @@
           ]
         },
         "sort": 1,
-        "regex": "",
+        "regex": "/run_id=\"(?<value>[^\"]+)\"(?:,\\s*run_name=\"(?<text>[^\"]+)\")?/",
         "hide": 0
       },
       {
@@ -200,8 +200,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max by (run_id) (nika_benchmark_trials{host=~\"$host\", run_id=~\"$run_id\", state=\"completed\"}) / max by (run_id) (nika_benchmark_trials{host=~\"$host\", run_id=~\"$run_id\", state=\"total\"})",
-          "legendFormat": "{{run_id}}",
+          "expr": "(max by (run_id) (nika_benchmark_trials{host=~\"$host\", run_id=~\"$run_id\", state=\"completed\"}) / max by (run_id) (nika_benchmark_trials{host=~\"$host\", run_id=~\"$run_id\", state=\"total\"})) * on (run_id) group_left (run_name) max by (run_id, run_name) (last_over_time(nika_benchmark_run_info{host=~\"$host\", run_id=~\"$run_id\"}[$__range]))",
+          "legendFormat": "{{run_name}}",
           "refId": "A",
           "range": false,
           "instant": true,
@@ -800,8 +800,8 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max by (run_id, state) (nika_benchmark_trials{host=~\"$host\", run_id=~\"$run_id\", state=~\"completed|running|pending\"})",
-          "legendFormat": "{{run_id}} {{state}}",
+          "expr": "max by (run_id, state) (nika_benchmark_trials{host=~\"$host\", run_id=~\"$run_id\", state=~\"completed|running|pending\"}) * on (run_id) group_left (run_name) max by (run_id, run_name) (last_over_time(nika_benchmark_run_info{host=~\"$host\", run_id=~\"$run_id\"}[$__range]))",
+          "legendFormat": "{{run_name}} \u00b7 {{state}}",
           "refId": "A",
           "range": true,
           "instant": false,
@@ -867,7 +867,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "topk by (run_id) (1, max by (run_id, benchmark_id, version, agent_type, model, status) (max_over_time(timestamp(nika_benchmark_run_info{host=~\"$host\", run_id=~\"$run_id\"})[$__range:$__interval])))",
+          "expr": "topk by (run_id) (1, max by (run_id, run_name, benchmark_id, version, agent_type, model, status) (max_over_time(timestamp(nika_benchmark_run_info{host=~\"$host\", run_id=~\"$run_id\"})[$__range:$__interval])))",
           "legendFormat": "__auto",
           "refId": "A",
           "range": false,
@@ -896,695 +896,26 @@
               "Value": true
             },
             "indexByName": {
-              "run_id": 0,
+              "run_name": 0,
               "status": 1,
               "agent_type": 2,
               "model": 3,
               "benchmark_id": 4,
-              "version": 5
+              "version": 5,
+              "run_id": 6
             },
             "renameByName": {
-              "run_id": "Run",
+              "run_id": "Run ID",
               "benchmark_id": "Benchmark",
               "version": "Version",
               "agent_type": "Agent",
               "model": "Model",
-              "status": "Status"
+              "status": "Status",
+              "run_name": "Run"
             }
           }
         }
       ]
-    },
-    {
-      "type": "row",
-      "id": 13,
-      "title": "Host resources",
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 14
-      },
-      "panels": []
-    },
-    {
-      "type": "stat",
-      "id": 14,
-      "title": "Peak CPU",
-      "description": "Highest host CPU use in the time range, in cores.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 0,
-        "y": 15
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "nika:host_cpu_cores{host=~\"$host\"}",
-          "legendFormat": "__auto",
-          "refId": "A",
-          "range": true,
-          "instant": false,
-          "format": "time_series"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "blue",
-                "value": null
-              }
-            ]
-          },
-          "mappings": [],
-          "decimals": 1
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "max"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "graphMode": "area",
-        "colorMode": "value",
-        "justifyMode": "auto",
-        "textMode": "auto",
-        "wideLayout": true,
-        "showPercentChange": false,
-        "orientation": "auto"
-      }
-    },
-    {
-      "type": "stat",
-      "id": 15,
-      "title": "Peak CPU (% of host)",
-      "description": "Highest host CPU use in the time range, as a share of all cores.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 4,
-        "y": 15
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "nika:host_cpu_cores{host=~\"$host\"} / nika:host_cpu_capacity_cores{host=~\"$host\"}",
-          "legendFormat": "__auto",
-          "refId": "A",
-          "range": true,
-          "instant": false,
-          "format": "time_series"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit",
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 0.7
-              },
-              {
-                "color": "red",
-                "value": 0.9
-              }
-            ]
-          },
-          "mappings": [],
-          "decimals": 1
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "max"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "graphMode": "area",
-        "colorMode": "value",
-        "justifyMode": "auto",
-        "textMode": "auto",
-        "wideLayout": true,
-        "showPercentChange": false,
-        "orientation": "auto"
-      }
-    },
-    {
-      "type": "stat",
-      "id": 16,
-      "title": "Peak memory",
-      "description": "Highest host memory use (total minus available) in the time range.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 8,
-        "y": 15
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "nika:host_memory_used_bytes{host=~\"$host\"}",
-          "legendFormat": "__auto",
-          "refId": "A",
-          "range": true,
-          "instant": false,
-          "format": "time_series"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes",
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "blue",
-                "value": null
-              }
-            ]
-          },
-          "mappings": [],
-          "decimals": 1
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "max"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "graphMode": "area",
-        "colorMode": "value",
-        "justifyMode": "auto",
-        "textMode": "auto",
-        "wideLayout": true,
-        "showPercentChange": false,
-        "orientation": "auto"
-      }
-    },
-    {
-      "type": "stat",
-      "id": 17,
-      "title": "Peak memory (% of host)",
-      "description": "Highest host memory use in the time range, as a share of physical memory.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 12,
-        "y": 15
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "nika:host_memory_used_bytes{host=~\"$host\"} / nika:host_memory_capacity_bytes{host=~\"$host\"}",
-          "legendFormat": "__auto",
-          "refId": "A",
-          "range": true,
-          "instant": false,
-          "format": "time_series"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "percentunit",
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 0.7
-              },
-              {
-                "color": "red",
-                "value": 0.9
-              }
-            ]
-          },
-          "mappings": [],
-          "decimals": 1
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "max"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "graphMode": "area",
-        "colorMode": "value",
-        "justifyMode": "auto",
-        "textMode": "auto",
-        "wideLayout": true,
-        "showPercentChange": false,
-        "orientation": "auto"
-      }
-    },
-    {
-      "type": "stat",
-      "id": 18,
-      "title": "Peak lab CPU",
-      "description": "Highest CPU use of all NIKA lab containers together.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 16,
-        "y": 15
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "sum(nika:session_cpu_cores{host=~\"$host\"})",
-          "legendFormat": "__auto",
-          "refId": "A",
-          "range": true,
-          "instant": false,
-          "format": "time_series"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "blue",
-                "value": null
-              }
-            ]
-          },
-          "mappings": [],
-          "decimals": 1
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "max"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "graphMode": "area",
-        "colorMode": "value",
-        "justifyMode": "auto",
-        "textMode": "auto",
-        "wideLayout": true,
-        "showPercentChange": false,
-        "orientation": "auto"
-      }
-    },
-    {
-      "type": "stat",
-      "id": 19,
-      "title": "Peak lab memory",
-      "description": "Highest working-set memory of all NIKA lab containers together.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 20,
-        "y": 15
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "sum(nika:session_memory_working_set_bytes{host=~\"$host\"})",
-          "legendFormat": "__auto",
-          "refId": "A",
-          "range": true,
-          "instant": false,
-          "format": "time_series"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes",
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "blue",
-                "value": null
-              }
-            ]
-          },
-          "mappings": [],
-          "decimals": 1
-        },
-        "overrides": []
-      },
-      "options": {
-        "reduceOptions": {
-          "calcs": [
-            "max"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "graphMode": "area",
-        "colorMode": "value",
-        "justifyMode": "auto",
-        "textMode": "auto",
-        "wideLayout": true,
-        "showPercentChange": false,
-        "orientation": "auto"
-      }
-    },
-    {
-      "type": "timeseries",
-      "id": 20,
-      "title": "Host CPU (cores)",
-      "description": "Whole-host CPU use, the share used by NIKA lab containers, and the core count.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 19
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "nika:host_cpu_cores{host=~\"$host\"}",
-          "legendFormat": "used {{host}}",
-          "refId": "A",
-          "range": true,
-          "instant": false,
-          "format": "time_series"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "sum by (host) (nika:session_cpu_cores{host=~\"$host\"})",
-          "legendFormat": "NIKA labs {{host}}",
-          "refId": "B",
-          "range": true,
-          "instant": false,
-          "format": "time_series"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "nika:host_cpu_capacity_cores{host=~\"$host\"}",
-          "legendFormat": "capacity {{host}}",
-          "refId": "C",
-          "range": true,
-          "instant": false,
-          "format": "time_series"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "none",
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 1,
-            "fillOpacity": 10,
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "mode": "none",
-              "group": "A"
-            },
-            "axisSoftMin": 0
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "capacity.*"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "red"
-                }
-              },
-              {
-                "id": "custom.fillOpacity",
-                "value": 0
-              },
-              {
-                "id": "custom.lineStyle",
-                "value": {
-                  "fill": "dash",
-                  "dash": [
-                    10,
-                    10
-                  ]
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": [
-            "max",
-            "mean",
-            "lastNotNull"
-          ],
-          "sortBy": "Max",
-          "sortDesc": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "type": "timeseries",
-      "id": 21,
-      "title": "Host memory",
-      "description": "Host memory in use (total minus available), the working set of NIKA lab containers, and physical memory.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 19
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "nika:host_memory_used_bytes{host=~\"$host\"}",
-          "legendFormat": "used {{host}}",
-          "refId": "A",
-          "range": true,
-          "instant": false,
-          "format": "time_series"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "sum by (host) (nika:session_memory_working_set_bytes{host=~\"$host\"})",
-          "legendFormat": "NIKA labs {{host}}",
-          "refId": "B",
-          "range": true,
-          "instant": false,
-          "format": "time_series"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "nika:host_memory_capacity_bytes{host=~\"$host\"}",
-          "legendFormat": "capacity {{host}}",
-          "refId": "C",
-          "range": true,
-          "instant": false,
-          "format": "time_series"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "bytes",
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 1,
-            "fillOpacity": 10,
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "mode": "none",
-              "group": "A"
-            },
-            "axisSoftMin": 0
-          }
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byRegexp",
-              "options": "capacity.*"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "mode": "fixed",
-                  "fixedColor": "red"
-                }
-              },
-              {
-                "id": "custom.fillOpacity",
-                "value": 0
-              },
-              {
-                "id": "custom.lineStyle",
-                "value": {
-                  "fill": "dash",
-                  "dash": [
-                    10,
-                    10
-                  ]
-                }
-              }
-            ]
-          }
-        ]
-      },
-      "options": {
-        "legend": {
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true,
-          "calcs": [
-            "max",
-            "mean",
-            "lastNotNull"
-          ],
-          "sortBy": "Max",
-          "sortDesc": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
     },
     {
       "type": "row",
@@ -1595,7 +926,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 27
+        "y": 14
       },
       "panels": []
     },
@@ -1612,7 +943,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 28
+        "y": 15
       },
       "targets": [
         {
@@ -1680,7 +1011,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 28
+        "y": 15
       },
       "targets": [
         {
@@ -1748,7 +1079,7 @@
         "h": 9,
         "w": 24,
         "x": 0,
-        "y": 37
+        "y": 24
       },
       "targets": [
         {
@@ -1756,7 +1087,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "max by (session_id, run_id, scenario, backend) (max_over_time(nika:session_containers{host=~\"$host\", run_id=~\"$run_id\", session_id=~\"$session_id\"}[$__range]))",
+          "expr": "(max by (session_id, run_id, scenario, backend) (max_over_time(nika:session_containers{host=~\"$host\", run_id=~\"$run_id\", session_id=~\"$session_id\"}[$__range])) * on (run_id) group_left (run_name) max by (run_id, run_name) (last_over_time(nika_benchmark_run_info{host=~\"$host\", run_id=~\"$run_id\"}[$__range]))) or on (session_id) max by (session_id, run_id, scenario, backend) (max_over_time(nika:session_containers{host=~\"$host\", run_id=~\"$run_id\", session_id=~\"$session_id\"}[$__range]))",
           "legendFormat": "__auto",
           "refId": "A",
           "range": false,
@@ -1834,13 +1165,14 @@
           "id": "organize",
           "options": {
             "excludeByName": {
-              "Time": true
+              "Time": true,
+              "run_id": true
             },
             "indexByName": {
               "session_id": 0,
               "scenario": 1,
               "backend": 2,
-              "run_id": 3,
+              "run_name": 3,
               "Value #A": 4,
               "Value #B": 5,
               "Value #C": 6,
@@ -1852,12 +1184,12 @@
               "session_id": "Task (session)",
               "scenario": "Scenario",
               "backend": "Backend",
-              "run_id": "Run",
               "Value #A": "Nodes",
               "Value #B": "Duration",
               "Value #C": "Peak memory",
               "Value #D": "Peak CPU (cores)",
-              "Value #E": "CPU time"
+              "Value #E": "CPU time",
+              "run_name": "Run"
             }
           }
         },
@@ -1997,7 +1329,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 46
+        "y": 33
       },
       "panels": []
     },
@@ -2014,7 +1346,7 @@
         "h": 9,
         "w": 12,
         "x": 0,
-        "y": 47
+        "y": 34
       },
       "targets": [
         {
@@ -2082,7 +1414,7 @@
         "h": 9,
         "w": 12,
         "x": 12,
-        "y": 47
+        "y": 34
       },
       "targets": [
         {
@@ -2150,7 +1482,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 56
+        "y": 43
       },
       "targets": [
         {
@@ -2216,7 +1548,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 56
+        "y": 43
       },
       "targets": [
         {
@@ -2267,6 +1599,677 @@
         "sizing": "auto",
         "minVizHeight": 16,
         "maxVizHeight": 24
+      }
+    },
+    {
+      "type": "row",
+      "id": 13,
+      "title": "Host resources",
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 51
+      },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "id": 14,
+      "title": "Peak CPU",
+      "description": "Highest host CPU use in the time range, in cores.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 0,
+        "y": 52
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "nika:host_cpu_cores{host=~\"$host\"}",
+          "legendFormat": "__auto",
+          "refId": "A",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [],
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "max"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "area",
+        "colorMode": "value",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "id": 15,
+      "title": "Peak CPU (% of host)",
+      "description": "Highest host CPU use in the time range, as a share of all cores.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 4,
+        "y": 52
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "nika:host_cpu_cores{host=~\"$host\"} / nika:host_cpu_capacity_cores{host=~\"$host\"}",
+          "legendFormat": "__auto",
+          "refId": "A",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.7
+              },
+              {
+                "color": "red",
+                "value": 0.9
+              }
+            ]
+          },
+          "mappings": [],
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "max"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "area",
+        "colorMode": "value",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "id": 16,
+      "title": "Peak memory",
+      "description": "Highest host memory use (total minus available) in the time range.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 8,
+        "y": 52
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "nika:host_memory_used_bytes{host=~\"$host\"}",
+          "legendFormat": "__auto",
+          "refId": "A",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [],
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "max"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "area",
+        "colorMode": "value",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "id": 17,
+      "title": "Peak memory (% of host)",
+      "description": "Highest host memory use in the time range, as a share of physical memory.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 12,
+        "y": 52
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "nika:host_memory_used_bytes{host=~\"$host\"} / nika:host_memory_capacity_bytes{host=~\"$host\"}",
+          "legendFormat": "__auto",
+          "refId": "A",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 0.7
+              },
+              {
+                "color": "red",
+                "value": 0.9
+              }
+            ]
+          },
+          "mappings": [],
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "max"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "area",
+        "colorMode": "value",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "id": 18,
+      "title": "Peak lab CPU",
+      "description": "Highest CPU use of all NIKA lab containers together.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 16,
+        "y": 52
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(nika:session_cpu_cores{host=~\"$host\"})",
+          "legendFormat": "__auto",
+          "refId": "A",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [],
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "max"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "area",
+        "colorMode": "value",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "stat",
+      "id": 19,
+      "title": "Peak lab memory",
+      "description": "Highest working-set memory of all NIKA lab containers together.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 52
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum(nika:session_memory_working_set_bytes{host=~\"$host\"})",
+          "legendFormat": "__auto",
+          "refId": "A",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "mappings": [],
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "max"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "graphMode": "area",
+        "colorMode": "value",
+        "justifyMode": "auto",
+        "textMode": "auto",
+        "wideLayout": true,
+        "showPercentChange": false,
+        "orientation": "auto"
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 20,
+      "title": "Host CPU (cores)",
+      "description": "Whole-host CPU use, the share used by NIKA lab containers, and the core count.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 56
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "nika:host_cpu_cores{host=~\"$host\"}",
+          "legendFormat": "used {{host}}",
+          "refId": "A",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (host) (nika:session_cpu_cores{host=~\"$host\"})",
+          "legendFormat": "NIKA labs {{host}}",
+          "refId": "B",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "nika:host_cpu_capacity_cores{host=~\"$host\"}",
+          "legendFormat": "capacity {{host}}",
+          "refId": "C",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisSoftMin": 0
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "capacity.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "max",
+            "mean",
+            "lastNotNull"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "type": "timeseries",
+      "id": 21,
+      "title": "Host memory",
+      "description": "Host memory in use (total minus available), the working set of NIKA lab containers, and physical memory.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 56
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "nika:host_memory_used_bytes{host=~\"$host\"}",
+          "legendFormat": "used {{host}}",
+          "refId": "A",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "sum by (host) (nika:session_memory_working_set_bytes{host=~\"$host\"})",
+          "legendFormat": "NIKA labs {{host}}",
+          "refId": "B",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "nika:host_memory_capacity_bytes{host=~\"$host\"}",
+          "legendFormat": "capacity {{host}}",
+          "refId": "C",
+          "range": true,
+          "instant": false,
+          "format": "time_series"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "drawStyle": "line",
+            "lineWidth": 1,
+            "fillOpacity": 10,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "mode": "none",
+              "group": "A"
+            },
+            "axisSoftMin": 0
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "capacity.*"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "mode": "fixed",
+                  "fixedColor": "red"
+                }
+              },
+              {
+                "id": "custom.fillOpacity",
+                "value": 0
+              },
+              {
+                "id": "custom.lineStyle",
+                "value": {
+                  "fill": "dash",
+                  "dash": [
+                    10,
+                    10
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true,
+          "calcs": [
+            "max",
+            "mean",
+            "lastNotNull"
+          ],
+          "sortBy": "Max",
+          "sortDesc": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
       }
     }
   ]

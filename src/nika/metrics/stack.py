@@ -17,6 +17,7 @@ import fcntl
 import hashlib
 import logging
 import os
+import secrets
 import signal
 import socket
 import subprocess
@@ -47,6 +48,8 @@ TARGETS_DIR = METRICS_HOME / "targets"
 # remote-write token, so it lives here rather than in the checkout.
 PROMETHEUS_DIR = METRICS_HOME / "prometheus"
 REMOTE_WRITE_TOKEN_ENV = "NIKA_METRICS_REMOTE_WRITE_TOKEN"
+# Random Grafana admin password: shared run links expose this Grafana publicly.
+GRAFANA_PASSWORD_FILE = METRICS_HOME / "grafana_admin_password"
 _TOKEN_FILE = "remote_write_token"
 # Only NIKA's own series leave the host: recorded rules and exporter metrics.
 _PUSHED_SERIES = "nika:.*|nika_.*"
@@ -57,6 +60,9 @@ EXPORTER_LOG = RUNTIME_DIR / "metrics" / "exporter.log"
 EXPORTER_MODULE = "nika.metrics.exporter"
 
 _EXPORTER_START_TIMEOUT_SEC = 15.0
+# A reload waits for the push queue to flush, up to Prometheus's one-minute
+# flush deadline.
+_RELOAD_TIMEOUT_SEC = 90.0
 
 
 def target_file(key: str = CHECKOUT_KEY) -> Path:
@@ -132,14 +138,15 @@ def render_prometheus_config() -> None:
 
     PROMETHEUS_DIR.mkdir(parents=True, exist_ok=True)
     PROMETHEUS_DIR.chmod(0o750)
+    # A token no longer needed is removed only after Prometheus has reloaded
+    # (``observability_on``): its push queue still sends a last batch with it.
     token_file = PROMETHEUS_DIR / _TOKEN_FILE
-    token_file.unlink(missing_ok=True)
     remote = settings.remote_write
-    if remote.url:
+    if remote.enabled:
         token = os.environ.get(REMOTE_WRITE_TOKEN_ENV, "").strip()
         if not token:
             raise RuntimeError(
-                f"nika.metrics.remote_write.url is set but {REMOTE_WRITE_TOKEN_ENV} "
+                f"nika.metrics.remote_write is enabled but {REMOTE_WRITE_TOKEN_ENV} "
                 "is empty; add the token to .env"
             )
         fd = os.open(token_file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o640)
@@ -181,7 +188,7 @@ def _write_text(path: Path, text: str) -> None:
     tmp.replace(path)
 
 
-def _compose(*args: str) -> subprocess.CompletedProcess[str]:
+def _compose(*args: str, stdin: str | None = None) -> subprocess.CompletedProcess[str]:
     env = {
         **os.environ,
         "NIKA_METRICS_TARGETS_DIR": str(TARGETS_DIR),
@@ -196,21 +203,32 @@ def _compose(*args: str) -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
         env=env,
+        input=stdin,
     )
+
+
+def service_states() -> dict[str, str]:
+    """Docker state of each stack service (``missing`` when not created)."""
+    from nika.runtime.shared.containers import docker_client
+
+    states = dict.fromkeys(STACK_SERVICES, "missing")
+    try:
+        containers = docker_client().containers.list(
+            all=True,
+            filters={"label": f"com.docker.compose.project={COMPOSE_PROJECT}"},
+        )
+    except Exception:  # noqa: BLE001 — no Docker means no monitoring
+        return states
+    for container in containers:
+        service = container.labels.get("com.docker.compose.service")
+        if service in states:
+            states[service] = container.status
+    return states
 
 
 def is_observability_on() -> bool:
     """True while every service of the monitoring stack is running."""
-    from nika.runtime.shared.containers import docker_client
-
-    try:
-        running = docker_client().containers.list(
-            filters={"label": f"com.docker.compose.project={COMPOSE_PROJECT}"}
-        )
-    except Exception:  # noqa: BLE001 — no Docker means no monitoring
-        return False
-    services = {c.labels.get("com.docker.compose.service") for c in running}
-    return services.issuperset(STACK_SERVICES)
+    return all(state == "running" for state in service_states().values())
 
 
 def checkout_idle() -> bool:
@@ -248,23 +266,111 @@ def observability_on() -> None:
 
     Running it again applies changed settings to a running stack.
     """
+    from nika.run_config.loader import get_run_config
+
     with locked():
         render_prometheus_config()
         result = _compose("up", "-d", "--wait")
-        if result.returncode == 0:
-            # A running Prometheus does not reread its mounted config by itself.
-            result = _compose("kill", "-s", "SIGHUP", "prometheus")
-    if result.returncode != 0:
-        raise RuntimeError(result.stderr.strip() or "docker compose up failed")
+        if result.returncode != 0:
+            raise RuntimeError(result.stderr.strip() or "docker compose up failed")
+        _reload_prometheus()
+        if not get_run_config().nika.metrics.remote_write.enabled:
+            (PROMETHEUS_DIR / _TOKEN_FILE).unlink(missing_ok=True)
+        _set_grafana_admin_password()
     if not checkout_idle():
         ensure_exporter()
 
 
+def grafana_admin_password() -> str:
+    """The stack's Grafana admin password, created on first use."""
+    try:
+        return GRAFANA_PASSWORD_FILE.read_text().strip()
+    except FileNotFoundError:
+        pass
+    METRICS_HOME.mkdir(parents=True, exist_ok=True)
+    password = secrets.token_urlsafe(18)
+    fd = os.open(GRAFANA_PASSWORD_FILE, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "w") as handle:
+        handle.write(password)
+    return password
+
+
+def _set_grafana_admin_password() -> None:
+    """Replace Grafana's default ``admin`` password with the stack's own."""
+    result = _compose(
+        "exec",
+        "-T",
+        "grafana",
+        "grafana",
+        "cli",
+        "admin",
+        "reset-admin-password",
+        "--password-from-stdin",
+        stdin=grafana_admin_password() + "\n",
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            result.stderr.strip() or "cannot set the Grafana admin password"
+        )
+
+
+def _reload_state() -> tuple[float, bool] | None:
+    """Time and success of Prometheus's last config reload, if it answers."""
+    import httpx
+
+    try:
+        text = httpx.get(f"{PROMETHEUS_URL}/metrics", timeout=5).text
+    except httpx.HTTPError:
+        return None
+    values = {}
+    for line in text.splitlines():
+        name, _, value = line.partition(" ")
+        if name.startswith("prometheus_config_last_reload_"):
+            values[name] = float(value)
+    try:
+        return (
+            values["prometheus_config_last_reload_success_timestamp_seconds"],
+            values["prometheus_config_last_reload_successful"] == 1,
+        )
+    except KeyError:
+        return None
+
+
+def _reload_prometheus() -> None:
+    """Make Prometheus reread its mounted config and wait until it has."""
+    deadline = time.monotonic() + _RELOAD_TIMEOUT_SEC
+    before = None
+    while before is None and time.monotonic() < deadline:
+        before = _reload_state()
+        if before is None:
+            time.sleep(0.5)
+    if before is None:
+        raise RuntimeError(f"Prometheus does not answer at {PROMETHEUS_URL}")
+    result = _compose("kill", "-s", "SIGHUP", "prometheus")
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr.strip() or "cannot signal Prometheus")
+    while time.monotonic() < deadline:
+        state = _reload_state()
+        if state is not None and not state[1]:
+            raise RuntimeError(
+                "Prometheus rejected its configuration; "
+                "see `docker logs nika-metrics-prometheus-1`"
+            )
+        if state is not None and state[0] > before[0]:
+            return
+        time.sleep(0.5)
+    raise RuntimeError("Prometheus did not reload its configuration in time")
+
+
 def observability_off(*, purge: bool = False) -> None:
     """Stop every registered exporter and the stack; keep data unless ``purge``."""
+    from nika.metrics.share import stop_all_shares
+
     with locked():
         for path in TARGETS_DIR.glob("*.pid"):
             _stop_exporter(path.stem)
+        # Shared links point at this Grafana; they would only show errors.
+        stop_all_shares()
         result = _compose("down", *(["--volumes"] if purge else []))
         # ``on`` writes the token again; nothing needs it while the stack is down.
         (PROMETHEUS_DIR / _TOKEN_FILE).unlink(missing_ok=True)
@@ -328,11 +434,18 @@ def status() -> dict[str, object]:
     )
     from nika.run_config.loader import get_run_config
 
+    settings = get_run_config().nika.metrics
+    remote = settings.remote_write
+    services = service_states()
     return {
-        "on": is_observability_on(),
+        "on": all(state == "running" for state in services.values()),
+        "services": services,
         "prometheus": PROMETHEUS_URL,
         "grafana": GRAFANA_URL,
-        "remote_write": get_run_config().nika.metrics.remote_write.url,
+        "grafana_password_file": str(GRAFANA_PASSWORD_FILE),
+        "scrape_interval": settings.scrape_interval,
+        "remote_write": remote.url if remote.enabled else None,
+        "share": settings.share,
         "exporter_running": CHECKOUT_KEY in exporters,
         "exporters": len(exporters),
     }

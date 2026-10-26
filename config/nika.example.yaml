@@ -163,8 +163,18 @@ nika:
     remote_write:
       # Also push the recorded series to a hosted Prometheus, such as Grafana
       # Cloud. The token is NIKA_METRICS_REMOTE_WRITE_TOKEN in .env.
+      enabled: false
       url: null
       username: null
+    share:
+      # Give each benchmark run a public dashboard link through a Cloudflare
+      # Quick Tunnel (no Cloudflare account needed).
+      enabled: false
+      # The link stops working after this many days (1 to 30).
+      ttl_days: 7
+      # Empty: anyone with the link can view it. Otherwise viewers confirm one
+      # of these addresses (or '*@example.com') with a one-time code.
+      allowed_emails: []
 
 # Configure benchmark execution.
 benchmark:

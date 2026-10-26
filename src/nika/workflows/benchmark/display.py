@@ -21,6 +21,7 @@ import time
 from collections import deque
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal, Self, TextIO, cast
 
@@ -249,6 +250,38 @@ def print_inspect_hint(
         _console.print(hint)
         return
     _console.print(f"Browse trajectories: nika inspect --result-dir {result_dir}")
+
+
+def _expiry_text(expires_at: str | None) -> str:
+    if not expires_at:
+        return ""
+    try:
+        when = datetime.fromisoformat(expires_at).astimezone()
+    except ValueError:
+        return ""
+    return f"expires {when:%Y-%m-%d %H:%M %Z}"
+
+
+def print_dashboard_link(
+    record: dict[str, Any], *, output_mode: OutputMode = "human"
+) -> None:
+    """Print the run's shared Grafana dashboard link (``nika.metrics.share``)."""
+    url = str(record["url"])
+    expiry = _expiry_text(record.get("expires_at"))
+    name = record.get("run_name")
+    if output_mode == "agent":
+        label = f"Dashboard ({name})" if name else "Dashboard"
+        print(f"{label}: {url}" + (f" ({expiry})" if expiry else ""))
+        return
+    hint = Text("📊 Live dashboard", style="bold")
+    if name:
+        hint.append(f" · {name}", style="bold cyan")
+    hint.append(": ", style="bold")
+    hint.append(url, style=Style(link=url, color="cyan"))
+    if expiry:
+        hint.append(f"  ({expiry})", style="dim")
+    # One line, so the link copies intact.
+    _console.print(hint, soft_wrap=True)
 
 
 def vprint(verbose: bool, message: str) -> None:
@@ -512,6 +545,7 @@ class BenchmarkProgress:
         case_count: int | None = None,
         n_trials: int = 1,
         inspect_url: str | None = None,
+        dashboard_url: str | None = None,
         output_mode: OutputMode = "human",
     ) -> None:
         self.total = max(0, int(total))
@@ -521,6 +555,7 @@ class BenchmarkProgress:
         self._case_count = case_count
         self._n_trials = max(1, int(n_trials))
         self._inspect_url = inspect_url
+        self._dashboard_url = dashboard_url
         self._output_mode: OutputMode = output_mode
         self._stats = _RollingStats()
         self._started = time.monotonic()
@@ -911,13 +946,21 @@ class BenchmarkProgress:
             case_count = max(1, self.total // self._n_trials) if self.total else 0
         if case_count is not None:
             left += f"  {case_count} case(s)×{self._n_trials} trial(s)"
-        if self._inspect_url:
+        if self._inspect_url or self._dashboard_url:
             right = Text()
-            right.append(
-                "inspect",
-                style=Style(link=self._inspect_url, color="cyan", underline=True),
-            )
-            right.append(f"  {self._inspect_url}", style="dim")
+            if self._dashboard_url:
+                right.append(
+                    "📊 dashboard",
+                    style=Style(link=self._dashboard_url, color="cyan", underline=True),
+                )
+            if self._inspect_url:
+                if self._dashboard_url:
+                    right.append("  ")
+                right.append(
+                    "inspect",
+                    style=Style(link=self._inspect_url, color="cyan", underline=True),
+                )
+                right.append(f"  {self._inspect_url}", style="dim")
         else:
             right = self._stats.throughput_line(
                 completed=self.completed, elapsed_s=elapsed
@@ -935,7 +978,7 @@ class BenchmarkProgress:
                 ),
                 style="dim",
             )
-            if self._inspect_url
+            if self._inspect_url or self._dashboard_url
             else Text(""),
         )
 

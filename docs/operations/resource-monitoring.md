@@ -36,18 +36,50 @@ A benchmark run appears while it runs and for 10 minutes after it finishes. The 
 
 Host memory is the memory in use (total minus available, as in `free`). Environment memory is the working set of the environment's containers. CPU time includes the deployment of the environment.
 
+## Share a run's dashboard
+
+To follow a benchmark run from a phone or another computer, or to send it to a collaborator, NIKA can give each run a public link to its dashboard. Sharing is off by default. Turn it on in `config/nika.yaml`:
+
+```yaml
+nika:
+  metrics:
+    share:
+      enabled: true
+```
+
+With monitoring on, `nika benchmark run` then prints the link when the run starts and again when it ends, and the live progress view shows it as **📊 dashboard**:
+
+```text
+📊 Live dashboard · gpt-5 · cli.codex · 2026-10-26 09:00 UTC: https://<random-words>.trycloudflare.com/d/nika-benchmark/nika-benchmark?var-run_id=<run_id>&from=…  (expires 2026-11-02 09:00 UTC)
+```
+
+Runs are named after their model, agent, and creation time in UTC; the dashboard and `nika observability links` show the name, with the run id beside it. The link opens the dashboard with the run selected, from its start until now. It works for 7 days (`ttl_days`, up to 30), then stops for good. A resumed run keeps its link while the link is valid. To see the links again:
+
+```shell
+uv run nika observability links                          # every run of this checkout
+uv run nika observability links --result-dir <run dir>   # one run, from its dashboard.json
+uv run nika observability unshare <run_id>               # revoke a link before it expires
+```
+
+`nika observability off` also closes every link.
+
+Anyone with the link can view the dashboard and query the monitoring data, and benchmark session ids name the injected failure, so keep links away from agents under evaluation. To restrict viewers, list their addresses in `allowed_emails` (a pattern such as `'*@example.com'` works too). Visitors then confirm their address with a one-time code that Cloudflare emails them.
+
+Each link is a [Cloudflare Quick Tunnel](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/) from the lab host to the local Grafana. It needs no Cloudflare account, but the host must reach Cloudflare on outbound port 7844, and Cloudflare offers Quick Tunnels without an uptime guarantee. NIKA runs one `cloudflared` container per run and records the link in the run's result directory (`dashboard.json`) and in its progress document.
+
 ## Push the data to Grafana Cloud
 
-To follow runs without an SSH tunnel, or to see several lab hosts in one place, Prometheus can also push NIKA's series to Grafana Cloud. The local stack keeps working as before.
+To follow runs without an SSH tunnel, or to see several lab hosts in one place, Prometheus can also push NIKA's series to Grafana Cloud. The push is off by default, and the local stack works the same with or without it.
 
 1. In the Grafana Cloud portal, open your stack's **Prometheus** details. Note the remote-write endpoint and the instance ID, the numeric username.
 2. Create an access policy token with the `metrics:write` scope.
-3. Add the endpoint and username to `config/nika.yaml`, and the token to `.env`:
+3. Turn the push on and add the endpoint and username to `config/nika.yaml`, and the token to `.env`:
 
    ```yaml
    nika:
      metrics:
        remote_write:
+         enabled: true
          url: https://prometheus-prod-XX-prod-REGION.grafana.net/api/prom/push
          username: "1234567"
    ```
@@ -59,7 +91,7 @@ To follow runs without an SSH tunnel, or to see several lab hosts in one place, 
 4. Run `uv run nika observability on` again on each lab host to apply the settings.
 5. In Grafana Cloud, import [`nika-benchmark.json`](../../src/nika/metrics/stack/grafana/dashboards/nika-benchmark.json) (**Dashboards → New → Import**) and pick your stack's Prometheus as the **Data source**.
 
-New samples appear in Grafana Cloud within seconds of being recorded. Only NIKA's series are pushed (`nika:*` and `nika_*`), each with a `host` label set to the lab host's name; select it with the **Host** variable. The raw cAdvisor and node exporter series stay on the host.
+To stop pushing, set `enabled: false` and run `uv run nika observability on` again. New samples appear in Grafana Cloud within seconds of being recorded. Only NIKA's series are pushed (`nika:*` and `nika_*`), each with a `host` label set to the lab host's name; select it with the **Host** variable. The raw cAdvisor and node exporter series stay on the host.
 
 Session ids of benchmark trials contain the task id, which names the injected failure. Pushing them publishes this ground truth to your Grafana Cloud stack, so keep agents under evaluation away from it.
 
@@ -109,4 +141,4 @@ Several checkouts on one host share the same services. Each checkout runs its ow
 
 `nika observability on` writes the Prometheus configuration, including the remote-write token, to `~/.cache/nika/metrics/prometheus/`, readable only by you and the Prometheus container. `nika observability off` deletes the token file.
 
-The services use ports `3000` (Grafana), `9090` (Prometheus), `8098` (cAdvisor), and `9109` (node exporter) on `127.0.0.1`. If one is taken, change it in [`docker-compose.yml`](../../src/nika/metrics/stack/docker-compose.yml) and in the scrape targets of [`stack.py`](../../src/nika/metrics/stack.py). The dashboard is provisioned from [`nika-benchmark.json`](../../src/nika/metrics/stack/grafana/dashboards/nika-benchmark.json). To edit it in Grafana, sign in as `admin` (password `admin`) and save a copy.
+The services use ports `3000` (Grafana), `9090` (Prometheus), `8098` (cAdvisor), and `9109` (node exporter) on `127.0.0.1`. If one is taken, change it in [`docker-compose.yml`](../../src/nika/metrics/stack/docker-compose.yml) and in the scrape targets of [`stack.py`](../../src/nika/metrics/stack.py). The dashboard is provisioned from [`nika-benchmark.json`](../../src/nika/metrics/stack/grafana/dashboards/nika-benchmark.json). To edit it in Grafana, sign in as `admin` with the password that `nika observability on` stores in `~/.cache/nika/metrics/grafana_admin_password`, and save a copy.

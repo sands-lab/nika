@@ -165,8 +165,12 @@ Default production and benchmark paths use light runtime checks without Batfish 
 | Key | Default | Meaning and constraints |
 | --- | --- | --- |
 | `nika.metrics.scrape_interval` | `15s` | How often Prometheus scrapes and cAdvisor samples, from `5s` to `60s`. |
+| `nika.metrics.remote_write.enabled` | `false` | Also push NIKA's series to `nika.metrics.remote_write.url`. Requires the URL and the token. |
 | `nika.metrics.remote_write.url` | `null` | Remote-write endpoint that also receives NIKA's series, such as Grafana Cloud's Prometheus. The token is `NIKA_METRICS_REMOTE_WRITE_TOKEN` in `.env`. |
 | `nika.metrics.remote_write.username` | `null` | Basic-auth username, such as the Grafana Cloud instance ID. Null sends the token as a bearer token. |
+| `nika.metrics.share.enabled` | `false` | Give each benchmark run a public dashboard link through a Cloudflare Quick Tunnel. |
+| `nika.metrics.share.ttl_days` | `7` | Days until a run's link stops working, from 1 to 30. |
+| `nika.metrics.share.allowed_emails` | `[]` | Addresses (or patterns such as `*@example.com`) allowed to view a link after an emailed one-time code. Empty: anyone with the link. |
 
 ## `benchmark` settings
 

@@ -15,6 +15,20 @@ def _utc_now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
+def run_display_name(
+    model: str | None, agent_type: str | None, created_at: str | None
+) -> str:
+    """Human-readable run name, such as ``gpt-5 · cli.codex · 2026-10-26 15:00 UTC``."""
+    parts = [str(part) for part in (model, agent_type) if part]
+    try:
+        when = datetime.fromisoformat(str(created_at)).astimezone(timezone.utc)
+    except (TypeError, ValueError):
+        when = None
+    if when is not None:
+        parts.append(f"{when:%Y-%m-%d %H:%M} UTC")
+    return " · ".join(parts) or "benchmark run"
+
+
 def progress_path(run_id: str, *, runs_dir: Path | None = None) -> Path:
     root = Path(runs_dir) if runs_dir is not None else BENCHMARK_RUNS_DIR
     return root / f"{run_id}.json"
@@ -32,6 +46,7 @@ def write_progress(
     version: str | None = None,
     agent_type: str | None = None,
     model: str | None = None,
+    run_name: str | None = None,
     runs_dir: Path | None = None,
 ) -> Path:
     """Create or overwrite the progress document for ``run_id``.
@@ -56,6 +71,7 @@ def write_progress(
         "version": version,
         "agent_type": agent_type,
         "model": model,
+        "run_name": run_name or run_display_name(model, agent_type, now),
     }
     path.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
@@ -162,3 +178,24 @@ def is_run_live(doc: dict[str, Any]) -> bool:
     except PermissionError:
         return True
     return True
+
+
+def annotate_progress(
+    run_id: str,
+    values: dict[str, Any],
+    *,
+    runs_dir: Path | None = None,
+) -> None:
+    """Add ``values`` to an existing progress document; no-op when it is absent."""
+    path = progress_path(run_id, runs_dir=runs_dir)
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return
+    if not isinstance(data, dict):
+        return
+    data.update(values)
+    path.write_text(
+        json.dumps(data, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
