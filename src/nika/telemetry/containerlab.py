@@ -21,7 +21,14 @@ import yaml
 
 from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 from nika.runtime.spec import NodeRole
-from nika.telemetry import CONFIG_DIR, DEVICE_EXEC_WORKERS, NETFLOW, PROMETHEUS, SYSLOG
+from nika.telemetry import (
+    CONFIG_DIR,
+    DEVICE_EXEC_WORKERS,
+    NETFLOW,
+    PROMETHEUS,
+    SYSLOG,
+    TELEMETRY_SUBNET,
+)
 from nika.telemetry import management, netflow, prometheus, srl, syslog
 from nika.telemetry.management import SCRIPT, TELEMETRY_COLLECTOR, address_plan
 from nika.utils.parallel import bounded_parallel_map
@@ -75,7 +82,6 @@ def _srl_node_names(nodes: dict[str, Any]) -> list[str]:
 
 def inject_collector(
     doc: dict[str, Any],
-    subnet: str,
     kinds: tuple[str, ...],
     *,
     gnmic: str | None,
@@ -117,7 +123,9 @@ def inject_collector(
     flow_prefixlen = 0
     flow_addresses: dict[str, str] = {}
     if NETFLOW in kinds and srl_names:
-        flow_collector, flow_prefixlen, flow_addresses = address_plan(subnet, srl_names)
+        flow_collector, flow_prefixlen, flow_addresses = address_plan(
+            TELEMETRY_SUBNET, srl_names
+        )
         eth_index = 1
         for name in srl_names:
             e1 = next_e1_port(name, links)
@@ -164,7 +172,7 @@ def inject_collector(
         "backend": "containerlab",
         "collector": TELEMETRY_COLLECTOR,
         "switch": "",
-        "subnet": subnet,
+        "subnet": TELEMETRY_SUBNET,
         "mgmt_subnet": str(mgmt_subnet),
         "collector_mgmt_ip": collector_mgmt_ip,
         "collector_flow_ip": flow_collector,
@@ -177,7 +185,7 @@ def inject_collector(
     }
 
 
-def attach(net_env: Any, subnet: str, kinds: tuple[str, ...]) -> dict[str, Any]:
+def attach(net_env: Any, kinds: tuple[str, ...]) -> dict[str, Any]:
     """Write the collector into the rendered clab topology before deploy."""
     from nika.utils.dependencies import require_gnmic
 
@@ -186,7 +194,7 @@ def attach(net_env: Any, subnet: str, kinds: tuple[str, ...]) -> dict[str, Any]:
     doc = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(doc, dict):
         raise ValueError(f"Invalid Containerlab topology at {path}")
-    plan = inject_collector(doc, subnet, kinds, gnmic=shutil.which("gnmic"))
+    plan = inject_collector(doc, kinds, gnmic=shutil.which("gnmic"))
     path.write_text(
         yaml.safe_dump(doc, sort_keys=False, default_flow_style=False),
         encoding="utf-8",

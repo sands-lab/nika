@@ -1,4 +1,4 @@
-"""Case YAML and run-config YAML select telemetry kinds and the management subnet."""
+"""Benchmark YAML selects telemetry kinds on a case row."""
 
 from __future__ import annotations
 
@@ -59,7 +59,7 @@ def test_case_yaml_keeps_telemetry_on_sdn_p4_and_containerlab(tmp_path: Path) ->
     ]
 
 
-def test_run_config_yaml_sets_telemetry_subnet(tmp_path: Path) -> None:
+def test_run_config_ignores_nika_telemetry_section(tmp_path: Path) -> None:
     path = tmp_path / "nika.yaml"
     path.write_text("nika:\n  telemetry:\n    subnet: 172.26.0.0/16\n")
-    assert load_run_config(path).nika.telemetry.subnet == "172.26.0.0/16"
+    load_run_config(path)

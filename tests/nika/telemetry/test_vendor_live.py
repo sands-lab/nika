@@ -6,7 +6,6 @@ import asyncio
 import json
 import time
 from collections.abc import Callable
-from pathlib import Path
 
 import pytest
 from langchain_mcp_adapters.client import MultiServerMCPClient
@@ -16,11 +15,8 @@ from nika.mcp.gateway.lifecycle import mcp_gateway_for_session
 from nika.net_env.utils.iosxr.common import IMAGE as XRD_IMAGE
 from nika.net_env.utils.routeros.common import IMAGE as ROS_IMAGE
 from nika.service.lab.routeros_api import CLI_COMMAND
-from nika.run_config.loader import load_run_config, reset_run_config, set_run_config
 from nika.runtime.factory import runtime_for_session
-from nika.telemetry.management import TELEMETRY_COLLECTOR
 from nika.utils.session_id import resolve_session_tag
-from nika.workflows.benchmark.load_config import load_benchmark_yaml
 from nika.workflows.env.start import start_net_env
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.integration_pipeline import tool_text_list
@@ -28,7 +24,6 @@ from tests.support.prerequisites import docker_available, docker_image_available
 
 pytestmark = pytest.mark.integration
 
-SUBNET = "172.26.0.0/16"
 _PC2 = "200.1.1.2"
 
 
@@ -60,38 +55,20 @@ class _VendorTelemetryLive(IntegrationTestCase):
     version_prefix: str
     routers: tuple[str, ...] = ("router1", "router2")
 
-    def test_yaml_enables_vendor_telemetry(self, tmp_path: Path) -> None:
+    def test_yaml_enables_vendor_telemetry(self) -> None:
         session_id = None
         try:
-            kinds = ", ".join(self.telemetry)
-            case_path = tmp_path / "cases.yaml"
-            case_path.write_text(
-                "cases:\n"
-                f"  - scenario: {self.scenario}\n"
-                "    problem: healthy\n"
-                f"    telemetry: [{kinds}]\n"
-                "    inject: {}\n"
-            )
-            row = load_benchmark_yaml(case_path)[0]
-            assert row["telemetry"] == list(self.telemetry)
-            (tmp_path / "nika.yaml").write_text(
-                "nika:\n  telemetry:\n    subnet: 172.26.0.0/16\n"
-            )
-            set_run_config(load_run_config(tmp_path / "nika.yaml"))
             session_id = start_net_env(
-                row["scenario"],
+                self.scenario,
                 None,
                 session_tag=resolve_session_tag(context="test"),
-                telemetry=row["telemetry"],
+                telemetry=self.telemetry,
             )
             session = self._assert_session_ready(session_id, self.scenario)
             params = session.get("scenario_params") or {}
             assert params.get("telemetry") == list(self.telemetry)
             plan = (session.get("metadata") or {}).get("telemetry") or {}
-            assert plan.get("subnet") == SUBNET
             runtime = runtime_for_session(session)
-            addr = runtime.exec(TELEMETRY_COLLECTOR, "ip -4 -o addr show")
-            assert "172.26." in addr
             prom_versions = plan["kinds"]["prometheus"]["versions"]
             for router in self.routers:
                 assert prom_versions[router].startswith(self.version_prefix)
@@ -178,7 +155,6 @@ class _VendorTelemetryLive(IntegrationTestCase):
             if exporters:
                 assert exporters & set(self.routers)
         finally:
-            reset_run_config()
             if session_id:
                 self._close_session(session_id)
 

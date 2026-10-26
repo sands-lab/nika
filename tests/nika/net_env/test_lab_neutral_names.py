@@ -58,7 +58,7 @@ def test_device_files_do_not_name_the_host() -> None:
 def test_telemetry_device_side_does_not_name_the_host() -> None:
     net_env = get_net_env_instance("dc_clos", backend="kathara", topo_size="s")
     kinds = tuple(management.KINDS)
-    plan = management.attach(net_env, "172.28.0.0/16", kinds)
+    plan = management.attach(net_env, kinds)
     collector, prefixlen, addresses = management.address_plan(
         plan["subnet"], list(plan["devices"])
     )

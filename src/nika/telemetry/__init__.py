@@ -15,6 +15,8 @@ NETFLOW = "netflow"
 PROMETHEUS = "prometheus"
 SYSLOG = "syslog"
 TELEMETRY_KINDS: tuple[str, ...] = (NETFLOW, PROMETHEUS, SYSLOG)
+# Out-of-band management LAN on Kathara, and the extra sFlow LAN on Containerlab.
+TELEMETRY_SUBNET = "172.28.0.0/16"
 # Prefix of the Kathara links of the out-of-band management network shared by
 # every telemetry kind. Link names stay on the host; not a scenario link.
 TELEMETRY_LINK_PREFIX = "nika_telemetry_"
@@ -90,16 +92,14 @@ def apply_telemetry(net_env: NetworkEnvBase, kinds: Iterable[str]) -> dict[str, 
 
     Returns the telemetry plan to persist with the session.
     """
-    from nika.run_config.loader import get_run_config
     from nika.telemetry import management
 
-    subnet = get_run_config().nika.telemetry.subnet
     kinds = normalize_telemetry(kinds)
     if getattr(net_env, "backend", None) == "containerlab":
         from nika.telemetry import containerlab as clab_telemetry
 
-        return clab_telemetry.attach(net_env, subnet, kinds)
-    return management.attach(net_env, subnet, kinds)
+        return clab_telemetry.attach(net_env, kinds)
+    return management.attach(net_env, kinds)
 
 
 def configure_telemetry(runtime: LabRuntime, plan: dict[str, Any]) -> dict[str, Any]:

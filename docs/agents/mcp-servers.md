@@ -76,7 +76,7 @@ Linux nodes export the network stack: `node_network_*`, `node_netstat_*`, `node_
 
 ### Syslog (`kathara_syslog_mcp_server`)
 
-Call `syslog_query` with a time window, for example `start_time="-600"` for the last ten minutes. Pass `host` for one device, `program` for a syslog tag such as `bgpd`, and `contains` for a message substring. Rows are `{time, host, program, message}`. Linux and OVS devices forward `/dev/log` over the management VRF after FRR `log syslog`. SR Linux sends remote syslog from the mgmt network-instance on the lab management network. XRd uses that Linux forwarder because extra Kathara NICs stay on Linux. RouterOS uses a remote logging action. The server is selected when a session enables `syslog` [telemetry](../operations/network-scenarios.md#telemetry).
+Call `syslog_query` with a time window, for example `start_time="-600"` for the last ten minutes. Pass `host` for one device, `program` for a syslog tag such as `bgpd`, and `contains` for a message substring. Rows are `{time, host, program, message}`. Linux and OVS devices forward `/dev/log` over the management VRF after FRR `log syslog`. SR Linux sends syslog over UDP 514 from the mgmt network-instance on the lab management network. XRd uses that Linux forwarder because extra Kathara NICs stay on Linux. RouterOS uses a remote logging action. The server is selected when a session enables `syslog` [telemetry](../operations/network-scenarios.md#telemetry).
 
 ### Kubernetes (`k8s_mcp_server`)
 

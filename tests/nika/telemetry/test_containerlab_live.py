@@ -1,4 +1,4 @@
-"""Live Containerlab min3clos: case YAML and nika.telemetry.subnet drive collection."""
+"""Live Containerlab min3clos: SR Linux sFlow, gNMI metrics, and syslog."""
 
 from __future__ import annotations
 
@@ -6,7 +6,6 @@ import asyncio
 import json
 import time
 from collections.abc import Callable
-from pathlib import Path
 
 import pytest
 from langchain_mcp_adapters.client import MultiServerMCPClient
@@ -15,11 +14,8 @@ from nika.agents.mcp_config import load_session_mcp_config
 from nika.mcp.gateway.lifecycle import mcp_gateway_for_session
 from nika.net_env.isp.containerlab.lab import SRL_IMAGE
 from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
-from nika.run_config.loader import load_run_config, reset_run_config, set_run_config
 from nika.runtime.factory import runtime_for_session
-from nika.telemetry.management import TELEMETRY_COLLECTOR
 from nika.utils.session_id import resolve_session_tag
-from nika.workflows.benchmark.load_config import load_benchmark_yaml
 from nika.workflows.env.start import start_net_env
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.integration_pipeline import tool_text_list
@@ -30,7 +26,6 @@ from tests.support.prerequisites import (
 
 pytestmark = pytest.mark.integration
 
-SUBNET = "172.26.0.0/16"
 _CLIENT2 = "10.0.0.27"
 
 
@@ -73,38 +68,21 @@ class TestMin3closTelemetryYamlLive(IntegrationTestCase):
     scenario = "min3clos"
     telemetry = ("netflow", "prometheus", "syslog")
 
-    def test_yaml_enables_srl_sflow_and_gnmi_metrics(self, tmp_path: Path) -> None:
+    def test_yaml_enables_srl_sflow_and_gnmi_metrics(self) -> None:
         session_id = None
         try:
-            case_path = tmp_path / "cases.yaml"
-            case_path.write_text(
-                "cases:\n"
-                "  - scenario: min3clos\n"
-                "    problem: healthy\n"
-                "    telemetry: [netflow, prometheus, syslog]\n"
-                "    inject: {}\n"
-            )
-            row = load_benchmark_yaml(case_path)[0]
-            assert row["telemetry"] == ["netflow", "prometheus", "syslog"]
-            (tmp_path / "nika.yaml").write_text(
-                "nika:\n  telemetry:\n    subnet: 172.26.0.0/16\n"
-            )
-            set_run_config(load_run_config(tmp_path / "nika.yaml"))
             session_id = start_net_env(
-                row["scenario"],
+                self.scenario,
                 None,
                 session_tag=resolve_session_tag(context="test"),
-                telemetry=row["telemetry"],
+                telemetry=self.telemetry,
             )
             session = self._assert_session_ready(session_id, self.scenario)
             params = session.get("scenario_params") or {}
             assert params.get("telemetry") == ["netflow", "prometheus", "syslog"]
             plan = (session.get("metadata") or {}).get("telemetry") or {}
-            assert plan.get("subnet") == SUBNET
             assert plan.get("backend") == "containerlab"
             runtime = runtime_for_session(session)
-            addr = runtime.exec(TELEMETRY_COLLECTOR, "ip -4 -o addr show")
-            assert "172.26." in addr
             netflow_versions = plan["kinds"]["netflow"]["versions"]
             prom_versions = plan["kinds"]["prometheus"]["versions"]
             assert netflow_versions["leaf1"].startswith("srl-")
@@ -204,6 +182,5 @@ class TestMin3closTelemetryYamlLive(IntegrationTestCase):
             if exporters:
                 assert exporters & {"leaf1", "leaf2", "spine"}
         finally:
-            reset_run_config()
             if session_id:
                 self._close_session(session_id)

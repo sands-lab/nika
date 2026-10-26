@@ -28,6 +28,7 @@ from nika.telemetry import (
     NETFLOW,
     PROMETHEUS,
     SYSLOG,
+    TELEMETRY_SUBNET,
     netflow,
     prometheus,
     syslog,
@@ -73,9 +74,7 @@ def address_plan(subnet: str, devices: list[str]) -> tuple[str, int, dict[str, s
     return str(network[-2]), network.prefixlen, addresses
 
 
-def attach(
-    net_env: NetworkEnvBase, subnet: str, kinds: tuple[str, ...]
-) -> dict[str, Any]:
+def attach(net_env: NetworkEnvBase, kinds: tuple[str, ...]) -> dict[str, Any]:
     """Wire the collector and the management LAN into the built, not yet deployed, lab.
 
     The LAN is a star: ``telemetry_switch`` bridges, in its kernel, one
@@ -95,7 +94,7 @@ def attach(
         # Prometheus holds every device's series in memory (~330 MB for 322).
         mem="1g",
     )
-    collector_ip, prefixlen, _ = address_plan(subnet, [])
+    collector_ip, prefixlen, _ = address_plan(TELEMETRY_SUBNET, [])
     collector_iface = _connect_last(lab, TELEMETRY_COLLECTOR)
     lab.create_file_from_list(
         [
@@ -124,7 +123,7 @@ def attach(
     return {
         "collector": TELEMETRY_COLLECTOR,
         "switch": TELEMETRY_SWITCH,
-        "subnet": subnet,
+        "subnet": TELEMETRY_SUBNET,
         "devices": plan_devices,
         "addresses": {},
         "kinds": {kind: {"versions": {}} for kind in kinds},

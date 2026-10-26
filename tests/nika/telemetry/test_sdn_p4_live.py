@@ -1,4 +1,4 @@
-"""Live SDN/P4 labs: case YAML and nika.telemetry.subnet drive collection."""
+"""Live SDN/P4 labs: telemetry kinds collect NetFlow, Prometheus, and syslog."""
 
 from __future__ import annotations
 
@@ -6,7 +6,6 @@ import asyncio
 import json
 import time
 from collections.abc import Callable
-from pathlib import Path
 
 import pytest
 from langchain_mcp_adapters.client import MultiServerMCPClient
@@ -19,19 +18,14 @@ from nika.net_env.sdn_l3_clos.topology_model import (
     build_clos_fabric_model as build_sdn_model,
 )
 from nika.net_env.utils.kathara.docker_files.docker_images import KATHARA_P4_IMAGE
-from nika.run_config.loader import load_run_config, reset_run_config, set_run_config
 from nika.runtime.factory import runtime_for_session
-from nika.telemetry.management import TELEMETRY_COLLECTOR
 from nika.utils.session_id import resolve_session_tag
-from nika.workflows.benchmark.load_config import load_benchmark_yaml
 from nika.workflows.env.start import start_net_env
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.integration_pipeline import tool_text_list
 from tests.support.prerequisites import docker_available, docker_image_available
 
 pytestmark = pytest.mark.integration
-
-SUBNET = "172.26.0.0/16"
 
 
 def _tool_rows(name: str, raw: object) -> list[dict]:
@@ -71,24 +65,6 @@ def _int_rows(raw: object) -> list[dict]:
     return rows
 
 
-def _write_case_yaml(path: Path, scenario: str, telemetry: list[str]) -> Path:
-    kinds = ", ".join(telemetry)
-    path.write_text(
-        "cases:\n"
-        f"  - scenario: {scenario}\n"
-        "    problem: healthy\n"
-        "    topo_size: s\n"
-        f"    telemetry: [{kinds}]\n"
-        "    inject: {}\n"
-    )
-    return path
-
-
-def _apply_subnet_yaml(path: Path) -> None:
-    path.write_text("nika:\n  telemetry:\n    subnet: 172.26.0.0/16\n")
-    set_run_config(load_run_config(path))
-
-
 def _poll(deadline: float, interval: float, probe: Callable[[], object]) -> object:
     value = probe()
     while not value and time.monotonic() < deadline:
@@ -98,23 +74,17 @@ def _poll(deadline: float, interval: float, probe: Callable[[], object]) -> obje
 
 
 class _YamlTelemetryLive(IntegrationTestCase):
-    """Start a lab from case YAML plus nika.telemetry.subnet."""
+    """Start a lab with the telemetry kinds this scenario exports."""
 
     scenario: str
     telemetry: tuple[str, ...]
 
-    def _start_from_yaml(self, tmp_path: Path) -> tuple[str, dict]:
-        case_path = _write_case_yaml(
-            tmp_path / "cases.yaml", self.scenario, list(self.telemetry)
-        )
-        row = load_benchmark_yaml(case_path)[0]
-        assert row["telemetry"] == list(self.telemetry)
-        _apply_subnet_yaml(tmp_path / "nika.yaml")
+    def _start_from_yaml(self) -> tuple[str, dict]:
         session_id = start_net_env(
-            row["scenario"],
-            row["topo_size"],
+            self.scenario,
+            "s",
             session_tag=resolve_session_tag(context="test"),
-            telemetry=row["telemetry"],
+            telemetry=self.telemetry,
         )
         return session_id, self._assert_session_ready(session_id, self.scenario)
 
@@ -122,12 +92,8 @@ class _YamlTelemetryLive(IntegrationTestCase):
         params = session_row.get("scenario_params") or {}
         assert params.get("telemetry") == list(self.telemetry)
         plan = (session_row.get("metadata") or {}).get("telemetry") or {}
-        assert plan.get("subnet") == SUBNET
         if "syslog" in self.telemetry:
             assert "syslog" in (plan.get("kinds") or {})
-        runtime = runtime_for_session(session_row)
-        addr = runtime.exec(TELEMETRY_COLLECTOR, "ip -4 -o addr show")
-        assert "172.26." in addr
         return plan
 
     def _assert_syslog(self, runtime, config: dict, node: str) -> None:
@@ -155,12 +121,10 @@ class TestSdnTelemetryYamlLive(_YamlTelemetryLive):
     scenario = "sdn_l3_clos"
     telemetry = ("netflow", "prometheus", "syslog")
 
-    def test_yaml_enables_ovs_netflow_and_openflow_metrics(
-        self, tmp_path: Path
-    ) -> None:
+    def test_yaml_enables_ovs_netflow_and_openflow_metrics(self) -> None:
         session_id = None
         try:
-            session_id, row = self._start_from_yaml(tmp_path)
+            session_id, row = self._start_from_yaml()
             plan = self._assert_yaml_took_effect(row)
             netflow_versions = plan["kinds"]["netflow"]["versions"]
             prom_versions = plan["kinds"]["prometheus"]["versions"]
@@ -224,7 +188,6 @@ class TestSdnTelemetryYamlLive(_YamlTelemetryLive):
             assert "leaf_1" in exporters
             assert "leaf_" in "".join(exporters)
         finally:
-            reset_run_config()
             if session_id:
                 self._close_session(session_id)
 
@@ -240,10 +203,10 @@ class TestP4FabricTelemetryYamlLive(_YamlTelemetryLive):
     scenario = "p4_dc_fabric"
     telemetry = ("prometheus", "syslog")
 
-    def test_yaml_enables_p4_counter_metrics(self, tmp_path: Path) -> None:
+    def test_yaml_enables_p4_counter_metrics(self) -> None:
         session_id = None
         try:
-            session_id, row = self._start_from_yaml(tmp_path)
+            session_id, row = self._start_from_yaml()
             plan = self._assert_yaml_took_effect(row)
             versions = plan["kinds"]["prometheus"]["versions"]
             assert "p4" in versions.get("fabric_mgr", "").split("+")
@@ -278,7 +241,6 @@ class TestP4FabricTelemetryYamlLive(_YamlTelemetryLive):
             assert counters
             assert {row["node"] for row in counters} & set(model.leaves + model.spines)
         finally:
-            reset_run_config()
             if session_id:
                 self._close_session(session_id)
 
@@ -294,10 +256,10 @@ class TestP4GatewayTelemetryYamlLive(_YamlTelemetryLive):
     scenario = "p4_dc_gateway"
     telemetry = ("prometheus", "syslog")
 
-    def test_yaml_prometheus_and_int_traces(self, tmp_path: Path) -> None:
+    def test_yaml_prometheus_and_int_traces(self) -> None:
         session_id = None
         try:
-            session_id, row = self._start_from_yaml(tmp_path)
+            session_id, row = self._start_from_yaml()
             plan = self._assert_yaml_took_effect(row)
             versions = plan["kinds"]["prometheus"]["versions"]
             assert "p4" in versions.get("fabric_mgr", "").split("+")
@@ -353,6 +315,5 @@ class TestP4GatewayTelemetryYamlLive(_YamlTelemetryLive):
                 row.get("trace_complete") and row.get("hop_sequence") for row in traces
             )
         finally:
-            reset_run_config()
             if session_id:
                 self._close_session(session_id)

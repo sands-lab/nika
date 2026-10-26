@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import ipaddress
 import warnings
 from typing import Any, Literal
 
@@ -243,25 +242,6 @@ class ExecutionSettings(BaseModel):
     firecracker: FirecrackerSettings = Field(default_factory=FirecrackerSettings)
 
 
-class TelemetrySettings(BaseModel):
-    """Settings for scenario telemetry selected per case with ``telemetry``."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    # Out-of-band management network shared by every telemetry kind.
-    subnet: str = "172.28.0.0/16"
-
-    @field_validator("subnet")
-    @classmethod
-    def _subnet_fits_lab(cls, value: str) -> str:
-        network = ipaddress.ip_network(value, strict=True)
-        if network.version != 4 or network.num_addresses < 16:
-            raise ValueError(
-                "nika.telemetry.subnet must be an IPv4 network of /28 or larger"
-            )
-        return str(network)
-
-
 class NikaSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -271,11 +251,17 @@ class NikaSettings(BaseModel):
         """Ignore ``nika.observability``, which saved run configs still hold.
 
         It configured Langfuse tracing; the model proxy now records every
-        model call in ``model_calls.jsonl``.
+        model call in ``model_calls.jsonl``. Also ignore ``nika.telemetry``:
+        the management subnet is fixed in code, not a run-config field.
         """
-        if not isinstance(data, dict) or "observability" not in data:
+        if not isinstance(data, dict):
+            return data
+        if "observability" not in data and "telemetry" not in data:
             return data
         data = dict(data)
+        data.pop("telemetry", None)
+        if "observability" not in data:
+            return data
         observability = data.pop("observability")
         if isinstance(observability, dict) and observability.get("langfuse_enabled"):
             # A UserWarning, because Python hides DeprecationWarning by default.
@@ -301,7 +287,6 @@ class NikaSettings(BaseModel):
     runtime_validation: RuntimeValidationSettings = Field(
         default_factory=RuntimeValidationSettings
     )
-    telemetry: TelemetrySettings = Field(default_factory=TelemetrySettings)
 
 
 class AgentLlmSettings(BaseModel):

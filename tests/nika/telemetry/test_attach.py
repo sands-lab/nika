@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from nika.net_env.net_env_pool import get_net_env_instance
-from nika.telemetry import containerlab, management
+from nika.telemetry import TELEMETRY_SUBNET, containerlab, management
 
 pytestmark = pytest.mark.unit
 
@@ -59,7 +59,7 @@ _MIN3CLOS = {
 )
 def test_management_nodes_stay_off_the_topology(scenario: str) -> None:
     net_env = get_net_env_instance(scenario, backend="kathara", topo_size="s")
-    management.attach(net_env, "172.28.0.0/16", ("netflow", "prometheus"))
+    management.attach(net_env, ("netflow", "prometheus"))
     topology = str(net_env.get_topology())
     assert management.TELEMETRY_COLLECTOR not in topology
     assert management.TELEMETRY_SWITCH not in topology
@@ -68,7 +68,7 @@ def test_management_nodes_stay_off_the_topology(scenario: str) -> None:
 
 def test_int_sink_is_not_a_telemetry_exporter() -> None:
     net_env = get_net_env_instance("p4_dc_gateway", backend="kathara", topo_size="s")
-    plan = management.attach(net_env, "172.28.0.0/16", ("prometheus", "syslog"))
+    plan = management.attach(net_env, ("prometheus", "syslog"))
     assert "collector" not in plan["devices"]
     assert "fabric_mgr" in plan["devices"]
     assert "gateway_1" in plan["devices"]
@@ -93,7 +93,7 @@ def test_inject_collector_adds_sflow_links_and_mgmt_node() -> None:
         },
     }
     plan = containerlab.inject_collector(
-        doc, "172.26.0.0/16", ("netflow", "prometheus"), gnmic="/tmp/gnmic"
+        doc, ("netflow", "prometheus"), gnmic="/tmp/gnmic"
     )
     nodes = doc["topology"]["nodes"]
     links = doc["topology"]["links"]
@@ -101,8 +101,8 @@ def test_inject_collector_adds_sflow_links_and_mgmt_node() -> None:
     assert collector["mgmt-ipv4"] == "172.100.1.7"
     assert collector["mgmt-ipv6"] == "3fff:172:100:1::7"
     assert collector["binds"] == ["/tmp/gnmic:/usr/local/bin/gnmic:ro"]
-    assert plan["subnet"] == "172.26.0.0/16"
-    assert plan["collector_flow_ip"].startswith("172.26.")
+    assert plan["subnet"] == TELEMETRY_SUBNET
+    assert plan["collector_flow_ip"].startswith("172.28.")
     assert plan["devices"]["leaf1"]["srl_e1"] == 3
     assert plan["devices"]["leaf1"]["data_e1"] == [1, 2]
     assert {"leaf1:e1-3", f"{management.TELEMETRY_COLLECTOR}:eth1"} <= {
@@ -148,7 +148,7 @@ def test_multi_router_clab_injects_sflow_on_every_srl_node() -> None:
         },
     }
     plan = containerlab.inject_collector(
-        doc, "172.26.0.0/16", ("netflow", "prometheus"), gnmic="/usr/bin/gnmic"
+        doc, ("netflow", "prometheus"), gnmic="/usr/bin/gnmic"
     )
     nodes = doc["topology"]["nodes"]
     assert management.TELEMETRY_COLLECTOR in nodes
@@ -166,7 +166,7 @@ def test_multi_router_clab_injects_sflow_on_every_srl_node() -> None:
 def test_iosxr_attach_keeps_xr_interfaces_off_the_mgmt_nic() -> None:
     net_env = get_net_env_instance("iosxr_simple_bgp")
     before = net_env.lab.machines["router1"].get_envs()["XR_INTERFACES"]
-    management.attach(net_env, "172.28.0.0/16", ("prometheus",))
+    management.attach(net_env, ("prometheus",))
     after = net_env.lab.machines["router1"].get_envs()["XR_INTERFACES"]
     assert after == before
     assert "linux:eth2," not in after + ","
@@ -179,7 +179,7 @@ def test_iosxr_attach_keeps_xr_interfaces_off_the_mgmt_nic() -> None:
 def test_routeros_attach_does_not_raise_clab_intfs() -> None:
     net_env = get_net_env_instance("routeros_simple_bgp")
     before = net_env.lab.machines["router1"].get_envs()["CLAB_INTFS"]
-    management.attach(net_env, "172.28.0.0/16", ("netflow", "prometheus"))
+    management.attach(net_env, ("netflow", "prometheus"))
     assert net_env.lab.machines["router1"].get_envs()["CLAB_INTFS"] == before
     topology = str(net_env.get_topology())
     assert management.TELEMETRY_COLLECTOR not in topology
@@ -197,9 +197,7 @@ def test_inject_collector_syslog_only_skips_sflow_links() -> None:
             "links": [dict(link) for link in _MIN3CLOS["topology"]["links"]],
         },
     }
-    plan = containerlab.inject_collector(
-        doc, "172.26.0.0/16", ("syslog",), gnmic="/usr/bin/gnmic"
-    )
+    plan = containerlab.inject_collector(doc, ("syslog",), gnmic="/usr/bin/gnmic")
     assert plan["collector_flow_ip"] == ""
     assert "syslog" in plan["kinds"]
     assert all(
@@ -220,9 +218,7 @@ def test_inject_collector_prometheus_only_skips_sflow_links() -> None:
             "links": [dict(link) for link in _MIN3CLOS["topology"]["links"]],
         },
     }
-    plan = containerlab.inject_collector(
-        doc, "172.26.0.0/16", ("prometheus",), gnmic="/usr/bin/gnmic"
-    )
+    plan = containerlab.inject_collector(doc, ("prometheus",), gnmic="/usr/bin/gnmic")
     assert plan["collector_flow_ip"] == ""
     assert plan["devices"]["leaf1"]["srl_e1"] is None
     assert all(

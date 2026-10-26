@@ -157,10 +157,6 @@ nika:
     depth: light
     # Compare healthy and faulty contract evidence after fault injection.
     failure_effect: false
-  telemetry:
-    # Out-of-band management LAN for cases with `telemetry: [...]`.
-    # Keep it disjoint from scenario addressing.
-    subnet: 172.28.0.0/16
 
 # Configure benchmark execution.
 benchmark:

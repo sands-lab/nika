@@ -710,24 +710,18 @@ Records stay empty until devices export traffic, counters, or log lines. Flow re
 | Kathara Linux (`nika/base`) | not exported | node_exporter | `/dev/log` forwarder |
 | SDN Open vSwitch | OVS NetFlow | OpenFlow port counters | `/dev/log` |
 | P4 BMv2 | not exported | pipeline counters | `/dev/log` from `fabric_mgr` |
-| Containerlab SR Linux | sFlow on extra ethernet | gNMI interfaces and BGP | gNMI remote-server |
+| Containerlab SR Linux | sFlow on extra ethernet | gNMI interfaces and BGP | UDP 514 |
 | Containerlab Linux clients | not exported | not exported | not exported |
 | XRd | not exported | `xr_cli` interfaces and BGP | Linux `/dev/log` forwarder |
 | RouterOS | traffic-flow v9 | SSH interfaces and BGP | remote logging |
 
 `p4_dc_gateway` also records INT-MX hop reports; query those with [`int_query_telemetry`](../agents/mcp-servers.md#telemetry-kathara_telemetry_mcp_server). The INT collector is not a NIKA exporter.
 
-Change [`nika.telemetry.subnet`](configuration.md#telemetry) when the default `172.28.0.0/16` overlaps scenario addressing. Use a range that is not already in the environment, for example `172.26.0.0/16`:
-
-```shell
-uv run nika config set nika.telemetry.subnet=172.26.0.0/16
-```
-
 ### Management network
 
 Kathara adds an out-of-band LAN, `telemetry_switch`, and `telemetry_collector`. Each exporting device joins on an extra interface after its scenario interfaces, in VRF `mgmt` (table 4242), so routing protocols never advertise it. node_exporter answers only on that network, and the management interface is left out of Prometheus metrics. vrnetlab maps the extra NIC into RouterOS, so NIKA addresses it there instead of in a Linux VRF and does not add it to OSPF.
 
-Containerlab joins the collector to the lab management network. sFlow cannot use that network, so SR Linux flow records use an extra ethernet port and `ip-vrf` `telemetry`; `nika.telemetry.subnet` is that sFlow LAN. Prometheus and syslog scrape SR Linux over gNMI on the lab management network.
+Containerlab joins the collector to the lab management network. sFlow cannot use that network, so SR Linux flow records use an extra ethernet port and `ip-vrf` `telemetry`. Prometheus collects SR Linux metrics through gNMI on the lab management network. SR Linux sends syslog to the collector over UDP port 514 on that network; NIKA configures the logging destination through gNMI.
 
 The collector is off the topology: it has no scenario interfaces, no injected failures, and no packet captures. NIKA starts collectors and exporters after the environment is verified.
 
