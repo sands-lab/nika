@@ -147,11 +147,50 @@ def test_proxy_records_calls_and_enforces_the_phase_budget(
     ],
     ids=["messages", "chat", "responses"],
 )
-def test_streamed_replies_yield_text_and_usage(stream: list[dict]) -> None:
+@pytest.mark.parametrize("streamed", [True, False], ids=["marked", "unmarked"])
+def test_streamed_replies_yield_text_and_usage(
+    stream: list[dict], streamed: bool
+) -> None:
     body = "".join(f"data: {json.dumps(event)}\n\n" for event in stream)
-    text, usage = response_text_and_usage(body + "data: [DONE]\n\n", streamed=True)
+    text, usage = response_text_and_usage(body + "data: [DONE]\n\n", streamed=streamed)
     assert text == "link"
     assert usage and (usage.get("input_tokens") or usage.get("prompt_tokens")) == 7
+
+
+def test_record_counts_sse_usage_when_not_marked_streamed(tmp_path: Path) -> None:
+    completed = {
+        "type": "response.completed",
+        "response": {
+            "output": [
+                {
+                    "type": "message",
+                    "content": [{"type": "output_text", "text": "link"}],
+                }
+            ],
+            "usage": {"input_tokens": 12, "output_tokens": 3},
+        },
+    }
+    raw = f"event: response.completed\ndata: {json.dumps(completed)}\n\n".encode()
+    log = ModelCallLog(tmp_path / "model_calls.jsonl")
+    log.record(
+        seq=1,
+        phase=DIAGNOSIS,
+        counted=True,
+        method="POST",
+        path="/responses",
+        request=b'{"model":"m"}',
+        status=200,
+        response=raw,
+        streamed=False,
+        started=0.0,
+    )
+    assert model_call_metrics(log.path) == {
+        "steps": 1,
+        "in_tokens": 12,
+        "out_tokens": 3,
+        "reasoning_tokens": 0,
+    }
+    assert log.last_text(DIAGNOSIS, wait_sec=0) == "link"
 
 
 def test_evaluator_prefers_the_host_records(tmp_path: Path) -> None:
