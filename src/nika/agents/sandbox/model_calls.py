@@ -135,9 +135,15 @@ def _stream_text_and_usage(events: list[dict[str, Any]]) -> tuple[str, Any]:
 
 
 def response_text_and_usage(body: Any, *, streamed: bool) -> tuple[str, Any]:
-    """Assistant text and provider usage of a recorded response body."""
-    if streamed and isinstance(body, str):
-        return _stream_text_and_usage(_sse_events(body))
+    """Assistant text and provider usage of a recorded response body.
+
+    String bodies with SSE ``data:`` lines are parsed as streams even when the
+    proxy did not mark the reply as streamed.
+    """
+    if isinstance(body, str):
+        events = _sse_events(body)
+        if streamed or events:
+            return _stream_text_and_usage(events)
     if isinstance(body, dict):
         return _message_text(body), body.get("usage")
     return "", None

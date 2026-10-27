@@ -377,7 +377,7 @@ def create_model_proxy_app(
                     status=response.status_code,
                     response=b"".join(received),
                     streamed="text/event-stream"
-                    in response.headers.get("content-type", ""),
+                    in (response.headers.get("content-type") or "").lower(),
                     started=started,
                 )
 
