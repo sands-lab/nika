@@ -14,7 +14,8 @@ A NIKA benchmark is a set of **tasks**. Each task combines a **network environme
 | **Network traffic pattern** | The traffic that flows through the environment while the incident is live, such as service requests, SNDlib demand replay on an ISP backbone, or synchronized bursts toward one receiver. Some patterns come with the environment or failure; others are started with `nika traffic run`. |
 | **Telemetry** | Optional per-task monitoring data that devices in the environment export to a collector the agent can query: flow records (NetFlow, IPFIX, or sFlow), device metrics (Prometheus), and syslog. A task enables it with `telemetry:`; see [telemetry](docs/operations/network-scenarios.md#telemetry). |
 | **Trial** | One scored run of a task. A task can be repeated across multiple trials. |
-| **Benchmark release** | A versioned set of tasks, such as `0.2.0`, split into Dev and Test sets. Published releases do not change. |
+| **Benchmark release** | A published version of the benchmark tasks, such as `0.2.0`, split into Dev and Test sets. Published releases do not change; the [versioning policy](VERSIONING.md) defines how versions are numbered. |
+| **Benchmark revision** | The first two components of a release version, such as `1.0` in `1.0.3`. It identifies the tasks and evaluation that results were scored against, and the leaderboard shows it. |
 
 ## Runs
 
