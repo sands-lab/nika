@@ -15,11 +15,11 @@ Implementation: [`workflows/leaderboard/`](../../src/nika/workflows/leaderboard/
 
 ## Run from the release tag
 
-Leaderboard validation computes the expected trials from the official task definitions: the `benchmark/releases/<version>/` files at the Git tag `release/<version>` in `sands-lab/nika`. Each trial ID includes a hash of its task definition. A run made from a checkout whose release files differ from the tag cannot pass validation, so check out the tag before you start the run:
+Leaderboard validation computes the expected trials from the official task definitions: the `benchmark/releases/<version>/` files at the Git tag `v<version>` in `sands-lab/nika`, such as `v0.2.0`. Each trial ID includes a hash of its task definition. A run made from a checkout whose release files differ from the tag cannot pass validation, so check out the tag before you start the run:
 
 ```shell
 git fetch --tags
-git checkout release/0.2.0
+git checkout v0.2.0
 uv run nika benchmark run --release 0.2.0 --split test --result_dir results/my-run
 ```
 
@@ -49,7 +49,7 @@ For an open-weight model, `submit` also records which Hugging Face model the run
 Use a template when you want to supply a longer README, code links, tools, skills, or other metadata. Pass `--submission` instead of `--name` and `--authors`.
 
 ```shell
-# From a checkout of release/0.2.0.
+# From a checkout of v0.2.0.
 nika benchmark run --release 0.2.0 --split test --result_dir results/my-run -a <agent> -m <model>
 
 nika leaderboard template -o results/my-run/submission

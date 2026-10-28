@@ -1,4 +1,4 @@
-"""Official benchmark release reference: the ``release/<version>`` tag on NIKA.
+"""Official benchmark release reference: the ``v<version>`` tag on NIKA.
 
 Leaderboard checks compute expected trials from the release files at the commit
 that tag names in :data:`OFFICIAL_REPO`, not from the local checkout, so a local
@@ -34,7 +34,7 @@ from nika.workflows.benchmark.release import (
 from nika.workflows.benchmark.trials import task_id_for_row
 
 OFFICIAL_REPO = "sands-lab/nika"
-RELEASE_TAG_PREFIX = "release/"
+RELEASE_TAG_PREFIX = "v"
 RELEASES_RELPATH = "benchmark/releases"
 MANIFEST_FILENAME = "RELEASE.yaml"
 
@@ -107,7 +107,7 @@ def _git_env() -> dict[str, str]:
 
 
 def resolve_release_commit(version: str, *, repo: str = OFFICIAL_REPO) -> str:
-    """Return the commit SHA that the ``release/<version>`` tag names on GitHub."""
+    """Return the commit SHA that the ``v<version>`` tag names on GitHub."""
     tag = release_tag(version)
     url = f"https://github.com/{repo}.git"
     try:
@@ -225,7 +225,7 @@ def load_reference_release(
 ) -> tuple[BenchmarkRelease, ReleaseReference]:
     """Load the release a leaderboard check compares against.
 
-    ``official`` reads the files at the ``release/<version>`` tag. ``local``
+    ``official`` reads the files at the ``v<version>`` tag. ``local``
     reads ``benchmark/releases/<version>/`` from this checkout and is meant for
     offline development only.
     """

@@ -59,7 +59,7 @@ ISSUE_SPECS: dict[str, IssueSpec] = {
     ),
     "ERROR_RELEASE_UNAVAILABLE": IssueSpec(
         "the official release could not be read",
-        "The release has no `release/<version>` tag in sands-lab/nika yet, or "
+        "The release has no `v<version>` tag in sands-lab/nika yet, or "
         "GitHub could not be reached.",
         "Check the network connection and that the release version is published. "
         "For an offline check only, pass `--release-source local`; leaderboard "
@@ -78,7 +78,7 @@ ISSUE_SPECS: dict[str, IssueSpec] = {
         "official release, usually because the NIKA checkout used for the run is "
         "older or newer than the release commit.",
         "Check out the release tag (`git fetch --tags && git checkout "
-        "release/<version>`), re-run the changed tasks into the same result "
+        "v<version>`), re-run the changed tasks into the same result "
         "directory with `nika benchmark run --release <version> --split <split> "
         "--result_dir <dir> --no-resume --task-id <task> …`, and pack again.",
     ),

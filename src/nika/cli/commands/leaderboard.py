@@ -16,7 +16,7 @@ leaderboard_app = typer.Typer(
 
 
 _RELEASE_SOURCE_HELP = (
-    "Release files to check against: 'official' reads the release/<version> tag "
+    "Release files to check against: 'official' reads the v<version> tag "
     "on GitHub; 'local' reads this checkout, for offline checks only."
 )
 

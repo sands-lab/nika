@@ -14,7 +14,7 @@ from nika.workflows.benchmark.release import releases_dir
 
 
 class FakeOfficialRepo:
-    """Serve ``release/<version>`` tags and commit contents from memory.
+    """Serve ``v<version>`` tags and commit contents from memory.
 
     Untagged versions resolve to the current local release files, so tests that
     point ``RELEASES_DIR`` at a temporary release validate as official.
@@ -52,7 +52,7 @@ class FakeOfficialRepo:
             return self.tags[version]
         local = releases_dir() / version
         if not local.is_dir():
-            raise OfficialReleaseUnavailable(f"no tag release/{version}")
+            raise OfficialReleaseUnavailable(f"no tag v{version}")
         return self.publish_dir(version, local)
 
     def read(self, commit: str, relpath: str, *, repo: str) -> bytes:

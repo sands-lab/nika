@@ -109,7 +109,7 @@ def validate_leaderboard_submission(
 ) -> ValidationReport:
     """Validate a leaderboard submission package. Returns a report (does not raise).
 
-    Expected trials come from the official release (the ``release/<version>``
+    Expected trials come from the official release (the ``v<version>``
     tag); ``release_source="local"`` reads this checkout instead, for offline
     development. Run-validity flags warn; ``truncated_final_turn`` or
     ``infra_error`` above ``max_harness_rate`` of trials fails, since those are

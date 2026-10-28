@@ -294,7 +294,7 @@ def pack_leaderboard_submission(
 ) -> PackResult:
     """Build scores + trajectories packages from an official release run.
 
-    Expected trials come from the official release (``release/<version>`` tag);
+    Expected trials come from the official release (``v<version>`` tag);
     a run made from other task definitions fails with ``ERROR_RELEASE_DRIFT``.
 
     Prefer ``submission_dir`` containing edited ``metadata.yaml`` + ``README.md``.

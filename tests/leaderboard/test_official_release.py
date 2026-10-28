@@ -1,4 +1,4 @@
-"""Leaderboard checks against the official ``release/<version>`` reference."""
+"""Leaderboard checks against the official ``v<version>`` reference."""
 
 from __future__ import annotations
 
@@ -74,7 +74,7 @@ def test_matching_release_validates_against_the_tag(
     assert report.ok, report.errors
     assert report.reference is not None
     assert report.reference.source == "official"
-    assert report.reference.tag == f"release/{release.version}"
+    assert report.reference.tag == f"v{release.version}"
     assert report.reference.commit == official_releases.resolve(release.version)
 
 
@@ -92,7 +92,7 @@ def test_drifted_release_reports_one_drift_error(
     drift = report.issues[0]
     assert drift.items == [official_task]
     assert any(commit in detail for detail in drift.details)
-    assert f"git checkout release/{release.version}" in (drift.fix or "")
+    assert f"git checkout v{release.version}" in (drift.fix or "")
 
     with pytest.raises(LeaderboardPackError, match="ERROR_RELEASE_DRIFT"):
         _pack(result_dir)
@@ -155,7 +155,7 @@ def test_validate_cli_reports_codes_as_json_and_markdown(
     assert payload["ok"] is False
     assert [error["code"] for error in payload["errors"]] == ["ERROR_RELEASE_DRIFT"]
     assert payload["errors"][0]["guide_url"].endswith("#error_release_drift")
-    assert payload["release"]["tag"] == f"release/{release.version}"
+    assert payload["release"]["tag"] == f"v{release.version}"
 
     result = runner.invoke(
         app, ["leaderboard", "validate", str(package), "--format", "markdown"]
@@ -178,15 +178,14 @@ def test_resolve_release_commit_reads_the_tagged_commit(
 ) -> None:
     tag_object, commit = "a" * 40, "b" * 40
     _ls_remote(
-        f"{tag_object}\trefs/tags/release/0.2.0\n"
-        f"{commit}\trefs/tags/release/0.2.0^{{}}\n",
+        f"{tag_object}\trefs/tags/v0.2.0\n{commit}\trefs/tags/v0.2.0^{{}}\n",
         monkeypatch,
     )
     # Annotated tag: the peeled ``^{}`` entry names the commit.
     assert resolve_release_commit("0.2.0") == commit
 
     _ls_remote("", monkeypatch)
-    with pytest.raises(OfficialReleaseUnavailable, match="no tag release/0.2.0"):
+    with pytest.raises(OfficialReleaseUnavailable, match="no tag v0.2.0"):
         resolve_release_commit("0.2.0")
 
 
