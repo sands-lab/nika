@@ -232,6 +232,17 @@ def confirm_run(*, yes: bool) -> bool:
     return bool(typer.confirm("Proceed with this benchmark run?", default=True))
 
 
+def confirm_release_drift(warning: str, *, yes: bool) -> bool:
+    """Print a release drift warning; ask to continue (default No) on a TTY.
+
+    With ``yes`` or without a TTY the run continues after the warning.
+    """
+    _console.print(f"[yellow]⚠ {warning}[/yellow]", highlight=False)
+    if yes or not sys.stdin.isatty():
+        return True
+    return bool(typer.confirm("Continue anyway?", default=False))
+
+
 def print_inspect_hint(
     result_dir: str | Any,
     *,

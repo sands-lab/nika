@@ -9,9 +9,21 @@ Implementation: [`workflows/leaderboard/`](../../src/nika/workflows/leaderboard/
 
 **Prerequisites:**
 
-- A finished official `nika benchmark run --release …` against a current (non-deprecated) frozen release
+- A finished official `nika benchmark run --release …` against a current (non-deprecated) benchmark release, run from a checkout of its [release tag](#run-from-the-release-tag)
 - Authenticated [`gh`](https://cli.github.com/) access (`gh auth login` or `GH_TOKEN` with `repo` scope)
 - Hugging Face authentication through `hf auth login`, or `HF_TOKEN` in the environment / repo-root `.env`. Use a token that permits proposing dataset changes. You do not need collaborator access to the public dataset to open a PR. `uv sync` installs `huggingface_hub` and `hf`.
+
+## Run from the release tag
+
+Leaderboard validation computes the expected trials from the official task definitions: the `benchmark/releases/<version>/` files at the Git tag `release/<version>` in `sands-lab/nika`. Each trial ID includes a hash of its task definition. A run made from a checkout whose release files differ from the tag cannot pass validation, so check out the tag before you start the run:
+
+```shell
+git fetch --tags
+git checkout release/0.2.0
+uv run nika benchmark run --release 0.2.0 --split test --result_dir results/my-run
+```
+
+When this checkout's release files differ from the tag, `nika benchmark run --release` lists the changed tasks and asks whether to continue before any trial runs. `submit` and `nika leaderboard validate` read the tagged files, so a package that passes locally also passes leaderboard CI.
 
 ## Submit with one command
 
@@ -37,7 +49,7 @@ For an open-weight model, `submit` also records which Hugging Face model the run
 Use a template when you want to supply a longer README, code links, tools, skills, or other metadata. Pass `--submission` instead of `--name` and `--authors`.
 
 ```shell
-# Use the current frozen release.
+# From a checkout of release/0.2.0.
 nika benchmark run --release 0.2.0 --split test --result_dir results/my-run -a <agent> -m <model>
 
 nika leaderboard template -o results/my-run/submission
@@ -54,6 +66,7 @@ nika leaderboard submit --result_dir results/my-run \
 #   --traj-repo nika-bench/nika-trajectories
 #   --title "..." --body "..."
 #   --repo sands-lab/nika-leaderboard
+#   --release-source local   # offline check against this checkout; CI still uses the tag
 ```
 
 `submit` packs scores into `{result_dir}/{YYYYMMDD}_{slug}/` and trajectories into a sibling `{YYYYMMDD}_{slug}_trajectories/`, validates both (unless `--skip-validate`), then opens a GitHub PR under `submissions/<release_version>/{YYYYMMDD}_{slug}/` and a Hugging Face dataset PR under `trajectories/<release_version>/{YYYYMMDD}_{slug}/`. Pack or validate failures print an error and stop before any remote submit.
@@ -199,7 +212,7 @@ Short system description, authors, and links to code / report / site (if any).
 
 ## What submit validates
 
-- Identity matches the in-tree frozen release
+- Identity and trial IDs match the official release at its [release tag](#run-from-the-release-tag), and the task definitions at the run's recorded NIKA commit match it too
 - Exact trial coverage (`case_count × n_trials`); metrics and `rca_confusion.json` match recomputed aggregates (non-`scored` trials count as 0 in primary means)
 - No `grading_error` or residual `infra_error` scoring status (`infra_error` is auto-retried during the run; leftovers reject the pack)
 - Run-validity flags (below): `nika leaderboard validate` warns on any flag and fails when `truncated_final_turn` or the `infra_error` validity flag exceeds `--max-harness-rate` of trials (default 5%)
@@ -222,6 +235,104 @@ See also [root-cause ground truth and scoring](root-cause-evaluation.md#score-a-
 | `infra_error` | the trial failed to start, lacks ground truth, or has `score_status=infra_error` |
 
 Pack rejection on `score_status` has no threshold: any trial with `grading_error` or residual `infra_error` status rejects the package. A trial can carry the `infra_error` validity flag without that scoring status. The remaining flags only warn.
+
+## Validation errors
+
+Each finding has a stable code, a cause, and a fix. To check a packed scores package as leaderboard CI does:
+
+```shell
+uv run nika leaderboard validate results/my-run/20261027_codex_gpt_6_astra
+```
+
+`--format json` prints a machine-readable report and `--format markdown` prints a pull request comment section; both include the release commit the package was checked against. The command exits with status 1 when the package has errors. `--release-source local` checks against this checkout's release files when GitHub cannot be reached; leaderboard CI does not accept that result.
+
+### `ERROR_RELEASE_DRIFT`
+
+The package was produced with task definitions that differ from the official release, usually because the NIKA checkout used for the run is older or newer than the release tag. NIKA reports this when a task's trials are all missing but trials with the same task name and a different hash are present, or when the release files at the run's recorded NIKA commit define a task differently, for example with other ground truth. The error lists the changed tasks and the official commit. Check out the release tag, re-run those tasks into the same result directory with `nika benchmark run --release <version> --split <split> --result_dir <dir> --no-resume --task-id <task> …`, and pack again.
+
+### `ERROR_TRIALS_MISSING`
+
+Some case × trial slots of the release have no result. Resume the run until every trial finishes, then pack again.
+
+### `ERROR_TRIALS_UNEXPECTED`
+
+The package contains trials that the release does not define, for example from another split or an ad-hoc run. Re-pack from the release run directory.
+
+### `ERROR_RELEASE_UNAVAILABLE`
+
+NIKA could not read the official release: the version has no release tag yet, or GitHub could not be reached. Check the version and the network connection.
+
+### `ERROR_BENCHMARK_MISMATCH`
+
+The package identity (benchmark ID, version, split, case count, trials per case, or scoring) differs from the release. Run the release itself with `nika benchmark run --release <version>` and pack that run.
+
+### `ERROR_SCORE_MISMATCH`
+
+`metrics.json` or `rca_confusion.json` differs from the aggregate NIKA recomputes from the per-trial results. Re-pack instead of editing package files.
+
+### `ERROR_GRADING_ERROR`
+
+Some trials have `score_status=grading_error`. Repair the grading inputs, re-run those trials, and pack again.
+
+### `ERROR_INFRA_ERROR`
+
+Some trials still have `score_status=infra_error` after the run's retries. Resume the run until none remain.
+
+### `ERROR_RUN_VALIDITY`
+
+`truncated_final_turn` or the `infra_error` validity flag exceeds `--max-harness-rate` of trials; see [run-validity gates](#run-validity-gates). Fix the harness configuration, such as the output token limit, and re-run the affected trials.
+
+### `ERROR_UNOFFICIAL_RUN`
+
+The run was not started with `nika benchmark run --release`, so `run.official` is false.
+
+### `ERROR_SECRET_FOUND`
+
+Package text contains a possible credential or an absolute host path. Remove the value from `metadata.yaml`, `README.md`, or the run artifacts it came from, and pack again.
+
+### `ERROR_PACKAGE_INCOMPLETE`
+
+A required package file or directory is missing. Re-pack with `nika leaderboard submit --dry-run`.
+
+### `ERROR_METADATA_INVALID`
+
+`metadata.yaml` misses a required field, has an unknown field, or does not parse. Compare it with `nika leaderboard template`.
+
+### `ERROR_IDENTITY_INVALID`
+
+`identity.yaml` does not match the package schema, usually because it was edited by hand or written by a NIKA version with another schema. Re-pack.
+
+### `ERROR_RESULTS_INVALID`
+
+A metrics, RCA confusion, or per-trial result file does not match the package schema, or a trial directory name differs from its trial ID. Re-pack.
+
+### `ERROR_TRAJECTORY_INVALID`
+
+A trajectory trial lacks a [required file](#trajectories-package-layout-hugging-face), or a JSON Lines file does not parse. Re-pack.
+
+### `ERROR_TRAJECTORY_FORBIDDEN_FILE`
+
+The trajectories package contains packet captures, validation dumps, or judge artifacts, which are not published. Re-pack.
+
+### `ERROR_PACKAGE_PAIR_MISMATCH`
+
+The scores and trajectories packages differ in benchmark identity, run, or trial set. Re-pack both in one `nika leaderboard submit` call.
+
+### `WARNING_LOCAL_RELEASE`
+
+The package was checked against this checkout's release files (`--release-source local`). Validate without that option before submitting.
+
+### `WARNING_RUN_COMMIT_UNVERIFIED`
+
+The NIKA commit recorded in the package is neither in the local repository nor on GitHub, so NIKA compared trial IDs only. Run from the release tag, or push the commit the run used.
+
+### `WARNING_RUN_VALIDITY`
+
+Some trials carry run-validity flags that do not block a submission, such as `no_submission`. Review the flagged trials.
+
+### `WARNING_NON_DEFAULT_PRIMARY`
+
+The release declares a primary metric other than `rca_f1`. No action is needed when the release defines it.
 
 ## Check the pull requests
 

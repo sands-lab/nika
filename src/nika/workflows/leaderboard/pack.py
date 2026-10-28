@@ -13,11 +13,8 @@ from typing import Any
 import yaml
 
 from nika.config import REPO_ROOT, resolve_results_root
-from nika.workflows.benchmark.release import (
-    ReleaseError,
-    load_release,
-    load_run_config,
-)
+from nika.workflows.benchmark.official_release import ReleaseSource
+from nika.workflows.benchmark.release import load_run_config
 from nika.workflows.benchmark.trials import (
     expand_trials,
     is_valid_trial,
@@ -28,10 +25,17 @@ from nika.workflows.leaderboard.aggregate import (
     build_rca_confusion,
 )
 from nika.workflows.leaderboard.hf_remote import remote_trajectories_relpath
+from nika.workflows.leaderboard.issues import IssueCollector, ValidationReport
 from nika.workflows.leaderboard.meta_input import (
     MetaInputError,
     load_submission_dir,
     submission_slug,
+)
+from nika.workflows.leaderboard.release_check import (
+    compare_trial_ids,
+    load_reference,
+    release_drift_issue,
+    run_commit_changes,
 )
 from nika.workflows.leaderboard.schema import (
     IDENTITY_FILENAME,
@@ -286,8 +290,12 @@ def pack_leaderboard_submission(
     metadata: SubmissionMetadata | dict[str, Any] | None = None,
     readme_text: str | None = None,
     out_dir: str | Path | None = None,
+    release_source: ReleaseSource = "official",
 ) -> PackResult:
     """Build scores + trajectories packages from an official release run.
+
+    Expected trials come from the official release (``release/<version>`` tag);
+    a run made from other task definitions fails with ``ERROR_RELEASE_DRIFT``.
 
     Prefer ``submission_dir`` containing edited ``metadata.yaml`` + ``README.md``.
     Programmatic callers may pass ``metadata`` and optional ``readme_text``.
@@ -320,10 +328,10 @@ def pack_leaderboard_submission(
     if not version or not split:
         raise LeaderboardPackError("run.json missing version/split")
 
-    try:
-        release = load_release(version, split=split)
-    except ReleaseError as exc:
-        raise LeaderboardPackError(str(exc)) from exc
+    issues = IssueCollector()
+    release, reference = load_reference(version, split, release_source, issues)
+    if release is None or reference is None:
+        raise LeaderboardPackError(ValidationReport(issues=issues.issues).render_text())
 
     for field, expected in (
         ("benchmark_id", release.id),
@@ -337,15 +345,34 @@ def pack_leaderboard_submission(
             )
 
     trials = expand_trials(release.cases, release.n_trials)
+    runs_root = results_root / TRIALS_DIRNAME
+    finished_ids = {
+        path.name
+        for path in (runs_root.iterdir() if runs_root.is_dir() else ())
+        if path.is_dir() and is_valid_trial(path)
+    }
+    # Trials left over from other task definitions do not block packing; only
+    # expected trials are packed.
+    coverage = compare_trial_ids(
+        trials,
+        finished_ids,
+        changed_tasks=run_commit_changes(
+            release, reference, run_cfg.get("nika_git_commit"), issues
+        ),
+    )
+    if coverage.drifted_tasks:
+        issues.append(release_drift_issue(release, reference, coverage.drifted_tasks))
+    issues.extend("ERROR_TRIALS_MISSING", coverage.missing)
+    if issues.has_errors:
+        raise LeaderboardPackError(
+            ValidationReport(issues=issues.issues, reference=reference).render_text()
+        )
+
     trial_results: list[TrialResult] = []
     session_by_trial_id: dict[str, Path] = {}
 
     for trial in trials:
         session_dir = trial_dir(results_root, trial.case_key, trial.trial_index)
-        if not session_dir.is_dir() or not is_valid_trial(session_dir):
-            raise LeaderboardPackError(
-                f"Incomplete or missing trial {trial.trial_id} under {session_dir}"
-            )
         try:
             result = trial_result_from_dir(
                 trial_id=trial.trial_id,
