@@ -82,12 +82,11 @@ class K8sFatTreeBGP(NetworkEnvBase):
             "every k3s node calls the apps through their Service names. "
             "The pod-2 leaves (leaf_2_*) host no Kubernetes nodes; they discard-route "
             "and announce the unused 101.0.0.0/8 and 201.0.0.0/8 aggregates. "
-            # Shown for every task on this lab, not only Kubernetes faults: a
-            # note that appeared only with those faults would reveal the class.
+            # kubectl is only usable on the k3s server. Resource ids use device names or Kubernetes objects.
             "`kubectl` works only on controller (the k3s server); the worker "
-            "devices ship the binary but have no kubeconfig. A faulty resource "
-            "may be a lab device (identified by its device name) or a Kubernetes "
-            "object (identified by kind, namespace and name, as listed in the "
+            "devices ship the binary but have no kubeconfig. Resources are lab "
+            "devices (identified by device name) or Kubernetes objects "
+            "(identified by kind, namespace and name, as listed in the "
             "resource inventory)."
         )
         self.kubernetes_nodes = []
