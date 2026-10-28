@@ -80,7 +80,7 @@ nika:
       vm_cpus: 4
       vm_memory: 4GiB
       # Scenario id -> VM memory, merged over NIKA's sizes for large labs
-      # (k8s_lab, llmd_lab, min3clos, iosxr_simple_bgp: 8GiB; isp_pdh,
+      # (dc_clos, k8s_lab, llmd_lab, min3clos, iosxr_simple_bgp: 8GiB; isp_pdh,
       # isp_di-yuan, isp_dfn-gwin: 20GiB), e.g. {k8s_lab: 12GiB}.
       vm_memory_overrides: {}
       # 2 MiB huge pages, required: reserve them on the host first (see the
