@@ -78,6 +78,9 @@ nika:
       # trial copies (relative to the NIKA checkout; uninstall removes it).
       root: runtime/firecracker
       vm_cpus: 4
+      # Scenario id -> vCPUs, merged over NIKA's sizes for large SR Linux
+      # labs (isp_pdh, isp_di-yuan, isp_dfn-gwin: 12).
+      vm_cpus_overrides: {}
       vm_memory: 4GiB
       # Scenario id -> VM memory, merged over NIKA's sizes for large labs
       # (dc_clos, k8s_lab, llmd_lab, min3clos, iosxr_simple_bgp: 8GiB; isp_pdh,

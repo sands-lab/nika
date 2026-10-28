@@ -169,6 +169,11 @@ def vm_memory_mib(scenario: str) -> int:
     return int(memory[:-3]) * 1024
 
 
+def vm_cpus(scenario: str) -> int:
+    settings = firecracker_settings()
+    return settings.vm_cpus_overrides.get(scenario, settings.vm_cpus)
+
+
 def base_manifest() -> dict[str, Any]:
     """The current base image's manifest, or ``{}`` before the first build."""
     try:
@@ -184,7 +189,7 @@ def image_key(params: dict[str, Any]) -> str:
         "lab_settings": lab_settings(),
         "code": code_fingerprint(),
         "base": base_manifest().get("id"),
-        "cpus": settings.vm_cpus,
+        "cpus": vm_cpus(str(params.get("scenario"))),
         "memory_mib": vm_memory_mib(str(params.get("scenario"))),
         "huge_pages": settings.huge_pages,
         "firecracker": binary_id(firecracker_binary()),
@@ -313,7 +318,7 @@ def _build(build: Path, key: str, params: dict[str, Any]) -> None:
         kernel=str(base / manifest["kernel"]),
         initrd=str(base / manifest["initrd"]) if manifest.get("initrd") else None,
         boot_args=manifest["boot_args"],
-        cpus=settings.vm_cpus,
+        cpus=vm_cpus(str(params["scenario"])),
         memory_mib=vm_memory_mib(str(params["scenario"])),
         huge_pages=settings.huge_pages,
         free_page_reporting=not settings.huge_pages,
