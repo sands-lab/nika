@@ -937,3 +937,25 @@ class TestLeaderboardPackValidate:
         (trial / "eval_metrics.json").unlink()
         with pytest.raises(LeaderboardPackError, match="Incomplete|missing"):
             _pack(result_dir)
+
+    @pytest.mark.parametrize("trace", ["", "{}\n", '{"event":"phase_start"}\n'])
+    def test_pack_and_validate_reject_empty_agent_trace(
+        self, mini_release_env, trace
+    ) -> None:
+        from nika.workflows.leaderboard.validate_trajectories import (
+            sibling_trajectories_dir,
+            validate_trajectory_package,
+        )
+
+        _release, result_dir = mini_release_env
+        package = _pack(result_dir)
+        trajectories = sibling_trajectories_dir(package)
+        packed_trial = next((trajectories / "trials").iterdir())
+        (packed_trial / "messages.jsonl").write_text(trace)
+        report = validate_trajectory_package(trajectories)
+        assert not report.ok
+        assert any("no agent trajectory" in error for error in report.errors)
+        trial = next((result_dir / "trials").iterdir())
+        (trial / "messages.jsonl").write_text(trace)
+        with pytest.raises(LeaderboardPackError, match="no agent trajectory"):
+            _pack(result_dir)

@@ -103,6 +103,20 @@ def _incast_e2e_cases() -> list[FailureE2ECase]:
 
 CORE_E2E_CASES = (
     FailureE2ECase(
+        problem="receiver_resource_contention",
+        scenario="dc_clos",
+        env_run_args=("-s", "s"),
+        param_overrides={"duration": "1"},
+        sleep_after_inject_sec=3.0,
+    ),
+    FailureE2ECase(
+        problem="tcp_syn_flood_attack",
+        scenario="p4_dc_gateway",
+        env_run_args=("-s", "s"),
+        param_overrides={"duration": "1"},
+        sleep_after_inject_sec=3.0,
+    ),
+    FailureE2ECase(
         problem="link_down",
         scenario="dc_clos",
         env_run_args=("-s", "s"),

@@ -150,10 +150,45 @@ def score_rca_v2(submission: dict, gt: dict) -> dict[str, float]:
         }
 
     healthy_verdict = _parse_is_anomaly(submission.get("is_anomaly")) is False
+    from nika.problems.registry import get_problem_class
+
+    equivalents: dict[str, list[FaultResource]] = {}
+    for item in gt_list:
+        cls = get_problem_class(item.fault_type)
+        if cls is not None and cls.root_cause_resource_match == "any":
+            equivalents.setdefault(item.fault_type, []).append(item.resource)
+
+    def canonical_resource(
+        resource: FaultResource, fault_type: str | None = None
+    ) -> FaultResource:
+        for name, resources in equivalents.items():
+            if fault_type is not None and name != fault_type:
+                continue
+            if any(resource_within(resource, target) for target in resources):
+                return min(resources, key=lambda target: target.id)
+        return resource
+
+    pred_list = [
+        item.model_copy(
+            update={"resource": canonical_resource(item.resource, item.fault_type)}
+        )
+        for item in pred_list
+    ]
+    gt_list = [
+        item.model_copy(
+            update={"resource": canonical_resource(item.resource, item.fault_type)}
+        )
+        for item in gt_list
+    ]
     pred_pairs = list({item.pair_key(): item for item in pred_list}.values())
     gt_pairs = list({item.pair_key(): item for item in gt_list}.values())
-    pred_res = list({item.resource.id: item.resource for item in pred_list}.values())
-    gt_res = list({item.resource.id: item.resource for item in gt_list}.values())
+
+    def locations(causes: list[RootCause]) -> list[FaultResource]:
+        resources = (canonical_resource(item.resource) for item in causes)
+        return list({resource.id: resource for resource in resources}.values())
+
+    pred_res = locations(pred_list)
+    gt_res = locations(gt_list)
     pred_types = {item.fault_type for item in pred_list}
     gt_types = {item.fault_type for item in gt_list}
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import shlex
 import time
 from typing import Any
 
@@ -484,14 +485,10 @@ for method, path, body in ops:
             transport_down = (err, code)
 print(json.dumps(out))
 """
-    b64_script = base64.b64encode(script.encode()).decode()
 
     def run(batch: list[tuple[str, str, dict[str, Any] | None]]) -> str:
         payload = base64.b64encode(json.dumps(batch).encode()).decode()
-        cmd = (
-            f"echo {b64_script} | base64 -d > /tmp/onos_batch.py && "
-            f"python3 /tmp/onos_batch.py {payload} '{_onos_url('')}'"
-        )
+        cmd = f"python3 -c {shlex.quote(script)} {payload} '{_onos_url('')}'"
         return _exec(runtime, "fabric_mgr", cmd, timeout=timeout)
 
     batches: list[list[tuple[str, str, dict[str, Any] | None]]] = []

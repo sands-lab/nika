@@ -17,6 +17,12 @@ HIGH_LATENCY_OUTPUT = "\n4 packets transmitted, 4 received, 0% packet loss, time
 
 
 class RunPingmeshSnapshotTest:
+    async def test_single_endpoint_does_not_report_healthy(self) -> None:
+        api = self._make_api()
+        api.hosts = ["pc1"]
+        with pytest.raises(ValueError, match="two distinct"):
+            await run_pingmesh_snapshot(api)
+
     def _make_api(self) -> MagicMock:
         api = MagicMock()
         api.hosts = ["pc1", "pc2"]

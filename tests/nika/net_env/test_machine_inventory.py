@@ -9,6 +9,21 @@ from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 pytestmark = pytest.mark.unit
 
 
+def test_brief_lists_every_shared_segment_endpoint() -> None:
+    env = NetworkEnvBase()
+    env.lab = Lab("shared-segment")
+    for name in ("controller", "worker1", "worker2", "client"):
+        env.lab.new_machine(name, image="example/image")
+        env.declare_machine(name, role=NodeRole.HOST)
+        env.lab.connect_machine_to_link(name, "A")
+    topology = env.get_info().split("Topology: ")[1]
+    assert topology.count("(") == 1
+    assert all(
+        f"{name}:eth0" in topology
+        for name in ("controller", "worker1", "worker2", "client")
+    )
+
+
 def test_machine_classification_uses_declared_identity_only() -> None:
     env = NetworkEnvBase()
     env.lab = Lab("explicit-identities")

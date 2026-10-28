@@ -68,16 +68,23 @@ class CaptureManager:
 
     def stop(self, capture_id: str) -> dict:
         meta = CaptureMeta.from_dict(artifact.read_meta(self.runtime, capture_id))
+        if meta.status == "failed":
+            raise RuntimeError(f"Capture {capture_id!r} failed to produce an artifact")
         if meta.status == "stopped":
             return self._stop_payload(meta)
 
-        stats = capture_backend.stop_capture(
-            self.runtime,
-            device=meta.device,
-            pid_path=meta.pid_path,
-            remote_path=meta.remote_path,
-            capture_backend=meta.capture_backend,
-        )
+        try:
+            stats = capture_backend.stop_capture(
+                self.runtime,
+                device=meta.device,
+                pid_path=meta.pid_path,
+                remote_path=meta.remote_path,
+                capture_backend=meta.capture_backend,
+            )
+        except FileNotFoundError:
+            meta.status = "failed"
+            artifact.write_meta(self.runtime, meta.device, meta.to_dict())
+            raise
         stopped_at = datetime.now(timezone.utc).isoformat()
         meta.status = "stopped"
         meta.stopped_at = stopped_at
@@ -100,6 +107,8 @@ class CaptureManager:
         offset: int = 0,
     ) -> dict:
         meta = CaptureMeta.from_dict(artifact.read_meta(self.runtime, capture_id))
+        if meta.status == "failed":
+            raise RuntimeError(f"Capture {capture_id!r} failed; start a new capture")
         if meta.status != "stopped":
             raise RuntimeError(
                 f"Capture {capture_id!r} is not stopped yet; call packet_capture_stop first"

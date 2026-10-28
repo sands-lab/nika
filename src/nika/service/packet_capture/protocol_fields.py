@@ -8,7 +8,21 @@ from typing import Any
 def _layer(packet: dict[str, Any], name: str) -> dict[str, Any] | None:
     layers = packet.get("_source", {}).get("layers", {})
     layer = layers.get(name)
-    return layer if isinstance(layer, dict) else None
+    if not isinstance(layer, (dict, list)):
+        return None
+    fields: dict[str, Any] = {}
+
+    def collect(value: Any) -> None:
+        if isinstance(value, dict):
+            for key, child in value.items():
+                fields.setdefault(key, child)
+                collect(child)
+        elif isinstance(value, list):
+            for child in value:
+                collect(child)
+
+    collect(layer)
+    return fields
 
 
 def _first(value: Any) -> Any:
@@ -125,22 +139,22 @@ def extract_protocol_fields(protocol: str, packet: dict[str, Any]) -> dict[str, 
         return {
             **base,
             "type": _first(bgp.get("bgp.type")),
-            "asn": _first(bgp.get("bgp.as")),
-            "hold_time": _first(bgp.get("bgp.hold_time")),
-            "router_id": _first(bgp.get("bgp.identifier")),
-            "capabilities": _first(bgp.get("bgp.capability")),
+            "asn": _first(bgp.get("bgp.cap.4as", bgp.get("bgp.open.myas"))),
+            "hold_time": _first(bgp.get("bgp.open.holdtime")),
+            "router_id": _first(bgp.get("bgp.open.identifier")),
+            "capabilities": _first(bgp.get("bgp.cap.type")),
         }
 
     if protocol == "ospf":
         ospf = _layer(packet, "ospf") or {}
         return {
             **base,
-            "msg_type": _first(ospf.get("ospf.msgtype")),
-            "area": _first(ospf.get("ospf.area")),
-            "router_id": _first(ospf.get("ospf.rid")),
-            "hello_interval": _first(ospf.get("ospf.helloint")),
-            "dead_interval": _first(ospf.get("ospf.deadint")),
-            "neighbor": _first(ospf.get("ospf.neighbor")),
+            "msg_type": _first(ospf.get("ospf.msg")),
+            "area": _first(ospf.get("ospf.area_id")),
+            "router_id": _first(ospf.get("ospf.srcrouter")),
+            "hello_interval": _first(ospf.get("ospf.hello.hello_interval")),
+            "dead_interval": _first(ospf.get("ospf.hello.router_dead_interval")),
+            "neighbor": _first(ospf.get("ospf.hello.active_neighbor")),
         }
 
     if protocol == "http":

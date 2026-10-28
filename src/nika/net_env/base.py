@@ -196,12 +196,8 @@ class NetworkEnvBase:
         self.switches = inventory.names_for_role(NodeRole.SWITCH)
         self.servers = inventory.services()
 
-    def get_topology(self) -> dict:
-        """
-        Get the topology of the network.
-
-        Output format: [(host1:intf1, host2:intf2), ...]
-        """
+    def _topology_segments(self) -> list[tuple[str, ...]]:
+        """Return every interface on each shared collision domain."""
         from nika.telemetry import is_telemetry_link
 
         topology = defaultdict(list)
@@ -220,8 +216,12 @@ class NetworkEnvBase:
             # placeholder interface) isn't a pairwise connection to report.
             if len(machines) < 2:
                 continue
-            topo_list.append((machines[0], machines[1]))
+            topo_list.append(tuple(machines))
         return topo_list
+
+    def get_topology(self) -> list[tuple[str, str]]:
+        """Return the representative endpoint pair used by link consumers."""
+        return [(segment[0], segment[1]) for segment in self._topology_segments()]
 
     @staticmethod
     def _platform_label(capabilities: Iterable[str]) -> str:
@@ -285,9 +285,7 @@ class NetworkEnvBase:
         self.load_machines()
         summary = f"Network Description: {self.desc}\n"
         summary += self._format_role_inventory_lines()
-        summary += (
-            f"Topology: {', '.join(f'({a}, {b})' for a, b in self.get_topology())}"
-        )
+        summary += f"Topology: {', '.join('(' + ', '.join(segment) + ')' for segment in self._topology_segments())}"
         return summary
 
     def __str__(self):

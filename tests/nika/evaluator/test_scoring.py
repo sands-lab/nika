@@ -145,3 +145,49 @@ class ScoringTest:
         payload = generic_eval(gt, submission)
         assert payload["rca_f1"] == 1.0
         assert payload["localization_f1"] == 1.0
+
+    def test_distributed_fault_accepts_either_participating_node(self) -> None:
+        truth = _gt(
+            *(
+                RootCause(
+                    resource=node_resource(name), fault_type="bgp_max_prefix_exceeded"
+                )
+                for name in ("receiver", "peer")
+            )
+        )
+        for names in (("receiver",), ("peer",), ("receiver", "peer")):
+            submitted = _sub(
+                *(
+                    RootCause(
+                        resource=node_resource(name),
+                        fault_type="bgp_max_prefix_exceeded",
+                    )
+                    for name in names
+                )
+            )
+            scores = score_rca_v2(submitted, truth)
+            assert scores["rca_f1"] == 1.0
+            assert scores["localization_f1"] == 1.0
+        wrong = _sub(
+            RootCause(
+                resource=node_resource("unrelated"),
+                fault_type="bgp_max_prefix_exceeded",
+            )
+        )
+        assert score_rca_v2(wrong, truth)["rca_f1"] == 0.0
+
+    def test_distributed_location_overlaps_another_fault(self) -> None:
+        max_prefix = "bgp_max_prefix_exceeded"
+        truth = _gt(
+            RootCause(resource=node_resource("a"), fault_type=max_prefix),
+            RootCause(resource=node_resource("b"), fault_type=max_prefix),
+            RootCause(resource=node_resource("b"), fault_type="frr_service_down"),
+        )
+        submitted = _sub(
+            RootCause(resource=node_resource("a"), fault_type=max_prefix),
+            RootCause(resource=node_resource("b"), fault_type="frr_service_down"),
+        )
+        scores = score_rca_v2(submitted, truth)
+        assert scores["rca_f1"] == scores["localization_f1"] == 1.0
+        submitted["root_causes"][1]["resource"] = node_resource("a").model_dump()
+        assert score_rca_v2(submitted, truth)["rca_f1"] < 1.0
