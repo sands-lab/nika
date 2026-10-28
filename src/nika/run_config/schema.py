@@ -27,9 +27,11 @@ class RemoteSettings(BaseModel):
 
 
 # VM memory of labs that outgrow the default ``vm_memory``: k8s and SR Linux
-# labs, large ISP topologies, and Cisco XRd (whose build otherwise runs out of
-# memory). ``vm_memory_overrides`` entries take precedence.
+# labs, large ISP topologies, Cisco XRd (whose build otherwise runs out of
+# memory), and dc_clos (size l uses more than 4 GiB in the guest).
+# ``vm_memory_overrides`` entries take precedence.
 DEFAULT_VM_MEMORY_OVERRIDES = {
+    "dc_clos": "8GiB",
     "k8s_lab": "8GiB",
     "llmd_lab": "8GiB",
     "min3clos": "8GiB",

@@ -33,6 +33,9 @@ def test_firecracker_settings_default_off_and_validated() -> None:
         FirecrackerSettings(vm_memory="8G")
     with pytest.raises(ValidationError):
         FirecrackerSettings(vm_memory_overrides={"isp_pdh": "20480MiB"})
+    assert FirecrackerSettings().vm_memory_overrides["dc_clos"] == "8GiB"
+    set_run_config(RunConfig())
+    assert image.vm_memory_mib("dc_clos") == 8192
     # User overrides merge over the built-in sizes of large labs.
     overrides = FirecrackerSettings(vm_memory_overrides={"k8s_lab": "12GiB"})
     assert overrides.vm_memory_overrides["k8s_lab"] == "12GiB"
@@ -223,7 +226,7 @@ def test_scheduler_groups_trials_by_variant() -> None:
 def test_hugepage_need_reserves_the_whole_vm() -> None:
     from nika.firecracker import schedule
 
-    row = {"scenario": "dc_clos", "topo_size": "s"}
+    row = {"scenario": "campus_lan", "topo_size": "s"}
     set_run_config(
         RunConfig.model_validate(
             {"nika": {"execution": {"firecracker": {"huge_pages": False}}}}

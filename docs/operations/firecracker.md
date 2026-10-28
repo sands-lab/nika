@@ -185,11 +185,12 @@ in the lab takes 7–9 s while several copies restore at once.
 ### VM size
 
 Each VM gets `vm_cpus` vCPUs (default 4) and `vm_memory` (default 4 GiB), which
-fits most Kathara labs. Larger labs get more by default: 8 GiB for `k8s_lab`,
-`llmd_lab`, `min3clos` and Cisco XRd (`iosxr_simple_bgp`), and 20 GiB for
-`isp_pdh`, `isp_di-yuan` and `isp_dfn-gwin`. An image build warns when a lab
-leaves less than a quarter of its VM memory free; give such a lab more with
-`vm_memory_overrides`, which takes precedence over these sizes:
+fits most Kathara labs. Larger labs get more by default: 8 GiB for `dc_clos`,
+`k8s_lab`, `llmd_lab`, `min3clos` and Cisco XRd (`iosxr_simple_bgp`), and 20 GiB for
+`isp_pdh`, `isp_di-yuan` and `isp_dfn-gwin`. `dc_clos` size l uses about 4.2 GiB
+in the guest. An image build warns when a lab leaves less than a quarter of its
+VM memory free; give such a lab more with `vm_memory_overrides`, which takes
+precedence over these sizes:
 
 ```yaml
 nika:
