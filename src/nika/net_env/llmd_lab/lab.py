@@ -190,12 +190,11 @@ class LLMDInferenceCluster(NetworkEnvBase):
             "Service name. Hosts resolve lab names (client, web, controller, "
             "workers, llmd) through static /etc/hosts entries; the lab runs no "
             "DNS server for lab names (cluster DNS serves pods only). "
-            # Shown for every task on this lab, not only Kubernetes faults: a
-            # note that appeared only with those faults would reveal the class.
+            # kubectl is only usable on the k3s server. Resource ids use device names or Kubernetes objects.
             "`kubectl` works only on controller (the k3s server); the worker "
-            "devices ship the binary but have no kubeconfig. A faulty resource "
-            "may be a lab device (identified by its device name) or a Kubernetes "
-            "object (identified by kind, namespace and name, as listed in the "
+            "devices ship the binary but have no kubeconfig. Resources are lab "
+            "devices (identified by device name) or Kubernetes objects "
+            "(identified by kind, namespace and name, as listed in the "
             "resource inventory)."
         )
         self.kubernetes_nodes = []

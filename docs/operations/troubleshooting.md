@@ -251,6 +251,12 @@ Deploy completes and prints a `session_id=…`. During deploy, `ps` / `pgrep -a 
 - If the lab is still too large after `containerlab_max_workers: 1`, use a smaller topology or a host with more RAM. Catalog Containerlab ISP cases already prefer topologies with at most 11 routers.
 - Setting details: [`nika.lab.containerlab_max_workers`](configuration.md#lab-lifecycle-settings).
 
+## Firecracker image build fails with RemoteDisconnected
+
+`RemoteDisconnected` means the HTTP peer closed the connection without a response. The guest may have run out of memory during deploy, or the daemon may have crashed for another reason.
+
+Open `console.log` in the failed build directory (`runtime/firecracker/images/<key>.build/` by default; `<key>` is the id in the `[firecracker] building lab image` line). `nika firecracker clean` deletes abandoned builds, so read the log first. If it shows an OOM-kill, raise `nika.execution.firecracker.vm_memory_overrides` for the environment. See [VM size](firecracker.md#vm-size).
+
 ## Containerlab link faults fail with a sudo password prompt
 
 Failure injection on a Containerlab lab stops with an error like this:

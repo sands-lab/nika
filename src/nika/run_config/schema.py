@@ -27,9 +27,11 @@ class RemoteSettings(BaseModel):
 
 
 # VM memory of labs that outgrow the default ``vm_memory``: k8s and SR Linux
-# labs, large ISP topologies, and Cisco XRd (whose build otherwise runs out of
-# memory). ``vm_memory_overrides`` entries take precedence.
+# labs, large ISP topologies, Cisco XRd (whose build otherwise runs out of
+# memory), and dc_clos (size l uses more than 4 GiB in the guest).
+# ``vm_memory_overrides`` entries take precedence.
 DEFAULT_VM_MEMORY_OVERRIDES = {
+    "dc_clos": "8GiB",
     "k8s_lab": "8GiB",
     "llmd_lab": "8GiB",
     "min3clos": "8GiB",
@@ -37,6 +39,13 @@ DEFAULT_VM_MEMORY_OVERRIDES = {
     "isp_pdh": "20GiB",
     "isp_di-yuan": "20GiB",
     "isp_dfn-gwin": "20GiB",
+}
+# vCPUs of labs that outgrow the default ``vm_cpus``. 11-router SR Linux labs
+# use about 10 host cores natively. ``vm_cpus_overrides`` entries take precedence.
+DEFAULT_VM_CPU_OVERRIDES = {
+    "isp_pdh": 12,
+    "isp_di-yuan": 12,
+    "isp_dfn-gwin": 12,
 }
 
 
@@ -62,6 +71,10 @@ class FirecrackerSettings(BaseModel):
     # paths are under the NIKA checkout, so uninstalling NIKA removes it.
     root: str = "runtime/firecracker"
     vm_cpus: int = Field(default=4, ge=1)
+    # Scenario id -> vCPUs, merged over DEFAULT_VM_CPU_OVERRIDES.
+    vm_cpus_overrides: dict[str, int] = Field(
+        default_factory=lambda: dict(DEFAULT_VM_CPU_OVERRIDES)
+    )
     # Most Kathara labs use under 2 GiB; with huge pages, admission reserves all of it.
     vm_memory: str = "4GiB"
     # Scenario id -> VM memory, for larger labs, merged over
@@ -90,6 +103,17 @@ class FirecrackerSettings(BaseModel):
     @classmethod
     def _memory_in_gib(cls, value: str) -> str:
         return _gib(value)
+
+    @field_validator("vm_cpus_overrides")
+    @classmethod
+    def _cpus_at_least_one(cls, value: dict[str, int]) -> dict[str, int]:
+        merged = {**DEFAULT_VM_CPU_OVERRIDES, **value}
+        for scenario, cpus in merged.items():
+            if not isinstance(cpus, int) or isinstance(cpus, bool) or cpus < 1:
+                raise ValueError(
+                    f"VM CPUs must be an integer >= 1, got {cpus!r} for {scenario}"
+                )
+        return merged
 
     @field_validator("vm_memory_overrides")
     @classmethod

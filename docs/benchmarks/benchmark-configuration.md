@@ -15,7 +15,7 @@ nika benchmark run --release 0.2.0 --split test --result_dir results/my-run
 
 Release `0.1.0` still runs with `--release 0.1.0`. [Run release 0.1.0](../compat/release-0.1.0.md) covers its restored labs and known limitations.
 
-The Git tag `release/<version>` in [`sands-lab/nika`](https://github.com/sands-lab/nika) names the commit on `main` that publishes each release, and its `benchmark/releases/<version>/` files are the official task definitions. Leaderboard validation reads the release from that tag, so run official benchmarks from a checkout of it (`git fetch --tags && git checkout release/0.2.0`). Before a `--release` run starts, NIKA compares this checkout's copy with the tagged one. On a mismatch it lists the changed tasks and asks whether to continue (default no); with `-y` or without a TTY it prints the warning and continues. When GitHub cannot be reached, it prints that the check was skipped.
+The [versioning policy](../../VERSIONING.md) explains what each component of a release version means and which changes produce a new one.
 
 Each release run treats `--result_dir` as **one run** and writes:
 
