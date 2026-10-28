@@ -202,7 +202,7 @@ Short system description, authors, and links to code / report / site (if any).
 - Identity matches the in-tree frozen release
 - Exact trial coverage (`case_count × n_trials`); metrics and `rca_confusion.json` match recomputed aggregates (non-`scored` trials count as 0 in primary means)
 - No `grading_error` or residual `infra_error` scoring status (`infra_error` is auto-retried during the run; leftovers reject the pack)
-- Run-validity flags (below): `empty_trace` rejects the package; `truncated_final_turn` or the `infra_error` validity flag rejects it above `--max-harness-rate` of trials (default 5%). Other flags produce warnings.
+- [Run-validity gates](#run-validity-gates) based on trial artifacts
 - Sibling trajectories package has the required per-trial files and matching trial set
 - No secrets or absolute paths in package text
 
@@ -216,13 +216,15 @@ See also [root-cause ground truth and scoring](root-cause-evaluation.md#score-a-
 | --- | --- |
 | `no_submission` | no readable `submission.json` with a `root_causes` list |
 | `empty_report` | frozen diagnosis report is empty or only opening narration before the first tool call |
-| `empty_trace` | no model or tool interaction in `messages.jsonl`; packing and trajectory validation reject the trial |
+| `empty_trace` | no model or tool interaction in `messages.jsonl` |
 | `truncated_final_turn` | the last LLM turn of a phase hit the output limit (`finish_reason: length`, `stop_reason: max_tokens`, or output tokens equal `max_tokens` with no text) |
 | `max_steps_exhausted` | diagnosis hit `max_steps`; details record whether a wrap-up report exists |
 | `fault_absent_at_cleanup` | a `fault_presence_recheck` before cleanup read `absent`: the agent likely mutated the network or the fault self-healed |
 | `infra_error` | the trial failed to start, lacks ground truth, or has `score_status=infra_error` |
 
-Pack rejection on `score_status` has no threshold: any trial with `grading_error` or residual `infra_error` status rejects the package. A trial can carry the `infra_error` validity flag without that scoring status. An `empty_trace` flag also rejects the package regardless of its rate. The remaining flags only warn.
+An `empty_trace` flag rejects packing and trajectory validation regardless of its rate. The `truncated_final_turn` and `infra_error` validity flags reject validation when either flag's rate exceeds `--max-harness-rate` (default 5%). The `no_submission`, `empty_report`, `max_steps_exhausted`, and `fault_absent_at_cleanup` flags only warn.
+
+Pack rejection on `score_status` has no threshold: any trial with `grading_error` or residual `infra_error` status rejects the package. A trial can carry the `infra_error` validity flag without that scoring status.
 
 ## Check the pull requests
 

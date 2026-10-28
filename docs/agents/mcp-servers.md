@@ -88,7 +88,7 @@ Call `k8s_list_events(namespace=..., limit=...)` for event evidence. It returns 
 
 ## Capture packets
 
-Capture needs `dumpcap` or `tcpdump` on the node. Inspection uses the node's `tshark` when available, otherwise the host's `tshark`. Capture files and metadata stay on the node.
+Capture needs `dumpcap` or `tcpdump` on the node. Inspection uses the node's `tshark` when available; otherwise NIKA runs it in a temporary container using its base image. No host `tshark` installation is needed. Capture files and metadata stay on the node.
 
 1. Call `packet_capture_start(device, interface, capture_filter=..., max_duration_sec=..., max_packets=...)`. It returns a `capture_id`.
 2. Run traffic with `exec_shell`, `active_tcp_probe`, or the scenario's traffic workflow.
