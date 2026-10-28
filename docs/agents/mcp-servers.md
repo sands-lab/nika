@@ -19,6 +19,10 @@ Use `exec_shell(host_name, command, timeout=10)` for ordinary commands. Set `tim
 
 `exec_shell` is the main tool for targeted checks. The base server also exposes `curl_web_test` for repeated HTTP timing measurements (a normal client: it sends `Accept-Encoding`, and each line ends with `http_code` and `size_download`), `iperf_test` for a two-node throughput test, and `active_tcp_probe` for deterministic TCP traffic over a selected five-tuple.
 
+Both nodes need `python3` for `active_tcp_probe`. Missing dependencies return
+`status: unsupported`; connection failures return `status: failed` with an
+error. Successful probes return `acked` and `elapsed_ms` in `result`.
+
 ## Use dedicated diagnosis tools
 
 | Server | When selected | Tools and purpose |
@@ -84,7 +88,7 @@ Call `k8s_list_events(namespace=..., limit=...)` for event evidence. It returns 
 
 ## Capture packets
 
-The lab node needs `tshark` for inspection. NIKA images include it. Capture, metadata, and inspection stay inside the target container.
+Capture needs `dumpcap` or `tcpdump` on the node. Inspection uses the node's `tshark` when available; otherwise NIKA runs it in a temporary container using its base image. No host `tshark` installation is needed. Capture files and metadata stay on the node.
 
 1. Call `packet_capture_start(device, interface, capture_filter=..., max_duration_sec=..., max_packets=...)`. It returns a `capture_id`.
 2. Run traffic with `exec_shell`, `active_tcp_probe`, or the scenario's traffic workflow.
@@ -92,6 +96,10 @@ The lab node needs `tshark` for inspection. NIKA images include it. Capture, met
 4. Call `packet_capture_inspect(capture_id, view="summary", limit=...)` or use the `packets`, `protocol`, or `expert` view. Pass a Wireshark display filter when needed.
 
 Set bounded duration and packet limits. The capture and metadata remain on the node; the stop result includes the container path.
+
+A valid capture with zero packets still returns an artifact. If no nonempty
+capture file exists, stopping fails and marks the capture as failed; start a
+new capture rather than inspecting the failed one.
 
 `interface` must exist on the node; otherwise `packet_capture_start` fails and lists the node's interfaces. On SR Linux nodes, `ethernet-1/N`, `ethernet-1/N.0`, `e1-N`, and the plan name `eth{N-1}` all capture on data port `e1-N`, which carries both transit and control-plane traffic.
 

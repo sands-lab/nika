@@ -10,6 +10,7 @@ Flags (a trial may carry several):
 - ``no_submission``: no readable ``submission.json`` with a ``root_causes`` list.
 - ``empty_report``: the frozen diagnosis report is empty, or only the agent's
   opening narration before its first tool call.
+- ``empty_trace``: no model or tool interaction was recorded; always invalid.
 - ``truncated_final_turn``: the last LLM turn of a phase stopped on the output
   token limit (``finish_reason == "length"`` / ``stop_reason == "max_tokens"``,
   or output tokens equal ``max_tokens`` with no text).
@@ -18,8 +19,8 @@ Flags (a trial may carry several):
   the agent likely mutated the network or the fault self-healed.
 - ``infra_error``: the trial failed to start or hit an infrastructure error.
 
-Only ``HARNESS_FLAGS`` are attributable to the harness rather than the agent;
-``nika leaderboard validate`` fails on those and merely warns on the rest.
+``nika leaderboard validate`` always rejects empty trajectories and applies
+the configured rate limit to ``HARNESS_FLAGS``; other flags produce warnings.
 """
 
 from __future__ import annotations
@@ -34,12 +35,14 @@ from typing import Any
 
 NO_SUBMISSION = "no_submission"
 EMPTY_REPORT = "empty_report"
+EMPTY_TRACE = "empty_trace"
 TRUNCATED_FINAL_TURN = "truncated_final_turn"
 MAX_STEPS_EXHAUSTED = "max_steps_exhausted"
 FAULT_ABSENT_AT_CLEANUP = "fault_absent_at_cleanup"
 INFRA_ERROR = "infra_error"
 
 VALIDITY_FLAGS: tuple[str, ...] = (
+    EMPTY_TRACE,
     NO_SUBMISSION,
     EMPTY_REPORT,
     TRUNCATED_FINAL_TURN,
@@ -113,6 +116,7 @@ def _int(value: Any) -> int | None:
 
 @dataclass
 class _TraceFacts:
+    has_activity: bool = False
     frozen_report: str | None = None
     max_steps: bool = False
     # phase -> (truncated, finish_reason) of the last LLM turn
@@ -131,10 +135,37 @@ def _turn_truncated(row: dict[str, Any], max_tokens: int | None) -> bool:
     return bool(max_tokens and out is not None and out >= max_tokens and not has_text)
 
 
+def _has_agent_activity(row: dict[str, Any]) -> bool:
+    event = row.get("event")
+    return bool(
+        event
+        in (
+            "llm_start",
+            "llm_end",
+            "llm_end_error",
+            "tool_start",
+            "tool_end",
+            "tool_result",
+            "tool_error",
+            "item.completed",
+            "result",
+        )
+        or (row.get("role") in ("assistant", "tool") and row.get("content"))
+        or (
+            event == "assistant"
+            and _as_dict(_as_dict(row.get("claude_event")).get("message")).get(
+                "content"
+            )
+        )
+    )
+
+
 def _read_trace(path: Path, max_tokens: int | None) -> _TraceFacts:
     facts = _TraceFacts()
     for row in _iter_jsonl(path):
         event = row.get("event")
+        if _has_agent_activity(row):
+            facts.has_activity = True
         phase = str(row.get("phase") or "")
         if event == "llm_end":
             facts.last_turn_truncated[phase] = _turn_truncated(row, max_tokens)
@@ -152,6 +183,11 @@ def _read_trace(path: Path, max_tokens: int | None) -> _TraceFacts:
         elif event == "diagnosis_frozen":
             facts.frozen_report = str(row.get("report") or "")
     return facts
+
+
+def has_agent_trace(path: Path) -> bool:
+    """Require a recorded model or tool interaction, not just lifecycle rows."""
+    return any(_has_agent_activity(row) for row in _iter_jsonl(path))
 
 
 def _report_is_empty(report: str, pre_tool_texts: set[str]) -> bool:
@@ -195,11 +231,13 @@ def detect_trial_validity(
 
     messages = session_dir / "messages.jsonl"
     trace = _read_trace(messages, max_tokens) if messages.is_file() else _TraceFacts()
+    if not trace.has_activity:
+        flags.append(EMPTY_TRACE)
 
     report = trace.frozen_report
     if report is None:
         report = submission.get("diagnosis_report")
-    if isinstance(report, str) and _report_is_empty(report, trace.pre_tool_texts):
+    if not isinstance(report, str) or _report_is_empty(report, trace.pre_tool_texts):
         flags.append(EMPTY_REPORT)
 
     truncated = sorted(p for p, hit in trace.last_turn_truncated.items() if hit)
@@ -253,7 +291,9 @@ def validity_findings(
     rates = validity_rates(counts, n_trials)
     for flag, count in counts.items():
         message = f"{count}/{n_trials} trials flagged {flag} ({rates[flag]:.1%})"
-        if flag in HARNESS_FLAGS and rates[flag] > max_harness_rate:
+        if flag == EMPTY_TRACE:
+            errors.append(message)
+        elif flag in HARNESS_FLAGS and rates[flag] > max_harness_rate:
             errors.append(f"{message}; exceeds harness limit {max_harness_rate:.1%}")
         else:
             warnings.append(message)

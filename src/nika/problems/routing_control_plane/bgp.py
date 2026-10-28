@@ -1410,6 +1410,7 @@ class BGPMaxPrefixExceededParams(BaseModel):
 
 
 class BGPMaxPrefixExceeded(ProblemBase):
+    root_cause_resource_match = "any"
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
     symptom_probe = "custom"
     symptom_class = "control_plane"

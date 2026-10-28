@@ -227,6 +227,7 @@ class LLMDInferenceCluster(NetworkEnvBase):
                     NodeRole.CONTROLLER if is_controller else NodeRole.INFRASTRUCTURE
                 ),
                 capabilities=("linux", "k3s"),
+                reachability_target=True,
             )
             m.add_meta("privileged", True)
             m.add_meta("bridged", True)

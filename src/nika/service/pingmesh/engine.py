@@ -343,6 +343,10 @@ async def run_pingmesh_snapshot(
     pairs, candidate_pairs = _build_pairs(
         resolved_sources, resolved_targets, max_pairs, is_isolated=is_isolated
     )
+    if not pairs:
+        raise ValueError(
+            "PingMesh needs at least two distinct endpoint hosts; no pairs can be probed."
+        )
 
     probed = sorted({name for pair in pairs for name in pair})
     endpoint_ips = await _resolve_endpoint_ips(api, probed)

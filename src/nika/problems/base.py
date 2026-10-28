@@ -86,6 +86,8 @@ class ProblemBase:
     # Submission owner kind ("interface" / "link" / "node_or_k8s") when it
     # differs from the failure-domain default; must match root_cause_resources().
     root_cause_owner: ClassVar[str | None] = None
+    # A distributed fault may be localized at any of its participating resources.
+    root_cause_resource_match: ClassVar[Literal["all", "any"]] = "all"
     # Short meaning of the failure ID for agent ontology / registry.
     # Must not leak injection method, artifacts, or differential probe shortcuts.
     description: ClassVar[str] = ""
