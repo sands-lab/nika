@@ -184,7 +184,7 @@ in the lab takes 7–9 s while several copies restore at once.
 
 ### VM size
 
-Each VM gets `vm_cpus` vCPUs (default 4) and `vm_memory` (default 4 GiB), which fits most Kathara labs. Larger labs get more by default: 8 GiB for `dc_clos`, `k8s_lab`, `llmd_lab`, `min3clos` and Cisco XRd (`iosxr_simple_bgp`). 11 SR Linux nodes use about 10 host cores natively, so `isp_pdh`, `isp_di-yuan` and `isp_dfn-gwin` get 20 GiB and 12 vCPUs. `dc_clos` size l uses about 4.2 GiB in the guest. An image build warns when a lab leaves less than a quarter of its VM memory free; give such a lab more with `vm_memory_overrides` or `vm_cpus_overrides`, which take precedence over these sizes:
+Each VM gets `vm_cpus` vCPUs (default 4) and `vm_memory` (default 4 GiB), which fits most Kathara labs. Larger labs get more by default: 8 GiB for `dc_clos`, `k8s_lab`, `llmd_lab`, `min3clos` and Cisco XRd (`iosxr_simple_bgp`). 11 SR Linux nodes use about 10 host cores natively, so `isp_pdh`, `isp_di-yuan` and `isp_dfn-gwin` get 20 GiB and 12 vCPUs. `dc_clos` size l uses about 4.2 GiB in the guest. An image build warns when a lab leaves less than a quarter of its VM memory free; raise `vm_memory_overrides` for that environment:
 
 ```yaml
 nika:
@@ -194,8 +194,7 @@ nika:
         k8s_lab: 12GiB
 ```
 
-Few vCPUs per VM keep one copy's bursts (verification, injection, the agent's
-commands) from starving the copies next to it.
+Use `vm_cpus_overrides` to change an environment's vCPU allocation. Both override maps take precedence over the sizes above. Few vCPUs per VM keep one copy's bursts (verification, injection, the agent's commands) from starving the copies next to it.
 
 ### Case images (optional)
 
@@ -393,8 +392,7 @@ restore the lab image.
 | `sdn_l3_clos` m | 2 | 130 s | 168 s, 840 MiB | 4 s | 0.22 | 50 s, 38 MiB | 2 s | 6.4 |
 | `sdn_l3_clos` s | 4 | 82 s | 114 s, 901 MiB | 10 s | 0.13 | 248 s, 123 MiB | 2 s | 2.4 |
 
-Lab images pay off within the first run. The `isp_pdh` row used 4 vCPUs; those SR Linux environments now get 12 (see [VM size](#vm-size)).
-Case images pay off after 0.5–7 more runs, depending on how long injection takes.
+Lab images pay off within the first run for every environment except `isp_pdh` in the table, which used 4 vCPUs. Those SR Linux environments now get 12 (see [VM size](#vm-size)). Case images pay off after 0.5–7 more runs, depending on how long injection takes.
 
 ## Limitations
 
