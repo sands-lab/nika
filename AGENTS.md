@@ -48,6 +48,8 @@ Submit with the [leaderboard submission skill](.agents/skills/nika-leaderboard-s
 
 Changes to environment/failure compatibility, taxonomy, root-cause identity, ground truth, registries, or benchmark tasks are benchmark contract changes. After such a change, regenerate the derived artifacts (`uv run nika benchmark generate`) and review the diff. Do not edit generated benchmark data by hand unless explicitly required. Published benchmark releases do not change.
 
+Classify every change by its effect on evaluation as an edition, revision, or patch under the [versioning policy](VERSIONING.md). A change that alters what the agent encounters or how its answer is scored needs a new benchmark revision, even when it lives entirely in the orchestrator.
+
 ## Testing
 
 Executable network behavior needs real Docker-backed NIKA end-to-end runs; unit tests alone do not show that an incident, traffic pattern, or recovery works. For changes to environments, failures, traffic, telemetry, runtime, or backends:

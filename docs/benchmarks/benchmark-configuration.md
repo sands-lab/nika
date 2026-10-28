@@ -15,6 +15,8 @@ nika benchmark run --release 0.2.0 --split test --result_dir results/my-run
 
 Release `0.1.0` still runs with `--release 0.1.0`. [Run release 0.1.0](../compat/release-0.1.0.md) covers its restored labs and known limitations.
 
+The [versioning policy](../../VERSIONING.md) explains what each component of a release version means and which changes produce a new one.
+
 Each release run treats `--result_dir` as **one run** and writes:
 
 | Path | Role |
