@@ -10,7 +10,11 @@ import yaml
 from pydantic import ValidationError
 
 from nika.config import REPO_ROOT
-from nika.evaluator.validity import DEFAULT_MAX_HARNESS_RATE, validity_findings
+from nika.evaluator.validity import (
+    DEFAULT_MAX_HARNESS_RATE,
+    EMPTY_TRACE,
+    validity_findings,
+)
 from nika.workflows.benchmark.official_release import ReleaseSource
 from nika.workflows.benchmark.release import BenchmarkRelease
 from nika.workflows.benchmark.trials import expand_trials
@@ -252,8 +256,16 @@ def validate_leaderboard_submission(
                     "ERROR_GRADING_ERROR",
                     f"grading_error trials forbidden in submission (found {n_grading})",
                 )
+            issues.extend(
+                "ERROR_EMPTY_TRACE",
+                [t.trial_id for t in trial_results if EMPTY_TRACE in t.validity_flags],
+            )
             v_errors, v_warnings = validity_findings(
-                recomputed.validity_counts,
+                {
+                    flag: count
+                    for flag, count in recomputed.validity_counts.items()
+                    if flag != EMPTY_TRACE
+                },
                 len(trial_results),
                 max_harness_rate=max_harness_rate,
             )

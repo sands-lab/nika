@@ -19,7 +19,11 @@ class TcpSynFloodAttackParams(BaseModel):
     target_ip: str
     target_port: int = Field(default=80, gt=0, le=65535)
     rate_pps: int = Field(default=1000, gt=0)
-    duration: int = Field(default=3600, gt=0)
+    duration: int = Field(
+        default=3600,
+        gt=0,
+        description="Legacy duration parameter; flood persists until recovery.",
+    )
     flows: int = Field(default=100, gt=0, le=1000)
     seed: int = 42
 
@@ -72,11 +76,26 @@ class TcpSynFloodAttack(ProblemBase):
         )
         command = (
             f"for source_port in $(seq {base_port} {base_port + params.flows - 1}); do "
-            f"timeout {params.duration}s bash -c {shlex.quote(flow_cmd)} "
-            '_ "$source_port" >/dev/null 2>&1 & done'
+            f"nohup bash -c {shlex.quote(flow_cmd)} "
+            '_ "$source_port" </dev/null >/dev/null 2>&1 & echo $!; done'
         )
-        self.runtime.exec(params.attacker_device, command, timeout=10)
+        output = self.runtime.exec(params.attacker_device, command, timeout=10)
+        self._flow_pids = [
+            int(pid) for pid in output.splitlines() if pid.strip().isdigit()
+        ]
         self._profile = {**params.model_dump(), "interval_us": interval_us}
+
+    def recover_fault(self, params: TcpSynFloodAttackParams) -> dict:
+        for pid in getattr(self, "_flow_pids", []):
+            self.runtime.exec(
+                params.attacker_device,
+                f"if ps -p {pid} -o args= | grep -q '{NEUTRAL_PROBE_NAME} -S '; then kill {pid}; fi",
+                timeout=10,
+            )
+        state = self.verify_fault(params)["details"]
+        return build_verify_result(
+            self.root_cause_name, state["flows_running"] == 0, state
+        )
 
     def verify_fault(self, params: TcpSynFloodAttackParams) -> dict:
         """Verify SYN flood processes and that INT collection is still live."""

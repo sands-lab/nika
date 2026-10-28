@@ -10,6 +10,7 @@ import yaml
 from pydantic import ValidationError
 
 from nika.config import REPO_ROOT
+from nika.evaluator.validity import has_agent_trace
 from nika.workflows.benchmark.official_release import ReleaseSource
 from nika.workflows.benchmark.trials import expand_trials
 from nika.workflows.leaderboard.issues import (
@@ -148,6 +149,11 @@ def validate_trajectory_package(
     for trial_dir_path in sorted(p for p in trials_root.iterdir() if p.is_dir()):
         trial_id = trial_dir_path.name
         present_ids.add(trial_id)
+        if not has_agent_trace(trial_dir_path / "messages.jsonl"):
+            issues.add(
+                "ERROR_EMPTY_TRACE",
+                f"{trial_id}/messages.jsonl has no agent trajectory",
+            )
         for name in TRAJECTORY_REQUIRED_FILES:
             path = trial_dir_path / name
             if not path.is_file():

@@ -191,10 +191,16 @@ def stop_capture(
 
     size_raw = runtime.exec(
         device,
-        f"wc -c < {quoted_remote} 2>/dev/null || echo 0",
+        f"if [ -f {quoted_remote} ]; then wc -c < {quoted_remote}; else echo missing; fi",
         timeout=10,
     )
-    captured_bytes = _parse_int(size_raw) or 0
+    captured_bytes = _parse_int(size_raw)
+    if captured_bytes is None or captured_bytes == 0:
+        log_path = _shell_quote(re.sub(r"\.pid$", ".log", pid_path))
+        log = runtime.exec(device, f"tail -n 20 {log_path} 2>/dev/null", timeout=5)
+        raise FileNotFoundError(
+            f"Capture produced no file on {device!r}: {remote_path}. {log.strip()}"
+        )
 
     packet_count = 0
     count_output = runtime.exec(

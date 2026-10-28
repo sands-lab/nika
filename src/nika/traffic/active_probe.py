@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import json
 import shlex
+import textwrap
 
 from nika.runtime.base import LabRuntime
 
@@ -33,6 +35,24 @@ def run_active_tcp_probe(
     destination_ip = runtime.get_data_plane_host_ip(destination)
     if not destination_ip:
         raise ValueError(f"Cannot resolve IP for host {destination!r}")
+    result = {
+        "source": source,
+        "destination": destination,
+        "source_port": source_port,
+        "destination_port": destination_port,
+        "payload_size": payload_size,
+        "packets": packets,
+    }
+    for node in dict.fromkeys((source, destination)):
+        available = runtime.exec(
+            node, "command -v python3 >/dev/null 2>&1 && echo ready", timeout=5
+        )
+        if available.strip() != "ready":
+            return {
+                **result,
+                "status": "unsupported",
+                "error": f"Node {node!r} needs python3 for active TCP probing",
+            }
     # The listener gives up on its own if no client arrives, so a failed
     # probe never leaves a process holding the port.
     server = f"""import socket
@@ -45,8 +65,13 @@ c, _ = s.accept()
 c.settimeout(5)
 n = 0
 for _ in range({packets}):
-    data = c.recv({payload_size})
-    if not data:
+    remaining = {payload_size}
+    while remaining:
+        data = c.recv(remaining)
+        if not data:
+            break
+        remaining -= len(data)
+    if remaining:
         break
     n += 1
     c.sendall(b'1')
@@ -84,16 +109,31 @@ n = 0
 for _ in range({packets}):
     s.sendall(p)
     n += bool(s.recv(1))
-print({{'acked': n, 'elapsed_ms': round((time.monotonic() - t) * 1000, 3)}})
+print(json.dumps({{'acked': n, 'elapsed_ms': round((time.monotonic() - t) * 1000, 3)}}))
 s.close()
 """
+    client = (
+        "import json\ntry:\n"
+        + textwrap.indent(client, "    ")
+        + "except OSError as exc:\n    print(json.dumps({'error': str(exc)}))\n"
+    )
     output = runtime.exec(source, f"python3 -c {shlex.quote(client)}", timeout=30)
+    try:
+        reading = json.loads(output.strip())
+    except ValueError:
+        return {
+            **result,
+            "status": "failed",
+            "error": "Node did not return a valid TCP probe result",
+        }
+    if not isinstance(reading, dict):
+        return {
+            **result,
+            "status": "failed",
+            "error": "Node did not return a TCP probe object",
+        }
     return {
-        "source": source,
-        "destination": destination,
-        "source_port": source_port,
-        "destination_port": destination_port,
-        "payload_size": payload_size,
-        "packets": packets,
-        "result": output.strip(),
+        **result,
+        "status": "ok" if reading.get("acked") == packets else "failed",
+        "result": reading,
     }

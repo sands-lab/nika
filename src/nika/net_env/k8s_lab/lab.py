@@ -119,9 +119,9 @@ class K8sFatTreeBGP(NetworkEnvBase):
             "worker5": ["AB"],
         }
 
-        # as2r1 is bridged for internet connectivity; controller is bridged so
+        # Only the controller is bridged so
         # Docker can publish the API port to the host (host-side kubectl/MCP).
-        _bridged = {"as2r1", "controller"}
+        _bridged = {"controller"}
 
         # Multipath sysctl for core and spine switches
         _sysctl_multipath = "net.ipv4.fib_multipath_hash_policy=1"
@@ -200,6 +200,7 @@ class K8sFatTreeBGP(NetworkEnvBase):
                     else NodeRole.INFRASTRUCTURE
                 ),
                 capabilities=("linux", "k3s"),
+                reachability_target=True,
             )
             m.add_meta("privileged", True)
             for ulimit in _K3S_ULIMITS:

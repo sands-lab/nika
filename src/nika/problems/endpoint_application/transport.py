@@ -73,11 +73,11 @@ def _stage_archive_job(runtime: Any, host: str, workers: int) -> dict[str, Any]:
     return {"created": created, "config": config}
 
 
-def _launch_archive_job(runtime: Any, host: str, duration: int) -> None:
+def _launch_archive_job(runtime: Any, host: str) -> None:
     """Start the batch without waiting inside a CPU-starved container."""
     runtime.exec(
         host,
-        f"nohup setsid python3 {_ARCHIVE_JOB} run --duration {int(duration)} "
+        f"nohup setsid python3 {_ARCHIVE_JOB} run --duration 0 "
         f"</dev/null >>{_ARCHIVE_LOG} 2>&1 &",
         timeout=15,
     )
@@ -191,7 +191,8 @@ class SenderResourceContentionParams(BaseModel):
 
     host_name: str = Field(description="Target HTTP server host name.")
     duration: int = Field(
-        default=3600, description="Competing workload duration in seconds."
+        default=3600,
+        description="Legacy duration parameter; contention persists until recovery.",
     )
     cpu_quota: float = Field(
         default=0.05,
@@ -558,7 +559,7 @@ class SenderResourceContention(ProblemBase):
         # Restart the CPU-bound server under the new quota.
         self._ensure_http_objects(params)
 
-        _launch_archive_job(self.runtime, params.host_name, params.duration)
+        _launch_archive_job(self.runtime, params.host_name)
         # Let CFS + the archive workers saturate before verify/symptom samples.
         deadline = time.time() + 30.0
         while time.time() < deadline:
@@ -686,7 +687,8 @@ class ReceiverResourceContentionParams(BaseModel):
 
     host_name: str = Field(description="Target receiver host name.")
     duration: int = Field(
-        default=3600, description="Competing workload duration in seconds."
+        default=3600,
+        description="Legacy duration parameter; contention persists until recovery.",
     )
     stress_cpus: int = Field(
         default=8,
@@ -918,7 +920,7 @@ class ReceiverResourceContention(ProblemBase):
                 json.dumps({"workers": params.archive_workers}) + "\n",
             )
             self._archive_pid = self._archive_job(
-                params.host_name, f"start --duration {params.duration}"
+                params.host_name, "start --duration 0"
             )["pid"]
             time.sleep(3)
             if not self.verify_fault(params)["verified"]:
@@ -943,7 +945,7 @@ class ReceiverResourceContention(ProblemBase):
             self._receiver_quota_applied = True
         except Exception:  # noqa: BLE001
             self._receiver_quota_applied = False
-        _launch_archive_job(self.runtime, params.host_name, params.duration)
+        _launch_archive_job(self.runtime, params.host_name)
         deadline = time.time() + 30.0
         while time.time() < deadline:
             if _archive_job_running(container_commands(self.runtime, params.host_name)):

@@ -78,11 +78,11 @@ class K8sLabUnitTest:
 
         assert "client" in inst.hosts
 
-    def test_as2r1_is_bridged(self) -> None:
-        """as2r1 must be bridged to provide internet connectivity."""
+    def test_as2r1_has_no_internet_bridge(self) -> None:
+        """The external AS must not forward lab traffic to the internet."""
         inst = self._inst()
 
-        assert inst.lab.machines["as2r1"].is_bridged()
+        assert not inst.lab.machines["as2r1"].is_bridged()
 
     def test_controller_is_bridged(self) -> None:
         """controller is bridged so Docker can publish the API port to the host."""

@@ -116,7 +116,7 @@ Exact eval and leaderboard scoring contract. Implementation: [`scoring.py`](../.
 
 ### Per-trial rule-based metrics
 
-NIKA writes `eval_metrics.json` when a trial closes (or when you run `nika eval metrics`). Detection is binary. RCA metrics compare predicted and expected sets. Duplicate pairs do not change a score. Scores written before the containment and healthy-verdict rules below change when you regrade with `nika eval metrics`.
+NIKA writes `eval_metrics.json` when a trial closes (or when you run `nika eval metrics`). Detection is binary. RCA metrics compare predicted and expected sets. Duplicate pairs do not change a score. Use a published release's Git tag to reproduce its scoring. Changes to these rules require a new benchmark revision under the [versioning policy](../../VERSIONING.md).
 
 | Metric group | Compared set | Fields |
 | --- | --- | --- |
@@ -141,6 +141,8 @@ Fault types match only when they are identical. A predicted resource matches a g
 | `link/{tps}` | `interface/{node}/{ifname}` for an endpoint `{node}:{ifname}` of that link |
 
 Joint RCA uses the same rule for the resource half of each pair. Each ground-truth item is matched at most once, so naming both ends of a faulty link scores one true positive and one false positive. A coarser prediction, such as `node/{node}` for an interface fault, does not match.
+
+A failure can declare `root_cause_resource_match = "any"` when its listed resources are alternative locations for one distributed fault. For `bgp_max_prefix_exceeded`, either the receiver or its advertising peer earns full RCA credit with the correct fault type. Localization treats those endpoints as one location; naming both counts once. Other failures retain their resource requirements for RCA.
 
 Special case: when both `P` and `T` are empty, precision, recall, and F1 are all `1.0` only if the submission also says `is_anomaly: false`. That is the correct score for a healthy case. A healthy case submitted as `is_anomaly: true` with an empty `root_causes` list scores `0.0`. An agent that never submits must not reach this path (see `score_status` below).
 

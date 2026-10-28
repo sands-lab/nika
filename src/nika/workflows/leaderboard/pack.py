@@ -13,6 +13,7 @@ from typing import Any
 import yaml
 
 from nika.config import REPO_ROOT, resolve_results_root
+from nika.evaluator.validity import has_agent_trace
 from nika.workflows.benchmark.official_release import ReleaseSource
 from nika.workflows.benchmark.release import load_run_config
 from nika.workflows.benchmark.trials import (
@@ -259,6 +260,11 @@ def _copy_trajectory_trial_files(
             )
         _write_sanitized_trajectory_file(
             src, dest_dir / name, trial_id=trial_id, path_re=path_re
+        )
+
+    if not has_agent_trace(session_dir / "messages.jsonl"):
+        raise LeaderboardPackError(
+            f"ERROR_EMPTY_TRACE: trial under {session_dir} has no agent trajectory"
         )
 
     submission_src = session_dir / TRAJECTORY_OPTIONAL_SUCCESS_FILE

@@ -134,7 +134,7 @@ def test_unreachable_release_fails_unless_local(
 
     local = validate_leaderboard_submission(package, release_source="local")
     assert local.ok, local.errors
-    assert [issue.code for issue in local.issues] == ["WARNING_LOCAL_RELEASE"]
+    assert "WARNING_LOCAL_RELEASE" in [issue.code for issue in local.issues]
     assert local.reference is not None and local.reference.source == "local"
 
 

@@ -91,6 +91,84 @@ def _packet(layers: dict) -> dict:
 
 @pytest.mark.unit
 class TestProtocolFields:
+    @pytest.mark.parametrize(
+        "protocol,layer,expected",
+        [
+            (
+                "dns",
+                {
+                    "Queries": {
+                        "example.local: type A": {"dns.qry.name": "example.local"}
+                    },
+                    "dns.flags_tree": {"dns.flags.rcode": "3"},
+                },
+                {"qname": "example.local", "rcode": "3"},
+            ),
+            (
+                "bgp",
+                {
+                    "BGP OPEN": {
+                        "bgp.type": "1",
+                        "bgp.open.myas": "23456",
+                        "bgp.open.holdtime": "180",
+                        "bgp.open.identifier": "10.0.0.1",
+                        "Capabilities": {
+                            "bgp.cap.4as": "4200000001",
+                            "bgp.cap.type": "65",
+                        },
+                    }
+                },
+                {
+                    "type": "1",
+                    "asn": "4200000001",
+                    "hold_time": "180",
+                    "router_id": "10.0.0.1",
+                    "capabilities": "65",
+                },
+            ),
+            (
+                "ospf",
+                {
+                    "Header": {
+                        "ospf.msg": "1",
+                        "ospf.area_id": "0.0.0.0",
+                        "ospf.srcrouter": "10.0.0.1",
+                    },
+                    "Hello": {
+                        "ospf.hello.hello_interval": "10",
+                        "ospf.hello.router_dead_interval": "40",
+                        "ospf.hello.active_neighbor": "10.0.0.2",
+                    },
+                },
+                {
+                    "msg_type": "1",
+                    "area": "0.0.0.0",
+                    "router_id": "10.0.0.1",
+                    "hello_interval": "10",
+                    "dead_interval": "40",
+                    "neighbor": "10.0.0.2",
+                },
+            ),
+            (
+                "tls",
+                [
+                    {
+                        "Record Layer": {
+                            "tls.handshake": {
+                                "tls.handshake.extensions_server_name": "example.local"
+                            }
+                        }
+                    }
+                ],
+                {"sni": "example.local"},
+            ),
+        ],
+    )
+    def test_nested_tshark_protocol_trees(self, protocol, layer, expected) -> None:
+        fields = extract_protocol_fields(protocol, _packet({protocol: layer}))
+        for key, value in expected.items():
+            assert fields[key] == value
+
     def test_tcp_fields(self) -> None:
         fields = extract_protocol_fields(
             "tcp",
@@ -140,9 +218,9 @@ class TestProtocolFields:
                     "frame": {"frame.number": ["3"]},
                     "bgp": {
                         "bgp.type": ["1"],
-                        "bgp.as": ["65001"],
-                        "bgp.hold_time": ["180"],
-                        "bgp.identifier": ["10.0.0.1"],
+                        "bgp.open.myas": ["65001"],
+                        "bgp.open.holdtime": ["180"],
+                        "bgp.open.identifier": ["10.0.0.1"],
                     },
                 }
             ),
@@ -298,6 +376,40 @@ class FakeRuntime:
 
 @pytest.mark.unit
 class TestCaptureLifecycle:
+    def test_zero_packets_still_has_a_valid_capture_file(self) -> None:
+        class EmptyCaptureRuntime(FakeRuntime):
+            def exec(self, node, command, timeout=10):
+                if "wc -c <" in command:
+                    return "24"
+                if "tcpdump -r" in command and "wc -l" in command:
+                    return "0"
+                return super().exec(node, command, timeout)
+
+        manager = CaptureManager(runtime=EmptyCaptureRuntime())
+        capture_id = manager.start(device="client1", interface="eth0")["capture_id"]
+        stopped = manager.stop(capture_id)
+        assert stopped["packet_count"] == 0
+        assert stopped["captured_bytes"] == 24
+        assert stopped["artifact"]["remote_path"]
+
+    def test_missing_output_is_failed_not_an_empty_artifact(self) -> None:
+        class MissingOutputRuntime(FakeRuntime):
+            def exec(self, node, command, timeout=10):
+                if "wc -c <" in command:
+                    return "missing"
+                return super().exec(node, command, timeout)
+
+        runtime = MissingOutputRuntime()
+        manager = CaptureManager(runtime=runtime)
+        capture_id = manager.start(device="client1", interface="eth0")["capture_id"]
+        with pytest.raises(FileNotFoundError, match="no file"):
+            manager.stop(capture_id)
+        assert read_meta(runtime, capture_id)["status"] == "failed"
+        with pytest.raises(RuntimeError, match="failed"):
+            manager.stop(capture_id)
+        with pytest.raises(RuntimeError, match="failed"):
+            manager.inspect(capture_id, view="summary")
+
     def test_concurrent_captures_have_distinct_ids(self) -> None:
         runtime = FakeRuntime()
         manager = CaptureManager(runtime=runtime)

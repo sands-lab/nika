@@ -135,6 +135,13 @@ ISSUE_SPECS: dict[str, IssueSpec] = {
         "parse.",
         _REPACK,
     ),
+    "ERROR_EMPTY_TRACE": IssueSpec(
+        "trials have no agent trajectory",
+        "messages.jsonl records no model or tool interaction, usually because the "
+        "agent failed to start or its harness did not record the trace.",
+        "Fix the agent or harness setup, re-run the affected trials with "
+        "`--no-resume --task-id <trial id>`, and pack again.",
+    ),
     "ERROR_TRAJECTORY_FORBIDDEN_FILE": IssueSpec(
         "the trajectories package contains files that must not be published",
         "Packet captures, validation dumps, or judge artifacts were copied into "

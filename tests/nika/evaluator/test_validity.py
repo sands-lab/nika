@@ -71,6 +71,46 @@ def test_clean_trial_has_no_flags(tmp_path: Path) -> None:
     assert detect_trial_validity(_trial(tmp_path / "t")).flags == []
 
 
+def test_interrupted_claude_assistant_is_still_a_real_trajectory(
+    tmp_path: Path,
+) -> None:
+    trial = _trial(tmp_path / "t")
+    _jsonl(
+        trial / "messages.jsonl",
+        [
+            {
+                "event": "assistant",
+                "claude_event": {
+                    "message": {
+                        "content": [{"type": "text", "text": "Checking routes"}]
+                    }
+                },
+            }
+        ],
+    )
+    assert "empty_trace" not in detect_trial_validity(trial).flags
+
+
+@pytest.mark.parametrize(
+    "content",
+    [None, "", "{}\n", '{"event":"phase_start"}\n', '{"event":[]}\n', "invalid\n"],
+)
+def test_empty_agent_trajectory_is_always_rejected(
+    tmp_path: Path, content: str | None
+) -> None:
+    trial = _trial(tmp_path / "t")
+    messages = trial / "messages.jsonl"
+    if content is None:
+        messages.unlink()
+    else:
+        messages.write_text(content)
+    result = detect_trial_validity(trial)
+    assert "empty_trace" in result.flags
+    assert "empty_report" in result.flags
+    errors, _ = validity_findings({"empty_trace": 1}, 1000)
+    assert errors
+
+
 def test_no_submission_and_infra(tmp_path: Path) -> None:
     flags = detect_trial_validity(
         _trial(tmp_path / "t", submission=False, ground_truth=False)

@@ -354,6 +354,12 @@ class SDNL3ClosTopologyChangeTest(IntegrationTestCase):
         try:
             row = self._assert_session_ready(session_id, "sdn_l3_clos")
             runtime = runtime_for_session(row)
+            assert (
+                runtime.exec(
+                    "fabric_mgr", "test ! -e /tmp/onos_batch.py && echo clean"
+                ).strip()
+                == "clean"
+            )
             model = build_clos_fabric_model("s")
             src = model.client_endpoints()[0]
             same = next(w for w in model.web_endpoints() if w.leaf_id == src.leaf_id)

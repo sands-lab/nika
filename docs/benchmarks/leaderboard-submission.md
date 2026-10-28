@@ -215,7 +215,7 @@ Short system description, authors, and links to code / report / site (if any).
 - Identity and trial IDs match the official release at its [release tag](#run-from-the-release-tag), and the task definitions at the run's recorded NIKA commit match it too
 - Exact trial coverage (`case_count × n_trials`); metrics and `rca_confusion.json` match recomputed aggregates (non-`scored` trials count as 0 in primary means)
 - No `grading_error` or residual `infra_error` scoring status (`infra_error` is auto-retried during the run; leftovers reject the pack)
-- Run-validity flags (below): `nika leaderboard validate` warns on any flag and fails when `truncated_final_turn` or the `infra_error` validity flag exceeds `--max-harness-rate` of trials (default 5%)
+- [Run-validity gates](#run-validity-gates) based on trial artifacts
 - Sibling trajectories package has the required per-trial files and matching trial set
 - No secrets or absolute paths in package text
 
@@ -229,12 +229,15 @@ See also [root-cause ground truth and scoring](root-cause-evaluation.md#score-a-
 | --- | --- |
 | `no_submission` | no readable `submission.json` with a `root_causes` list |
 | `empty_report` | frozen diagnosis report is empty or only opening narration before the first tool call |
+| `empty_trace` | no model or tool interaction in `messages.jsonl` |
 | `truncated_final_turn` | the last LLM turn of a phase hit the output limit (`finish_reason: length`, `stop_reason: max_tokens`, or output tokens equal `max_tokens` with no text) |
 | `max_steps_exhausted` | diagnosis hit `max_steps`; details record whether a wrap-up report exists |
 | `fault_absent_at_cleanup` | a `fault_presence_recheck` before cleanup read `absent`: the agent likely mutated the network or the fault self-healed |
 | `infra_error` | the trial failed to start, lacks ground truth, or has `score_status=infra_error` |
 
-Pack rejection on `score_status` has no threshold: any trial with `grading_error` or residual `infra_error` status rejects the package. A trial can carry the `infra_error` validity flag without that scoring status. The remaining flags only warn.
+An `empty_trace` flag rejects packing and validation regardless of its rate ([`ERROR_EMPTY_TRACE`](#error_empty_trace)). The `truncated_final_turn` and `infra_error` validity flags reject validation when either flag's rate exceeds `--max-harness-rate` (default 5%). The `no_submission`, `empty_report`, `max_steps_exhausted`, and `fault_absent_at_cleanup` flags only warn.
+
+Pack rejection on `score_status` has no threshold: any trial with `grading_error` or residual `infra_error` status rejects the package. A trial can carry the `infra_error` validity flag without that scoring status.
 
 ## Validation errors
 
@@ -309,6 +312,10 @@ A metrics, RCA confusion, or per-trial result file does not match the package sc
 ### `ERROR_TRAJECTORY_INVALID`
 
 A trajectory trial lacks a [required file](#trajectories-package-layout-hugging-face), or a JSON Lines file does not parse. Re-pack.
+
+### `ERROR_EMPTY_TRACE`
+
+A trial's `messages.jsonl` records no model or tool interaction (the `empty_trace` validity flag), usually because the agent failed to start or its harness did not record the trace. The error lists the affected trials and rejects the package at any rate. Fix the agent or harness setup, re-run those trials with `--no-resume --task-id <trial id>`, and pack again.
 
 ### `ERROR_TRAJECTORY_FORBIDDEN_FILE`
 
