@@ -253,9 +253,9 @@ Deploy completes and prints a `session_id=…`. During deploy, `ps` / `pgrep -a 
 
 ## Firecracker image build fails with RemoteDisconnected
 
-The guest ran out of VM memory during deploy, so the HTTP connection to the remote daemon drops.
+`RemoteDisconnected` means the HTTP peer closed the connection without a response. The guest may have run out of memory during deploy, or the daemon may have crashed for another reason.
 
-Raise `nika.execution.firecracker.vm_memory_overrides` for that environment. See [VM size](firecracker.md#vm-size).
+Open `console.log` in the failed build directory (`runtime/firecracker/images/<key>.build/` by default; `<key>` is the id in the `[firecracker] building lab image` line). `nika firecracker clean` deletes abandoned builds, so read the log first. If it shows an OOM-kill, raise `nika.execution.firecracker.vm_memory_overrides` for the environment. See [VM size](firecracker.md#vm-size).
 
 ## Containerlab link faults fail with a sudo password prompt
 
