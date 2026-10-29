@@ -2610,7 +2610,7 @@
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol"
       ],
-      "rank": 4
+      "rank": 3
     },
     {
       "id": "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
@@ -3047,7 +3047,7 @@
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 5
+      "rank": 4
     },
     {
       "id": "0.2.0/20261011_react_qwen3_8_27b_fp8",
@@ -3485,7 +3485,7 @@
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 6
+      "rank": 5
     },
     {
       "id": "0.2.0/20261017_claude_code_claude_haiku_5_5",
@@ -3930,7 +3930,7 @@
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 7
+      "rank": 6
     },
     {
       "id": "0.2.0/20261025_claude_code_ornith_1_5_122b",
@@ -4375,7 +4375,7 @@
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 7
+      "rank": 6
     },
     {
       "id": "0.2.0/20261014_react_qwen3_5_27b",
@@ -4816,7 +4816,7 @@
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 9
+      "rank": 7
     },
     {
       "id": "0.2.0/20261014_claude_code_qwen3_5_27b",
@@ -5257,7 +5257,7 @@
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 9
+      "rank": 7
     },
     {
       "id": "0.2.0/20261012_claude_code_gemma_4_31b_it",
@@ -5699,7 +5699,7 @@
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 9
+      "rank": 7
     },
     {
       "id": "0.2.0/20261016_claude_code_gpt_oss_120b",
@@ -6140,7 +6140,7 @@
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 10
+      "rank": 8
     },
     {
       "id": "0.2.0/20261013_claude_code_telecomgpt_r1",
@@ -6581,7 +6581,7 @@
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 12
+      "rank": 9
     },
     {
       "id": "0.2.0/20261013_react_telecomgpt_r1",
@@ -7022,7 +7022,7 @@
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 12
+      "rank": 9
     },
     {
       "id": "0.2.0/20261012_react_gemma_4_31b_it",
@@ -7467,7 +7467,7 @@
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 13
+      "rank": 10
     },
     {
       "id": "0.2.0/20261007_qwen3_6_35b_a3b_claudecode",
@@ -7897,7 +7897,7 @@
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 15
+      "rank": 11
     },
     {
       "id": "0.2.0/20261019_claude_code_qwen3_coder_next_fp8",
@@ -8347,7 +8347,7 @@
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 15
+      "rank": 11
     },
     {
       "id": "0.2.0/20261008_qwen3_6_35b_a3b_codex",
@@ -8778,7 +8778,7 @@
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 16
+      "rank": 12
     },
     {
       "id": "0.2.0/20261007_qwen3_6_35b_a3b_langgraph",
@@ -9210,7 +9210,7 @@
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 17
+      "rank": 13
     },
     {
       "id": "0.2.0/20261020_codex_qwen3_coder_next_fp8",
@@ -9666,7 +9666,7 @@
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 19
+      "rank": 14
     },
     {
       "id": "0.2.0/20261014_claude_code_glm_4_7_flash",
@@ -10115,7 +10115,7 @@
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 20
+      "rank": 15
     },
     {
       "id": "0.2.0/20261015_react_glm_4_7_flash",
@@ -10565,7 +10565,7 @@
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 21
+      "rank": 16
     },
     {
       "id": "0.2.0/20261008_claude_cli_otel_2_0_llm_31b_it",
@@ -11024,7 +11024,7 @@
         "0.2.0/20261025_claude_code_ornith_1_5_122b",
         "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 23
+      "rank": 17
     }
   ]
 }
