@@ -19,6 +19,18 @@ _BGP_ACL_PORTS = ("destination-port", "source-port")
 _CPM_IPV4_ENTRY_RE = re.compile(
     r"^set / acl acl-filter cpm type ipv4 entry (\d+) (.+)$", re.MULTILINE
 )
+# OSPF is IP protocol 89; the default CPM filter accepts it by number.
+_OSPF_ACL_MATCHES = {"match ipv4 protocol 89", "match ipv4 protocol ospf"}
+_SRL_OSPF_INTERFACE_RE = re.compile(
+    r"^(?:set )?/ network-instance default protocols ospf instance (\S+) area (\S+) "
+    r"interface (\S+)\s*(.*)$",
+    re.MULTILINE,
+)
+
+
+def _is_data(subinterface: str) -> bool:
+    return subinterface.startswith("ethernet-")
+
 
 # Containerlab maps SRL YANG interfaces to Linux veth names in the netns.
 _SRL_SUBIF_TO_LINUX: dict[str, str] = {
@@ -119,36 +131,115 @@ class SRLAPIMixin:
             entries.setdefault(int(seq), []).append(rest)
         return entries
 
+    def _srl_cpm_drop_sequences(
+        self: SupportsSRL, device_name: str, matches: set[str], count: int
+    ) -> list[int]:
+        """Choose ``count`` adjacent free CPM IPv4 filter sequence IDs.
+
+        The drops must precede the lowest entry that accepts traffic with one
+        of ``matches`` (the first entry when none does); they take the middle
+        of the nearest gap with ``count`` free IDs below it.
+        """
+        entries = self._srl_cpm_ipv4_entries(device_name)
+        if not entries:
+            raise ValueError(f"SRL node {device_name!r} has no CPM IPv4 filter entries")
+        accepts = [
+            seq
+            for seq, lines in entries.items()
+            if not matches.isdisjoint(lines)
+            and any(line.startswith("action accept") for line in lines)
+        ]
+        anchor = min(accepts or entries)
+        hi = anchor
+        for lo in [*sorted((seq for seq in entries if seq < anchor), reverse=True), 0]:
+            if hi - lo > count:
+                first = min((lo + hi) // 2, hi - count)
+                return list(range(first, first + count))
+            hi = lo
+        raise ValueError(
+            f"No {count} adjacent free CPM IPv4 filter sequence IDs before entry "
+            f"{anchor} on SRL node {device_name!r}"
+        )
+
     def srl_bgp_acl_drop_179_entries(
         self: SupportsSRL, device_name: str
     ) -> dict[int, str]:
         """Choose free CPM filter sequence IDs for the TCP/179 drop entries.
 
-        The drops must precede the lowest entry accepting TCP/179 (the first
-        entry when none does); they take the middle of the nearest gap with
-        two free IDs below it. Returns sequence ID -> transport port field.
+        Returns sequence ID -> transport port field.
         """
-        entries = self._srl_cpm_ipv4_entries(device_name)
-        if not entries:
-            raise ValueError(f"SRL node {device_name!r} has no CPM IPv4 filter entries")
         bgp_matches = {f"match transport {port} value 179" for port in _BGP_ACL_PORTS}
-        bgp_accepts = [
-            seq
-            for seq, lines in entries.items()
-            if not bgp_matches.isdisjoint(lines)
-            and any(line.startswith("action accept") for line in lines)
-        ]
-        anchor = min(bgp_accepts or entries)
-        hi = anchor
-        for lo in [*sorted((seq for seq in entries if seq < anchor), reverse=True), 0]:
-            if hi - lo > 2:
-                first = min((lo + hi) // 2, hi - 2)
-                return dict(zip((first, first + 1), _BGP_ACL_PORTS))
-            hi = lo
-        raise ValueError(
-            f"No two adjacent free CPM IPv4 filter sequence IDs before entry "
-            f"{anchor} on SRL node {device_name!r}"
+        sequences = self._srl_cpm_drop_sequences(
+            device_name, bgp_matches, len(_BGP_ACL_PORTS)
         )
+        return dict(zip(sequences, _BGP_ACL_PORTS))
+
+    def srl_add_ospf_acl_drop(self: SupportsSRL, device_name: str) -> list[int]:
+        """Drop OSPF (IP protocol 89) in the CPM filter ahead of its accept entry.
+
+        OSPF runs in the ``srbase-default`` netns, so root-netns iptables
+        rules never see it. Returns the drop entry's sequence ID.
+        """
+        sequences = self._srl_cpm_drop_sequences(device_name, _OSPF_ACL_MATCHES, 1)
+        entry = f"/acl acl-filter cpm type ipv4 entry {sequences[0]}"
+        self._srl_candidate(
+            device_name,
+            f"{entry} description {BGP_ACL_DESCRIPTION}",
+            f"{entry} match ipv4 protocol 89",
+            f"{entry} action drop",
+        )
+        return sequences
+
+    def srl_ospf_acl_drop_present(
+        self: SupportsSRL, device_name: str, sequences: list[int]
+    ) -> bool:
+        """Return True when every entry in ``sequences`` drops OSPF."""
+        entries = self._srl_cpm_ipv4_entries(device_name)
+        return bool(sequences) and all(
+            not _OSPF_ACL_MATCHES.isdisjoint(entries.get(seq, []))
+            and "action drop" in entries.get(seq, [])
+            for seq in sequences
+        )
+
+    def _srl_ospf_flat(self: SupportsSRL, device_name: str, source: str, leaf: str):
+        output = self.srl_exec_cli(
+            device_name,
+            f"info flat from {source} network-instance default protocols ospf "
+            f"instance * area * interface * {leaf}",
+        )
+        return _SRL_OSPF_INTERFACE_RE.findall(output)
+
+    def srl_ospf_interfaces(self: SupportsSRL, device_name: str) -> list[str]:
+        """Return the data subinterfaces OSPF is configured on."""
+        rows = self._srl_ospf_flat(device_name, "running", "")
+        return sorted(
+            {iface for _instance, _area, iface, _rest in rows if _is_data(iface)}
+        )
+
+    def srl_ospf_neighbor_interfaces(self: SupportsSRL, device_name: str) -> list[str]:
+        """Return the subinterface of each Full OSPF adjacency, one per neighbor."""
+        rows = self._srl_ospf_flat(device_name, "state", "neighbor * adjacency-state")
+        return sorted(
+            iface
+            for _instance, _area, iface, rest in rows
+            if rest.split()[-1:] == ["full"] and _is_data(iface)
+        )
+
+    def srl_remove_ospf_interface(
+        self: SupportsSRL, device_name: str, interface: str
+    ) -> None:
+        """Delete ``interface`` from its OSPF area."""
+        for instance, area, iface, _rest in self._srl_ospf_flat(
+            device_name, "running", ""
+        ):
+            if iface == interface:
+                self._srl_candidate(
+                    device_name,
+                    f"delete /network-instance default protocols ospf instance "
+                    f"{instance} area {area} interface {iface}",
+                )
+                return
+        raise ValueError(f"OSPF does not run on {device_name}:{interface}")
 
     def srl_add_bgp_acl_drop_179(self: SupportsSRL, device_name: str) -> dict[int, str]:
         """Drop BGP TCP/179 in the CPM filter, then reset established peers.

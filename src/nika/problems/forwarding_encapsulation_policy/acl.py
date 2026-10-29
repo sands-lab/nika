@@ -176,6 +176,8 @@ class OSPFAclBlock(ProblemBase):
     root_cause_name = "ospf_acl_block"
     description = "OSPF control-plane traffic is blocked by an ACL."
     TAGS: str = ["ospf"]
+    native_router_operations = frozenset({"block_ospf", "ospf_blocked"})
+    supported_backends = ("kathara", "containerlab")
 
     Params = OSPFAclBlockParams
 
@@ -187,13 +189,50 @@ class OSPFAclBlock(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: OSPFAclBlockParams):
-        self.runtime.add_nft_drop_rule(
-            params.host_name, "ip protocol ospf drop", family="inet"
-        )
+        ops = native_fault_ops(self, params.host_name, "block_ospf")
+        if ops is not None:
+            ops.block_ospf()
+            return
+        match self.lab_backend:
+            case "containerlab":
+                self._srl_acl_entries = self.runtime.srl_add_ospf_acl_drop(
+                    params.host_name
+                )
+            case "kathara":
+                self.runtime.add_nft_drop_rule(
+                    params.host_name, "ip protocol ospf drop", family="inet"
+                )
+            case backend:
+                raise RuntimeCapabilityError(
+                    f"{type(self).__name__} cannot inject_fault: unsupported backend {backend!r}."
+                )
 
     def verify_fault(self, params: OSPFAclBlockParams) -> dict:
-        """Verify nftables has a rule blocking OSPF protocol."""
-        return _verify_nft_drop(self, params.host_name, "ip protocol ospf drop")
+        """Verify the router's packet filter drops OSPF."""
+        ops = native_fault_ops(self, params.host_name, "ospf_blocked")
+        if ops is not None:
+            return build_verify_result(
+                fault_type=self.root_cause_name,
+                verified=ops.ospf_blocked(),
+                details={"host": params.host_name, "profile": ops.profile},
+            )
+        match self.lab_backend:
+            case "containerlab":
+                entries = getattr(self, "_srl_acl_entries", [])
+                verified = self.runtime.srl_ospf_acl_drop_present(
+                    params.host_name, entries
+                )
+                return build_verify_result(
+                    fault_type=self.root_cause_name,
+                    verified=verified,
+                    details={"host": params.host_name, "srl_acl_entries": entries},
+                )
+            case "kathara":
+                return _verify_nft_drop(self, params.host_name, "ip protocol ospf drop")
+            case backend:
+                raise RuntimeCapabilityError(
+                    f"{type(self).__name__} cannot verify_fault: unsupported backend {backend!r}."
+                )
 
 
 # ==================================================================

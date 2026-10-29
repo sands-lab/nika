@@ -419,7 +419,7 @@ Each router is a VM that needs about 1 GiB, so NIKA checks available memory befo
 
 Agents run RouterOS commands with the `routeros_exec` tool of [`kathara_routeros_mcp_server`](../agents/mcp-servers.md#use-dedicated-diagnosis-tools). RouterOS `ether1` is vrnetlab's management port. In an ISP environment, container interface `ethN` is RouterOS `ether(N+1)`; in the other environments, `ethN` is `ether(N+2)`.
 
-Link-down failures behave as on FRR: QEMU does not pass a container interface's link state to the VM, so a watcher in each router container mirrors it to the RouterOS port, and routes over a downed link are withdrawn at once.
+Link-down failures behave as on FRR: QEMU does not pass a container interface's link state to the VM, so a watcher in each router container mirrors it to the RouterOS port, and routes over a downed link are withdrawn at once. The watcher also treats an interface that `link_detach` moved out of the container as down.
 
 Link-quality failures, such as `link_capacity_bottleneck`, are not supported on a link between two RouterOS routers and raise `RuntimeCapabilityError`. Target a link with at least one FRR or Linux endpoint instead.
 
@@ -578,6 +578,8 @@ The routing design is the one the Kathara FRR deployment uses, because SONiC rou
 Startup verification checks SONiC's services, routing adjacencies and sessions, CONFIG_DB addresses in the kernel, FRR routes in APPL_DB, end-to-end reachability, and shortest-path forwarding. SONiC routers export all three [telemetry](#telemetry) kinds over the management network.
 
 To check the generated SONiC configuration against the environment's validation contract before deployment, add `--static-validation`. Batfish then reads each router's `config_db.json` and `frr.conf`; [Batfish static validation](../development/scenario-validation.md#batfish-static-validation) lists what it models.
+
+[Router platforms](failures.md#router-platforms) lists how failures act on SONiC routers.
 
 The clients run [business traffic](#business-traffic): they replicate data sets over HTTP (2 Mbit/s from `client1` to `client2`, 1 Mbit/s back), and `client1` keeps web sessions to a service on `client2`.
 

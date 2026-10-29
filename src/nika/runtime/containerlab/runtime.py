@@ -233,9 +233,12 @@ class ContainerlabRuntime(LabRuntime):
         # Host-side flap workers are outside containerlab's inventory.
         # Remove only workers carrying this lab's opaque identifier before
         # destroying their veth endpoints.
+        from nika.runtime.shared.containers import remove_lab_helpers
         from nika.service.containerlab.host_tc import HostTcController
 
         HostTcController.cleanup_lab(self._lab_name)
+        # Containers holding a detached interface (link_detach) are labelled.
+        remove_lab_helpers(self._lab_name)
         result = self._run_clab(
             "destroy",
             "-t",

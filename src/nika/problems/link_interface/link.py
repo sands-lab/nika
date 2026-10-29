@@ -15,6 +15,8 @@ from nika.problems.rca.inventory import (
     parse_endpoint,
     resolve_default_intf,
 )
+from nika.problems.support.polling import wait_until
+from nika.problems.support.router_ops import native_fault_ops
 from nika.problems.support.benchmark_targets import (
     endpoint_target,
     isp_link_target,
@@ -746,6 +748,9 @@ class LinkDetach(ProblemBase):
     description = "Network attachment is detached; the interface is gone from the node."
     TAGS: str = ["link"]
     supported_backends = ("kathara", "containerlab")
+    # Moves the container interface out of the node, outside the router OS;
+    # recovery asks the router to bind its port to the returned interface.
+    native_router_operations = frozenset({"interface_up", "reattach_interface"})
     RECORDED_ATTRS = ("faulty_intf",)
 
     Params = LinkDetachParams
@@ -777,7 +782,6 @@ class LinkDetach(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
         self.faulty_intf = "eth0"
-        self._detach_pid: str | None = None
         self._detach_holder: str | None = None
         self._saved_addrs: list[str] = []
         self._saved_routes: list[str] = []
@@ -823,27 +827,23 @@ class LinkDetach(ProblemBase):
         self._saved_routes = []
 
     def inject_fault(self, params: LinkDetachParams):
-        match self.lab_backend:
-            case "kathara":
-                self._inject_link_detach_kathara(params)
-            case "containerlab":
-                self._inject_link_detach_containerlab(params)
-            case backend:
-                raise RuntimeCapabilityError(
-                    f"{type(self).__name__} cannot inject_fault: unsupported backend {backend!r}."
-                )
-
-    def _inject_link_detach_kathara(self, params: LinkDetachParams) -> None:
         """Move the attachment into a netns held outside the node.
 
         A holder process inside the node (``unshare -n sleep infinity``) would
         sit in its process list next to the missing interface. The holder is a
         controller-side container labelled for the lab, so lab teardown removes
-        it even when recovery never runs.
+        it even when recovery never runs. A router with a fault-operations
+        provider sees the loss as its own port going down.
         """
+        if self.lab_backend not in ("kathara", "containerlab"):
+            raise RuntimeCapabilityError(
+                f"{type(self).__name__} cannot inject_fault: unsupported backend "
+                f"{self.lab_backend!r}."
+            )
         intf = resolve_default_intf(params.intf_name, self.net_env)
         self.faulty_intf = intf
         host = params.host_name
+        native_fault_ops(self, host, "reattach_interface")
         self._save_l3_state(host, intf)
         node = self.runtime.get_container(host)
         holder = node.client.containers.run(
@@ -885,83 +885,16 @@ class LinkDetach(ProblemBase):
         if output:
             raise RuntimeError(f"moving {intf} to pid {pid}: {output!r}")
 
-    def _inject_link_detach_containerlab(self, params: LinkDetachParams) -> None:
-        intf = resolve_default_intf(params.intf_name, self.net_env)
-        self._inject_link_detach(params, intf)
-
-    def _inject_link_detach(self, params: LinkDetachParams, intf_name: str) -> None:
-        """Move the attachment into a private netns so it disappears from inventory.
-
-        The netns is held by a background process instead of `ip netns add`,
-        whose bind mount is denied by Docker's default AppArmor profile.
-        """
-        self.faulty_intf = intf_name
-        host = params.host_name
-        self._save_l3_state(host, intf_name)
-        start_out = self.runtime.exec(
-            host,
-            "nohup unshare -n sleep infinity </dev/null >/dev/null 2>&1 & echo PID:$!",
-        )
-        match = re.search(r"PID:(\d+)", start_out)
-        pid = match.group(1) if match else ""
-        self._detach_pid = pid or None
-        # The holder enters its netns only once `unshare` runs; moving the
-        # interface before that is a silent no-op.
-        move_out = self.runtime.exec(
-            host,
-            f'i=0; while [ $i -lt 50 ] && [ "$(readlink /proc/{pid}/ns/net)" = '
-            f'"$(readlink /proc/self/ns/net)" ]; do sleep 0.1; i=$((i+1)); done; '
-            f"ip link set dev {intf_name} netns {pid} 2>&1",
-            timeout=15,
-        )
-        # Brief settle: some runners still list the iface until the move commits.
-        deadline = time.time() + 5.0
-        while time.time() < deadline:
-            if not self.runtime.interface_exists(host, intf_name):
-                break
-            time.sleep(0.2)
-        else:
-            if pid:
-                self.runtime.exec(host, f"kill {pid} 2>/dev/null || true")
-            self._detach_pid = None
-            raise RuntimeError(
-                f"link_detach failed: {host}:{intf_name} still present after "
-                f"moving to the netns of pid {pid or '?'}. start output={start_out!r}; "
-                f"move output={move_out!r}. Containers need NET_ADMIN/SYS_ADMIN "
-                "(or privileged) for `unshare -n` and `ip link set … netns`."
-            )
-        system_logger.info(
-            f"Injected link detach on {host}:{intf_name} (moved to netns of pid {pid})"
-        )
-
     def verify_fault(self, params: LinkDetachParams) -> dict:
         """Verify the interface is gone from the node namespace."""
-        match self.lab_backend:
-            case "kathara":
-                return self._verify_link_detach_kathara(params)
-            case "containerlab":
-                return self._verify_link_detach_containerlab(params)
-            case backend:
-                raise RuntimeCapabilityError(
-                    f"{type(self).__name__} cannot verify_fault: unsupported backend {backend!r}."
-                )
-
-    def _verify_link_detach_kathara(self, params: LinkDetachParams) -> dict:
         intf = resolve_default_intf(params.intf_name, self.net_env)
-        return self._verify_link_detach(params, intf)
-
-    def _verify_link_detach_containerlab(self, params: LinkDetachParams) -> dict:
-        intf = resolve_default_intf(params.intf_name, self.net_env)
-        return self._verify_link_detach(params, intf)
-
-    def _verify_link_detach(self, params: LinkDetachParams, intf_name: str) -> dict:
-        interface_gone = not self.runtime.interface_exists(params.host_name, intf_name)
+        interface_gone = not self.runtime.interface_exists(params.host_name, intf)
         return build_verify_result(
             fault_type=self.root_cause_name,
             verified=interface_gone,
             details={
                 "host": params.host_name,
-                "intf": intf_name,
+                "intf": intf,
                 "interface_exists": not interface_gone,
             },
         )
@@ -970,7 +903,6 @@ class LinkDetach(ProblemBase):
         """Move the detached interface back into the node namespace."""
         intf = resolve_default_intf(params.intf_name, self.net_env)
         host = params.host_name
-        pid = self._detach_pid
         if self._detach_holder:
             node = self.runtime.get_container(host)
             holder = node.client.containers.get(self._detach_holder)
@@ -979,17 +911,14 @@ class LinkDetach(ProblemBase):
             finally:
                 holder.remove(force=True)
                 self._detach_holder = None
-        if pid:
-            self.runtime.exec(
-                host,
-                f"nsenter -t {pid} -n ip link set dev {intf} netns 1 2>/dev/null || true",
-            )
-            self.runtime.exec(host, f"kill {pid} 2>/dev/null || true")
         self.runtime.exec(host, f"ip link set dev {intf} up 2>/dev/null || true")
         self._restore_l3_state(host, intf)
-        self._detach_pid = None
+        details = {"host": host, "intf": intf}
         restored = self.runtime.interface_exists(host, intf)
-        return {
-            "verified": restored,
-            "details": {"host": host, "intf": intf, "interface_exists": restored},
-        }
+        ops = native_fault_ops(self, host, "reattach_interface")
+        if ops is not None and restored:
+            ops.reattach_interface(intf)
+            restored = wait_until(lambda: ops.interface_up(intf), 60)
+            details["router_port_up"] = restored
+        details["interface_exists"] = self.runtime.interface_exists(host, intf)
+        return {"verified": restored, "details": details}

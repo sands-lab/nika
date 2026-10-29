@@ -175,6 +175,46 @@ class SrlApiTest:
         reset = api.exec_cmd.call_args_list[3][0][1]
         assert "neighbor 10.255.0.1 reset-peer" in reset
 
+    def test_srl_ospf_drop_precedes_the_ospf_accept_entry(self) -> None:
+        # SR Linux 24.10 default CPM filter: entry 290 accepts protocol 89.
+        accept = (
+            _CPM_DEFAULT
+            + "set / acl acl-filter cpm type ipv4 entry 290 match ipv4 protocol 89\n"
+            "set / acl acl-filter cpm type ipv4 entry 290 action accept\n"
+        )
+        api = _SRLStub()
+        api.exec_cmd = MagicMock(side_effect=[accept, ""])
+
+        assert api.srl_add_ospf_acl_drop("n1") == [245]
+        candidate = api.exec_cmd.call_args_list[1][0][1]
+        assert "entry 245 match ipv4 protocol 89" in candidate
+        assert "entry 245 action drop" in candidate
+
+    def test_srl_ospf_neighbors_and_interfaces_parse_flat_output(self) -> None:
+        # ``info flat from state|running`` on isp_abilene chinng (SR Linux 24.10).
+        state = (
+            "/ network-instance default protocols ospf instance default area "
+            "0.0.0.0 interface ethernet-1/1.0 neighbor 10.255.0.6 adjacency-state full\n"
+            "/ network-instance default protocols ospf instance default area "
+            "0.0.0.0 interface ethernet-1/2.0 neighbor 10.255.0.9 adjacency-state init\n"
+        )
+        running = (
+            "set / network-instance default protocols ospf instance default area "
+            "0.0.0.0 interface ethernet-1/1.0 metric 10\n"
+            "set / network-instance default protocols ospf instance default area "
+            "0.0.0.0 interface system0.0 passive true\n"
+        )
+        api = _SRLStub()
+        api.exec_cmd = MagicMock(side_effect=[state, running, running, ""])
+
+        assert api.srl_ospf_neighbor_interfaces("n1") == ["ethernet-1/1.0"]
+        assert api.srl_ospf_interfaces("n1") == ["ethernet-1/1.0"]
+        api.srl_remove_ospf_interface("n1", "ethernet-1/1.0")
+        assert (
+            "delete /network-instance default protocols ospf instance default "
+            "area 0.0.0.0 interface ethernet-1/1.0"
+        ) in api.exec_cmd.call_args_list[3][0][1]
+
     def test_srl_bgp_acl_present(self) -> None:
         runtime = MagicMock()
         runtime.backend = "containerlab"
