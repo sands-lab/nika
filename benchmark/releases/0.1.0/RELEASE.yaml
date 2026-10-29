@@ -1,5 +1,7 @@
 id: nika-bench
 version: 0.1.0
+# Git tag or commit of the NIKA tree that executes this release. Current NIKA lists and validates the YAML only.
+orchestrator: 37d851ca81f62588ff8efd9588449a7ac0d64a67
 splits:
   dev:
     cases_file: dev.yaml

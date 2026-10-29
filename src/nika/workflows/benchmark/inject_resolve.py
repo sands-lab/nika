@@ -397,12 +397,7 @@ def validate_benchmark_case(
                 f"(topo_size={topo_size!r})"
             )
 
-    # Release 0.1.0 predates scenario workloads and its rows are immutable.
-    from nika.problems.compat.v010 import RELEASE_VERSION
-
-    if release != RELEASE_VERSION and not workload_exercises(
-        problem_cls, net_env, inject
-    ):
+    if not workload_exercises(problem_cls, net_env, inject):
         raise ValueError(
             f"{problem} needs {problem_cls.SYMPTOM_WORKLOAD} traffic, but the "
             f"{scenario} business workload does not exercise "

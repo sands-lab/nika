@@ -19,11 +19,9 @@ from nika.net_env.utils.kathara.docker_files.docker_images import (
     ensure_nika_docker_images,
     image_repository,
 )
-from nika.problems.compat.v010 import RELEASE_VERSION as RELEASE_010
 from nika.net_env.net_env_pool import (
     deployment_needs_licensed_images,
     get_net_env_instance,
-    legacy_010_specs,
     list_all_net_envs,
     resolve_scenario_backend,
     scenario_family,
@@ -32,7 +30,6 @@ from nika.net_env.net_env_pool import (
 from nika.workflows.benchmark.healthy import is_healthy_case
 from nika.problems.registry import (
     compatible_columns,
-    get_problem_class,
     list_avail_problem_instances,
 )
 from nika.mcp.registry import (
@@ -297,7 +294,10 @@ def load_release_from_dir(
     if not cases_path.is_file():
         raise ReleaseError(f"Missing {split} cases file: {cases_path}")
 
-    cases = load_benchmark_yaml(cases_path)
+    from nika.workflows.benchmark.orchestrator import uses_foreign_orchestrator
+
+    catalog = not uses_foreign_orchestrator(manifest)
+    cases = load_benchmark_yaml(cases_path, catalog=catalog)
     defaults = dict(manifest.get("defaults") or DEFAULTS_V1)
     defaults.pop("case_timeout_sec", None)
     scoring = dict(manifest.get("scoring") or SCORING)
@@ -312,7 +312,7 @@ def load_release_from_dir(
         entry = _normalize_split_meta(meta, name=name)
         path = root / str(entry["cases_file"])
         if path.is_file() and not entry["case_count"]:
-            entry["case_count"] = len(load_benchmark_yaml(path))
+            entry["case_count"] = len(load_benchmark_yaml(path, catalog=catalog))
         resolved_splits[name] = entry
 
     declared_count = int(split_meta.get("case_count") or 0)
@@ -523,25 +523,17 @@ def preflight_release(
             f"{release.cases_path.name} ({len(release.cases)})"
         )
 
-    is_010 = release.version == RELEASE_010
+    from nika.workflows.benchmark.orchestrator import uses_foreign_orchestrator
+
+    if uses_foreign_orchestrator(release.manifest):
+        return
+
     scenarios = {row["scenario"] for row in release.cases}
     known_scenarios = set(list_all_net_envs())
-    if is_010:
-        known_scenarios.update(legacy_010_specs())
-        missing_problems = sorted(
-            {
-                row["problem"]
-                for row in release.cases
-                if get_problem_class(row["problem"], row["scenario"]) is None
-            }
-        )
-    else:
-        problems = {
-            row["problem"]
-            for row in release.cases
-            if not is_healthy_case(row["problem"])
-        }
-        missing_problems = sorted(problems - set(list_avail_problem_instances()))
+    problems = {
+        row["problem"] for row in release.cases if not is_healthy_case(row["problem"])
+    }
+    missing_problems = sorted(problems - set(list_avail_problem_instances()))
     missing_scenarios = sorted(scenarios - known_scenarios)
     if missing_scenarios:
         raise ReleaseError(f"Missing scenarios: {missing_scenarios}")
@@ -572,15 +564,9 @@ def preflight_release(
         dev = load_release_from_dir(release.root, split="dev").cases
         test = load_release_from_dir(release.root, split="test").cases
         release_scenarios.update(row["scenario"] for row in dev + test)
-        if is_010:
-            # 0.1.0 predates the distinct deployment-context split rule.
-            verify_dev_test_isolation(
-                dev_cases=dev, test_cases=test, allow_context_overlap=True
-            )
-        else:
-            _validate_release_splits(
-                dev, test, expected_failures=_benchmark_failures(), frozen=True
-            )
+        _validate_release_splits(
+            dev, test, expected_failures=_benchmark_failures(), frozen=True
+        )
 
     _verify_mcp_policy(release.cases, release.tools)
 

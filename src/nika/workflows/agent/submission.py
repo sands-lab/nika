@@ -9,10 +9,6 @@ from typing import Any
 
 from agent.protocols import DIAGNOSIS
 from agent.utils.loggers import MESSAGES_FILENAME
-from nika.problems.compat.v010 import (
-    RELEASE_VERSION as RELEASE_010,
-    legacy_010_fault_types,
-)
 from nika.problems.ownership import ownership_entries
 from nika.problems.registry import list_avail_problem_names
 from nika.problems.rca.inventory import (
@@ -30,12 +26,10 @@ def fault_candidates(benchmark_version: str | None = None) -> list[str]:
 
     The same list is offered in every launch mode (release, ``--config``,
     single case) so the candidate set never depends on which cases were run.
-    Sessions of the 0.1.0 release also offer every 0.1.0-only fault type.
     """
+    del benchmark_version
     # ``healthy`` is a benchmark sentinel, not a registered fault type.
     names = {name for name in list_avail_problem_names() if not is_healthy_case(name)}
-    if benchmark_version == RELEASE_010:
-        names.update(legacy_010_fault_types())
     return sorted(names)
 
 

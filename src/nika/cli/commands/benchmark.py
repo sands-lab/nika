@@ -159,10 +159,14 @@ def benchmark_releases(
         try:
             split = _default_split_for_version(version)
             release = load_release(version, split=split)
-            preflight_release(release, check_images=True)
+            from nika.workflows.benchmark.orchestrator import orchestrator_ref
+
+            preflight_release(release)
+            pinned = orchestrator_ref(release.manifest)
+            extra = f"  orchestrator={pinned}" if pinned else ""
             typer.echo(
                 f"OK {release.ref}  cases={release.case_count}  "
-                f"n_trials={release.n_trials}"
+                f"n_trials={release.n_trials}{extra}"
             )
         except ReleaseError as exc:
             failures += 1
@@ -183,6 +187,8 @@ def _echo_release_summary(*, as_json: bool) -> None:
             status.append("default")
         if is_deprecated_release(version):
             status.append("deprecated")
+        if data.get("orchestrator"):
+            status.append("pinned")
         summaries.append(
             {
                 "ref": f"{data.get('id') or 'nika-bench'}@{version}",

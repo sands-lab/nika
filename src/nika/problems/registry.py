@@ -19,31 +19,11 @@ _PROBLEM_ALIASES: dict[str, str] = {
 }
 
 
-def _scenario_override(
-    problem_name: str, scenario_name: str | None, release: str | None = None
-) -> type[ProblemBase] | None:
-    """0.1.0 implementation of a failure ID on an original 0.1.0 lab, or for
-    a 0.1.0 release case (``release``) on a scenario that is still current."""
-    if not scenario_name:
-        return None
-    from nika.problems.compat.v010 import (
-        RELEASE_FAILURE_OVERRIDES,
-        RELEASE_VERSION,
-        SCENARIO_FAILURE_OVERRIDES,
-    )
-
-    override = SCENARIO_FAILURE_OVERRIDES.get((scenario_name, problem_name))
-    if override is None and release == RELEASE_VERSION:
-        override = RELEASE_FAILURE_OVERRIDES.get((scenario_name, problem_name))
-    return override
-
-
 def resolve_problem_name(
     problem_name: str, scenario_name: str | None = None, release: str | None = None
 ) -> str:
     """Map a legacy failure id to the registered ``root_cause_name``."""
-    if _scenario_override(problem_name, scenario_name, release) is not None:
-        return problem_name
+    del scenario_name, release
     return _PROBLEM_ALIASES.get(problem_name, problem_name)
 
 
@@ -52,12 +32,8 @@ def _register_problems() -> dict[str, type[ProblemBase]]:
     problems: dict[str, type[ProblemBase]] = {}
     package = importlib.import_module("nika.problems")
 
-    compat_prefix = f"{package.__name__}.compat"
     for info in pkgutil.walk_packages(package.__path__, prefix=package.__name__ + "."):
         if info.name.count(".") == package.__name__.count(".") + 1:
-            continue
-        # Older-release failures resolve only by explicit scenario/failure ID.
-        if info.name == compat_prefix or info.name.startswith(compat_prefix + "."):
             continue
 
         try:
@@ -119,18 +95,10 @@ def get_problem_class(
 
     Legacy aliases (e.g. ``host_vpn_membership_missing``,
     ``link_fragmentation_disabled``) resolve to the current failure id.
-    0.1.0-only failures resolve by ID but are never listed. ``release`` is the
-    benchmark version of a release case; it selects release-scoped overrides.
     """
-    override = _scenario_override(problem_name, scenario_name, release)
-    if override is not None:
-        return override
+    del scenario_name, release
     resolved = resolve_problem_name(problem_name)
-    if resolved in _PROBLEMS:
-        return _PROBLEMS[resolved]
-    from nika.problems.compat.v010 import FAILURES
-
-    return FAILURES.get(resolved)
+    return _PROBLEMS.get(resolved)
 
 
 def compatible(problem: str, column: str, device_profile: str | None = None) -> bool:
