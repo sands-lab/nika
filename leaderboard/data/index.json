@@ -2171,6 +2171,448 @@
       "rank": 2
     },
     {
+      "id": "0.2.0/20261028_codex_gpt_6_astra",
+      "dirname": "20261028_codex_gpt_6_astra",
+      "submission_name": "Codex + GPT-6 Astra (high)",
+      "authors": "Mariano Scazzariello",
+      "org": null,
+      "site": "https://sands-lab.github.io/nika/",
+      "report": "https://arxiv.org/abs/2512.16381",
+      "logo": null,
+      "github": "https://github.com/sands-lab/nika",
+      "email": null,
+      "trajectories_url": "https://huggingface.co/datasets/nika-bench/nika-trajectories/tree/main/trajectories/0.2.0/20261028_codex_gpt_6_astra",
+      "trajectories_relpath": "trajectories/0.2.0/20261028_codex_gpt_6_astra",
+      "model": "GPT-6-Astra",
+      "model_id": null,
+      "submitted_model": "GPT-6-Astra",
+      "framework": "Codex",
+      "agent_type": "cli.codex",
+      "llm_provider": "openai",
+      "vendor": {
+        "id": "openai",
+        "label": "OpenAI",
+        "icon": "lobehub/openai.svg"
+      },
+      "tools": [
+        "containerlab_srl_mcp_server",
+        "k8s_mcp_server",
+        "kathara_base_mcp_server",
+        "pingmesh_mcp_server",
+        "packet_capture_mcp_server",
+        "kathara_frr_mcp_server",
+        "kathara_bmv2_mcp_server",
+        "kathara_sdn_mcp_server",
+        "kathara_telemetry_mcp_server",
+        "task_mcp_server"
+      ],
+      "skills": [],
+      "optimization_methods": [],
+      "tags": [],
+      "extra": {
+        "nika_agent": "cli.codex",
+        "runtime_model_id": "gpt-6-astra",
+        "provider": "openai (hosted, ChatGPT subscription authentication)",
+        "reasoning_effort": "high",
+        "sandbox_backend": "e2b",
+        "max_steps": 100,
+        "max_output_tokens": null,
+        "agent_timeout_sec": 1800,
+        "case_timeout_sec": 2400,
+        "nika_git_commit": "86256da3bbef613952bd55fcf064ccbc189d616e",
+        "nika_git_history": [
+          "769f952c06bc64f3006599d88316b0bd2318448f (234 trials, clean)",
+          "86256da3bbef613952bd55fcf064ccbc189d616e (21 trials, local e2b egress-probe fix)"
+        ]
+      },
+      "reasoning_effort": "high",
+      "benchmark_version": "0.2.0",
+      "split": "test",
+      "case_count": 85,
+      "n_trials": 3,
+      "primary_metric": "rca_f1",
+      "mean_rca_f1": 0.6725501960784314,
+      "mean_localization_f1": 0.7457529411764705,
+      "mean_detection_score": 0.8470588235294118,
+      "n_trials_expected": 255,
+      "n_trials_present": 255,
+      "n_success": 239,
+      "n_agent_failed": 16,
+      "success_rate": 0.937255,
+      "token_totals": {
+        "in_tokens": 7535963,
+        "out_tokens": 66767
+      },
+      "steps_totals": {
+        "steps": 4807,
+        "tool_calls": 8649,
+        "tool_errors": 167
+      },
+      "mean_tokens": 29814.627,
+      "mean_steps": 18.851,
+      "total_tokens": 7602730,
+      "task_tokens": [
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          356565,
+          2721
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          236031,
+          2833
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          332106,
+          2722
+        ],
+        [
+          360789,
+          3870
+        ],
+        [
+          415816,
+          4710
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          252501,
+          2528
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          558179,
+          2872
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "max_steps": 100,
+      "case_timeout_sec": 2400,
+      "created_at": "2026-10-28T07:55:51+00:00",
+      "run_id": "7a8ff0e7d8f6cbab",
+      "official": true,
+      "nika_git_commit": "86256da3bbef613952bd55fcf064ccbc189d616e",
+      "model_icon": null,
+      "name": "GPT-6-Astra (high) · Codex",
+      "rca_f1_ci": [
+        0.588238,
+        0.752942
+      ],
+      "beaten_by": [
+        "0.2.0/20261016_claude_code_claude_opus_5_5",
+        "0.2.0/20261016_claude_code_claude_sonnet_5_5",
+        "0.2.0/20261017_codex_gpt_6_1_sol"
+      ],
+      "rank": 4
+    },
+    {
       "id": "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
       "dirname": "20261010_claude_code_qwen3_8_27b_fp8",
       "submission_name": "Claude Code + Qwen3.8-27B-FP8",
@@ -2602,9 +3044,10 @@
       "beaten_by": [
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
-        "0.2.0/20261017_codex_gpt_6_1_sol"
+        "0.2.0/20261017_codex_gpt_6_1_sol",
+        "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 4
+      "rank": 5
     },
     {
       "id": "0.2.0/20261011_react_qwen3_8_27b_fp8",
@@ -3039,9 +3482,10 @@
         "0.2.0/20261010_claude_code_qwen3_8_27b_fp8",
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
-        "0.2.0/20261017_codex_gpt_6_1_sol"
+        "0.2.0/20261017_codex_gpt_6_1_sol",
+        "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 5
+      "rank": 6
     },
     {
       "id": "0.2.0/20261017_claude_code_claude_haiku_5_5",
@@ -3483,9 +3927,10 @@
         "0.2.0/20261011_react_qwen3_8_27b_fp8",
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
-        "0.2.0/20261017_codex_gpt_6_1_sol"
+        "0.2.0/20261017_codex_gpt_6_1_sol",
+        "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 6
+      "rank": 7
     },
     {
       "id": "0.2.0/20261025_claude_code_ornith_1_5_122b",
@@ -3927,9 +4372,10 @@
         "0.2.0/20261011_react_qwen3_8_27b_fp8",
         "0.2.0/20261016_claude_code_claude_opus_5_5",
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
-        "0.2.0/20261017_codex_gpt_6_1_sol"
+        "0.2.0/20261017_codex_gpt_6_1_sol",
+        "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 6
+      "rank": 7
     },
     {
       "id": "0.2.0/20261014_react_qwen3_5_27b",
@@ -4367,9 +4813,10 @@
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
-        "0.2.0/20261025_claude_code_ornith_1_5_122b"
+        "0.2.0/20261025_claude_code_ornith_1_5_122b",
+        "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 8
+      "rank": 9
     },
     {
       "id": "0.2.0/20261014_claude_code_qwen3_5_27b",
@@ -4807,9 +5254,10 @@
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
-        "0.2.0/20261025_claude_code_ornith_1_5_122b"
+        "0.2.0/20261025_claude_code_ornith_1_5_122b",
+        "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 8
+      "rank": 9
     },
     {
       "id": "0.2.0/20261012_claude_code_gemma_4_31b_it",
@@ -5248,9 +5696,10 @@
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
-        "0.2.0/20261025_claude_code_ornith_1_5_122b"
+        "0.2.0/20261025_claude_code_ornith_1_5_122b",
+        "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 8
+      "rank": 9
     },
     {
       "id": "0.2.0/20261016_claude_code_gpt_oss_120b",
@@ -5688,9 +6137,10 @@
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
-        "0.2.0/20261025_claude_code_ornith_1_5_122b"
+        "0.2.0/20261025_claude_code_ornith_1_5_122b",
+        "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 9
+      "rank": 10
     },
     {
       "id": "0.2.0/20261013_claude_code_telecomgpt_r1",
@@ -6128,9 +6578,10 @@
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
-        "0.2.0/20261025_claude_code_ornith_1_5_122b"
+        "0.2.0/20261025_claude_code_ornith_1_5_122b",
+        "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 11
+      "rank": 12
     },
     {
       "id": "0.2.0/20261013_react_telecomgpt_r1",
@@ -6568,9 +7019,10 @@
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
-        "0.2.0/20261025_claude_code_ornith_1_5_122b"
+        "0.2.0/20261025_claude_code_ornith_1_5_122b",
+        "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 11
+      "rank": 12
     },
     {
       "id": "0.2.0/20261012_react_gemma_4_31b_it",
@@ -7012,9 +7464,10 @@
         "0.2.0/20261016_claude_code_claude_sonnet_5_5",
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
-        "0.2.0/20261025_claude_code_ornith_1_5_122b"
+        "0.2.0/20261025_claude_code_ornith_1_5_122b",
+        "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 12
+      "rank": 13
     },
     {
       "id": "0.2.0/20261007_qwen3_6_35b_a3b_claudecode",
@@ -7441,9 +7894,10 @@
         "0.2.0/20261016_claude_code_gpt_oss_120b",
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
-        "0.2.0/20261025_claude_code_ornith_1_5_122b"
+        "0.2.0/20261025_claude_code_ornith_1_5_122b",
+        "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 14
+      "rank": 15
     },
     {
       "id": "0.2.0/20261019_claude_code_qwen3_coder_next_fp8",
@@ -7890,9 +8344,10 @@
         "0.2.0/20261016_claude_code_gpt_oss_120b",
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
-        "0.2.0/20261025_claude_code_ornith_1_5_122b"
+        "0.2.0/20261025_claude_code_ornith_1_5_122b",
+        "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 14
+      "rank": 15
     },
     {
       "id": "0.2.0/20261008_qwen3_6_35b_a3b_codex",
@@ -8320,9 +8775,10 @@
         "0.2.0/20261016_claude_code_gpt_oss_120b",
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
-        "0.2.0/20261025_claude_code_ornith_1_5_122b"
+        "0.2.0/20261025_claude_code_ornith_1_5_122b",
+        "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 15
+      "rank": 16
     },
     {
       "id": "0.2.0/20261007_qwen3_6_35b_a3b_langgraph",
@@ -8751,9 +9207,10 @@
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261019_claude_code_qwen3_coder_next_fp8",
-        "0.2.0/20261025_claude_code_ornith_1_5_122b"
+        "0.2.0/20261025_claude_code_ornith_1_5_122b",
+        "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 16
+      "rank": 17
     },
     {
       "id": "0.2.0/20261020_codex_qwen3_coder_next_fp8",
@@ -9206,9 +9663,10 @@
         "0.2.0/20261016_claude_code_gpt_oss_120b",
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
-        "0.2.0/20261025_claude_code_ornith_1_5_122b"
+        "0.2.0/20261025_claude_code_ornith_1_5_122b",
+        "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 18
+      "rank": 19
     },
     {
       "id": "0.2.0/20261014_claude_code_glm_4_7_flash",
@@ -9654,9 +10112,10 @@
         "0.2.0/20261017_claude_code_claude_haiku_5_5",
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261019_claude_code_qwen3_coder_next_fp8",
-        "0.2.0/20261025_claude_code_ornith_1_5_122b"
+        "0.2.0/20261025_claude_code_ornith_1_5_122b",
+        "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 19
+      "rank": 20
     },
     {
       "id": "0.2.0/20261015_react_glm_4_7_flash",
@@ -10103,9 +10562,10 @@
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261019_claude_code_qwen3_coder_next_fp8",
         "0.2.0/20261020_codex_qwen3_coder_next_fp8",
-        "0.2.0/20261025_claude_code_ornith_1_5_122b"
+        "0.2.0/20261025_claude_code_ornith_1_5_122b",
+        "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 20
+      "rank": 21
     },
     {
       "id": "0.2.0/20261008_claude_cli_otel_2_0_llm_31b_it",
@@ -10561,9 +11021,10 @@
         "0.2.0/20261017_codex_gpt_6_1_sol",
         "0.2.0/20261019_claude_code_qwen3_coder_next_fp8",
         "0.2.0/20261020_codex_qwen3_coder_next_fp8",
-        "0.2.0/20261025_claude_code_ornith_1_5_122b"
+        "0.2.0/20261025_claude_code_ornith_1_5_122b",
+        "0.2.0/20261028_codex_gpt_6_astra"
       ],
-      "rank": 22
+      "rank": 23
     }
   ]
 }

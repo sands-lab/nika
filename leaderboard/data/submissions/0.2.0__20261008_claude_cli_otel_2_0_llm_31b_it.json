@@ -7234,7 +7234,8 @@
     "0.2.0/20261017_codex_gpt_6_1_sol",
     "0.2.0/20261019_claude_code_qwen3_coder_next_fp8",
     "0.2.0/20261020_codex_qwen3_coder_next_fp8",
-    "0.2.0/20261025_claude_code_ornith_1_5_122b"
+    "0.2.0/20261025_claude_code_ornith_1_5_122b",
+    "0.2.0/20261028_codex_gpt_6_astra"
   ],
-  "rank": 22
+  "rank": 23
 }
