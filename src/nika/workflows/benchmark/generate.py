@@ -158,11 +158,26 @@ def _isp_stack_variants(
             {"backend": "kathara", "device_profile": profile}
             for profile in native_benchmark_profiles(scenario)
         )
-    if "containerlab" in allowed and containerlab_isp_supported(scenario):
-        variants.append(isp_stack_for_backend("containerlab"))
+    if "containerlab" in scenario_backends and containerlab_isp_supported(scenario):
+        # A failure without declared backends still runs on Containerlab
+        # platforms whose fault-operations provider implements it.
+        stacks = [
+            isp_stack_for_backend("containerlab"),
+            *(
+                {"backend": "containerlab", "device_profile": profile}
+                for profile in CONTAINERLAB_ALTERNATE_PROFILES
+            ),
+        ]
         variants.extend(
-            {"backend": "containerlab", "device_profile": profile}
-            for profile in CONTAINERLAB_ALTERNATE_PROFILES
+            stack
+            for stack in stacks
+            if "containerlab" in allowed
+            or (
+                problem_cls is not None
+                and problem_cls.is_compatible(
+                    scenario, stack["device_profile"], backend="containerlab"
+                )
+            )
         )
     if not variants and "kathara" in scenario_backends:
         variants.append(isp_stack_for_backend("kathara"))
