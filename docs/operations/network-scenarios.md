@@ -575,7 +575,7 @@ The routers run the official SONiC virtual switch (`docker-sonic-vs`) from SONiC
 
 The routing design is the one the Kathara FRR deployment uses, because SONiC routes with FRR. NIKA writes ports and addresses to CONFIG_DB and the routing protocols to FRR, and SONiC programs FRR's routes into APPL_DB through FPM, as on a hardware switch. Container interface `eth<k>` is SONiC port `Ethernet<4(k-1)>`, and topology links name the container interface. Inside a router, `show` commands, `vtysh`, `redis-cli` and the Linux tools work as on SONiC.
 
-Startup verification checks SONiC's services, routing adjacencies and sessions, CONFIG_DB addresses in the kernel, FRR routes in APPL_DB, end-to-end reachability, and shortest-path forwarding. Telemetry is not exported from SONiC routers.
+Startup verification checks SONiC's services, routing adjacencies and sessions, CONFIG_DB addresses in the kernel, FRR routes in APPL_DB, end-to-end reachability, and shortest-path forwarding. SONiC routers export all three [telemetry](#telemetry) kinds over the management network.
 
 The clients run [business traffic](#business-traffic): they replicate data sets over HTTP (2 Mbit/s from `client1` to `client2`, 1 Mbit/s back), and `client1` keeps web sessions to a service on `client2`.
 
@@ -728,7 +728,7 @@ Records stay empty until devices export traffic, counters, or log lines. Flow re
 | SDN Open vSwitch | OVS NetFlow | OpenFlow port counters | `/dev/log` |
 | P4 BMv2 | not exported | pipeline counters | `/dev/log` from `fabric_mgr` |
 | Containerlab SR Linux | sFlow on extra ethernet | gNMI interfaces and BGP | UDP 514 |
-| Containerlab SONiC | not exported | not exported | not exported |
+| Containerlab SONiC | IPFIX (`pmacctd` in the router's network namespace) | COUNTERS_DB ports and BGP gauges | rsyslog |
 | Containerlab Linux clients | not exported | not exported | not exported |
 | XRd | not exported | `xr_cli` interfaces and BGP | Linux `/dev/log` forwarder |
 | RouterOS | traffic-flow v9 | SSH interfaces and BGP | remote logging |
@@ -740,6 +740,8 @@ Records stay empty until devices export traffic, counters, or log lines. Flow re
 Kathara adds an out-of-band LAN, `telemetry_switch`, and `telemetry_collector`. Each exporting device joins on an extra interface after its scenario interfaces, in VRF `mgmt` (table 4242), so routing protocols never advertise it. node_exporter answers only on that network, and the management interface is left out of Prometheus metrics. vrnetlab maps the extra NIC into RouterOS, so NIKA addresses it there instead of in a Linux VRF and does not add it to OSPF.
 
 Containerlab joins the collector to the lab management network. sFlow cannot use that network, so SR Linux flow records use an extra ethernet port and `ip-vrf` `telemetry`. Prometheus collects SR Linux metrics through gNMI on the lab management network. SR Linux sends syslog to the collector over UDP port 514 on that network; NIKA configures the logging destination through gNMI.
+
+SONiC routers export over the same management network (`eth0`). Their rsyslogd forwards to the collector, and the server is listed in CONFIG_DB `SYSLOG_SERVER`. An exporter in each router serves COUNTERS_DB port counters and FRR BGP sessions, and it answers only on `eth0`. The SONiC virtual switch has no sFlow agent, so a `telemetry_flow_<router>` node that shares the router's network namespace runs one `pmacctd` IPFIX probe per `Ethernet<N>` port.
 
 The collector is off the topology: it has no scenario interfaces, no injected failures, and no packet captures. NIKA starts collectors and exporters after the environment is verified.
 

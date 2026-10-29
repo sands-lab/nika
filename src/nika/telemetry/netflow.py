@@ -9,7 +9,9 @@ OVS IPFIX templates land with epoch timestamps that nfdump's query window
 drops, so SDN uses NetFlow v5. Containerlab SR Linux has no IPFIX; it exports
 sFlow over a dedicated ip-vrf to ``sfcapd`` on the collector. Kathara
 RouterOS exports NetFlow v9 from traffic-flow on the extra management ether.
-XRd Control Plane has no collector-reachable flow export.
+Containerlab SONiC runs the pmacct probes in a helper container that shares
+the router's network namespace. XRd Control Plane has no collector-reachable
+flow export.
 """
 
 from __future__ import annotations
@@ -150,9 +152,11 @@ def device_lines(device: dict[str, Any], address: str, version: str = "") -> lis
     if is_ovs(version):
         return [f"sh {NETFLOW_SCRIPT}"]
     # pmacctd cannot open a down interface, so wait for it; a running probe
-    # pauses while its link is down and resumes when it comes back.
+    # pauses while its link is down and resumes when it comes back. TAP ports
+    # (SONiC-VS ``Ethernet<N>``) report operstate ``unknown`` while they run.
     return [
-        f"(while true; do until grep -qx up /sys/class/net/{iface}/operstate "
+        "(while true; do until grep -qxE 'up|unknown' "
+        f"/sys/class/net/{iface}/operstate "
         f"2>/dev/null; do sleep 1; done; pmacctd -f {pmacct_conf_path(iface)}; "
         "sleep 1; done) &"
         for iface in device["data_ifaces"]
