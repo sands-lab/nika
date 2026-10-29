@@ -781,7 +781,6 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
         return BusinessWorkload(
             processes=tuple(p for p in workload.processes if p.node not in native),
             exercises=workload.exercises,
-            settle_sec=workload.settle_sec,
         )
 
     def _target_size(self) -> TopoSize:

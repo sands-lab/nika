@@ -37,6 +37,66 @@ def test_size_table_matches_plan() -> None:
 
 
 @pytest.mark.unit
+def test_ofport_map_lists_all_interfaces_in_one_exec(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model = build_clos_fabric_model("s")
+    switch = model.leaves[0]
+    calls: list[tuple[str, str]] = []
+
+    def fake_exec(_runtime, host: str, cmd: str, timeout: float = 60.0) -> str:
+        calls.append((host, cmd))
+        rows = [
+            f'"{port.name}",{index}'
+            for index, port in enumerate(model.ports[switch], start=1)
+        ]
+        rows.append('"ovs-system",4294967295')
+        rows.append('"missing",-1')
+        return "\n".join(rows)
+
+    monkeypatch.setattr(fabric_apply, "_exec", fake_exec)
+    mapping = fabric_apply._ofport_map(object(), switch, model)
+    assert calls == [
+        (
+            switch,
+            "ovs-vsctl -f csv --no-heading --columns=name,ofport "
+            "list Interface 2>/dev/null || true",
+        )
+    ]
+    assert mapping == {
+        port.name: str(index) for index, port in enumerate(model.ports[switch], start=1)
+    }
+
+
+@pytest.mark.unit
+def test_apply_forwarding_prepares_each_switch_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model = build_clos_fabric_model("s")
+    dpids: list[str] = []
+    ofports: list[str] = []
+    monkeypatch.setattr(
+        fabric_apply,
+        "build_forwarding_rules",
+        lambda _model: {"groups": [], "flows": []},
+    )
+    monkeypatch.setattr(
+        fabric_apply, "_set_dpid", lambda _rt, switch, _dpid: dpids.append(switch)
+    )
+    monkeypatch.setattr(
+        fabric_apply,
+        "_ofport_map",
+        lambda _rt, switch, _model: ofports.append(switch) or {},
+    )
+    monkeypatch.setattr(fabric_apply, "_clear_rest_flows_groups", lambda *_args: None)
+    monkeypatch.setattr(fabric_apply, "onos_group_snapshot", lambda *_args: {})
+    apply_forwarding(object(), model)  # type: ignore[arg-type]
+    expected = list(model.leaves + model.spines)
+    assert dpids == expected
+    assert ofports == expected
+
+
+@pytest.mark.unit
 def test_model_scales_without_hardcoding() -> None:
     for size in ("s", "m", "l"):
         model = build_clos_fabric_model(size)

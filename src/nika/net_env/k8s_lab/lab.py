@@ -312,7 +312,6 @@ class K8sFatTreeBGP(NetworkEnvBase):
                 ),
                 *routine_change_processes(self.frr_routers()),
             ),
-            settle_sec=5.0,
         )
 
     @classmethod

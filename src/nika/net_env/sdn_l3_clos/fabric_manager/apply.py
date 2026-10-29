@@ -21,6 +21,7 @@ from nika.net_env.sdn_l3_clos.topology_model import (
 )
 from nika.runtime.base import LabRuntime
 from nika.utils.logger import system_logger
+from nika.utils.parallel import bounded_parallel_map
 
 logger = system_logger
 
@@ -277,13 +278,15 @@ def wait_for_of_sessions(
 
 
 def ensure_controllers_attached(runtime: LabRuntime, model: ClosFabricModel) -> None:
-    for switch in model.leaves + model.spines:
+    def attach(switch: str) -> None:
         _exec(
             runtime,
             switch,
             f"ovs-vsctl set-controller {switch} "
             f"tcp:{ONOS_OOB_IP}:{ONOS_OF_PORT} || true",
         )
+
+    bounded_parallel_map(attach, list(model.leaves + model.spines))
 
 
 def _set_dpid(runtime: LabRuntime, switch: str, dpid_hex: str) -> None:
@@ -294,18 +297,39 @@ def _set_dpid(runtime: LabRuntime, switch: str, dpid_hex: str) -> None:
     )
 
 
+def _switch_dpids(model: ClosFabricModel) -> list[tuple[str, str]]:
+    leaves = [
+        (leaf, dpid_for_leaf(leaf_id))
+        for leaf_id, leaf in enumerate(model.leaves, start=1)
+    ]
+    spines = [
+        (spine, dpid_for_spine(spine_id))
+        for spine_id, spine in enumerate(model.spines, start=1)
+    ]
+    return leaves + spines
+
+
 def _ofport_map(
     runtime: LabRuntime, switch: str, model: ClosFabricModel
 ) -> dict[str, str]:
+    wanted = {port.name for port in model.ports.get(switch, [])}
+    if not wanted:
+        return {}
+    raw = _exec(
+        runtime,
+        switch,
+        "ovs-vsctl -f csv --no-heading --columns=name,ofport "
+        "list Interface 2>/dev/null || true",
+    )
     mapping: dict[str, str] = {}
-    for port in model.ports.get(switch, []):
-        raw = _exec(
-            runtime,
-            switch,
-            f"ovs-vsctl get Interface {port.name} ofport 2>/dev/null || echo -1",
-        ).strip()
-        if raw.lstrip("-").isdigit() and int(raw) > 0:
-            mapping[port.name] = raw
+    for line in raw.splitlines():
+        name, sep, ofport = line.partition(",")
+        if not sep:
+            continue
+        name = name.strip().strip('"')
+        ofport = ofport.strip().strip('"')
+        if name in wanted and ofport.lstrip("-").isdigit() and int(ofport) > 0:
+            mapping[name] = ofport
     return mapping
 
 
@@ -767,15 +791,12 @@ def apply_forwarding(runtime: LabRuntime, model: ClosFabricModel) -> dict[str, A
     """Install proactive L3+ECMP rules through ONOS while OF sessions stay up."""
     rules = build_forwarding_rules(model)
 
-    for leaf_id, leaf in enumerate(model.leaves, start=1):
-        _set_dpid(runtime, leaf, dpid_for_leaf(leaf_id))
-    for spine_id, spine in enumerate(model.spines, start=1):
-        _set_dpid(runtime, spine, dpid_for_spine(spine_id))
+    def prepare(item: tuple[str, str]) -> tuple[str, dict[str, str]]:
+        switch, dpid_hex = item
+        _set_dpid(runtime, switch, dpid_hex)
+        return switch, _ofport_map(runtime, switch, model)
 
-    port_maps = {
-        switch: _ofport_map(runtime, switch, model)
-        for switch in model.leaves + model.spines
-    }
+    port_maps = dict(bounded_parallel_map(prepare, _switch_dpids(model)))
 
     device_ids = sorted(
         {
@@ -884,10 +905,12 @@ def prune_groups_for_down_link(
 
     rules = build_forwarding_rules(model)
     failed_prefix = rack_prefix(model.leaf_id(leaf))
-    port_maps = {
-        switch: _ofport_map(runtime, switch, model)
-        for switch in model.leaves + model.spines
-    }
+    port_maps = dict(
+        bounded_parallel_map(
+            lambda switch: (switch, _ofport_map(runtime, switch, model)),
+            list(model.leaves + model.spines),
+        )
+    )
     delete_ops: list[tuple[str, str, dict[str, Any] | None]] = []
     expected: set[tuple[str, str, str]] = set()
     for group in rules["groups"]:

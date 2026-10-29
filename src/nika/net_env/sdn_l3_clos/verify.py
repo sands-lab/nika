@@ -35,12 +35,17 @@ from nika.net_env.verify_collection import (
     ping_command,
     http_command,
 )
+from nika.utils.parallel import bounded_parallel_map
 
 
 def _ovs_ready(runtime: LabRuntime, switches: list[str]) -> bool:
     return all(
-        bool(exec_or_empty(runtime, switch, "ovs-vsctl show").strip())
-        for switch in switches
+        bounded_parallel_map(
+            lambda switch: bool(
+                exec_or_empty(runtime, switch, "ovs-vsctl show").strip()
+            ),
+            switches,
+        )
     )
 
 

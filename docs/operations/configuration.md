@@ -128,7 +128,7 @@ NIKA stores `runtime/` and `.nika_cache/` at the root of the main Git checkout (
 | --- | ---: | --- |
 | `nika.lab.deploy_attempts` | `3` | Kathara deployment attempts. Must be at least `1`. |
 | `nika.lab.deploy_ready_timeout_sec` | `90` | Time allowed for all Kathara machines to enter the running state. Must be non-negative. |
-| `nika.lab.deploy_settle_sec` | `5` | Delay after deploy on Kathara and Containerlab. NIKA applies it only to scenarios without a readiness verifier. Must be non-negative. |
+| `nika.lab.deploy_settle_sec` | `5` | Delay after deploy on Kathara and Containerlab. NIKA skips it when the environment defines `startup_verify_lab()` or overrides `verify_lab()`. Must be non-negative. |
 | `nika.lab.undeploy_verify_timeout_sec` | `30` | Time allowed for Kathara containers to disappear after undeploy. Must be non-negative. |
 | `nika.lab.ready_max_wait_sec` | `180` | Default startup-verification polling window for scenarios that implement `verify_lab()`. A scenario-level `VERIFY_MAX_WAIT_SEC` overrides it. Must be non-negative. |
 | `nika.lab.ready_retry_delay_sec` | `5` | Default delay between startup-verification attempts. A scenario-level `VERIFY_RETRY_DELAY_SEC` overrides it. Must be non-negative. |

@@ -615,7 +615,7 @@ Use this scenario for Kubernetes service, DNS, policy, and inference-routing fau
 
 ## Business traffic
 
-Many faults only hurt traffic that is actually flowing: a NAT that drops live sessions, a QoS policy that demotes voice, a receive window that slows downloads. An environment can therefore declare the traffic its users and services generate at all times. NIKA starts that background business traffic on every session start (`nika env run`, benchmark trials, audits) after lab verification and before any fault is injected, so healthy and faulty tasks carry the same traffic and long-lived flows already exist when a fault lands. The programs run inside the lab nodes and stop when the lab is undeployed.
+Many faults only hurt traffic that is actually flowing: a NAT that drops live sessions, a QoS policy that demotes voice, a receive window that slows downloads. An environment can therefore declare the traffic its users and services generate at all times. NIKA starts that background business traffic on every session start (`nika env run`, benchmark trials, audits) after lab verification and before any fault is injected, so healthy and faulty tasks carry the same traffic. The programs run inside the lab nodes and stop when the lab is undeployed.
 
 Background business traffic belongs to the environment. Some incidents also start traffic of their own after injection. `tcp_syn_flood_attack` launches SYN generators; `web_dos_attack` and `load_balancer_overload` start ApacheBench workers. Those generators are part of the injected incident, not the environment workload. See the [failure reference](failures.md#registered-failures).
 
@@ -644,7 +644,6 @@ class MyEnv(NetworkEnvBase):
 
 - `WorkloadProcess(node, app, command, args)` runs the standalone program `app` from [`nika/traffic/apps/`](../../src/nika/traffic/apps/) on `node`, installed as `/usr/local/bin/<command>`. Choose neutral command names that describe the service, since agents see them in `ps`. Each `(node, command)` pair is unique. Starting is idempotent. If any process does not stay up, the session start fails.
 - `exercises` records what the traffic guarantees, as an `(kind, target)` pair. A failure whose symptom needs traffic sets `SYMPTOM_WORKLOAD` to a kind and implements `symptom_workload_target(inject)`. Benchmark target generation and inject validation then keep only targets the workload exercises.
-- `settle_sec` (default 20 s) is how long session start waits after launch so sessions and bulk flows are established.
 
 | Exercise kind | Target | Guarantee |
 | --- | --- | --- |

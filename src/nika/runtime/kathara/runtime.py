@@ -12,13 +12,14 @@ from nika.runtime.base import LabRuntime
 from nika.runtime.kathara.tap import (
     cleanup_host_taps,
     owned_host_taps,
-    record_container_taps,
+    record_lab_taps,
 )
 from nika.runtime.shared.containers import (
     lift_cpu_cap,
     pause_container,
     unpause_container,
 )
+from nika.utils.parallel import bounded_parallel_map
 from nika.runtime.shared.settings import lab_settings as _lab_settings
 from nika.runtime.shared.execution import (
     exec_with_timeout,
@@ -131,9 +132,7 @@ class KatharaRuntime(LabRuntime):
         # Strict probe: a Docker/Kathara API error must surface here instead
         # of being mistaken for "lab exists" and silently skipping deploy.
         if self._lab_present():
-            for container in self._machine_containers():
-                if container.status == "running":
-                    record_container_taps(container, self.lab_name)
+            record_lab_taps(self._machine_containers(), self.lab_name)
             log_event(
                 "lab_deploy_skipped",
                 f"Lab {self.lab_name} already exists; skipping deploy",
@@ -149,8 +148,7 @@ class KatharaRuntime(LabRuntime):
             try:
                 Kathara.get_instance().deploy_lab(lab=self._net_env.lab)
                 self._wait_deploy_ready(lab.deploy_ready_timeout_sec)
-                for container in self._machine_containers():
-                    record_container_taps(container, self.lab_name)
+                record_lab_taps(self._machine_containers(), self.lab_name)
                 return True
             except Exception as exc:  # noqa: BLE001 - includes docker APIError
                 last_error = exc
@@ -186,27 +184,29 @@ class KatharaRuntime(LabRuntime):
             )
         # undeploy_lab runs shutdown commands via an untimed docker exec in
         # each machine; under an injected CPU cap runc init starves forever.
+        running = [
+            container
+            for container in self._machine_containers()
+            if container.status == "running"
+        ]
         try:
-            for container in self._machine_containers():
-                if container.status == "running":
-                    lift_cpu_cap(container)
+            bounded_parallel_map(lift_cpu_cap, running)
         except Exception as exc:
             log_error_event(
                 "lab_undeploy_error",
                 f"Could not lift CPU caps before undeploying {self.lab_name}: {exc}",
                 lab_name=self.lab_name,
             )
+
+        def _tap_error(_container, exc: BaseException) -> None:
+            log_error_event(
+                "tap_ownership_error",
+                f"Could not record TAPs before closing {self.lab_name}: {exc}",
+                lab_name=self.lab_name,
+            )
+
         # Enroll older sessions after lifting CPU caps so Docker exec can run.
-        for container in self._machine_containers():
-            if container.status == "running":
-                try:
-                    record_container_taps(container, self.lab_name)
-                except Exception as exc:
-                    log_error_event(
-                        "tap_ownership_error",
-                        f"Could not record TAPs before closing {self.lab_name}: {exc}",
-                        lab_name=self.lab_name,
-                    )
+        record_lab_taps(running, self.lab_name, on_error=_tap_error)
         try:
             self._instance.undeploy_lab(lab_name=self.lab_name)
         except Exception as exc:

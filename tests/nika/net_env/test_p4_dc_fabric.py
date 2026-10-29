@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+from nika.net_env.p4_dc_fabric.fabric_manager import apply as p4_apply
 from nika.net_env.p4_dc_fabric.fabric_manager.apply import (
     _COMPILE_OK,
     compile_pipeline_cmd,
@@ -34,6 +35,22 @@ def test_size_table_matches_plan() -> None:
     assert SIZE_TABLE["s"] == (2, 4, 2)
     assert SIZE_TABLE["m"] == (4, 8, 4)
     assert SIZE_TABLE["l"] == (8, 16, 4)
+
+
+@pytest.mark.unit
+def test_wait_for_grpc_queries_every_switch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model = build_clos_fabric_model("s")
+    seen: list[str] = []
+
+    def fake_exec(_runtime, name: str, _cmd: str, timeout: float = 10.0) -> str:
+        seen.append(name)
+        return "1"
+
+    monkeypatch.setattr(p4_apply, "_exec", fake_exec)
+    p4_apply._wait_for_grpc(object(), model, timeout_sec=5)
+    assert sorted(seen) == sorted(model.fabric_switches())
 
 
 @pytest.mark.unit
