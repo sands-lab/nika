@@ -189,11 +189,14 @@ def select_diagnosis_servers(
     *,
     backend: str | None = None,
     telemetry: Iterable[str] = (),
+    device_profile: str | None = None,
 ) -> list[str]:
     """Return MCP server names needed for diagnosis on *scenario*.
 
     ``telemetry`` lists the kinds the session was started with (see
-    ``nika.telemetry.telemetry_for_session``).
+    ``nika.telemetry.telemetry_for_session``). ``device_profile`` is the
+    session's router platform; Containerlab routers are SR Linux unless it
+    names another one.
     """
     backend = _resolve_diagnosis_backend(scenario_name, backend)
 
@@ -205,7 +208,8 @@ def select_diagnosis_servers(
     ]
 
     if backend == "containerlab" and tokens & ROUTING_KEYWORDS:
-        servers.append("containerlab_srl_mcp_server")
+        if device_profile in (None, "", "nokia_srlinux"):
+            servers.append("containerlab_srl_mcp_server")
     elif backend != "containerlab" and tokens & IOSXR_KEYWORDS:
         servers.append("kathara_iosxr_mcp_server")
     elif backend != "containerlab" and tokens & ROUTEROS_KEYWORDS:

@@ -278,9 +278,17 @@ class ContainerlabRuntime(LabRuntime):
         return rows
 
     def list_nodes(self) -> list[str]:
+        from nika.telemetry.sonic import FLOW_PROBE_PREFIX
+
         if not self._refresh_node_map():
             return []
-        return sorted(self._node_containers.keys())
+        # Flow probes share a router's network namespace; listing them would
+        # show that router's addresses twice. They stay reachable by name.
+        return sorted(
+            name
+            for name in self._node_containers
+            if not name.startswith(FLOW_PROBE_PREFIX)
+        )
 
     def _cached_container(self, node: str) -> docker.models.containers.Container:
         """Return the mapped container, running ``clab inspect`` only on a miss."""

@@ -15,11 +15,15 @@ def build_sandbox_mcp_servers(
     backend: str | None,
     gateway_agent_url: str,
     telemetry: Iterable[str] = (),
+    device_profile: str | None = None,
 ) -> dict:
     """Build HTTP MCP client entries reachable from inside an sbx microVM."""
     base = gateway_agent_url.rstrip("/")
     server_names = select_session_servers(
-        scenario_name, backend=backend, telemetry=telemetry
+        scenario_name,
+        backend=backend,
+        telemetry=telemetry,
+        device_profile=device_profile,
     )
     headers = session_http_headers(session_id)
     return {

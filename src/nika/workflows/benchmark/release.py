@@ -376,7 +376,9 @@ def _verify_mcp_policy(cases: list[dict[str, Any]], tools: dict[str, Any]) -> No
     for row in cases:
         servers = set(
             select_diagnosis_servers(
-                row["scenario"], telemetry=row.get("telemetry") or ()
+                row["scenario"],
+                telemetry=row.get("telemetry") or (),
+                device_profile=row.get("device_profile"),
             )
         )
         servers.add(SUBMISSION_SERVER)
