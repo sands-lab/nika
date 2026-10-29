@@ -78,6 +78,7 @@ class ScenarioExperiment(ContractModel):
         "srl-isp",
         "iosxr-isp",
         "routeros-isp",
+        "sonic",
         "netkat",
     ] = "frr"
     topo_size: Literal["s", "m", "l"] | None = None

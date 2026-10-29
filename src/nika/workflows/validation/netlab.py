@@ -46,6 +46,8 @@ def check_netlab_scope(spec, env):
     from nika.net_env.isp.igp.plan import IspPlan
     from nika.net_env.isp.netlab import netlab_topology
 
+    if getattr(env, "device_profile", None) == "sonic":
+        raise ValueError("netlab does not generate SONiC CONFIG_DB and FRR files")
     if isinstance(getattr(env, "plan", None), IspPlan):
         if env.backend not in {"kathara", "containerlab"}:
             raise ValueError("netlab ISP construction requires a supported backend")

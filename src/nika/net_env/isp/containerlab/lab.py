@@ -50,6 +50,7 @@ from nika.net_env.isp.traffic import (
     remap_inventory_ifaces,
 )
 from nika.net_env.isp.brief import format_isp_network_info
+from nika.net_env.isp.contract import build_isp_validation_contract
 from nika.runtime.containerlab.parse import parse_clab_topology
 from nika.runtime.spec import LabSpec, NodeRole
 from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
@@ -163,6 +164,9 @@ class Isp(ContainerlabNetworkEnv):
         self.device_profile = normalize_device_profile(profile_raw)
         validate_backend_profile("containerlab", self.device_profile)
         self.sonic = self.device_profile == "sonic"
+        if self.sonic:
+            # SONiC renders the FRR design; Batfish reads its deployed files.
+            self.ROUTING_MODELS = frozenset({"sonic"})
         # Containerlab endpoint of plan interface ``ethN`` on this platform.
         self.router_iface = clab_eth_name if self.sonic else srl_e1_name
 
@@ -210,6 +214,12 @@ class Isp(ContainerlabNetworkEnv):
             attachment, self.router_iface
         )
         self.plan: IspPlan = self.traffic.plan
+        self.validation_contract = build_isp_validation_contract(
+            self.plan,
+            traffic=self.traffic,
+            bgp_plan=self.bgp_plan,
+            scenario=self.scenario_id,
+        )
         self.inventory = dict(self.plan.inventory)
         if self.bgp_plan is not None:
             self.inventory["bgp"] = self.bgp_plan.inventory

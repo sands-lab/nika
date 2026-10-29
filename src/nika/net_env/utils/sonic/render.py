@@ -32,6 +32,9 @@ _ZEBRA_DEFAULTS = (
     "fpm address 127.0.0.1",
     "zebra nexthop-group keep 1",
 )
+# Lines the renderer puts before every design: logging and the zebra FIB
+# channel. They configure how FRR hands routes to SONiC, not which routes.
+SONIC_PREAMBLE = ("log syslog informational", *_ZEBRA_DEFAULTS)
 _DAEMONS = {"router ospf": "ospfd", "router isis": "isisd", "router bgp": "bgpd"}
 # SONiC starts zebra and staticd itself; NIKA registers the protocol daemons
 # the image's supervisord does not define.
@@ -52,6 +55,8 @@ class SonicRouter:
     ports: Mapping[str, int] = field(default_factory=dict)
     # SONiC interface (port or LoopbackN) -> addresses with prefix length
     addresses: Mapping[str, tuple[str, ...]] = field(default_factory=dict)
+    # SONiC interface -> the interface name the FRR design uses
+    design_names: Mapping[str, str] = field(default_factory=dict)
 
     @property
     def daemons(self) -> tuple[str, ...]:
@@ -75,15 +80,21 @@ def translate_frr_design(
     ``rename`` maps each Linux interface the design names (``ethN``, ``lo``)
     to its SONiC interface. ``mtu`` sets port MTUs by Linux interface name.
     """
-    lines = [f"hostname {name}", "log syslog informational", *_ZEBRA_DEFAULTS, "!"]
+    lines = [f"hostname {name}", *SONIC_PREAMBLE, "!"]
     addresses: dict[str, list[str]] = {}
+    design_names: dict[str, str] = {}
+
+    def to_sonic(iface: str) -> str:
+        design_names[rename(iface)] = iface
+        return rename(iface)
+
     interface = None
     for line in frr_conf.splitlines():
         stripped = line.strip()
         if _DROPPED.fullmatch(stripped) or stripped.startswith("hostname "):
             continue
         if match := re.fullmatch(r"interface (\S+)", stripped):
-            interface = rename(match[1])
+            interface = to_sonic(match[1])
             addresses.setdefault(interface, [])
             lines.append(f"interface {interface}")
             continue
@@ -94,16 +105,21 @@ def translate_frr_design(
             continue
         if match := re.fullmatch(r"(\s*neighbor \S+ update-source )(\S+)", line):
             source = match[2]
-            line = match[1] + (source if _is_address(source) else rename(source))
+            line = match[1] + (source if _is_address(source) else to_sonic(source))
+        elif match := re.fullmatch(r"(\s*(?:no )?passive-interface )(\S+)", line):
+            line = match[1] + (
+                match[2] if match[2] == "default" else to_sonic(match[2])
+            )
         lines.append(line)
     ports = {iface: PORT_MTU for iface in addresses if iface.startswith("Ethernet")}
     for linux, value in (mtu or {}).items():
-        ports[rename(linux)] = value
+        ports[to_sonic(linux)] = value
     return SonicRouter(
         name,
         "\n".join(lines).rstrip() + "\n",
         dict(sorted(ports.items(), key=lambda item: _port_index(item[0]))),
         {iface: tuple(values) for iface, values in addresses.items() if values},
+        design_names,
     )
 
 

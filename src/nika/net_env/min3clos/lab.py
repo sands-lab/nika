@@ -7,12 +7,15 @@ import shutil
 import subprocess
 import time
 import yaml
+from pathlib import Path
 from typing import ClassVar
 
 from nika.config import clab_workdir
 from nika.net_env.base import ProbePath
 from nika.net_env.utils.containerlab.base import ContainerlabNetworkEnv
 from nika.runtime.containerlab import render_topology
+from nika.runtime.containerlab.parse import parse_clab_topology
+from nika.runtime.spec import LabSpec
 from nika.net_env.utils.sonic.common import (
     KIND as SONIC_KIND,
     activate_sonic_routers,
@@ -62,6 +65,8 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
                 raise ValueError(
                     "min3clos on SONiC has no routing model for solved parameters"
                 )
+            # Batfish analyzes the deployed SONiC files; no parameters bind.
+            self.ROUTING_MODELS = frozenset({"sonic"})
             self.desc = (
                 "3-node CLOS fabric with SONiC (Containerlab min-clos / clos01)."
             )
@@ -83,6 +88,9 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
             raise ValueError(
                 "SR Linux parameters require the declared srl-bgp routing model"
             )
+        from nika.net_env.min3clos.contract import build_min3clos_contract
+
+        self.validation_contract = build_min3clos_contract(self.LAB_NAME)
         for name in self.ROUTERS:
             self.declare_machine(
                 name,
@@ -204,8 +212,28 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
         }
 
     def _convert_topology_to_sonic(self) -> None:
-        """Run the template's routers as SONiC, with SR Linux port ``e1-N`` as ``ethN``."""
         document = yaml.safe_load(self.topology_file.read_text())
+        self.topology_file.write_text(
+            yaml.safe_dump(self._sonic_document(document), sort_keys=False)
+        )
+
+    def get_lab_spec(self) -> LabSpec:
+        if not self.sonic:
+            return super().get_lab_spec()
+        from tempfile import TemporaryDirectory
+
+        document = self._sonic_document(
+            yaml.safe_load(self.topology_template().read_text())
+        )
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "min3clos.clab.yml"
+            path.write_text(yaml.safe_dump(document, sort_keys=False))
+            spec = parse_clab_topology(path)
+        spec.name = self.name or self.LAB_NAME
+        return spec
+
+    def _sonic_document(self, document: dict) -> dict:
+        """Run the template's routers as SONiC, with SR Linux port ``e1-N`` as ``ethN``."""
         topology = document["topology"]
         del topology["kinds"]["nokia_srlinux"]
         topology["kinds"][SONIC_KIND] = sonic_clab_kind()
@@ -218,7 +246,7 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
                 re.sub(r":e1-(\d+)$", r":eth\1", endpoint)
                 for endpoint in link["endpoints"]
             ]
-        self.topology_file.write_text(yaml.safe_dump(document, sort_keys=False))
+        return document
 
     def _collect_lab_images(self) -> set[str]:
         from nika.net_env.isp.containerlab.lab import LINUX_IMAGE

@@ -13,7 +13,7 @@ from textwrap import indent
 
 import yaml
 from nika.net_env.isp.igp.frr import ISIS_PROCESS
-from nika.net_env.isp.igp.ifaces import srl_e1_name
+from nika.net_env.isp.igp.ifaces import clab_eth_name, srl_e1_name
 from ipaddress import IPv4Address, IPv4Network
 
 
@@ -79,6 +79,7 @@ def _profile_limitations(deployment, features):
         ("kathara", "iosxr"),
         ("kathara", "routeros"),
         ("containerlab", "nokia_srlinux"),
+        ("containerlab", "sonic"),
     }:
         reasons.append(
             "Native ISP vendor observation and configuration analysis remain required"
@@ -262,6 +263,8 @@ def build_benchmark_isp_experiment(
     env = load_offline_net_env(scenario, **deployment.model_dump(exclude_none=True))
     plan = env.plan
     srl = env.device_profile == "nokia_srlinux"
+    # SONiC routers render the FRR design, so FRR configuration edits apply.
+    sonic = env.device_profile == "sonic"
     if bgp_selections is None:
         bgp_selections = default_as_selections(env.bgp_plan)
     if bgp_selections and env.bgp_mode != "ebgp":
@@ -276,7 +279,7 @@ def build_benchmark_isp_experiment(
         )
     if (
         plan.igp not in {"ospf", "isis"}
-        or (env.backend != "kathara" and not srl)
+        or (env.backend != "kathara" and not (srl or sonic))
         or env.bgp_mode not in {"none", "ebgp", "ibgp_rr"}
     ):
         raise ValueError(
@@ -302,7 +305,7 @@ def build_benchmark_isp_experiment(
             if (
                 target["host_name"],
                 ("eth" + str(int(target["intf_name"][3:]) - 1))
-                if srl
+                if env.backend == "containerlab"
                 else target["intf_name"],
             )
             in {(edge.endpoint_a, edge.iface_a), (edge.endpoint_b, edge.iface_b)}
@@ -1139,6 +1142,12 @@ def build_benchmark_isp_experiment(
         context = ("interface lo",)
         old_announcement = f"interface lo\n ip address {prefix}\n ip router isis {ISIS_PROCESS}\n isis passive"
         static_replacement = f"interface lo\n ip address {prefix}"
+        if sonic:
+            # SONiC keeps the loopback address in CONFIG_DB, not in FRR.
+            old_announcement = (
+                f"interface Loopback0\n ip router isis {ISIS_PROCESS}\n isis passive"
+            )
+            static_replacement = "interface Loopback0"
         withdrawal = (f"no ip router isis {ISIS_PROCESS}",)
         recovery = (f"ip router isis {ISIS_PROCESS}", "isis passive")
     role_static, role_runtime = [], []
@@ -1453,6 +1462,8 @@ def build_benchmark_isp_experiment(
             if vendor
             else "srl-isp"
             if srl
+            else "sonic"
+            if sonic
             else "frr-isis"
             if plan.igp == "isis"
             else "frr"
@@ -1470,7 +1481,13 @@ def build_benchmark_isp_experiment(
                 else link.endpoint_a,
                 intf_name=declared_down["inject"]["intf_name"]
                 if declared_down
-                else (srl_e1_name(link.iface_a) if srl else link.iface_a),
+                else (
+                    srl_e1_name(link.iface_a)
+                    if srl
+                    else clab_eth_name(link.iface_a)
+                    if sonic
+                    else link.iface_a
+                ),
                 requirements=contract({link.link_id}),
             ),
         ),
