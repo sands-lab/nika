@@ -3,3 +3,4 @@ scenario:
 healthy:
   variants:
   - {}
+  - device_profile: sonic

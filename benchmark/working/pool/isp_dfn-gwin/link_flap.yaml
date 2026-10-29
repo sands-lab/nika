@@ -900,6 +900,899 @@ failure:
     igp: isis
     bgp_mode: none
     rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: berlin
+      intf_name: eth1
+      peer_host: pc_erlangen
+      probe_dst_ip: 10.254.0.6
+      symptom_host: pc_berlin
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth1--erlangen:eth1
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: berlin
+      intf_name: eth2
+      peer_host: pc_essen
+      probe_dst_ip: 10.254.0.10
+      symptom_host: pc_berlin
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth2--essen:eth1
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: berlin
+      intf_name: eth3
+      peer_host: pc_frankfurt
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_berlin
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth3--frankfurt:eth1
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: berlin
+      intf_name: eth4
+      peer_host: pc_hamburg
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_berlin
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth4--hamburg:eth1
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: berlin
+      intf_name: eth5
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_berlin
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth5--hannover:eth1
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: berlin
+      intf_name: eth6
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_berlin
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth6--koeln:eth1
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: berlin
+      intf_name: eth7
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_berlin
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth7--leipzig:eth1
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: berlin
+      intf_name: eth8
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_berlin
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth8--muenchen:eth1
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: berlin
+      intf_name: eth9
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_berlin
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth9--stuttgart:eth1
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: erlangen
+      intf_name: eth2
+      peer_host: pc_essen
+      probe_dst_ip: 10.254.0.10
+      symptom_host: pc_erlangen
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: erlangen:eth2--essen:eth2
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: erlangen
+      intf_name: eth3
+      peer_host: pc_frankfurt
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_erlangen
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: erlangen:eth3--frankfurt:eth2
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: erlangen
+      intf_name: eth4
+      peer_host: pc_hamburg
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_erlangen
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: erlangen:eth4--hamburg:eth2
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: erlangen
+      intf_name: eth5
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_erlangen
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: erlangen:eth5--hannover:eth2
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: erlangen
+      intf_name: eth6
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_erlangen
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: erlangen:eth6--koeln:eth2
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: erlangen
+      intf_name: eth7
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_erlangen
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: erlangen:eth7--leipzig:eth2
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: erlangen
+      intf_name: eth8
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_erlangen
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: erlangen:eth8--muenchen:eth2
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: erlangen
+      intf_name: eth9
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_erlangen
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: erlangen:eth9--stuttgart:eth2
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: essen
+      intf_name: eth3
+      peer_host: pc_frankfurt
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_essen
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: essen:eth3--frankfurt:eth3
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: essen
+      intf_name: eth4
+      peer_host: pc_hamburg
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_essen
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: essen:eth4--hamburg:eth3
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: essen
+      intf_name: eth5
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_essen
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: essen:eth5--hannover:eth3
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: essen
+      intf_name: eth6
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_essen
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: essen:eth6--koeln:eth3
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: essen
+      intf_name: eth7
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_essen
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: essen:eth7--leipzig:eth3
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: essen
+      intf_name: eth8
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_essen
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: essen:eth8--muenchen:eth3
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: essen
+      intf_name: eth9
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_essen
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: essen:eth9--stuttgart:eth3
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: frankfurt
+      intf_name: eth10
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_frankfurt
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:eth10--stuttgart:eth4
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: frankfurt
+      intf_name: eth4
+      peer_host: pc_hamburg
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_frankfurt
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:eth4--hamburg:eth4
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: frankfurt
+      intf_name: eth5
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_frankfurt
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:eth5--hannover:eth4
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: frankfurt
+      intf_name: eth6
+      peer_host: pc_ip
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_frankfurt
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:eth6--ip:eth1
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: frankfurt
+      intf_name: eth7
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_frankfurt
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:eth7--koeln:eth4
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: frankfurt
+      intf_name: eth8
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_frankfurt
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:eth8--leipzig:eth4
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: frankfurt
+      intf_name: eth9
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_frankfurt
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:eth9--muenchen:eth4
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: hamburg
+      intf_name: eth5
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_hamburg
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:eth5--hannover:eth5
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: hamburg
+      intf_name: eth6
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_hamburg
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:eth6--koeln:eth5
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: hamburg
+      intf_name: eth7
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_hamburg
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:eth7--leipzig:eth5
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: hamburg
+      intf_name: eth8
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_hamburg
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:eth8--muenchen:eth5
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: hamburg
+      intf_name: eth9
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_hamburg
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:eth9--stuttgart:eth5
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: hannover
+      intf_name: eth10
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_hannover
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:eth10--stuttgart:eth6
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: hannover
+      intf_name: eth6
+      peer_host: pc_ip
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_hannover
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:eth6--ip:eth2
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: hannover
+      intf_name: eth7
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_hannover
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:eth7--koeln:eth6
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: hannover
+      intf_name: eth8
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_hannover
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:eth8--leipzig:eth6
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: hannover
+      intf_name: eth9
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_hannover
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:eth9--muenchen:eth6
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: koeln
+      intf_name: eth7
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_koeln
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: koeln:eth7--leipzig:eth7
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: koeln
+      intf_name: eth8
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_koeln
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: koeln:eth8--muenchen:eth7
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: koeln
+      intf_name: eth9
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_koeln
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: koeln:eth9--stuttgart:eth7
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: leipzig
+      intf_name: eth8
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_leipzig
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: leipzig:eth8--muenchen:eth8
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: leipzig
+      intf_name: eth9
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_leipzig
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: leipzig:eth9--stuttgart:eth8
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: muenchen
+      intf_name: eth9
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_muenchen
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: muenchen:eth9--stuttgart:eth9
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
     backend: kathara
     device_profile: frr
     inject:

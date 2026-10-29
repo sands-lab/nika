@@ -7,6 +7,292 @@ failure:
     igp: ospf
     bgp_mode: none
     rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      host_name: n_1
+    root_causes:
+    - resource:
+        kind: node
+        node: n_1
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      host_name: n_10
+    root_causes:
+    - resource:
+        kind: node
+        node: n_10
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      host_name: n_11
+    root_causes:
+    - resource:
+        kind: node
+        node: n_11
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      host_name: n_2
+    root_causes:
+    - resource:
+        kind: node
+        node: n_2
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      host_name: n_3
+    root_causes:
+    - resource:
+        kind: node
+        node: n_3
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      host_name: n_4
+    root_causes:
+    - resource:
+        kind: node
+        node: n_4
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      host_name: n_5
+    root_causes:
+    - resource:
+        kind: node
+        node: n_5
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      host_name: n_6
+    root_causes:
+    - resource:
+        kind: node
+        node: n_6
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      host_name: n_7
+    root_causes:
+    - resource:
+        kind: node
+        node: n_7
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      host_name: n_8
+    root_causes:
+    - resource:
+        kind: node
+        node: n_8
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    inject:
+      host_name: n_9
+    root_causes:
+    - resource:
+        kind: node
+        node: n_9
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: n_1
+    root_causes:
+    - resource:
+        kind: node
+        node: n_1
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: n_10
+    root_causes:
+    - resource:
+        kind: node
+        node: n_10
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: n_11
+    root_causes:
+    - resource:
+        kind: node
+        node: n_11
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: n_2
+    root_causes:
+    - resource:
+        kind: node
+        node: n_2
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: n_3
+    root_causes:
+    - resource:
+        kind: node
+        node: n_3
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: n_4
+    root_causes:
+    - resource:
+        kind: node
+        node: n_4
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: n_5
+    root_causes:
+    - resource:
+        kind: node
+        node: n_5
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: n_6
+    root_causes:
+    - resource:
+        kind: node
+        node: n_6
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: n_7
+    root_causes:
+    - resource:
+        kind: node
+        node: n_7
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: n_8
+    root_causes:
+    - resource:
+        kind: node
+        node: n_8
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: n_9
+    root_causes:
+    - resource:
+        kind: node
+        node: n_9
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
     backend: kathara
     device_profile: frr
     inject:
@@ -139,6 +425,292 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    inject:
+      host_name: n_9
+    root_causes:
+    - resource:
+        kind: node
+        node: n_9
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    inject:
+      host_name: n_1
+    root_causes:
+    - resource:
+        kind: node
+        node: n_1
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    inject:
+      host_name: n_10
+    root_causes:
+    - resource:
+        kind: node
+        node: n_10
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    inject:
+      host_name: n_11
+    root_causes:
+    - resource:
+        kind: node
+        node: n_11
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    inject:
+      host_name: n_2
+    root_causes:
+    - resource:
+        kind: node
+        node: n_2
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    inject:
+      host_name: n_3
+    root_causes:
+    - resource:
+        kind: node
+        node: n_3
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    inject:
+      host_name: n_4
+    root_causes:
+    - resource:
+        kind: node
+        node: n_4
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    inject:
+      host_name: n_5
+    root_causes:
+    - resource:
+        kind: node
+        node: n_5
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    inject:
+      host_name: n_6
+    root_causes:
+    - resource:
+        kind: node
+        node: n_6
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    inject:
+      host_name: n_7
+    root_causes:
+    - resource:
+        kind: node
+        node: n_7
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    inject:
+      host_name: n_8
+    root_causes:
+    - resource:
+        kind: node
+        node: n_8
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: iosxr
+    inject:
+      host_name: n_9
+    root_causes:
+    - resource:
+        kind: node
+        node: n_9
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    inject:
+      host_name: n_1
+    root_causes:
+    - resource:
+        kind: node
+        node: n_1
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    inject:
+      host_name: n_10
+    root_causes:
+    - resource:
+        kind: node
+        node: n_10
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    inject:
+      host_name: n_11
+    root_causes:
+    - resource:
+        kind: node
+        node: n_11
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    inject:
+      host_name: n_2
+    root_causes:
+    - resource:
+        kind: node
+        node: n_2
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    inject:
+      host_name: n_3
+    root_causes:
+    - resource:
+        kind: node
+        node: n_3
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    inject:
+      host_name: n_4
+    root_causes:
+    - resource:
+        kind: node
+        node: n_4
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    inject:
+      host_name: n_5
+    root_causes:
+    - resource:
+        kind: node
+        node: n_5
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    inject:
+      host_name: n_6
+    root_causes:
+    - resource:
+        kind: node
+        node: n_6
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    inject:
+      host_name: n_7
+    root_causes:
+    - resource:
+        kind: node
+        node: n_7
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    inject:
+      host_name: n_8
+    root_causes:
+    - resource:
+        kind: node
+        node: n_8
+      fault_type: ospf_neighbor_missing
+  - topo_size: s
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: routeros
     inject:
       host_name: n_9
     root_causes:
