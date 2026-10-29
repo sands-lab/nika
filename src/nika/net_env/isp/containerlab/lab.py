@@ -59,7 +59,6 @@ from nika.net_env.utils.sonic.common import (
     KIND as SONIC_KIND,
     activate_sonic_routers,
     ensure_sonic_image,
-    require_sonic_lab_memory,
     sonic_port,
 )
 from nika.net_env.utils.sonic.render import (
@@ -584,11 +583,6 @@ exit "$FAILED"
     def deploy(self) -> None:
         if self.sonic:
             ensure_sonic_image()
-            require_sonic_lab_memory(
-                self.scenario_id,
-                routers=len(self.plan.nodes),
-                hosts=len(self.traffic.hosts),
-            )
         else:
             require_gnmic()
         self._ensure_docker_images()

@@ -43,8 +43,6 @@ HWSKU_DIR = f"/usr/share/sonic/device/{PLATFORM}/{HWSKU}"
 CONFIG_DIR = "/etc/sonic/startup"
 PORT_MTU = 9100
 
-# Upper bound on one SONiC router's resident memory, used for admission.
-MEMORY_PER_ROUTER_MIB = 400
 BOOT_TIMEOUT_SEC = 900
 
 _CONTAINER_IFACE = re.compile(r"eth([1-9][0-9]*)")
@@ -105,17 +103,6 @@ def ensure_sonic_image(image: str = IMAGE) -> None:
             subprocess.run(["docker", "rmi", source], capture_output=True, check=False)
     finally:
         archive.unlink(missing_ok=True)
-
-
-def require_sonic_lab_memory(label: str, *, routers: int, hosts: int) -> None:
-    from nika.net_env.utils.native_admission import GIB, require_native_lab_memory
-
-    require_native_lab_memory(
-        f"{label} on SONiC",
-        routers=routers,
-        per_router=MEMORY_PER_ROUTER_MIB * GIB // 1024,
-        hosts=hosts,
-    )
 
 
 # Services that must run once SONiC's start.sh has finished.
