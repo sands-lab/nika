@@ -86,7 +86,7 @@ def env_run(
         "--device-profile",
         help=(
             "Router platform. ISP: frr, iosxr or routeros (kathara), "
-            "nokia_srlinux (containerlab); defaults from --backend. "
+            "nokia_srlinux or sonic (containerlab); defaults from --backend. "
             "dc_clos, campus_lan, enterprise_branch: frr (default), iosxr or "
             "routeros (size s for routeros)."
         ),

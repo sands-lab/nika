@@ -149,6 +149,9 @@ class BGPAsnMisconfig(ProblemBase):
                 )
 
     def _inject_asn_misconfig_containerlab(self, params: BGPAsnMisconfigParams) -> None:
+        if ops := router_fault_ops(self, params.host_name):
+            self._inject_asn_misconfig_native(params, ops)
+            return
         as_number = self.runtime.srl_get_bgp_as(params.host_name)
         wrong_asn = as_number + ASN_MISCONFIG_OFFSET
         self.runtime.srl_set_bgp_as(params.host_name, wrong_asn)
@@ -266,6 +269,8 @@ class BGPAsnMisconfig(ProblemBase):
                 )
 
     def _verify_asn_misconfig_containerlab(self, params: BGPAsnMisconfigParams) -> dict:
+        if ops := router_fault_ops(self, params.host_name):
+            return self._verify_asn_misconfig_native(params, ops)
         running_asn = self.runtime.srl_get_bgp_as(params.host_name)
         orig_asn = getattr(self, "_orig_asn", None)
         wrong_asn = getattr(self, "_wrong_asn", None)
@@ -501,6 +506,9 @@ class BGPMissingAdvertise(ProblemBase):
     def _inject_missing_adv_containerlab(
         self, params: BGPMissingAdvertiseParams
     ) -> None:
+        if ops := router_fault_ops(self, params.host_name):
+            self._inject_missing_adv_native(params, ops)
+            return
         prefix = self._resolve_withdraw_prefix(params)
         self._withdrawn_prefix = prefix
         self._inject_mode = "srl_prefix"
@@ -670,6 +678,8 @@ class BGPMissingAdvertise(ProblemBase):
     def _verify_missing_adv_containerlab(
         self, params: BGPMissingAdvertiseParams
     ) -> dict:
+        if ops := router_fault_ops(self, params.host_name):
+            return self._verify_missing_adv_native(params, ops)
         prefix = getattr(
             self, "_withdrawn_prefix", None
         ) or self._resolve_withdraw_prefix(params)

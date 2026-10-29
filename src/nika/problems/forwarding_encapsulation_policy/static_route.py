@@ -165,14 +165,14 @@ class StaticBlackHole(ProblemBase):
         self._blackhole_network = self.blackhole_network(params)
         host_network = ipaddress.ip_network(self._blackhole_network, strict=False)
         match self.lab_backend:
+            case _ if ops := native_fault_ops(
+                self, params.host_name, "add_blackhole_route"
+            ):
+                ops.add_blackhole_route(str(host_network))
             case "containerlab":
                 self.runtime.srl_add_blackhole_static(
                     params.host_name, self._blackhole_network
                 )
-            case "kathara" if ops := native_fault_ops(
-                self, params.host_name, "add_blackhole_route"
-            ):
-                ops.add_blackhole_route(str(host_network))
             case "kathara":
                 # A VRF router forwards end-host traffic from the VRF's table,
                 # so the blackhole goes into every table that routes the prefix.
@@ -211,16 +211,7 @@ class StaticBlackHole(ProblemBase):
                 )
             )
         match self.lab_backend:
-            case "containerlab":
-                verified = self.runtime.srl_blackhole_static_present(
-                    params.host_name, host_network
-                )
-                return build_verify_result(
-                    fault_type=self.root_cause_name,
-                    verified=verified,
-                    details={"host": params.host_name, "network": host_network},
-                )
-            case "kathara" if ops := native_fault_ops(
+            case _ if ops := native_fault_ops(
                 self, params.host_name, "blackhole_routes"
             ):
                 network = str(ipaddress.ip_network(host_network, strict=False))
@@ -233,6 +224,15 @@ class StaticBlackHole(ProblemBase):
                         "network": host_network,
                         "blackhole_routes": routes,
                     },
+                )
+            case "containerlab":
+                verified = self.runtime.srl_blackhole_static_present(
+                    params.host_name, host_network
+                )
+                return build_verify_result(
+                    fault_type=self.root_cause_name,
+                    verified=verified,
+                    details={"host": params.host_name, "network": host_network},
                 )
             case "kathara":
                 route_output = self.runtime.exec(

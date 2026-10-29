@@ -33,7 +33,8 @@ configure_CLIENT() {
 
 echo
 PIDS=""
-NE=("leaf1" "leaf2" "spine")
+# SONiC routers boot with their configuration; SR Linux takes it over gNMI.
+NE=(__SRL_ROUTERS__)
 CLIENT=("client1" "client2")
 
 for VARIANT in "${NE[@]}"; do

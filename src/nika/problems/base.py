@@ -186,7 +186,7 @@ class ProblemBase:
             scenario_path_bdp_limit_bytes,
         )
 
-        if device_profile not in (None, "", "frr", "nokia_srlinux") and (
+        if device_profile not in (None, "", "frr", "nokia_srlinux", "sonic") and (
             device_profile not in scenario_device_profiles(target.partition("/")[0])
         ):
             return False

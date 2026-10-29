@@ -149,7 +149,7 @@ def _load_inventory(net_env) -> None:
         image = node.image.lower()
         if any(key in name for key in ("client", "pc", "host")) or kind == "linux":
             net_env.hosts.append(name)
-        elif any(key in kind for key in ("srl", "ceos", "router")) or any(
+        elif any(key in kind for key in ("srl", "ceos", "sonic", "router")) or any(
             key in image for key in ("srl", "ceos", "frr")
         ):
             net_env.routers.append(name)

@@ -1,15 +1,18 @@
 """Vendor dispatch for failure operations on native routers.
 
 Failure classes stay vendor-neutral: they ask :func:`router_fault_ops` for the
-target node's provider. Nodes without a native router profile (FRR, SR Linux,
-Linux) get ``None`` and keep the failure's default implementation. A native
-profile supplies its provider through ``NativeRouterPlatform.fault_ops``; any
-operation it does not implement raises ``RuntimeCapabilityError``.
+target node's provider. Nodes without a router platform provider (FRR, SR
+Linux, Linux) get ``None`` and keep the failure's default implementation. A
+Kathara native profile supplies its provider through
+``NativeRouterPlatform.fault_ops``, and a Containerlab router platform through
+``FAULT_OPS`` in its module; any operation a provider does not implement
+raises ``RuntimeCapabilityError``.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from importlib import import_module
 
 from nika.runtime.base import RuntimeCapabilityError
 
@@ -210,18 +213,34 @@ class RouterFaultOps:
         self._unsupported("Reading NAT mappings")
 
 
+# Containerlab router platforms whose module exposes a ``FAULT_OPS`` provider.
+_CONTAINERLAB_PLATFORMS = {"sonic": "nika.net_env.utils.sonic.fault_ops"}
+
+
+def _router_platforms() -> frozenset[str]:
+    from nika.net_env.native_routers import native_profiles
+
+    return native_profiles() | frozenset(_CONTAINERLAB_PLATFORMS)
+
+
+def _fault_ops_factory(profile: str):
+    if profile in _CONTAINERLAB_PLATFORMS:
+        return import_module(_CONTAINERLAB_PLATFORMS[profile]).FAULT_OPS
+    from nika.net_env.native_routers import native_platform
+
+    return native_platform(profile).fault_ops
+
+
 def native_router_profile(net_env, node: str) -> str | None:
     """Return the native router profile ``node`` declares, or ``None``.
 
     The profile comes from the node capabilities the environment declares;
     FRR, SR Linux and Linux nodes have none.
     """
-    from nika.net_env.native_routers import native_profiles
-
     identities = getattr(net_env, "machine_identities", None) or {}
     identity = identities.get(node)
     profiles = sorted(
-        set(identity.capabilities if identity else ()) & native_profiles()
+        set(identity.capabilities if identity else ()) & _router_platforms()
     )
     if len(profiles) > 1:
         raise RuntimeCapabilityError(
@@ -235,12 +254,10 @@ def router_fault_ops(problem, node: str) -> RouterFaultOps | None:
 
     Returns ``None`` for nodes without a native router profile.
     """
-    from nika.net_env.native_routers import native_platform
-
     profile = native_router_profile(problem.net_env, node)
     if profile is None:
         return None
-    factory = native_platform(profile).fault_ops
+    factory = _fault_ops_factory(profile)
     if factory is None:
         raise RuntimeCapabilityError(
             f"No failure operations are implemented for {profile} router {node!r}."
@@ -261,9 +278,7 @@ def profile_fault_operations(profile: str) -> frozenset[str]:
     An operation is implemented when the provider overrides it; the base
     class only raises ``RuntimeCapabilityError``.
     """
-    from nika.net_env.native_routers import native_platform
-
-    factory = native_platform(profile).fault_ops
+    factory = _fault_ops_factory(profile)
     if factory is None:
         return frozenset()
     # Providers only bind their runtime and node, so a detached instance

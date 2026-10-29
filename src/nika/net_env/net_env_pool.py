@@ -58,6 +58,9 @@ class NetEnvSpec:
     # binding names the class that deploys the same scenario on that platform;
     # the scenario default remains the class bound above.
     device_profiles: Mapping[str, BackendEnvBinding] | None = None
+    # Router platforms a Containerlab-only scenario runs with ``device_profile``;
+    # the first is the default.
+    containerlab_device_profiles: tuple[str, ...] = ()
     # Designed unloaded RTT of the benchmark WAN flow, when specified.
     nominal_path_rtt_ms: float | None = None
 
@@ -371,6 +374,7 @@ _NET_ENV_SPECS: dict[str, NetEnvSpec] = {
         coverage_major=True,
         tags=("clos", "srl", "bgp", "link", "containerlab", "fabric"),
         supported_backends=("containerlab",),
+        containerlab_device_profiles=("nokia_srlinux", "sonic"),
         topo_size=5,
     ),
     "k8s_lab": NetEnvSpec(
@@ -626,6 +630,11 @@ def scenario_path_bdp_limit_bytes(
 def scenario_device_profiles(scenario_name: str) -> tuple[str, ...]:
     """Return native router profiles selectable for ``scenario_name`` on Kathara."""
     return tuple(sorted(_require_scenario(scenario_name).device_profiles or {}))
+
+
+def scenario_containerlab_device_profiles(scenario_name: str) -> tuple[str, ...]:
+    """Return router platforms selectable for a Containerlab-only scenario."""
+    return _require_scenario(scenario_name).containerlab_device_profiles
 
 
 def scenario_device_profile_sizes(
