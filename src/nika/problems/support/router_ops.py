@@ -75,6 +75,14 @@ class RouterFaultOps:
         """Replace the running configuration with one returned by ``save_config``."""
         self._unsupported("Restoring the running configuration")
 
+    def frr_shell(self, command: str) -> str:
+        """Run a shell command beside the router's FRR (``vtysh``, ``/etc/frr``).
+
+        Only platforms that route with FRR implement it. A failure whose FRR
+        implementation needs nothing else from the node runs unchanged there.
+        """
+        self._unsupported("Running FRR commands")
+
     def supports(self, operation: str) -> bool:
         """Return whether this provider implements ``operation``."""
         return getattr(type(self), operation) is not getattr(RouterFaultOps, operation)
@@ -115,7 +123,26 @@ class RouterFaultOps:
         """Run the OSPF interfaces of ``area`` in ``new_area`` instead."""
         self._unsupported("Changing an OSPF area")
 
+    def ospf_interfaces(self) -> list[str]:
+        """Return the container interfaces OSPF is configured on."""
+        self._unsupported("Reading OSPF interfaces")
+
+    def ospf_neighbor_interfaces(self) -> list[str]:
+        """Return the container interface of each Full OSPF adjacency, one per neighbor."""
+        self._unsupported("Reading OSPF neighbors")
+
+    def remove_ospf_interface(self, interface: str) -> None:
+        """Delete the OSPF configuration that runs OSPF on container ``interface``."""
+        self._unsupported("Removing an OSPF interface")
+
     # Packet filters
+
+    def block_ospf(self) -> None:
+        """Drop OSPF (IP protocol 89) the router receives or sends."""
+        self._unsupported("Blocking OSPF")
+
+    def ospf_blocked(self) -> bool:
+        self._unsupported("Reading OSPF filters")
 
     def block_bgp_transport(self) -> None:
         """Drop BGP (TCP 179) in every direction and reset the sessions."""
@@ -145,7 +172,16 @@ class RouterFaultOps:
         self._unsupported("Reading routes")
 
     def interface_up(self, interface: str) -> bool:
+        """Whether the router's port on container ``interface`` is operationally up."""
         self._unsupported("Reading interface state")
+
+    def reattach_interface(self, interface: str) -> None:
+        """Put the port back in service after container ``interface`` returns.
+
+        A failure that moves the interface out of the node calls this once the
+        interface is back; the router's port may need to bind to it again.
+        """
+        self._unsupported("Reattaching an interface")
 
     def set_interface_mtu(self, interface: str, mtu: int) -> None:
         """Set the router's MTU on container interface ``interface``."""
@@ -223,6 +259,14 @@ def _router_platforms() -> frozenset[str]:
     return native_profiles() | frozenset(_CONTAINERLAB_PLATFORMS)
 
 
+def router_platform_has_provider(device_profile: str | None) -> bool:
+    """Whether ``device_profile``'s routers dispatch failures to a provider.
+
+    FRR and SR Linux routers do not: failures implement them directly.
+    """
+    return device_profile in _router_platforms()
+
+
 def _fault_ops_factory(profile: str):
     if profile in _CONTAINERLAB_PLATFORMS:
         return import_module(_CONTAINERLAB_PLATFORMS[profile]).FAULT_OPS
@@ -285,6 +329,13 @@ def profile_fault_operations(profile: str) -> frozenset[str]:
     # answers ``supports`` without touching a lab.
     provider = factory(None, "")
     return frozenset(name for name in _OPERATIONS if provider.supports(name))
+
+
+def profile_routes_with_frr(profile: str | None) -> bool:
+    """Whether ``profile``'s routers run FRR behind their provider (SONiC)."""
+    return router_platform_has_provider(profile) and (
+        "frr_shell" in profile_fault_operations(profile)
+    )
 
 
 def failure_supports_profile(problem_cls, profile: str) -> bool:

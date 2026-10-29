@@ -7,10 +7,18 @@ import time
 from pydantic import BaseModel, Field
 
 from nika.net_env.isp.bgp.frr import EXPORT_DENY_PREFIX_LIST
-from nika.problems.support.frr import frr_config_command, frr_save_config
+from nika.problems.support.frr import (
+    FRR_SAVE_COMMAND,
+    frr_config_command,
+    frr_save_config,
+)
 from nika.problems.support.inject_resolve import resolve_victim_host_ip
 from nika.problems.support.polling import wait_until
-from nika.problems.support.router_ops import RouterFaultOps, router_fault_ops
+from nika.problems.support.router_ops import (
+    RouterFaultOps,
+    native_fault_ops,
+    router_fault_ops,
+)
 from nika.problems.rca import node_resource
 from nika.problems.base import (
     FailureDomain,
@@ -1429,6 +1437,8 @@ class BGPMaxPrefixExceeded(ProblemBase):
     TAGS: str = ["bgp", "isp"]
     COMPATIBLE_COLUMNS = frozenset({"isp_abilene/ebgp", "isp_geant/ebgp"})
     isp_protocol = {"igp": "ospf", "bgp_mode": "ebgp", "rpki": False}
+    # The FRR implementation runs unchanged on platforms that route with FRR.
+    native_router_operations = frozenset({"bgp_asn", "frr_shell"})
 
     Params = BGPMaxPrefixExceededParams
 
@@ -1468,6 +1478,26 @@ class BGPMaxPrefixExceeded(ProblemBase):
             node_resource(params.receiver_name),
             node_resource(params.peer_name),
         ]
+
+    def _frr(self, router: str, command: str) -> str:
+        """Run ``command`` beside ``router``'s FRR: on the node, or through its platform."""
+        ops = native_fault_ops(self, router, "frr_shell")
+        if ops is not None:
+            return ops.frr_shell(command)
+        if self.lab_backend != "kathara":
+            raise RuntimeCapabilityError(
+                f"{type(self).__name__}: {router!r} does not route with FRR."
+            )
+        return self.runtime.exec(router, command)
+
+    def _frr_save(self, router: str) -> None:
+        self._frr(router, FRR_SAVE_COMMAND)
+
+    def _bgp_asn(self, router: str) -> int:
+        ops = native_fault_ops(self, router, "bgp_asn")
+        if ops is not None:
+            return ops.bgp_asn()
+        return self.runtime.frr_get_bgp_asn_number(router)
 
     def _bgp_inventory(self) -> dict:
         inventory = getattr(self.net_env, "inventory", None) or {}
@@ -1515,7 +1545,7 @@ class BGPMaxPrefixExceeded(ProblemBase):
         )
 
     def _neighbor_output(self, router: str, neighbor_ip: str) -> str:
-        return self.runtime.exec(
+        return self._frr(
             router,
             f"vtysh -c 'show bgp neighbors {neighbor_ip}' 2>/dev/null || true",
         )
@@ -1538,7 +1568,7 @@ class BGPMaxPrefixExceeded(ProblemBase):
             match = re.search(pattern, out, re.IGNORECASE)
             if match:
                 return int(match.group(1))
-        summary = self.runtime.exec(
+        summary = self._frr(
             router, "vtysh -c 'show bgp summary json' 2>/dev/null || true"
         )
         try:
@@ -1559,7 +1589,7 @@ class BGPMaxPrefixExceeded(ProblemBase):
         return None
 
     def _has_route(self, router: str, prefix: str) -> bool:
-        out = self.runtime.exec(
+        out = self._frr(
             router, f"vtysh -c 'show bgp ipv4 unicast {prefix}' 2>/dev/null || true"
         )
         return "Network not in table" not in out and prefix.split("/")[0] in out
@@ -1582,7 +1612,7 @@ class BGPMaxPrefixExceeded(ProblemBase):
             return True
         missing = 0
         for prefix in peer_prefixes:
-            out = self.runtime.exec(
+            out = self._frr(
                 receiver,
                 f"vtysh -c 'show bgp ipv4 unicast {prefix}' 2>/dev/null || true",
             )
@@ -1595,7 +1625,7 @@ class BGPMaxPrefixExceeded(ProblemBase):
         return missing == len(peer_prefixes)
 
     def _flood_policy_maps(self, device: str) -> list[str]:
-        config = self.runtime.exec(device, "vtysh -c 'show running-config'")
+        config = self._frr(device, "vtysh -c 'show running-config'")
         maps = sorted(
             set(
                 re.findall(
@@ -1621,7 +1651,7 @@ class BGPMaxPrefixExceeded(ProblemBase):
                 f"route-map {policy} permit 1",
                 f"match ip address prefix-list {_FLOOD_PREFIX_LIST}",
             ]
-        self.runtime.exec(device, frr_config_command(*lines))
+        self._frr(device, frr_config_command(*lines))
 
     def _remove_flood_policy(self, device: str) -> None:
         lines = [
@@ -1629,7 +1659,7 @@ class BGPMaxPrefixExceeded(ProblemBase):
             for policy in self._flood_policy_maps(device)
         ]
         lines.append(f"no ip prefix-list {_FLOOD_PREFIX_LIST}")
-        self.runtime.exec(device, frr_config_command(*lines))
+        self._frr(device, frr_config_command(*lines))
 
     def _flood_prefixes(self, count: int, *, peer: str, neighbor_ip: str) -> list[str]:
         """Pick ``count`` /24s scattered within the flood /16, not a tidy block.
@@ -1648,29 +1678,27 @@ class BGPMaxPrefixExceeded(ProblemBase):
 
     def _advertise_flood(self, peer: str, asn: int, prefixes: list[str]) -> None:
         lines: list[str] = []
-        config = self.runtime.exec(peer, "vtysh -c 'show running-config'")
+        config = self._frr(peer, "vtysh -c 'show running-config'")
         if "no bgp network import-check" not in config:
             # FRR originates a ``network`` only when a matching route exists,
             # so back the announcements with discard routes under import check.
             lines.extend(f"ip route {prefix} Null0" for prefix in prefixes)
         lines += [f"router bgp {asn}", "address-family ipv4 unicast"]
         lines.extend(f"network {prefix}" for prefix in prefixes)
-        self.runtime.exec(peer, frr_config_command(*lines))
-        frr_save_config(self.runtime, peer)
-        self.runtime.exec(
-            peer, "vtysh -c 'clear ip bgp * soft out' 2>/dev/null || true"
-        )
+        self._frr(peer, frr_config_command(*lines))
+        self._frr_save(peer)
+        self._frr(peer, "vtysh -c 'clear ip bgp * soft out' 2>/dev/null || true")
 
     def _withdraw_flood(self, peer: str, asn: int, prefixes: list[str]) -> None:
         lines = [f"router bgp {asn}", "address-family ipv4 unicast"]
         lines.extend(f"no network {prefix}" for prefix in prefixes)
-        config = self.runtime.exec(peer, "vtysh -c 'show running-config'")
+        config = self._frr(peer, "vtysh -c 'show running-config'")
         statics = [p for p in prefixes if f"ip route {p} Null0" in config]
         if statics:
             lines += ["exit-address-family", "exit"]
             lines.extend(f"no ip route {prefix} Null0" for prefix in statics)
-        self.runtime.exec(peer, frr_config_command(*lines))
-        frr_save_config(self.runtime, peer)
+        self._frr(peer, frr_config_command(*lines))
+        self._frr_save(peer)
 
     def _set_maximum_prefix(
         self, receiver: str, asn: int, neighbor_ip: str, limit: int
@@ -1680,8 +1708,8 @@ class BGPMaxPrefixExceeded(ProblemBase):
             "address-family ipv4 unicast",
             f"neighbor {neighbor_ip} maximum-prefix {limit}",
         )
-        self.runtime.exec(receiver, cmd)
-        frr_save_config(self.runtime, receiver)
+        self._frr(receiver, cmd)
+        self._frr_save(receiver)
 
     def _clear_maximum_prefix(self, receiver: str, asn: int, neighbor_ip: str) -> None:
         cmd = frr_config_command(
@@ -1689,8 +1717,8 @@ class BGPMaxPrefixExceeded(ProblemBase):
             "address-family ipv4 unicast",
             f"no neighbor {neighbor_ip} maximum-prefix",
         )
-        self.runtime.exec(receiver, cmd)
-        frr_save_config(self.runtime, receiver)
+        self._frr(receiver, cmd)
+        self._frr_save(receiver)
 
     def _wait_session_state(
         self,
@@ -1709,11 +1737,6 @@ class BGPMaxPrefixExceeded(ProblemBase):
         return self._session_established(router, neighbor_ip) == established
 
     def inject_fault(self, params: BGPMaxPrefixExceededParams):
-        if self.lab_backend != "kathara":
-            raise RuntimeCapabilityError(
-                f"{type(self).__name__} cannot inject_fault: unsupported backend "
-                f"{self.lab_backend!r} (Kathara + FRR only)."
-            )
         receiver, peer, neighbor_ip = self._resolve_session(params)
         if not self._session_established(receiver, neighbor_ip):
             # Allow BGP to finish converging after deploy.
@@ -1732,8 +1755,8 @@ class BGPMaxPrefixExceeded(ProblemBase):
         flood_count = max(params.flood_count, limit + 15)
         prefixes = self._flood_prefixes(flood_count, peer=peer, neighbor_ip=neighbor_ip)
 
-        receiver_asn = self.runtime.frr_get_bgp_asn_number(receiver)
-        peer_asn = self.runtime.frr_get_bgp_asn_number(peer)
+        receiver_asn = self._bgp_asn(receiver)
+        peer_asn = self._bgp_asn(peer)
 
         self._set_maximum_prefix(receiver, receiver_asn, neighbor_ip, limit)
         # Confirm session still up with received < limit before the flood.
@@ -1763,9 +1786,7 @@ class BGPMaxPrefixExceeded(ProblemBase):
 
         if self._session_established(receiver, neighbor_ip):
             # Force a refresh if FRR has not yet applied the limit.
-            self.runtime.exec(
-                peer, "vtysh -c 'clear ip bgp * soft out' 2>/dev/null || true"
-            )
+            self._frr(peer, "vtysh -c 'clear ip bgp * soft out' 2>/dev/null || true")
             self._wait_session_state(
                 receiver, neighbor_ip, established=False, timeout_s=60.0
             )
@@ -1792,13 +1813,8 @@ class BGPMaxPrefixExceeded(ProblemBase):
         The limit and the flood are read from both routers' running configs;
         the receiver must hold the session down for the exceeded limit.
         """
-        if self.lab_backend != "kathara":
-            raise RuntimeCapabilityError(
-                f"{type(self).__name__} cannot verify_fault: unsupported backend "
-                f"{self.lab_backend!r}."
-            )
         receiver, peer, neighbor_ip = self._resolve_session(params)
-        receiver_cfg = self.runtime.exec(
+        receiver_cfg = self._frr(
             receiver, "vtysh -c 'show running-config' 2>/dev/null || true"
         )
         match = re.search(
@@ -1836,9 +1852,7 @@ class BGPMaxPrefixExceeded(ProblemBase):
         )
 
     def _discover_flood_prefixes(self, peer: str) -> list[str]:
-        conf = self.runtime.exec(
-            peer, "vtysh -c 'show running-config' 2>/dev/null || true"
-        )
+        conf = self._frr(peer, "vtysh -c 'show running-config' 2>/dev/null || true")
         found = re.findall(
             rf"network\s+({re.escape(_FLOOD_PREFIX_BASE)}\.\d+\.0/24)", conf
         )
@@ -1848,11 +1862,6 @@ class BGPMaxPrefixExceeded(ProblemBase):
 
     def recover_fault(self, params: BGPMaxPrefixExceededParams) -> dict:
         """Withdraw flood prefixes, remove max-prefix, restore eBGP convergence."""
-        if self.lab_backend != "kathara":
-            raise RuntimeCapabilityError(
-                f"{type(self).__name__} cannot recover_fault: unsupported backend "
-                f"{self.lab_backend!r}."
-            )
         state = self._max_prefix_state or {}
         receiver, peer, neighbor_ip = self._resolve_session(params)
         receiver = str(state.get("receiver") or receiver)
@@ -1865,24 +1874,18 @@ class BGPMaxPrefixExceeded(ProblemBase):
             prefixes = self._flood_prefixes(
                 max(params.flood_count, 80), peer=peer, neighbor_ip=neighbor_ip
             )
-        receiver_asn = int(
-            state.get("receiver_asn") or self.runtime.frr_get_bgp_asn_number(receiver)
-        )
-        peer_asn = int(
-            state.get("peer_asn") or self.runtime.frr_get_bgp_asn_number(peer)
-        )
+        receiver_asn = int(state.get("receiver_asn") or self._bgp_asn(receiver))
+        peer_asn = int(state.get("peer_asn") or self._bgp_asn(peer))
 
         self._withdraw_flood(peer, peer_asn, prefixes)
         self._remove_flood_policy(peer)
         self._remove_flood_policy(receiver)
         self._clear_maximum_prefix(receiver, receiver_asn, neighbor_ip)
-        self.runtime.exec(
+        self._frr(
             receiver,
             f"vtysh -c 'clear ip bgp {neighbor_ip}' 2>/dev/null || true",
         )
-        self.runtime.exec(
-            peer, "vtysh -c 'clear ip bgp * soft out' 2>/dev/null || true"
-        )
+        self._frr(peer, "vtysh -c 'clear ip bgp * soft out' 2>/dev/null || true")
 
         session_up = self._wait_session_state(
             receiver, neighbor_ip, established=True, timeout_s=120.0

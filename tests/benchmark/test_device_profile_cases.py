@@ -38,6 +38,10 @@ def test_compatibility_follows_the_vendor_fault_operations() -> None:
     # Without a native implementation a failure stays on FRR/Linux nodes.
     frr_down = get_problem_class("frr_service_down")
     assert not failure_supports_profile(frr_down, "iosxr")
+    # OSPF filters, OSPF interfaces and detached links run on every platform.
+    for failure in ("ospf_acl_block", "ospf_neighbor_missing", "link_detach"):
+        for profile in ("iosxr", "routeros", "sonic"):
+            assert failure_supports_profile(get_problem_class(failure), profile)
 
 
 def test_generation_expands_native_profiles_only_at_size_s() -> None:
@@ -71,9 +75,10 @@ def test_targets_avoid_native_routers_that_cannot_run_the_failure() -> None:
     )
     assert not cases
     assert {row["reason"] for row in rejected} == {"unsupported_device_profile"}
-    # campus_lan converts only its core: OSPF faults keep the FRR routers.
+    # campus_lan converts only its core: an OSPF fault without an XR
+    # implementation keeps the FRR routers.
     cases, _ = build_failure_cases(
-        problem="ospf_neighbor_missing",
+        problem="ospf_area_misconfiguration",
         scenario="campus_lan",
         topo_size="s",
         isp_options={"device_profile": "iosxr"},
@@ -154,6 +159,17 @@ def test_predicate_has_a_device_profile_dimension() -> None:
     # The deployment is compatible; its XR routers are not targets.
     assert frr_down.is_compatible("campus_lan", "iosxr")
     assert not frr_down.runs_on_device_profile("iosxr")
+    # A Containerlab platform runs a failure through its provider (SONiC);
+    # SR Linux needs the failure's declared Containerlab implementation.
+    max_prefix = get_problem_class("bgp_max_prefix_exceeded")
+    assert max_prefix.is_compatible("isp_abilene/ebgp", "sonic")
+    assert not max_prefix.is_compatible("isp_abilene/ebgp", "nokia_srlinux")
+    assert not max_prefix.is_compatible("isp_abilene/ebgp", backend="containerlab")
+    assert max_prefix.is_compatible("isp_abilene/ebgp", backend="kathara")
+    assert not link_down.is_compatible("dc_clos", "sonic")
+    # SONiC routers run FRR even where the scenario's default routers do not.
+    assert frr_down.is_compatible("min3clos", "sonic")
+    assert not frr_down.is_compatible("min3clos")
 
 
 def test_validation_results_round_trip_and_key_isp_as_one_environment(

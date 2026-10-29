@@ -10,6 +10,8 @@ if TYPE_CHECKING:
 
 FRR_DIR = "/etc/frr"
 FRR_CONF = f"{FRR_DIR}/frr.conf"
+# Persist the running config without leaving a pre-fault copy; see frr_save_config.
+FRR_SAVE_COMMAND = f"vtysh -c 'write memory' >/dev/null 2>&1; rm -f {FRR_DIR}/*.sav"
 
 
 def frr_save_config(runtime: "LabRuntime", device: str) -> None:
@@ -20,9 +22,7 @@ def frr_save_config(runtime: "LabRuntime", device: str) -> None:
     write ``bgpd.conf.sav`` the same way. Those files would diff straight to
     the injected change, so drop every ``.sav`` under ``/etc/frr`` after the write.
     """
-    runtime.exec(
-        device, f"vtysh -c 'write memory' >/dev/null 2>&1; rm -f {FRR_DIR}/*.sav"
-    )
+    runtime.exec(device, FRR_SAVE_COMMAND)
 
 
 def frr_config_command(*lines: str) -> str:

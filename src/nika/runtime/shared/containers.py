@@ -46,6 +46,14 @@ def lift_cpu_cap(container: Any) -> None:
     api._raise_for_status(resp)
 
 
+def remove_lab_helpers(lab_name: str) -> None:
+    """Remove controller-side helpers labelled ``nika.lab_name=<lab_name>``."""
+    client = docker_client()
+    label = f"nika.lab_name={lab_name}"
+    for container in client.containers.list(all=True, filters={"label": label}):
+        container.remove(force=True)
+
+
 def unpause_container(container: Any) -> None:
     container.reload()
     if container.status == "paused":

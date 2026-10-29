@@ -9,11 +9,12 @@ container interfaces (``eth{k}``); SONiC ports are ``Ethernet{4(k-1)}``.
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import re
 import shlex
 
-from nika.net_env.utils.sonic.common import sonic_port
+from nika.net_env.utils.sonic.common import container_iface, sonic_port
 from nika.net_env.verify import frr_bgp_established_peers
 from nika.problems.support.router_ops import RouterFaultOps
 
@@ -26,6 +27,10 @@ _BGP_RULES = tuple(
 )
 _FRAG_NEEDED_CHAINS = ("INPUT", "FORWARD", "OUTPUT")
 _FRAG_NEEDED = "-p icmp --icmp-type fragmentation-needed -j DROP"
+# OSPF (IP protocol 89) only reaches or leaves the router's own stack.
+_OSPF_CHAINS = ("INPUT", "OUTPUT")
+_OSPF_DROP = "-p ospf -j DROP"
+_OSPF_NETWORK = re.compile(r"^\s+network (\S+) area (\S+)$", re.M)
 
 
 class SonicFaultOps(RouterFaultOps):
@@ -46,6 +51,10 @@ class SonicFaultOps(RouterFaultOps):
 
     def _port(self, interface: str) -> str:
         return interface if interface.startswith("Ethernet") else sonic_port(interface)
+
+    def frr_shell(self, command: str) -> str:
+        # SONiC routes with FRR in the same namespace as its ports.
+        return self._exec(command, timeout=60)
 
     # BGP
 
@@ -121,6 +130,46 @@ class SonicFaultOps(RouterFaultOps):
             lines += [f"network {network} area {new_area}"]
         self._configure(*lines)
 
+    def _ospf_interface_addresses(self) -> dict[str, str]:
+        """Map each OSPF-enabled port to its interface address."""
+        data = json.loads(self._vtysh("show ip ospf interface json") or "{}")
+        return {
+            name: str(info["ipAddress"])
+            for name, info in (data.get("interfaces") or {}).items()
+            if name.startswith("Ethernet") and info.get("ipAddress")
+        }
+
+    def ospf_interfaces(self) -> list[str]:
+        return sorted(map(container_iface, self._ospf_interface_addresses()))
+
+    def ospf_neighbor_interfaces(self) -> list[str]:
+        data = json.loads(self._vtysh("show ip ospf neighbor json") or "{}")
+        ports = [
+            str(entry.get("ifaceName", "")).split(":", 1)[0]
+            for entries in (data.get("neighbors") or {}).values()
+            for entry in (entries if isinstance(entries, list) else [entries])
+            if str(entry.get("nbrState", "")).startswith("Full")
+        ]
+        return sorted(container_iface(port) for port in ports if port)
+
+    def remove_ospf_interface(self, interface: str) -> None:
+        # The design enables OSPF with ``network`` statements: drop the one
+        # that covers the port from the daemon and from frr.conf.
+        address = self._ospf_interface_addresses().get(self._port(interface))
+        if address is None:
+            raise ValueError(f"OSPF does not run on {self.node}:{interface}")
+        ip = ipaddress.ip_address(address)
+        for prefix, area in _OSPF_NETWORK.findall(self._ospf_block()):
+            if ip in ipaddress.ip_network(prefix, strict=False):
+                self._configure("router ospf", f"no network {prefix} area {area}")
+                line = f" network {prefix} area {area}"
+                self._exec(
+                    f"grep -vxF {shlex.quote(line)} {_FRR_CONF} > {_FRR_CONF}.new"
+                )
+                self._exec(f"cat {_FRR_CONF}.new > {_FRR_CONF}; rm -f {_FRR_CONF}.new")
+                return
+        raise ValueError(f"No OSPF network covers {self.node}:{interface}")
+
     # Packet filters
 
     def _rule_present(self, chain: str, rule: str) -> bool:
@@ -140,6 +189,13 @@ class SonicFaultOps(RouterFaultOps):
             for chain, match in _BGP_RULES
         )
 
+    def block_ospf(self) -> None:
+        for chain in _OSPF_CHAINS:
+            self._exec(f"iptables -I {chain} {_OSPF_DROP}")
+
+    def ospf_blocked(self) -> bool:
+        return all(self._rule_present(chain, _OSPF_DROP) for chain in _OSPF_CHAINS)
+
     def block_icmp_frag_needed(self) -> None:
         for chain in _FRAG_NEEDED_CHAINS:
             self._exec(f"iptables -I {chain} {_FRAG_NEEDED}")
@@ -158,6 +214,49 @@ class SonicFaultOps(RouterFaultOps):
         return sorted(
             set(re.findall(r"^ip route (\S+) blackhole", self._running(), re.M))
         )
+
+    def interface_up(self, interface: str) -> bool:
+        port = self._port(interface)
+        status = self._exec(f"redis-cli -n 0 hget 'PORT_TABLE:{port}' oper_status")
+        return status.strip() == "up"
+
+    def _config_rows(self, pattern: str) -> dict[str, dict[str, str]]:
+        keys = self._exec(f"redis-cli -n 4 --raw keys {shlex.quote(pattern)}").split()
+        rows = {}
+        for key in keys:
+            values = self._exec(f"redis-cli -n 4 --raw hgetall {shlex.quote(key)}")
+            fields = values.splitlines()
+            rows[key] = dict(zip(fields[::2], fields[1::2]))
+        return rows
+
+    def _wait_port(self, port: str, *, present: bool) -> None:
+        test = "" if present else "!"
+        self._exec(
+            f"for _ in $(seq 1 60); do {test} ip link show {port} >/dev/null 2>&1 "
+            "&& break; sleep 1; done",
+            timeout=90,
+        )
+
+    def reattach_interface(self, interface: str) -> None:
+        # The virtual switch binds a port to its container interface when it
+        # creates the port, so the port is removed and created again from its
+        # own CONFIG_DB rows; addresses go after the port and before it.
+        port = self._port(interface)
+        rows = self._config_rows(f"PORT|{port}")
+        rows.update(self._config_rows(f"INTERFACE|{port}"))
+        rows.update(self._config_rows(f"INTERFACE|{port}|*"))
+        order = sorted(rows, key=lambda key: (not key.startswith("PORT|"), key))
+        for key in reversed(order):
+            self._exec(f"redis-cli -n 4 del {shlex.quote(key)}")
+            if key.startswith("PORT|"):
+                self._wait_port(port, present=False)
+        for key in order:
+            fields = " ".join(
+                shlex.quote(item) for pair in rows[key].items() for item in pair
+            )
+            self._exec(f"redis-cli -n 4 hset {shlex.quote(key)} {fields}")
+            if key.startswith("PORT|"):
+                self._wait_port(port, present=True)
 
     def set_interface_mtu(self, interface: str, mtu: int) -> None:
         # portmgrd applies the CONFIG_DB port MTU to the kernel port.

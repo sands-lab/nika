@@ -43,6 +43,13 @@ def iosxr_interface(name: str) -> str:
     raise ValueError(f"Unsupported IOS XR interface: {name!r}")
 
 
+def container_interface(name: str) -> str | None:
+    """Invert :func:`iosxr_interface` for data ports; other names give ``None``."""
+    if match := re.fullmatch(r"(?:GigabitEthernet|Gi)0/0/0/(0|[1-9][0-9]*)", name):
+        return f"eth{match[1]}"
+    return None
+
+
 def configure_xrd_router(
     lab,
     machine,

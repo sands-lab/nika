@@ -234,6 +234,21 @@ class ExecSemanticOpsMixin:
     def srl_bgp_prefix_withdrawn(self, node: str, prefix: str) -> bool:
         return self._api().srl_bgp_prefix_withdrawn(node, prefix)
 
+    def srl_add_ospf_acl_drop(self, node: str) -> list[int]:
+        return self._api().srl_add_ospf_acl_drop(node)
+
+    def srl_ospf_acl_drop_present(self, node: str, sequences: list[int]) -> bool:
+        return self._api().srl_ospf_acl_drop_present(node, sequences)
+
+    def srl_ospf_interfaces(self, node: str) -> list[str]:
+        return self._api().srl_ospf_interfaces(node)
+
+    def srl_ospf_neighbor_interfaces(self, node: str) -> list[str]:
+        return self._api().srl_ospf_neighbor_interfaces(node)
+
+    def srl_remove_ospf_interface(self, node: str, interface: str) -> None:
+        self._api().srl_remove_ospf_interface(node, interface)
+
     def kill_process(self, node: str, process_name: str) -> str:
         return self._delegate("process", "kill_process", node, process_name)
 
