@@ -6,10 +6,12 @@ import hashlib
 import json
 import shlex
 import subprocess
+from collections.abc import Callable, Iterable
 
 from nika.runtime.base import RuntimeCapabilityError
 from nika.runtime.shared.containers import docker_client
 from nika.utils.logger import log_event
+from nika.utils.parallel import bounded_parallel_map
 
 
 def tap_owner(lab_name: str) -> str:
@@ -27,42 +29,109 @@ def _owner_aliases(lab_name: str) -> tuple[str, str]:
 
 
 # sysfs works in BusyBox images whose `ip` lacks -j and alias (e.g. Routinator);
-# reading it works even where /sys is read-only.
-_LIST_TAPS = r"""
+# reading it works even where /sys is read-only. One exec lists TAPs and sets
+# aliases; stdout reports FOREIGN (other owner) or NEED_HELPER (no netlink).
+def _record_script(lab_name: str) -> str:
+    owner, legacy = _owner_aliases(lab_name)
+    return f"""
+owner={shlex.quote(owner)}
+legacy={shlex.quote(legacy)}
 for dev in /sys/class/net/*; do
     [ -r "$dev/tun_flags" ] || continue
     [ $(($(cat "$dev/tun_flags") & 2)) -ne 0 ] || continue
-    printf '%s\t%s\n' "${dev##*/}" "$(cat "$dev/ifalias")"
+    ifname=${{dev##*/}}
+    alias=$(cat "$dev/ifalias" 2>/dev/null || true)
+    if [ "$alias" = "$owner" ]; then
+        continue
+    fi
+    if [ -n "$alias" ] && [ "$alias" != "$legacy" ]; then
+        printf 'FOREIGN\\t%s\\t%s\\n' "$ifname" "$alias"
+        exit 1
+    fi
+    if ip link set dev "$ifname" alias "$owner" >/dev/null 2>&1; then
+        continue
+    fi
+    printf 'NEED_HELPER\\t%s\\n' "$ifname"
 done
-"""
+""".strip()
+
+
+def _parse_record_output(text: str) -> tuple[list[tuple[str, str]], list[str]]:
+    foreign: list[tuple[str, str]] = []
+    helpers: list[str] = []
+    for line in text.splitlines():
+        kind, sep, rest = line.partition("\t")
+        if not sep:
+            continue
+        if kind == "FOREIGN":
+            ifname, _, alias = rest.partition("\t")
+            if ifname:
+                foreign.append((ifname, alias))
+        elif kind == "NEED_HELPER" and rest:
+            helpers.append(rest)
+    return foreign, helpers
+
+
+def _exec_output(result) -> str:
+    raw = result.output or b""
+    if isinstance(raw, (bytes, bytearray)):
+        return raw.decode()
+    return str(raw)
 
 
 def record_container_taps(container, lab_name: str) -> None:
     """Mark only TAPs in a container owned by this lab, including replacements."""
-    result = container.exec_run(["/bin/sh", "-c", _LIST_TAPS])
+    result = container.exec_run(["/bin/sh", "-c", _record_script(lab_name)])
+    output = _exec_output(result)
+    foreign, helpers = _parse_record_output(output)
+    if foreign:
+        ifname, alias = foreign[0]
+        raise RuntimeCapabilityError(
+            f"TAP {container.name}:{ifname} already has alias {alias!r}"
+        )
     if result.exit_code:
         raise RuntimeCapabilityError(
             f"Cannot inspect TAPs in {container.name}: {result.output!r}"
         )
-    owner, legacy = _owner_aliases(lab_name)
-    for line in result.output.decode().splitlines():
-        ifname, _, alias = line.partition("\t")
-        if alias == owner:
-            continue
-        if alias and alias != legacy:
-            raise RuntimeCapabilityError(
-                f"TAP {container.name}:{ifname} already has alias {alias!r}"
-            )
-        command = ["ip", "link", "set", "dev", ifname, "alias", owner]
-        if container.exec_run(command).exit_code:
-            # Unprivileged BusyBox machines can neither netlink-alias nor
-            # write a read-only /sys; set it from their network namespace.
-            _run_net_admin_helper(
-                command,
-                f"container:{container.id}",
-                lab_name,
-                f"Cannot record TAP ownership in {container.name}",
-            )
+    if not helpers:
+        return
+    owner = tap_owner(lab_name)
+    command = [
+        "/bin/sh",
+        "-ec",
+        "\n".join(
+            f"ip link set dev {shlex.quote(ifname)} alias {shlex.quote(owner)}"
+            for ifname in helpers
+        ),
+    ]
+    _run_net_admin_helper(
+        command,
+        f"container:{container.id}",
+        lab_name,
+        f"Cannot record TAP ownership in {container.name}",
+    )
+
+
+def record_lab_taps(
+    containers: Iterable,
+    lab_name: str,
+    *,
+    on_error: Callable[[object, BaseException], None] | None = None,
+) -> None:
+    """Mark TAP ownership in every running container, concurrently."""
+
+    def record(container) -> None:
+        try:
+            record_container_taps(container, lab_name)
+        except Exception as exc:
+            if on_error is None:
+                raise
+            on_error(container, exc)
+
+    bounded_parallel_map(
+        record,
+        [container for container in containers if container.status == "running"],
+    )
 
 
 def owned_host_taps(lab_name: str) -> list[dict]:

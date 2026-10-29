@@ -316,22 +316,30 @@ class NetworkEnvBase:
 
         ensure_nika_docker_images(self._collect_lab_images())
 
+    def _has_readiness_verifier(self) -> bool:
+        cls = type(self)
+        if getattr(cls, "startup_verify_lab", None) is not None:
+            return True
+        return cls.verify_lab is not NetworkEnvBase.verify_lab
+
     def deploy(self):
         """Deploy the lab.
 
         The runtime checks for an existing lab and, on Kathara, required
-        images once per deploy. A fresh lab gets a fixed settle delay so
-        services launched by startup scripts can start: light startup
-        verifiers only confirm the control plane, not those services.
+        images once per deploy. After a fresh deploy, environments without
+        ``startup_verify_lab`` or ``verify_lab`` wait ``deploy_settle_sec``.
+        Environments that implement either skip the delay; callers poll
+        readiness instead.
         """
         self._ensure_runtime_files()
         deployed = self._build_runtime().deploy()
-        if deployed is not False:
-            import time
+        if deployed is False or self._has_readiness_verifier():
+            return
+        import time
 
-            from nika.runtime.shared.settings import lab_settings
+        from nika.runtime.shared.settings import lab_settings
 
-            time.sleep(lab_settings().deploy_settle_sec)
+        time.sleep(lab_settings().deploy_settle_sec)
 
     def verify_lab(self) -> dict | None:
         """Return post-deploy verification result, or ``None`` when not implemented."""

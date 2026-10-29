@@ -125,7 +125,7 @@ nika:
     deploy_attempts: 3
     # Wait this many seconds for Kathara machines to start.
     deploy_ready_timeout_sec: 90
-    # Wait this many seconds for services after containers start.
+    # Wait this many seconds after deploy when the environment has no readiness verifier.
     deploy_settle_sec: 5
     # Wait this many seconds for Kathara containers to stop.
     undeploy_verify_timeout_sec: 30

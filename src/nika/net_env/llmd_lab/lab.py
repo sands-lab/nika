@@ -401,7 +401,6 @@ class LLMDInferenceCluster(NetworkEnvBase):
                 ),
             ),
             exercises=(WorkloadExercise(BULK_DOWNLOAD, ("client",)),),
-            settle_sec=5.0,
         )
 
     @classmethod

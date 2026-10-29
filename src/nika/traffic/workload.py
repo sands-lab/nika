@@ -4,9 +4,8 @@ A scenario returns a :class:`BusinessWorkload` from
 ``NetworkEnvBase.business_workload()``: the processes its users and services
 run, and what that traffic exercises. Every session start (``nika env run``,
 benchmark trials, audits) launches it after lab verification and before any
-inject, so healthy and fault cases carry the same traffic and long-lived flows
-already exist when a fault lands. The processes live inside the lab nodes and
-end when the lab is undeployed.
+inject, so healthy and fault cases carry the same traffic. The processes live
+inside the lab nodes and end when the lab is undeployed.
 
 Programs come from :mod:`nika.traffic.apps`; each is copied to
 ``/usr/local/bin/<command>`` on its node. ``exercises`` lets failures whose
@@ -92,8 +91,6 @@ class WorkloadExercise:
 class BusinessWorkload:
     processes: tuple[WorkloadProcess, ...]
     exercises: tuple[WorkloadExercise, ...] = ()
-    # Wait after launch so persistent sessions and bulk flows are up.
-    settle_sec: float = 20.0
     nodes: tuple[str, ...] = field(init=False)
 
     def __post_init__(self) -> None:
@@ -147,6 +144,7 @@ def _start_node(
     runtime: LabRuntime, processes: list[WorkloadProcess]
 ) -> list[WorkloadProcess]:
     """Install and launch one node's processes; return those not running."""
+    launched = False
     for process in processes:
         if _running(runtime, process):
             continue
@@ -160,12 +158,14 @@ def _start_node(
             process.node,
             f"setsid nohup {process.command_line} >/dev/null 2>&1 </dev/null &",
         )
-    time.sleep(1.0)
+        launched = True
+    if launched:
+        time.sleep(1.0)
     return [p for p in processes if not _running(runtime, p)]
 
 
 def start_workload(runtime: LabRuntime, workload: BusinessWorkload) -> None:
-    """Launch every process not already running, then let traffic settle.
+    """Launch every process not already running.
 
     Idempotent, so reusing a deployed lab does not duplicate processes.
     Raises ``RuntimeError`` when a process does not stay up.
@@ -193,7 +193,6 @@ def start_workload(runtime: LabRuntime, workload: BusinessWorkload) -> None:
     if failed:
         names = ", ".join(f"{p.node}:{p.command}" for p in failed)
         raise RuntimeError(f"business workload did not start: {names}")
-    time.sleep(workload.settle_sec)
 
 
 def _signal_processes(
