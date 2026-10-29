@@ -65,6 +65,8 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
                 raise ValueError(
                     "min3clos on SONiC has no routing model for solved parameters"
                 )
+            # Batfish analyzes the deployed SONiC files; no parameters bind.
+            self.ROUTING_MODELS = frozenset({"sonic"})
             self.desc = (
                 "3-node CLOS fabric with SONiC (Containerlab min-clos / clos01)."
             )
@@ -86,6 +88,9 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
             raise ValueError(
                 "SR Linux parameters require the declared srl-bgp routing model"
             )
+        from nika.net_env.min3clos.contract import build_min3clos_contract
+
+        self.validation_contract = build_min3clos_contract(self.LAB_NAME)
         for name in self.ROUTERS:
             self.declare_machine(
                 name,

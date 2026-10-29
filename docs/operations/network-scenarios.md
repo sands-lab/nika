@@ -577,6 +577,8 @@ The routing design is the one the Kathara FRR deployment uses, because SONiC rou
 
 Startup verification checks SONiC's services, routing adjacencies and sessions, CONFIG_DB addresses in the kernel, FRR routes in APPL_DB, end-to-end reachability, and shortest-path forwarding. SONiC routers export all three [telemetry](#telemetry) kinds over the management network.
 
+To check the generated SONiC configuration against the environment's validation contract before deployment, add `--static-validation`. Batfish then reads each router's `config_db.json` and `frr.conf`; [Batfish static validation](../development/scenario-validation.md#batfish-static-validation) lists what it models.
+
 The clients run [business traffic](#business-traffic): they replicate data sets over HTTP (2 Mbit/s from `client1` to `client2`, 1 Mbit/s back), and `client1` keeps web sessions to a service on `client2`.
 
 ## Kubernetes scenarios

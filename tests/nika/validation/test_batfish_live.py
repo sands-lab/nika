@@ -303,6 +303,46 @@ def test_kathara_ospf_defaults_to_runtime_validation_only(tmp_path) -> None:
             close_session(session_id=session_id)
 
 
+@pytest.mark.parametrize(
+    "deployment",
+    [
+        {"scenario": "min3clos"},
+        {"scenario": "isp_abilene", "igp": "ospf", "bgp_mode": "ebgp"},
+        {"scenario": "isp_abilene", "igp": "isis", "bgp_mode": "ibgp_rr"},
+    ],
+    ids=lambda d: "-".join(d.values()),
+)
+def test_sonic_snapshot_accepts_design_and_rejects_disabled_port(
+    deployment, tmp_path, batfish_verifier
+):
+    from nika.net_env.net_env_pool import get_net_env_instance
+    from nika.validation.batfish.sonic import build_sonic_snapshot
+
+    options = dict(deployment)
+    env = get_net_env_instance(
+        options.pop("scenario"),
+        backend="containerlab",
+        device_profile="sonic",
+        **options,
+    )
+    contract = env.get_validation_contract()
+    healthy = batfish_verifier.verify(
+        contract, build_sonic_snapshot(env, contract, tmp_path / "healthy")
+    )
+    assert healthy.status == "passed", healthy.model_dump_json(indent=2)
+
+    router = min(env.sonic_routers)
+    port = next(iter(env.sonic_routers[router].ports))
+    broken = batfish_verifier.verify(
+        contract,
+        build_sonic_snapshot(
+            env, contract, tmp_path / "broken", shutdown=[(router, port)]
+        ),
+    )
+    assert broken.status == "failed"
+    assert any(row.status == "failed" for row in broken.results)
+
+
 def _replace_ospf_costs(content: str, costs: dict[str, int]) -> str:
     current_interface = None
     output: list[str] = []

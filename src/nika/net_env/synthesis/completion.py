@@ -272,6 +272,12 @@ def complete_routing(spec, env, directory: Path, *, image: str):
         links = {}
         interfaces = defaultdict(set)
         physical = set()
+        # SONiC routers render an FRR design; completion reads that design.
+        sonic_routers = (
+            env.sonic_routers
+            if getattr(env, "device_profile", None) == "sonic"
+            else None
+        )
         for a in adjacencies:
             if (
                 a.protocol != protocol
@@ -314,6 +320,10 @@ def complete_routing(spec, env, directory: Path, *, image: str):
                         config, env.device_profile
                     )
                 ]
+            elif sonic_routers is not None:
+                from nika.validation.batfish.sonic import design_addresses
+
+                addresses = design_addresses(sonic_routers[a.local_node])
             else:
                 addresses = startup_addresses(
                     env.lab.fs.readtext(f"{a.local_node}.startup")
@@ -370,7 +380,14 @@ def complete_routing(spec, env, directory: Path, *, image: str):
                         "Link-state completion requires active native interfaces in the declared area"
                     )
             else:
-                config = env.lab.machines[a.local_node].fs.readtext("etc/frr/frr.conf")
+                if sonic_routers is not None:
+                    from nika.validation.batfish.sonic import design_frr
+
+                    config = design_frr(sonic_routers[a.local_node])
+                else:
+                    config = env.lab.machines[a.local_node].fs.readtext(
+                        "etc/frr/frr.conf"
+                    )
                 if isis:
                     from nika.validation.batfish.isis import parse_frr_isis
 

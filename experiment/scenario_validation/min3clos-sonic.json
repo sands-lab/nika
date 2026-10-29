@@ -1,0 +1,221 @@
+{
+  "scenario": "min3clos",
+  "routing_model": "sonic",
+  "deployment": {
+    "backend": "containerlab",
+    "device_profile": "sonic"
+  },
+  "healthy": {
+    "scenario": "min3clos",
+    "contract_id": "routing.min3clos.sonic",
+    "design_source": {
+      "basis": "RFC 7938 direct eBGP sessions and OSPFv2 area 0 forwarding; existing Containerlab min-clos addressing on SONiC"
+    },
+    "intents": [
+      {
+        "id": "adj.leaf1.spine",
+        "description": "The declared direct eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf1",
+          "remote_node": "spine",
+          "local_address": "10.0.0.0",
+          "remote_address": "10.0.0.1",
+          "local_asn": 65001,
+          "remote_asn": 65056,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.leaf2.spine",
+        "description": "The declared direct eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "leaf2",
+          "remote_node": "spine",
+          "local_address": "10.0.0.4",
+          "remote_address": "10.0.0.5",
+          "local_asn": 65002,
+          "remote_asn": 65056,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine.leaf1",
+        "description": "The declared direct eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine",
+          "remote_node": "leaf1",
+          "local_address": "10.0.0.1",
+          "remote_address": "10.0.0.0",
+          "local_asn": 65056,
+          "remote_asn": 65001,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "adj.spine.leaf2",
+        "description": "The declared direct eBGP session must establish.",
+        "property": "adjacency",
+        "expected": "established",
+        "adjacency": {
+          "protocol": "bgp",
+          "local_node": "spine",
+          "remote_node": "leaf2",
+          "local_address": "10.0.0.5",
+          "remote_address": "10.0.0.4",
+          "local_asn": 65056,
+          "remote_asn": 65002,
+          "session_type": "ebgp"
+        }
+      },
+      {
+        "id": "reach.leaf1.leaf2",
+        "description": "Client-facing router addresses communicate over the fabric.",
+        "property": "reachability",
+        "expected": "reachable",
+        "source": {
+          "kind": "node",
+          "name": "leaf1",
+          "address": "10.0.0.24"
+        },
+        "destination": {
+          "kind": "node",
+          "name": "leaf2",
+          "address": "10.0.0.26"
+        },
+        "traffic": {
+          "protocol": "icmp",
+          "round_trip": true
+        }
+      },
+      {
+        "id": "reach.leaf2.leaf1",
+        "description": "Client-facing router addresses communicate over the fabric.",
+        "property": "reachability",
+        "expected": "reachable",
+        "source": {
+          "kind": "node",
+          "name": "leaf2",
+          "address": "10.0.0.26"
+        },
+        "destination": {
+          "kind": "node",
+          "name": "leaf1",
+          "address": "10.0.0.24"
+        },
+        "traffic": {
+          "protocol": "icmp",
+          "round_trip": true
+        }
+      }
+    ]
+  },
+  "counterexamples": [
+    {
+      "name": "wrong-bgp-asn",
+      "node": "leaf1",
+      "old": "neighbor 10.0.0.1 remote-as 65056",
+      "new": "neighbor 10.0.0.1 remote-as 65057",
+      "expected_failed_ids": [
+        "adj.leaf1.spine",
+        "adj.spine.leaf1"
+      ]
+    }
+  ],
+  "incidents": [
+    {
+      "name": "leaf-uplink-down",
+      "host_name": "leaf1",
+      "intf_name": "eth1",
+      "requirements": {
+        "scenario": "min3clos",
+        "contract_id": "routing.min3clos.sonic.leaf1-uplink-down",
+        "design_source": {
+          "basis": "RFC 7938 direct eBGP sessions and OSPFv2 area 0 forwarding; existing Containerlab min-clos addressing on SONiC"
+        },
+        "intents": [
+          {
+            "id": "adj.leaf2.spine",
+            "description": "The declared direct eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "leaf2",
+              "remote_node": "spine",
+              "local_address": "10.0.0.4",
+              "remote_address": "10.0.0.5",
+              "local_asn": 65002,
+              "remote_asn": 65056,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "adj.spine.leaf2",
+            "description": "The declared direct eBGP session must establish.",
+            "property": "adjacency",
+            "expected": "established",
+            "adjacency": {
+              "protocol": "bgp",
+              "local_node": "spine",
+              "remote_node": "leaf2",
+              "local_address": "10.0.0.5",
+              "remote_address": "10.0.0.4",
+              "local_asn": 65056,
+              "remote_asn": 65002,
+              "session_type": "ebgp"
+            }
+          },
+          {
+            "id": "reach.leaf1.leaf2",
+            "description": "The only fabric path between the leaves is down.",
+            "property": "isolation",
+            "expected": "unreachable",
+            "source": {
+              "kind": "node",
+              "name": "leaf1",
+              "address": "10.0.0.24"
+            },
+            "destination": {
+              "kind": "node",
+              "name": "leaf2",
+              "address": "10.0.0.26"
+            },
+            "traffic": {
+              "protocol": "icmp",
+              "round_trip": true
+            }
+          },
+          {
+            "id": "reach.leaf2.leaf1",
+            "description": "The only fabric path between the leaves is down.",
+            "property": "isolation",
+            "expected": "unreachable",
+            "source": {
+              "kind": "node",
+              "name": "leaf2",
+              "address": "10.0.0.26"
+            },
+            "destination": {
+              "kind": "node",
+              "name": "leaf1",
+              "address": "10.0.0.24"
+            },
+            "traffic": {
+              "protocol": "icmp",
+              "round_trip": true
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
