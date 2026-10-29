@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
+import tempfile
 import time
 import yaml
 from typing import ClassVar
@@ -13,6 +14,8 @@ from nika.config import clab_workdir
 from nika.net_env.base import ProbePath
 from nika.net_env.utils.containerlab.base import ContainerlabNetworkEnv
 from nika.runtime.containerlab import render_topology
+from nika.runtime.containerlab.parse import parse_clab_topology
+from nika.runtime.spec import LabSpec
 from nika.net_env.utils.sonic.common import (
     KIND as SONIC_KIND,
     activate_sonic_routers,
@@ -204,8 +207,13 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
         }
 
     def _convert_topology_to_sonic(self) -> None:
-        """Run the template's routers as SONiC, with SR Linux port ``e1-N`` as ``ethN``."""
         document = yaml.safe_load(self.topology_file.read_text())
+        self.topology_file.write_text(
+            yaml.safe_dump(self._sonic_document(document), sort_keys=False)
+        )
+
+    def _sonic_document(self, document: dict) -> dict:
+        """Run the template's routers as SONiC, with SR Linux port ``e1-N`` as ``ethN``."""
         topology = document["topology"]
         del topology["kinds"]["nokia_srlinux"]
         topology["kinds"][SONIC_KIND] = sonic_clab_kind()
@@ -218,7 +226,20 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
                 re.sub(r":e1-(\d+)$", r":eth\1", endpoint)
                 for endpoint in link["endpoints"]
             ]
-        self.topology_file.write_text(yaml.safe_dump(document, sort_keys=False))
+        return document
+
+    def get_lab_spec(self) -> LabSpec:
+        if not self.sonic:
+            return super().get_lab_spec()
+        document = self._sonic_document(
+            yaml.safe_load(self.topology_template().read_text())
+        )
+        with tempfile.NamedTemporaryFile("w", suffix=".clab.yml") as handle:
+            yaml.safe_dump(document, handle, sort_keys=False)
+            handle.flush()
+            spec = parse_clab_topology(handle.name)
+        spec.name = self.name or self.LAB_NAME
+        return spec
 
     def _collect_lab_images(self) -> set[str]:
         from nika.net_env.isp.containerlab.lab import LINUX_IMAGE
@@ -318,6 +339,9 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
     def business_workload(self):
         from nika.net_env.min3clos.workload import build_workload
 
+        if self.sonic:
+            # SR Linux port ``e1-N`` runs as container interface ``ethN``.
+            return build_workload(lambda port: port.replace("e1-", "eth"))
         return build_workload()
 
     @classmethod

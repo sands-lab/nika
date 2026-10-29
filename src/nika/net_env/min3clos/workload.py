@@ -26,7 +26,8 @@ BULK_PORT = 8080
 CLIENT_IP = {"client1": "10.0.0.25", "client2": "10.0.0.27"}
 # (server, client, kbit/s)
 REPLICATION = (("client1", "client2", 2000), ("client2", "client1", 1000))
-# Egress hops of client1 -> client2, which carries the 2 Mbit/s replication.
+# Egress hops of client1 -> client2, which carries the 2 Mbit/s replication,
+# with router ports as SR Linux names them.
 CLIENT1_TO_CLIENT2 = (
     ("client1", "eth1"),
     ("leaf1", "e1-1"),
@@ -35,7 +36,8 @@ CLIENT1_TO_CLIENT2 = (
 )
 
 
-def build_workload() -> BusinessWorkload:
+def build_workload(router_port=lambda port: port) -> BusinessWorkload:
+    """``router_port`` maps an SR Linux port name to the deployed router's."""
     processes: list[WorkloadProcess] = []
     exercises: list[WorkloadExercise] = []
     for server, client, kbps in REPLICATION:
@@ -57,7 +59,13 @@ def build_workload() -> BusinessWorkload:
             )
         )
         exercises.append(WorkloadExercise(BULK_DOWNLOAD, (client,)))
-    exercises += [WorkloadExercise(BULK_TRANSIT, hop) for hop in CLIENT1_TO_CLIENT2]
+    exercises += [
+        WorkloadExercise(
+            BULK_TRANSIT,
+            (node, port if node.startswith("client") else router_port(port)),
+        )
+        for node, port in CLIENT1_TO_CLIENT2
+    ]
     processes += [
         WorkloadProcess(
             node="client2",

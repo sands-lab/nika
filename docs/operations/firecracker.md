@@ -122,8 +122,9 @@ the installer.
 ## Base image
 
 Every lab image starts from a base image (Ubuntu with Docker, NIKA and this
-host's runtime images, plus the vendor images it has, such as RouterOS; see
-[Prepare vendor images](installation.md#prepare-vendor-images)). The first
+host's runtime images, plus the router images it has: RouterOS and Cisco XRd
+(see [Prepare vendor images](installation.md#prepare-vendor-images)) and the
+SONiC virtual switch that `nika images prepare` downloads). The first
 Firecracker run builds it, which takes about 20 minutes, and later runs rebuild
 it when this host's runtime images or Kathara plugins, or NIKA's base image
 setup, change. Other code changes do not: lab images receive the current

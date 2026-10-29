@@ -273,9 +273,17 @@ def resolve_link_flap_params(
             return params
 
     if scenario == "min3clos":
+        # leaf1's port toward client1; its name depends on the router platform.
+        leaf_port = next(
+            end.split(":", 1)[1]
+            for link in net_env.get_topology()
+            if "client1:eth1" in link
+            for end in link
+            if end.startswith("leaf1:")
+        )
         params.update(
             host_name="leaf1",
-            intf_name="e1-2",
+            intf_name=leaf_port,
             up_time="12",
             probe_dst_ip="10.0.0.27",
             observer_device="client1",

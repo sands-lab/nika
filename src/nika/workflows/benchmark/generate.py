@@ -14,6 +14,7 @@ from nika.config import BENCHMARK_DIR
 from nika.net_env.net_env_pool import (
     list_all_net_envs,
     scenario_device_profile_sizes,
+    scenario_containerlab_device_profiles,
     scenario_device_profiles,
     scenario_fixed_topo_size,
     scenario_requires_topo_size,
@@ -68,6 +69,8 @@ _DEPLOY_OPTION_KEYS = ("igp", "bgp_mode", "rpki", "backend", "device_profile")
 # (Ethernet ``topo_size`` or ISP topology tier), within the sizes the
 # environment declares, so no candidate needs a large native lab.
 NATIVE_PROFILE_BENCHMARK_SIZE = "s"
+# Containerlab ISP rows run on SR Linux (the backend default) and on these.
+CONTAINERLAB_ALTERNATE_PROFILES = ("sonic",)
 
 
 def _topo_sizes_for_scenario(scenario: str) -> list[str]:
@@ -157,16 +160,27 @@ def _isp_stack_variants(
         )
     if "containerlab" in allowed and containerlab_isp_supported(scenario):
         variants.append(isp_stack_for_backend("containerlab"))
+        variants.extend(
+            {"backend": "containerlab", "device_profile": profile}
+            for profile in CONTAINERLAB_ALTERNATE_PROFILES
+        )
     if not variants and "kathara" in scenario_backends:
         variants.append(isp_stack_for_backend("kathara"))
     return variants
 
 
 def _profile_variants(scenario: str, topo_size: str) -> list[dict[str, str] | None]:
-    """Default deployment (``None``) plus each native profile of a non-ISP lab."""
+    """Default deployment (``None``) plus each other router platform of a lab.
+
+    Kathara labs add their native profiles; Containerlab-only labs add the
+    platforms after their default one.
+    """
     return [None] + [
         {"device_profile": profile}
-        for profile in native_benchmark_profiles(scenario, topo_size)
+        for profile in (
+            *native_benchmark_profiles(scenario, topo_size),
+            *scenario_containerlab_device_profiles(scenario)[1:],
+        )
     ]
 
 
