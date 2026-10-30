@@ -100,9 +100,11 @@ healthy:
     - topo_size: m
 ```
 
-### Native router profiles
+### Router platform profiles
 
 The pool also carries cases whose routers run IOS XR (`device_profile: iosxr`) or RouterOS (`device_profile: routeros`). The generator expands each environment that declares these profiles: `dc_clos`, `campus_lan`, `enterprise_branch` and the base ISP scenarios. It adds them only at size `s` (for ISP scenarios, topology tier `s`), within the sizes the environment supports, so no case needs a large native lab. Each profile gets its own healthy variant.
+
+Containerlab environments run SR Linux by default and also carry SONiC rows (`device_profile: sonic`): `min3clos` and the base ISP scenarios small enough for Containerlab. A failure gets SONiC rows when it declares Containerlab support or when the SONiC provider implements its `native_router_operations`.
 
 ```yaml
 scenario:
@@ -125,7 +127,7 @@ A case targets a native router only when the failure can run there. A failure de
 
 Compatibility also requires a backend supported by both the failure and the environment. For failures with a minimum path bandwidth-delay product (BDP), generation checks any declared nominal RTT and profile bandwidth limit. The shipped RouterOS CHR profile uses the [free license's 1 Mbps per-interface limit](https://help.mikrotik.com/docs/spaces/ROS/pages/18350234/Cloud%2BHosted%2BRouter%2BCHR), so the enterprise WAN's designed 80 ms RTT cannot provide the 64 KiB BDP required by `tcp_receive_window_limited`. The pool excludes that deployment; runtime calibration still checks the actual flow before changing receiver buffers.
 
-`ProblemBase.is_compatible(scenario, device_profile)` and `runs_on_device_profile` record this compatibility; the coverage matrix below shows it per environment and profile, with the last result of `nika benchmark validate-profiles` (see [Validate device-profile cells](../development/creating-benchmark-tasks.md#validate-device-profile-cells)). `nika benchmark generate --validated-only` keeps native rows only for validated cells.
+`ProblemBase.is_compatible(scenario, device_profile)` and `runs_on_device_profile` record this compatibility; the coverage matrix below shows it per environment and profile, with the last result of `nika benchmark validate-profiles` (see [Validate device-profile cells](../development/creating-benchmark-tasks.md#validate-device-profile-cells)). `nika benchmark generate --validated-only` keeps IOS XR, RouterOS and SONiC rows only for validated cells.
 
 These rows need licensed vendor images (`./scripts/install.sh --with-vendor-images`) and run as heavy trials, one at a time. Like `routeros_simple_bgp`, they stay in the pool. `nika benchmark select` and releases leave out every row that needs a licensed image.
 
@@ -136,7 +138,7 @@ nika benchmark run --config benchmark/working/pool --skip-licensed            # 
 nika benchmark run --config benchmark/working/pool --device-profile routeros  # RouterOS rows only
 ```
 
-`--device-profile` is repeatable. An explicit `device_profile` takes precedence; otherwise the filter uses the environment's uniquely declared native platform, with `frr` as the fallback. For example, `routeros_simple_bgp` rows count as `routeros` even without the field.
+`--device-profile` is repeatable. An explicit `device_profile` takes precedence. Otherwise Containerlab rows count as `nokia_srlinux`, and other rows use the environment's uniquely declared native platform, with `frr` as the fallback. For example, `routeros_simple_bgp` rows count as `routeros` even without the field.
 
 Paths follow `working/pool/{scenario}/{fault_type}.yaml`, plus `working/pool/{scenario}/healthy.yaml`. Scenarios meant for tests only, such as `iosxr_simple_bgp`, are excluded from generation.
 
@@ -200,7 +202,7 @@ Scenarios and failures declare capability `TAGS`. A failure may run on a scenari
 | `pc` | End hosts (PCs) that can be misconfigured |
 | `rpki` | RPKI origin validation (Routinator RTR and VRP-based ROV) |
 | `sdn` | SDN controller + OpenFlow switches |
-| `srl` | Nokia SR Linux NOS (Containerlab) |
+| `srl` | Nokia SR Linux NOS, the default Containerlab router platform; `device_profile: sonic` runs SONiC instead |
 | `vpn` | VPN membership / tunnels |
 | `web` | Web-tier services (alias capability for HTTP labs) |
 

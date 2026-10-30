@@ -11,7 +11,10 @@ from nika.problems.base import (
 )
 from nika.problems.rca.inventory import interface_on
 from nika.problems.support.benchmark_targets import resolve_path_mtu_target
-from nika.problems.support.compatible_columns import LINUX_PMTU_COLUMNS
+from nika.problems.support.compatible_columns import (
+    LINUX_PMTU_COLUMNS,
+    LINUX_PMTU_PLATFORMS,
+)
 from nika.problems.support.router_ops import native_fault_ops
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
@@ -54,6 +57,7 @@ class MtuMismatch(ProblemBase):
     TAGS: list[str] = ["link", "icmp"]
     native_router_operations = frozenset({"interface_mtu", "set_interface_mtu"})
     COMPATIBLE_COLUMNS = LINUX_PMTU_COLUMNS
+    COMPATIBLE_PLATFORMS = LINUX_PMTU_PLATFORMS
 
     Params = MtuMismatchParams
 

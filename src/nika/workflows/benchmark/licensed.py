@@ -13,6 +13,8 @@ from collections import defaultdict
 from collections.abc import Iterable, Sequence
 from typing import Any
 
+from nika.net_env.isp.profiles import default_device_profile
+
 PREPARE_HINT = (
     "Prepare them with `./scripts/install.sh --with-vendor-images` (see "
     "docs/operations/network-scenarios.md), or leave these rows out with "
@@ -23,10 +25,18 @@ PREPARE_HINT = (
 def row_device_profile(row: dict[str, Any]) -> str:
     """Router platform selected by the row or declared by its environment."""
     from nika.net_env.native_routers import native_profiles
-    from nika.net_env.net_env_pool import scenario_tags
+    from nika.net_env.net_env_pool import (
+        scenario_containerlab_device_profiles,
+        scenario_tags,
+    )
 
     if row.get("device_profile"):
         return str(row["device_profile"])
+    if row.get("backend") == "containerlab":
+        return default_device_profile("containerlab")
+    containerlab_profiles = scenario_containerlab_device_profiles(row["scenario"])
+    if containerlab_profiles:
+        return containerlab_profiles[0]
     profiles = set(scenario_tags(row["scenario"])) & native_profiles()
     return next(iter(profiles)) if len(profiles) == 1 else "frr"
 

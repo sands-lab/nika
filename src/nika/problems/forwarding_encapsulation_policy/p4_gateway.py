@@ -13,7 +13,10 @@ from nika.problems.support.benchmark_targets import (
     p4_port_options,
     resolve_path_mtu_target,
 )
-from nika.problems.support.compatible_columns import LINUX_PMTU_COLUMNS
+from nika.problems.support.compatible_columns import (
+    LINUX_PMTU_COLUMNS,
+    LINUX_PMTU_PLATFORMS,
+)
 from nika.problems.support.router_ops import native_fault_ops
 from nika.problems.support.p4_gateway import (
     set_icmp_frag_needed_filter,
@@ -105,6 +108,7 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
         {"block_icmp_frag_needed", "icmp_frag_needed_blocked"}
     )
     COMPATIBLE_COLUMNS = LINUX_PMTU_COLUMNS | {"p4_dc_gateway"}
+    COMPATIBLE_PLATFORMS = LINUX_PMTU_PLATFORMS
     Params = IcmpFragNeededFilterMisconfigurationParams
     BENCHMARK_TARGETS = "canonical"
     BENCHMARK_COORDINATES = frozenset({"mtu_mismatch"})

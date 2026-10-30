@@ -172,6 +172,24 @@ def test_predicate_has_a_device_profile_dimension() -> None:
     assert not frr_down.is_compatible("min3clos")
 
 
+@pytest.mark.parametrize(
+    "failure", ["mtu_mismatch", "icmp_frag_needed_filter_misconfiguration"]
+)
+def test_pmtu_failures_run_where_routers_forward_in_linux(failure: str) -> None:
+    cls = get_problem_class(failure)
+    # SONiC forwards in the kernel on every ISP it deploys; SR Linux does not.
+    assert cls.is_compatible("isp_dfn-bwin", "sonic")
+    assert not cls.is_compatible("isp_dfn-bwin", "nokia_srlinux")
+    assert not cls.is_compatible("isp_dfn-bwin", "frr")
+    assert cls.is_compatible("isp_abilene", "frr")
+    stacks = {
+        (scenario, (options or {}).get("device_profile"))
+        for problem, scenario, _size, options in iter_failure_case_specs()
+        if problem == failure and scenario == "isp_dfn-bwin"
+    }
+    assert stacks == {("isp_dfn-bwin", "sonic")}
+
+
 def test_validation_results_round_trip_and_key_isp_as_one_environment(
     tmp_path,
 ) -> None:
@@ -197,6 +215,67 @@ def test_validation_results_round_trip_and_key_isp_as_one_environment(
     assert validated_cells(path) == {"dc_clos/iosxr/bgp_asn_misconfig"}
 
 
+def test_profile_validation_covers_containerlab_provider_platforms(
+    tmp_path, monkeypatch
+) -> None:
+    import yaml
+
+    from nika.workflows.benchmark import generate
+    from nika.workflows.benchmark import profile_validation as validation
+
+    cases = [
+        {"inject": {"host_name": "leaf1"}, "root_causes": []},
+        {
+            "device_profile": "sonic",
+            "inject": {"host_name": "leaf1"},
+            "root_causes": [],
+        },
+    ]
+    for case in cases:
+        case["root_causes"] = [
+            {
+                "resource": {"kind": "node", "node": "leaf1"},
+                "fault_type": "bgp_asn_misconfig",
+            }
+        ]
+    (tmp_path / "min3clos").mkdir()
+    (tmp_path / "min3clos" / "bgp_asn_misconfig.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "scenario": {"name": "min3clos"},
+                "failure": {"fault_type": "bgp_asn_misconfig", "cases": cases},
+            }
+        )
+    )
+    cells = validation.declared_cells(tmp_path)
+    assert [(c.key, c.native_target) for c in cells] == [
+        ("min3clos/sonic/bgp_asn_misconfig", True)
+    ]
+    assert cells[0].row["device_profile"] == "sonic"
+    assert validation.profile_image("sonic").startswith("docker-sonic-vs:")
+
+    # --validated-only drops SONiC rows of unvalidated cells, keeps SR Linux.
+    monkeypatch.setattr(validation, "validated_cells", lambda: set())
+    monkeypatch.setattr(
+        generate,
+        "iter_failure_case_specs",
+        lambda: iter(
+            [
+                ("bgp_asn_misconfig", "min3clos", "", None),
+                ("bgp_asn_misconfig", "min3clos", "", {"device_profile": "sonic"}),
+            ]
+        ),
+    )
+    built = []
+    monkeypatch.setattr(
+        generate,
+        "build_failure_cases",
+        lambda **kwargs: (built.append(kwargs["isp_options"]), ([], []))[1],
+    )
+    generate.build_candidate_catalog(validated_only=True)
+    assert built == [None]
+
+
 def test_runs_select_rows_by_platform_and_name_missing_licensed_images(
     monkeypatch,
 ) -> None:
@@ -213,6 +292,15 @@ def test_runs_select_rows_by_platform_and_name_missing_licensed_images(
     assert select_rows(rows, skip_licensed=True) == [frr]
     assert select_rows(rows, device_profiles=["routeros"]) == [native, licensed]
     assert select_rows(rows, device_profiles=["frr"]) == [frr]
+    srl = {"scenario": "min3clos"}
+    sonic = {"scenario": "min3clos", "device_profile": "sonic"}
+    isp_srl = {"scenario": "isp_pdh", "backend": "containerlab"}
+    platform_rows = [srl, sonic, isp_srl, frr]
+    assert select_rows(platform_rows, device_profiles=["sonic"]) == [sonic]
+    assert select_rows(platform_rows, device_profiles=["nokia_srlinux"]) == [
+        srl,
+        isp_srl,
+    ]
     monkeypatch.setattr(docker_images, "image_exists", lambda image: False)
     with pytest.raises(ValueError, match="--skip-licensed") as exc:
         require_licensed_images(rows)

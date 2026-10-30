@@ -99,6 +99,10 @@ class ProblemBase:
     # ``None`` means TAGS subset matching only. Values are column ids as in
     # ``coverage_columns`` (scenario name, or ``isp_<topo>/<config>``).
     COMPATIBLE_COLUMNS: ClassVar[frozenset[str] | None] = None
+    # Router platforms (``device_profile``) that meet the premise of
+    # ``COMPATIBLE_COLUMNS`` on every scenario they deploy, so the failure also
+    # runs on those platforms outside the listed columns.
+    COMPATIBLE_PLATFORMS: ClassVar[frozenset[str]] = frozenset()
     # Scenarios whose TAGS match but whose design hides the failure effect,
     # mapped to the reason.
     INCOMPATIBLE_SCENARIOS: ClassVar[dict[str, str]] = {}
@@ -177,8 +181,9 @@ class ProblemBase:
         Single failure/scenario compatibility predicate. ``target`` is a scenario
         id or a coverage column id (``isp_<topo>/<config>``). TAGS must be a
         subset of the target's effective tags, and when ``COMPATIBLE_COLUMNS`` is
-        set the target must be listed; a bare scenario id matches when any of
-        its columns is listed.
+        set the target must be listed, unless ``device_profile`` is one of
+        ``COMPATIBLE_PLATFORMS``; a bare scenario id matches when any of its
+        columns is listed.
 
         A native ``device_profile`` (IOS XR, RouterOS) must also be one the
         scenario declares. The deployment then keeps FRR/Linux nodes as
@@ -233,6 +238,7 @@ class ProblemBase:
             allowed is not None
             and target not in allowed
             and target not in {parse_column(column)[0] for column in allowed}
+            and device_profile not in cls.COMPATIBLE_PLATFORMS
         ):
             return False
         if target.partition("/")[0] in cls.INCOMPATIBLE_SCENARIOS:

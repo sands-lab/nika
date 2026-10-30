@@ -255,6 +255,19 @@ def _catalog_root_causes(
     return catalog
 
 
+def _compatible_with_any_deployment(problem_cls: type, scenario: str) -> bool:
+    """Whether the failure runs on the default deployment or a Containerlab platform.
+
+    Each deployment is checked again when its rows are expanded.
+    """
+    if problem_cls.is_compatible(scenario):
+        return True
+    platforms = scenario_containerlab_device_profiles(scenario)
+    if is_isp_base_topology(scenario) and containerlab_isp_supported(scenario):
+        platforms = CONTAINERLAB_ALTERNATE_PROFILES
+    return any(problem_cls.is_compatible(scenario, profile) for profile in platforms)
+
+
 def iter_failure_case_specs(
     *, include_benchmark_excluded: bool = False
 ) -> Iterable[tuple[str, str, str, dict[str, Any] | None]]:
@@ -265,7 +278,7 @@ def iter_failure_case_specs(
         for scenario, scenario_spec in sorted(net_envs.items()):
             if scenario_spec.benchmark_excluded and not include_benchmark_excluded:
                 continue
-            if not problem_cls.is_compatible(scenario):
+            if not _compatible_with_any_deployment(problem_cls, scenario):
                 continue
             if is_isp_named_special(scenario):
                 for stack in _isp_stack_variants(scenario, problem_cls):
@@ -601,6 +614,7 @@ def build_candidate_catalog(
     all_ids: set[str] = set()
     validated = None
     if validated_only:
+        from nika.problems.support.router_ops import router_platform_has_provider
         from nika.workflows.benchmark.profile_validation import validated_cells
 
         validated = validated_cells()
@@ -609,7 +623,7 @@ def build_candidate_catalog(
         profile = (isp_options or {}).get("device_profile")
         if (
             validated is not None
-            and profile in scenario_device_profiles(scenario)
+            and router_platform_has_provider(profile)
             and _cell_key(scenario, profile, problem) not in validated
         ):
             continue
