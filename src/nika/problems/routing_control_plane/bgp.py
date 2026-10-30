@@ -28,6 +28,7 @@ from nika.problems.support.benchmark_targets import (
 )
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
+from nika.utils.parallel import bounded_parallel_map
 
 
 def _compile_isp_bgp_inventory(
@@ -1382,6 +1383,8 @@ class BGPRPKIInvalidRouteLeak(ProblemBase):
 
 _FLOOD_PREFIX_BASE = "198.19"
 # Operator-style name for the de-aggregated more-specifics the peer advertises.
+# The policy goes to every BGP router, as a fleet-wide push would, so it does
+# not single out the two routers of the faulty session.
 _FLOOD_PREFIX_LIST = "TE-MORE-SPECIFICS"
 
 
@@ -1584,6 +1587,14 @@ class BGPMaxPrefixExceeded(ProblemBase):
                 missing += 1
         return missing == len(peer_prefixes)
 
+    def _bgp_routers(self, receiver: str, peer: str) -> list[str]:
+        """Every router with a BGP session in the inventory."""
+        routers = {
+            str(s.get("local_device") or "")
+            for s in self._bgp_inventory().get("sessions") or []
+        }
+        return sorted({receiver, peer, *routers} - {""})
+
     def _flood_policy_maps(self, device: str) -> list[str]:
         config = self.runtime.exec(device, "vtysh -c 'show running-config'")
         maps = sorted(
@@ -1737,8 +1748,9 @@ class BGPMaxPrefixExceeded(ProblemBase):
                 f"received prefixes already >= maximum-prefix {limit} before flood."
             )
 
-        self._install_flood_policy(peer)
-        self._install_flood_policy(receiver)
+        bounded_parallel_map(
+            self._install_flood_policy, self._bgp_routers(receiver, peer)
+        )
         self._advertise_flood(peer, peer_asn, prefixes)
 
         exceeded_seen = False
@@ -1863,8 +1875,9 @@ class BGPMaxPrefixExceeded(ProblemBase):
         )
 
         self._withdraw_flood(peer, peer_asn, prefixes)
-        self._remove_flood_policy(peer)
-        self._remove_flood_policy(receiver)
+        bounded_parallel_map(
+            self._remove_flood_policy, self._bgp_routers(receiver, peer)
+        )
         self._clear_maximum_prefix(receiver, receiver_asn, neighbor_ip)
         self.runtime.exec(
             receiver,

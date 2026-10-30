@@ -124,3 +124,7 @@ class LabRuntime(ExecSemanticOpsMixin, ABC):
     def get_connected_devices(self, node: str) -> list[str]:
         """Return neighbor node names connected to ``node``; override when topology is available."""
         return []
+
+    def drop_boot_sources(self) -> None:
+        """Remove deploy-time copies of node files that stay readable inside nodes."""
+        return
