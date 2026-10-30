@@ -73,8 +73,12 @@ def test_host_veth_requires_matching_peer_index_and_other_namespace() -> None:
         "41: veth1a@if40: <BROADCAST,UP> mtu 1500 master br0\\    link/ether bb "
         "link-netnsid 3\n"
         "42: veth2b@if9: <BROADCAST,UP> mtu 1500\\    link/ether cc link-netnsid 4\n"
+        "43: nw12ab@if44: <BROADCAST,UP> mtu 9500\\    link/ether dd "
+        "link-netns clab-lab-r1\n"
     )
     assert host_veth_for(output, "41", "40") == "veth1a"
+    # Containerlab names node namespaces.
+    assert host_veth_for(output, "43", "44") == "nw12ab"
     # Same host ifindex, but its peer is a different interface.
     assert host_veth_for(output, "42", "40") is None
     # A bare ifindex match on a non-veth host interface is not the peer.
