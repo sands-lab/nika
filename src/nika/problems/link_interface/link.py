@@ -814,23 +814,29 @@ class LinkDetach(ProblemBase):
             if fields[3].lower().startswith("fe80:"):
                 continue
             self._saved_addrs.append(fields[3])
-        route_out = self.runtime.exec(
-            host, f"ip -4 route show dev {intf} 2>/dev/null || true"
-        )
-        self._saved_routes = [
-            line.strip()
-            for line in route_out.splitlines()
-            if line.strip() and not _DAEMON_ROUTE_RE.search(line)
-        ]
+        # Both families: a dual-stack host also loses its IPv6 default route.
+        self._saved_routes = []
+        for family in ("-4", "-6"):
+            route_out = self.runtime.exec(
+                host, f"ip {family} route show dev {intf} 2>/dev/null || true"
+            )
+            self._saved_routes += [
+                (family, line.strip())
+                for line in route_out.splitlines()
+                if line.strip()
+                and not _DAEMON_ROUTE_RE.search(line)
+                and not line.startswith(("fe80:", "multicast"))
+            ]
 
     def _restore_l3_state(self, host: str, intf: str) -> None:
         for cidr in self._saved_addrs:
             self.runtime.exec(
                 host, f"ip addr replace {cidr} dev {intf} 2>/dev/null || true"
             )
-        for route in self._saved_routes:
+        for family, route in self._saved_routes:
             self.runtime.exec(
-                host, f"ip route replace {route} dev {intf} 2>/dev/null || true"
+                host,
+                f"ip {family} route replace {route} dev {intf} 2>/dev/null || true",
             )
         self._saved_addrs = []
         self._saved_routes = []
