@@ -21,7 +21,7 @@ from Kathara.model.Lab import Lab
 from nika.config import CACHE_DIR, RUNTIME_DIR
 from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.net_env.utils.k8s_workload_cache import (
-    K3S_IMAGE,
+    K3S_NODE_IMAGE,
     K3S_SYSTEM_IMAGES,
     mount_workload_cache,
 )
@@ -37,7 +37,7 @@ from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
 
-_K3S_IMAGE = K3S_IMAGE
+_K3S_IMAGE = K3S_NODE_IMAGE
 _BASE_IMAGE = nika_image("base")
 
 # Per-node monitoring agent (``controller/k8s/uptime-agent.yaml``).

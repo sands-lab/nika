@@ -6,7 +6,7 @@ The [server registry](../../src/nika/mcp/registry.py) selects diagnosis servers 
 
 ## Run commands on lab nodes
 
-Use `exec_shell(host_name, command, timeout=10)` for ordinary commands. Set `timeout` in seconds when a command such as `kubectl` needs longer. Kathara limits each command result to 4,000 characters, so request bounded output with options such as `--no-headers`, `--tail`, or `-o jsonpath`. Commands run inside the named lab node and remain subject to the session's node access policy.
+Use `exec_shell(host_name, command, timeout=10)` for ordinary commands. Set `timeout` in seconds when a command such as `kubectl` needs longer. Command output is subject to the [tool output limit](#tool-output-limit), so request bounded output with options such as `--no-headers`, `--tail`, or `-o jsonpath`. Commands run inside the named lab node and remain subject to the session's node access policy.
 
 | Task | Node | Command |
 | --- | --- | --- |
@@ -19,9 +19,7 @@ Use `exec_shell(host_name, command, timeout=10)` for ordinary commands. Set `tim
 
 `exec_shell` is the main tool for targeted checks. The base server also exposes `curl_web_test` for repeated HTTP timing measurements (a normal client: it sends `Accept-Encoding`, and each line ends with `http_code` and `size_download`), `iperf_test` for a two-node throughput test, and `active_tcp_probe` for deterministic TCP traffic over a selected five-tuple.
 
-Both nodes need `python3` for `active_tcp_probe`. Missing dependencies return
-`status: unsupported`; connection failures return `status: failed` with an
-error. Successful probes return `acked` and `elapsed_ms` in `result`.
+`active_tcp_probe` takes node names for `source` and `destination` and runs the listener on `destination`. By default the source node connects to the destination node's data-plane address; set `destination_address` to target another IPv4 or IPv6 address, such as the destination node's loopback or another address it owns. Both nodes need `python3`. Missing dependencies return `status: unsupported`; connection failures return `status: failed` with an error. Each probe result reports the `destination_address` it targeted; successful probes also return `acked` and `elapsed_ms` in `result`.
 
 ## Use dedicated diagnosis tools
 
@@ -84,7 +82,7 @@ Call `syslog_query` with a time window, for example `start_time="-600"` for the 
 
 ### Kubernetes (`k8s_mcp_server`)
 
-Call `k8s_list_events(namespace=..., limit=...)` for event evidence. It returns JSON that stays within the MCP output budget: long messages are shortened and extra events are dropped, so the payload stays parseable. Use `exec_shell` on `controller` for other Kubernetes operations, such as `kubectl get nodes --no-headers`, `kubectl describe pod ...`, or `kubectl logs ... --tail=20`. Keep command output below the result limit and set a longer timeout for slow API calls. The server is selected when `nika.k8s.access` is `auto` or `mcp`; `kubectl_only` omits it.
+Call `k8s_list_events(namespace=..., limit=...)` for event evidence. It returns one JSON object per event. Use `exec_shell` on `controller` for other Kubernetes operations, such as `kubectl get nodes --no-headers`, `kubectl describe pod ...`, or `kubectl logs ... --tail=20`. Set a longer timeout for slow API calls. The server is selected when `nika.k8s.access` is `auto` or `mcp`; `kubectl_only` omits it.
 
 ## Capture packets
 
@@ -97,11 +95,13 @@ Capture needs `dumpcap` or `tcpdump` on the node. Inspection uses the node's `ts
 
 Set bounded duration and packet limits. The capture and metadata remain on the node; the stop result includes the container path.
 
-A valid capture with zero packets still returns an artifact. If no nonempty
-capture file exists, stopping fails and marks the capture as failed; start a
-new capture rather than inspecting the failed one.
+A valid capture with zero packets still returns an artifact. If no nonempty capture file exists, stopping fails and marks the capture as failed; start a new capture rather than inspecting the failed one.
 
 `interface` must exist on the node; otherwise `packet_capture_start` fails and lists the node's interfaces. On SR Linux nodes, `ethernet-1/N`, `ethernet-1/N.0`, `e1-N`, and the plan name `eth{N-1}` all capture on data port `e1-N`, which carries both transit and control-plane traffic.
+
+## Tool output limit
+
+Each tool result is limited to `nika.mcp.tool_output_max_chars` characters (10,000 by default; see [MCP settings](../operations/configuration.md#mcp-settings)). Text over the limit keeps its first and last `tool_output_max_chars / 2` characters and reports how many were elided. List results, such as `prometheus_query`, `syslog_query`, `netflow_query`, `int_query_telemetry`, and `k8s_list_events`, keep whole items from both ends and report how many items were elided. Each kept item therefore stays valid JSON. If neither the first nor the last item fits, the result is truncated by characters instead. Both cases start with the same warning that the output was truncated.
 
 ## Submit a diagnosis
 

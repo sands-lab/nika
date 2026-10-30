@@ -218,8 +218,8 @@ class McpSettings(BaseModel):
     read_timeout_sec: float = 120.0
     gateway_host: str = "127.0.0.1"
     gateway_port: int = 0
-    # Observation budget for MCP tool text (mini-swe-agent head/tail style).
-    # Over budget: keep first/last halves and elide the middle. 0 disables.
+    # Maximum characters of each MCP tool result. Longer results keep their
+    # beginning and end (whole items for list results); 0 disables.
     tool_output_max_chars: int = 10000
 
     @field_validator("gateway_port")
