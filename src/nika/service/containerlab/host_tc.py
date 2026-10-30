@@ -82,6 +82,26 @@ class HostTcController:
             f"host veth ifindex {iflink} for {node}:{intf} is absent"
         )
 
+    def wire_partner(self, peer: str) -> str | None:
+        """Other host end of the wire ``peer`` belongs to (``wires.py``), if any."""
+        filters = self._run("tc", "filter", "show", "dev", peer, "ingress")
+        match = re.search(r"redirect to device (\S+)\)", filters)
+        return match.group(1) if match else None
+
+    def wire_ends(self, peer: str) -> list[str]:
+        """``peer`` and, on a wired link, the far end: a cable has two ends."""
+        partner = self.wire_partner(peer)
+        return [peer] if partner is None else [peer, partner]
+
+    def egress_dev(self, node: str, intf: str) -> str:
+        """Host device that carries what ``node`` sends out of ``intf``."""
+        peer = self.peer_name(node, intf)
+        return self.wire_partner(peer) or peer
+
+    def set_link_up(self, peer: str) -> None:
+        for end in self.wire_ends(peer):
+            self._run("ip", "link", "set", "dev", end, "up")
+
     def set_netem_corrupt(self, node: str, intf: str, percentage: int) -> str:
         peer = self.peer_name(node, intf)
         self._run(
@@ -155,7 +175,8 @@ class HostTcController:
                 mode="node_intf",
             )
             return "node_intf", f"{node}:{intf}"
-        self._run("ip", "link", "set", "dev", peer, "down")
+        for end in self.wire_ends(peer):
+            self._run("ip", "link", "set", "dev", end, "down")
         log_network_change(
             f"host_tc link down via host peer {peer} for {node}:{intf}",
             mechanism="host_tc",
@@ -233,9 +254,13 @@ class HostTcController:
         burst: str,
         limit: str,
     ) -> str:
-        """Apply TBF on the host veth peer, or inside the node when none exists."""
+        """Apply TBF to what ``node`` sends out of ``intf``, outside the node.
+
+        On a wired link the far host end carries that traffic; without a host
+        peer, the qdisc goes inside the node.
+        """
         try:
-            peer = self.peer_name(node, intf)
+            peer = self.egress_dev(node, intf)
         except RuntimeCapabilityError:
             pid = self._container_pid(node)
             self._run(
@@ -318,17 +343,21 @@ class HostTcController:
         """Flap a host-side veth without putting fault state in the lab node."""
         pid_path = self._flap_pid_path(peer)
         self.stop_link_flap(peer)
+        ends = " ".join(shlex.quote(end) for end in self.wire_ends(peer))
         script = f"""PID_FILE={shlex.quote(pid_path)}
+set_ends() {{
+    for end in {ends}; do ip link set dev "$end" "$1" >/dev/null 2>&1 || true; done
+}}
 cleanup() {{
-    ip link set dev {shlex.quote(peer)} up >/dev/null 2>&1 || true
+    set_ends up
     rm -f "$PID_FILE"
 }}
 trap cleanup EXIT INT TERM
 echo $$ > "$PID_FILE"
 while true; do
-    ip link set dev {shlex.quote(peer)} down
+    set_ends down
     sleep {down_time}
-    ip link set dev {shlex.quote(peer)} up
+    set_ends up
     sleep {up_time}
 done
 """
@@ -389,13 +418,14 @@ done
 
     def stop_link_flap(self, peer: str) -> None:
         pid_path = self._flap_pid_path(peer)
+        ends = " ".join(shlex.quote(end) for end in self.wire_ends(peer))
         self._run(
             "sh",
             "-c",
             f"if [ -r {shlex.quote(pid_path)} ]; then "
             f'/bin/kill -KILL -- -"$(cat {shlex.quote(pid_path)})" 2>/dev/null || '
             f'/bin/kill -KILL "$(cat {shlex.quote(pid_path)})" 2>/dev/null || true; fi; '
-            f"ip link set dev {shlex.quote(peer)} up >/dev/null 2>&1 || true; "
+            f'for end in {ends}; do ip link set dev "$end" up >/dev/null 2>&1 || true; done; '
             f"rm -f {shlex.quote(pid_path)}",
         )
 
@@ -472,11 +502,14 @@ def host_veth_for(ip_link_output: str, iflink: str, ifindex: str) -> str | None:
     """Return the host veth at ``iflink`` whose peer is ifindex ``ifindex``.
 
     ``ip_link_output`` is ``ip -o link show`` from the host namespace, with
-    rows like ``41: veth1a2b@if40: <...> ... link-netnsid 3``.
+    rows like ``41: veth1a2b@if40: <...> ... link-netnsid 3`` or ``... link-netns
+    clab-lab-node``.
     """
     pattern = re.compile(rf"^{re.escape(iflink)}: ([^:@\s]+)@if(\d+):")
     for row in ip_link_output.splitlines():
         match = pattern.match(row)
-        if match and match.group(2) == ifindex and "link-netnsid" in row:
+        # ``link-netnsid N``, or ``link-netns <name>`` for a namespace that has
+        # a name (Containerlab names each node's).
+        if match and match.group(2) == ifindex and " link-netns" in row:
             return match.group(1)
     return None

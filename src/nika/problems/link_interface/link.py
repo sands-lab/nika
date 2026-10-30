@@ -207,13 +207,13 @@ class LinkFailure(ProblemBase):
             mode = getattr(self, "_link_down_mode", None)
             target = getattr(self, "_link_down_target", None)
             if mode == "host_peer" and target:
-                controller._run("ip", "link", "set", "dev", target, "up")
+                controller.set_link_up(target)
             elif mode == "node_intf":
                 controller.set_node_link_up(params.host_name, intf)
             else:
                 try:
                     peer = controller.peer_name(params.host_name, intf)
-                    controller._run("ip", "link", "set", "dev", peer, "up")
+                    controller.set_link_up(peer)
                 except RuntimeCapabilityError:
                     controller.set_node_link_up(params.host_name, intf)
             operstate = self.runtime.get_interface_operstate(params.host_name, intf)
@@ -340,9 +340,15 @@ class LinkFlap(ProblemBase):
             controller.start_link_flap(self._proxy, params.down_time, params.up_time)
         else:
             controller = HostTcController(self.runtime)
-            self._controller_target = controller.start_node_link_flap(
-                params.host_name, intf_name, params.down_time, params.up_time
-            )
+            try:
+                peer = controller.peer_name(params.host_name, intf_name)
+            except RuntimeCapabilityError:
+                self._controller_target = controller.start_node_link_flap(
+                    params.host_name, intf_name, params.down_time, params.up_time
+                )
+            else:
+                controller.start_link_flap(peer, params.down_time, params.up_time)
+                self._controller_target = peer
         system_logger.info(
             f"Injected link flap on {params.host_name}:{intf_name} "
             f"(down_time={params.down_time}, up_time={params.up_time})"
@@ -408,7 +414,10 @@ class LinkFlap(ProblemBase):
             target = getattr(self, "_controller_target", None) or (
                 f"{params.host_name}:{intf}"
             )
-            controller.stop_node_link_flap(params.host_name, intf)
+            if ":" in target:
+                controller.stop_node_link_flap(params.host_name, intf)
+            else:
+                controller.stop_link_flap(target)
             restored = not controller.link_flap_running(target)
         return {
             "verified": restored,
@@ -663,7 +672,7 @@ class LinkCapacityBottleneck(ProblemBase):
                     },
                 )
         controller = HostTcController(self.runtime)
-        peer = getattr(self, "_host_veth", None) or controller.peer_name(
+        peer = getattr(self, "_host_veth", None) or controller.egress_dev(
             params.host_name, intf
         )
         verified = "tbf" in controller.qdisc(peer).lower()
@@ -696,7 +705,7 @@ class LinkCapacityBottleneck(ProblemBase):
             else:
                 controller = HostTcController(self.runtime)
                 try:
-                    peer = getattr(self, "_host_veth", None) or controller.peer_name(
+                    peer = getattr(self, "_host_veth", None) or controller.egress_dev(
                         params.host_name, intf
                     )
                     controller.clear(peer)

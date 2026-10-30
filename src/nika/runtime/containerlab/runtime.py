@@ -171,20 +171,25 @@ class ContainerlabRuntime(LabRuntime):
         if self.exists():
             print(f"Lab {self._lab_name} exists")
             return False
+        from nika.runtime.containerlab.wires import join_wires, write_wired_topology
+
         last_error = ""
         max_workers = str(_lab_settings().containerlab_max_workers)
+        # Node-to-node links run through host-side wires (see wires.py).
+        wired_file, wires = write_wired_topology(self._topology_file, self._lab_name)
         for attempt in range(1, 3):
             # Cap concurrent create/wire workers so many SRL nodes do not
             # spike host RAM during deploy (steady-state use is usually lower).
             result = self._run_clab(
                 "deploy",
                 "-t",
-                str(self._topology_file),
+                str(wired_file),
                 "--reconfigure",
                 "--max-workers",
                 max_workers,
             )
             if result.returncode == 0:
+                join_wires(wires)
                 self._refresh_node_map()
                 return True
             err = (result.stderr or result.stdout or "").strip()
