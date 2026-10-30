@@ -137,17 +137,26 @@ class TestBGPRPKIInvalidRouteLeakE2E(IntegrationTestCase):
             assert "203.0.113" in routes_non_rov
             assert roles["leaker_asn"] in routes_non_rov
 
-            routes_rov = frr.frr_get_routing_state(
-                roles["rov"], prefix="203.0.113.0/24"
+            # ROV may keep the legitimate origin's route, validated as such;
+            # it must never prefer the leak.
+            rib_rov = json.loads(
+                frr.exec_cmd(
+                    roles["rov"],
+                    "vtysh -c 'show bgp ipv4 unicast 203.0.113.0/24 json'",
+                )
             )
-            absent = (
-                "Network not in table" in routes_rov or "203.0.113" not in routes_rov
-            )
-            invalid_not_best = "Invalid" in routes_rov and "*" not in routes_rov
-            assert absent or invalid_not_best, routes_rov
+            best_rov = [
+                path
+                for path in rib_rov.get("paths", [])
+                if path.get("bestpath", {}).get("overall")
+            ]
+            for path in best_rov:
+                assert roles["leaker_asn"] not in path["aspath"]["string"].split()
+                assert path.get("rpkiValidationState") == "valid", path
 
             rpki = frr.frr_get_rpki_status(roles["rov"], prefix="203.0.113.0/24")
             assert rpki.strip()
+            assert "Unknown command" not in rpki, rpki
             neighbors = frr.frr_get_routing_state(roles["leaker"])
             assert neighbors.strip()
             tr = base.traceroute(roles["non_rov"], "203.0.113.1")

@@ -281,8 +281,12 @@ class TestTelemetryMcpLive(IntegrationTestCase):
                             and "packet_timestamp" in result[0]
                         ):
                             return result
+                        # Over the output limit, list results carry warning and
+                        # elision markers between whole JSON items.
                         rows = [
-                            json.loads(text) for text in tool_text_list(result) if text
+                            json.loads(text)
+                            for text in tool_text_list(result)
+                            if text.startswith("{")
                         ]
                         if rows:
                             return rows
