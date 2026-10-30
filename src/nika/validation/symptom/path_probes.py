@@ -89,7 +89,7 @@ def link_path_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]
     """
     host = params.host_name
     if _is_end_host(problem, host):
-        intf = resolve_default_intf(params.intf_name, problem.net_env)
+        intf = resolve_default_intf(params.intf_name, problem.net_env, host)
         problem._audit_link_path = {"mode": "end_host"}
         ok, evidence = address_baseline(problem, host, intf)
         return ok, {"mode": "end_host", **evidence}

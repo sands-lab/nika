@@ -105,16 +105,37 @@ def net_env_backend(net_env: Any) -> str:
     return str(getattr(net_env, "backend", None) or "kathara")
 
 
-def resolve_default_intf(intf_name: str, net_env: Any) -> str:
-    if intf_name != "eth0":
+def first_data_interface(net_env: Any, node: str) -> str:
+    """Return ``node``'s first data interface in the environment topology.
+
+    Containerlab reserves container ``eth0`` for management, so the data
+    ports keep the platform's names (``e1-1`` on SR Linux, ``eth1`` on SONiC
+    and Linux nodes). A node missing from the topology gets the platform's
+    first port.
+    """
+    ifaces = interfaces_for_node(net_env, node)
+    if ifaces:
+        return ifaces[0]
+    if net_env_backend(net_env) != "containerlab":
+        return "eth0"
+    srl = getattr(net_env, "device_profile", None) in (None, "", "nokia_srlinux")
+    return "e1-1" if srl else "eth1"
+
+
+def resolve_default_intf(intf_name: str, net_env: Any, node: str) -> str:
+    """Resolve the ``eth0`` placeholder to ``node``'s first data interface.
+
+    Kathara data interfaces start at ``eth0``, so the name stays as given.
+    """
+    if intf_name != "eth0" or net_env_backend(net_env) != "containerlab":
         return intf_name
-    return "e1-1" if net_env_backend(net_env) == "containerlab" else "eth0"
+    return first_data_interface(net_env, node)
 
 
 def select_host_interface(net_env: Any, host_name: str, *, last: bool) -> str:
-    """Match inject defaults: Containerlab ``e1-1``; Kathara first/last topo iface."""
+    """Match inject defaults: Containerlab first data port; Kathara first/last."""
     if net_env_backend(net_env) == "containerlab":
-        return "e1-1"
+        return first_data_interface(net_env, host_name)
     ifaces = interfaces_for_node(net_env, host_name)
     if not ifaces:
         return "eth0"
@@ -122,7 +143,7 @@ def select_host_interface(net_env: Any, host_name: str, *, last: bool) -> str:
 
 
 def interface_on(net_env: Any, node: str, intf: str):
-    return interface_resource(node, resolve_default_intf(intf, net_env))
+    return interface_resource(node, resolve_default_intf(intf, net_env, node))
 
 
 def canonical_link_name(tps: tuple[str, ...]) -> str:
@@ -144,7 +165,7 @@ def link_resource_from_tps(tps: tuple[str, ...]) -> FaultResource:
 
 def link_containing_endpoint(net_env: Any, node: str, intf: str) -> FaultResource:
     """Resolve the unique catalog link that contains ``node``/``intf``."""
-    resolved = resolve_default_intf(intf, net_env)
+    resolved = resolve_default_intf(intf, net_env, node)
     needle = f"{node}:{resolved}"
     matches: list[FaultResource] = []
     for _key, tps in iter_link_termination_points(net_env):

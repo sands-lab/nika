@@ -205,10 +205,6 @@ def device_interfaces(net_env) -> dict[str, list[str]]:
     return {device: sorted(intfs) for device, intfs in mapping.items()}
 
 
-def default_interface(backend: str) -> str:
-    return "e1-1" if backend == "containerlab" else "eth0"
-
-
 def choice_interface(
     rng: random.Random,
     net_env,
@@ -218,7 +214,11 @@ def choice_interface(
     ifaces = device_interfaces(net_env).get(device) or []
     if ifaces:
         return rng.choice(ifaces)
-    return default_interface(backend)
+    if backend != "containerlab":
+        return "eth0"
+    from nika.problems.rca.inventory import first_data_interface
+
+    return first_data_interface(net_env, device)
 
 
 def first_iface(ifaces: list[str], fallback: str = "eth0") -> str:

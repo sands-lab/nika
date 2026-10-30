@@ -112,7 +112,7 @@ class LinkFailure(ProblemBase):
                 )
 
     def _inject_link_down_kathara(self, params: LinkFailureParams) -> None:
-        intf = resolve_default_intf(params.intf_name, self.net_env)
+        intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
         self.faulty_intf = intf
         self._set_link_operational_down(params.host_name, intf)
         self._link_down_peer = self._peer_endpoint(params.host_name, intf)
@@ -121,7 +121,7 @@ class LinkFailure(ProblemBase):
             self._set_link_operational_down(peer_host, peer_intf)
 
     def _inject_link_down_containerlab(self, params: LinkFailureParams) -> None:
-        intf = resolve_default_intf(params.intf_name, self.net_env)
+        intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
         self.faulty_intf = intf
         controller = HostTcController(self.runtime)
         self._link_down_mode, self._link_down_target = controller.set_link_down(
@@ -141,7 +141,7 @@ class LinkFailure(ProblemBase):
                 )
 
     def _verify_link_down_kathara(self, params: LinkFailureParams) -> dict:
-        intf = resolve_default_intf(params.intf_name, self.net_env)
+        intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
         operstate = self.runtime.get_interface_operstate(params.host_name, intf)
         peer = getattr(self, "_link_down_peer", None) or self._peer_endpoint(
             params.host_name, intf
@@ -154,7 +154,7 @@ class LinkFailure(ProblemBase):
         )
 
     def _verify_link_down_containerlab(self, params: LinkFailureParams) -> dict:
-        intf = resolve_default_intf(params.intf_name, self.net_env)
+        intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
         controller = HostTcController(self.runtime)
         operstate = self.runtime.get_interface_operstate(params.host_name, intf)
         mode = getattr(self, "_link_down_mode", None)
@@ -191,7 +191,7 @@ class LinkFailure(ProblemBase):
 
     def recover_fault(self, params: LinkFailureParams) -> dict:
         """Restore carrier on the selected attachment."""
-        intf = resolve_default_intf(params.intf_name, self.net_env)
+        intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
         if self.lab_backend == "kathara":
             self._set_link_operational_up(params.host_name, intf)
             peer = getattr(self, "_link_down_peer", None) or self._peer_endpoint(
@@ -321,11 +321,11 @@ class LinkFlap(ProblemBase):
                 )
 
     def _inject_link_flap_kathara(self, params: LinkFlapParams) -> None:
-        intf = resolve_default_intf(params.intf_name, self.net_env)
+        intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
         self._inject_link_flap(params, intf, backend="kathara")
 
     def _inject_link_flap_containerlab(self, params: LinkFlapParams) -> None:
-        intf = resolve_default_intf(params.intf_name, self.net_env)
+        intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
         self._inject_link_flap(params, intf, backend="containerlab")
 
     def _inject_link_flap(
@@ -361,11 +361,11 @@ class LinkFlap(ProblemBase):
                 )
 
     def _verify_link_flap_kathara(self, params: LinkFlapParams) -> dict:
-        intf = resolve_default_intf(params.intf_name, self.net_env)
+        intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
         return self._verify_link_flap(params, intf)
 
     def _verify_link_flap_containerlab(self, params: LinkFlapParams) -> dict:
-        intf = resolve_default_intf(params.intf_name, self.net_env)
+        intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
         return self._verify_link_flap(params, intf)
 
     def _verify_link_flap(self, params: LinkFlapParams, intf_name: str) -> dict:
@@ -392,7 +392,7 @@ class LinkFlap(ProblemBase):
 
     def recover_fault(self, params: LinkFlapParams) -> dict:
         """Stop controller-side flapping and restore the logical link."""
-        intf = resolve_default_intf(params.intf_name, self.net_env)
+        intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
         if self.lab_backend == "kathara":
             controller = KatharaVdeFaultProxy(self.runtime)
             proxy = getattr(self, "_proxy", None) or controller.discover(
@@ -578,7 +578,7 @@ class LinkCapacityBottleneck(ProblemBase):
                 )
 
     def _inject_capacity_kathara(self, params: LinkCapacityBottleneckParams) -> None:
-        intf = resolve_default_intf(params.intf_name, self.net_env)
+        intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
         self.faulty_intf = intf
         controller = KatharaVdeFaultProxy(self.runtime)
         self._proxy = controller.insert(params.host_name, intf)
@@ -589,7 +589,7 @@ class LinkCapacityBottleneck(ProblemBase):
     def _inject_capacity_containerlab(
         self, params: LinkCapacityBottleneckParams
     ) -> None:
-        intf = resolve_default_intf(params.intf_name, self.net_env)
+        intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
         self.faulty_intf = intf
         controller = HostTcController(self.runtime)
         peer = controller.set_tbf(
@@ -619,7 +619,7 @@ class LinkCapacityBottleneck(ProblemBase):
                 )
 
     def _verify_capacity_kathara(self, params: LinkCapacityBottleneckParams) -> dict:
-        intf = resolve_default_intf(params.intf_name, self.net_env)
+        intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
         controller = KatharaVdeFaultProxy(self.runtime)
         proxy = getattr(self, "_proxy", None) or controller.discover(
             params.host_name, intf
@@ -634,7 +634,7 @@ class LinkCapacityBottleneck(ProblemBase):
     def _verify_capacity_containerlab(
         self, params: LinkCapacityBottleneckParams
     ) -> dict:
-        intf = resolve_default_intf(params.intf_name, self.net_env)
+        intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
         mode = getattr(self, "_capacity_mode", None)
         if mode == "node_intf":
             verified = self.runtime.tc_qdisc_contains(params.host_name, intf, "tbf")
@@ -675,7 +675,7 @@ class LinkCapacityBottleneck(ProblemBase):
 
     def recover_fault(self, params: LinkCapacityBottleneckParams) -> dict:
         """Remove controller-side capacity limiting and restore the logical link."""
-        intf = resolve_default_intf(params.intf_name, self.net_env)
+        intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
         if self.lab_backend == "kathara":
             controller = KatharaVdeFaultProxy(self.runtime)
             proxy = getattr(self, "_proxy", None) or controller.discover(
@@ -840,7 +840,7 @@ class LinkDetach(ProblemBase):
                 f"{type(self).__name__} cannot inject_fault: unsupported backend "
                 f"{self.lab_backend!r}."
             )
-        intf = resolve_default_intf(params.intf_name, self.net_env)
+        intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
         self.faulty_intf = intf
         host = params.host_name
         native_fault_ops(self, host, "reattach_interface")
@@ -887,7 +887,7 @@ class LinkDetach(ProblemBase):
 
     def verify_fault(self, params: LinkDetachParams) -> dict:
         """Verify the interface is gone from the node namespace."""
-        intf = resolve_default_intf(params.intf_name, self.net_env)
+        intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
         interface_gone = not self.runtime.interface_exists(params.host_name, intf)
         return build_verify_result(
             fault_type=self.root_cause_name,
@@ -901,7 +901,7 @@ class LinkDetach(ProblemBase):
 
     def recover_fault(self, params: LinkDetachParams) -> dict:
         """Move the detached interface back into the node namespace."""
-        intf = resolve_default_intf(params.intf_name, self.net_env)
+        intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
         host = params.host_name
         if self._detach_holder:
             node = self.runtime.get_container(host)
