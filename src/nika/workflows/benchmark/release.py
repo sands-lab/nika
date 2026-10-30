@@ -71,6 +71,7 @@ SCORING = {
 TOOLS_V1 = {
     "allowed_mcp_servers": [
         "containerlab_srl_mcp_server",
+        "containerlab_sonic_mcp_server",
         "k8s_mcp_server",
         "kathara_base_mcp_server",
         "pingmesh_mcp_server",

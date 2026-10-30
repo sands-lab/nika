@@ -8,8 +8,12 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from nika.runtime.base import LabRuntime
+from nika.net_env.utils.sonic.common import container_iface
+from nika.service.containerlab.sonic_api import uses_sonic_router
 from nika.service.containerlab.srl_api import srl_linux_intf
 from nika.service.packet_capture.models import CaptureBackendKind, CaptureLimits
+
+_SONIC_PORT = re.compile(r"Ethernet\d+")
 
 
 @dataclass
@@ -54,14 +58,17 @@ def capture_device(runtime: LabRuntime, device: str, interface: str) -> str:
 
     SR Linux nodes keep their data ports as ``e1-N`` in the container's
     default netns; names such as ``ethernet-1/N`` or plan ``ethN`` map there
-    (the srbase-default ``e1-N.0`` subinterfaces only see CPU traffic). A
-    missing device raises instead of producing an empty capture.
+    (the srbase-default ``e1-N.0`` subinterfaces only see CPU traffic).
+    SONiC ports ``EthernetN`` map to the container data interface ``ethK``
+    that carries them. A missing device raises instead of producing an empty
+    capture.
     """
     name = interface.strip()
-    if getattr(runtime, "backend", None) == "containerlab" and runtime.uses_srl_router(
-        device
-    ):
-        name = srl_linux_intf(name)
+    if getattr(runtime, "backend", None) == "containerlab":
+        if runtime.uses_srl_router(device):
+            name = srl_linux_intf(name)
+        elif _SONIC_PORT.fullmatch(name) and uses_sonic_router(runtime, device):
+            name = container_iface(name)
     if name == "any":
         return name
     quoted = _shell_quote(f"/sys/class/net/{name}")

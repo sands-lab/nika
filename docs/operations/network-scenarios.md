@@ -573,7 +573,7 @@ uv run nika env run isp_abilene --backend containerlab --device-profile sonic --
 
 The routers run the official SONiC virtual switch (`docker-sonic-vs`) from SONiC 202505, pinned to one build of the SONiC build pipeline and checked by SHA-256. `nika images prepare` downloads and loads it, and so does the first deployment that needs it. Each router uses about 150 MiB of memory and boots in about 40 seconds.
 
-The routing design is the one the Kathara FRR deployment uses, because SONiC routes with FRR. NIKA writes ports and addresses to CONFIG_DB and the routing protocols to FRR, and SONiC programs FRR's routes into APPL_DB through FPM, as on a hardware switch. Container interface `eth<k>` is SONiC port `Ethernet<4(k-1)>`, and topology links name the container interface. Inside a router, `show` commands, `vtysh`, `redis-cli` and the Linux tools work as on SONiC.
+The routing design is the one the Kathara FRR deployment uses, because SONiC routes with FRR. NIKA writes ports and addresses to CONFIG_DB and the routing protocols to FRR, and SONiC programs FRR's routes into APPL_DB through FPM, as on a hardware switch. Container interface `eth<k>` is SONiC port `Ethernet<4(k-1)>`, and topology links name the container interface. Inside a router, `show` commands, `vtysh`, `redis-cli` and the Linux tools work as on SONiC. Agents run SONiC CLI commands with the `sonic_exec_cli` tool of [`containerlab_sonic_mcp_server`](../agents/mcp-servers.md#use-dedicated-diagnosis-tools).
 
 Startup verification checks SONiC's services, routing adjacencies and sessions, CONFIG_DB addresses in the kernel, FRR routes in APPL_DB, end-to-end reachability, and shortest-path forwarding. SONiC routers export all three [telemetry](#telemetry) kinds over the management network.
 

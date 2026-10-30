@@ -129,6 +129,13 @@ def _mock_diagnosis_tool_calls(
                     },
                 )
             )
+        elif router and "containerlab_sonic_mcp_server" in server_names:
+            calls.append(
+                (
+                    "sonic_exec_cli",
+                    {"device_name": router, "command": "show ip route"},
+                )
+            )
     else:
         router = _pick_router(devices) or (preferred[0] if preferred else None)
         if router and "kathara_iosxr_mcp_server" in server_names:

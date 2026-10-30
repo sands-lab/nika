@@ -2,7 +2,7 @@
 
 Use this reference to find the tools available during an agent diagnosis session. The MCP gateway exposes session-scoped HTTP endpoints. Agents load their URLs with `DiagnosisAgent.diagnosis_mcp_config()`; see [Python MCP client](agent-reference.md#python-mcp-client) for a client example.
 
-The [server registry](../../src/nika/mcp/registry.py) selects diagnosis servers from the scenario name, tags, and backend. Every diagnosis session receives `kathara_base_mcp_server`, `pingmesh_mcp_server`, and `packet_capture_mcp_server`. The base server works with Kathara and Containerlab despite its name. The gateway exposes `task_mcp_server` only after the agent advances to submission.
+The [server registry](../../src/nika/mcp/registry.py) selects diagnosis servers from the scenario name, tags, backend, and router platform. Every diagnosis session receives `kathara_base_mcp_server`, `pingmesh_mcp_server`, and `packet_capture_mcp_server`. The base server works with Kathara and Containerlab despite its name. The gateway exposes `task_mcp_server` only after the agent advances to submission.
 
 ## Run commands on lab nodes
 
@@ -32,7 +32,8 @@ error. Successful probes return `acked` and `elapsed_ms` in `result`.
 | `kathara_frr_mcp_server` | Kathara scenarios tagged `rpki` | `frr_get_rpki_status` gathers RTR cache state and optional prefix validation evidence. |
 | `kathara_iosxr_mcp_server` | Kathara IOS-XR scenarios | `iosxr_exec` runs commands through the XR CLI path. |
 | `kathara_routeros_mcp_server` | Kathara RouterOS scenarios | `routeros_exec` reaches RouterOS through its internal management hop. |
-| `containerlab_srl_mcp_server` | Containerlab routing scenarios | `srl_exec_cli` runs commands through SR Linux CLI. |
+| `containerlab_srl_mcp_server` | Containerlab routing scenarios on SR Linux | `srl_exec_cli` runs commands through SR Linux CLI. |
+| `containerlab_sonic_mcp_server` | Containerlab routing scenarios on SONiC (`device_profile: sonic`) | `sonic_exec_cli` runs one SONiC CLI command: `show`, `config`, `vtysh`, `redis-cli`, or `sonic-db-cli`. It rejects shell operators such as pipes; use `exec_shell` for those. |
 | `kathara_bmv2_mcp_server` | Kathara P4 scenarios | `p4rt_exec` runs read-only P4Runtime queries through the fabric controller `fabric_mgr`. |
 | `kathara_sdn_mcp_server` | Kathara SDN scenarios | `sdn_onos_rest` queries ONOS REST through `fabric_mgr`. |
 | `kathara_telemetry_mcp_server` | Kathara telemetry scenarios | `int_query_telemetry` filters observed INT-MX packet and hop records. |
@@ -102,7 +103,7 @@ A valid capture with zero packets still returns an artifact. If no nonempty
 capture file exists, stopping fails and marks the capture as failed; start a
 new capture rather than inspecting the failed one.
 
-`interface` must exist on the node; otherwise `packet_capture_start` fails and lists the node's interfaces. On SR Linux nodes, `ethernet-1/N`, `ethernet-1/N.0`, `e1-N`, and the plan name `eth{N-1}` all capture on data port `e1-N`, which carries both transit and control-plane traffic.
+`interface` must exist on the node; otherwise `packet_capture_start` fails and lists the node's interfaces. On SR Linux nodes, `ethernet-1/N`, `ethernet-1/N.0`, `e1-N`, and the plan name `eth{N-1}` all capture on data port `e1-N`, which carries both transit and control-plane traffic. On SONiC nodes, port `EthernetN` captures on the container data interface `eth{N/4+1}` that carries it, the same interface the topology names.
 
 ## Submit a diagnosis
 
