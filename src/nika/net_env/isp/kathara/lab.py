@@ -500,14 +500,16 @@ class Isp(NetworkEnvBase):
     def business_workload(self):
         from nika.net_env.isp.workload import build_isp_workload
 
-        return build_isp_workload(
-            self.plan,
-            self.traffic,
-            self.bgp_plan,
-            self.topo,
-            router_services=True,
-            routine_changes=self.device_profile == "frr",
-        )
+        if not hasattr(self, "_business_workload"):
+            self._business_workload = build_isp_workload(
+                self.plan,
+                self.traffic,
+                self.bgp_plan,
+                self.topo,
+                router_services=True,
+                routine_changes=self.device_profile == "frr",
+            )
+        return self._business_workload
 
     def bgp_hijack_targets(self):
         """Business-prefix hijacks that divert a service client's sessions."""
@@ -515,6 +517,8 @@ class Isp(NetworkEnvBase):
 
         if self.bgp_plan is None:
             return []
+        if hasattr(self, "_bgp_hijack_targets"):
+            return list(self._bgp_hijack_targets)
         stub_of = {h.router_device: h.host_name for h in self.traffic.hosts}
         router_of = {stub: router for router, stub in stub_of.items()}
         prefix_at = {o.ping_address: o.prefix for o in self.bgp_plan.originated}
@@ -528,7 +532,10 @@ class Isp(NetworkEnvBase):
                 clients.setdefault(prefix_at[process.args[0]], set()).add(
                     router_of[process.node]
                 )
-        return hijack_targets(self.plan, self.bgp_plan, stub_of, clients)
+        self._bgp_hijack_targets = hijack_targets(
+            self.plan, self.bgp_plan, stub_of, clients
+        )
+        return list(self._bgp_hijack_targets)
 
     def get_info(self) -> str:
         return format_isp_network_info(

@@ -316,7 +316,7 @@ class CampusLanDhcp(NetworkEnvBase):
         # Now connect the layers and assign IPs and OSPF configs
         infra_pool = IPv4Network("172.16.0.0/16")
         # Create a generator of /31s
-        subnets_infra = list(infra_pool.subnets(new_prefix=31))
+        subnets_infra = infra_pool.subnets(new_prefix=31)
 
         # add links between core routers (1-2, 1-3, 2-3)
         for core_id1 in range(1, 3):
@@ -331,7 +331,7 @@ class CampusLanDhcp(NetworkEnvBase):
                     core_meta2.machine.name,
                     f"{core_meta1.machine.name}_{core_meta2.machine.name}",
                 )
-                subnet = subnets_infra.pop(0)
+                subnet = next(subnets_infra)
                 a_ip, b_ip = assign_p2p_ips(subnet)
                 core_meta1.cmd_list.append(
                     f"ip addr add {a_ip} dev eth{core_meta1.eth_index}"
@@ -364,7 +364,7 @@ class CampusLanDhcp(NetworkEnvBase):
                     dist_meta.machine.name,
                     f"{core_meta.machine.name}_{dist_meta.machine.name}",
                 )
-                subnet = subnets_infra.pop(0)
+                subnet = next(subnets_infra)
                 a_ip, b_ip = assign_p2p_ips(subnet)
                 core_meta.cmd_list.append(
                     f"ip addr add {a_ip} dev eth{core_meta.eth_index}"
@@ -534,7 +534,7 @@ class CampusLanDhcp(NetworkEnvBase):
             server_router_meta.machine.name,
             f"{core3_meta.machine.name}_{server_router_meta.machine.name}",
         )
-        subnet = subnets_infra.pop(0)
+        subnet = next(subnets_infra)
         a_ip, b_ip = assign_p2p_ips(subnet)
         core3_meta.cmd_list.append(f"ip addr add {a_ip} dev eth{core3_meta.eth_index}")
         server_router_meta.cmd_list.append(

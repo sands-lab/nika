@@ -6,6 +6,7 @@ SNDlib XML and ``<name>.graphml`` for Topology Zoo GraphML.
 
 from __future__ import annotations
 
+from functools import cache
 from pathlib import Path
 
 from nika.topology.errors import SndlibUnsupportedError
@@ -398,21 +399,29 @@ def is_zoo_topology(topology: str | Path) -> bool:
     return topology in ZOO_TOPOLOGY_NAMES or topology.endswith(_ZOO_SUFFIX)
 
 
-def load_topology(name_or_path: str | Path) -> NetworkTopology:
-    """Load a vendored topology by catalog name, or parse an XML/GraphML path."""
-    if isinstance(name_or_path, str) and name_or_path in ISP_TOPOLOGY_NAMES:
-        path, name = topology_path(name_or_path), name_or_path
-    else:
-        path = Path(name_or_path)
-        if not path.is_file():
-            raise SndlibUnsupportedError(
-                f"unknown ISP topology {name_or_path!r}; "
-                f"expected a catalog name or a {_SNDLIB_SUFFIX}/{_ZOO_SUFFIX} path"
-            )
-        name = path.parent.name if path.name == "network.xml" else path.stem
+def _parse_topology(path: Path, name: str) -> NetworkTopology:
     if path.suffix == _ZOO_SUFFIX:
         return parse_zoo_graphml(path, name=name)
     return parse_sndlib_xml(path, name=name)
+
+
+@cache
+def _load_catalog_topology(name: str) -> NetworkTopology:
+    return _parse_topology(topology_path(name), name)
+
+
+def load_topology(name_or_path: str | Path) -> NetworkTopology:
+    """Load a vendored topology by catalog name, or parse an XML/GraphML path."""
+    if isinstance(name_or_path, str) and name_or_path in ISP_TOPOLOGY_NAMES:
+        return _load_catalog_topology(name_or_path)
+    path = Path(name_or_path)
+    if not path.is_file():
+        raise SndlibUnsupportedError(
+            f"unknown ISP topology {name_or_path!r}; "
+            f"expected a catalog name or a {_SNDLIB_SUFFIX}/{_ZOO_SUFFIX} path"
+        )
+    name = path.parent.name if path.name == "network.xml" else path.stem
+    return _parse_topology(path, name)
 
 
 def isp_topology_size(name: str) -> str:

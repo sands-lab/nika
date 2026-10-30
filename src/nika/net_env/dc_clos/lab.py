@@ -125,7 +125,7 @@ class DCClos(NativeRouterEnv, NetworkEnvBase):
         tot_leaves: list[RouterMeta] = []
 
         infra_pool = IPv4Network("172.16.0.0/16")
-        subnets31 = list(infra_pool.subnets(new_prefix=31))
+        subnets31 = infra_pool.subnets(new_prefix=31)
 
         for ss in range(super_spine_count):
             ss_name = f"super_spine_router_{ss}"
@@ -204,7 +204,7 @@ class DCClos(NativeRouterEnv, NetworkEnvBase):
                     spine_meta.machine.name,
                     f"{super_spine_meta.machine.name}_{spine_meta.machine.name}",
                 )
-                subnet = subnets31.pop(0)
+                subnet = next(subnets31)
                 a_ip, b_ip = assign_p2p_ips(subnet)
                 super_spine_meta.cmd_list.append(
                     f"ip addr add {a_ip} dev eth{super_spine_meta.eth_index}"
@@ -245,7 +245,7 @@ class DCClos(NativeRouterEnv, NetworkEnvBase):
                         leaf_meta.machine.name,
                         f"{spine_meta.machine.name}_{leaf_meta.machine.name}",
                     )
-                    subnet = subnets31.pop(0)
+                    subnet = next(subnets31)
                     a_ip, b_ip = assign_p2p_ips(subnet)
                     spine_meta.cmd_list.append(
                         f"ip addr add {a_ip} dev eth{spine_meta.eth_index}"
