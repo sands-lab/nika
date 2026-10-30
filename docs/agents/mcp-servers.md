@@ -101,7 +101,7 @@ A valid capture with zero packets still returns an artifact. If no nonempty capt
 
 ## Tool output limit
 
-Each tool result is limited to `nika.mcp.tool_output_max_chars` characters (10,000 by default; see [MCP settings](../operations/configuration.md#mcp-settings)). Text over the limit keeps its first and last `tool_output_max_chars / 2` characters and reports how many were elided. List results, such as `prometheus_query`, `syslog_query`, `netflow_query`, `int_query_telemetry`, and `k8s_list_events`, keep whole items from both ends and report how many items were elided. Each kept item therefore stays valid JSON. If neither the first nor the last item fits, the result is truncated by characters instead. Both cases start with the same warning that the output was truncated.
+`nika.mcp.tool_output_max_chars` (10,000 by default; see [MCP settings](../operations/configuration.md#mcp-settings)) limits how many characters of each tool result's text the agent receives. The truncation warning and elision markers are added on top of that limit, and non-text content is not counted. Text over the limit keeps its first and last `tool_output_max_chars / 2` characters and reports how many were elided. List results, such as `prometheus_query`, `syslog_query`, `netflow_query`, `int_query_telemetry`, and `k8s_list_events`, keep whole items from both ends and report how many items were elided. Each kept item therefore stays valid JSON. If neither the first nor the last item fits, the result is truncated by characters instead. Both cases start with the same warning that the output was truncated.
 
 ## Submit a diagnosis
 

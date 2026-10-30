@@ -143,7 +143,7 @@ NIKA stores `runtime/` and `.nika_cache/` at the root of the main Git checkout (
 | `nika.mcp.read_timeout_sec` | `120` | MCP request timeout used by the shared LangGraph, AutoGen, and mcp-agent clients. Non-positive values disable it. |
 | `nika.mcp.gateway_host` | `127.0.0.1` | Host address for the session MCP gateway. |
 | `nika.mcp.gateway_port` | `0` | Gateway port. `0` selects a free port; negative values are invalid. |
-| `nika.mcp.tool_output_max_chars` | `10000` | Maximum characters of each MCP tool result returned to the agent; longer results are truncated as described in [Tool output limit](../agents/mcp-servers.md#tool-output-limit). `0` disables truncation; negative values are invalid. |
+| `nika.mcp.tool_output_max_chars` | `10000` | Maximum characters of tool result text kept for the agent, not counting the truncation warning, elision markers, or non-text content; longer results are truncated as described in [Tool output limit](../agents/mcp-servers.md#tool-output-limit). `0` disables truncation; negative values are invalid. |
 
 ### Static validation
 
