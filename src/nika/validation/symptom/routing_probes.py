@@ -460,6 +460,13 @@ def bgp_all_lost(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     )
 
 
+def bgp_some_lost(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    """Remote BGP peers of the router lose their sessions."""
+    return watch_adjacencies(
+        problem, params.host_name, _some_lost, expect="peers_drop_bgp"
+    )
+
+
 def _bad_peer_as(lost: list[str], kept: list[str], notes: dict) -> bool:
     # A peer that expects the router's old AS refuses its OPEN with
     # "Bad Peer AS" and the session stays down. Peers configured with
@@ -552,4 +559,127 @@ def max_prefix_cease(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     details["customer_reach"] = reach
     return ok, build_verify_result(
         fault_type=problem.root_cause_name, verified=ok, details=details
+    )
+
+
+def _ospf_routes(problem: Any, router: str) -> set[str]:
+    """Prefixes the router's kernel routes through OSPF."""
+    out = exec_or_empty(
+        problem.runtime, router, "ip -4 route show proto ospf", timeout=15
+    )
+    return {line.split()[0] for line in out.splitlines() if line.strip()}
+
+
+def _ospf_router_id(problem: Any, router: str) -> str | None:
+    raw = exec_or_empty(problem.runtime, router, "vtysh -c 'show ip ospf json'")
+    return (_load_json(raw) or {}).get("routerId")
+
+
+# An LSA flood war between the two routers can run for minutes before one stops.
+_DUPLICATE_ID_WAIT_SEC = 240.0
+
+
+def ospf_stub_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    """Each router's own subnets, the routers that reach them, and its router ID.
+
+    A subnet counts when exactly one router is attached to it, so transit
+    links that the far end also advertises are left out.
+    """
+    routers = lab_routers(problem)
+    connected = {
+        router: {
+            line.split()[0]
+            for line in exec_or_empty(
+                problem.runtime,
+                router,
+                "ip -4 route show proto kernel scope link",
+                timeout=15,
+            ).splitlines()
+            if line.strip()
+        }
+        for router in routers
+    }
+    routed = {router: _ospf_routes(problem, router) for router in routers}
+    stubs: dict[str, dict[str, list[str]]] = {}
+    for owner, prefixes in connected.items():
+        others = [router for router in routers if router != owner]
+        own = prefixes - set().union(*(connected[r] for r in others))
+        seen = {
+            prefix: [r for r in others if prefix in routed[r]] for prefix in sorted(own)
+        }
+        if seen := {prefix: obs for prefix, obs in seen.items() if obs}:
+            stubs[owner] = seen
+    router_ids = {owner: _ospf_router_id(problem, owner) for owner in stubs}
+    problem._audit_ospf_stubs = {"stubs": stubs, "router_ids": router_ids}
+    ok = params.host_name in stubs
+    return ok, {"host": params.host_name, "stub_routes": stubs}
+
+
+def ospf_stubs_withdrawn(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    """The subnets of the router, or of the router whose ID it took, leave OSPF.
+
+    Two routers with one router ID keep only one router-LSA between them, so
+    every other router drops the subnets of one of the two.
+    """
+    audit = getattr(problem, "_audit_ospf_stubs", None) or {}
+    stubs = audit.get("stubs") or {}
+    host = params.host_name
+    if host not in stubs:
+        return False, {"error": "no_healthy_stub_routes", "host": host}
+    router_id = _ospf_router_id(problem, host)
+    twin = next(
+        (
+            owner
+            for owner, owner_id in (audit.get("router_ids") or {}).items()
+            if owner != host and owner_id == router_id
+        ),
+        None,
+    )
+    owners = [owner for owner in (host, twin) if owner]
+    observers = sorted(
+        {r for owner in owners for obs in stubs[owner].values() for r in obs}
+    )
+
+    def withdrawn_owner() -> str | None:
+        routed = {router: _ospf_routes(problem, router) for router in observers}
+        return next(
+            (
+                owner
+                for owner in owners
+                if not any(
+                    prefix in routed[r]
+                    for prefix, obs in stubs[owner].items()
+                    for r in obs
+                )
+            ),
+            None,
+        )
+
+    confirm_sec = 10.0
+    started = time.monotonic()
+    held_since: float | None = None
+    while True:
+        withdrawn = withdrawn_owner()
+        elapsed = time.monotonic() - started
+        if withdrawn:
+            held_since = elapsed if held_since is None else held_since
+            if elapsed - held_since >= confirm_sec:
+                break
+        else:
+            held_since = None
+        if elapsed >= _DUPLICATE_ID_WAIT_SEC + confirm_sec:
+            withdrawn = None
+            break
+        time.sleep(_POLL_SEC)
+    verified = withdrawn is not None
+    return verified, build_verify_result(
+        fault_type=problem.root_cause_name,
+        verified=verified,
+        details={
+            "host": host,
+            "router_id": router_id,
+            "same_id_router": twin,
+            "withdrawn_owner": withdrawn,
+            "stub_routes": {owner: stubs[owner] for owner in owners},
+        },
     )

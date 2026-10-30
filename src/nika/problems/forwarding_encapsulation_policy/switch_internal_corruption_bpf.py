@@ -22,7 +22,7 @@ _OBJECT = "tc_egress"
 _PRIO = 10
 
 
-class SwitchNamespaceBitflip:
+class SwitchEgressClassifier:
     """Attach the failure's TC classifier without exposing build state to agents.
 
     On Kathara the classifier sits on the device's own interface, in the node's
@@ -32,7 +32,9 @@ class SwitchNamespaceBitflip:
     same whatever datapath the router runs.
     """
 
-    def __init__(self, runtime, backend: str) -> None:
+    SOURCE = ""
+
+    def __init__(self, runtime, backend: str = "kathara") -> None:
         self.runtime = runtime
         self._host_wires = backend == "containerlab"
 
@@ -55,7 +57,7 @@ class SwitchNamespaceBitflip:
         return intf
 
     def _load(self, dev: str, seed: int, *, network_mode: str, qdisc: bool) -> None:
-        source = Path(__file__).with_name("switch_internal_corruption.bpf.c")
+        source = Path(__file__).with_name(self.SOURCE)
         archive = io.BytesIO()
         with tarfile.open(fileobj=archive, mode="w") as tar:
             tar.add(source, arcname=f"{_OBJECT}.c")
@@ -114,3 +116,7 @@ class SwitchNamespaceBitflip:
             node,
             f"tc filter del dev {intf} egress prio {_PRIO} 2>/dev/null || true",
         )
+
+
+class SwitchNamespaceBitflip(SwitchEgressClassifier):
+    SOURCE = "switch_internal_corruption.bpf.c"

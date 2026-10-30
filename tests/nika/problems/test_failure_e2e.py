@@ -149,6 +149,33 @@ CORE_E2E_CASES = (
         param_overrides={"baseline_trials": "1", "iperf_duration_sec": "3"},
     ),
     FailureE2ECase(
+        problem="device_flow_blackhole",
+        scenario="dc_clos",
+        env_run_args=("-s", "s"),
+        inject_seed=1,
+    ),
+    FailureE2ECase(
+        problem="bgp_ttl_security_mismatch",
+        scenario="dc_clos",
+        env_run_args=("-s", "s"),
+        inject_seed=1,
+    ),
+    # The adjacent-neighbor branch (campus_lan area 1) and the LSA-shadowing
+    # branch (single-area ISP).
+    FailureE2ECase(
+        problem="ospf_duplicate_router_id",
+        scenario="campus_lan",
+        env_run_args=("-s", "s"),
+        inject_seed=1,
+    ),
+    FailureE2ECase(
+        problem="ospf_duplicate_router_id",
+        scenario="isp_abilene",
+        env_run_args=("--igp", "ospf", "--bgp-mode", "ebgp"),
+        isp_options={"igp": "ospf", "bgp_mode": "ebgp", "rpki": False},
+        inject_seed=1,
+    ),
+    FailureE2ECase(
         problem="bmv2_switch_down",
         scenario="p4_dc_fabric",
         env_run_args=("-s", "s"),

@@ -261,6 +261,10 @@ class ProblemBase:
             return False
         if target.partition("/")[0] in cls.INCOMPATIBLE_SCENARIOS:
             return False
+        # A base ISP column deploys one BGP mode; it must be the declared one.
+        bgp_mode = (cls.isp_protocol or {}).get("bgp_mode")
+        if bgp_mode and parse_column(target)[1] in {"ibgp_rr", "ebgp"} - {bgp_mode}:
+            return False
         tags = effective_tags(target)
         if profile_routes_with_frr(device_profile):
             # The scenario tags name its default routers; this platform's

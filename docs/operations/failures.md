@@ -26,15 +26,15 @@ The `failure_domain` identifies the subsystem where the injected mechanism acts.
 | Domain | Boundary | Registered failures | Working-matrix tasks |
 | --- | --- | ---: | ---: |
 | Link & Interface | Link attachment, interface state, flapping, packet corruption, and capacity bottlenecks. | 6 | 267 |
-| Routing & Control Plane | BGP and OSPF route computation, advertisements, adjacency, and routing-daemon availability. | 8 | 196 |
-| Forwarding, Encapsulation & Policy | ACLs, static forwarding, SDN rules, P4 pipelines, MTU behavior, WireGuard encapsulation, and Kubernetes NetworkPolicy. | 26 | 324 |
+| Routing & Control Plane | BGP and OSPF route computation, advertisements, adjacency, and routing-daemon availability. | 10 | 196 |
+| Forwarding, Encapsulation & Policy | ACLs, static forwarding, SDN rules, P4 pipelines, MTU behavior, WireGuard encapsulation, and Kubernetes NetworkPolicy. | 27 | 324 |
 | Service Networking | Kubernetes ClusterIP forwarding and load-balancer operation. | 6 | 17 |
 | Management & Orchestration Plane | Kubernetes API-server reachability, SDN controller availability, and controller southbound management channels. | 4 | 11 |
 | Addressing, Neighbor & Naming | IP and MAC assignment, ARP, DHCP, DNS data, DNS reachability, and name resolution. | 13 | 132 |
 | Endpoint & Application | Endpoint resource contention and application delay. | 2 | 38 |
 | Traffic, Queueing & Resource | Offered load, queueing, and end-host resource constraints. | 3 | 25 |
 | Security | Attacks, spoofing, and poisoning. | 7 | 88 |
-| **Total** |  | **75** | **1,098** |
+| **Total** |  | **78** | **1,098** |
 
 The domains follow the failed network mechanism.
 
@@ -59,7 +59,7 @@ The scenario labels below reproduce tag-subset matching (`TAGS` on each failure 
 | **Kubernetes** | `k8s_lab`, `llmd_lab` |
 | **VPN** | `enterprise_branch` |
 
-For base `isp_*` scenarios, OSPF failures require `--igp ospf`; BGP failures require `--bgp-mode ibgp_rr` or `ebgp`. `bgp_max_prefix_exceeded` requires `isp_abilene` or `isp_geant` with `--bgp-mode ebgp`. `bgp_rpki_invalid_route_leak` requires `isp_abilene_ebgp_rpki` or `isp_geant_ebgp_rpki` (Kathara+FRR+Routinator). Generated benchmark rows select those scenario IDs. Generic link failures and dual-backend BGP/ACL/static faults expand onto both Kathará+FRR and Containerlab, within the [Containerlab ISP size cap](network-scenarios.md#sndlib-isp-scenarios). Other ISP failures stay Kathará-only. SONiC routers route with FRR, so failures in the **FRR** set also run on `min3clos` and Containerlab ISP environments when `--device-profile sonic`. [Router platforms](#router-platforms) lists which failures run on SR Linux, IOS XR, RouterOS, and SONiC.
+For base `isp_*` scenarios, OSPF failures require `--igp ospf`; BGP failures require `--bgp-mode ibgp_rr` or `ebgp`. `bgp_max_prefix_exceeded` requires `isp_abilene` or `isp_geant` with `--bgp-mode ebgp`. `bgp_ttl_security_mismatch` requires `--bgp-mode ebgp`. `bgp_rpki_invalid_route_leak` requires `isp_abilene_ebgp_rpki` or `isp_geant_ebgp_rpki` (Kathara+FRR+Routinator). Generated benchmark rows select those scenario IDs. Generic link failures and dual-backend BGP/ACL/static faults expand onto both Kathará+FRR and Containerlab, within the [Containerlab ISP size cap](network-scenarios.md#sndlib-isp-scenarios). Other ISP failures stay Kathará-only. SONiC routers route with FRR, so failures in the **FRR** set also run on `min3clos` and Containerlab ISP environments when `--device-profile sonic`. [Router platforms](#router-platforms) lists which failures run on SR Linux, IOS XR, RouterOS, and SONiC.
 
 ## Router platforms
 

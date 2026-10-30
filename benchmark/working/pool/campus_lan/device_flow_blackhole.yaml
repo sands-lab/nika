@@ -1,0 +1,46 @@
+scenario:
+  name: campus_lan
+failure:
+  fault_type: device_flow_blackhole
+  cases:
+  - topo_size: s
+    inject:
+      forwarding_device: server_access_router
+      intf_name: eth1
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: server_access_router
+      fault_type: device_flow_blackhole
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      forwarding_device: server_access_router
+      intf_name: eth1
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: server_access_router
+      fault_type: device_flow_blackhole
+  - topo_size: m
+    inject:
+      forwarding_device: server_access_router
+      intf_name: eth1
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: server_access_router
+      fault_type: device_flow_blackhole
+  - topo_size: l
+    inject:
+      forwarding_device: server_access_router
+      intf_name: eth1
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: server_access_router
+      fault_type: device_flow_blackhole

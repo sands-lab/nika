@@ -289,6 +289,8 @@ class DeviceForwardingPacketCorruption(ProblemBase):
     TAGS = ["forwarding_device"]
     supported_backends = ("kathara", "containerlab")
     Params = SwitchInternalPacketCorruptionParams
+    # Egress classifier that carries the fault.
+    INJECTOR = SwitchNamespaceBitflip
 
     BENCHMARK_TARGETS = "canonical"
 
@@ -317,7 +319,7 @@ class DeviceForwardingPacketCorruption(ProblemBase):
         forwarding_devices = set(net_env.routers or []) | set(net_env.switches or [])
         if target not in forwarding_devices:
             raise ValueError(
-                "device_forwarding_packet_corruption requires a router or switch target"
+                f"{cls.root_cause_name} requires a router or switch target"
             )
         if target_intf not in (ctx.ifaces_by_device.get(target) or []):
             raise ValueError(
@@ -328,7 +330,7 @@ class DeviceForwardingPacketCorruption(ProblemBase):
         return [node_resource(params.forwarding_device)]
 
     def _bitflip(self) -> SwitchNamespaceBitflip:
-        return SwitchNamespaceBitflip(self.runtime, self.lab_backend)
+        return self.INJECTOR(self.runtime, self.lab_backend)
 
     def inject_fault(self, params: SwitchInternalPacketCorruptionParams) -> None:
         if params.intf_name not in interfaces_for_node(
@@ -340,7 +342,7 @@ class DeviceForwardingPacketCorruption(ProblemBase):
         identity = self.net_env.machine_identities.get(params.forwarding_device)
         if identity is None or identity.role not in {NodeRole.ROUTER, NodeRole.SWITCH}:
             raise RuntimeCapabilityError(
-                "device_forwarding_packet_corruption requires a router or switch target"
+                f"{self.root_cause_name} requires a router or switch target"
             )
         self._bitflip().attach(params.forwarding_device, params.intf_name, params.seed)
 
