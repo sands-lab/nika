@@ -21,7 +21,7 @@ from agent.utils.loggers import (
     render_prompt,
     tool_event_payload,
 )
-from agent.utils.mcp_client import session_mcp_config
+from agent.utils.mcp_client import mcp_read_timeout_seconds, session_mcp_config
 from agent.protocols import PHASES
 from agent.utils.skills import prepare_codex_workspace
 from agent.base import max_steps_report
@@ -110,7 +110,11 @@ class CodexSdkWorker:
         )
         config_path = self._codex_home / "config.toml"
         config_path.write_text(
-            _build_mcp_toml(servers, provider=self.llm_provider),
+            _build_mcp_toml(
+                servers,
+                provider=self.llm_provider,
+                tool_timeout_sec=mcp_read_timeout_seconds(),
+            ),
             encoding="utf-8",
         )
 
