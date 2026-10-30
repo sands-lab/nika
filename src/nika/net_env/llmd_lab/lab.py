@@ -190,6 +190,9 @@ class LLMDInferenceCluster(NetworkEnvBase):
             "Service name. Hosts resolve lab names (client, web, controller, "
             "workers, llmd) through static /etc/hosts entries; the lab runs no "
             "DNS server for lab names (cluster DNS serves pods only). "
+            "The gateway address (llmd) is a MetalLB Layer 2 LoadBalancer IP "
+            "that kube-proxy serves on TCP port 80 only, so ping to it gets "
+            "no echo reply, only ICMP redirects; test it over HTTP. "
             # kubectl is only usable on the k3s server. Resource ids use device names or Kubernetes objects.
             "`kubectl` works only on controller (the k3s server); the worker "
             "devices ship the binary but have no kubeconfig. Resources are lab "
