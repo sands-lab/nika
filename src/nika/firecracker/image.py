@@ -172,19 +172,23 @@ NODE_MEMORY_MIB = 64
 def vm_memory_mib(params: dict[str, Any]) -> int:
     """VM memory of an environment variant.
 
-    An override for ``<scenario>@<device_profile>`` or the scenario applies
-    first. A variant whose routers run a platform other than the
-    environment's default is sized from what it deploys: each router of the
-    platform needs that platform's ``ROUTER_MEMORY_MIB``.
+    A configured override for ``<scenario>@<device_profile>`` or the scenario
+    applies first. A variant whose routers run a router platform is sized
+    from what it deploys: each router needs its platform's
+    ``ROUTER_MEMORY_MIB``. Other labs use NIKA's sizes for large labs or
+    ``vm_memory``.
     """
+    from nika.run_config.schema import DEFAULT_VM_MEMORY_OVERRIDES
+
     settings = firecracker_settings()
     scenario = str(params.get("scenario"))
     profile = params.get("device_profile")
-    memory = settings.vm_memory_overrides.get(f"{scenario}@{profile}")
+    overrides = settings.vm_memory_overrides
+    memory = overrides.get(f"{scenario}@{profile}") or overrides.get(scenario)
     if memory is None and _router_memory_mib(profile) is not None:
         return _platform_memory_mib(json.dumps(params, sort_keys=True))
     if memory is None:
-        memory = settings.vm_memory_overrides.get(scenario, settings.vm_memory)
+        memory = DEFAULT_VM_MEMORY_OVERRIDES.get(scenario, settings.vm_memory)
     return int(memory[:-3]) * 1024
 
 

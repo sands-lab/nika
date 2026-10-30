@@ -35,21 +35,36 @@ def test_firecracker_settings_default_off_and_validated() -> None:
         FirecrackerSettings(vm_memory_overrides={"isp_pdh": "20480MiB"})
     with pytest.raises(ValidationError):
         FirecrackerSettings(vm_cpus_overrides={"isp_pdh": 0})
-    assert FirecrackerSettings().vm_memory_overrides["dc_clos"] == "8GiB"
+    assert FirecrackerSettings().vm_memory_overrides == {}
     assert FirecrackerSettings().vm_cpus_overrides["isp_pdh"] == 12
     set_run_config(RunConfig())
     assert image.vm_memory_mib({"scenario": "dc_clos"}) == 8192
     assert image.vm_cpus("isp_pdh") == 12
     assert image.vm_cpus("campus_lan") == 4
-    # User overrides merge over the built-in sizes of large labs.
-    overrides = FirecrackerSettings(
-        vm_memory_overrides={"k8s_lab": "12GiB"},
-        vm_cpus_overrides={"isp_pdh": 8},
-    )
-    assert overrides.vm_memory_overrides["k8s_lab"] == "12GiB"
-    assert overrides.vm_memory_overrides["isp_pdh"] == "20GiB"
+    overrides = FirecrackerSettings(vm_cpus_overrides={"isp_pdh": 8})
     assert overrides.vm_cpus_overrides["isp_pdh"] == 8
     assert overrides.vm_cpus_overrides["isp_di-yuan"] == 12
+
+
+def test_vm_memory_follows_the_router_platform_a_variant_deploys() -> None:
+    """Router platforms size their VMs; configured overrides win over both sizes."""
+    pdh = {"scenario": "isp_pdh", "backend": "containerlab", "igp": "isis"}
+    sonic = {**pdh, "device_profile": "sonic"}
+    srl = {**pdh, "device_profile": "nokia_srlinux"}
+    set_run_config(RunConfig())
+    # 11 routers and 11 hosts: 1 GiB + 11 x 256 MiB + 11 x 64 MiB -> 5 GiB.
+    assert image.vm_memory_mib(sonic) == 5 * 1024
+    # The same graph on SR Linux needs 11 x 1.5 GiB.
+    assert image.vm_memory_mib(srl) == 19 * 1024
+    assert image.vm_memory_mib({"scenario": "min3clos"}) == 8 * 1024
+    run_config = RunConfig()
+    run_config.nika.execution.firecracker.vm_memory_overrides = {
+        "isp_pdh": "12GiB",
+        "isp_pdh@sonic": "3GiB",
+    }
+    set_run_config(run_config)
+    assert image.vm_memory_mib(sonic) == 3 * 1024
+    assert image.vm_memory_mib(srl) == 12 * 1024
 
 
 def test_override_routes_lab_ops_and_maps_gateway_port() -> None:
