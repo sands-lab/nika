@@ -42,6 +42,9 @@ HWSKU_DIR = f"/usr/share/sonic/device/{PLATFORM}/{HWSKU}"
 # Read-only bind of the node's generated files.
 CONFIG_DIR = "/etc/sonic/startup"
 PORT_MTU = 9100
+# Memory one SONiC router needs, with headroom: Firecracker lab images of the
+# SNDlib ISPs on SONiC use 2.4-2.9 GiB for 10-11 routers and as many hosts.
+ROUTER_MEMORY_MIB = 256
 
 BOOT_TIMEOUT_SEC = 900
 

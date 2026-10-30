@@ -38,7 +38,7 @@ def test_firecracker_settings_default_off_and_validated() -> None:
     assert FirecrackerSettings().vm_memory_overrides["dc_clos"] == "8GiB"
     assert FirecrackerSettings().vm_cpus_overrides["isp_pdh"] == 12
     set_run_config(RunConfig())
-    assert image.vm_memory_mib("dc_clos") == 8192
+    assert image.vm_memory_mib({"scenario": "dc_clos"}) == 8192
     assert image.vm_cpus("isp_pdh") == 12
     assert image.vm_cpus("campus_lan") == 4
     # User overrides merge over the built-in sizes of large labs.

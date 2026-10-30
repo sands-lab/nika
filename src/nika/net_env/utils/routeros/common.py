@@ -24,6 +24,9 @@ from nika.service.lab.routeros_api import CLI_COMMAND
 
 # MikroTik licensing blocks redistributing / auto-building this image like nika/*.
 IMAGE = "vrnetlab/mikrotik_routeros:7.21.5"
+# Memory one RouterOS router (CHR VM in its vrnetlab container) needs;
+# admission and Firecracker VM sizing use it.
+ROUTER_MEMORY_MIB = 1024
 
 # vrnetlab FTPs this file into the VM after boot. RouterOS imports a file named
 # ``*.auto.rsc`` on upload and writes the import result to ``*.auto.log``.

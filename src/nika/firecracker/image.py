@@ -163,10 +163,57 @@ def lab_settings() -> dict[str, Any]:
     return {section: nika[section] for section in LAB_SETTING_SECTIONS}
 
 
-def vm_memory_mib(scenario: str) -> int:
+# Guest kernel, Docker and NIKA, and each node that is not a platform router,
+# in a variant whose routers run another platform (see vm_memory_mib).
+GUEST_BASE_MIB = 1024
+NODE_MEMORY_MIB = 64
+
+
+def vm_memory_mib(params: dict[str, Any]) -> int:
+    """VM memory of an environment variant.
+
+    An override for ``<scenario>@<device_profile>`` or the scenario applies
+    first. A variant whose routers run a platform other than the
+    environment's default is sized from what it deploys: each router of the
+    platform needs that platform's ``ROUTER_MEMORY_MIB``.
+    """
     settings = firecracker_settings()
-    memory = settings.vm_memory_overrides.get(scenario, settings.vm_memory)
+    scenario = str(params.get("scenario"))
+    profile = params.get("device_profile")
+    memory = settings.vm_memory_overrides.get(f"{scenario}@{profile}")
+    if memory is None and _router_memory_mib(profile) is not None:
+        return _platform_memory_mib(json.dumps(params, sort_keys=True))
+    if memory is None:
+        memory = settings.vm_memory_overrides.get(scenario, settings.vm_memory)
     return int(memory[:-3]) * 1024
+
+
+def _router_memory_mib(profile: str | None) -> int | None:
+    """Memory one router of ``profile`` needs, when its platform module declares it."""
+    from importlib import import_module
+
+    if not profile:
+        return None
+    try:
+        module = import_module(f"nika.net_env.utils.{profile}.common")
+    except ModuleNotFoundError:
+        return None
+    return getattr(module, "ROUTER_MEMORY_MIB", None)
+
+
+@functools.cache
+def _platform_memory_mib(params_json: str) -> int:
+    from nika.net_env.net_env_pool import get_net_env_instance
+
+    params = json.loads(params_json)
+    profile = params["device_profile"]
+    kwargs = {key: value for key, value in params.items() if key != "scenario"}
+    env = get_net_env_instance(params["scenario"], **kwargs)
+    nodes = env.machine_identities
+    routers = sum(profile in identity.capabilities for identity in nodes.values())
+    need = _router_memory_mib(profile)
+    total = GUEST_BASE_MIB + routers * need + (len(nodes) - routers) * NODE_MEMORY_MIB
+    return -(-total // 1024) * 1024
 
 
 def vm_cpus(scenario: str) -> int:
@@ -190,7 +237,7 @@ def image_key(params: dict[str, Any]) -> str:
         "code": code_fingerprint(),
         "base": base_manifest().get("id"),
         "cpus": vm_cpus(str(params.get("scenario"))),
-        "memory_mib": vm_memory_mib(str(params.get("scenario"))),
+        "memory_mib": vm_memory_mib(params),
         "huge_pages": settings.huge_pages,
         "firecracker": binary_id(firecracker_binary()),
     }
@@ -262,19 +309,19 @@ def free_root_mib() -> int:
     return stat.f_bavail * stat.f_frsize >> 20
 
 
-def build_space_mib(scenario: str) -> int:
+def build_space_mib(params: dict[str, Any]) -> int:
     """Root space a build needs: its snapshot first writes the whole VM memory."""
-    return vm_memory_mib(scenario) + BUILD_SPACE_MARGIN_MIB
+    return vm_memory_mib(params) + BUILD_SPACE_MARGIN_MIB
 
 
-def require_build_space(scenario: str) -> None:
+def require_build_space(params: dict[str, Any]) -> None:
     """Fail before a build that could fill the Firecracker root.
 
     A full btrfs root fails every build and trial (and the run's own logs when
     they live there).
     """
     free_mib = free_root_mib()
-    need_mib = build_space_mib(scenario)
+    need_mib = build_space_mib(params)
     if free_mib < need_mib:
         raise RuntimeError(
             f"Only {free_mib / 1024:.0f} GiB free on {root()}; a build needs about "
@@ -304,7 +351,7 @@ def _build(build: Path, key: str, params: dict[str, Any]) -> None:
         # An interrupted build (we hold its lock): stop its VM before deleting it.
         kill_pid_file(build / "firecracker.pid")
         shutil.rmtree(build)
-    require_build_space(str(params.get("scenario")))
+    require_build_space(params)
     build.mkdir(parents=True)
     (build / "builder.json").write_text(
         json.dumps(
@@ -319,7 +366,7 @@ def _build(build: Path, key: str, params: dict[str, Any]) -> None:
         initrd=str(base / manifest["initrd"]) if manifest.get("initrd") else None,
         boot_args=manifest["boot_args"],
         cpus=vm_cpus(str(params["scenario"])),
-        memory_mib=vm_memory_mib(str(params["scenario"])),
+        memory_mib=vm_memory_mib(params),
         huge_pages=settings.huge_pages,
         free_page_reporting=not settings.huge_pages,
     )

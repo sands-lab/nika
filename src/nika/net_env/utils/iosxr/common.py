@@ -31,7 +31,9 @@ _ZTP_APPLY_COMMAND = "/bin/bash -c 'source /pkg/bin/ztp_helper.sh; xrapply {file
 
 # Kathara memory limit per XRd router. XRd Control Plane needs about 2 GiB
 # resident; the limit leaves boot headroom.
-XRD_MEMORY = "3g"
+# Memory one XRd router needs; Firecracker sizes IOS XR lab VMs from it.
+ROUTER_MEMORY_MIB = 3072
+XRD_MEMORY = f"{ROUTER_MEMORY_MIB // 1024}g"
 
 
 def iosxr_interface(name: str) -> str:
