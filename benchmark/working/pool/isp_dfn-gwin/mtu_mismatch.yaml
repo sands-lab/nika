@@ -1,0 +1,21 @@
+scenario:
+  name: isp_dfn-gwin
+failure:
+  fault_type: mtu_mismatch
+  cases:
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: berlin
+      intf_name: eth1
+      mtu: '500'
+    root_causes:
+    - resource:
+        kind: interface
+        node: berlin
+        name: eth1
+      fault_type: mtu_mismatch
