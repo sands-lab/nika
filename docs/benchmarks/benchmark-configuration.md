@@ -657,6 +657,36 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 </tr>
 <tr>
+<td><code>bgp_ttl_security_mismatch</code></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+</tr>
+<tr>
 <td><code>frr_service_down</code></td>
 <td align="center">○</td>
 <td align="center">○</td>
@@ -689,6 +719,36 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <tr>
 <td><code>ospf_area_misconfiguration</code></td>
 <td align="center">●</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>ospf_duplicate_router_id</code></td>
+<td align="center">○</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -879,6 +939,36 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">●</td>
 <td align="center"></td>
 <td align="center"></td>
+</tr>
+<tr>
+<td><code>device_flow_blackhole</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
 </tr>
 <tr>
 <td><code>device_forwarding_packet_corruption</code></td>
@@ -3001,6 +3091,17 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center">◆✓</td>
 </tr>
 <tr>
+<td><code>bgp_ttl_security_mismatch</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
 <td><code>frr_service_down</code></td>
 <td align="center">○✓</td>
 <td align="center">○</td>
@@ -3021,6 +3122,17 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center"></td>
 <td align="center">○</td>
 <td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>ospf_duplicate_router_id</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
 </tr>
 <tr>
 <td><code>ospf_neighbor_missing</code></td>
@@ -3054,6 +3166,17 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
 <td align="center">◆✓</td>
+</tr>
+<tr>
+<td><code>device_flow_blackhole</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
 </tr>
 <tr>
 <td><code>device_forwarding_packet_corruption</code></td>

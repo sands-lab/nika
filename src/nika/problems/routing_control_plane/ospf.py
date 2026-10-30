@@ -373,3 +373,157 @@ class OSPFNeighborMissing(ProblemBase):
                 "running_interface_binding_count": len(running_interfaces),
             },
         )
+
+
+# ==================================================================
+# Problem: OSPF Duplicate Router ID
+# ==================================================================
+
+_ROUTER_LSA_SECTION_RE = re.compile(r"Router Link States \(Area ([\d.]+)")
+_LSA_ROW_RE = re.compile(r"^(\d+\.\d+\.\d+\.\d+)\s+(\d+\.\d+\.\d+\.\d+)\s+\d+\s+0x")
+_ROUTER_ID_LINE_RE = r"^[[:space:]]*(ospf )?router-id "
+
+
+def router_lsa_origins(database: str) -> dict[str, set[str]]:
+    """Area -> advertising routers of its router-LSAs, from ``show ip ospf database``."""
+    origins: dict[str, set[str]] = {}
+    area = None
+    for line in database.splitlines():
+        if match := _ROUTER_LSA_SECTION_RE.search(line):
+            area = match[1]
+            origins.setdefault(area, set())
+        elif "Link States" in line:
+            area = None
+        elif area and (match := _LSA_ROW_RE.match(line.strip())):
+            origins[area].add(match[2])
+    return origins
+
+
+def _ospf_router_id(raw_json: str) -> str | None:
+    try:
+        return json.loads(raw_json).get("routerId")
+    except (ValueError, AttributeError):
+        return None
+
+
+class OSPFDuplicateRouterIdParams(BaseModel):
+    """Parameters for injecting an OSPF router ID that another router already uses."""
+
+    host_name: str = Field(description="Target router host name.")
+
+
+class OSPFDuplicateRouterId(ProblemBase):
+    """The router takes the OSPF router ID of another router in its area.
+
+    With a non-adjacent router, both originate a router-LSA under the same
+    ID. They may re-flood it against each other for a few minutes, and in
+    the end every router keeps one of the two LSAs, so the links and subnets
+    of one of the two routers drop out of every routing table while all
+    adjacencies stay Full. Which router loses depends on LSA timing. With a
+    neighbor, the neighbor ignores hellos that carry its own ID and the
+    adjacency never forms. Inject prefers the lowest non-adjacent router ID
+    in the target's areas and otherwise takes the lowest neighbor ID, so the
+    choice is reproducible. See Cisco, "Troubleshooting Duplicate Router IDs
+    with OSPF":
+    https://www.cisco.com/c/en/us/support/docs/ip/open-shortest-path-first-ospf/23862-duplicate-router-id-ospf.html
+    """
+
+    failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
+    symptom_probe = "custom"
+    symptom_class = "control_plane"
+    root_cause_name = "ospf_duplicate_router_id"
+    description = "OSPF router ID duplicates the router ID of another router."
+    effect_protocol = "ospf"
+    TAGS = ["ospf"]
+    supported_backends = ("kathara",)
+    Params = OSPFDuplicateRouterIdParams
+    RECORDED_ATTRS = ("duplicate_router_id",)
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": ctx.router0}
+
+    def __init__(self, scenario_name: str | None, **kwargs):
+        super().__init__(scenario_name, **kwargs)
+        self.logger = system_logger
+
+    def root_cause_resources(self, params: OSPFDuplicateRouterIdParams):
+        return [node_resource(params.host_name)]
+
+    def _router_id(self, host: str) -> str | None:
+        return _ospf_router_id(
+            self.runtime.exec(host, "vtysh -c 'show ip ospf json' 2>/dev/null")
+        )
+
+    def _duplicate_candidate(self, host: str, own: str) -> str:
+        database = self.runtime.exec(
+            host, "vtysh -c 'show ip ospf database' 2>/dev/null"
+        )
+        raw = self.runtime.exec(
+            host, "vtysh -c 'show ip ospf neighbor json' 2>/dev/null"
+        )
+        try:
+            neighbors = set((json.loads(raw).get("neighbors") or {}).keys())
+        except (ValueError, AttributeError):
+            neighbors = set()
+        in_area = set().union(*router_lsa_origins(database).values()) - {own}
+        candidates = (in_area - neighbors) or (neighbors - {own})
+        if not candidates:
+            raise RuntimeCapabilityError(
+                f"{type(self).__name__}: no other OSPF router shares an area "
+                f"with {host!r}."
+            )
+        return min(candidates, key=lambda rid: ipaddress.ip_address(rid))
+
+    def _set_router_id(self, host: str, router_id: str | None) -> None:
+        """Apply ``router_id`` (``None``: derive it) to ospfd and frr.conf."""
+        line = f"ospf router-id {router_id}" if router_id else "no ospf router-id"
+        self.runtime.exec(host, frr_config_command("router ospf", line))
+        # A new router ID takes effect only when the OSPF process restarts.
+        self.runtime.exec(host, "vtysh -c 'clear ip ospf process' >/dev/null 2>&1")
+        if router_id is None:
+            edit = f"'{_OSPF_BLOCK_RANGE} {{/{_ROUTER_ID_LINE_RE}/d}}'"
+        elif self._file_has_router_id:
+            edit = f"'{_OSPF_BLOCK_RANGE} s/{_ROUTER_ID_LINE_RE}\\S+/ \\1router-id {router_id}/'"
+        else:
+            edit = f"'/^router ospf$/a\\ ospf router-id {router_id}'"
+        self.runtime.exec(host, f"sed -i -E {edit} {FRR_CONF}")
+
+    def inject_fault(self, params: OSPFDuplicateRouterIdParams):
+        own = self._router_id(params.host_name)
+        if not own:
+            raise RuntimeCapabilityError(
+                f"{type(self).__name__}: OSPF is not running on {params.host_name!r}."
+            )
+        self.duplicate_router_id = self._duplicate_candidate(params.host_name, own)
+        config = self.runtime.exec(params.host_name, f"cat {FRR_CONF}")
+        self._file_has_router_id = bool(
+            re.search(r"^\s*(ospf )?router-id ", _ospf_block(config), re.M)
+        )
+        self._orig_router_id = own if self._file_has_router_id else None
+        self._set_router_id(params.host_name, self.duplicate_router_id)
+        self.logger.info(
+            f"Injected OSPF router ID {self.duplicate_router_id} on "
+            f"{params.host_name} (was {own})."
+        )
+
+    def verify_fault(self, params: OSPFDuplicateRouterIdParams) -> dict:
+        expected = getattr(self, "duplicate_router_id", None)
+        running = self._router_id(params.host_name)
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=expected is not None and running == expected,
+            details={
+                "host": params.host_name,
+                "running_router_id": running,
+                "duplicate_router_id": expected,
+            },
+        )
+
+    def recover_fault(self, params: OSPFDuplicateRouterIdParams) -> dict:
+        self._set_router_id(params.host_name, getattr(self, "_orig_router_id", None))
+        running = self._router_id(params.host_name)
+        return {
+            "verified": running != getattr(self, "duplicate_router_id", None),
+            "details": {"host": params.host_name, "running_router_id": running},
+        }

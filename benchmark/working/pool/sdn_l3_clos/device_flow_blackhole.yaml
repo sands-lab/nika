@@ -1,0 +1,35 @@
+scenario:
+  name: sdn_l3_clos
+failure:
+  fault_type: device_flow_blackhole
+  cases:
+  - topo_size: s
+    inject:
+      forwarding_device: leaf_1
+      intf_name: eth0
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1
+      fault_type: device_flow_blackhole
+  - topo_size: m
+    inject:
+      forwarding_device: leaf_1
+      intf_name: eth0
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1
+      fault_type: device_flow_blackhole
+  - topo_size: l
+    inject:
+      forwarding_device: leaf_1
+      intf_name: eth0
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_1
+      fault_type: device_flow_blackhole

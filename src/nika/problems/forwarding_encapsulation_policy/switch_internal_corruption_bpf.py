@@ -19,8 +19,13 @@ TC_BPF_IMAGE = nika_image("tc-bpf")
 BPF_TARGET_ARCH = {"x86_64": "x86", "aarch64": "arm64"}
 
 
-class SwitchNamespaceBitflip:
-    """Attach the failure's TC classifier without exposing build state to agents."""
+class SwitchEgressClassifier:
+    """Attach a failure's TC egress classifier without exposing build state to agents.
+
+    ``SOURCE`` names the eBPF C file next to this module.
+    """
+
+    SOURCE = ""
 
     def __init__(self, runtime) -> None:
         self.runtime = runtime
@@ -31,7 +36,7 @@ class SwitchNamespaceBitflip:
         ).hexdigest()
         # ``tc filter show`` prints the object file name.
         object_name = "tc_egress"
-        source = Path(__file__).with_name("switch_internal_corruption.bpf.c")
+        source = Path(__file__).with_name(self.SOURCE)
         archive = io.BytesIO()
         with tarfile.open(fileobj=archive, mode="w") as tar:
             tar.add(source, arcname=f"{object_name}.c")
@@ -65,7 +70,7 @@ class SwitchNamespaceBitflip:
             if status:
                 output = loader.logs().decode(errors="replace").strip()
                 raise RuntimeCapabilityError(
-                    f"could not attach switch bitflip program on {node}:{intf}: {output}"
+                    f"could not attach {self.SOURCE} on {node}:{intf}: {output}"
                 )
         finally:
             loader.remove(force=True)
@@ -83,3 +88,7 @@ class SwitchNamespaceBitflip:
             node,
             f"tc filter del dev {intf} egress prio 10 2>/dev/null || true",
         )
+
+
+class SwitchNamespaceBitflip(SwitchEgressClassifier):
+    SOURCE = "switch_internal_corruption.bpf.c"

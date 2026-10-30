@@ -1900,3 +1900,150 @@ class BGPMaxPrefixExceeded(ProblemBase):
         self.logger.info(f"recover_fault bgp_max_prefix_exceeded: ok={ok} {details}")
         self._max_prefix_state = None
         return {"verified": ok, "details": details}
+
+
+# ==================================================================
+""" Problem: one-sided BGP TTL security (GTSM). """
+# ==================================================================
+
+_BGP_BLOCK_RE = re.compile(r"^router bgp \d+(?: vrf \S+)?$")
+_NEIGHBOR_RE = re.compile(
+    r"^\s+neighbor (\S+) (?:interface (?:v6only )?)?remote-as \S+"
+)
+GTSM_HOPS = 1
+
+
+def bgp_neighbors_by_instance(running_config: str) -> dict[str, list[str]]:
+    """``router bgp`` block line -> neighbors (IP, interface, or peer group) with a remote AS."""
+    blocks: dict[str, list[str]] = {}
+    block = None
+    for line in running_config.splitlines():
+        if _BGP_BLOCK_RE.match(line):
+            block = line
+            blocks.setdefault(block, [])
+        elif line and not line[0].isspace():
+            block = None
+        elif block and (match := _NEIGHBOR_RE.match(line)):
+            if match[1] not in blocks[block]:
+                blocks[block].append(match[1])
+    return {key: value for key, value in blocks.items() if value}
+
+
+class BGPTtlSecurityMismatchParams(BaseModel):
+    """Parameters for injecting a one-sided BGP TTL security setting."""
+
+    host_name: str = Field(description="Target router host name.")
+
+
+class BGPTtlSecurityMismatch(ProblemBase):
+    """TTL security (RFC 5082 GTSM) on one router's BGP neighbors only.
+
+    The router then drops every BGP packet whose TTL is below 255. Its eBGP
+    peers still send with TTL 1, and iBGP packets from peers more than one
+    hop away arrive below 255, so those sessions never reach Established;
+    a directly connected iBGP peer still gets through. Nothing filters TCP
+    179: the kernel drops the packets through the socket's minimum TTL. See
+    the AWS Direct Connect note on TTL security:
+    https://docs.aws.amazon.com/directconnect/latest/UserGuide/ts-ttl-security.html
+    """
+
+    failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
+    symptom_probe = "custom"
+    symptom_class = "control_plane"
+    root_cause_name = "bgp_ttl_security_mismatch"
+    description = "BGP TTL security is configured on one side of the sessions only."
+    effect_protocol = "bgp"
+    TAGS = ["bgp"]
+    # Route-reflector ISP labs peer over iBGP, where directly connected peers
+    # keep their sessions, so the router may lose none of its routes.
+    isp_protocol = {"igp": "ospf", "bgp_mode": "ebgp", "rpki": False}
+    supported_backends = ("kathara",)
+    Params = BGPTtlSecurityMismatchParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": ctx.router0}
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        from nika.problems.support.benchmark_targets import require_node_capability
+
+        require_node_capability(
+            ctx, cls.root_cause_name, inject.get("host_name"), "bgp"
+        )
+
+    def __init__(self, scenario_name: str | None, **kwargs):
+        super().__init__(scenario_name, **kwargs)
+        self.logger = system_logger
+
+    def root_cause_resources(self, params: BGPTtlSecurityMismatchParams):
+        return [node_resource(params.host_name)]
+
+    def _neighbors(self, host: str) -> dict[str, list[str]]:
+        return bgp_neighbors_by_instance(
+            self.runtime.exec(host, "vtysh -c 'show running-config' 2>/dev/null")
+        )
+
+    def _apply(self, host: str, *, enable: bool) -> None:
+        prefix = "" if enable else "no "
+        for block, neighbors in self._neighbors(host).items():
+            self.runtime.exec(
+                host,
+                frr_config_command(
+                    block,
+                    *(
+                        f"{prefix}neighbor {neighbor} ttl-security hops {GTSM_HOPS}"
+                        for neighbor in neighbors
+                    ),
+                ),
+            )
+        frr_save_config(self.runtime, host)
+        # Sessions that are already up keep running until they reset.
+        self.runtime.exec(
+            host,
+            "vtysh -c 'clear bgp *' -c 'clear bgp vrf all *' >/dev/null 2>&1",
+        )
+
+    def _secured(self, host: str) -> tuple[list[str], list[str]]:
+        config = self.runtime.exec(host, "vtysh -c 'show running-config' 2>/dev/null")
+        neighbors = sorted(
+            {n for group in bgp_neighbors_by_instance(config).values() for n in group}
+        )
+        secured = sorted(
+            set(
+                re.findall(
+                    rf"^\s+neighbor (\S+) ttl-security hops {GTSM_HOPS}$", config, re.M
+                )
+            )
+        )
+        return neighbors, secured
+
+    def inject_fault(self, params: BGPTtlSecurityMismatchParams):
+        if not self._neighbors(params.host_name):
+            raise RuntimeCapabilityError(
+                f"{type(self).__name__}: {params.host_name!r} has no BGP neighbors."
+            )
+        self._apply(params.host_name, enable=True)
+        self.logger.info(
+            f"Injected BGP TTL security (hops {GTSM_HOPS}) on {params.host_name}."
+        )
+
+    def verify_fault(self, params: BGPTtlSecurityMismatchParams) -> dict:
+        neighbors, secured = self._secured(params.host_name)
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=bool(neighbors) and set(neighbors) <= set(secured),
+            details={
+                "host": params.host_name,
+                "neighbors": neighbors,
+                "ttl_security": secured,
+            },
+        )
+
+    def recover_fault(self, params: BGPTtlSecurityMismatchParams) -> dict:
+        self._apply(params.host_name, enable=False)
+        neighbors, secured = self._secured(params.host_name)
+        return {
+            "verified": not secured,
+            "details": {"host": params.host_name, "neighbors": neighbors},
+        }
