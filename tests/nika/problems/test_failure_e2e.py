@@ -13,6 +13,7 @@ from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import (
     containerlab_prerequisites,
     docker_available,
+    docker_image_available,
     linux_vrf_available,
     privileged_lab_supported,
 )
@@ -149,6 +150,62 @@ CORE_E2E_CASES = (
         param_overrides={"baseline_trials": "1", "iperf_duration_sec": "3"},
     ),
     FailureE2ECase(
+        problem="device_flow_blackhole",
+        scenario="dc_clos",
+        env_run_args=("-s", "s"),
+        inject_seed=1,
+    ),
+    FailureE2ECase(
+        problem="bgp_ttl_security_mismatch",
+        scenario="dc_clos",
+        env_run_args=("-s", "s"),
+        inject_seed=1,
+    ),
+    # The adjacent-neighbor branch (campus_lan area 1) and the LSA-shadowing
+    # branch (single-area ISP).
+    FailureE2ECase(
+        problem="ospf_duplicate_router_id",
+        scenario="campus_lan",
+        env_run_args=("-s", "s"),
+        inject_seed=1,
+    ),
+    FailureE2ECase(
+        problem="ospf_duplicate_router_id",
+        scenario="isp_abilene",
+        env_run_args=("--igp", "ospf", "--bgp-mode", "ebgp"),
+        isp_options={"igp": "ospf", "bgp_mode": "ebgp", "rpki": False},
+        inject_seed=1,
+    ),
+    FailureE2ECase(
+        problem="switch_datapath_id_conflict",
+        scenario="sdn_l3_clos",
+        env_run_args=("-s", "s"),
+        inject_seed=1,
+    ),
+    FailureE2ECase(
+        problem="k8s_service_target_port_mismatch",
+        scenario="k8s_lab",
+        topo_size="",
+        inject_seed=1,
+    ),
+    FailureE2ECase(
+        problem="lb_advertisement_missing",
+        scenario="k8s_lab",
+        topo_size="",
+        inject_seed=1,
+    ),
+    # Native routers only: IOS XR's RFC 8212 default and RouterOS's
+    # undefined filter chain.
+    *(
+        FailureE2ECase(
+            problem="bgp_session_policy_missing",
+            scenario="dc_clos",
+            env_run_args=("-s", "s", "--device-profile", profile),
+            inject_params={"host_name": "leaf_router_0_1"},
+        )
+        for profile in ("iosxr", "routeros")
+    ),
+    FailureE2ECase(
         problem="bmv2_switch_down",
         scenario="p4_dc_fabric",
         env_run_args=("-s", "s"),
@@ -192,8 +249,24 @@ def _all_e2e_cases() -> list[FailureE2ECase]:
     ]
 
 
+# Licensed router images by ``--device-profile``.
+_VENDOR_IMAGES = {
+    "iosxr": "ios-xr/xrd-control-plane:26.2.1",
+    "routeros": "vrnetlab/mikrotik_routeros:7.21.5",
+}
+
+
+def _device_profile(case: FailureE2ECase) -> str | None:
+    args = list(case.env_run_args)
+    if "--device-profile" in args:
+        return args[args.index("--device-profile") + 1]
+    return None
+
+
 def _case_id(case: FailureE2ECase) -> str:
     parts = [case.problem, case.scenario]
+    if profile := _device_profile(case):
+        parts.append(profile)
     if case.inject_seed != 1:
         parts.append(f"seed{case.inject_seed}")
     if case.topo_size not in ("", "s"):
@@ -206,6 +279,9 @@ def _skip_reason(case: FailureE2ECase) -> str | None:
         return "docker required"
     if case.scenario == "enterprise_branch" and not linux_vrf_available():
         return "host kernel lacks Linux VRF"
+    profile = _device_profile(case)
+    if profile and not docker_image_available(_VENDOR_IMAGES[profile]):
+        return f"{_VENDOR_IMAGES[profile]} image not installed"
     if case.scenario == "min3clos" and not containerlab_prerequisites():
         return "containerlab/gnmic not available"
     # Shared GHA runners: netns move for link_detach is unreliable.

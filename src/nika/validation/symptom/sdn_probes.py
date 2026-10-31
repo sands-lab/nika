@@ -419,3 +419,46 @@ def controller_lost(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
             "control_ok": control_ok,
         },
     )
+
+
+_CONFLICT_SAMPLES = 10
+_CONFLICT_SAMPLE_SEC = 3.0
+
+
+def switch_controller_conflict(
+    problem: Any, params: Any
+) -> tuple[bool, dict[str, Any]]:
+    """The target switch keeps losing its controller; the other switches stay on.
+
+    The controller closes each new channel from the target soon after it
+    opens, so most samples read disconnected. Installed flows keep forwarding.
+    """
+    target = params.host_name
+    samples: list[dict[str, bool]] = []
+    for _ in range(_CONFLICT_SAMPLES):
+        states, errors = _switch_connections(problem)
+        if errors:
+            return False, {"error": "switch_controller_query_failed", "details": errors}
+        samples.append(states)
+        time.sleep(_CONFLICT_SAMPLE_SEC)
+    down = sum(1 for states in samples if states.get(target) is False)
+    others_up = all(
+        up for states in samples for name, up in states.items() if name != target
+    )
+    forwarding = _forwarding(problem)
+    verified = (
+        down >= _CONFLICT_SAMPLES * 0.8
+        and others_up
+        and forwarding["loss_percent"] == 0.0
+    )
+    return verified, build_verify_result(
+        fault_type=problem.root_cause_name,
+        verified=verified,
+        details={
+            "switch": target,
+            "disconnected_samples": down,
+            "samples": _CONFLICT_SAMPLES,
+            "other_switches_connected": others_up,
+            "forwarding": forwarding,
+        },
+    )

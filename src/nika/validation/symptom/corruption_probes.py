@@ -6,6 +6,7 @@ metrics the symptom reads, and keeps both on the problem.
 
 from __future__ import annotations
 
+import base64
 import ipaddress
 import json
 import re
@@ -19,6 +20,7 @@ from nika.net_env.verify import (
     ping_stats,
 )
 from nika.problems.base import build_verify_result
+from nika.problems.rca.inventory import iter_link_termination_points, parse_endpoint
 from nika.runtime.base import LabRuntime
 from nika.runtime.spec import NodeRole
 from nika.validation.symptom.addressing_probes import healthy_read, lab_addresses
@@ -356,6 +358,110 @@ def evaluate_link_capacity_symptom(
         bool(before_bps)
         and bool(after_bps)
         and float(after_bps) < float(before_bps) * CAPACITY_MAX_RATIO
+    )
+    return verified, build_verify_result(
+        fault_type=problem.root_cause_name,
+        verified=verified,
+        details={**state["ends"], "before": state["before"], "after": after},
+    )
+
+
+# Fresh TCP connections per reading; each gets a new ephemeral port and so a
+# new five-tuple. Connections whose SYN the device drops time out.
+CONNECT_ATTEMPTS = 48
+CONNECT_TIMEOUT_SEC = 2
+CONNECT_FAILURES_MIN = 2
+# Echo loss above this means the path is down, not a per-flow black hole.
+CONNECT_ECHO_LOSS_MAX = 10.0
+_LISTEN_PORT = 15241
+_LISTENER = (
+    "import socket\n"
+    "s = socket.socket()\n"
+    "s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)\n"
+    f"s.bind(('', {_LISTEN_PORT}))\n"
+    "s.listen(256)\n"
+    "while True:\n"
+    "    s.accept()[0].close()\n"
+)
+_LISTENER_B64 = base64.b64encode(_LISTENER.encode()).decode()
+
+
+def _connect_reading(problem: Any, ends: dict[str, Any]) -> dict[str, Any]:
+    """Failed fresh TCP connects from ``src`` to ``dst``, and echo loss on the same pair."""
+    runtime = problem.runtime
+    pid = exec_or_empty(
+        runtime,
+        ends["dst_host"],
+        f'nohup python3 -c "$(echo {_LISTENER_B64} | base64 -d)" '
+        ">/dev/null 2>&1 & echo $!",
+    ).split()
+    try:
+        time.sleep(1.0)
+        out = exec_or_empty(
+            runtime,
+            ends["src"],
+            f"for i in $(seq {CONNECT_ATTEMPTS}); do "
+            f"timeout {CONNECT_TIMEOUT_SEC} bash -c "
+            f"'</dev/tcp/{ends['dst']}/{_LISTEN_PORT}' 2>/dev/null "
+            "&& echo ok || echo fail; done",
+            timeout=CONNECT_ATTEMPTS * (CONNECT_TIMEOUT_SEC + 1) + 10,
+        )
+    finally:
+        if pid and pid[-1].isdigit():
+            exec_or_empty(runtime, ends["dst_host"], f"kill {pid[-1]} 2>/dev/null")
+    echo = ping_stats(runtime, ends["src"], ends["dst"], count=20, interval_sec=0.2)
+    results = out.split()
+    return {
+        "attempts": len(results),
+        "failed": results.count("fail"),
+        "echo_loss_percent": echo.loss_percent,
+    }
+
+
+def _facing_ends(problem: Any, params: Any) -> dict[str, Any]:
+    """Send to the end host behind ``intf_name``, so every flow to it crosses the port.
+
+    Falls back to ``_crossing_ends`` when the port does not face an end host.
+    """
+    device, intf = params.forwarding_device, params.intf_name
+    peer = None
+    for _key, tps in iter_link_termination_points(problem.net_env):
+        ends = [parse_endpoint(str(tp)) for tp in tps]
+        if len(ends) == 2 and (device, intf) in ends:
+            peer = next(end for end in ends if end != (device, intf))
+    identity = problem.net_env.machine_identities.get(peer[0]) if peer else None
+    if getattr(identity, "role", None) not in {NodeRole.HOST, NodeRole.SERVICE}:
+        return _crossing_ends(problem, params)
+    addresses = dict(lab_addresses(problem.runtime).get(peer[0], []))
+    src = _ends(problem, params).get("src")
+    if peer[1] not in addresses or not src or src == peer[0]:
+        return _crossing_ends(problem, params)
+    dst = str(ipaddress.ip_interface(addresses[peer[1]]).ip)
+    return {"src": src, "dst": dst, "dst_host": peer[0]}
+
+
+def flow_blackhole_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    ends = _facing_ends(problem, params)
+    if "error" in ends:
+        return False, ends
+    reading = _connect_reading(problem, ends)
+    problem._audit_flow_blackhole = {"ends": ends, "before": reading}
+    ok = reading["attempts"] == CONNECT_ATTEMPTS and reading["failed"] == 0
+    return ok, {**ends, **reading}
+
+
+def flow_blackhole(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    """Some fresh TCP connections across the device fail while echo still passes."""
+    state = getattr(problem, "_audit_flow_blackhole", None) or {}
+    if not state:
+        return False, {"error": "no_baseline_reading"}
+    after = _connect_reading(problem, state["ends"])
+    loss = after["echo_loss_percent"]
+    verified = (
+        after["attempts"] == CONNECT_ATTEMPTS
+        and CONNECT_FAILURES_MIN <= after["failed"] < CONNECT_ATTEMPTS
+        and loss is not None
+        and loss <= CONNECT_ECHO_LOSS_MAX
     )
     return verified, build_verify_result(
         fault_type=problem.root_cause_name,

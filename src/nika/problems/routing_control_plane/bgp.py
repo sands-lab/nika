@@ -18,6 +18,7 @@ from nika.problems.base import (
     ProblemBase,
 )
 from nika.problems.support.benchmark_targets import (
+    attached_end_hosts,
     choice,
     first,
     isp_protocol_for,
@@ -1900,3 +1901,299 @@ class BGPMaxPrefixExceeded(ProblemBase):
         self.logger.info(f"recover_fault bgp_max_prefix_exceeded: ok={ok} {details}")
         self._max_prefix_state = None
         return {"verified": ok, "details": details}
+
+
+# ==================================================================
+""" Problem: one-sided BGP TTL security (GTSM). """
+# ==================================================================
+
+_BGP_BLOCK_RE = re.compile(r"^router bgp \d+(?: vrf \S+)?$")
+_NEIGHBOR_RE = re.compile(
+    r"^\s+neighbor (\S+) (?:interface (?:v6only )?)?remote-as \S+"
+)
+GTSM_HOPS = 1
+
+
+def bgp_neighbors_by_instance(running_config: str) -> dict[str, list[str]]:
+    """``router bgp`` block line -> neighbors (IP, interface, or peer group) with a remote AS."""
+    blocks: dict[str, list[str]] = {}
+    block = None
+    for line in running_config.splitlines():
+        if _BGP_BLOCK_RE.match(line):
+            block = line
+            blocks.setdefault(block, [])
+        elif line and not line[0].isspace():
+            block = None
+        elif block and (match := _NEIGHBOR_RE.match(line)):
+            if match[1] not in blocks[block]:
+                blocks[block].append(match[1])
+    return {key: value for key, value in blocks.items() if value}
+
+
+class BGPTtlSecurityMismatchParams(BaseModel):
+    """Parameters for injecting a one-sided BGP TTL security setting."""
+
+    host_name: str = Field(description="Target router host name.")
+
+
+class BGPTtlSecurityMismatch(ProblemBase):
+    """TTL security (RFC 5082 GTSM) on one router's BGP neighbors only.
+
+    The router then drops every BGP packet whose TTL is below 255. Its eBGP
+    peers still send with TTL 1, and iBGP packets from peers more than one
+    hop away arrive below 255, so those sessions never reach Established;
+    a directly connected iBGP peer still gets through. Nothing filters TCP
+    179: the kernel drops the packets through the socket's minimum TTL. See
+    the AWS Direct Connect note on TTL security:
+    https://docs.aws.amazon.com/directconnect/latest/UserGuide/ts-ttl-security.html
+    """
+
+    failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
+    symptom_probe = "custom"
+    symptom_class = "control_plane"
+    root_cause_name = "bgp_ttl_security_mismatch"
+    description = "BGP TTL security is configured on one side of the sessions only."
+    effect_protocol = "bgp"
+    TAGS = ["bgp"]
+    # Route-reflector ISP labs peer over iBGP, where directly connected peers
+    # keep their sessions, so the router may lose none of its routes.
+    isp_protocol = {"igp": "ospf", "bgp_mode": "ebgp", "rpki": False}
+    supported_backends = ("kathara",)
+    Params = BGPTtlSecurityMismatchParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": ctx.router0}
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        from nika.problems.support.benchmark_targets import require_node_capability
+
+        require_node_capability(
+            ctx, cls.root_cause_name, inject.get("host_name"), "bgp"
+        )
+
+    def __init__(self, scenario_name: str | None, **kwargs):
+        super().__init__(scenario_name, **kwargs)
+        self.logger = system_logger
+
+    def root_cause_resources(self, params: BGPTtlSecurityMismatchParams):
+        return [node_resource(params.host_name)]
+
+    def _neighbors(self, host: str) -> dict[str, list[str]]:
+        return bgp_neighbors_by_instance(
+            self.runtime.exec(host, "vtysh -c 'show running-config' 2>/dev/null")
+        )
+
+    def _apply(self, host: str, *, enable: bool) -> None:
+        prefix = "" if enable else "no "
+        for block, neighbors in self._neighbors(host).items():
+            self.runtime.exec(
+                host,
+                frr_config_command(
+                    block,
+                    *(
+                        f"{prefix}neighbor {neighbor} ttl-security hops {GTSM_HOPS}"
+                        for neighbor in neighbors
+                    ),
+                ),
+            )
+        frr_save_config(self.runtime, host)
+        # Sessions that are already up keep running until they reset.
+        self.runtime.exec(
+            host,
+            "vtysh -c 'clear bgp *' -c 'clear bgp vrf all *' >/dev/null 2>&1",
+        )
+
+    def _secured(self, host: str) -> tuple[list[str], list[str]]:
+        config = self.runtime.exec(host, "vtysh -c 'show running-config' 2>/dev/null")
+        neighbors = sorted(
+            {n for group in bgp_neighbors_by_instance(config).values() for n in group}
+        )
+        secured = sorted(
+            set(
+                re.findall(
+                    rf"^\s+neighbor (\S+) ttl-security hops {GTSM_HOPS}$", config, re.M
+                )
+            )
+        )
+        return neighbors, secured
+
+    def inject_fault(self, params: BGPTtlSecurityMismatchParams):
+        if not self._neighbors(params.host_name):
+            raise RuntimeCapabilityError(
+                f"{type(self).__name__}: {params.host_name!r} has no BGP neighbors."
+            )
+        self._apply(params.host_name, enable=True)
+        self.logger.info(
+            f"Injected BGP TTL security (hops {GTSM_HOPS}) on {params.host_name}."
+        )
+
+    def verify_fault(self, params: BGPTtlSecurityMismatchParams) -> dict:
+        neighbors, secured = self._secured(params.host_name)
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=bool(neighbors) and set(neighbors) <= set(secured),
+            details={
+                "host": params.host_name,
+                "neighbors": neighbors,
+                "ttl_security": secured,
+            },
+        )
+
+    def recover_fault(self, params: BGPTtlSecurityMismatchParams) -> dict:
+        self._apply(params.host_name, enable=False)
+        neighbors, secured = self._secured(params.host_name)
+        return {
+            "verified": not secured,
+            "details": {"host": params.host_name, "neighbors": neighbors},
+        }
+
+
+# ==================================================================
+""" Problem: BGP sessions left without a usable route policy. """
+# ==================================================================
+
+
+def has_declared_ebgp(net_env, router: str) -> bool:
+    """Whether ``router``'s declared design gives it an eBGP session.
+
+    Converted environments keep each native router's FRR sketch; native ISP
+    labs keep their BGP plan.
+    """
+    sources = getattr(net_env, "native_sources", None) or {}
+    if router in sources:
+        config = sources[router][0]
+        local = re.search(r"^router bgp (\d+)\s*$", config, re.MULTILINE)
+        remotes = re.findall(r"^\s+neighbor \S+ remote-as (\S+)", config, re.MULTILINE)
+        return bool(local) and any(
+            remote == "external" or (remote.isdigit() and remote != local[1])
+            for remote in remotes
+        )
+    plan = getattr(net_env, "bgp_plan", None)
+    return any(
+        session.local_device == router and session.session_type == "ebgp"
+        for session in getattr(plan, "sessions", ())
+    )
+
+
+class BGPSessionPolicyMissingParams(BaseModel):
+    """Parameters for leaving a native router's eBGP sessions without a policy."""
+
+    host_name: str = Field(description="Target IOS XR or RouterOS router.")
+
+
+class BGPSessionPolicyMissing(ProblemBase):
+    """The router's eBGP sessions have no route policy it can apply.
+
+    On IOS XR, eBGP neighbors lose their ``route-policy`` and XR applies its
+    RFC 8212 default, which drops every route in both directions. On
+    RouterOS, the BGP connections name filter chains that no rule defines,
+    and RouterOS rejects every route such a chain sees. The sessions stay
+    Established in both cases. See RFC 8212:
+    https://www.rfc-editor.org/rfc/rfc8212
+    """
+
+    failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
+    symptom_probe = "custom"
+    symptom_class = "control_plane"
+    root_cause_name = "bgp_session_policy_missing"
+    description = (
+        "BGP sessions have no usable route policy, so the router drops their routes."
+    )
+    effect_protocol = "bgp"
+    TAGS = ["bgp"]
+    # Validated on the IOS XR and RouterOS dc_clos fabrics, where every router
+    # peers over eBGP and the web server sits behind a leaf.
+    COMPATIBLE_COLUMNS = frozenset({"dc_clos"})
+    supported_backends = ("kathara",)
+    native_router_operations = frozenset(
+        {
+            "drop_bgp_session_policy",
+            "bgp_session_policy_dropped",
+            "bgp_established_peers",
+            "save_config",
+            "restore_config",
+        }
+    )
+    Params = BGPSessionPolicyMissingParams
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        from nika.problems.support.router_ops import native_router_profile
+
+        native = [
+            router
+            for router in ctx.routers
+            if native_router_profile(ctx.net_env, router)
+            and has_declared_ebgp(ctx.net_env, router)
+            and attached_end_hosts(ctx.net_env, router)
+        ]
+        return {"host_name": choice(ctx.rng, native, ctx.router0)}
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        from nika.problems.support.router_ops import native_router_profile
+
+        host = inject.get("host_name")
+        # The defaults that turn a missing policy into dropped routes are the
+        # native platform's; FRR here runs without ``ebgp-requires-policy``.
+        if not native_router_profile(ctx.net_env, host):
+            raise ValueError(f"{cls.root_cause_name} needs a native router target")
+        if not has_declared_ebgp(ctx.net_env, host):
+            raise ValueError(f"{cls.root_cause_name} needs a router with eBGP sessions")
+        if not attached_end_hosts(ctx.net_env, host):
+            raise ValueError(f"{cls.root_cause_name} needs a router with end hosts")
+
+    def __init__(self, scenario_name: str | None, **kwargs):
+        super().__init__(scenario_name, **kwargs)
+        self.logger = system_logger
+
+    def root_cause_resources(self, params: BGPSessionPolicyMissingParams):
+        return [node_resource(params.host_name)]
+
+    def _native(self, ops: RouterFaultOps | None, host: str) -> RouterFaultOps:
+        if ops is None:
+            raise RuntimeCapabilityError(
+                f"{type(self).__name__} needs an IOS XR or RouterOS router; "
+                f"{host!r} is not one."
+            )
+        return ops
+
+    def inject_fault(self, params: BGPSessionPolicyMissingParams):
+        from nika.problems.support.router_ops import native_fault_ops
+
+        host = params.host_name
+        ops = self._native(
+            native_fault_ops(self, host, "drop_bgp_session_policy"), host
+        )
+        self._saved_config = ops.save_config()
+        ops.drop_bgp_session_policy()
+        self.logger.info(f"Dropped eBGP session policies on {params.host_name}.")
+
+    def verify_fault(self, params: BGPSessionPolicyMissingParams) -> dict:
+        from nika.problems.support.router_ops import native_fault_ops
+
+        host = params.host_name
+        ops = self._native(
+            native_fault_ops(self, host, "bgp_session_policy_dropped"), host
+        )
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=ops.bgp_session_policy_dropped(),
+            details={"host": params.host_name, "profile": ops.profile},
+        )
+
+    def recover_fault(self, params: BGPSessionPolicyMissingParams) -> dict:
+        from nika.problems.support.router_ops import native_fault_ops
+
+        host = params.host_name
+        ops = self._native(native_fault_ops(self, host, "restore_config"), host)
+        saved = getattr(self, "_saved_config", None)
+        if saved:
+            ops.restore_config(saved)
+        dropped = ops.bgp_session_policy_dropped()
+        return {
+            "verified": bool(saved) and not dropped,
+            "details": {"host": params.host_name, "policy_dropped": dropped},
+        }

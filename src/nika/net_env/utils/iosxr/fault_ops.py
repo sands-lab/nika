@@ -19,6 +19,7 @@ _ADDRESSED_INTERFACE = re.compile(
 )
 _ROUTE_PREFIX = re.compile(r"^(\S+)\s+(\d+\.\d+\.\d+\.\d+/\d+)\s", re.MULTILINE)
 _ROUTER_BGP = re.compile(r"^router bgp (\d+)", re.MULTILINE)
+_NEIGHBOR_BLOCK = re.compile(r"^ neighbor (\S+)\n(.*?)^ !$", re.MULTILINE | re.DOTALL)
 _STATIC_NULL0 = re.compile(r"^\s+(\d+\.\d+\.\d+\.\d+/\d+)\s+Null0\s*$", re.MULTILINE)
 
 
@@ -134,6 +135,39 @@ class IosxrFaultOps(RouterFaultOps):
                 prefix,
             )
         )
+
+    def _ebgp_policies(self) -> dict[str, list[str]]:
+        """eBGP neighbor -> its IPv4 unicast ``route-policy`` lines."""
+        config = self._show("show running-config router bgp")
+        local = _ROUTER_BGP.search(config)
+        policies = {}
+        for peer, body in _NEIGHBOR_BLOCK.findall(config):
+            remote = re.search(r"^  remote-as (\d+)$", body, re.MULTILINE)
+            unicast = re.search(
+                r"^  address-family ipv4 unicast\n(.*?)^  !$", body, re.M | re.S
+            )
+            if local and remote and remote[1] != local[1]:
+                policies[peer] = re.findall(
+                    r"^   (route-policy \S+ (?:in|out))$",
+                    unicast[1] if unicast else "",
+                    re.MULTILINE,
+                )
+        return policies
+
+    def drop_bgp_session_policy(self) -> None:
+        # XR follows RFC 8212: an eBGP session without a policy exchanges no
+        # routes, and the session itself stays up.
+        lines = [f"router bgp {self.bgp_asn()}"]
+        for peer, policies in self._ebgp_policies().items():
+            if policies:
+                lines += [f" neighbor {peer}", "  address-family ipv4 unicast"]
+                lines += [f"   no {policy}" for policy in policies]
+                lines += ["  !", " !"]
+        self._apply(*lines, "!")
+
+    def bgp_session_policy_dropped(self) -> bool:
+        policies = self._ebgp_policies()
+        return bool(policies) and not any(policies.values())
 
     # Packet filters
 

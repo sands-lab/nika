@@ -943,3 +943,22 @@ def p4_port_options(
                     )
                 )
     return rows
+
+
+def attached_end_hosts(net_env, router: str) -> list[str]:
+    """Hosts and services on a link of ``router``."""
+    from nika.problems.rca.inventory import iter_link_termination_points, parse_endpoint
+    from nika.runtime.spec import NodeRole
+
+    identities = getattr(net_env, "machine_identities", None) or {}
+    hosts = set()
+    for _key, tps in iter_link_termination_points(net_env):
+        nodes = {parse_endpoint(str(tp))[0] for tp in tps}
+        if router in nodes:
+            hosts |= {
+                node
+                for node in nodes - {router}
+                if getattr(identities.get(node), "role", None)
+                in {NodeRole.HOST, NodeRole.SERVICE}
+            }
+    return sorted(hosts)
