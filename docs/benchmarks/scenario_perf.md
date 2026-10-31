@@ -1,17 +1,15 @@
 # Scenario startup performance
 
-Resource and time cost of the labs and cases in benchmark release 0.2.0 (test and
-dev splits), measured without an agent. Use it to size benchmark `batch_size` and
-host capacity. Metric definitions and script options:
-[experiment/profile/README.md](../../experiment/profile/README.md).
+Resource and time cost of the labs and cases in benchmark release 0.2.0 (test and dev splits), measured without an agent, and of SONiC Containerlab variants measured the same way. Use it to size benchmark `batch_size` and host capacity. Metric definitions and script options: [experiment/profile/README.md](../../experiment/profile/README.md).
 
-The page has two measurements:
+The page has three measurements:
 
 - **Single-lab baseline:** every lab variant the release deploys, one lab at a time,
   3 runs each. Normal NIKA startup (deploy, workload preparation, light runtime
   verification), a 10 s hold, and cleanup.
 - **Concurrency sweep:** every release case, with its failure injected and verified
   as the benchmark runner does before the agent starts, at `batch_size` 8, 16 and 24.
+- **SONiC Containerlab:** `min3clos` and the ISP topologies the 0.2.0 baseline runs on SR Linux (`isp_dfn-bwin`, `isp_dfn-gwin`, `isp_di-yuan`, `isp_pdh`), one lab at a time, 3 runs each, with `--device-profile sonic`. Same startup path, 10 s hold, and cleanup as the single-lab baseline.
 
 ## Run
 
@@ -210,6 +208,68 @@ the light phase.
 - Keep at least 13 GiB of free disk per `k8s_lab` run and 7 GiB per `llmd_lab` run,
   on top of the images.
 
+## SONiC Containerlab
+
+SONiC-VS on Containerlab is not in release 0.2.0. This measurement uses the same profiler, hold, and validation settings as the [single-lab baseline](#single-lab-baseline), for `min3clos --device-profile sonic` and the ISP topologies that baseline runs on SR Linux, with `--backend containerlab --device-profile sonic` and the same IGP/BGP variants.
+
+### Run
+
+| Item | Value |
+| --- | --- |
+| Dates | 2026-10-31 18:17 UTC to 19:13 UTC |
+| Host | 16 vCPU (AMD EPYC 9754, 1 thread per core), 63 GiB RAM, no swap, Linux 6.8.0-147, cgroup v2, Docker 29.8.1, Containerlab 0.79.0 |
+| Cases | 9 lab variants (`min3clos` and 8 ISP IGP/BGP combinations), 3 runs each |
+| Run config | `config/nika.yaml`: `runtime_validation.depth: light`, `static_validation.enabled: false`, `heavy_batch_size: 1` |
+| Sampling | 1 s interval, lab container cgroups and the NIKA worker process tree |
+| Other load | A Kathara `isp_abilene` lab from another session ran throughout. Other NIKA sessions on the same host started and stopped during the run |
+| Leftovers | After every step: no containers and no sessions from this run |
+
+The case file is one healthy row per variant. ISP rows set `topo_size: s`, `rpki: false`, `backend: containerlab`, and `device_profile: sonic`.
+
+```bash
+uv run python - <<'EOF'
+import yaml
+cases = [{"scenario": "min3clos", "problem": "healthy",
+          "backend": "containerlab", "device_profile": "sonic"}]
+for scenario, igp, bgp_mode in (
+    ("isp_dfn-bwin", "ospf", "ebgp"),
+    ("isp_dfn-gwin", "isis", "none"),
+    ("isp_di-yuan", "isis", "ibgp_rr"),
+    ("isp_di-yuan", "isis", "none"),
+    ("isp_di-yuan", "ospf", "ebgp"),
+    ("isp_pdh", "isis", "ibgp_rr"),
+    ("isp_pdh", "isis", "none"),
+    ("isp_pdh", "ospf", "ebgp"),
+):
+    cases.append({"scenario": scenario, "problem": "healthy", "topo_size": "s",
+                  "igp": igp, "bgp_mode": bgp_mode, "rpki": False,
+                  "backend": "containerlab", "device_profile": "sonic"})
+yaml.safe_dump({"seed": 42, "cases": cases}, open("cases-sonic-containerlab.yaml", "w"), sort_keys=False)
+EOF
+
+uv run python experiment/profile/profile_scenarios.py --run-config config/nika.yaml \
+  --config cases-sonic-containerlab.yaml --batch-size 1 --repeats 3 --hold-seconds 10 \
+  --output results/profile-sonic/scenarios-c1
+```
+
+### Results
+
+Every one of the 9 variants passed 3 of 3 runs. Columns match the [single-lab baseline](#single-lab-baseline) table. Values are medians over the 3 runs; parentheses show min-max. Times are seconds.
+
+| Scenario | Backend | Size | Variant | OK | Containers | Deploy | Convergence | Cleanup | Total | Peak mem GiB | WS GiB | Peak CPU % | Mean CPU % |
+| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| min3clos | containerlab | - | SONiC | 3/3 | 5 | 56 (56-56) | 38 (31-38) | 1 (1-2) | 105 (98-106) | 0.44 (0.44-0.44) | 0.41 | 256 | 60 |
+| isp_dfn-bwin | containerlab | s | ospf/ebgp, SONiC | 3/3 | 20 | 63 (61-65) | 54 (54-54) | 4 (4-6) | 133 (130-134) | 1.42 (1.37-1.43) | 1.33 | 699 | 165 |
+| isp_dfn-gwin | containerlab | s | isis/none, SONiC | 3/3 | 22 | 64 (63-66) | 34 (34-36) | 4 (4-7) | 115 (114-116) | 1.47 (1.45-1.50) | 1.37 | 731 | 195 |
+| isp_di-yuan | containerlab | s | isis/ibgp_rr, SONiC | 3/3 | 22 | 63 (63-65) | 36 (34-36) | 4 (4-5) | 114 (114-115) | 1.59 (1.55-1.59) | 1.49 | 782 | 203 |
+| isp_di-yuan | containerlab | s | isis/none, SONiC | 3/3 | 22 | 62 (60-65) | 36 (36-37) | 6 (4-7) | 114 (112-118) | 1.43 (1.39-1.47) | 1.33 | 672 | 191 |
+| isp_di-yuan | containerlab | s | ospf/ebgp, SONiC | 3/3 | 22 | 64 (63-78) | 54 (53-56) | 5 (4-7) | 133 (132-152) | 1.56 (1.55-1.57) | 1.47 | 579 | 172 |
+| isp_pdh | containerlab | s | isis/ibgp_rr, SONiC | 3/3 | 22 | 62 (62-63) | 36 (36-37) | 4 (3-4) | 113 (111-114) | 1.50 (1.50-1.50) | 1.40 | 725 | 193 |
+| isp_pdh | containerlab | s | isis/none, SONiC | 3/3 | 22 | 62 (57-64) | 36 (36-36) | 4 (4-5) | 112 (108-115) | 1.45 (1.41-1.45) | 1.35 | 639 | 193 |
+| isp_pdh | containerlab | s | ospf/ebgp, SONiC | 3/3 | 22 | 73 (62-77) | 55 (53-56) | 5 (3-6) | 143 (134-144) | 1.52 (1.51-1.55) | 1.43 | 577 | 160 |
+
+SONiC Containerlab labs on this host use about a tenth of the memory of the matching SR Linux labs in the 0.2.0 baseline (0.44 GiB vs 4.23 GiB for `min3clos`, 1.42-1.59 GiB vs 14.2-15.7 GiB for the ISP variants) and deploy in about a third of the time (56-73 s vs 65-202 s), even though this host has half the vCPUs and RAM. SONiC `min3clos` spends longer in convergence (38 s vs 4 s), so its total time is 105 s against 81 s for SR Linux.
+
 ## Sampling quality
 
 | Output | Runs | Runs with sampling errors | Sampling errors (total, max per run) | Max gap between samples, median over runs | Max gap, worst run | Runs with zero containers |
@@ -221,8 +281,9 @@ the light phase.
 | Sweep, `batch_size` 8 | 169 | 24 | 38, 5 | 1.1 s | 7.1 s | 0 |
 | Sweep, `batch_size` 16 | 169 | 50 | 138, 8 | 1.2 s | 4.5 s | 0 |
 | Sweep, `batch_size` 24 | 169 | 54 | 238, 10 | 1.2 s | 7.3 s | 0 |
+| SONiC Containerlab | 27 | 0 | 0, 0 | 1.1 s | 1.2 s | 0 |
 
-- The median gap between samples is 1.00-1.07 s in each of the 654 runs. Gaps above 2 s in the
+- The median gap between samples is 1.00-1.07 s in each of the 681 runs. Gaps above 2 s in the
   baseline come from large Kathara ISP labs (44-130 containers), where one sample
   takes longer than the interval.
 - Sampling errors grow with concurrency because Docker API reads time out under
