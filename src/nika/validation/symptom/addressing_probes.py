@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import ipaddress
 import re
+import shlex
 import time
 from collections.abc import Callable
 from typing import Any, TypeVar
@@ -37,11 +38,20 @@ _MIN_PAIR_LOSS_PERCENT = 25.0
 _MIN_HOLDER_LOSS_PERCENT = 4.0
 
 
-def _eth0_ip(runtime: LabRuntime, node: str) -> str:
-    out = runtime.exec(
-        node, "ip -4 -o addr show dev eth0 scope global | awk '{print $4}'"
+def iface_ipv4(runtime: LabRuntime, node: str, iface: str) -> str:
+    """IPv4 address configured on ``iface``, or empty if that port has none."""
+    quoted = shlex.quote(iface)
+    out = exec_or_empty(
+        runtime,
+        node,
+        f"ip -4 -o addr show dev {quoted} scope global | awk '{{print $4}}'",
     )
-    return out.strip().split("/")[0]
+    cidr = next((line.strip() for line in out.splitlines() if line.strip()), "")
+    return cidr.split("/")[0]
+
+
+def _eth0_ip(runtime: LabRuntime, node: str) -> str:
+    return iface_ipv4(runtime, node, "eth0")
 
 
 def lab_addresses(runtime: LabRuntime) -> dict[str, list[tuple[str, str]]]:
