@@ -12,6 +12,7 @@ import shlex
 import subprocess
 
 from nika.runtime.base import RuntimeCapabilityError
+from nika.runtime.shared.link_faults import corrupt_commands
 from nika.utils.network_change_log import log_network_change
 
 # Every host command here is a short iproute2/tc/nsenter call; a stuck sudo
@@ -102,59 +103,27 @@ class HostTcController:
         for end in self.wire_ends(peer):
             self._run("ip", "link", "set", "dev", end, "up")
 
-    def set_netem_corrupt(self, node: str, intf: str, percentage: int) -> str:
-        peer = self.peer_name(node, intf)
-        self._run(
-            "tc",
-            "qdisc",
-            "replace",
-            "dev",
-            peer,
-            "root",
-            "netem",
-            "corrupt",
-            f"{percentage}%",
-        )
+    def set_corrupt(self, node: str, intf: str, percentage: int) -> str:
+        """Corrupt what ``node`` sends out of ``intf`` on its host-side wire end.
+
+        Returns the host device. See ``corrupt_commands`` for how frames fail.
+        """
+        dev = self.egress_dev(node, intf)
+        self._run("sh", "-c", " && ".join(corrupt_commands(dev, percentage)))
         log_network_change(
-            f"host_tc netem corrupt on {node}:{intf} peer={peer} corrupt={percentage}%",
+            f"host_tc corrupt on {node}:{intf} dev={dev} corrupt={percentage}%",
             mechanism="host_tc",
             host=node,
             intf=intf,
-            peer=peer,
+            peer=dev,
             params={"corrupt": percentage},
             action="netem_corrupt",
         )
-        return peer
+        return dev
 
-    def set_netem_corrupt_bidirectional(
-        self, node: str, intf: str, peer_node: str, peer_intf: str, percentage: int
-    ) -> tuple[str, str]:
-        """Apply corrupt netem on both host veth peers of a point-to-point link."""
-        host_peer = self.set_netem_corrupt(node, intf, percentage)
-        peer_veth = self.peer_name(peer_node, peer_intf)
-        if peer_veth != host_peer:
-            self._run(
-                "tc",
-                "qdisc",
-                "replace",
-                "dev",
-                peer_veth,
-                "root",
-                "netem",
-                "corrupt",
-                f"{percentage}%",
-            )
-            log_network_change(
-                f"host_tc netem corrupt on {peer_node}:{peer_intf} "
-                f"peer={peer_veth} corrupt={percentage}%",
-                mechanism="host_tc",
-                host=peer_node,
-                intf=peer_intf,
-                peer=peer_veth,
-                params={"corrupt": percentage},
-                action="netem_corrupt",
-            )
-        return host_peer, peer_veth
+    def corrupt_configured(self, dev: str) -> bool:
+        qdisc = self.qdisc(dev).lower()
+        return "netem" in qdisc and "corrupt" in qdisc
 
     def set_link_down(self, node: str, intf: str) -> tuple[str, str]:
         """Bring down a link so endpoints report operstate down.

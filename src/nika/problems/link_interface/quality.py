@@ -18,6 +18,7 @@ from nika.problems.support.benchmark_targets import (
     resolve_link_corruption_params,
 )
 from nika.runtime.kathara.vde_proxy import KatharaVdeFaultProxy
+from nika.service.containerlab.host_tc import HostTcController
 
 
 class LinkPacketCorruptionParams(BaseModel):
@@ -49,10 +50,11 @@ class LinkPacketCorruption(ProblemBase):
     root_cause_name: str = "link_packet_corruption"
     description = "A faulty link corrupts a fraction of the frames it carries."
     TAGS: str = ["link"]
-    # Acts on the link through a controller-side proxy, outside the router OS.
+    # Acts on the link outside the router OS: a Kathara proxy or a Containerlab
+    # host-side wire end.
     native_router_operations = frozenset()
     BENCHMARK_LINK_PROXY = True
-    supported_backends = ("kathara",)
+    supported_backends = ("kathara", "containerlab")
 
     Params = LinkPacketCorruptionParams
 
@@ -87,6 +89,11 @@ class LinkPacketCorruption(ProblemBase):
 
     def inject_fault(self, params: LinkPacketCorruptionParams):
         intf_name = self._target_intf(params.host_name, params.intf_name, last=True)
+        if self.lab_backend == "containerlab":
+            self._wire_dev = HostTcController(self.runtime).set_corrupt(
+                params.host_name, intf_name, params.corruption_percentage
+            )
+            return
         controller = KatharaVdeFaultProxy(self.runtime)
         self._proxy = controller.insert(params.host_name, intf_name)
         controller.set_netem_corrupt(self._proxy, params.corruption_percentage)
@@ -109,6 +116,16 @@ class LinkPacketCorruption(ProblemBase):
     def recover_fault(self, params: LinkPacketCorruptionParams) -> dict:
         """Remove controller-only injection and restore the logical link."""
         intf = self._target_intf(params.host_name, params.intf_name, last=True)
+        if self.lab_backend == "containerlab":
+            controller = HostTcController(self.runtime)
+            dev = getattr(self, "_wire_dev", None) or controller.egress_dev(
+                params.host_name, intf
+            )
+            controller.clear(dev)
+            return {
+                "verified": not controller.corrupt_configured(dev),
+                "details": {"host": params.host_name, "intf": intf},
+            }
         controller = KatharaVdeFaultProxy(self.runtime)
         proxy = getattr(self, "_proxy", None) or controller.discover(
             params.host_name, intf
@@ -124,6 +141,16 @@ class LinkPacketCorruption(ProblemBase):
     def _verify_artifact(
         self, params: LinkPacketCorruptionParams, intf: str
     ) -> tuple[bool, dict]:
+        if self.lab_backend == "containerlab":
+            controller = HostTcController(self.runtime)
+            dev = getattr(self, "_wire_dev", None) or controller.egress_dev(
+                params.host_name, intf
+            )
+            return controller.corrupt_configured(dev), {
+                "host": params.host_name,
+                "intf": intf,
+                "wire_end": dev,
+            }
         controller = KatharaVdeFaultProxy(self.runtime)
         proxy = getattr(self, "_proxy", None) or controller.discover(
             params.host_name, intf
@@ -151,6 +178,10 @@ class LinkPacketCorruption(ProblemBase):
     def _link_peer_endpoint(
         self, host_name: str, intf_name: str
     ) -> tuple[str, str] | None:
+        if self.lab_backend == "containerlab":
+            from nika.problems.link_interface.link import _link_peer
+
+            return _link_peer(self.net_env, host_name, intf_name)
         controller = KatharaVdeFaultProxy(self.runtime)
         state = getattr(self, "_proxy", None) or controller.discover(
             host_name, intf_name

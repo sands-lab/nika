@@ -404,18 +404,23 @@ def test_profile_validation_resumes_and_preserves_other_writers(tmp_path, monkey
 
 
 def test_failure_compatibility_requires_a_shared_backend() -> None:
-    corruption = get_problem_class("link_packet_corruption")
-    assert corruption.is_compatible("enterprise_branch")
-    assert not corruption.is_compatible("min3clos")
+    # bgp_hijacking declares Kathara only.
+    hijack = get_problem_class("bgp_hijacking")
+    assert hijack.is_compatible("enterprise_branch")
+    assert not hijack.is_compatible("min3clos")
     # Multi-backend scenarios retain a usable Kathara deployment.
-    assert corruption.is_compatible("isp_abilene")
-    assert corruption.is_compatible("isp_abilene", backend="kathara")
-    assert not corruption.is_compatible("isp_abilene", backend="containerlab")
+    assert hijack.is_compatible("isp_abilene")
+    assert hijack.is_compatible("isp_abilene", backend="kathara")
+    assert not hijack.is_compatible("isp_abilene", backend="containerlab")
     specs = list(iter_failure_case_specs())
     assert not any(
-        problem == "link_packet_corruption" and scenario == "min3clos"
+        problem == "bgp_hijacking" and scenario == "min3clos"
         for problem, scenario, *_ in specs
     )
+    # A link failure applied outside the nodes runs on both backends.
+    corruption = get_problem_class("link_packet_corruption")
+    assert corruption.is_compatible("min3clos", "sonic", backend="containerlab")
+    assert corruption.is_compatible("isp_abilene", backend="containerlab")
 
 
 def test_compatibility_obeys_declared_path_bdp_ceiling() -> None:
