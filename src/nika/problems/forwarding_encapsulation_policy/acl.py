@@ -198,6 +198,12 @@ class OSPFAclBlock(ProblemBase):
                 self._srl_acl_entries = self.runtime.srl_add_ospf_acl_drop(
                     params.host_name
                 )
+                wait_until(
+                    lambda: (
+                        not self.runtime.srl_ospf_neighbor_interfaces(params.host_name)
+                    ),
+                    8,
+                )
             case "kathara":
                 self.runtime.add_nft_drop_rule(
                     params.host_name, "ip protocol ospf drop", family="inet"
@@ -219,13 +225,19 @@ class OSPFAclBlock(ProblemBase):
         match self.lab_backend:
             case "containerlab":
                 entries = getattr(self, "_srl_acl_entries", [])
-                verified = self.runtime.srl_ospf_acl_drop_present(
-                    params.host_name, entries
+                neighbors = self.runtime.srl_ospf_neighbor_interfaces(params.host_name)
+                verified = (
+                    self.runtime.srl_ospf_acl_drop_present(params.host_name, entries)
+                    and not neighbors
                 )
                 return build_verify_result(
                     fault_type=self.root_cause_name,
                     verified=verified,
-                    details={"host": params.host_name, "srl_acl_entries": entries},
+                    details={
+                        "host": params.host_name,
+                        "srl_acl_entries": entries,
+                        "ospf_full_neighbors": neighbors,
+                    },
                 )
             case "kathara":
                 return _verify_nft_drop(self, params.host_name, "ip protocol ospf drop")

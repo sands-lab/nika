@@ -183,12 +183,38 @@ class SrlApiTest:
             "set / acl acl-filter cpm type ipv4 entry 290 action accept\n"
         )
         api = _SRLStub()
-        api.exec_cmd = MagicMock(side_effect=[accept, ""])
+        api.exec_cmd = MagicMock(side_effect=[accept, "", ""])
 
         assert api.srl_add_ospf_acl_drop("n1") == [245]
         candidate = api.exec_cmd.call_args_list[1][0][1]
         assert "entry 245 match ipv4 protocol 89" in candidate
         assert "entry 245 action drop" in candidate
+
+    def test_srl_add_ospf_acl_drop_clears_neighbors(self) -> None:
+        accept = (
+            _CPM_DEFAULT
+            + "set / acl acl-filter cpm type ipv4 entry 290 match ipv4 protocol 89\n"
+            "set / acl acl-filter cpm type ipv4 entry 290 action accept\n"
+        )
+        running = (
+            "set / network-instance default protocols ospf instance default area "
+            "0.0.0.0 interface ethernet-1/1.0 metric 10\n"
+            "set / network-instance default protocols ospf instance default area "
+            "0.0.0.0 interface ethernet-1/1.0 hello-interval 10\n"
+            "set / network-instance default protocols ospf instance default area "
+            "0.0.0.0 interface system0.0 passive true\n"
+        )
+        api = _SRLStub()
+        api.exec_cmd = MagicMock(side_effect=[accept, "", running, ""])
+
+        assert api.srl_add_ospf_acl_drop("n1") == [245]
+        reset = api.exec_cmd.call_args_list[3][0][1]
+        assert (
+            "tools network-instance default protocols ospf instance default "
+            "area 0.0.0.0 interface ethernet-1/1.0 neighbors clear"
+        ) in reset
+        assert "system0.0" not in reset
+        assert reset.count("neighbors clear") == 1
 
     def test_srl_ospf_neighbors_and_interfaces_parse_flat_output(self) -> None:
         # ``info flat from state|running`` on isp_abilene chinng (SR Linux 24.10).

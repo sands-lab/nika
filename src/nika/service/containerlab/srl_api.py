@@ -188,6 +188,26 @@ class SRLAPIMixin:
             f"{entry} match ipv4 protocol 89",
             f"{entry} action drop",
         )
+        # Reset adjacencies so the drop takes effect now instead of at
+        # dead-interval expiry. ``tools`` rejects wildcards, so clear each
+        # OSPF data interface.
+        commands: list[str] = []
+        seen: set[tuple[str, str, str]] = set()
+        for instance, area, iface, _rest in self._srl_ospf_flat(
+            device_name, "running", ""
+        ):
+            if not _is_data(iface):
+                continue
+            key = (instance, area, iface)
+            if key in seen:
+                continue
+            seen.add(key)
+            commands.append(
+                "tools network-instance default protocols ospf "
+                f"instance {instance} area {area} interface {iface} neighbors clear"
+            )
+        if commands:
+            self._srl_run_script(device_name, commands)
         return sequences
 
     def srl_ospf_acl_drop_present(
