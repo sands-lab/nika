@@ -3244,6 +3244,25 @@ cells:
   duration_sec: 104
 - environment: isp
   device_profile: sonic
+  failure: link_packet_corruption
+  scenario: isp_dfn-bwin
+  task_id: isp_dfn-bwin__link_packet_co__h664fda2e340b
+  inject:
+    corruption_percentage: '10'
+    host_name: berlin
+    intf_name: eth1
+    peer_host: pc_frankfurt
+    probe_dst_ip: 10.254.0.6
+    symptom_host: pc_berlin
+  native_target: true
+  nika_commit: 804e7ef202a6
+  image: docker-sonic-vs:202505-1238524
+  date: '2026-10-31T10:04:18Z'
+  status: validated
+  recovery: restored
+  duration_sec: 104
+- environment: isp
+  device_profile: sonic
   failure: mtu_mismatch
   scenario: isp_dfn-bwin
   task_id: isp_dfn-bwin__mtu_mismatch__h7930ab6aaf1f
@@ -3420,6 +3439,24 @@ cells:
   nika_commit: c75b9703323d
   image: docker-sonic-vs:202505-1238524
   date: '2026-10-30T11:06:54Z'
+  status: validated
+  recovery: restored
+  duration_sec: 96
+- environment: min3clos
+  device_profile: sonic
+  failure: link_packet_corruption
+  scenario: min3clos
+  task_id: min3clos__link_packet_corrup__h3344a81c5e0f
+  inject:
+    corruption_percentage: '8'
+    host_name: leaf1
+    intf_name: eth1
+    observer_device: client1
+    probe_dst_ip: 10.0.0.27
+  native_target: true
+  nika_commit: 804e7ef202a6
+  image: docker-sonic-vs:202505-1238524
+  date: '2026-10-31T10:06:03Z'
   status: validated
   recovery: restored
   duration_sec: 96
