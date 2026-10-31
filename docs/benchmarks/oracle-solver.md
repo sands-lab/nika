@@ -6,7 +6,7 @@ The oracle knows the injected failure and its parameters, so its scores are not 
 
 ## Run the oracle on a benchmark release
 
-Run the oracle like any other agent. It needs no LLM provider:
+Run these commands from the repository root on a lab host prepared by [Installation](../operations/installation.md). The oracle runs in the NIKA process, so it needs neither LLM credentials nor an agent sandbox:
 
 ```shell
 uv run nika benchmark run --release 0.2.0 --split test --agent oracle
@@ -64,7 +64,7 @@ Playbooks that read live lab state, such as those for Containerlab tasks, cannot
 
 1. It rebuilds each injected failure from the session's injection record and asks the failure for its playbook.
 2. It measures the symptom with a Pingmesh snapshot, then runs the playbook steps in order. A step whose observation takes time to settle after injection, or that checks an intermittent fault, is retried until the observation holds.
-3. If every evidence step holds, it submits the failure's ground-truth root causes. Otherwise it does not submit, so the trial ends as `no_submission` and scores 0.
+3. It submits the ground-truth root causes of every failure whose evidence steps all hold. In a multi-fault task it can therefore submit the confirmed faults and leave out an unconfirmed one, which earns partial RCA credit while `oracle.json` reports `solved: false`. When no failure is confirmed, it does not submit, so the trial ends as `no_submission` and scores 0.
 
 A healthy task's playbook is a Pingmesh snapshot that must report no anomalies; the oracle then submits `is_anomaly: false`, and otherwise does not submit.
 
