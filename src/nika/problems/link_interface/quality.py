@@ -1,5 +1,7 @@
 """Link quality failure implementations."""
 
+import re
+
 from pydantic import BaseModel, Field
 
 from nika.problems.rca.inventory import (
@@ -17,7 +19,58 @@ from nika.problems.support.benchmark_targets import (
     isp_link_target,
     resolve_link_corruption_params,
 )
+from nika.problems.link_interface.link import _probe_ends
+from nika.problems.support.oracle import (
+    addr_step,
+    toward,
+    Check,
+    OraclePlaybook,
+    OracleStep,
+    contains,
+    shell,
+)
 from nika.runtime.kathara.vde_proxy import KatharaVdeFaultProxy
+
+# Receive-side integrity counters: IP header checksum failures and transport
+# checksum failures.
+_SNMP_CMD = "grep -E '^(Ip|Icmp|Tcp|Udp):' /proc/net/snmp"
+_ERROR_FIELDS = {
+    "Ip": ("InHdrErrors",),
+    "Icmp": ("InCsumErrors",),
+    "Tcp": ("InCsumErrors",),
+    "Udp": ("InCsumErrors",),
+}
+
+
+def _integrity_errors(output: str) -> int | None:
+    """Sum of header/checksum error counters in ``/proc/net/snmp`` text."""
+    rows: dict[str, list[list[str]]] = {}
+    for line in output.splitlines():
+        proto, sep, rest = line.partition(":")
+        if sep and proto in _ERROR_FIELDS:
+            rows.setdefault(proto, []).append(rest.split())
+    total, seen = 0, False
+    for proto, fields in _ERROR_FIELDS.items():
+        pair = rows.get(proto) or []
+        if len(pair) < 2:
+            continue
+        values = dict(zip(pair[0], pair[1]))
+        for name in fields:
+            if values.get(name, "").isdigit():
+                total += int(values[name])
+                seen = True
+    return total if seen else None
+
+
+def _errors_grew(output: str) -> bool:
+    before = re.search(r"BEFORE=(\d+)", output)
+    after = _integrity_errors(output)
+    return before is not None and after is not None and after > int(before.group(1))
+
+
+def _partial_loss(output: str) -> bool:
+    match = re.search(r"(\d+(?:\.\d+)?)% packet loss", output)
+    return match is not None and 0 < float(match.group(1)) < 100
 
 
 class LinkPacketCorruptionParams(BaseModel):
@@ -104,6 +157,75 @@ class LinkPacketCorruption(ProblemBase):
                 # Key kept for tests/support readers; holds link-state evidence only.
                 "symptom": {"verified": link_ok, **link_details},
             },
+        )
+
+    def oracle_playbook(self, params: LinkPacketCorruptionParams) -> OraclePlaybook:
+        host = params.host_name
+        intf = params.intf_name or select_host_interface(self.net_env, host, last=True)
+        steps = [
+            shell(
+                host,
+                f"ip -s link show dev {intf} | head -8",
+                f"Inspect {host}:{intf}, the attachment on the lossy paths.",
+                contains(r"<[^>]*LOWER_UP", f"{host}:{intf} has carrier"),
+            )
+        ]
+        ends = _probe_ends(self.net_env, host, intf)
+        if ends is None:
+            raise ValueError(
+                f"link_packet_corruption on {host}:{intf}: no addressed receiver "
+                "beyond the link counts the corrupted frames"
+            )
+        src, (far, far_intf) = ends
+
+        def recount(out):
+            before = _integrity_errors(out.get("corrupt_snmp", ""))
+            return {
+                "host_name": far,
+                "command": f"echo BEFORE={'unreadable' if before is None else before}; "
+                f"{_SNMP_CMD}",
+                "timeout": 15,
+            }
+
+        steps += [
+            addr_step(far, far_intf, "corrupt_peer"),
+            shell(
+                far,
+                _SNMP_CMD,
+                f"Record the IP and transport checksum error counters on {far}.",
+                Check(
+                    "the counters are readable",
+                    lambda out: _integrity_errors(out) is not None,
+                ),
+                save_as="corrupt_snmp",
+            ),
+            toward(
+                src,
+                "corrupt_peer",
+                "ping -c 200 -i 0.02 -s 1200 -W 1 {ip} | tail -2",
+                f"Send 200 large probes from {src} across the link to {far}.",
+                Check("some but not all probes are lost", _partial_loss),
+                evidence=True,
+            ),
+            OracleStep(
+                f"Read {far}'s checksum error counters again after the probes.",
+                "exec_shell",
+                recount,
+                Check(
+                    f"{far} counted new IP header or checksum errors on frames "
+                    "it received",
+                    _errors_grew,
+                ),
+                evidence=True,
+            ),
+        ]
+        return OraclePlaybook(
+            finding=(
+                f"The link on {host}:{intf} corrupts a fraction of the frames it "
+                "carries: probes across it are lost and the "
+                "receiver counts checksum errors."
+            ),
+            steps=steps,
         )
 
     def recover_fault(self, params: LinkPacketCorruptionParams) -> dict:

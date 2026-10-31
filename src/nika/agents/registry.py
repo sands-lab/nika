@@ -178,6 +178,14 @@ BUILTIN_AGENTS: tuple[AgentSpec, ...] = (
         default_model="mock",
         template=None,
     ),
+    AgentSpec(
+        id="oracle",
+        class_path="nika.agents.oracle.agent:OracleAgent",
+        requires_provider=False,
+        supports_max_tokens=False,
+        default_model="oracle",
+        template=None,
+    ),
 )
 
 _BUILTINS_BY_ID = {spec.id: spec for spec in BUILTIN_AGENTS}

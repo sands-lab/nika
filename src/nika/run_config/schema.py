@@ -614,8 +614,11 @@ class RunConfig(BaseModel):
 
     @model_validator(mode="after")
     def _validate_agent_provider(self) -> RunConfig:
+        from nika.agents.registry import find_agent_spec
+
         agent_type = self.agent.type.strip()
-        if agent_type.lower() != "mock":
+        spec = find_agent_spec(agent_type)
+        if spec is None or spec.requires_provider:
             validate_provider_for_agent(agent_type, self.agent.provider)
         return self
 
