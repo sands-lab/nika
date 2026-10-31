@@ -102,10 +102,10 @@ Follow these rules so the playbook proves solvability rather than restating the 
 
 ## Release 0.2.0 results
 
-In a run of one trial per task on 2026-10-31, the oracle solved 166 of the 169 tasks in release 0.2.0 with detection and RCA scores of 1.0: 83 of 84 Dev tasks and 83 of 85 Test tasks, including all 18 healthy tasks. It did not solve these three:
+In a run of one trial per task on 2026-10-31, the oracle solved 166 of the 169 tasks in release 0.2.0 with detection and RCA scores of 1.0, including all 18 healthy tasks. The other three exposed the problems below. After the fixes, the oracle also solves them.
 
-| Task | Split | Why the oracle cannot solve it |
+| Task | Split | Problem and fix |
 | --- | --- | --- |
-| `k8s_lab__bgp_asn_misconfig__he4a55dc53b83` | Test | The fault has no observable effect. The `k8s_lab` routers peer with `remote-as external`, so after the router's ASN changes, every BGP session comes back up and traffic is unaffected. No tool output distinguishes the wrong ASN from the intended one. |
-| `llmd_lab__receiver_resource__h494b49e3caef` | Dev | The fault limits the whole receiver container to 0.02 CPU while eight CPU-bound workers run in it. Every command run on that node gets the same starved CPU share, so even `ps` and reading the cgroup files can exceed a 60-second timeout. Whether the task can be solved depends on how the node is scheduled during the trial. |
-| `dc_clos__receiver_resource_c__ha2be5b357067` | Test | Same cause as the `llmd_lab` task. |
+| `k8s_lab__bgp_asn_misconfig__he4a55dc53b83` | Test | The playbook checked only the fabric sessions, which use `remote-as external` and come back up under the wrong ASN. The fault shows on the MetalLB speakers: they still expect the router's original ASN and reject the new one with a "Bad Peer AS" notification. The playbook now checks the speakers. |
+| `llmd_lab__receiver_resource__h494b49e3caef` | Dev | The fault limited the receiver to 0.02 CPU, so every command run on that node, including `ps`, could exceed a 60-second timeout. It now limits the receiver to 0.05 CPU, which still roughly halves the download rate. Because this changes the injected fault, it is a correction for the next benchmark revision under the [versioning policy](../../VERSIONING.md). |
+| `dc_clos__receiver_resource_c__ha2be5b357067` | Test | Same problem and fix as the `llmd_lab` task. |

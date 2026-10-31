@@ -131,6 +131,12 @@ def _cpu_throttled(output: str) -> bool:
     )
 
 
+# CPU share of the contended receiver. The archive workers and the download
+# split it, which roughly halves the download rate, while a command run on the
+# node still finishes in under half a minute (0.02 starved it past a minute).
+_RECEIVER_CPU_QUOTA = 0.05
+
+
 def _cpu_contention_steps(host: str, *, quota_evidence: bool) -> list[OracleStep]:
     """Competing CPU-bound processes and CFS throttling on ``host``.
 
@@ -1042,7 +1048,7 @@ class ReceiverResourceContention(ProblemBase):
             set_nano_cpus(
                 self.runtime,
                 params.host_name,
-                cpu_quota_to_nano_cpus(0.02),
+                cpu_quota_to_nano_cpus(_RECEIVER_CPU_QUOTA),
             )
             self._receiver_quota_applied = True
         except Exception:  # noqa: BLE001

@@ -10,6 +10,7 @@ from nika.net_env.isp.bgp.frr import EXPORT_DENY_PREFIX_LIST
 from nika.problems.routing_control_plane.ospf import linked_routers
 from nika.problems.support.frr import frr_config_command, frr_save_config
 from nika.problems.support.inject_resolve import resolve_victim_host_ip
+from nika.problems.support.kubernetes.base import control_node_from_net_env
 from nika.problems.support.oracle import (
     Check,
     OraclePlaybook,
@@ -131,6 +132,25 @@ def _peer_expects_other_asn(output: str) -> bool:
     return False
 
 
+def _speaker_refuses_host(output: str) -> bool:
+    """A MetalLB speaker refused the host with "Bad Peer AS": its session to
+    one of the host's addresses expects an AS other than the host's local AS
+    (``host_local_as`` line), and no speaker session to the host is up."""
+    local = re.search(r"^host_local_as=(\d+)$", output, re.M)
+    if not local:
+        return False
+    refused = False
+    for block in re.split(r"(?m)^(?=BGP neighbor )", output):
+        m = re.match(r"BGP neighbor is ([^,\s]+), remote AS (\d+)", block)
+        if not m:
+            continue
+        if "BGP state = Established" in block:
+            return False
+        if m.group(2) != local.group(1) and "Bad Peer AS" in block:
+            refused = True
+    return refused
+
+
 def _srl_bgp_rows(output: str) -> list[tuple[str, str, str]]:
     """``(peer, peer_as, state)`` rows of an SR Linux BGP neighbor table."""
     return re.findall(
@@ -216,6 +236,9 @@ class BGPAsnMisconfig(ProblemBase):
         peer = peers[0]
         if self.lab_backend == "containerlab":
             return self._srl_playbook(host, peer)
+        control = control_node_from_net_env(self.net_env)
+        if control and getattr(self.net_env, "kubernetes_nodes", None):
+            return self._metallb_playbook(host, control)
 
         def peer_view(outputs) -> dict:
             text = outputs.get("host_bgp", "")
@@ -269,6 +292,68 @@ class BGPAsnMisconfig(ProblemBase):
                         f"{peer}'s down session to {host} expects a different AS "
                         f"than {host} runs, while {peer}'s other sessions are up",
                         _peer_expects_other_asn,
+                    ),
+                    evidence=True,
+                ),
+            ],
+        )
+
+    def _metallb_playbook(self, host: str, control: str) -> OraclePlaybook:
+        """Kubernetes fabric: the MetalLB speakers pin the router's AS, while
+        its fabric peers accept any external AS and come back up."""
+
+        def speaker_view(outputs) -> dict:
+            text = outputs.get("host_bgp", "")
+            local = re.search(r"local AS number (\d+)", text)
+            addrs = " ".join(re.findall(r"^addr ([^/\s]+)", text, re.M))
+            peers_jsonpath = "{.items[*].spec.peerAddress}"
+            command = (
+                f"echo host_local_as={local.group(1) if local else ''}; "
+                "for a in $(kubectl get bgppeers.metallb.io -A "
+                f"-o jsonpath='{peers_jsonpath}'); do "
+                f'case " {addrs} " in *" $a "*) '
+                "for p in $(kubectl -n metallb-system get pods "
+                "-l component=speaker -o name); do "
+                "kubectl -n metallb-system exec ${p#pod/} -c frr -- "
+                'vtysh -c "show bgp neighbors $a" 2>/dev/null '
+                "| grep -E '^BGP neighbor|BGP state|Last reset'; done;; esac; done"
+            )
+            return {"host_name": control, "command": command, "timeout": 90}
+
+        return OraclePlaybook(
+            finding=(
+                f"{host} runs BGP under the wrong local AS; the MetalLB speakers "
+                "that peer with it expect its configured AS and refuse the session, "
+                "so the service routes they announce no longer reach it."
+            ),
+            steps=[
+                shell(
+                    host,
+                    vtysh("show bgp summary")
+                    + "; "
+                    + vtysh("show running-config")
+                    + " | grep -E 'listen range'"
+                    + "; ip -o addr show | awk '{print \"addr \" $4}'",
+                    f"Read {host}'s local AS, its BGP sessions, and the dynamic "
+                    "peers it listens for.",
+                    all_of(
+                        contains(r"local AS number \d+", "bgpd answers"),
+                        contains(r"bgp listen range", "it listens for dynamic peers"),
+                        lacks(
+                            r"^\*" + _BGP_ROW_UP[1:], "no dynamic peer session is up"
+                        ),
+                    ),
+                    evidence=True,
+                    save_as="host_bgp",
+                ),
+                OracleStep(
+                    f"Ask the MetalLB speakers why their sessions to {host} are down.",
+                    "exec_shell",
+                    speaker_view,
+                    Check(
+                        f"a MetalLB speaker expects a different AS for {host} than "
+                        f"{host} runs and refused it with Bad Peer AS",
+                        _speaker_refuses_host,
                     ),
                     evidence=True,
                 ),
