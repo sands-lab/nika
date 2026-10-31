@@ -257,9 +257,13 @@ Deploy completes and prints a `session_id=…`. During deploy, `ps` / `pgrep -a 
 
 Open `console.log` in the failed build directory (`runtime/firecracker/images/<key>.build/` by default; `<key>` is the id in the `[firecracker] building lab image` line). `nika firecracker clean` deletes abandoned builds, so read the log first. If it shows an OOM-kill, raise `nika.execution.firecracker.vm_memory_overrides` for the environment. See [VM size](firecracker.md#vm-size).
 
-## Containerlab link faults fail with a sudo password prompt
+## Containerlab deploy or link faults fail with a sudo password prompt
 
-Failure injection on a Containerlab lab stops with an error like this:
+Deploying a Containerlab environment, or injecting a link fault on one, stops with an error like this:
+
+```text
+Joining Containerlab wires failed: sudo: a password is required
+```
 
 ```text
 host command failed (tc qdisc replace dev veth1a2b root netem loss 30%): sudo: a password is required
@@ -267,15 +271,15 @@ host command failed (tc qdisc replace dev veth1a2b root netem loss 30%): sudo: a
 
 ### Cause
 
-NIKA applies Containerlab link faults to the host side of the lab link. It runs `tc`, `ip`, `nsenter`, and `sh` through `sudo -n`, which fails instead of prompting when your user has no passwordless `sudo` rule for them. NIKA cannot change your sudoers policy.
+Every Containerlab environment joins node-to-node links on the host with `ip` and `tc`, and link faults then act on those host ends. NIKA runs `tc`, `ip`, `nsenter`, and `sh` through `sudo -n`, which fails instead of prompting when your user has no passwordless `sudo` rule for them. NIKA cannot change your sudoers policy.
 
 ### Fix
 
-Add the sudoers rule from [Allow Containerlab link faults](installation.md#allow-containerlab-link-faults), then re-run the same command.
+Add the sudoers rule from [Allow passwordless sudo for Containerlab](installation.md#allow-passwordless-sudo-for-containerlab), then re-run the same command.
 
 ### Confirm success
 
-`sudo -n "$(command -v tc)" qdisc show dev lo` prints the loopback qdisc without a prompt, and the fault injects.
+`sudo -n "$(command -v tc)" qdisc show dev lo` prints the loopback qdisc without a prompt. Deploying a Containerlab environment and injecting a link fault then succeed.
 
 ## Host routes overlap Docker subnets
 

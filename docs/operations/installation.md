@@ -40,7 +40,7 @@ Some parts still live outside the repository because they belong to the host:
 - The `clab` binary in `.venv/bin` is owned by root and setuid, as in Containerlab's own installer. Members of the `clab_admins` group run it as root. The installer uses `sudo` once to set this up and to create the group and add you to it. Open a new login shell afterwards. If `.venv` sits on a `nosuid` mount or a network home that refuses root-owned setuid files, the installer stops; install Containerlab system-wide with its [own installer](https://containerlab.dev/install/) and re-run, and NIKA uses that copy.
 - The inotify, neighbor table, and `vrf` kernel settings described below, under `/etc`.
 
-The tools NIKA runs for fault injection and Kubernetes image preparation come in Docker images that `nika images prepare` builds: `nika/tc-bpf` compiles and attaches eBPF programs, and `nika/skopeo` fetches workload images. skopeo uses the proxy variables and the inline `docker login` credentials from `~/.docker/config.json`; credential helpers stay on the host. Containerlab link faults use the host's `tc`, `ip`, and `nsenter`, which most distributions ship by default; the installer warns if one is missing.
+The tools NIKA runs for fault injection and Kubernetes image preparation come in Docker images that `nika images prepare` builds: `nika/tc-bpf` compiles and attaches eBPF programs, and `nika/skopeo` fetches workload images. skopeo uses the proxy variables and the inline `docker login` credentials from `~/.docker/config.json`; credential helpers stay on the host. Every Containerlab environment uses the host's `tc`, `ip`, and `nsenter` to join node-to-node links and to inject link faults; most distributions ship those tools by default, and the installer warns if one is missing.
 
 The installer also raises `fs.inotify.max_user_instances` and `fs.inotify.max_user_watches` to at least `64000` and persists them in `/etc/sysctl.d/99-nika-inotify.conf`. `k8s_lab`, `llmd_lab`, and `iosxr_simple_bgp` fail at the kernel default. If the installer cannot change them, follow [Host inotify limits too low](troubleshooting.md#host-inotify-limits-too-low-k3s--xrd).
 
@@ -159,9 +159,9 @@ To set up the host and select Firecracker execution in `config/nika.yaml`:
 
 The installer ends with the steps it cannot do itself, such as a reboot. See [Set up the host](firecracker.md#set-up-the-host-once) for what it changes and how the memory and disk are sized.
 
-## Allow Containerlab link faults
+## Allow passwordless sudo for Containerlab
 
-Link faults on Containerlab labs (packet loss, corruption, rate limits, link down, and link flaps) change the host side of each lab link. NIKA runs `tc`, `ip`, `nsenter`, and `sh` on the host through `sudo -n`, so your user needs passwordless `sudo` for those commands. Kathará labs do not need this.
+Every Containerlab environment joins node-to-node links through host veths with `ip` and `tc`, then applies link faults (packet loss, corruption, rate limits, link down, and link flaps) on those host ends. NIKA runs `tc`, `ip`, `nsenter`, and `sh` on the host through `sudo -n`, so your user needs passwordless `sudo` for those commands. Kathará environments do not need this.
 
 Check whether `sudo` asks for a password:
 
