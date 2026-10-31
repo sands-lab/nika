@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import base64
+import functools
+import ipaddress
 import json
 import re
 import shlex
@@ -24,6 +26,50 @@ def _loads_exec_json(output: str, *, command: str, node: str):
         raise RuntimeError(
             f"Failed to parse `{command}` output on {node}: {exc}"
         ) from exc
+
+
+# Containerlab management bridge ranges used by NIKA labs.
+_CLAB_MGMT_PREFIXES = ("172.100.", "172.101.", "172.20.", "172.18.")
+
+
+@functools.cache
+def _docker_bridge_networks() -> tuple[ipaddress.IPv4Network, ...]:
+    """Subnets of Docker's default bridge, which Kathara ``bridged`` nodes join."""
+    try:
+        import docker
+
+        ipam = docker.from_env().networks.get("bridge").attrs["IPAM"]["Config"]
+        return tuple(
+            ipaddress.IPv4Network(entry["Subnet"])
+            for entry in ipam
+            if "." in entry.get("Subnet", "")
+        )
+    except Exception:  # noqa: BLE001 - Docker default when the daemon is unreachable
+        return (ipaddress.IPv4Network("172.17.0.0/16"),)
+
+
+def _is_management_ip(ip: str) -> bool:
+    bare = ip.split("/", 1)[0]
+    if bare.startswith(_CLAB_MGMT_PREFIXES):
+        return True
+    address = ipaddress.IPv4Address(bare)
+    return any(address in network for network in _docker_bridge_networks())
+
+
+def _ipv4_by_iface(output: str, *, node: str, with_prefix: bool) -> dict[str, str]:
+    """Map each interface to its first non-loopback IPv4 address, in link order."""
+    addresses: dict[str, str] = {}
+    for link in _loads_exec_json(output, command="ip -j addr", node=node):
+        for addr in link.get("addr_info", []):
+            ip = addr.get("local")
+            if addr.get("family") != "inet" or not ip or ip.startswith("127."):
+                continue
+            prefix = addr.get("prefixlen")
+            if with_prefix and prefix is not None:
+                ip = f"{ip}/{prefix}"
+            addresses.setdefault(link.get("ifname"), ip)
+            break
+    return addresses
 
 
 class SemanticOpsMixin:
@@ -57,34 +103,10 @@ class SemanticOpsMixin:
         *,
         with_prefix: bool = False,
     ) -> str | None:
-        output = self.exec_cmd(node, "ip -j addr")
-        ifaces = _loads_exec_json(output, command="ip -j addr", node=node)
-
-        def format_ip(ip: str, prefix: int | None) -> str:
-            if with_prefix and prefix is not None:
-                return f"{ip}/{prefix}"
-            return ip
-
-        for link in ifaces:
-            if link.get("ifname") != iface:
-                continue
-            for addr in link.get("addr_info", []):
-                if addr.get("family") != "inet":
-                    continue
-                ip = addr.get("local")
-                prefix = addr.get("prefixlen")
-                if ip and not ip.startswith("127."):
-                    return format_ip(ip, prefix)
-
-        for link in ifaces:
-            for addr in link.get("addr_info", []):
-                if addr.get("family") != "inet":
-                    continue
-                ip = addr.get("local")
-                prefix = addr.get("prefixlen")
-                if ip and not ip.startswith("127."):
-                    return format_ip(ip, prefix)
-        return None
+        addresses = _ipv4_by_iface(
+            self.exec_cmd(node, "ip -j addr"), node=node, with_prefix=with_prefix
+        )
+        return addresses.get(iface) or next(iter(addresses.values()), None)
 
     def get_data_plane_host_ip(
         self: SupportsExec,
@@ -93,19 +115,30 @@ class SemanticOpsMixin:
         with_prefix: bool = False,
         prefer_ifaces: tuple[str, ...] = ("eth1", "eth0"),
     ) -> str | None:
-        """Prefer data-plane ifaces (eth1 on Containerlab linux) over mgmt eth0."""
+        """Prefer data-plane ifaces (eth1 on Containerlab linux) over mgmt eth0.
+
+        Only an address on the named interface counts, so interfaces created
+        inside the node (for example a k3s ``flannel.1``) never stand in for a
+        missing ``eth1``. Management addresses (Containerlab management
+        bridges, Docker's default bridge on Kathara ``bridged`` nodes) count
+        only when no preferred interface has another address. Without any
+        preferred interface, return the first non-loopback IPv4 address.
+        """
+        addresses = _ipv4_by_iface(
+            self.exec_cmd(node, "ip -j addr"), node=node, with_prefix=with_prefix
+        )
         candidates: list[str] = []
         for iface in prefer_ifaces:
-            ip = self.get_host_ip(node, iface, with_prefix=with_prefix)
+            ip = addresses.get(iface)
             if not ip:
                 continue
-            bare = ip.split("/", 1)[0]
-            # Containerlab mgmt bridge ranges used by NIKA labs.
-            if bare.startswith(("172.100.", "172.101.", "172.20.", "172.18.")):
+            if _is_management_ip(ip):
                 candidates.append(ip)
                 continue
             return ip
-        return candidates[0] if candidates else None
+        if candidates:
+            return candidates[0]
+        return next(iter(addresses.values()), None)
 
     def get_default_gateway(self: SupportsExec, node: str) -> str | None:
         output = self.exec_cmd(node, "ip -j route")
