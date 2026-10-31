@@ -154,7 +154,7 @@ def config_db(router: SonicRouter) -> dict:
         },
         "PORT": {
             port: {
-                "alias": f"fortyGigE0/{_port_index(port) * 4}",
+                "alias": container_iface(port),
                 "index": str(_port_index(port)),
                 "lanes": _lanes(port),
                 "speed": "40000",
@@ -178,8 +178,7 @@ def config_db(router: SonicRouter) -> dict:
 def _port_config(router: SonicRouter) -> str:
     rows = ["# name lanes alias index speed"]
     rows.extend(
-        f"{port} {_lanes(port)} fortyGigE0/{_port_index(port) * 4} "
-        f"{_port_index(port)} 40000"
+        f"{port} {_lanes(port)} {container_iface(port)} {_port_index(port)} 40000"
         for port in router.ports
     )
     return "\n".join(rows) + "\n"

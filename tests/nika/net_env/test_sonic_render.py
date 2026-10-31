@@ -73,5 +73,9 @@ def test_addresses_move_to_config_db_and_routing_stays_in_frr():
         "Loopback1|198.51.100.1/24": {},
     }
     assert db["PORT"]["Ethernet0"]["mtu"] == "1476"
+    assert db["PORT"]["Ethernet0"]["alias"] == "eth1"
     assert db["DEVICE_METADATA"]["localhost"]["docker_routing_config_mode"] == "split"
     assert files["lanemap.ini"] == "eth1:1,2,3,4\n"
+    assert files["port_config.ini"] == (
+        "# name lanes alias index speed\nEthernet0 1,2,3,4 eth1 0 40000\n"
+    )

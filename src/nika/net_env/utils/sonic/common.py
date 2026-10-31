@@ -13,6 +13,7 @@ holds the routing protocols.
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import re
 import subprocess
@@ -71,6 +72,16 @@ def container_iface(port: str) -> str:
     return f"eth{int(match[1]) // 4 + 1}"
 
 
+def _loaded_image_ref(stdout: str) -> str | None:
+    """Return the image name or ID ``docker load`` reported."""
+    for line in stdout.splitlines():
+        if line.startswith("Loaded image ID:"):
+            return line.removeprefix("Loaded image ID:").strip()
+        if line.startswith("Loaded image:"):
+            return line.removeprefix("Loaded image:").strip()
+    return None
+
+
 def ensure_sonic_image(image: str = IMAGE) -> None:
     """Download, verify and load the pinned SONiC-VS image when it is missing."""
     if image_exists(image):
@@ -79,6 +90,17 @@ def ensure_sonic_image(image: str = IMAGE) -> None:
 
     cache = CACHE_DIR / "vendor" / "sonic"
     cache.mkdir(parents=True, exist_ok=True)
+    with (cache / "image.lock").open("a", encoding="utf-8") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        try:
+            _load_sonic_image(cache, image)
+        finally:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+
+
+def _load_sonic_image(cache: Path, image: str) -> None:
+    if image_exists(image):
+        return
     print(f"Downloading SONiC-VS {SONIC_BRANCH} build {SONIC_BUILD_ID} ...")
     with tempfile.NamedTemporaryFile(dir=cache, suffix=".gz", delete=False) as handle:
         archive = Path(handle.name)
@@ -99,20 +121,21 @@ def ensure_sonic_image(image: str = IMAGE) -> None:
             text=True,
             check=True,
         ).stdout
-        source = next(
-            line.split(":", 1)[1].strip()
-            for line in loaded.splitlines()
-            if line.startswith("Loaded image:")
-        )
-        subprocess.run(["docker", "tag", source, image], check=True)
+        if image_exists(image):
+            return
+        source = _loaded_image_ref(loaded)
+        if not source:
+            raise RuntimeError(f"docker load did not report an image:\n{loaded}")
         if source != image:
-            subprocess.run(["docker", "rmi", source], capture_output=True, check=False)
+            subprocess.run(["docker", "tag", source, image], check=True)
     finally:
         archive.unlink(missing_ok=True)
 
 
 # Services that must run once SONiC's start.sh has finished.
 BOOT_SERVICES = ("orchagent", "syncd", "zebra", "fpmsyncd")
+# Supervisord states that mean a boot service has stopped after start.sh.
+_BOOT_FAILED = frozenset({"FATAL", "STOPPED", "EXITED"})
 
 
 def _boot_state(runtime, node: str) -> str:
@@ -120,7 +143,8 @@ def _boot_state(runtime, node: str) -> str:
 
     The image's start.sh exits non-zero after starting every service because
     its last command names a program this build does not define, so readiness
-    is the services running, not the script's exit status.
+    is the services running, not the script's exit status. STARTING, BACKOFF,
+    and a missing status are still boot; FATAL, STOPPED, and EXITED are not.
     """
     output = runtime.exec(
         node, "supervisorctl status start.sh " + " ".join(BOOT_SERVICES), timeout=20
@@ -132,9 +156,15 @@ def _boot_state(runtime, node: str) -> str:
     )
     if states.get("start.sh") != "EXITED":
         return "booting"
-    if all(states.get(service) == "RUNNING" for service in BOOT_SERVICES):
-        return "ready"
-    return "failed"
+    pending = False
+    for service in BOOT_SERVICES:
+        state = states.get(service)
+        if state == "RUNNING":
+            continue
+        if state in _BOOT_FAILED:
+            return "failed"
+        pending = True
+    return "booting" if pending else "ready"
 
 
 def activate_sonic_routers(
