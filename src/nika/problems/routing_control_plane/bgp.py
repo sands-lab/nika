@@ -41,6 +41,7 @@ from nika.problems.support.benchmark_targets import (
 )
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
+from nika.utils.parallel import bounded_parallel_map
 
 
 def _compile_isp_bgp_inventory(
@@ -1088,13 +1089,34 @@ class BGPMissingAdvertise(ProblemBase):
             f"(withdrew BGP networks {prefixes})."
         )
 
+    def _redistributing_vrfs(self, host: str) -> list[str]:
+        """BGP VRF instances on *host* that redistribute connected routes."""
+        config = self.runtime.exec(host, "vtysh -c 'show running-config'")
+        vrfs: list[str] = []
+        vrf = None
+        for line in config.splitlines():
+            if not line.startswith(" "):
+                header = re.match(r"router bgp \d+ vrf (\S+)", line)
+                vrf = header.group(1) if header else None
+            elif vrf and line.strip() == "redistribute connected" and vrf not in vrfs:
+                vrfs.append(vrf)
+        return vrfs
+
     def _inject_missing_adv_enterprise_redistribute(
         self, params: BGPMissingAdvertiseParams
     ) -> None:
         asn = self.runtime.frr_get_bgp_asn_number(params.host_name)
-        # Overlay VRFs advertise LAN prefixes via redistribute connected.
+        # Overlay VRFs advertise LAN prefixes via redistribute connected. Edit
+        # only the VRF instances the router has: entering a missing one would
+        # create an empty instance that was not there before the fault.
+        vrfs = self._redistributing_vrfs(params.host_name)
+        if not vrfs:
+            raise RuntimeCapabilityError(
+                f"{params.host_name!r} has no BGP VRF that redistributes "
+                "connected routes."
+            )
         lines: list[str] = []
-        for vrf in ("vrf_corp", "vrf_server"):
+        for vrf in vrfs:
             lines += [
                 f"router bgp {asn} vrf {vrf}",
                 "address-family ipv4 unicast",
@@ -2007,6 +2029,8 @@ class BGPRPKIInvalidRouteLeak(ProblemBase):
 
 _FLOOD_PREFIX_BASE = "198.19"
 # Operator-style name for the de-aggregated more-specifics the peer advertises.
+# The policy goes to every BGP router, as a fleet-wide push would, so it does
+# not single out the two routers of the faulty session.
 _FLOOD_PREFIX_LIST = "TE-MORE-SPECIFICS"
 
 
@@ -2209,6 +2233,14 @@ class BGPMaxPrefixExceeded(ProblemBase):
                 missing += 1
         return missing == len(peer_prefixes)
 
+    def _bgp_routers(self, receiver: str, peer: str) -> list[str]:
+        """Every router with a BGP session in the inventory."""
+        routers = {
+            str(s.get("local_device") or "")
+            for s in self._bgp_inventory().get("sessions") or []
+        }
+        return sorted({receiver, peer, *routers} - {""})
+
     def _flood_policy_maps(self, device: str) -> list[str]:
         config = self.runtime.exec(device, "vtysh -c 'show running-config'")
         maps = sorted(
@@ -2362,8 +2394,9 @@ class BGPMaxPrefixExceeded(ProblemBase):
                 f"received prefixes already >= maximum-prefix {limit} before flood."
             )
 
-        self._install_flood_policy(peer)
-        self._install_flood_policy(receiver)
+        bounded_parallel_map(
+            self._install_flood_policy, self._bgp_routers(receiver, peer)
+        )
         self._advertise_flood(peer, peer_asn, prefixes)
 
         exceeded_seen = False
@@ -2565,8 +2598,9 @@ class BGPMaxPrefixExceeded(ProblemBase):
         )
 
         self._withdraw_flood(peer, peer_asn, prefixes)
-        self._remove_flood_policy(peer)
-        self._remove_flood_policy(receiver)
+        bounded_parallel_map(
+            self._remove_flood_policy, self._bgp_routers(receiver, peer)
+        )
         self._clear_maximum_prefix(receiver, receiver_asn, neighbor_ip)
         self.runtime.exec(
             receiver,

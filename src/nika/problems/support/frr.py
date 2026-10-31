@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import shlex
+from collections.abc import Iterable
 from typing import TYPE_CHECKING
+
+from nika.utils.parallel import bounded_parallel_map
 
 if TYPE_CHECKING:
     from nika.runtime.base import LabRuntime
@@ -23,6 +26,23 @@ def frr_save_config(runtime: "LabRuntime", device: str) -> None:
     runtime.exec(
         device, f"vtysh -c 'write memory' >/dev/null 2>&1; rm -f {FRR_DIR}/*.sav"
     )
+
+
+def frr_rewrite_saved_configs(
+    runtime: "LabRuntime", devices: Iterable[str], timestamp: float
+) -> None:
+    """Recreate every device's saved FRR config files with one modification time.
+
+    A fault that persists its change rewrites only its own router's config,
+    which would otherwise be the one file with a recent birth and change time.
+    The content stays the same.
+    """
+    cmd = (
+        f'for f in {FRR_DIR}/*.conf; do [ -f "$f" ] && '
+        'cp -p "$f" "$f.new" && mv -f "$f.new" "$f"; done; '
+        f"touch -c -d @{int(timestamp)} {FRR_DIR} {FRR_DIR}/*.conf"
+    )
+    bounded_parallel_map(lambda device: runtime.exec(device, cmd), list(devices))
 
 
 def frr_config_command(*lines: str) -> str:

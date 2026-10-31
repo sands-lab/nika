@@ -14,5 +14,11 @@ RUN apt-get update && \
 RUN ln "$(command -v ab)" /usr/local/bin/cache-warmer && \
     ln "$(command -v hping3)" /usr/local/bin/latency-probe
 
+# The image's systemctl replacement keeps state per unit name and ignores
+# Alias=, so `systemctl status bind9` showed inactive while named.service ran.
+# A shared PIDFile makes both names report the live named process.
+RUN sed -i '/^Type=notify/a PIDFile=/run/named/named.pid' /lib/systemd/system/named.service && \
+    grep -qx 'PIDFile=/run/named/named.pid' /lib/systemd/system/named.service
+
 # Telemetry agents (node_exporter and socat for Prometheus) stay idle unless a
 # case enables them.

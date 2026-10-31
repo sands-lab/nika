@@ -82,6 +82,17 @@ class RunPingmeshSnapshotTest:
 
         assert snapshot["summary"]["total_pairs"] == 2
 
+    async def test_pair_count_fits_time_budget(self) -> None:
+        api = MagicMock()
+        api.hosts = [f"pc{i}" for i in range(12)]
+        api.servers = {}
+        api.get_host_ip.side_effect = lambda name: f"10.0.0.{name[2:]}"
+        api.exec_cmd_async = AsyncMock(return_value=OK_OUTPUT)
+        snapshot = await run_pingmesh_snapshot(api, count=20, max_pairs=500)
+
+        assert snapshot["summary"]["total_pairs"] == 32
+        assert snapshot["summary"]["capped"] is True
+
     async def test_no_endpoints_raises(self) -> None:
         api = MagicMock()
         api.hosts = []

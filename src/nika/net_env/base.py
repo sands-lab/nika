@@ -47,6 +47,8 @@ class NetworkEnvBase:
     # Routers route only frames addressed to their own interface MAC, as real
     # L3 devices do (scenario-declared forwarding behaviour).
     ROUTERS_CHECK_DST_MAC: ClassVar[bool] = False
+    # Remove deploy-time file copies and align saved configs (see seal_baseline).
+    SEAL_BASELINE: ClassVar[bool] = True
     """
     Base class for network environments."""
 
@@ -360,6 +362,36 @@ class NetworkEnvBase:
     def post_deploy(self):
         """Run once the lab is deployed and verified."""
         return
+
+    def seal_baseline(self) -> None:
+        """Leave no pristine on-disk baseline that a fault could be diffed against.
+
+        Drops the backend's deploy-time file copies and saves every FRR
+        router's running config, so a fault that saves its change is not the
+        only router with a rewritten config file.
+        """
+        if not self.SEAL_BASELINE:
+            return
+        from nika.problems.support.frr import frr_save_config
+        from nika.utils.parallel import bounded_parallel_map
+
+        runtime = self._build_runtime()
+        runtime.drop_boot_sources()
+        bounded_parallel_map(
+            lambda router: frr_save_config(runtime, router), self.frr_routers()
+        )
+
+    def align_saved_configs(self) -> None:
+        """Recreate every FRR router's saved config at once, keeping its content."""
+        if not self.SEAL_BASELINE:
+            return
+        import time
+
+        from nika.problems.support.frr import frr_rewrite_saved_configs
+
+        frr_rewrite_saved_configs(
+            self._build_runtime(), self.frr_routers(), time.time()
+        )
 
     def business_workload(self) -> "BusinessWorkload | None":
         """Always-on traffic of the scenario's users and services.
