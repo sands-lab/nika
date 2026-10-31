@@ -36,14 +36,22 @@ def test_firecracker_settings_default_off_and_validated() -> None:
     with pytest.raises(ValidationError):
         FirecrackerSettings(vm_cpus_overrides={"isp_pdh": 0})
     assert FirecrackerSettings().vm_memory_overrides == {}
-    assert FirecrackerSettings().vm_cpus_overrides["isp_pdh"] == 12
+    assert FirecrackerSettings().vm_cpus_overrides == {}
     set_run_config(RunConfig())
     assert image.vm_memory_mib({"scenario": "dc_clos"}) == 8192
-    assert image.vm_cpus("isp_pdh") == 12
-    assert image.vm_cpus("campus_lan") == 4
-    overrides = FirecrackerSettings(vm_cpus_overrides={"isp_pdh": 8})
-    assert overrides.vm_cpus_overrides["isp_pdh"] == 8
-    assert overrides.vm_cpus_overrides["isp_di-yuan"] == 12
+    assert image.vm_cpus({"scenario": "isp_pdh"}) == 12
+    assert image.vm_cpus({"scenario": "campus_lan"}) == 4
+    set_run_config(
+        RunConfig.model_validate(
+            {
+                "nika": {
+                    "execution": {"firecracker": {"vm_cpus_overrides": {"isp_pdh": 8}}}
+                }
+            }
+        )
+    )
+    assert image.vm_cpus({"scenario": "isp_pdh"}) == 8
+    assert image.vm_cpus({"scenario": "isp_di-yuan"}) == 12
 
 
 def test_vm_memory_follows_the_router_platform_a_variant_deploys() -> None:
@@ -57,14 +65,24 @@ def test_vm_memory_follows_the_router_platform_a_variant_deploys() -> None:
     # The same graph on SR Linux needs 11 x 1.5 GiB.
     assert image.vm_memory_mib(srl) == 19 * 1024
     assert image.vm_memory_mib({"scenario": "min3clos"}) == 8 * 1024
+    # 1 guest vCPU + 11 x 250 millicores -> 4; SR Linux 11 x 1 vCPU -> 12.
+    assert image.vm_cpus(sonic) == 4
+    assert image.vm_cpus(srl) == 12
+    assert image.vm_cpus({"scenario": "min3clos"}) == 4
     run_config = RunConfig()
     run_config.nika.execution.firecracker.vm_memory_overrides = {
         "isp_pdh": "12GiB",
         "isp_pdh@sonic": "3GiB",
     }
+    run_config.nika.execution.firecracker.vm_cpus_overrides = {
+        "isp_pdh": 8,
+        "isp_pdh@sonic": 2,
+    }
     set_run_config(run_config)
     assert image.vm_memory_mib(sonic) == 3 * 1024
     assert image.vm_memory_mib(srl) == 12 * 1024
+    assert image.vm_cpus(sonic) == 2
+    assert image.vm_cpus(srl) == 8
 
 
 def test_override_routes_lab_ops_and_maps_gateway_port() -> None:

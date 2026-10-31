@@ -185,9 +185,9 @@ in the lab takes 7–9 s while several copies restore at once.
 
 ### VM size
 
-Each VM gets `vm_cpus` vCPUs (default 4) and `vm_memory` (default 4 GiB), which fits most Kathara labs. A variant whose routers run a router platform (`device_profile` SR Linux, SONiC, IOS XR or RouterOS) gets memory for what it deploys: 1 GiB for the guest, the platform's memory per router (SONiC 256 MiB, RouterOS 1 GiB, SR Linux 1.5 GiB, IOS XR 3 GiB) and 64 MiB per other node, rounded up to whole GiB. `isp_pdh` gets 5 GiB on SONiC and 19 GiB on SR Linux.
+Each VM gets `vm_cpus` vCPUs (default 4) and `vm_memory` (default 4 GiB), which fits most Kathara labs. A variant whose routers run a router platform (`device_profile` SR Linux, SONiC, IOS XR or RouterOS) is sized from what it deploys. Memory is 1 GiB for the guest, the platform's memory per router (SONiC 256 MiB, RouterOS 1 GiB, SR Linux 1.5 GiB, IOS XR 3 GiB) and 64 MiB per other node, rounded up to whole GiB. vCPUs are 1 for the guest plus the platform's CPU per router (SONiC 250 millicores; SR Linux, RouterOS and IOS XR 1 vCPU), rounded up. `isp_pdh` gets 4 vCPUs and 5 GiB on SONiC, and 12 vCPUs and 19 GiB on SR Linux.
 
-Other large labs get 8 GiB by default: `dc_clos`, `k8s_lab`, `llmd_lab`, `min3clos` and Cisco XRd (`iosxr_simple_bgp`). 11 SR Linux nodes use about 10 host cores natively, so `isp_pdh`, `isp_di-yuan` and `isp_dfn-gwin` get 12 vCPUs. `dc_clos` size l uses about 4.2 GiB in the guest. An image build warns when a lab leaves less than a quarter of its VM memory free; raise `vm_memory_overrides` for that environment, or for one variant with `<scenario>@<device_profile>`:
+Other large labs get 8 GiB by default: `dc_clos`, `k8s_lab`, `llmd_lab`, `min3clos` and Cisco XRd (`iosxr_simple_bgp`). `isp_pdh`, `isp_di-yuan` and `isp_dfn-gwin` get 12 vCPUs when they have no router platform. `dc_clos` size l uses about 4.2 GiB in the guest. An image build warns when a lab leaves less than a quarter of its VM memory free; raise `vm_memory_overrides` for that environment, or for one variant with `<scenario>@<device_profile>`:
 
 ```yaml
 nika:
@@ -198,7 +198,7 @@ nika:
         isp_pdh@sonic: 6GiB
 ```
 
-Use `vm_cpus_overrides` to change an environment's vCPU allocation. Both override maps take precedence over the sizes above. Few vCPUs per VM keep one copy's bursts (verification, injection, the agent's commands) from starving the copies next to it.
+Use `vm_cpus_overrides` the same way for vCPUs (`isp_pdh: 16` or `isp_pdh@sonic: 6`). Both override maps take precedence over the sizes above. Few vCPUs per VM keep one copy's bursts (verification, injection, the agent's commands) from starving the copies next to it.
 
 ### Case images (optional)
 

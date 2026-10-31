@@ -167,6 +167,8 @@ def lab_settings() -> dict[str, Any]:
 # in a variant whose routers run another platform (see vm_memory_mib).
 GUEST_BASE_MIB = 1024
 NODE_MEMORY_MIB = 64
+# One vCPU for the guest kernel, Docker and NIKA in those same variants.
+GUEST_BASE_CPUS = 1
 
 
 def vm_memory_mib(params: dict[str, Any]) -> int:
@@ -185,15 +187,38 @@ def vm_memory_mib(params: dict[str, Any]) -> int:
     profile = params.get("device_profile")
     overrides = settings.vm_memory_overrides
     memory = overrides.get(f"{scenario}@{profile}") or overrides.get(scenario)
-    if memory is None and _router_memory_mib(profile) is not None:
+    if memory is None and _router_attr(profile, "ROUTER_MEMORY_MIB") is not None:
         return _platform_memory_mib(json.dumps(params, sort_keys=True))
     if memory is None:
         memory = DEFAULT_VM_MEMORY_OVERRIDES.get(scenario, settings.vm_memory)
     return int(memory[:-3]) * 1024
 
 
-def _router_memory_mib(profile: str | None) -> int | None:
-    """Memory one router of ``profile`` needs, when its platform module declares it."""
+def vm_cpus(params: dict[str, Any]) -> int:
+    """VM vCPUs of an environment variant.
+
+    A configured override for ``<scenario>@<device_profile>`` or the scenario
+    applies first. A variant whose routers run a router platform is sized
+    from what it deploys: each router needs its platform's
+    ``ROUTER_CPU_MILLIS``. Other labs use NIKA's sizes for large labs or
+    ``vm_cpus``.
+    """
+    from nika.run_config.schema import DEFAULT_VM_CPU_OVERRIDES
+
+    settings = firecracker_settings()
+    scenario = str(params.get("scenario"))
+    profile = params.get("device_profile")
+    overrides = settings.vm_cpus_overrides
+    cpus = overrides.get(f"{scenario}@{profile}") or overrides.get(scenario)
+    if cpus is None and _router_attr(profile, "ROUTER_CPU_MILLIS") is not None:
+        return _platform_cpus(json.dumps(params, sort_keys=True))
+    if cpus is None:
+        cpus = DEFAULT_VM_CPU_OVERRIDES.get(scenario, settings.vm_cpus)
+    return cpus
+
+
+def _router_attr(profile: str | None, name: str) -> int | None:
+    """A platform figure from ``nika.net_env.utils.<profile>.common``, if declared."""
     from importlib import import_module
 
     if not profile:
@@ -202,11 +227,12 @@ def _router_memory_mib(profile: str | None) -> int | None:
         module = import_module(f"nika.net_env.utils.{profile}.common")
     except ModuleNotFoundError:
         return None
-    return getattr(module, "ROUTER_MEMORY_MIB", None)
+    return getattr(module, name, None)
 
 
 @functools.cache
-def _platform_memory_mib(params_json: str) -> int:
+def _platform_nodes(params_json: str) -> tuple[int, int]:
+    """Routers of the variant's ``device_profile``, and the remaining nodes."""
     from nika.net_env.net_env_pool import get_net_env_instance
 
     params = json.loads(params_json)
@@ -215,14 +241,23 @@ def _platform_memory_mib(params_json: str) -> int:
     env = get_net_env_instance(params["scenario"], **kwargs)
     nodes = env.machine_identities
     routers = sum(profile in identity.capabilities for identity in nodes.values())
-    need = _router_memory_mib(profile)
-    total = GUEST_BASE_MIB + routers * need + (len(nodes) - routers) * NODE_MEMORY_MIB
+    return routers, len(nodes) - routers
+
+
+def _platform_memory_mib(params_json: str) -> int:
+    routers, others = _platform_nodes(params_json)
+    need = _router_attr(json.loads(params_json)["device_profile"], "ROUTER_MEMORY_MIB")
+    total = GUEST_BASE_MIB + routers * need + others * NODE_MEMORY_MIB
     return -(-total // 1024) * 1024
 
 
-def vm_cpus(scenario: str) -> int:
-    settings = firecracker_settings()
-    return settings.vm_cpus_overrides.get(scenario, settings.vm_cpus)
+def _platform_cpus(params_json: str) -> int:
+    routers, _others = _platform_nodes(params_json)
+    millis = _router_attr(
+        json.loads(params_json)["device_profile"], "ROUTER_CPU_MILLIS"
+    )
+    total = GUEST_BASE_CPUS * 1000 + routers * millis
+    return max(1, -(-total // 1000))
 
 
 def base_manifest() -> dict[str, Any]:
@@ -240,7 +275,7 @@ def image_key(params: dict[str, Any]) -> str:
         "lab_settings": lab_settings(),
         "code": code_fingerprint(),
         "base": base_manifest().get("id"),
-        "cpus": vm_cpus(str(params.get("scenario"))),
+        "cpus": vm_cpus(params),
         "memory_mib": vm_memory_mib(params),
         "huge_pages": settings.huge_pages,
         "firecracker": binary_id(firecracker_binary()),
@@ -369,7 +404,7 @@ def _build(build: Path, key: str, params: dict[str, Any]) -> None:
         kernel=str(base / manifest["kernel"]),
         initrd=str(base / manifest["initrd"]) if manifest.get("initrd") else None,
         boot_args=manifest["boot_args"],
-        cpus=vm_cpus(str(params["scenario"])),
+        cpus=vm_cpus(params),
         memory_mib=vm_memory_mib(params),
         huge_pages=settings.huge_pages,
         free_page_reporting=not settings.huge_pages,
