@@ -156,15 +156,24 @@ class MCPServerConfig:
         *,
         backend: str | None = None,
         base_url: str | None = None,
-        telemetry: Iterable[str] = (),
+        telemetry: Iterable[str] | None = None,
         device_profile: str | None = None,
     ) -> dict:
-        """Return HTTP MCP config for all servers needed by the session."""
+        """Return HTTP MCP config for all servers needed by the session.
+
+        Omitted *backend*, *telemetry*, and *device_profile* come from the
+        stored session so dual-backend labs keep the vendor CLI that ran.
+        """
+        stored_backend, stored_telemetry, stored_profile = _session_deployment(
+            self.session_id
+        )
         server_names = select_session_servers(
             scenario_name,
-            backend=backend,
-            telemetry=telemetry,
-            device_profile=device_profile,
+            backend=backend or stored_backend,
+            telemetry=stored_telemetry if telemetry is None else telemetry,
+            device_profile=(
+                stored_profile if device_profile is None else device_profile
+            ),
         )
         return self.load_http_config(server_names, base_url=base_url)
 
@@ -197,12 +206,9 @@ def load_session_mcp_config(
     """
     # ISP scenarios support both lab backends, and telemetry is chosen per
     # session. The gateway only mounts servers for what was actually started.
-    stored_backend, telemetry, device_profile = _session_deployment(session_id)
     servers = MCPServerConfig(session_id=session_id).load_session_http_config(
         scenario_name,
-        backend=backend or stored_backend,
-        telemetry=telemetry,
-        device_profile=device_profile,
+        backend=backend,
     )
     return servers if phase is None else filter_phase_servers(servers, phase)
 
