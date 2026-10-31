@@ -7,7 +7,7 @@ reads FRR and Linux state; vendor profiles subclass it with native commands.
 
 from __future__ import annotations
 
-from nika.net_env.enterprise_branch.topology import OverlayQosSpec
+from nika.net_env.enterprise_branch.topology import OverlayQosSpec, tc_rate
 from nika.net_env.verify import FRR_BGP_PEERS, BgpPeerQuery, ping_ok
 from nika.net_env.verify_collection import ping_command
 
@@ -54,8 +54,7 @@ class FrrEdgeView:
             "htb": "htb" in tc_out.lower(),
             "ef_class": "1:10" in tc_class,
             "be_class": "1:20" in tc_class,
-            "rate": f"{qos.rate_mbit}Mbit" in tc_class
-            or (f"{qos.rate_mbit}mbit" in tc_class.lower()),
+            "rate": tc_rate(qos.rate_kbit) in tc_class.lower(),
         }
 
     def ping(self, target: str) -> str:

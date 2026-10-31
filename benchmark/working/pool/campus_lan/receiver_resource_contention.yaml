@@ -26,18 +26,6 @@ failure:
         kind: node
         node: pc_2_1_1_1
       fault_type: receiver_resource_contention
-  - topo_size: s
-    device_profile: routeros
-    inject:
-      duration: '3600'
-      host_name: pc_2_1_1_1
-      large_url: https://web0.local/packages/catalog.txt
-      peer_host: web_server_0
-    root_causes:
-    - resource:
-        kind: node
-        node: pc_2_1_1_1
-      fault_type: receiver_resource_contention
   - topo_size: m
     inject:
       duration: '3600'

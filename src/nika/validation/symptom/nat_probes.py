@@ -1,8 +1,10 @@
 """SNAT symptom probes for edge NAT failures (test-path only).
 
-Each probe runs a TCP echo listener on the edge's WAN next hop and drives
+Each probe runs a TCP echo listener on an outside server and drives
 connections from an inside host in ``source_prefix``. The listener logs the
-translated source address of every accepted connection.
+translated source address of every accepted connection. The server is the one
+the scenario declares (``NetworkEnvBase.nat_probe_server``), else the edge's
+WAN next hop.
 """
 
 from __future__ import annotations
@@ -100,9 +102,27 @@ def _addresses(
     return found
 
 
-def _endpoints(runtime: LabRuntime, edge: str, source_prefix: str) -> dict[str, str]:
-    """Find an inside host in ``source_prefix`` and the edge's WAN next hop."""
+def _endpoints(problem: Any, edge: str, source_prefix: str) -> dict[str, str]:
+    """Find an inside host in ``source_prefix`` and an outside server.
+
+    Addresses are read on the hosts, so the edge may run any router platform.
+    """
+    runtime = problem.runtime
     prefix = ipaddress.IPv4Network(source_prefix)
+    declared = problem.net_env.nat_probe_server()
+    if declared is not None:
+        inside = next(
+            (
+                node
+                for node in runtime.get_connected_devices(edge)
+                if any(addr.ip in prefix for _, addr in _host_addresses(runtime, node))
+            ),
+            None,
+        )
+        if inside is None:
+            raise RuntimeError(f"no inside host in {source_prefix} next to {edge}")
+        server, server_ip = declared
+        return {"inside": inside, "server": server, "server_ip": server_ip}
     inside_intf = next(
         (intf for intf, addr in _addresses(runtime, edge) if addr.ip in prefix), None
     )
@@ -128,6 +148,16 @@ def _endpoints(runtime: LabRuntime, edge: str, source_prefix: str) -> dict[str, 
             f"no inside host or WAN peer next to {edge}: inside={inside} server={server}"
         )
     return {"inside": inside, "server": server, "server_ip": via.group(1)}
+
+
+def _host_addresses(
+    runtime: LabRuntime, node: str
+) -> list[tuple[str, ipaddress.IPv4Interface]]:
+    """Addresses of ``node``, or none when it is not a Linux host."""
+    try:
+        return _addresses(runtime, node)
+    except Exception:  # noqa: BLE001 - native routers have no Linux addresses
+        return []
 
 
 def _start_server(runtime: LabRuntime, server: str) -> None:
@@ -161,7 +191,7 @@ def _snat_pool_size(params: Any) -> int:
 
 def snat_pool_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     """Before inject, more concurrent flows than the pool size all connect."""
-    ends = _endpoints(problem.runtime, params.host_name, params.source_prefix)
+    ends = _endpoints(problem, params.host_name, params.source_prefix)
     problem._audit_nat_ends = ends
     _start_server(problem.runtime, ends["server"])
     count = _snat_pool_size(params) + 16
@@ -173,7 +203,7 @@ def snat_pool_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]
 def snat_pool_exhaustion(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     """After inject, concurrent flows stop at the SNAT pool size."""
     ends = getattr(problem, "_audit_nat_ends", None) or _endpoints(
-        problem.runtime, params.host_name, params.source_prefix
+        problem, params.host_name, params.source_prefix
     )
     _start_server(problem.runtime, ends["server"])
     pool = _snat_pool_size(params)
@@ -190,7 +220,7 @@ def snat_pool_exhaustion(problem: Any, params: Any) -> tuple[bool, dict[str, Any
 def nat_flow_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     """Start one long-lived flow through ``nat_ip_a`` before the mapping moves."""
     runtime = problem.runtime
-    ends = _endpoints(runtime, params.host_name, params.source_prefix)
+    ends = _endpoints(problem, params.host_name, params.source_prefix)
     problem._audit_nat_ends = ends
     _start_server(runtime, ends["server"])
     before = _peer_count(runtime, ends["server"], params.nat_ip_a)
@@ -217,7 +247,7 @@ def nat_mapping_removed(problem: Any, params: Any) -> tuple[bool, dict[str, Any]
     """The pre-inject flow breaks and new flows leave through ``nat_ip_b``."""
     runtime = problem.runtime
     ends = getattr(problem, "_audit_nat_ends", None) or _endpoints(
-        runtime, params.host_name, params.source_prefix
+        problem, params.host_name, params.source_prefix
     )
     status = ""
     deadline = time.monotonic() + 15

@@ -14,6 +14,14 @@ healthy:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: uniform
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
   - topo_size: l
     igp: ospf
     bgp_mode: ebgp

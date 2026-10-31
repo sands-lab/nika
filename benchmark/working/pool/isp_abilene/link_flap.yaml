@@ -9,6 +9,8 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: &id001
+      pattern: uniform
     inject:
       down_time: '1'
       host_name: atlam5
@@ -28,6 +30,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: atlang
@@ -47,6 +50,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: atlang
@@ -66,6 +70,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: atlang
@@ -85,6 +90,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: chinng
@@ -104,6 +110,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: chinng
@@ -123,6 +130,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: dnvrng
@@ -142,6 +150,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: dnvrng
@@ -161,6 +170,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: dnvrng
@@ -180,6 +190,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: hstnng
@@ -199,6 +210,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: hstnng
@@ -218,6 +230,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: iplsng
@@ -237,6 +250,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: losang
@@ -256,6 +270,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: nycmng
@@ -275,6 +290,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: snvang
@@ -294,6 +310,8 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: &id002
+      pattern: uniform
     inject:
       down_time: '1'
       host_name: atlam5
@@ -313,6 +331,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: atlang
@@ -332,6 +351,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: atlang
@@ -351,6 +371,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: atlang
@@ -370,6 +391,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: chinng
@@ -389,6 +411,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: chinng
@@ -408,6 +431,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: dnvrng
@@ -427,6 +451,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: dnvrng
@@ -446,6 +471,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: dnvrng
@@ -465,6 +491,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: hstnng
@@ -484,6 +511,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: hstnng
@@ -503,6 +531,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: iplsng
@@ -522,6 +551,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: losang
@@ -541,6 +571,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: nycmng
@@ -560,6 +591,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: snvang

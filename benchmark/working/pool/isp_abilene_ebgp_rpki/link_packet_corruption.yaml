@@ -6,6 +6,8 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic: &id001
+      pattern: uniform
     inject:
       corruption_percentage: '10'
       host_name: atlam5
@@ -21,6 +23,7 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: atlang
@@ -36,6 +39,7 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: atlang
@@ -51,6 +55,7 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: atlang
@@ -66,6 +71,7 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: chinng
@@ -81,6 +87,7 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: chinng
@@ -96,6 +103,7 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: dnvrng
@@ -111,6 +119,7 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: dnvrng
@@ -126,6 +135,7 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: dnvrng
@@ -141,6 +151,7 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: hstnng
@@ -156,6 +167,7 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: hstnng
@@ -171,6 +183,7 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: iplsng
@@ -186,6 +199,7 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: losang
@@ -201,6 +215,7 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: nycmng
@@ -216,6 +231,7 @@ failure:
   - topo_size: s
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: snvang

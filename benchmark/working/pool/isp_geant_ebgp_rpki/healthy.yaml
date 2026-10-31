@@ -5,3 +5,8 @@ healthy:
   - topo_size: m
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: uniform
+  - topo_size: m
+    backend: kathara
+    device_profile: frr
