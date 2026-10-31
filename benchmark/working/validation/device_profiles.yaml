@@ -3093,6 +3093,41 @@ cells:
   duration_sec: 104
 - environment: isp
   device_profile: sonic
+  failure: bgp_hijacking
+  scenario: isp_abilene
+  task_id: isp_abilene__bgp_hijacking__hef0bc02984bb
+  inject:
+    host_name: atlam5
+    observer_host: pc_atlang
+    probe_dst_ip: 203.0.113.1
+    symptom_host: atlang
+    target_network: 203.0.113.0/24
+  native_target: true
+  nika_commit: 4556dc243cde
+  image: docker-sonic-vs:202505-1238524
+  date: '2026-10-31T18:10:08Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 101
+- environment: isp
+  device_profile: sonic
+  failure: bgp_max_prefix_exceeded
+  scenario: isp_abilene
+  task_id: isp_abilene__bgp_max_prefix__h4e68d5a94566
+  inject:
+    flood_count: '120'
+    neighbor_ip: 10.0.0.23
+    peer_name: kscyng
+    receiver_name: iplsng
+  native_target: true
+  nika_commit: 4556dc243cde
+  image: docker-sonic-vs:202505-1238524
+  date: '2026-10-31T18:12:09Z'
+  status: validated
+  recovery: restored
+  duration_sec: 124
+- environment: isp
+  device_profile: sonic
   failure: bgp_missing_route_advertisement
   scenario: isp_dfn-bwin
   task_id: isp_dfn-bwin__bgp_missing_ro__h65db6ecc1b65
