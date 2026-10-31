@@ -1,0 +1,12 @@
+scenario:
+  name: k8s_lab
+failure:
+  fault_type: k8s_service_target_port_mismatch
+  cases:
+  - inject:
+      control_node: controller
+    root_causes:
+    - resource:
+        kind: node
+        node: controller
+      fault_type: k8s_service_target_port_mismatch

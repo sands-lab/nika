@@ -271,3 +271,146 @@ def coredns_isolated(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
         verified=verified,
         details={**sample, "control_ok": control_ok},
     )
+
+
+# ------------------------------------------------ service entry points
+
+_HTTP_TIMEOUT_SEC = 5
+_ENTRY_WAIT_SEC = 90.0
+
+
+def _client(problem: Any) -> str:
+    from nika.net_env.net_env_pool import get_probe_path
+
+    path = get_probe_path(problem.scenario_name)
+    return getattr(path, "src_host", None) or "client"
+
+
+def _http_code(problem: Any, host: str, url: str) -> str:
+    """HTTP status ``url`` returns to ``host``; ``000`` when the request fails."""
+    out = problem.runtime.exec(
+        host,
+        f"curl -s -o /dev/null -m {_HTTP_TIMEOUT_SEC} -w '%{{http_code}}' {url}",
+        timeout=_HTTP_TIMEOUT_SEC + 10,
+    )
+    return out.strip()[-3:] or "000"
+
+
+def _wait_for(check, timeout: float = _ENTRY_WAIT_SEC):
+    import time
+
+    deadline = time.monotonic() + timeout
+    while True:
+        ok, details = check()
+        if ok or time.monotonic() >= deadline:
+            return ok, details
+        time.sleep(5.0)
+
+
+def _ingress_urls(problem: Any) -> dict[str, str]:
+    """``namespace/service`` -> the Ingress URL that reaches it."""
+    from nika.problems.service_networking.kubernetes import ingress_backends
+
+    k8s = problem.runtime.lab_api
+    control = problem.control_node()
+    return {
+        f"{namespace}/{service}": f"http://{host}{path}"
+        for namespace, service, host, path in ingress_backends(k8s, control)
+    }
+
+
+def _answered(code: str) -> bool:
+    """The backend answered: any status below 500 (a bare path may return 4xx)."""
+    return code.isdigit() and 100 <= int(code) < 500
+
+
+def target_port_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    """Every Ingress URL gets an answer from its backend."""
+    client = _client(problem)
+    codes = {
+        ref: _http_code(problem, client, url)
+        for ref, url in _ingress_urls(problem).items()
+    }
+    problem._audit_ingress_codes = codes
+    return bool(codes) and all(_answered(code) for code in codes.values()), {
+        "client": client,
+        "codes": codes,
+    }
+
+
+def target_port_broken(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    """The changed Service's URL gets no answer; the other URLs answer as before."""
+    client = _client(problem)
+    urls = _ingress_urls(problem)
+    before = getattr(problem, "_audit_ingress_codes", None) or {}
+    target = problem.service_ref
+
+    def check():
+        codes = {ref: _http_code(problem, client, url) for ref, url in urls.items()}
+        others_same = all(
+            codes[ref] == before.get(ref) for ref in codes if ref != target
+        )
+        ok = target in codes and not _answered(codes[target]) and others_same
+        return ok, {
+            "client": client,
+            "service": target,
+            "before": before,
+            "codes": codes,
+        }
+
+    ok, details = _wait_for(check)
+    return ok, build_verify_result(
+        fault_type=problem.root_cause_name, verified=ok, details=details
+    )
+
+
+def _load_balancer_ips(problem: Any) -> list[str]:
+    k8s = problem.runtime.lab_api
+    items = k8s.kubectl_json(problem.control_node(), "get services -A").get("items", [])
+    return sorted(
+        ingress["ip"]
+        for item in items
+        if item["spec"].get("type") == "LoadBalancer"
+        for ingress in (
+            item.get("status", {}).get("loadBalancer", {}).get("ingress") or []
+        )
+        if ingress.get("ip")
+    )
+
+
+def _vip_reachable(problem: Any, client: str, ip: str) -> bool:
+    # Any HTTP status, even 404, means the address answered.
+    return _http_code(problem, client, f"http://{ip}/") != "000"
+
+
+def lb_advertisement_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    """Every LoadBalancer IP answers the external client."""
+    client = _client(problem)
+    ips = _load_balancer_ips(problem)
+    reachable = {ip: _vip_reachable(problem, client, ip) for ip in ips}
+    problem._audit_lb_ips = ips
+    return bool(ips) and all(reachable.values()), {
+        "client": client,
+        "reachable": reachable,
+    }
+
+
+def lb_advertisement_withdrawn(
+    problem: Any, params: Any
+) -> tuple[bool, dict[str, Any]]:
+    """The LoadBalancer IPs keep their assignment but stop answering outside clients."""
+    client = _client(problem)
+    baseline = getattr(problem, "_audit_lb_ips", None) or []
+
+    def check():
+        ips = _load_balancer_ips(problem)
+        reachable = {ip: _vip_reachable(problem, client, ip) for ip in baseline}
+        ok = (
+            bool(baseline) and set(baseline) <= set(ips) and not any(reachable.values())
+        )
+        return ok, {"client": client, "assigned": ips, "reachable": reachable}
+
+    ok, details = _wait_for(check)
+    return ok, build_verify_result(
+        fault_type=problem.root_cause_name, verified=ok, details=details
+    )

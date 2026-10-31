@@ -86,15 +86,15 @@ Explore the registered [network incidents](docs/operations/failures.md). The [wo
 | Failure domain | Registered failure types | Tasks in the working pool |
 | --- | ---: | ---: |
 | Link & Interface | 6 | 16,318 |
-| Routing & Control Plane | 10 | 6,227 |
+| Routing & Control Plane | 11 | 6,232 |
 | Forwarding, Encapsulation & Policy | 27 | 6,486 |
-| Service Networking | 6 | 33 |
-| Management & Orchestration Plane | 4 | 19 |
+| Service Networking | 8 | 35 |
+| Management & Orchestration Plane | 5 | 39 |
 | Addressing, Neighbor & Naming | 13 | 682 |
 | Endpoint & Application | 2 | 275 |
 | Traffic, Queueing & Resource | 3 | 180 |
 | Security | 7 | 2,507 |
-| **Total** | **78** | **32,727** |
+| **Total** | **82** | **32,754** |
 
 See the [failure reference](docs/operations/failures.md#registered-failures) for individual faults and injection options.
 
@@ -259,7 +259,7 @@ NIKA is part of a growing ecosystem. The table below compares NIKA with other be
 
 | Benchmark | Description | Variety | Scale | Environment Realism | Type | Best for |
 |---|---|:---:|:---:|:---:|:---:|---|
-| **[NIKA](https://sands-lab.github.io/nika)** | Live network troubleshooting | ⭐️⭐️⭐️ <br> 78 registered fault types <br> 40 network environments | ⭐️⭐️ <br> 32,727 tasks in the working pool | ⭐️⭐️⭐️ <br> ✔ Kathará/Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
+| **[NIKA](https://sands-lab.github.io/nika)** | Live network troubleshooting | ⭐️⭐️⭐️ <br> 82 registered fault types <br> 40 network environments | ⭐️⭐️ <br> 32,754 tasks in the working pool | ⭐️⭐️⭐️ <br> ✔ Kathará/Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
 | [NetOpsBench](https://github.com/NetX-lab/NetOpsBench) | Live network troubleshooting | ⭐️ <br> 13 fault types <br> 1 network type | ⭐️⭐️ <br>~600 incident variants | ⭐️⭐️⭐️ <br> ✔ Containerlab emulation <br> ✔ Vendor CLIs & telemetry tools | 🟢 Online | Agentic evals |
 | [NetArena](https://github.com/Froot-NetSys/NetArena) | Network operations | ⭐️ <br> 3 setups, 5 fault types | ⭐️⭐️⭐️ <br> ~9,000 variants | ⭐️⭐️ <br>Mininet <br> Basic netutils (e.g., ping) | 🟢 Online | Large-scale synthetic variants for ML |
 | [NetConfEval](https://github.com/RedHatResearch/conext24-NetConfEval) | Basic network configuration | ⭐️ <br> Reachability, waypoint, load balancing on 8x topologies | ⭐️⭐️⭐️ <br> ~3,000 variants | ⭐️ <br> Simple offline validator | 🔴 Offline / Static | Basic LLM config-generation capability |

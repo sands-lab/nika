@@ -70,13 +70,16 @@ def _parse_iosxr_bgp_summary(output: str) -> tuple[int | None, dict[str, _BgpPee
         ):
             raise ValueError(f"Malformed IOS XR BGP neighbor row: {line.strip()}")
         address, remote_asn = fields[0], int(fields[remote_as_index])
+        # An Established peer shows its prefix count; XR appends "!" when the
+        # eBGP session has no policy and drops every route.
         state = fields[-1]
-        established = state.isdigit() or state.lower() == "established"
+        established = bool(re.fullmatch(r"\d+!?", state)) or (
+            state.lower() == "established"
+        )
         if (
             state.lower()
             not in {"idle", "active", "connect", "opensent", "openconfirm"}
-            and not state.isdigit()
-            and state.lower() != "established"
+            and not established
         ):
             raise ValueError(f"Unknown IOS XR BGP neighbor state: {state}")
         peers[address] = _BgpPeer(remote_asn, established, local_asn)
