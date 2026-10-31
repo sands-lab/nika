@@ -86,7 +86,7 @@ class HostTcController:
     def wire_partner(self, peer: str) -> str | None:
         """Other host end of the wire ``peer`` belongs to (``wires.py``), if any."""
         filters = self._run("tc", "filter", "show", "dev", peer, "ingress")
-        match = re.search(r"redirect to device (\S+)\)", filters)
+        match = re.search(r"redirect to device (\S+)\)", filters, re.IGNORECASE)
         return match.group(1) if match else None
 
     def wire_ends(self, peer: str) -> list[str]:
