@@ -8,6 +8,21 @@ from nika.problems.base import (
     ProblemBase,
     build_verify_result,
 )
+from nika.problems.support.oracle import (
+    addr_step,
+    is_ip_node,
+    toward,
+    Check,
+    OraclePlaybook,
+    OracleStep,
+    all_of,
+    contains,
+    iface_down,
+    iface_state,
+    lacks,
+    qdisc,
+    shell,
+)
 from nika.problems.rca.inventory import (
     interface_on,
     iter_link_termination_points,
@@ -31,6 +46,121 @@ from nika.utils.logger import system_logger
 
 
 _DAEMON_ROUTE_RE = re.compile(r"\bproto (kernel|bgp|ospf|isis|rip|zebra|dhcp)\b")
+
+
+# ------------------------------------------------------------------
+# Oracle helpers
+# ------------------------------------------------------------------
+
+_RATE_RE = re.compile(r"([0-9.]+)\s*([KMG]?)bits/sec\b.*\breceiver\b")
+_RATE_SCALE = {"": 1.0, "K": 1e3, "M": 1e6, "G": 1e9}
+
+
+def _role(net_env, node: str) -> str | None:
+    identity = (getattr(net_env, "machine_identities", None) or {}).get(node)
+    return None if identity is None else getattr(identity.role, "value", identity.role)
+
+
+def _single_homed(net_env, node: str) -> bool:
+    """An end host: every path to or from it crosses its one data link."""
+    return is_ip_node(net_env, node) and _role(net_env, node) in ("host", "service")
+
+
+def _remote_host(net_env, exclude: set[str]) -> str | None:
+    """An addressed end host elsewhere in the lab, used as a probe endpoint."""
+    names = list(getattr(net_env, "hosts", None) or []) + sorted(
+        getattr(net_env, "machine_identities", None) or {}
+    )
+    return next(
+        (n for n in names if n not in exclude and _single_homed(net_env, n)), None
+    )
+
+
+def _probe_ends(net_env, node: str, intf: str) -> tuple[str, tuple[str, str]] | None:
+    """Probe source and addressed target whose path crosses ``node:intf`` outbound.
+
+    Both link ends when both hold addresses. When one end is a switch (OVS,
+    BMv2, SR Linux), the addressed end must be an end host and the other probe
+    end is a host elsewhere in the lab, reached through that switch. ``None``
+    when no such pair exists (for example a switch-to-switch link).
+    """
+    peer = _link_peer(net_env, node, intf)
+    if peer is None:
+        return None
+    if is_ip_node(net_env, node) and is_ip_node(net_env, peer[0]):
+        return node, peer
+    if _single_homed(net_env, node):
+        remote = _remote_host(net_env, {node, peer[0]})
+        if remote is not None:
+            return node, (remote, resolve_default_intf("eth0", net_env))
+    if _single_homed(net_env, peer[0]):
+        remote = _remote_host(net_env, {node, peer[0]})
+        if remote is not None:
+            return remote, peer
+    return None
+
+
+def _burst_loss_ping(dst: str) -> str:
+    """60 probes at 200 ms; prints received sequence numbers and the summary."""
+    return (
+        f"ping -i 0.2 -c 60 -W 1 {dst} 2>&1 | awk '/bytes from/"
+        '{for(i=1;i<=NF;i++) if($i ~ /^icmp_seq=/) printf "%s ", $i} '
+        '/packets transmitted/{print ""; print}\''
+    )
+
+
+def _loss_runs(output: str) -> list[int]:
+    """Lengths of runs of consecutive unanswered probes in ``_burst_loss_ping``."""
+    sent = re.search(r"(\d+) packets transmitted", output)
+    if sent is None:
+        return []
+    got = {int(seq) for seq in re.findall(r"icmp_seq=(\d+)", output)}
+    if not got:
+        return []
+    runs, run = [], 0
+    for seq in range(1, int(sent.group(1)) + 1):
+        if seq in got:
+            if run:
+                runs.append(run)
+            run = 0
+        else:
+            run += 1
+    if run:
+        runs.append(run)
+    return runs
+
+
+_ON_OFF_LOSS = Check(
+    "probes are lost in at least two separate bursts of 3+ consecutive probes "
+    "while the probes between bursts get replies (on/off outages)",
+    lambda out: sum(run >= 3 for run in _loss_runs(out)) >= 2,
+)
+
+
+def _receiver_bps(output: str) -> float | None:
+    match = _RATE_RE.search(output)
+    if match is None:
+        return None
+    return float(match.group(1)) * _RATE_SCALE[match.group(2)]
+
+
+def _saturated_link(output: str) -> bool:
+    """iperf3 receiver rate is low while concurrent pings see queueing delay."""
+    bps = _receiver_bps(output)
+    rtt = re.search(r"rtt [^=]+= [0-9.]+/([0-9.]+)/", output)
+    return _below_2mbps(bps) and rtt is not None and float(rtt.group(1)) > 50
+
+
+def _below_2mbps(rate: float | None) -> bool:
+    """A measured rate (0 included) under 2 Mbit/s; no measurement is not."""
+    return rate is not None and rate < 2e6
+
+
+def _tbf_rate_bps(output: str) -> float | None:
+    match = re.search(r"qdisc tbf .*?\brate ([0-9.]+)([KMG]?)bit", output)
+    if match is None:
+        return None
+    return float(match.group(1)) * _RATE_SCALE[match.group(2)]
 
 
 # ==================================================================
@@ -185,6 +315,25 @@ class LinkFailure(ProblemBase):
                 "intf": intf,
                 "operstate": operstate,
             },
+        )
+
+    def oracle_playbook(self, params: LinkFailureParams) -> OraclePlaybook:
+        intf = resolve_default_intf(params.intf_name, self.net_env)
+        host = params.host_name
+        steps = [
+            shell(
+                host,
+                "ip -br link; ip route",
+                f"List interface states and routes on {host}, an endpoint of the unreachable paths.",
+            ),
+            iface_down(host, intf),
+        ]
+        peer = self._peer_endpoint(host, intf)
+        if peer is not None:
+            steps.append(iface_down(*peer, evidence=False))
+        return OraclePlaybook(
+            finding=f"The link on {host}:{intf} has no carrier, so every path across it is cut.",
+            steps=steps,
         )
 
     def recover_fault(self, params: LinkFailureParams) -> dict:
@@ -386,6 +535,84 @@ class LinkFlap(ProblemBase):
                 "host": params.host_name,
                 "intf": intf_name,
             },
+        )
+
+    def oracle_playbook(self, params: LinkFlapParams) -> OraclePlaybook:
+        intf = resolve_default_intf(params.intf_name, self.net_env)
+        host = params.host_name
+        steps = [
+            shell(
+                host,
+                f"ip -br link show dev {intf}; ip -s link show dev {intf} | head -8",
+                f"Inspect {host}:{intf}, the attachment on the lossy paths.",
+            )
+        ]
+        if self.lab_backend == "containerlab":
+            steps.append(
+                shell(
+                    host,
+                    f"for i in $(seq 1 16); do cat /sys/class/net/{intf}/operstate; "
+                    "sleep 0.5; done | sort | uniq -c",
+                    f"Sample the operational state of {host}:{intf} for 8 seconds.",
+                    all_of(
+                        contains(r"\bup$", f"{host}:{intf} is seen up"),
+                        contains(r"\bdown$", f"{host}:{intf} is seen down"),
+                    ),
+                    evidence=True,
+                    timeout=20,
+                )
+            )
+        else:
+            steps.append(
+                iface_state(
+                    host,
+                    intf,
+                    contains(r"<[^>]*LOWER_UP", f"{host}:{intf} has carrier"),
+                    f"Confirm {host}:{intf} itself is up, so the outages are not a "
+                    "persistently down port.",
+                )
+            )
+        src = params.symptom_host or params.observer_device
+        purpose = (
+            "Probe across the link every 200 ms for 12 seconds and look at which "
+            "probes are lost."
+        )
+        if src and params.probe_dst_ip:
+            steps.append(
+                shell(
+                    src,
+                    _burst_loss_ping(params.probe_dst_ip),
+                    purpose,
+                    _ON_OFF_LOSS,
+                    evidence=True,
+                    timeout=40,
+                )
+            )
+        elif (ends := _probe_ends(self.net_env, host, intf)) is not None:
+            src, target = ends
+            steps += [
+                addr_step(*target, "flap_peer"),
+                toward(
+                    src,
+                    "flap_peer",
+                    _burst_loss_ping("{ip}"),
+                    purpose,
+                    _ON_OFF_LOSS,
+                    evidence=True,
+                    timeout=40,
+                ),
+            ]
+        elif self.lab_backend != "containerlab":
+            raise ValueError(
+                f"link_flap on {host}:{intf}: no addressed probe path crosses "
+                "the link, so the outages are not observable"
+            )
+        return OraclePlaybook(
+            finding=(
+                f"The link on {host}:{intf} repeatedly goes down for about a "
+                "second and comes back, so traffic across it is lost in bursts."
+            ),
+            steps=steps,
         )
 
     def recover_fault(self, params: LinkFlapParams) -> dict:
@@ -669,6 +896,126 @@ class LinkCapacityBottleneck(ProblemBase):
             fault_type=self.root_cause_name,
             verified=verified,
             details={"host": params.host_name, "intf": intf, "mode": "host_peer"},
+        )
+
+    def oracle_playbook(self, params: LinkCapacityBottleneckParams) -> OraclePlaybook:
+        intf = resolve_default_intf(params.intf_name, self.net_env)
+        host = params.host_name
+        peer = _link_peer(self.net_env, host, intf)
+        steps = [
+            shell(
+                host,
+                f"ip -br link show dev {intf}; ip -s link show dev {intf} | head -8",
+                f"Inspect {host}:{intf}, the attachment of the slow transfers.",
+                contains(r"<[^>]*LOWER_UP", f"{host}:{intf} has carrier"),
+            )
+        ]
+        direction = f"leaving {host}:{intf}"
+        ends = _probe_ends(self.net_env, host, intf)
+        if (
+            self.lab_backend == "containerlab"
+            and peer is not None
+            and _role(self.net_env, peer[0])
+        ):
+            # Node-to-node links are veth pairs with no host-side end, so the
+            # shaper sits on the node's own egress queue.
+            steps.append(
+                qdisc(
+                    host,
+                    intf,
+                    Check(
+                        f"a token-bucket shaper limits {host}:{intf} to below 2 Mbit/s",
+                        lambda out: _below_2mbps(_tbf_rate_bps(out)),
+                    ),
+                    f"Inspect the egress queueing discipline on {host}:{intf}.",
+                )
+            )
+        elif self.lab_backend == "containerlab":
+            # A link to the host namespace is shaped on its host-side veth,
+            # which transmits toward the node.
+            direction = f"arriving at {host}:{intf}"
+            remote = _remote_host(self.net_env, {host})
+            if remote is None or not _single_homed(self.net_env, host):
+                raise ValueError(
+                    f"link_capacity_bottleneck on {host}:{intf}: no host pair "
+                    "measures the shaped direction"
+                )
+            steps.append(
+                OracleStep(
+                    f"Measure TCP throughput from {remote} into {host}.",
+                    "iperf_test",
+                    {
+                        "client_host_name": remote,
+                        "server_host_name": host,
+                        "duration": 10,
+                        "client_args": "-f k",
+                    },
+                    Check(
+                        "the transfer into the node runs under 2 Mbit/s",
+                        lambda out: _below_2mbps(_receiver_bps(out)),
+                    ),
+                    evidence=True,
+                )
+            )
+        elif ends is not None:
+            src, (dst, dst_intf) = ends
+            steps += [
+                addr_step(dst, dst_intf, "cap_peer"),
+                shell(
+                    dst,
+                    "nohup timeout 40 iperf3 -s -1 -p 5299 >/dev/null 2>&1 & "
+                    "sleep 1; echo started",
+                    f"Start a one-off iperf3 server on {dst}.",
+                ),
+                toward(
+                    src,
+                    "cap_peer",
+                    "(sleep 3; ping -c 8 -i 0.5 -W 3 {ip} | tail -2) & "
+                    "iperf3 -c {ip} -p 5299 -t 10 -f k 2>&1 "
+                    "| grep -E 'sender|receiver|error'; wait",
+                    f"Push TCP from {src} across the link to {dst} while pinging "
+                    f"{dst}.",
+                    Check(
+                        "the link delivers under 2 Mbit/s while probes behind the "
+                        "transfer see over 50 ms of queueing delay",
+                        _saturated_link,
+                    ),
+                    evidence=True,
+                    timeout=45,
+                ),
+            ]
+        elif params.probe_dst_ip and params.peer_host:
+            src = params.symptom_host or params.observer_device or host
+            steps.append(
+                OracleStep(
+                    f"Measure TCP throughput from {src} to {params.peer_host} "
+                    "across the link.",
+                    "iperf_test",
+                    {
+                        "client_host_name": src,
+                        "server_host_name": params.peer_host,
+                        "duration": 10,
+                        "client_args": "-f k",
+                    },
+                    Check(
+                        "the path delivers under 2 Mbit/s",
+                        lambda out: _below_2mbps(_receiver_bps(out)),
+                    ),
+                    evidence=True,
+                )
+            )
+        else:
+            raise ValueError(
+                f"link_capacity_bottleneck on {host}:{intf}: no addressed probe "
+                "path crosses the link in the shaped direction"
+            )
+        return OraclePlaybook(
+            finding=(
+                f"The link capacity for traffic {direction} is provisioned far "
+                "below the traffic it carries, so transfers in that direction "
+                "are capped and queue behind it."
+            ),
+            steps=steps,
         )
 
     def recover_fault(self, params: LinkCapacityBottleneckParams) -> dict:
@@ -964,6 +1311,47 @@ class LinkDetach(ProblemBase):
                 "intf": intf_name,
                 "interface_exists": not interface_gone,
             },
+        )
+
+    def oracle_playbook(self, params: LinkDetachParams) -> OraclePlaybook:
+        intf = resolve_default_intf(params.intf_name, self.net_env)
+        host = params.host_name
+        steps = [
+            shell(
+                host,
+                "ip -br link; ip -4 route",
+                f"List interfaces and routes on {host}, an endpoint of the "
+                "unreachable paths.",
+            ),
+            shell(
+                host,
+                f"ip link show dev {intf} 2>&1; ls /sys/class/net",
+                f"Look up {host}:{intf} in the node's interface list.",
+                all_of(
+                    contains(r"does not exist", f"{intf} is unknown to {host}"),
+                    lacks(rf"^{re.escape(intf)}$", f"{intf} is absent from sysfs"),
+                ),
+                evidence=True,
+            ),
+        ]
+        peer = _link_peer(self.net_env, host, intf)
+        if peer is not None and is_ip_node(self.net_env, peer[0]):
+            steps.append(
+                iface_state(
+                    *peer,
+                    contains(
+                        r"<[^>]*LOWER_UP", f"{peer[0]}:{peer[1]} still has carrier"
+                    ),
+                    f"Check the far end {peer[0]}:{peer[1]} of the attachment.",
+                    evidence=False,
+                )
+            )
+        return OraclePlaybook(
+            finding=(
+                f"{host}:{intf} no longer exists on {host}: the attachment is "
+                "detached, so the node has no path over that link."
+            ),
+            steps=steps,
         )
 
     def recover_fault(self, params: LinkDetachParams) -> dict:

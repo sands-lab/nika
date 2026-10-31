@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 from dataclasses import asdict
 from typing import Any
@@ -22,6 +23,13 @@ from nika.problems.base import (
 )
 from nika.problems.rca import node_resource
 from nika.problems.support.benchmark_targets import endpoint_target, first
+from nika.problems.support.oracle import (
+    Check,
+    OraclePlaybook,
+    OracleStep,
+    ping,
+    shell,
+)
 from nika.problems.support.cpu_quota_helpers import (
     container_commands,
     cpu_quota_to_nano_cpus,
@@ -105,6 +113,72 @@ def _remove_archive_job(runtime: Any, host: str, staged: dict[str, Any]) -> None
         runtime.exec(
             host, f"rm -rf {paths} {_ARCHIVE_DATA} {_ARCHIVE_LOG} /run/archive-job.pid"
         )
+
+
+def _gzip_workers(output: str) -> int:
+    return len(re.findall(r"^\s*\S+\s+[0-9.]+\s+gzip\b", output, re.MULTILINE))
+
+
+def _cpu_throttled(output: str) -> bool:
+    """cgroup ``cpu.max`` grants under a quarter CPU and the group was throttled."""
+    quota = re.search(r"^(\d+)\s+(\d+)$", output, re.MULTILINE)
+    throttled = re.search(r"^nr_throttled\s+(\d+)", output, re.MULTILINE)
+    return (
+        quota is not None
+        and int(quota.group(1)) / int(quota.group(2)) < 0.25
+        and throttled is not None
+        and int(throttled.group(1)) > 0
+    )
+
+
+# CPU share of the contended receiver. The archive workers and the download
+# split it, which roughly halves the download rate, while a command run on the
+# node still finishes in under half a minute.
+_RECEIVER_CPU_QUOTA = 0.05
+
+
+def _cpu_contention_steps(host: str, *, quota_evidence: bool) -> list[OracleStep]:
+    """Competing CPU-bound processes and CFS throttling on ``host``.
+
+    A starved container answers ``exec`` slowly, so the reads get long
+    timeouts and retries.
+    """
+    return [
+        shell(
+            host,
+            "ps -eo stat,pcpu,comm,args --sort=-pcpu | head -25",
+            f"List the busiest processes on {host}.",
+            Check(
+                "two or more CPU-bound gzip workers run on the node",
+                lambda out: _gzip_workers(out) >= 2,
+            ),
+            evidence=True,
+            timeout=60,
+            attempts=3,
+        ),
+        shell(
+            host,
+            "cat /sys/fs/cgroup/cpu.max /sys/fs/cgroup/cpu.stat 2>&1 | head -12",
+            f"Read the CPU allowance and throttling counters of {host}.",
+            Check(
+                "the node's cgroup gets under a quarter CPU and is being throttled",
+                _cpu_throttled,
+            ),
+            evidence=quota_evidence,
+            timeout=60,
+            attempts=3,
+        ),
+    ]
+
+
+def _download_probe(client: str, url: str, purpose: str) -> OracleStep:
+    return shell(
+        client,
+        "curl -s -o /dev/null --max-time 90 -w 'code=%{http_code} "
+        f"speed=%{{speed_download}} time=%{{time_total}}\\n' {url}",
+        purpose,
+        timeout=100,
+    )
 
 
 _DOCROOT = "/var/www"
@@ -608,6 +682,40 @@ class SenderResourceContention(ProblemBase):
             },
         )
 
+    def oracle_playbook(self, params: SenderResourceContentionParams) -> OraclePlaybook:
+        server, client = params.host_name, params.client_host
+        steps = [
+            ping(
+                client,
+                params.dst_ip,
+                f"Ping the server {server} from {client}: the path has no loss "
+                "and normal latency.",
+                count=5,
+            ),
+            _download_probe(
+                client, params.small_url, "Fetch the small object from the server."
+            ),
+            _download_probe(
+                client,
+                params.large_url,
+                "Fetch the large object: the bulk transfer the server sends.",
+            ),
+            shell(
+                client,
+                "cat /sys/fs/cgroup/cpu.max 2>&1; uptime",
+                f"Check that the receiving client {client} has CPU to spare.",
+            ),
+            *_cpu_contention_steps(server, quota_evidence=True),
+        ]
+        return OraclePlaybook(
+            finding=(
+                f"The sending server {server} is CPU-starved: CPU-bound batch "
+                "workers share its small CPU allowance, so it produces the "
+                "response data slowly while the network path is healthy."
+            ),
+            steps=steps,
+        )
+
     def recover_fault(self, params: SenderResourceContentionParams) -> dict:
         # Restore state lives in this Problem instance, never on the node.
         original = self._original_nano_cpus
@@ -940,7 +1048,7 @@ class ReceiverResourceContention(ProblemBase):
             set_nano_cpus(
                 self.runtime,
                 params.host_name,
-                cpu_quota_to_nano_cpus(0.02),
+                cpu_quota_to_nano_cpus(_RECEIVER_CPU_QUOTA),
             )
             self._receiver_quota_applied = True
         except Exception:  # noqa: BLE001
@@ -979,6 +1087,33 @@ class ReceiverResourceContention(ProblemBase):
             fault_type=self.root_cause_name,
             verified=running,
             details={"host": params.host_name, "workload_running": running},
+        )
+
+    def oracle_playbook(
+        self, params: ReceiverResourceContentionParams
+    ) -> OraclePlaybook:
+        receiver = params.host_name
+        url = self._resolve_large_url(params)
+        steps = [
+            _download_probe(receiver, url, f"Download the large object on {receiver}."),
+            *_cpu_contention_steps(receiver, quota_evidence=False),
+        ]
+        peers = self._resolve_peer_hosts(params)
+        if peers:
+            steps.append(
+                shell(
+                    peers[0],
+                    "cat /sys/fs/cgroup/cpu.max 2>&1; uptime",
+                    f"Check that the sending server {peers[0]} has CPU to spare.",
+                )
+            )
+        return OraclePlaybook(
+            finding=(
+                f"The receiving host {receiver} is CPU-starved by CPU-bound "
+                "batch workers, so it reads incoming data slowly and its "
+                "downloads crawl while the network path is healthy."
+            ),
+            steps=steps,
         )
 
     def recover_fault(self, params: ReceiverResourceContentionParams) -> dict:

@@ -9,6 +9,18 @@ from nika.problems.forwarding_encapsulation_policy.p4runtime_helpers import (
     load_intent,
     run_manager,
 )
+from nika.problems.forwarding_encapsulation_policy.p4_runtime import (
+    attached_endpoints,
+    declared_intent,
+    endpoint_in,
+    intent_drift,
+    mismatch,
+    route_group_is,
+    scope_ping,
+    switch_state,
+)
+from nika.problems.support.p4_oracle import table_read
+from nika.problems.support.oracle import OraclePlaybook
 from nika.problems.support.p4runtime_writes import p4runtime_write
 from nika.utils.logger import system_logger
 
@@ -123,6 +135,35 @@ class P4TableEntryMissing(ProblemBase):
             },
         )
 
+    def oracle_playbook(self, params: P4TableEntryMissingParams) -> OraclePlaybook:
+        switch = params.host_name
+        intent = declared_intent(self.net_env)
+        prefix = fabric_table_entry_prefix(intent, switch, self.scenario_name)
+        local = [e["name"] for e in attached_endpoints(intent, switch)]
+        dst = endpoint_in(intent, prefix, exclude=local)
+
+        def route_gone(rows: list[dict]) -> bool:
+            routes = [str(row["match"].get("dstAddr")) for row in rows]
+            return bool(routes) and prefix not in routes
+
+        return OraclePlaybook(
+            finding=(
+                f"The ipv4_lpm entry for {prefix} is missing on {switch}, so "
+                "traffic to that prefix misses the route lookup and is dropped."
+            ),
+            steps=[
+                *scope_ping(intent, switch, dst),
+                intent_drift(switch, "ipv4_lpm"),
+                table_read(
+                    switch,
+                    "ipv4_lpm",
+                    f"{switch} still programs other routes but none for {prefix}",
+                    route_gone,
+                    f"List the live ipv4_lpm entries on {switch}.",
+                ),
+            ],
+        )
+
 
 class P4TableEntryMisconfigParams(BaseModel):
     """Parameters for changing a P4Runtime forwarding entry."""
@@ -228,4 +269,36 @@ class P4TableEntryMisconfig(ProblemBase):
                 "expected_group_id": group_id,
                 "observed": got,
             },
+        )
+
+    def oracle_playbook(self, params: P4TableEntryMisconfigParams) -> OraclePlaybook:
+        switch = params.host_name
+        intent = declared_intent(self.net_env)
+        prefix = fabric_table_entry_prefix(intent, switch, self.scenario_name)
+        wrong = fabric_misconfig_group_id(intent, switch, prefix, self.scenario_name)
+        intended = next(
+            int(e["group_id"])
+            for e in intent["switches"][switch]["ipv4_lpm"]
+            if e["prefix"] == prefix
+        )
+        local = [e["name"] for e in attached_endpoints(intent, switch)]
+        dst = endpoint_in(intent, prefix, exclude=local)
+
+        return OraclePlaybook(
+            finding=(
+                f"The ipv4_lpm entry for {prefix} on {switch} points at selector "
+                f"group {wrong} instead of {intended}, so that traffic leaves "
+                "toward the wrong next hop."
+            ),
+            steps=[
+                *scope_ping(intent, switch, dst),
+                intent_drift(switch, "ipv4_lpm"),
+                switch_state(
+                    switch,
+                    f"Read the routes on {switch} (intent: {prefix} uses group "
+                    f"{intended}).",
+                    route_group_is(prefix, int(wrong)),
+                    mismatch(switch, "ipv4_lpm"),
+                ),
+            ],
         )

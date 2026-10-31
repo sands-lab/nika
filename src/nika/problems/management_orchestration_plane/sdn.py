@@ -10,6 +10,16 @@ from nika.net_env.sdn_l3_clos.fabric_manager import (
 )
 from nika.problems.rca import node_resource
 from nika.problems.support.benchmark_targets import choice
+from nika.problems.support.oracle import (
+    OraclePlaybook,
+    OracleStep,
+    all_of,
+    contains,
+    lacks,
+    nft_rule,
+    onos,
+    shell,
+)
 from nika.problems.base import (
     FailureDomain,
     ProblemBase,
@@ -85,6 +95,56 @@ def _switch_controller_state(runtime, net_env) -> dict[str, dict[str, str]]:
     return state
 
 
+def _probe_switch(net_env) -> str:
+    """Fabric switch whose controller channel the oracle inspects."""
+    model = getattr(net_env, "model", None)
+    leaves = list(getattr(model, "leaves", None) or [])
+    return leaves[0] if leaves else "leaf_1"
+
+
+def _switch_channel(
+    switch: str, purpose: str, expect, *, evidence: bool = False
+) -> OracleStep:
+    """The switch's controller target, session state, and recent rconn log."""
+    return shell(
+        switch,
+        "ovs-vsctl --columns=target,is_connected list controller; "
+        "grep -E 'rconn' /var/log/openvswitch/ovs-vswitchd.log | tail -4",
+        purpose,
+        expect,
+        evidence=evidence,
+        attempts=6,
+        interval_sec=10,
+    )
+
+
+def _disconnected(port: int):
+    return all_of(
+        contains(
+            rf"tcp:[0-9.]+:{port}\b", f"the switch targets controller port {port}"
+        ),
+        contains(r"is_connected\s*:\s*false", "the switch has no controller session"),
+    )
+
+
+def _listeners(host: str, ports: str, purpose: str, expect, **kw) -> OracleStep:
+    return shell(
+        host,
+        "if out=$(ss -ltn 2>&1); then "
+        f"echo \"$out\" | grep -E ':({ports})\\b' || echo NO_LISTENER; "
+        'else echo "ss failed: $out"; fi',
+        purpose,
+        expect,
+        **kw,
+    )
+
+
+_DEVICES_UNAVAILABLE = all_of(
+    contains(r'"available":\s*false', "ONOS lists switches as unavailable"),
+    lacks(r'"available":\s*true', "no switch is available"),
+)
+
+
 class SDNControllerCrashParams(BaseModel):
     """Parameters for injecting an SDN controller crash fault."""
 
@@ -126,6 +186,46 @@ class SDNControllerCrash(ProblemBase):
             "pkill -9 -f '[k]araf server' 2>/dev/null || true; "
             "pkill -9 -f '[p]ox.py' 2>/dev/null || true; "
             "sleep 3",
+        )
+
+    def oracle_playbook(self, params: SDNControllerCrashParams) -> OraclePlaybook:
+        host = params.host_name
+        switch = _probe_switch(self.net_env)
+        return OraclePlaybook(
+            finding=(
+                f"The ONOS controller process on {host} is gone, so its "
+                "OpenFlow and REST endpoints are closed and no switch has a "
+                "controller session."
+            ),
+            steps=[
+                _switch_channel(
+                    switch,
+                    f"Check the controller session of {switch}.",
+                    _disconnected(ONOS_OF_PORT_DEFAULT),
+                ),
+                onos(
+                    "/onos/v1/devices",
+                    "Query the controller's device inventory over REST.",
+                    contains(r'"summary":\s*\{\}', "the ONOS REST API returns nothing"),
+                ),
+                shell(
+                    host,
+                    "if out=$(ps -eo pid,stat,args 2>&1); then "
+                    "echo \"$out\" | awk '$2 !~ /^Z/' "
+                    "| grep -E '[k]araf|[j]ava' || echo NO_CONTROLLER_PROCESS; "
+                    'else echo "ps failed: $out"; fi',
+                    f"Look for the ONOS (Karaf/Java) process on {host}.",
+                    contains(r"^NO_CONTROLLER_PROCESS$", "no live ONOS process"),
+                    evidence=True,
+                ),
+                _listeners(
+                    host,
+                    f"{ONOS_OF_PORT_DEFAULT}|{ONOS_OF_PORT_MISMATCH}|8181",
+                    f"Check the OpenFlow and REST listeners on {host}.",
+                    contains(r"^NO_LISTENER$", "nothing listens on 6653, 6633 or 8181"),
+                    evidence=True,
+                ),
+            ],
         )
 
     def verify_fault(self, params: SDNControllerCrashParams) -> dict:
@@ -201,6 +301,44 @@ class SouthboundPortBlock(ProblemBase):
             params.host_name,
             _southbound_drop_rule(params.southbound_port),
             table=_DROP_TABLE,
+        )
+
+    def oracle_playbook(self, params: SouthboundPortBlockParams) -> OraclePlaybook:
+        host, port = params.host_name, int(params.southbound_port)
+        switch = _probe_switch(self.net_env)
+        return OraclePlaybook(
+            finding=(
+                f"A firewall rule on {host} drops TCP port {port}, so switches "
+                "cannot reach the running ONOS OpenFlow listener."
+            ),
+            steps=[
+                _switch_channel(
+                    switch,
+                    f"Check the controller session of {switch}.",
+                    _disconnected(port),
+                ),
+                OracleStep(
+                    "List the switches ONOS knows and their availability.",
+                    "sdn_onos_rest",
+                    {"path": "/onos/v1/devices"},
+                    _DEVICES_UNAVAILABLE,
+                    evidence=True,
+                    attempts=6,
+                    interval_sec=10,
+                ),
+                _listeners(
+                    host,
+                    str(port),
+                    f"Confirm ONOS still listens on TCP {port}.",
+                    contains(rf"LISTEN.*:{port}\b", f"ONOS listens on {port}"),
+                    evidence=True,
+                ),
+                nft_rule(
+                    host,
+                    rf"tcp dport {port} (drop|reject)",
+                    f"Inspect the packet filter on {host}.",
+                ),
+            ],
         )
 
     def verify_fault(self, params: SouthboundPortBlockParams) -> dict:
@@ -326,6 +464,64 @@ class SouthboundPortMismatch(ProblemBase):
             params.host_name,
             self._original_listen_ports,
             params.mismatched_port,
+        )
+
+    def oracle_playbook(self, params: SouthboundPortMismatchParams) -> OraclePlaybook:
+        host = params.host_name
+        configured, listening = int(params.original_port), int(params.mismatched_port)
+        switch = _probe_switch(self.net_env)
+        return OraclePlaybook(
+            finding=(
+                f"ONOS on {host} listens for OpenFlow only on {listening} while "
+                f"the switches still connect to {configured}, so every switch "
+                "is refused."
+            ),
+            steps=[
+                _switch_channel(
+                    switch,
+                    f"Check which controller port {switch} targets and its session.",
+                    _disconnected(configured),
+                    evidence=True,
+                ),
+                _listeners(
+                    host,
+                    f"{configured}|{listening}",
+                    f"Compare the OpenFlow listeners on {host}.",
+                    all_of(
+                        contains(
+                            rf"LISTEN.*:{listening}\b", f"ONOS listens on {listening}"
+                        ),
+                        lacks(rf":{configured}\b", f"nothing listens on {configured}"),
+                    ),
+                    evidence=True,
+                ),
+                onos(
+                    "/onos/v1/configuration/"
+                    "org.onosproject.openflow.controller.impl.OpenFlowControllerImpl",
+                    "Read the ONOS OpenFlow controller configuration.",
+                    contains(
+                        rf'"openflowPorts":\s*"{listening}"',
+                        f"openflowPorts is set to {listening} only",
+                    ),
+                    evidence=True,
+                ),
+                shell(
+                    host,
+                    "if rules=$(nft list ruleset 2>&1); then "
+                    "echo \"$rules\" | grep -E 'dport' || echo NO_PORT_RULES; "
+                    'else echo "nft failed: $rules"; fi',
+                    f"Rule out a port filter on {host}.",
+                    all_of(
+                        contains(r"dport|^NO_PORT_RULES$", "the ruleset was read"),
+                        lacks(r"nft failed", "nft ran"),
+                        lacks(
+                            rf"dport {configured}\b.*(drop|reject)",
+                            f"no filter drops port {configured}",
+                        ),
+                    ),
+                    evidence=True,
+                ),
+            ],
         )
 
     def verify_fault(self, params: SouthboundPortMismatchParams) -> dict:

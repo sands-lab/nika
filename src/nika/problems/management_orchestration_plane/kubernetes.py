@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+from collections.abc import Callable, Mapping
 from typing import Any, ClassVar
 
 from pydantic import Field
@@ -18,6 +20,13 @@ from nika.problems.support.kubernetes.node_filter import (
 )
 from nika.problems.base import (
     FailureDomain,
+)
+from nika.problems.support.oracle import (
+    OraclePlaybook,
+    OracleStep,
+    contains,
+    shell,
+    tcp_connect_cmd,
 )
 from nika.utils.logger import system_logger
 
@@ -176,6 +185,95 @@ class WorkerApiServerPartition(K8sProblemBase):
                 "k8s_worker_apiserver_partition needs node_name for a unique resource."
             )
         return [node_resource(node)]
+
+    def oracle_playbook(self, params: WorkerApiServerPartitionParams) -> OraclePlaybook:
+        control = self.control_node(params)
+        worker = self._target_device(params)
+        port = params.apiserver_port
+        # Workers join the API server by the control plane's lab name.
+        server = params.apiserver_address or control
+
+        def node_query(template: str) -> Callable[[Mapping[str, str]], dict[str, Any]]:
+            def args(outputs: Mapping[str, str]) -> dict[str, Any]:
+                match = re.search(
+                    r"^node_name (\S+)$", outputs.get("node_name", ""), re.M
+                )
+                # An unknown name makes kubectl fail rather than match another node.
+                node = match.group(1) if match else "NODE_UNKNOWN"
+                return {
+                    "host_name": control,
+                    "command": f"kubectl {template.format(node=node)} 2>&1 | head -20",
+                    "timeout": 30,
+                }
+
+            return args
+
+        return OraclePlaybook(
+            finding=(
+                f"Packet filter rules on {worker} drop its TCP/{port} traffic to the "
+                f"API server on {control}, so the kubelet cannot post status and the "
+                "node goes NotReady while it stays up and reachable."
+            ),
+            steps=[
+                shell(
+                    worker,
+                    "echo node_name $(hostname)",
+                    f"Read {worker}'s hostname, which k3s registers as its node name.",
+                    contains(r"^node_name \S+$", "the hostname is known"),
+                    save_as="node_name",
+                ),
+                OracleStep(
+                    f"Read the Kubernetes node status of {worker}: it is NotReady.",
+                    "exec_shell",
+                    node_query("get node {node} --no-headers"),
+                    contains(r"^\S+\s+NotReady\b", f"{worker} is NotReady"),
+                    evidence=True,
+                    attempts=6,
+                ),
+                OracleStep(
+                    f"Read {worker}'s conditions: the kubelet stopped posting status.",
+                    "exec_shell",
+                    node_query(
+                        "get node {node} -o jsonpath='{{range .status.conditions[*]}}"
+                        '{{.type}}={{.status}} {{.reason}}{{"\\n"}}{{end}}\''
+                    ),
+                    contains(
+                        r"^Ready=Unknown NodeStatusUnknown$",
+                        "Ready is Unknown because the kubelet stopped posting status",
+                    ),
+                ),
+                shell(
+                    worker,
+                    "ps -eo args | grep -E '[k]3s agent' || echo NO_PROCESS",
+                    f"Check that the k3s agent (kubelet) is still running on {worker}.",
+                    contains(r"k3s agent", "the k3s agent process is running"),
+                    evidence=True,
+                ),
+                shell(
+                    worker,
+                    f"ping -c 2 -W 1 {server} 2>&1 | grep -E 'received'; "
+                    f"echo apiserver {server}:{port} $({tcp_connect_cmd(server, port)})",
+                    f"From {worker}, ping the control plane and open the API server port.",
+                    contains(
+                        r"\b[1-9] (packets )?received(?s:.*)^apiserver \S+ NO_CONNECT$",
+                        f"the control plane answers ping but TCP/{port} does not connect",
+                    ),
+                    evidence=True,
+                    timeout=20,
+                ),
+                shell(
+                    worker,
+                    f"iptables-save 2>/dev/null | grep -E -- '--dport {port} .*-j (DROP|REJECT)' "
+                    "| head -20",
+                    f"Inspect the packet filter on {worker}.",
+                    contains(
+                        rf"-p tcp .*--dport {port} -j (DROP|REJECT)",
+                        f"iptables drops TCP/{port} toward the API server",
+                    ),
+                    evidence=True,
+                ),
+            ],
+        )
 
     def inject_fault(self, params: WorkerApiServerPartitionParams) -> None:
         k8s = self.runtime.lab_api

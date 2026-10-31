@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 
 from pydantic import BaseModel, Field
 
@@ -22,6 +23,13 @@ from nika.problems.base import (
     build_verify_result,
 )
 from nika.problems.rca import node_resource
+from nika.problems.support.oracle import (
+    Check,
+    OraclePlaybook,
+    OracleStep,
+    ping,
+    shell,
+)
 from nika.problems.support.benchmark_targets import (
     choice,
     choice_distinct,
@@ -70,6 +78,56 @@ def _flow_rule_loop_pair(net_env, rng) -> tuple[str, str, str, str]:
     switches = net_env.ovs_switches or []
     pair = choice_distinct(rng, switches, "leaf_1")
     return pair[0], pair[1], "eth0", "eth0"
+
+
+_PRIORITY_RE = re.compile(r"priority=(\d+)")
+
+
+def _dump_flows(switch: str, grep: str) -> str:
+    return f"ovs-ofctl -O OpenFlow13 dump-flows {switch} | grep -F {grep!r} | head -40"
+
+
+def _drop_shadows_forwarding(prefix: str) -> Check:
+    """A drop rule for *prefix* outranks the rule that forwards it."""
+
+    def predicate(output: str) -> bool:
+        drops: list[int] = []
+        forwards: list[int] = []
+        for line in output.splitlines():
+            match = _PRIORITY_RE.search(line)
+            if f"nw_dst={prefix}" not in line or match is None:
+                continue
+            actions = line.split("actions=", 1)[-1].strip()
+            bucket = drops if actions in ("", "drop") else forwards
+            bucket.append(int(match.group(1)))
+        return bool(drops and forwards and max(drops) > max(forwards))
+
+    return Check(
+        f"a drop rule for {prefix} has a higher priority than its forwarding rule",
+        predicate,
+    )
+
+
+def _bounces_back(port: str) -> Check:
+    """An active rule sends IPv4 arriving on *port* back out of it."""
+
+    def predicate(output: str) -> bool:
+        match = re.search(rf"^\s*(\d+)\({re.escape(port)}\)", output, re.MULTILINE)
+        if match is None:
+            return False
+        in_port = re.compile(rf"\bin_port={match.group(1)}\b")
+        return any(
+            in_port.search(line)
+            and ",ip," in line
+            and "IN_PORT" in line.split("actions=", 1)[-1]
+            and re.search(r"n_packets=[1-9]", line)
+            for line in output.splitlines()
+        )
+
+    return Check(
+        f"an IPv4 rule matching in_port {port} outputs to IN_PORT and is hit",
+        predicate,
+    )
 
 
 class FlowRuleShadowingParams(BaseModel):
@@ -145,6 +203,50 @@ class FlowRuleShadowing(ProblemBase):
                     ]
                 },
             },
+        )
+
+    def oracle_playbook(self, params: FlowRuleShadowingParams) -> OraclePlaybook:
+        switch = params.host_name
+        prefix = self.shadowed_prefix(params)
+        model = self.net_env.model
+        rack = int(prefix.split(".")[2])
+        target = next(
+            (e for e in model.endpoints_on_leaf(rack) if e.role == "web"), None
+        )
+        own = model.leaf_id(switch) if switch in model.leaves else None
+        source = next(
+            (
+                e
+                for e in model.client_endpoints()
+                if e.leaf_id != rack and own in (None, e.leaf_id)
+            ),
+            None,
+        )
+        steps = []
+        if target is not None and source is not None:
+            steps.append(
+                ping(
+                    source.name,
+                    target.ip,
+                    f"Probe rack {prefix} from {source.name} across the fabric.",
+                    count=5,
+                )
+            )
+        steps.append(
+            shell(
+                switch,
+                _dump_flows(switch, f"nw_dst={prefix}"),
+                f"Compare the OpenFlow rules on {switch} that match {prefix}.",
+                _drop_shadows_forwarding(prefix),
+                evidence=True,
+            )
+        )
+        return OraclePlaybook(
+            finding=(
+                f"A priority-{self._SHADOW_PRIORITY} drop rule on {switch} matches "
+                f"IPv4 to {prefix} ahead of the forwarding rule and discards it."
+            ),
+            steps=steps,
         )
 
     def _shadow_lines(self, params: FlowRuleShadowingParams) -> list[str]:
@@ -300,6 +402,68 @@ class FlowRuleLoop(ProblemBase):
                     },
                 },
             )
+
+    def _loop_probe(self, params: FlowRuleLoopParams) -> OracleStep | None:
+        """Traffic from an endpoint on the looped leaf to every other rack.
+
+        Fabric ECMP spreads the flows over all spines, so some of them (or
+        their replies) cross the looped link and hit the bounce rules.
+        """
+        model = getattr(self.net_env, "model", None)
+        if model is None:
+            return None
+        leaf = next(
+            (s for s in (params.host_name, params.host_name_2) if s in model.leaves),
+            None,
+        )
+        if leaf is None:
+            return None
+        local = model.endpoints_on_leaf(model.leaf_id(leaf))
+        remote = [e for e in model.endpoints if e.leaf_id != model.leaf_id(leaf)]
+        if not local or not remote:
+            return None
+        pings = " ".join(f"ping -c 2 -W 1 {e.ip} >/dev/null &" for e in remote)
+        curls = " ".join(
+            f"curl -s -o /dev/null -m 2 http://{e.ip}/ &"
+            for e in remote
+            if e.role == "web"
+            for _ in range(4)
+        )
+        return OracleStep(
+            f"Send traffic from {local[0].name} on {leaf} to every other rack.",
+            "exec_shell",
+            {
+                "host_name": local[0].name,
+                "command": f"{pings} {curls} wait; echo probes done",
+                "timeout": 30,
+            },
+        )
+
+    def oracle_playbook(self, params: FlowRuleLoopParams) -> OraclePlaybook:
+        probe = self._loop_probe(params)
+        steps = [] if probe is None else [probe]
+        steps += [
+            shell(
+                switch,
+                f"ovs-ofctl -O OpenFlow13 dump-ports-desc {switch} "
+                "| grep -E '^ *[0-9]+\\('; " + _dump_flows(switch, "in_port="),
+                f"Map the ports of {switch} and list its in_port-matched rules.",
+                _bounces_back(port),
+                evidence=True,
+                attempts=3,
+            )
+            for switch, port in zip(
+                (params.host_name, params.host_name_2), self._resolve_ports(params)
+            )
+        ]
+        return OraclePlaybook(
+            finding=(
+                f"Rules on {params.host_name} and {params.host_name_2} each send "
+                "IPv4 from the other switch back out of its ingress port, so "
+                "packets bounce on the link between them until their TTL expires."
+            ),
+            steps=steps,
+        )
 
     def _bounce_installed(self, flows: str, ofport: str) -> bool:
         match = f"priority={self._LOOP_PRIORITY},ip,in_port={ofport} "

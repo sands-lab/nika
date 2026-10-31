@@ -47,7 +47,7 @@ Call `sdn_onos_rest` with paths such as `/onos/v1/devices`, `/onos/v1/flows`, or
 
 ### P4 / BMv2 (`kathara_bmv2_mcp_server`)
 
-Call `p4rt_exec` with `read`, `read --switch leaf_1`, `read-table --switch leaf_1 --table ipv4_lpm`, or `counters`; `--help` lists these commands. The tool rejects every other subcommand and option, so an agent cannot change switch state through it. Its response removes private post-counter fault fields. Use `exec_shell` for ordinary switch and controller commands, such as reading the controller's write log in `/var/log/p4rt/controller.log`. Enable [Prometheus telemetry](../operations/network-scenarios.md#telemetry) when the agent should query pipeline-counter time series. On `p4_dc_gateway`, `int_query_telemetry` returns observed INT-MX traces.
+Call `p4rt_exec` with `read`, `read --switch leaf_1`, `read-table --switch leaf_1 --table ipv4_lpm`, or `counters`; `--help` lists these commands. The tool rejects every other subcommand and option, so an agent cannot change switch state through it. Use `exec_shell` for ordinary switch and controller commands, such as reading the controller's write log in `/var/log/p4rt/controller.log`. Enable [Prometheus telemetry](../operations/network-scenarios.md#telemetry) when the agent should query pipeline-counter time series. On `p4_dc_gateway`, `int_query_telemetry` returns observed INT-MX traces.
 
 ### Telemetry (`kathara_telemetry_mcp_server`)
 

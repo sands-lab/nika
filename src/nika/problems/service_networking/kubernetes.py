@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import ipaddress
+import re
+from collections.abc import Callable, Mapping
 from typing import Any, ClassVar
 
 from pydantic import Field
@@ -15,6 +18,15 @@ from nika.problems.support.benchmark_targets import choice, k8s_control_node
 from nika.problems.support.kubernetes.base import K8sParams, K8sProblemBase
 
 from nika.problems.support.kubernetes.node_filter import NodeFilter, NodeFilterError
+from nika.problems.support.oracle import (
+    Check,
+    OraclePlaybook,
+    OracleStep,
+    contains,
+    kubectl,
+    shell,
+    tcp_connect_cmd,
+)
 
 from nika.problems.base import (
     FailureDomain,
@@ -169,6 +181,136 @@ class ClusterIPRoutingBroken(K8sProblemBase):
                 "k8s_clusterip_routing_broken needs node_name for a unique resource."
             )
         return [node_resource(node)]
+
+    def oracle_playbook(self, params: ClusterIPRoutingBrokenParams) -> OraclePlaybook:
+        control = self.control_node(params)
+        node = params.node_name or control
+        peer = next(
+            (n for n in sorted(self.cluster_nodes()) if n not in {node, control}),
+            control,
+        )
+        if params.service_name:
+            namespace = params.namespace or DEFAULT_PROBE_NAMESPACE
+            service = params.service_name
+            scope = f"Service {namespace}/{service}"
+        else:
+            namespace, service = DEFAULT_PROBE_NAMESPACE, DEFAULT_PROBE_SERVICE
+            scope = "the Service CIDR"
+        single_service = bool(params.service_name)
+
+        def raw_rules(outputs: Mapping[str, str]) -> dict[str, Any]:
+            match = re.search(r"^clusterip (\S+):\d+$", outputs.get("svc", ""), re.M)
+            cluster_ip = match.group(1) if match else "VIP_UNKNOWN"
+            return {
+                "host_name": node,
+                "command": f"echo clusterip {cluster_ip}; iptables -t raw -S 2>&1 "
+                "| grep -E -- '-j DROP|^iptables' | head -20",
+                "timeout": 15,
+            }
+
+        def drops_cluster_ip(output: str) -> bool:
+            match = re.search(r"^clusterip (\S+)$", output, re.M)
+            try:
+                cluster_ip = ipaddress.ip_address(match.group(1)) if match else None
+            except ValueError:
+                return False
+            if cluster_ip is None:
+                return False
+            chains: set[str] = set()
+            for chain, dest in re.findall(
+                r"^-A (PREROUTING|OUTPUT) -d (\S+) -j DROP$", output, re.M
+            ):
+                net = ipaddress.ip_network(dest, strict=False)
+                # One Service: a host drop on its ClusterIP. Whole CIDR: a
+                # wider drop that contains the probed ClusterIP.
+                if cluster_ip in net and (net.prefixlen == 32) == single_service:
+                    chains.add(chain)
+            return chains == {"PREROUTING", "OUTPUT"}
+
+        def probe(host: str) -> Callable[[Mapping[str, str]], dict[str, Any]]:
+            def args(outputs: Mapping[str, str]) -> dict[str, Any]:
+                found = dict(
+                    re.findall(
+                        r"^(clusterip|endpoint) (\S+)$", outputs.get("svc", ""), re.M
+                    )
+                )
+                commands = [
+                    f"echo {kind} {target} $({tcp_connect_cmd(*target.rsplit(':', 1))})"
+                    for kind, target in found.items()
+                    if ":" in target
+                ]
+                return {
+                    "host_name": host,
+                    "command": "; ".join(commands) or "echo NO_SERVICE",
+                    "timeout": 20,
+                }
+
+            return args
+
+        return OraclePlaybook(
+            finding=(
+                f"Packet filter rules on {node} drop traffic to {scope} ahead of "
+                "kube-proxy, so ClusterIP Services fail from that node while their "
+                "endpoints, the Service objects, and the node itself stay healthy."
+            ),
+            steps=[
+                kubectl(
+                    control,
+                    "get nodes --no-headers",
+                    "Check node health: the affected node is Ready.",
+                    contains(rf"^{node}\s+Ready\b", f"{node} is Ready"),
+                ),
+                shell(
+                    control,
+                    f"echo clusterip $(kubectl get svc {service} -n {namespace} "
+                    "-o jsonpath='{.spec.clusterIP}:{.spec.ports[0].port}'); "
+                    f"echo endpoint $(kubectl get endpointslices -n {namespace} "
+                    f"-l kubernetes.io/service-name={service} -o jsonpath="
+                    "'{.items[0].endpoints[0].addresses[0]}:{.items[0].ports[0].port}')",
+                    f"Read the {namespace}/{service} ClusterIP and its endpoint: the "
+                    "Service object and endpoints are intact.",
+                    contains(
+                        r"^clusterip \S+:\d+$(?s:.*)^endpoint \S+:\d+$",
+                        "the Service has a ClusterIP and an endpoint",
+                    ),
+                    timeout=30,
+                    save_as="svc",
+                ),
+                OracleStep(
+                    f"From {node}, open TCP to the ClusterIP and to its endpoint.",
+                    "exec_shell",
+                    probe(node),
+                    contains(
+                        r"^clusterip \S+ NO_CONNECT$(?s:.*)^endpoint \S+ CONNECTED$",
+                        "the ClusterIP fails while its endpoint accepts TCP",
+                    ),
+                    evidence=True,
+                    attempts=2,
+                ),
+                OracleStep(
+                    f"From {peer}, open the same ClusterIP: other nodes still reach it.",
+                    "exec_shell",
+                    probe(peer),
+                    contains(
+                        r"^clusterip \S+ CONNECTED$",
+                        "the ClusterIP works from another node",
+                    ),
+                    evidence=True,
+                ),
+                OracleStep(
+                    f"Inspect the raw-table packet filter on {node}, which runs before "
+                    "kube-proxy's Service DNAT.",
+                    "exec_shell",
+                    raw_rules,
+                    Check(
+                        f"raw PREROUTING and OUTPUT drop {scope}, covering the probed "
+                        "ClusterIP",
+                        drops_cluster_ip,
+                    ),
+                    evidence=True,
+                ),
+            ],
+        )
 
     def inject_fault(self, params: ClusterIPRoutingBrokenParams) -> None:
         k8s = self.runtime.lab_api
