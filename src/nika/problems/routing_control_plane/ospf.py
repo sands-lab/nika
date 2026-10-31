@@ -5,7 +5,15 @@ import re
 from pydantic import BaseModel, Field
 
 from nika.problems.rca import node_resource
+from nika.problems.rca.inventory import iter_link_termination_points, parse_endpoint
 from nika.problems.support.frr import FRR_CONF, frr_config_command
+from nika.problems.support.oracle import (
+    Check,
+    OraclePlaybook,
+    OracleStep,
+    shell,
+    vtysh,
+)
 from nika.problems.base import (
     FailureDomain,
     build_verify_result,
@@ -13,6 +21,7 @@ from nika.problems.base import (
 )
 from nika.problems.support.router_ops import native_fault_ops
 from nika.runtime.base import RuntimeCapabilityError
+from nika.runtime.spec import NodeRole
 from nika.utils.logger import system_logger
 
 _NETWORK_RE = re.compile(r"^\s*network\s+(\S+)\s+area\s+(\S+)\s*$", re.MULTILINE)
@@ -27,6 +36,95 @@ def _ospf_block(config: str) -> str:
 def ospf_networks(config: str) -> list[tuple[str, str]]:
     """``(prefix, area)`` of each ``network`` statement in the ``router ospf`` block."""
     return _NETWORK_RE.findall(_ospf_block(config))
+
+
+def linked_routers(net_env, host: str) -> list[tuple[str, str, str]]:
+    """``(local_intf, peer, peer_intf)`` for each point-to-point link from
+    ``host`` to another router in the topology."""
+    routers = set(getattr(net_env, "routers", None) or []) or {
+        name
+        for name, identity in (
+            getattr(net_env, "machine_identities", None) or {}
+        ).items()
+        if identity.role == NodeRole.ROUTER
+    }
+    links = []
+    for _key, tps in iter_link_termination_points(net_env):
+        if len(tps) != 2:
+            continue
+        ends = [parse_endpoint(str(tp)) for tp in tps]
+        for (node, intf), (peer, peer_intf) in (ends, ends[::-1]):
+            if node == host and peer in routers and peer != host:
+                links.append((intf, peer, peer_intf))
+    return links
+
+
+# Per-interface lines of ``show ip ospf interface`` an operator reads.
+_OSPF_IF_SUMMARY = (
+    "vtysh -c 'show ip ospf interface'"
+    " | grep -E '^[^ ].* is (up|down)|Area |Adjacent neighbor|Passive'"
+)
+
+
+def _ospf_ifaces(output: str) -> dict[str, dict]:
+    """Interface -> ``{area, adjacent, passive}`` from :data:`_OSPF_IF_SUMMARY`."""
+    ifaces: dict[str, dict] = {}
+    current = None
+    for line in output.splitlines():
+        if m := re.match(r"^(\S+) is (?:up|down)", line):
+            current = ifaces.setdefault(
+                m.group(1), {"area": None, "adjacent": None, "passive": False}
+            )
+        elif current is None:
+            continue
+        elif m := re.search(r"\bArea (\S+)", line):
+            current["area"] = m.group(1)
+        elif m := re.search(r"Adjacent neighbor count is (\d+)", line):
+            current["adjacent"] = int(m.group(1))
+        elif "Passive" in line:
+            current["passive"] = True
+    return ifaces
+
+
+def _peer_ospf_args(peer: str, peer_intf: str, echo: str) -> dict:
+    """``exec_shell`` args reading ``peer``'s OSPF neighbors and the state of
+    ``peer_intf`` after an ``echo`` line that carries the host-side
+    observation."""
+    return {
+        "host_name": peer,
+        "command": f"echo {echo}; "
+        + vtysh("show ip ospf neighbor")
+        + "; "
+        + vtysh(f"show ip ospf interface {peer_intf}")
+        + " | grep -E '^[^ ].* is (up|down)|Area |Adjacent neighbor|Passive|"
+        "not enabled'",
+        "timeout": 15,
+    }
+
+
+def _area_differs(output: str) -> bool:
+    """The peer interface sits in an area other than ``host_area=`` and has
+    no adjacency, while the peer holds Full adjacencies elsewhere (its own
+    area configuration works)."""
+    host = re.search(r"\bhost_area=(\S+)", output)
+    peer = _ospf_ifaces(output)
+    return (
+        bool(host)
+        and bool(re.search(r"\sFull/", output))
+        and any(
+            info["area"] and info["area"] != host.group(1) and info["adjacent"] == 0
+            for info in peer.values()
+        )
+    )
+
+
+def _enabled_without_adjacency(output: str) -> bool:
+    """The peer interface runs OSPF (not passive) and has no adjacency."""
+    peer = _ospf_ifaces(output)
+    return any(
+        info["area"] and not info["passive"] and info["adjacent"] == 0
+        for info in peer.values()
+    )
 
 
 _INTERFACE_RE = re.compile(r"^interface\s+(\S+)\s*$")
@@ -108,6 +206,71 @@ class OSPFAreaMisconfig(ProblemBase):
         self.logger.info(
             f"Injected OSPF area misconfiguration on {params.host_name} from "
             f"area {correct_area} to {wrong_area}."
+        )
+
+    def oracle_playbook(self, params: OSPFAreaMisconfigParams) -> OraclePlaybook:
+        host = params.host_name
+        links = linked_routers(self.net_env, host)
+        if not links:
+            raise RuntimeCapabilityError(f"No router linked to {host}.")
+
+        def lone_ifaces(output: str) -> list[str]:
+            ifaces = _ospf_ifaces(output)
+            return [
+                intf
+                for intf, _peer, _peer_intf in links
+                if (info := ifaces.get(intf))
+                and info["area"]
+                and not info["passive"]
+                and info["adjacent"] == 0
+            ]
+
+        def peer_args(outputs) -> dict:
+            ifaces = _ospf_ifaces(outputs.get("host_ospf", ""))
+            lone = lone_ifaces(outputs.get("host_ospf", ""))
+            intf, peer, peer_intf = next(
+                (link for link in links if link[0] in lone), links[0]
+            )
+            area = (ifaces.get(intf) or {}).get("area") or "none"
+            return _peer_ospf_args(peer, peer_intf, f"host_if={intf} host_area={area}")
+
+        return OraclePlaybook(
+            finding=(
+                f"{host} places its OSPF interfaces in a different area than its "
+                "neighbors use on the same links, so the adjacencies never form."
+            ),
+            steps=[
+                shell(
+                    host,
+                    vtysh("show ip ospf neighbor"),
+                    f"List {host}'s OSPF neighbors.",
+                ),
+                shell(
+                    host,
+                    _OSPF_IF_SUMMARY,
+                    f"Read the area and adjacency count of {host}'s OSPF interfaces.",
+                    Check(
+                        "a non-passive OSPF interface toward a router has no adjacency",
+                        lambda o: bool(lone_ifaces(o)),
+                    ),
+                    evidence=True,
+                    save_as="host_ospf",
+                ),
+                OracleStep(
+                    "Compare the OSPF area on the neighbor's side of that link.",
+                    "exec_shell",
+                    peer_args,
+                    Check(
+                        "the neighbor's interface is in another area and has no "
+                        "adjacency, while its other adjacencies are Full",
+                        _area_differs,
+                    ),
+                    evidence=True,
+                    # The neighbor keeps the adjacency until its dead interval.
+                    attempts=6,
+                    interval_sec=10,
+                ),
+            ],
         )
 
     def inject_fault(self, params: OSPFAreaMisconfigParams):
@@ -285,6 +448,70 @@ class OSPFNeighborMissing(ProblemBase):
                 return "interface", interface, area
         raise RuntimeCapabilityError(
             f"{type(self).__name__}: no OSPF binding on {host!r} covers exactly one Full adjacency."
+        )
+
+    def oracle_playbook(self, params: OSPFNeighborMissingParams) -> OraclePlaybook:
+        host = params.host_name
+        links = linked_routers(self.net_env, host)
+        if not links:
+            raise RuntimeCapabilityError(f"No router linked to {host}.")
+
+        def uncovered(output: str) -> list[str]:
+            """Router-facing interfaces that are up and addressed but not in OSPF."""
+            ospf = _ospf_ifaces(output.split("===", 1)[0])
+            up = {
+                m.group(1)
+                for m in re.finditer(
+                    r"^(\S+?)(?:@\S+)?\s+UP\s+\d+\.\d+\.\d+\.\d+/", output, re.M
+                )
+            }
+            return [intf for intf, *_ in links if intf in up and intf not in ospf]
+
+        def peer_args(outputs) -> dict:
+            missing = uncovered(outputs.get("host_ospf", ""))
+            intf, peer, peer_intf = next(
+                (link for link in links if link[0] in missing), links[0]
+            )
+            return _peer_ospf_args(peer, peer_intf, f"host_if={intf}")
+
+        return OraclePlaybook(
+            finding=(
+                f"{host}'s OSPF configuration no longer covers one of its router "
+                "links, so the neighbor on that link expects an adjacency that "
+                f"{host} never forms."
+            ),
+            steps=[
+                shell(
+                    host,
+                    vtysh("show ip ospf neighbor"),
+                    f"List {host}'s OSPF neighbors.",
+                ),
+                shell(
+                    host,
+                    f"{_OSPF_IF_SUMMARY}; echo ===; ip -br -4 addr",
+                    f"Compare {host}'s OSPF interfaces with its addressed links.",
+                    Check(
+                        "an up, addressed interface toward a router is not in OSPF",
+                        lambda o: bool(uncovered(o)),
+                    ),
+                    evidence=True,
+                    save_as="host_ospf",
+                ),
+                OracleStep(
+                    "Check OSPF on the neighbor's side of that link.",
+                    "exec_shell",
+                    peer_args,
+                    Check(
+                        "the neighbor runs OSPF on the link (not passive) but has "
+                        "no adjacency",
+                        _enabled_without_adjacency,
+                    ),
+                    evidence=True,
+                    # The neighbor keeps the adjacency until its dead interval.
+                    attempts=6,
+                    interval_sec=10,
+                ),
+            ],
         )
 
     def inject_fault(self, params: OSPFNeighborMissingParams):

@@ -7,8 +7,21 @@ import time
 from pydantic import BaseModel, Field
 
 from nika.net_env.isp.bgp.frr import EXPORT_DENY_PREFIX_LIST
+from nika.problems.routing_control_plane.ospf import linked_routers
 from nika.problems.support.frr import frr_config_command, frr_save_config
 from nika.problems.support.inject_resolve import resolve_victim_host_ip
+from nika.problems.support.kubernetes.base import control_node_from_net_env
+from nika.problems.support.oracle import (
+    Check,
+    OraclePlaybook,
+    OracleStep,
+    all_of,
+    contains,
+    lacks,
+    ping_fails,
+    shell,
+    vtysh,
+)
 from nika.problems.support.polling import wait_until
 from nika.problems.support.router_ops import RouterFaultOps, router_fault_ops
 from nika.problems.rca import node_resource
@@ -67,6 +80,84 @@ def _ensure_bgp_inventory(problem_cls, ctx) -> tuple[dict, dict]:
         inventory = dict(isp_plan.inventory)
         inventory["bgp"] = bgp_inv
     return inventory, bgp_inv
+
+
+def _bgp_peers(net_env, host: str) -> list[str]:
+    """Routers holding a BGP session with ``host``: the BGP inventory when the
+    scenario has one, else the directly linked routers."""
+    bgp = loaded_inventory(net_env).get("bgp")
+    sessions = bgp.get("sessions") if isinstance(bgp, dict) else None
+    if sessions:
+        return sorted(
+            {
+                str(s["remote_device"])
+                for s in sessions
+                if s.get("local_device") == host and s.get("remote_device")
+            }
+        )
+    return [peer for _intf, peer, _peer_intf in linked_routers(net_env, host)]
+
+
+# A ``show bgp summary`` row whose session is not Established.
+_BGP_ROW_DOWN = (
+    r"^\S+\s+4\s+\d+(?:\s+\d+){5}\s+\S+\s+"
+    r"(?:Active|Idle|Connect|OpenSent|OpenConfirm)\b"
+)
+
+# A ``show bgp summary`` row of an Established session (prefix count as state).
+_BGP_ROW_UP = r"^\S+\s+4\s+\d+(?:\s+\d+){5}\s+\S+\s+\d+\s"
+
+
+def _peer_expects_other_asn(output: str) -> bool:
+    """A peer's down session toward the host expects an AS other than the
+    host's local AS (``host_local_as``/``host_addrs`` lines name the host),
+    while another of the peer's sessions is Established, so the peer's own
+    AS is accepted elsewhere."""
+    if not re.search(_BGP_ROW_UP, output, re.M):
+        return False
+    local = re.search(r"^host_local_as=(\d+)$", output, re.M)
+    addrs = re.search(r"^host_addrs=(\S*)$", output, re.M)
+    if not local or not addrs:
+        return False
+    host_addrs = set(addrs.group(1).split(","))
+    for block in re.split(r"(?m)^(?=BGP neighbor )", output):
+        m = re.match(r"BGP neighbor (?:is |on \S+: )([^,\s]+), remote AS (\d+)", block)
+        if (
+            m
+            and m.group(1) in host_addrs
+            and m.group(2) != local.group(1)
+            and "BGP state = Established" not in block
+        ):
+            return True
+    return False
+
+
+def _speaker_refuses_host(output: str) -> bool:
+    """A MetalLB speaker refused the host with "Bad Peer AS": its session to
+    one of the host's addresses expects an AS other than the host's local AS
+    (``host_local_as`` line), and no speaker session to the host is up."""
+    local = re.search(r"^host_local_as=(\d+)$", output, re.M)
+    if not local:
+        return False
+    refused = False
+    for block in re.split(r"(?m)^(?=BGP neighbor )", output):
+        m = re.match(r"BGP neighbor is ([^,\s]+), remote AS (\d+)", block)
+        if not m:
+            continue
+        if "BGP state = Established" in block:
+            return False
+        if m.group(2) != local.group(1) and "Bad Peer AS" in block:
+            refused = True
+    return refused
+
+
+def _srl_bgp_rows(output: str) -> list[tuple[str, str, str]]:
+    """``(peer, peer_as, state)`` rows of an SR Linux BGP neighbor table."""
+    return re.findall(
+        r"^\|\s*\S+\s*\|\s*(\S+)\s*\|[^|]*\|[^|]*\|\s*(\d+)\s*\|\s*(\w+)\s*\|",
+        output,
+        re.M,
+    )
 
 
 # ==================================================================
@@ -136,6 +227,222 @@ class BGPAsnMisconfig(ProblemBase):
 
     def root_cause_resources(self, params: BGPAsnMisconfigParams):
         return [node_resource(params.host_name)]
+
+    def oracle_playbook(self, params: BGPAsnMisconfigParams) -> OraclePlaybook:
+        host = params.host_name
+        peers = _bgp_peers(self.net_env, host)
+        if not peers:
+            raise RuntimeCapabilityError(f"No BGP peer of {host} in the topology.")
+        peer = peers[0]
+        if self.lab_backend == "containerlab":
+            return self._srl_playbook(host, peer)
+        control = control_node_from_net_env(self.net_env)
+        if control and getattr(self.net_env, "kubernetes_nodes", None):
+            return self._metallb_playbook(host, control)
+
+        def peer_view(outputs) -> dict:
+            text = outputs.get("host_bgp", "")
+            local = re.search(r"local AS number (\d+)", text)
+            addrs = re.findall(r"^addr ([^/\s]+)", text, re.M)
+            wanted = "|".join(re.escape(a) for a in addrs) or "none"
+            # Every session row of the peer, then the neighbor blocks (header
+            # and state) of its sessions toward the host's addresses.
+            command = (
+                f"echo host_local_as={local.group(1) if local else ''}; "
+                f"echo host_addrs={','.join(addrs)}; "
+                + vtysh("show bgp summary")
+                + " | grep -E '^[^ ]+ +4 '; "
+                + vtysh("show bgp neighbors")
+                + " | awk '/^BGP neighbor /{p = ($0 ~ /^BGP neighbor (is|on [^ ]+:) "
+                f"({wanted}),/)}} p && /^BGP neighbor |BGP state|Last reset/'"
+            )
+            return {"host_name": peer, "command": command, "timeout": 20}
+
+        return OraclePlaybook(
+            finding=(
+                f"{host} runs BGP under the wrong local AS, which its peers do not "
+                "expect, so its BGP sessions cannot establish."
+            ),
+            steps=[
+                shell(
+                    host,
+                    vtysh("show bgp summary")
+                    + "; ip -o addr show | awk '{print \"addr \" $4}'",
+                    f"Read {host}'s local AS and the state of its BGP sessions.",
+                    all_of(
+                        contains(r"local AS number \d+", "bgpd answers"),
+                        contains(_BGP_ROW_DOWN, "its BGP sessions are down"),
+                        lacks(_BGP_ROW_UP, "none of its sessions is Established"),
+                    ),
+                    evidence=True,
+                    save_as="host_bgp",
+                ),
+                shell(
+                    host,
+                    vtysh("show bgp neighbors")
+                    + " | grep -E '^BGP neighbor |BGP state|Last reset|Bad Peer'",
+                    f"Check why {host}'s sessions reset.",
+                ),
+                OracleStep(
+                    f"Compare the AS that peer {peer} expects for {host} with "
+                    f"{host}'s local AS.",
+                    "exec_shell",
+                    peer_view,
+                    Check(
+                        f"{peer}'s down session to {host} expects a different AS "
+                        f"than {host} runs, while {peer}'s other sessions are up",
+                        _peer_expects_other_asn,
+                    ),
+                    evidence=True,
+                ),
+            ],
+        )
+
+    def _metallb_playbook(self, host: str, control: str) -> OraclePlaybook:
+        """Kubernetes fabric: the MetalLB speakers pin the router's AS, while
+        its fabric peers accept any external AS and come back up."""
+
+        def speaker_view(outputs) -> dict:
+            text = outputs.get("host_bgp", "")
+            local = re.search(r"local AS number (\d+)", text)
+            addrs = " ".join(re.findall(r"^addr ([^/\s]+)", text, re.M))
+            peers_jsonpath = "{.items[*].spec.peerAddress}"
+            command = (
+                f"echo host_local_as={local.group(1) if local else ''}; "
+                "for a in $(kubectl get bgppeers.metallb.io -A "
+                f"-o jsonpath='{peers_jsonpath}'); do "
+                f'case " {addrs} " in *" $a "*) '
+                "for p in $(kubectl -n metallb-system get pods "
+                "-l component=speaker -o name); do "
+                "kubectl -n metallb-system exec ${p#pod/} -c frr -- "
+                'vtysh -c "show bgp neighbors $a" 2>/dev/null '
+                "| grep -E '^BGP neighbor|BGP state|Last reset'; done;; esac; done"
+            )
+            return {"host_name": control, "command": command, "timeout": 90}
+
+        return OraclePlaybook(
+            finding=(
+                f"{host} runs BGP under the wrong local AS; the MetalLB speakers "
+                "that peer with it expect its configured AS and refuse the session, "
+                "so the service routes they announce no longer reach it."
+            ),
+            steps=[
+                shell(
+                    host,
+                    vtysh("show bgp summary")
+                    + "; "
+                    + vtysh("show running-config")
+                    + " | grep -E 'listen range'"
+                    + "; ip -o addr show | awk '{print \"addr \" $4}'",
+                    f"Read {host}'s local AS, its BGP sessions, and the dynamic "
+                    "peers it listens for.",
+                    all_of(
+                        contains(r"local AS number \d+", "bgpd answers"),
+                        contains(r"bgp listen range", "it listens for dynamic peers"),
+                        lacks(
+                            r"^\*" + _BGP_ROW_UP[1:], "no dynamic peer session is up"
+                        ),
+                    ),
+                    evidence=True,
+                    save_as="host_bgp",
+                ),
+                OracleStep(
+                    f"Ask the MetalLB speakers why their sessions to {host} are down.",
+                    "exec_shell",
+                    speaker_view,
+                    Check(
+                        f"a MetalLB speaker expects a different AS for {host} than "
+                        f"{host} runs and refused it with Bad Peer AS",
+                        _speaker_refuses_host,
+                    ),
+                    evidence=True,
+                ),
+            ],
+        )
+
+    def _srl_playbook(self, host: str, peer: str) -> OraclePlaybook:
+        """SR Linux: compare the host's AS with the peer-AS its peer expects."""
+        neighbors = "show network-instance default protocols bgp neighbor"
+        seen: dict = {}
+
+        def peer_view(outputs) -> dict:
+            # The peer check compares against the AS and addresses read on
+            # the host.
+            text = outputs.get("host_as", "")
+            m = re.search(r"autonomous-system (\d+)", text)
+            seen["asn"] = m.group(1) if m else ""
+            seen["addrs"] = set(
+                re.findall(r"ipv4 address ([\d.]+)/", outputs.get("host_addrs", ""))
+            )
+            return {"device_name": peer, "command": neighbors}
+
+        def expects_other(output: str) -> bool:
+            rows = _srl_bgp_rows(output)
+            toward_host = [r for r in rows if r[0] in seen.get("addrs", ())]
+            return (
+                bool(seen.get("asn"))
+                and any(
+                    state != "established" and peer_as != seen["asn"]
+                    for _addr, peer_as, state in toward_host
+                )
+                and any(
+                    state == "established"
+                    for addr, _as, state in rows
+                    if addr not in seen.get("addrs", ())
+                )
+            )
+
+        def host_all_down(output: str) -> bool:
+            rows = _srl_bgp_rows(output)
+            return bool(rows) and all(state != "established" for *_, state in rows)
+
+        return OraclePlaybook(
+            finding=(
+                f"{host} runs BGP under the wrong local AS, which its peers do not "
+                "expect, so its BGP sessions cannot establish."
+            ),
+            steps=[
+                OracleStep(
+                    f"List {host}'s BGP sessions.",
+                    "srl_exec_cli",
+                    {"device_name": host, "command": neighbors},
+                    Check(f"{host} has sessions and none is up", host_all_down),
+                    evidence=True,
+                ),
+                OracleStep(
+                    f"Read {host}'s configured BGP AS.",
+                    "srl_exec_cli",
+                    {
+                        "device_name": host,
+                        "command": "info flat network-instance default protocols "
+                        "bgp autonomous-system",
+                    },
+                    contains(r"autonomous-system \d+", f"{host}'s local AS"),
+                    save_as="host_as",
+                ),
+                OracleStep(
+                    f"Read {host}'s interface addresses.",
+                    "srl_exec_cli",
+                    {
+                        "device_name": host,
+                        "command": "info flat interface * subinterface * ipv4 address *",
+                    },
+                    contains(r"ipv4 address [\d.]+/", f"{host}'s IPv4 addresses"),
+                    save_as="host_addrs",
+                ),
+                OracleStep(
+                    f"Compare the AS that peer {peer} expects for {host}.",
+                    "srl_exec_cli",
+                    peer_view,
+                    Check(
+                        f"{peer}'s down session to {host} expects an AS other than "
+                        f"{host}'s, while {peer}'s other sessions are up",
+                        expects_other,
+                    ),
+                    evidence=True,
+                ),
+            ],
+        )
 
     def inject_fault(self, params: BGPAsnMisconfigParams):
         match self.lab_backend:
@@ -472,6 +779,159 @@ class BGPMissingAdvertise(ProblemBase):
 
     def root_cause_resources(self, params: BGPMissingAdvertiseParams):
         return [node_resource(params.host_name)]
+
+    def oracle_playbook(self, params: BGPMissingAdvertiseParams) -> OraclePlaybook:
+        host = params.host_name
+        sessions_up = shell(
+            host,
+            vtysh("show bgp summary"),
+            f"Check that {host}'s BGP sessions are up.",
+            contains(_BGP_ROW_UP, "at least one BGP session is Established"),
+            evidence=True,
+        )
+        if self._is_enterprise_branch():
+            return self._enterprise_playbook(host, sessions_up)
+        bgp_block = (
+            vtysh("show running-config")
+            + " | sed -n '/^router bgp/,/^exit$/p' | grep -E '^router bgp|network|redistribute'"
+        )
+        if not params.prefix:
+            return OraclePlaybook(
+                finding=f"{host} no longer originates its networks into BGP.",
+                steps=[
+                    shell(
+                        host,
+                        vtysh("show bgp ipv4 unicast"),
+                        f"List the BGP routes on {host}.",
+                        all_of(
+                            contains(r"BGP table version", "the BGP table is listed"),
+                            lacks(
+                                r"^\*>\s*\S+\s+0\.0\.0\.0\s",
+                                f"{host} originates no route into BGP",
+                            ),
+                        ),
+                        evidence=True,
+                    ),
+                    shell(
+                        host,
+                        "ip -br addr",
+                        f"List {host}'s connected networks that BGP should carry.",
+                    ),
+                    sessions_up,
+                    shell(
+                        host,
+                        bgp_block,
+                        f"Inspect {host}'s BGP origination config.",
+                        all_of(
+                            contains(r"^router bgp \d+", "the BGP config is listed"),
+                            lacks(r"^\s+network ", "no BGP network statement remains"),
+                        ),
+                        evidence=True,
+                    ),
+                ],
+            )
+        prefix = str(ipaddress.ip_network(params.prefix, strict=False))
+        steps = []
+        if params.symptom_host:
+            steps.append(
+                shell(
+                    params.symptom_host,
+                    vtysh(f"show bgp ipv4 unicast {prefix}"),
+                    f"Check whether {params.symptom_host} learns {prefix}.",
+                    contains(
+                        r"Network not in table", f"{params.symptom_host} lacks {prefix}"
+                    ),
+                )
+            )
+        steps += [
+            shell(
+                host,
+                vtysh(f"show ip route {prefix}"),
+                f"Confirm {prefix} exists on its originator {host}.",
+                contains(
+                    r'Known via "(connected|static|kernel|local)"',
+                    f"{host} has a local route for {prefix}",
+                ),
+                evidence=True,
+            ),
+            shell(
+                host,
+                vtysh(f"show bgp ipv4 unicast {prefix}"),
+                f"Check whether {host} carries {prefix} in BGP.",
+                contains(r"Network not in table", f"{prefix} is not in {host}'s BGP"),
+                evidence=True,
+            ),
+            sessions_up,
+            shell(
+                host,
+                bgp_block,
+                f"Inspect {host}'s BGP origination config.",
+                all_of(
+                    contains(r"^router bgp \d+", "the BGP config is listed"),
+                    lacks(
+                        rf"^\s+network {re.escape(prefix)}\b",
+                        f"no BGP network statement for {prefix}",
+                    ),
+                ),
+                evidence=True,
+            ),
+        ]
+        return OraclePlaybook(
+            finding=(
+                f"{host} no longer originates {prefix} into BGP, so its peers lose "
+                "the route although the network and the sessions are up."
+            ),
+            steps=steps,
+        )
+
+    def _enterprise_playbook(self, host: str, sessions_up) -> OraclePlaybook:
+        """Branch edges advertise their VRF LANs by redistributing connected."""
+        return OraclePlaybook(
+            finding=(
+                f"{host}'s BGP VRF instances no longer redistribute its connected "
+                "LANs, so the rest of the overlay loses the routes to its site."
+            ),
+            steps=[
+                shell(
+                    host,
+                    vtysh("show ip route vrf all connected") + " | grep -E '^IPv4|^C'",
+                    f"List the site LANs attached to {host}'s VRFs.",
+                    contains(
+                        r"^IPv4 unicast VRF vrf_\S+:\nC>\*",
+                        f"{host} has connected LANs in its VRFs",
+                    ),
+                    evidence=True,
+                ),
+                shell(
+                    host,
+                    vtysh("show bgp vrf all ipv4 unicast")
+                    + " | grep -E '^Instance|^BGP table|32768|Displayed'",
+                    f"Check which routes {host} originates into BGP.",
+                    all_of(
+                        contains(
+                            r"^BGP table version", "the VRF BGP tables are listed"
+                        ),
+                        lacks(r"\b32768\b", f"{host} originates no route into BGP"),
+                    ),
+                    evidence=True,
+                ),
+                sessions_up,
+                shell(
+                    host,
+                    vtysh("show running-config") + " | sed -n '/^router bgp/,/^exit$/p'"
+                    " | grep -E '^router bgp|redistribute|network'",
+                    f"Inspect how {host}'s BGP instances originate the site LANs.",
+                    all_of(
+                        contains(r"^router bgp \d+ vrf ", "VRF BGP instances exist"),
+                        lacks(
+                            r"^\s+(redistribute connected|network )",
+                            "none redistributes connected or has a network statement",
+                        ),
+                    ),
+                    evidence=True,
+                ),
+            ],
+        )
 
     def _is_enterprise_branch(self) -> bool:
         name = (self.scenario_name or "").lower()
@@ -845,6 +1305,17 @@ def _profile_leaker(problem: ProblemBase, bgp: dict, host_name: str) -> str:
     return leaker
 
 
+def _session_ip(bgp: dict, local: str, remote: str) -> str:
+    """Address of ``remote`` on its BGP session with ``local`` (inventory)."""
+    for session in bgp.get("sessions") or []:
+        if (
+            session.get("local_device") == local
+            and session.get("remote_device") == remote
+        ):
+            return str(session.get("remote_ip") or "")
+    return ""
+
+
 class BGPBlackholeCommunityLeakParams(BaseModel):
     """Parameters for injecting a BGP blackhole community leak fault."""
 
@@ -1072,6 +1543,79 @@ class BGPBlackholeCommunityLeak(ProblemBase):
                 "rtbh_forwarding_active": rtbh_ok,
                 "sessions_ok": sessions_ok,
             },
+        )
+
+    def oracle_playbook(
+        self, params: BGPBlackholeCommunityLeakParams
+    ) -> OraclePlaybook:
+        bgp = self._rtbh_bgp_inventory()
+        leaker = _profile_leaker(self, bgp, params.host_name)
+        provider = str(bgp.get("rtbh_provider_device") or "")
+        prefix = str(bgp.get("target_prefix") or "")
+        community = str(bgp.get("blackhole_community") or "")
+        route_map = str(bgp.get("leaker_outbound_route_map") or "")
+        observer = params.symptom_host or str(bgp.get("data_plane_observer_host") or "")
+        dst = params.probe_dst_ip or str(bgp.get("target_ping_address") or "")
+        leaker_ip = _session_ip(bgp, provider, leaker)
+        return OraclePlaybook(
+            finding=(
+                f"{leaker}'s outbound route-map {route_map} tags {prefix} with the "
+                f"provider blackhole community {community}, so {provider} "
+                "discards traffic to that prefix."
+            ),
+            steps=[
+                ping_fails(
+                    observer, dst, f"Confirm {observer} cannot reach {dst} in {prefix}."
+                ),
+                shell(
+                    provider,
+                    vtysh(f"show bgp ipv4 unicast {prefix}"),
+                    f"Inspect the BGP paths for {prefix} on {provider}.",
+                    contains(
+                        rf"from {re.escape(leaker_ip)} [^\n]*\n[^\n]*\bbest\b"
+                        rf"[^\n]*\n\s+Community:[^\n]*\b{re.escape(community)}\b",
+                        f"the best path is learned from {leaker} ({leaker_ip}) "
+                        f"and carries community {community}",
+                    ),
+                    evidence=True,
+                ),
+                shell(
+                    provider,
+                    f"{vtysh(f'show ip route {prefix}')}; ip route get {dst} 2>&1",
+                    f"Check how {provider} forwards {prefix}.",
+                    contains(
+                        r"blackhole|unreachable|Null0|inactive",
+                        "traffic to the prefix is discarded",
+                    ),
+                ),
+                shell(
+                    leaker,
+                    vtysh(f"show bgp ipv4 unicast {prefix}"),
+                    f"Check whether {leaker} received {prefix} already tagged.",
+                    all_of(
+                        contains(r"Paths: \(\d+ available", f"{leaker} holds {prefix}"),
+                        lacks(
+                            rf"Community:[^\n]*\b{re.escape(community)}\b",
+                            f"the path {leaker} received has no {community}",
+                        ),
+                    ),
+                    evidence=True,
+                ),
+                shell(
+                    leaker,
+                    vtysh("show running-config")
+                    + f" | grep -E '^route-map {route_map} |^ (match|set) |"
+                    "^ip prefix-list |route-map .* out$'",
+                    f"Inspect {leaker}'s export policy toward {provider}.",
+                    contains(
+                        rf"^route-map {re.escape(route_map)} permit \d+\n"
+                        rf"(?: match [^\n]*\n)* set community [^\n]*"
+                        rf"\b{re.escape(community)}\b",
+                        f"route-map {route_map} sets {community} on export",
+                    ),
+                    evidence=True,
+                ),
+            ],
         )
 
     def recover_fault(self, params: BGPBlackholeCommunityLeakParams) -> dict:
@@ -1319,6 +1863,87 @@ class BGPRPKIInvalidRouteLeak(ProblemBase):
                 "export_permit": export_permit,
                 "advertised_to_ebgp_peers": advertised_to,
             },
+        )
+
+    def oracle_playbook(self, params: BGPRPKIInvalidRouteLeakParams) -> OraclePlaybook:
+        bgp = self._rpki_bgp_inventory()
+        leaker = _profile_leaker(self, bgp, params.host_name)
+        prefix = str((bgp.get("leak_prefixes") or [""])[0])
+        leaker_asn = str(bgp.get("leaker_asn") or "")
+        rov = str(bgp.get("rov_observer") or "")
+        non_rov = str(bgp.get("non_rov_observer") or "")
+        ebgp_peers = [
+            str(s.get("remote_ip"))
+            for s in bgp.get("sessions") or []
+            if s.get("local_device") == leaker and s.get("session_type") == "ebgp"
+        ]
+        peer_ip = _session_ip(bgp, leaker, non_rov) or (ebgp_peers or [""])[0]
+        vrp_net = re.escape(prefix.split("/")[0])
+        origin_path = rf"^\s+(?:\d+ )*{re.escape(leaker_asn)}(?: \{{[^}}]*\}})?\s*$"
+        return OraclePlaybook(
+            finding=(
+                f"{leaker}'s eBGP export route-map BGP-OUT permits the "
+                f"{EXPORT_DENY_PREFIX_LIST} prefixes, leaking {prefix} with origin "
+                f"AS{leaker_asn}, which RPKI marks invalid."
+            ),
+            steps=[
+                shell(
+                    non_rov,
+                    vtysh(f"show bgp ipv4 unicast {prefix}"),
+                    f"Check which origin {non_rov} (no ROV) learns for {prefix}.",
+                    contains(
+                        origin_path,
+                        f"{non_rov} holds a path for {prefix} originated by "
+                        f"AS{leaker_asn}",
+                    ),
+                    evidence=True,
+                    attempts=3,
+                    interval_sec=10,
+                ),
+                OracleStep(
+                    f"Validate {prefix} against RPKI on the ROV router {rov}.",
+                    "frr_get_rpki_status",
+                    {"device": rov, "prefix": prefix},
+                    all_of(
+                        contains(
+                            rf"^{vrp_net}\s+\d+\s+-\s+\d+\s+\d+",
+                            f"a ROA (VRP) covers {prefix}",
+                        ),
+                        lacks(
+                            rf"^{vrp_net}\s+\d+\s+-\s+\d+\s+{re.escape(leaker_asn)}\b",
+                            f"no VRP authorizes AS{leaker_asn}, so its origin is "
+                            "RPKI-invalid",
+                        ),
+                    ),
+                    evidence=True,
+                ),
+                shell(
+                    leaker,
+                    vtysh(
+                        f"show bgp ipv4 unicast neighbors {peer_ip} advertised-routes",
+                    )
+                    + f" | grep -E '{re.escape(prefix)}|Total' ",
+                    f"Check whether {leaker} advertises {prefix} to eBGP peer {peer_ip}.",
+                    contains(
+                        rf"^\S*\s*{re.escape(prefix)}\s",
+                        f"{leaker} announces {prefix} to {peer_ip}",
+                    ),
+                    evidence=True,
+                ),
+                shell(
+                    leaker,
+                    vtysh("show running-config")
+                    + " | grep -E '^route-map BGP-OUT |^ match |^ip prefix-list "
+                    f"{EXPORT_DENY_PREFIX_LIST} '",
+                    f"Inspect {leaker}'s eBGP export policy BGP-OUT.",
+                    contains(
+                        r"^route-map BGP-OUT permit \d+\n match ip address prefix-list "
+                        rf"{re.escape(EXPORT_DENY_PREFIX_LIST)}\b",
+                        f"BGP-OUT permits the {EXPORT_DENY_PREFIX_LIST} prefix-list",
+                    ),
+                    evidence=True,
+                ),
+            ],
         )
 
     def _leak_absent(
@@ -1823,6 +2448,83 @@ class BGPMaxPrefixExceeded(ProblemBase):
             verified = verified and stranded
         return build_verify_result(
             fault_type=self.root_cause_name, verified=verified, details=details
+        )
+
+    def oracle_playbook(self, params: BGPMaxPrefixExceededParams) -> OraclePlaybook:
+        receiver, peer, neighbor_ip = self._resolve_session(params)
+
+        def peer_count(outputs) -> dict:
+            match = re.search(
+                r"Maximum prefixes allowed (\d+)", outputs.get("neighbor", "")
+            )
+            limit = match.group(1) if match else "0"
+            # Count the routes the peer originates itself (next hop 0.0.0.0).
+            command = (
+                "n=$(vtysh -c 'show bgp ipv4 unicast' | grep -cE ' 0\\.0\\.0\\.0 '); "
+                f'echo "originated=$n receiver_limit={limit}"; '
+                f'[ "$n" -gt {limit} ] && echo EXCEEDS_LIMIT || true'
+            )
+            return {"host_name": peer, "command": command, "timeout": 20}
+
+        steps = [
+            shell(
+                receiver,
+                vtysh("show bgp summary") + " | tail -n +6",
+                f"List the BGP sessions of {receiver}.",
+                contains(
+                    rf"^{re.escape(neighbor_ip)}\s.*\bIdle\b",
+                    f"the eBGP session to {neighbor_ip} ({peer}) is down",
+                ),
+            ),
+            shell(
+                receiver,
+                vtysh(f"show bgp neighbors {neighbor_ip}")
+                + " | grep -E 'BGP state|Maximum prefixes|Last reset|"
+                "exceeded the max|accepted prefixes'",
+                f"Inspect why {receiver} holds the session to {peer} down.",
+                all_of(
+                    contains(r"BGP state = Idle", "the session is Idle"),
+                    contains(
+                        r"Maximum prefixes allowed \d+",
+                        "a maximum-prefix limit is configured",
+                    ),
+                    contains(
+                        r"exceeded the max\. no\. of prefixes",
+                        f"{receiver} shut the session because {peer} exceeded it",
+                    ),
+                ),
+                evidence=True,
+                save_as="neighbor",
+            ),
+            OracleStep(
+                f"Count the prefixes {peer} originates toward {receiver}.",
+                "exec_shell",
+                peer_count,
+                contains(
+                    r"^EXCEEDS_LIMIT$",
+                    f"{peer} originates more prefixes than {receiver}'s limit",
+                ),
+                evidence=True,
+            ),
+        ]
+        site = self.customer_route(receiver, peer)
+        if site is not None:
+            steps.append(
+                shell(
+                    receiver,
+                    vtysh(f"show bgp ipv4 unicast {site['prefix']}"),
+                    f"Check the customer route {site['prefix']} that only {peer} "
+                    "provides.",
+                    contains(r"Network not in table", "the customer route is gone"),
+                )
+            )
+        return OraclePlaybook(
+            finding=(
+                f"{peer} advertises more prefixes than the maximum-prefix limit "
+                f"{receiver} enforces on their eBGP session, so {receiver} tore the "
+                "session down and withdrew every route learned over it."
+            ),
+            steps=steps,
         )
 
     def _discover_flood_prefixes(self, peer: str) -> list[str]:

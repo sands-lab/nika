@@ -26,6 +26,8 @@ A NIKA benchmark is a set of **tasks**. Each task combines a **network environme
 | **Diagnosis** | The run phase in which the agent investigates the environment and writes a free-text report. |
 | **Submission** | The run phase in which the agent turns its frozen report into a structured answer: the failed resources and fault types. |
 | **Ground truth** | The failures NIKA actually injected, which the submission is scored against. |
+| **Oracle solver** | The `oracle` agent. It knows the ground truth and submits it only after the failure's playbook confirms the fault through the agent's MCP tools. See [Oracle solver](docs/benchmarks/oracle-solver.md). |
+| **Playbook** | A failure's reference diagnosis: the MCP tool calls an operator would make, the observation each must show, and which observations are evidence for the root cause. |
 
 ## Agents
 

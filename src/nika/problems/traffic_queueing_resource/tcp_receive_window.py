@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from pydantic import BaseModel, Field
 
 from nika.problems.base import (
@@ -11,6 +13,7 @@ from nika.problems.base import (
 )
 from nika.problems.rca import node_resource
 from nika.problems.support.benchmark_targets import first
+from nika.problems.support.oracle import Check, OraclePlaybook, ping, shell
 from nika.problems.traffic_queueing_resource.tcp_rwnd_helpers import (
     DEFAULT_BDP_DIVISOR,
     DEFAULT_BUFFER_CEIL_BYTES,
@@ -29,6 +32,28 @@ from nika.problems.traffic_queueing_resource.tcp_rwnd_helpers import (
 )
 from nika.traffic.workload import BULK_DOWNLOAD
 from nika.utils.logger import system_logger
+
+
+# Kernel default: tcp_rmem max 6 MiB with receive-buffer autotuning on.
+_SMALL_RMEM_BYTES = 512 * 1024
+
+
+def _receive_buffer_capped(output: str) -> bool:
+    """tcp_rmem max is small and receive-buffer autotuning is off."""
+    rmem = re.search(r"tcp_rmem\s*=\s*(\d+)\s+(\d+)\s+(\d+)", output)
+    moderate = re.search(r"tcp_moderate_rcvbuf\s*=\s*(\d+)", output)
+    return (
+        rmem is not None
+        and moderate is not None
+        and int(rmem.group(3)) <= _SMALL_RMEM_BYTES
+        and moderate.group(1) == "0"
+    )
+
+
+def _slow_download(output: str) -> bool:
+    """curl reports a completed 200 download below 20 Mbit/s."""
+    match = re.search(r"code=200 speed=([0-9.]+)", output)
+    return match is not None and float(match.group(1)) * 8 < 20e6
 
 
 class TcpReceiveWindowLimitedParams(BaseModel):
@@ -232,6 +257,61 @@ class TcpReceiveWindowLimited(ProblemBase):
                 "healthy_throughput_bps": self._healthy_throughput_bps,
                 "healthy_rtt_ms": self._healthy_rtt_ms,
             },
+        )
+
+    def oracle_playbook(self, params: TcpReceiveWindowLimitedParams) -> OraclePlaybook:
+        receiver = params.host_name
+        curl = (
+            "curl -s -o /dev/null --max-time 60 -w 'code=%{{http_code}} "
+            "speed=%{{speed_download}} time=%{{time_total}}\\n' {url}"
+        )
+        steps = [
+            ping(
+                receiver,
+                params.sender_ip,
+                f"Ping the sender {params.sender_host} from {receiver}: the path "
+                "has no loss.",
+                count=5,
+            ),
+            shell(
+                receiver,
+                curl.format(url=params.small_url),
+                "Fetch the small object: short requests complete normally.",
+                timeout=70,
+            ),
+            shell(
+                receiver,
+                curl.format(url=params.large_url),
+                "Fetch the large object: bulk TCP download throughput.",
+                Check("the bulk download runs below 20 Mbit/s", _slow_download),
+                timeout=70,
+            ),
+            shell(
+                receiver,
+                "ps -eo stat,pcpu,comm --sort=-pcpu | head -8",
+                f"Check that {receiver} is not CPU-starved.",
+                timeout=20,
+            ),
+            shell(
+                receiver,
+                "sysctl net.ipv4.tcp_rmem net.ipv4.tcp_moderate_rcvbuf "
+                "net.core.rmem_max",
+                f"Read the TCP receive-buffer settings on {receiver}.",
+                Check(
+                    "tcp_rmem caps the receive buffer at 512 KiB or less and "
+                    "receive-buffer autotuning (tcp_moderate_rcvbuf) is off",
+                    _receive_buffer_capped,
+                ),
+                evidence=True,
+            ),
+        ]
+        return OraclePlaybook(
+            finding=(
+                f"{receiver} caps its TCP receive buffer far below the path's "
+                "bandwidth-delay product, so its advertised window limits bulk "
+                "downloads while the path itself is healthy."
+            ),
+            steps=steps,
         )
 
     def recover_fault(self, params: TcpReceiveWindowLimitedParams) -> dict:
