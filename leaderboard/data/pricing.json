@@ -1,5 +1,5 @@
 {
-  "as_of": "2026-10-19",
+  "as_of": "2026-10-29",
   "currency": "USD",
   "unit": "per_million_tokens",
   "notes": "Reference token prices used to turn a submission's token counts into a monetary cost on the leaderboard's cost-performance chart. Proprietary models use the vendor's list API price. Open-weight models have no vendor price, so they carry a public hosted-inference quote for the same weights as a reference rate; that is a market price for someone else's serving, not the submitter's own cost. Each model keeps a dated list of `quotes`, appended only when a rate changes; a submission is priced with the latest quote retrieved on or before its package date (the earliest quote if it predates them all), so published costs never move. Entries with `status: unavailable` record that no public quote exists. Prices are editable in the UI without changing this file.",
@@ -275,6 +275,28 @@
       "provider": "none",
       "status": "unavailable",
       "note": "This run used self-hosted vLLM on ORIX GPUs. No verified, currently available public per-token price was established for this model. Token pricing is unavailable, not zero, and does not represent the compute cost of this run."
+    },
+    "gpt-6-astra": {
+      "basis": "api",
+      "provider": "OpenAI",
+      "quotes": [
+        {
+          "input": 10.0,
+          "output": 50.0,
+          "cache_read": 1,
+          "tiers": [
+            {
+              "min_prompt_tokens": 272000,
+              "input": 20,
+              "output": 75,
+              "cache_read": 2
+            }
+          ],
+          "source": "https://developers.openai.com/api/docs/pricing",
+          "retrieved": "2026-10-29",
+          "retrieved_via": "models.dev"
+        }
+      ]
     }
   }
 }

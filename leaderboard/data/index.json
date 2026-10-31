@@ -2183,8 +2183,8 @@
       "email": null,
       "trajectories_url": "https://huggingface.co/datasets/nika-bench/nika-trajectories/tree/main/trajectories/0.2.0/20261028_codex_gpt_6_astra",
       "trajectories_relpath": "trajectories/0.2.0/20261028_codex_gpt_6_astra",
-      "model": "GPT-6-Astra",
-      "model_id": null,
+      "model": "GPT-6 Astra",
+      "model_id": "gpt-6-astra",
       "submitted_model": "GPT-6-Astra",
       "framework": "Codex",
       "agent_type": "cli.codex",
@@ -2600,7 +2600,7 @@
       "official": true,
       "nika_git_commit": "86256da3bbef613952bd55fcf064ccbc189d616e",
       "model_icon": null,
-      "name": "GPT-6-Astra (high) · Codex",
+      "name": "GPT-6 Astra (high) · Codex",
       "rca_f1_ci": [
         0.588238,
         0.752942
