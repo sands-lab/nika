@@ -351,3 +351,97 @@ def advertisement_withdrawn(problem: Any, params: Any) -> tuple[bool, dict[str, 
     return ok, build_verify_result(
         fault_type=problem.root_cause_name, verified=ok, details=details
     )
+
+
+# ------------------------------------------------- session policy missing
+
+
+def _policy_probe_ends(problem: Any, router: str) -> dict[str, Any]:
+    """A remote client and the address of an end host behind ``router``."""
+    from nika.problems.rca.inventory import iter_link_termination_points, parse_endpoint
+    from nika.problems.support.benchmark_targets import attached_end_hosts
+    from nika.runtime.spec import NodeRole
+    from nika.validation.symptom.addressing_probes import lab_addresses
+
+    behind = attached_end_hosts(problem.net_env, router)
+    if not behind:
+        return {"error": "no_end_host_behind_router"}
+    target = behind[0]
+    intf = next(
+        (
+            parse_endpoint(str(tp))[1]
+            for _key, tps in iter_link_termination_points(problem.net_env)
+            if {router, target} <= {parse_endpoint(str(tp))[0] for tp in tps}
+            for tp in tps
+            if parse_endpoint(str(tp))[0] == target
+        ),
+        None,
+    )
+    address = intf and dict(lab_addresses(problem.runtime).get(target, [])).get(intf)
+    topo_size = getattr(problem.net_env, "topo_size", None) or "s"
+    path = get_probe_path(problem.scenario_name, topo_size=topo_size)
+    # The scenario's client, or else any end host not behind the router.
+    others = [
+        node
+        for node, identity in (problem.net_env.machine_identities or {}).items()
+        if getattr(identity, "role", None) in {NodeRole.HOST, NodeRole.SERVICE}
+    ]
+    candidates = [getattr(path, "src_host", None), *sorted(others)]
+    src = next((n for n in candidates if n and n not in behind), None)
+    if not address or not src:
+        return {"error": "no_remote_client", "target": target}
+    return {
+        "src": src,
+        "dst_host": target,
+        "dst": str(ipaddress.ip_interface(address).ip),
+    }
+
+
+def session_policy_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    """Established sessions on the router and a reachable host behind it."""
+    from nika.problems.support.router_ops import router_fault_ops
+
+    ops = router_fault_ops(problem, params.host_name)
+    peers = sorted(ops.bgp_established_peers()) if ops else []
+    ends = _policy_probe_ends(problem, params.host_name)
+    if "error" in ends:
+        return False, ends
+    # A freshly started lab may still be resolving neighbors; read again.
+    deadline = time.monotonic() + _ROUTE_WAIT_SEC
+    while True:
+        loss = ping_stats(
+            problem.runtime, ends["src"], ends["dst"], count=10
+        ).loss_percent
+        if loss == 0.0 or time.monotonic() >= deadline:
+            break
+        time.sleep(_POLL_SEC)
+    problem._audit_session_policy = {"peers": peers, "ends": ends}
+    return bool(peers) and loss == 0.0, {**ends, "peers": peers, "loss": loss}
+
+
+def session_policy_drops_routes(
+    problem: Any, params: Any
+) -> tuple[bool, dict[str, Any]]:
+    """The sessions stay Established while the host behind the router goes dark."""
+    from nika.problems.support.router_ops import router_fault_ops
+
+    base = getattr(problem, "_audit_session_policy", None)
+    if not base:
+        return False, {"error": "no_healthy_session_baseline"}
+    ops = router_fault_ops(problem, params.host_name)
+    ends = base["ends"]
+    deadline = time.monotonic() + _ROUTE_WAIT_SEC
+    while True:
+        loss = ping_stats(
+            problem.runtime, ends["src"], ends["dst"], count=5
+        ).loss_percent
+        peers = sorted(ops.bgp_established_peers()) if ops else []
+        verified = loss == 100.0 and set(base["peers"]) <= set(peers)
+        if verified or time.monotonic() >= deadline:
+            break
+        time.sleep(_POLL_SEC)
+    return verified, build_verify_result(
+        fault_type=problem.root_cause_name,
+        verified=verified,
+        details={**ends, "loss": loss, "peers_before": base["peers"], "peers": peers},
+    )

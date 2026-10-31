@@ -1,5 +1,6 @@
 """SDN controller / southbound failure implementations (ONOS)."""
 
+import re
 import time
 
 from pydantic import BaseModel, Field
@@ -359,3 +360,97 @@ class SouthboundPortMismatch(ProblemBase):
                 },
             },
         )
+
+
+class SwitchDatapathIdConflictParams(BaseModel):
+    """Parameters for giving an OpenFlow switch another switch's datapath ID."""
+
+    host_name: str = Field(description="OpenFlow switch whose datapath ID is changed.")
+
+
+def _datapath_id(runtime, switch: str) -> str:
+    raw = runtime.exec(
+        switch, f"ovs-vsctl get bridge {switch} other-config:datapath-id 2>/dev/null"
+    )
+    value = raw.strip().strip('"')
+    if not re.fullmatch(r"[0-9a-fA-F]{16}", value):
+        raise RuntimeError(f"{switch!r} has no configured datapath ID: {raw!r}")
+    return value
+
+
+class SwitchDatapathIdConflict(ProblemBase):
+    """The switch takes the OpenFlow datapath ID of another switch.
+
+    The controller keeps the channel of the switch that connected first under
+    that ID and closes every new one as a duplicate, so the target switch
+    reconnects and is dropped again while flows already in its table keep
+    forwarding. A cloned switch image or a copied bridge configuration leaves
+    the same state. See the ``other-config:datapath-id`` column in Open
+    vSwitch's ovs-vswitchd.conf.db(5):
+    https://www.openvswitch.org/support/dist-docs/ovs-vswitchd.conf.db.5.html
+    """
+
+    failure_domain = FailureDomain.MANAGEMENT_ORCHESTRATION_PLANE
+    symptom_probe = "custom"
+    symptom_class = "control_plane"
+    root_cause_name = "switch_datapath_id_conflict"
+    description = "An OpenFlow switch uses the datapath ID of another switch."
+    TAGS = ["sdn"]
+    Params = SwitchDatapathIdConflictParams
+    RECORDED_ATTRS = ("duplicate_datapath_id",)
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": choice(ctx.rng, ctx.switches, ctx.host0)}
+
+    def root_cause_resources(self, params: SwitchDatapathIdConflictParams):
+        return [node_resource(params.host_name)]
+
+    def _twin(self, switch: str) -> str:
+        """The first other switch of the fabric, so the choice is reproducible."""
+        model = self.net_env.model
+        switches = [*model.leaves, *model.spines]
+        if switch not in switches:
+            raise ValueError(f"{switch!r} is not an OpenFlow switch of the fabric")
+        return next(other for other in switches if other != switch)
+
+    def inject_fault(self, params: SwitchDatapathIdConflictParams):
+        self._original_datapath_id = _datapath_id(self.runtime, params.host_name)
+        self.duplicate_datapath_id = _datapath_id(
+            self.runtime, self._twin(params.host_name)
+        )
+        self.runtime.exec(
+            params.host_name,
+            f"ovs-vsctl set bridge {params.host_name} "
+            f"other-config:datapath-id={self.duplicate_datapath_id}",
+        )
+        logger.info(
+            f"Set datapath ID {self.duplicate_datapath_id} on {params.host_name}."
+        )
+
+    def verify_fault(self, params: SwitchDatapathIdConflictParams) -> dict:
+        expected = getattr(self, "duplicate_datapath_id", None)
+        running = _datapath_id(self.runtime, params.host_name)
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=bool(expected) and running == expected,
+            details={
+                "host": params.host_name,
+                "datapath_id": running,
+                "duplicate_datapath_id": expected,
+            },
+        )
+
+    def recover_fault(self, params: SwitchDatapathIdConflictParams) -> dict:
+        original = getattr(self, "_original_datapath_id", None)
+        if original:
+            self.runtime.exec(
+                params.host_name,
+                f"ovs-vsctl set bridge {params.host_name} "
+                f"other-config:datapath-id={original}",
+            )
+        running = _datapath_id(self.runtime, params.host_name)
+        return {
+            "verified": bool(original) and running == original,
+            "details": {"host": params.host_name, "datapath_id": running},
+        }

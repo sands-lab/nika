@@ -25,6 +25,9 @@ _BGP_PORT_RULES = tuple(
     for port in ("dst-port", "src-port")
 )
 _FILTER_CHAINS = ("input", "forward", "output")
+# Route filter chains that BGP sessions name but no rule defines.
+_UNDEFINED_IN_CHAIN = "bgp-in"
+_UNDEFINED_OUT_CHAIN = "bgp-out"
 _DURATION = re.compile(r"(\d+)(ms|w|d|h|m|s)")
 _UNITS = {"w": 604800, "d": 86400, "h": 3600, "m": 60, "s": 1, "ms": 0.001}
 
@@ -198,6 +201,41 @@ class RouterOsFaultOps(RouterFaultOps):
             row["peer"]
             for row in self._rows("/routing/bgp/advertisements/print terse")
             if row.get("dst") == prefix and "peer" in row
+        )
+
+    def _ebgp_connections(self) -> list[dict[str, str]]:
+        return [
+            row
+            for row in self._rows("/routing/bgp/connection/print terse")
+            if row.get("local.role") == "ebgp"
+        ]
+
+    def drop_bgp_session_policy(self) -> None:
+        # RouterOS rejects every route that a filter chain without rules sees,
+        # so naming a chain that does not exist rejects the whole session.
+        names = [row["name"] for row in self._ebgp_connections()]
+        if names:
+            selector = "[find " + " or ".join(f'name="{n}"' for n in names) + "]"
+            self._cli(
+                f"/routing bgp connection set {selector} "
+                f"input.filter={_UNDEFINED_IN_CHAIN} "
+                f"output.filter-chain={_UNDEFINED_OUT_CHAIN}"
+            )
+
+    def bgp_session_policy_dropped(self) -> bool:
+        def defined(chain: str) -> bool:
+            if not chain:
+                return True  # no filter: RouterOS accepts every route
+            count = self._cli(
+                f'/routing/filter/rule/print count-only where chain="{chain}"'
+            )
+            return routeros_count(count) > 0
+
+        rows = self._ebgp_connections()
+        return bool(rows) and all(
+            not defined(row.get("input.filter", ""))
+            and not defined(row.get("output.filter-chain", ""))
+            for row in rows
         )
 
     # Packet filters

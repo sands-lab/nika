@@ -102,6 +102,17 @@ class RouterFaultOps:
         """Return the peers ``prefix`` is advertised to."""
         self._unsupported("Reading BGP advertisements")
 
+    def drop_bgp_session_policy(self) -> None:
+        """Leave every eBGP session without a route policy the router can apply.
+
+        The platform default then rejects every route on those sessions.
+        """
+        self._unsupported("Removing BGP session policies")
+
+    def bgp_session_policy_dropped(self) -> bool:
+        """Whether every eBGP session lacks a route policy the router can apply."""
+        self._unsupported("Reading BGP session policies")
+
     # OSPF
 
     def ospf_interface_areas(self) -> list[str]:
