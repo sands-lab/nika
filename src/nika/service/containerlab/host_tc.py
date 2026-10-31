@@ -125,6 +125,13 @@ class HostTcController:
         qdisc = self.qdisc(dev).lower()
         return "netem" in qdisc and "corrupt" in qdisc
 
+    def egress_filters(self, dev: str) -> str:
+        """``tc`` egress filters on host device ``dev``."""
+        return self._run("tc", "filter", "show", "dev", dev, "egress")
+
+    def delete_egress_filter(self, dev: str, prio: int) -> None:
+        self._run("tc", "filter", "del", "dev", dev, "egress", "prio", str(prio))
+
     def set_link_down(self, node: str, intf: str) -> tuple[str, str]:
         """Bring down a link so endpoints report operstate down.
 

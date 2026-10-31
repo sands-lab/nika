@@ -75,8 +75,10 @@ def join_wires(wires: list[tuple[str, str]]) -> None:
             src, dst = shlex.quote(source), shlex.quote(target)
             lines += [
                 f"ip link set dev {src} up",
-                f"tc qdisc replace dev {src} ingress",
-                f"tc filter replace dev {src} parent ffff: prio 1 matchall "
+                # clsact (not ingress) leaves the egress hook free for
+                # failures that act on what a wire end delivers.
+                f"tc qdisc replace dev {src} clsact",
+                f"tc filter replace dev {src} ingress prio 1 matchall "
                 f"action mirred egress redirect dev {dst}",
             ]
     result = subprocess.run(

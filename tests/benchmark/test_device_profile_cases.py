@@ -423,6 +423,19 @@ def test_failure_compatibility_requires_a_shared_backend() -> None:
     assert corruption.is_compatible("isp_abilene", backend="containerlab")
 
 
+def test_forwarding_corruption_runs_on_containerlab_wire_ends() -> None:
+    corruption = get_problem_class("device_forwarding_packet_corruption")
+    # The classifier sits on the host-side wire end, so any Containerlab
+    # router platform carries it.
+    assert corruption.is_compatible("min3clos", "nokia_srlinux")
+    assert corruption.is_compatible("min3clos", "sonic")
+    assert corruption.runs_on_device_profile("sonic")
+    # On Kathara it loads in the node's Linux namespace, which IOS XR and
+    # RouterOS do not forward through.
+    assert not corruption.runs_on_device_profile("iosxr")
+    assert not corruption.runs_on_device_profile("routeros")
+
+
 def test_compatibility_obeys_declared_path_bdp_ceiling() -> None:
     from nika.net_env.net_env_pool import scenario_path_bdp_limit_bytes
     from nika.problems.base import ProblemBase

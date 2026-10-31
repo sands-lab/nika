@@ -564,6 +564,8 @@ client1 -- leaf1 -- spine -- leaf2 -- client2
 
 The fabric uses eBGP (leaf AS 65001 and 65002, spine AS 65056). Its SR Linux configuration also enables OSPFv2 and IS-IS on fabric interfaces and the `system0` loopbacks (`30.0.0.1`-`30.0.0.3`, `3000:30::1`-`3000:30::3`). Fabric and client links are dual-stack. NIKA waits for gNMI, applies YAML with `gnmic`, configures both clients, and checks BGP plus IPv4 and IPv6 cross-leaf and loopback reachability. Use this fixed scenario for SR Linux and Containerlab tests that do not need the larger SNDlib compiler. With `--device-profile sonic`, the same addressing, OSPFv2, IS-IS and eBGP sessions run on SONiC routers, as described in [`configs/sonic`](../../src/nika/net_env/min3clos/configs/sonic/).
 
+Besides BGP and link failures, `min3clos` runs ARP cache poisoning on a client and silent packet corruption in a fabric router on both platforms. Each client sits alone on a point-to-point link to its leaf, so failures that need several hosts on one segment, such as MAC or IP address conflicts, do not apply.
+
 ## SONiC routers on Containerlab
 
 SONiC is the network operating system of many data-center switches. To diagnose incidents on SONiC routers, deploy a Containerlab environment with `--device-profile sonic`:

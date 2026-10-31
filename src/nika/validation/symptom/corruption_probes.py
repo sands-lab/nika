@@ -208,24 +208,36 @@ def _crossing_ends(problem: Any, params: Any) -> dict[str, Any]:
     """End hosts whose traffic leaves the forwarding device through ``intf_name``.
 
     The scenario path is kept when the device routes its destination out of
-    that port, or when the device is a switch without its own routes. On a
-    router whose port the scenario path does not use, the receiver is an end
-    host the device routes out of that port, and the sender is an end host
-    whose traceroute to it passes the device.
+    that port, when the device is a switch without its own routes, or when its
+    Linux routing table does not route the destination out of any of its
+    topology ports (SR Linux routes outside the container's kernel, and SONiC
+    names the port ``Ethernet<n>``), in which case the case's declared path
+    stands. On a router whose port the scenario path does not
+    use, the receiver is an end host the device routes out of that port, and
+    the sender is an end host whose traceroute to it passes the device.
     """
+    from nika.problems.rca.inventory import interfaces_for_node
+
     runtime = problem.runtime
     device, intf = params.forwarding_device, params.intf_name
     ends = _ends(problem, params)
     identity = problem.net_env.machine_identities.get(device)
     if getattr(identity, "role", None) is not NodeRole.ROUTER:
         return ends
+    ports = set(interfaces_for_node(problem.net_env, device))
+
+    def route_dev(ip: str) -> str | None:
+        route = exec_or_empty(runtime, device, f"ip -o route get {ip}")
+        match = re.search(r" dev (\S+)", route)
+        return match.group(1) if match else None
 
     def egresses(ip: str) -> bool:
-        route = exec_or_empty(runtime, device, f"ip -o route get {ip}")
-        return f" dev {intf} " in f"{route} "
+        return route_dev(ip) == intf
 
-    if "error" not in ends and egresses(ends["dst"]):
-        return ends
+    if "error" not in ends:
+        dev = route_dev(ends["dst"])
+        if dev == intf or dev not in ports:
+            return ends
     addresses = lab_addresses(runtime)
     device_ips = {
         str(ipaddress.ip_interface(address).ip) for _i, address in addresses[device]

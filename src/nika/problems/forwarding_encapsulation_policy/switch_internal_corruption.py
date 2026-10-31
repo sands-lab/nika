@@ -20,6 +20,7 @@ from nika.problems.support.benchmark_targets import (
 )
 from nika.runtime.base import RuntimeCapabilityError
 from nika.runtime.spec import NodeRole
+from nika.traffic.workload import BULK_TRANSIT
 from nika.problems.forwarding_encapsulation_policy.switch_internal_corruption_bpf import (
     SwitchNamespaceBitflip,
 )
@@ -72,6 +73,32 @@ def _leaf_router_for_web(net_env, web_host: str) -> tuple[str, str] | None:
         if peer_host.startswith("leaf_router_"):
             return peer_host, peer_intf
     return None
+
+
+def _workload_transit_egress(net_env) -> tuple[str, str] | None:
+    """Forwarding-device egress that the scenario's bulk business traffic crosses.
+
+    Prefers a device with no end host attached (a spine or core), so the
+    affected flows cross the fabric between two edge devices.
+    """
+    workload = net_env.business_workload()
+    if workload is None:
+        return None
+    forwarding = set(net_env.routers or []) | set(net_env.switches or [])
+    hops = sorted(
+        (node, intf)
+        for node, intf in workload.targets(BULK_TRANSIT)
+        if node in forwarding
+    )
+    if not hops:
+        return None
+    hosts = set(net_env.hosts or [])
+    edge = set()
+    for _key, tps in iter_link_termination_points(net_env):
+        nodes = {parse_endpoint(str(ep))[0] for ep in tps}
+        if nodes & hosts:
+            edge |= nodes
+    return next((hop for hop in hops if hop[0] not in edge), hops[0])
 
 
 def _probe_path_corruption_target(ctx) -> dict[str, str]:
@@ -158,6 +185,11 @@ def _probe_path_corruption_target(ctx) -> dict[str, str]:
         )
         return params
 
+    transit = _workload_transit_egress(net_env)
+    if transit is not None:
+        params.update(forwarding_device=transit[0], intf_name=transit[1])
+        return params
+
     target = choice(rng, forwarding, forwarding[0])
     interfaces = device_interfaces(net_env).get(target) or []
     params.update(
@@ -180,10 +212,23 @@ class DeviceForwardingPacketCorruption(ProblemBase):
         "checksum drops and retransmissions while links and BGP remain healthy."
     )
     TAGS = ["forwarding_device"]
-    supported_backends = ("kathara",)
+    supported_backends = ("kathara", "containerlab")
     Params = SwitchInternalPacketCorruptionParams
 
     BENCHMARK_TARGETS = "canonical"
+
+    @classmethod
+    def runs_on_device_profile(cls, device_profile: str) -> bool:
+        """Containerlab router platforms only.
+
+        On Containerlab the classifier sits on the host-side wire end, outside
+        the router OS, so any platform works. On Kathara it is loaded in the
+        node's Linux namespace, which a native IOS XR or RouterOS dataplane
+        does not use.
+        """
+        from nika.net_env.isp.profiles import SUPPORTED_BACKEND_PROFILE_PAIRS
+
+        return ("containerlab", device_profile) in SUPPORTED_BACKEND_PROFILE_PAIRS
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
@@ -207,6 +252,9 @@ class DeviceForwardingPacketCorruption(ProblemBase):
     def root_cause_resources(self, params: SwitchInternalPacketCorruptionParams):
         return [node_resource(params.forwarding_device)]
 
+    def _bitflip(self) -> SwitchNamespaceBitflip:
+        return SwitchNamespaceBitflip(self.runtime, self.lab_backend)
+
     def inject_fault(self, params: SwitchInternalPacketCorruptionParams) -> None:
         if params.intf_name not in interfaces_for_node(
             self.net_env, params.forwarding_device
@@ -219,14 +267,12 @@ class DeviceForwardingPacketCorruption(ProblemBase):
             raise RuntimeCapabilityError(
                 "device_forwarding_packet_corruption requires a router or switch target"
             )
-        self._bitflip_token = SwitchNamespaceBitflip(self.runtime).attach(
-            params.forwarding_device, params.intf_name, params.seed
-        )
+        self._bitflip().attach(params.forwarding_device, params.intf_name, params.seed)
 
     def verify_fault(self, params: SwitchInternalPacketCorruptionParams) -> dict:
         return build_verify_result(
             fault_type=self.root_cause_name,
-            verified=SwitchNamespaceBitflip(self.runtime).attached(
+            verified=self._bitflip().attached(
                 params.forwarding_device, params.intf_name
             ),
             details={
@@ -236,12 +282,8 @@ class DeviceForwardingPacketCorruption(ProblemBase):
         )
 
     def recover_fault(self, params: SwitchInternalPacketCorruptionParams) -> dict:
-        injector = SwitchNamespaceBitflip(self.runtime)
-        injector.detach(
-            params.forwarding_device,
-            params.intf_name,
-            getattr(self, "_bitflip_token", None),
-        )
+        injector = self._bitflip()
+        injector.detach(params.forwarding_device, params.intf_name)
         return {
             "verified": not injector.attached(
                 params.forwarding_device, params.intf_name
