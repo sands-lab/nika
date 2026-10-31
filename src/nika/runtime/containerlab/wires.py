@@ -21,6 +21,8 @@ import yaml
 
 WIRED_SUFFIX = ".wired.clab.yml"
 _HOST_CMD_TIMEOUT_SEC = 120.0
+# Extra join budget per wire; large SNDlib graphs run thousands of netlink calls.
+_HOST_CMD_TIMEOUT_PER_WIRE_SEC = 0.25
 
 
 def wire_end_name(lab_name: str, endpoint: str) -> str:
@@ -67,8 +69,8 @@ def write_wired_topology(
     return path, wires
 
 
-def join_wires(wires: list[tuple[str, str]]) -> None:
-    """Forward every frame between the two host ends of each wire."""
+def join_script(wires: list[tuple[str, str]]) -> str:
+    """Shell that brings each host end up and redirects it to its partner."""
     lines = ["set -e"]
     for pair in wires:
         for source, target in (pair, pair[::-1]):
@@ -81,12 +83,35 @@ def join_wires(wires: list[tuple[str, str]]) -> None:
                 f"tc filter replace dev {src} ingress prio 1 matchall "
                 f"action mirred egress redirect dev {dst}",
             ]
-    result = subprocess.run(
-        ["sudo", "-n", "sh", "-c", "\n".join(lines)],
-        capture_output=True,
-        text=True,
-        check=False,
-        timeout=_HOST_CMD_TIMEOUT_SEC,
-    )
+    return "\n".join(lines) + "\n"
+
+
+def join_timeout_sec(wire_count: int) -> float:
+    """Return the sudo budget for ``wire_count`` host-end pairs."""
+    return _HOST_CMD_TIMEOUT_SEC + _HOST_CMD_TIMEOUT_PER_WIRE_SEC * max(wire_count, 0)
+
+
+def join_wires(wires: list[tuple[str, str]]) -> None:
+    """Forward every frame between the two host ends of each wire.
+
+    The script is passed on stdin. Linux caps one argv string at
+    ``MAX_ARG_STRLEN`` (32 pages, 128 KiB), and a large SNDlib graph's
+    ``sh -c`` script exceeds that (``E2BIG``).
+    """
+    script = join_script(wires)
+    timeout = join_timeout_sec(len(wires))
+    try:
+        result = subprocess.run(
+            ["sudo", "-n", "sh"],
+            input=script,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"Joining Containerlab wires timed out after {timeout:.0f}s"
+        ) from exc
     if result.returncode:
         raise RuntimeError(f"Joining Containerlab wires failed: {result.stderr}")

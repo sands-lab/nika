@@ -5,13 +5,14 @@ dev splits), measured without an agent. Use it to size benchmark `batch_size` an
 host capacity. Metric definitions and script options:
 [experiment/profile/README.md](../../experiment/profile/README.md).
 
-The page has two measurements:
+The page has three measurements:
 
 - **Single-lab baseline:** every lab variant the release deploys, one lab at a time,
   3 runs each. Normal NIKA startup (deploy, workload preparation, light runtime
   verification), a 10 s hold, and cleanup.
 - **Concurrency sweep:** every release case, with its failure injected and verified
   as the benchmark runner does before the agent starts, at `batch_size` 8, 16 and 24.
+- **SONiC scale:** the largest SNDlib ISPs on Containerlab SONiC-VS, one environment at a time, with host-side wires and a full `verify_lab()` after startup.
 
 ## Run
 
@@ -207,8 +208,32 @@ the light phase.
   run did not measure running heavy cases in parallel.
 - Plan memory per lab from the baseline table: about 15.7 GiB for a Containerlab
   SR Linux lab and 14.2 GiB for `k8s_lab`, below 2 GiB for every Kathara ISP lab.
+  A Containerlab SONiC ISP is larger than Kathara FRR and smaller per router than SR Linux; `isp_brain` (161 SONiC routers) peaked at 21.3 GiB of lab-container memory ([SONiC scale](#sonic-scale)).
 - Keep at least 13 GiB of free disk per `k8s_lab` run and 7 GiB per `llmd_lab` run,
   on top of the images.
+
+## SONiC scale
+
+How large a Containerlab SONiC-VS ISP a 32 vCPU, 125 GiB host can start, including the host-side wires every node-to-node link uses. Each run is one environment, then a full `verify_lab()`, then `nika session close`.
+
+| Item | Value |
+| --- | --- |
+| Date | 2026-10-31 |
+| Host | 32 vCPU, 125 GiB RAM, no swap, Docker 29.9.0, Containerlab 0.79.0, `docker-sonic-vs:202505-1238524` |
+| Command | `uv run nika env run isp_<topo> --backend containerlab --device-profile sonic --bgp-mode ebgp` (IGP default `isis`), then `verify_lab()`, then `nika session close --session_id <id> -y` |
+| Sampling | `free -m` and `docker stats --no-stream` every 2 s. **Peak lab mem** sums this environment's containers. `isp_geant` is the value after startup; the other two rows are peaks during the run |
+| Other load | `nika-agentenv` stayed up. An unrelated Kathara IOS XR `isp_abilene` overlapped the `isp_brain` host samples after that environment had started; lab-container memory excludes it |
+| Leftovers | After every close: no `nw*` wire ends and no containers from this run |
+
+`Deploy` is NIKA startup wall time (`env_start`: Containerlab deploy, SONiC boot, light startup verification, workload). `Full verify` is a subsequent `verify_lab()`. **Wire ends** are host veths named `nw*` (two per node-to-node link, backbone plus stub hosts). **Max ports** is the highest SONiC data-port count on one router, including its stub.
+
+| Environment | Routers | Containers | Links | Wire ends | Max ports | Deploy s | Startup | Full verify s | Peak lab mem GiB | Min MemAvailable GiB |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- | ---: | ---: | ---: |
+| `isp_geant` | 22 | 44 | 58 | 116 | 9 | 106.9 | passed | 7.6 | 2.77 | 81.2 |
+| `isp_germany50` | 50 | 100 | 138 | 276 | 6 | 137.1 | passed | 13.1 | 6.21 | 76.3 |
+| `isp_brain` | 161 | 322 | 493 | 986 | 75 (`zib`) | 497.6 | passed | 52.5 | 21.29 | 34.6 |
+
+All three passed every full-verify check (services, IGP, eBGP, stub pings, APPL_DB, FIB). Wire ends matched the link count during the run and were 0 after close. Router `zib` on `isp_brain` has 75 data ports and booted. Peak host used was 44.5 GiB after `isp_geant` startup and 49.4 GiB during `isp_germany50`. During `isp_brain` it reached 91.2 GiB including the overlapping IOS XR environment; the SONiC containers peaked at 21.3 GiB. One SONiC `isp_brain` fits this host class with `heavy_batch_size: 1`.
 
 ## Sampling quality
 
