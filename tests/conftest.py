@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from tests.support.integration_pipeline import load_test_env
+from tests.support.official_release import install as install_official_releases
 from tests.support.prerequisites import docker_available
 from tests.support.scenarios import register_test_scenarios
 
@@ -37,6 +38,18 @@ def isolate_host_monitoring(request: pytest.FixtureRequest, monkeypatch, tmp_pat
     ) and not request.node.get_closest_marker("integration"):
         monkeypatch.setattr("nika.metrics.stack.is_observability_on", lambda: False)
     yield
+
+
+@pytest.fixture(autouse=True)
+def official_releases(request: pytest.FixtureRequest, monkeypatch):
+    """Serve official release tags from local files instead of GitHub.
+
+    ``live`` tests read the real tags.
+    """
+    if request.node.get_closest_marker("live"):
+        yield None
+        return
+    yield install_official_releases(monkeypatch)
 
 
 @pytest.fixture(autouse=True)

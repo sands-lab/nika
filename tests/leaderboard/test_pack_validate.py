@@ -848,7 +848,10 @@ class TestLeaderboardPackValidate:
         shutil.rmtree(trial_dirs[0])
         report = validate_leaderboard_submission(package)
         assert not report.ok
-        assert any("missing trials" in e for e in report.errors)
+        codes = [issue.code for issue in report.issues]
+        # One trial of a task still present is missing work, not release drift.
+        assert "ERROR_TRIALS_MISSING" in codes
+        assert "ERROR_RELEASE_DRIFT" not in codes
 
     def test_duplicate_trial_fails(self, mini_release_env) -> None:
         _release, result_dir = mini_release_env
@@ -864,7 +867,7 @@ class TestLeaderboardPackValidate:
         assert any(
             "duplicate trial_id" in e
             or "trial directory name" in e
-            or "missing trials" in e
+            or "ERROR_TRIALS_MISSING" in e
             for e in report.errors
         )
 
@@ -955,6 +958,7 @@ class TestLeaderboardPackValidate:
         report = validate_trajectory_package(trajectories)
         assert not report.ok
         assert any("no agent trajectory" in error for error in report.errors)
+        assert "ERROR_EMPTY_TRACE" in [issue.code for issue in report.issues]
         trial = next((result_dir / "trials").iterdir())
         (trial / "messages.jsonl").write_text(trace)
         with pytest.raises(LeaderboardPackError, match="no agent trajectory"):

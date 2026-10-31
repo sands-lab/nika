@@ -150,7 +150,7 @@ Unparseable agent `root_causes` score as `0.0` under `scored`. Unparseable `is_a
 
 Score columns are only values in `[0, 1]` or `null`. They never store `-1`.
 
-`eval_metrics.json` records `validity_flags`; see [run-validity gates](leaderboard-submission.md#run-validity-gates).
+`eval_metrics.json` records `validity_flags`; see [`WARNING_RUN_VALIDITY`](leaderboard-submission.md#warning_run_validity) and [`ERROR_RUN_VALIDITY`](leaderboard-submission.md#error_run_validity).
 
 ### Trial `score_status`
 
