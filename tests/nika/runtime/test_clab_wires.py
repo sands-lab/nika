@@ -2,16 +2,22 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from nika.runtime.containerlab.wires import (
+    delete_script,
     join_script,
     join_timeout_sec,
     join_wires,
+    leftover_wire_ends,
+    load_wired_pairs,
+    remove_leftover_wire_ends,
     wire_end_name,
+    wire_ends_for_topology,
     wire_links,
     write_wired_topology,
 )
@@ -87,6 +93,10 @@ def test_write_wired_topology(tmp_path: Path) -> None:
     assert wired.name.endswith(".wired.clab.yml")
     assert len(wires) == 1
     assert wired.is_file()
+    assert load_wired_pairs(path) == wires
+    assert wire_ends_for_topology(path, "lab") == [
+        end for pair in wires for end in pair
+    ]
 
 
 def test_wire_links_splits_node_pairs_and_leaves_other_links() -> None:
@@ -139,3 +149,64 @@ def test_wire_links_splits_node_pairs_and_leaves_other_links() -> None:
     assert by_node_end["leaf1:eth1"] != by_node_end["spine:eth1"]
     assert {by_node_end["leaf1:eth1"], by_node_end["spine:eth1"]} == set(wires[0])
     assert {by_node_end["leaf1:eth2"], by_node_end["client:eth1"]} == set(wires[1])
+
+
+def test_load_wired_pairs_skips_existing_host_links(tmp_path: Path) -> None:
+    path = tmp_path / "demo.clab.yml"
+    path.write_text(
+        "name: demo\ntopology:\n  nodes:\n    leaf1: {}\n    spine: {}\n"
+        "    client: {}\n  links:\n"
+        "    - endpoints: [leaf1:eth1, spine:eth1]\n"
+        "    - endpoints: [leaf1:eth2, client:eth1]\n"
+        "    - endpoints: [leaf1:eth3, host:mgmt0]\n",
+        encoding="utf-8",
+    )
+    _, wires = write_wired_topology(path, "demo")
+    assert load_wired_pairs(path) == wires
+    assert len(wires) == 2
+
+
+def test_leftover_wire_ends_only_this_lab() -> None:
+    ours = ["nwaaaaaaaaaaaa", "nwbbbbbbbbbbbb"]
+    output = (
+        "1: lo: <LOOPBACK,UP> mtu 65536 qdisc noqueue state UNKNOWN\n"
+        "7: nwaaaaaaaaaaaa@if8: <BROADCAST,UP> mtu 1500 qdisc noqueue state UP\n"
+        "9: nwcccccccccccc@if10: <BROADCAST,UP> mtu 1500 qdisc noqueue state UP\n"
+    )
+    assert leftover_wire_ends(ours, output) == ["nwaaaaaaaaaaaa"]
+
+
+def test_remove_leftover_wire_ends_deletes_only_listed_names() -> None:
+    ours = ["nwaaaaaaaaaaaa", "nwbbbbbbbbbbbb"]
+    output = (
+        "1: lo: <LOOPBACK,UP> mtu 65536\n"
+        "7: nwaaaaaaaaaaaa@if8: <BROADCAST,UP> mtu 1500\n"
+        "9: nwcccccccccccc@if10: <BROADCAST,UP> mtu 1500\n"
+    )
+    captured: dict[str, str] = {}
+
+    def fake_run(cmd, **kwargs):
+        if cmd == ["ip", "-o", "link", "show"]:
+            return subprocess.CompletedProcess(cmd, 0, stdout=output, stderr="")
+        captured["cmd"] = cmd
+        captured["script"] = kwargs["input"]
+        return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+    with patch("nika.runtime.containerlab.wires.subprocess.run", side_effect=fake_run):
+        removed = remove_leftover_wire_ends(ours)
+
+    assert removed == ["nwaaaaaaaaaaaa"]
+    assert captured["cmd"] == ["sudo", "-n", "sh"]
+    assert captured["script"] == delete_script(["nwaaaaaaaaaaaa"])
+    assert "nwcccccccccccc" not in captured["script"]
+    assert "nwbbbbbbbbbbbb" not in captured["script"]
+
+
+def test_remove_leftover_wire_ends_skips_when_none_present() -> None:
+    with patch("nika.runtime.containerlab.wires.subprocess.run") as run:
+        run.return_value = subprocess.CompletedProcess(
+            ["ip"], 0, stdout="1: lo: <LOOPBACK>\n", stderr=""
+        )
+        assert remove_leftover_wire_ends(["nwaaaaaaaaaaaa"]) == []
+    assert run.call_count == 1
+    assert run.call_args.args[0] == ["ip", "-o", "link", "show"]
