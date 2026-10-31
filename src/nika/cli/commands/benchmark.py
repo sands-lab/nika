@@ -343,13 +343,16 @@ def benchmark_describe(
     if oracle:
         from nika.agents.oracle.plan import describe_plans, row_plans
 
-        version = parse_release_ref(release)[1] if release else None
+        ref = release
+        if ref is None and config is None:
+            ref = load_run_config(export_run_config_env(run_config)).benchmark.release
+        version = parse_release_ref(ref)[1] if ref else None
         try:
             payload["oracle"] = describe_plans(row_plans(row, release=version))
-        except Exception as exc:  # noqa: BLE001 - some plans read the running lab
+        except Exception as exc:  # noqa: BLE001 - some plans need a running lab
             payload["oracle"] = (
-                f"unavailable offline ({type(exc).__name__}: {exc}); this playbook "
-                "targets live lab state, so run `nika agent run --agent oracle`."
+                f"unavailable offline ({type(exc).__name__}: {exc}); run "
+                "`nika agent run --agent oracle` on a live session instead."
             )
     typer.echo(yaml.dump(payload, sort_keys=False, allow_unicode=True).rstrip())
 

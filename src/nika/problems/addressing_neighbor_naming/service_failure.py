@@ -10,6 +10,7 @@ from nika.problems.support.dns import dns_client_steps
 from nika.problems.support.oracle import (
     OraclePlaybook,
     OracleStep,
+    all_of,
     contains,
     lacks,
     process_absent,
@@ -41,10 +42,17 @@ def _no_port_filter(node: str, port: int) -> OracleStep:
     """Evidence: no packet-filter rule drops *port*, ruling out an ACL block."""
     return shell(
         node,
-        "nft list ruleset 2>/dev/null | grep -nE 'drop|reject' | head -20; "
-        "iptables -S 2>/dev/null | grep -E 'DROP|REJECT' | head -20; echo END",
+        "if r=$(nft list ruleset 2>/dev/null); then echo NFT_READ; "
+        "echo \"$r\" | grep -nE 'drop|reject' | head -20; fi; "
+        "if r=$(iptables -S 2>/dev/null); then echo IPTABLES_READ; "
+        "echo \"$r\" | grep -E 'DROP|REJECT' | head -20; fi",
         f"Rule out a packet filter on {node} that blocks port {port}.",
-        lacks(rf"port {port}\b|dport {port}\b", f"no filter rule matches port {port}"),
+        all_of(
+            contains(r"^(NFT|IPTABLES)_READ$", "the packet filter could be read"),
+            lacks(
+                rf"port {port}\b|dport {port}\b", f"no filter rule matches port {port}"
+            ),
+        ),
         evidence=True,
     )
 

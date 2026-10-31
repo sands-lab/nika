@@ -148,9 +148,12 @@ def _saturated_link(output: str) -> bool:
     """iperf3 receiver rate is low while concurrent pings see queueing delay."""
     bps = _receiver_bps(output)
     rtt = re.search(r"rtt [^=]+= [0-9.]+/([0-9.]+)/", output)
-    return (
-        bps is not None and bps < 2e6 and rtt is not None and float(rtt.group(1)) > 50
-    )
+    return _below_2mbps(bps) and rtt is not None and float(rtt.group(1)) > 50
+
+
+def _below_2mbps(rate: float | None) -> bool:
+    """A measured rate (0 included) under 2 Mbit/s; no measurement is not."""
+    return rate is not None and rate < 2e6
 
 
 def _tbf_rate_bps(output: str) -> float | None:
@@ -922,7 +925,7 @@ class LinkCapacityBottleneck(ProblemBase):
                     intf,
                     Check(
                         f"a token-bucket shaper limits {host}:{intf} to below 2 Mbit/s",
-                        lambda out: (_tbf_rate_bps(out) or 2e6) < 2e6,
+                        lambda out: _below_2mbps(_tbf_rate_bps(out)),
                     ),
                     f"Inspect the egress queueing discipline on {host}:{intf}.",
                 )
@@ -949,7 +952,7 @@ class LinkCapacityBottleneck(ProblemBase):
                     },
                     Check(
                         "the transfer into the node runs under 2 Mbit/s",
-                        lambda out: (_receiver_bps(out) or 2e6) < 2e6,
+                        lambda out: _below_2mbps(_receiver_bps(out)),
                     ),
                     evidence=True,
                 )
@@ -996,7 +999,7 @@ class LinkCapacityBottleneck(ProblemBase):
                     },
                     Check(
                         "the path delivers under 2 Mbit/s",
-                        lambda out: (_receiver_bps(out) or 2e6) < 2e6,
+                        lambda out: _below_2mbps(_receiver_bps(out)),
                     ),
                     evidence=True,
                 )

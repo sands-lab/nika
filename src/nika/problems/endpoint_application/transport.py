@@ -133,7 +133,7 @@ def _cpu_throttled(output: str) -> bool:
 
 # CPU share of the contended receiver. The archive workers and the download
 # split it, which roughly halves the download rate, while a command run on the
-# node still finishes in under half a minute (0.02 starved it past a minute).
+# node still finishes in under half a minute.
 _RECEIVER_CPU_QUOTA = 0.05
 
 

@@ -28,6 +28,7 @@ from nika.problems.support.dhcp import (
     default_gateway,
     dhcp_client_step,
     first_nameserver,
+    host_ipv4,
     lease_option,
 )
 from nika.problems.addressing_neighbor_naming.dns import (
@@ -74,8 +75,7 @@ def _split(output: str) -> tuple[str, str]:
 
 
 def live_ipv4(output: str) -> ipaddress.IPv4Interface | None:
-    m = re.search(r"inet (\d+\.\d+\.\d+\.\d+/\d+)", _split(output)[0])
-    return ipaddress.IPv4Interface(m.group(1)) if m else None
+    return host_ipv4(_split(output)[0])
 
 
 def boot_ipv4(output: str, intf: str = "eth0") -> ipaddress.IPv4Interface | None:

@@ -58,7 +58,7 @@ oracle:
     fault_type: link_down
 ```
 
-Playbooks that read live lab state, such as those for Containerlab tasks, cannot be built offline; for them `describe --oracle` prints `unavailable offline`, so run the oracle on a live session instead.
+Playbooks that read the running environment's state, such as those for Containerlab tasks, cannot be built offline; for them `describe --oracle` prints `unavailable offline`, so run the oracle on a live session instead.
 
 ## How the oracle solves a task
 
@@ -102,10 +102,4 @@ Follow these rules so the playbook proves solvability rather than restating the 
 
 ## Release 0.2.0 results
 
-In a run of one trial per task on 2026-10-31, the oracle solved 166 of the 169 tasks in release 0.2.0 with detection and RCA scores of 1.0, including all 18 healthy tasks. The other three exposed the problems below. After the fixes, the oracle also solves them.
-
-| Task | Split | Problem and fix |
-| --- | --- | --- |
-| `k8s_lab__bgp_asn_misconfig__he4a55dc53b83` | Test | The playbook checked only the fabric sessions, which use `remote-as external` and come back up under the wrong ASN. The fault shows on the MetalLB speakers: they still expect the router's original ASN and reject the new one with a "Bad Peer AS" notification. The playbook now checks the speakers. |
-| `llmd_lab__receiver_resource__h494b49e3caef` | Dev | The fault limited the receiver to 0.02 CPU, so every command run on that node, including `ps`, could exceed a 60-second timeout. It now limits the receiver to 0.05 CPU, which still roughly halves the download rate. Because this changes the injected fault, it is a correction for the next benchmark revision under the [versioning policy](../../VERSIONING.md). |
-| `dc_clos__receiver_resource_c__ha2be5b357067` | Test | Same problem and fix as the `llmd_lab` task. |
+On 2026-10-31, with one trial per task, the oracle solved 166 of the 169 tasks in release 0.2.0 with detection and RCA scores of 1.0. Rerunning the other three solved them too: `k8s_lab__bgp_asn_misconfig__he4a55dc53b83` after a playbook fix, and the two `receiver_resource_contention` tasks (`llmd_lab__receiver_resource__h494b49e3caef` and `dc_clos__receiver_resource_c__ha2be5b357067`) after a correction to the injected fault. In release 0.2.0 that fault limits the receiver to 0.02 CPU, so any command run on the receiver can take more than a minute. The correction raises the limit to 0.05 CPU, which still roughly halves the download rate. Because it changes the injected fault, the correction belongs to the next benchmark revision under the [versioning policy](../../VERSIONING.md).

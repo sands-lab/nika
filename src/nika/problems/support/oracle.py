@@ -96,13 +96,6 @@ class OraclePlaybook:
     steps: list[OracleStep] = field(default_factory=list)
     anomaly: bool = True
 
-    def __add__(self, other: OraclePlaybook) -> OraclePlaybook:
-        return OraclePlaybook(
-            finding=f"{self.finding} {other.finding}".strip(),
-            steps=[*self.steps, *other.steps],
-            anomaly=self.anomaly or other.anomaly,
-        )
-
 
 # ---------------------------------------------------------------------------
 # Step templates

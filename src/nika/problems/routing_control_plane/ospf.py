@@ -457,8 +457,14 @@ class OSPFNeighborMissing(ProblemBase):
             raise RuntimeCapabilityError(f"No router linked to {host}.")
 
         def uncovered(output: str) -> list[str]:
-            """Router-facing interfaces that are up and addressed but not in OSPF."""
+            """Router-facing interfaces that are up and addressed but not in OSPF.
+
+            Empty when ospfd lists no interface at all: then OSPF itself is
+            down, which is not a missing neighbor configuration.
+            """
             ospf = _ospf_ifaces(output.split("===", 1)[0])
+            if not ospf:
+                return []
             up = {
                 m.group(1)
                 for m in re.finditer(
