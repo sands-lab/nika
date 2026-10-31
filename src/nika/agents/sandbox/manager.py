@@ -50,6 +50,7 @@ from nika.agents.sandbox.workspace import (
     write_results_manifest,
     write_workspace_text,
 )
+from nika.runtime.factory import resolve_backend
 from nika.runtime.meta import device_profile_for
 from nika.telemetry import telemetry_for_session
 from nika.utils.agent_session_id import resolve_agent_session_id
@@ -165,7 +166,7 @@ class SandboxManager:
         ``session_id`` is the opaque agent handle only.
         """
         scenario_name = getattr(session, "scenario_name", "") or ""
-        backend = getattr(session, "backend", "") or "kathara"
+        backend = resolve_backend(session)
         agent_sid = resolve_agent_session_id(session)
         llm, mcp_read_timeout, enable_skills = _run_settings()
         return Task(

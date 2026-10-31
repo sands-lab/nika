@@ -208,20 +208,6 @@ def _shutdown_manager(
             clear_sessions()
 
 
-def _resolve_session_backend(scenario_name: str) -> str | None:
-    if not scenario_name:
-        return None
-    try:
-        from nika.net_env.isp.profiles import DEFAULT_BACKEND_FOR_ISP
-        from nika.net_env.net_env_pool import resolve_scenario_backend
-
-        return resolve_scenario_backend(
-            scenario_name, default_when_ambiguous=DEFAULT_BACKEND_FOR_ISP
-        )
-    except ValueError:
-        return None
-
-
 @contextmanager
 def mcp_gateway_for_session(
     session_id: str,
@@ -237,26 +223,31 @@ def mcp_gateway_for_session(
     """Start gateway, register *session_id*, expose URL via env, then clean up.
 
     Only the ``two_phase`` policy mode exists; other values are rejected.
+    When *backend* is omitted, the lab backend and router platform come from
+    the stored session so dual-backend scenarios (ISP on Containerlab) mount
+    their vendor CLI servers.
     """
     if policy_mode != "two_phase":
         raise ValueError(f"unsupported MCP gateway policy_mode: {policy_mode!r}")
     bind_host = host
     if sandbox and bind_host is None:
         bind_host = SANDBOX_GATEWAY_BIND_HOST
-    resolved_backend = backend or _resolve_session_backend(scenario_name)
-    manager = start_gateway(host=bind_host, port=port, backend=resolved_backend)
-    if sandbox:
-        set_gateway_agent_url(manager, agent_host=sandbox_agent_host)
     from nika.mcp.registry import select_diagnosis_servers
     from nika.run_config.loader import get_run_config
+    from nika.runtime.factory import resolve_backend
     from nika.runtime.meta import device_profile_for
     from nika.telemetry import telemetry_for_session
     from nika.utils.session_store import SessionStore
 
+    row = SessionStore().get_session(session_id)
+    resolved_backend = backend or resolve_backend(row)
+    manager = start_gateway(host=bind_host, port=port, backend=resolved_backend)
+    if sandbox:
+        set_gateway_agent_url(manager, agent_host=sandbox_agent_host)
+
     access = get_run_config().agent.access
     role = access.role
     policy = access.roles[role]
-    row = SessionStore().get_session(session_id)
     node_roles = node_roles_for_session(session_id)
     snapshot = policy_snapshot(role=role, policy=policy, node_roles=node_roles)
     session_dir = str(row["session_dir"])
