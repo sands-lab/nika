@@ -15,6 +15,7 @@ from nika.problems.support.router_ops import (
     profile_fault_operations,
 )
 from nika.workflows.benchmark.generate import (
+    _isp_stack_variants,
     build_failure_cases,
     iter_failure_case_specs,
     native_benchmark_profiles,
@@ -404,10 +405,11 @@ def test_profile_validation_resumes_and_preserves_other_writers(tmp_path, monkey
 
 
 def test_failure_compatibility_requires_a_shared_backend() -> None:
-    # bgp_hijacking declares Kathara only.
+    # bgp_hijacking runs on Kathara and on SONiC's provider, not on SR Linux.
     hijack = get_problem_class("bgp_hijacking")
     assert hijack.is_compatible("enterprise_branch")
     assert not hijack.is_compatible("min3clos")
+    assert hijack.is_compatible("isp_abilene", "sonic", backend="containerlab")
     # Multi-backend scenarios retain a usable Kathara deployment.
     assert hijack.is_compatible("isp_abilene")
     assert hijack.is_compatible("isp_abilene", backend="kathara")
@@ -421,6 +423,22 @@ def test_failure_compatibility_requires_a_shared_backend() -> None:
     corruption = get_problem_class("link_packet_corruption")
     assert corruption.is_compatible("min3clos", "sonic", backend="containerlab")
     assert corruption.is_compatible("isp_abilene", backend="containerlab")
+
+
+def test_containerlab_isp_size_follows_platform_memory() -> None:
+    from nika.workflows.benchmark.e2e_validation import containerlab_isp_supported
+
+    # SR Linux keeps graphs of up to 11 routers; SONiC routers need less memory.
+    assert containerlab_isp_supported("isp_pdh", "nokia_srlinux")
+    assert not containerlab_isp_supported("isp_abilene", "nokia_srlinux")
+    assert containerlab_isp_supported("isp_abilene", "sonic")
+    assert containerlab_isp_supported("isp_geant", "sonic")
+    assert not containerlab_isp_supported("isp_brain", "sonic")
+    variants = _isp_stack_variants(
+        "isp_geant", get_problem_class("bgp_max_prefix_exceeded")
+    )
+    assert {"backend": "containerlab", "device_profile": "sonic"} in variants
+    assert all(v["device_profile"] != "nokia_srlinux" for v in variants)
 
 
 def test_compatibility_obeys_declared_path_bdp_ceiling() -> None:

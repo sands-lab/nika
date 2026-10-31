@@ -158,9 +158,10 @@ def _isp_stack_variants(
             {"backend": "kathara", "device_profile": profile}
             for profile in native_benchmark_profiles(scenario)
         )
-    if "containerlab" in scenario_backends and containerlab_isp_supported(scenario):
+    if "containerlab" in scenario_backends:
         # A failure without declared backends still runs on Containerlab
-        # platforms whose fault-operations provider implements it.
+        # platforms whose fault-operations provider implements it. Each
+        # platform takes the graphs whose routers fit a host's memory.
         stacks = [
             isp_stack_for_backend("containerlab"),
             *(
@@ -171,11 +172,14 @@ def _isp_stack_variants(
         variants.extend(
             stack
             for stack in stacks
-            if "containerlab" in allowed
-            or (
-                problem_cls is not None
-                and problem_cls.is_compatible(
-                    scenario, stack["device_profile"], backend="containerlab"
+            if containerlab_isp_supported(scenario, stack["device_profile"])
+            and (
+                "containerlab" in allowed
+                or (
+                    problem_cls is not None
+                    and problem_cls.is_compatible(
+                        scenario, stack["device_profile"], backend="containerlab"
+                    )
                 )
             )
         )
@@ -263,8 +267,12 @@ def _compatible_with_any_deployment(problem_cls: type, scenario: str) -> bool:
     if problem_cls.is_compatible(scenario):
         return True
     platforms = scenario_containerlab_device_profiles(scenario)
-    if is_isp_base_topology(scenario) and containerlab_isp_supported(scenario):
-        platforms = CONTAINERLAB_ALTERNATE_PROFILES
+    if is_isp_base_topology(scenario):
+        platforms = tuple(
+            profile
+            for profile in CONTAINERLAB_ALTERNATE_PROFILES
+            if containerlab_isp_supported(scenario, profile)
+        )
     return any(problem_cls.is_compatible(scenario, profile) for profile in platforms)
 
 
