@@ -21,6 +21,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from nika.net_env.isp.bgp.plan import BgpPlan
     from nika.net_env.isp.igp.plan import IspPlan
+    from nika.net_env.isp.traffic.stubs import IspTrafficAttachment
+    from nika.traffic.workload import BusinessWorkload
 
 
 @dataclass(frozen=True)
@@ -123,3 +125,37 @@ def hijack_targets(
                     )
                 )
     return targets
+
+
+def lab_hijack_targets(
+    plan: "IspPlan",
+    bgp_plan: "BgpPlan | None",
+    traffic: "IspTrafficAttachment",
+    workload: "BusinessWorkload | None",
+) -> list[HijackTarget]:
+    """Hijack targets of a deployed ISP lab.
+
+    With ``workload``, a prefix's clients are the routers whose stubs hold
+    sessions to the service at its address. Without it (routers that host no
+    service), every router with a stub is a client of every business prefix:
+    each stub reaches each one, so any diverted router is a visible victim.
+    """
+    if bgp_plan is None:
+        return []
+    stub_of = {h.router_device: h.host_name for h in traffic.hosts}
+    if workload is None:
+        clients = {o.prefix: set(stub_of) for o in bgp_plan.originated}
+        return hijack_targets(plan, bgp_plan, stub_of, clients)
+    router_of = {stub: router for router, stub in stub_of.items()}
+    prefix_at = {o.ping_address: o.prefix for o in bgp_plan.originated}
+    clients = {}
+    for process in workload.processes:
+        if (
+            process.app == "web_client"
+            and process.node in router_of
+            and process.args[0] in prefix_at
+        ):
+            clients.setdefault(prefix_at[process.args[0]], set()).add(
+                router_of[process.node]
+            )
+    return hijack_targets(plan, bgp_plan, stub_of, clients)

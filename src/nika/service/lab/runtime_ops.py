@@ -219,12 +219,6 @@ class ExecSemanticOpsMixin:
     def srl_blackhole_static_present(self, node: str, prefix: str) -> bool:
         return self._api().srl_blackhole_static_present(node, prefix)
 
-    def srl_advertise_prefix(self, node: str, prefix: str) -> None:
-        self._api().srl_advertise_prefix(node, prefix)
-
-    def srl_prefix_advertised(self, node: str, prefix: str) -> bool:
-        return self._api().srl_prefix_advertised(node, prefix)
-
     def srl_add_blackhole_route_leak(self, node: str, prefix: str) -> None:
         self._api().srl_add_blackhole_route_leak(node, prefix)
 
