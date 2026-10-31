@@ -31,6 +31,7 @@ from typing import Any
 SCRIPT = (Path(__file__).with_name("node_dump.sh")).read_text()
 CHUNK = 3000  # stay under per-command output limits of every backend
 UPLOAD_CHUNK = 60000  # bytes of script per upload command
+DELAYS = (0, 60)  # default dump times, in seconds after the lab is ready
 
 
 def _text(result: Any) -> str:
@@ -304,7 +305,7 @@ def main() -> None:
     parser.add_argument("--start", type=int, default=1, help="first run index")
     parser.add_argument(
         "--delays",
-        default="0,60",
+        default=",".join(map(str, DELAYS)),
         help="comma-separated seconds after the lab is ready at which to dump",
     )
     parser.add_argument("--out", required=True)

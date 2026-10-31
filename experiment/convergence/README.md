@@ -30,7 +30,7 @@ uv run python -m experiment.convergence.canonical runtime/convergence
 uv run python -m experiment.convergence.canonical runtime/convergence --prune
 ```
 
-A run qualifies when its `meta.json` records the kernel boot, every node's dump succeeded and, for variants with ECMP routes, every probed node returned its probes. Collect more runs with `--start` until no variant is short, then prune.
+A run qualifies when its `meta.json` records the kernel boot, it was dumped at the default delays, every node's dump succeeded and, for variants with ECMP routes, every probed node returned its probes. Collect more runs with `--start` until no variant is short, then prune.
 
 ## Decide data-plane equivalence
 

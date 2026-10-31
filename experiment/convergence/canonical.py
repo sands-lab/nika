@@ -1,7 +1,8 @@
 """Select the uniform sample: 10 runs per variant and mode, one collector, one kernel boot.
 
 A run qualifies when it was collected by the final collector, which records
-the host's ``boot_id`` in ``meta.json``, when every node's dump succeeded,
+the host's ``boot_id`` in ``meta.json``, with dumps at the default delays
+(``collect.DELAYS``), when every node's dump succeeded,
 and, for variants whose FIBs contain
 ECMP routes, when its last dump holds per-flow probes from every probed node. The sample is
 the first 10 qualifying runs (by run index) of the kernel boot with the most
@@ -22,6 +23,7 @@ import shutil
 from collections import defaultdict
 from pathlib import Path
 
+from experiment.convergence.collect import DELAYS
 from experiment.convergence.parse import failed_nodes, last_dump, parse_json, sections
 
 SAMPLE = 10
@@ -58,6 +60,11 @@ def plan(variant: Path, mode: str) -> dict:
     groups: dict[str, list[Path]] = defaultdict(list)
     for run_dir, meta, doc in runs:
         if meta is None or not meta.get("boot_id") or failed_nodes(doc):
+            continue
+        # Same sampling times as every other run: the default dump delays.
+        if {p.name for p in run_dir.glob("dump_*.json")} != {
+            f"dump_{t}.json" for t in DELAYS
+        }:
             continue
         if ecmp and not _probed(doc):
             continue
