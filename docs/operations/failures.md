@@ -23,18 +23,20 @@ The `failure_domain` identifies the subsystem where the injected mechanism acts.
 
 ## Domain boundaries
 
-| Domain | Boundary | Registered failures | Working-matrix cases |
+Task counts come from the [working pool](../benchmarks/benchmark-configuration.md#working-matrix), the task space that `nika benchmark run` runs by default.
+
+| Domain | Boundary | Registered failures | Tasks in the working pool |
 | --- | --- | ---: | ---: |
-| Link & Interface | Link attachment, interface state, flapping, packet corruption, and capacity bottlenecks. | 6 | 267 |
-| Routing & Control Plane | BGP and OSPF route computation, advertisements, adjacency, and routing-daemon availability. | 10 | 196 |
-| Forwarding, Encapsulation & Policy | ACLs, static forwarding, SDN rules, P4 pipelines, MTU behavior, WireGuard encapsulation, and Kubernetes NetworkPolicy. | 27 | 324 |
-| Service Networking | Kubernetes ClusterIP forwarding and load-balancer operation. | 6 | 17 |
-| Management & Orchestration Plane | Kubernetes API-server reachability, SDN controller availability, and controller southbound management channels. | 4 | 11 |
-| Addressing, Neighbor & Naming | IP and MAC assignment, ARP, DHCP, DNS data, DNS reachability, and name resolution. | 13 | 132 |
-| Endpoint & Application | Endpoint resource contention and application delay. | 2 | 38 |
-| Traffic, Queueing & Resource | Offered load, queueing, and end-host resource constraints. | 3 | 25 |
-| Security | Attacks, spoofing, and poisoning. | 7 | 88 |
-| **Total** |  | **78** | **1,098** |
+| Link & Interface | Link attachment, interface state, flapping, packet corruption, and capacity bottlenecks. | 6 | 16,318 |
+| Routing & Control Plane | BGP and OSPF route computation, advertisements, adjacency, and routing-daemon availability. | 10 | 6,227 |
+| Forwarding, Encapsulation & Policy | ACLs, static forwarding, SDN rules, P4 pipelines, MTU behavior, WireGuard encapsulation, and Kubernetes NetworkPolicy. | 27 | 6,486 |
+| Service Networking | Kubernetes ClusterIP forwarding and load-balancer operation. | 6 | 33 |
+| Management & Orchestration Plane | Kubernetes API-server reachability, SDN controller availability, and controller southbound management channels. | 4 | 19 |
+| Addressing, Neighbor & Naming | IP and MAC assignment, ARP, DHCP, DNS data, DNS reachability, and name resolution. | 13 | 682 |
+| Endpoint & Application | Endpoint resource contention and application delay. | 2 | 275 |
+| Traffic, Queueing & Resource | Offered load, queueing, and end-host resource constraints. | 3 | 180 |
+| Security | Attacks, spoofing, and poisoning. | 7 | 2,507 |
+| **Total** |  | **78** | **32,727** |
 
 The domains follow the failed network mechanism.
 
