@@ -12,8 +12,9 @@ from typing import Any
 
 from nika.net_env.verify import ping_stats
 from nika.problems.base import build_verify_result
+from nika.problems.rca.inventory import kernel_data_interface
 from nika.runtime.base import LabRuntime
-from nika.validation.symptom.addressing_probes import _HOST_PREFIXES, _eth0_ip
+from nika.validation.symptom.addressing_probes import _HOST_PREFIXES, iface_ipv4
 
 _COUNT = 5
 
@@ -40,13 +41,24 @@ for _ in range(count):
 """
 
 
-def _endpoints(runtime: LabRuntime, node: str) -> dict[str, str]:
+def _data_ipv4(problem: Any, node: str) -> str:
+    """IPv4 on ``node``'s first topology data interface (never management)."""
+    return iface_ipv4(
+        problem.runtime, node, kernel_data_interface(problem.net_env, node)
+    )
+
+
+def _endpoints(problem: Any, node: str) -> dict[str, str]:
     """Pick a host attached to ``node`` and a remote host that reaches it."""
+    runtime = problem.runtime
     neighbors = runtime.get_connected_devices(node)
     receiver = next((n for n in neighbors if n.startswith(_HOST_PREFIXES)), None)
     if receiver is None:
         raise RuntimeError(f"no end host is attached to {node}")
-    receiver_ip = _eth0_ip(runtime, receiver)
+    receiver_ip = _data_ipv4(problem, receiver)
+    capture_iface = kernel_data_interface(problem.net_env, receiver)
+    if not receiver_ip:
+        raise RuntimeError(f"no data-plane address on {receiver}:{capture_iface}")
     for sender in sorted(runtime.list_nodes()):
         if (
             sender in neighbors
@@ -56,11 +68,15 @@ def _endpoints(runtime: LabRuntime, node: str) -> dict[str, str]:
             continue
         stats = ping_stats(runtime, sender, receiver_ip, count=2, interval_sec=0.2)
         if stats.loss_percent == 0.0:
+            sender_ip = _data_ipv4(problem, sender)
+            if not sender_ip:
+                continue
             return {
                 "sender": sender,
-                "sender_ip": _eth0_ip(runtime, sender),
+                "sender_ip": sender_ip,
                 "receiver": receiver,
                 "receiver_ip": receiver_ip,
+                "capture_iface": capture_iface,
             }
     raise RuntimeError(f"no remote host reaches {receiver} across {node}")
 
@@ -68,9 +84,10 @@ def _endpoints(runtime: LabRuntime, node: str) -> dict[str, str]:
 def _delivered(runtime: LabRuntime, ends: dict[str, str]) -> dict[str, int]:
     """Count code 4 and code 3 messages that reach the receiver."""
     capture = "/tmp/probe-icmp.pcap"
+    iface = shlex.quote(ends["capture_iface"])
     runtime.exec(
         ends["receiver"],
-        f"rm -f {capture}; (timeout 8 tcpdump -ni eth0 -w {capture} "
+        f"rm -f {capture}; (timeout 8 tcpdump -ni {iface} -w {capture} "
         "'icmp[0] == 3' >/dev/null 2>&1 &)",
     )
     runtime.exec(ends["receiver"], "sleep 1")
@@ -94,7 +111,7 @@ def _delivered(runtime: LabRuntime, ends: dict[str, str]) -> dict[str, int]:
 
 
 def frag_needed_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
-    ends = _endpoints(problem.runtime, params.host_name)
+    ends = _endpoints(problem, params.host_name)
     problem._audit_icmp_ends = ends
     counts = _delivered(problem.runtime, ends)
     ok = counts["code4"] >= _COUNT and counts["code3"] >= _COUNT
@@ -103,9 +120,9 @@ def frag_needed_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any
 
 def frag_needed_filtered(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     """Fragmentation Needed no longer crosses the node; other ICMP still does."""
-    ends = getattr(problem, "_audit_icmp_ends", None) or _endpoints(
-        problem.runtime, params.host_name
-    )
+    ends = getattr(problem, "_audit_icmp_ends", None)
+    if not ends or "capture_iface" not in ends:
+        ends = _endpoints(problem, params.host_name)
     counts = _delivered(problem.runtime, ends)
     control_ok = counts["code3"] >= _COUNT
     verified = counts["code4"] == 0 and control_ok

@@ -132,6 +132,34 @@ def resolve_default_intf(intf_name: str, net_env: Any, node: str) -> str:
     return first_data_interface(net_env, node)
 
 
+def _sonic_router(net_env: Any, node: str) -> bool:
+    identity = (getattr(net_env, "machine_identities", None) or {}).get(node)
+    return identity is not None and "sonic" in getattr(identity, "capabilities", ())
+
+
+def kernel_data_interface(net_env: Any, node: str, intf: str | None = None) -> str:
+    """Kernel name of a topology data interface on ``node``.
+
+    Names come from the environment inventory, never from the management
+    network: Containerlab ``eth0`` is replaced by the node's first data port.
+    SONiC routers map container ``eth{k}`` to ``Ethernet{4(k-1)}``. Kathara
+    names pass through.
+    """
+    name = (
+        first_data_interface(net_env, node)
+        if not intf
+        else resolve_default_intf(intf, net_env, node)
+    )
+    if not _sonic_router(net_env, node) or name.startswith("Ethernet"):
+        return name
+    from nika.net_env.utils.sonic.common import sonic_port
+
+    try:
+        return sonic_port(name)
+    except ValueError:
+        return name
+
+
 def select_host_interface(net_env: Any, host_name: str, *, last: bool) -> str:
     """Match inject defaults: Containerlab first data port; Kathara first/last."""
     if net_env_backend(net_env) == "containerlab":
