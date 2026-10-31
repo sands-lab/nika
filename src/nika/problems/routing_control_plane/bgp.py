@@ -629,13 +629,34 @@ class BGPMissingAdvertise(ProblemBase):
             f"(withdrew BGP networks {prefixes})."
         )
 
+    def _redistributing_vrfs(self, host: str) -> list[str]:
+        """BGP VRF instances on *host* that redistribute connected routes."""
+        config = self.runtime.exec(host, "vtysh -c 'show running-config'")
+        vrfs: list[str] = []
+        vrf = None
+        for line in config.splitlines():
+            if not line.startswith(" "):
+                header = re.match(r"router bgp \d+ vrf (\S+)", line)
+                vrf = header.group(1) if header else None
+            elif vrf and line.strip() == "redistribute connected" and vrf not in vrfs:
+                vrfs.append(vrf)
+        return vrfs
+
     def _inject_missing_adv_enterprise_redistribute(
         self, params: BGPMissingAdvertiseParams
     ) -> None:
         asn = self.runtime.frr_get_bgp_asn_number(params.host_name)
-        # Overlay VRFs advertise LAN prefixes via redistribute connected.
+        # Overlay VRFs advertise LAN prefixes via redistribute connected. Edit
+        # only the VRF instances the router has: entering a missing one would
+        # create an empty instance that was not there before the fault.
+        vrfs = self._redistributing_vrfs(params.host_name)
+        if not vrfs:
+            raise RuntimeCapabilityError(
+                f"{params.host_name!r} has no BGP VRF that redistributes "
+                "connected routes."
+            )
         lines: list[str] = []
-        for vrf in ("vrf_corp", "vrf_server"):
+        for vrf in vrfs:
             lines += [
                 f"router bgp {asn} vrf {vrf}",
                 "address-family ipv4 unicast",
