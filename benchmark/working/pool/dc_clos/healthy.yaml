@@ -3,9 +3,26 @@ scenario:
 healthy:
   variants:
   - topo_size: s
+    traffic:
+      pattern: uniform
+  - topo_size: s
+  - topo_size: s
+    device_profile: iosxr
+    traffic:
+      pattern: uniform
   - topo_size: s
     device_profile: iosxr
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+  - topo_size: s
+    device_profile: routeros
   - topo_size: m
+    traffic:
+      pattern: uniform
+  - topo_size: m
+  - topo_size: l
+    traffic:
+      pattern: uniform
   - topo_size: l

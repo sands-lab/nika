@@ -22,16 +22,6 @@ failure:
         kind: node
         node: br1_corp_pc
       fault_type: receiver_resource_contention
-  - topo_size: s
-    device_profile: routeros
-    inject:
-      duration: '3600'
-      host_name: br1_corp_pc
-    root_causes:
-    - resource:
-        kind: node
-        node: br1_corp_pc
-      fault_type: receiver_resource_contention
   - topo_size: m
     inject:
       duration: '3600'

@@ -28,19 +28,6 @@ failure:
         kind: link
         name: hq_edge:eth1--hq_srv:eth0
       fault_type: link_capacity_bottleneck
-  - topo_size: s
-    device_profile: routeros
-    inject:
-      burst: 16kb
-      host_name: hq_srv
-      intf_name: eth0
-      limit: 32kb
-      rate: 512kbit
-    root_causes:
-    - resource:
-        kind: link
-        name: hq_edge:eth1--hq_srv:eth0
-      fault_type: link_capacity_bottleneck
   - topo_size: m
     inject:
       burst: 16kb

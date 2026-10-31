@@ -20,6 +20,7 @@ from nika.net_env.utils.iosxr.common import (
     build_xr_startup_script,
     require_xrd_image,
 )
+from nika.net_env.utils.pair_workload import DATA_SET_STARTUP
 from nika.runtime.spec import NodeRole
 from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 
@@ -99,7 +100,11 @@ class IosXrSimpleBGP(NetworkEnvBase):
         self.lab = Lab(self.LAB_NAME)
         self.name = self.LAB_NAME
         self.instance = Kathara.get_instance()
-        self.desc = "A simple BGP network with two IOS-XR (XRd) routers and two pcs."
+        self.desc = (
+            "A simple BGP network with two IOS-XR (XRd) routers and two pcs. "
+            "The pcs replicate data sets to each other over HTTP, and pc1 keeps "
+            "web sessions to pc2."
+        )
 
         from nika.net_env.synthesis.vendor_bgp import render_iosxr_bgp_exports
 
@@ -165,16 +170,29 @@ class IosXrSimpleBGP(NetworkEnvBase):
 
         self.lab.create_file_from_string(
             "ip addr add 195.11.14.2/24 dev eth0\n"
-            "ip route add default via 195.11.14.1 dev eth0\n",
+            "ip route add default via 195.11.14.1 dev eth0\n"
+            f"{DATA_SET_STARTUP}\n",
             "pc1.startup",
         )
         self.lab.create_file_from_string(
             "ip addr add 200.1.1.2/24 dev eth0\n"
-            "ip route add default via 200.1.1.1 dev eth0\n",
+            "ip route add default via 200.1.1.1 dev eth0\n"
+            f"{DATA_SET_STARTUP}\n",
             "pc2.startup",
         )
 
         self.load_machines()
+
+    def business_workload(self):
+        from nika.net_env.utils.pair_workload import build_pair_workload
+
+        # pc1 -> router1 (eth1 in, eth0 out) -> router2 (eth0 in, eth1 out) -> pc2.
+        return build_pair_workload(
+            ("pc1", "195.11.14.2"),
+            ("pc2", "200.1.1.2"),
+            (("pc1", "eth0"), ("router1", "eth0"), ("router2", "eth1")),
+            rate_limit_kbps=self.router_rate_limit_kbps(),
+        )
 
     def bgp_origin_prefixes(self):
         return {str(router["network"]): name for name, router in ROUTERS.items()}

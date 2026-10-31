@@ -3,7 +3,9 @@ scenario:
 failure:
   fault_type: link_flap
   cases:
-  - inject:
+  - traffic: &id001
+      pattern: uniform
+    inject:
       down_time: '1'
       host_name: pc1
       intf_name: eth0
@@ -13,7 +15,8 @@ failure:
         kind: link
         name: pc1:eth0--router1:eth2
       fault_type: link_flap
-  - inject:
+  - traffic: *id001
+    inject:
       down_time: '1'
       host_name: pc2
       intf_name: eth0

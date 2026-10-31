@@ -179,6 +179,8 @@ Notes:
 - `Params` must be a Pydantic model. `nika failure describe` and benchmark YAML validation use it as the injection schema.
 - Declare compatibility on the class: `TAGS` (subset of the scenario tags), optional `COMPATIBLE_COLUMNS` (shared sets live in `problems/support/compatible_columns.py`), `supported_backends`, and `isp_protocol` when the failure needs a specific ISP protocol stack. `ProblemBase.is_compatible()` is the single predicate used by the registry and benchmark generation.
 - Set `native_router_operations` when the failure can target IOS XR or RouterOS routers. List the operations of `RouterFaultOps` (`problems/support/router_ops.py`) that its native path calls through `router_fault_ops()`; use an empty set when the failure acts outside the router OS, such as on the container interface. The default `None` keeps the failure on FRR and Linux nodes. Generation drops targets on native routers whose vendor provider does not implement every listed operation, so do not keep a vendor × failure table.
+- Set `TRAFFIC_PROFILE` when the symptom needs traffic on many paths, such as partial loss or corruption, and the environment's business traffic does not guarantee it. `nika benchmark generate` writes it into each case of the failure (see [Failure traffic profiles](../operations/network-scenarios.md#failure-traffic-profiles)); shared profiles live in `problems/support/traffic.py`.
+- Set `minimum_path_rate_kbps` when the symptom shows only where the path forwards faster than the fault slows a flow, such as a CPU-starved receiver. Generation skips device profiles whose routers cap the path below it (`NetworkEnvBase.path_rate_limit_kbps`).
 - List instance attributes that should be recorded in session injection metadata in `RECORDED_ATTRS`.
 - Declare benchmark targets on the class; `nika benchmark generate` has no per-failure code. Override `benchmark_inject_params(ctx)` to return the canonical inject params for `ctx.scenario` (the default targets `ctx.host0`), drawing only from `ctx.rng` so cases stay reproducible. Set `BENCHMARK_TARGETS` (`"node"`, `"link"`, or `"canonical"`) to choose how variants are enumerated, plus `BENCHMARK_TARGET_ROLE`, `BENCHMARK_POINT_TO_POINT`, or `BENCHMARK_TUNNEL_IFACE` when they apply. Override `benchmark_inject_options`, `validate_benchmark_inject`, or `coordinate_benchmark_inject` (with `BENCHMARK_COORDINATES`) only for failure-specific enumeration, validation, or multi-fault pairing. Shared target helpers live in `problems/support/benchmark_targets.py`.
 
@@ -194,7 +196,11 @@ uv run nika failure ps
 
 ## Generate traffic
 
-Use the built-in traffic generators when a task needs load or baseline activity.
+Every environment declares always-on [business traffic](../operations/network-scenarios.md#business-traffic). Tasks add a matrix-driven load with a [background traffic profile](../operations/network-scenarios.md#background-traffic-profiles). The profile planner reads only generic environment data: host nodes, `probe_intent()` isolation, and, for the `demand` pattern, `traffic_demands()`. Override `traffic_demands()` to return `{(src_host, dst_host): weight}` when your environment has a measured demand matrix. When endpoint nodes have no Python, list them in `traffic_pod_nodes()` and start their programs in `start_traffic_programs()`; the Kubernetes environments do this with host-network pods ([`k8s_traffic_pods.py`](../../src/nika/net_env/utils/k8s_traffic_pods.py)).
+
+Symptom probes find their endpoints through environment hooks, so they work on every router platform. Override `link_symptom_targets(node, intf)` to name the observer and destination for a link that the default probe path does not cross, and `nat_probe_server()` to name the outside Linux server that NAT probes listen on.
+
+For one-off load during development, use the built-in generators below.
 
 OD-matrix iperf3 traffic:
 

@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from nika.evaluator.result_log import MESSAGES_FILENAME
+from nika.traffic.profiles import normalize_traffic
 from nika.evaluator.trace_parser import AgentTraceParser
 from nika.utils.session_artifacts import (
     update_run_json,
@@ -133,6 +134,9 @@ def case_key_for_row(row: dict[str, Any]) -> str:
     if identity.get("rpki"):
         parts.append("rpki")
     parts.extend(sanitize_token(kind) for kind in identity.get("telemetry", []))
+    profile = normalize_traffic(identity.get("traffic"))
+    if profile:
+        parts.append(sanitize_token(f"traffic-{profile.label()}"))
     base = "__".join(parts)
     inject_parts = _inject_case_key_parts(identity.get("inject"))
     full = "__".join([base, *inject_parts])
@@ -209,6 +213,8 @@ def task_catalog_entry(row: dict[str, Any]) -> dict[str, Any]:
         entry["rpki"] = True
     if row.get("telemetry"):
         entry["telemetry"] = list(row["telemetry"])
+    if row.get("traffic"):
+        entry["traffic"] = dict(row["traffic"])
     return entry
 
 
