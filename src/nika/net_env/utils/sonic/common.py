@@ -45,6 +45,9 @@ PORT_MTU = 9100
 # Memory one SONiC router needs, with headroom: Firecracker lab images of the
 # SNDlib ISPs on SONiC use 2.4-2.9 GiB for 10-11 routers and as many hosts.
 ROUTER_MEMORY_MIB = 256
+# CPU one SONiC router needs, millicores, with headroom. isp_pdh's 11 routers
+# idle near 0.3 cores and hold 2.5-3.5 cores after a short start spike.
+ROUTER_CPU_MILLIS = 250
 
 BOOT_TIMEOUT_SEC = 900
 

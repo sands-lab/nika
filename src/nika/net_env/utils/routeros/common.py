@@ -27,6 +27,8 @@ IMAGE = "vrnetlab/mikrotik_routeros:7.21.5"
 # Memory one RouterOS router (CHR VM in its vrnetlab container) needs;
 # admission and Firecracker VM sizing use it.
 ROUTER_MEMORY_MIB = 1024
+# CPU one RouterOS router needs, millicores; Kathara gives each router 1.0 CPU.
+ROUTER_CPU_MILLIS = 1000
 
 # vrnetlab FTPs this file into the VM after boot. RouterOS imports a file named
 # ``*.auto.rsc`` on upload and writes the import result to ``*.auto.log``.

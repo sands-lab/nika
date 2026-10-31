@@ -33,6 +33,8 @@ _ZTP_APPLY_COMMAND = "/bin/bash -c 'source /pkg/bin/ztp_helper.sh; xrapply {file
 # resident; the limit leaves boot headroom.
 # Memory one XRd router needs; Firecracker sizes IOS XR lab VMs from it.
 ROUTER_MEMORY_MIB = 3072
+# CPU one XRd router needs, millicores; Kathara gives each router 1.0 CPU.
+ROUTER_CPU_MILLIS = 1000
 XRD_MEMORY = f"{ROUTER_MEMORY_MIB // 1024}g"
 
 
