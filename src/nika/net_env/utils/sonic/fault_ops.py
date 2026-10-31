@@ -93,6 +93,7 @@ class SonicFaultOps(RouterFaultOps):
             "address-family ipv4 unicast",
             f"no network {prefix}",
         )
+        self._exec(FRR_SAVE_COMMAND)
 
     def originate_bgp_prefix(self, prefix: str) -> None:
         net = ipaddress.ip_network(prefix, strict=False)
@@ -164,6 +165,7 @@ class SonicFaultOps(RouterFaultOps):
             lines += [f"no network {network} area {area}"]
             lines += [f"network {network} area {new_area}"]
         self._configure(*lines)
+        self._exec(FRR_SAVE_COMMAND)
 
     def _ospf_interface_addresses(self) -> dict[str, str]:
         """Map each OSPF-enabled port to its interface address."""
@@ -244,6 +246,7 @@ class SonicFaultOps(RouterFaultOps):
 
     def add_blackhole_route(self, prefix: str) -> None:
         self._configure(f"ip route {prefix} blackhole")
+        self._exec(FRR_SAVE_COMMAND)
 
     def blackhole_routes(self) -> list[str]:
         return sorted(
@@ -271,6 +274,12 @@ class SonicFaultOps(RouterFaultOps):
             "&& break; sleep 1; done",
             timeout=90,
         )
+        seen = self._exec(
+            f"ip link show {shlex.quote(port)} >/dev/null 2>&1 && echo present"
+        )
+        if present != ("present" in seen):
+            action = "appear" if present else "disappear"
+            raise RuntimeError(f"SONiC port {port} on {self.node} did not {action}")
 
     def reattach_interface(self, interface: str) -> None:
         # The virtual switch binds a port to its container interface when it
