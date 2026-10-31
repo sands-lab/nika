@@ -3321,6 +3321,20 @@ cells:
   duration_sec: 117
 - environment: min3clos
   device_profile: sonic
+  failure: arp_cache_poisoning
+  scenario: min3clos
+  task_id: min3clos__arp_cache_poisonin__h90ed4cd4585c
+  inject:
+    host_name: client1
+  native_target: false
+  nika_commit: 4556dc243cde
+  image: docker-sonic-vs:202505-1238524
+  date: '2026-10-31T18:10:08Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 96
+- environment: min3clos
+  device_profile: sonic
   failure: bgp_acl_block
   scenario: min3clos
   task_id: min3clos__bgp_acl_block__son__h2960624661ba
@@ -3346,6 +3360,24 @@ cells:
   date: '2026-10-30T10:56:26Z'
   status: validated
   recovery: not_defined
+  duration_sec: 96
+- environment: min3clos
+  device_profile: sonic
+  failure: device_forwarding_packet_corruption
+  scenario: min3clos
+  task_id: min3clos__device_forwarding__h9796292f3445
+  inject:
+    forwarding_device: spine
+    intf_name: eth2
+    observer_device: client1
+    probe_dst_ip: 10.0.0.27
+    seed: '42'
+  native_target: true
+  nika_commit: 4556dc243cde
+  image: docker-sonic-vs:202505-1238524
+  date: '2026-10-31T18:08:19Z'
+  status: validated
+  recovery: restored
   duration_sec: 96
 - environment: min3clos
   device_profile: sonic
