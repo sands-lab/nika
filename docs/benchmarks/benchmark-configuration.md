@@ -13,7 +13,7 @@ nika benchmark releases
 nika benchmark run --release 0.2.0 --split test --result_dir results/my-run
 ```
 
-Release `0.1.0` still runs with `--release 0.1.0`. [Run release 0.1.0](../compat/release-0.1.0.md) covers its restored labs and known limitations.
+Release `0.1.0` still runs with `--release 0.1.0`. See [Run release 0.1.0](../compat/release-0.1.0.md).
 
 The [versioning policy](../../VERSIONING.md) explains what each component of a release version means and which changes produce a new one.
 
@@ -225,7 +225,7 @@ Scenarios and failures declare capability `TAGS`. A failure may run on a scenari
 
 The generator prints group, concrete option, failure, scenario, healthy, and rejection counts to stdout.
 
-Release `0.2.0` uses the current IDs. Release `0.1.0` also names six original 0.1.0 labs, listed in [Where each case runs](../compat/release-0.1.0.md#where-each-case-runs).
+Release `0.2.0` uses the current IDs. Release `0.1.0` also names six original 0.1.0 environments, listed in [Where each task runs](../compat/release-0.1.0.md#where-each-task-runs).
 
 Frozen releases keep their published flat `cases:` files and remain independent from candidate generation.
 

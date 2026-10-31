@@ -1,6 +1,6 @@
 # nika-bench 0.1.0
 
-Run it with `nika benchmark run --release 0.1.0`. [Run release 0.1.0](../../../docs/compat/release-0.1.0.md) covers the run steps, known limitations, and which cases run on restored original labs. Use [0.2.0](../0.2.0/README.md) for current runs. Machine metadata remains in [`RELEASE.yaml`](RELEASE.yaml); cases are in [`dev.yaml`](dev.yaml) and [`test.yaml`](test.yaml).
+Run it with `nika benchmark run --release 0.1.0`. [Run release 0.1.0](../../../docs/compat/release-0.1.0.md) covers the steps. Use [0.2.0](../0.2.0/README.md) for current runs. Tasks are in [`dev.yaml`](dev.yaml) and [`test.yaml`](test.yaml).
 
 ## Suite shape
 

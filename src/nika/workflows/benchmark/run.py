@@ -2097,6 +2097,11 @@ def run_benchmark_from_release(
     resolved = release or load_release(release_ref, split=resolved_split)
     if resolved.split != resolved_split:
         resolved = load_release(release_ref, split=resolved_split)
+    from nika.workflows.benchmark.orchestrator import delegate_release_run
+
+    delegated = delegate_release_run(resolved.manifest, label=resolved.ref)
+    if delegated is not None:
+        raise SystemExit(delegated)
     n_trials = resolved.n_trials
     # Validate --task-id before preflight / image pulls so bad selectors fail fast.
     planned: list[Trial] | None = None

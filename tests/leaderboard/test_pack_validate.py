@@ -15,6 +15,7 @@ from nika.workflows.benchmark.release import (
     SCORING,
     TOOLS_V1,
     freeze_release,
+    load_release,
     load_release_from_dir,
     write_release_manifest,
 )
@@ -370,6 +371,22 @@ def test_cli_submit_generates_metadata_and_validates_offline(
     invalid = runner.invoke(app, ["leaderboard", "validate", str(package)])
     assert invalid.exit_code == 1
     assert "mean_rca_f1" in invalid.output
+
+
+def test_published_0_1_0_release_packs_and_validates(tmp_path: Path) -> None:
+    """Current pack/validate accepts an official 0.1.0 test split (56×3)."""
+    release = load_release("0.1.0", split="test")
+    assert release.case_count == 56
+    assert release.n_trials == 3
+    result_dir = _build_release_run(tmp_path, release)
+    package = _pack(result_dir)
+    report = validate_leaderboard_submission(package)
+    assert report.ok, report.errors
+    identity = yaml.safe_load(_identity_path(package).read_text(encoding="utf-8"))
+    assert identity["benchmark"]["version"] == "0.1.0"
+    assert identity["benchmark"]["case_count"] == 56
+    assert identity["benchmark"]["n_trials"] == 3
+    assert identity["run"]["official"] is True
 
 
 class TestLeaderboardPackValidate:

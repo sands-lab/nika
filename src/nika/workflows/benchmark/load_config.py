@@ -25,22 +25,34 @@ from nika.workflows.benchmark.resume import benchmark_option_id
 _SAFE_LOADER = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
 
 
-def _row_problem_fields(row: dict[str, Any], scenario: str) -> tuple[list[str], str]:
+def _row_problem_fields(
+    row: dict[str, Any], scenario: str, *, rewrite_aliases: bool = True
+) -> tuple[list[str], str]:
     raw_problems = row.get("problems")
     if raw_problems is not None:
         if not isinstance(raw_problems, list) or not raw_problems:
             raise ValueError("'problems' must be a non-empty list")
-        problems = [resolve_problem_name(str(item), scenario) for item in raw_problems]
-        return problems, join_problem_label(problems)
+        names = [str(item) for item in raw_problems]
+        if rewrite_aliases:
+            names = [resolve_problem_name(item, scenario) for item in names]
+        return names, join_problem_label(names)
     raw_problem = str(row["problem"])
-    problem = resolve_problem_name(raw_problem, scenario)
+    problem = (
+        resolve_problem_name(raw_problem, scenario) if rewrite_aliases else raw_problem
+    )
     return [problem], problem
 
 
-def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
-    """Validate a canonical benchmark row and normalize its failure options."""
+def normalize_benchmark_row(
+    row: dict[str, Any], *, catalog: bool = True
+) -> dict[str, Any]:
+    """Validate a canonical benchmark row and normalize its failure options.
+
+    ``catalog=False`` keeps scenario and failure IDs as written so a
+    pinned-orchestrator release can be listed and packed without current labs.
+    """
     raw_scenario = str(row["scenario"])
-    canonical = resolve_scenario_id(raw_scenario)
+    canonical = resolve_scenario_id(raw_scenario) if catalog else raw_scenario
     if "workload" in row:
         raise ValueError("Benchmark cases do not accept a workload field.")
 
@@ -49,7 +61,9 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
         topo = ""
     topo_size = "" if topo in ("-", "", None) else str(topo)
 
-    problems, problem_label = _row_problem_fields(row, canonical)
+    problems, problem_label = _row_problem_fields(
+        row, canonical, rewrite_aliases=catalog
+    )
     raw_problem = str(row.get("problem") or join_problem_label(problems))
     inject = row.get("inject") or {}
     if not isinstance(inject, dict):
@@ -82,10 +96,54 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
                     f"Healthy ISP case requires explicit deploy options; "
                     f"missing {missing}"
                 )
+        isp_options = None
+        if catalog:
+            isp_options = validate_and_resolve_isp_options(
+                scenario=canonical,
+                problem=HEALTHY_PROBLEM,
+                problem_tags=set(),
+                topo_size=topo_size,
+                topo=isp_topo,
+                igp=isp_igp,
+                bgp_mode=isp_bgp,
+                rpki=isp_rpki,
+                backend=isp_backend,
+                device_profile=isp_device_profile,
+            )
+            if is_isp_scenario(canonical):
+                fixed = scenario_fixed_topo_size(canonical)
+                if fixed:
+                    if not topo_size:
+                        topo_size = fixed
+                    elif topo_size != fixed:
+                        raise ValueError(
+                            f"Scenario {canonical!r} has fixed topo_size {fixed!r}; "
+                            f"got {topo_size!r}."
+                        )
+        normalized: dict[str, Any] = {
+            "scenario": canonical,
+            "problem": HEALTHY_PROBLEM,
+            "topo_size": topo_size,
+            "inject": {},
+            "root_causes": [],
+        }
+        if isp_options is not None:
+            normalized.update(isp_options)
+        normalized.update(telemetry_option)
+        return normalized
+
+    problem = problem_label
+    problem_tags: set[str] = set()
+    isp_options = None
+    if catalog:
+        for item in problems:
+            problem_cls = get_problem_class(item, canonical)
+            if problem_cls is not None:
+                problem_tags.update(problem_cls.TAGS)
         isp_options = validate_and_resolve_isp_options(
             scenario=canonical,
-            problem=HEALTHY_PROBLEM,
-            problem_tags=set(),
+            problem=problems[0],
+            problem_tags=problem_tags,
             topo_size=topo_size,
             topo=isp_topo,
             igp=isp_igp,
@@ -104,46 +162,6 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
                         f"Scenario {canonical!r} has fixed topo_size {fixed!r}; "
                         f"got {topo_size!r}."
                     )
-        normalized: dict[str, Any] = {
-            "scenario": canonical,
-            "problem": HEALTHY_PROBLEM,
-            "topo_size": topo_size,
-            "inject": {},
-            "root_causes": [],
-        }
-        if isp_options is not None:
-            normalized.update(isp_options)
-        normalized.update(telemetry_option)
-        return normalized
-
-    problem = problem_label
-    problem_tags: set[str] = set()
-    for item in problems:
-        problem_cls = get_problem_class(item, canonical)
-        if problem_cls is not None:
-            problem_tags.update(problem_cls.TAGS)
-    isp_options = validate_and_resolve_isp_options(
-        scenario=canonical,
-        problem=problems[0],
-        problem_tags=problem_tags,
-        topo_size=topo_size,
-        topo=isp_topo,
-        igp=isp_igp,
-        bgp_mode=isp_bgp,
-        rpki=isp_rpki,
-        backend=isp_backend,
-        device_profile=isp_device_profile,
-    )
-    if is_isp_scenario(canonical):
-        fixed = scenario_fixed_topo_size(canonical)
-        if fixed:
-            if not topo_size:
-                topo_size = fixed
-            elif topo_size != fixed:
-                raise ValueError(
-                    f"Scenario {canonical!r} has fixed topo_size {fixed!r}; "
-                    f"got {topo_size!r}."
-                )
 
     if not inject:
         raise ValueError(
@@ -189,7 +207,9 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
-def load_benchmark_yaml(path: str | Path) -> list[dict[str, Any]]:
+def load_benchmark_yaml(
+    path: str | Path, *, catalog: bool = True
+) -> list[dict[str, Any]]:
     """Load benchmark cases from a YAML file.
 
     Expected shape::
@@ -225,7 +245,7 @@ def load_benchmark_yaml(path: str | Path) -> list[dict[str, Any]]:
                 f"Benchmark case {idx} missing required field 'problem' or 'problems'"
             )
         try:
-            normalized.append(normalize_benchmark_row(row))
+            normalized.append(normalize_benchmark_row(row, catalog=catalog))
         except ValueError as exc:
             raise ValueError(f"Benchmark case {idx} ({path}): {exc}") from exc
     return normalized

@@ -302,7 +302,7 @@ nika benchmark run                              # defaults to benchmark/working/
 nika benchmark run --config benchmark/working/pool --batch-size 4
 ```
 
-**Release preflight**: `nika benchmark run --release …` checks the selected release. `nika benchmark releases` lists every release but checks only the default release (`0.2.0`); pass `--all` to check every release. Preflight checks case counts, scenario/problem registration, MCP allowlist, and required Docker images. Missing images are built or pulled through the ordinary deployment path. Deprecated releases are reported and skipped.
+**Release preflight**: `nika benchmark run --release …` checks the selected release. `nika benchmark releases` lists every release but checks only the default release (`0.2.0`); pass `--all` to check every release. Preflight checks case counts, scenario/problem registration, MCP allowlist, and required Docker images. Missing images are built or pulled through the ordinary deployment path. Deprecated releases are reported and skipped. A release whose `RELEASE.yaml` sets `orchestrator` skips current-tree scenario checks; `nika benchmark run --release` checks out that commit and runs it there.
 
 ### Task ids
 

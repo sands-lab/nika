@@ -17,7 +17,6 @@ Source: [`tests/`](../../tests/) contains the suites, and [`tests/support/`](../
 |-----------|---------|---------|
 | `tests/agent/` | `src/agent/` | Per-agent unit tests and sandbox E2E |
 | `tests/benchmark/` | `benchmark/` + workflow run/resume | Batch, release, trials, sandbox benchmark runs; runner YAML load contracts |
-| `tests/compat/` | `src/nika/net_env/compat/` + `src/nika/problems/compat/` + `benchmark/releases/0.1.0/` | 0.1.0 release contracts and isolation of the restored labs and failures |
 | `tests/leaderboard/` | `src/nika/workflows/leaderboard/` + CLI | Pack/validate/submit unit tests; mocked release→submit E2E; opt-in live GitHub PR (`NIKA_LEADERBOARD_E2E=1`) |
 | `tests/ci/` | GitHub Actions smoke | Dual-arch image build, light startup, failure/pipeline/clab curated jobs |
 | `tests/nika/cli/` | `src/nika/cli/` | CLI smoke and import wiring |
