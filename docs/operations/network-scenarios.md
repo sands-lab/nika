@@ -440,7 +440,7 @@ Failures that change router state apply the same root cause with RouterOS comman
 
 ### `isp_<topology>`
 
-NIKA imports SNDlib XML through a backend-neutral topology model. It converts each SNDlib node into a router, each physical link into a point-to-point `/31`, and each router into an attachment point for a `pc_<router>` traffic stub. Kathara renders the plan as FRR routers. Containerlab renders the same plan as Nokia SR Linux routers. SNDlib supplies topology, link attributes, and demand matrices; NIKA supplies the IGP and optional BGP policy presets.
+NIKA imports SNDlib XML through a backend-neutral topology model. It converts each SNDlib node into a router, each physical link into a point-to-point `/31`, and each router into an attachment point for a `pc_<router>` traffic stub. Kathara renders the plan as FRR routers. Containerlab renders the same plan as Nokia SR Linux or SONiC routers. The benchmark puts a Containerlab platform on the graphs whose routers, with one stub each, fit the memory of 11 SR Linux routers: graphs of up to 11 routers on SR Linux and up to 55 on SONiC. SNDlib supplies topology, link attributes, and demand matrices; NIKA supplies the IGP and optional BGP policy presets.
 
 Each vendored SNDlib graph is a separate scenario ID (`isp_abilene`, `isp_france`, …). Topology identity is the scenario name. Relative size `s` / `m` / `l` is fixed metadata for benchmark sampling (by node-count tier), not a CLI flag.
 
