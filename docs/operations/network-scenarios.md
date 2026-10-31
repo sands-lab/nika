@@ -672,40 +672,43 @@ Keep the traffic light enough for size `l` and keep healthy links below saturati
 
 Business traffic differs between environments, because each one models its own users. To compare agents under the same kind of load in every environment, or to stress an environment with a known traffic pattern, add a background traffic profile. NIKA starts it right after the business traffic and keeps it running for the whole task. Its endpoints are the hosts and servers that PingMesh probes. On Kubernetes nodes, which have no Python, each program runs in a pod in the `traffic` namespace, pinned to its node with host networking, so it uses the node's own addresses.
 
-Select a profile in a benchmark task with `traffic:`, either as a pattern name or as a mapping:
+Select a profile in a benchmark task with `traffic:`, either as a pattern name or as a mapping. A [benchmark configuration](../benchmarks/benchmark-configuration.md) file lists its tasks under `cases:`:
 
 ```yaml
-- scenario: dc_clos
-  topo_size: s
-  problem: link_down
-  traffic:
-    pattern: gravity
-    flow_sizes: hadoop
-    load_mbps: 4
-  inject: {host_name: leaf_0_0, intf_name: eth1}
+cases:
+  - scenario: dc_clos
+    topo_size: s
+    problem: link_down
+    traffic:
+      pattern: gravity
+      flow_sizes: hadoop
+      load_mbps: 2
+    inject:
+      host_name: leaf_router_0_0
+      intf_name: eth1
 ```
 
 For an interactive session, pass the same settings to `nika env run`:
 
 ```shell
-uv run nika env run dc_clos -s s --traffic gravity,flow_sizes=hadoop,load_mbps=4
+uv run nika env run dc_clos -s s --traffic gravity,flow_sizes=hadoop,load_mbps=2
 ```
 
-A profile combines a traffic matrix, a flow-size distribution, and Poisson flow arrivals, the way data-center transport and WAN traffic-engineering studies describe their workloads. Each sender is a `flowgen` process that opens TCP flows to `flowsink` processes on the other hosts.
+A profile combines a traffic matrix, a flow-size distribution, and Poisson flow arrivals, the way data-center transport and WAN traffic-engineering studies describe their workloads. Each sender is a `flowgen` process that opens TCP flows to `flowsink` processes on the other hosts; the `incast` pattern also runs UDP query responders.
 
 | `pattern` | Traffic matrix | Typical use |
 | --- | --- | --- |
-| `uniform` | Every permitted host pair gets the same share (pFabric, HPCC, Homa) | Data-center fabrics |
-| `gravity` | Each host draws an exponential sending and receiving mass; a pair's share is the product (Roughan, CCR 2005) | WAN and ISP backbones without measured demands |
+| `uniform` | Every permitted host pair gets the same share ([pFabric](https://dl.acm.org/doi/10.1145/2486001.2486031), [HPCC](https://dl.acm.org/doi/10.1145/3341302.3342085), [Homa](https://dl.acm.org/doi/10.1145/3230543.3230564)) | Data-center fabrics |
+| `gravity` | Each host draws an exponential sending and receiving mass; a pair's share is the product ([Roughan, CCR 2005](https://dl.acm.org/doi/10.1145/1096536.1096551)) | WAN and ISP backbones without measured demands |
 | `demand` | The environment's measured demand matrix; ISP environments map the SNDlib matrix to their edge hosts | SNDlib ISP backbones |
-| `permutation` | Every host sends to exactly one other host (VL2, Hedera) | Bisection and path-diversity load |
+| `permutation` | Every host sends to exactly one other host ([VL2](https://dl.acm.org/doi/10.1145/1592568.1592576)) | Bisection and path-diversity load |
 | `hotspot` | `hot_fraction` of the load goes to `hotspots` receivers, the rest is uniform | Popular servers in campus and enterprise networks |
-| `incast` | `uniform`, plus `fan_in` hosts that answer one receiver's query at the same moment every `incast_period_sec` (DCTCP partition/aggregate) | Shallow-buffer and fan-in congestion |
+| `incast` | `uniform` TCP flows, plus synchronized UDP replies: every `incast_period_sec`, `fan_in` hosts each answer one receiver's query with `incast_kb` ([DCTCP](https://dl.acm.org/doi/10.1145/1851182.1851192) partition/aggregate). The replies add to `load_mbps`; the defaults add about 1 Mbit/s. | Shallow-buffer and fan-in congestion |
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `flow_sizes` | `websearch` | Flow-size CDF: `websearch` (DCTCP), `datamining` (VL2), or `hadoop` (Facebook, Roy et al. SIGCOMM 2015) |
-| `load_mbps` | `4` | Offered load summed over all senders, in Mbit/s. Lab links are software switches, so keep it well below the link rates of the environment. |
+| `flow_sizes` | `websearch` | Flow-size cumulative distribution function (CDF): `websearch` ([DCTCP](https://dl.acm.org/doi/10.1145/1851182.1851192)), `datamining` ([VL2](https://dl.acm.org/doi/10.1145/1592568.1592576)), or `hadoop` ([Roy et al., SIGCOMM 2015](https://dl.acm.org/doi/10.1145/2785956.2787472)) |
+| `load_mbps` | `4` | Offered TCP load summed over all senders, in Mbit/s; `incast` replies come on top. Lab links are software switches, so keep it well below the link rates of the environment. |
 | `max_flow_kb` | `2048` | Flows drawn larger than this are clipped to it, so a single flow does not occupy a few-Mbit/s link for minutes. |
 | `max_flow_kbps` | unset | Rate each flow is paced to. Unset sends each flow as fast as TCP allows. |
 | `seed` | `1` | Seed of the matrix, the senders' arrivals, and their flow sizes |
