@@ -35,6 +35,7 @@ class EnvStartRequest(BaseModel):
     device_profile: str | None = None
     static_validation: bool = False
     telemetry: list[str] = Field(default_factory=list)
+    traffic: dict[str, Any] | None = None
 
 
 class EnvStartResponse(BaseModel):

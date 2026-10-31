@@ -56,6 +56,8 @@ class CaseIdentity(BaseModel):
     device_profile: str = ""
     fault: str
     inject: dict[str, Any] = Field(default_factory=dict)
+    # Background traffic profile of the case; empty when it runs without one.
+    traffic: dict[str, Any] = Field(default_factory=dict)
 
     def key(self) -> str:
         """The benchmark row fingerprint of this case."""
@@ -70,6 +72,7 @@ class CaseIdentity(BaseModel):
                 "backend": self.backend,
                 "device_profile": self.device_profile,
                 "inject": self.inject,
+                "traffic": self.traffic or None,
             }
         )
 
@@ -194,4 +197,5 @@ def identity_from_row(row: dict[str, Any]) -> CaseIdentity:
         device_profile=str(row.get("device_profile") or ""),
         fault=str(row.get("problem") or row.get("fault") or ""),
         inject=dict(inject) if isinstance(inject, dict) else {},
+        traffic=dict(row.get("traffic") or {}),
     )

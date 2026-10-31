@@ -10,6 +10,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
+from nika.problems.support.traffic import LOSS_EVIDENCE_TRAFFIC
 from nika.problems.base import (
     FailureDomain,
     ProblemBase,
@@ -48,6 +49,7 @@ class P4ActionSelectorMemberMisconfig(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "loss"
     root_cause_name = "p4_action_selector_member_misconfig"
+    TRAFFIC_PROFILE = LOSS_EVIDENCE_TRAFFIC
     description = "A P4 ActionSelector member is misconfigured."
     TAGS = ["p4", "p4_runtime"]
     Params = P4ActionSelectorMemberMisconfigParams
@@ -140,6 +142,7 @@ class P4EcmpGroupMemberMissing(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "degradation"
     root_cause_name = "p4_ecmp_group_member_missing"
+    TRAFFIC_PROFILE = LOSS_EVIDENCE_TRAFFIC
     description = "A member is missing from a P4 ECMP group."
     TAGS = ["p4", "p4_runtime"]
     Params = P4EcmpGroupMemberMissingParams

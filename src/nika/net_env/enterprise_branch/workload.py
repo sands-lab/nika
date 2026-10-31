@@ -11,13 +11,17 @@
   quality (packets, loss, jitter) like a real endpoint's call statistics.
 - **Internet.** One GUEST host per site stands for the guest Wi-Fi: persistent
   long-poll sessions, page loads of parallel short connections, and photo
-  uploads to the public web service behind ``isp1``, through the Site Edge's
+  uploads to the public web server behind ``isp1``, through the Site Edge's
   source NAT. One IOT host per site (``m``/``l``) keeps telemetry sessions to
   the same service.
 
 The load on br1's HQ overlay egress stays well below the BE ceiling, so
 healthy BE traffic does not queue; EF media that lost its marking would push
 that class past its ceiling and lose packets to its fair queueing.
+
+When the edges' platform caps each interface (RouterOS CHR), the overlay QoS,
+the sync and video rates, and the bytes of guest fetches and uploads shrink by
+the same factor (``overlay_qos_scale``), so these proportions hold.
 """
 
 from __future__ import annotations
@@ -26,10 +30,10 @@ from dataclasses import dataclass
 
 from nika.net_env.enterprise_branch.addressing import (
     edge_name_for,
-    isp_name_for,
     lan_host_ip,
 )
 from nika.net_env.enterprise_branch.topology import (
+    PUBLIC_SERVICE_HOST,
     PUBLIC_SERVICE_IP,
     SYNC_OBJECT,
     LanSpec,
@@ -37,11 +41,14 @@ from nika.net_env.enterprise_branch.topology import (
     TopoSpec,
     hub_iface_for,
     overlay_qos_for,
+    overlay_qos_scale,
+    OVERLAY_QOS,
 )
 from nika.net_env.utils.rack_workload import seed_for
 from nika.traffic.workload import (
     BULK_DOWNLOAD,
     BULK_TRANSIT,
+    BULK_TRANSIT_MIN_KBPS,
     NAT_SESSIONS,
     REALTIME_BULK_CONTENTION,
     BusinessWorkload,
@@ -103,6 +110,23 @@ IOT_ARGS = (
 )  # fmt: skip
 
 
+def guest_args(scale: float) -> tuple[str, ...]:
+    """Guest session arguments; under a send cap the bytes shrink by ``scale``.
+
+    Session and burst counts stay, so concurrency still exceeds a small SNAT
+    port pool; only the bytes each fetch and upload carries shrink.
+    """
+    if scale >= 1.0:
+        return GUEST_ARGS
+    args = dict(zip(GUEST_ARGS[::2], GUEST_ARGS[1::2]))
+    low, _, high = args["--burst-kb"].partition("-")
+    args["--burst-kb"] = (
+        f"{max(1, round(int(low) * scale))}-{max(1, round(int(high) * scale))}"
+    )
+    args["--upload-kb"] = str(max(1, round(int(args["--upload-kb"]) * scale)))
+    return tuple(item for pair in args.items() for item in pair)
+
+
 def _lan(spec: TopoSpec, site: str, role: str) -> LanSpec | None:
     return next((lan for lan in spec.sites[site].lans if lan.role == role), None)
 
@@ -111,14 +135,23 @@ def _ip(spec: TopoSpec, site: str, role: str, index: int = 0) -> str:
     return str(lan_host_ip(spec.sites[site].site_id, role, index).ip)
 
 
-def build_workload(spec: TopoSpec, routers: list[str]) -> BusinessWorkload:
+def build_workload(
+    spec: TopoSpec, routers: list[str], rate_limit_kbps: int | None = None
+) -> BusinessWorkload:
+    """``rate_limit_kbps`` is the Site Edges' per-interface send cap, if any."""
     size = spec.size
-    load = REGIONAL_LOAD[size]
+    scale = overlay_qos_scale(OVERLAY_QOS[size], rate_limit_kbps)
+    full = REGIONAL_LOAD[size]
+    load = RegionalLoad(
+        sync_pcs=full.sync_pcs,
+        connection_kbps=int(full.connection_kbps * scale),
+        video_kbps=int(full.video_kbps * scale),
+    )
     regional_corp = _lan(spec, REGIONAL_BRANCH, "corp").host_names
     syncing = regional_corp[: load.sync_pcs]
     if len(syncing) < load.sync_pcs:
         raise ValueError("regional branch has fewer CORP PCs than sync clients")
-    if load.sync_kbps > overlay_qos_for(size).rate_mbit * 1000:
+    if load.sync_kbps > overlay_qos_for(size, rate_limit_kbps).rate_kbit:
         raise ValueError("regional sync exceeds the overlay egress")
     sync_url = f"http://{_ip(spec, 'hq', 'server')}:{SYNC_PORT}/{SYNC_OBJECT}"
     hq_phone = _lan(spec, "hq", "corp").host_names[0]
@@ -132,7 +165,7 @@ def build_workload(spec: TopoSpec, routers: list[str]) -> BusinessWorkload:
             args=("--port", str(SYNC_PORT), "--rate", f"{load.connection_kbps}k"),
         ),
         WorkloadProcess(
-            node=isp_name_for(spec.providers[0]),
+            node=PUBLIC_SERVICE_HOST,
             app="web_service",
             command="webapp",
             args=("--port", "80", "--seed", "1"),
@@ -143,11 +176,14 @@ def build_workload(spec: TopoSpec, routers: list[str]) -> BusinessWorkload:
             REALTIME_BULK_CONTENTION,
             (edge_name_for("hq"), hub_iface_for(REGIONAL_BRANCH, "hq")),
         ),
-        # Every sync transfer leaves the file server's LAN interface.
-        WorkloadExercise(
-            BULK_TRANSIT, (_lan(spec, "hq", "server").host_names[0], "eth0")
-        ),
     ]
+    if load.sync_kbps >= BULK_TRANSIT_MIN_KBPS:
+        # Every sync transfer leaves the file server's LAN interface.
+        exercises.append(
+            WorkloadExercise(
+                BULK_TRANSIT, (_lan(spec, "hq", "server").host_names[0], "eth0")
+            )
+        )
     hq_peers: list[str] = []
     for branch in spec.branch_names():
         corp = _lan(spec, branch, "corp").host_names
@@ -197,7 +233,12 @@ def build_workload(spec: TopoSpec, routers: list[str]) -> BusinessWorkload:
                     node=host,
                     app="web_client",
                     command="webclient",
-                    args=(PUBLIC_SERVICE_IP, *GUEST_ARGS, "--seed", seed_for(host)),
+                    args=(
+                        PUBLIC_SERVICE_IP,
+                        *guest_args(scale),
+                        "--seed",
+                        seed_for(host),
+                    ),
                 )
             )
             exercises.append(

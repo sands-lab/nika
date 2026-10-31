@@ -344,3 +344,60 @@ def test_containerlab_catalog_task_id_round_trip() -> None:
     assert rows
     row = rows[0]
     assert load_example_cases(catalog, task_id=task_id_for_row(row)) == [row]
+
+
+def test_compatibility_obeys_declared_path_rate() -> None:
+    receiver = get_problem_class("receiver_resource_contention")
+    sender = get_problem_class("sender_resource_contention")
+    # Every RouterOS path is slower than a CPU-starved reader.
+    assert not receiver.is_compatible("dc_clos", "routeros")
+    assert receiver.is_compatible("dc_clos", "iosxr")
+    # The 1 Mbit/s RouterOS fabric keeps a quota-held sender's effect; the
+    # enterprise overlay shrinks best effort below it.
+    assert sender.is_compatible("dc_clos", "routeros")
+    assert not sender.is_compatible("enterprise_branch", "routeros")
+    # TCP sustains about 1 Mbit/s even under heavy corruption.
+    assert not get_problem_class("link_packet_corruption").is_compatible(
+        "dc_clos", "routeros"
+    )
+
+
+def test_failure_traffic_profiles_parse() -> None:
+    from nika.traffic.profiles import normalize_traffic
+
+    declared = {
+        name: cls.TRAFFIC_PROFILE
+        for name, cls in list_avail_problem_instances().items()
+        if cls.TRAFFIC_PROFILE
+    }
+    assert declared
+    for name, profile in declared.items():
+        assert normalize_traffic(profile) is not None, name
+
+
+def test_generated_cases_run_their_failure_profile_with_a_healthy_twin() -> None:
+    from nika.workflows.benchmark.generate import _healthy_specs
+
+    cases, _ = build_failure_cases(
+        problem="link_flap", scenario="dc_clos", topo_size="s", isp_options=None
+    )
+    assert cases and all(case["traffic"] == {"pattern": "uniform"} for case in cases)
+    document = {
+        "scenario": {"name": "dc_clos"},
+        "failure": {"fault_type": "link_flap", "cases": cases},
+    }
+    specs = list(_healthy_specs([document]))
+    assert ("dc_clos", "s", {"traffic": {"pattern": "uniform"}}) in specs
+    assert ("dc_clos", "s", None) in specs
+
+
+def test_public_service_link_is_observed_from_a_guest_host() -> None:
+    cases, _ = build_failure_cases(
+        problem="link_packet_corruption",
+        scenario="enterprise_branch",
+        topo_size="s",
+        isp_options=None,
+    )
+    row = next(c for c in cases if c["inject"]["host_name"] == "internet_web")
+    assert row["inject"]["observer_device"].endswith("_guest_pc")
+    assert row["inject"]["probe_dst_ip"] == "198.51.100.10"

@@ -7,6 +7,7 @@ import json
 
 from pydantic import BaseModel, Field
 
+from nika.problems.support.traffic import LOSS_EVIDENCE_TRAFFIC
 from nika.net_env.sdn_l3_clos.fabric_manager.apply import onos_flow_snapshot
 from nika.net_env.sdn_l3_clos.topology_model import (
     ONOS_OOB_IP,
@@ -216,6 +217,7 @@ class FlowRuleLoop(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "loss"
     root_cause_name: str = "flow_rule_loop"
+    TRAFFIC_PROFILE = LOSS_EVIDENCE_TRAFFIC
     description = (
         "SDN flow rules on adjacent switches send packets back and forth, so "
         "they circulate until their TTL expires."

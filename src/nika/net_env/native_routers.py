@@ -95,6 +95,8 @@ class NativeRouterPlatform:
     # (runtime, node) -> provider of failure operations; see
     # ``nika.problems.support.router_ops``. None when no failure is supported.
     fault_ops: Callable[[object, str], object] | None = None
+    # Most kbit/s an interface of this platform sends, when the image caps it.
+    interface_rate_kbps: int | None = None
 
 
 # Vendor modules exposing ``PLATFORM``; add a profile here to support it.
@@ -102,6 +104,13 @@ _PLATFORMS = {
     "iosxr": "nika.net_env.utils.iosxr.platform",
     "routeros": "nika.net_env.utils.routeros.platform",
 }
+
+
+def platform_rate_limit_kbps(profile: str | None) -> int | None:
+    """Per-interface send cap of native ``profile``'s routers, or ``None``."""
+    if profile not in _PLATFORMS:
+        return None
+    return native_platform(profile).interface_rate_kbps
 
 
 def native_profiles() -> frozenset[str]:
