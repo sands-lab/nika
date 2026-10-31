@@ -670,7 +670,7 @@ Keep the traffic light enough for size `l` and keep healthy links below saturati
 
 ### Background traffic profiles
 
-Business traffic differs between environments, because each one models its own users. To compare agents under the same kind of load in every environment, or to stress an environment with a known traffic pattern, add a background traffic profile. NIKA starts it right after the business traffic and keeps it running for the whole task. Its endpoints are the hosts and servers that PingMesh probes. On Kubernetes nodes, which have no Python, each program runs in a pod in the `traffic` namespace, pinned to its node with host networking, so it uses the node's own addresses.
+Business traffic differs between environments, because each one models its own users. To compare agents under the same kind of load in every environment, or to stress an environment with a known traffic pattern, add a background traffic profile. NIKA starts it right after the business traffic and keeps it running for the whole task. Its endpoints are the hosts and servers that PingMesh probes. On Kubernetes nodes, which have no Python, each program runs in a pod in the `backup` namespace, pinned to its node with host networking, so it uses the node's own addresses.
 
 Select a profile in a benchmark task with `traffic:`, either as a pattern name or as a mapping. A [benchmark configuration](../benchmarks/benchmark-configuration.md) file lists its tasks under `cases:`:
 
@@ -694,7 +694,7 @@ For an interactive session, pass the same settings to `nika env run`:
 uv run nika env run dc_clos -s s --traffic gravity,flow_sizes=hadoop,load_mbps=2
 ```
 
-A profile combines a traffic matrix, a flow-size distribution, and Poisson flow arrivals, the way data-center transport and WAN traffic-engineering studies describe their workloads. Each sender is a `flowgen` process that opens TCP flows to `flowsink` processes on the other hosts; the `incast` pattern also runs UDP query responders.
+A profile combines a traffic matrix, a flow-size distribution, and Poisson flow arrivals, the way data-center transport and WAN traffic-engineering studies describe their workloads. The programs present themselves as ordinary user services, like the business traffic: each sender is a backup agent (`backup-agent`) whose flows are HTTP uploads to object stores (`object-store`, port 9100) on the other hosts, and the `incast` pattern adds a sharded search service (`search-frontend` and `search-shard`) that answers over UDP.
 
 | `pattern` | Traffic matrix | Typical use |
 | --- | --- | --- |

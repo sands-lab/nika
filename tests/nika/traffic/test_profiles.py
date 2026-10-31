@@ -2,7 +2,7 @@ import random
 
 import pytest
 
-from nika.traffic.apps.flowgen import CDFS, FlowSizes
+from nika.traffic.apps.object_sync import MIXES, ObjectSizes
 from nika.traffic.profiles import (
     PATTERNS,
     Endpoint,
@@ -65,12 +65,12 @@ def test_demand_uses_the_scenario_matrix_and_needs_one() -> None:
 def test_plan_splits_load_by_matrix_rows() -> None:
     profile = TrafficProfile(pattern="uniform", load_mbps=6)
     workload = plan_background(profile, ENDPOINTS)
-    senders = [p for p in workload.processes if p.command == "flowgen"]
-    sinks = [p for p in workload.processes if p.command == "flowsink"]
+    senders = [p for p in workload.processes if p.command == "backup-agent"]
+    sinks = [p for p in workload.processes if p.command == "object-store"]
     assert len(senders) == len(sinks) == len(HOSTS)
-    loads = [float(p.args[p.args.index("--load-kbps") + 1]) for p in senders]
+    loads = [float(p.args[p.args.index("--rate-kbps") + 1]) for p in senders]
     assert sum(loads) == pytest.approx(6000, rel=1e-3)
-    assert senders[0].args.count("--dst") == len(HOSTS) - 1
+    assert senders[0].args.count("--store") == len(HOSTS) - 1
 
 
 def test_incast_adds_a_synchronized_fan_in() -> None:
@@ -109,9 +109,9 @@ def test_address_skips_management_and_telemetry_interfaces() -> None:
     assert _parse_addresses(output, skip_eth0=False) == "172.20.20.5"
 
 
-@pytest.mark.parametrize("name", sorted(CDFS))
+@pytest.mark.parametrize("name", sorted(MIXES))
 def test_clipped_flow_size_mean_matches_samples(name: str) -> None:
-    sizes = FlowSizes(name, 2048 * 1024)
+    sizes = ObjectSizes(name, 2048 * 1024)
     rng = random.Random(0)
     draws = [sizes.draw(rng) for _ in range(40000)]
     assert max(draws) <= 2048 * 1024
@@ -122,15 +122,15 @@ def test_k8s_traffic_pods_pin_programs_to_their_node() -> None:
     from nika.net_env.utils.k8s_traffic_pods import _manifest
     from nika.traffic.workload import WorkloadProcess
 
-    process = WorkloadProcess("worker_1", "flowgen", "flowsink", ("sink",))
+    process = WorkloadProcess("worker_1", "object_sync", "object-store", ("store",))
     namespace, configmap, pod = _manifest([process], "python:3")["items"]
-    assert "flowgen.py" in configmap["data"]
+    assert "object_sync.py" in configmap["data"]
     spec = pod["spec"]
-    assert pod["metadata"]["name"] == "flowsink-worker-1"
+    assert pod["metadata"]["name"] == "object-store-worker-1"
     assert spec["nodeName"] == "worker_1" and spec["hostNetwork"]
     container = spec["containers"][0]
     assert container["imagePullPolicy"] == "Never"
-    assert container["command"][-1] == "sink"
+    assert container["command"][-1] == "store"
 
 
 def test_profile_fits_the_routers_send_cap() -> None:

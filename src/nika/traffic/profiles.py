@@ -16,7 +16,7 @@ traffic:
   ``fan_in`` hosts answer one receiver's query at the same moment (DCTCP).
 - **Flow sizes** (``flow_sizes``): an empirical CDF, clipped at
   ``max_flow_kb`` because lab links carry a few Mbit/s. See
-  :mod:`nika.traffic.apps.flowgen`.
+  :mod:`nika.traffic.apps.object_sync`.
 - **Arrivals**: open-loop Poisson at ``load_mbps`` of offered load summed over
   the lab, optionally modulated by a sine of ``diurnal_period_sec``.
 
@@ -60,14 +60,18 @@ Pattern = Literal["uniform", "gravity", "demand", "permutation", "hotspot", "inc
 PATTERNS: tuple[str, ...] = Pattern.__args__
 FLOW_SIZES: tuple[str, ...] = ("websearch", "datamining", "hadoop")
 
-FLOW_PORT = 7001
-INCAST_PORT = 7002
+STORE_PORT = 9100
+INCAST_PORT = 9101
 INCAST_DATAGRAM = 1400
 # Installed command names; ``paused_workload`` also holds these still.
-SENDER_COMMAND = "flowgen"
-SINK_COMMAND = "flowsink"
-INCAST_WORKER_COMMAND = "fanin-shard"
-INCAST_FRONTEND_COMMAND = "fanin-frontend"
+# Profile programs present themselves as user services: a backup agent that
+# uploads objects to object stores, and a sharded search service for incast.
+SENDER_COMMAND = "backup-agent"
+SINK_COMMAND = "object-store"
+INCAST_WORKER_COMMAND = "search-shard"
+INCAST_FRONTEND_COMMAND = "search-frontend"
+# Object-size mix names the backup agent takes for each ``flow_sizes`` value.
+OBJECT_MIX = {"websearch": "web", "datamining": "analytics", "hadoop": "batch"}
 BACKGROUND_COMMANDS = (
     SENDER_COMMAND,
     SINK_COMMAND,
@@ -75,8 +79,8 @@ BACKGROUND_COMMANDS = (
     INCAST_FRONTEND_COMMAND,
 )
 # Where traffic pods (``NetworkEnvBase.traffic_pod_nodes``) mount the programs.
-POD_APPS_DIR = "/opt/traffic"
-POD_PROGRAMS = tuple(f"{POD_APPS_DIR}/{app}.py" for app in ("flowgen", "fanout"))
+POD_APPS_DIR = "/opt/apps"
+POD_PROGRAMS = tuple(f"{POD_APPS_DIR}/{app}.py" for app in ("object_sync", "fanout"))
 
 _ETH = re.compile(r"^eth(\d+)$")
 
@@ -288,9 +292,9 @@ def plan_background(
     processes: list[WorkloadProcess] = [
         WorkloadProcess(
             node=node,
-            app="flowgen",
+            app="object_sync",
             command=SINK_COMMAND,
-            args=("sink", "--port", str(FLOW_PORT)),
+            args=("store", "--port", str(STORE_PORT)),
         )
         for node in sorted({dst for _, dst in matrix})
     ]
@@ -299,34 +303,34 @@ def plan_background(
         rows.setdefault(src, []).append((dst, weight))
     for src, row in sorted(rows.items()):
         share = sum(w for _, w in row)
-        args = [
-            "send",
-            "--load-kbps",
+        args = ["backup"]
+        for dst, weight in row:
+            args += ["--store", f"http://{ips[dst]}:{STORE_PORT}={weight / share:.6f}"]
+        args += [
+            "--rate-kbps",
             f"{profile.load_mbps * 1000 * share:.3f}",
-            "--sizes",
-            profile.flow_sizes,
-            "--max-kb",
+            "--object-mix",
+            OBJECT_MIX[profile.flow_sizes],
+            "--max-object-kb",
             str(profile.max_flow_kb),
             *(
-                ("--flow-kbps", f"{profile.max_flow_kbps:g}")
+                ("--upload-kbps", f"{profile.max_flow_kbps:g}")
                 if profile.max_flow_kbps
                 else ()
             ),
             "--seed",
             _seed(profile, src),
         ]
-        for dst, weight in row:
-            args += ["--dst", f"{ips[dst]}:{FLOW_PORT}/{weight / share:.6f}"]
         if profile.diurnal_period_sec:
             args += [
-                "--diurnal-period",
+                "--cycle",
                 f"{profile.diurnal_period_sec:g}",
-                "--diurnal-amplitude",
+                "--cycle-depth",
                 f"{profile.diurnal_amplitude:g}",
             ]
         processes.append(
             WorkloadProcess(
-                node=src, app="flowgen", command=SENDER_COMMAND, args=tuple(args)
+                node=src, app="object_sync", command=SENDER_COMMAND, args=tuple(args)
             )
         )
     if profile.pattern == "incast":

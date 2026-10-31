@@ -20,8 +20,8 @@ from nika.runtime.base import LabRuntime
 from nika.traffic.profiles import POD_APPS_DIR
 from nika.traffic.workload import WorkloadProcess
 
-NAMESPACE = "traffic"
-APPS_CONFIGMAP = "traffic-apps"
+NAMESPACE = "backup"
+APPS_CONFIGMAP = "backup-apps"
 APPS_DIR = POD_APPS_DIR
 READY_TIMEOUT_SEC = 180
 # Pods must still run, without restarts, this long after they become ready.
