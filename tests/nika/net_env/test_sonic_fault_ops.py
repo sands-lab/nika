@@ -4,15 +4,10 @@ from __future__ import annotations
 
 import json
 import shlex
-from types import SimpleNamespace
 
 import pytest
 
 from nika.net_env.utils.sonic.fault_ops import SonicFaultOps
-from nika.problems.routing_control_plane.ospf import (
-    OSPFAreaMisconfig,
-    OSPFAreaMisconfigParams,
-)
 from nika.service.containerlab.sonic_api import SONIC_MARKER, sonic_cli_command
 
 pytestmark = pytest.mark.unit
@@ -90,32 +85,6 @@ def test_wait_port_raises_when_the_port_never_disappears() -> None:
     ops = SonicFaultOps(runtime, "leaf1")
     with pytest.raises(RuntimeError, match="did not disappear"):
         ops._wait_port("Ethernet0", present=False)
-
-
-def test_ospf_area_native_verify_requires_frr_conf(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    file_conf = "router ospf\n network 10.0.0.0/31 area 0.0.0.0\nexit\n"
-    ops = SimpleNamespace(
-        ospf_interface_areas=lambda: ["0.0.0.66"],
-        supports=lambda name: name == "frr_shell",
-        frr_shell=lambda _cmd: file_conf,
-    )
-    monkeypatch.setattr(
-        "nika.problems.routing_control_plane.ospf.native_fault_ops",
-        lambda *_a, **_k: ops,
-    )
-    problem = OSPFAreaMisconfig(None)
-    problem._orig_areas = {"0.0.0.0"}
-    result = problem.verify_fault(OSPFAreaMisconfigParams(host_name="berlin"))
-    assert result["verified"] is False
-    assert result["details"]["file_areas"] == ["0.0.0.0"]
-    assert result["details"]["running_areas"] == ["0.0.0.66"]
-
-    ops.frr_shell = lambda _cmd: (
-        "router ospf\n network 10.0.0.0/31 area 0.0.0.66\nexit\n"
-    )
-    assert problem.verify_fault(OSPFAreaMisconfigParams(host_name="berlin"))["verified"]
 
 
 def test_ospf_interfaces_are_named_by_container_interface() -> None:

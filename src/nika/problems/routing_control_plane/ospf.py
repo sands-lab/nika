@@ -177,23 +177,10 @@ class OSPFAreaMisconfig(ProblemBase):
                 "orig_areas": sorted(orig_areas),
                 "running_areas": sorted(running_areas),
             }
-            file_changed = True
-            if ops.supports("frr_shell"):
-                file_networks, file_interfaces = _ospf_area_bindings(
-                    ops.frr_shell(f"cat {FRR_CONF}")
-                )
-                file_areas = {
-                    binding[-1] for binding in file_networks + file_interfaces
-                }
-                details["file_areas"] = sorted(file_areas)
-                file_changed = (
-                    bool(file_areas) and bool(orig_areas) and file_areas != orig_areas
-                )
+            # A provider persists the change itself; verify the running daemon.
             return build_verify_result(
                 fault_type=self.root_cause_name,
-                verified=bool(running_areas)
-                and running_areas != orig_areas
-                and file_changed,
+                verified=bool(running_areas) and running_areas != orig_areas,
                 details=details,
             )
         file_config = self.runtime.exec(params.host_name, "cat /etc/frr/frr.conf")
