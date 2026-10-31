@@ -20,6 +20,54 @@ from nika.utils.network_change_log import log_network_change
 _HOST_CMD_TIMEOUT_SEC = 60.0
 
 
+def owned_flap_pid(pid_text: str, cmdline: str, pid_path: str) -> int | None:
+    """Return the flap-worker PID when it belongs to this lab's pid file.
+
+    PID 1 and non-positive values are refused so a truncated pid file cannot
+    become ``kill -- -1``. The worker command line must contain ``pid_path``,
+    which the flap script embeds as ``PID_FILE=...``.
+    """
+    token = pid_text.strip().split()[0] if pid_text.strip() else ""
+    if not token.isdigit():
+        return None
+    pid = int(token)
+    if pid <= 1:
+        return None
+    haystack = cmdline.replace("\0", " ")
+    if pid_path not in haystack:
+        return None
+    return pid
+
+
+def stop_owned_flap_worker(run, pid_path: str) -> None:
+    """Kill the flap worker for ``pid_path`` if this lab owns that process."""
+    try:
+        pid_text = run("cat", pid_path)
+    except RuntimeCapabilityError:
+        return
+    token = pid_text.strip().split()[0] if pid_text.strip() else ""
+    pid = int(token) if token.isdigit() else 0
+    cmdline = ""
+    if pid > 1:
+        try:
+            cmdline = run("cat", f"/proc/{pid}/cmdline")
+        except RuntimeCapabilityError:
+            cmdline = ""
+    owned = owned_flap_pid(pid_text, cmdline, pid_path)
+    if owned is not None:
+        try:
+            run("kill", "-KILL", "--", f"-{owned}")
+        except RuntimeCapabilityError:
+            try:
+                run("kill", "-KILL", str(owned))
+            except RuntimeCapabilityError:
+                pass
+    try:
+        run("rm", "-f", pid_path)
+    except RuntimeCapabilityError:
+        pass
+
+
 class HostTcController:
     """Apply a qdisc to the host peer of a lab-node interface."""
 
@@ -135,22 +183,10 @@ class HostTcController:
     def set_link_down(self, node: str, intf: str) -> tuple[str, str]:
         """Bring down a link so endpoints report operstate down.
 
-        Prefer the host-side veth peer (carrier loss). Fall back to setting the
-        interface down inside the node namespace when no host peer exists.
+        Downs the host-side veth ends (carrier loss). The node interface stays
+        admin-up. Raises if this lab has no host peer for the link.
         """
-        try:
-            peer = self.peer_name(node, intf)
-        except RuntimeCapabilityError:
-            self.set_node_link_down(node, intf)
-            log_network_change(
-                f"host_tc link down via node intf {node}:{intf}",
-                mechanism="host_tc",
-                host=node,
-                intf=intf,
-                action="link_down",
-                mode="node_intf",
-            )
-            return "node_intf", f"{node}:{intf}"
+        peer = self.peer_name(node, intf)
         for end in self.wire_ends(peer):
             self._run("ip", "link", "set", "dev", end, "down")
         log_network_change(
@@ -232,45 +268,10 @@ class HostTcController:
     ) -> str:
         """Apply TBF to what ``node`` sends out of ``intf``, outside the node.
 
-        On a wired link the far host end carries that traffic; without a host
-        peer, the qdisc goes inside the node.
+        On a wired link the far host end carries that traffic. Raises if this
+        lab has no host peer for the link.
         """
-        try:
-            peer = self.egress_dev(node, intf)
-        except RuntimeCapabilityError:
-            pid = self._container_pid(node)
-            self._run(
-                "nsenter",
-                "-t",
-                str(pid),
-                "-n",
-                "tc",
-                "qdisc",
-                "replace",
-                "dev",
-                intf,
-                "root",
-                "tbf",
-                "rate",
-                rate,
-                "burst",
-                burst,
-                "limit",
-                limit,
-            )
-            target = f"node:{node}:{intf}"
-            log_network_change(
-                f"host_tc tbf on {node}:{intf} (node ns) "
-                f"rate={rate} burst={burst} limit={limit}",
-                mechanism="host_tc",
-                host=node,
-                intf=intf,
-                peer=target,
-                params={"rate": rate, "burst": burst, "limit": limit},
-                action="tbf",
-                mode="node_intf",
-            )
-            return target
+        peer = self.egress_dev(node, intf)
         self._run(
             "tc",
             "qdisc",
@@ -382,69 +383,67 @@ done
 
     def link_flap_running(self, peer: str) -> bool:
         pid_path = self._flap_pid_path(peer)
-        return (
-            self._run(
-                "sh",
-                "-c",
-                f"if [ -r {shlex.quote(pid_path)} ] && "
-                f'kill -0 "$(cat {shlex.quote(pid_path)})" 2>/dev/null; then echo running; fi',
-            ).strip()
-            == "running"
-        )
+        try:
+            pid_text = self._run("cat", pid_path)
+        except RuntimeCapabilityError:
+            return False
+        token = pid_text.strip().split()[0] if pid_text.strip() else ""
+        if not token.isdigit() or int(token) <= 1:
+            return False
+        pid = int(token)
+        try:
+            cmdline = self._run("cat", f"/proc/{pid}/cmdline")
+        except RuntimeCapabilityError:
+            return False
+        return owned_flap_pid(pid_text, cmdline, pid_path) is not None
 
     def stop_link_flap(self, peer: str) -> None:
         pid_path = self._flap_pid_path(peer)
-        ends = " ".join(shlex.quote(end) for end in self.wire_ends(peer))
-        self._run(
-            "sh",
-            "-c",
-            f"if [ -r {shlex.quote(pid_path)} ]; then "
-            f'/bin/kill -KILL -- -"$(cat {shlex.quote(pid_path)})" 2>/dev/null || '
-            f'/bin/kill -KILL "$(cat {shlex.quote(pid_path)})" 2>/dev/null || true; fi; '
-            f'for end in {ends}; do ip link set dev "$end" up >/dev/null 2>&1 || true; done; '
-            f"rm -f {shlex.quote(pid_path)}",
-        )
+        stop_owned_flap_worker(self._run, pid_path)
+        for end in self.wire_ends(peer):
+            try:
+                self._run("ip", "link", "set", "dev", end, "up")
+            except RuntimeCapabilityError:
+                pass
 
     def stop_node_link_flap(self, node: str, intf: str) -> None:
         target = f"{node}:{intf}"
         pid_path = self._flap_pid_path(target)
+        stop_owned_flap_worker(self._run, pid_path)
         pid = self._container_pid(node)
-        self._run(
-            "sh",
-            "-c",
-            f"if [ -r {shlex.quote(pid_path)} ]; then "
-            f'/bin/kill -KILL -- -"$(cat {shlex.quote(pid_path)})" 2>/dev/null || '
-            f'/bin/kill -KILL "$(cat {shlex.quote(pid_path)})" 2>/dev/null || true; fi; '
-            f"nsenter -t {pid} -n ip link set dev {shlex.quote(intf)} up "
-            ">/dev/null 2>&1 || true; "
-            f"rm -f {shlex.quote(pid_path)}",
-        )
+        try:
+            self._run(
+                "nsenter",
+                "-t",
+                str(pid),
+                "-n",
+                "ip",
+                "link",
+                "set",
+                "dev",
+                intf,
+                "up",
+            )
+        except RuntimeCapabilityError:
+            pass
 
     @classmethod
     def cleanup_lab(cls, lab_name: str) -> None:
         """Stop only host-side flap helpers belonging to a lab being torn down."""
         prefix = cls._flap_pid_prefix(lab_name)
         try:
-            subprocess.run(
-                [
-                    "sudo",
-                    "-n",
-                    "sh",
-                    "-c",
-                    f"for pid_file in {prefix}*.pid; do "
-                    '[ -r "$pid_file" ] || continue; '
-                    '/bin/kill -KILL -- -"$(cat "$pid_file")" 2>/dev/null || '
-                    '/bin/kill -KILL "$(cat "$pid_file")" 2>/dev/null || true; '
-                    'rm -f "$pid_file"; '
-                    "done",
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=_HOST_CMD_TIMEOUT_SEC,
+            listing = cls._run(
+                "sh",
+                "-c",
+                f"for pid_file in {prefix}*.pid; do "
+                '[ -r "$pid_file" ] && printf "%s\\n" "$pid_file"; '
+                "done",
             )
-        except subprocess.TimeoutExpired:
-            print(f"WARNING: stopping host link-flap workers for {lab_name} timed out")
+        except RuntimeCapabilityError:
+            return
+        for pid_file in listing.splitlines():
+            if pid_file.endswith(".pid"):
+                stop_owned_flap_worker(cls._run, pid_file)
 
     def _flap_pid_path(self, peer: str) -> str:
         key = hashlib.blake2s(peer.encode(), digest_size=8).hexdigest()

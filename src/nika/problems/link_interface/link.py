@@ -1,4 +1,4 @@
-import re
+import json
 import time
 
 from pydantic import BaseModel, Field
@@ -27,12 +27,59 @@ from nika.problems.support.benchmark_targets import (
 from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 from nika.runtime.base import RuntimeCapabilityError
 from nika.runtime.kathara.vde_proxy import KatharaVdeFaultProxy
+from nika.runtime.shared.containers import run_labelled_helper
 from nika.service.containerlab.host_tc import HostTcController
 from nika.traffic.workload import BULK_TRANSIT
 from nika.utils.logger import system_logger
 
 
-_DAEMON_ROUTE_RE = re.compile(r"\bproto (kernel|bgp|ospf|isis|rip|zebra|dhcp)\b")
+_SKIP_ROUTE_PROTOS = frozenset(
+    {"kernel", "bgp", "ospf", "isis", "rip", "zebra", "dhcp", "ra"}
+)
+_ROUTE_RESTORE_OK = "NIKA_ROUTE_OK"
+
+
+def parse_ip_route_json(raw: str) -> list[dict] | None:
+    """Parse ``ip -j route`` output into route objects; ``None`` if invalid."""
+    text = raw.strip()
+    if not text:
+        return []
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+    if isinstance(data, list):
+        return [row for row in data if isinstance(row, dict)]
+    if isinstance(data, dict):
+        return [data]
+    return None
+
+
+def static_route_replace_command(family: str, route: dict, intf: str) -> str | None:
+    """Return ``ip route replace`` for a non-daemon, non-RA route on ``intf``."""
+    proto = str(route.get("protocol") or "")
+    if proto in _SKIP_ROUTE_PROTOS:
+        return None
+    dst = str(route.get("dst") or "")
+    if not dst or dst.lower().startswith(("fe80:", "ff00:", "ff02:")):
+        return None
+    rtype = str(route.get("type") or "")
+    if rtype in {"multicast", "broadcast", "local"}:
+        return None
+    parts = ["ip", family, "route", "replace"]
+    if rtype and rtype != "unicast":
+        parts.append(rtype)
+    parts.append(dst)
+    gateway = route.get("gateway")
+    if gateway:
+        parts.extend(["via", str(gateway)])
+    metric = route.get("metric")
+    if metric is not None:
+        parts.extend(["metric", str(metric)])
+    if proto:
+        parts.extend(["proto", proto])
+    parts.extend(["dev", intf])
+    return " ".join(parts)
 
 
 # ==================================================================
@@ -157,18 +204,9 @@ class LinkFailure(ProblemBase):
         intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
         controller = HostTcController(self.runtime)
         operstate = self.runtime.get_interface_operstate(params.host_name, intf)
-        mode = getattr(self, "_link_down_mode", None)
         target = getattr(self, "_link_down_target", None)
-        if mode == "host_peer" and target:
-            artifact_ok = controller.link_peer_down(target)
-        elif mode == "node_intf":
-            artifact_ok = operstate == "down"
-        else:
-            try:
-                peer = controller.peer_name(params.host_name, intf)
-                artifact_ok = controller.link_peer_down(peer)
-            except RuntimeCapabilityError:
-                artifact_ok = operstate == "down"
+        peer = target or controller.peer_name(params.host_name, intf)
+        artifact_ok = controller.link_peer_down(peer)
         return self._verify_link_down(params, intf, operstate, artifact_ok)
 
     def _verify_link_down(
@@ -204,18 +242,9 @@ class LinkFailure(ProblemBase):
             )
         else:
             controller = HostTcController(self.runtime)
-            mode = getattr(self, "_link_down_mode", None)
             target = getattr(self, "_link_down_target", None)
-            if mode == "host_peer" and target:
-                controller.set_link_up(target)
-            elif mode == "node_intf":
-                controller.set_node_link_up(params.host_name, intf)
-            else:
-                try:
-                    peer = controller.peer_name(params.host_name, intf)
-                    controller.set_link_up(peer)
-                except RuntimeCapabilityError:
-                    controller.set_node_link_up(params.host_name, intf)
+            peer = target or controller.peer_name(params.host_name, intf)
+            controller.set_link_up(peer)
             operstate = self.runtime.get_interface_operstate(params.host_name, intf)
             restored = operstate == "up"
         return {
@@ -266,7 +295,7 @@ class LinkFlap(ProblemBase):
     native_router_operations = frozenset()
     BENCHMARK_LINK_PROXY = True
     supported_backends = ("kathara", "containerlab")
-    RECORDED_ATTRS = ("faulty_intf",)
+    RECORDED_ATTRS = ("faulty_intf", "_controller_target")
 
     Params = LinkFlapParams
 
@@ -303,6 +332,7 @@ class LinkFlap(ProblemBase):
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
         self.faulty_intf = "eth0"
+        self._controller_target = None
 
     def root_cause_resources(self, params: LinkFlapParams):
         return [
@@ -340,15 +370,9 @@ class LinkFlap(ProblemBase):
             controller.start_link_flap(self._proxy, params.down_time, params.up_time)
         else:
             controller = HostTcController(self.runtime)
-            try:
-                peer = controller.peer_name(params.host_name, intf_name)
-            except RuntimeCapabilityError:
-                self._controller_target = controller.start_node_link_flap(
-                    params.host_name, intf_name, params.down_time, params.up_time
-                )
-            else:
-                controller.start_link_flap(peer, params.down_time, params.up_time)
-                self._controller_target = peer
+            peer = controller.peer_name(params.host_name, intf_name)
+            controller.start_link_flap(peer, params.down_time, params.up_time)
+            self._controller_target = peer
         system_logger.info(
             f"Injected link flap on {params.host_name}:{intf_name} "
             f"(down_time={params.down_time}, up_time={params.up_time})"
@@ -383,9 +407,7 @@ class LinkFlap(ProblemBase):
             running = proxy is not None and controller.link_flap_running(proxy)
         else:
             controller = HostTcController(self.runtime)
-            target = getattr(self, "_controller_target", None) or (
-                f"{params.host_name}:{intf_name}"
-            )
+            target = self._containerlab_flap_target(params.host_name, intf_name)
             running = controller.link_flap_running(target)
         return build_verify_result(
             fault_type=self.root_cause_name,
@@ -411,18 +433,19 @@ class LinkFlap(ProblemBase):
             )
         else:
             controller = HostTcController(self.runtime)
-            target = getattr(self, "_controller_target", None) or (
-                f"{params.host_name}:{intf}"
-            )
-            if ":" in target:
-                controller.stop_node_link_flap(params.host_name, intf)
-            else:
-                controller.stop_link_flap(target)
+            target = self._containerlab_flap_target(params.host_name, intf)
+            controller.stop_link_flap(target)
             restored = not controller.link_flap_running(target)
         return {
             "verified": restored,
             "details": {"host": params.host_name, "intf": intf},
         }
+
+    def _containerlab_flap_target(self, host: str, intf: str) -> str:
+        recorded = getattr(self, "_controller_target", None)
+        if recorded:
+            return recorded
+        return HostTcController(self.runtime).peer_name(host, intf)
 
 
 # ==========================================
@@ -608,12 +631,8 @@ class LinkCapacityBottleneck(ProblemBase):
             burst=params.burst,
             limit=params.limit,
         )
-        if peer.startswith("node:"):
-            self._host_veth = None
-            self._capacity_mode = "node_intf"
-        else:
-            self._host_veth = peer
-            self._capacity_mode = "host_peer"
+        self._host_veth = peer
+        self._capacity_mode = "host_peer"
 
     def verify_fault(self, params: LinkCapacityBottleneckParams) -> dict:
         """Verify the controller-side TBF without exposing it to lab nodes."""
@@ -644,33 +663,6 @@ class LinkCapacityBottleneck(ProblemBase):
         self, params: LinkCapacityBottleneckParams
     ) -> dict:
         intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
-        mode = getattr(self, "_capacity_mode", None)
-        if mode == "node_intf":
-            verified = self.runtime.tc_qdisc_contains(params.host_name, intf, "tbf")
-            return build_verify_result(
-                fault_type=self.root_cause_name,
-                verified=verified,
-                details={
-                    "host": params.host_name,
-                    "intf": intf,
-                    "mode": "node_intf",
-                },
-            )
-        if mode is None and getattr(self, "_host_veth", None) is None:
-            try:
-                controller = HostTcController(self.runtime)
-                controller.peer_name(params.host_name, intf)
-            except RuntimeCapabilityError:
-                verified = self.runtime.tc_qdisc_contains(params.host_name, intf, "tbf")
-                return build_verify_result(
-                    fault_type=self.root_cause_name,
-                    verified=verified,
-                    details={
-                        "host": params.host_name,
-                        "intf": intf,
-                        "mode": "node_intf",
-                    },
-                )
         controller = HostTcController(self.runtime)
         peer = getattr(self, "_host_veth", None) or controller.egress_dev(
             params.host_name, intf
@@ -696,25 +688,12 @@ class LinkCapacityBottleneck(ProblemBase):
                 proxy is None or controller.discover(params.host_name, intf) is None
             )
         else:
-            mode = getattr(self, "_capacity_mode", None)
-            if mode == "node_intf":
-                self.runtime.tc_clear_intf(params.host_name, intf)
-                restored = not self.runtime.tc_qdisc_contains(
-                    params.host_name, intf, "tbf"
-                )
-            else:
-                controller = HostTcController(self.runtime)
-                try:
-                    peer = getattr(self, "_host_veth", None) or controller.egress_dev(
-                        params.host_name, intf
-                    )
-                    controller.clear(peer)
-                    restored = "tbf" not in controller.qdisc(peer).lower()
-                except RuntimeCapabilityError:
-                    self.runtime.tc_clear_intf(params.host_name, intf)
-                    restored = not self.runtime.tc_qdisc_contains(
-                        params.host_name, intf, "tbf"
-                    )
+            controller = HostTcController(self.runtime)
+            peer = getattr(self, "_host_veth", None) or controller.egress_dev(
+                params.host_name, intf
+            )
+            controller.clear(peer)
+            restored = "tbf" not in controller.qdisc(peer).lower()
         return {
             "verified": restored,
             "details": {"host": params.host_name, "intf": intf},
@@ -817,27 +796,26 @@ class LinkDetach(ProblemBase):
         # Both families: a dual-stack host also loses its IPv6 default route.
         self._saved_routes = []
         for family in ("-4", "-6"):
-            route_out = self.runtime.exec(
-                host, f"ip {family} route show dev {intf} 2>/dev/null || true"
-            )
-            self._saved_routes += [
-                (family, line.strip())
-                for line in route_out.splitlines()
-                if line.strip()
-                and not _DAEMON_ROUTE_RE.search(line)
-                and not line.startswith(("fe80:", "multicast"))
-            ]
+            route_out = self.runtime.exec(host, f"ip -j {family} route show dev {intf}")
+            rows = parse_ip_route_json(route_out)
+            if rows is None:
+                raise RuntimeError(
+                    f"could not parse routes on {host}:{intf}: {route_out}"
+                )
+            for row in rows:
+                cmd = static_route_replace_command(family, row, intf)
+                if cmd:
+                    self._saved_routes.append(cmd)
 
     def _restore_l3_state(self, host: str, intf: str) -> None:
         for cidr in self._saved_addrs:
             self.runtime.exec(
                 host, f"ip addr replace {cidr} dev {intf} 2>/dev/null || true"
             )
-        for family, route in self._saved_routes:
-            self.runtime.exec(
-                host,
-                f"ip {family} route replace {route} dev {intf} 2>/dev/null || true",
-            )
+        for cmd in self._saved_routes:
+            out = self.runtime.exec(host, f"{cmd} && echo {_ROUTE_RESTORE_OK}")
+            if _ROUTE_RESTORE_OK not in out:
+                raise RuntimeError(f"restoring route failed: {cmd}: {out}")
         self._saved_addrs = []
         self._saved_routes = []
 
@@ -870,48 +848,61 @@ class LinkDetach(ProblemBase):
         )
         self._detach_holder = holder.id
         holder.reload()
+        kept = False
         try:
             self._move_netns(node, f"container:{node.id}", intf, holder)
-        except Exception:
-            holder.remove(force=True)
-            self._detach_holder = None
-            raise
-        deadline = time.time() + 5.0
-        while self.runtime.interface_exists(host, intf):
-            if time.time() > deadline:
-                raise RuntimeError(f"link_detach failed: {host}:{intf} still present")
-            time.sleep(0.2)
+            deadline = time.time() + 5.0
+            while self.runtime.interface_exists(host, intf):
+                if time.time() > deadline:
+                    raise RuntimeError(
+                        f"link_detach failed: {host}:{intf} still present"
+                    )
+                time.sleep(0.2)
+            kept = True
+        finally:
+            if not kept:
+                try:
+                    holder.remove(force=True)
+                except Exception:
+                    pass
+                self._detach_holder = None
         system_logger.info(f"Injected link detach on {host}:{intf} (host-side netns)")
 
-    @staticmethod
-    def _move_netns(node, network_mode: str, intf: str, target) -> None:
+    def _move_netns(self, node, network_mode: str, intf: str, target) -> None:
         """Move ``intf`` from the netns of ``network_mode`` to ``target``'s."""
         target.reload()
         pid = int(target.attrs["State"]["Pid"])
-        output = node.client.containers.run(
+        output = run_labelled_helper(
+            node.client,
             nika_image("base"),
-            command=["ip", "link", "set", "dev", intf, "netns", str(pid)],
+            ["ip", "link", "set", "dev", intf, "netns", str(pid)],
+            lab_name=self.runtime.lab_name,
             network_mode=network_mode,
             pid_mode="host",
             privileged=True,
-            remove=True,
-            stderr=True,
         )
-        if output:
+        text = output.strip() if isinstance(output, bytes) else str(output).strip()
+        if text:
             raise RuntimeError(f"moving {intf} to pid {pid}: {output!r}")
 
     def verify_fault(self, params: LinkDetachParams) -> dict:
         """Verify the interface is gone from the node namespace."""
         intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
         interface_gone = not self.runtime.interface_exists(params.host_name, intf)
+        details = {
+            "host": params.host_name,
+            "intf": intf,
+            "interface_exists": not interface_gone,
+        }
+        nos_down = True
+        ops = native_fault_ops(self, params.host_name, "interface_up")
+        if ops is not None:
+            nos_down = not ops.interface_up(intf)
+            details["router_port_up"] = not nos_down
         return build_verify_result(
             fault_type=self.root_cause_name,
-            verified=interface_gone,
-            details={
-                "host": params.host_name,
-                "intf": intf,
-                "interface_exists": not interface_gone,
-            },
+            verified=interface_gone and nos_down,
+            details=details,
         )
 
     def recover_fault(self, params: LinkDetachParams) -> dict:
