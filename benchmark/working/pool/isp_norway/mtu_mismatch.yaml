@@ -1,0 +1,21 @@
+scenario:
+  name: isp_norway
+failure:
+  fault_type: mtu_mismatch
+  cases:
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: n1
+      intf_name: eth1
+      mtu: '500'
+    root_causes:
+    - resource:
+        kind: interface
+        node: n1
+        name: eth1
+      fault_type: mtu_mismatch

@@ -1,0 +1,21 @@
+scenario:
+  name: isp_india35
+failure:
+  fault_type: mtu_mismatch
+  cases:
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: n_0
+      intf_name: eth1
+      mtu: '500'
+    root_causes:
+    - resource:
+        kind: interface
+        node: n_0
+        name: eth1
+      fault_type: mtu_mismatch

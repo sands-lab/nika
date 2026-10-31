@@ -1,0 +1,21 @@
+scenario:
+  name: isp_nobel-eu
+failure:
+  fault_type: mtu_mismatch
+  cases:
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: amsterdam
+      intf_name: eth1
+      mtu: '500'
+    root_causes:
+    - resource:
+        kind: interface
+        node: amsterdam
+        name: eth1
+      fault_type: mtu_mismatch

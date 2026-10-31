@@ -7,6 +7,291 @@ failure:
     igp: isis
     bgp_mode: none
     rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: atlam5
+      intf_name: eth1
+      peer_host: pc_atlang
+      probe_dst_ip: 10.254.0.6
+      symptom_host: pc_atlam5
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: atlam5:eth1--atlang:eth1
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: atlang
+      intf_name: eth2
+      peer_host: pc_hstnng
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_atlang
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: atlang:eth2--hstnng:eth1
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: atlang
+      intf_name: eth3
+      peer_host: pc_iplsng
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_atlang
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: atlang:eth3--iplsng:eth1
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: atlang
+      intf_name: eth4
+      peer_host: pc_washng
+      probe_dst_ip: 10.254.0.46
+      symptom_host: pc_atlang
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: atlang:eth4--washng:eth1
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: chinng
+      intf_name: eth1
+      peer_host: pc_iplsng
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_chinng
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: chinng:eth1--iplsng:eth2
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: chinng
+      intf_name: eth2
+      peer_host: pc_nycmng
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_chinng
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: chinng:eth2--nycmng:eth1
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: dnvrng
+      intf_name: eth1
+      peer_host: pc_kscyng
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_dnvrng
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: dnvrng:eth1--kscyng:eth1
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: dnvrng
+      intf_name: eth2
+      peer_host: pc_snvang
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_dnvrng
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: dnvrng:eth2--snvang:eth1
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: dnvrng
+      intf_name: eth3
+      peer_host: pc_sttlng
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_dnvrng
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: dnvrng:eth3--sttlng:eth1
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: hstnng
+      intf_name: eth2
+      peer_host: pc_kscyng
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_hstnng
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: hstnng:eth2--kscyng:eth2
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: hstnng
+      intf_name: eth3
+      peer_host: pc_losang
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_hstnng
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: hstnng:eth3--losang:eth1
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: iplsng
+      intf_name: eth3
+      peer_host: pc_kscyng
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_iplsng
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: iplsng:eth3--kscyng:eth3
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: losang
+      intf_name: eth2
+      peer_host: pc_snvang
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_losang
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: losang:eth2--snvang:eth2
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: nycmng
+      intf_name: eth2
+      peer_host: pc_washng
+      probe_dst_ip: 10.254.0.46
+      symptom_host: pc_nycmng
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: nycmng:eth2--washng:eth2
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      down_time: '1'
+      host_name: snvang
+      intf_name: eth3
+      peer_host: pc_sttlng
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_snvang
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: snvang:eth3--sttlng:eth2
+      fault_type: link_flap
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
     backend: kathara
     device_profile: frr
     inject:

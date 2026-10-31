@@ -1,0 +1,28 @@
+scenario:
+  name: min3clos
+failure:
+  fault_type: device_forwarding_packet_corruption
+  cases:
+  - inject:
+      forwarding_device: spine
+      intf_name: e1-2
+      observer_device: client1
+      probe_dst_ip: 10.0.0.27
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: spine
+      fault_type: device_forwarding_packet_corruption
+  - device_profile: sonic
+    inject:
+      forwarding_device: spine
+      intf_name: eth2
+      observer_device: client1
+      probe_dst_ip: 10.0.0.27
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: spine
+      fault_type: device_forwarding_packet_corruption

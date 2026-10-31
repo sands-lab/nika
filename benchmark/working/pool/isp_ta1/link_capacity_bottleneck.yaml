@@ -7,6 +7,86 @@ failure:
     igp: isis
     bgp_mode: none
     rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: n15
+      intf_name: eth2
+      limit: 32kb
+      peer_host: pc_n3
+      probe_dst_ip: 10.254.0.70
+      rate: 512kbit
+      symptom_host: pc_n15
+    root_causes:
+    - resource:
+        kind: link
+        name: n15:eth2--n3:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: n15
+      intf_name: eth9
+      limit: 32kb
+      peer_host: pc_n18
+      probe_dst_ip: 10.254.0.38
+      rate: 512kbit
+      symptom_host: pc_n15
+    root_causes:
+    - resource:
+        kind: link
+        name: n15:eth9--n18:eth3
+      fault_type: link_capacity_bottleneck
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: n2
+      intf_name: eth2
+      limit: 32kb
+      peer_host: pc_n15
+      probe_dst_ip: 10.254.0.26
+      rate: 512kbit
+      symptom_host: pc_n2
+    root_causes:
+    - resource:
+        kind: link
+        name: n15:eth1--n2:eth2
+      fault_type: link_capacity_bottleneck
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      burst: 16kb
+      host_name: n23
+      intf_name: eth5
+      limit: 32kb
+      peer_host: pc_n20
+      probe_dst_ip: 10.254.0.50
+      rate: 512kbit
+      symptom_host: pc_n23
+    root_causes:
+    - resource:
+        kind: link
+        name: n20:eth11--n23:eth5
+      fault_type: link_capacity_bottleneck
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
     backend: kathara
     device_profile: frr
     inject:
