@@ -10,6 +10,7 @@ from unittest.mock import MagicMock
 
 from nika.net_env.verify import frr_bgp_established_peers, srl_bgp_established_peers
 from nika.runtime.containerlab.runtime import ContainerlabRuntime
+from nika.runtime.shared.containers import run_labelled_helper
 from nika.runtime.shared.execution import merge_exec_output
 from nika.service.containerlab.host_tc import host_veth_for
 from nika.service.kathara.docker_utils import link_neighbors
@@ -94,3 +95,34 @@ def test_clab_node_map_survives_transient_inspect_failure(monkeypatch) -> None:
 
     assert runtime._refresh_node_map() is False
     assert runtime._cached_container("r1") is container
+
+
+def test_run_labelled_helper_labels_waits_and_removes() -> None:
+    client = MagicMock()
+    container = MagicMock()
+    client.containers.run.return_value = container
+    container.wait.return_value = {"StatusCode": 0}
+    container.logs.return_value = b""
+
+    assert run_labelled_helper(client, "nika/base:x", ["true"], lab_name="lab1") == b""
+
+    kwargs = client.containers.run.call_args.kwargs
+    assert kwargs["detach"] is True
+    assert kwargs["labels"]["nika.lab_name"] == "lab1"
+    container.wait.assert_called_once()
+    container.remove.assert_called_with(force=True)
+
+
+def test_run_labelled_helper_stops_on_timeout() -> None:
+    client = MagicMock()
+    container = MagicMock()
+    client.containers.run.return_value = container
+    container.wait.side_effect = TimeoutError("read timed out")
+
+    with pytest.raises(RuntimeError, match="did not finish"):
+        run_labelled_helper(
+            client, "nika/base:x", ["sleep", "99"], lab_name="lab1", timeout_sec=1
+        )
+
+    container.stop.assert_called_once()
+    container.remove.assert_called_with(force=True)
