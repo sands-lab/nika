@@ -16,9 +16,12 @@ import shlex
 
 from nika.net_env.utils.sonic.common import container_iface, sonic_port
 from nika.net_env.verify import frr_bgp_established_peers
+from nika.problems.support.frr import FRR_SAVE_COMMAND
 from nika.problems.support.router_ops import RouterFaultOps
 
 _FRR_CONF = "/etc/frr/frr.conf"
+# SONiC name of the loopback that holds BGP-only prefixes (Kathara ``lo1``).
+_ORIGIN_LOOPBACK = "Loopback1"
 _ROUTING_DAEMONS = ("bgpd", "ospfd", "isisd", "staticd", "zebra", "mgmtd")
 _BGP_RULES = tuple(
     (chain, f"--{side} 179")
@@ -90,6 +93,38 @@ class SonicFaultOps(RouterFaultOps):
             "address-family ipv4 unicast",
             f"no network {prefix}",
         )
+
+    def originate_bgp_prefix(self, prefix: str) -> None:
+        net = ipaddress.ip_network(prefix, strict=False)
+        address = net.network_address if net.prefixlen >= 31 else next(net.hosts())
+        # The router answers for the prefix from a loopback, where the ISP
+        # design keeps its own BGP-only prefixes; intfmgrd creates the
+        # loopback and applies the address from CONFIG_DB.
+        interface = f"{_ORIGIN_LOOPBACK}|{address}/{net.prefixlen}"
+        for key in (_ORIGIN_LOOPBACK, interface):
+            self._exec(f"redis-cli -n 4 hset 'LOOPBACK_INTERFACE|{key}' NULL NULL")
+        self._exec(
+            "for _ in $(seq 1 30); do "
+            f"ip -4 addr show dev {_ORIGIN_LOOPBACK} 2>/dev/null "
+            f"| grep -qF ' {address}/' && break; sleep 1; done",
+            timeout=45,
+        )
+        self._configure(
+            f"router bgp {self.bgp_asn()}",
+            "address-family ipv4 unicast",
+            f"network {net}",
+        )
+        # Kept in frr.conf too, as an operator's saved change would be.
+        self._exec(FRR_SAVE_COMMAND)
+
+    def bgp_advertised_to(self, prefix: str) -> list[str]:
+        entry = json.loads(self._vtysh(f"show bgp ipv4 unicast {prefix} json") or "{}")
+        # Only the router's own origination counts, not a path it relays.
+        sourced = any(
+            path.get("sourced") and (path.get("bestpath") or {}).get("overall")
+            for path in entry.get("paths") or []
+        )
+        return sorted(entry.get("advertisedTo") or {}) if sourced else []
 
     def bgp_established_peers(self) -> set[str]:
         return frr_bgp_established_peers(self._vtysh("show bgp summary json"))

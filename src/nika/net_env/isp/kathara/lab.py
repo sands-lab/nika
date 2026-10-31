@@ -511,24 +511,13 @@ class Isp(NetworkEnvBase):
 
     def bgp_hijack_targets(self):
         """Business-prefix hijacks that divert a service client's sessions."""
-        from nika.net_env.isp.bgp.hijack import hijack_targets
+        from nika.net_env.isp.bgp.hijack import lab_hijack_targets
 
         if self.bgp_plan is None:
             return []
-        stub_of = {h.router_device: h.host_name for h in self.traffic.hosts}
-        router_of = {stub: router for router, stub in stub_of.items()}
-        prefix_at = {o.ping_address: o.prefix for o in self.bgp_plan.originated}
-        clients: dict[str, set[str]] = {}
-        for process in self.business_workload().processes:
-            if (
-                process.app == "web_client"
-                and process.node in router_of
-                and process.args[0] in prefix_at
-            ):
-                clients.setdefault(prefix_at[process.args[0]], set()).add(
-                    router_of[process.node]
-                )
-        return hijack_targets(self.plan, self.bgp_plan, stub_of, clients)
+        return lab_hijack_targets(
+            self.plan, self.bgp_plan, self.traffic, self.business_workload()
+        )
 
     def get_info(self) -> str:
         return format_isp_network_info(

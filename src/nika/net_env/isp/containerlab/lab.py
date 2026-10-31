@@ -268,6 +268,13 @@ class Isp(ContainerlabNetworkEnv):
             router_iface=self.router_iface,
         )
 
+    def bgp_hijack_targets(self):
+        """Business-prefix hijacks that divert a router's stub traffic."""
+        from nika.net_env.isp.bgp.hijack import lab_hijack_targets
+
+        # The routers host no business service, so every stub is a client.
+        return lab_hijack_targets(self.plan, self.bgp_plan, self.traffic, None)
+
     def _assign_mgmt_ips(self) -> dict[str, str]:
         names = [
             *sorted(n.device_name for n in self.plan.nodes),

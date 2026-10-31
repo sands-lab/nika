@@ -347,32 +347,6 @@ class SRLAPIMixin:
         )
         return prefix_str in routes and "blackhole" in nhg.lower()
 
-    def srl_advertise_prefix(self: SupportsSRL, device_name: str, prefix: str) -> None:
-        """Advertise ``prefix`` by attaching it to a dedicated loopback interface."""
-        network = ipaddress.ip_network(prefix, strict=False)
-        if network.prefixlen == 31:
-            hosts = list(network.hosts())
-            host_addr = hosts[-1] if hosts else network.network_address + 1
-            lo_addr = f"{host_addr}/{network.prefixlen}"
-        else:
-            host_addr = next(network.hosts(), network.network_address + 1)
-            lo_addr = f"{host_addr}/{network.prefixlen}"
-
-        self._srl_candidate(
-            device_name,
-            "/interface lo1 admin-state enable",
-            f"/interface lo1 subinterface 0 ipv4 address {lo_addr}",
-            "/network-instance default interface lo1.0",
-        )
-
-    def srl_prefix_advertised(self: SupportsSRL, device_name: str, prefix: str) -> bool:
-        output = self.srl_exec_cli(
-            device_name,
-            f"show network-instance default protocols bgp routes ipv4 prefix {prefix}",
-        )
-        prefix_base = prefix.split("/")[0]
-        return prefix_base in output or prefix in output
-
     def srl_add_blackhole_route_leak(
         self: SupportsSRL, device_name: str, prefix: str
     ) -> None:
