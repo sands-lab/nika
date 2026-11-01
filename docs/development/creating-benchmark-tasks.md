@@ -174,8 +174,11 @@ Notes:
 - `description` is a short explanation of what the failure ID means for the agent submission ontology (and preferred registry text). Name the root cause only. Do not include injection method, artifact names, verification evidence, or differential shortcuts such as "X fails while Y still works".
 - `symptom_desc` is optional user-facing symptom text. When `description` is omitted, the registry description falls back to `symptom_desc`, then `root_cause_name`.
 - `inject_fault()` should mutate only the selected lab instance.
+- Agents can compare devices, so leave no change that singles out the target beyond the root cause itself. Supporting configuration that the fault needs but that is not its root cause, such as a policy that admits a prefix flood, goes on every comparable device, as `bgp_max_prefix_exceeded` does.
+- NIKA already removes two on-disk shortcuts. When an environment starts, it deletes the `/hostlab` directory inside every Kathara node, which holds that node's original lab files, and saves every FRR router's running config. After injection, it recreates every FRR router's saved config files, keeping each router's own content, and gives them all one shared timestamp.
 - `verify_fault()` must prove the injection artifacts are present (nft/tc/config/process/quota). Failed verification marks the injection as failed and stops the run. Do not put slow network-impact probes in `verify_fault`; put those in the test-path API `nika.validation.symptom.evaluate_symptom` (contracts under `src/nika/validation/symptom/`).
 - Implement `root_cause_resources(params)` so NIKA can derive structured RCA ground truth from injection parameters. Do not maintain a second root-cause table. Use `link_containing_endpoint` for controller-side cable faults (`link_down`, `link_flap`, `link_packet_corruption`); use `interface_on` when the mutated object is an interface. See [Root-cause ground truth and scoring](../benchmarks/root-cause-evaluation.md).
+- Implement `oracle_playbook(params)` with the reference diagnosis an operator would follow to confirm this fault through the agent's MCP tools. A contract test rejects a failure without one. See [Write a playbook for a new failure](../benchmarks/oracle-solver.md#write-a-playbook-for-a-new-failure).
 - `Params` must be a Pydantic model. `nika failure describe` and benchmark YAML validation use it as the injection schema.
 - Declare compatibility on the class: `TAGS` (subset of the scenario tags), optional `COMPATIBLE_COLUMNS` (shared sets live in `problems/support/compatible_columns.py`), `supported_backends`, and `isp_protocol` when the failure needs a specific ISP protocol stack. `ProblemBase.is_compatible()` is the single predicate used by the registry and benchmark generation.
 - Set `native_router_operations` when the failure can target routers that have a fault-operations provider: IOS XR, RouterOS and SONiC. List the operations of `RouterFaultOps` (`problems/support/router_ops.py`) that its native path calls through `native_fault_ops()` or `router_fault_ops()`; use an empty set when the failure acts outside the router OS, such as on the container interface. A failure whose FRR implementation needs nothing else from the node can list `frr_shell`, which platforms that route with FRR (SONiC) implement. The default `None` keeps the failure on FRR and Linux nodes. Generation drops targets on native routers whose vendor provider does not implement every listed operation, so do not keep a vendor × failure table.
@@ -191,7 +194,10 @@ uv run nika failure describe my_fault
 uv run nika env run my_scenario -s s
 uv run nika failure inject my_fault --set host_name=pc1 --set intf_name=eth0
 uv run nika failure ps
+uv run nika agent run --agent oracle
 ```
+
+The last command runs your `oracle_playbook` against the injected failure and writes `oracle.json` to the session directory.
 
 ## Generate traffic
 

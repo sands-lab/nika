@@ -9,11 +9,24 @@ from nika.problems.base import (
     build_verify_result,
     ProblemBase,
 )
-from nika.problems.rca.inventory import interface_on
+from nika.problems.rca.inventory import (
+    interface_on,
+    iter_link_termination_points,
+    parse_endpoint,
+)
 from nika.problems.support.benchmark_targets import resolve_path_mtu_target
 from nika.problems.support.compatible_columns import (
     LINUX_PMTU_COLUMNS,
     LINUX_PMTU_PLATFORMS,
+)
+from nika.problems.support.oracle import (
+    Check,
+    OraclePlaybook,
+    OracleStep,
+    shell,
+    addr_step,
+    is_ip_node,
+    toward,
 )
 from nika.problems.support.router_ops import native_fault_ops
 from nika.runtime.base import RuntimeCapabilityError
@@ -32,6 +45,29 @@ from nika.utils.logger import system_logger
 
 
 _MTU_RE = re.compile(r"\bmtu\s+(\d+)\b")
+
+
+def _mtu_differs(output: str) -> bool:
+    """The far-end MTU differs from the ``LOCAL_MTU=`` the command echoed."""
+    local = re.search(r"LOCAL_MTU=(\d+)", output)
+    far = _MTU_RE.search(output)
+    return local is not None and far is not None and local.group(1) != far.group(1)
+
+
+def _segment_neighbor(net_env, node: str, intf: str) -> tuple[str, str] | None:
+    """First other addressed endpoint on the link or LAN segment of ``node:intf``."""
+    for _key, raw in iter_link_termination_points(net_env):
+        ends = [parse_endpoint(str(item)) for item in raw]
+        if (node, intf) in ends:
+            return next(
+                (e for e in ends if e[0] != node and is_ip_node(net_env, e[0])), None
+            )
+    return None
+
+
+def _below_default(output: str) -> bool:
+    match = _MTU_RE.search(output)
+    return match is not None and int(match.group(1)) < 1500
 
 
 class MtuMismatchParams(BaseModel):
@@ -104,6 +140,81 @@ class MtuMismatch(ProblemBase):
         system_logger.info(
             f"Injected MTU mismatch on {params.host_name}:{params.intf_name} "
             f"(mtu={params.mtu})"
+        )
+
+    def oracle_playbook(self, params: MtuMismatchParams) -> OraclePlaybook:
+        host, intf = params.host_name, params.intf_name
+        steps = [
+            shell(
+                host,
+                f"ip -o link show dev {intf}",
+                f"Read the MTU of {host}:{intf}.",
+                Check(f"{host}:{intf} runs an MTU below 1500 bytes", _below_default),
+                evidence=True,
+                save_as="mtu_local",
+            )
+        ]
+        peer = _segment_neighbor(self.net_env, host, intf)
+        if peer is not None:
+            far, far_intf = peer
+
+            def far_mtu(out):
+                local = _MTU_RE.search(out.get("mtu_local", ""))
+                return {
+                    "host_name": far,
+                    "command": (
+                        f"echo LOCAL_MTU={local.group(1) if local else '?'}; "
+                        f"ip -o link show dev {far_intf}"
+                    ),
+                    "timeout": 15,
+                }
+
+            steps += [
+                OracleStep(
+                    f"Read the MTU of {far}:{far_intf}, a neighbor on the same link.",
+                    "exec_shell",
+                    far_mtu,
+                    Check(
+                        f"{far}:{far_intf} runs a different MTU than {host}:{intf}",
+                        _mtu_differs,
+                    ),
+                    evidence=True,
+                ),
+                addr_step(far, far_intf, "mtu_peer"),
+                toward(
+                    host,
+                    "mtu_peer",
+                    "ping -c 2 -W 1 -s 56 {ip} | tail -2; "
+                    "ping -c 2 -W 1 -M do -s 1400 {ip} 2>&1 | tail -3",
+                    f"Ping {far} across the link with small and with 1428-byte "
+                    "unfragmentable packets.",
+                    Check(
+                        "small probes succeed while 1428-byte DF probes fail",
+                        lambda out: bool(
+                            re.search(r"\b2 received", out)
+                            and re.search(
+                                r"message too long|frag needed|100% packet loss", out
+                            )
+                        ),
+                    ),
+                ),
+            ]
+        if self.lab_backend == "kathara":
+            steps.append(
+                shell(
+                    host,
+                    "vtysh -c 'show ip ospf neighbor' 2>&1 | head -20",
+                    f"List OSPF neighbors on {host}; an MTU mismatch holds an "
+                    "adjacency in ExStart/Exchange.",
+                )
+            )
+        return OraclePlaybook(
+            finding=(
+                f"{host}:{intf} is configured with a smaller MTU than the far end "
+                "of its link, so full-size packets across it are dropped or "
+                "need fragmentation."
+            ),
+            steps=steps,
         )
 
     def verify_fault(self, params: MtuMismatchParams) -> dict:

@@ -273,8 +273,8 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
         self._isps: dict[str, IspRuntime] = {}
         self._hosts: dict[str, HostRuntime] = {}
         self._key_pairs = load_key_pairs()
-        self._wan_pool = list(IPv4Network("100.64.0.0/16").subnets(new_prefix=30))
-        self._tun_pool = list(IPv4Network("172.30.0.0/16").subnets(new_prefix=30))
+        self._wan_pool = IPv4Network("100.64.0.0/16").subnets(new_prefix=30)
+        self._tun_pool = IPv4Network("172.30.0.0/16").subnets(new_prefix=30)
         # Per-edge WG ListenPort allocator. Hubs that also terminate spoke-side
         # interconnect tunnels (HQ) must not reuse TunnelSpec.listen_port.
         self._edge_listen_ports: dict[str, int] = {}
@@ -378,10 +378,10 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
         return pairs
 
     def _next_wan(self) -> IPv4Network:
-        return self._wan_pool.pop(0)
+        return next(self._wan_pool)
 
     def _next_tun(self) -> IPv4Network:
-        return self._tun_pool.pop(0)
+        return next(self._tun_pool)
 
     def _next_listen_port(self, site: str) -> int:
         """Allocate a unique WireGuard ListenPort on ``site``'s Site Edge."""

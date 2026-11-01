@@ -85,7 +85,7 @@ def _agent_row(agent_id: str, spec: AgentSpec | None, problem: str = "") -> str:
     notes = []
     if spec.template is not None:
         notes.append(f"sandbox: {spec.template}")
-    providers = ",".join(sorted(spec.providers))
+    providers = ",".join(sorted(spec.providers)) if spec.requires_provider else "-"
     line = f"  {spec.id:<20} {spec.source:<12} {providers}"
     return f"{line}  [{'; '.join(notes)}]" if notes else line
 

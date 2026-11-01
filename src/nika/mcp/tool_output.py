@@ -1,4 +1,9 @@
-"""Bound MCP tool text returned to agents (mini-swe-agent head/tail style)."""
+"""Bound MCP tool output returned to agents (mini-swe-agent head/tail style).
+
+Every tool result has the same character limit and truncation notice. Text
+keeps its first and last characters; list results keep their first and last
+items whole.
+"""
 
 from __future__ import annotations
 
@@ -8,19 +13,15 @@ from typing import Any
 # Agents read this note, so it names no host configuration.
 _DESC_NOTE = (
     " Oversized outputs keep the first and last halves of the output budget "
-    "(10000 characters by default) and elide the middle."
+    "(10000 characters by default) and elide the middle; list results elide "
+    "whole items."
 )
 
 _TOO_LONG_WARNING = (
-    "The output of your last command was too long.\n"
-    "Please try a different command that produces less output.\n"
-    "If you're looking at a file you can try use head, tail or sed "
-    "to view a smaller number of lines selectively.\n"
-    "If you're using grep or find and it produced too much output, "
-    "you can use a more selective search pattern.\n"
-    "If you really need to see something from the full command's output, "
-    "you can redirect output to a file and then search in that file."
+    "The output of your last tool call exceeded the output limit and was truncated."
 )
+
+_WARNING_BLOCK = f"<warning>\n{_TOO_LONG_WARNING}\n</warning>"
 
 DEFAULT_MAX_CHARS = 10000
 
@@ -54,7 +55,7 @@ def truncate_tool_text(text: str, *, max_chars: int | None = None) -> str:
     tail_n = limit - head_n
     elided = len(text) - limit
     return (
-        f"<warning>\n{_TOO_LONG_WARNING}\n</warning>\n"
+        f"{_WARNING_BLOCK}\n"
         f"<output_head>\n{text[:head_n]}\n</output_head>\n"
         f"<elided_chars>\n{elided} characters elided\n</elided_chars>\n"
         f"<output_tail>\n{text[-tail_n:]}\n</output_tail>"
@@ -86,9 +87,11 @@ def bound_call_tool_result(
     """Apply one head/tail budget across all text blocks of a ``tools/call`` result.
 
     Text blocks are joined with newlines into one observation string. When that
-    string exceeds the budget, it is replaced by a single truncated text block
-    and ``structuredContent`` is removed. Non-text content blocks are kept.
-    Results within budget are returned unchanged.
+    string exceeds the budget, a list result (one text block per item) keeps
+    its first and last items whole and elides the middle ones; any other
+    result, or a list whose single items exceed the budget, is replaced by one
+    truncated text block. ``structuredContent`` is removed and non-text content
+    blocks are kept. Results within budget are returned unchanged.
     """
     content = result.get("content")
     if not isinstance(content, list):
@@ -107,8 +110,9 @@ def bound_call_tool_result(
     if limit <= 0 or len(combined) <= limit:
         return result
 
-    truncated = truncate_tool_text(combined, max_chars=limit)
-    bounded: list[Any] = [{"type": "text", "text": truncated}]
+    bounded = _bound_items(result, texts, limit) or [
+        {"type": "text", "text": truncate_tool_text(combined, max_chars=limit)}
+    ]
     for item in content:
         is_text = (
             isinstance(item, dict)
@@ -120,6 +124,37 @@ def bound_call_tool_result(
     result["content"] = bounded
     result.pop("structuredContent", None)
     return result
+
+
+def _bound_items(
+    result: dict[str, Any], texts: list[str], limit: int
+) -> list[Any] | None:
+    """Keep whole first and last items of a list result within *limit* chars."""
+    structured = result.get("structuredContent")
+    items = structured.get("result") if isinstance(structured, dict) else None
+    if not isinstance(items, list) or len(items) != len(texts) or len(texts) < 2:
+        return None
+    head: list[str] = []
+    used = 0
+    for text in texts:
+        if used + len(text) + 1 > limit // 2:
+            break
+        head.append(text)
+        used += len(text) + 1
+    tail: list[str] = []
+    for text in reversed(texts[len(head) :]):
+        if used + len(text) + 1 > limit:
+            break
+        tail.insert(0, text)
+        used += len(text) + 1
+    if not head and not tail:
+        return None
+    elided = len(texts) - len(head) - len(tail)
+    notice = f"<elided_items>\n{elided} of {len(texts)} items elided\n</elided_items>"
+    return [
+        {"type": "text", "text": text}
+        for text in (_WARNING_BLOCK, *head, notice, *tail)
+    ]
 
 
 def rewrite_jsonrpc_payload(

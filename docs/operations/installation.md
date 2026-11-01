@@ -52,7 +52,7 @@ Check that no other route on the host, such as one from a VPN or the host networ
 
 ## Runtime images
 
-The installer ends by running `uv run nika images prepare`. It builds every local `nika/*` image, pulls the upstream images that non-vendor scenarios deploy (`kathara/*`, `rancher/k3s`, Nokia SR Linux, and others) by their pinned digests, downloads the pinned SONiC virtual switch build, and caches the `k8s_lab` and `llmd_lab` workload archives and Helm charts under `.nika_cache/`. Benchmarks then start without image builds or registry pulls. Vendor router images still need `--with-vendor-images` (see [Prepare vendor images](#prepare-vendor-images)).
+The installer ends by running `uv run nika images prepare`. It builds every local `nika/*` image, pulls the upstream images that non-vendor scenarios deploy or build on (`kathara/*`, `rancher/k3s`, Nokia SR Linux, and others) by their pinned digests, downloads the pinned SONiC virtual switch build, and caches the `k8s_lab` and `llmd_lab` workload archives and Helm charts under `.nika_cache/`. Benchmarks then start without image builds or registry pulls. Vendor router images still need `--with-vendor-images` (see [Prepare vendor images](#prepare-vendor-images)).
 
 On a fresh 8-vCPU host, the whole first install takes about 20 minutes and uses about 16 GB of disk: 11 GB of Docker images, 4 GB of Docker build cache, and 1 GB under `.nika_cache/`. Pass `--skip-images` to skip this step; labs then build or pull what they need on first deploy.
 

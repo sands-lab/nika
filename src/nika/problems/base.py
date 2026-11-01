@@ -19,6 +19,7 @@ from nika.runtime.base import RuntimeCapabilityError
 
 if TYPE_CHECKING:
     from nika.net_env.base import NetworkEnvBase
+    from nika.problems.support.oracle import OraclePlaybook
     from nika.problems.support.benchmark_targets import (
         InjectTargetContext,
         InjectValidationContext,
@@ -440,6 +441,17 @@ class ProblemBase:
         """
         raise UnresolvedRootCauseError(
             f"{type(self).__name__} must implement root_cause_resources()."
+        )
+
+    def oracle_playbook(self, params: Any = None) -> OraclePlaybook:
+        """Return the reference diagnosis path that confirms this fault.
+
+        The oracle solver runs the steps through the diagnosis MCP tools and
+        submits the root cause only when every evidence step holds. Build it
+        from the templates in ``nika.problems.support.oracle``.
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} does not define oracle_playbook()."
         )
 
     def get_ground_truth(self) -> ProblemGroundTruth:

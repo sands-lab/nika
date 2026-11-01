@@ -40,13 +40,12 @@ load_test_env()
 CLAUDE_PROVIDER, CLAUDE_MODEL = live_anthropic_test_config()
 
 
-def _tool_payload(result: object) -> object:
-    texts = tool_text_list(result)
-    joined = "\n".join(texts)
-    try:
-        return json.loads(joined)
-    except json.JSONDecodeError:
-        return joined
+def _event_rows(result: object) -> list[dict]:
+    """Parse ``k8s_list_events`` output: one JSON object per text block.
+
+    Over the output limit, warning and elision markers sit between items.
+    """
+    return [json.loads(text) for text in tool_text_list(result) if text.startswith("{")]
 
 
 def _require_live_k8s() -> bool:
@@ -159,7 +158,7 @@ class K8sMcpGatewayIntegrationTest(SharedSessionTestCase):
         async def _check(tools):
             nodes = await _kubectl(tools, "get nodes --no-headers")
             services = await _kubectl(tools, "get services -A --no-headers")
-            events = _tool_payload(
+            events = _event_rows(
                 await tools["k8s_list_events"].ainvoke(
                     {"namespace": "kube-system", "limit": 20}
                 )
@@ -172,7 +171,7 @@ class K8sMcpGatewayIntegrationTest(SharedSessionTestCase):
         assert len(nodes.splitlines()) >= 6
         assert any(_ready(n) for n in nodes.splitlines())
         assert any("kubernetes" in s for s in services.splitlines())
-        assert isinstance(events, list)
+        assert events and all("reason" in event for event in events)
 
     def test_02_missing_session_header_rejected(self) -> None:
         import urllib.error
@@ -611,12 +610,12 @@ def _prod_shape_mcp_probe(
             assert uid
 
             if smoke_extra_tools:
-                events = _tool_payload(
+                events = _event_rows(
                     await tools["k8s_list_events"].ainvoke(
                         {"namespace": "kube-system", "limit": 20}
                     )
                 )
-                assert isinstance(events, list)
+                assert events and all("reason" in event for event in events)
 
                 netpols = await _kubectl(tools, "get networkpolicy -A --no-headers")
                 assert "error:" not in netpols.lower()

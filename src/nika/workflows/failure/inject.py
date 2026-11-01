@@ -289,6 +289,9 @@ def inject_failure(
             f"{verify_result}.{hint}"
         )
 
+    # A fault that saved its config must not be the one recently written file.
+    inject_problem.net_env.align_saved_configs()
+
     for failure_id, problem_name, row_params in failure_rows:
         store.update_failure_injection(
             session.session_id,

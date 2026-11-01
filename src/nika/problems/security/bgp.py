@@ -1,5 +1,6 @@
 import ipaddress
 import json
+import re
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -11,6 +12,15 @@ from nika.problems.base import (
     ProblemBase,
 )
 from nika.problems.support.frr import frr_config_command, frr_save_config
+from nika.problems.support.oracle import (
+    Check,
+    OraclePlaybook,
+    OracleStep,
+    all_of,
+    contains,
+    shell,
+    vtysh,
+)
 from nika.problems.support.benchmark_targets import (
     access_router_victim,
     require_role_member,
@@ -63,6 +73,51 @@ class BGPHijackingParams(BaseModel):
             "misconfiguration also extends with the target, letting it out."
         ),
     )
+
+
+def _bgp_paths(output: str) -> list[tuple[str, bool]]:
+    """``(origin, best)`` per path of ``show bgp ipv4 unicast <prefix>`` output.
+
+    The origin is ``AS<n>`` (last AS of a non-empty AS path) or, for a path
+    from the local AS, the originator (or next hop) address.
+    """
+    paths = []
+    for block in re.split(r"\n(?=  \S)", output):
+        lines = block.splitlines()
+        if len(lines) < 3 or not re.search(r"^\s+Origin ", block, re.M):
+            continue
+        as_path = [t for t in lines[0].split(",")[0].split() if t.isdigit()]
+        if as_path:
+            origin = f"AS{as_path[-1]}"
+        else:
+            originator = re.search(r"Originator: ([\d.]+)", block)
+            hop = lines[1].split()[0] if lines[1].split() else ""
+            origin = originator.group(1) if originator else hop
+        best = bool(re.search(r"^\s+Origin [^\n]*\bbest\b", block, re.M))
+        paths.append((origin, best))
+    return paths
+
+
+def _hijacker_ids(output: str) -> set[str]:
+    m = re.search(r"^hijacker=(\S*)$", output, re.M)
+    return set(m.group(1).split(",")) if m else set()
+
+
+def _best_from_hijacker(output: str) -> bool:
+    """The best path originates at the hijacker (``hijacker=`` line: its AS
+    and addresses)."""
+    ids = _hijacker_ids(output)
+    return any(best and origin in ids for origin, best in _bgp_paths(output))
+
+
+def _other_origin_seen(output: str) -> bool:
+    """Besides its own, the hijacker holds a path from another origin (the
+    owner): not its local AS and not one of its ``addr`` lines."""
+    asn = re.search(r"local AS number (\d+)", output)
+    own = {"0.0.0.0", *re.findall(r"^addr ([^/\s]+)", output, re.M)}
+    if asn:
+        own.add(f"AS{asn.group(1)}")
+    return any(origin not in own for origin, _ in _bgp_paths(output))
 
 
 def _scenario_targets(net_env) -> list:
@@ -173,6 +228,131 @@ class BGPHijacking(ProblemBase):
 
     def root_cause_resources(self, params: BGPHijackingParams):
         return [node_resource(params.host_name)]
+
+    def _prefix_owners(self, prefix: str, hijacker: str) -> list[str]:
+        """Routers that legitimately originate ``prefix`` (scenario inventory)."""
+        bgp = (getattr(self.net_env, "inventory", None) or {}).get("bgp") or {}
+        owners = {
+            str(row.get("device"))
+            for row in bgp.get("originated") or []
+            if row.get("prefix") == prefix and row.get("device") != hijacker
+        }
+        return sorted(owners)
+
+    def _node_asns(self, nodes: list[str]) -> set[str]:
+        """ASNs of ``nodes`` from the scenario's BGP inventory."""
+        bgp = (getattr(self.net_env, "inventory", None) or {}).get("bgp") or {}
+        return {
+            str(row.get("asn"))
+            for row in bgp.get("nodes") or []
+            if row.get("device") in nodes and row.get("asn") is not None
+        }
+
+    def oracle_playbook(self, params: BGPHijackingParams) -> OraclePlaybook:
+        hijacker = params.host_name
+        prefix = str(
+            ipaddress.ip_network(
+                params.target_network or self._default_target_network(), strict=False
+            )
+        )
+        owners = self._prefix_owners(prefix, hijacker)
+        owner_asns = self._node_asns(owners)
+        # Without a known owner, the owner's path on the hijacker shows it.
+        owner_seen = (
+            []
+            if owners
+            else [
+                Check(
+                    f"{hijacker} also holds a path for {prefix} from another origin",
+                    _other_origin_seen,
+                )
+            ]
+        )
+        steps = []
+        if params.observer_host and params.probe_dst_ip:
+            steps.append(
+                shell(
+                    params.observer_host,
+                    f"traceroute -n -w 1 -q 1 -m 12 {params.probe_dst_ip} 2>&1 "
+                    f"|| ping -c 3 -W 1 {params.probe_dst_ip}",
+                    f"Trace where {params.observer_host}'s traffic to "
+                    f"{params.probe_dst_ip} ends.",
+                    timeout=40,
+                )
+            )
+        steps.append(
+            shell(
+                hijacker,
+                vtysh(f"show bgp ipv4 unicast {prefix}")
+                + "; "
+                + vtysh("show bgp summary")
+                + " | grep -m1 'local AS number'"
+                "; ip -o -4 addr show | awk '{print \"addr \" $4}'",
+                f"Check whether {hijacker} originates {prefix} into BGP.",
+                all_of(
+                    contains(
+                        r"\bsourced\b[^\n]*\bbest\b",
+                        f"{hijacker} sources {prefix} as its best path",
+                    ),
+                    contains(
+                        r"Advertised to peers:\n\s+\d",
+                        f"{hijacker} advertises it to its peers",
+                    ),
+                    *owner_seen,
+                ),
+                evidence=True,
+                save_as="hijacker",
+            )
+        )
+        observer = params.symptom_host
+        if observer and observer != hijacker:
+
+            def observer_view(outputs) -> dict:
+                text = outputs.get("hijacker", "")
+                ids = re.findall(r"^addr ([^/\s]+)", text, re.M)
+                asn = re.search(r"local AS number (\d+)", text)
+                # The AS identifies the hijacker only when the owner sits in
+                # another AS; otherwise match its addresses alone.
+                owner_origins = {o for o, _ in _bgp_paths(text)} - {"0.0.0.0"}
+                if asn and not (
+                    f"AS{asn.group(1)}" in owner_origins or asn.group(1) in owner_asns
+                ):
+                    ids.append(f"AS{asn.group(1)}")
+                command = f"echo hijacker={','.join(ids)}; " + vtysh(
+                    f"show bgp ipv4 unicast {prefix}"
+                )
+                return {"host_name": observer, "command": command, "timeout": 15}
+
+            check = Check(
+                f"{observer}'s best path for {prefix} originates at {hijacker}",
+                _best_from_hijacker,
+            )
+            steps.append(
+                OracleStep(
+                    f"Check which origin {observer} prefers for {prefix}.",
+                    "exec_shell",
+                    observer_view,
+                    check,
+                    evidence=True,
+                )
+            )
+        for owner in owners[:1]:
+            steps.append(
+                shell(
+                    owner,
+                    vtysh(f"show bgp ipv4 unicast {prefix}"),
+                    f"Check the legitimate origin of {prefix} on {owner}.",
+                    contains(r"\bsourced\b", f"{owner} originates {prefix} as well"),
+                    evidence=True,
+                )
+            )
+        return OraclePlaybook(
+            finding=(
+                f"{hijacker} originates {prefix}, a prefix it does not own, into BGP "
+                "and attracts traffic meant for the legitimate origin."
+            ),
+            steps=steps,
+        )
 
     def inject_fault(self, params: BGPHijackingParams):
         target_network = (

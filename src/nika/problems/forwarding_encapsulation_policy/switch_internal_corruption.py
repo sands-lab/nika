@@ -1,6 +1,7 @@
 """Silent, flow-dependent corruption in a forwarding device."""
 
 import re
+from collections import defaultdict
 
 from pydantic import BaseModel, Field
 
@@ -10,6 +11,14 @@ from nika.problems.rca.inventory import (
     interfaces_for_node,
     iter_link_termination_points,
     parse_endpoint,
+)
+from nika.problems.support.oracle import (
+    OraclePlaybook,
+    OracleStep,
+    all_of,
+    contains,
+    lacks,
+    shell,
 )
 from nika.problems.support.benchmark_targets import (
     choice,
@@ -199,6 +208,77 @@ def _probe_path_corruption_target(ctx) -> dict[str, str]:
     return params
 
 
+def _tcp_probe_pair(net_env, device: str, intf: str) -> tuple[str, str, bool]:
+    """(client, web server, upload) whose TCP payload leaves ``device:intf``.
+
+    Nodes reachable from the interface's peer without crossing ``device`` sit
+    downstream of the egress. A downstream web server receives client uploads
+    through it; otherwise a downstream client downloads through it.
+    """
+    adjacency: dict[str, set[str]] = defaultdict(set)
+    downstream: set[str] = set()
+    for _key, tps in iter_link_termination_points(net_env):
+        endpoints = [str(ep) for ep in tps]
+        nodes = [parse_endpoint(ep)[0] for ep in endpoints]
+        if f"{device}:{intf}" in endpoints:
+            downstream.update(n for n in nodes if n != device)
+        for node in nodes:
+            adjacency[node].update(n for n in nodes if n != node)
+    queue = list(downstream)
+    while queue:
+        for nxt in adjacency[queue.pop()] - downstream - {device}:
+            downstream.add(nxt)
+            queue.append(nxt)
+    webs = sorted((getattr(net_env, "servers", None) or {}).get("web") or [])
+    clients = sorted(
+        name
+        for name, identity in net_env.machine_identities.items()
+        if identity.role == NodeRole.HOST
+    )
+    for web in webs:
+        client = next((c for c in clients if c not in downstream), None)
+        if web in downstream and client:
+            return client, web, True
+    web = next((w for w in webs if w not in downstream), None)
+    client = next((c for c in clients if c in downstream), None)
+    if web and client:
+        return client, web, False
+    raise ValueError(f"no client/web pair crosses {device}:{intf}")
+
+
+def _server_ip(outputs) -> str:
+    match = re.search(r"inet (\d+\.\d+\.\d+\.\d+)/", outputs.get("corrupt_server", ""))
+    return match.group(1) if match else "0.0.0.0"
+
+
+def _tcp_transfers(client: str, upload: bool, flows: int = 24) -> OracleStep:
+    """Many short TCP transfers, each on a fresh five-tuple."""
+    transfer = (
+        "head -c 65536 /dev/zero | curl -s -o /dev/null -m 3 --data-binary @- "
+        "http://{ip}/"
+        if upload
+        else "curl -s -o /dev/null -m 3 -r 0-131071 http://{ip}/large.bin"
+    )
+
+    def args(outputs):
+        command = (
+            f"ok=0; failed=0; for i in $(seq {flows}); do "
+            f"if {transfer.format(ip=_server_ip(outputs))}; "
+            "then ok=$((ok+1)); else failed=$((failed+1)); fi; done; "
+            "echo ok=$ok failed=$failed"
+        )
+        return {"host_name": client, "command": command, "timeout": flows * 4 + 20}
+
+    direction = "upload to" if upload else "download from"
+    return OracleStep(
+        f"Run {flows} short TCP transfers from {client} that {direction} the web "
+        "server; a corrupted flow stalls until it times out.",
+        "exec_shell",
+        args,
+        contains(r"failed=[1-9]", "some transfers stall"),
+    )
+
+
 class DeviceForwardingPacketCorruption(ProblemBase):
     """Inject a payload bitflip after a fabric node forwards a TCP packet."""
 
@@ -279,6 +359,52 @@ class DeviceForwardingPacketCorruption(ProblemBase):
                 "forwarding_device": params.forwarding_device,
                 "intf": params.intf_name,
             },
+        )
+
+    def oracle_playbook(
+        self, params: SwitchInternalPacketCorruptionParams
+    ) -> OraclePlaybook:
+        device, intf = params.forwarding_device, params.intf_name
+        client, web, upload = _tcp_probe_pair(self.net_env, device, intf)
+        receiver = web if upload else client
+        return OraclePlaybook(
+            finding=(
+                f"An eBPF classifier on {device}:{intf} egress flips a payload "
+                "bit in a subset of TCP flows, so receivers drop those segments "
+                "with bad checksums while links and routing stay healthy."
+            ),
+            steps=[
+                shell(
+                    web,
+                    "ip -4 -o addr show scope global | head -3",
+                    f"Look up the address of web server {web}.",
+                    save_as="corrupt_server",
+                ),
+                _tcp_transfers(client, upload),
+                shell(
+                    receiver,
+                    "nstat -asz TcpInCsumErrors TcpRetransSegs",
+                    f"Read the TCP checksum error counter on receiver {receiver}.",
+                    contains(
+                        r"TcpInCsumErrors\s+[1-9]",
+                        "the receiver drops TCP segments with bad checksums",
+                    ),
+                    evidence=True,
+                ),
+                shell(
+                    device,
+                    f"tc qdisc show dev {intf}; tc filter show dev {intf} egress",
+                    f"Inspect the egress datapath of {device}:{intf}.",
+                    all_of(
+                        lacks(r"netem", "no netem impairment on the link"),
+                        contains(
+                            r"\bbpf\b.*direct-action",
+                            "an eBPF classifier rewrites egress packets",
+                        ),
+                    ),
+                    evidence=True,
+                ),
+            ],
         )
 
     def recover_fault(self, params: SwitchInternalPacketCorruptionParams) -> dict:

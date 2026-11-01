@@ -641,6 +641,8 @@ def start_net_env(
                 error_type=type(post_deploy_exc).__name__,
             )
 
+        net_env.seal_baseline()
+
         # Every case of a scenario carries the same traffic, so a workload
         # that does not start fails the session start.
         workload_started = time.perf_counter()

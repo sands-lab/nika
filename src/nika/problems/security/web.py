@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import random
+import re
 import time
 from typing import Any
 from urllib.parse import urlsplit
@@ -17,6 +18,12 @@ from nika.problems.support.ab_helpers import (
     stop_ab_workers,
 )
 from nika.problems.support.compatible_columns import NON_K8S_HOST_COLUMNS
+from nika.problems.support.oracle import (
+    Check,
+    OraclePlaybook,
+    OracleStep,
+    shell,
+)
 from nika.problems.base import (
     FailureDomain,
     build_verify_result,
@@ -67,6 +74,21 @@ while True:
             sock.close()
     sockets = alive
 """
+
+
+#: Connections one client must hold on the victim to count as a flood source;
+#: the attack opens hundreds, a browsing client a handful.
+_FLOOD_CONNECTIONS = 100
+
+
+def _count_at_least(label: str, minimum: int, description: str) -> Check:
+    """Output has a ``<label> N`` line with N >= *minimum*."""
+
+    def check(output: str) -> bool:
+        match = re.search(rf"^{re.escape(label)} (\d+)$", output, re.M)
+        return bool(match) and int(match.group(1)) >= minimum
+
+    return Check(description, check)
 
 
 class WebDoSParams(BaseModel):
@@ -279,6 +301,70 @@ class WebDoS(ProblemBase):
 
     def _slow_client_running(self, params: WebDoSParams) -> bool:
         return params.slow_connections == 0 or self._slow_client_count(params) >= 1
+
+    def oracle_playbook(self, params: WebDoSParams) -> OraclePlaybook:
+        victim, attacker = params.host_name, params.attacker_device
+        observer = params.observer_device or attacker
+        url = params.attack_url or params.probe_url
+        endpoint = urlsplit(url or "")
+        port = endpoint.port or 80
+        server = endpoint.hostname
+        dst = f"dst {server} and " if server else ""
+        peers = (
+            f"ss -Htn '( sport = :{port} )' | awk '{{print $5}}' "
+            "| sed 's/:[0-9]*$//' | sort | uniq -c | sort -rn"
+        )
+        return OraclePlaybook(
+            finding=(
+                f"{attacker} floods the web service on {victim} with hundreds of "
+                "concurrent HTTP and slow, never-completed requests, exhausting the "
+                "server's connection capacity so legitimate requests slow down."
+            ),
+            steps=[
+                *(
+                    [
+                        OracleStep(
+                            f"Time requests to {params.probe_url} from {observer}.",
+                            "curl_web_test",
+                            {
+                                "host_name": observer,
+                                "url": params.probe_url,
+                                "times": 5,
+                            },
+                        )
+                    ]
+                    if params.probe_url
+                    else []
+                ),
+                shell(
+                    victim,
+                    f"{peers} | head -5 | sed 's/^ */peer /'; "
+                    f"echo top $({peers} | head -1 | awk '{{print $1}}')",
+                    f"Count the TCP connections on {victim}:{port} per client address.",
+                    _count_at_least(
+                        "top",
+                        _FLOOD_CONNECTIONS,
+                        f"one client holds at least {_FLOOD_CONNECTIONS} connections",
+                    ),
+                    evidence=True,
+                    attempts=2,
+                ),
+                shell(
+                    attacker,
+                    "ip -4 -br addr | grep -v '^lo'; echo open $(ss -Htn state "
+                    f"established '( {dst}dport = :{port} )' | wc -l); "
+                    "ps -eo comm | sort | uniq -c | sort -rn | head -5",
+                    f"On {attacker}, the top client address, count its open "
+                    "connections to the web service and its busiest processes.",
+                    _count_at_least(
+                        "open",
+                        _FLOOD_CONNECTIONS,
+                        f"{attacker} keeps at least {_FLOOD_CONNECTIONS} connections open",
+                    ),
+                    evidence=True,
+                ),
+            ],
+        )
 
     def inject_fault(self, params: WebDoSParams):
         web_server = params.host_name

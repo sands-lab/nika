@@ -500,14 +500,16 @@ class Isp(NetworkEnvBase):
     def business_workload(self):
         from nika.net_env.isp.workload import build_isp_workload
 
-        return build_isp_workload(
-            self.plan,
-            self.traffic,
-            self.bgp_plan,
-            self.topo,
-            router_services=True,
-            routine_changes=self.device_profile == "frr",
-        )
+        if not hasattr(self, "_business_workload"):
+            self._business_workload = build_isp_workload(
+                self.plan,
+                self.traffic,
+                self.bgp_plan,
+                self.topo,
+                router_services=True,
+                routine_changes=self.device_profile == "frr",
+            )
+        return self._business_workload
 
     def bgp_hijack_targets(self):
         """Business-prefix hijacks that divert a service client's sessions."""
@@ -515,9 +517,11 @@ class Isp(NetworkEnvBase):
 
         if self.bgp_plan is None:
             return []
-        return lab_hijack_targets(
-            self.plan, self.bgp_plan, self.traffic, self.business_workload()
-        )
+        if not hasattr(self, "_bgp_hijack_targets"):
+            self._bgp_hijack_targets = lab_hijack_targets(
+                self.plan, self.bgp_plan, self.traffic, self.business_workload()
+            )
+        return list(self._bgp_hijack_targets)
 
     def get_info(self) -> str:
         return format_isp_network_info(

@@ -56,6 +56,8 @@ def _p2p(subnet: IPv4Network) -> tuple[str, str]:
 
 class RIPSmallInternetVPN(NetworkEnvBase):
     LAB_NAME = "rip_small_internet_vpn"
+    # Keep the published 0.1.0 lab state; its faults re-run /hostlab startups.
+    SEAL_BASELINE = False
     TOPO_LEVEL = "medium"
     TOPO_SIZE = ["s", "m", "l"]
     TAGS = ["link", "http", "pc", "frr", "mac", "arp", "vpn", "icmp"]

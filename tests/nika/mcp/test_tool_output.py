@@ -23,9 +23,7 @@ def test_truncate_under_limit_unchanged() -> None:
 def test_truncate_keeps_head_and_tail_with_warning() -> None:
     text = "H" * 20 + "M" * 30 + "T" * 20
     out = truncate_tool_text(text, max_chars=40)
-    assert "too long" in out
-    assert "head, tail or sed" in out
-    assert "redirect output to a file" in out
+    assert "exceeded the output limit and was truncated" in out
     assert "30 characters elided" in out
     head = out.split("<output_head>")[1].split("</output_head>")[0].strip()
     tail = out.split("<output_tail>")[1].split("</output_tail>")[0].strip()
@@ -50,13 +48,53 @@ def test_truncate_disabled_when_limit_zero() -> None:
 def test_bound_call_joins_blocks_drops_structured_content() -> None:
     result = {
         "content": [{"type": "text", "text": "x" * 10} for _ in range(5)],
-        "structuredContent": {"result": ["x" * 10] * 5},
+        "structuredContent": {"summary": "x" * 50},
     }
     out = bound_call_tool_result(result, max_chars=20)
     assert len(out["content"]) == 1
     assert out["content"][0]["text"].startswith("<warning>")
     assert "34 characters elided" in out["content"][0]["text"]
     assert "structuredContent" not in out
+
+
+async def _list_tool_result(rows: list[dict]) -> dict:
+    """Serialize *rows* the way a FastMCP ``list[dict]`` tool answers."""
+    from mcp.server.fastmcp import FastMCP
+
+    server = FastMCP("rows")
+
+    @server.tool()
+    def query() -> list[dict]:
+        return rows
+
+    content, structured = await server.call_tool("query", {})
+    return {
+        "content": [block.model_dump() for block in content],
+        "structuredContent": structured,
+    }
+
+
+@pytest.mark.asyncio
+async def test_bound_call_list_result_keeps_whole_head_and_tail_items() -> None:
+    rows = [{"id": index, "message": "m" * 80} for index in range(40)]
+    out = bound_call_tool_result(await _list_tool_result(rows), max_chars=1000)
+    warning, *texts = [block["text"] for block in out["content"]]
+    assert warning.startswith("<warning>") and "truncated" in warning
+    notice = next(text for text in texts if text.startswith("<elided_items>"))
+    texts.remove(notice)
+    ids = [json.loads(text)["id"] for text in texts]
+    assert ids == sorted(ids) and ids[0] == 0 and ids[-1] == 39
+    assert f"{40 - len(ids)} of 40 items elided" in notice
+    assert sum(len(text) + 1 for text in texts) <= 1000
+    assert "structuredContent" not in out
+
+
+@pytest.mark.asyncio
+async def test_bound_call_list_result_with_oversized_items_falls_back_to_text() -> None:
+    rows = [{"values": list(range(500))}, {"values": list(range(500))}]
+    out = bound_call_tool_result(await _list_tool_result(rows), max_chars=200)
+    assert len(out["content"]) == 1
+    assert "<output_head>" in out["content"][0]["text"]
 
 
 def test_bound_call_within_budget_unchanged() -> None:

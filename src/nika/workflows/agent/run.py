@@ -48,6 +48,7 @@ def start_agent(
     """
     from nika.agents.submission import ReportMapper
     from nika.run_config.loader import get_run_config
+    from nika.run_config.schema import AgentSubmissionSettings
     from nika.utils.agent_config import apply_custom_provider_env
 
     # Benchmarks pass stream_output=False; keep MCP/httpx off the console.
@@ -66,6 +67,9 @@ def start_agent(
     llm_provider = resolve_llm_provider(llm_provider, agent_type=agent_type)
     model = resolve_agent_model(agent_type, model)
     submission = resolve_submission_settings()
+    if get_agent_spec(agent_type).template is None:
+        # Host-run agents (mock, oracle) answer from the ground truth themselves.
+        submission = AgentSubmissionSettings()
     # Built before the agent's provider environment clears other credentials.
     report_mapper = ReportMapper.from_settings(
         submission, max_tokens=get_run_config().agent.max_tokens
