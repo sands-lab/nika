@@ -106,6 +106,7 @@ ALL_NODES = {
     "br2_guest_pc",
     "br2_edge",
     "isp1_core",
+    "internet_web",
     "isp2_core",
     "leaf_1_1",
 }

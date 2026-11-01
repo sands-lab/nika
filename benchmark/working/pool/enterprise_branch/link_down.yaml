@@ -166,6 +166,15 @@ failure:
         name: hq_edge:eth4--isp2_core:eth0
       fault_type: link_down
   - topo_size: s
+    inject:
+      host_name: internet_web
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: internet_web:eth0--isp1_core:eth4
+      fault_type: link_down
+  - topo_size: s
     device_profile: iosxr
     inject:
       host_name: br1_corp_pc
@@ -346,6 +355,16 @@ failure:
         name: hq_edge:eth4--isp2_core:eth0
       fault_type: link_down
   - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: internet_web
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: internet_web:eth0--isp1_core:eth4
+      fault_type: link_down
+  - topo_size: s
     device_profile: routeros
     inject:
       host_name: br1_corp_pc
@@ -524,6 +543,16 @@ failure:
     - resource:
         kind: link
         name: hq_edge:eth4--isp2_core:eth0
+      fault_type: link_down
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: internet_web
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: internet_web:eth0--isp1_core:eth4
       fault_type: link_down
   - topo_size: m
     inject:
@@ -812,6 +841,15 @@ failure:
     - resource:
         kind: link
         name: hq_edge:eth5--isp2_core:eth0
+      fault_type: link_down
+  - topo_size: m
+    inject:
+      host_name: internet_web
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: internet_web:eth0--isp1_core:eth6
       fault_type: link_down
   - topo_size: l
     inject:
@@ -1280,4 +1318,13 @@ failure:
     - resource:
         kind: link
         name: hq_edge:eth5--isp2_core:eth0
+      fault_type: link_down
+  - topo_size: l
+    inject:
+      host_name: internet_web
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: link
+        name: internet_web:eth0--isp1_core:eth10
       fault_type: link_down

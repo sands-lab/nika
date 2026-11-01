@@ -2,4 +2,6 @@ scenario:
   name: k8s_lab
 healthy:
   variants:
+  - traffic:
+      pattern: uniform
   - {}

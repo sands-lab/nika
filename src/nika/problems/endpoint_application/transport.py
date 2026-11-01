@@ -217,6 +217,15 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         rel = self.path.split("?", 1)[0]
         if rel in ("", "/"):
+            if not os.path.isfile(DOCROOT + "/index.html"):
+                names = sorted(os.listdir(DOCROOT))
+                body = "".join(f'<a href="{{n}}">{{n}}</a>\\n' for n in names).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
             rel = "/index.html"
         path = os.path.normpath(DOCROOT + rel)
         if not path.startswith(DOCROOT) or not os.path.isfile(path):
@@ -304,6 +313,9 @@ class SenderResourceContention(ProblemBase):
     symptom_class = "degradation"
     dynamic_artifact = True
     root_cause_name: str = "sender_resource_contention"
+    # A sender held to a 5% CPU quota still sends 50-70 kbit/s, so the path
+    # must carry well above that for the transfer to fall to a fifth of it.
+    minimum_path_rate_kbps = 1_000
     description = (
         "The host that sends the data (the serving end of a transfer) is "
         "CPU-starved, so it produces data slowly."
@@ -833,6 +845,9 @@ class ReceiverResourceContention(ProblemBase):
     Params = ReceiverResourceContentionParams
     # The slowdown shows in the downloads the starved receiver reads.
     SYMPTOM_WORKLOAD = BULK_DOWNLOAD
+    # A starved receiver closes its window only when the path delivers faster
+    # than it reads; a 1 Mbit/s RouterOS path is slower than such a reader.
+    minimum_path_rate_kbps = 10_000
 
     @classmethod
     def symptom_workload_target(cls, inject):

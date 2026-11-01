@@ -5,6 +5,7 @@ from collections import defaultdict
 
 from pydantic import BaseModel, Field
 
+from nika.problems.support.traffic import LOSS_EVIDENCE_TRAFFIC
 from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
 from nika.problems.rca import node_resource
 from nika.problems.rca.inventory import (
@@ -254,6 +255,7 @@ class DeviceForwardingPacketCorruption(ProblemBase):
     symptom_probe = "custom"
     symptom_class = "gray"
     root_cause_name = "device_forwarding_packet_corruption"
+    TRAFFIC_PROFILE = LOSS_EVIDENCE_TRAFFIC
     description = "A forwarding device silently corrupts selected packets."
     symptom_desc = (
         "A subset of TCP flows through one fabric switch incurs end-to-end "

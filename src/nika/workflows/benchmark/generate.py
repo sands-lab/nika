@@ -24,6 +24,7 @@ from nika.problems.rca.inventory import load_offline_net_env
 from nika.problems.rca.materialize import ground_truth_for_case
 from nika.problems.rca.models import FaultResource
 from nika.problems.registry import get_problem_class, list_avail_problem_instances
+from nika.traffic.profiles import traffic_field
 from nika.problems.support.router_ops import unsupported_native_targets
 from nika.workflows.benchmark.e2e_validation import containerlab_isp_supported
 from nika.workflows.benchmark.healthy import HEALTHY_PROBLEM
@@ -98,6 +99,7 @@ def _variant_sort_key(variant: dict[str, Any]) -> tuple[str, ...]:
         str(bool(variant.get("rpki", False))),
         str(variant.get("backend") or ""),
         str(variant.get("device_profile") or ""),
+        json.dumps(variant.get("traffic") or {}, sort_keys=True),
     )
 
 
@@ -315,6 +317,7 @@ def build_failure_cases(
     """Materialize legal injection targets and report rejected candidates offline."""
     collected: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
+    traffic = traffic_field(get_problem_class(problem, scenario).TRAFFIC_PROFILE)
     net_env = load_offline_net_env(scenario, topo_size, **_offline_kwargs(isp_options))
     try:
         enumerated = enumerate_inject_params(
@@ -444,6 +447,7 @@ def build_failure_cases(
         collected.append(
             {
                 **_profile_fields(topo_size, isp_options),
+                **traffic,
                 "inject": inject,
                 "root_causes": catalog_root_causes,
             }
@@ -486,6 +490,7 @@ def _healthy_specs(
             bool(opts.get("rpki", False)),
             str(opts.get("backend") or ""),
             str(opts.get("device_profile") or ""),
+            json.dumps(opts.get("traffic") or {}, sort_keys=True),
         )
         if key in seen:
             return None
@@ -522,8 +527,12 @@ def _healthy_specs(
         scenario = str(document["scenario"]["name"])
         for case in document["failure"]["cases"]:
             topo_size = str(case.get("topo_size") or "")
+            # A healthy variant per traffic profile the failures run with, so
+            # background traffic alone does not tell an agent a fault exists.
             isp_options = {
-                key: case[key] for key in _DEPLOY_OPTION_KEYS if key in case
+                key: case[key]
+                for key in (*_DEPLOY_OPTION_KEYS, "traffic")
+                if key in case
             } or None
             spec = _emit(scenario, topo_size, isp_options)
             if spec is not None:

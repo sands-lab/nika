@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from ipaddress import IPv4Interface, IPv4Network
 
@@ -30,7 +31,10 @@ from nika.net_env.enterprise_branch.topology import (
     LOCAL_ONLY_ROLES,
     MAX_OVERLAY_RTT_MS,
     OVERLAY_ROLES,
+    PUBLIC_SERVICE_GATEWAY,
+    PUBLIC_SERVICE_HOST,
     PUBLIC_SERVICE_IP,
+    PUBLIC_SERVICE_PREFIXLEN,
     SCALE,
     UNDERLAY_ONE_WAY_DELAY_MS,
     BuiltTunnel,
@@ -43,6 +47,7 @@ from nika.net_env.enterprise_branch.topology import (
     build_topo_spec,
     dscp_remark_inject_targets,
     hub_iface_for,
+    overlay_be_kbit,
     overlay_qos_for,
     overlay_qos_startup_cmds,
     primary_hq_peer_targets,
@@ -283,6 +288,7 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
         self._wire_lans()
         self._wire_wan()
         self._build_tunnels()
+        self._add_public_service()
         self._write_edge_configs()
         self._write_isp_configs()
         self._write_host_configs()
@@ -551,6 +557,34 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
                             f"ip route add {public_ip}/32 via {edge_ip}"
                         )
 
+    def _add_public_service(self) -> None:
+        """The public web server on a LAN of the primary provider."""
+        isp = self._isps[self.spec.providers[0]]
+        machine = self.lab.new_machine(
+            PUBLIC_SERVICE_HOST,
+            **{"image": nika_image("base"), "cpus": 0.5, "mem": "256m"},
+        )
+        # Outside the enterprise: no node fault targets it and PingMesh does not
+        # probe it; its provider link can still fail.
+        self.declare_machine(
+            PUBLIC_SERVICE_HOST,
+            role=NodeRole.INFRASTRUCTURE,
+            capabilities=("linux", "http"),
+        )
+        self._connect(isp.name, PUBLIC_SERVICE_HOST, f"{isp.name}_public")
+        isp.cmd_list.append(
+            f"ip addr add {PUBLIC_SERVICE_GATEWAY}/{PUBLIC_SERVICE_PREFIXLEN} "
+            f"dev eth{isp.eth_index}"
+        )
+        isp.eth_index += 1
+        self.lab.create_file_from_list(
+            [
+                f"ip addr add {PUBLIC_SERVICE_IP}/{PUBLIC_SERVICE_PREFIXLEN} dev eth0",
+                f"ip route add default via {PUBLIC_SERVICE_GATEWAY}",
+            ],
+            f"{machine.name}.startup",
+        )
+
     def _build_tunnels(self) -> None:
         for tspec in self.spec.tunnels:
             self._add_tunnel(tspec)
@@ -728,8 +762,6 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
     def _write_isp_configs(self) -> None:
         for isp in self._isps.values():
             isp.cmd_list.insert(0, "sysctl -w net.ipv4.ip_forward=1")
-            if isp.provider == self.spec.providers[0]:
-                isp.cmd_list.append(f"ip addr add {PUBLIC_SERVICE_IP}/32 dev lo")
             isp.machine.create_file_from_string(PROVIDER_DAEMONS, "/etc/frr/daemons")
             isp.machine.create_file_from_path(
                 str(pkg_path("net_env/utils/kathara/bgp/vtysh.conf")),
@@ -769,19 +801,49 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
             "l2_endpoints": sorted(corp, key=lambda h: h != "br1_corp_pc"),
         }
 
+    @classmethod
+    def path_rate_limit_kbps(cls, device_profile: str | None) -> int | None:
+        """Under a send cap, business transfers share the shrunk BE class."""
+        cap = super().path_rate_limit_kbps(device_profile)
+        if cap is None:
+            return None
+        return min(overlay_be_kbit(overlay_qos_for(size, cap)) for size in SCALE)
+
+    def link_symptom_targets(self, node: str, intf: str) -> dict[str, str] | None:
+        """A guest host reaches the public web server through its Site Edge NAT."""
+        machine = self.lab.machines.get(node)
+        match = re.fullmatch(r"eth(\d+)", intf)
+        link = (
+            machine.interfaces.get(int(match.group(1))) if machine and match else None
+        )
+        ends = set(link.link.machines) if link is not None else set()
+        if PUBLIC_SERVICE_HOST not in ends | {node}:
+            return None
+        guest = next(
+            lan.host_names[0]
+            for site in self.spec.sites.values()
+            for lan in site.lans
+            if lan.role == "guest"
+        )
+        return {"observer_device": guest, "probe_dst_ip": PUBLIC_SERVICE_IP}
+
+    def nat_probe_server(self) -> tuple[str, str]:
+        return PUBLIC_SERVICE_HOST, PUBLIC_SERVICE_IP
+
     def business_workload(self):
         from nika.net_env.enterprise_branch.workload import build_workload
-        from nika.traffic.workload import BusinessWorkload
 
-        workload = build_workload(self.spec, self.frr_routers())
-        native = set(self.native_routers)
-        if not native:
-            return workload
-        # Native routers (XRd providers, RouterOS edges) have no Python runtime.
-        return BusinessWorkload(
-            processes=tuple(p for p in workload.processes if p.node not in native),
-            exercises=workload.exercises,
+        workload = build_workload(
+            self.spec, self.frr_routers(), self.router_rate_limit_kbps()
         )
+        # Native routers (XRd providers, RouterOS edges) cannot run the
+        # programs; a process placed there would leave its clients idle.
+        stranded = sorted(
+            {p.node for p in workload.processes} & set(self.native_routers)
+        )
+        if stranded:
+            raise ValueError(f"Business workload placed on native routers: {stranded}")
+        return workload
 
     def _target_size(self) -> TopoSize:
         return self.topo_size if self.topo_size in SCALE else "s"

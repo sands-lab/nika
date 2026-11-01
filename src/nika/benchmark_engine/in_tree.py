@@ -89,6 +89,7 @@ class InTreeBenchmarkEngine:
                 session_id=request.session_id,
                 session_dir=request.trial_dir,
                 telemetry=task.get("telemetry"),
+                traffic=task.get("traffic"),
                 **{key: task.get(key) for key in _DEPLOY_KEYS},
             )
         trial_dir = request.trial_dir

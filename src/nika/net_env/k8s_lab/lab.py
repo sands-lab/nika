@@ -12,6 +12,7 @@ from Kathara.model.Lab import Lab
 
 from nika.config import RUNTIME_DIR
 from nika.net_env.base import NetworkEnvBase, ProbePath
+from nika.net_env.utils.k8s_traffic_pods import K8sTrafficPods
 from nika.net_env.utils.k8s_workload_cache import (
     K3S_NODE_IMAGE,
     K3S_SYSTEM_IMAGES,
@@ -35,12 +36,14 @@ _BASE_IMAGE = nika_image("base")
 # Per-node monitoring agent (``shared/uptime-agent.yaml``).
 _AGENT_IMAGE = "busybox:1.37.0-musl@sha256:5cec3fc171c87218698e85a52af7087de727372aae264a787b8112901a5b0092"
 
+_WORD_IMAGE = "ik2227/word:latest@sha256:a32c1a461340d0880693ae1be5580108a24b8fb5b071902a8cb865b02c31a50d"
+
 _KUBECONFIG_REMOTE_PATH = "/etc/rancher/k3s/k3s.yaml"
 
 _K3S_ULIMITS = ["nproc=65535", "nofile=65535"]
 
 
-class K8sFatTreeBGP(NetworkEnvBase):
+class K8sFatTreeBGP(K8sTrafficPods, NetworkEnvBase):
     LAB_NAME = "k8s_lab"
     K8S_HOST_IMAGES = (_FRR_IMAGE, _K3S_IMAGE, _BASE_IMAGE)
     K8S_WORKLOAD_IMAGES = (
@@ -51,10 +54,12 @@ class K8sFatTreeBGP(NetworkEnvBase):
         "registry.k8s.io/ingress-nginx/controller:v1.12.0@sha256:e6b8de175acda6ca913891f0f727bca4527e797d52688cbe9fec9040d6f6b6fa",
         "registry.k8s.io/ingress-nginx/kube-webhook-certgen:v1.5.0@sha256:aaafd456bda110628b2d4ca6296f38731a3aaf0bf7581efae824a41c770a8fc4",
         "postgres:16@sha256:1a6ab3f5345eb6dbe04a1349529caabdb0ab09293a09590fad07b2246bfa4b54",
-        "ik2227/word:latest@sha256:a32c1a461340d0880693ae1be5580108a24b8fb5b071902a8cb865b02c31a50d",
+        _WORD_IMAGE,
         "ik2227/weather:latest@sha256:b69236a70d439acad840ce5cf71e01bff3be6334095e3887765bba68ec81b35e",
         _AGENT_IMAGE,
     )
+    # The word app image (Python 3) runs traffic programs on the k3s nodes.
+    TRAFFIC_POD_IMAGE = _WORD_IMAGE
     VERIFY_MAX_WAIT_SEC = 1800
     VERIFY_RETRY_DELAY_SEC = 15
     TOPO_LEVEL = "hard"

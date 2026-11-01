@@ -146,6 +146,7 @@ def start_example_case(row: dict[str, Any], *, result_dir: str | None = None) ->
         instance_tag="case",
         result_dir=result_dir,
         telemetry=row.get("telemetry"),
+        traffic=row.get("traffic"),
         **options,
     )
     try:
