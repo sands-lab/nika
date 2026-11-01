@@ -248,7 +248,7 @@ Deploy completes and prints a `session_id=…`. During deploy, `ps` / `pgrep -a 
 ### Notes
 
 - Lower workers slow deploy; they do not reduce steady-state memory once every node is up.
-- If the lab is still too large after `containerlab_max_workers: 1`, use a smaller topology or a host with more RAM. Benchmark Containerlab ISP tasks use topologies with at most 11 SR Linux routers or 55 SONiC routers, and task selection prefers the smaller ones.
+- If the environment is still too large after `containerlab_max_workers: 1`, use a smaller topology or a host with more RAM. Benchmark Containerlab ISP tasks use topologies with at most 11 SR Linux routers or 55 SONiC routers ([SNDlib ISP scenarios](network-scenarios.md#sndlib-isp-scenarios)), and task selection prefers the smaller ones.
 - Setting details: [`nika.lab.containerlab_max_workers`](configuration.md#lab-lifecycle-settings).
 
 ## Firecracker image build fails with RemoteDisconnected

@@ -20,7 +20,7 @@ not establish full controller, P4 program or stateful service correctness.
 Prerequisites:
 
 - A Linux host with NIKA installed as described in the [installation guide](../../docs/operations/installation.md), including Docker and Kathara.
-- Containerlab, only for SR Linux specimens and ISP profiles with `--backend containerlab`.
+- Containerlab, for SR Linux and SONiC specimens and ISP profiles with `--backend containerlab`.
 - For the IOS XR and RouterOS examples, the vendor router images from [Prepare vendor images](../../docs/operations/installation.md#prepare-vendor-images). RouterOS needs `/dev/kvm`.
 
 From the repository root, install the analysis extras and build the pinned analysis tools:
@@ -167,6 +167,7 @@ Batfish checks original predicates against the final candidate configuration. Na
 | FRR OSPF/BGP | Native configuration parser | Sessions, routes, flows and declared fault/recovery behavior |
 | FRR IS-IS | Restricted translation of concrete IPv4 Level-2 configuration to IOS XR | Original IS-IS, ordinary iBGP RR and direct eBGP predicates |
 | Nokia SR Linux | Restricted concrete-configuration projection | Original IGP/BGP predicates on SR Linux |
+| SONiC | Native parser of deployed `config_db.json` and `frr.conf`; IS-IS-only designs projected to IOS XR | Original IGP/BGP predicates on `nika env run`; netlab and native execution are not available in this workflow |
 | Cisco IOS XR | Native parser | Original ISP OSPF or IS-IS/BGP, direct eBGP, and Clos, campus and enterprise predicates on XRd |
 | MikroTik RouterOS | Restricted concrete IPv4 OSPF/BGP projection; IS-IS through the IOS XR IS-IS projection; converted Ethernet routers projected back to FRR | Original predicates on RouterOS; no BGP ECMP |
 | Enterprise | Explicit static-underlay projection | WireGuard, VRF routing and isolation |

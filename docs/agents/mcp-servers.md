@@ -4,9 +4,9 @@ Use this reference to find the tools available during an agent diagnosis session
 
 The [server registry](../../src/nika/mcp/registry.py) selects diagnosis servers from the scenario name, tags, backend, and router platform. Every diagnosis session receives `kathara_base_mcp_server`, `pingmesh_mcp_server`, and `packet_capture_mcp_server`. The base server works with Kathara and Containerlab despite its name. The gateway exposes `task_mcp_server` only after the agent advances to submission.
 
-## Run commands on lab nodes
+## Run commands on environment nodes
 
-Use `exec_shell(host_name, command, timeout=10)` for ordinary commands. Set `timeout` in seconds when a command such as `kubectl` needs longer. Command output is subject to the [tool output limit](#tool-output-limit), so request bounded output with options such as `--no-headers`, `--tail`, or `-o jsonpath`. Commands run inside the named lab node and remain subject to the session's node access policy.
+Use `exec_shell(host_name, command, timeout=10)` for ordinary commands. Set `timeout` in seconds when a command such as `kubectl` needs longer. Command output is subject to the [tool output limit](#tool-output-limit), so request bounded output with options such as `--no-headers`, `--tail`, or `-o jsonpath`. Commands run inside the named node and remain subject to the session's node access policy.
 
 | Task | Node | Command |
 | --- | --- | --- |

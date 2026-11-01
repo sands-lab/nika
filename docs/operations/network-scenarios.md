@@ -440,7 +440,7 @@ Failures that change router state apply the same root cause with RouterOS comman
 
 ### `isp_<topology>`
 
-NIKA imports SNDlib XML through a backend-neutral topology model. It converts each SNDlib node into a router, each physical link into a point-to-point `/31`, and each router into an attachment point for a `pc_<router>` traffic stub. Kathara renders the plan as FRR routers. Containerlab renders the same plan as Nokia SR Linux or SONiC routers. The benchmark puts a Containerlab platform on the graphs whose routers, with one stub each, fit the memory of 11 SR Linux routers: graphs of up to 11 routers on SR Linux and up to 55 on SONiC. SNDlib supplies topology, link attributes, and demand matrices; NIKA supplies the IGP and optional BGP policy presets.
+NIKA imports SNDlib XML through a backend-neutral topology model. It converts each SNDlib node into a router, each physical link into a point-to-point `/31`, and each router into an attachment point for a `pc_<router>` traffic stub. Kathara renders the plan as FRR routers. Containerlab renders the same plan as Nokia SR Linux or SONiC routers. The working benchmark puts a Containerlab platform on the graphs whose routers, with one stub each, fit the memory of 11 SR Linux routers: graphs of up to 11 routers on SR Linux and up to 55 on SONiC. `nika env run` does not apply that cap. SNDlib supplies topology, link attributes, and demand matrices; NIKA supplies the IGP and optional BGP policy presets.
 
 Each vendored SNDlib graph is a separate scenario ID (`isp_abilene`, `isp_france`, …). Topology identity is the scenario name. Relative size `s` / `m` / `l` is fixed metadata for benchmark sampling (by node-count tier), not a CLI flag.
 
@@ -562,7 +562,9 @@ NIKA ports Containerlab's `min-clos` example into its runtime and verification c
 client1 -- leaf1 -- spine -- leaf2 -- client2
 ```
 
-The fabric uses eBGP (leaf AS 65001 and 65002, spine AS 65056). Its SR Linux configuration also enables OSPFv2 and IS-IS on fabric interfaces and the `system0` loopbacks (`30.0.0.1`-`30.0.0.3`, `3000:30::1`-`3000:30::3`). Fabric and client links are dual-stack. NIKA waits for gNMI, applies YAML with `gnmic`, configures both clients, and checks BGP plus IPv4 and IPv6 cross-leaf and loopback reachability. Use this fixed scenario for SR Linux and Containerlab tests that do not need the larger SNDlib compiler. With `--device-profile sonic`, the same addressing, OSPFv2, IS-IS and eBGP sessions run on SONiC routers, as described in [`configs/sonic`](../../src/nika/net_env/min3clos/configs/sonic/).
+The fabric uses eBGP (leaf AS 65001 and 65002, spine AS 65056). Its SR Linux configuration also enables OSPFv2 and IS-IS on fabric interfaces and the `system0` loopbacks (`30.0.0.1`-`30.0.0.3`, `3000:30::1`-`3000:30::3`). Fabric and client links are dual-stack. NIKA waits for gNMI, applies YAML with `gnmic`, configures both clients, and checks BGP plus IPv4 and IPv6 cross-leaf and loopback reachability. Use this fixed scenario for SR Linux and Containerlab tests that do not need the larger SNDlib compiler. With `--device-profile sonic`, the same addressing, OSPFv2, IS-IS and eBGP sessions run on [SONiC routers](#sonic-routers-on-containerlab).
+
+The clients run [business traffic](#business-traffic): they replicate data sets over HTTP (2 Mbit/s from `client1` to `client2`, 1 Mbit/s back), and `client1` keeps web sessions to a service on `client2`.
 
 Besides BGP and link failures, `min3clos` runs ARP cache poisoning on a client and silent packet corruption in a fabric router on both platforms. Each client sits alone on a point-to-point link to its leaf, so failures that need several hosts on one segment, such as MAC or IP address conflicts, do not apply.
 
@@ -575,17 +577,15 @@ uv run nika env run min3clos --device-profile sonic
 uv run nika env run isp_abilene --backend containerlab --device-profile sonic --bgp-mode ebgp
 ```
 
-The routers run the official SONiC virtual switch (`docker-sonic-vs`) from SONiC 202505, pinned to one build of the SONiC build pipeline and checked by SHA-256. `nika images prepare` downloads and loads it, and so does the first deployment that needs it. Each router uses about 150 MiB of memory and boots in about 40 seconds.
+The routers run the official SONiC virtual switch (`docker-sonic-vs`) from SONiC 202505, pinned to one build of the SONiC build pipeline and checked by SHA-256. `uv run nika images prepare` downloads and loads it, and so does the first deployment that needs it. NIKA budgets 256 MiB of memory per SONiC router and 1.5 GiB per SR Linux router. [Firecracker execution](firecracker.md#vm-size) sizes VMs from those figures. [Scenario startup performance](../benchmarks/scenario_perf.md#sonic-containerlab) records measured deploy time and memory.
 
-The routing design is the one the Kathara FRR deployment uses, because SONiC routes with FRR. NIKA writes ports and addresses to CONFIG_DB and the routing protocols to FRR, and SONiC programs FRR's routes into APPL_DB through FPM, as on a hardware switch. Container interface `eth<k>` is SONiC port `Ethernet<4(k-1)>`, and topology links name the container interface. Inside a router, `show` commands, `vtysh`, `redis-cli` and the Linux tools work as on SONiC. Agents run SONiC CLI commands with the `sonic_exec_cli` tool of [`containerlab_sonic_mcp_server`](../agents/mcp-servers.md#use-dedicated-diagnosis-tools).
+SONiC routes with FRR. NIKA writes ports and addresses to CONFIG_DB and the routing protocols to FRR, and SONiC programs FRR's routes into APPL_DB through FPM, as on a hardware switch. Container interface `eth<k>` is SONiC port `Ethernet<4(k-1)>`, and topology links name the container interface. Inside a router, `show` commands, `vtysh`, `redis-cli` and the Linux tools work as on SONiC. Agents run SONiC CLI commands with the `sonic_exec_cli` tool of [`containerlab_sonic_mcp_server`](../agents/mcp-servers.md#use-dedicated-diagnosis-tools).
 
 Startup verification checks SONiC's services, routing adjacencies and sessions, CONFIG_DB addresses in the kernel, FRR routes in APPL_DB, end-to-end reachability, and shortest-path forwarding. SONiC routers export all three [telemetry](#telemetry) kinds over the management network.
 
 To check the generated SONiC configuration against the environment's validation contract before deployment, add `--static-validation`. Batfish then reads each router's `config_db.json` and `frr.conf`; [Batfish static validation](../development/scenario-validation.md#batfish-static-validation) lists what it models.
 
 [Router platforms](failures.md#router-platforms) lists how failures act on SONiC routers.
-
-The clients run [business traffic](#business-traffic): they replicate data sets over HTTP (2 Mbit/s from `client1` to `client2`, 1 Mbit/s back), and `client1` keeps web sessions to a service on `client2`.
 
 ## Kubernetes scenarios
 

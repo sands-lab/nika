@@ -1,16 +1,13 @@
 # Scenario startup performance
 
-Resource and time cost of the labs and cases in benchmark release 0.2.0 (test and dev splits), measured without an agent, and of SONiC Containerlab variants measured the same way. Use it to size benchmark `batch_size` and host capacity. Metric definitions and script options: [experiment/profile/README.md](../../experiment/profile/README.md).
+Resource and time cost of the environments and tasks in benchmark release 0.2.0 (test and dev splits), measured without an agent, and of SONiC Containerlab variants measured the same way. Use it to size benchmark `batch_size` and host capacity. Metric definitions and script options: [experiment/profile/README.md](../../experiment/profile/README.md). NIKA budgets 256 MiB per SONiC router and 1.5 GiB per SR Linux router when it sizes Firecracker VMs and the Containerlab ISP set; the tables below are measured lab-container memory, not that budget.
 
-The page has three measurements:
+The page has four measurements:
 
-- **Single-lab baseline:** every lab variant the release deploys, one lab at a time,
-  3 runs each. Normal NIKA startup (deploy, workload preparation, light runtime
-  verification), a 10 s hold, and cleanup.
-- **Concurrency sweep:** every release case, with its failure injected and verified
-  as the benchmark runner does before the agent starts, at `batch_size` 8, 16 and 24.
-- **SONiC Containerlab:** `min3clos` and the ISP topologies the 0.2.0 baseline runs on SR Linux (`isp_dfn-bwin`, `isp_dfn-gwin`, `isp_di-yuan`, `isp_pdh`), one lab at a time, 3 runs each, with `--device-profile sonic`. Same startup path, 10 s hold, and cleanup as the single-lab baseline.
-- **SONiC scale:** the largest SNDlib ISPs on Containerlab SONiC-VS, one environment at a time, with host-side wires and a full `verify_lab()` after startup.
+- **Single-lab baseline:** every environment variant the release deploys, one environment at a time, 3 runs each. Normal NIKA startup (deploy, workload preparation, light runtime verification), a 10 s hold, and cleanup.
+- **Concurrency sweep:** every release task, with its failure injected and verified as the benchmark runner does before the agent starts, at `batch_size` 8, 16 and 24.
+- **SONiC Containerlab:** `min3clos` and the ISP topologies the 0.2.0 baseline runs on SR Linux (`isp_dfn-bwin`, `isp_dfn-gwin`, `isp_di-yuan`, `isp_pdh`), one environment at a time, 3 runs each, with `--device-profile sonic`. Same startup path, 10 s hold, and cleanup as the single-lab baseline.
+- **SONiC scale:** the largest SNDlib ISPs on Containerlab SONiC, one environment at a time, with host-side wires and a full `verify_lab()` after startup.
 
 ## Run
 

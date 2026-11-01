@@ -104,7 +104,7 @@ healthy:
 
 The pool also carries cases whose routers run IOS XR (`device_profile: iosxr`) or RouterOS (`device_profile: routeros`). The generator expands each environment that declares these profiles: `dc_clos`, `campus_lan`, `enterprise_branch` and the base ISP scenarios. It adds them only at size `s` (for ISP scenarios, topology tier `s`), within the sizes the environment supports, so no case needs a large native lab. Each profile gets its own healthy variant.
 
-Containerlab environments run SR Linux by default and also carry SONiC rows (`device_profile: sonic`): `min3clos` and the base ISP scenarios small enough for Containerlab. A failure gets SONiC rows when it declares Containerlab support or when the SONiC provider implements its `native_router_operations`.
+Containerlab environments run SR Linux by default and also carry SONiC rows (`device_profile: sonic`): `min3clos` and the base ISP scenarios within the [Containerlab ISP size cap](../operations/network-scenarios.md#sndlib-isp-scenarios) (11 SR Linux routers or 55 SONiC routers). A failure gets SONiC rows when it declares Containerlab support or when the SONiC provider implements its `native_router_operations`.
 
 ```yaml
 scenario:
