@@ -200,6 +200,7 @@ Short system description, authors, and links to code / report / site (if any).
 ## What submit validates
 
 - Identity matches the in-tree frozen release
+- The run's results schema version is one this NIKA reads; results from a newer NIKA need a NIKA upgrade first
 - Exact trial coverage (`case_count × n_trials`); metrics and `rca_confusion.json` match recomputed aggregates (non-`scored` trials count as 0 in primary means)
 - No `grading_error` or residual `infra_error` scoring status (`infra_error` is auto-retried during the run; leftovers reject the pack)
 - [Run-validity gates](#run-validity-gates) based on trial artifacts

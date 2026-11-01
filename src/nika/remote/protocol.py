@@ -15,6 +15,9 @@ FOLLOWED_LOGS = ("nika.jsonl", "messages.jsonl")
 class HealthResponse(BaseModel):
     status: str = "ok"
     role: str = "nika-remote"
+    # Host versions recorded in run provenance; ``None`` from older daemons.
+    docker: str | None = None
+    kernel: str | None = None
 
 
 class EnvStartRequest(BaseModel):

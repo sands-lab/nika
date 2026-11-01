@@ -173,19 +173,23 @@ The results schema defines what a run writes, so the current frontend can packag
 | `ground_truth.json` | Benchmark engine | Injected failures; written at injection today, and by `score` once the benchmark engine runs in its own container |
 | `eval_metrics.json` | Benchmark engine for scores, frontend for token, step, and tool-call counts | Per-trial metrics |
 
-Every run directory records `results_schema` and a `provenance` block:
+Every run directory records `results_schema` and a `provenance` block in `run.json`:
 
 ```json
 {
   "results_schema": 1,
   "provenance": {
-    "frontend": {"version": "0.3.0", "commit": "…", "dirty": false},
-    "engine": {"release": "0.1.0", "tag": "v0.1.0", "commit": "…", "image": "ghcr.io/sands-lab/nika-engine@sha256:…"},
+    "frontend": {"version": "1.0.0", "commit": "…", "dirty": false},
+    "engine": {"release": "0.1.0", "tag": "v0.1.0", "commit": "…", "dirty": false, "image": "ghcr.io/sands-lab/nika-engine@sha256:…"},
     "protocol": 1,
     "host": {"docker": "28.3.2", "kernel": "6.8.0-107-generic"}
   }
 }
 ```
+
+`engine` comes from `describe`, and `host` is the machine that runs the environments, as the benchmark engine reports it: the local machine, or the NIKA Remote host when NIKA Remote is enabled. `tag` and `image` stay `null` while a release runs on the current NIKA's benchmark engine. An ad-hoc task batch records `release: null`. `provenance` describes the latest launch; a resume with different provenance appends it to `provenance_history`, and a resume with a different `results_schema` is refused.
+
+[`provenance.py`](../../src/nika/workflows/benchmark/provenance.py) builds these fields, and the leaderboard package's `results/identity.yaml` carries them as `run.results_schema` and `run.provenance`. Results recorded before `results_schema` existed are read as version 1.
 
 The validity rules (`src/nika/evaluator/validity.py`) read harness traces such as `model_calls.jsonl`. The schema lists the trace fields they depend on, such as finish reasons, token counts, and phase markers, so a newer harness cannot break validation of an old release by changing a trace format.
 

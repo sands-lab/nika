@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import replace
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 import pytest
 
@@ -421,6 +421,36 @@ class TestTrialHelpers:
         with pytest.raises(ValueError, match="agent_timeout_sec"):
             merge_run_config(
                 existing=merged, proposed=dict(proposed, agent_timeout_sec=60)
+            )
+
+    def test_resume_keeps_results_schema_and_provenance_history(self) -> None:
+        provenance = {
+            "frontend": {"version": "1.0.0", "commit": "aaa", "dirty": False},
+            "engine": {"release": "mini", "commit": "aaa", "dirty": False},
+            "protocol": 1,
+            "host": {"docker": "28.3.2", "kernel": "6.8.0"},
+        }
+        proposed = {"agent_type": "mock", "results_schema": 1, "provenance": provenance}
+        # Runs recorded before the schema version existed are schema 1.
+        legacy = {"agent_type": "mock", "run_id": "keep", "created_at": "t0"}
+        first = merge_run_config(existing=legacy, proposed=proposed)
+        assert first["results_schema"] == 1
+        assert first["provenance_history"] == [{**provenance, "recorded_at": ANY}]
+
+        same = merge_run_config(existing=first, proposed=proposed)
+        assert len(same["provenance_history"]) == 1
+        upgraded = {**provenance, "host": {"docker": "29.0.0", "kernel": "6.8.0"}}
+        second = merge_run_config(
+            existing=same, proposed={**proposed, "provenance": upgraded}
+        )
+        assert second["provenance"] == upgraded
+        assert [e["host"]["docker"] for e in second["provenance_history"]] == [
+            "28.3.2",
+            "29.0.0",
+        ]
+        with pytest.raises(ValueError, match="results_schema"):
+            merge_run_config(
+                existing=second, proposed={**proposed, "results_schema": 2}
             )
 
     def test_config_run_refuses_mismatched_resume(self, tmp_path: Path) -> None:
@@ -1041,7 +1071,12 @@ class TestReleaseRunMetadata:
 class TestReleaseRunE2E:
     """Real Kathara + mock agent through ``run_benchmark_from_release`` (1 case × 2 trials)."""
 
-    def test_mini_release_run_flow(self, tmp_path: Path) -> None:
+    def test_mini_release_run_flow(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            "nika.workflows.benchmark.release.RELEASES_DIR", tmp_path / "releases"
+        )
         source = _mini_cases_yaml(tmp_path / "cases_src.yaml", rows=[ROW_A])
         release = freeze_release(
             version="release-e2e",
@@ -1080,6 +1115,14 @@ class TestReleaseRunE2E:
         assert (result_dir / RUN_CONFIG_FILENAME).is_file()
         assert (result_dir / JOB_FILENAME).is_file()
         assert (result_dir / "RELEASE.lock.json").is_file()
+        assert job["results_schema"] == 1
+        provenance = job["provenance"]
+        assert provenance["protocol"] == 1
+        assert provenance["engine"]["release"] == "release-e2e"
+        assert provenance["engine"]["commit"] == job["nika_git_commit"]
+        assert provenance["frontend"]["commit"] == job["nika_git_commit"]
+        assert provenance["host"]["docker"] and provenance["host"]["kernel"]
+        assert len(job["provenance_history"]) == 1
 
         row = release.cases[0]
         key = case_key_for_row(row)
@@ -1138,7 +1181,12 @@ class TestReleaseRunE2E:
 class TestAgentFailedResumeDockerE2E:
     """Real lab + forced agent failure must count; resume must not re-run."""
 
-    def test_agent_failed_trial_is_skipped_on_resume(self, tmp_path: Path) -> None:
+    def test_agent_failed_trial_is_skipped_on_resume(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            "nika.workflows.benchmark.release.RELEASES_DIR", tmp_path / "releases"
+        )
         source = _mini_cases_yaml(tmp_path / "cases_src.yaml", rows=[ROW_A])
         release = freeze_release(
             version="agent-failed-e2e",
@@ -1219,8 +1267,11 @@ class TestHealthyMockAgentE2E:
     """Healthy case + fault case: mock agent must not crash on ``healthy`` ontology."""
 
     def test_healthy_case_succeeds_with_fault_ontology_batch(
-        self, tmp_path: Path
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        monkeypatch.setattr(
+            "nika.workflows.benchmark.release.RELEASES_DIR", tmp_path / "releases"
+        )
         # Batch healthy with a real fault so release_meta.fault_ontology would
         # previously include the ``healthy`` sentinel and crash ownership lookup.
         source = _mini_cases_yaml(

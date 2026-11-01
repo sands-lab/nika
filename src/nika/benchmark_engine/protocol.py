@@ -19,12 +19,20 @@ PROTOCOL_VERSIONS: frozenset[int] = frozenset({1})
 RESULTS_SCHEMA_VERSIONS: frozenset[int] = frozenset({1})
 
 PROTOCOL_VERSION = max(PROTOCOL_VERSIONS)
+RESULTS_SCHEMA_VERSION = max(RESULTS_SCHEMA_VERSIONS)
 
 FailureOutcome = Literal["agent_failed", "endpoint_failed", "infra_failed"]
 
 
 class _Message(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
+
+
+class HostInfo(_Message):
+    """Docker and kernel versions of the host that runs the environments."""
+
+    docker: str | None = None
+    kernel: str | None = None
 
 
 class EngineDescription(_Message):
@@ -37,6 +45,7 @@ class EngineDescription(_Message):
     engine_dirty: bool = False
     # Task-file name → sha256, checked against the release manifest.
     task_file_sha256: dict[str, str] = Field(default_factory=dict)
+    host: HostInfo | None = None
 
 
 class TrialRequest(_Message):

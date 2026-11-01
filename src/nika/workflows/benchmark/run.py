@@ -2076,7 +2076,8 @@ def run_benchmark_from_release(
             f"({resolved.manifest['engine'].get('tag')}), which this NIKA cannot "
             "start yet."
         )
-    verify_engine(resolved, benchmark_engine().describe(resolved.version))
+    engine = benchmark_engine().describe(resolved.version)
+    verify_engine(resolved, engine)
     n_trials = resolved.n_trials
     # Validate --task-id before preflight / image pulls so bad selectors fail fast.
     planned: list[Trial] | None = None
@@ -2103,6 +2104,7 @@ def run_benchmark_from_release(
         n_trials=n_trials,
         case_timeout_sec=effective_timeout,
         official=official,
+        engine=engine,
     )
     existing = load_run_config(results_root)
     job = merge_run_config(existing=existing, proposed=proposed)

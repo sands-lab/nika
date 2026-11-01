@@ -13,6 +13,7 @@ from pathlib import Path
 from nika.config import BENCHMARK_VERSION
 from nika.firecracker.trial import active_trial_lab
 from nika.net_env.net_env_pool import scenario_requires_topo_size
+from nika.benchmark_engine.host import engine_host_info
 from nika.benchmark_engine.protocol import (
     PROTOCOL_VERSIONS,
     AgentEndpoints,
@@ -62,6 +63,7 @@ class BenchmarkEngine:
                 str(meta["cases_file"]): _sha256(release.root / meta["cases_file"])
                 for meta in release.splits.values()
             },
+            host=engine_host_info(),
         )
 
     def start_trial(self, request: TrialRequest) -> TrialHandle:

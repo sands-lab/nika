@@ -711,9 +711,15 @@ def build_run_identity(
     llm_provider: str | None = None,
     max_steps: int | None = None,
     n_trials: int = 1,
+    engine: EngineDescription | None = None,
 ) -> dict[str, Any]:
-    """Agent/run fields shared by release and ad-hoc ``--config`` run configs."""
+    """Agent/run fields shared by release and ad-hoc ``--config`` run configs.
+
+    *engine* is the benchmark engine's ``describe`` result for a release run;
+    it goes into the run's provenance.
+    """
     from nika.run_config.loader import get_run_config
+    from nika.workflows.benchmark.provenance import run_results_fields
     from nika.utils.agent_config import (
         resolve_agent_timeout,
         resolve_max_tokens,
@@ -741,6 +747,7 @@ def build_run_identity(
         "submission": get_run_config().agent.submission.identity(),
         "n_trials": int(n_trials),
         "official": official,
+        **run_results_fields(engine, commit=commit, dirty=dirty),
     }
 
 
@@ -755,6 +762,7 @@ def build_job_metadata(
     llm_provider: str | None = None,
     max_steps: int | None = None,
     n_trials: int = 1,
+    engine: EngineDescription | None = None,
 ) -> dict[str, Any]:
     return {
         "benchmark_id": release.id,
@@ -777,6 +785,7 @@ def build_job_metadata(
             llm_provider=llm_provider,
             max_steps=max_steps,
             n_trials=n_trials,
+            engine=engine,
         ),
     }
 
