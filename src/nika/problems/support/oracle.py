@@ -397,7 +397,9 @@ def srl_cli(net_env, node: str) -> bool:
     ``exec_shell``.
     """
     identity = (getattr(net_env, "machine_identities", None) or {}).get(node)
-    return identity is not None and "srl" in identity.capabilities
+    return identity is not None and bool(
+        {"srl", "nokia_srlinux"} & set(identity.capabilities)
+    )
 
 
 def addr_step(node: str, intf: str, key: str) -> OracleStep:
