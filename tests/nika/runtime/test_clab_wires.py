@@ -202,6 +202,15 @@ def test_remove_leftover_wire_ends_deletes_only_listed_names() -> None:
     assert "nwbbbbbbbbbbbb" not in captured["script"]
 
 
+def test_delete_script_continues_past_a_missing_interface() -> None:
+    script = delete_script(["nwaaaaaaaaaaaa", "nwbbbbbbbbbbbb"])
+    assert "set -e" not in script
+    assert script.splitlines() == [
+        "ip link delete dev nwaaaaaaaaaaaa 2>/dev/null || true",
+        "ip link delete dev nwbbbbbbbbbbbb 2>/dev/null || true",
+    ]
+
+
 def test_remove_leftover_wire_ends_skips_when_none_present() -> None:
     with patch("nika.runtime.containerlab.wires.subprocess.run") as run:
         run.return_value = subprocess.CompletedProcess(

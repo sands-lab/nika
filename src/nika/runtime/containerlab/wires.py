@@ -137,10 +137,14 @@ def leftover_wire_ends(ends: list[str], ip_link_output: str) -> list[str]:
 
 
 def delete_script(ends: list[str]) -> str:
-    """Shell that deletes each host interface in ``ends``."""
-    lines = ["set -e"]
-    for end in ends:
-        lines.append(f"ip link delete dev {shlex.quote(end)}")
+    """Shell that deletes each host interface in ``ends``.
+
+    Cleanup is best-effort: a name that vanished between listing and delete
+    must not stop later leftovers of this lab from being removed.
+    """
+    lines = [
+        f"ip link delete dev {shlex.quote(end)} 2>/dev/null || true" for end in ends
+    ]
     return "\n".join(lines) + "\n"
 
 
