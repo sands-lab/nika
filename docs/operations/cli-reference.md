@@ -524,6 +524,9 @@ nika leaderboard submit --result_dir results/my-run \
 | `--draft` | Open the GitHub PR as a draft |
 | `--title TEXT` | GitHub PR title (default `Add submission <package>`) |
 | `--body TEXT` | GitHub PR body (default: a short generated summary) |
+| `--release-source local` | Check against this checkout's release files instead of the official release; for offline checks only |
+
+`nika leaderboard validate PACKAGE` checks a packed scores package, as leaderboard CI does, and exits with status 1 when it finds errors. `--format json` or `--format markdown` prints the full report, with an error code, cause, and fix for each finding, to stdout. See [validation errors](../benchmarks/leaderboard-submission.md#validation-errors).
 
 ---
 ---

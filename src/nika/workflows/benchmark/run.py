@@ -54,6 +54,7 @@ from nika.workflows.benchmark.display import (
     OutputMode,
     RunPlan,
     apply_worker_warning_env,
+    confirm_release_drift,
     confirm_run,
     print_deferred_warnings,
     print_dashboard_link,
@@ -87,10 +88,15 @@ from nika.evaluator.score_status import (
     resolve_score_status,
     scores_for_status,
 )
+from nika.workflows.benchmark.official_release import (
+    describe_drift,
+    official_release_drift,
+)
 from nika.workflows.benchmark.release import (
     DEFAULT_RELEASE_VERSION,
     RUN_CONFIG_FILENAME,
     BenchmarkRelease,
+    ReleaseError,
     SplitName,
     build_job_metadata,
     build_run_identity,
@@ -2110,6 +2116,16 @@ def run_benchmark_from_release(
         planned = select_trials(expand_trials(resolved.cases, n_trials), task_ids)
     # With Firecracker execution, labs (and their images) live in the lab images.
     preflight_release(resolved, check_images=check_images and not firecracker_enabled())
+    try:
+        drift, reference = official_release_drift(resolved)
+    except ReleaseError as exc:
+        print(f"Skipped the official release check for {resolved.ref}: {exc}")
+    else:
+        if drift.drifted and not confirm_release_drift(
+            describe_drift(resolved, drift, reference), yes=yes
+        ):
+            print("Aborted.")
+            return
 
     # Timeout is operational (run config / CLI), not a release pin.
     if case_timeout is None:

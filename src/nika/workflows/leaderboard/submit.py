@@ -11,6 +11,7 @@ from pathlib import Path
 import yaml
 
 from nika.config import REPO_ROOT, resolve_results_root
+from nika.workflows.benchmark.official_release import ReleaseSource
 from nika.workflows.benchmark.release import load_run_config
 from nika.workflows.leaderboard import github_cli as gh
 from nika.workflows.leaderboard import hf_cli as hf
@@ -41,10 +42,7 @@ from nika.workflows.leaderboard.schema import (
     METADATA_FILENAME,
     RESULTS_DIRNAME,
 )
-from nika.workflows.leaderboard.validate import (
-    LeaderboardValidateError,
-    validate_leaderboard_submission,
-)
+from nika.workflows.leaderboard.validate import validate_leaderboard_submission
 from nika.workflows.leaderboard.validate_trajectories import (
     sibling_trajectories_dir,
     validate_trajectory_package,
@@ -328,6 +326,7 @@ def _submit_packed_package(
     traj_repo: str = DEFAULT_TRAJECTORIES_REPO,
     trajectories_dir: str | Path | None = None,
     dry_run: bool = False,
+    release_source: ReleaseSource = "official",
 ) -> SubmitResult:
     """Validate (optional) a packed package, then open GitHub and/or HF PRs."""
     if skip_github and skip_trajectories and not dry_run:
@@ -354,13 +353,13 @@ def _submit_packed_package(
             )
 
     if not skip_validate:
-        report = validate_leaderboard_submission(root)
-        if not report.ok:
-            raise LeaderboardValidateError("; ".join(report.errors))
+        validate_leaderboard_submission(
+            root, release_source=release_source
+        ).raise_if_failed()
         if traj_root is not None:
-            traj_report = validate_trajectory_package(traj_root, scores_dir=root)
-            if not traj_report.ok:
-                raise LeaderboardValidateError("; ".join(traj_report.errors))
+            validate_trajectory_package(
+                traj_root, scores_dir=root, release_source=release_source
+            ).raise_if_failed()
 
     traj_remote: str | None = None
     traj_pr_url: str | None = None
@@ -482,6 +481,7 @@ def submit_leaderboard_package(
     hf_model: str | None = None,
     hf_revision: str | None = None,
     proprietary: bool = False,
+    release_source: ReleaseSource = "official",
 ) -> SubmitResult:
     """Pack a release run, validate packages, then open GitHub and/or HF PRs.
 
@@ -533,6 +533,7 @@ def submit_leaderboard_package(
             metadata=metadata,
             readme_text=readme_text,
             out_dir=out_dir,
+            release_source=release_source,
         )
     except HfModelError as exc:
         raise LeaderboardSubmitError(str(exc)) from exc
@@ -554,6 +555,7 @@ def submit_leaderboard_package(
         traj_repo=traj_repo,
         trajectories_dir=packed.trajectories_dir,
         dry_run=dry_run,
+        release_source=release_source,
     )
     if extra.get("hf_repo"):
         result = replace(

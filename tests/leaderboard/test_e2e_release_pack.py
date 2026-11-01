@@ -373,10 +373,6 @@ class TestReleaseRunToLeaderboardPackE2E:
             "nika.workflows.benchmark.release.RELEASES_DIR",
             tmp_path / "releases",
         )
-        monkeypatch.setattr(
-            "nika.workflows.leaderboard.validate.load_release",
-            lambda *a, **k: release,
-        )
 
         def fake_trial(trial, **kwargs):
             path = trial_dir(

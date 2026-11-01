@@ -10,14 +10,14 @@ Help readers understand the purpose, essential contract, and next action with mi
 ## Writing principles
 
 * **Lead with reader goals and benefits.** Make the reason clear before the action or mechanism. Apply this to document structure, section introductions, and sentence construction: organize around what readers want to achieve, establish the need a section addresses, and connect instructions to their outcome. Explain internals only after readers know what they gain. Convey purpose naturally; avoid formulaic “Why?” headings and extra preamble when context already supplies the reason.
-* **Lead with the shortest useful path.** Once the purpose is clear, give readers the essential steps. Put alternatives and secondary details later or in linked references. Cut repetition rather than merely moving it into more headings.
+* **Lead with the shortest useful path.** Once the purpose is clear, give readers the essential steps. Put alternatives and secondary details later or in linked references. Cut repetition rather than merely moving it into more headings. Separate the main path from reference material with a visible divider, and say in one sentence what the reference part is for. In some cases is better to title reference sections by when the reader needs them ("If an upload fails", "How validation works"), rather than by the mechanism they describe.
 * **State the problem before the solution.** For an optional or extra step, first describe what goes wrong without it, then what the step gives the reader. “To run it by name” states the result, not the reason.
 * **Name sections after what the reader builds.** Use precise nouns for the thing the reader is creating, such as “Write your agent.” Avoid a nearby activity (“Write the investigation”) or internal jargon.
 * **Write clear, complete sentences.** Use the conventional language of network and AI engineering. Rewrite compressed, clause-packed, or cryptic sentences, and cut prose that a code example already shows.
 * **Describe capabilities concretely, without hype.** Make NIKA appealing through specific things readers can do and observe. Avoid superlatives and unsupported claims.
 * **Keep sections in proportion.** Secondary mechanics, such as registration internals or dependency caveats, should not outweigh the main path.
 * **Keep essential contracts visible.** Show the smallest accurate code snippet that communicates what readers must implement. Preserve required inputs, outputs, and behavior; brevity should not erase the interface.
-* **Keep plumbing out of introductory guides.** Explain constructors, logging, orchestration, and submission only when readers must handle them. Otherwise rely on existing abstractions and link to implementation references.
+* **Keep internals out of user guides.** Describe what the reader sees and does: the command, its outcome, and the error with its cause and fix. Leave out internal labels, flags, module names, intermediate mechanisms, and file or schema layouts. Show an artifact only if the reader edits it, inspects it, or must act on it; otherwise say in one sentence what it holds and who produces it. If one internal concept maps to several user-facing outcomes, describe each outcome and drop the concept. Explain constructors, logging, orchestration, and submission only when readers must handle them; otherwise rely on existing abstractions and link to implementation references.
 * **Respect configured defaults.** Include command options and configuration fields only when the example needs them. Avoid model, step-limit, or other overrides that add no value to the reader's task. When examples form a sequence, keep one continuous story that reuses the same defaults.
 * **Give each idea one home.** Explain a concept once, in the place readers look for it, and link to it elsewhere. Merge overlapping points, such as fair evaluation and comparable results, into one statement. Point to maintained implementations and example configurations rather than copying their scaffolding.
 * **Use meaningful link labels.** Link the harness or component name directly when it identifies the destination. Avoid catalogs with repeated generic labels such as “YAML” or “Example config.”
@@ -25,7 +25,12 @@ Help readers understand the purpose, essential contract, and next action with mi
 * **Let figures speak.** Do not narrate what a diagram or screenshot already shows. Keep descriptive alt text so the figure remains accessible.
 * **Prefer concrete evidence to dense explanation.** When an output excerpt makes behavior clearer, use a short, verified example and identify its source accurately. Distinguish terminal output from recorded logs; do not fabricate observations or add transcripts without a reader benefit.
 * **Keep simplification accurate.** Check the current implementation before describing an interface. Verify every command, flag, path, and configuration field against the code or a real run. If the desired simpler contract requires runtime changes, explain the limitation briefly and track the proposed change in an issue when authorized.
-* **Stay within the reader's task.** Include only what a reader outside the project needs to complete the guide's task. Leave out internal limitations, roadmap issues, and evaluator or runtime internals; put them in references or issues instead.
+* **Stay within the reader's task.** Include only what a reader outside the project needs to complete the guide's task. Leave out internal limitations, roadmap issues, and evaluator or runtime internals; put them in references or issues instead. Skip second-order mechanics, such as credential plumbing, platform fallbacks, and what maintainers or downstream services do afterwards, unless the reader must act on them; when something is needed only in passing, say it in a few words.
+* **Define terms before you use them.** Recap the terms a guide depends on near the top, using glossary wording, and keep one word per concept throughout. Define or link an artifact (a file, a package, a config) at its first mention.
+* **Do not hard-code values the user controls.** Counts, sizes, and defaults decided by a release, a configuration, or an option stay out of prose. State the rule ("every trial the release defines") instead of an example number.
+* **Document only the committed contract.** Describe behavior the repository implements today. Do not tell readers to do by hand what NIKA may soon handle, and do not hint at planned changes. If the current behavior is uncertain, ask before writing.
+* **Put a rule where it applies.** A requirement that holds for every path goes once into the prerequisites, not under one variant of the task. Before placing a paragraph, ask which readers need it.
+* **Do not restate what the workflow already guarantees.** Skip verification checklists that repeat steps the tool performs and reports itself. Include a checklist only for checks the reader must make by hand.
 
 For example, “To investigate incidents with your own agent, implement the diagnosis contract” makes the purpose clear before the instruction.
 
@@ -36,6 +41,15 @@ The complete NOOA agent also records steps and tool calls for the evaluator and 
 
 Inheriting from LangGraph is a current limitation; a framework-independent base class is tracked in #172. The integration reference describes the full contract.
 ```
+
+## Structure and formatting
+
+* **Give actions and options a structure.** Use a bullet list for what a command does, a table for flags and options, and a numbered list only for steps the reader performs. Do not put what a command does in a paragraph, or a list of flags in comments inside a code block.
+* **Use emphasis to counter long or dense pages.** Callouts and emoji exist to keep an important detail from disappearing in long, repetitive text. Plain prose and headings are the default. Reach for emphasis when a page is long or verbose enough that readers will skim past something they must not miss.
+* **Scale emphasis to the page's importance.** Judge how critical the page is and where its stakes are. A page that readers must follow exactly, such as the leaderboard submission guide, justifies more visual aid. Detailed reference pages usually need none.
+* **Use callouts for what readers must not miss.** `[!IMPORTANT]` marks a requirement that blocks success, `[!TIP]` an optional shortcut, `[!NOTE]` context that changes a decision, and `[!WARNING]` a failure path or risk. Prefer few, and prefer prose when the point does not need to stand out.
+* **Use emoji sparingly and only where they help scanning.** Typically that means the title and a few top-level headings on a high-stakes, long guide. Skip them on reference pages and in body text. If they start to feel decorative or repetitive, remove them.
+* **Keep link targets stable.** Emoji and renames change a heading's anchor. Leave linked headings plain, and search for inbound links (`grep` for the old anchor) whenever you rename, move, or remove a section.
 
 ## Homepage README
 
@@ -63,3 +77,11 @@ Use the terms defined in the [glossary](../../../GLOSSARY.md), choosing the one 
 ## Review
 
 Read the draft as someone trying to complete the task: is the purpose clear, is the next action easy to find, and does each paragraph, figure, or snippet earn its place? Check links, defaults, commands, and examples against their sources. Apply the repository's verification rules when executable behavior or examples change.
+
+Also check:
+
+* Does any term appear before it is defined?
+* Does any detail serve only a rare path or a maintainer?
+* Could the reader act without this internal term, file, or flag?
+* Does every inbound link and anchor still resolve?
+* Does each callout or emoji stop a reader from missing something, or is it decoration?

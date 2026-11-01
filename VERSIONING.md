@@ -16,7 +16,7 @@ Classify a change by its effect, not by where it is implemented. A change made e
 
 ## Releases and reproducibility
 
-Published releases do not change. Each one is identified by a Git tag, and a correction produces a new version. To run an earlier release, check out its tag; the latest branch does not have to run every historical benchmark.
+Published releases do not change. Each one is identified by the Git tag `v<version>`, such as `v0.2.0`, and a correction produces a new version. To run an earlier release, check out its tag; the latest branch does not have to run every historical benchmark.
 
 Patches can be frequent. Group benchmark corrections into infrequent revisions where practical, and publish new editions as deliberate releases.
 
