@@ -74,6 +74,25 @@ def test_frr_faults_persist_without_backup_files() -> None:
     assert all("rm -f /etc/frr/*.sav" in cmd for cmd in saves)
 
 
+def test_originate_bgp_prefix_raises_when_loopback_never_appears() -> None:
+    ops = SonicFaultOps(FakeRuntime({"show running-config": RUNNING}), "leaf1")
+    with pytest.raises(RuntimeError, match="Loopback1 on leaf1 did not get"):
+        ops.originate_bgp_prefix("203.0.113.0/24")
+
+
+def test_originate_bgp_prefix_advertises_after_loopback_appears() -> None:
+    runtime = FakeRuntime(
+        {
+            "show running-config": RUNNING,
+            "ip -4 addr show dev Loopback1": "present",
+        }
+    )
+    ops = SonicFaultOps(runtime, "leaf1")
+    ops.originate_bgp_prefix("203.0.113.0/24")
+    assert any("network 203.0.113.0/24" in cmd for cmd in runtime.commands)
+    assert any("write memory" in cmd for cmd in runtime.commands)
+
+
 def test_wait_port_raises_when_the_port_never_appears() -> None:
     ops = SonicFaultOps(FakeRuntime(), "leaf1")
     with pytest.raises(RuntimeError, match="did not appear"):

@@ -110,6 +110,15 @@ class SonicFaultOps(RouterFaultOps):
             f"| grep -qF ' {address}/' && break; sleep 1; done",
             timeout=45,
         )
+        seen = self._exec(
+            f"ip -4 addr show dev {_ORIGIN_LOOPBACK} 2>/dev/null "
+            f"| grep -qF ' {address}/' && echo present"
+        )
+        if "present" not in seen:
+            raise RuntimeError(
+                f"SONiC {_ORIGIN_LOOPBACK} on {self.node} did not get "
+                f"{address}/{net.prefixlen}"
+            )
         self._configure(
             f"router bgp {self.bgp_asn()}",
             "address-family ipv4 unicast",
