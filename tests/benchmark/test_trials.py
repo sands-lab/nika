@@ -704,18 +704,18 @@ class TestAgentFailedFinalization:
 
         with (
             patch(
-                "nika.workflows.benchmark.run.start_net_env",
+                "nika.benchmark_engine.in_tree.start_net_env",
                 side_effect=fake_start_net_env,
             ),
             patch(
-                "nika.workflows.benchmark.run.inject_failure",
+                "nika.benchmark_engine.in_tree.inject_failure",
                 side_effect=fake_inject,
             ),
             patch(
                 "nika.workflows.benchmark.run.start_agent",
                 side_effect=RuntimeError("agent boom"),
             ),
-            patch("nika.workflows.benchmark.run.close_session"),
+            patch("nika.benchmark_engine.in_tree.close_session"),
             patch(
                 "nika.workflows.benchmark.run._stamp_release_meta",
             ),
@@ -792,9 +792,9 @@ class TestAgentFailedFinalization:
         )
 
         with (
-            patch("nika.workflows.benchmark.run.close_session"),
+            patch("nika.benchmark_engine.in_tree.close_session"),
             patch(
-                "nika.workflows.benchmark.run.run_eval_metrics",
+                "nika.benchmark_engine.in_tree.run_eval_metrics",
                 side_effect=RuntimeError("no closed session"),
             ),
             patch(
@@ -827,7 +827,7 @@ class TestAgentFailedFinalization:
         session_path = trial_dir(tmp_path, trial.case_key, trial.trial_index)
         session_path.mkdir(parents=True)
 
-        with patch("nika.workflows.benchmark.run.close_session") as close:
+        with patch("nika.benchmark_engine.in_tree.close_session") as close:
             _finalize_timed_out_trial(
                 trial,
                 result_dir=str(tmp_path),

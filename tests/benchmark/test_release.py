@@ -14,6 +14,7 @@ from nika.workflows.benchmark.release import (
     ReleaseError,
     freeze_release,
     load_release,
+    load_release_from_dir,
     preflight_release,
     verify_dev_test_isolation,
 )
@@ -73,6 +74,85 @@ def test_timed_release_faults_cover_the_default_trial_budget() -> None:
                 cls = get_problem_class(row["problem"])
                 params = cls.Params.model_validate(row["inject"])
                 assert params.duration > timeout, (split, row)
+
+
+class TestManifestContracts:
+    """Contract A: refuse versions and task files this NIKA cannot vouch for."""
+
+    def _release_dir(self, tmp_path: Path, **fields) -> Path:
+        release = freeze_release(
+            version="mini",
+            source_cases=_mini_cases_yaml(tmp_path / "cases_src.yaml"),
+            out_dir=tmp_path / "releases" / "mini",
+        )
+        path = release.root / "RELEASE.yaml"
+        manifest = yaml.safe_load(path.read_text(encoding="utf-8"))
+        manifest.update(fields)
+        path.write_text(yaml.safe_dump(manifest, sort_keys=False), encoding="utf-8")
+        return release.root
+
+    def test_supported_versions_and_matching_hash_load(self, tmp_path: Path) -> None:
+        import hashlib
+
+        root = self._release_dir(tmp_path)
+        digest = hashlib.sha256((root / "dev.yaml").read_bytes()).hexdigest()
+        manifest = yaml.safe_load((root / "RELEASE.yaml").read_text(encoding="utf-8"))
+        manifest["manifest_version"] = 1
+        manifest["splits"]["dev"]["sha256"] = digest
+        (root / "RELEASE.yaml").write_text(yaml.safe_dump(manifest), encoding="utf-8")
+
+        assert load_release_from_dir(root, split="dev").case_count == 1
+
+    @pytest.mark.parametrize(
+        ("fields", "message"),
+        [
+            ({"manifest_version": 99}, "Release manifest version 99"),
+            (
+                {"engine": {"tag": "v9.0.0", "protocol": 99, "results_schema": 1}},
+                "Lifecycle protocol version 99",
+            ),
+            (
+                {"engine": {"tag": "v9.0.0", "protocol": 1, "results_schema": 99}},
+                "Results schema version 99",
+            ),
+            ({"engine": {"tag": "v9.0.0"}}, "Lifecycle protocol version must be"),
+        ],
+    )
+    def test_unsupported_contract_version_is_refused(
+        self, tmp_path: Path, fields: dict, message: str
+    ) -> None:
+        root = self._release_dir(tmp_path, **fields)
+        with pytest.raises(ReleaseError, match=message):
+            load_release_from_dir(root, split="dev")
+
+    def test_drifted_task_file_is_refused(self, tmp_path: Path) -> None:
+        root = self._release_dir(tmp_path)
+        manifest = yaml.safe_load((root / "RELEASE.yaml").read_text(encoding="utf-8"))
+        manifest["splits"]["dev"]["sha256"] = "0" * 64
+        (root / "RELEASE.yaml").write_text(yaml.safe_dump(manifest), encoding="utf-8")
+
+        with pytest.raises(ReleaseError, match="does not match the sha256"):
+            load_release_from_dir(root, split="dev")
+
+    def test_pinned_engine_release_does_not_run_in_tree(self, tmp_path: Path) -> None:
+        root = self._release_dir(
+            tmp_path,
+            engine={"tag": "v9.0.0", "protocol": 1, "results_schema": 1},
+        )
+        release = load_release_from_dir(root, split="dev")
+
+        with pytest.raises(ReleaseError, match="pinned benchmark engine"):
+            run_benchmark_from_release(
+                release_ref="mini",
+                split="dev",
+                agent_type="mock",
+                llm_provider=None,
+                model=None,
+                max_steps=None,
+                release=release,
+                result_dir=str(tmp_path / "results"),
+                check_images=False,
+            )
 
 
 class TestFreezeRelease:
