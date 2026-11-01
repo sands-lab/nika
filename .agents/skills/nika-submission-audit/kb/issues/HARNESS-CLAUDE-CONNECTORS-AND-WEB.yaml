@@ -1,0 +1,27 @@
+id: HARNESS-CLAUDE-CONNECTORS-AND-WEB
+title: Claude Code ran with web tools and claude.ai connectors
+class: harness_privilege
+severity: block
+status: fixed
+fixed_in: c00630bc
+summary: cli.claude runs without --strict-mcp-config offered WebSearch, WebFetch, the operator's claude.ai
+  connectors (Gmail, Docs, Drive), user skills, subagents and schedulers.
+guideline: Present in the published opus, sonnet, and haiku 5.5 runs. Check whether any were called (POLICY-CALL-UNLISTED-TOOL);
+  offering them is already a harness defect. The fix is both a strict MCP config (only NIKA's MCP servers,
+  no user skills or connectors, web tools disallowed) and a sandbox egress allowlist (only the model proxy
+  and MCP gateway once the agent runs); see HARNESS-SANDBOX-EGRESS. Sampling is no longer forced to temperature
+  0; run.json records it.
+scope:
+  agent_types:
+  - cli.claude
+detect:
+- kind: tool_policy
+  scope: init
+  pattern: ^(?:mcp__claude_ai_|WebSearch$|WebFetch$|Task$|Skill$|Workflow$)
+provenance:
+  source: issue 206 comment
+  date: '2026-10-16'
+  refs:
+  - '#206'
+  - '#208'
+  found_by: manual

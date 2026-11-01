@@ -1,0 +1,24 @@
+id: AGENT-AWARE-OF-BENCHMARK
+title: Agent reasons about injected faults or the benchmark
+class: shortcut
+role: lead
+severity: warn
+status: open
+summary: The agent's own text or reasoning talks about fault injection, injected faults, the benchmark,
+  or ground truth. Something the agent saw made it recognise the setting.
+guideline: 'Find the earliest step where the idea appears and the tool output just before it. If an output
+  named the fault or the benchmark, that output is the leak: file a known issue with a text signature
+  for the marker. If nothing prompted it, it is model prior knowledge; note it but do not file a benchmark
+  issue.'
+detect:
+- kind: text
+  where:
+  - reasoning
+  - agent_text
+  pattern: fault[- ]?injection|injected (?:fault|failure)|fault[- ]injector|internal_fault|\bground[ _-]?truth\b|\bnika\b|benchmark
+    (?:harness|answer|grader)
+provenance:
+  source: built-in generic check
+  date: '2026-10-26'
+  refs: []
+  found_by: manual

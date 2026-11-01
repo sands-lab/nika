@@ -1,0 +1,24 @@
+id: TOOL-HIGH-ERROR-RATE
+title: A tool fails often
+class: harness_defect
+role: lead
+severity: warn
+status: open
+summary: At least 20% of a tool's calls across the submission, or at least 40% of one trial's tool results,
+  are errors or tracebacks.
+guideline: 'Group the error texts. Bad arguments from the agent are agent errors; tracebacks, session
+  errors, or gateway errors are NIKA defects: name the tool and backend in a known issue.'
+detect:
+- kind: metric
+  metric: tool_error_rate
+  threshold: 0.2
+  min_trials: 20
+- kind: metric
+  metric: trial_error_rate
+  threshold: 0.4
+  min_trials: 8
+provenance:
+  source: built-in generic check
+  date: '2026-10-26'
+  refs: []
+  found_by: manual

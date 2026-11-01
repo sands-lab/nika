@@ -1,0 +1,31 @@
+id: LEAK-CLAUDE-WORKSPACE-PATH
+title: Claude Code background-command notices print a /tmp/claude-*/-workspace-nika-runtime-agent-workspaces-... path, naming the benchmark
+class: shortcut
+severity: info
+status: fixed
+fixed_in: 3338054e
+summary: At the run commits the agent workspace sat under the NIKA repo's runtime directory (RUNTIME_DIR = REPO_ROOT
+  / "runtime" in src/nika/config.py). Claude Code mangles that cwd into its background-task and output-spill paths,
+  and the published redaction did not cover them, so 13 trials in 3 cli.claude submissions show "nika" in tool
+  results, which the sandbox contract in docs/operations/agent-sandbox.md forbids. It reveals benchmark identity,
+  not the fault. 3338054e moved workspaces to an opaque agent-workspaces-<uid> root.
+guideline: Counts on a tool result that shows the mangled -workspace-nika-runtime-agent-workspaces path. Benchmark
+  identity only; do not mark trials as exploits. Device-side paths such as /opt/nika or nika:tap belong to
+  LEAK-HARNESS-PATHS-IN-OUTPUT.
+scope:
+  agent_types:
+  - cli.claude
+detect:
+- kind: text
+  where:
+  - tool_result
+  pattern: -workspace-nika-runtime-agent-workspaces
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-LEAK-CLAUDE-WORKSPACE-PATH)
+  date: '2026-10-28'
+  refs:
+  - isp_geant_ebgp_rpki__bgp_rpk__h084f2b27c006__t01:32
+  found_by: agentic
+evidence:
+- 'isp_geant_ebgp_rpki__bgp_rpk__h084f2b27c006__t01 (20261007_claude_code_qwen3_6_35b_a3b_fp8) step 32: Command running
+  in background with ID: bh4qtbd7e. Output is being written to: /tmp/claude-1000/-workspace-nika-runtime-agent-workspaces-20261005-131641-a-ca9ba4-claude-workspace/'

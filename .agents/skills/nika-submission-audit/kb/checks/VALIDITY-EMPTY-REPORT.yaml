@@ -1,0 +1,17 @@
+id: VALIDITY-EMPTY-REPORT
+title: Diagnosis report is empty
+class: harness_defect
+role: lead
+severity: warn
+status: open
+summary: The frozen diagnosis report is empty or only the agent's opening narration.
+guideline: Check for truncation, a step budget hit, or a harness that froze the report before the agent
+  wrote it.
+detect:
+- kind: validity
+  flag: empty_report
+provenance:
+  source: built-in generic check
+  date: '2026-10-26'
+  refs: []
+  found_by: manual

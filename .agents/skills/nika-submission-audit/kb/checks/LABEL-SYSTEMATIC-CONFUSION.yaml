@@ -1,0 +1,20 @@
+id: LABEL-SYSTEMATIC-CONFUSION
+title: A fault type is systematically answered as another
+class: label_unidentifiable
+role: lead
+severity: warn
+status: open
+summary: At least half of a fault type's trials name one specific other label.
+guideline: Read the descriptions of both labels and what the agents observed. If the observable end state
+  fits both, the pair is not identifiable (fix the injection or the description). If agents describe the
+  right mechanism but pick the other label, note a near-duplicate.
+detect:
+- kind: metric
+  metric: label_confusion
+  threshold: 0.5
+  min_trials: 6
+provenance:
+  source: built-in generic check
+  date: '2026-10-26'
+  refs: []
+  found_by: manual

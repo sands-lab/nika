@@ -1,0 +1,38 @@
+id: LURE-CAMPUS-BIND9-UNIT-DEAD
+title: campus_lan dns_server shows bind9.service inactive (dead) while named serves DNS
+class: healthy_lure
+severity: warn
+status: open
+summary: >-
+  The campus_lan lab starts the 'named' unit (src/nika/net_env/campus_lan/lab_dhcp.py, 'systemctl start
+  named'). The image's separate bind9.service stays disabled and 'inactive (dead)' while named answers
+  on port 53, unlike Debian where bind9 is an alias of named. In 17 trials of 7 submissions the agent
+  saw this status and wrongly submitted dns_service_down@node/dns_server.
+guideline: >-
+  bind9.service dead is the baseline. Check named and whether port 53 answers before treating the DNS
+  server as down. Only a submission of dns_service_down on a case whose ground truth is different was
+  misled; on dns_service_down cases the named status, not bind9, decides.
+scope:
+  scenarios:
+  - campus_lan
+detect:
+- kind: text
+  where:
+  - tool_result
+  pattern: bind9\.service[\s\S]{0,300}?inactive \(dead\)
+exploit: false
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-LURE-CAMPUS-BIND9-UNIT)
+  date: '2026-10-28'
+  refs:
+  - campus_lan__dhcp_spoofed_dns__h4ee0ce80b947__t02:46
+  - campus_lan__dhcp_spoofed_dns__h4ee0ce80b947__t02:48
+  - campus_lan__dhcp_spoofed_dns__h4ee0ce80b947__t02:189
+  found_by: agentic
+evidence:
+- '20261014_claude_code_qwen3_5_27b campus_lan__dhcp_spoofed_dns__h4ee0ce80b947__t02 step 46: Server:
+  10.200.0.2 ... Name: web0.local Address: 10.200.0.3'
+- '20261014_claude_code_qwen3_5_27b campus_lan__dhcp_spoofed_dns__h4ee0ce80b947__t02 step 48: bind9.service
+  - BIND Domain Name Server ... Active: inactive (dead)'
+- '20261014_claude_code_qwen3_5_27b campus_lan__dhcp_spoofed_dns__h4ee0ce80b947__t02 step 189: {"fault_type":
+  "dns_service_down", "resource_id": "node/dns_server"}'

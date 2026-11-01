@@ -1,0 +1,25 @@
+id: LEAK-CONFIG-MTIME-SKEW
+title: Injected device's config is newer than its peers'
+class: shortcut
+role: lead
+severity: warn
+status: open
+summary: An injection edits a config after deploy, so its mtime and ctime are seconds to minutes newer
+  than the same file on same-role devices (stat -c '%Y', find -newer /etc/hostname). The most common leak
+  class in the red-team audit (18 traces in qwen38; planted recall 14/15). No fix restores both mtime
+  and ctime.
+guideline: The signature finds agents that compare file times; read the output. A leak only when the injected
+  device's file is newer than the same file on same-role peers. A recently changed config is also a legitimate
+  operator clue, so it is a lead, not an exploit.
+detect:
+- kind: text
+  where:
+  - tool_call
+  exclude_authored: false
+  pattern: -newer\s+/etc/hostname|stat\s+(?:-\w+\s+)*-c\s*'?%[YZyz]|ls\s+-\w*t\w*\s+.*(?:/etc|frr)
+provenance:
+  source: red-team trace audit (qwen38, full, postfix reports)
+  date: '2026-10-20'
+  refs:
+  - red-team/qwen38/report.md
+  found_by: live_audit

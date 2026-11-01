@@ -1,0 +1,22 @@
+id: SIG-PACKET-CORRUPTION-FEW-HOSTS
+title: Packet corruption hits few hosts behind a gzip lure
+class: signal_invisible
+severity: warn
+status: fixed
+summary: 16 of 128 PCs were affected and a curl gzip setting looked like the cause.
+scope:
+  fault_types:
+  - device_forwarding_packet_corruption
+guideline: After the fix this case should no longer fail for every configuration. If it still does on
+  a post-fix commit, reproduce it in a live lab (nika benchmark audit stages symptom and persistence).
+detect:
+- kind: metric
+  metric: case_fail_rate
+  threshold: 0.95
+  min_trials: 6
+provenance:
+  source: trajectory audit 2026-10-14 (REPORT_en.md) B2 and 3.1
+  date: '2026-10-14'
+  refs: []
+  found_by: manual
+fixed_in: c00630bc

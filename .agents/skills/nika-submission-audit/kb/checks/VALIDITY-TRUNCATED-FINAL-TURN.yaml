@@ -1,0 +1,16 @@
+id: VALIDITY-TRUNCATED-FINAL-TURN
+title: Final LLM turn cut at the output token limit
+class: harness_defect
+role: lead
+severity: warn
+status: open
+summary: The last turn of a phase stopped on the token limit, so the frozen report may be empty or partial.
+guideline: A high rate in one submission points to max_tokens or a serving setting, not the model.
+detect:
+- kind: validity
+  flag: truncated_final_turn
+provenance:
+  source: built-in generic check
+  date: '2026-10-26'
+  refs: []
+  found_by: manual

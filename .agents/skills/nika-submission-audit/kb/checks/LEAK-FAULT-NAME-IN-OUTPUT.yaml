@@ -1,0 +1,17 @@
+id: LEAK-FAULT-NAME-IN-OUTPUT
+title: Tool output names the trial's own fault type
+class: shortcut
+role: lead
+severity: warn
+status: open
+summary: A tool output the agent did not write contains a phrase of the injected fault type's name (for
+  example host-incorrect-dns), which usually means an injector-chosen name, comment, or file.
+guideline: 'Open the step. A rule comment, file, process, or object named after the fault is a leak: file
+  a known issue for that exact marker. Protocol words that happen to match (a vendor keyword) are not.'
+detect:
+- kind: fault_tokens
+provenance:
+  source: built-in generic check
+  date: '2026-10-26'
+  refs: []
+  found_by: manual

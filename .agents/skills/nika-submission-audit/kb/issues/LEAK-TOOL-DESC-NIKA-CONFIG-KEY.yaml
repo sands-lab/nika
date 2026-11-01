@@ -1,0 +1,37 @@
+id: LEAK-TOOL-DESC-NIKA-CONFIG-KEY
+title: 0.2.0 MCP tool descriptions named the config key 'nika.mcp.tool_output_max_chars'
+class: shortcut
+severity: warn
+status: fixed
+fixed_in: 3338054e
+summary: >-
+  annotate_tools_list_result (src/nika/mcp/tool_output.py) appended a note to every tool listed through
+  the gateway. In 0.2.0 the note read 'Oversized outputs keep the first and last halves of nika.mcp.tool_output_max_chars
+  (default 10000)', naming the benchmark. Tool schemas are not in the trajectories, so the signature fires
+  only where the agent quoted the note, but every gateway tool carried it. 3338054e removed the key from
+  the note.
+guideline: >-
+  Benchmark identity only, on every tool (not only SR Linux); it reveals no fault. Hits are the agent
+  quoting its tool list, so their absence does not mean the trial did not see it.
+scope: {}
+detect:
+- kind: text
+  where:
+  - agent_text
+  - reasoning
+  pattern: nika\.mcp\.tool_output_max_chars
+exploit: false
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-TOOL-DESC-NIKA-CONFIG-KEY)
+  date: '2026-10-28'
+  refs:
+  - isp_pdh__bgp_acl_block__s__i__hbe4170621772__t03:20
+  - p4_dc_gateway__healthy__m__t03:12
+  found_by: agentic
+evidence:
+- '20261010_claude_code_qwen3_8_27b_fp8 isp_pdh__bgp_acl_block__s__i__hbe4170621772__t03 step 20: Oversized
+  outputs keep the first and last halves of nika.mcp.tool_output_max_chars (default 10000) and elide the
+  middle.'
+- '20261016_claude_code_gpt_oss_120b p4_dc_gateway__healthy__m__t03 step 12: Return observed INT-MX packet
+  traces and hop metadata. Oversized outputs keep the first and last halves of nika.mcp.tool_output_max_chars
+  (default 10000) and elide the middle.'

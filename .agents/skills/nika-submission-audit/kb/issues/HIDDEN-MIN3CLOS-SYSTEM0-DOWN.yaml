@@ -1,0 +1,19 @@
+id: HIDDEN-MIN3CLOS-SYSTEM0-DOWN
+title: min3clos system0 down
+class: healthy_lure
+severity: warn
+status: fixed
+fixed_in: c00630bc
+summary: SR Linux system0 IPv4/IPv6 was not enabled, so loopbacks were unreachable (H12).
+scope:
+  scenarios:
+  - min3clos
+  healthy: true
+guideline: 'A hidden fault in the fault-free lab: agents that report it on a healthy task are right. Confirm
+  it with references/live-confirm.md (hidden fault or lure) before counting the trial as a false positive.'
+provenance:
+  source: healthy-hunter paper_cases
+  date: '2026-10-12'
+  refs:
+  - healthy-hunter
+  found_by: live_audit

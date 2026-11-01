@@ -1,0 +1,18 @@
+id: VALIDITY-MAX-STEPS-EXHAUSTED
+title: Diagnosis hit its step budget
+class: harness_defect
+role: lead
+severity: info
+status: open
+summary: The diagnosis phase ended on max_steps; the report is the wrap-up turn's.
+guideline: Many in one submission means the budget or the model's control policy (repeated calls), not
+  the benchmark. Harness-attributable flags above the threshold (truncated_final_turn, infra_error over
+  5% by default) fail nika leaderboard validate.
+detect:
+- kind: validity
+  flag: max_steps_exhausted
+provenance:
+  source: built-in generic check
+  date: '2026-10-26'
+  refs: []
+  found_by: manual

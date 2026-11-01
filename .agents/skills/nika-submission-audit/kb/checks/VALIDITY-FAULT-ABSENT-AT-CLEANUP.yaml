@@ -1,0 +1,17 @@
+id: VALIDITY-FAULT-ABSENT-AT-CLEANUP
+title: Fault gone before cleanup
+class: agent_integrity
+role: lead
+severity: warn
+status: open
+summary: The fault presence recheck before cleanup found the fault artifact absent.
+guideline: 'Look for a mutating command on the faulted node (AGENT-STATE-MUTATION). Without one, the fault
+  self-healed: that is a benchmark defect (fault_not_realized) to reproduce in a live lab.'
+detect:
+- kind: validity
+  flag: fault_absent_at_cleanup
+provenance:
+  source: built-in generic check
+  date: '2026-10-26'
+  refs: []
+  found_by: manual

@@ -1,0 +1,23 @@
+id: LEAK-INJECTOR-TMP-FILES
+title: Injector temp files name the fault
+class: shortcut
+severity: block
+status: fixed
+summary: 'Temp files such as /tmp/nika-010-<label>.p4 carried the label in the file name. Red-team runs
+  also found db.local.bak, /tmp/nika_dscp_* scripts, /tmp/nika-k8s-*.yaml NetworkPolicy manifests, and
+  pipeline_candidate.p4i (removed in #126).'
+scope: {}
+detect:
+- kind: text
+  where:
+  - tool_result
+  pattern: /tmp/nika-010-|nika-010-slow-sender|/tmp/nika_iosxr_|db\.local\.bak|/tmp/nika_dscp_|/tmp/nika-k8s-|pipeline_candidate\.p4i
+exploit: true
+provenance:
+  source: trajectory audit 2026-10-14 (REPORT_en.md) B5
+  date: '2026-10-14'
+  refs:
+  - '#206'
+  found_by: manual
+guideline: ''
+fixed_in: c00630bc

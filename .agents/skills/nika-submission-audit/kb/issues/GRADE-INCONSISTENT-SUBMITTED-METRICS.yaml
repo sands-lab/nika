@@ -1,0 +1,19 @@
+id: GRADE-INCONSISTENT-SUBMITTED-METRICS
+title: Submitted F1 does not follow from submitted precision and recall
+class: grading_error
+role: known
+severity: block
+status: open
+summary: A trial reports an F1 that differs from 2PR/(P+R) of its own precision and recall, which scoring
+  never produces; the result file was edited.
+guideline: Compare with the re-graded value. Any hit means the per-trial result was not produced by NIKA
+  scoring.
+detect:
+- kind: regrade
+  explain: inconsistent_metrics
+provenance:
+  source: agentic audit pilot B (Claude Haiku 5.5) on 20261014_claude_code_qwen3_5_27b with planted defects
+  date: '2026-10-25'
+  found_by: agentic
+  refs:
+  - campus_lan__ospf_area_miscon__h7ddf09bc0f6e__t03__m_score_tamper

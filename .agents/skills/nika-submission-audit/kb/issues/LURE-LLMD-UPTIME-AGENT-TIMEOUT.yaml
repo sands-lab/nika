@@ -1,0 +1,21 @@
+id: LURE-LLMD-UPTIME-AGENT-TIMEOUT
+title: llmd uptime-agent health checks time out under load
+class: healthy_lure
+role: known
+severity: info
+status: open
+summary: The llmd controller's uptime-agent health checks can time out when the host is loaded, which
+  reads as a service fault on a healthy lab.
+guideline: Unconfirmed by a recorded run; confirm live on an unloaded host before counting it.
+scope:
+  scenarios:
+  - llmd_lab
+detect:
+- kind: text
+  exclude_authored: false
+  pattern: uptime-agent.*(?:timed? ?out|Unhealthy|probe failed)
+provenance:
+  source: release audit agent-view stage notes
+  date: '2026-10-22'
+  refs: []
+  found_by: live_audit

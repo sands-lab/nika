@@ -28,6 +28,8 @@ A NIKA benchmark is a set of **tasks**. Each task combines a **network environme
 | **Ground truth** | The failures NIKA actually injected, which the submission is scored against. |
 | **Oracle solver** | The `oracle` agent. It knows the ground truth and submits it only after the failure's playbook confirms the fault through the agent's MCP tools. See [Oracle solver](docs/benchmarks/oracle-solver.md). |
 | **Playbook** | A failure's reference diagnosis: the MCP tool calls an operator would make, the observation each must show, and which observations are evidence for the root cause. |
+| **Leaderboard submission** | One result package submitted to the leaderboard: the scores of one agent and model on a benchmark release, with its trajectories. Not the *Submission* run phase. |
+| **Audit issue** | A confirmed defect in the benchmark, its harness, or the runs of a leaderboard submission, such as a shortcut or a tool that always fails. The [submission audit](.agents/skills/nika-submission-audit/SKILL.md) records it; it is not an injected failure. |
 
 ## Agents
 

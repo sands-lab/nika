@@ -1,0 +1,21 @@
+id: LABEL-INCAST-VS-LINK-CAPACITY
+title: Incast looks like a capacity bottleneck
+class: label_unidentifiable
+severity: warn
+status: fixed
+summary: On BMv2 incast was a steady 2x overload, not a burst pattern.
+scope:
+  fault_types:
+  - incast_traffic_network_limitation
+detect:
+- kind: metric
+  metric: label_confusion
+  threshold: 0.4
+  min_trials: 6
+  pattern: link_capacity_bottleneck
+provenance:
+  source: trajectory audit 2026-10-14 (REPORT_en.md) B3
+  date: '2026-10-14'
+  refs: []
+  found_by: manual
+fixed_in: c00630bc

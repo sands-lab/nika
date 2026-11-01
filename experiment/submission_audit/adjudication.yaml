@@ -1,0 +1,1486 @@
+# Adjudication of the issues the audit runs wrote that matched no reference issue
+# (2026-10-28): 144 candidates grouped into 85 distinct claims, each checked against
+# the 0.2.0 trajectories and the NIKA code. Confirmed ones are in reference_issues.yaml.
+- cluster: C01
+  claim: p4_dc_gateway lb_pending_connection_update_race has no observable symptom
+  verdict: rejected
+  reason: The fault is realized and observable through the normal tools. It sets learning_delay_ms=8000
+    in the gateway_1 agent config (gateway.py:128-139, l4_lb.py:77-93; healthy value 5, topology_model.py:34).
+    Always-on downloader traffic hits the VIP, and routine pool updates run every 60-180 s (lab.py:320-347,
+    topology_model.py:37). lb_agent.py:466-482 and :380-387 log each unsafe update and backend reset to
+    /tmp/lb-agent.log, and agents can read that log and the config with exec_shell on gateway_1 (other
+    p4_dc_gateway trials do, e.g. telecomgpt_r1 p4_tcam_entry t01 step 161). None of the 45 lb_pending
+    trials read the lb-agent log, config, or status, so the 0% solve rate shows the agents never looked,
+    not that the fault is absent or hidden. A live lab would show whether the data-plane reset fires in
+    each run.
+  members:
+  - date/FNR-P4-DC-GATEWAY-LB-PENDING-RACE
+  - shuffle1/SIG-P4-LB-PENDING-PROBE-BLIND
+  - shuffle2/FNR-P4-LB-PENDING-RACE-NO-SYMPTOM
+  - shuffle3/FNR-P4DC-LBPENDING-UNOBSERVABLE
+  - nogate/SIG-LB-PENDING-CONNECTION-UPDATE-RACE
+- cluster: C02
+  claim: Healthy p4_dc_gateway drops direct TCP/80 to the leaf_1 VIP backends
+  verdict: confirmed
+  reference_id: REF-P4-GATEWAY-DIRECT-BACKEND-TCP-DROP
+  reason: 'Real hidden baseline defect, not agent misuse: release gateway.p4 (git show c00630bc^:src/nika/net_env/p4_dc_gateway/gateway.p4
+    line 194) rewrote the source of every TCP packet from 10.0.1.11/10.0.1.12 to the VIP 20.0.0.1, so
+    SYN-ACKs of direct connections come back from the wrong address. Every client curl to these IPs (1102
+    calls in 288 p4_dc_gateway trials, healthy and faulted) times out and none succeeds; healthy trials
+    were answered http_acl_block/p4_table_entry_missing. c00630bc later fixed it with the stateful lb_flow_dip
+    rewrite (gateway.p4:123-125, 198-201, 260-266).'
+  evidence:
+  - submission: 20261014_claude_code_qwen3_5_27b
+    trial: p4_dc_gateway__healthy__m__t01
+    step: 141
+    excerpt: namelookup:0.000028, connect:0.000000, appconnect:0.000000, pretransfer:0.000000, starttransfer:0.000000,
+      total:5.000469
+  - submission: 20261012_react_gemma_4_31b_it
+    trial: p4_dc_gateway__healthy__m__t01
+    step: 22
+    excerpt: '{"host_name": "client_3", "url": "http://10.0.1.11"} -> namelookup:0.000042, connect:0.000000,
+      appconnect:0.000000, pretransfer:0.000000, starttransfer:0.000000, total:5.001006'
+  - submission: 20261017_codex_gpt_6_1_sol
+    trial: p4_dc_gateway__healthy__m__t03
+    step: null
+    excerpt: 'submission.json: "Replies leave leaf_1’s uplinks but never reach the client." root_causes
+      p4_table_entry_missing@node/gateway_1'
+  members:
+  - shuffle2/LURE-P4-HEALTHY-TCP80-DROP
+  - shuffle3/LURE-P4DC-LB-DIRECT-TCP-TIMEOUT
+- cluster: C03
+  claim: p4_dc_gateway int_insufficient_mtu_headroom has no victim flow
+  verdict: rejected
+  reason: The claim that the case fails in every configuration is false. Four trials scored rca_f1=1.0
+    (20261010_claude_code_qwen3_8_27b_fp8 t01/t03, 20261016_claude_code_claude_sonnet_5_5 t01/t03). Those
+    agents found the injected int_mtu_config=1480 on gateway_1 port 2 by diffing P4 tables (sonnet t01
+    step 22, "gateway_1 has a different `int_mtu_config` on port 2 (1480 instead of 1500)"). The symptom
+    is scoped by design to INT-watched near-MTU packets (src/nika/problems/forwarding_encapsulation_policy/p4_gateway.py:352).
+    A 0-packet capture in one trial and the leaf_1 TCP baseline drop do not show that the fault has no
+    victim.
+  members:
+  - shuffle2/FNR-P4-INT-MTU-HEADROOM-NO-VICTIM
+- cluster: C04
+  claim: p4_dc_gateway silent_egress_packet_loss on gateway_1/eth1 is unobservable
+  verdict: rejected
+  reason: The fault was present and could be found. In 0.2.0 it showed up as a readable P4 fault-loss
+    entry on gateway_1, and qwen3_8 (claude_code) t03 submitted silent_egress_packet_loss@interface/gateway_1/eth1
+    and scored rca_f1=0.33. Its t02/t03 trajectories also contain "2% packet loss". The loss is 2% (loss_basis_points=200,
+    symptom_class "gray" in src/nika/problems/link_interface/p4_gateway.py:37,54), so a 4-ping pingmesh
+    is expected to miss it. This is a hard gray fault by design, not an unrealized one.
+  evidence:
+  - submission: 20261010_claude_code_qwen3_8_27b_fp8
+    trial: p4_dc_gateway__silent_egress__h8eba7ba89f0d__t03
+    step: 235
+    excerpt: 0x051f = **1311** (out of 65536) → about a 2% loss probability on egress port 2 (the spine_1
+      side of gateway_1)!
+  members:
+  - shuffle3/FNR-P4DC-SILENT-EGRESS-UNOBSERVABLE
+- cluster: C05
+  claim: Time-limited load/stress injectors expire before the cleanup recheck
+  verdict: confirmed
+  reference_id: REF-FIXED-DURATION-INJECTOR-EXPIRES
+  reason: 'The SYN flood runs under `timeout {duration}s` with duration=3600 (tcp_syn_flood.py:22,52,75),
+    and the receiver contention stress starts with `--duration 3600` (transport.py:684-685,730,917). All
+    7 before_cleanup "absent" rechecks for these two faults come from trials that ran 3900-8800 s after
+    injection, and none of those traces has a kill, stress, or tc command against the fault. The fault
+    therefore expired on its own while the agent was still working. The cluster''s campus_lan load_balancer_overload
+    part does not hold: its ab workers loop until recovery (load_balancer.py:127-130, ab_helpers.py:176-181),
+    and its 2 absent rechecks have no duration explanation, so it is excluded.'
+  evidence:
+  - submission: 20261010_claude_code_qwen3_8_27b_fp8
+    trial: p4_dc_gateway__tcp_syn_flood__hc408eaaa9f62__t02
+    step: 250
+    excerpt: '19:46:39.278661 IP 10.0.4.12.80 > 192.0.2.11.43291: Flags [S.], seq 439642313, ack 1677925856'
+  - submission: 20261010_claude_code_qwen3_8_27b_fp8
+    trial: p4_dc_gateway__tcp_syn_flood__hc408eaaa9f62__t02
+    step: 448
+    excerpt: client_1's startup is just network configuration — no generator. So the HTTP traffic generator
+      is being launched externally (by the scenario harness), temporarily, and then terminated.
+  - submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+    trial: dc_clos__receiver_resource_c__ha2be5b357067__t01
+    step: nika.jsonl:13
+    excerpt: 'Fault artifact absent: phase=before_cleanup fault=receiver_resource_contention'
+  members:
+  - shuffle1/FNR-SYN-FLOOD-UNREALIZED
+  - shuffle3/FNR-P4DC-SYN-FLOOD-TRANSIENT
+  - shuffle1/FNR-CAMPUS-LB-OVERLOAD-NOT-SUSTAINED
+  - shuffle3/FNR-CAMPUSLAN-LBOV-ABSENT-AT-CLEANUP
+  - shuffle1/FNR-DC-CLOS-RECEIVER-CONTENTION-NOT-SUSTAINED
+  - nogate/FAULT-SELF-HEALS-BEFORE-CLEANUP
+- cluster: C06
+  claim: 'campus_lan dhcp_service_down: dhcpd restarts before cleanup'
+  verdict: rejected
+  reason: The claim of no agent mutation is wrong. All 12/63 trials with before_cleanup=absent show the
+    agent itself starting the DHCP server (nohup dhcpd, systemctl/service isc-dhcp-server start, /etc/init.d/isc-dhcp-server
+    start), and the other 51 trials keep the fault until cleanup. The fault does persist; these trials
+    are agent state mutations.
+  evidence:
+  - submission: 20261013_claude_code_telecomgpt_r1
+    trial: campus_lan__dhcp_service_dow__h46c12f643f13__t01
+    step: 43
+    excerpt: 'exec_shell dhcp_server: "nohup dhcpd eth0 > /var/log/dhcpd.log 2>&1 &"'
+  - submission: 20261013_react_telecomgpt_r1
+    trial: campus_lan__dhcp_service_dow__h46c12f643f13__t02
+    step: 27
+    excerpt: 'exec_shell dhcp_server: "systemctl start isc-dhcp-server"'
+  members:
+  - shuffle1/FNR-CAMPUS-DHCP-SERVICE-NOT-SUSTAINED
+- cluster: C07
+  claim: enterprise_branch nat_mapping_removed_without_drain nft chain reverts before cleanup
+  verdict: rejected
+  reason: The fault did not revert. In both t01 and t03 of 20261017_codex_gpt_6_1_sol, the before_cleanup
+    evidence in nika.jsonl still shows 198.18.1.10 withdrawn and only 198.18.1.11 on eth3. The "absent"
+    verdict is a false negative of the presence check at the run commit 5096d23a (gateway.py verify_fault
+    required `not entries.strip()`). That check counted any conntrack entry to 198.18.1.10, including
+    the other LAN's flow "src=10.1.30.2 ... dst=198.18.1.10". Commit c00630bc fixed it by filtering on
+    the source prefix. This was a presence-check defect, already fixed, not a reverting fault.
+  members:
+  - shuffle1/FNR-ENTBR-NAT-MAPPING-NOT-SUSTAINED
+  - nogate/FNR-NAT-MAPPING-REMOVED-UNSTABLE
+- cluster: C08
+  claim: llmd_lab host_missing_ip comes back before cleanup
+  verdict: rejected
+  reason: The agent restored the address itself. Its step-52 command adds exactly the address that the
+    before_cleanup recheck later finds ("inet 200.0.0.20/24 ... eth0"). The other 7 absent-at-cleanup
+    trials of this case also contain agent 'ip addr add' or dhclient repairs. This is agent state mutation,
+    not a fault that failed to persist.
+  evidence:
+  - submission: 20261014_claude_code_glm_4_7_flash
+    trial: llmd_lab__host_missing_ip__h235346563fb5__t03
+    step: 52
+    excerpt: '{"command": "ifconfig eth0 200.0.0.20/24 up 2>&1", "host_name": "client", "timeout": 5}'
+  members:
+  - shuffle3/FNR-LLMDLAB-HOSTIP-ABSENT-AT-CLEANUP
+- cluster: C09
+  claim: enterprise_branch vrf_dscp_remarking has no observable symptom
+  verdict: rejected
+  reason: 'The claim that every trial scores 0 is false. 4 of 63 trials score rca_f1 1.0 (claude_opus_5_5
+    t03 and codex_gpt_6_1_sol t01-t03). The symptom shows in captures: claude_opus_5_5 t03 step 38 sees
+    "tos 0x0" on wg_br1 against "tos 0xb8" upstream (step 42) and a full bulk queue, then submits vrf_dscp_remarking@interface/hq_edge/wg_br1.'
+  members:
+  - shuffle1/FNR-ENTBR-VRF-DSCP-SILENT
+- cluster: C10
+  claim: k8s_lab host_incorrect_netmask on client/eth0 is inert
+  verdict: confirmed
+  reference_id: REF-K8S-CLIENT-NETMASK-INERT
+  reason: The only 3.x addresses in k8s_lab are as2r1 3.0.0.1/24 and client 3.0.0.2/24 (src/nika/net_env/k8s_lab/as2r1.startup:2,
+    client.startup:2,5), so widening the client to /8 (HostIncorrectNetmask, src/nika/problems/addressing_neighbor_naming/host_configuration.py:509-520)
+    has no reachable victim. Client traffic to all nodes works, and all 18 trials of this case in the
+    6 submissions that ran it score rca_f1=0 (several saw 3.0.0.2/8 and did not flag it). Later submissions
+    ran a replacement case on worker3 (hd97786be63fb) that is solvable.
+  evidence:
+  - submission: 20261008_codex_qwen3_6_35b_a3b_fp8
+    trial: k8s_lab__host_incorrect_netm__h5b4decc91a36__t01
+    step: 38
+    excerpt: eth0             UP             3.0.0.2/8  | === | default via 3.0.0.1 dev eth0  | 3.0.0.0/8
+      dev eth0 proto kernel scope link src 3.0.0.2
+  - submission: 20261008_codex_qwen3_6_35b_a3b_fp8
+    trial: k8s_lab__host_incorrect_netm__h5b4decc91a36__t01
+    step: 164
+    excerpt: '64 bytes from 201.1.1.2: icmp_seq=1 ttl=56 time=3.71 ms ... 2 packets transmitted, 2 received,
+      0% packet loss'
+  members:
+  - shuffle1/FNR-K8S-HOST-NETMASK-NO-SYMTOM
+  - shuffle2/FNR-K8S-CLIENT-NETMASK-INERT
+  - shuffle3/FNR-K8SLAB-HOST-NETMASK-UNOBSERVABLE
+- cluster: C11
+  claim: min3clos bgp_asn_misconfig shows no BGP symptom; MTU baseline lures mtu_mismatch
+  verdict: rejected
+  reason: The BGP symptom is observable, and the case is solved often. claude_opus_5_5, claude_sonnet_5_5
+    and codex_gpt_6_1_sol scored 3/3 with bgp_asn_misconfig@node/leaf1, and six other submissions solved
+    at least one trial. Opus read the peer AS mismatch with `show network-instance default protocols bgp
+    neighbor`. The mtu_mismatch answers come from agents that never checked BGP state.
+  members:
+  - shuffle3/FNR-BGP-ASN-MISCONFIG-MTU-LURE
+- cluster: C12
+  claim: isp_abilene passive inter-AS OSPF partition pulls bgp_max_prefix_exceeded to ospf_neighbor_missing
+  verdict: rejected
+  reason: The label can be identified. claude_opus_5_5, claude_sonnet_5_5 and codex_gpt_6_1_sol answer
+    bgp_max_prefix_exceeded in all 3 trials each. The passive AS-boundary IGP links are baseline design
+    (src/nika/net_env/isp/bgp/plan.py:642-675), so ospf_neighbor_missing answers are agent errors on a
+    known design feature.
+  evidence:
+  - submission: 20261016_claude_code_claude_opus_5_5
+    trial: isp_abilene__bgp_max_prefix__hafac0c356cde__t01
+    step: 0
+    excerpt: 'submission root_causes: [''bgp_max_prefix_exceeded''] (opus, sonnet and gpt_6_1_sol submit
+      it in 9/9 trials)'
+  members:
+  - date/LABEL-BGP-MAX-PREFIX-OSPF-PARTITION
+  - shuffle1/LABEL-BGP-MAXPREFIX-OSPF-PASSIVE
+  - shuffle2/LABEL-BGP-MAX-PREFIX-OSPF-NEIGHBOR
+  - shuffle3/LABEL-ABIL-MAXPREFIX-VS-OSPF-NEIGHBOR
+- cluster: C13
+  claim: bgp_max_prefix_exceeded ground truth names both session endpoints
+  verdict: rejected
+  reason: 'This is by design. root_cause_resources returns both the receiver and the peer (bgp.py:1455-1459)
+    because the injector changes both nodes: it sets the maximum-prefix on the receiver and installs the
+    flood route-map and prefix list on the peer (bgp.py:1722-1739). That matches the "mutated resource"
+    rule in docs/benchmarks/root-cause-evaluation.md. Agents can see both changes, for example TE-MORE-SPECIFICS
+    in "show run bgp" on hstnng (20261007_claude_code_qwen3_6_35b_a3b_fp8 t01 step 119; the string appears
+    in 24 trials). A one-node answer is incomplete, not a label defect.'
+  members:
+  - shuffle1/LABEL-BGP-MAXPREFIX-TWO-NODE-GT
+  - nogate/LABEL-BGP-MAX-PREFIX-DUAL-NODE-GT
+- cluster: C14
+  claim: isp_dfn-bwin frankfurt/hamburg passive-OSPF isolation masks the RTBH leak
+  verdict: confirmed
+  reference_id: REF-DFNBWIN-STUB-ISOLATION-LURE
+  reason: 'Reclassified from label_unidentifiable: the GT label can be identified (opus, sonnet and gpt-6.1
+    score rca_f1=1.0 in 8/9 trials by reading the RIB/communities). The real problem is the baseline isolation:
+    the injected fault only tags 198.51.100.0/24 (src/nika/problems/routing_control_plane/bgp.py:922-929),
+    so the 28/64 or 34/90 unreachable PC pairs are design (eBGP stub scope, src/nika/net_env/isp/brief.py:19-23,
+    added to the brief only by c00630bc). The release brief did not say this, and in all 21 submissions
+    it pulled answers to ospf_neighbor_missing, bgp_missing_route_advertisement or frr_service_down on
+    frankfurt/hamburg.'
+  evidence:
+  - submission: 20261014_react_qwen3_5_27b
+    trial: isp_dfn-bwin_ebgp_rtbh__bgp__hb65dab9be18e__t01
+    step: 6
+    excerpt: '"summary":{"total_pairs":64,"reachable_pairs":36,"anomaly_count":28,"unreachable":28,"packet_loss":0,"high_latency":0,"unknown":0}'
+  - submission: 20261014_claude_code_qwen3_5_27b
+    trial: isp_dfn-bwin_ebgp_rtbh__bgp__hb65dab9be18e__t01
+    step: 78
+    excerpt: No Hellos (Passive interface)
+  - submission: 20261016_claude_code_claude_opus_5_5
+    trial: isp_dfn-bwin_ebgp_rtbh__bgp__hb65dab9be18e__t01
+    step: 1
+    excerpt: 'Network Description: DFN-BWIN ISP topology with OSPF inside each AS, eBGP between three
+      AS regions, and an RTBH community policy (FRR).'
+  members:
+  - date/LABEL-RTBH-LEAK-IGP-PRESENTATION
+  - shuffle1/LABEL-DNFBWIN-RTBH-OSPF-PARTITION
+  - nogate/LABEL-BGP-BLACKHOLE-NOENDPOINT
+  - shuffle3/LURE-DFNBWIN-CROSS-AS-PC-ISOLATION
+- cluster: C15
+  claim: isp_geant RPKI leak presents only as an OSPF LSA partition
+  verdict: rejected
+  reason: The label can be identified in the same case and trial. In isp_geant_ebgp_rpki__bgp_rpk__h084f2b27c006__t03,
+    claude_opus_5_5 scored rca_f1=0.91 and codex_gpt_6_1_sol scored 0.8 with bgp_rpki_invalid_route_leak
+    on the faulted nodes. Opus used the ROA/SLURM data (step 36, "The ROA data (SLURM) was written at
+    lab build time and assigns both prefixes to AS65001"). The bgp_missing_route_advertisement answers
+    are agent errors, not an unidentifiable label.
+  members:
+  - date/LABEL-RPKI-LEAK-IGP-PRESENTATION
+- cluster: C16
+  claim: frr_get_rpki_status prefix mode fails, so no per-route ROV is visible
+  verdict: confirmed
+  reference_id: REF-FRR-RPKI-PREFIX-UNKNOWN-CMD
+  reason: 'src/nika/service/lab/frr_api.py:171-177 issues ''show rpki prefix-table {prefix}'', which this
+    FRR build rejects, so every prefix-mode call returns an error line and no validation state (38 trials
+    in isp_geant_ebgp_rpki cases). The "label unidentifiable" part of the claim does not hold: codex_gpt_6_1_sol
+    reached rca_f1=0.67 on bgp_rpki_invalid_route_leak, so only the tool defect is confirmed.'
+  evidence:
+  - submission: 20261016_claude_code_claude_opus_5_5
+    trial: isp_geant_ebgp_rpki__bgp_rpk__h084f2b27c006__t01
+    step: 23
+    excerpt: '% Unknown command: show rpki prefix-table 203.0.113.0/24\nNo Connection to RPKI cache server.\nBGP
+      routing table entry for 203.0.113.0/24'
+  - submission: 20261017_codex_gpt_6_1_sol
+    trial: isp_geant_ebgp_rpki__bgp_rpk__h084f2b27c006__t01
+    step: 40
+    excerpt: '% Unknown command: show rpki prefix-table 203.0.113.0/24'
+  members:
+  - shuffle1/LABEL-RPKI-INVALID-ROUTE-LEAK-UNIDENTIFIABLE
+- cluster: C17
+  claim: isp_di-yuan link_capacity_bottleneck diluted by constant-metric IS-IS ECMP
+  verdict: rejected
+  reason: 'The link can be localized. 20261017_codex_gpt_6_1_sol scores localization_f1 1.0 in all 3 trials
+    and rca_f1 1.0 in t02, for example step 106: "TCP bulk transfers stall despite clean pings. Captures
+    localize delay to n_10–n_9." The low solve rate elsewhere comes from agents relying on pingmesh, plus
+    the known controller-side shaper visibility issue (REF-SIG-LINK-CAPACITY). ECMP does not make the link
+    unidentifiable.'
+  members:
+  - nogate/LABEL-LINK-CAPACITY-ECMP-NOSIGNAL
+- cluster: C18
+  claim: campus_lan ospf_acl_block indistinguishable from ospf_neighbor_missing
+  verdict: rejected
+  reason: The ACL is an nftables rule "ip protocol ospf drop" (src/nika/problems/forwarding_encapsulation_policy/acl.py:191-194),
+    visible with nft list ruleset. Every configuration that inspected nft found it and scored 1.0 (opus
+    3/3, sonnet 3/3, haiku 3/3, gpt-6.1 3/3, qwen3_8 5/6). The trials that missed it never ran nft; that
+    is an agent omission, not an unidentifiable label.
+  evidence:
+  - submission: 20261016_claude_code_claude_opus_5_5
+    trial: campus_lan__ospf_acl_block__h6251e03d65a2__t01
+    step: null
+    excerpt: submission ospf_acl_block@node/router_core_1, rca_f1 1.0 after nft list ruleset on router_core_1
+  members:
+  - shuffle1/LABEL-OSPF-ACL-NEIGHBOR-CONFUSION
+  - shuffle3/LABEL-OSPF-ACL-VS-NEIGHBOR-MISSING
+- cluster: C19
+  claim: dc_clos arp_acl_block on client_0 answered as link_down or arp_cache_poisoning
+  verdict: rejected
+  reason: The label is widely identified. arp_acl_block@node/client_0 scored rca_f1=1.0 in 21 trials across
+    11 submissions, including 3/3 for claude_opus_5_5, codex_gpt_6_1_sol, claude_code_qwen3_8_27b_fp8
+    and react_qwen3_8_27b_fp8. The link_down and arp_cache_poisoning answers are agent misdiagnoses.
+  members:
+  - shuffle2/LABEL-ARP-ACL-BLOCK-LINK-DOWN
+  - shuffle2/LABEL-ARP-ACL-BLOCK-CACHE-POISONING
+- cluster: C20
+  claim: sdn_l3_clos arp_cache_poisoning answered as arp_acl_block on the leaf
+  verdict: rejected
+  reason: This is one agent's mistake in one trial. Many configurations score rca_f1=1.0 on this case
+    (opus 3/3, sonnet 3/3, claude_code qwen3_6 3/3, and others), and react_qwen3_5_27b t03 itself also
+    lists arp_cache_poisoning@client_10_1.
+  evidence:
+  - submission: 20261016_claude_code_claude_opus_5_5
+    trial: sdn_l3_clos__arp_cache_poiso__hb377eed72e6e__t01
+    step: 0
+    excerpt: 'submission root_causes: [(''arp_cache_poisoning'', ''node/client_10_1'')] rca_f1=1.0'
+  members:
+  - shuffle2/LABEL-ARP-CACHE-POISONING-ARP-ACL-BLOCK
+- cluster: C21
+  claim: sdn_l3_clos southbound_port_mismatch looks identical to a controller crash
+  verdict: rejected
+  reason: The case can be told apart from a crash. ONOS stays up and its REST API answers, and `ss`/ONOS
+    config shows it listening on 6633 while the switches target 6653. Of the 61 scored trials, 19 across
+    11 submissions submitted southbound_port_mismatch@node/onos exactly (Opus 3/3, gpt_6_1_sol 3/3). The
+    sdn_controller_crash answers are agent error, not an unidentifiable label.
+  evidence:
+  - submission: 20261017_codex_gpt_6_1_sol
+    trial: sdn_l3_clos__southbound_port__h001765cc535d__t03
+    step: 25
+    excerpt: LISTEN 0      4096         0.0.0.0:6633       0.0.0.0:*    users:(("java",pid=67,fd=318))
+  - submission: 20261017_codex_gpt_6_1_sol
+    trial: sdn_l3_clos__southbound_port__h001765cc535d__t03
+    step: 33
+    excerpt: ONOS listens on 6633; sampled switches target 6653. I’ll verify the rejection.
+  members:
+  - date/LABEL-SDN-L3-CLOS-SOUTHBOUND-UNIDENTIFIABLE
+- cluster: C22
+  claim: k8s brief forbids Kubernetes object names while GT is a k8s object id
+  verdict: rejected
+  reason: The diagnosis-phase sentence is inconsistent, but the submission phase supplies a canonical
+    resource inventory that lists the k8s object ids. 11 of 21 submissions submitted k8s/NetworkPolicy/word-ns/default-deny-ingress
+    and got credit (opus, sonnet and gpt-6.1 3/3 at 1.0). No trajectory shows an agent rejecting the k8s
+    id because of the sentence, so the label can still be identified.
+  evidence:
+  - submission: 20261016_claude_code_claude_opus_5_5
+    trial: k8s_lab__k8s_networkpolicy_d__hadf9af15da3f__t01
+    step: 45
+    excerpt: 'submission prompt canonical inventory: {"id": "k8s/NetworkPolicy/word-ns/default-deny-ingress",
+      "kind": "k8s"}'
+  members:
+  - shuffle1/LABEL-K8S-BRIEF-FORBIDS-OBJECT-NAMES
+- cluster: C23
+  claim: Submission ontology offers cross-scenario labels (P4 labels in OVS/ONOS and campus)
+  verdict: rejected
+  reason: This is by design. docs/benchmarks/root-cause-evaluation.md:98-100 says fault_ontology "always
+    lists every registered fault type except the healthy sentinel ... so the candidate set never reveals
+    which faults a case file contains." Scoping the list per scenario would leak the candidate set.
+  members:
+  - shuffle2/LABEL-CROSS-SCENARIO-ONTOLOGY
+- cluster: C24
+  claim: k8s_lab pingmesh inventory contains only 'client' (0 pairs)
+  verdict: confirmed
+  reference_id: REF-K8S-PINGMESH-EMPTY
+  reason: k8s_lab declares only the client as a reachability target (src/nika/net_env/k8s_lab/lab.py:238-243).
+    Pingmesh endpoints come from reachability_targets() (src/nika/service/kathara/base_api.py:320), so
+    the mounted pingmesh tool cannot produce a single pair. Every submission has k8s_lab trials with total_pairs
+    0.
+  evidence:
+  - submission: 20261011_react_qwen3_8_27b_fp8
+    trial: k8s_lab__healthy__t01
+    step: 5
+    excerpt: '"endpoints":{"client":"3.0.0.2"},"sources":["client"],"targets":["client"],"results":[],"anomalies":[],"summary":{"total_pairs":0'
+  - submission: 20261010_claude_code_qwen3_8_27b_fp8
+    trial: k8s_lab__healthy__t01
+    step: 17
+    excerpt: 'Error executing tool run_pingmesh_snapshot: Unknown sources: [''controller'', ''worker1'',
+      ''worker2'', ''worker3'', ''worker4'', ''worker5'']. Available endpoints: [''client'']'
+  members:
+  - date/SIG-K8S-LAB-PINGMESH-CLIENT-ONLY
+  - shuffle2/SIG-K8S-PINGMESH-EMPTY-DEFAULT
+  - shuffle3/HARNESS-PINGMESH-K8SLAB-CLIENT-ONLY
+- cluster: C25
+  claim: llmd_lab host_ip_conflict hidden by pingmesh resolving both hosts to one IP
+  verdict: rejected
+  reason: The signal is visible. In 57 trials the pingmesh endpoints map prints the duplicate address
+    directly ("client":"200.0.0.7","web":"200.0.0.7"), and `ip addr` on both hosts shows it too. 16 trials
+    across 9 submissions named host_ip_conflict, most of them on both client and web (rca_f1 0.667). Failures
+    came from agents dismissing the duplicate. Which of the two hosts is the GT owner (web/eth0) is a
+    separate label question that this claim does not raise.
+  evidence:
+  - submission: 20261013_react_telecomgpt_r1
+    trial: llmd_lab__host_ip_conflict__h7172cc7c30cf__t02
+    step: 15
+    excerpt: Both hosts have identical IP addresses (200.0.0.7/24) on eth0, which is unusual but not causing
+      connectivity issues.
+  members:
+  - shuffle2/SIG-LLMD-HOST-IP-CONFLICT-MESH-BLIND
+- cluster: C26
+  claim: Resource-contention fault nodes time out every exec and pingmesh call
+  verdict: rejected
+  reason: Overstated. Exec calls with the default 10 s timeout often time out on the starved node, which
+    is the realistic effect of CPU contention. Calls with a longer timeout succeed and show cgroup throttling
+    and the CPU hog (23 successful calls in llmd_lab, 123 in dc_clos). Opus, sonnet, gpt-6.1 and haiku
+    solve these cases, so CPU state can be observed.
+  evidence:
+  - submission: 20261016_claude_code_claude_opus_5_5
+    trial: llmd_lab__sender_resource_co__h1bbe56e6f9c3__t03
+    step: 64
+    excerpt: '{"host_name": "web", "command": "ps -eo pid,pcpu,etime,args --sort=-pcpu | head -8", "timeout":
+      90} -> stress-ng-cpu [run]'
+  - submission: 20261017_codex_gpt_6_1_sol
+    trial: dc_clos__receiver_resource_c__ha2be5b357067__t01
+    step: 82
+    excerpt: nr_throttled 3088 | throttled_usec 2741741912 ... stress-ng-cpu   stress-ng-cpu [run]
+  members:
+  - shuffle2/SIG-LLMD-WEB-EXEC-TIMEOUT
+- cluster: C27
+  claim: sdn_onos_rest returns Jetty 404 for every path
+  verdict: rejected
+  reason: The agents used the tool wrongly. The 404s come from paths without the ONOS /onos/v1 prefix,
+    e.g. "/devices", "/links", "/flows/summary" and "/v1/devices" in 20261014_claude_code_glm_4_7_flash
+    sdn_l3_clos__arp_cache_poiso__hb377eed72e6e__t02 steps 5-22. The tool docstring gives the correct
+    form, "e.g. /onos/v1/devices, /onos/v1/flows" (src/nika/mcp/servers/kathara/sdn_server.py:27). Other
+    submissions get valid /onos/v1/hosts, /intents and /topology replies in the same case.
+  members:
+  - shuffle1/SIG-SDN-ONOS-REST-404
+- cluster: C28
+  claim: sdn_onos_rest output exceeds the harness output limit
+  verdict: confirmed
+  reference_id: REF-SDN-ONOS-REST-TRUNCATION
+  reason: 'In 0.2.0 sdn_onos_rest had no device filter and no summary (no output carries ''device_filter'').
+    /onos/v1/flows calls lose about 600000 characters to the head/tail cut (src/nika/mcp/tool_output.py:40-60).
+    Every submission is affected: 16-63% of its sdn_onos_rest results are truncated (122/391 for qwen3_coder_next).
+    The current code adds device filtering and a summary (src/nika/service/kathara/sdn_api.py:72-99).'
+  evidence:
+  - submission: 20261019_claude_code_qwen3_coder_next_fp8
+    trial: sdn_l3_clos__arp_cache_poiso__hb377eed72e6e__t01
+    step: 7
+    excerpt: '"path": "/onos/v1/links", ... <elided_chars>\n55626 characters elided\n</elided_chars>'
+  - submission: 20261016_claude_code_claude_opus_5_5
+    trial: sdn_l3_clos__arp_cache_poiso__hb377eed72e6e__t02
+    step: 8
+    excerpt: 'The output of your last command was too long. ... "path": "/onos/v1/devices"'
+  members:
+  - shuffle3/SIG-SDN-ONOS-REST-TRUNCATED
+- cluster: C29
+  claim: sdn_onos_rest fails with 'Lab ... not found' while the lab is up
+  verdict: confirmed
+  reference_id: REF-SDN-ONOS-REST-LAB-NOT-FOUND-LINK-FLAP
+  reason: 'The 207 ''Lab ... not found'' errors all come from link_flap trials: 56 trials in 20 submissions,
+    and not one sdn_onos_rest call in that case succeeded. In the other 9 sdn_l3_clos cases sdn_onos_rest
+    works (54-62 successful trials each), and in the link_flap trials exec_shell keeps working. Likely
+    cause: link_flap inserts a VDE fault proxy (src/nika/problems/link_interface/link.py:337), and KatharaBaseAPI
+    then falls back to session metadata (src/nika/service/kathara/base_api.py:79-89). The SDN server builds
+    a fresh API without session_meta (src/nika/mcp/servers/kathara/sdn_server.py:17; compare frr_server.py:11),
+    so the fallback returns None and the call raises. The 20th submission, 20261007_claude_code_qwen3_6_35b_a3b_fp8,
+    never called the tool.'
+  evidence:
+  - submission: 20261016_claude_code_claude_opus_5_5
+    trial: sdn_l3_clos__link_flap__s__h02db78d97263__t02
+    step: 8
+    excerpt: 'Error executing tool sdn_onos_rest: Lab sdn_l3_clos__1015034918-3d6b14 not found.'
+  - submission: 20261016_claude_code_claude_opus_5_5
+    trial: sdn_l3_clos__link_flap__s__h02db78d97263__t02
+    step: 20
+    excerpt: 'Controller \"tcp:172.31.0.100:6653\"\n            is_connected: true'
+  members:
+  - shuffle2/HARNESS-SDN-ONOS-REST-LAB-NOT-FOUND
+  - shuffle3/HARNESS-SDN-ONOS-REST-LAB-NOT-FOUND
+- cluster: C30
+  claim: packet_capture_inspect protocol view returns null DNS/HTTP fields
+  verdict: confirmed
+  reference_id: REF-PCAP-PROTOCOL-VIEW-NULL-FIELDS
+  reason: 'src/nika/service/packet_capture/protocol_fields.py:106 and :150 read dns.qry.name and http.request.method
+    directly from the layer dict. In tshark -T json these fields sit under nested Queries/request-line
+    subtrees, so they always come out null. Top-level fields such as dns.count.answers still parse ("answers":
+    "1"). 29/29 protocol-view DNS/HTTP calls in the corpus returned null and none returned a value. The
+    bug is still present at HEAD.'
+  evidence:
+  - submission: 20261017_codex_gpt_6_1_sol
+    trial: campus_lan__dhcp_spoofed_dns__h4ee0ce80b947__t03
+    step: 116
+    excerpt: '"frame_number": "3", ... "qname": null, "qtype": null, "rcode": null, "answers": "1", "response":
+      null'
+  - submission: 20261015_react_glm_4_7_flash
+    trial: campus_lan__ospf_neighbor_mi__hfcf4b0494422__t02
+    step: 239
+    excerpt: '{"protocol": "http", "view": "protocol"} -> "method": null'
+  members:
+  - shuffle2/SIG-INSPECT-PROTOCOL-VIEW-NULL
+- cluster: C31
+  claim: srl_exec_cli rejects SR Linux route/BGP show commands in min3clos
+  verdict: rejected
+  reason: The agent used the wrong command. "show route summary" and "show network-instance default route"
+    are not SR Linux syntax, and the parser's own error lists the valid token ("Options are [... 'protocols',
+    'route-table', ...]", gemma t01 step 56). claude_opus_5_5 got BGP neighbor and route-table state through
+    the same tool in the same case (t01 steps 15-32).
+  members:
+  - shuffle2/SIG-SRL-EXEC-CLI-NO-ROUTES
+- cluster: C32
+  claim: srl_exec_cli IS-IS summary reports are empty on isp_pdh
+  verdict: rejected
+  reason: srl_exec_cli passes the command straight to sr_cli (src/nika/service/containerlab/srl_api.py:86-88)
+    and does no rendering. The empty tables are SR Linux's own output for the '... summary' forms, most
+    likely because 'summary' is read as an interface or LSP filter (same table header, zero rows). The
+    documented non-summary commands show the healthy IGP, so this is device CLI behaviour combined with
+    the agent's command choice, not a NIKA defect.
+  evidence:
+  - submission: 20261014_react_qwen3_5_27b
+    trial: isp_pdh__bgp_acl_block__s__i__hbe4170621772__t03
+    step: 86
+    excerpt: 'show network-instance default protocols isis adjacency -> ... Adjacency Count: 4'
+  members:
+  - shuffle2/HARNESS-SRL-ISIS-SUMMARY-EMPTY
+- cluster: C33
+  claim: packet_capture records 0 packets on SR Linux interfaces carrying traffic
+  verdict: confirmed
+  reference_id: REF-SRLINUX-CAPTURE-NAME-EMPTY
+  reason: 'In isp_pdh and min3clos, all 41 completed captures that used an SR Linux name (ethernet-1/N
+    or ethernet-1/N.0) returned 0 packets. Captures on the Linux names e1-N mostly return traffic: in
+    the same submission and case, gemma got 36 packets on e1-5 against 0 on ethernet-1/5. The release
+    commit 8f04c842 passed the name straight to dumpcap without mapping or checking that it exists, so
+    a bad name gave an empty capture instead of an error. Commit c00630bc fixed this (''SR Linux capture
+    mapping''; src/nika/service/packet_capture/capture_backend.py:52-75).'
+  evidence:
+  - submission: 20261012_react_gemma_4_31b_it
+    trial: isp_pdh__bgp_acl_block__s__i__hbe4170621772__t01
+    step: 38
+    excerpt: "\"packet_count\": 0,\n  \"captured_bytes\": 0,\n  \"duration_sec\": 75.293793,"
+  - submission: 20261012_react_gemma_4_31b_it
+    trial: isp_pdh__bgp_acl_block__s__i__hbe4170621772__t01
+    step: 39
+    excerpt: 'Wait, the `packet_capture_start` on `n1` interface `ethernet-1/5` returned `packet_count:
+      0`. This is very strange because `pc_n1` is connected to `n1:e1-5`.'
+  - submission: 20261012_react_gemma_4_31b_it
+    trial: isp_pdh__bgp_acl_block__s__i__hbe4170621772__t02
+    step: 43
+    excerpt: "\"packet_count\": 36,\n  \"captured_bytes\": 4864,"
+  members:
+  - date/HARNESS-SRLINUX-CAPTURE-EMPTY
+- cluster: C34
+  claim: 'active_tcp_probe fails with ''python3: not found'' on isp_pdh nodes'
+  verdict: confirmed
+  reference_id: REF-TCP-PROBE-NO-PYTHON3
+  reason: src/nika/traffic/active_probe.py:62 and :90 run "python3 -c" on the lab nodes. isp_pdh PCs (0
+    successful probes), min3clos clients and k3s controller/worker nodes lack python3, so the advertised
+    tool cannot work there whatever arguments the agent uses (99 failing calls in 17 submissions).
+  evidence:
+  - submission: 20261012_react_gemma_4_31b_it
+    trial: isp_pdh__bgp_acl_block__s__i__hbe4170621772__t01
+    step: 29
+    excerpt: '{"source": "pc_n1", "destination": "pc_n10", ...} -> "result": "/bin/sh: python3: not found"'
+  - submission: 20261019_claude_code_qwen3_coder_next_fp8
+    trial: min3clos__bgp_asn_misconfig__h72c7bf7e08f2__t01
+    step: 155
+    excerpt: '"source": "client2", "destination": "client1", ... "result": "/bin/sh: python3: not found"'
+  members:
+  - date/HARNESS-TCP-PROBE-PYTHON3-MISSING
+- cluster: C35
+  claim: active_tcp_probe cannot resolve containerlab router names
+  verdict: rejected
+  reason: 'The agent used a host-endpoint probe on a router. active_tcp_probe starts its own Python TCP
+    listener on the destination (src/nika/traffic/active_probe.py:38-60). The agent tried it on SR Linux
+    routers at BGP port 179 ("destination": "n1", "destination_port": 179), which the tool cannot test
+    even if the name resolved. The error is explicit, and nothing misleading reaches the agent. Other
+    tools (exec_shell, srl_exec_cli, packet_capture) cover router state.'
+  members:
+  - shuffle3/HARNESS-ACTIVE-TCP-PROBE-NO-ROUTER-RESOLVE
+- cluster: C36
+  claim: active_tcp_probe returns raw Python tracebacks instead of a result
+  verdict: confirmed
+  reference_id: REF-ACTIVE-PROBE-TRACEBACK
+  reason: The client script in src/nika/traffic/active_probe.py:65-87 catches only ConnectionRefusedError,
+    and the raw stdout is returned as "result" (lines 88-97). Timeouts, Errno 101/113 and bind errors
+    therefore reach the agent as tracebacks. When destination_port is already served (port 80 on a web
+    server), the probe listener's bind fails silently and the client connects to the real service. It
+    then times out at line 21 (recv), so a healthy fault-free path reads as failed.
+  evidence:
+  - submission: 20261012_react_gemma_4_31b_it
+    trial: dc_clos__healthy__m__t02
+    step: 23
+    excerpt: '"destination_port": 80, ... "result": "Traceback (most recent call last):\n  File \"<string>\",
+      line 21, in <module>\nTimeoutError: timed out"'
+  members:
+  - date/HARNESS-TCP-PROBE-TRACEBACK
+  - nogate/HARNESS-ACTIVE-TCP-PROBE-TRACEBACK
+- cluster: C37
+  claim: llmd_lab node images lack iperf3
+  verdict: confirmed
+  reference_id: REF-K3S-NODES-NO-IPERF3
+  reason: 'Confirmed only in narrower form. iperf_test (''Run an iperf test between two lab hosts'', src/nika/mcp/servers/common/host_server.py:27)
+    runs iperf3 on both ends (src/nika/service/kathara/base_api.py:361-364). The controller and worker
+    nodes use K3S_IMAGE (src/nika/net_env/llmd_lab/lab.py:40,223; k8s_lab/lab.py:32), which has no iperf3,
+    so every call that touches them fails, in llmd_lab and in k8s_lab. The claim that no throughput measurement
+    is possible at all is wrong: client and web use the NIKA base image, and client->web iperf works.
+    That pair includes the GT node of the cited sender_resource_contention case (node/web).'
+  evidence:
+  - submission: 20261014_claude_code_glm_4_7_flash
+    trial: llmd_lab__sender_resource_co__h1bbe56e6f9c3__t03
+    step: 146
+    excerpt: '/bin/sh: iperf3: not found'
+  - submission: 20261010_claude_code_qwen3_8_27b_fp8
+    trial: llmd_lab__k8s_coredns_isolat__he788b9979872__t01
+    step: 166
+    excerpt: 0.00-1.00   sec  4.80 MBytes  40.3 Mbits/sec
+  members:
+  - date/HARNESS-LLMD-LAB-NO-IPERF3
+- cluster: C38
+  claim: llmd_lab k3s node images lack dumpcap and tcpdump
+  verdict: confirmed
+  reference_id: REF-K3S-NODES-NO-CAPTURE-TOOL
+  reason: Raised by src/nika/service/packet_capture/capture_backend.py:42 for the k3s node image. It hit
+    45 llmd_lab calls (controller, worker1-4) and 25 k8s_lab calls (controller, worker1-5), while llmd
+    client/web captures succeed (63). Capture is therefore impossible on the k8s nodes, where several
+    faults live; the agent cannot fix this.
+  evidence:
+  - submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+    trial: llmd_lab__sender_resource_co__h1bbe56e6f9c3__t01
+    step: 142
+    excerpt: 'Error executing tool packet_capture_start: Node ''controller'' has neither dumpcap nor tcpdump
+      installed for packet capture'
+  members:
+  - date/HARNESS-LLMD-LAB-NO-DUMPCAP-TCPDUMP
+- cluster: C39
+  claim: llmd_lab controller /etc/hosts last line lacks a newline (worker5 unresolvable)
+  verdict: confirmed
+  reference_id: REF-LURE-LLMD-HOSTS-EOF
+  reason: At every NIKA commit used by the 0.2.0 submissions, the shipped src/nika/net_env/llmd_lab/*/etc/hosts
+    files end with "200.0.0.6 worker5" and no trailing newline (git show <commit>:src/nika/net_env/llmd_lab/controller/etc/hosts).
+    The busybox resolver drops that last entry, so name lookups of worker5 fail while the IP works. The
+    lure overlaps the k8s_coredns_isolated name-resolution symptom. Commit c00630bc fixed it ("Baseline
+    defects ... llmd hosts").
+  evidence:
+  - submission: 20261012_claude_code_gemma_4_31b_it
+    trial: llmd_lab__k8s_coredns_isolat__he788b9979872__t01
+    step: 65
+    excerpt: 'ping: bad address ''worker5'''
+  - submission: 20261012_claude_code_gemma_4_31b_it
+    trial: llmd_lab__k8s_coredns_isolat__he788b9979872__t01
+    step: 77
+    excerpt: 200.0.0.5 worker4$\n200.0.0.6 worker5
+  members:
+  - date/HARNESS-LLMD-HOSTS-TRAILING-NEWLINE
+- cluster: C40
+  claim: llmd_lab brief lists 2 of 8 nodes and 1 of 6 links
+  verdict: confirmed
+  reference_id: REF-BRIEF-MULTIACCESS-TOPOLOGY
+  reason: BaseNetEnv.get_topology keeps only the first two endpoints of each collision domain (src/nika/net_env/base.py:213-218).
+    llmd_lab puts controller, worker1-5, client and web on link "A" (src/nika/net_env/llmd_lab/lab.py:205-286),
+    so 6 of 8 endpoints disappear. The inventory lines print only HOST and service roles (base.py:250-270).
+    All 15 llmd_lab trials of every submission show this brief.
+  evidence:
+  - submission: 20261016_claude_code_claude_opus_5_5
+    trial: llmd_lab__healthy__t01
+    step: 1
+    excerpt: 'PCs: client
+
+      Web Servers: web
+
+      Topology: (controller:eth0, worker1:eth0)'
+  members:
+  - shuffle1/HARNESS-LLMD-BRIEF-TOPOLOGY-INCOMPLETE
+- cluster: C41
+  claim: 'Healthy llmd_lab: ICMP to the MetalLB VIP fails with redirects; EPP bypasses Prefill'
+  verdict: confirmed
+  reference_id: REF-LURE-LLMD-VIP-ICMP-REDIRECT
+  reason: 'The VIP ICMP failure shows up in healthy trials of 6 submissions and in faulted llmd_lab trials
+    of 15. It comes from MetalLB L2 mode (src/nika/net_env/llmd_lab/controller/k8s/metallb.yaml), and
+    the brief (src/nika/net_env/llmd_lab/lab.py:183-200) never states it. Healthy trials that hit it submitted
+    controller faults: host_missing_ip@interface/controller/eth0 (gemma t01, qwen3_8 t02, qwen3_5 t02),
+    icmp_acl_block@node/controller (gemma t02) and arp_acl_block@controller (qwen3_6 t01). The claim''s
+    second half (EPP sends requests straight to Decode pods; log line ''No deciders.encode configured,
+    E disaggregation disabled'') is normal llm-d P/D behaviour plus agent misreading, so it is left out.'
+  evidence:
+  - submission: 20261012_claude_code_gemma_4_31b_it
+    trial: llmd_lab__healthy__t02
+    step: 26
+    excerpt: 'From 200.0.0.1 icmp_seq=2 Redirect Host(New nexthop: llmd (200.0.0.240))\nFrom 200.0.0.1
+      icmp_seq=3 Redirect Host(New nexthop: llmd (200.0.0.240))\nFrom 200.0.0.1 icmp_seq=1 Destination
+      Host Unreachable'
+  - submission: 20261014_claude_code_qwen3_5_27b
+    trial: llmd_lab__healthy__t02
+    step: 44
+    excerpt: 'PING 200.0.0.240 (200.0.0.240) 56(84) bytes of data.\nFrom 200.0.0.1 icmp_seq=2 Redirect
+      Host(New nexthop: 200.0.0.240)'
+  - submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+    trial: llmd_lab__healthy__t01
+    step: 48
+    excerpt: From 200.0.0.1 icmp_seq=1 Destination Host Unreachable
+  members:
+  - date/LURE-LLMD-LAB-FAULTLIKE-CONSTANTS
+  - shuffle2/LURE-LLMD-CLIENT-VIP-ICMP-REDIRECT
+  - nogate/LURE-LLMD-LAB-GATEWAY-VIP-BASELINE
+- cluster: C42
+  claim: Healthy k8s_lab client has an empty /etc/resolv.conf
+  verdict: rejected
+  reason: The external client resolves its one service name (datacenter.com) through /etc/hosts. Lab device
+    names such as worker1 are not DNS names the design promises to resolve, so "Temporary failure in name
+    resolution" for them is expected. Only 1/63 healthy trials (20261012_react_gemma_4_31b_it t01) submitted
+    host_incorrect_dns@client, so the lure does not hold across configurations.
+  evidence:
+  - submission: 20261008_codex_qwen3_6_35b_a3b_fp8
+    trial: k8s_lab__host_incorrect_netm__h5b4decc91a36__t01
+    step: 44
+    excerpt: === | 101.0.0.1 datacenter.com===
+  members:
+  - shuffle1/LURE-K8S-CLIENT-EMPTY-RESOLV-CONF
+  - shuffle2/LURE-K8S-CLIENT-NO-DNS
+  - nogate/LURE-K8S-LAB-CLIENT-EMPTY-RESOLV-CONF
+- cluster: C43
+  claim: k8s_lab dc_exit static ECMP next hop points at its own address
+  verdict: confirmed
+  reference_id: REF-LURE-K8S-DC-EXIT-SELF-NEXTHOP
+  reason: At every run commit, src/nika/net_env/k8s_lab/dc_exit.startup:4 assigns 10.0.2.1/30 to eth2,
+    and lines 8 and 10 route 201.0.0.0/8 and 101.0.0.0/8 "via 10.0.2.1 dev eth2". The route appears in
+    tool output in all 21 submissions. Healthy trials submitted host_incorrect_gateway@node/dc_exit (opus
+    t01, codex_gpt_6_1_sol t01/t03, haiku t01) or host_static_blackhole@node/dc_exit (4 trials). Commit
+    c00630bc fixed it (next hop 10.0.2.2). This is a different mechanism from REF-LURE-K8S (dc_exit listed
+    as FRR).
+  evidence:
+  - submission: 20261016_claude_code_claude_opus_5_5
+    trial: k8s_lab__healthy__t01
+    step: 32
+    excerpt: 10.0.2.0/30 dev eth2 proto kernel scope link src 10.0.2.1 \n10.0.3.0/30 dev eth0 proto kernel
+      scope link src 10.0.3.1 \n101.0.0.0/8 via 10.0.1.2 dev eth1 \n101.0.0.0/8 via 10.0.2.1 dev eth2
+  - submission: 20261016_claude_code_claude_opus_5_5
+    trial: k8s_lab__healthy__t01
+    step: 34
+    excerpt: its `101.0.0.0/8` and `201.0.0.0/8` routes oddly point to `10.0.2.1` on eth2, which is its
+      own address.
+  members:
+  - shuffle1/LURE-K8S-DC-EXIT-SELFROUTE
+  - shuffle3/LURE-K8SLAB-DC-EXIT-SELF-NEXTHOP
+- cluster: C44
+  claim: k8s_lab MetalLB VIP 101.0.0.1/32 is advertised but not local, looping to TTL expiry
+  verdict: confirmed
+  reference_id: REF-LURE-K8S-VIP-ICMP-LOOP
+  reason: The worker that advertises the VIP has no local address for it, so ICMP is routed back to the
+    leaf. Only kube-proxy's TCP/80 and TCP/443 rules (worker3 step 38) catch HTTP. The loop appears in
+    the healthy trials of 14 submissions. Their reports cite it while answering flow_rule_loop, host_static_blackhole,
+    bgp_hijacking or k8s_clusterip_routing_broken. The brief does not state this behaviour, and it is
+    separate from REF-LURE-K8S (dc_exit FRR).
+  evidence:
+  - submission: 20261016_claude_code_claude_sonnet_5_5
+    trial: k8s_lab__healthy__t01
+    step: 40
+    excerpt: 'PING 101.0.0.1 (101.0.0.1) 56(84) bytes of data.
+
+      From 201.2.1.2 icmp_seq=1 Time to live exceeded'
+  - submission: 20261016_claude_code_claude_sonnet_5_5
+    trial: k8s_lab__healthy__t01
+    step: 44
+    excerpt: ' 8  192.168.0.2 ... 9  201.2.1.2 ... 10  192.168.0.2 ... 11  201.2.1.2 ... 12  192.168.0.2'
+  members:
+  - shuffle1/LURE-K8S-METALLB-VIP-LOOP
+  - shuffle2/LURE-K8S-CLIENT-TTL-LOOP
+  - shuffle3/LURE-K8SLAB-LB-VIP-LOOP
+  - nogate/LURE-K8S-LAB-INGRESS-VIP-ROUTE-LOOP
+- cluster: C45
+  claim: k8s_lab as2r1 default route via the Docker bridge (blackhole and real-internet egress)
+  verdict: confirmed
+  reference_id: REF-K8S-LAB-AS2R1-HOST-EGRESS
+  reason: 'k8s_lab bridges as2r1 to Docker ''for internet connectivity'' (src/nika/net_env/k8s_lab/lab.py:123-125)
+    and masquerades all egress (as2r1.startup: ''iptables -t nat -A POSTROUTING -o eth2 -j MASQUERADE'').
+    Its BGP also default-originates to as1r1 (as2r1/etc/frr/bgpd.conf). So in-lab addresses that BGP does
+    not carry are routed into the host or campus network. Traceroutes show public or campus hops (also
+    10.67.24.65 and 10.127.0.x in codex_qwen3_6 and glm trials), and an outside host answered a lab address
+    with ttl=245. That makes reachability non-deterministic and host-dependent, and it lured host_incorrect_gateway@node/as2r1
+    (glm bgp_asn_misconfig t01). The brief does not state this uplink.'
+  evidence:
+  - submission: 20261016_claude_code_gpt_oss_120b
+    trial: k8s_lab__k8s_worker_apiserve__hc58ead3adbe3__t03
+    step: 140
+    excerpt: traceroute to 10.0.2.2 (10.0.2.2), 30 hops max, 60 byte packets\n 1  3.0.0.1  0.393 ms  0.521
+      ms  0.666 ms\n 2  172.17.0.1  0.821 ms  0.942 ms  1.062 ms\n 3  192.168.64.1  1.367 ms  1.482 ms  1.644
+      ms\n 4  192.168.1.1  4.679 ms  4.720 ms  6.919 ms\n 5  2.249.68.1
+  - submission: 20261016_claude_code_gpt_oss_120b
+    trial: k8s_lab__k8s_worker_apiserve__hc58ead3adbe3__t03
+    step: 134
+    excerpt: '64 bytes from 10.0.1.2: icmp_seq=1 ttl=245 time=5.42 ms'
+  - submission: 20261014_claude_code_glm_4_7_flash
+    trial: k8s_lab__bgp_asn_misconfig__he4a55dc53b83__t01
+    step: 39
+    excerpt: default via 172.17.0.1 dev eth2 \n3.0.0.0/24 dev eth0 proto kernel scope link src 3.0.0.1
+  members:
+  - nogate/LURE-K8S-LAB-AS2R1-DOCKER-DEFAULT
+  - shuffle2/HARNESS-K8S-LAB-INTERNET-EGRESS
+- cluster: C46
+  claim: k8s_lab MetalLB BGPPeer selectors exclude the controller
+  verdict: rejected
+  reason: Leaving the control-plane node out of MetalLB speakers is standard practice and the lab design
+    (src/nika/net_env/k8s_lab/controller/k8s/metallb-conf.yaml). Only one configuration (20261011_react_qwen3_8_27b_fp8,
+    2 trials) answered bgp_missing_route_advertisement@controller, which is not enough evidence for a
+    lure.
+  evidence:
+  - submission: 20261011_react_qwen3_8_27b_fp8
+    trial: k8s_lab__host_incorrect_netm__h5b4decc91a36__t02
+    step: null
+    excerpt: submission bgp_missing_route_advertisement@node/controller
+  members:
+  - shuffle1/LURE-K8S-METALLB-CONTROLLER-NO-BGP
+- cluster: C47
+  claim: k8s_lab eBGP edge advertises only aggregates plus default
+  verdict: rejected
+  reason: This is by design and is standard edge practice. as1r1 installs static 101.0.0.0/8 and 201.0.0.0/8
+    toward dc_exit (src/nika/net_env/k8s_lab/as1r1.startup) and redistributes them with `redistribute
+    kernel` (as1r1/etc/frr/bgpd.conf). Fabric /24s are not meant to reach the external stub. Only 5 of
+    59 healthy k8s_lab trials, all from weaker models in 4 submissions, submitted bgp_missing_route_advertisement
+    on as1r1/as2r1.
+  members:
+  - shuffle2/LURE-BGP-ADVERTISE-SCOPE
+- cluster: C48
+  claim: k8s_lab spine_2_1 lacks the LOOPBACKS redistribution
+  verdict: uncertain
+  reason: 'This is a real baseline drift in the shipped config: src/nika/net_env/k8s_lab/spine_2_1/etc/frr/bgpd.conf:21-25
+    has no redistribute line, while spine_2_2/etc/frr/bgpd.conf:24 has it (present since ce88fe93). Only
+    one configuration falls for it in trajectories, in 2 trials (healthy t02 and host_incorrect_netm h5b4decc91a36
+    t01). The code settles the defect; the observed lure effect is narrow. Downgraded: lure seen in 2
+    trials of one configuration only.'
+  evidence:
+  - submission: 20261008_codex_qwen3_6_35b_a3b_fp8
+    trial: k8s_lab__healthy__t02
+    step: 146
+    excerpt: " address-family ipv4 unicast\n  maximum-paths 64\n exit-address-family"
+  - submission: 20261008_codex_qwen3_6_35b_a3b_fp8
+    trial: k8s_lab__healthy__t02
+    step: 317
+    excerpt: '{\"resource_id\": \"node/spine_2_1\", \"fault_type\": \"bgp_missing_route_advertisement\"}'
+  members:
+  - shuffle3/LURE-K8SLAB-SPINE21-REDIST-DRIFT
+- cluster: C49
+  claim: Healthy k8s_lab shows non-zero BGP AS-PATH loop counters
+  verdict: rejected
+  reason: 'Non-zero ''AS-PATH loop'' counters do appear in healthy k8s_lab, and two submissions (gpt_oss_120b
+    t03, qwen3_coder_next cc t01) read them as bgp_asn_misconfig. But every eBGP fabric shows this: standard
+    RFC 4271 loop prevention drops reflected prefixes, and reachability stays intact. The counters are
+    not fault-like evidence the benchmark must disclose, so treating them as a fault is agent error. Most
+    k8s_lab healthy false positives instead go to the dc_exit/as2r1 baselines (frr_service_down@dc_exit,
+    bgp_missing_route_advertisement).'
+  evidence:
+  - submission: 20261019_claude_code_qwen3_coder_next_fp8
+    trial: k8s_lab__healthy__t01
+    step: 100
+    excerpt: 'AS-PATH loop: 10\n    Originator loop: 0\n    Cluster loop: 0'
+  members:
+  - nogate/LURE-K8S-LAB-AS-PATH-LOOP-COUNTERS
+- cluster: C50
+  claim: campus_lan backend web servers reachable although the brief says they are not
+  verdict: rejected
+  reason: The claim misidentifies the backends. In the release lab the LB backends are backend_web_0..2
+    on the private 20.200.0.0/24 link (git show c00630bc^:src/nika/net_env/campus_lan/lab_dhcp.py:258-276,
+    499-524). 10.200.0.3-6 are the published web0-web3.local servers that PCs are meant to browse. PC
+    curls/pings to 20.200.0.x mostly fail (184 of 199), so the backends are isolated as the brief says.
+  evidence:
+  - submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+    trial: campus_lan__device_forwardin__h0b9011ea426b__t03
+    step: 92
+    excerpt: curl -s -m 5 http://20.200.0.2/ on pc_1_1_1_1 -> {"result":""}
+  members:
+  - date/LURE-CAMPUS-LAN-BACKEND-DIRECT-ACCESS
+  - shuffle3/LURE-CAMPUSLAN-BACKEND-ISOLATION
+- cluster: C51
+  claim: campus_lan bind9 unit 'inactive (dead)' while named serves DNS
+  verdict: confirmed
+  reference_id: REF-LURE-CAMPUS-BIND9-UNIT
+  reason: The lab starts the "named" unit (src/nika/net_env/campus_lan/lab_dhcp.py:710, "systemctl start
+    named"). The image's separate bind9.service stays disabled and dead even though named answers on :53.
+    That is unlike Debian, where bind9 is an alias of named. Current code is unchanged. In 17 trials across
+    7 submissions, the agent saw this status and wrongly submitted dns_service_down@node/dns_server, in
+    cases where dns_service_down was not the ground truth.
+  evidence:
+  - submission: 20261014_claude_code_qwen3_5_27b
+    trial: campus_lan__dhcp_spoofed_dns__h4ee0ce80b947__t02
+    step: 46
+    excerpt: 'Server:\t\t10.200.0.2\nAddress:\t10.200.0.2#53\n\nName:\tweb0.local\nAddress: 10.200.0.3'
+  - submission: 20261014_claude_code_qwen3_5_27b
+    trial: campus_lan__dhcp_spoofed_dns__h4ee0ce80b947__t02
+    step: 48
+    excerpt: 'bind9.service - BIND Domain Name Server\n    Loaded: loaded (/etc/systemd/system/bind9.service,
+      disabled)\n    Active: inactive (dead)'
+  - submission: 20261014_claude_code_qwen3_5_27b
+    trial: campus_lan__dhcp_spoofed_dns__h4ee0ce80b947__t02
+    step: 189
+    excerpt: '{"fault_type": "dns_service_down", "resource_id": "node/dns_server"}'
+  members:
+  - shuffle1/LURE-CAMPUS-LAN-DNS-BIND9-DEAD
+  - shuffle2/LURE-CAMPUS-BIND9-SYSTEMD-DEAD
+  - nogate/LURE-CAMPUS-LAN-BIND9-UNIT-DEAD
+- cluster: C52
+  claim: campus_lan HTTP-only LB with mock 20.200.0.x backends refuses 443
+  verdict: rejected
+  reason: 'The brief states this behaviour: "an Nginx HTTP load balancer published as web99.local" (src/nika/net_env/campus_lan/lab_dhcp.py:835),
+    with nginx listening on :80 only (nginx.conf). The backends are real machines (backend_web_0..2, lab_dhcp.py:259-275),
+    not mocks. HTTPS probes to web99 that read ''Connection refused'' as http_acl_block are agent errors
+    against a stated design.'
+  members:
+  - shuffle1/LURE-CAMPUS-LAN-LB-HTTP-ONLY-MOCK-BACKEND
+- cluster: C53
+  claim: curl_web_test 10 s cap cannot fetch the 64 MB campus_lan catalog
+  verdict: confirmed
+  reference_id: REF-CURL-WEB-TEST-UNCOMPRESSED-TIMEOUT
+  reason: At the release commit dba357b3, src/nika/service/kathara/base_api.py:437-445 runs 'curl --connect-timeout
+    5 --max-time 10' without --compressed. The brief says clients fetch the catalog with gzip encoding
+    (campus_lan/lab_dhcp.py:838-839), but uncompressed the catalog is 67108864 bytes and takes about 13
+    s. The catalog fetch therefore times out in all 16 campus_lan cases, including off-path faults such
+    as DHCP and OSPF ones, across 20 submissions. HEAD fixes it with '--compressed' in src/nika/service/shell.py:32-50
+    (commit c00630bc).
+  evidence:
+  - submission: 20261012_claude_code_gemma_4_31b_it
+    trial: campus_lan__device_forwardin__h0b9011ea426b__t01
+    step: 6
+    excerpt: '[TIMEOUT] Command ''curl --connect-timeout 5 --max-time 10 -w ''namelookup:%{time_namelookup},
+      connect:%{time_connect}, appconnect:%{time_appconnect}, pretransfer:%{time_pretransfer}, starttransfer:%{time_starttransfer},
+      total:%{time_total}\\n'' -o /dev/null -s https://web0.local/packages/catalog.txt'' on ''pc_1_1_1_1''
+      exc'
+  - submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+    trial: campus_lan__dhcp_missing_sub__h495aae94c5be__t01
+    step: 213
+    excerpt: 'HTTP_CODE: 200\nTIME_TOTAL: 13.009501\nSIZE: 67108864\nCONTENT_TYPE: text/plain'
+  members:
+  - shuffle1/HARNESS-CURL-WEB-TEST-RAW-CATALOG-TIMEOUT
+  - shuffle2/SIG-CURL-WEB-TEST-10S-CAP
+  - shuffle3/SIG-CURL-WEB-TEST-TIMEOUT-CAP
+  - nogate/HARNESS-CURL-WEB-TEST-CATALOG-TIMEOUT
+- cluster: C54
+  claim: curl_web_test hides curl exit status; failures print as all-zero timings
+  verdict: confirmed
+  reference_id: REF-CURL-WEB-TEST-NO-STATUS
+  reason: Release command (git show c00630bc^:src/nika/service/kathara/base_api.py:437-446) is curl -w
+    timings -o /dev/null -s with no %{http_code} and no exit code, so a failure shows up only as zero
+    timings with a small total. Every submission received such outputs. c00630bc added http_code/size_download
+    (src/nika/service/shell.py:32-50) to fix it.
+  evidence:
+  - submission: 20261007_react_qwen3_6_35b_a3b_fp8
+    trial: p4_dc_gateway__p4_ecn_thresh__h4bf62883ca88__t03
+    step: 27
+    excerpt: '{"host_name": "leaf_1", "url": "http://10.0.1.11"} -> namelookup:0.000024, connect:0.000000,
+      appconnect:0.000000, pretransfer:0.000000, starttransfer:0.000000, total:0.000152'
+  - submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+    trial: campus_lan__dhcp_service_dow__h46c12f643f13__t02
+    step: 90
+    excerpt: namelookup:0.000000, connect:0.000000, appconnect:0.000000, pretransfer:0.000000, starttransfer:0.000000,
+      total:0.051999
+  members:
+  - nogate/HARNESS-CURL-WEB-TEST-SILENT-FAILURE
+- cluster: C55
+  claim: dc_clos per-pod BIND refuses cross-pod queries
+  verdict: rejected
+  reason: This is by design and correct DNS behaviour. Each dns_podN is authoritative only for zone podN
+    with "recursion no", and every client lists all pod servers in resolv.conf (src/nika/net_env/dc_clos/lab.py,
+    named.conf template and resolv.conf loop). REFUSED for an out-of-zone query to a non-recursive server
+    is standard BIND behaviour, and client lookups fall through to the owning server. The real defect
+    here (the resolver reads only 3 nameservers when there are 4 pods) is already REF-HIDDEN-MAXNS. Strong
+    submissions answered is_anomaly=false on dc_clos healthy.
+  members:
+  - shuffle2/LURE-DC-CLOS-CROSS-POD-REFUSED
+  - shuffle3/LURE-DCCLOS-PODBIND-SCOPE
+- cluster: C56
+  claim: dc_clos (l) resolvers run max-cache-ttl 1
+  verdict: uncertain
+  reason: 'src/nika/net_env/dc_clos/lab.py:533-539 sets ''max-cache-ttl 1; max-ncache-ttl 1;'' whenever
+    the pods forward (size l). This is intended by the code but not stated in the brief. codex_gpt_6_1_sol
+    reports DNS faults in 2 of 3 healthy l trials because of it (t02 dns_lookup_latency, t03 dns_record_error),
+    and claude_opus_5_5 t02 notices it but dismisses it. Downgraded: lure seen in 2 trials of one configuration
+    only.'
+  evidence:
+  - submission: 20261017_codex_gpt_6_1_sol
+    trial: dc_clos__healthy__l__t03
+    step: 0
+    excerpt: 'A DNS caching anomaly is confirmed across all four DNS servers: recursive answers expire
+      after one second despite authoritative records having a one-hour TTL.'
+  members:
+  - shuffle2/LURE-DC-CLOS-DNS-ONE-SEC-TTL
+- cluster: C57
+  claim: enterprise_branch edges share SNAT 198.18.1.10 routed only to BR1
+  verdict: confirmed
+  reference_id: REF-LURE-ENTBR-SHARED-SNAT-198-18-1-10
+  reason: At the release commit dba357b3, src/nika/net_env/enterprise_branch/lab.py:578-581 hard-codes
+    'snat to 198.18.1.10' for every site. Lines 429-437 add 198.18.1.10/.11 only on br1 and add the provider
+    return route only toward BR1. Replies to translated guest/IoT traffic from other sites therefore go
+    to BR1, a real baseline defect that the brief does not state. HEAD fixes it with per-site nat_public_ip(site_id)
+    in addressing.py:80-82. This is distinct from REF-LURE-ENTERPRISE (VRFs are local-only by design).
+  evidence:
+  - submission: 20261017_codex_gpt_6_1_sol
+    trial: enterprise_branch__healthy__m__t02
+    step: 52
+    excerpt: ip saddr 10.2.30.0/24 snat to 198.18.1.10\n\t\tip saddr 10.2.40.0/24 snat to 198.18.1.10
+  - submission: 20261010_claude_code_qwen3_8_27b_fp8
+    trial: enterprise_branch__nat_mappi__h9a2736339326__t02
+    step: 56
+    excerpt: 198.18.1.10 via 100.64.0.17 dev eth2 \n198.18.1.11 via 100.64.0.17 dev eth2
+  - submission: 20261017_codex_gpt_6_1_sol
+    trial: enterprise_branch__healthy__m__t02
+    step: 70
+    excerpt: 3 packets transmitted, 0 received, 100% packet loss, time 2055ms
+  members:
+  - shuffle1/LURE-ENTBR-SHARED-SNAT-ADDRESS
+  - shuffle2/LURE-ENT-BRANCH-SHARED-NAT-RETURN-PATH
+- cluster: C58
+  claim: enterprise_branch ISP cores listed as FRR but run no bgpd
+  verdict: rejected
+  reason: 'This is intended design and the brief states it: providers only forward tunnel endpoint reachability,
+    and PROVIDER_DAEMONS sets bgpd=no (src/nika/net_env/enterprise_branch/lab.py:61-63). frr_service_down
+    on the ISP cores comes mostly from two weak configurations (GLM-4.7-Flash claude_code/react); strong
+    configurations never submit it.'
+  evidence:
+  - submission: 20261016_claude_code_claude_opus_5_5
+    trial: enterprise_branch__healthy__m__t01
+    step: null
+    excerpt: 'brief: "Site Edge routers terminate WireGuard tunnels and run eBGP for authorized business
+      prefixes in per-role VRFs. Providers only forward tunnel endpoint reachability."'
+  members:
+  - shuffle2/LURE-ENT-BRANCH-ISP-CORE-NO-BGPD
+  - shuffle3/LURE-ENTBR-ISP-CORES-BGPD-NOT-RUNNING
+  - nogate/LURE-ENTERPRISE-BRANCH-ISP-CORE-NO-BGPD
+- cluster: C59
+  claim: Healthy sdn_l3_clos intermittently shows an empty ONOS host table
+  verdict: rejected
+  reason: The state is not intermittent. /onos/v1/hosts was empty at the first query in 34 of 35 healthy
+    and 108 of 136 fault sdn_l3_clos trials, across nearly all submissions, so it is the normal baseline.
+    Only 3 healthy submissions named sdn_controller_crash, so it does not act as a lure. The trajectories
+    do not support the claim as stated.
+  members:
+  - date/LURE-SDN-L3-CLOS-EMPTY-HOST-TABLE
+- cluster: C60
+  claim: Prompt brief contains 'nika traffic run sndlib'
+  verdict: confirmed
+  reference_id: REF-BRIEF-NIKA-CLI
+  reason: The 0.2.0 ISP brief builder added this string. It appears in all 21 isp_* trials of every submission
+    (isp_abilene, dfn-bwin, di-yuan, geant, germany50, pdh), and commit b4a23a22 later removed it (current
+    src/nika/net_env/isp/brief.py:68). It reveals only the benchmark's identity, not the fault.
+  evidence:
+  - submission: 20261016_claude_code_claude_opus_5_5
+    trial: isp_pdh__bgp_acl_block__s__i__hbe4170621772__t01
+    step: 1
+    excerpt: 'Edge stubs: 11 (traffic matrix chosen at `nika traffic run sndlib`)'
+  members:
+  - date/LEAK-BRIEF-NIKA-CLI
+  - shuffle2/LEAK-PROMPT-SNDLIB-TRAFFIC-NOTE
+  - shuffle3/LEAK-PROMPT-NIKA-CLI-NAME
+  - nogate/LEAK-PROMPT-NIKA-TRAFFIC
+- cluster: C61
+  claim: llmd_lab web host serves the body 'nika'
+  verdict: confirmed
+  reference_id: REF-LLMD-WEB-BODY-NIKA
+  reason: At the release commit dba357b3, src/nika/net_env/llmd_lab/web.startup:5 writes `printf 'nika\n'
+    > /var/www/index.html`, so any HTTP GET to web (200.0.0.8) returns the benchmark name; 10 submissions
+    fetched it and one more saw the startup trace, and agents name it a 'nika lab web server'. It reveals
+    benchmark identity, not the fault. HEAD (commit c00630bc) serves 'ok' instead.
+  evidence:
+  - submission: 20261016_claude_code_gpt_oss_120b
+    trial: llmd_lab__sender_resource_co__h1bbe56e6f9c3__t02
+    step: 170
+    excerpt: '{"result":"nika"}'
+  - submission: 20261010_claude_code_qwen3_8_27b_fp8
+    trial: llmd_lab__sender_resource_co__h1bbe56e6f9c3__t03
+    step: 57
+    excerpt: The HTTP server on 200.0.0.8 is serving "nika" (a 5-byte body) via Python BaseHTTP — this
+      is a standard nika lab web server
+  - submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+    trial: llmd_lab__host_ip_conflict__h7172cc7c30cf__t02
+    step: 124
+    excerpt: ++ printf 'nika\\n'
+  members:
+  - date/LEAK-LLMD-WEB-BODY-NIKA
+  - shuffle2/LEAK-LLMD-WEB-NIKA-BODY
+  - nogate/LEAK-LLMD-WEB-BODY-NIKA
+- cluster: C62
+  claim: resolv.conf search domain nika-<run>.docker.internal
+  verdict: confirmed
+  reference_id: REF-SANDBOX-NIKA-RUN-ID
+  reason: The name is visible only in the agent sandbox (local hostname/resolv.conf reads), not on lab
+    nodes. It shows the benchmark identity and run id, which the project treats as a defect (3338054e
+    "run every agent out of process with no NIKA-identifying traces"). It reveals no fault type or location.
+  evidence:
+  - submission: 20261008_codex_qwen3_6_35b_a3b_fp8
+    trial: campus_lan__dns_record_error__h139fe82d0c0f__t01
+    step: 35
+    excerpt: '# Generated by docker-next\nnameserver 172.17.0.16\nnameserver fd40:6f3e:feaf::10\nsearch
+      nika-20261007-065309-a-0d3a3e.docker.internal'
+  - submission: 20261014_claude_code_glm_4_7_flash
+    trial: enterprise_branch__wireguard__hffb08b156bdd__t03
+    step: 8
+    excerpt: '"content": "nika-20261014-132356-a-8d7869"'
+  members:
+  - date/LEAK-SANDBOX-SEARCH-DOMAIN
+  - shuffle2/LEAK-NIKA-DOCKER-NET-DOMAIN
+  - nogate/LEAK-DNS-SEARCH-RUNID
+- cluster: C63
+  claim: Agent workspace path names the benchmark (nika-runtime-agent-workspaces)
+  verdict: confirmed
+  reference_id: REF-LEAK-CLAUDE-WORKSPACE-PATH
+  reason: At the run commits, the agent workspace sat under the NIKA repo's runtime dir (src/nika/config.py
+    RUNTIME_DIR = REPO_ROOT / "runtime"). Claude Code mangles that cwd into its background-task and output-spill
+    paths, and published redaction did not cover those paths. 13 trials in 3 cli.claude submissions show
+    "nika" in tool results, which the leak-scan contract in docs/operations/agent-sandbox.md:276 forbids.
+    Commit 3338054e later fixed it with an opaque agent-workspaces-<uid> root. This is a different surface
+    from REF-HARNESS-PATHS (/opt/nika, nika:tap).
+  evidence:
+  - submission: 20261007_claude_code_qwen3_6_35b_a3b_fp8
+    trial: isp_geant_ebgp_rpki__bgp_rpk__h084f2b27c006__t01
+    step: 32
+    excerpt: 'Command running in background with ID: bh4qtbd7e. Output is being written to: /tmp/claude-1000/-workspace-nika-runtime-agent-workspaces-20261005-131641-a-ca9ba4-claude-workspace/'
+  members:
+  - shuffle1/LEAK-NIKA-RUNTIME-WORKSPACE-PATH
+  - shuffle2/LEAK-CLI-TRUNCATION-NIKA-WORKSPACE
+  - shuffle3/LEAK-AGENT-SANDBOX-NIKA-PATH
+- cluster: C64
+  claim: SRL MCP tool description names nika.mcp.tool_output_max_chars
+  verdict: confirmed
+  reference_id: REF-TOOL-DESC-NIKA-CONFIG-KEY
+  reason: annotate_tools_list_result (src/nika/mcp/tool_output.py:64-78) appended _DESC_NOTE to every
+    tool listed through the gateway. In 0.2.0 that note named the config key; commit 3338054e removed
+    it. Tool schemas are not logged, so only the 5 submissions whose agents quoted it show it, but every
+    gateway tool carried it. It reveals only the benchmark's identity, and it is not limited to SRL.
+  evidence:
+  - submission: 20261010_claude_code_qwen3_8_27b_fp8
+    trial: isp_pdh__bgp_acl_block__s__i__hbe4170621772__t03
+    step: 20
+    excerpt: Oversized outputs keep the first and last halves of nika.mcp.tool_output_max_chars (default
+      10000) and elide the middle.
+  - submission: 20261016_claude_code_gpt_oss_120b
+    trial: p4_dc_gateway__healthy__m__t03
+    step: 12
+    excerpt: Return observed INT-MX packet traces and hop metadata. Oversized outputs keep the first and
+      last halves of nika.mcp.tool_output_max_chars (default 10000) and elide the middle.
+  members:
+  - shuffle1/LEAK-NIKA-SRL-TOOL-DESCRIPTION
+- cluster: C65
+  claim: campus_lan /web_server.py contains a 'benchmark runs must not depend...' comment
+  verdict: confirmed
+  reference_id: REF-CAMPUS-WEBSERVER-BENCHMARK-COMMENT
+  reason: src/nika/net_env/utils/kathara/web/web_server.py:17-18 (unchanged from dba357b3 to HEAD) carries
+    the comment, and campus_lan copies the file to web servers as /web_server.py (campus_lan/lab_dhcp.py:719-720,762-763).
+    Tool output in 13 submissions (one or more campus_lan trials each) shows it. It reveals benchmark
+    identity only, not the fault type or location, so it is low severity.
+  evidence:
+  - submission: 20261015_react_glm_4_7_flash
+    trial: campus_lan__device_forwardin__h0b9011ea426b__t01
+    step: 203
+    excerpt: '# benchmark runs must not depend on per-request randomness.'
+  - submission: 20261016_claude_code_claude_opus_5_5
+    trial: campus_lan__device_forwardin__h0b9011ea426b__t02
+    step: 61
+    excerpt: '# benchmark runs must not depend on per-request randomness.'
+  members:
+  - nogate/LEAK-CAMPUS-WEBSERVER-BENCHMARK-COMMENT
+- cluster: C66
+  claim: routinator slurm.json comments say 'NIKA offline VRP'
+  verdict: confirmed
+  reference_id: REF-ROUTINATOR-NIKA-VRP-COMMENT
+  reason: The comment names the benchmark on a lab device. One agent reasoned from it to submit node/routinator
+    (GT is the leaking routers be1_be, es1_es, ...). It is a benchmark identity trace that the project
+    removed later in 21fdf557 "keep NIKA-identifying names off lab devices".
+  evidence:
+  - submission: 20261008_codex_qwen3_6_35b_a3b_fp8
+    trial: isp_geant_ebgp_rpki__mtu_mis__h109c2a93c023__t01
+    step: 175
+    excerpt: '"comment": "NIKA offline VRP for 203.0.113.0/24"'
+  - submission: 20261010_claude_code_qwen3_8_27b_fp8
+    trial: isp_geant_ebgp_rpki__bgp_rpk__h084f2b27c006__t02
+    step: 208
+    excerpt: The ROA data is a single-file injection point (/tmp/slurm.json, "NIKA offline VRP" assertion)
+      - the most likely place for a deliberately introduced inconsistency.
+  members:
+  - nogate/LEAK-ROUTINATOR-SLURM-VRP-COMMENT
+- cluster: C67
+  claim: Agents execute /opt/nika/p4rt_manager.py directly via exec_shell
+  verdict: rejected
+  reason: The agents stayed inside the MCP surface. They ran the controller's own CLI through the provided
+    exec_shell tool on fabric_mgr, a node of the lab under diagnosis, and the read gives the same data
+    as p4rt_exec read. The benchmark-identifying part (the /opt/nika path in tracebacks) is already REF-HARNESS-PATHS.
+  members:
+  - shuffle3/OOS-NIKA-P4RT-MANAGER-DIRECT-EXEC
+- cluster: C68
+  claim: /tmp/onos_batch.py exposes ONOS credentials, enabling direct REST access
+  verdict: rejected
+  reason: Direct access gives nothing beyond the sanctioned tool. sdn_onos_rest itself runs the same 'curl
+    -u onos:rocks' GET from fabric_mgr (src/nika/service/kathara/sdn_api.py:72-88), onos:rocks is ONOS's
+    documented default credential, and the observed direct calls are read-only GETs through the sanctioned
+    exec_shell. A write through this path would be agent state mutation, which no trajectory shows.
+  evidence:
+  - submission: 20261008_codex_qwen3_6_35b_a3b_fp8
+    trial: sdn_l3_clos__link_flap__s__h02db78d97263__t02
+    step: 89
+    excerpt: curl -s -u onos:rocks http://172.31.0.100:8181/onos/v1/devices
+  members:
+  - shuffle2/OOS-SDN-ONOS-BATCH-CREDS
+- cluster: C69
+  claim: byo.langgraph trace drops tool_result rows for failed tool calls
+  verdict: rejected
+  reason: This is a defect of the audit tool, not of NIKA. byo.langgraph writes failed calls as 'tool_error'
+    events with the error text in 'output'. In all 6 byo.langgraph submissions, every tool_start has a
+    matching tool_end or tool_error (0 unmatched of 63428). The agent also received the error (the next
+    llm_start carries status='error'). The audit parser only handles tool_start/tool_end (.agents/skills/nika-submission-audit/scripts/auditlib/trace.py:291-302),
+    so it reports these calls as orphans.
+  evidence:
+  - submission: 20261012_react_gemma_4_31b_it
+    trial: campus_lan__device_forwardin__h0b9011ea426b__t02
+    step: messages.jsonl:26
+    excerpt: '"event": "tool_error", "tool": {"name": "active_tcp_probe"}'
+  members:
+  - date/HARNESS-SWALLOWED-TOOL-RESULT
+  - shuffle2/HARNESS-UNRECORDED-TOOL-ERRORS
+  - nogate/HARNESS-TOOL-ERROR-NOT-RECORDED
+- cluster: C70
+  claim: Submission phase loops on finish_reason=length and never submits
+  verdict: rejected
+  reason: 'The truncated turn is not kept in context: input tokens rise only from 23304 to 23349 between
+    retries, and the harness sends a "reason more briefly" nudge. The model spends the full 32768-token
+    budget on reasoning three times in a row. That is model behaviour, not a harness defect.'
+  evidence:
+  - submission: 20261015_react_glm_4_7_flash
+    trial: campus_lan__device_forwardin__h0b9011ea426b__t03
+    step: 286
+    excerpt: Your previous response ended (or was cut off at the output token limit) before it produced
+      a tool call or a final answer. Reason more briefly, then either call the next tool or give your
+      final answer.
+  - submission: 20261015_react_glm_4_7_flash
+    trial: campus_lan__device_forwardin__h0b9011ea426b__t03
+    step: 287
+    excerpt: 'usage_metadata {''input_tokens'': 23349, ''output_tokens'': 32768}'
+  members:
+  - date/HARNESS-SUBMISSION-TRUNCATION-LOOP
+  - nogate/HARNESS-SUBMISSION-LENGTH-RETRY-LOOP
+- cluster: C71
+  claim: submit() emitted as plain text then an empty turn; no re-prompt
+  verdict: rejected
+  reason: Only one trial in one submission shows this (20261008_codex_qwen3_6_35b_a3b_fp8 sdn_l3_clos__link_flap__s__h02db78d97263__t01,
+    step 143). The model never closed its reasoning and wrote a Qwen-native "<tool_call><function=submit>"
+    block inside reasoning_content. No structured tool call was emitted, and the harness correctly recorded
+    "submission phase produced no output". This is a model output failure, not a NIKA defect.
+  members:
+  - date/HARNESS-EMPTY-SUBMIT-TURN
+- cluster: C72
+  claim: Step-budget exhaustion opens no submission phase
+  verdict: rejected
+  reason: The harness skips submission on purpose when a budget-stopped diagnosis has no assistant text
+    (src/nika/agents/sandbox/manager.py:590-608). In the telecomgpt trials the model emitted only thinking
+    and tool_use blocks for 100 steps, with 0 text blocks, so there was no diagnosis to discard. Budget-stopped
+    trials that do have text get a submission phase (for example 26/26 for claude_opus_5_5 and 3 telecomgpt
+    trials).
+  evidence:
+  - submission: 20261013_claude_code_telecomgpt_r1
+    trial: campus_lan__dns_port_blocked__h6a276d3ed5cb__t01
+    step: 0
+    excerpt: '"event": "agent_error", "error": "ERROR: diagnosis phase reached max_steps (100) without
+      an assistant report"'
+  members:
+  - shuffle1/HARNESS-STEP-BUDGET-ENDS-WITHOUT-SUBMISSION
+- cluster: C73
+  claim: cli.claude session dies mid tool call; submission phase skipped
+  verdict: rejected
+  reason: 'The session did not crash. It hit the configured wall-clock budget: agent_start was at 02:57:34
+    and agent_error at 03:27:34, exactly 1800 s. run.json records ''agent run exceeded agent.timeout_sec
+    (1800s)'' (src/nika/agents/registry.py:267; config agent.timeout_sec: 1800), and the trial is marked
+    outcome agent_failed. A slow model using up its time budget is the intended timeout behaviour, not
+    a harness defect. It is the only agent_failed trial of 255 in that submission.'
+  evidence:
+  - submission: 20261019_claude_code_qwen3_coder_next_fp8
+    trial: dc_clos__receiver_resource_c__ha2be5b357067__t03
+    step: run.json
+    excerpt: '"agent_error": "agent run exceeded agent.timeout_sec (1800s)"'
+  members:
+  - nogate/HARNESS-MIDCALL-CUTOFF-NO-SUBMISSION
+- cluster: C74
+  claim: Rejected submit(is_anomaly=true, root_causes=[]) has no fallback
+  verdict: rejected
+  reason: The harness rejected an invalid payload by design and explained why. The agent chose not to
+    retry and not to choose an ontology label. On these healthy trials the correct answer was is_anomaly=false
+    anyway, so this is agent behaviour.
+  evidence:
+  - submission: 20261017_codex_gpt_6_1_sol
+    trial: enterprise_branch__healthy__m__t01
+    step: 258
+    excerpt: 'Submission rejected: anomalous submissions require root_causes.'
+  - submission: 20261017_codex_gpt_6_1_sol
+    trial: enterprise_branch__healthy__m__t01
+    step: 262
+    excerpt: An appropriate ontology entry is needed to submit the five affected edges accurately; selecting
+      another fault would misrepresent the frozen report.
+  members:
+  - shuffle1/HARNESS-SUBMIT-REJECTED-NO-FALLBACK
+- cluster: C75
+  claim: cli.codex ends its session below budget without writing the submission file
+  verdict: rejected
+  reason: 'The premise is wrong. The trials reached the separate submission phase, and the agent chose
+    not to submit. enterprise_branch__healthy__m__t01 has 16 submission-phase events ending "Submission
+    was rejected: anomalous submissions require nonempty `root_causes`. The supplied ontology has no fault
+    ID for incorrect SNAT translation addresses". In the p4 trials the agent refused because the frozen
+    report was only an interim update. Submission goes through the submit() tool, so the prompt never
+    needs to name a file.'
+  members:
+  - nogate/HARNESS-CODEX-VOLUNTARY-END-NO-SUBMISSION
+- cluster: C76
+  claim: cli.codex killed by the 300 s no-progress watchdog
+  verdict: confirmed
+  reference_id: REF-CODEX-STALL-IN-NIKA-TOOL
+  reason: The only tool call (run_pingmesh_snapshot) started at 06:19:25 and the subprocess_stall fired
+    at 06:24:25 with reconnect_failure false. In the same submission, pingmesh with max_pairs 128 already
+    takes up to 200 s, so the tool legitimately outlives the watchdog. trace_shows_endpoint_failure counts
+    a stall inside a tool call as a capability failure (src/nika/workflows/benchmark/outcomes.py:341-343,367-369),
+    so a NIKA tool's runtime is charged to the agent.
+  evidence:
+  - submission: 20261020_codex_qwen3_coder_next_fp8
+    trial: enterprise_branch__bgp_hijac__h93dd2b8e7404__t02
+    step: 5
+    excerpt: '{"count": 4, "high_latency_ms": 100, "max_pairs": 256}  -> run.json: agent_error "ERROR:
+      diagnosis phase stalled after 300s without no Codex progress", outcome agent_failed'
+  members:
+  - nogate/HARNESS-CODEX-STALL-KILL-NO-SUBMISSION
+- cluster: C77
+  claim: Prompt advertises project skills but cli.codex discovery returns none
+  verdict: confirmed
+  reference_id: REF-SKILLS-PROMPT-NO-SKILLS
+  reason: diagnosis_prompt_with_skills (src/agent/utils/skills.py:227 at dba357b3) appends SKILLS_PROMPT_SUFFIX
+    (src/agent/utils/template.py:15) whenever skills are enabled. The production skill directory src/agent/skills/skills/
+    holds only .gitkeep, so the advertised skills do not exist. All 255 prompts in 8 submissions carry
+    the suffix, and gpt_6_1_sol spends turns on skill discovery (list_mcp_resources in all 255 trials,
+    with 'no entries' reported in 53). The cluster frames this as cli.codex-only, but the cause is in
+    the shared prompt and affects cli.claude too.
+  evidence:
+  - submission: 20261017_codex_gpt_6_1_sol
+    trial: enterprise_branch__healthy__m__t03
+    step: 1
+    excerpt: '## Skills
+
+      Project skills are available for structured troubleshooting workflows.
+
+      Discover and invoke a skill when its description matches the symptoms you observe.'
+  - submission: 20261017_codex_gpt_6_1_sol
+    trial: enterprise_branch__healthy__m__t03
+    step: 5
+    excerpt: '{"resources":[]}'
+  - submission: 20261017_codex_gpt_6_1_sol
+    trial: enterprise_branch__healthy__m__t03
+    step: 106
+    excerpt: 'Project skills could not be accessed under the MCP-only restriction: MCP resource and template
+      discovery returned no entries.'
+  members:
+  - nogate/HARNESS-CODEX-PROJECT-SKILLS-EMPTY
+- cluster: C78
+  claim: Codex CLI elides the middle of long tool outputs, unseen by the truncation metric
+  verdict: rejected
+  reason: The elision comes from NIKA's own MCP output bound (src/nika/mcp/tool_output.py:41-61, mini-swe-agent
+    style, with an explicit warning to the agent), not from Codex. It appears in all 21 submissions, Claude
+    Code and ReAct included, and is intended behaviour. The output_truncated_patterns gap is in the audit
+    tool (.agents/skills/nika-submission-audit/kb/policy.yaml:87), not in NIKA.
+  evidence:
+  - submission: 20261017_codex_gpt_6_1_sol
+    trial: k8s_lab__k8s_clusterip_routi__he53ec359efd5__t02
+    step: null
+    excerpt: </output_head>\n<elided_chars>\n5248 characters elided\n</elided_chars>
+  members:
+  - shuffle2/HARNESS-CODEX-ELIDES-OUTPUT
+- cluster: C79
+  claim: Empty or missing trial directories still count in metrics and leads
+  verdict: rejected
+  reason: No published submission has empty or husk trial directories. All 21 have 255 trial dirs, each
+    with a non-empty messages.jsonl and a run.json. enterprise_branch__bgp_hijac__h3c9b99a5e810 exists,
+    complete, only in the six earliest submissions; later ones ran the replacement case enterprise_branch__bgp_hijac__h93dd2b8e7404
+    after the in-place hijack retarget. The "husks" came from the audit tool, which grouped by a case
+    key absent from the package.
+  members:
+  - date/HARNESS-EMPTY-TRIAL-HUSKS
+  - nogate/HARNESS-EMPTY-TRIAL-DIRS
+- cluster: C80
+  claim: Audit history pooling adds lead trial ids with no local trajectory
+  verdict: rejected
+  reason: The claim states that this is a defect of the audit tool's label_confusion pooling (.agents/skills/nika-submission-audit/scripts),
+    not of NIKA or a submission. That case is excluded by the brief.
+  members:
+  - shuffle3/RUN-HISTORY-POOL-LEAD-TRIALS
+- cluster: C81
+  claim: cli.claude user-level slash-command set drifts (46 vs 49)
+  verdict: rejected
+  reason: The drift is real (advisor, import and skill-doctor are missing in 2/255 gemma trials) but harmless
+    and not specific. The tool list (14 tools), the Claude Code version (2.1.280) and the skills list
+    are identical across those trials. Slash commands are not part of the headless diagnosis surface.
+    The same upstream slash-command rollout variation shows in 5 other claude_code submissions (for example
+    gpt_oss_120b 46 vs 49, opus 48/50/52). This is Claude Code client-side variation with no effect on
+    what the agent can do or on scores.
+  evidence:
+  - submission: 20261012_claude_code_gemma_4_31b_it
+    trial: dc_clos__host_incorrect_gate__hdfd5978709a2__t02
+    step: 2
+    excerpt: '"slash_commands"'
+  members:
+  - shuffle2/RUN-CLAUDE-USER-COMMAND-DRIFT
+  - nogate/RUN-CLAUDECODE-SLASH-COMMAND-DRIFT
+- cluster: C82
+  claim: packet_capture ignores its advertised max_duration_sec
+  verdict: rejected
+  reason: The capture is limited. dumpcap gets "-a duration:N" (release capture_backend.py:83; tcpdump
+    is wrapped in timeout). The reported duration_sec is the wall-clock time between the start and stop
+    calls (src/nika/service/packet_capture/manager.py:137-141), not the capture length. The claim misreads
+    that field.
+  evidence:
+  - submission: 20261008_codex_qwen3_6_35b_a3b_fp8
+    trial: isp_dfn-bwin_ebgp_rtbh__bgp__hb65dab9be18e__t02
+    step: 172
+    excerpt: '"packet_count": 0, "captured_bytes": 364, "duration_sec": 55.969122 (start at step 154 with
+      "max_duration_sec": 10.0)'
+  members:
+  - date/HARNESS-CAPTURE-MAX-DURATION-UNENFORCED
+- cluster: C83
+  claim: Empty capture reports an artifact, then inspect says 'Capture file missing'
+  verdict: confirmed
+  reference_id: REF-CAPTURE-FAILED-WRITER-MASKED
+  reason: stop_capture reads the file size with "wc -c < file 2>/dev/null || echo 0" and never checks
+    whether the writer died or left a file (src/nika/service/packet_capture/capture_backend.py:194; manager.py:136-154
+    always returns an artifact block). A capture whose writer failed (here on the link_detach-faulted
+    client_0, captured_bytes 0, no pcap header) therefore looks like a clean capture that saw no traffic,
+    which hides the capture failure. The missing file surfaces only later at inspect (manager.py:115).
+    An empty but working capture writes a header (captured_bytes 24 in other trials), so the claim's wording
+    "0-packet captures" is too broad. The current code still behaves this way.
+  evidence:
+  - submission: 20261017_codex_gpt_6_1_sol
+    trial: dc_clos__link_detach__m__h240c6b1dc30f__t01
+    step: 29
+    excerpt: "\"packet_count\": 0,\n  \"captured_bytes\": 0,\n  \"duration_sec\": 26.911025,\n  \"dropped_packets\"\
+      : 0,\n  \"artifact\": {\n    \"device\": \"client_0\""
+  - submission: 20261017_codex_gpt_6_1_sol
+    trial: dc_clos__link_detach__m__h240c6b1dc30f__t01
+    step: 58
+    excerpt: 'Error executing tool packet_capture_inspect: Capture file missing on ''client_0'': <REDACTED_PATH>'
+  members:
+  - shuffle2/HARNESS-CAPTURE-EMPTY-ARTIFACT-MISSING
+- cluster: C84
+  claim: run_pingmesh_snapshot fails whole snapshots with 'The operation timed out.'
+  verdict: confirmed
+  reference_id: REF-CLAUDE-MCP-CALL-TIMEOUT
+  reason: 'The message appears only in claude_code submissions: 245 pingmesh and 114 exec_shell results,
+    most of them about 60 s after the call (a second cluster at about 120 s). Pingmesh calls of the same
+    size finish in 90-200 s under codex. src/agent/cli/claude/config.py sets only the MCP connect timeouts
+    (MCP_TIMEOUT, startup wait), not the per-call tool timeout, so Claude Code''s default discards the
+    whole snapshot. The exec_shell hits include agent-chosen long commands, so only the pingmesh part
+    is confirmed.'
+  evidence:
+  - submission: 20261008_claude_code_otel_2_0_llm_31b_it
+    trial: campus_lan__dhcp_spoofed_dns__h4ee0ce80b947__t02
+    step: 30
+    excerpt: '{"count": 3, "high_latency_ms": 100, "max_pairs": 100} -> "The operation timed out."'
+  members:
+  - shuffle1/HARNESS-PINGMESH-OPERATION-TIMEOUT
+- cluster: C85
+  claim: 'exec_shell intermittently fails with ''Error POSTing to endpoint: EOF'''
+  verdict: confirmed
+  reference_id: REF-MCP-TRANSPORT-POST-ERROR
+  reason: '28 transport errors in 17 trials across 6 cli.claude submissions hit exec_shell, p4rt_exec
+    and iperf_test. Short commands failed too: a `pkill; iperf3 -s -D` at step 181, and `p4rt_exec read-table
+    --help` in opus t03 step 19, whose parallel call succeeded. So it is a transport fault between the
+    agent CLI and the NIKA MCP endpoint on localhost, not agent misuse. The cluster cites a single trial,
+    but the pattern repeats across environments and models. Which component on 127.0.0.1 resets the connection
+    is not visible in the traces.'
+  evidence:
+  - submission: 20261010_claude_code_qwen3_8_27b_fp8
+    trial: campus_lan__dhcp_missing_sub__h495aae94c5be__t03
+    step: 182
+    excerpt: 'Error POSTing to endpoint: EOF'
+  - submission: 20261016_claude_code_claude_opus_5_5
+    trial: p4_dc_gateway__p4_table_entr__hb84a5ff985c3__t03
+    step: 19
+    excerpt: 'Error POSTing to endpoint: read tcp4 127.0.0.1:37064->127.0.0.1:49527: read: connection
+      reset by peer'
+  - submission: 20261014_claude_code_qwen3_5_27b
+    trial: sdn_l3_clos__healthy__l__t03
+    step: 71
+    excerpt: 'Error POSTing to endpoint: read tcp4 127.0.0.1:47018->127.0.0.1:44501: read: connection
+      reset by peer'
+  members:
+  - shuffle3/HARNESS-EXEC-EOF-TRANSPORT

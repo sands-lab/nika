@@ -1,0 +1,59 @@
+# Issue classes for the submission audit. Each finding is filed under one.
+# report_code maps to the root-cause codes of the 2026-10 trajectory audit
+# (A agent, B fault not realized, C observability, D label not identifiable,
+# E harness); references name the checklist items each class follows.
+- id: shortcut
+  name: Shortcut or ground-truth leak
+  question: Can an agent learn the fault type or location from something other than network evidence (names, leftovers, harness files, benchmark recognition)?
+  report_code: E (B5)
+  references: [ABC T.5, BenchJack V1/V2, NIST CAISI solution contamination]
+- id: harness_privilege
+  name: Out-of-policy harness or tools
+  question: Did the agent get or use tools, connectors, skills, or network access outside the benchmark's MCP surface?
+  report_code: E
+  references: [BenchJack V8, issue 208]
+- id: out_of_scope
+  name: Out-of-scope access
+  question: Did the agent read harness paths, its own run files, or explore outside the network it diagnoses?
+  report_code: E
+  references: [BenchJack V1, issue 208]
+- id: fault_not_realized
+  name: Fault not realized
+  question: Is the injected fault present only as an artifact, with no symptom an agent could observe during the run?
+  report_code: B (B2)
+  references: [ABC T.2, ABC T.9]
+- id: signal_invisible
+  name: Fault signal not observable
+  question: Is the symptom real but hidden from the agent by tool limits, truncation, sampling, or missing probes?
+  report_code: C (B4)
+  references: [ABC T.3]
+- id: label_unidentifiable
+  name: Label not identifiable
+  question: Is the ground-truth label indistinguishable from another label, or the resource granularity unanswerable, from the evidence available?
+  report_code: D (B3)
+  references: [ABC O.b, ABC T.7]
+- id: healthy_lure
+  name: Healthy-baseline lure or hidden fault
+  question: Does a fault-free lab show something that looks like a fault (by-design behaviour the brief does not state, or a real hidden defect)?
+  report_code: D/C (B1), healthy-hunter H1-H12
+  references: [ABC T.10, ImpossibleBench]
+- id: grading_error
+  name: Grading error
+  question: Do submitted scores differ from a re-grade, or does the scoring reward something it should not?
+  report_code: E
+  references: [ABC O.a-O.i, BenchJack V5/V6, UTBoost]
+- id: harness_defect
+  name: Harness or interface defect
+  question: Did NIKA's harness, a tool, or serving setup fail, truncate, or misbehave in a way the agent cannot cause or fix?
+  report_code: E (B6)
+  references: [ABC T.3, ABC R.10]
+- id: agent_integrity
+  name: Agent integrity
+  question: Did the agent change network state, remove the fault, or otherwise invalidate its own trial?
+  report_code: A/E
+  references: [METR reward hacking, NIST CAISI grader gaming]
+- id: run_validity
+  name: Run validity
+  question: Does the submission mix commits, configurations, or budgets so that its trials are not comparable?
+  report_code: E
+  references: [ABC R.4, ABC R.8]

@@ -1,0 +1,37 @@
+id: SIG-SDN-ONOS-REST-TRUNCATED
+title: sdn_onos_rest returns whole ONOS collections that exceed the tool output limit
+class: signal_invisible
+severity: warn
+status: fixed
+fixed_in: c00630bc
+summary: >-
+  In 0.2.0 sdn_onos_rest had no device filter and no summary, so /onos/v1/flows, /links and /devices returned
+  whole collections. The head/tail cut at 10000 characters elided most of the state (about 600000 characters
+  for flows). 16-63% of each submission's sdn_onos_rest results were cut. c00630bc added device filtering
+  and a summary.
+guideline: >-
+  A wrong sdn_l3_clos answer after a cut sdn_onos_rest result may come from state the agent never saw;
+  check whether the faulted flow or link sat in the elided middle. Cuts of other tools are not this issue.
+scope:
+  scenarios:
+  - sdn_l3_clos
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: sdn_onos_rest
+  exclude_authored: false
+  pattern: output of your last command was too long|characters elided|\[output truncated|\.\.\. \[truncated\]
+exploit: false
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-SDN-ONOS-REST-TRUNCATION)
+  date: '2026-10-28'
+  refs:
+  - sdn_l3_clos__arp_cache_poiso__hb377eed72e6e__t01:7
+  - sdn_l3_clos__arp_cache_poiso__hb377eed72e6e__t02:8
+  found_by: agentic
+evidence:
+- '20261019_claude_code_qwen3_coder_next_fp8 sdn_l3_clos__arp_cache_poiso__hb377eed72e6e__t01 step 7:
+  "path": "/onos/v1/links", ... 55626 characters elided'
+- '20261016_claude_code_claude_opus_5_5 sdn_l3_clos__arp_cache_poiso__hb377eed72e6e__t02 step 8: The output
+  of your last command was too long. ... "path": "/onos/v1/devices"'

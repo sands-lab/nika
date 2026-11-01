@@ -1,0 +1,21 @@
+id: LABEL-P4-PARTIAL-WRITE
+title: Partial write ends in the same state as a missing or wrong entry
+class: label_unidentifiable
+severity: warn
+status: fixed
+summary: No write-status evidence was kept, so the end state equalled p4_table_entry_missing or _misconfig.
+scope:
+  fault_types:
+  - p4runtime_partial_write
+detect:
+- kind: metric
+  metric: label_confusion
+  threshold: 0.4
+  min_trials: 6
+  pattern: p4_table_entry_(?:missing|misconfig)
+provenance:
+  source: trajectory audit 2026-10-14 (REPORT_en.md) B3
+  date: '2026-10-14'
+  refs: []
+  found_by: manual
+fixed_in: c00630bc

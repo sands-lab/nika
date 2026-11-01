@@ -1,0 +1,20 @@
+id: HARNESS-MCP-SERVER-NOT-CONNECTED
+title: An MCP server was not connected at session start
+class: harness_defect
+severity: warn
+status: open
+summary: The agent's init lists a NIKA MCP server with status failed or pending, so the first turns ran
+  without its tools.
+guideline: Claude Code gives up on an MCP server after 30 s; slow sandboxes miss the window (MCP_CONNECT_WAIT_ENV
+  in src/agent/cli/claude/config.py).
+detect:
+- kind: text
+  where:
+  - init
+  exclude_authored: false
+  pattern: \"name\":\s*\"[a-z0-9_]+_mcp_server\",\s*\"status\":\s*\"(?:failed|pending)\"
+provenance:
+  source: src/agent/cli/claude/config.py
+  date: '2026-10-25'
+  refs: []
+  found_by: manual

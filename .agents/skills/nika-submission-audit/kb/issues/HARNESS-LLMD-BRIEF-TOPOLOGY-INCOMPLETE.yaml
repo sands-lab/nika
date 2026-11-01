@@ -1,0 +1,30 @@
+id: HARNESS-LLMD-BRIEF-TOPOLOGY-INCOMPLETE
+title: The llmd_lab brief lists one pair (controller:eth0, worker1:eth0) for its shared segment and omits the controller and workers from the inventory
+class: harness_defect
+severity: warn
+status: open
+summary: BaseNetEnv.get_topology keeps only the first two endpoints of each collision domain
+  (src/nika/net_env/base.py). llmd_lab puts controller, worker1-5, client, and web on one link
+  (src/nika/net_env/llmd_lab/lab.py), so the brief's topology shows a single pair and 6 of 8 endpoints disappear.
+  The inventory lines print only host and service roles, so the controller and workers are missing there too. The
+  agent starts from a wrong picture of the lab.
+guideline: Counts on every llmd_lab trial whose prompt shows the pair (controller:eth0, worker1:eth0) as the only
+  topology line. The same code drops endpoints in any environment with a multi-access link; check its brief
+  before extending the scope. Does not count when the agent learns the real topology from tools and is not misled.
+scope:
+  scenarios:
+  - llmd_lab
+detect:
+- kind: text
+  where:
+  - prompt
+  pattern: 'Topology: \(controller:eth0, worker1:eth0\)'
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-BRIEF-MULTIACCESS-TOPOLOGY)
+  date: '2026-10-28'
+  refs:
+  - llmd_lab__healthy__t01:1
+  found_by: agentic
+evidence:
+- 'llmd_lab__healthy__t01 (20261016_claude_code_claude_opus_5_5) step 1: PCs: client / Web Servers: web / Topology:
+  (controller:eth0, worker1:eth0)'

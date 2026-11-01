@@ -1,0 +1,18 @@
+id: LEAK-PEER-ASYMMETRY
+title: Only the faulted node carries an extra mechanism
+class: shortcut
+role: known
+severity: warn
+status: open
+summary: 'The faulted node has something its same-role peers lack, or uses a different mechanism: an extra
+  drop rule (the sdn arp_cache_poisoning nft rule before the fabric matched dl_dst), a rule table only
+  it has, a different daemon setup.'
+guideline: Compare the node with its same-role peers for rules, tables, qdiscs, processes, and config,
+  not only logs, files, and mtimes. Peer-unique state that is not the fault itself reveals where the fault
+  is. Asymmetry that is the fault mechanism (the misconfigured line) is not a leak.
+provenance:
+  source: audit fix record for release 0.2.0 (FIX_STATUS, issue 206)
+  date: '2026-10-22'
+  refs:
+  - '#206'
+  found_by: live_audit

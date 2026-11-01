@@ -1,0 +1,18 @@
+id: TOOL-OUTPUT-TRUNCATED
+title: A tool's output is often cut
+class: signal_invisible
+role: lead
+severity: warn
+status: open
+summary: At least 30% of a tool's results hit the output size limit.
+guideline: Check whether the cut part held the anomaly.
+detect:
+- kind: metric
+  metric: tool_truncation_rate
+  threshold: 0.3
+  min_trials: 10
+provenance:
+  source: built-in generic check
+  date: '2026-10-26'
+  refs: []
+  found_by: manual

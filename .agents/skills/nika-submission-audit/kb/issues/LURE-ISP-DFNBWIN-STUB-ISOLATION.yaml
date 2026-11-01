@@ -1,0 +1,46 @@
+id: LURE-ISP-DFNBWIN-STUB-ISOLATION
+title: isp_dfn-bwin_ebgp_rtbh isolates pc_frankfurt and pc_hamburg by design, and the release brief does not say so
+class: healthy_lure
+severity: warn
+status: fixed
+fixed_in: c00630bc
+summary: In isp_dfn-bwin_ebgp_rtbh, Frankfurt and Hamburg are single-router ASes whose stub subnets are not exported
+  over eBGP, and OSPF runs passive on all their interfaces. So 28 of 64 (or 34 of 90) PC pairs are unreachable
+  in the baseline. The injected fault only tags 198.51.100.0/24 (src/nika/problems/routing_control_plane/bgp.py).
+  The release brief did not state the eBGP stub scope (src/nika/net_env/isp/brief.py, added in c00630bc), so the
+  design isolation pulled answers to ospf_neighbor_missing, bgp_missing_route_advertisement, or frr_service_down
+  on frankfurt/hamburg in all 21 submissions. The ground-truth label itself is identifiable from the RIB and
+  communities.
+guideline: Counts when the agent reads the baseline isolation (PingMesh 64/36 or 90/56 pairs, passive OSPF on
+  frankfurt/hamburg, missing stub prefixes) as the fault and answers with an OSPF, BGP-advertisement, or FRR label
+  on frankfurt or hamburg. Does not count as a label problem; agents that read the RTBH community on
+  198.51.100.0/24 solve the case. After c00630bc the brief states the stub scope, so a recurrence there is a
+  regression only if the brief lacks it.
+scope:
+  fault_types:
+  - bgp_blackhole_community_leak
+  scenarios:
+  - isp_dfn-bwin_ebgp_rtbh
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: run_pingmesh_snapshot
+  pattern: '"total_pairs":\s*(?:64,\s*"reachable_pairs":\s*36|90,\s*"reachable_pairs":\s*56)\b'
+- kind: metric
+  metric: label_confusion
+  threshold: 0.3
+  min_trials: 3
+  pattern: ospf_neighbor_missing|bgp_missing_route_advertisement|frr_service_down
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-DFNBWIN-STUB-ISOLATION-LURE)
+  date: '2026-10-28'
+  refs:
+  - isp_dfn-bwin_ebgp_rtbh__bgp__hb65dab9be18e__t01:6
+  - isp_dfn-bwin_ebgp_rtbh__bgp__hb65dab9be18e__t01:78
+  - isp_dfn-bwin_ebgp_rtbh__bgp__hb65dab9be18e__t01:1
+  found_by: agentic
+evidence:
+- 'isp_dfn-bwin_ebgp_rtbh__bgp__hb65dab9be18e__t01 (20261014_react_qwen3_5_27b) step 6: "summary":{"total_pairs":64,"reachable_pairs":36,"anomaly_count":28,"unreachable":28,...}'
+- 'isp_dfn-bwin_ebgp_rtbh__bgp__hb65dab9be18e__t01 (20261014_claude_code_qwen3_5_27b) step 78: No Hellos (Passive
+  interface)'
