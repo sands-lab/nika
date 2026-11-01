@@ -583,7 +583,7 @@ The routers run the official SONiC virtual switch (`docker-sonic-vs`) from SONiC
 
 SONiC routes with FRR. NIKA writes ports and addresses to CONFIG_DB and the routing protocols to FRR, and SONiC programs FRR's routes into APPL_DB through FPM, as on a hardware switch. Container interface `eth<k>` is SONiC port `Ethernet<4(k-1)>`, and topology links name the container interface. Inside a router, `show` commands, `vtysh`, `redis-cli` and the Linux tools work as on SONiC. Agents run SONiC CLI commands with the `sonic_exec_cli` tool of [`containerlab_sonic_mcp_server`](../agents/mcp-servers.md#use-dedicated-diagnosis-tools).
 
-Startup verification checks SONiC's services, routing adjacencies and sessions, CONFIG_DB addresses in the kernel, FRR routes in APPL_DB, end-to-end reachability, and shortest-path forwarding. SONiC routers export all three [telemetry](#telemetry) kinds over the management network.
+Startup verification checks SONiC's services, routing adjacencies, loopback reachability, and BGP sessions and prefix propagation. Full verification (`nika.runtime_validation.depth: full`, see [Runtime validation](configuration.md#runtime-validation)) also checks CONFIG_DB addresses in the kernel, FRR routes in APPL_DB, stub-host reachability, and shortest-path forwarding. SONiC routers export all three [telemetry](#telemetry) kinds over the management network.
 
 To check the generated SONiC configuration against the environment's validation contract before deployment, add `--static-validation`. Batfish then reads each router's `config_db.json` and `frr.conf`; [Batfish static validation](../development/scenario-validation.md#batfish-static-validation) lists what it models.
 

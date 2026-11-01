@@ -267,7 +267,7 @@ Every one of the 9 variants passed 3 of 3 runs. Columns match the [single-lab ba
 | isp_pdh | containerlab | s | isis/none, SONiC | 3/3 | 22 | 62 (57-64) | 36 (36-36) | 4 (4-5) | 112 (108-115) | 1.45 (1.41-1.45) | 1.35 | 639 | 193 |
 | isp_pdh | containerlab | s | ospf/ebgp, SONiC | 3/3 | 22 | 73 (62-77) | 55 (53-56) | 5 (3-6) | 143 (134-144) | 1.52 (1.51-1.55) | 1.43 | 577 | 160 |
 
-SONiC Containerlab labs on this host use about a tenth of the memory of the matching SR Linux labs in the 0.2.0 baseline (0.44 GiB vs 4.23 GiB for `min3clos`, 1.42-1.59 GiB vs 14.2-15.7 GiB for the ISP variants) and deploy in about a third of the time (56-73 s vs 65-202 s), even though this host has half the vCPUs and RAM. SONiC `min3clos` spends longer in convergence (38 s vs 4 s), so its total time is 105 s against 81 s for SR Linux.
+The SONiC rows were measured on this host and the SR Linux rows of the 0.2.0 baseline on a host with twice the vCPUs and RAM, so the comparison is between observations, not a controlled measurement. SONiC environments used about a tenth of the memory of the matching SR Linux environments (0.44 GiB vs 4.23 GiB for `min3clos`, 1.42-1.59 GiB vs 14.2-15.7 GiB for the ISP variants). The SONiC ISP variants deployed in about a third of the time (62-73 s vs 181-202 s). SONiC `min3clos` deployed in 56 s against 65 s but spent longer in convergence (38 s vs 4 s), so its total time was 105 s against 81 s.
 
 ## SONiC scale
 

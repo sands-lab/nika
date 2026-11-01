@@ -129,7 +129,7 @@ Compatibility also requires a backend supported by both the failure and the envi
 
 `ProblemBase.is_compatible(scenario, device_profile)` and `runs_on_device_profile` record this compatibility; the coverage matrix below shows it per environment and profile, with the last result of `nika benchmark validate-profiles` (see [Validate device-profile cells](../development/creating-benchmark-tasks.md#validate-device-profile-cells)). `nika benchmark generate --validated-only` keeps IOS XR, RouterOS and SONiC rows only for validated cells.
 
-These rows need licensed vendor images (`./scripts/install.sh --with-vendor-images`) and run as heavy trials, one at a time. Like `routeros_simple_bgp`, they stay in the pool. `nika benchmark select` and releases leave out every row that needs a licensed image.
+IOS XR and RouterOS rows need licensed vendor images (`./scripts/install.sh --with-vendor-images`). SONiC rows need no license: `uv run nika images prepare` downloads the SONiC image. Rows of all three platforms run as heavy trials, one at a time. Like `routeros_simple_bgp`, IOS XR and RouterOS rows stay in the pool, and `nika benchmark select` and releases leave out every row that needs a licensed image.
 
 Before any lab starts, `nika benchmark run --config` and `nika case run` check that the licensed images their rows need are installed. When one is missing, the run stops and lists the image and the affected rows by scenario and platform. Choose which rows a pool run includes:
 
