@@ -33,11 +33,12 @@ flowchart LR
 | Frontend (current NIKA) | Benchmark engine (pinned per release) |
 | --- | --- |
 | CLI and interactive shell | Environment deployment and teardown |
-| Agent harnesses, sandbox, model proxy | Failure injection, symptom checks, ground truth |
+| Agent harnesses and sandbox | Failure injection, symptom checks, ground truth |
 | MCP gateway: one URL per sandbox, phase enforcement, tool-call log | MCP tool servers and the task description |
 | Scheduling, parallelism, retries, resume | Answer validation and scoring |
 | Session store and observability | Evaluation policy that is code, such as waiting for routing to converge |
-| Budget enforcement and validity rules, using values the release declares | |
+| Model proxy: provider credentials, model-call log, step and token budgets | Unstructured report mapping: prompt, context formatting, voting |
+| Validity rules, using thresholds the release declares | |
 | Leaderboard packaging and submission | |
 
 The frontend drives the trial loop and calls the benchmark engine for each lifecycle step. The benchmark engine never launches the agent, so scheduling, sessions, and the agent under test stay current for every release.
@@ -51,7 +52,7 @@ The maintainers settled the open decisions of #292 on 2026-11-01.
 | Where the MCP gateway runs | In the frontend. One gateway serves every release: the benchmark engine serves the tool servers, and the gateway gives the sandbox one URL, enforces the phases the release declares, and logs tool calls. A gateway fix therefore applies to every release without touching pinned code. |
 | How the benchmark engine is packaged | One container image per release, built from the release tag, which pins Python dependencies and emulator tooling (Kathará, Containerlab). The container uses the host's Docker daemon through the mounted Docker socket instead of running Docker inside the container, so environments run as sibling containers on the host. The host kernel and Docker version are recorded in each run's provenance (contract D) but not pinned. |
 | Where validity rules run | In the frontend, against fields that the results schema versions. The release manifest declares the thresholds. |
-| How budgets are enforced | The release manifest declares the step, token, and time budgets, and the frontend enforces them. |
+| How budgets are enforced | The release manifest declares the step, token, and time budgets, and the frontend enforces them; neither the harness nor the benchmark engine does. Steps are enforced at the frontend's model proxy (see [Budgets](#budgets)). |
 | Which commits the release tags point to | The maintainers create the tags. `v0.2.0` points to the latest `dev` commit once the contracts are in place. `v0.1.0` points to a release branch that starts from `37d851ca` and adds the contracts (see [Release 0.1.0](#release-010)). |
 
 ## A. Release manifest
@@ -209,6 +210,18 @@ Today both live in the same trial loop. Policy belongs to the release, as benchm
 | Submission mode, including the unstructured report mapper ([#291](https://github.com/sands-lab/nika/issues/291)) | Observability and metrics |
 | Validity thresholds | Evaluating validity rules, leaderboard packaging and upload |
 | | Firecracker lab image caching |
+
+## Budgets
+
+Every model request of a sandboxed agent already passes the frontend's model proxy ([`model_proxy.py`](../../src/nika/agents/sandbox/model_proxy.py)), which holds the provider credentials and writes `model_calls.jsonl`. The proxy charges each generation request against `max_steps` for the current phase, including requests from sub-agents that a harness's own turn limit does not count ([`model_calls.py`](../../src/nika/agents/sandbox/model_calls.py)). It refuses the first request past the budget, and the frontend stops the phase and logs `max_steps_reached`. Requests the provider could not serve are not charged.
+
+A harness may still stop earlier on its own, but the proxy's count is the one that binds, so the same budget applies to every harness. A token budget ([#199](https://github.com/sands-lab/nika/issues/199)) extends the same proxy, and the agent time limit stays with the frontend's trial loop. The benchmark engine never sees model traffic. Host-run reference agents (`oracle`) make no model requests.
+
+## Unstructured submission
+
+In `unstructured` submission mode, a report mapper with its own model turns the agent's frozen diagnosis report into the scored answer and submits it through `submit` ([#291](https://github.com/sands-lab/nika/issues/291)). Its prompt, the formatting of the fault ontology and resource catalog for that prompt, and the voting over samples decide how a report is scored. They are therefore benchmark engine code, pinned with the release, and the manifest declares the submission mode and the mapper settings that affect scores.
+
+The mapper sends its model requests through the frontend's model proxy, like an agent does. The benchmark engine then holds no provider credentials, the requests appear in `model_calls.jsonl`, and they are not charged to the agent's budget. #291 moves this code out of the agent package first; the contracts decide that it lands in the engine.
 
 ## Release 0.1.0
 
