@@ -210,13 +210,14 @@ def _crossing_ends(problem: Any, params: Any) -> dict[str, Any]:
     The scenario path is kept when the device routes its destination out of
     that port, when the device is a switch without its own routes, or when its
     Linux routing table does not route the destination out of any of its
-    topology ports (SR Linux routes outside the container's kernel, and SONiC
-    names the port ``Ethernet<n>``), in which case the case's declared path
-    stands. On a router whose port the scenario path does not
-    use, the receiver is an end host the device routes out of that port, and
-    the sender is an end host whose traceroute to it passes the device.
+    topology ports (SR Linux routes outside the container's kernel). Kernel
+    names are compared after ``kernel_data_interface`` mapping, so SONiC
+    ``Ethernet<n>`` matches topology ``eth<k>``. On a router whose port the
+    scenario path does not use, the receiver is an end host the device routes
+    out of that port, and the sender is an end host whose traceroute to it
+    passes the device.
     """
-    from nika.problems.rca.inventory import interfaces_for_node
+    from nika.problems.rca.inventory import interfaces_for_node, kernel_data_interface
 
     runtime = problem.runtime
     device, intf = params.forwarding_device, params.intf_name
@@ -224,7 +225,11 @@ def _crossing_ends(problem: Any, params: Any) -> dict[str, Any]:
     identity = problem.net_env.machine_identities.get(device)
     if getattr(identity, "role", None) is not NodeRole.ROUTER:
         return ends
-    ports = set(interfaces_for_node(problem.net_env, device))
+    topology_ports = set(interfaces_for_node(problem.net_env, device))
+    kernel_ports = {
+        kernel_data_interface(problem.net_env, device, name) for name in topology_ports
+    }
+    inject_dev = kernel_data_interface(problem.net_env, device, intf)
 
     def route_dev(ip: str) -> str | None:
         route = exec_or_empty(runtime, device, f"ip -o route get {ip}")
@@ -232,11 +237,11 @@ def _crossing_ends(problem: Any, params: Any) -> dict[str, Any]:
         return match.group(1) if match else None
 
     def egresses(ip: str) -> bool:
-        return route_dev(ip) == intf
+        return route_dev(ip) == inject_dev
 
     if "error" not in ends:
         dev = route_dev(ends["dst"])
-        if dev == intf or dev not in ports:
+        if dev == inject_dev or dev not in kernel_ports:
             return ends
     addresses = lab_addresses(runtime)
     device_ips = {

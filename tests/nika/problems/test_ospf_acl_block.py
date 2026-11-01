@@ -36,6 +36,21 @@ def test_srl_inject_waits_until_ospf_neighbors_are_down() -> None:
     assert problem._srl_acl_entries == [245]
 
 
+def test_srl_inject_raises_when_ospf_neighbors_stay_full(monkeypatch) -> None:
+    runtime = MagicMock()
+    runtime.backend = "containerlab"
+    runtime.srl_add_ospf_acl_drop.return_value = [245]
+    runtime.srl_ospf_neighbor_interfaces.return_value = ["ethernet-1/1.0"]
+    problem = _srl_ospf_acl_block(runtime)
+    monkeypatch.setattr(
+        "nika.problems.forwarding_encapsulation_policy.acl.wait_until",
+        lambda *_a, **_k: False,
+    )
+
+    with pytest.raises(RuntimeError, match="left Full adjacencies"):
+        problem.inject_fault(OSPFAclBlockParams(host_name="berlin"))
+
+
 def test_srl_verify_requires_acl_and_no_full_neighbors() -> None:
     runtime = MagicMock()
     runtime.backend = "containerlab"

@@ -198,12 +198,20 @@ class OSPFAclBlock(ProblemBase):
                 self._srl_acl_entries = self.runtime.srl_add_ospf_acl_drop(
                     params.host_name
                 )
-                wait_until(
+                # Neighbor clear is best-effort; the OSPF dead interval is 40s.
+                if not wait_until(
                     lambda: (
                         not self.runtime.srl_ospf_neighbor_interfaces(params.host_name)
                     ),
-                    8,
-                )
+                    40,
+                ):
+                    neighbors = self.runtime.srl_ospf_neighbor_interfaces(
+                        params.host_name
+                    )
+                    raise RuntimeError(
+                        f"OSPF ACL drop on {params.host_name} left Full "
+                        f"adjacencies: {neighbors}"
+                    )
             case "kathara":
                 self.runtime.add_nft_drop_rule(
                     params.host_name, "ip protocol ospf drop", family="inet"

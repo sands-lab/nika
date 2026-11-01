@@ -36,6 +36,9 @@ from nika.utils.logger import system_logger
 _SKIP_ROUTE_PROTOS = frozenset(
     {"kernel", "bgp", "ospf", "isis", "rip", "zebra", "dhcp", "ra"}
 )
+_SKIP_ROUTE_TYPES = frozenset({"multicast", "broadcast", "local", "nat"})
+_MAIN_TABLES = frozenset({None, 254, "254", "main"})
+_LOCAL_TABLES = frozenset({255, "255", "local"})
 _ROUTE_RESTORE_OK = "NIKA_ROUTE_OK"
 
 
@@ -55,8 +58,40 @@ def parse_ip_route_json(raw: str) -> list[dict] | None:
     return None
 
 
+def _onlink(route: dict) -> bool:
+    flags = route.get("flags") or []
+    if isinstance(flags, str):
+        return "onlink" in flags.lower()
+    return any(str(flag).lower() == "onlink" for flag in flags)
+
+
+def _link_local_gateway(gateway: object) -> bool:
+    return str(gateway or "").lower().startswith("fe80:")
+
+
+def _nexthops_on_intf(route: dict, intf: str) -> list[dict]:
+    hops = route.get("nexthops")
+    if not isinstance(hops, list):
+        return []
+    usable: list[dict] = []
+    for hop in hops:
+        if not isinstance(hop, dict):
+            continue
+        hop_dev = hop.get("dev")
+        if hop_dev and str(hop_dev) != intf:
+            continue
+        if not hop.get("gateway"):
+            continue
+        usable.append(hop)
+    return usable
+
+
 def static_route_replace_command(family: str, route: dict, intf: str) -> str | None:
-    """Return ``ip route replace`` for a non-daemon, non-RA route on ``intf``."""
+    """Return ``ip route replace`` for a non-daemon, non-RA route on ``intf``.
+
+    Emits ``via`` / ``nexthop``, ``onlink``, ``src``, and ``table`` from the
+    ``ip -j route`` object. Returns ``None`` when the route cannot be expressed.
+    """
     proto = str(route.get("protocol") or "")
     if proto in _SKIP_ROUTE_PROTOS:
         return None
@@ -64,21 +99,50 @@ def static_route_replace_command(family: str, route: dict, intf: str) -> str | N
     if not dst or dst.lower().startswith(("fe80:", "ff00:", "ff02:")):
         return None
     rtype = str(route.get("type") or "")
-    if rtype in {"multicast", "broadcast", "local"}:
+    if rtype in _SKIP_ROUTE_TYPES:
         return None
+    table = route.get("table")
+    if table in _LOCAL_TABLES:
+        return None
+    hops = _nexthops_on_intf(route, intf)
+    raw_hops = route.get("nexthops")
+    if isinstance(raw_hops, list) and raw_hops and not hops:
+        return None
+    gateway = route.get("gateway")
     parts = ["ip", family, "route", "replace"]
     if rtype and rtype != "unicast":
         parts.append(rtype)
     parts.append(dst)
-    gateway = route.get("gateway")
+    metric = route.get("metric")
+    prefsrc = route.get("prefsrc") or route.get("src")
+
+    def append_common() -> None:
+        if metric is not None:
+            parts.extend(["metric", str(metric)])
+        if proto:
+            parts.extend(["proto", proto])
+        if prefsrc:
+            parts.extend(["src", str(prefsrc)])
+        if table not in _MAIN_TABLES:
+            parts.extend(["table", str(table)])
+
+    if hops:
+        append_common()
+        for hop in hops:
+            parts.extend(["nexthop", "via", str(hop["gateway"])])
+            parts.extend(["dev", str(hop.get("dev") or intf)])
+            weight = hop.get("weight")
+            if weight is not None:
+                parts.extend(["weight", str(weight)])
+            if _onlink(hop) or _link_local_gateway(hop.get("gateway")):
+                parts.append("onlink")
+        return " ".join(parts)
     if gateway:
         parts.extend(["via", str(gateway)])
-    metric = route.get("metric")
-    if metric is not None:
-        parts.extend(["metric", str(metric)])
-    if proto:
-        parts.extend(["proto", proto])
+    append_common()
     parts.extend(["dev", intf])
+    if _onlink(route) or _link_local_gateway(gateway):
+        parts.append("onlink")
     return " ".join(parts)
 
 
