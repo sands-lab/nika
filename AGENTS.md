@@ -25,10 +25,6 @@ Commit subjects and pull request titles follow Conventional Commits: `type(scope
 * The pull request title is the Conventional Commit line without a PR number. The merge commit subject is that line followed by `(#<PR number>)`.
 * The body is a short summary followed by `Fixes #<issue>` (or `Closes` or `Resolves`) so the merge closes the issue. Use one keyword per issue. When the work only contributes to an issue, write `Refs #<issue>` instead; it links the issue without closing it. Omit both when there is no issue.
 
-## Labels
-
-Label every issue and pull request you open with the repository's existing labels (`gh label list`); do not create new ones. Use `bug` for defects, `enhancement` for features, and `documentation` for docs. Add `bug-from-audit` for bugs that could bias agent diagnosis, `agent-ready` for well-scoped issues an agent can implement, and `needs-human` for issues that need a human design decision. Pass them with `--label` on `gh issue create` and `gh pr create`.
-
 ## Leaderboard submissions
 
 Submit with the [leaderboard submission skill](.agents/skills/nika-leaderboard-submit/SKILL.md). Name package directories `YYYYMMDD_<framework>_<model>`, with normalized public harness names, for both scores and Hugging Face trajectories. Do not add model release dates or prices; the leaderboard repository resolves them after merge. Confirm that the `model-metadata` and `validate` checks pass.
