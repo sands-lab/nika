@@ -173,9 +173,9 @@ def test_curated_timeout_continues_remaining(tmp_path: Path) -> None:
                 encoding="utf-8",
             )
             with (
-                patch("nika.benchmark_engine.in_tree.close_session"),
+                patch("nika.benchmark_engine.engine.close_session"),
                 patch(
-                    "nika.benchmark_engine.in_tree.run_eval_metrics",
+                    "nika.benchmark_engine.engine.run_eval_metrics",
                     side_effect=RuntimeError("no closed session"),
                 ),
                 patch(

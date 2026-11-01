@@ -167,7 +167,9 @@ class TestManifestContracts:
         with pytest.raises(ReleaseError, match=message):
             verify_engine(release, EngineDescription(**{**fields, **change}))
 
-    def test_pinned_engine_release_does_not_run_in_tree(self, tmp_path: Path) -> None:
+    def test_pinned_engine_release_does_not_run_in_process(
+        self, tmp_path: Path
+    ) -> None:
         root = self._release_dir(
             tmp_path,
             engine={"tag": "v9.0.0", "protocol": 1, "results_schema": 1},

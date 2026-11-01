@@ -1,19 +1,19 @@
-"""Benchmark engines: the pinned half of a benchmark release (contract B)."""
+"""Benchmark engine: the half of a benchmark release that stays pinned (contract B)."""
 
 from __future__ import annotations
 
 from functools import cache
 
-from nika.benchmark_engine.protocol import BenchmarkEngine
+from nika.benchmark_engine.protocol import LifecycleProtocol
 
 
 @cache
-def benchmark_engine() -> BenchmarkEngine:
-    """Return the engine that runs trials in this process.
+def benchmark_engine() -> LifecycleProtocol:
+    """Return the lifecycle protocol that runs trials.
 
-    Only the in-tree engine exists so far; pinned benchmark engines select
-    themselves from the release manifest once they run in their own container.
+    Only the current NIKA's engine, called in process, exists so far. Releases
+    that pin an engine will get a client to that engine's container.
     """
-    from nika.benchmark_engine.in_tree import InTreeBenchmarkEngine
+    from nika.benchmark_engine.engine import BenchmarkEngine
 
-    return InTreeBenchmarkEngine()
+    return BenchmarkEngine()

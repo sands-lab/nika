@@ -43,7 +43,7 @@ class TrialRequest(_Message):
     """One trial of one task.
 
     ``task`` is the task row as the split file defines it. A pinned benchmark
-    engine checks it against its own copy; the in-tree engine deploys it.
+    engine checks it against its own copy; the current NIKA's engine deploys it.
     """
 
     task: dict[str, Any]
@@ -131,7 +131,7 @@ def require_supported(contract: str, version: int, supported: frozenset[int]) ->
         )
 
 
-class BenchmarkEngine(Protocol):
+class LifecycleProtocol(Protocol):
     """Lifecycle operations of contract B."""
 
     def describe(self, release: str | None = None) -> EngineDescription: ...

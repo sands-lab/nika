@@ -1,7 +1,8 @@
-"""Benchmark engine built into the current tree (contract B, in process).
+"""Benchmark engine: deploys, injects, and scores trials (contract B).
 
-Serves releases whose manifest declares no pinned ``engine``. The wrapped
-workflows already forward to NIKA Remote when it is enabled.
+Releases whose manifest pins no ``engine`` run on it in process; a release's
+engine container serves the same class. The wrapped workflows already forward
+to NIKA Remote when it is enabled.
 """
 
 from __future__ import annotations
@@ -42,11 +43,11 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-class InTreeBenchmarkEngine:
-    """Runs the current tree's environments, failures, and scoring."""
+class BenchmarkEngine:
+    """Runs this NIKA's environments, failures, and scoring."""
 
     def describe(self, release: str | None = None) -> EngineDescription:
-        """Describe *release*; the in-tree engine serves every release in the tree."""
+        """Describe *release*; this engine serves every release NIKA ships."""
         from nika.workflows.benchmark.release import load_release, read_git_commit
 
         release = load_release(release or BENCHMARK_VERSION)

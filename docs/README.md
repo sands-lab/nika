@@ -77,6 +77,6 @@ uv run nika agent list
 | Failure registry and labels | [`registry.py`](../src/nika/problems/registry.py), [`base.py`](../src/nika/problems/base.py), [`rca/`](../src/nika/problems/rca/) |
 | Agent protocol and registry | [`protocols.py`](../src/agent/protocols.py), [`registry.py`](../src/nika/agents/registry.py) |
 | MCP server catalog and selection | [`mcp/registry.py`](../src/nika/mcp/registry.py), [`mcp/servers/`](../src/nika/mcp/servers/), [`mcp/gateway/`](../src/nika/mcp/gateway/) |
-| Benchmark release contracts | [`benchmark_engine/protocol.py`](../src/nika/benchmark_engine/protocol.py), [`benchmark_engine/in_tree.py`](../src/nika/benchmark_engine/in_tree.py), [`benchmark-contracts.md`](development/benchmark-contracts.md) |
+| Benchmark release contracts | [`benchmark_engine/protocol.py`](../src/nika/benchmark_engine/protocol.py), [`benchmark_engine/engine.py`](../src/nika/benchmark_engine/engine.py), [`benchmark-contracts.md`](development/benchmark-contracts.md) |
 | Benchmark generation | [`workflows/benchmark/`](../src/nika/workflows/benchmark/) (`nika benchmark generate` / `select`) |
 | Test suites | [`tests/`](../tests/) |

@@ -95,13 +95,13 @@ The image digest cannot be part of the tagged source it is built from. When a re
 Rules:
 
 * A published manifest and its lock file never change. A fix is a new release under the [versioning policy](../../VERSIONING.md).
-* The release tag is the single source of truth. The frontend uses its in-tree copy of the manifest only after checking it against the tag, and stops with a release-drift error otherwise. This covers [#282](https://github.com/sands-lab/nika/issues/282), whose drift check against `v<version>` tags is proposed in [#287](https://github.com/sands-lab/nika/pull/287).
+* The release tag is the single source of truth. The frontend uses the manifest copy that ships with it only after checking it against the tag, and stops with a release-drift error otherwise. This covers [#282](https://github.com/sands-lab/nika/issues/282), whose drift check against `v<version>` tags is proposed in [#287](https://github.com/sands-lab/nika/pull/287).
 * Before running anything, the frontend checks that the task-file hashes reported by the benchmark engine match the manifest.
 * The frontend refuses a manifest whose `manifest_version`, `engine.protocol`, or `engine.results_schema` it does not support, with an error that names the version and the supported range. It never falls back to another version.
 * `config/nika.yaml` and CLI options may set execution mechanics, but they cannot override `evaluation` in an official run; a conflicting value stops the run. Selecting a release with `benchmark.release` in `config/nika.yaml` or with `--release` produces the same run.
-* A manifest without an `engine` block runs on the engine built into the current tree. This applies to unpublished releases, and to 0.1.0 and 0.2.0 until their tagged manifests declare a benchmark engine. The frontend refuses to run a manifest that declares one until it can start benchmark engine containers.
+* A manifest without an `engine` block runs on the current NIKA's benchmark engine, in process. This applies to unpublished work, such as ad-hoc task batches and the next release before it is tagged, and to 0.1.0 and 0.2.0 until their tagged manifests declare a benchmark engine. The frontend refuses to run a manifest that declares one until it can start benchmark engine containers.
 
-Test: load every manifest under `benchmark/releases/` and verify its hashes; check that unsupported versions, a drifted in-tree copy, and an `evaluation` override in an official run are each rejected.
+Test: load every manifest under `benchmark/releases/` and verify its hashes; check that unsupported versions, a drifted manifest copy, and an `evaluation` override in an official run are each rejected.
 
 ## B. Lifecycle protocol
 
@@ -129,11 +129,11 @@ Rules:
 * Errors carry one of the outcome classes in `src/nika/workflows/benchmark/outcomes.py` (`agent_failed`, `endpoint_failed`, `infra_failed`), so retry and resume behave the same for every release.
 * Within a protocol version, changes are additive only: new optional fields or new operations. A breaking change gets a new version. The frontend declares the range of versions it supports and keeps an old version until no published release needs it.
 
-The benchmark engine container mounts the host's Docker socket, `/var/run/netns`, and the run's results directory at the same absolute path, and runs on the host network with the privileges Containerlab needs. Environments therefore appear on the host as if the current tree had deployed them, and the frontend's observability attaches to them unchanged.
+The benchmark engine container mounts the host's Docker socket, `/var/run/netns`, and the run's results directory at the same absolute path, and runs on the host network with the privileges Containerlab needs. Environments therefore appear on the host as if the current NIKA had deployed them, and the frontend's observability attaches to them unchanged.
 
-[`protocol.py`](../../src/nika/benchmark_engine/protocol.py) defines the operations and the contract versions this NIKA supports. [`in_tree.py`](../../src/nika/benchmark_engine/in_tree.py) implements them in process for releases without a pinned benchmark engine. The trial loop, the MCP gateway, and the fault-presence check now call only through it, and a release run checks `describe` against the manifest before it starts. Three parts wait for the engine container in step 4: `list_tasks`, so the frontend still reads task rows from the in-tree split files; `score` still writes `eval_metrics.json` instead of returning scores; and the trial loop still checks for `ground_truth.json` to classify failed trials.
+[`protocol.py`](../../src/nika/benchmark_engine/protocol.py) defines the operations as `LifecycleProtocol`, together with the contract versions this NIKA supports. [`engine.py`](../../src/nika/benchmark_engine/engine.py) implements them as `BenchmarkEngine`, the same class in every release: the frontend calls the current NIKA's `BenchmarkEngine` in process, and a release's engine container serves its own `BenchmarkEngine` to a frontend client. The trial loop, the MCP gateway, and the fault-presence check now call only through it, and a release run checks `describe` against the manifest before it starts. Three parts wait for the engine container in step 4: `list_tasks`, so the frontend still reads task rows from the split files that ship with it; `score` still writes `eval_metrics.json` instead of returning scores; and the trial loop still checks for `ground_truth.json` to classify failed trials.
 
-Test: run the same protocol test suite against the in-tree engine and against each published benchmark engine image.
+Test: run the same protocol test suite against the current NIKA's engine and against each published benchmark engine image.
 
 ## C. Agent interface
 
@@ -225,15 +225,15 @@ The mapper sends its model requests through the frontend's model proxy, like an 
 
 ## Release 0.1.0
 
-The 0.1.0 benchmark engine starts from `37d851ca`, the commit that restored 0.1.0 on the then-current tree ([#134](https://github.com/sands-lab/nika/pull/134)) and that [#289](https://github.com/sands-lab/nika/pull/289) pins. A release branch adds the lifecycle protocol, the results schema, and the manifest fields on top of it, without changing environments, failures, tools, or scoring, and the maintainers tag it `v0.1.0`. The image digests that `e51ae74e` later pinned in the 0.1.0 manifest belong on that branch too, so the benchmark engine image uses the same upstream images as current runs.
+The 0.1.0 benchmark engine starts from `37d851ca`, the commit that restored 0.1.0 on the NIKA code of that time ([#134](https://github.com/sands-lab/nika/pull/134)) and that [#289](https://github.com/sands-lab/nika/pull/289) pins. A release branch adds the lifecycle protocol, the results schema, and the manifest fields on top of it, without changing environments, failures, tools, or scoring, and the maintainers tag it `v0.1.0`. The image digests that `e51ae74e` later pinned in the 0.1.0 manifest belong on that branch too, so the benchmark engine image uses the same upstream images as current runs.
 
 ## Implementation plan
 
 Each step is a separate pull request against `dev`:
 
 1. This document.
-2. **Lifecycle protocol in the current code.** The trial loop calls the in-tree engine only through contract B, still in one process. Scores for 0.2.0 do not change; a Docker-backed run confirms it.
+2. **Lifecycle protocol in the current code.** The trial loop calls the current NIKA's engine only through contract B, still in one process. Scores for 0.2.0 do not change; a Docker-backed run confirms it.
 3. **Results schema version and provenance** (contract D), checked by `nika leaderboard submit` and `nika leaderboard validate`.
-4. **Benchmark engine container**, built from a release tag, serving contract B and the MCP tool servers, with the frontend gateway proxying to them. Sessions stay in the frontend's store.
+4. **Benchmark engine container**, built from a release tag, serving contract B and the MCP tool servers. The frontend reaches it through an `EngineClient` that implements `LifecycleProtocol`, and its gateway proxies to the tool servers. Sessions stay in the frontend's store.
 5. **0.1.0 release branch** from `37d851ca`, tagged `v0.1.0` once it passes the protocol test suite.
-6. **Removal of in-tree compatibility code** (`src/nika/net_env/compat/v010/`, `src/nika/problems/compat/v010/`, `docs/compat/release-0.1.0.md`), once the acceptance criteria of #292 pass.
+6. **Removal of the 0.1.0 compatibility code** (`src/nika/net_env/compat/v010/`, `src/nika/problems/compat/v010/`, `docs/compat/release-0.1.0.md`), once the acceptance criteria of #292 pass.
