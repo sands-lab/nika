@@ -29,9 +29,9 @@ failure:
     inject:
       host_name: n1
       observer_host: pc_n10
-      probe_dst_ip: 203.0.114.1
+      probe_dst_ip: 203.0.115.1
       symptom_host: n10
-      target_network: 203.0.114.0/24
+      target_network: 203.0.115.0/24
     root_causes:
     - resource:
         kind: node
@@ -45,10 +45,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: n1
-      observer_host: pc_n10
-      probe_dst_ip: 203.0.115.1
-      symptom_host: n10
-      target_network: 203.0.115.0/24
+      observer_host: pc_n2
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n2
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -80,9 +80,9 @@ failure:
     inject:
       host_name: n10
       observer_host: pc_n1
-      probe_dst_ip: 203.0.114.1
+      probe_dst_ip: 203.0.115.1
       symptom_host: n1
-      target_network: 203.0.114.0/24
+      target_network: 203.0.115.0/24
     root_causes:
     - resource:
         kind: node
@@ -96,10 +96,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: n10
-      observer_host: pc_n1
-      probe_dst_ip: 203.0.115.1
-      symptom_host: n1
-      target_network: 203.0.115.0/24
+      observer_host: pc_n2
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n2
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -131,9 +131,9 @@ failure:
     inject:
       host_name: n11
       observer_host: pc_n10
-      probe_dst_ip: 203.0.114.1
+      probe_dst_ip: 203.0.115.1
       symptom_host: n10
-      target_network: 203.0.114.0/24
+      target_network: 203.0.115.0/24
     root_causes:
     - resource:
         kind: node
@@ -147,10 +147,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: n11
-      observer_host: pc_n10
-      probe_dst_ip: 203.0.115.1
-      symptom_host: n10
-      target_network: 203.0.115.0/24
+      observer_host: pc_n2
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n2
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -182,9 +182,9 @@ failure:
     inject:
       host_name: n2
       observer_host: pc_n10
-      probe_dst_ip: 203.0.114.1
+      probe_dst_ip: 203.0.115.1
       symptom_host: n10
-      target_network: 203.0.114.0/24
+      target_network: 203.0.115.0/24
     root_causes:
     - resource:
         kind: node
@@ -198,10 +198,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: n2
-      observer_host: pc_n10
-      probe_dst_ip: 203.0.115.1
-      symptom_host: n10
-      target_network: 203.0.115.0/24
+      observer_host: pc_n6
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n6
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -233,9 +233,9 @@ failure:
     inject:
       host_name: n3
       observer_host: pc_n10
-      probe_dst_ip: 203.0.114.1
+      probe_dst_ip: 203.0.115.1
       symptom_host: n10
-      target_network: 203.0.114.0/24
+      target_network: 203.0.115.0/24
     root_causes:
     - resource:
         kind: node
@@ -249,10 +249,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: n3
-      observer_host: pc_n10
-      probe_dst_ip: 203.0.115.1
-      symptom_host: n10
-      target_network: 203.0.115.0/24
+      observer_host: pc_n2
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n2
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -267,9 +267,9 @@ failure:
     inject:
       host_name: n7
       observer_host: pc_n1
-      probe_dst_ip: 203.0.114.1
+      probe_dst_ip: 203.0.115.1
       symptom_host: n1
-      target_network: 203.0.114.0/24
+      target_network: 203.0.115.0/24
     root_causes:
     - resource:
         kind: node
@@ -283,10 +283,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: n7
-      observer_host: pc_n1
-      probe_dst_ip: 203.0.115.1
-      symptom_host: n1
-      target_network: 203.0.115.0/24
+      observer_host: pc_n2
+      probe_dst_ip: 203.0.114.1
+      symptom_host: n2
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node

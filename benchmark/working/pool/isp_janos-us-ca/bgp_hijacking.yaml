@@ -11,10 +11,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: atlanta
-      observer_host: pc_boston
-      probe_dst_ip: 203.0.113.1
-      symptom_host: boston
-      target_network: 203.0.113.0/24
+      observer_host: pc_chicago
+      probe_dst_ip: 203.0.114.1
+      symptom_host: chicago
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -28,9 +28,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: atlanta
-      observer_host: pc_boston
+      observer_host: pc_chicago
       probe_dst_ip: 203.0.115.1
-      symptom_host: boston
+      symptom_host: chicago
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -45,10 +45,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: atlanta
-      observer_host: pc_calgary
-      probe_dst_ip: 203.0.114.1
-      symptom_host: calgary
-      target_network: 203.0.114.0/24
+      observer_host: pc_losangeles
+      probe_dst_ip: 203.0.113.1
+      symptom_host: losangeles
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -62,10 +62,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: boston
-      observer_host: pc_atlanta
-      probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
-      target_network: 203.0.113.0/24
+      observer_host: pc_chicago
+      probe_dst_ip: 203.0.114.1
+      symptom_host: chicago
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -79,9 +79,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: boston
-      observer_host: pc_atlanta
+      observer_host: pc_chicago
       probe_dst_ip: 203.0.115.1
-      symptom_host: atlanta
+      symptom_host: chicago
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -96,10 +96,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: boston
-      observer_host: pc_calgary
-      probe_dst_ip: 203.0.114.1
-      symptom_host: calgary
-      target_network: 203.0.114.0/24
+      observer_host: pc_losangeles
+      probe_dst_ip: 203.0.113.1
+      symptom_host: losangeles
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -113,9 +113,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: calgary
-      observer_host: pc_atlanta
+      observer_host: pc_losangeles
       probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
+      symptom_host: losangeles
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -130,26 +130,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: charlotte
-      observer_host: pc_atlanta
-      probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
-      target_network: 203.0.113.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: charlotte
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: charlotte
-      observer_host: pc_atlanta
+      observer_host: pc_chicago
       probe_dst_ip: 203.0.114.1
-      symptom_host: atlanta
+      symptom_host: chicago
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -164,9 +147,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: charlotte
-      observer_host: pc_atlanta
+      observer_host: pc_chicago
       probe_dst_ip: 203.0.115.1
-      symptom_host: atlanta
+      symptom_host: chicago
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -180,10 +163,27 @@ failure:
     backend: containerlab
     device_profile: sonic
     inject:
-      host_name: chicago
-      observer_host: pc_atlanta
+      host_name: charlotte
+      observer_host: pc_losangeles
       probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
+      symptom_host: losangeles
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: charlotte
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: chicago
+      observer_host: pc_losangeles
+      probe_dst_ip: 203.0.113.1
+      symptom_host: losangeles
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -198,9 +198,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: chicago
-      observer_host: pc_atlanta
+      observer_host: pc_losangeles
       probe_dst_ip: 203.0.115.1
-      symptom_host: atlanta
+      symptom_host: losangeles
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -215,10 +215,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: cincinnati
-      observer_host: pc_atlanta
-      probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
-      target_network: 203.0.113.0/24
+      observer_host: pc_chicago
+      probe_dst_ip: 203.0.114.1
+      symptom_host: chicago
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -232,9 +232,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: cincinnati
-      observer_host: pc_atlanta
+      observer_host: pc_chicago
       probe_dst_ip: 203.0.115.1
-      symptom_host: atlanta
+      symptom_host: chicago
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -249,10 +249,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: cincinnati
-      observer_host: pc_boston
-      probe_dst_ip: 203.0.114.1
-      symptom_host: boston
-      target_network: 203.0.114.0/24
+      observer_host: pc_losangeles
+      probe_dst_ip: 203.0.113.1
+      symptom_host: losangeles
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -266,10 +266,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: cleveland
-      observer_host: pc_atlanta
-      probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
-      target_network: 203.0.113.0/24
+      observer_host: pc_chicago
+      probe_dst_ip: 203.0.114.1
+      symptom_host: chicago
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -283,9 +283,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: cleveland
-      observer_host: pc_atlanta
+      observer_host: pc_chicago
       probe_dst_ip: 203.0.115.1
-      symptom_host: atlanta
+      symptom_host: chicago
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -300,10 +300,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: cleveland
-      observer_host: pc_boston
-      probe_dst_ip: 203.0.114.1
-      symptom_host: boston
-      target_network: 203.0.114.0/24
+      observer_host: pc_losangeles
+      probe_dst_ip: 203.0.113.1
+      symptom_host: losangeles
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -317,9 +317,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: dallas
-      observer_host: pc_atlanta
+      observer_host: pc_losangeles
       probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
+      symptom_host: losangeles
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -334,9 +334,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: dallas
-      observer_host: pc_atlanta
+      observer_host: pc_losangeles
       probe_dst_ip: 203.0.115.1
-      symptom_host: atlanta
+      symptom_host: losangeles
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -351,9 +351,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: denver
-      observer_host: pc_atlanta
+      observer_host: pc_losangeles
       probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
+      symptom_host: losangeles
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -368,9 +368,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: denver
-      observer_host: pc_atlanta
+      observer_host: pc_losangeles
       probe_dst_ip: 203.0.115.1
-      symptom_host: atlanta
+      symptom_host: losangeles
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -385,10 +385,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: detroit
-      observer_host: pc_atlanta
-      probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
-      target_network: 203.0.113.0/24
+      observer_host: pc_chicago
+      probe_dst_ip: 203.0.114.1
+      symptom_host: chicago
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -402,9 +402,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: detroit
-      observer_host: pc_atlanta
+      observer_host: pc_chicago
       probe_dst_ip: 203.0.115.1
-      symptom_host: atlanta
+      symptom_host: chicago
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -419,10 +419,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: detroit
-      observer_host: pc_boston
-      probe_dst_ip: 203.0.114.1
-      symptom_host: boston
-      target_network: 203.0.114.0/24
+      observer_host: pc_losangeles
+      probe_dst_ip: 203.0.113.1
+      symptom_host: losangeles
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -436,9 +436,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: elpaso
-      observer_host: pc_atlanta
+      observer_host: pc_losangeles
       probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
+      symptom_host: losangeles
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -453,9 +453,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: elpaso
-      observer_host: pc_atlanta
+      observer_host: pc_losangeles
       probe_dst_ip: 203.0.115.1
-      symptom_host: atlanta
+      symptom_host: losangeles
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -470,26 +470,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: houston
-      observer_host: pc_atlanta
-      probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
-      target_network: 203.0.113.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: houston
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: houston
-      observer_host: pc_atlanta
+      observer_host: pc_chicago
       probe_dst_ip: 203.0.114.1
-      symptom_host: atlanta
+      symptom_host: chicago
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -504,9 +487,26 @@ failure:
     device_profile: sonic
     inject:
       host_name: houston
-      observer_host: pc_atlanta
+      observer_host: pc_losangeles
+      probe_dst_ip: 203.0.113.1
+      symptom_host: losangeles
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: houston
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: houston
+      observer_host: pc_losangeles
       probe_dst_ip: 203.0.115.1
-      symptom_host: atlanta
+      symptom_host: losangeles
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -521,26 +521,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: indianapolis
-      observer_host: pc_atlanta
-      probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
-      target_network: 203.0.113.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: indianapolis
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: indianapolis
-      observer_host: pc_atlanta
+      observer_host: pc_chicago
       probe_dst_ip: 203.0.114.1
-      symptom_host: atlanta
+      symptom_host: chicago
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -555,9 +538,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: indianapolis
-      observer_host: pc_atlanta
+      observer_host: pc_chicago
       probe_dst_ip: 203.0.115.1
-      symptom_host: atlanta
+      symptom_host: chicago
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -571,15 +554,15 @@ failure:
     backend: containerlab
     device_profile: sonic
     inject:
-      host_name: kansascity
-      observer_host: pc_atlanta
+      host_name: indianapolis
+      observer_host: pc_losangeles
       probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
+      symptom_host: losangeles
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
-        node: kansascity
+        node: indianapolis
       fault_type: bgp_hijacking
   - topo_size: l
     igp: isis
@@ -589,9 +572,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: kansascity
-      observer_host: pc_atlanta
+      observer_host: pc_chicago
       probe_dst_ip: 203.0.115.1
-      symptom_host: atlanta
+      symptom_host: chicago
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -605,10 +588,27 @@ failure:
     backend: containerlab
     device_profile: sonic
     inject:
-      host_name: lasvegas
-      observer_host: pc_atlanta
+      host_name: kansascity
+      observer_host: pc_losangeles
       probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
+      symptom_host: losangeles
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: kansascity
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: lasvegas
+      observer_host: pc_losangeles
+      probe_dst_ip: 203.0.113.1
+      symptom_host: losangeles
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -623,9 +623,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: lasvegas
-      observer_host: pc_atlanta
+      observer_host: pc_losangeles
       probe_dst_ip: 203.0.115.1
-      symptom_host: atlanta
+      symptom_host: losangeles
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -639,44 +639,10 @@ failure:
     backend: containerlab
     device_profile: sonic
     inject:
-      host_name: losangeles
-      observer_host: pc_atlanta
-      probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
-      target_network: 203.0.113.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: losangeles
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
       host_name: memphis
-      observer_host: pc_atlanta
-      probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
-      target_network: 203.0.113.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: memphis
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: memphis
-      observer_host: pc_atlanta
+      observer_host: pc_chicago
       probe_dst_ip: 203.0.114.1
-      symptom_host: atlanta
+      symptom_host: chicago
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -691,9 +657,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: memphis
-      observer_host: pc_atlanta
+      observer_host: pc_chicago
       probe_dst_ip: 203.0.115.1
-      symptom_host: atlanta
+      symptom_host: chicago
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -707,15 +673,15 @@ failure:
     backend: containerlab
     device_profile: sonic
     inject:
-      host_name: miami
-      observer_host: pc_atlanta
+      host_name: memphis
+      observer_host: pc_losangeles
       probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
+      symptom_host: losangeles
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
-        node: miami
+        node: memphis
       fault_type: bgp_hijacking
   - topo_size: l
     igp: isis
@@ -725,9 +691,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: miami
-      observer_host: pc_atlanta
+      observer_host: pc_chicago
       probe_dst_ip: 203.0.114.1
-      symptom_host: atlanta
+      symptom_host: chicago
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -742,10 +708,27 @@ failure:
     device_profile: sonic
     inject:
       host_name: miami
-      observer_host: pc_atlanta
+      observer_host: pc_chicago
       probe_dst_ip: 203.0.115.1
-      symptom_host: atlanta
+      symptom_host: chicago
       target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: miami
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: miami
+      observer_host: pc_losangeles
+      probe_dst_ip: 203.0.113.1
+      symptom_host: losangeles
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -759,10 +742,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: minneapolis
-      observer_host: pc_atlanta
-      probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
-      target_network: 203.0.113.0/24
+      observer_host: pc_chicago
+      probe_dst_ip: 203.0.115.1
+      symptom_host: chicago
+      target_network: 203.0.115.0/24
     root_causes:
     - resource:
         kind: node
@@ -776,10 +759,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: minneapolis
-      observer_host: pc_atlanta
-      probe_dst_ip: 203.0.115.1
-      symptom_host: atlanta
-      target_network: 203.0.115.0/24
+      observer_host: pc_losangeles
+      probe_dst_ip: 203.0.113.1
+      symptom_host: losangeles
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -793,26 +776,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: montreal
-      observer_host: pc_atlanta
-      probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
-      target_network: 203.0.113.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: montreal
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: montreal
-      observer_host: pc_boston
+      observer_host: pc_chicago
       probe_dst_ip: 203.0.114.1
-      symptom_host: boston
+      symptom_host: chicago
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -827,9 +793,26 @@ failure:
     device_profile: sonic
     inject:
       host_name: montreal
-      observer_host: pc_boston
+      observer_host: pc_losangeles
+      probe_dst_ip: 203.0.113.1
+      symptom_host: losangeles
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: montreal
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: montreal
+      observer_host: pc_newyork
       probe_dst_ip: 203.0.115.1
-      symptom_host: boston
+      symptom_host: newyork
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -844,26 +827,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: nashville
-      observer_host: pc_atlanta
-      probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
-      target_network: 203.0.113.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: nashville
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: nashville
-      observer_host: pc_atlanta
+      observer_host: pc_chicago
       probe_dst_ip: 203.0.114.1
-      symptom_host: atlanta
+      symptom_host: chicago
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -878,9 +844,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: nashville
-      observer_host: pc_atlanta
+      observer_host: pc_chicago
       probe_dst_ip: 203.0.115.1
-      symptom_host: atlanta
+      symptom_host: chicago
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -894,15 +860,15 @@ failure:
     backend: containerlab
     device_profile: sonic
     inject:
-      host_name: neworleans
-      observer_host: pc_atlanta
+      host_name: nashville
+      observer_host: pc_losangeles
       probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
+      symptom_host: losangeles
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
-        node: neworleans
+        node: nashville
       fault_type: bgp_hijacking
   - topo_size: l
     igp: isis
@@ -912,9 +878,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: neworleans
-      observer_host: pc_atlanta
+      observer_host: pc_chicago
       probe_dst_ip: 203.0.114.1
-      symptom_host: atlanta
+      symptom_host: chicago
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -929,9 +895,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: neworleans
-      observer_host: pc_atlanta
+      observer_host: pc_chicago
       probe_dst_ip: 203.0.115.1
-      symptom_host: atlanta
+      symptom_host: chicago
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -945,15 +911,15 @@ failure:
     backend: containerlab
     device_profile: sonic
     inject:
-      host_name: newyork
-      observer_host: pc_atlanta
+      host_name: neworleans
+      observer_host: pc_losangeles
       probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
+      symptom_host: losangeles
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
-        node: newyork
+        node: neworleans
       fault_type: bgp_hijacking
   - topo_size: l
     igp: isis
@@ -963,26 +929,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: newyork
-      observer_host: pc_atlanta
-      probe_dst_ip: 203.0.115.1
-      symptom_host: atlanta
-      target_network: 203.0.115.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: newyork
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: newyork
-      observer_host: pc_boston
+      observer_host: pc_chicago
       probe_dst_ip: 203.0.114.1
-      symptom_host: boston
+      symptom_host: chicago
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -996,15 +945,32 @@ failure:
     backend: containerlab
     device_profile: sonic
     inject:
-      host_name: oklahomacity
-      observer_host: pc_atlanta
+      host_name: newyork
+      observer_host: pc_chicago
+      probe_dst_ip: 203.0.115.1
+      symptom_host: chicago
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: newyork
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: newyork
+      observer_host: pc_losangeles
       probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
+      symptom_host: losangeles
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
-        node: oklahomacity
+        node: newyork
       fault_type: bgp_hijacking
   - topo_size: l
     igp: isis
@@ -1014,10 +980,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: oklahomacity
-      observer_host: pc_atlanta
-      probe_dst_ip: 203.0.115.1
-      symptom_host: atlanta
-      target_network: 203.0.115.0/24
+      observer_host: pc_losangeles
+      probe_dst_ip: 203.0.113.1
+      symptom_host: losangeles
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -1031,10 +997,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: philadelphia
-      observer_host: pc_atlanta
-      probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
-      target_network: 203.0.113.0/24
+      observer_host: pc_chicago
+      probe_dst_ip: 203.0.114.1
+      symptom_host: chicago
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -1048,9 +1014,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: philadelphia
-      observer_host: pc_atlanta
+      observer_host: pc_chicago
       probe_dst_ip: 203.0.115.1
-      symptom_host: atlanta
+      symptom_host: chicago
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -1065,10 +1031,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: philadelphia
-      observer_host: pc_boston
-      probe_dst_ip: 203.0.114.1
-      symptom_host: boston
-      target_network: 203.0.114.0/24
+      observer_host: pc_losangeles
+      probe_dst_ip: 203.0.113.1
+      symptom_host: losangeles
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -1082,9 +1048,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: phoenix
-      observer_host: pc_atlanta
+      observer_host: pc_losangeles
       probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
+      symptom_host: losangeles
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -1099,9 +1065,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: phoenix
-      observer_host: pc_atlanta
+      observer_host: pc_losangeles
       probe_dst_ip: 203.0.115.1
-      symptom_host: atlanta
+      symptom_host: losangeles
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -1116,10 +1082,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: pittsburgh
-      observer_host: pc_atlanta
-      probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
-      target_network: 203.0.113.0/24
+      observer_host: pc_chicago
+      probe_dst_ip: 203.0.114.1
+      symptom_host: chicago
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -1133,9 +1099,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: pittsburgh
-      observer_host: pc_atlanta
+      observer_host: pc_chicago
       probe_dst_ip: 203.0.115.1
-      symptom_host: atlanta
+      symptom_host: chicago
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -1150,10 +1116,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: pittsburgh
-      observer_host: pc_boston
-      probe_dst_ip: 203.0.114.1
-      symptom_host: boston
-      target_network: 203.0.114.0/24
+      observer_host: pc_losangeles
+      probe_dst_ip: 203.0.113.1
+      symptom_host: losangeles
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -1167,9 +1133,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: portland
-      observer_host: pc_atlanta
+      observer_host: pc_losangeles
       probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
+      symptom_host: losangeles
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -1184,9 +1150,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: sacrameto
-      observer_host: pc_atlanta
+      observer_host: pc_losangeles
       probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
+      symptom_host: losangeles
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -1201,9 +1167,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: saltlakecity
-      observer_host: pc_atlanta
+      observer_host: pc_losangeles
       probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
+      symptom_host: losangeles
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -1218,9 +1184,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: saltlakecity
-      observer_host: pc_atlanta
+      observer_host: pc_losangeles
       probe_dst_ip: 203.0.115.1
-      symptom_host: atlanta
+      symptom_host: losangeles
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -1235,9 +1201,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: sandiego
-      observer_host: pc_atlanta
+      observer_host: pc_losangeles
       probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
+      symptom_host: losangeles
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -1252,9 +1218,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: sandiego
-      observer_host: pc_atlanta
+      observer_host: pc_losangeles
       probe_dst_ip: 203.0.115.1
-      symptom_host: atlanta
+      symptom_host: losangeles
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -1269,9 +1235,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: sanfrancisco
-      observer_host: pc_atlanta
+      observer_host: pc_losangeles
       probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
+      symptom_host: losangeles
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -1286,9 +1252,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: seattle
-      observer_host: pc_atlanta
+      observer_host: pc_losangeles
       probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
+      symptom_host: losangeles
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -1303,10 +1269,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: stlouis
-      observer_host: pc_atlanta
-      probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
-      target_network: 203.0.113.0/24
+      observer_host: pc_chicago
+      probe_dst_ip: 203.0.115.1
+      symptom_host: chicago
+      target_network: 203.0.115.0/24
     root_causes:
     - resource:
         kind: node
@@ -1320,10 +1286,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: stlouis
-      observer_host: pc_atlanta
-      probe_dst_ip: 203.0.115.1
-      symptom_host: atlanta
-      target_network: 203.0.115.0/24
+      observer_host: pc_losangeles
+      probe_dst_ip: 203.0.113.1
+      symptom_host: losangeles
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -1337,26 +1303,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: tampa
-      observer_host: pc_atlanta
-      probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
-      target_network: 203.0.113.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: tampa
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: tampa
-      observer_host: pc_atlanta
+      observer_host: pc_chicago
       probe_dst_ip: 203.0.114.1
-      symptom_host: atlanta
+      symptom_host: chicago
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -1371,9 +1320,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: tampa
-      observer_host: pc_atlanta
+      observer_host: pc_chicago
       probe_dst_ip: 203.0.115.1
-      symptom_host: atlanta
+      symptom_host: chicago
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -1387,11 +1336,28 @@ failure:
     backend: containerlab
     device_profile: sonic
     inject:
-      host_name: toronto
-      observer_host: pc_atlanta
+      host_name: tampa
+      observer_host: pc_losangeles
       probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
+      symptom_host: losangeles
       target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: tampa
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: toronto
+      observer_host: pc_chicago
+      probe_dst_ip: 203.0.114.1
+      symptom_host: chicago
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -1405,9 +1371,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: toronto
-      observer_host: pc_atlanta
+      observer_host: pc_chicago
       probe_dst_ip: 203.0.115.1
-      symptom_host: atlanta
+      symptom_host: chicago
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -1422,10 +1388,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: toronto
-      observer_host: pc_boston
-      probe_dst_ip: 203.0.114.1
-      symptom_host: boston
-      target_network: 203.0.114.0/24
+      observer_host: pc_losangeles
+      probe_dst_ip: 203.0.113.1
+      symptom_host: losangeles
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -1439,10 +1405,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: washingtondc
-      observer_host: pc_atlanta
-      probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
-      target_network: 203.0.113.0/24
+      observer_host: pc_chicago
+      probe_dst_ip: 203.0.115.1
+      symptom_host: chicago
+      target_network: 203.0.115.0/24
     root_causes:
     - resource:
         kind: node
@@ -1456,10 +1422,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: washingtondc
-      observer_host: pc_atlanta
-      probe_dst_ip: 203.0.115.1
-      symptom_host: atlanta
-      target_network: 203.0.115.0/24
+      observer_host: pc_losangeles
+      probe_dst_ip: 203.0.113.1
+      symptom_host: losangeles
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -1473,9 +1439,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: winnipeg
-      observer_host: pc_atlanta
+      observer_host: pc_losangeles
       probe_dst_ip: 203.0.113.1
-      symptom_host: atlanta
+      symptom_host: losangeles
       target_network: 203.0.113.0/24
     root_causes:
     - resource:

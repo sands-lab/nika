@@ -12,23 +12,6 @@ failure:
     inject:
       host_name: at1_at
       observer_host: pc_be1_be
-      probe_dst_ip: 203.0.113.1
-      symptom_host: be1_be
-      target_network: 203.0.113.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: at1_at
-      fault_type: bgp_hijacking
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: at1_at
-      observer_host: pc_be1_be
       probe_dst_ip: 203.0.114.1
       symptom_host: be1_be
       target_network: 203.0.114.0/24
@@ -61,10 +44,61 @@ failure:
     backend: containerlab
     device_profile: sonic
     inject:
+      host_name: at1_at
+      observer_host: pc_cz1_cz
+      probe_dst_ip: 203.0.113.1
+      symptom_host: cz1_cz
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: at1_at
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
       host_name: be1_be
       observer_host: pc_ch1_ch
-      probe_dst_ip: 203.0.113.1
+      probe_dst_ip: 203.0.114.1
       symptom_host: ch1_ch
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: be1_be
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: be1_be
+      observer_host: pc_ch1_ch
+      probe_dst_ip: 203.0.115.1
+      symptom_host: ch1_ch
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: be1_be
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: be1_be
+      observer_host: pc_cz1_cz
+      probe_dst_ip: 203.0.113.1
+      symptom_host: cz1_cz
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -78,40 +112,6 @@ failure:
     backend: containerlab
     device_profile: sonic
     inject:
-      host_name: be1_be
-      observer_host: pc_ch1_ch
-      probe_dst_ip: 203.0.114.1
-      symptom_host: ch1_ch
-      target_network: 203.0.114.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: be1_be
-      fault_type: bgp_hijacking
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: be1_be
-      observer_host: pc_ch1_ch
-      probe_dst_ip: 203.0.115.1
-      symptom_host: ch1_ch
-      target_network: 203.0.115.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: be1_be
-      fault_type: bgp_hijacking
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
       host_name: ch1_ch
       observer_host: pc_at1_at
       probe_dst_ip: 203.0.113.1
@@ -130,9 +130,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: ch1_ch
-      observer_host: pc_at1_at
+      observer_host: pc_be1_be
       probe_dst_ip: 203.0.114.1
-      symptom_host: at1_at
+      symptom_host: be1_be
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -147,48 +147,14 @@ failure:
     device_profile: sonic
     inject:
       host_name: ch1_ch
-      observer_host: pc_at1_at
+      observer_host: pc_be1_be
       probe_dst_ip: 203.0.115.1
-      symptom_host: at1_at
+      symptom_host: be1_be
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
         kind: node
         node: ch1_ch
-      fault_type: bgp_hijacking
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: cz1_cz
-      observer_host: pc_at1_at
-      probe_dst_ip: 203.0.114.1
-      symptom_host: at1_at
-      target_network: 203.0.114.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: cz1_cz
-      fault_type: bgp_hijacking
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: cz1_cz
-      observer_host: pc_at1_at
-      probe_dst_ip: 203.0.115.1
-      symptom_host: at1_at
-      target_network: 203.0.115.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: cz1_cz
       fault_type: bgp_hijacking
   - topo_size: m
     igp: isis
@@ -199,8 +165,25 @@ failure:
     inject:
       host_name: cz1_cz
       observer_host: pc_be1_be
-      probe_dst_ip: 203.0.113.1
+      probe_dst_ip: 203.0.114.1
       symptom_host: be1_be
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: cz1_cz
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: cz1_cz
+      observer_host: pc_de1_de
+      probe_dst_ip: 203.0.113.1
+      symptom_host: de1_de
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -232,9 +215,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: de1_de
-      observer_host: pc_at1_at
+      observer_host: pc_be1_be
       probe_dst_ip: 203.0.114.1
-      symptom_host: at1_at
+      symptom_host: be1_be
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -249,31 +232,14 @@ failure:
     device_profile: sonic
     inject:
       host_name: de1_de
-      observer_host: pc_at1_at
+      observer_host: pc_be1_be
       probe_dst_ip: 203.0.115.1
-      symptom_host: at1_at
+      symptom_host: be1_be
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
         kind: node
         node: de1_de
-      fault_type: bgp_hijacking
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: es1_es
-      observer_host: pc_be1_be
-      probe_dst_ip: 203.0.113.1
-      symptom_host: be1_be
-      target_network: 203.0.113.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: es1_es
       fault_type: bgp_hijacking
   - topo_size: m
     igp: isis
@@ -304,6 +270,23 @@ failure:
       probe_dst_ip: 203.0.115.1
       symptom_host: be1_be
       target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: es1_es
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: es1_es
+      observer_host: pc_cz1_cz
+      probe_dst_ip: 203.0.113.1
+      symptom_host: cz1_cz
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -317,9 +300,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: fr1_fr
-      observer_host: pc_at1_at
+      observer_host: pc_be1_be
       probe_dst_ip: 203.0.114.1
-      symptom_host: at1_at
+      symptom_host: be1_be
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -334,9 +317,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: fr1_fr
-      observer_host: pc_at1_at
+      observer_host: pc_be1_be
       probe_dst_ip: 203.0.115.1
-      symptom_host: at1_at
+      symptom_host: be1_be
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -351,9 +334,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: fr1_fr
-      observer_host: pc_be1_be
+      observer_host: pc_cz1_cz
       probe_dst_ip: 203.0.113.1
-      symptom_host: be1_be
+      symptom_host: cz1_cz
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -368,9 +351,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: gr1_gr
-      observer_host: pc_at1_at
+      observer_host: pc_be1_be
       probe_dst_ip: 203.0.114.1
-      symptom_host: at1_at
+      symptom_host: be1_be
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -385,9 +368,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: gr1_gr
-      observer_host: pc_at1_at
+      observer_host: pc_ch1_ch
       probe_dst_ip: 203.0.115.1
-      symptom_host: at1_at
+      symptom_host: ch1_ch
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -402,9 +385,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: gr1_gr
-      observer_host: pc_be1_be
+      observer_host: pc_cz1_cz
       probe_dst_ip: 203.0.113.1
-      symptom_host: be1_be
+      symptom_host: cz1_cz
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -419,27 +402,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: hr1_hr
-      observer_host: pc_at1_at
+      observer_host: pc_ch1_ch
       probe_dst_ip: 203.0.114.1
-      symptom_host: at1_at
+      symptom_host: ch1_ch
       target_network: 203.0.114.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: hr1_hr
-      fault_type: bgp_hijacking
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: hr1_hr
-      observer_host: pc_at1_at
-      probe_dst_ip: 203.0.115.1
-      symptom_host: at1_at
-      target_network: 203.0.115.0/24
     root_causes:
     - resource:
         kind: node
@@ -470,9 +436,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: hu1_hu
-      observer_host: pc_at1_at
+      observer_host: pc_be1_be
       probe_dst_ip: 203.0.114.1
-      symptom_host: at1_at
+      symptom_host: be1_be
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -487,9 +453,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: hu1_hu
-      observer_host: pc_at1_at
+      observer_host: pc_ch1_ch
       probe_dst_ip: 203.0.115.1
-      symptom_host: at1_at
+      symptom_host: ch1_ch
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -504,9 +470,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: ie1_ie
-      observer_host: pc_at1_at
+      observer_host: pc_be1_be
       probe_dst_ip: 203.0.114.1
-      symptom_host: at1_at
+      symptom_host: be1_be
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -521,26 +487,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: ie1_ie
-      observer_host: pc_at1_at
-      probe_dst_ip: 203.0.115.1
-      symptom_host: at1_at
-      target_network: 203.0.115.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: ie1_ie
-      fault_type: bgp_hijacking
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: ie1_ie
-      observer_host: pc_be1_be
+      observer_host: pc_cz1_cz
       probe_dst_ip: 203.0.113.1
-      symptom_host: be1_be
+      symptom_host: cz1_cz
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -556,23 +505,6 @@ failure:
     inject:
       host_name: il1_il
       observer_host: pc_be1_be
-      probe_dst_ip: 203.0.113.1
-      symptom_host: be1_be
-      target_network: 203.0.113.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: il1_il
-      fault_type: bgp_hijacking
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: il1_il
-      observer_host: pc_be1_be
       probe_dst_ip: 203.0.114.1
       symptom_host: be1_be
       target_network: 203.0.114.0/24
@@ -605,10 +537,27 @@ failure:
     backend: containerlab
     device_profile: sonic
     inject:
+      host_name: il1_il
+      observer_host: pc_cz1_cz
+      probe_dst_ip: 203.0.113.1
+      symptom_host: cz1_cz
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: il1_il
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
       host_name: it1_it
-      observer_host: pc_at1_at
+      observer_host: pc_be1_be
       probe_dst_ip: 203.0.114.1
-      symptom_host: at1_at
+      symptom_host: be1_be
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -623,9 +572,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: it1_it
-      observer_host: pc_at1_at
+      observer_host: pc_ch1_ch
       probe_dst_ip: 203.0.115.1
-      symptom_host: at1_at
+      symptom_host: ch1_ch
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -640,9 +589,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: it1_it
-      observer_host: pc_be1_be
+      observer_host: pc_cz1_cz
       probe_dst_ip: 203.0.113.1
-      symptom_host: be1_be
+      symptom_host: cz1_cz
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -658,8 +607,42 @@ failure:
     inject:
       host_name: lu1_lu
       observer_host: pc_be1_be
-      probe_dst_ip: 203.0.113.1
+      probe_dst_ip: 203.0.114.1
       symptom_host: be1_be
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: lu1_lu
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: lu1_lu
+      observer_host: pc_be1_be
+      probe_dst_ip: 203.0.115.1
+      symptom_host: be1_be
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: lu1_lu
+      fault_type: bgp_hijacking
+  - topo_size: m
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: lu1_lu
+      observer_host: pc_cz1_cz
+      probe_dst_ip: 203.0.113.1
+      symptom_host: cz1_cz
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -673,44 +656,10 @@ failure:
     backend: containerlab
     device_profile: sonic
     inject:
-      host_name: lu1_lu
-      observer_host: pc_be1_be
-      probe_dst_ip: 203.0.114.1
-      symptom_host: be1_be
-      target_network: 203.0.114.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: lu1_lu
-      fault_type: bgp_hijacking
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: lu1_lu
-      observer_host: pc_be1_be
-      probe_dst_ip: 203.0.115.1
-      symptom_host: be1_be
-      target_network: 203.0.115.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: lu1_lu
-      fault_type: bgp_hijacking
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
       host_name: nl1_nl
-      observer_host: pc_at1_at
+      observer_host: pc_be1_be
       probe_dst_ip: 203.0.114.1
-      symptom_host: at1_at
+      symptom_host: be1_be
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -725,9 +674,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: nl1_nl
-      observer_host: pc_at1_at
+      observer_host: pc_be1_be
       probe_dst_ip: 203.0.115.1
-      symptom_host: at1_at
+      symptom_host: be1_be
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -742,9 +691,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: nl1_nl
-      observer_host: pc_be1_be
+      observer_host: pc_cz1_cz
       probe_dst_ip: 203.0.113.1
-      symptom_host: be1_be
+      symptom_host: cz1_cz
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -776,9 +725,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: ny1_ny
-      observer_host: pc_at1_at
+      observer_host: pc_be1_be
       probe_dst_ip: 203.0.114.1
-      symptom_host: at1_at
+      symptom_host: be1_be
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -793,31 +742,14 @@ failure:
     device_profile: sonic
     inject:
       host_name: ny1_ny
-      observer_host: pc_at1_at
+      observer_host: pc_ch1_ch
       probe_dst_ip: 203.0.115.1
-      symptom_host: at1_at
+      symptom_host: ch1_ch
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
         kind: node
         node: ny1_ny
-      fault_type: bgp_hijacking
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: pl1_pl
-      observer_host: pc_be1_be
-      probe_dst_ip: 203.0.113.1
-      symptom_host: be1_be
-      target_network: 203.0.113.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: pl1_pl
       fault_type: bgp_hijacking
   - topo_size: m
     igp: isis
@@ -843,15 +775,15 @@ failure:
     backend: containerlab
     device_profile: sonic
     inject:
-      host_name: pt1_pt
-      observer_host: pc_be1_be
+      host_name: pl1_pl
+      observer_host: pc_cz1_cz
       probe_dst_ip: 203.0.113.1
-      symptom_host: be1_be
+      symptom_host: cz1_cz
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
-        node: pt1_pt
+        node: pl1_pl
       fault_type: bgp_hijacking
   - topo_size: m
     igp: isis
@@ -878,9 +810,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: se1_se
-      observer_host: pc_at1_at
+      observer_host: pc_be1_be
       probe_dst_ip: 203.0.114.1
-      symptom_host: at1_at
+      symptom_host: be1_be
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -895,26 +827,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: se1_se
-      observer_host: pc_at1_at
-      probe_dst_ip: 203.0.115.1
-      symptom_host: at1_at
-      target_network: 203.0.115.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: se1_se
-      fault_type: bgp_hijacking
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: se1_se
-      observer_host: pc_be1_be
+      observer_host: pc_cz1_cz
       probe_dst_ip: 203.0.113.1
-      symptom_host: be1_be
+      symptom_host: cz1_cz
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -929,9 +844,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: si1_si
-      observer_host: pc_at1_at
+      observer_host: pc_be1_be
       probe_dst_ip: 203.0.114.1
-      symptom_host: at1_at
+      symptom_host: be1_be
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -946,48 +861,14 @@ failure:
     device_profile: sonic
     inject:
       host_name: si1_si
-      observer_host: pc_at1_at
+      observer_host: pc_ch1_ch
       probe_dst_ip: 203.0.115.1
-      symptom_host: at1_at
+      symptom_host: ch1_ch
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
         kind: node
         node: si1_si
-      fault_type: bgp_hijacking
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: sk1_sk
-      observer_host: pc_at1_at
-      probe_dst_ip: 203.0.115.1
-      symptom_host: at1_at
-      target_network: 203.0.115.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: sk1_sk
-      fault_type: bgp_hijacking
-  - topo_size: m
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: uk1_uk
-      observer_host: pc_be1_be
-      probe_dst_ip: 203.0.113.1
-      symptom_host: be1_be
-      target_network: 203.0.113.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: uk1_uk
       fault_type: bgp_hijacking
   - topo_size: m
     igp: isis

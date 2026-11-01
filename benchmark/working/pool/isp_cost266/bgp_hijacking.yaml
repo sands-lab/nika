@@ -11,9 +11,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: amsterdam
-      observer_host: pc_barcelona
+      observer_host: pc_london
       probe_dst_ip: 203.0.113.1
-      symptom_host: barcelona
+      symptom_host: london
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -28,10 +28,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: amsterdam
-      observer_host: pc_berlin
-      probe_dst_ip: 203.0.114.1
-      symptom_host: berlin
-      target_network: 203.0.114.0/24
+      observer_host: pc_london
+      probe_dst_ip: 203.0.115.1
+      symptom_host: london
+      target_network: 203.0.115.0/24
     root_causes:
     - resource:
         kind: node
@@ -45,10 +45,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: amsterdam
-      observer_host: pc_berlin
-      probe_dst_ip: 203.0.115.1
-      symptom_host: berlin
-      target_network: 203.0.115.0/24
+      observer_host: pc_warsaw
+      probe_dst_ip: 203.0.114.1
+      symptom_host: warsaw
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -61,95 +61,10 @@ failure:
     backend: containerlab
     device_profile: sonic
     inject:
-      host_name: athens
-      observer_host: pc_barcelona
+      host_name: barcelona
+      observer_host: pc_london
       probe_dst_ip: 203.0.113.1
-      symptom_host: barcelona
-      target_network: 203.0.113.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: athens
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: athens
-      observer_host: pc_belgrade
-      probe_dst_ip: 203.0.115.1
-      symptom_host: belgrade
-      target_network: 203.0.115.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: athens
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: athens
-      observer_host: pc_palermo
-      probe_dst_ip: 203.0.114.1
-      symptom_host: palermo
-      target_network: 203.0.114.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: athens
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: barcelona
-      observer_host: pc_amsterdam
-      probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
-      target_network: 203.0.114.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: barcelona
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: barcelona
-      observer_host: pc_amsterdam
-      probe_dst_ip: 203.0.115.1
-      symptom_host: amsterdam
-      target_network: 203.0.115.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: barcelona
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: barcelona
-      observer_host: pc_athens
-      probe_dst_ip: 203.0.113.1
-      symptom_host: athens
+      symptom_host: london
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -163,45 +78,28 @@ failure:
     backend: containerlab
     device_profile: sonic
     inject:
-      host_name: belgrade
-      observer_host: pc_amsterdam
-      probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
-      target_network: 203.0.114.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: belgrade
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: belgrade
-      observer_host: pc_athens
-      probe_dst_ip: 203.0.113.1
-      symptom_host: athens
-      target_network: 203.0.113.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: belgrade
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: belgrade
-      observer_host: pc_athens
+      host_name: barcelona
+      observer_host: pc_london
       probe_dst_ip: 203.0.115.1
-      symptom_host: athens
+      symptom_host: london
       target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: barcelona
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: belgrade
+      observer_host: pc_krakow
+      probe_dst_ip: 203.0.114.1
+      symptom_host: krakow
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -215,9 +113,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: berlin
-      observer_host: pc_amsterdam
+      observer_host: pc_krakow
       probe_dst_ip: 203.0.113.1
-      symptom_host: amsterdam
+      symptom_host: krakow
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -232,9 +130,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: berlin
-      observer_host: pc_amsterdam
+      observer_host: pc_krakow
       probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
+      symptom_host: krakow
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -249,9 +147,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: berlin
-      observer_host: pc_amsterdam
+      observer_host: pc_london
       probe_dst_ip: 203.0.115.1
-      symptom_host: amsterdam
+      symptom_host: london
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -266,9 +164,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: birmingham
-      observer_host: pc_amsterdam
+      observer_host: pc_london
       probe_dst_ip: 203.0.113.1
-      symptom_host: amsterdam
+      symptom_host: london
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -283,26 +181,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: birmingham
-      observer_host: pc_amsterdam
-      probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
-      target_network: 203.0.114.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: birmingham
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: birmingham
-      observer_host: pc_amsterdam
+      observer_host: pc_london
       probe_dst_ip: 203.0.115.1
-      symptom_host: amsterdam
+      symptom_host: london
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -317,9 +198,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: bordeaux
-      observer_host: pc_amsterdam
+      observer_host: pc_berlin
       probe_dst_ip: 203.0.113.1
-      symptom_host: amsterdam
+      symptom_host: berlin
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -334,26 +215,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: bordeaux
-      observer_host: pc_amsterdam
-      probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
-      target_network: 203.0.114.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: bordeaux
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: bordeaux
-      observer_host: pc_amsterdam
+      observer_host: pc_london
       probe_dst_ip: 203.0.115.1
-      symptom_host: amsterdam
+      symptom_host: london
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -368,9 +232,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: brussels
-      observer_host: pc_amsterdam
+      observer_host: pc_london
       probe_dst_ip: 203.0.113.1
-      symptom_host: amsterdam
+      symptom_host: london
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -385,10 +249,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: brussels
-      observer_host: pc_amsterdam
-      probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
-      target_network: 203.0.114.0/24
+      observer_host: pc_london
+      probe_dst_ip: 203.0.115.1
+      symptom_host: london
+      target_network: 203.0.115.0/24
     root_causes:
     - resource:
         kind: node
@@ -402,10 +266,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: brussels
-      observer_host: pc_amsterdam
-      probe_dst_ip: 203.0.115.1
-      symptom_host: amsterdam
-      target_network: 203.0.115.0/24
+      observer_host: pc_warsaw
+      probe_dst_ip: 203.0.114.1
+      symptom_host: warsaw
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -419,9 +283,26 @@ failure:
     device_profile: sonic
     inject:
       host_name: budapest
-      observer_host: pc_amsterdam
+      observer_host: pc_krakow
+      probe_dst_ip: 203.0.113.1
+      symptom_host: krakow
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: budapest
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: budapest
+      observer_host: pc_krakow
       probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
+      symptom_host: krakow
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -436,27 +317,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: budapest
-      observer_host: pc_amsterdam
+      observer_host: pc_london
       probe_dst_ip: 203.0.115.1
-      symptom_host: amsterdam
+      symptom_host: london
       target_network: 203.0.115.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: budapest
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: budapest
-      observer_host: pc_athens
-      probe_dst_ip: 203.0.113.1
-      symptom_host: athens
-      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -470,9 +334,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: copenhagen
-      observer_host: pc_amsterdam
+      observer_host: pc_berlin
       probe_dst_ip: 203.0.113.1
-      symptom_host: amsterdam
+      symptom_host: berlin
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -487,9 +351,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: copenhagen
-      observer_host: pc_amsterdam
+      observer_host: pc_krakow
       probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
+      symptom_host: krakow
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -504,9 +368,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: copenhagen
-      observer_host: pc_amsterdam
+      observer_host: pc_munich
       probe_dst_ip: 203.0.115.1
-      symptom_host: amsterdam
+      symptom_host: munich
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -521,9 +385,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: dublin
-      observer_host: pc_amsterdam
+      observer_host: pc_london
       probe_dst_ip: 203.0.113.1
-      symptom_host: amsterdam
+      symptom_host: london
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -538,26 +402,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: dublin
-      observer_host: pc_amsterdam
-      probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
-      target_network: 203.0.114.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: dublin
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: dublin
-      observer_host: pc_amsterdam
+      observer_host: pc_london
       probe_dst_ip: 203.0.115.1
-      symptom_host: amsterdam
+      symptom_host: london
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -572,9 +419,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: dusseldorf
-      observer_host: pc_amsterdam
+      observer_host: pc_berlin
       probe_dst_ip: 203.0.113.1
-      symptom_host: amsterdam
+      symptom_host: berlin
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -589,10 +436,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: dusseldorf
-      observer_host: pc_amsterdam
-      probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
-      target_network: 203.0.114.0/24
+      observer_host: pc_london
+      probe_dst_ip: 203.0.115.1
+      symptom_host: london
+      target_network: 203.0.115.0/24
     root_causes:
     - resource:
         kind: node
@@ -606,10 +453,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: dusseldorf
-      observer_host: pc_amsterdam
-      probe_dst_ip: 203.0.115.1
-      symptom_host: amsterdam
-      target_network: 203.0.115.0/24
+      observer_host: pc_warsaw
+      probe_dst_ip: 203.0.114.1
+      symptom_host: warsaw
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -623,9 +470,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: frankfurt
-      observer_host: pc_amsterdam
+      observer_host: pc_berlin
       probe_dst_ip: 203.0.113.1
-      symptom_host: amsterdam
+      symptom_host: berlin
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -640,10 +487,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: frankfurt
-      observer_host: pc_amsterdam
-      probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
-      target_network: 203.0.114.0/24
+      observer_host: pc_london
+      probe_dst_ip: 203.0.115.1
+      symptom_host: london
+      target_network: 203.0.115.0/24
     root_causes:
     - resource:
         kind: node
@@ -657,10 +504,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: frankfurt
-      observer_host: pc_amsterdam
-      probe_dst_ip: 203.0.115.1
-      symptom_host: amsterdam
-      target_network: 203.0.115.0/24
+      observer_host: pc_warsaw
+      probe_dst_ip: 203.0.114.1
+      symptom_host: warsaw
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -674,9 +521,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: glasgow
-      observer_host: pc_amsterdam
+      observer_host: pc_london
       probe_dst_ip: 203.0.113.1
-      symptom_host: amsterdam
+      symptom_host: london
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -691,10 +538,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: glasgow
-      observer_host: pc_amsterdam
-      probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
-      target_network: 203.0.114.0/24
+      observer_host: pc_london
+      probe_dst_ip: 203.0.115.1
+      symptom_host: london
+      target_network: 203.0.115.0/24
     root_causes:
     - resource:
         kind: node
@@ -708,10 +555,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: glasgow
-      observer_host: pc_amsterdam
-      probe_dst_ip: 203.0.115.1
-      symptom_host: amsterdam
-      target_network: 203.0.115.0/24
+      observer_host: pc_warsaw
+      probe_dst_ip: 203.0.114.1
+      symptom_host: warsaw
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -725,9 +572,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: hamburg
-      observer_host: pc_amsterdam
+      observer_host: pc_berlin
       probe_dst_ip: 203.0.113.1
-      symptom_host: amsterdam
+      symptom_host: berlin
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -742,9 +589,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: hamburg
-      observer_host: pc_amsterdam
+      observer_host: pc_krakow
       probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
+      symptom_host: krakow
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -759,9 +606,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: hamburg
-      observer_host: pc_amsterdam
+      observer_host: pc_london
       probe_dst_ip: 203.0.115.1
-      symptom_host: amsterdam
+      symptom_host: london
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -776,9 +623,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: helsinki
-      observer_host: pc_amsterdam
+      observer_host: pc_krakow
       probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
+      symptom_host: krakow
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -792,44 +639,10 @@ failure:
     backend: containerlab
     device_profile: sonic
     inject:
-      host_name: helsinki
-      observer_host: pc_amsterdam
-      probe_dst_ip: 203.0.115.1
-      symptom_host: amsterdam
-      target_network: 203.0.115.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: helsinki
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
       host_name: krakow
-      observer_host: pc_amsterdam
-      probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
-      target_network: 203.0.114.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: krakow
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: krakow
-      observer_host: pc_amsterdam
+      observer_host: pc_london
       probe_dst_ip: 203.0.115.1
-      symptom_host: amsterdam
+      symptom_host: london
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -844,10 +657,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: krakow
-      observer_host: pc_athens
-      probe_dst_ip: 203.0.113.1
-      symptom_host: athens
-      target_network: 203.0.113.0/24
+      observer_host: pc_warsaw
+      probe_dst_ip: 203.0.114.1
+      symptom_host: warsaw
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -861,9 +674,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: lisbon
-      observer_host: pc_amsterdam
+      observer_host: pc_london
       probe_dst_ip: 203.0.113.1
-      symptom_host: amsterdam
+      symptom_host: london
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -878,26 +691,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: lisbon
-      observer_host: pc_amsterdam
-      probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
-      target_network: 203.0.114.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: lisbon
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: lisbon
-      observer_host: pc_amsterdam
+      observer_host: pc_london
       probe_dst_ip: 203.0.115.1
-      symptom_host: amsterdam
+      symptom_host: london
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -912,44 +708,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: london
-      observer_host: pc_amsterdam
-      probe_dst_ip: 203.0.113.1
-      symptom_host: amsterdam
-      target_network: 203.0.113.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: london
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: london
-      observer_host: pc_amsterdam
+      observer_host: pc_warsaw
       probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
+      symptom_host: warsaw
       target_network: 203.0.114.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: london
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: london
-      observer_host: pc_amsterdam
-      probe_dst_ip: 203.0.115.1
-      symptom_host: amsterdam
-      target_network: 203.0.115.0/24
     root_causes:
     - resource:
         kind: node
@@ -963,9 +725,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: lyon
-      observer_host: pc_amsterdam
+      observer_host: pc_berlin
       probe_dst_ip: 203.0.113.1
-      symptom_host: amsterdam
+      symptom_host: berlin
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -980,26 +742,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: lyon
-      observer_host: pc_amsterdam
-      probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
-      target_network: 203.0.114.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: lyon
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: lyon
-      observer_host: pc_amsterdam
+      observer_host: pc_london
       probe_dst_ip: 203.0.115.1
-      symptom_host: amsterdam
+      symptom_host: london
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -1014,9 +759,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: madrid
-      observer_host: pc_amsterdam
+      observer_host: pc_berlin
       probe_dst_ip: 203.0.113.1
-      symptom_host: amsterdam
+      symptom_host: berlin
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -1031,26 +776,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: madrid
-      observer_host: pc_amsterdam
-      probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
-      target_network: 203.0.114.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: madrid
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: madrid
-      observer_host: pc_amsterdam
+      observer_host: pc_london
       probe_dst_ip: 203.0.115.1
-      symptom_host: amsterdam
+      symptom_host: london
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -1065,10 +793,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: marseille
-      observer_host: pc_amsterdam
-      probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
-      target_network: 203.0.114.0/24
+      observer_host: pc_london
+      probe_dst_ip: 203.0.113.1
+      symptom_host: london
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -1082,9 +810,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: marseille
-      observer_host: pc_amsterdam
+      observer_host: pc_london
       probe_dst_ip: 203.0.115.1
-      symptom_host: amsterdam
+      symptom_host: london
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -1099,10 +827,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: marseille
-      observer_host: pc_athens
-      probe_dst_ip: 203.0.113.1
-      symptom_host: athens
-      target_network: 203.0.113.0/24
+      observer_host: pc_rome
+      probe_dst_ip: 203.0.114.1
+      symptom_host: rome
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -1116,10 +844,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: milan
-      observer_host: pc_amsterdam
-      probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
-      target_network: 203.0.114.0/24
+      observer_host: pc_london
+      probe_dst_ip: 203.0.113.1
+      symptom_host: london
+      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -1133,9 +861,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: milan
-      observer_host: pc_amsterdam
+      observer_host: pc_london
       probe_dst_ip: 203.0.115.1
-      symptom_host: amsterdam
+      symptom_host: london
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -1150,10 +878,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: milan
-      observer_host: pc_athens
-      probe_dst_ip: 203.0.113.1
-      symptom_host: athens
-      target_network: 203.0.113.0/24
+      observer_host: pc_rome
+      probe_dst_ip: 203.0.114.1
+      symptom_host: rome
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -1167,9 +895,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: munich
-      observer_host: pc_amsterdam
+      observer_host: pc_berlin
       probe_dst_ip: 203.0.113.1
-      symptom_host: amsterdam
+      symptom_host: berlin
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -1184,9 +912,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: munich
-      observer_host: pc_amsterdam
+      observer_host: pc_krakow
       probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
+      symptom_host: krakow
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -1201,9 +929,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: munich
-      observer_host: pc_amsterdam
+      observer_host: pc_london
       probe_dst_ip: 203.0.115.1
-      symptom_host: amsterdam
+      symptom_host: london
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -1218,9 +946,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: oslo
-      observer_host: pc_amsterdam
+      observer_host: pc_krakow
       probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
+      symptom_host: krakow
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -1234,44 +962,10 @@ failure:
     backend: containerlab
     device_profile: sonic
     inject:
-      host_name: oslo
-      observer_host: pc_amsterdam
-      probe_dst_ip: 203.0.115.1
-      symptom_host: amsterdam
-      target_network: 203.0.115.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: oslo
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
       host_name: palermo
-      observer_host: pc_athens
-      probe_dst_ip: 203.0.113.1
-      symptom_host: athens
-      target_network: 203.0.113.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: palermo
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: palermo
-      observer_host: pc_athens
+      observer_host: pc_rome
       probe_dst_ip: 203.0.114.1
-      symptom_host: athens
+      symptom_host: rome
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -1285,27 +979,10 @@ failure:
     backend: containerlab
     device_profile: sonic
     inject:
-      host_name: palermo
-      observer_host: pc_athens
-      probe_dst_ip: 203.0.115.1
-      symptom_host: athens
-      target_network: 203.0.115.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: palermo
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
       host_name: paris
-      observer_host: pc_amsterdam
+      observer_host: pc_berlin
       probe_dst_ip: 203.0.113.1
-      symptom_host: amsterdam
+      symptom_host: berlin
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -1320,26 +997,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: paris
-      observer_host: pc_amsterdam
-      probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
-      target_network: 203.0.114.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: paris
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: paris
-      observer_host: pc_amsterdam
+      observer_host: pc_london
       probe_dst_ip: 203.0.115.1
-      symptom_host: amsterdam
+      symptom_host: london
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -1354,9 +1014,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: prague
-      observer_host: pc_amsterdam
+      observer_host: pc_berlin
       probe_dst_ip: 203.0.113.1
-      symptom_host: amsterdam
+      symptom_host: berlin
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -1371,9 +1031,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: prague
-      observer_host: pc_amsterdam
+      observer_host: pc_krakow
       probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
+      symptom_host: krakow
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -1388,9 +1048,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: prague
-      observer_host: pc_amsterdam
+      observer_host: pc_london
       probe_dst_ip: 203.0.115.1
-      symptom_host: amsterdam
+      symptom_host: london
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -1405,26 +1065,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: rome
-      observer_host: pc_amsterdam
-      probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
-      target_network: 203.0.114.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: rome
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: rome
-      observer_host: pc_athens
+      observer_host: pc_london
       probe_dst_ip: 203.0.113.1
-      symptom_host: athens
+      symptom_host: london
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -1439,9 +1082,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: rome
-      observer_host: pc_athens
+      observer_host: pc_milan
       probe_dst_ip: 203.0.115.1
-      symptom_host: athens
+      symptom_host: milan
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -1455,10 +1098,27 @@ failure:
     backend: containerlab
     device_profile: sonic
     inject:
+      host_name: rome
+      observer_host: pc_warsaw
+      probe_dst_ip: 203.0.114.1
+      symptom_host: warsaw
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: rome
+      fault_type: bgp_hijacking
+  - topo_size: l
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
       host_name: seville
-      observer_host: pc_amsterdam
+      observer_host: pc_berlin
       probe_dst_ip: 203.0.113.1
-      symptom_host: amsterdam
+      symptom_host: berlin
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -1473,26 +1133,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: seville
-      observer_host: pc_amsterdam
-      probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
-      target_network: 203.0.114.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: seville
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: seville
-      observer_host: pc_amsterdam
+      observer_host: pc_london
       probe_dst_ip: 203.0.115.1
-      symptom_host: amsterdam
+      symptom_host: london
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -1507,44 +1150,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: sofia
-      observer_host: pc_athens
-      probe_dst_ip: 203.0.113.1
-      symptom_host: athens
-      target_network: 203.0.113.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: sofia
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: sofia
-      observer_host: pc_athens
+      observer_host: pc_krakow
       probe_dst_ip: 203.0.114.1
-      symptom_host: athens
+      symptom_host: krakow
       target_network: 203.0.114.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: sofia
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: sofia
-      observer_host: pc_athens
-      probe_dst_ip: 203.0.115.1
-      symptom_host: athens
-      target_network: 203.0.115.0/24
     root_causes:
     - resource:
         kind: node
@@ -1558,27 +1167,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: stockholm
-      observer_host: pc_amsterdam
+      observer_host: pc_krakow
       probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
+      symptom_host: krakow
       target_network: 203.0.114.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: stockholm
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: stockholm
-      observer_host: pc_amsterdam
-      probe_dst_ip: 203.0.115.1
-      symptom_host: amsterdam
-      target_network: 203.0.115.0/24
     root_causes:
     - resource:
         kind: node
@@ -1592,9 +1184,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: strasbourg
-      observer_host: pc_amsterdam
+      observer_host: pc_berlin
       probe_dst_ip: 203.0.113.1
-      symptom_host: amsterdam
+      symptom_host: berlin
       target_network: 203.0.113.0/24
     root_causes:
     - resource:
@@ -1609,10 +1201,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: strasbourg
-      observer_host: pc_amsterdam
-      probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
-      target_network: 203.0.114.0/24
+      observer_host: pc_london
+      probe_dst_ip: 203.0.115.1
+      symptom_host: london
+      target_network: 203.0.115.0/24
     root_causes:
     - resource:
         kind: node
@@ -1626,10 +1218,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: strasbourg
-      observer_host: pc_amsterdam
-      probe_dst_ip: 203.0.115.1
-      symptom_host: amsterdam
-      target_network: 203.0.115.0/24
+      observer_host: pc_warsaw
+      probe_dst_ip: 203.0.114.1
+      symptom_host: warsaw
+      target_network: 203.0.114.0/24
     root_causes:
     - resource:
         kind: node
@@ -1643,9 +1235,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: vienna
-      observer_host: pc_amsterdam
+      observer_host: pc_krakow
       probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
+      symptom_host: krakow
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -1660,27 +1252,10 @@ failure:
     device_profile: sonic
     inject:
       host_name: vienna
-      observer_host: pc_amsterdam
+      observer_host: pc_london
       probe_dst_ip: 203.0.115.1
-      symptom_host: amsterdam
+      symptom_host: london
       target_network: 203.0.115.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: vienna
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: vienna
-      observer_host: pc_athens
-      probe_dst_ip: 203.0.113.1
-      symptom_host: athens
-      target_network: 203.0.113.0/24
     root_causes:
     - resource:
         kind: node
@@ -1694,9 +1269,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: warsaw
-      observer_host: pc_amsterdam
+      observer_host: pc_krakow
       probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
+      symptom_host: krakow
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -1711,9 +1286,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: warsaw
-      observer_host: pc_amsterdam
+      observer_host: pc_munich
       probe_dst_ip: 203.0.115.1
-      symptom_host: amsterdam
+      symptom_host: munich
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -1728,26 +1303,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: zagreb
-      observer_host: pc_athens
-      probe_dst_ip: 203.0.113.1
-      symptom_host: athens
-      target_network: 203.0.113.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: zagreb
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: zagreb
-      observer_host: pc_athens
+      observer_host: pc_munich
       probe_dst_ip: 203.0.115.1
-      symptom_host: athens
+      symptom_host: munich
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -1762,26 +1320,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: zurich
-      observer_host: pc_amsterdam
-      probe_dst_ip: 203.0.114.1
-      symptom_host: amsterdam
-      target_network: 203.0.114.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: zurich
-      fault_type: bgp_hijacking
-  - topo_size: l
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: zurich
-      observer_host: pc_athens
+      observer_host: pc_london
       probe_dst_ip: 203.0.113.1
-      symptom_host: athens
+      symptom_host: london
       target_network: 203.0.113.0/24
     root_causes:
     - resource:

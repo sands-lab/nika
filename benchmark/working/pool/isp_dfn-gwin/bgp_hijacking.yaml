@@ -11,26 +11,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: berlin
-      observer_host: pc_erlangen
-      probe_dst_ip: 203.0.113.1
-      symptom_host: erlangen
-      target_network: 203.0.113.0/24
-    root_causes:
-    - resource:
-        kind: node
-        node: berlin
-      fault_type: bgp_hijacking
-  - topo_size: s
-    igp: isis
-    bgp_mode: ibgp_rr
-    rpki: false
-    backend: containerlab
-    device_profile: sonic
-    inject:
-      host_name: berlin
-      observer_host: pc_erlangen
+      observer_host: pc_essen
       probe_dst_ip: 203.0.114.1
-      symptom_host: erlangen
+      symptom_host: essen
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -45,9 +28,26 @@ failure:
     device_profile: sonic
     inject:
       host_name: berlin
-      observer_host: pc_erlangen
+      observer_host: pc_frankfurt
+      probe_dst_ip: 203.0.113.1
+      symptom_host: frankfurt
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: berlin
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: berlin
+      observer_host: pc_frankfurt
       probe_dst_ip: 203.0.115.1
-      symptom_host: erlangen
+      symptom_host: frankfurt
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -79,9 +79,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: erlangen
-      observer_host: pc_berlin
+      observer_host: pc_essen
       probe_dst_ip: 203.0.114.1
-      symptom_host: berlin
+      symptom_host: essen
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -96,9 +96,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: erlangen
-      observer_host: pc_berlin
+      observer_host: pc_frankfurt
       probe_dst_ip: 203.0.115.1
-      symptom_host: berlin
+      symptom_host: frankfurt
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -130,9 +130,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: essen
-      observer_host: pc_berlin
+      observer_host: pc_frankfurt
       probe_dst_ip: 203.0.114.1
-      symptom_host: berlin
+      symptom_host: frankfurt
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -147,9 +147,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: essen
-      observer_host: pc_berlin
+      observer_host: pc_frankfurt
       probe_dst_ip: 203.0.115.1
-      symptom_host: berlin
+      symptom_host: frankfurt
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -181,9 +181,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: frankfurt
-      observer_host: pc_berlin
+      observer_host: pc_essen
       probe_dst_ip: 203.0.114.1
-      symptom_host: berlin
+      symptom_host: essen
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -198,9 +198,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: frankfurt
-      observer_host: pc_berlin
+      observer_host: pc_hamburg
       probe_dst_ip: 203.0.115.1
-      symptom_host: berlin
+      symptom_host: hamburg
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -232,9 +232,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: hamburg
-      observer_host: pc_berlin
+      observer_host: pc_essen
       probe_dst_ip: 203.0.114.1
-      symptom_host: berlin
+      symptom_host: essen
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -249,9 +249,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: hamburg
-      observer_host: pc_berlin
+      observer_host: pc_frankfurt
       probe_dst_ip: 203.0.115.1
-      symptom_host: berlin
+      symptom_host: frankfurt
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -283,9 +283,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: hannover
-      observer_host: pc_berlin
+      observer_host: pc_essen
       probe_dst_ip: 203.0.114.1
-      symptom_host: berlin
+      symptom_host: essen
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -300,9 +300,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: hannover
-      observer_host: pc_berlin
+      observer_host: pc_frankfurt
       probe_dst_ip: 203.0.115.1
-      symptom_host: berlin
+      symptom_host: frankfurt
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -334,9 +334,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: koeln
-      observer_host: pc_berlin
+      observer_host: pc_essen
       probe_dst_ip: 203.0.114.1
-      symptom_host: berlin
+      symptom_host: essen
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -351,9 +351,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: koeln
-      observer_host: pc_berlin
+      observer_host: pc_frankfurt
       probe_dst_ip: 203.0.115.1
-      symptom_host: berlin
+      symptom_host: frankfurt
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -368,9 +368,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: leipzig
-      observer_host: pc_berlin
+      observer_host: pc_essen
       probe_dst_ip: 203.0.114.1
-      symptom_host: berlin
+      symptom_host: essen
       target_network: 203.0.114.0/24
     root_causes:
     - resource:
@@ -385,9 +385,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: leipzig
-      observer_host: pc_berlin
+      observer_host: pc_frankfurt
       probe_dst_ip: 203.0.115.1
-      symptom_host: berlin
+      symptom_host: frankfurt
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
@@ -402,9 +402,9 @@ failure:
     device_profile: sonic
     inject:
       host_name: muenchen
-      observer_host: pc_berlin
+      observer_host: pc_frankfurt
       probe_dst_ip: 203.0.115.1
-      symptom_host: berlin
+      symptom_host: frankfurt
       target_network: 203.0.115.0/24
     root_causes:
     - resource:
