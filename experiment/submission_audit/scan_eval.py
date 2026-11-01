@@ -26,6 +26,7 @@ import json
 import shutil
 import tempfile
 import time
+import tomllib
 from collections import defaultdict
 from pathlib import Path
 
@@ -40,9 +41,37 @@ from auditlib.scan import ScanConfig, scan_trials
 from auditlib.trace import load_trial, trial_dirs
 
 HERE = Path(__file__).resolve().parent
+
+
+def _codex_without_mcp() -> tuple[str, ...]:
+    """Flags that disable the user's Codex MCP servers, which would otherwise
+    start on every call."""
+    config = Path.home() / ".codex" / "config.toml"
+    servers = (
+        tomllib.loads(config.read_text()).get("mcp_servers", {})
+        if config.is_file()
+        else {}
+    )
+    return tuple(
+        x for name in servers for x in ("-c", f"mcp_servers.{name}.enabled=false")
+    )
+
+
 # Agent CLIs that can stand in for the HTTP endpoint (prompt on stdin).
+_CODEX = ("codex", "exec", "--skip-git-repo-check", "-s", "read-only")
+_NO_MCP = _codex_without_mcp()
 CLI = {
-    "codex": ("codex", "exec", "--skip-git-repo-check", "-s", "read-only", "-"),
+    "codex": (*_CODEX, *_NO_MCP, "-"),
+    "luna": (
+        *_CODEX,
+        *_NO_MCP,
+        "-m",
+        "gpt-5.6-luna",
+        "-c",
+        "model_reasoning_effort=low",
+        "-",
+    ),
+    # Used for the Composer row of the README.
     "cursor": (
         "agent",
         "-p",
