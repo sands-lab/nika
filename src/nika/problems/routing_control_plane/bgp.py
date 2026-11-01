@@ -16,6 +16,7 @@ from nika.problems.support.frr import (
 from nika.problems.support.inject_resolve import resolve_victim_host_ip
 from nika.problems.support.kubernetes.base import control_node_from_net_env
 from nika.problems.support.oracle import (
+    srl_cli,
     Check,
     OraclePlaybook,
     OracleStep,
@@ -114,7 +115,9 @@ _BGP_ROW_DOWN = (
 )
 
 # A ``show bgp summary`` row of an Established session (prefix count as state).
-_BGP_ROW_UP = r"^\S+\s+4\s+\d+(?:\s+\d+){5}\s+\S+\s+\d+\s"
+# Established rows show a prefix count, or ``(Policy)`` when eBGP has no
+# policy and exchanges no routes (FRR's default ``ebgp-requires-policy``).
+_BGP_ROW_UP = r"^\S+\s+4\s+\d+(?:\s+\d+){5}\s+\S+\s+(?:\d+|\(Policy\))\s"
 
 
 def _peer_expects_other_asn(output: str) -> bool:
@@ -243,7 +246,7 @@ class BGPAsnMisconfig(ProblemBase):
         if not peers:
             raise RuntimeCapabilityError(f"No BGP peer of {host} in the topology.")
         peer = peers[0]
-        if self.lab_backend == "containerlab":
+        if srl_cli(self.net_env, host):
             return self._srl_playbook(host, peer)
         control = control_node_from_net_env(self.net_env)
         if control and getattr(self.net_env, "kubernetes_nodes", None):

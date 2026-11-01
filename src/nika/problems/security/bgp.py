@@ -295,7 +295,7 @@ class BGPHijacking(ProblemBase):
                         f"{hijacker} sources {prefix} as its best path",
                     ),
                     contains(
-                        r"Advertised to peers:\n\s+\d",
+                        r"Advertised to (?:non peer-group )?peers:\n\s+\d",
                         f"{hijacker} advertises it to its peers",
                     ),
                     *owner_seen,

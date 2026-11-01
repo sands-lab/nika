@@ -5,7 +5,11 @@ import re
 from pydantic import BaseModel, Field
 
 from nika.problems.rca import node_resource
-from nika.problems.rca.inventory import iter_link_termination_points, parse_endpoint
+from nika.problems.rca.inventory import (
+    iter_link_termination_points,
+    kernel_data_interface,
+    parse_endpoint,
+)
 from nika.problems.support.frr import FRR_CONF, frr_config_command
 from nika.problems.support.oracle import (
     Check,
@@ -40,7 +44,11 @@ def ospf_networks(config: str) -> list[tuple[str, str]]:
 
 def linked_routers(net_env, host: str) -> list[tuple[str, str, str]]:
     """``(local_intf, peer, peer_intf)`` for each point-to-point link from
-    ``host`` to another router in the topology."""
+    ``host`` to another router in the topology.
+
+    Interfaces carry the kernel names the routers report, so a SONiC port is
+    ``Ethernet{4(k-1)}`` rather than its container ``eth{k}``.
+    """
     routers = set(getattr(net_env, "routers", None) or []) or {
         name
         for name, identity in (
@@ -55,7 +63,13 @@ def linked_routers(net_env, host: str) -> list[tuple[str, str, str]]:
         ends = [parse_endpoint(str(tp)) for tp in tps]
         for (node, intf), (peer, peer_intf) in (ends, ends[::-1]):
             if node == host and peer in routers and peer != host:
-                links.append((intf, peer, peer_intf))
+                links.append(
+                    (
+                        kernel_data_interface(net_env, node, intf),
+                        peer,
+                        kernel_data_interface(net_env, peer, peer_intf),
+                    )
+                )
     return links
 
 

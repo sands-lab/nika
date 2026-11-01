@@ -18,6 +18,10 @@ from nika.problems.support.benchmark_targets import (
 from nika.problems.support.compatible_columns import NON_K8S_HOST_COLUMNS
 from nika.problems.support.dns import dns_client_steps
 from nika.problems.support.oracle import (
+    FILTER_DUMP,
+    any_of,
+    iptables_rule,
+    srl_cli,
     Check,
     OraclePlaybook,
     OracleStep,
@@ -55,14 +59,8 @@ _GW = "gw=$(ip -4 route show default | awk '{print $3; exit}')"
 
 
 def _nft_drops(node: str, expect: Check, purpose: str) -> OracleStep:
-    """Evidence: the node's nftables ruleset (tables, chains, drop rules)."""
-    return shell(
-        node,
-        "nft list ruleset 2>&1 | grep -nE 'table|chain|hook|drop|reject' | head -60",
-        purpose,
-        expect,
-        evidence=True,
-    )
+    """Evidence: the node's packet filter rules (nftables and iptables)."""
+    return shell(node, FILTER_DUMP, purpose, expect, evidence=True)
 
 
 def _nft_table_rule(family: str, rule: str, description: str) -> Check:
@@ -294,7 +292,7 @@ class BGPAclBlock(ProblemBase):
             f"An ACL on {host} drops BGP's TCP port 179, so its BGP sessions "
             "cannot re-establish and the routes they carried are lost."
         )
-        if self.lab_backend == "containerlab":
+        if srl_cli(self.net_env, host):
             return OraclePlaybook(
                 finding=finding,
                 steps=[
@@ -353,16 +351,28 @@ class BGPAclBlock(ProblemBase):
                 ),
                 _nft_drops(
                     host,
-                    all_of(
-                        _nft_table_rule(
-                            "inet",
-                            r"tcp dport 179 drop",
-                            "a rule drops TCP destination port 179",
+                    any_of(
+                        all_of(
+                            _nft_table_rule(
+                                "inet",
+                                r"tcp dport 179 drop",
+                                "a rule drops TCP destination port 179",
+                            ),
+                            _nft_table_rule(
+                                "inet",
+                                r"tcp sport 179 drop",
+                                "a rule drops TCP source port 179",
+                            ),
                         ),
-                        _nft_table_rule(
-                            "inet",
-                            r"tcp sport 179 drop",
-                            "a rule drops TCP source port 179",
+                        all_of(
+                            iptables_rule(
+                                r"-p tcp .*--dport 179",
+                                "a rule drops TCP destination port 179",
+                            ),
+                            iptables_rule(
+                                r"-p tcp .*--sport 179",
+                                "a rule drops TCP source port 179",
+                            ),
                         ),
                     ),
                     f"Inspect the packet filter on {host} for rules on BGP's TCP port 179.",
@@ -498,8 +508,11 @@ class OSPFAclBlock(ProblemBase):
                 ),
                 _nft_drops(
                     host,
-                    _nft_table_rule(
-                        "inet", r"ip protocol (ospf|89) drop", "a rule drops OSPF"
+                    any_of(
+                        _nft_table_rule(
+                            "inet", r"ip protocol (ospf|89) drop", "a rule drops OSPF"
+                        ),
+                        iptables_rule(r"-p (ospf|89)\b", "a rule drops OSPF"),
                     ),
                     f"Inspect the packet filter on {host} for rules on OSPF.",
                 ),

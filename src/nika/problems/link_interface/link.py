@@ -24,6 +24,7 @@ from nika.problems.support.oracle import (
     shell,
 )
 from nika.problems.rca.inventory import (
+    kernel_data_interface,
     interface_on,
     iter_link_termination_points,
     link_containing_endpoint,
@@ -195,22 +196,26 @@ def _probe_ends(net_env, node: str, intf: str) -> tuple[str, tuple[str, str]] | 
     Both link ends when both hold addresses. When one end is a switch (OVS,
     BMv2, SR Linux), the addressed end must be an end host and the other probe
     end is a host elsewhere in the lab, reached through that switch. ``None``
-    when no such pair exists (for example a switch-to-switch link).
+    when no such pair exists (for example a switch-to-switch link). The
+    target interface carries the kernel name its node reports.
     """
     peer = _link_peer(net_env, node, intf)
     if peer is None:
         return None
+    src, target = None, None
     if is_ip_node(net_env, node) and is_ip_node(net_env, peer[0]):
-        return node, peer
-    if _single_homed(net_env, node):
+        src, target = node, peer
+    elif _single_homed(net_env, node):
         remote = _remote_host(net_env, {node, peer[0]})
         if remote is not None:
-            return node, (remote, resolve_default_intf("eth0", net_env))
-    if _single_homed(net_env, peer[0]):
+            src, target = node, (remote, resolve_default_intf("eth0", net_env, remote))
+    if target is None and _single_homed(net_env, peer[0]):
         remote = _remote_host(net_env, {node, peer[0]})
         if remote is not None:
-            return remote, peer
-    return None
+            src, target = remote, peer
+    if target is None:
+        return None
+    return src, (target[0], kernel_data_interface(net_env, *target))
 
 
 def _burst_loss_ping(dst: str) -> str:
@@ -415,7 +420,7 @@ class LinkFailure(ProblemBase):
         )
 
     def oracle_playbook(self, params: LinkFailureParams) -> OraclePlaybook:
-        intf = resolve_default_intf(params.intf_name, self.net_env)
+        intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
         host = params.host_name
         steps = [
             shell(
@@ -625,7 +630,7 @@ class LinkFlap(ProblemBase):
         )
 
     def oracle_playbook(self, params: LinkFlapParams) -> OraclePlaybook:
-        intf = resolve_default_intf(params.intf_name, self.net_env)
+        intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
         host = params.host_name
         steps = [
             shell(
@@ -643,7 +648,9 @@ class LinkFlap(ProblemBase):
                     f"Sample the operational state of {host}:{intf} for 8 seconds.",
                     all_of(
                         contains(r"\bup$", f"{host}:{intf} is seen up"),
-                        contains(r"\bdown$", f"{host}:{intf} is seen down"),
+                        contains(
+                            r"\b(lowerlayer)?down$", f"{host}:{intf} is seen down"
+                        ),
                     ),
                     evidence=True,
                     timeout=20,
@@ -1013,7 +1020,7 @@ class LinkCapacityBottleneck(ProblemBase):
         )
 
     def oracle_playbook(self, params: LinkCapacityBottleneckParams) -> OraclePlaybook:
-        intf = resolve_default_intf(params.intf_name, self.net_env)
+        intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
         host = params.host_name
         peer = _link_peer(self.net_env, host, intf)
         steps = [
@@ -1348,7 +1355,7 @@ class LinkDetach(ProblemBase):
         )
 
     def oracle_playbook(self, params: LinkDetachParams) -> OraclePlaybook:
-        intf = resolve_default_intf(params.intf_name, self.net_env)
+        intf = resolve_default_intf(params.intf_name, self.net_env, params.host_name)
         host = params.host_name
         steps = [
             shell(

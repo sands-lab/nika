@@ -26,12 +26,14 @@ from nika.problems.support.p4_oracle import (
     int_path_summary,
 )
 from nika.problems.support.oracle import (
+    FILTER_DUMP,
+    any_of,
+    iptables_rule,
     p4rt,
     Check,
     OraclePlaybook,
     OracleStep,
     contains,
-    nft_rule,
     shell,
 )
 from nika.problems.support.router_ops import native_fault_ops, native_router_profile
@@ -258,10 +260,18 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
                 evidence=True,
             )
         else:
-            step = nft_rule(
+            step = shell(
                 host,
-                r"frag-needed.*drop",
+                FILTER_DUMP,
                 f"Inspect the packet filter on {host} for ICMP rules.",
+                any_of(
+                    contains(r"frag-needed.*drop", "a filter drops ICMP frag-needed"),
+                    iptables_rule(
+                        r"--icmp-type (3/4|fragmentation-needed)",
+                        "a filter drops ICMP frag-needed",
+                    ),
+                ),
+                evidence=True,
             )
         return OraclePlaybook(finding=finding, steps=[step])
 

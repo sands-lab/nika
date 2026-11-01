@@ -15,6 +15,7 @@ from nika.problems.support.router_ops import native_fault_ops
 
 from nika.problems.rca import node_resource
 from nika.problems.support.oracle import (
+    srl_cli,
     Check,
     OraclePlaybook,
     OracleStep,
@@ -71,7 +72,7 @@ def _blackhole_overrides_rib(output: str) -> bool:
     for blocks in by_prefix.values():
         local = any(
             re.search(r'Known via "(kernel|static)"', b)
-            and re.search(r"Selected", b)
+            and re.search(r"Selected|, best\b", b)
             and re.search(r"blackhole", b)
             for b in blocks
         )
@@ -302,7 +303,7 @@ class StaticBlackHole(ProblemBase):
             f"A locally configured static blackhole route on {host} overrides "
             "the learned route to a remote prefix and silently drops that traffic."
         )
-        if self.lab_backend == "containerlab":
+        if srl_cli(self.net_env, host):
             return OraclePlaybook(
                 finding=finding,
                 steps=[
