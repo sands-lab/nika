@@ -39,6 +39,7 @@ from nika.agents.sandbox.sbx.policy import (
     deny_mcp_gateway,
     deny_network_resources,
     ensure_pypi_network_policy,
+    require_confinable_sbx_policy,
     revoke_network_hosts,
     revoke_pypi_network_policy,
     sandbox_network_lockdown,
@@ -80,7 +81,12 @@ class SbxBackend(SandboxBackend):
             )
 
     def prepare_templates(self, agent_types: Sequence[str]) -> list[str]:
-        """Return the sbx template images for *agent_types* to pull on the host."""
+        """Return the sbx template images for *agent_types* to pull on the host.
+
+        Runs call this before deploying anything, so a network policy that
+        cannot confine the sandboxes stops the run here.
+        """
+        require_confinable_sbx_policy()
         return required_sbx_template_images(*agent_types)
 
     def prepare_host(
