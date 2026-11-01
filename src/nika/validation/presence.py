@@ -54,7 +54,7 @@ def fault_label(problem: Any) -> str:
     return type(problem).__name__
 
 
-def _anomaly_expected(session_dir: Path) -> bool:
+def anomaly_expected(session_dir: Path) -> bool:
     path = session_dir / "ground_truth.json"
     if not path.is_file():
         return False
@@ -65,7 +65,7 @@ def _anomaly_expected(session_dir: Path) -> bool:
     return bool(isinstance(payload, dict) and payload.get("is_anomaly"))
 
 
-def _remote_lab() -> bool:
+def remote_lab() -> bool:
     try:
         from nika.remote.config import is_remote_enabled
 
@@ -186,50 +186,21 @@ def recheck_artifact_with_retry(problem: Any, params: Any) -> dict[str, Any]:
 
 
 def _check_record(session_id: str, session_dir: Path, phase: str) -> dict[str, Any]:
-    anomaly = _anomaly_expected(session_dir)
-    bound = bound_injected_problem(session_id)
-    timestamp = datetime.now(UTC).isoformat()
-    if bound is None and not anomaly:
-        return {
-            "phase": phase,
-            "timestamp": timestamp,
-            "fault": "healthy",
-            "result": "not_applicable",
-            "scope": "artifact",
-            "check": "recheck_artifact",
-            "evidence": {"reason": "no fault injected"},
-            "error": None,
-        }
-    if bound is None and anomaly and _remote_lab():
-        try:
-            from nika.remote.client import RemoteClient
+    from nika.benchmark_engine import benchmark_engine
+    from nika.benchmark_engine.protocol import TrialHandle
 
-            raw = RemoteClient().fault_artifact(session_id)
-        except Exception as exc:  # noqa: BLE001 - record a failed bounded read
-            raw = {
-                "present": False,
-                "fault": None,
-                "evidence": {},
-                "error": f"{type(exc).__name__}: {exc}",
-            }
-    else:
-        raw = recheck_bound_artifact(session_id)
-    error = str(raw.get("error") or "")
-    if raw.get("present"):
-        result = "present"
-    elif raw.get("unbound") or (error and error != "fault artifact absent"):
-        result = "error"
-    else:
-        result = "absent"
+    check = benchmark_engine().fault_check(
+        TrialHandle(session_id=session_id, trial_dir=str(session_dir))
+    )
     return {
         "phase": phase,
-        "timestamp": timestamp,
-        "fault": raw.get("fault"),
-        "result": result,
+        "timestamp": datetime.now(UTC).isoformat(),
+        "fault": check.fault,
+        "result": check.result,
         "scope": "artifact",
         "check": "recheck_artifact",
-        "evidence": raw.get("evidence") or {},
-        "error": raw.get("error"),
+        "evidence": check.evidence,
+        "error": check.error,
     }
 
 

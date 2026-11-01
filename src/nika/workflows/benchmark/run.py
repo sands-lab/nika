@@ -29,10 +29,11 @@ from nika.firecracker.schedule import (
 )
 from nika.firecracker.trial import (
     TrialLab,
-    active_trial_lab,
     reap_orphan_trials,
     release_trial,
 )
+from nika.benchmark_engine import benchmark_engine
+from nika.benchmark_engine.protocol import TrialHandle, TrialRequest
 from nika.utils.session import Session
 from nika.utils.session_artifacts import (
     RUN_FILENAME,
@@ -65,7 +66,6 @@ from nika.workflows.benchmark.display import (
 )
 from nika.workflows.benchmark.healthy import (
     is_healthy_case,
-    write_healthy_session_artifacts,
 )
 from nika.workflows.benchmark.isp_options import ISP_DEPLOY_KEYS
 from nika.workflows.benchmark.load_config import load_benchmark_input
@@ -91,6 +91,7 @@ from nika.workflows.benchmark.release import (
     DEFAULT_RELEASE_VERSION,
     RUN_CONFIG_FILENAME,
     BenchmarkRelease,
+    ReleaseError,
     SplitName,
     build_job_metadata,
     build_run_identity,
@@ -99,6 +100,7 @@ from nika.workflows.benchmark.release import (
     normalize_split,
     preflight_release,
     release_fields_for_session,
+    verify_engine,
     write_job_metadata,
 )
 from nika.workflows.benchmark.resume import (
@@ -125,13 +127,7 @@ from nika.workflows.benchmark.trials import (
     trial_dir,
     trial_outcome,
 )
-from nika.workflows.env.start import start_net_env
-from nika.workflows.eval.session import (
-    eval_results,
-    run_eval_metrics,
-)
-from nika.workflows.failure.inject import inject_failure
-from nika.workflows.session.close import close_session, load_session_meta_for_close
+from nika.workflows.session.close import close_session
 
 
 def _maybe_start_inspect(
@@ -604,15 +600,16 @@ def _set_trial_outcome(
     update_run_json(session_dir, _stamp)
 
 
+def _trial_handle(session_id: str, session_dir: Path) -> TrialHandle:
+    return TrialHandle(session_id=session_id, trial_dir=str(session_dir))
+
+
 def _close_quietly(
     session_id: str, session_dir: Path, *, status: str = "finished"
 ) -> None:
     try:
-        close_session(
-            session_id=session_id,
-            undeploy=True,
-            session_dir=session_dir,
-            status=status,  # type: ignore[arg-type]
+        benchmark_engine().stop_trial(
+            _trial_handle(session_id, session_dir), status=status
         )
     except FileNotFoundError:
         pass  # Already closed (worker cleanup) or never registered.
@@ -695,10 +692,9 @@ def _finalize_failed_trial(
     # Counted finished slots get metrics; retryable error slots do not.
     if status == "finished":
         try:
-            run_eval_metrics(
-                session_id=session_id,
+            benchmark_engine().score(
+                _trial_handle(session_id, session_dir),
                 result_dir=result_dir,
-                session_dir=session_dir,
                 infra_evidence=score_status == "infra_error",
             )
         except Exception as eval_error:  # noqa: BLE001 - still record failure
@@ -811,8 +807,8 @@ def _close_and_eval_success(
         session_dir, outcome="success", agent_error=agent_error, score_status="scored"
     )
     try:
-        run_eval_metrics(
-            session_id=session_id, result_dir=result_dir, session_dir=session_dir
+        benchmark_engine().score(
+            _trial_handle(session_id, session_dir), result_dir=result_dir
         )
     except Exception as eval_error:  # noqa: BLE001 - outcome already stamped
         print(
@@ -912,13 +908,10 @@ def run_single_case(
     if not verbose:
         quiet_third_party_logging()
 
-    size = topo_size if topo_size else None
-    if scenario_requires_topo_size(scenario) and not size:
+    if scenario_requires_topo_size(scenario) and not topo_size:
         raise ValueError(
             f"Scenario '{scenario}' requires a non-empty topology size (-s s|m|l)."
         )
-    if not scenario_requires_topo_size(scenario):
-        size = None
 
     resolved_problems = list(
         problems or row_problems({"problem": problem, "inject": inject_params})
@@ -956,60 +949,35 @@ def run_single_case(
     if progress is not None and progress_label and predetermined_dir:
         progress.attach_session(progress_label, predetermined_dir)
 
-    image_lab = active_trial_lab()
+    engine = benchmark_engine()
+    healthy = is_healthy_case(problem)
+    request = TrialRequest(
+        task=row,
+        failures=resolved_problems,
+        inject=inject_args,
+        expected_root_causes=expected_root_causes,
+        healthy=healthy,
+        # Trial directory stays ``trials/{trial_id}``; SessionStore key must also
+        # incorporate result_dir so parallel same-task runs do not share a lab.
+        session_id=store_session_id_for_trial(trial_id, result_dir) or trial_id,
+        trial_dir=predetermined_dir,
+        result_dir=result_dir,
+        session_tag=session_tag,
+    )
 
     _phase("deploy")
-    # Trial directory stays ``trials/{trial_id}``; SessionStore key must also
-    # incorporate result_dir so parallel same-task runs do not share a lab.
-    store_session_id = store_session_id_for_trial(trial_id, result_dir) or trial_id
-    if image_lab is not None:
-        # Firecracker execution: the lab was restored from a lab image; adopt it.
-        session_id = image_lab.attach(
-            session_id=store_session_id,
-            result_dir=result_dir,
-            session_dir=predetermined_dir,
-        )
-    else:
-        session_id = start_net_env(
-            scenario,
-            size,
-            redeploy=True,
-            result_dir=result_dir,
-            session_tag=session_tag,
-            session_id=store_session_id,
-            session_dir=predetermined_dir,
-            topo=topo,
-            igp=igp,
-            bgp_mode=bgp_mode,
-            rpki=rpki,
-            backend=backend,
-            device_profile=device_profile,
-            telemetry=telemetry,
-            traffic=row.get("traffic"),
-        )
-    session_dir = Path(predetermined_dir) if predetermined_dir else None
+    handle = engine.start_trial(request)
+    session_id = handle.session_id
+    session_dir = handle.trial_path
     gt_written = False
 
     try:
-        if session_dir is None:
-            session_dir = Path(load_session_meta_for_close(session_id)["session_dir"])
-        if is_healthy_case(problem):
-            write_healthy_session_artifacts(session_id)
-        elif image_lab is not None and image_lab.case is not None:
-            # Restored from a case image: injected and ground truth written there.
-            pass
-        else:
+        if not healthy and not handle.preinjected:
             _phase("inject")
             # inject_failure resolves release-scoped failure variants from the
             # session's benchmark_version, so stamp it first.
             _stamp_release_meta(session_id, release_meta)
-            inject_failure(
-                problem_names=resolved_problems,
-                session_id=session_id,
-                param_overrides=inject_args,
-                expected_root_causes=expected_root_causes,
-            )
-        gt_written = (session_dir / "ground_truth.json").is_file()
+        gt_written = engine.inject(handle, request).ground_truth
 
         session = Session().load_running_session(session_id=session_id)
         session.update_session(
@@ -1050,7 +1018,11 @@ def run_single_case(
                 result_dir=result_dir,
             )
         else:
-            eval_results(session_id=session_id)
+            try:
+                engine.stop_trial(handle)
+            except FileNotFoundError:
+                pass  # Closed by another process while the agent ran.
+            engine.score(handle)
             _ensure_messages_file(session_dir)
             try:
                 closed = Session().load_closed_session(
@@ -1068,12 +1040,7 @@ def run_single_case(
         # --resume, and re-raise. Do not count as agent_failed.
         if _is_user_interrupt(exc):
             try:
-                close_session(
-                    session_id=session_id,
-                    undeploy=True,
-                    session_dir=session_dir,
-                    status="aborted",
-                )
+                engine.stop_trial(handle, status="aborted")
                 _mark_session_aborted(session_dir)
                 print(f"cleaned up interrupted session {session_id} (lab undeployed)")
             except Exception as cleanup_error:  # noqa: BLE001 - best effort
@@ -2103,6 +2070,14 @@ def run_benchmark_from_release(
     resolved = release or load_release(release_ref, split=resolved_split)
     if resolved.split != resolved_split:
         resolved = load_release(release_ref, split=resolved_split)
+    if resolved.manifest.get("engine") is not None:
+        raise ReleaseError(
+            f"Release {resolved.ref} runs on a pinned benchmark engine "
+            f"({resolved.manifest['engine'].get('tag')}), which this NIKA cannot "
+            "start yet."
+        )
+    engine = benchmark_engine().describe(resolved.version)
+    verify_engine(resolved, engine)
     n_trials = resolved.n_trials
     # Validate --task-id before preflight / image pulls so bad selectors fail fast.
     planned: list[Trial] | None = None
@@ -2129,6 +2104,7 @@ def run_benchmark_from_release(
         n_trials=n_trials,
         case_timeout_sec=effective_timeout,
         official=official,
+        engine=engine,
     )
     existing = load_run_config(results_root)
     job = merge_run_config(existing=existing, proposed=proposed)

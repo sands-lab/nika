@@ -931,6 +931,47 @@ class TestLeaderboardPackValidate:
         with pytest.raises(LeaderboardPackError, match="official"):
             _pack(result_dir)
 
+    def test_results_schema_and_provenance(self, mini_release_env) -> None:
+        from nika.workflows.leaderboard.validate_trajectories import (
+            sibling_trajectories_dir,
+            validate_trajectory_package,
+        )
+
+        _release, result_dir = mini_release_env
+        run_path = result_dir / "run.json"
+        data = json.loads(run_path.read_text(encoding="utf-8"))
+        data["results_schema"] = 1
+        data["provenance"] = {
+            "frontend": {"version": "1.0.0", "commit": "abc", "dirty": False},
+            "engine": {"release": "lb-mini", "commit": "abc", "dirty": False},
+            "protocol": 1,
+            "host": {"docker": "28.3.2", "kernel": "6.8.0"},
+        }
+        _write_json(run_path, data)
+        package = _pack(result_dir)
+        identity = yaml.safe_load(_identity_path(package).read_text(encoding="utf-8"))
+        assert identity["run"]["results_schema"] == 1
+        assert identity["run"]["provenance"]["host"]["docker"] == "28.3.2"
+        trajectories = sibling_trajectories_dir(package)
+
+        for identity_path in (
+            _identity_path(package),
+            trajectories / IDENTITY_FILENAME,
+        ):
+            identity = yaml.safe_load(identity_path.read_text(encoding="utf-8"))
+            identity["run"]["results_schema"] = 99
+            identity_path.write_text(yaml.safe_dump(identity), encoding="utf-8")
+        for report in (
+            validate_leaderboard_submission(package),
+            validate_trajectory_package(trajectories),
+        ):
+            assert not report.ok
+            assert any("results schema version 99" in e for e in report.errors)
+
+        _write_json(run_path, {**data, "results_schema": 99})
+        with pytest.raises(LeaderboardPackError, match="results schema version 99"):
+            _pack(result_dir)
+
     def test_pack_rejects_incomplete_trials(self, mini_release_env) -> None:
         _release, result_dir = mini_release_env
         trial = next((result_dir / "trials").iterdir())

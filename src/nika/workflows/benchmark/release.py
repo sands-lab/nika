@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
@@ -40,6 +41,14 @@ from nika.mcp.registry import (
     MCP_SERVER_SPECS,
     select_diagnosis_servers,
     SUBMISSION_SERVER,
+)
+from nika.benchmark_engine.protocol import (
+    EngineDescription,
+    MANIFEST_VERSIONS,
+    PROTOCOL_VERSIONS,
+    RESULTS_SCHEMA_VERSIONS,
+    UnsupportedContractVersion,
+    require_supported,
 )
 from nika.workflows.benchmark.load_config import load_benchmark_yaml
 from nika.workflows.benchmark.candidate_context import (
@@ -247,6 +256,72 @@ def _resolve_splits(manifest: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def _check_contract_versions(manifest: dict[str, Any], *, name: str) -> None:
+    """Refuse contract versions this NIKA does not speak (contract A).
+
+    Manifests that predate the contracts declare none of them.
+    """
+    checks: list[tuple[str, Any, frozenset[int]]] = []
+    if "manifest_version" in manifest:
+        checks.append(
+            ("Release manifest", manifest["manifest_version"], MANIFEST_VERSIONS)
+        )
+    engine = manifest.get("engine")
+    if engine is not None:
+        if not isinstance(engine, dict):
+            raise ReleaseError(f"Release {name}: 'engine' must be a mapping")
+        checks.append(("Lifecycle protocol", engine.get("protocol"), PROTOCOL_VERSIONS))
+        checks.append(
+            ("Results schema", engine.get("results_schema"), RESULTS_SCHEMA_VERSIONS)
+        )
+    for contract, version, supported in checks:
+        if isinstance(version, bool) or not isinstance(version, int):
+            raise ReleaseError(
+                f"Release {name}: {contract} version must be an integer, got {version!r}"
+            )
+        try:
+            require_supported(contract, version, supported)
+        except UnsupportedContractVersion as exc:
+            raise ReleaseError(f"Release {name}: {exc}") from exc
+
+
+def _check_split_hash(meta: dict[str, Any], path: Path, *, name: str) -> None:
+    expected = meta.get("sha256")
+    if expected is None or not path.is_file():
+        return
+    actual = hashlib.sha256(path.read_bytes()).hexdigest()
+    if actual != str(expected):
+        raise ReleaseError(
+            f"Release {name}: {path.name} does not match the sha256 in RELEASE.yaml "
+            f"(expected {expected}, got {actual}). The task file differs from the "
+            "published release."
+        )
+
+
+def verify_engine(release: BenchmarkRelease, engine: EngineDescription) -> None:
+    """Refuse to run *release* on an engine that does not match its manifest."""
+    if not set(engine.protocol_versions) & PROTOCOL_VERSIONS:
+        raise ReleaseError(
+            f"The benchmark engine of {release.ref} speaks lifecycle protocol "
+            f"versions {engine.protocol_versions}; this NIKA supports "
+            f"{sorted(PROTOCOL_VERSIONS)}."
+        )
+    if (engine.release_id, engine.release_version) != (release.id, release.version):
+        raise ReleaseError(
+            f"The benchmark engine serves {engine.release_id}@"
+            f"{engine.release_version}, not {release.ref}."
+        )
+    for name, meta in (release.manifest.get("splits") or {}).items():
+        expected = (meta or {}).get("sha256")
+        cases_file = str(release.splits[name]["cases_file"])
+        actual = engine.task_file_sha256.get(cases_file)
+        if expected is not None and actual != str(expected):
+            raise ReleaseError(
+                f"The benchmark engine's {cases_file} for {release.ref} does not "
+                f"match the sha256 in RELEASE.yaml (expected {expected}, got {actual})."
+            )
+
+
 def _normalize_split_meta(meta: dict[str, Any] | None, *, name: str) -> dict[str, Any]:
     meta = dict(meta or {})
     return {
@@ -285,6 +360,7 @@ def load_release_from_dir(
     manifest = _load_manifest(manifest_path)
     version = str(manifest.get("version") or root.name)
     _reject_deprecated_release(version)
+    _check_contract_versions(manifest, name=version)
     splits_raw = _resolve_splits(manifest)
     if split not in splits_raw:
         raise ReleaseError(
@@ -311,6 +387,7 @@ def load_release_from_dir(
     for name, meta in splits_raw.items():
         entry = _normalize_split_meta(meta, name=name)
         path = root / str(entry["cases_file"])
+        _check_split_hash(dict(meta or {}), path, name=version)
         if path.is_file() and not entry["case_count"]:
             entry["case_count"] = len(load_benchmark_yaml(path))
         resolved_splits[name] = entry
@@ -634,9 +711,15 @@ def build_run_identity(
     llm_provider: str | None = None,
     max_steps: int | None = None,
     n_trials: int = 1,
+    engine: EngineDescription | None = None,
 ) -> dict[str, Any]:
-    """Agent/run fields shared by release and ad-hoc ``--config`` run configs."""
+    """Agent/run fields shared by release and ad-hoc ``--config`` run configs.
+
+    *engine* is the benchmark engine's ``describe`` result for a release run;
+    it goes into the run's provenance.
+    """
     from nika.run_config.loader import get_run_config
+    from nika.workflows.benchmark.provenance import run_results_fields
     from nika.utils.agent_config import (
         resolve_agent_timeout,
         resolve_max_tokens,
@@ -664,6 +747,7 @@ def build_run_identity(
         "submission": get_run_config().agent.submission.identity(),
         "n_trials": int(n_trials),
         "official": official,
+        **run_results_fields(engine, commit=commit, dirty=dirty),
     }
 
 
@@ -678,6 +762,7 @@ def build_job_metadata(
     llm_provider: str | None = None,
     max_steps: int | None = None,
     n_trials: int = 1,
+    engine: EngineDescription | None = None,
 ) -> dict[str, Any]:
     return {
         "benchmark_id": release.id,
@@ -700,6 +785,7 @@ def build_job_metadata(
             llm_provider=llm_provider,
             max_steps=max_steps,
             n_trials=n_trials,
+            engine=engine,
         ),
     }
 

@@ -91,7 +91,9 @@ def test_remote_artifact_is_checked_during_and_before_cleanup(
     (tmp_path / "ground_truth.json").write_text(
         json.dumps({"is_anomaly": True}), encoding="utf-8"
     )
-    monkeypatch.setattr(presence, "_remote_lab", lambda: True)
+    from nika.benchmark_engine import engine as engine_module
+
+    monkeypatch.setattr(engine_module, "remote_lab", lambda: True)
     calls: list[str] = []
 
     def remote_check(_self: RemoteClient, session_id: str) -> dict:

@@ -15,6 +15,7 @@ A NIKA benchmark is a set of **tasks**. Each task combines a **network environme
 | **Telemetry** | Optional per-task monitoring data that devices in the environment export to a collector the agent can query: flow records (NetFlow, IPFIX, or sFlow), device metrics (Prometheus), and syslog. A task enables it with `telemetry:`; see [telemetry](docs/operations/network-scenarios.md#telemetry). |
 | **Trial** | One scored run of a task. A task can be repeated across multiple trials. |
 | **Benchmark release** | A published version of the benchmark tasks, such as `0.2.0`, split into Dev and Test sets. Published releases do not change; the [versioning policy](VERSIONING.md) defines how versions are numbered. |
+| **Benchmark engine** | The code of one benchmark release that deploys its environments, injects its failures, serves its MCP tools, and scores answers, built from the release's Git tag. The current NIKA CLI drives it through the [benchmark release contracts](docs/development/benchmark-contracts.md). It runs environments on an emulation backend such as Kathará, Containerlab, or Kubernetes, and is not one itself. |
 | **Benchmark revision** | The first two components of a release version, such as `1.0` in `1.0.3`. It identifies the tasks and evaluation that results were scored against, and the leaderboard shows it. |
 
 ## Runs

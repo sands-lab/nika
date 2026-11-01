@@ -13,7 +13,9 @@ from typing import Any
 import yaml
 
 from nika.config import REPO_ROOT, resolve_results_root
+from nika.benchmark_engine.protocol import UnsupportedContractVersion
 from nika.evaluator.validity import has_agent_trace
+from nika.workflows.benchmark.provenance import check_results_schema, results_schema_of
 from nika.workflows.benchmark.release import (
     ReleaseError,
     load_release,
@@ -312,6 +314,11 @@ def pack_leaderboard_submission(
         raise LeaderboardPackError(
             "Only official release runs can be packed (run.official must be true)"
         )
+    results_schema = results_schema_of(run_cfg)
+    try:
+        check_results_schema(results_schema)
+    except UnsupportedContractVersion as exc:
+        raise LeaderboardPackError(f"run.json: {exc}") from exc
     submission_mode = (run_cfg.get("submission") or {}).get("mode", "structured")
     if submission_mode != "structured":
         # Leaderboard scores assume the agent's own model submits its answer.
@@ -427,6 +434,8 @@ def pack_leaderboard_submission(
             ),
             nika_git_commit=run_cfg.get("nika_git_commit"),
             source_result_dir=_relative_result_hint(results_root),
+            results_schema=results_schema,
+            provenance=run_cfg.get("provenance"),
         ),
         trajectories_relpath=traj_relpath,
         scores_package=None,

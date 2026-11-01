@@ -10,12 +10,14 @@ from typing import Any
 import yaml
 from pydantic import ValidationError
 
+from nika.benchmark_engine.protocol import UnsupportedContractVersion
 from nika.config import REPO_ROOT
 from nika.evaluator.validity import DEFAULT_MAX_HARNESS_RATE, validity_findings
 from nika.workflows.benchmark.release import (
     ReleaseError,
     load_release,
 )
+from nika.workflows.benchmark.provenance import check_results_schema
 from nika.workflows.benchmark.trials import expand_trials
 from nika.workflows.leaderboard.aggregate import (
     aggregate_trial_results,
@@ -131,6 +133,13 @@ def validate_leaderboard_submission(
         return ValidationReport(
             ok=False,
             errors=[f"invalid {RESULTS_DIRNAME}/{IDENTITY_FILENAME}: {exc}"],
+        )
+
+    try:
+        check_results_schema(identity.run.results_schema)
+    except UnsupportedContractVersion as exc:
+        return ValidationReport(
+            ok=False, errors=[f"{RESULTS_DIRNAME}/{IDENTITY_FILENAME}: {exc}"]
         )
 
     try:

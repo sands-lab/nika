@@ -6,6 +6,11 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from nika.workflows.benchmark.provenance import (
+    UNVERSIONED_RESULTS_SCHEMA,
+    Provenance,
+)
+
 METADATA_FILENAME = "metadata.yaml"
 README_FILENAME = "README.md"
 RESULTS_DIRNAME = "results"
@@ -142,6 +147,9 @@ class RunIdentity(BaseModel):
     case_timeout_sec: int
     nika_git_commit: str | None = None
     source_result_dir: str | None = None
+    # Contract D; packages from runs recorded before it are schema 1.
+    results_schema: int = UNVERSIONED_RESULTS_SCHEMA
+    provenance: Provenance | None = None
 
 
 class PackageIdentity(BaseModel):

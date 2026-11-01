@@ -18,6 +18,7 @@ from nika.utils.session_artifacts import (
     write_json_atomic,
 )
 from nika.workflows.benchmark.isp_options import ISP_DEPLOY_KEYS
+from nika.workflows.benchmark.provenance import results_schema_of
 from nika.workflows.benchmark.outcomes import (
     COUNTED_OUTCOMES,
     KNOWN_OUTCOMES,
@@ -731,6 +732,13 @@ def assert_run_config_compatible(
         for key in _RUN_IDENTITY_FIELDS
         if key in existing and old.get(key) != new.get(key)
     ]
+    if "results_schema" in proposed:
+        recorded = results_schema_of(existing)
+        if recorded != proposed["results_schema"]:
+            mismatches.append(
+                f"results_schema: existing={recorded!r} "
+                f"requested={proposed['results_schema']!r}"
+            )
     if mismatches:
         raise ValueError(
             "Existing run under this --result_dir does not match the "
@@ -749,6 +757,7 @@ def merge_run_config(
 
     ``nika_git_commit`` / ``nika_git_dirty`` track the latest launch, and
     ``nika_git_history`` keeps every distinct commit the run was resumed from.
+    ``provenance`` and ``provenance_history`` do the same for run provenance.
     """
     now = _utc_now_iso()
     if existing is None:
@@ -759,6 +768,8 @@ def merge_run_config(
         out["updated_at"] = now
         if any(key in proposed for key in _GIT_FIELDS):
             out["nika_git_history"] = [_git_entry(proposed, now)]
+        if "provenance" in proposed:
+            out["provenance_history"] = [{**proposed["provenance"], "recorded_at": now}]
         return out
 
     assert_run_config_compatible(existing, proposed)
@@ -779,6 +790,21 @@ def merge_run_config(
         for key in _GIT_FIELDS:
             if key in proposed:
                 out[key] = proposed[key]
+    if "results_schema" in proposed:
+        out["results_schema"] = proposed["results_schema"]
+    if "provenance" in proposed:
+        history = list(out.get("provenance_history") or [])
+        if not history and existing.get("provenance"):
+            history.append(
+                {**existing["provenance"], "recorded_at": existing.get("created_at")}
+            )
+        last = dict(history[-1]) if history else None
+        if last is not None:
+            last.pop("recorded_at", None)
+        if last != proposed["provenance"]:
+            history.append({**proposed["provenance"], "recorded_at": now})
+        out["provenance_history"] = history
+        out["provenance"] = proposed["provenance"]
     return out
 
 

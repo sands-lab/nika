@@ -13,7 +13,7 @@ from typing import Iterator
 import uvicorn
 
 from nika.mcp.gateway.app import create_gateway_app, reset_gateway_mcp_state
-from nika.mcp.gateway.access import node_roles_for_session, policy_snapshot
+from nika.mcp.gateway.access import policy_snapshot
 from nika.mcp.gateway.session_registry import (
     clear_sessions,
     register_session,
@@ -208,7 +208,7 @@ def _shutdown_manager(
             clear_sessions()
 
 
-def _resolve_session_backend(scenario_name: str) -> str | None:
+def resolve_session_backend(scenario_name: str) -> str | None:
     if not scenario_name:
         return None
     try:
@@ -243,22 +243,27 @@ def mcp_gateway_for_session(
     bind_host = host
     if sandbox and bind_host is None:
         bind_host = SANDBOX_GATEWAY_BIND_HOST
-    resolved_backend = backend or _resolve_session_backend(scenario_name)
+    resolved_backend = backend or resolve_session_backend(scenario_name)
     manager = start_gateway(host=bind_host, port=port, backend=resolved_backend)
     if sandbox:
         set_gateway_agent_url(manager, agent_host=sandbox_agent_host)
-    from nika.mcp.registry import select_diagnosis_servers
+    from nika.benchmark_engine import benchmark_engine
+    from nika.benchmark_engine.protocol import TrialHandle
     from nika.run_config.loader import get_run_config
-    from nika.telemetry import telemetry_for_session
     from nika.utils.session_store import SessionStore
 
     access = get_run_config().agent.access
     role = access.role
     policy = access.roles[role]
     row = SessionStore().get_session(session_id)
-    node_roles = node_roles_for_session(session_id)
-    snapshot = policy_snapshot(role=role, policy=policy, node_roles=node_roles)
     session_dir = str(row["session_dir"])
+    # The benchmark engine decides the tool surface; the gateway enforces it.
+    endpoints = benchmark_engine().agent_endpoints(
+        TrialHandle(session_id=session_id, trial_dir=session_dir)
+    )
+    snapshot = policy_snapshot(
+        role=role, policy=policy, node_roles=endpoints.node_roles
+    )
     agent_session_id = str(row.get("agent_session_id") or "").strip() or None
     register_session(
         session_id,
@@ -266,16 +271,8 @@ def mcp_gateway_for_session(
         scenario_name=scenario_name,
         session_dir=session_dir,
         access_policy=snapshot["diagnosis"],
-        node_roles=node_roles,
-        diagnosis_servers=(
-            select_diagnosis_servers(
-                scenario_name,
-                backend=resolved_backend,
-                telemetry=telemetry_for_session(row),
-            )
-            if scenario_name
-            else None
-        ),
+        node_roles=endpoints.node_roles,
+        diagnosis_servers=endpoints.diagnosis_servers,
     )
     try:
         yield manager

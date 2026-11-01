@@ -668,12 +668,12 @@ def _run_case_with_failing_agent(tmp_path: Path, agent_effect) -> Path:
 
     with (
         patch(
-            "nika.workflows.benchmark.run.start_net_env",
+            "nika.benchmark_engine.engine.start_net_env",
             side_effect=fake_start_net_env,
         ),
-        patch("nika.workflows.benchmark.run.inject_failure", side_effect=fake_inject),
+        patch("nika.benchmark_engine.engine.inject_failure", side_effect=fake_inject),
         patch("nika.workflows.benchmark.run.start_agent", side_effect=fake_agent),
-        patch("nika.workflows.benchmark.run.close_session"),
+        patch("nika.benchmark_engine.engine.close_session"),
         patch("nika.workflows.benchmark.run._stamp_release_meta"),
         patch("nika.workflows.benchmark.run._stamp_trial_meta"),
         patch(
