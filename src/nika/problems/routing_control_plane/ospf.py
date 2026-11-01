@@ -517,10 +517,13 @@ class OSPFNeighborMissing(ProblemBase):
             ospf = _ospf_ifaces(output.split("===", 1)[0])
             if not ospf:
                 return []
+            # TAP ports, such as SONiC's, report UNKNOWN while they forward.
             up = {
                 m.group(1)
                 for m in re.finditer(
-                    r"^(\S+?)(?:@\S+)?\s+UP\s+\d+\.\d+\.\d+\.\d+/", output, re.M
+                    r"^(\S+?)(?:@\S+)?\s+(?:UP|UNKNOWN)\s+\d+\.\d+\.\d+\.\d+/",
+                    output,
+                    re.M,
                 )
             }
             return [intf for intf, *_ in links if intf in up and intf not in ospf]
