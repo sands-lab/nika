@@ -47,6 +47,33 @@ def test_link_flap_records_controller_target() -> None:
     assert "_controller_target" in LinkFlap.RECORDED_ATTRS
 
 
+def test_link_flap_inject_sets_controller_target(monkeypatch) -> None:
+    seen: dict[str, str] = {}
+
+    class Controller:
+        def __init__(self, runtime) -> None:
+            pass
+
+        def peer_name(self, host: str, intf: str) -> str:
+            seen["peer"] = f"{host}:{intf}"
+            return "nwabc123"
+
+        def start_link_flap(self, peer: str, down_time: int, up_time: int) -> None:
+            seen["start"] = peer
+
+        def start_node_link_flap(self, *args, **kwargs):
+            raise AssertionError("must not flap inside the node")
+
+    runtime = SimpleNamespace(backend="containerlab")
+    problem = _problem(LinkFlap, runtime)
+    monkeypatch.setattr(link_mod, "HostTcController", Controller)
+    problem.inject_fault(
+        LinkFlapParams(host_name="leaf1", intf_name="eth1", down_time=1, up_time=1)
+    )
+    assert problem._controller_target == "nwabc123"
+    assert seen["start"] == "nwabc123"
+
+
 def test_link_flap_verify_and_recover_discover_host_peer(monkeypatch) -> None:
     seen: dict[str, str] = {}
 
@@ -304,6 +331,69 @@ def test_static_route_replace_skips_ra_and_emits_canonical_default() -> None:
         static_route_replace_command("-6", static, "eth1")
         == "ip -6 route replace default via 1000:10::24 metric 1024 proto boot dev eth1"
     )
+
+
+def test_static_route_replace_emits_onlink_src_table_and_nexthops() -> None:
+    link_local = {
+        "dst": "default",
+        "gateway": "fe80::1",
+        "protocol": "boot",
+        "metric": 1024,
+        "prefsrc": "1000:10::24",
+        "flags": ["onlink"],
+    }
+    assert static_route_replace_command("-6", link_local, "eth1") == (
+        "ip -6 route replace default via fe80::1 metric 1024 proto boot "
+        "src 1000:10::24 dev eth1 onlink"
+    )
+    # Link-local gateways need onlink even when the dump omitted the flag.
+    bare_ll = {"dst": "default", "gateway": "fe80::1", "protocol": "static"}
+    command = static_route_replace_command("-6", bare_ll, "eth1")
+    assert command is not None and command.endswith("onlink")
+    tabled = {
+        "dst": "10.9.0.0/16",
+        "gateway": "10.1.1.1",
+        "protocol": "boot",
+        "table": 100,
+        "src": "10.1.1.2",
+    }
+    assert static_route_replace_command("-4", tabled, "eth1") == (
+        "ip -4 route replace 10.9.0.0/16 via 10.1.1.1 proto boot "
+        "src 10.1.1.2 table 100 dev eth1"
+    )
+    multipath = {
+        "dst": "10.0.0.0/8",
+        "protocol": "boot",
+        "nexthops": [
+            {"gateway": "10.0.0.1", "dev": "eth1", "weight": 1},
+            {"gateway": "10.0.0.2", "dev": "eth1", "weight": 1},
+        ],
+    }
+    assert static_route_replace_command("-4", multipath, "eth1") == (
+        "ip -4 route replace 10.0.0.0/8 proto boot "
+        "nexthop via 10.0.0.1 dev eth1 weight 1 "
+        "nexthop via 10.0.0.2 dev eth1 weight 1"
+    )
+    one_hop = {
+        "dst": "10.8.0.0/16",
+        "protocol": "boot",
+        "nexthops": [{"gateway": "10.0.0.1", "dev": "eth1", "flags": ["onlink"]}],
+    }
+    assert static_route_replace_command("-4", one_hop, "eth1") == (
+        "ip -4 route replace 10.8.0.0/16 proto boot "
+        "nexthop via 10.0.0.1 dev eth1 onlink"
+    )
+
+
+def test_static_route_replace_skips_unexpressable_nexthops() -> None:
+    other_dev = {
+        "dst": "10.0.0.0/8",
+        "protocol": "boot",
+        "nexthops": [{"gateway": "10.0.0.1", "dev": "eth2"}],
+    }
+    assert static_route_replace_command("-4", other_dev, "eth1") is None
+    local = {"dst": "default", "table": 255}
+    assert static_route_replace_command("-4", local, "eth1") is None
 
 
 def test_parse_ip_route_json_empty_and_invalid() -> None:
