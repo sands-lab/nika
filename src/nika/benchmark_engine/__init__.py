@@ -15,6 +15,13 @@ from nika.benchmark_engine.protocol import LifecycleProtocol
 _active: LifecycleProtocol | None = None
 # How spawned trial workers of a run reach its benchmark engine container.
 ENV_ENGINE_URL = "NIKA_ENGINE_URL"
+# Set by ``nika engine serve``: the process runs environments, never agents.
+ENV_ENGINE_SERVER = "NIKA_ENGINE_SERVER"
+
+
+def is_engine_server() -> bool:
+    """True inside a benchmark engine container's service."""
+    return os.environ.get(ENV_ENGINE_SERVER) == "1"
 
 
 @cache

@@ -264,7 +264,13 @@ def cleanup_session_sandbox(session_meta: dict, *, session_id: str) -> None:
     """Best-effort remove this session's agent sandbox after hard-kill/close.
 
     Scoped to ``agent_session_id`` only — never wipes other concurrent sandboxes.
+    A benchmark engine container skips it: agents run on the frontend's host,
+    which removes their sandboxes.
     """
+    from nika.benchmark_engine import is_engine_server
+
+    if is_engine_server():
+        return
     try:
         from nika.agents.sandbox.backend import cleanup_sandbox_for_session
 

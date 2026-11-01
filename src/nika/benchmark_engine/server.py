@@ -135,6 +135,9 @@ def serve_engine(
     """Serve this NIKA's benchmark engine over HTTP (blocking)."""
     from nika.remote.server import configure_host_logging
 
+    from nika.benchmark_engine import ENV_ENGINE_SERVER
+
+    os.environ[ENV_ENGINE_SERVER] = "1"
     configure_host_logging()
     logging.getLogger("nika.benchmark_engine").addHandler(logging.StreamHandler())
     if parent_pid:

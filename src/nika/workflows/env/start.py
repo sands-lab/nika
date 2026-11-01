@@ -541,12 +541,16 @@ def start_net_env(
         if redeploy or not lab_exists:
             # When run config selects a sandbox agent, prepare its sandbox
             # template alongside lab images (not at per-case agent start). A
-            # lab-host daemon has no agents: they run on the client's host.
+            # lab-host daemon and a benchmark engine container have no agents:
+            # they run on the frontend's host, which prepared the template.
             from nika.agents.sandbox.backend import prepare_configured_sandbox_templates
+            from nika.benchmark_engine import is_engine_server
             from nika.remote.config import is_remote_server
 
             images = (
-                [] if is_remote_server() else prepare_configured_sandbox_templates()
+                []
+                if is_remote_server() or is_engine_server()
+                else prepare_configured_sandbox_templates()
             )
             from nika.net_env.utils.kathara.docker_files.docker_images import (
                 ensure_nika_docker_images,
