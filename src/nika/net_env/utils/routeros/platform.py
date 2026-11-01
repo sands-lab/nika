@@ -13,6 +13,7 @@ from nika.net_env.native_routers import (
 from nika.net_env.utils.routeros.common import (
     IMAGE,
     INTERFACE_RATE_KBPS,
+    ROUTER_MEMORY_MIB,
     require_routeros_image,
     routeros_config_applied,
 )
@@ -32,7 +33,7 @@ def _check_deployable(env) -> None:
     require_native_lab_memory(
         f"{env.LAB_NAME} on RouterOS",
         routers=routers,
-        per_router=GIB,
+        per_router=ROUTER_MEMORY_MIB * GIB // 1024,
         hosts=len(env.lab.machines) - routers,
     )
 

@@ -26,22 +26,24 @@ class RemoteSettings(BaseModel):
     artifact_root: str | None = None
 
 
-# VM memory of labs that outgrow the default ``vm_memory``: k8s and SR Linux
-# labs, large ISP topologies, Cisco XRd (whose build otherwise runs out of
-# memory), and dc_clos (size l uses more than 4 GiB in the guest).
-# ``vm_memory_overrides`` entries take precedence.
+# VM memory of labs that outgrow the default ``vm_memory``: k8s labs, the SR
+# Linux min3clos, Cisco XRd (whose build otherwise runs out of memory), and
+# dc_clos (size l uses more than 4 GiB in the guest). A variant whose routers
+# run a router platform is sized from the platform instead (see
+# nika.firecracker.image.vm_memory_mib); ``vm_memory_overrides`` entries take
+# precedence over both.
 DEFAULT_VM_MEMORY_OVERRIDES = {
     "dc_clos": "8GiB",
     "k8s_lab": "8GiB",
     "llmd_lab": "8GiB",
     "min3clos": "8GiB",
     "iosxr_simple_bgp": "8GiB",
-    "isp_pdh": "20GiB",
-    "isp_di-yuan": "20GiB",
-    "isp_dfn-gwin": "20GiB",
 }
 # vCPUs of labs that outgrow the default ``vm_cpus``. 11-router SR Linux labs
-# use about 10 host cores natively. ``vm_cpus_overrides`` entries take precedence.
+# use about 10 host cores natively. A variant whose routers run a router
+# platform is sized from the platform instead (see
+# nika.firecracker.image.vm_cpus); ``vm_cpus_overrides`` entries take
+# precedence over both.
 DEFAULT_VM_CPU_OVERRIDES = {
     "isp_pdh": 12,
     "isp_di-yuan": 12,
@@ -71,18 +73,15 @@ class FirecrackerSettings(BaseModel):
     # paths are under the NIKA checkout, so uninstalling NIKA removes it.
     root: str = "runtime/firecracker"
     vm_cpus: int = Field(default=4, ge=1)
-    # Scenario id -> vCPUs, merged over DEFAULT_VM_CPU_OVERRIDES.
-    vm_cpus_overrides: dict[str, int] = Field(
-        default_factory=lambda: dict(DEFAULT_VM_CPU_OVERRIDES)
-    )
+    # Scenario id or <scenario>@<device_profile> -> vCPUs. Overrides the size
+    # NIKA derives from the variant's router platform and DEFAULT_VM_CPU_OVERRIDES.
+    vm_cpus_overrides: dict[str, int] = Field(default_factory=dict)
     # Most Kathara labs use under 2 GiB; with huge pages, admission reserves all of it.
     vm_memory: str = "4GiB"
     # Scenario id -> VM memory, for larger labs, merged over
     # DEFAULT_VM_MEMORY_OVERRIDES. Image builds warn when a lab leaves too
     # little of its VM memory free.
-    vm_memory_overrides: dict[str, str] = Field(
-        default_factory=lambda: dict(DEFAULT_VM_MEMORY_OVERRIDES)
-    )
+    vm_memory_overrides: dict[str, str] = Field(default_factory=dict)
     # Back VM memory with 2 MiB huge pages reserved on the host (vm.nr_hugepages),
     # which Firecracker execution requires. Without them (false), the guest runs
     # on 4 KiB pages and concurrent case-image restores slow the lab for seconds.
@@ -107,21 +106,17 @@ class FirecrackerSettings(BaseModel):
     @field_validator("vm_cpus_overrides")
     @classmethod
     def _cpus_at_least_one(cls, value: dict[str, int]) -> dict[str, int]:
-        merged = {**DEFAULT_VM_CPU_OVERRIDES, **value}
-        for scenario, cpus in merged.items():
+        for scenario, cpus in value.items():
             if not isinstance(cpus, int) or isinstance(cpus, bool) or cpus < 1:
                 raise ValueError(
                     f"VM CPUs must be an integer >= 1, got {cpus!r} for {scenario}"
                 )
-        return merged
+        return value
 
     @field_validator("vm_memory_overrides")
     @classmethod
     def _overrides_in_gib(cls, value: dict[str, str]) -> dict[str, str]:
-        return {
-            scenario: _gib(memory)
-            for scenario, memory in {**DEFAULT_VM_MEMORY_OVERRIDES, **value}.items()
-        }
+        return {key: _gib(memory) for key, memory in value.items()}
 
 
 class SandboxSettings(BaseModel):

@@ -7,6 +7,8 @@ import pytest
 from nika.mcp.k8s.server import mcp as k8s_mcp
 from nika.mcp.registry import select_diagnosis_servers
 from nika.mcp.servers.common.host_server import mcp as host_mcp
+from nika.mcp.gateway.access import TOOL_NODE_ARGUMENTS
+from nika.mcp.servers.containerlab.sonic_server import mcp as sonic_mcp
 from nika.mcp.servers.containerlab.srl_server import mcp as srl_mcp
 from nika.mcp.servers.kathara.frr_server import mcp as frr_mcp
 from nika.mcp.servers.kathara.iosxr_server import mcp as iosxr_mcp
@@ -28,6 +30,7 @@ async def test_generic_and_specialized_tool_catalog() -> None:
         (iosxr_mcp, {"iosxr_exec"}),
         (routeros_mcp, {"routeros_exec"}),
         (srl_mcp, {"srl_exec_cli"}),
+        (sonic_mcp, {"sonic_exec_cli"}),
         (sdn_mcp, {"sdn_onos_rest"}),
         (netflow_mcp, {"netflow_query"}),
         (prometheus_mcp, {"prometheus_query"}),
@@ -35,6 +38,20 @@ async def test_generic_and_specialized_tool_catalog() -> None:
     )
     for server, names in expected:
         assert {tool.name for tool in await server.list_tools()} == names
+
+
+def test_containerlab_routers_get_their_platform_cli_server() -> None:
+    def vendor(scenario: str, device_profile: str | None) -> set[str]:
+        servers = select_diagnosis_servers(
+            scenario, backend="containerlab", device_profile=device_profile
+        )
+        return {s for s in servers if s.startswith("containerlab_")}
+
+    for scenario in ("min3clos", "isp_dfn-bwin"):
+        assert vendor(scenario, None) == {"containerlab_srl_mcp_server"}
+        assert vendor(scenario, "nokia_srlinux") == {"containerlab_srl_mcp_server"}
+        assert vendor(scenario, "sonic") == {"containerlab_sonic_mcp_server"}
+    assert TOOL_NODE_ARGUMENTS["sonic_exec_cli"] == ("device_name",)
 
 
 def test_frr_server_only_selected_for_rpki() -> None:

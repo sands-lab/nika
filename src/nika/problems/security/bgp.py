@@ -145,10 +145,14 @@ class BGPHijacking(ProblemBase):
     TAGS: str = ["bgp"]
     native_router_operations = frozenset({"bgp_advertised_to", "originate_bgp_prefix"})
     INCOMPATIBLE_SCENARIOS = {
+        "min3clos": "The fabric's eBGP sessions have no route policies, so peers "
+        "accept no BGP routes and an originated prefix never leaves the router.",
         "routeros_simple_bgp": "The injector reads and edits the FRR BGP "
-        "configuration, which RouterOS routers do not have."
+        "configuration, which RouterOS routers do not have.",
     }
-    supported_backends = ("kathara",)
+    # Kathara, plus Containerlab platforms whose provider originates the
+    # prefix (SONiC). SR Linux has no implementation.
+    supported_backends = None
     BENCHMARK_TARGET_ROLE = "access_routers"
 
     Params = BGPHijackingParams
@@ -291,7 +295,7 @@ class BGPHijacking(ProblemBase):
                         f"{hijacker} sources {prefix} as its best path",
                     ),
                     contains(
-                        r"Advertised to peers:\n\s+\d",
+                        r"Advertised to (?:non peer-group )?peers:\n\s+\d",
                         f"{hijacker} advertises it to its peers",
                     ),
                     *owner_seen,
@@ -365,18 +369,17 @@ class BGPHijacking(ProblemBase):
             # Routers may hold updates for their minimum advertisement
             # interval (30 s for eBGP on IOS XR); inject returns once sent.
             network = str(ipaddress.ip_network(target_network, strict=False))
-            wait_until(lambda: ops.bgp_advertised_to(network), 60, interval_s=5)
+            if not wait_until(lambda: ops.bgp_advertised_to(network), 60, interval_s=5):
+                raise RuntimeError(
+                    f"{type(self).__name__}: {ops.profile} on {params.host_name!r} "
+                    f"did not advertise hijacked prefix {network}."
+                )
             self.logger.info(
                 f"Injected BGP hijacking on {params.host_name}: {target_network} "
                 f"({ops.profile})."
             )
             return
         match self.lab_backend:
-            case "containerlab":
-                self.runtime.srl_advertise_prefix(params.host_name, target_network)
-                self.logger.info(
-                    f"Injected BGP hijacking on {params.host_name}: {target_network} (SRL)."
-                )
             case "kathara":
                 asn_number = self.runtime.frr_get_bgp_asn_number(params.host_name)
                 # Off ``lo`` so the IGP does not carry it: only BGP spreads a hijack.
@@ -439,19 +442,6 @@ class BGPHijacking(ProblemBase):
                 },
             )
         match self.lab_backend:
-            case "containerlab":
-                verified = self.runtime.srl_prefix_advertised(
-                    params.host_name, target_network
-                )
-                return build_verify_result(
-                    fault_type=self.root_cause_name,
-                    verified=verified,
-                    details={
-                        "host": params.host_name,
-                        "target_network": target_network,
-                        "has_advertisement": verified,
-                    },
-                )
             case "kathara":
                 # The hijacker's BGP table must source the prefix as its best
                 # path and send it to a peer; whether peers accept it is the symptom.

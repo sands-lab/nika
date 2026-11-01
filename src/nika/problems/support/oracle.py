@@ -59,6 +59,13 @@ def all_of(*checks: Check) -> Check:
     )
 
 
+def any_of(*checks: Check) -> Check:
+    return Check(
+        " or ".join(c.description for c in checks),
+        lambda o: any(c(o) for c in checks),
+    )
+
+
 def numbers_after(label: str, output: str) -> list[float]:
     """Numbers that directly follow *label* (e.g. ``time=``) in *output*."""
     return [
@@ -202,6 +209,21 @@ def nft_rule(node: str, rule: str, purpose: str | None = None) -> OracleStep:
         purpose or f"Inspect the packet filter on {node}.",
         contains(rule, f"a filter rule matching /{rule}/ is installed"),
         evidence=True,
+    )
+
+
+# nftables ruleset structure and drop rules, then iptables drop rules, so the
+# same step reads a node that filters with either tool.
+FILTER_DUMP = (
+    "nft list ruleset 2>/dev/null | grep -nE 'table|chain|hook|drop|reject' "
+    "| head -60; iptables -S 2>/dev/null | grep -E -- '-j (DROP|REJECT)' | head -40"
+)
+
+
+def iptables_rule(rule: str, description: str) -> Check:
+    """An ``iptables -S`` drop rule matches *rule* (regex) before its target."""
+    return contains(
+        rf"^-A \S+ .*{rule}.* -j (DROP|REJECT)", f"{description} (iptables)"
     )
 
 
@@ -366,6 +388,18 @@ def is_ip_node(net_env, node: str) -> bool:
     caps = set(identity.capabilities)
     role = getattr(identity.role, "value", identity.role)
     return "linux" in caps and role != "switch" and not caps & {"srl", "ovs"}
+
+
+def srl_cli(net_env, node: str) -> bool:
+    """Whether ``node`` is an SR Linux router, read through ``srl_exec_cli``.
+
+    Other routers, SONiC included, answer FRR and Linux commands in
+    ``exec_shell``.
+    """
+    identity = (getattr(net_env, "machine_identities", None) or {}).get(node)
+    return identity is not None and bool(
+        {"srl", "nokia_srlinux"} & set(identity.capabilities)
+    )
 
 
 def addr_step(node: str, intf: str, key: str) -> OracleStep:

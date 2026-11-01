@@ -13,6 +13,7 @@ from nika.net_env.native_routers import (
 )
 from nika.net_env.utils.iosxr.common import (
     CONFIG_FILE_PATH,
+    ROUTER_MEMORY_MIB,
     build_xr_config_command,
     iosxr_interface,
 )
@@ -28,7 +29,7 @@ def _check_deployable(env) -> None:
     require_native_lab_memory(
         f"{env.LAB_NAME} on IOS XR",
         routers=routers,
-        per_router=3 * GIB,
+        per_router=ROUTER_MEMORY_MIB * GIB // 1024,
         hosts=len(env.lab.machines) - routers,
     )
 

@@ -116,6 +116,83 @@ failure:
         name: eth0
       fault_type: link_detach
   - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: leaf_router_0_0
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_router_0_0
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: leaf_router_0_0
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_router_0_0
+        name: eth1
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: leaf_router_0_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_router_0_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: leaf_router_0_1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_router_0_1
+        name: eth1
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: leaf_router_0_1
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_router_0_1
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: spine_router_0_0
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: spine_router_0_0
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: spine_router_0_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: spine_router_0_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
     device_profile: routeros
     inject:
       host_name: client_0
@@ -135,6 +212,83 @@ failure:
     - resource:
         kind: interface
         node: dns_pod0
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: leaf_router_0_0
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_router_0_0
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: leaf_router_0_0
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_router_0_0
+        name: eth1
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: leaf_router_0_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_router_0_1
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: leaf_router_0_1
+      intf_name: eth1
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_router_0_1
+        name: eth1
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: leaf_router_0_1
+      intf_name: eth2
+    root_causes:
+    - resource:
+        kind: interface
+        node: leaf_router_0_1
+        name: eth2
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: spine_router_0_0
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: spine_router_0_0
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: spine_router_0_1
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: spine_router_0_1
         name: eth0
       fault_type: link_detach
   - topo_size: m

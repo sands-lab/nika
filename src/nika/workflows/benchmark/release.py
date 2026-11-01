@@ -71,6 +71,7 @@ SCORING = {
 TOOLS_V1 = {
     "allowed_mcp_servers": [
         "containerlab_srl_mcp_server",
+        "containerlab_sonic_mcp_server",
         "k8s_mcp_server",
         "kathara_base_mcp_server",
         "pingmesh_mcp_server",
@@ -376,7 +377,9 @@ def _verify_mcp_policy(cases: list[dict[str, Any]], tools: dict[str, Any]) -> No
     for row in cases:
         servers = set(
             select_diagnosis_servers(
-                row["scenario"], telemetry=row.get("telemetry") or ()
+                row["scenario"],
+                telemetry=row.get("telemetry") or (),
+                device_profile=row.get("device_profile"),
             )
         )
         servers.add(SUBMISSION_SERVER)

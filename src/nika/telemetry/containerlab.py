@@ -3,7 +3,8 @@
 The collector joins the existing lab management network so gNMI scrapes work.
 sFlow cannot use that network, so when ``netflow`` is on, each SR Linux node
 gets one extra ethernet in an ip-vrf toward the collector. Those links are not
-scenario topology.
+scenario topology. SONiC routers export over the management network; their
+flow probes run in a helper node that shares the router's network namespace.
 """
 
 from __future__ import annotations
@@ -29,7 +30,7 @@ from nika.telemetry import (
     SYSLOG,
     TELEMETRY_SUBNET,
 )
-from nika.telemetry import management, netflow, prometheus, srl, syslog
+from nika.telemetry import management, netflow, prometheus, sonic, srl, syslog
 from nika.telemetry.management import SCRIPT, TELEMETRY_COLLECTOR, address_plan
 from nika.utils.parallel import bounded_parallel_map
 
@@ -37,6 +38,7 @@ _E1 = re.compile(r"^e1-(\d+)$")
 SRL_EXPORTER = f"{CONFIG_DIR}/srl_exporter.py"
 SRL_EXPORTER_PORT = 9100
 _SRL_KINDS = frozenset({"nokia_srlinux", "srl_nokia", "srl"})
+IPFIX_DIR = f"{netflow.FLOW_DIR}/ipfix"
 
 
 def used_e1_ports(name: str, links: list[dict[str, Any]]) -> set[int]:
@@ -147,6 +149,25 @@ def inject_collector(
                 "collector_iface": collector_iface,
             }
             eth_index += 1
+    for name in sorted(nodes):
+        cfg = nodes[name] or {}
+        if name == TELEMETRY_COLLECTOR or not sonic.is_sonic_kind(
+            str(cfg.get("kind") or "")
+        ):
+            continue
+        probe = ""
+        if NETFLOW in kinds:
+            probe = sonic.flow_probe_name(name)
+            nodes[probe] = sonic.flow_probe_node(name)
+        devices[name] = {
+            "kind": sonic.KIND,
+            "mgmt_ip": str(cfg.get("mgmt-ipv4") or ""),
+            "srl_e1": None,
+            "data_e1": [],
+            "collector_iface": "",
+            "flow_probe": probe,
+            "data_ports": sonic.data_ports(name, links),
+        }
     for name in srl_names:
         devices.setdefault(
             name,
@@ -158,8 +179,9 @@ def inject_collector(
                 "collector_iface": "",
             },
         )
+    probes = {device.get("flow_probe") for device in devices.values()}
     for name, cfg in nodes.items():
-        if name == TELEMETRY_COLLECTOR or name in devices:
+        if name == TELEMETRY_COLLECTOR or name in devices or name in probes:
             continue
         devices[name] = {
             "kind": str((cfg or {}).get("kind") or "linux"),
@@ -204,15 +226,22 @@ def attach(net_env: Any, kinds: tuple[str, ...]) -> dict[str, Any]:
         role=NodeRole.INFRASTRUCTURE,
         capabilities=("linux", *kinds),
     )
+    for device in plan["devices"].values():
+        if device.get("flow_probe"):
+            net_env.declare_machine(
+                device["flow_probe"],
+                role=NodeRole.INFRASTRUCTURE,
+                capabilities=("linux", NETFLOW),
+            )
     return plan
 
 
 def configure(runtime: Any, plan: dict[str, Any]) -> dict[str, Any]:
-    """Enable sFlow/gNMI exporters on SR Linux nodes that support them."""
+    """Enable exporters on the SR Linux and SONiC nodes that support them."""
     kinds = sorted(plan["kinds"])
     pairs = [(name, kind) for name in sorted(plan["devices"]) for kind in kinds]
     found = bounded_parallel_map(
-        lambda pair: _probe(runtime, pair[0], pair[1]),
+        lambda pair: _probe(runtime, plan["devices"][pair[0]], pair[0], pair[1]),
         pairs,
         max_workers=DEVICE_EXEC_WORKERS,
     )
@@ -228,8 +257,16 @@ def configure(runtime: Any, plan: dict[str, Any]) -> dict[str, Any]:
         for name in names
     }
     collector_flow = str(plan.get("collector_flow_ip") or "")
+    collector_mgmt = str(plan.get("collector_mgmt_ip") or "")
     prefixlen = int(plan.get("flow_prefixlen") or 16)
 
+    def is_sonic(name: str) -> bool:
+        return sonic.is_sonic_kind(str(plan["devices"][name].get("kind") or ""))
+
+    sonic_versions = {
+        kind: {name: v for name, v in versions[kind].items() if is_sonic(name)}
+        for kind in kinds
+    }
     if NETFLOW in versions:
         for name in versions[NETFLOW]:
             device = plan["devices"][name]
@@ -246,12 +283,12 @@ def configure(runtime: Any, plan: dict[str, Any]) -> dict[str, Any]:
                 prefix=f"{source}/{prefixlen}",
             )
     if SYSLOG in versions:
-        collector_mgmt = str(plan.get("collector_mgmt_ip") or "")
         for name in versions[SYSLOG]:
             device = plan["devices"][name]
             mgmt_ip = str(device.get("mgmt_ip") or "")
-            if collector_mgmt and mgmt_ip:
+            if collector_mgmt and mgmt_ip and not is_sonic(name):
                 srl.enable_syslog(mgmt_ip=mgmt_ip, collector=collector_mgmt)
+    _start_sonic(runtime, plan, sonic_versions, addresses)
 
     files: dict[str, str] = {}
     lines: list[str] = []
@@ -266,25 +303,34 @@ def configure(runtime: Any, plan: dict[str, Any]) -> dict[str, Any]:
                 {name: addresses[name] for name in versions.get(NETFLOW, {})}
             )
         )
-        lines += _sflow_collector_lines(
-            plan.get("collector_ifaces") or [], collector_flow, prefixlen
-        )
+        if plan.get("collector_ifaces"):
+            lines += _sflow_collector_lines(
+                plan["collector_ifaces"], collector_flow, prefixlen
+            )
+        if sonic_versions[NETFLOW]:
+            lines += _ipfix_collector_lines()
     if PROMETHEUS in kinds:
         mgmt_targets = {
             name: str(plan["devices"][name]["mgmt_ip"])
             for name in versions.get(PROMETHEUS, {})
+            if not is_sonic(name)
         }
-        files[SRL_EXPORTER] = srl.exporter_script()
-        files.update(_prometheus_config())
+        sonic_targets = {
+            name: str(plan["devices"][name]["mgmt_ip"])
+            for name in sonic_versions[PROMETHEUS]
+        }
+        files.update(_prometheus_config(bool(mgmt_targets), sonic_targets))
         lines += prometheus.collector_lines()
-        lines.append(
-            "(while true; do "
-            f"SRL_GNMI_USER={shlex.quote(srl.SRL_GNMI_USER)} "
-            f"SRL_GNMI_PASSWORD={shlex.quote(srl.SRL_GNMI_PASSWORD)} "
-            f"python3 {SRL_EXPORTER} 127.0.0.1 {SRL_EXPORTER_PORT} "
-            f"{shlex.quote(json.dumps(mgmt_targets, separators=(',', ':')))} "
-            f"{shlex.quote(hidden)}; sleep 1; done) &"
-        )
+        if mgmt_targets:
+            files[SRL_EXPORTER] = srl.exporter_script()
+            lines.append(
+                "(while true; do "
+                f"SRL_GNMI_USER={shlex.quote(srl.SRL_GNMI_USER)} "
+                f"SRL_GNMI_PASSWORD={shlex.quote(srl.SRL_GNMI_PASSWORD)} "
+                f"python3 {SRL_EXPORTER} 127.0.0.1 {SRL_EXPORTER_PORT} "
+                f"{shlex.quote(json.dumps(mgmt_targets, separators=(',', ':')))} "
+                f"{shlex.quote(hidden)}; sleep 1; done) &"
+            )
     if SYSLOG in kinds:
         syslog_targets = {
             name: str(plan["devices"][name]["mgmt_ip"])
@@ -302,12 +348,47 @@ def configure(runtime: Any, plan: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _start_sonic(
+    runtime: Any,
+    plan: dict[str, Any],
+    versions: dict[str, dict[str, str]],
+    addresses: dict[str, str],
+) -> None:
+    """Start each SONiC router's exporters, and its flow probes."""
+    collector = str(plan.get("collector_mgmt_ip") or "")
+    jobs: list[tuple[str, dict[str, str], list[str]]] = []
+    for name in sorted({name for names in versions.values() for name in names}):
+        device = plan["devices"][name]
+        files: dict[str, str] = {}
+        lines: list[str] = []
+        if name in versions.get(SYSLOG, {}):
+            files.update(sonic.syslog_files(collector))
+            lines += sonic.syslog_lines(collector)
+        if name in versions.get(PROMETHEUS, {}):
+            files[sonic.EXPORTER] = sonic.exporter_script()
+            lines += sonic.exporter_lines(addresses[name])
+        if lines:
+            jobs.append((name, files, lines))
+        if name in versions.get(NETFLOW, {}):
+            probe = {"data_ifaces": list(device.get("data_ports") or [])}
+            jobs.append(
+                (
+                    str(device["flow_probe"]),
+                    netflow.device_files(probe, addresses[name], collector),
+                    netflow.device_lines(probe, addresses[name]),
+                )
+            )
+    bounded_parallel_map(
+        lambda job: _run(runtime, *job), jobs, max_workers=DEVICE_EXEC_WORKERS
+    )
+
+
 def running(runtime: Any, plan: dict[str, Any]) -> bool:
-    """Collector services are up and every SR Linux exporter is configured."""
+    """Collector services are up and every SR Linux and SONiC exporter runs."""
     kinds = plan["kinds"]
     if NETFLOW in kinds:
         targets = {name: plan["addresses"][name] for name in kinds[NETFLOW]["versions"]}
-        if not _netflow_running(runtime, plan["collector"], targets):
+        if not _netflow_running(runtime, plan, targets):
             return False
     if PROMETHEUS in kinds:
         targets = {
@@ -316,13 +397,38 @@ def running(runtime: Any, plan: dict[str, Any]) -> bool:
         if not prometheus.running(runtime, plan["collector"], targets):
             return False
     if SYSLOG in kinds:
-        targets = {name: plan["addresses"][name] for name in kinds[SYSLOG]["versions"]}
+        versions = kinds[SYSLOG]["versions"]
+        sonic_names = sorted(
+            name for name, version in versions.items() if sonic.is_sonic(version)
+        )
+        targets = {
+            name: plan["addresses"][name]
+            for name in versions
+            if name not in sonic_names
+        }
         if not syslog.running(runtime, plan["collector"], targets):
+            return False
+        if not all(
+            bounded_parallel_map(
+                lambda name: sonic.syslog_enabled(runtime, name),
+                sonic_names,
+                max_workers=DEVICE_EXEC_WORKERS,
+            )
+        ):
             return False
     return True
 
 
-def _probe(runtime: Any, name: str, kind: str) -> str | None:
+def _probe(runtime: Any, device: dict[str, Any], name: str, kind: str) -> str | None:
+    if sonic.is_sonic_kind(str(device.get("kind") or "")):
+        if kind == NETFLOW:
+            probe = str(device.get("flow_probe") or "")
+            return netflow.probe(runtime, probe) if probe else None
+        return sonic.probe(runtime, name)
+    # Linux end hosts carry node_exporter for Kathara, but Containerlab
+    # exports from its routers only.
+    if device.get("kind") != "nokia_srlinux":
+        return None
     if kind == NETFLOW:
         return netflow.probe(runtime, name)
     if kind == SYSLOG:
@@ -353,32 +459,68 @@ def _sflow_collector_lines(
     return lines
 
 
-def _prometheus_config() -> dict[str, str]:
-    config = {
-        "global": {"scrape_interval": "15s"},
-        "scrape_configs": [
+def _ipfix_collector_lines() -> list[str]:
+    # sfcapd and nfcapd name their files alike; nfdump -R reads subdirectories.
+    return [
+        f"mkdir -p {IPFIX_DIR}",
+        f"nfcapd -D -w {IPFIX_DIR} -t {netflow.FLOW_ROTATE_SEC} "
+        f"-p {netflow.IPFIX_PORT} -P /run/nfcapd.pid",
+    ]
+
+
+def _prometheus_config(srl_job: bool, sonic_targets: dict[str, str]) -> dict[str, str]:
+    jobs: list[dict[str, Any]] = []
+    if srl_job:
+        jobs.append(
             {
                 "job_name": "srl",
                 "scrape_timeout": "14s",
                 "static_configs": [{"targets": [f"127.0.0.1:{SRL_EXPORTER_PORT}"]}],
             }
-        ],
-    }
+        )
+    if sonic_targets:
+        jobs.append(
+            {
+                "job_name": "sonic",
+                "static_configs": [
+                    {
+                        "targets": [f"{ip}:{sonic.EXPORTER_PORT}"],
+                        "labels": {"node": name},
+                    }
+                    for name, ip in sorted(sonic_targets.items())
+                ],
+            }
+        )
+    config = {"global": {"scrape_interval": "15s"}, "scrape_configs": jobs}
     return {prometheus.PROMETHEUS_CONFIG: json.dumps(config, indent=1) + "\n"}
 
 
-def _netflow_running(runtime: Any, collector: str, targets: dict[str, str]) -> bool:
+def _netflow_running(
+    runtime: Any, plan: dict[str, Any], targets: dict[str, str]
+) -> bool:
     from nika.net_env.verify import process_running
 
-    if not process_running(runtime, collector, "sfcapd"):
+    collector = plan["collector"]
+    probes = {
+        name: str(plan["devices"][name]["flow_probe"])
+        for name in targets
+        if plan["devices"][name].get("flow_probe")
+    }
+    if plan.get("collector_ifaces") and not process_running(
+        runtime, collector, "sfcapd"
+    ):
         return False
-    if not targets:
-        return True
+    if probes and not process_running(runtime, collector, "nfcapd"):
+        return False
+
+    def exporting(name: str) -> bool:
+        if name in probes:
+            return process_running(runtime, probes[name], "pmacctd")
+        return srl.sflow_enabled(runtime, name)
+
     return all(
         bounded_parallel_map(
-            lambda name: srl.sflow_enabled(runtime, name),
-            sorted(targets),
-            max_workers=DEVICE_EXEC_WORKERS,
+            exporting, sorted(targets), max_workers=DEVICE_EXEC_WORKERS
         )
     )
 

@@ -111,7 +111,7 @@ class BatfishVerifier:
                 intent,
                 snapshot,
                 initialized,
-                limitation=_model_limitation(contract, intent),
+                limitation=_model_limitation(contract, intent, snapshot),
             )
             for intent in contract.intents
         )
@@ -302,12 +302,20 @@ class BatfishVerifier:
 
 
 def _model_limitation(
-    contract: ValidationContract, intent: ValidationIntent
+    contract: ValidationContract,
+    intent: ValidationIntent,
+    snapshot: ValidationSnapshot,
 ) -> str | None:
     if bool(contract.design_source.get("rpki")) and intent.property != "adjacency":
         return (
             "Pinned Batfish does not model FRR RPKI route-map matches; "
             "flow and path results for this snapshot are unsupported"
+        )
+    unmodeled = snapshot.metadata.get("unmodeled_protocols", ())
+    if intent.adjacency is not None and intent.adjacency.protocol in unmodeled:
+        return (
+            f"The {snapshot.metadata.get('routing_model')} snapshot does not model "
+            f"{intent.adjacency.protocol.upper()} adjacencies"
         )
     return None
 

@@ -30,6 +30,7 @@ NIKA_ONLY_REPOS = frozenset(
         "nlnetlabs/routinator",
         "batfish/batfish",
         "ghcr.io/nokia/srlinux",
+        "docker-sonic-vs",
         "vrnetlab/mikrotik_routeros",
         "ios-xr/xrd-control-plane",
         "onosproject/onos",
@@ -119,6 +120,7 @@ def owned_images() -> list[str]:
     """Every Docker image the current NIKA release may create or pull."""
     from nika.net_env.utils.routeros.common import IMAGE as ROUTEROS_IMAGE
     from nika.net_env.utils.iosxr.common import IMAGE as XRD_IMAGE
+    from nika.net_env.utils.sonic.common import IMAGE as SONIC_IMAGE
     from nika.validation.batfish.service import BATFISH_IMAGE
 
     images = set(runtime_images()) | set(build_parent_images())
@@ -127,6 +129,7 @@ def owned_images() -> list[str]:
             ROUTEROS_IMAGE,
             f"{ROUTEROS_IMAGE}-{host_machine_arch()}",
             XRD_IMAGE,
+            SONIC_IMAGE,
             VRNETLAB_BASE_IMAGE,
             BATFISH_IMAGE,
         }
@@ -259,6 +262,7 @@ def prune_stale_caches() -> list[str]:
 def prepare_all_images(*, force_rebuild: bool = False) -> None:
     """Reconcile, then build, pull, and cache everything benchmarks deploy."""
     from nika.net_env.utils.k8s_workload_cache import K8S_SCENARIOS, cache_scenario
+    from nika.net_env.utils.sonic.common import ensure_sonic_image
     from nika.agents.sandbox.backend import prepare_configured_sandbox_templates
 
     # Images are pruned only after ensure: it retags identical builds from
@@ -266,6 +270,8 @@ def prepare_all_images(*, force_rebuild: bool = False) -> None:
     for action in prune_stale_caches():
         print(action)
     ensure_nika_docker_images(runtime_images(), force_rebuild=force_rebuild)
+    # The SONiC build pipeline publishes the virtual switch as a download only.
+    ensure_sonic_image()
     for scenario in sorted(K8S_SCENARIOS):
         cache_scenario(scenario)
     images = prepare_configured_sandbox_templates()

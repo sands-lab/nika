@@ -205,10 +205,6 @@ def device_interfaces(net_env) -> dict[str, list[str]]:
     return {device: sorted(intfs) for device, intfs in mapping.items()}
 
 
-def default_interface(backend: str) -> str:
-    return "e1-1" if backend == "containerlab" else "eth0"
-
-
 def choice_interface(
     rng: random.Random,
     net_env,
@@ -218,7 +214,11 @@ def choice_interface(
     ifaces = device_interfaces(net_env).get(device) or []
     if ifaces:
         return rng.choice(ifaces)
-    return default_interface(backend)
+    if backend != "containerlab":
+        return "eth0"
+    from nika.problems.rca.inventory import first_data_interface
+
+    return first_data_interface(net_env, device)
 
 
 def first_iface(ifaces: list[str], fallback: str = "eth0") -> str:
@@ -273,9 +273,17 @@ def resolve_link_flap_params(
             return params
 
     if scenario == "min3clos":
+        # leaf1's port toward client1; its name depends on the router platform.
+        leaf_port = next(
+            end.split(":", 1)[1]
+            for link in net_env.get_topology()
+            if "client1:eth1" in link
+            for end in link
+            if end.startswith("leaf1:")
+        )
         params.update(
             host_name="leaf1",
-            intf_name="e1-2",
+            intf_name=leaf_port,
             up_time="12",
             probe_dst_ip="10.0.0.27",
             observer_device="client1",

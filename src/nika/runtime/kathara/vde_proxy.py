@@ -25,6 +25,7 @@ import docker
 from nika.runtime.base import RuntimeCapabilityError
 from nika.runtime.shared.containers import docker_client
 from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
+from nika.runtime.shared.link_faults import corrupt_commands
 
 _SPLICE_SOURCE = (Path(__file__).with_name("vde_splice.py")).read_text()
 _READY = "/run/splice.ready"
@@ -135,31 +136,10 @@ class KatharaVdeFaultProxy:
     def _set_corrupt(
         self, state: VdeFaultProxyState, devices: tuple[str, ...], percentage: int
     ) -> None:
-        """Corrupt IP frames and drop other frames at the same rate.
-
-        A real link's FCS discards every damaged frame. netem has no FCS: it
-        delivers the damaged frame, and only IP-family receivers catch it with
-        their own checksums. ARP has none, so a delivered bit flip in an ARP
-        reply would poison the peer's neighbor cache and cut the link for a
-        reachable-time. Non-IP frames are therefore lost instead of corrupted.
-        """
+        """Corrupt IP frames and drop other frames (``corrupt_commands``)."""
         proxy = self._client.containers.get(state.proxy_id)
         for dev in devices:
-            script = " && ".join(
-                [
-                    f"tc qdisc replace dev {dev} root handle 1: prio bands 2 "
-                    f"priomap {' '.join(['0'] * 16)}",
-                    f"tc qdisc replace dev {dev} parent 1:1 handle 10: "
-                    f"netem loss {percentage}%",
-                    f"tc qdisc replace dev {dev} parent 1:2 handle 20: "
-                    f"netem corrupt {percentage}%",
-                    *(
-                        f"tc filter replace dev {dev} parent 1: protocol {proto} "
-                        f"prio {prio} u32 match u32 0 0 flowid 1:2"
-                        for prio, proto in ((1, "ip"), (2, "ipv6"))
-                    ),
-                ]
-            )
+            script = " && ".join(corrupt_commands(dev, percentage))
             result = proxy.exec_run(["/bin/sh", "-c", script])
             if result.exit_code:
                 raise RuntimeCapabilityError(

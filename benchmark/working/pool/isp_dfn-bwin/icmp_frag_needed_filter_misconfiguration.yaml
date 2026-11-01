@@ -1,0 +1,18 @@
+scenario:
+  name: isp_dfn-bwin
+failure:
+  fault_type: icmp_frag_needed_filter_misconfiguration
+  cases:
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: berlin
+    root_causes:
+    - resource:
+        kind: node
+        node: berlin
+      fault_type: icmp_frag_needed_filter_misconfiguration

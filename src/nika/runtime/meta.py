@@ -41,3 +41,8 @@ def meta_lab_name(meta: dict[str, Any] | Any) -> str:
     if not lab_name:
         raise ValueError("Session metadata has no lab_name.")
     return str(lab_name)
+
+
+def device_profile_for(meta: dict[str, Any] | Any) -> str | None:
+    """Return the router platform a session was started with, if it names one."""
+    return meta_get(meta, "device_profile", scenario_params=True) or None

@@ -24,6 +24,11 @@ from nika.service.lab.routeros_api import CLI_COMMAND
 
 # MikroTik licensing blocks redistributing / auto-building this image like nika/*.
 IMAGE = "vrnetlab/mikrotik_routeros:7.21.5"
+# Memory one RouterOS router (CHR VM in its vrnetlab container) needs;
+# admission and Firecracker VM sizing use it.
+ROUTER_MEMORY_MIB = 1024
+# CPU one RouterOS router needs, millicores; Kathara gives each router 1.0 CPU.
+ROUTER_CPU_MILLIS = 1000
 
 # vrnetlab FTPs this file into the VM after boot. RouterOS imports a file named
 # ``*.auto.rsc`` on upload and writes the import result to ``*.auto.log``.
@@ -39,7 +44,8 @@ MAX_DATA_INTERFACES = 30
 # QEMU does not propagate a container interface's link state to the guest NIC.
 # vrnetlab keeps its own monitor connection open, so NIKA adds a second monitor
 # and a watcher that mirrors each data interface's state with ``set_link``.
-# Link failures then reach RouterOS as carrier loss, as they do on FRR.
+# Link failures then reach RouterOS as carrier loss, as they do on FRR; an
+# interface missing from the container counts as down.
 LINK_MONITOR_PORT = 4100
 LINK_WATCHER_PATH = "/usr/local/bin/link-carrier"
 _LINK_WATCHER = rf"""#!/bin/bash
@@ -49,7 +55,9 @@ declare -A applied
 while true; do
   for pair in "$@"; do
     iface=${{pair%%:*}}; nic=${{pair##*:}}
-    [ "$(cat /sys/class/net/$iface/operstate 2>/dev/null)" = down ] && link=off || link=on
+    # A detached interface has no operstate and takes the carrier with it.
+    state=$(cat /sys/class/net/$iface/operstate 2>/dev/null)
+    [ -n "$state" ] && [ "$state" != down ] && link=on || link=off
     [ "${{applied[$nic]}}" = "$link" ] && continue
     # vrnetlab names the QEMU netdev of data NIC N pNN.
     printf 'set_link p%02d %s\n' "$nic" "$link" \
@@ -90,6 +98,16 @@ def routeros_port(net_env, node: str, name: str) -> str:
     if node in (getattr(net_env, "native_routers", None) or {}):
         return bridged_interface(name)
     return routeros_interface(name)
+
+
+def routeros_container_interface(net_env, node: str, port: str) -> str | None:
+    """Invert :func:`routeros_port`; ports without a container link give ``None``."""
+    match = re.fullmatch(r"ether([0-9]+)", port)
+    if match is None:
+        return None
+    converted = node in (getattr(net_env, "native_routers", None) or {})
+    index = int(match[1]) - (2 if converted else 1)
+    return f"eth{index}" if index >= (0 if converted else 1) else None
 
 
 def require_routeros_image(image: str = IMAGE) -> None:
@@ -184,7 +202,7 @@ def configure_routeros_router(
             [
                 f"ip link add {veth} type veth peer name {peer}",
                 f"ip link add {bridge} type bridge",
-                f"ip link set {name} master {bridge}",
+                bridge_member_command(name),
                 f"ip link set {peer} master {bridge}",
                 f"ip link set {name} up",
                 f"ip link set {peer} up",
@@ -199,6 +217,11 @@ def configure_routeros_router(
         setup=setup,
         link_commands=link_commands,
     )
+
+
+def bridge_member_command(name: str) -> str:
+    """Attach a converted router's ``ethN`` to the bridge of its RouterOS port."""
+    return f"ip link set {name} master bp{int(name[3:]) + 1}"
 
 
 def _boot_meta(machine: Machine, data_nics: int) -> None:

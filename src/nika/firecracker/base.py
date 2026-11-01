@@ -556,13 +556,18 @@ def _containerd_store() -> bool:
 
 
 def _vendor_images() -> list[str]:
-    """Vendor router images this host prepared (``install.sh --with-vendor-images``)."""
+    """Router images this host prepared outside a registry pull.
+
+    RouterOS and XRd come from ``install.sh --with-vendor-images``; the SONiC
+    virtual switch is a build-pipeline download (``nika images prepare``).
+    """
     from nika.net_env.utils.routeros.common import IMAGE as ROUTEROS_IMAGE
     from nika.net_env.utils.iosxr.common import IMAGE as XRD_IMAGE
+    from nika.net_env.utils.sonic.common import IMAGE as SONIC_IMAGE
 
     return [
         ref
-        for ref in (ROUTEROS_IMAGE, XRD_IMAGE)
+        for ref in (ROUTEROS_IMAGE, XRD_IMAGE, SONIC_IMAGE)
         if subprocess.run(
             ["docker", "image", "inspect", ref], capture_output=True, check=False
         ).returncode

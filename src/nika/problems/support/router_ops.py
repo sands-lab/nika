@@ -1,15 +1,18 @@
 """Vendor dispatch for failure operations on native routers.
 
 Failure classes stay vendor-neutral: they ask :func:`router_fault_ops` for the
-target node's provider. Nodes without a native router profile (FRR, SR Linux,
-Linux) get ``None`` and keep the failure's default implementation. A native
-profile supplies its provider through ``NativeRouterPlatform.fault_ops``; any
-operation it does not implement raises ``RuntimeCapabilityError``.
+target node's provider. Nodes without a router platform provider (FRR, SR
+Linux, Linux) get ``None`` and keep the failure's default implementation. A
+Kathara native profile supplies its provider through
+``NativeRouterPlatform.fault_ops``, and a Containerlab router platform through
+``FAULT_OPS`` in its module; any operation a provider does not implement
+raises ``RuntimeCapabilityError``.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from importlib import import_module
 
 from nika.runtime.base import RuntimeCapabilityError
 
@@ -38,6 +41,9 @@ class RouterFaultOps:
     """Failure operations on one native router. Vendors override what they support."""
 
     profile = "native"
+    # Whether the router's port state follows the link of its container
+    # interface. XRd ignores Linux link state: its ports stay up and drop.
+    port_follows_link = True
 
     def __init__(self, runtime, node: str):
         self.runtime = runtime
@@ -71,6 +77,14 @@ class RouterFaultOps:
     def restore_config(self, saved: str) -> None:
         """Replace the running configuration with one returned by ``save_config``."""
         self._unsupported("Restoring the running configuration")
+
+    def frr_shell(self, command: str) -> str:
+        """Run a shell command beside the router's FRR (``vtysh``, ``/etc/frr``).
+
+        Only platforms that route with FRR implement it. A failure whose FRR
+        implementation needs nothing else from the node runs unchanged there.
+        """
+        self._unsupported("Running FRR commands")
 
     def supports(self, operation: str) -> bool:
         """Return whether this provider implements ``operation``."""
@@ -112,7 +126,26 @@ class RouterFaultOps:
         """Run the OSPF interfaces of ``area`` in ``new_area`` instead."""
         self._unsupported("Changing an OSPF area")
 
+    def ospf_interfaces(self) -> list[str]:
+        """Return the container interfaces OSPF is configured on."""
+        self._unsupported("Reading OSPF interfaces")
+
+    def ospf_neighbor_interfaces(self) -> list[str]:
+        """Return the container interface of each Full OSPF adjacency, one per neighbor."""
+        self._unsupported("Reading OSPF neighbors")
+
+    def remove_ospf_interface(self, interface: str) -> None:
+        """Delete the OSPF configuration that runs OSPF on container ``interface``."""
+        self._unsupported("Removing an OSPF interface")
+
     # Packet filters
+
+    def block_ospf(self) -> None:
+        """Drop OSPF (IP protocol 89) the router receives or sends."""
+        self._unsupported("Blocking OSPF")
+
+    def ospf_blocked(self) -> bool:
+        self._unsupported("Reading OSPF filters")
 
     def block_bgp_transport(self) -> None:
         """Drop BGP (TCP 179) in every direction and reset the sessions."""
@@ -142,7 +175,16 @@ class RouterFaultOps:
         self._unsupported("Reading routes")
 
     def interface_up(self, interface: str) -> bool:
+        """Whether the router's port on container ``interface`` is operationally up."""
         self._unsupported("Reading interface state")
+
+    def reattach_interface(self, interface: str) -> None:
+        """Put the port back in service after container ``interface`` returns.
+
+        A failure that moves the interface out of the node calls this once the
+        interface is back; the router's port may need to bind to it again.
+        """
+        self._unsupported("Reattaching an interface")
 
     def set_interface_mtu(self, interface: str, mtu: int) -> None:
         """Set the router's MTU on container interface ``interface``."""
@@ -210,18 +252,42 @@ class RouterFaultOps:
         self._unsupported("Reading NAT mappings")
 
 
+# Containerlab router platforms whose module exposes a ``FAULT_OPS`` provider.
+_CONTAINERLAB_PLATFORMS = {"sonic": "nika.net_env.utils.sonic.fault_ops"}
+
+
+def _router_platforms() -> frozenset[str]:
+    from nika.net_env.native_routers import native_profiles
+
+    return native_profiles() | frozenset(_CONTAINERLAB_PLATFORMS)
+
+
+def router_platform_has_provider(device_profile: str | None) -> bool:
+    """Whether ``device_profile``'s routers dispatch failures to a provider.
+
+    FRR and SR Linux routers do not: failures implement them directly.
+    """
+    return device_profile in _router_platforms()
+
+
+def _fault_ops_factory(profile: str):
+    if profile in _CONTAINERLAB_PLATFORMS:
+        return import_module(_CONTAINERLAB_PLATFORMS[profile]).FAULT_OPS
+    from nika.net_env.native_routers import native_platform
+
+    return native_platform(profile).fault_ops
+
+
 def native_router_profile(net_env, node: str) -> str | None:
     """Return the native router profile ``node`` declares, or ``None``.
 
     The profile comes from the node capabilities the environment declares;
     FRR, SR Linux and Linux nodes have none.
     """
-    from nika.net_env.native_routers import native_profiles
-
     identities = getattr(net_env, "machine_identities", None) or {}
     identity = identities.get(node)
     profiles = sorted(
-        set(identity.capabilities if identity else ()) & native_profiles()
+        set(identity.capabilities if identity else ()) & _router_platforms()
     )
     if len(profiles) > 1:
         raise RuntimeCapabilityError(
@@ -235,12 +301,10 @@ def router_fault_ops(problem, node: str) -> RouterFaultOps | None:
 
     Returns ``None`` for nodes without a native router profile.
     """
-    from nika.net_env.native_routers import native_platform
-
     profile = native_router_profile(problem.net_env, node)
     if profile is None:
         return None
-    factory = native_platform(profile).fault_ops
+    factory = _fault_ops_factory(profile)
     if factory is None:
         raise RuntimeCapabilityError(
             f"No failure operations are implemented for {profile} router {node!r}."
@@ -261,15 +325,20 @@ def profile_fault_operations(profile: str) -> frozenset[str]:
     An operation is implemented when the provider overrides it; the base
     class only raises ``RuntimeCapabilityError``.
     """
-    from nika.net_env.native_routers import native_platform
-
-    factory = native_platform(profile).fault_ops
+    factory = _fault_ops_factory(profile)
     if factory is None:
         return frozenset()
     # Providers only bind their runtime and node, so a detached instance
     # answers ``supports`` without touching a lab.
     provider = factory(None, "")
     return frozenset(name for name in _OPERATIONS if provider.supports(name))
+
+
+def profile_routes_with_frr(profile: str | None) -> bool:
+    """Whether ``profile``'s routers run FRR behind their provider (SONiC)."""
+    return router_platform_has_provider(profile) and (
+        "frr_shell" in profile_fault_operations(profile)
+    )
 
 
 def failure_supports_profile(problem_cls, profile: str) -> bool:

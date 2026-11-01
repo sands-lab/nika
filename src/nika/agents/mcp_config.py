@@ -23,6 +23,7 @@ from nika.agents.sandbox.config import (
     SANDBOX_GATEWAY_HOST_BRIDGE,
 )
 from nika.mcp.registry import select_diagnosis_servers
+from nika.runtime.meta import device_profile_for
 from nika.telemetry import telemetry_for_session
 
 __all__ = [
@@ -68,12 +69,16 @@ def select_session_servers(
     *,
     backend: str | None = None,
     telemetry: Iterable[str] = (),
+    device_profile: str | None = None,
 ) -> list[str]:
     """Return all MCP server names for a troubleshooting session."""
     from nika.mcp.registry import SUBMISSION_SERVER
 
     servers = select_diagnosis_servers(
-        scenario_name, backend=backend, telemetry=telemetry
+        scenario_name,
+        backend=backend,
+        telemetry=telemetry,
+        device_profile=device_profile,
     )
     if SUBMISSION_SERVER not in servers:
         servers.append(SUBMISSION_SERVER)
@@ -151,25 +156,40 @@ class MCPServerConfig:
         *,
         backend: str | None = None,
         base_url: str | None = None,
-        telemetry: Iterable[str] = (),
+        telemetry: Iterable[str] | None = None,
+        device_profile: str | None = None,
     ) -> dict:
-        """Return HTTP MCP config for all servers needed by the session."""
+        """Return HTTP MCP config for all servers needed by the session.
+
+        Omitted *backend*, *telemetry*, and *device_profile* come from the
+        stored session so dual-backend labs keep the vendor CLI that ran.
+        """
+        stored_backend, stored_telemetry, stored_profile = _session_deployment(
+            self.session_id
+        )
         server_names = select_session_servers(
-            scenario_name, backend=backend, telemetry=telemetry
+            scenario_name,
+            backend=backend or stored_backend,
+            telemetry=stored_telemetry if telemetry is None else telemetry,
+            device_profile=(
+                stored_profile if device_profile is None else device_profile
+            ),
         )
         return self.load_http_config(server_names, base_url=base_url)
 
 
-def _session_deployment(session_id: str) -> tuple[str | None, tuple[str, ...]]:
-    """Return the lab backend and telemetry stored for *session_id*, if it exists."""
+def _session_deployment(
+    session_id: str,
+) -> tuple[str | None, tuple[str, ...], str | None]:
+    """Return the lab backend, telemetry and router platform of *session_id*."""
     try:
         from nika.runtime.factory import resolve_backend
         from nika.utils.session_store import SessionStore
 
         row = SessionStore().get_session(session_id)
     except (FileNotFoundError, OSError):
-        return None, ()
-    return resolve_backend(row), telemetry_for_session(row)
+        return None, (), None
+    return resolve_backend(row), telemetry_for_session(row), device_profile_for(row)
 
 
 def load_session_mcp_config(
@@ -186,9 +206,9 @@ def load_session_mcp_config(
     """
     # ISP scenarios support both lab backends, and telemetry is chosen per
     # session. The gateway only mounts servers for what was actually started.
-    stored_backend, telemetry = _session_deployment(session_id)
     servers = MCPServerConfig(session_id=session_id).load_session_http_config(
-        scenario_name, backend=backend or stored_backend, telemetry=telemetry
+        scenario_name,
+        backend=backend,
     )
     return servers if phase is None else filter_phase_servers(servers, phase)
 

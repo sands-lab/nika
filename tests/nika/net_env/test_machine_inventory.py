@@ -82,3 +82,18 @@ def test_isp_routinator_is_infrastructure_not_reachability_target() -> None:
     assert identity.role is NodeRole.INFRASTRUCTURE
     assert {"rpki", "rtr"}.issubset(identity.capabilities)
     assert "routinator" not in env.machine_inventory.reachability_targets()
+
+
+def test_min3clos_declares_running_web_service() -> None:
+    from nika.problems.rca.inventory import load_offline_net_env
+
+    from nika.workflows.benchmark.inject_resolve import _load_inventory
+
+    env = load_offline_net_env("min3clos", "s")
+    brief = env.get_info()
+    assert "PCs: client1" in brief
+    assert "Web Servers: client2" in brief
+    _load_inventory(env)
+    assert env.servers["web"] == ["client2"]
+    assert env.target_roles()["hosts"] == ["client1", "client2"]
+    assert env.target_roles()["web"] == ["client2"]

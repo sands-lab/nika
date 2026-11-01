@@ -1,0 +1,18 @@
+scenario:
+  name: isp_india35
+failure:
+  fault_type: icmp_frag_needed_filter_misconfiguration
+  cases:
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: n_0
+    root_causes:
+    - resource:
+        kind: node
+        node: n_0
+      fault_type: icmp_frag_needed_filter_misconfiguration

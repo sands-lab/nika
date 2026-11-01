@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from typing import Literal
 
-IspDeviceProfile = Literal["frr", "nokia_srlinux", "iosxr", "routeros"]
+IspDeviceProfile = Literal["frr", "nokia_srlinux", "sonic", "iosxr", "routeros"]
 
 SUPPORTED_DEVICE_PROFILES: tuple[IspDeviceProfile, ...] = (
     "frr",
     "nokia_srlinux",
+    "sonic",
     "iosxr",
     "routeros",
 )
@@ -20,6 +21,7 @@ SUPPORTED_BACKEND_PROFILE_PAIRS: frozenset[tuple[str, IspDeviceProfile]] = froze
         ("kathara", "iosxr"),
         ("kathara", "routeros"),
         ("containerlab", "nokia_srlinux"),
+        ("containerlab", "sonic"),
     }
 )
 

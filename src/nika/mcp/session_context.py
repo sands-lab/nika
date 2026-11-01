@@ -137,3 +137,14 @@ def get_srl_api():
         raise ValueError("SRL MCP tools require a containerlab session.")
     host_api = get_lab_api()
     return _cached_api("srl", meta, lambda: ContainerlabSRLAPI(host_api.runtime))
+
+
+def get_sonic_api():
+    """Return ContainerlabSonicAPI for the current containerlab session."""
+    from nika.service.containerlab import ContainerlabSonicAPI
+
+    meta = get_session_meta()
+    if resolve_backend(meta) != "containerlab":
+        raise ValueError("SONiC MCP tools require a containerlab session.")
+    host_api = get_lab_api()
+    return _cached_api("sonic", meta, lambda: ContainerlabSonicAPI(host_api.runtime))

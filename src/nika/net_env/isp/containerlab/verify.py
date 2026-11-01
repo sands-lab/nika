@@ -294,7 +294,7 @@ def _srl_rows_in_state(output: str, state: str) -> list[set[str]]:
     return rows
 
 
-def _loopback_probes(plan, traffic):
+def _loopback_probes(plan, traffic, router_netns=_SRL_DATA_NETNS):
     loopbacks = {node.device_name: node.loopback for node in plan.nodes}
     hosts = (
         {host.router_device: host.host_name for host in traffic.hosts}
@@ -305,16 +305,16 @@ def _loopback_probes(plan, traffic):
         (
             hosts.get(component[0], component[0]),
             [loopbacks[router] for router in component],
-            None if component[0] in hosts else _SRL_DATA_NETNS,
+            None if component[0] in hosts else router_netns,
         )
         for component in igp_components(plan)
     ]
 
 
-def _loopbacks_reachable(runtime, plan, traffic):
+def _loopbacks_reachable(runtime, plan, traffic, router_netns=_SRL_DATA_NETNS):
     return not any(
         ping_unreachable(runtime, source, targets, count=1, netns=netns)
-        for source, targets, netns in _loopback_probes(plan, traffic)
+        for source, targets, netns in _loopback_probes(plan, traffic, router_netns)
     )
 
 

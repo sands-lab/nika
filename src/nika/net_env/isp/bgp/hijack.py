@@ -21,6 +21,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from nika.net_env.isp.bgp.plan import BgpPlan
     from nika.net_env.isp.igp.plan import IspPlan
+    from nika.net_env.isp.traffic.stubs import IspTrafficAttachment
+    from nika.traffic.workload import BusinessWorkload
 
 
 @dataclass(frozen=True)
@@ -123,3 +125,42 @@ def hijack_targets(
                     )
                 )
     return targets
+
+
+def lab_hijack_targets(
+    plan: "IspPlan",
+    bgp_plan: "BgpPlan | None",
+    traffic: "IspTrafficAttachment",
+    workload: "BusinessWorkload | None",
+) -> list[HijackTarget]:
+    """Hijack targets of a deployed ISP lab.
+
+    With ``workload``, a prefix's clients are the routers whose stubs hold
+    sessions to its service: the originated ping address on the router, or the
+    originator's stub address when the service runs on the stub. Without a
+    workload, every router with a stub is a client of every business prefix.
+    """
+    if bgp_plan is None:
+        return []
+    stub_of = {h.router_device: h.host_name for h in traffic.hosts}
+    if workload is None:
+        clients = {o.prefix: set(stub_of) for o in bgp_plan.originated}
+        return hijack_targets(plan, bgp_plan, stub_of, clients)
+    router_of = {stub: router for router, stub in stub_of.items()}
+    prefix_at = {o.ping_address: o.prefix for o in bgp_plan.originated}
+    address_of = {h.host_name: h.address for h in traffic.hosts}
+    for origin in bgp_plan.originated:
+        stub = stub_of.get(origin.device)
+        if stub is not None:
+            prefix_at.setdefault(address_of[stub], origin.prefix)
+    clients = {}
+    for process in workload.processes:
+        if (
+            process.app == "web_client"
+            and process.node in router_of
+            and process.args[0] in prefix_at
+        ):
+            clients.setdefault(prefix_at[process.args[0]], set()).add(
+                router_of[process.node]
+            )
+    return hijack_targets(plan, bgp_plan, stub_of, clients)

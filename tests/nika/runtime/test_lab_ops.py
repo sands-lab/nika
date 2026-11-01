@@ -274,7 +274,16 @@ class LabOpsTest:
         assert len(sleeps) == frr_api._BGP_ASN_ATTEMPTS - 1
         assert all(s == frr_api._BGP_ASN_RETRY_DELAY_SEC for s in sleeps)
 
-    def test_data_plane_ip_ignores_node_created_and_bridge_interfaces(self):
+    @pytest.mark.parametrize("bridge_address", ["172.17.0.4", "10.210.0.4"])
+    def test_data_plane_ip_ignores_node_created_and_bridge_interfaces(
+        self, monkeypatch, bridge_address
+    ):
+        from ipaddress import ip_network
+
+        monkeypatch.setattr(
+            "nika.service.lab.semantic_mixin._docker_bridge_networks",
+            lambda: (ip_network(f"{bridge_address}/24", strict=False),),
+        )
         links = [
             {"ifname": "lo", "addr_info": [{"family": "inet", "local": "127.0.0.1"}]},
             {
@@ -290,7 +299,7 @@ class LabOpsTest:
             # Kathara ``bridged`` nodes attach eth1 to Docker's default bridge.
             {
                 "ifname": "eth1",
-                "addr_info": [{"family": "inet", "local": "172.17.0.4"}],
+                "addr_info": [{"family": "inet", "local": bridge_address}],
             },
         ]
         runtime = _StubRuntime({("pc1", "ip -j addr"): json.dumps(links)})

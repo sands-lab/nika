@@ -8,6 +8,7 @@ from nika.agents.sandbox import SandboxManager
 from nika.agents.sandbox.backend import backend_class, get_backend
 from nika.agents.sandbox.config import resolve_sandbox_config
 from nika.mcp.gateway.lifecycle import mcp_gateway_for_session
+from nika.runtime.factory import resolve_backend
 from nika.utils.agent_config import (
     resolve_agent_model,
     resolve_agent_timeout,
@@ -216,7 +217,7 @@ def start_agent(
                 host=sandbox_backend.gateway_bind_host if use_sandbox else None,
                 sandbox=use_sandbox,
                 sandbox_agent_host=sandbox_backend.gateway_agent_host,
-                backend=getattr(session, "backend", None),
+                backend=resolve_backend(session),
             ) as gateway_manager:
                 if use_sandbox:
                     gateway_agent_url = gateway_manager.agent_url

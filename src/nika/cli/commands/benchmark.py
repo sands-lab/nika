@@ -410,7 +410,7 @@ def benchmark_run(
         "--device-profile",
         help=(
             "Batch mode: run only rows of these router platforms (frr, "
-            "nokia_srlinux, iosxr, routeros). Repeatable; rows without a "
+            "nokia_srlinux, sonic, iosxr, routeros). Repeatable; rows without a "
             "device_profile count as frr."
         ),
     ),
@@ -813,7 +813,7 @@ def benchmark_generate(
     validated_only: bool = typer.Option(
         False,
         "--validated-only",
-        help="Keep IOS XR/RouterOS cases only for cells that "
+        help="Keep IOS XR, RouterOS and SONiC cases only for cells that "
         "`nika benchmark validate-profiles` recorded as validated.",
     ),
 ) -> None:
@@ -835,7 +835,9 @@ def benchmark_validate_profiles(
         None, "--environment", help="Only this environment (scenario, or isp)."
     ),
     device_profile: str | None = typer.Option(
-        None, "--device-profile", help="Only this native profile (iosxr, routeros)."
+        None,
+        "--device-profile",
+        help="Only this router platform (iosxr, routeros, sonic).",
     ),
     failure: str | None = typer.Option(None, "--failure", help="Only this failure."),
     native_only: bool = typer.Option(
@@ -849,7 +851,7 @@ def benchmark_validate_profiles(
         False, "--list", help="List cells and their last result without running."
     ),
 ) -> None:
-    """Run one case per IOS XR/RouterOS cell end to end and record the result.
+    """Run one case per IOS XR, RouterOS or SONiC cell end to end and record it.
 
     Writes ``benchmark/working/validation/device_profiles.yaml``. Heavy: cells
     run one at a time under ``/tmp/nika-heavy-lab.lock``; run on demand or

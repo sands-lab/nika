@@ -47,6 +47,22 @@ def _extract_injection_params(problem: Any) -> dict[str, Any]:
     return params
 
 
+def _refresh_injection_params(
+    inject_problem: Any,
+    resolved_names: list[str],
+    failure_rows: list[tuple[int, str, dict[str, Any]]],
+) -> None:
+    """Copy RECORDED_ATTRS that inject_fault just set into each stored snapshot."""
+    if len(resolved_names) > 1 and hasattr(inject_problem, "sub_faults"):
+        sub_faults = list(getattr(inject_problem, "sub_faults"))
+        for idx, (_failure_id, _problem_name, row_params) in enumerate(failure_rows):
+            sub_problem = sub_faults[idx] if idx < len(sub_faults) else inject_problem
+            row_params.update(_extract_injection_params(sub_problem))
+        return
+    if failure_rows:
+        failure_rows[0][2].update(_extract_injection_params(inject_problem))
+
+
 def _verify_with_retry(inject_problem: Any, fault_params: Any | None) -> dict[str, Any]:
     """Retry ``verify_fault`` while container state settles."""
     max_attempts, retry_delay = _failure_verify_settings()
@@ -227,6 +243,8 @@ def inject_failure(
             raise
         inject_duration_ms = elapsed_ms(inject_started)
 
+    _refresh_injection_params(inject_problem, resolved_names, failure_rows)
+
     if not hasattr(inject_problem, "verify_fault"):
         raise RuntimeError(f"Problem {problem_names} does not implement verify_fault")
 
@@ -237,11 +255,15 @@ def inject_failure(
     verify_payload = json_safe(verify_result)
     verify_summary = summarize_fault_verify(verify_payload)
     if not verify_result.get("verified", False):
-        for failure_id, _problem_name, _params in failure_rows:
+        for failure_id, _problem_name, row_params in failure_rows:
             store.update_failure_injection(
                 session.session_id,
                 failure_id,
-                {"status": "verify_failed", "verify_result": verify_payload},
+                {
+                    "status": "verify_failed",
+                    "verify_result": verify_payload,
+                    "injection_params": row_params,
+                },
             )
         log_error_event(
             "failure_verify_failed",
@@ -274,7 +296,11 @@ def inject_failure(
         store.update_failure_injection(
             session.session_id,
             failure_id,
-            {"status": "injected", "verify_result": verify_payload},
+            {
+                "status": "injected",
+                "verify_result": verify_payload,
+                "injection_params": row_params,
+            },
         )
         inject_summary = summarize_injection(problem_name, row_params)
         resolved = row_params.get("resolved_params")

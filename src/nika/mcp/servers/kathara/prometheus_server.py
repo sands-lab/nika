@@ -24,7 +24,10 @@ def prometheus_query(
     switches export OpenFlow port counters (``openflow_port_*``). P4 switches
     export pipeline counters (``p4_ingress_*``, ``p4_egress_*``) labelled
     with the BMv2 node. SR Linux nodes export interface counters
-    (``srl_interface_*``). IOS XR nodes export ``xr_interface_*``. RouterOS
+    (``srl_interface_*``). SONiC nodes export port state and counters
+    (``sonic_interface_up``, ``sonic_interface_{in,out}_{octets,packets,
+    errors,discards}``) labelled with the ``EthernetN`` port, plus
+    ``frr_bgp_peer_*``. IOS XR nodes export ``xr_interface_*``. RouterOS
     nodes export ``routeros_interface_*`` and ``routeros_bgp_peer_up``.
     FRR routers also export ``frr_bgp_peer_*``. ``up`` shows whether a device
     answers. For example,
@@ -33,6 +36,7 @@ def prometheus_query(
     ``p4_ingress_packets{node="spine_1"}``,
     ``srl_interface_in_packets{node="leaf1"}``,
     ``srl_bgp_peer_up{node="leaf1"}``,
+    ``rate(sonic_interface_in_packets{node="leaf1",device="Ethernet0"}[30s])``,
     ``xr_interface_in_packets{node="router1"}``,
     ``frr_bgp_peer_up{node="leaf_router_0_0"}``, or
     ``routeros_interface_rx_packets{node="router1"}``.

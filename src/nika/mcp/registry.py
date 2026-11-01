@@ -132,6 +132,18 @@ MCP_SERVER_SPECS: dict[str, MCPServerSpec] = {
         role="routing",
         module="nika.mcp.servers.containerlab.srl_server",
     ),
+    "containerlab_sonic_mcp_server": MCPServerSpec(
+        name="containerlab_sonic_mcp_server",
+        backend="containerlab",
+        role="routing",
+        module="nika.mcp.servers.containerlab.sonic_server",
+    ),
+}
+
+# Vendor CLI server for each Containerlab router platform (``device_profile``).
+CONTAINERLAB_ROUTER_SERVERS: dict[str, str] = {
+    "nokia_srlinux": "containerlab_srl_mcp_server",
+    "sonic": "containerlab_sonic_mcp_server",
 }
 
 # Stable server names used in agent tool prefixes (``{name}_tool``).
@@ -189,11 +201,15 @@ def select_diagnosis_servers(
     *,
     backend: str | None = None,
     telemetry: Iterable[str] = (),
+    device_profile: str | None = None,
 ) -> list[str]:
     """Return MCP server names needed for diagnosis on *scenario*.
 
     ``telemetry`` lists the kinds the session was started with (see
-    ``nika.telemetry.telemetry_for_session``).
+    ``nika.telemetry.telemetry_for_session``). ``device_profile`` is the
+    session's router platform; Containerlab routers are SR Linux unless it
+    names another one, and each Containerlab platform gets its vendor CLI
+    server from ``CONTAINERLAB_ROUTER_SERVERS``.
     """
     backend = _resolve_diagnosis_backend(scenario_name, backend)
 
@@ -205,7 +221,11 @@ def select_diagnosis_servers(
     ]
 
     if backend == "containerlab" and tokens & ROUTING_KEYWORDS:
-        servers.append("containerlab_srl_mcp_server")
+        router_server = CONTAINERLAB_ROUTER_SERVERS.get(
+            device_profile or "nokia_srlinux"
+        )
+        if router_server:
+            servers.append(router_server)
     elif backend != "containerlab" and tokens & IOSXR_KEYWORDS:
         servers.append("kathara_iosxr_mcp_server")
     elif backend != "containerlab" and tokens & ROUTEROS_KEYWORDS:

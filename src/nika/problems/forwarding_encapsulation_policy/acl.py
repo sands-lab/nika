@@ -18,6 +18,10 @@ from nika.problems.support.benchmark_targets import (
 from nika.problems.support.compatible_columns import NON_K8S_HOST_COLUMNS
 from nika.problems.support.dns import dns_client_steps
 from nika.problems.support.oracle import (
+    FILTER_DUMP,
+    any_of,
+    iptables_rule,
+    srl_cli,
     Check,
     OraclePlaybook,
     OracleStep,
@@ -55,14 +59,8 @@ _GW = "gw=$(ip -4 route show default | awk '{print $3; exit}')"
 
 
 def _nft_drops(node: str, expect: Check, purpose: str) -> OracleStep:
-    """Evidence: the node's nftables ruleset (tables, chains, drop rules)."""
-    return shell(
-        node,
-        "nft list ruleset 2>&1 | grep -nE 'table|chain|hook|drop|reject' | head -60",
-        purpose,
-        expect,
-        evidence=True,
-    )
+    """Evidence: the node's packet filter rules (nftables and iptables)."""
+    return shell(node, FILTER_DUMP, purpose, expect, evidence=True)
 
 
 def _nft_table_rule(family: str, rule: str, description: str) -> Check:
@@ -294,7 +292,7 @@ class BGPAclBlock(ProblemBase):
             f"An ACL on {host} drops BGP's TCP port 179, so its BGP sessions "
             "cannot re-establish and the routes they carried are lost."
         )
-        if self.lab_backend == "containerlab":
+        if srl_cli(self.net_env, host):
             return OraclePlaybook(
                 finding=finding,
                 steps=[
@@ -353,16 +351,28 @@ class BGPAclBlock(ProblemBase):
                 ),
                 _nft_drops(
                     host,
-                    all_of(
-                        _nft_table_rule(
-                            "inet",
-                            r"tcp dport 179 drop",
-                            "a rule drops TCP destination port 179",
+                    any_of(
+                        all_of(
+                            _nft_table_rule(
+                                "inet",
+                                r"tcp dport 179 drop",
+                                "a rule drops TCP destination port 179",
+                            ),
+                            _nft_table_rule(
+                                "inet",
+                                r"tcp sport 179 drop",
+                                "a rule drops TCP source port 179",
+                            ),
                         ),
-                        _nft_table_rule(
-                            "inet",
-                            r"tcp sport 179 drop",
-                            "a rule drops TCP source port 179",
+                        all_of(
+                            iptables_rule(
+                                r"-p tcp .*--dport 179",
+                                "a rule drops TCP destination port 179",
+                            ),
+                            iptables_rule(
+                                r"-p tcp .*--sport 179",
+                                "a rule drops TCP source port 179",
+                            ),
                         ),
                     ),
                     f"Inspect the packet filter on {host} for rules on BGP's TCP port 179.",
@@ -389,6 +399,8 @@ class OSPFAclBlock(ProblemBase):
     root_cause_name = "ospf_acl_block"
     description = "OSPF control-plane traffic is blocked by an ACL."
     TAGS: str = ["ospf"]
+    native_router_operations = frozenset({"block_ospf", "ospf_blocked"})
+    supported_backends = ("kathara", "containerlab")
 
     Params = OSPFAclBlockParams
 
@@ -400,13 +412,70 @@ class OSPFAclBlock(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: OSPFAclBlockParams):
-        self.runtime.add_nft_drop_rule(
-            params.host_name, "ip protocol ospf drop", family="inet"
-        )
+        ops = native_fault_ops(self, params.host_name, "block_ospf")
+        if ops is not None:
+            ops.block_ospf()
+            return
+        match self.lab_backend:
+            case "containerlab":
+                self._srl_acl_entries = self.runtime.srl_add_ospf_acl_drop(
+                    params.host_name
+                )
+                # Neighbor clear is best-effort; the OSPF dead interval is 40s.
+                if not wait_until(
+                    lambda: (
+                        not self.runtime.srl_ospf_neighbor_interfaces(params.host_name)
+                    ),
+                    40,
+                ):
+                    neighbors = self.runtime.srl_ospf_neighbor_interfaces(
+                        params.host_name
+                    )
+                    raise RuntimeError(
+                        f"OSPF ACL drop on {params.host_name} left Full "
+                        f"adjacencies: {neighbors}"
+                    )
+            case "kathara":
+                self.runtime.add_nft_drop_rule(
+                    params.host_name, "ip protocol ospf drop", family="inet"
+                )
+            case backend:
+                raise RuntimeCapabilityError(
+                    f"{type(self).__name__} cannot inject_fault: unsupported backend {backend!r}."
+                )
 
     def verify_fault(self, params: OSPFAclBlockParams) -> dict:
-        """Verify nftables has a rule blocking OSPF protocol."""
-        return _verify_nft_drop(self, params.host_name, "ip protocol ospf drop")
+        """Verify the router's packet filter drops OSPF."""
+        ops = native_fault_ops(self, params.host_name, "ospf_blocked")
+        if ops is not None:
+            return build_verify_result(
+                fault_type=self.root_cause_name,
+                verified=ops.ospf_blocked(),
+                details={"host": params.host_name, "profile": ops.profile},
+            )
+        match self.lab_backend:
+            case "containerlab":
+                entries = getattr(self, "_srl_acl_entries", [])
+                neighbors = self.runtime.srl_ospf_neighbor_interfaces(params.host_name)
+                verified = (
+                    self.runtime.srl_ospf_acl_drop_present(params.host_name, entries)
+                    and not neighbors
+                )
+                return build_verify_result(
+                    fault_type=self.root_cause_name,
+                    verified=verified,
+                    details={
+                        "host": params.host_name,
+                        "srl_acl_entries": entries,
+                        "ospf_full_neighbors": neighbors,
+                    },
+                )
+            case "kathara":
+                return _verify_nft_drop(self, params.host_name, "ip protocol ospf drop")
+            case backend:
+                raise RuntimeCapabilityError(
+                    f"{type(self).__name__} cannot verify_fault: unsupported backend {backend!r}."
+                )
 
     def oracle_playbook(self, params: OSPFAclBlockParams) -> OraclePlaybook:
         host = params.host_name
@@ -439,8 +508,11 @@ class OSPFAclBlock(ProblemBase):
                 ),
                 _nft_drops(
                     host,
-                    _nft_table_rule(
-                        "inet", r"ip protocol (ospf|89) drop", "a rule drops OSPF"
+                    any_of(
+                        _nft_table_rule(
+                            "inet", r"ip protocol (ospf|89) drop", "a rule drops OSPF"
+                        ),
+                        iptables_rule(r"-p (ospf|89)\b", "a rule drops OSPF"),
                     ),
                     f"Inspect the packet filter on {host} for rules on OSPF.",
                 ),

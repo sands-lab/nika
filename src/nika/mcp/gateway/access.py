@@ -27,6 +27,7 @@ TOOL_NODE_ARGUMENTS: dict[str, tuple[str, ...]] = {
     "iosxr_exec": ("router_name",),
     "routeros_exec": ("router_name",),
     "srl_exec_cli": ("device_name",),
+    "sonic_exec_cli": ("device_name",),
     "sdn_onos_rest": (),
     "p4rt_exec": (),
     "int_query_telemetry": (),

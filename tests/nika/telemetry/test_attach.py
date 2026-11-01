@@ -226,3 +226,35 @@ def test_inject_collector_prometheus_only_skips_sflow_links() -> None:
         for link in doc["topology"]["links"]
         for endpoint in link["endpoints"]
     )
+
+
+def test_inject_collector_runs_sonic_flow_probes_in_router_netns() -> None:
+    doc = {
+        "name": "min3clos",
+        "mgmt": {"ipv4-subnet": "172.100.1.0/24"},
+        "topology": {
+            "nodes": {
+                "leaf1": {"kind": "sonic-vs", "mgmt-ipv4": "172.100.1.2"},
+                "spine": {"kind": "sonic-vs", "mgmt-ipv4": "172.100.1.4"},
+                "client1": {"kind": "linux", "mgmt-ipv4": "172.100.1.5"},
+            },
+            "links": [
+                {"endpoints": ["leaf1:eth1", "spine:eth1"]},
+                {"endpoints": ["client1:eth1", "leaf1:eth2"]},
+            ],
+        },
+    }
+    plan = containerlab.inject_collector(
+        doc, ("netflow", "prometheus", "syslog"), gnmic=None
+    )
+    nodes = doc["topology"]["nodes"]
+    probe = plan["devices"]["leaf1"]["flow_probe"]
+    assert nodes[probe]["network-mode"] == "container:leaf1"
+    assert "mgmt-ipv4" not in nodes[probe]
+    assert probe not in plan["devices"]
+    assert plan["devices"]["leaf1"]["data_ports"] == ["Ethernet0", "Ethernet4"]
+    assert plan["devices"]["spine"]["data_ports"] == ["Ethernet0"]
+    assert "flow_probe" not in plan["devices"]["client1"]
+    # SONiC exports over the management network, not over extra links.
+    assert plan["collector_ifaces"] == []
+    assert len(doc["topology"]["links"]) == 2

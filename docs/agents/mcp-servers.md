@@ -2,11 +2,11 @@
 
 Use this reference to find the tools available during an agent diagnosis session. The MCP gateway exposes session-scoped HTTP endpoints. Agents load their URLs with `DiagnosisAgent.diagnosis_mcp_config()`; see [Python MCP client](agent-reference.md#python-mcp-client) for a client example.
 
-The [server registry](../../src/nika/mcp/registry.py) selects diagnosis servers from the scenario name, tags, and backend. Every diagnosis session receives `kathara_base_mcp_server`, `pingmesh_mcp_server`, and `packet_capture_mcp_server`. The base server works with Kathara and Containerlab despite its name. The gateway exposes `task_mcp_server` only after the agent advances to submission.
+The [server registry](../../src/nika/mcp/registry.py) selects diagnosis servers from the scenario name, tags, backend, and router platform. Every diagnosis session receives `kathara_base_mcp_server`, `pingmesh_mcp_server`, and `packet_capture_mcp_server`. The base server works with Kathara and Containerlab despite its name. The gateway exposes `task_mcp_server` only after the agent advances to submission.
 
-## Run commands on lab nodes
+## Run commands on environment nodes
 
-Use `exec_shell(host_name, command, timeout=10)` for ordinary commands. Set `timeout` in seconds when a command such as `kubectl` needs longer. Command output is subject to the [tool output limit](#tool-output-limit), so request bounded output with options such as `--no-headers`, `--tail`, or `-o jsonpath`. Commands run inside the named lab node and remain subject to the session's node access policy.
+Use `exec_shell(host_name, command, timeout=10)` for ordinary commands. Set `timeout` in seconds when a command such as `kubectl` needs longer. Command output is subject to the [tool output limit](#tool-output-limit), so request bounded output with options such as `--no-headers`, `--tail`, or `-o jsonpath`. Commands run inside the named node and remain subject to the session's node access policy.
 
 | Task | Node | Command |
 | --- | --- | --- |
@@ -30,7 +30,8 @@ Use `exec_shell(host_name, command, timeout=10)` for ordinary commands. Set `tim
 | `kathara_frr_mcp_server` | Kathara scenarios tagged `rpki` | `frr_get_rpki_status` gathers RTR cache state and optional prefix validation evidence. |
 | `kathara_iosxr_mcp_server` | Kathara IOS-XR scenarios | `iosxr_exec` runs commands through the XR CLI path. |
 | `kathara_routeros_mcp_server` | Kathara RouterOS scenarios | `routeros_exec` reaches RouterOS through its internal management hop. |
-| `containerlab_srl_mcp_server` | Containerlab routing scenarios | `srl_exec_cli` runs commands through SR Linux CLI. |
+| `containerlab_srl_mcp_server` | Containerlab routing scenarios on SR Linux | `srl_exec_cli` runs commands through SR Linux CLI. |
+| `containerlab_sonic_mcp_server` | Containerlab routing scenarios on SONiC (`device_profile: sonic`) | `sonic_exec_cli` runs one SONiC CLI command: `show`, `config`, `vtysh`, `redis-cli`, or `sonic-db-cli`. It rejects shell operators such as pipes; use `exec_shell` for those. |
 | `kathara_bmv2_mcp_server` | Kathara P4 scenarios | `p4rt_exec` runs read-only P4Runtime queries through the fabric controller `fabric_mgr`. |
 | `kathara_sdn_mcp_server` | Kathara SDN scenarios | `sdn_onos_rest` queries ONOS REST through `fabric_mgr`. |
 | `kathara_telemetry_mcp_server` | Kathara telemetry scenarios | `int_query_telemetry` filters observed INT-MX packet and hop records. |
@@ -55,11 +56,11 @@ Call `int_query_telemetry` with a start time and optional flow or packet filters
 
 Call `netflow_query` with a time window, for example `start_time="-600"` for the last ten minutes. To narrow the results, pass `exporter` (a device name) and an nfdump `filter` such as `proto udp and dst ip 10.254.0.6`. To sum packets, bytes, and flows, set `aggregate_by` to one or more of `router`, `inif`, `proto`, `srcip`, `srcport`, `dstip`, and `dstport`. Rows are sorted by `order_by` (`bytes`, `packets`, or `flows`), and `limit` sets how many are returned.
 
-Devices export only the traffic they receive, so a flow appears once for each device on its path. On FRR exporters, `in_if` is the kernel ifindex; `ip -o link` maps it to a name. On OVS exporters in `sdn_l3_clos`, `in_if` is the OpenFlow port; `ovs-ofctl dump-ports-desc` maps it. On Containerlab SR Linux, `in_if` is the sFlow ifIndex. On Kathara RouterOS, `in_if` is the traffic-flow interface index. Records become queryable about 20 seconds after the traffic. The server is selected when a session enables `netflow` [telemetry](../operations/network-scenarios.md#telemetry).
+Devices export only the traffic they receive, so a flow appears once for each device on its path. On FRR exporters, `in_if` is the kernel ifindex; `ip -o link` maps it to a name. On OVS exporters in `sdn_l3_clos`, `in_if` is the OpenFlow port; `ovs-ofctl dump-ports-desc` maps it. On Containerlab SR Linux, `in_if` is the sFlow ifIndex. On Containerlab SONiC, `in_if` is the kernel ifindex of the `Ethernet<N>` port; `ip -o link` in the router maps it. On Kathara RouterOS, `in_if` is the traffic-flow interface index. Records become queryable about 20 seconds after the traffic. The server is selected when a session enables `netflow` [telemetry](../operations/network-scenarios.md#telemetry).
 
 ### Prometheus (`kathara_prometheus_mcp_server`)
 
-Call `prometheus_query` with a PromQL expression. Each series carries the device as `node`; `device` is an interface name on Linux, OVS, SR Linux, IOS XR, and RouterOS series, and `neighbor` is a BGP peer. Omit `start_time` for an instant query. With `start_time` (for example `"-600"`), the tool returns a range at `step` resolution. `limit` sets how many series are returned. Kathara exporters are scraped every 5 seconds; SR Linux uses a 15-second scrape. `up` shows whether a device answers its scrape. The server is selected when a session enables `prometheus` [telemetry](../operations/network-scenarios.md#telemetry).
+Call `prometheus_query` with a PromQL expression. Each series carries the device as `node`; `device` is an interface name on Linux, OVS, SR Linux, SONiC, IOS XR, and RouterOS series, and `neighbor` is a BGP peer. Omit `start_time` for an instant query. With `start_time` (for example `"-600"`), the tool returns a range at `step` resolution. `limit` sets how many series are returned. Kathara exporters are scraped every 5 seconds; SR Linux and SONiC use a 15-second scrape. `up` shows whether a device answers its scrape. The server is selected when a session enables `prometheus` [telemetry](../operations/network-scenarios.md#telemetry).
 
 | Query | What it shows |
 | --- | --- |
@@ -70,15 +71,16 @@ Call `prometheus_query` with a PromQL expression. Each series carries the device
 | `p4_ingress_packets{node="spine_1"}` | BMv2 pipeline counters |
 | `srl_interface_in_packets{node="leaf1"}` | SR Linux interface packets |
 | `srl_bgp_peer_up{node="leaf1"}` | SR Linux BGP session |
+| `sonic_interface_in_packets{node="leaf1"}` | SONiC port packets |
 | `xr_interface_in_packets{node="router1"}` | XRd interface packets |
 | `xr_bgp_peer_up{node="router1"}` | XRd BGP session |
 | `routeros_interface_rx_packets{node="router1"}` | RouterOS interface packets |
 
-Linux nodes export the network stack: `node_network_*`, `node_netstat_*`, `node_sockstat_*`, `node_nf_conntrack_*`, and `node_arp_*`. FRR also exports `frr_bgp_peer_up` and `frr_bgp_peer_prefixes`. OVS exports `openflow_port_*`. P4 fabrics export `p4_ingress_*` and `p4_egress_*`, and on the gateway pipeline SYN and non-SYN flow totals. SR Linux exports `srl_interface_*` and `srl_bgp_peer_up`. XRd exports `xr_interface_*` and `xr_bgp_peer_*`. RouterOS exports `routeros_interface_*` and `routeros_bgp_peer_up`.
+Linux nodes export the network stack: `node_network_*`, `node_netstat_*`, `node_sockstat_*`, `node_nf_conntrack_*`, and `node_arp_*`. FRR also exports `frr_bgp_peer_up` and `frr_bgp_peer_prefixes`. OVS exports `openflow_port_*`. P4 fabrics export `p4_ingress_*` and `p4_egress_*`, and on the gateway pipeline SYN and non-SYN flow totals. SR Linux exports `srl_interface_*` and `srl_bgp_peer_up`. SONiC exports `sonic_interface_*` port counters from COUNTERS_DB, which `show interfaces counters` also reads, plus `frr_bgp_peer_up` and `frr_bgp_peer_prefixes`. XRd exports `xr_interface_*` and `xr_bgp_peer_*`. RouterOS exports `routeros_interface_*` and `routeros_bgp_peer_up`.
 
 ### Syslog (`kathara_syslog_mcp_server`)
 
-Call `syslog_query` with a time window, for example `start_time="-600"` for the last ten minutes. Pass `host` for one device, `program` for a syslog tag such as `bgpd`, and `contains` for a message substring. Rows are `{time, host, program, message}`. Linux and OVS devices forward `/dev/log` over the management VRF after FRR `log syslog`. SR Linux sends syslog over UDP 514 from the mgmt network-instance on the lab management network. XRd uses that Linux forwarder because extra Kathara NICs stay on Linux. RouterOS uses a remote logging action. The server is selected when a session enables `syslog` [telemetry](../operations/network-scenarios.md#telemetry).
+Call `syslog_query` with a time window, for example `start_time="-600"` for the last ten minutes. Pass `host` for one device, `program` for a syslog tag such as `bgpd`, and `contains` for a message substring. Rows are `{time, host, program, message}`. Linux and OVS devices forward `/dev/log` over the management VRF after FRR `log syslog`. SR Linux sends syslog over UDP 514 from the mgmt network-instance on the lab management network. SONiC's rsyslogd forwards over the lab management network. XRd uses that Linux forwarder because extra Kathara NICs stay on Linux. RouterOS uses a remote logging action. The server is selected when a session enables `syslog` [telemetry](../operations/network-scenarios.md#telemetry).
 
 ### Kubernetes (`k8s_mcp_server`)
 
@@ -97,7 +99,7 @@ Set bounded duration and packet limits. The capture and metadata remain on the n
 
 A valid capture with zero packets still returns an artifact. If no nonempty capture file exists, stopping fails and marks the capture as failed; start a new capture rather than inspecting the failed one.
 
-`interface` must exist on the node; otherwise `packet_capture_start` fails and lists the node's interfaces. On SR Linux nodes, `ethernet-1/N`, `ethernet-1/N.0`, `e1-N`, and the plan name `eth{N-1}` all capture on data port `e1-N`, which carries both transit and control-plane traffic.
+`interface` must exist on the node; otherwise `packet_capture_start` fails and lists the node's interfaces. On SR Linux nodes, `ethernet-1/N`, `ethernet-1/N.0`, `e1-N`, and the plan name `eth{N-1}` all capture on data port `e1-N`, which carries both transit and control-plane traffic. On SONiC nodes, port `EthernetN` captures on the container data interface `eth{N/4+1}` that carries it, the same interface the topology names.
 
 ## Tool output limit
 

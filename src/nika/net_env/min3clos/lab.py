@@ -1,9 +1,11 @@
-"""Containerlab min 3-node CLOS fabric (clos01)."""
+"""Containerlab min 3-node CLOS fabric (clos01) on Nokia SR Linux or SONiC."""
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
+import tempfile
 import time
 import yaml
 from typing import ClassVar
@@ -12,6 +14,20 @@ from nika.config import clab_workdir
 from nika.net_env.base import ProbePath
 from nika.net_env.utils.containerlab.base import ContainerlabNetworkEnv
 from nika.runtime.containerlab import render_topology
+from nika.runtime.containerlab.parse import parse_clab_topology
+from nika.runtime.spec import LabSpec
+from nika.net_env.utils.sonic.common import (
+    KIND as SONIC_KIND,
+    activate_sonic_routers,
+    ensure_sonic_image,
+    sonic_port,
+)
+from nika.net_env.utils.sonic.render import (
+    SonicRouter,
+    clab_kind as sonic_clab_kind,
+    translate_frr_design,
+    write_node_files as write_sonic_node_files,
+)
 from nika.utils.dependencies import require_gnmic
 
 
@@ -22,6 +38,7 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
     LAB_NAME = "min3clos"
     TOPO_LEVEL = "easy"
     DESC = "3-node CLOS fabric with Nokia SR Linux (Containerlab min-clos / clos01)."
+    ROUTERS: ClassVar[tuple[str, ...]] = ("leaf1", "leaf2", "spine")
     GNMI_WAIT_TIMEOUT_SEC: ClassVar[int] = 300
 
     def __init__(
@@ -30,11 +47,29 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
         backend: str = "containerlab",
         routing_model=None,
         routing_parameters=None,
+        device_profile: str | None = None,
         **kwargs,
     ):
-        from nika.runtime.spec import NodeRole
+        from nika.runtime.spec import MachineInventory, NodeRole
 
         super().__init__(backend=backend, **kwargs)
+        self.device_profile = device_profile or "nokia_srlinux"
+        if self.device_profile not in {"nokia_srlinux", "sonic"}:
+            raise ValueError(
+                f"min3clos supports device_profile nokia_srlinux or sonic, "
+                f"not {self.device_profile!r}"
+            )
+        self.sonic = self.device_profile == "sonic"
+        if self.sonic:
+            if routing_model is not None or routing_parameters is not None:
+                raise ValueError(
+                    "min3clos on SONiC has no routing model for solved parameters"
+                )
+            # Batfish analyzes the deployed SONiC files; no parameters bind.
+            self.ROUTING_MODELS = frozenset({"sonic"})
+            self.desc = (
+                "3-node CLOS fabric with SONiC (Containerlab min-clos / clos01)."
+            )
         self.routing_model = routing_model
         self.routing_documents = None
         if routing_model == "srl-bgp":
@@ -53,19 +88,29 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
             raise ValueError(
                 "SR Linux parameters require the declared srl-bgp routing model"
             )
-        for name in ("leaf1", "leaf2", "spine"):
-            self.declare_machine(
-                name,
-                role=NodeRole.ROUTER,
-                capabilities=("linux", "srl", "bgp"),
+        from nika.net_env.min3clos.contract import build_min3clos_contract
+
+        self.validation_contract = build_min3clos_contract(self.LAB_NAME)
+        for name in self.ROUTERS:
+            caps = (
+                ("linux", "sonic", "bgp")
+                if self.sonic
+                else ("linux", "srl", "nokia_srlinux", "bgp")
             )
+            self.declare_machine(name, role=NodeRole.ROUTER, capabilities=caps)
         for name in ("client1", "client2"):
             self.declare_machine(
                 name,
-                role=NodeRole.HOST,
+                role=NodeRole.SERVICE if name == "client2" else NodeRole.HOST,
+                service_type="web" if name == "client2" else None,
                 capabilities=("linux",),
                 reachability_target=True,
             )
+
+        inventory = MachineInventory(self.machine_identities)
+        self.hosts = inventory.names_for_role(NodeRole.HOST)
+        self.routers = inventory.names_for_role(NodeRole.ROUTER)
+        self.servers = inventory.services()
 
     def topology_replacements(self, lab_name: str) -> dict[str, str]:
         from nika.net_env.isp.containerlab.lab import (
@@ -93,6 +138,9 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
             "__SRL_IMAGE__": SRL_IMAGE,
             "__LINUX_IMAGE__": LINUX_IMAGE,
             "__LINUX_CMD__": LINUX_CMD,
+            "__SRL_ROUTERS__": ""
+            if self.sonic
+            else " ".join(f'"{name}"' for name in self.ROUTERS),
         }
         for name, index in hosts:
             replacements[f"__MGMT_IP_{name.upper()}__"] = mgmt_ipv4_address(
@@ -129,6 +177,8 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
             output_path=self.topology_file,
             replacements=self.topology_replacements(lab_name),
         )
+        if self.sonic:
+            self._convert_topology_to_sonic()
 
         configs_src = self.lab_dir / "configs"
         configs_dst = self.runtime_workdir / "configs"
@@ -150,6 +200,58 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
             replacements=self.topology_replacements(lab_name),
         )
         setup_dst.chmod(0o755)
+        if self.sonic:
+            for router in self.sonic_routers.values():
+                write_sonic_node_files(configs_dst, router)
+
+    @property
+    def sonic_routers(self) -> dict[str, SonicRouter]:
+        def rename(iface: str) -> str:
+            return "Loopback0" if iface == "lo" else sonic_port(iface)
+
+        return {
+            name: translate_frr_design(
+                name,
+                (self.lab_dir / "configs" / "sonic" / f"{name}.conf").read_text(),
+                rename,
+            )
+            for name in self.ROUTERS
+        }
+
+    def _convert_topology_to_sonic(self) -> None:
+        document = yaml.safe_load(self.topology_file.read_text())
+        self.topology_file.write_text(
+            yaml.safe_dump(self._sonic_document(document), sort_keys=False)
+        )
+
+    def _sonic_document(self, document: dict) -> dict:
+        """Run the template's routers as SONiC, with SR Linux port ``e1-N`` as ``ethN``."""
+        topology = document["topology"]
+        del topology["kinds"]["nokia_srlinux"]
+        topology["kinds"][SONIC_KIND] = sonic_clab_kind()
+        for name in self.ROUTERS:
+            node = topology["nodes"][name]
+            node["kind"] = SONIC_KIND
+            node.pop("type", None)
+        for link in topology["links"]:
+            link["endpoints"] = [
+                re.sub(r":e1-(\d+)$", r":eth\1", endpoint)
+                for endpoint in link["endpoints"]
+            ]
+        return document
+
+    def get_lab_spec(self) -> LabSpec:
+        if not self.sonic:
+            return super().get_lab_spec()
+        document = self._sonic_document(
+            yaml.safe_load(self.topology_template().read_text())
+        )
+        with tempfile.NamedTemporaryFile("w", suffix=".clab.yml") as handle:
+            yaml.safe_dump(document, handle, sort_keys=False)
+            handle.flush()
+            spec = parse_clab_topology(handle.name)
+        spec.name = self.name or self.LAB_NAME
+        return spec
 
     def _collect_lab_images(self) -> set[str]:
         from nika.net_env.isp.containerlab.lab import LINUX_IMAGE
@@ -157,13 +259,22 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
         return {LINUX_IMAGE}
 
     def deploy(self) -> None:
-        require_gnmic()
+        if self.sonic:
+            ensure_sonic_image()
+        else:
+            require_gnmic()
         self._ensure_docker_images()
         already_existed = self.lab_exists()
         super().deploy()
         if already_existed:
             return
-        self._wait_for_gnmi()
+        if self.sonic:
+            activate_sonic_routers(
+                self._build_runtime(),
+                {name: r.daemons for name, r in self.sonic_routers.items()},
+            )
+        else:
+            self._wait_for_gnmi()
         self._run_setup()
 
     def _gnmi_ready(self, mgmt_ipv4: str) -> bool:
@@ -226,20 +337,24 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
 
     def target_roles(self) -> dict[str, list[str]]:
         roles = super().target_roles()
-        clients = [h for h in roles["hosts"] if "client" in h] or roles["hosts"]
+        endpoints = sorted({*roles["hosts"], *roles["web"]})
+        clients = [h for h in endpoints if "client" in h] or endpoints
         return {
             **roles,
             "hosts": clients,
             "host1_pool": clients,
             "attacker_pool": clients,
             "routers": [r for r in roles["routers"] if "leaf" in r] or roles["routers"],
-            "web": clients,
+            "web": roles["web"],
             "l2_endpoints": clients,
         }
 
     def business_workload(self):
         from nika.net_env.min3clos.workload import build_workload
 
+        if self.sonic:
+            # SR Linux port ``e1-N`` runs as container interface ``ethN``.
+            return build_workload(lambda port: port.replace("e1-", "eth"))
         return build_workload()
 
     @classmethod
@@ -256,10 +371,12 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
         from nika.net_env.min3clos.verify import verify_min3clos_lab_startup
 
         return verify_min3clos_lab_startup(
-            self._build_runtime(), scenario_name=self.LAB_NAME
+            self._build_runtime(), scenario_name=self.LAB_NAME, sonic=self.sonic
         )
 
     def verify_lab(self) -> dict:
         from nika.net_env.min3clos.verify import verify_min3clos_lab
 
-        return verify_min3clos_lab(self._build_runtime(), scenario_name=self.LAB_NAME)
+        return verify_min3clos_lab(
+            self._build_runtime(), scenario_name=self.LAB_NAME, sonic=self.sonic
+        )

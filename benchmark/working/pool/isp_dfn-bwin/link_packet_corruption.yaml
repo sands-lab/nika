@@ -7,9 +7,1721 @@ failure:
     igp: isis
     bgp_mode: none
     rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: &id001
+      pattern: uniform
+    inject:
+      corruption_percentage: '10'
+      host_name: berlin
+      intf_name: e1-1
+      peer_host: pc_frankfurt
+      probe_dst_ip: 10.254.0.6
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:e1-1--frankfurt:e1-1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: berlin
+      intf_name: e1-2
+      peer_host: pc_hamburg
+      probe_dst_ip: 10.254.0.10
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:e1-2--hamburg:e1-1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: berlin
+      intf_name: e1-3
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:e1-3--hannover:e1-1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: berlin
+      intf_name: e1-4
+      peer_host: pc_karlsruhe
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:e1-4--karlsruhe:e1-1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: berlin
+      intf_name: e1-5
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:e1-5--koeln:e1-1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: berlin
+      intf_name: e1-6
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:e1-6--leipzig:e1-1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: berlin
+      intf_name: e1-7
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:e1-7--muenchen:e1-1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: berlin
+      intf_name: e1-8
+      peer_host: pc_nuernberg
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:e1-8--nuernberg:e1-1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: berlin
+      intf_name: e1-9
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:e1-9--stuttgart:e1-1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: frankfurt
+      intf_name: e1-2
+      peer_host: pc_hamburg
+      probe_dst_ip: 10.254.0.10
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:e1-2--hamburg:e1-2
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: frankfurt
+      intf_name: e1-3
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:e1-3--hannover:e1-2
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: frankfurt
+      intf_name: e1-4
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:e1-4--koeln:e1-2
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: frankfurt
+      intf_name: e1-5
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:e1-5--leipzig:e1-2
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: frankfurt
+      intf_name: e1-6
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:e1-6--muenchen:e1-2
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: frankfurt
+      intf_name: e1-7
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:e1-7--stuttgart:e1-2
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: frankfurt
+      intf_name: e1-8
+      peer_host: pc_karlsruhe
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:e1-8--karlsruhe:e1-2
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: frankfurt
+      intf_name: e1-9
+      peer_host: pc_nuernberg
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:e1-9--nuernberg:e1-2
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: hamburg
+      intf_name: e1-3
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:e1-3--hannover:e1-3
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: hamburg
+      intf_name: e1-4
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:e1-4--koeln:e1-3
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: hamburg
+      intf_name: e1-5
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:e1-5--leipzig:e1-3
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: hamburg
+      intf_name: e1-6
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:e1-6--muenchen:e1-3
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: hamburg
+      intf_name: e1-7
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:e1-7--stuttgart:e1-3
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: hamburg
+      intf_name: e1-8
+      peer_host: pc_karlsruhe
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:e1-8--karlsruhe:e1-3
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: hamburg
+      intf_name: e1-9
+      peer_host: pc_nuernberg
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:e1-9--nuernberg:e1-3
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: hannover
+      intf_name: e1-4
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:e1-4--koeln:e1-4
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: hannover
+      intf_name: e1-5
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:e1-5--leipzig:e1-4
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: hannover
+      intf_name: e1-6
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:e1-6--muenchen:e1-4
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: hannover
+      intf_name: e1-7
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:e1-7--stuttgart:e1-4
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: hannover
+      intf_name: e1-8
+      peer_host: pc_karlsruhe
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:e1-8--karlsruhe:e1-4
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: hannover
+      intf_name: e1-9
+      peer_host: pc_nuernberg
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:e1-9--nuernberg:e1-4
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: karlsruhe
+      intf_name: e1-5
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_karlsruhe
+    root_causes:
+    - resource:
+        kind: link
+        name: karlsruhe:e1-5--koeln:e1-5
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: karlsruhe
+      intf_name: e1-6
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_karlsruhe
+    root_causes:
+    - resource:
+        kind: link
+        name: karlsruhe:e1-6--leipzig:e1-5
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: karlsruhe
+      intf_name: e1-7
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_karlsruhe
+    root_causes:
+    - resource:
+        kind: link
+        name: karlsruhe:e1-7--muenchen:e1-5
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: karlsruhe
+      intf_name: e1-8
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_karlsruhe
+    root_causes:
+    - resource:
+        kind: link
+        name: karlsruhe:e1-8--stuttgart:e1-5
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: karlsruhe
+      intf_name: e1-9
+      peer_host: pc_nuernberg
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_karlsruhe
+    root_causes:
+    - resource:
+        kind: link
+        name: karlsruhe:e1-9--nuernberg:e1-5
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: koeln
+      intf_name: e1-6
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_koeln
+    root_causes:
+    - resource:
+        kind: link
+        name: koeln:e1-6--leipzig:e1-6
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: koeln
+      intf_name: e1-7
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_koeln
+    root_causes:
+    - resource:
+        kind: link
+        name: koeln:e1-7--muenchen:e1-6
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: koeln
+      intf_name: e1-8
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_koeln
+    root_causes:
+    - resource:
+        kind: link
+        name: koeln:e1-8--stuttgart:e1-6
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: koeln
+      intf_name: e1-9
+      peer_host: pc_nuernberg
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_koeln
+    root_causes:
+    - resource:
+        kind: link
+        name: koeln:e1-9--nuernberg:e1-6
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: leipzig
+      intf_name: e1-7
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_leipzig
+    root_causes:
+    - resource:
+        kind: link
+        name: leipzig:e1-7--muenchen:e1-7
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: leipzig
+      intf_name: e1-8
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_leipzig
+    root_causes:
+    - resource:
+        kind: link
+        name: leipzig:e1-8--stuttgart:e1-7
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: leipzig
+      intf_name: e1-9
+      peer_host: pc_nuernberg
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_leipzig
+    root_causes:
+    - resource:
+        kind: link
+        name: leipzig:e1-9--nuernberg:e1-7
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: muenchen
+      intf_name: e1-8
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_muenchen
+    root_causes:
+    - resource:
+        kind: link
+        name: muenchen:e1-8--stuttgart:e1-8
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: muenchen
+      intf_name: e1-9
+      peer_host: pc_nuernberg
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_muenchen
+    root_causes:
+    - resource:
+        kind: link
+        name: muenchen:e1-9--nuernberg:e1-8
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: nokia_srlinux
+    traffic: *id001
+    inject:
+      corruption_percentage: '10'
+      host_name: nuernberg
+      intf_name: e1-9
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_nuernberg
+    root_causes:
+    - resource:
+        kind: link
+        name: nuernberg:e1-9--stuttgart:e1-9
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: &id002
+      pattern: uniform
+    inject:
+      corruption_percentage: '10'
+      host_name: berlin
+      intf_name: eth1
+      peer_host: pc_frankfurt
+      probe_dst_ip: 10.254.0.6
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth1--frankfurt:eth1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: berlin
+      intf_name: eth2
+      peer_host: pc_hamburg
+      probe_dst_ip: 10.254.0.10
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth2--hamburg:eth1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: berlin
+      intf_name: eth3
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth3--hannover:eth1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: berlin
+      intf_name: eth4
+      peer_host: pc_karlsruhe
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth4--karlsruhe:eth1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: berlin
+      intf_name: eth5
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth5--koeln:eth1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: berlin
+      intf_name: eth6
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth6--leipzig:eth1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: berlin
+      intf_name: eth7
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth7--muenchen:eth1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: berlin
+      intf_name: eth8
+      peer_host: pc_nuernberg
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth8--nuernberg:eth1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: berlin
+      intf_name: eth9
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_berlin
+    root_causes:
+    - resource:
+        kind: link
+        name: berlin:eth9--stuttgart:eth1
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: frankfurt
+      intf_name: eth2
+      peer_host: pc_hamburg
+      probe_dst_ip: 10.254.0.10
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:eth2--hamburg:eth2
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: frankfurt
+      intf_name: eth3
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:eth3--hannover:eth2
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: frankfurt
+      intf_name: eth4
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:eth4--koeln:eth2
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: frankfurt
+      intf_name: eth5
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:eth5--leipzig:eth2
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: frankfurt
+      intf_name: eth6
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:eth6--muenchen:eth2
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: frankfurt
+      intf_name: eth7
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:eth7--stuttgart:eth2
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: frankfurt
+      intf_name: eth8
+      peer_host: pc_karlsruhe
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:eth8--karlsruhe:eth2
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: frankfurt
+      intf_name: eth9
+      peer_host: pc_nuernberg
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_frankfurt
+    root_causes:
+    - resource:
+        kind: link
+        name: frankfurt:eth9--nuernberg:eth2
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: hamburg
+      intf_name: eth3
+      peer_host: pc_hannover
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:eth3--hannover:eth3
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: hamburg
+      intf_name: eth4
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:eth4--koeln:eth3
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: hamburg
+      intf_name: eth5
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:eth5--leipzig:eth3
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: hamburg
+      intf_name: eth6
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:eth6--muenchen:eth3
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: hamburg
+      intf_name: eth7
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:eth7--stuttgart:eth3
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: hamburg
+      intf_name: eth8
+      peer_host: pc_karlsruhe
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:eth8--karlsruhe:eth3
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: hamburg
+      intf_name: eth9
+      peer_host: pc_nuernberg
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_hamburg
+    root_causes:
+    - resource:
+        kind: link
+        name: hamburg:eth9--nuernberg:eth3
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: hannover
+      intf_name: eth4
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:eth4--koeln:eth4
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: hannover
+      intf_name: eth5
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:eth5--leipzig:eth4
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: hannover
+      intf_name: eth6
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:eth6--muenchen:eth4
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: hannover
+      intf_name: eth7
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:eth7--stuttgart:eth4
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: hannover
+      intf_name: eth8
+      peer_host: pc_karlsruhe
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:eth8--karlsruhe:eth4
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: hannover
+      intf_name: eth9
+      peer_host: pc_nuernberg
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_hannover
+    root_causes:
+    - resource:
+        kind: link
+        name: hannover:eth9--nuernberg:eth4
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: karlsruhe
+      intf_name: eth5
+      peer_host: pc_koeln
+      probe_dst_ip: 10.254.0.22
+      symptom_host: pc_karlsruhe
+    root_causes:
+    - resource:
+        kind: link
+        name: karlsruhe:eth5--koeln:eth5
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: karlsruhe
+      intf_name: eth6
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_karlsruhe
+    root_causes:
+    - resource:
+        kind: link
+        name: karlsruhe:eth6--leipzig:eth5
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: karlsruhe
+      intf_name: eth7
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_karlsruhe
+    root_causes:
+    - resource:
+        kind: link
+        name: karlsruhe:eth7--muenchen:eth5
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: karlsruhe
+      intf_name: eth8
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_karlsruhe
+    root_causes:
+    - resource:
+        kind: link
+        name: karlsruhe:eth8--stuttgart:eth5
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: karlsruhe
+      intf_name: eth9
+      peer_host: pc_nuernberg
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_karlsruhe
+    root_causes:
+    - resource:
+        kind: link
+        name: karlsruhe:eth9--nuernberg:eth5
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: koeln
+      intf_name: eth6
+      peer_host: pc_leipzig
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_koeln
+    root_causes:
+    - resource:
+        kind: link
+        name: koeln:eth6--leipzig:eth6
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: koeln
+      intf_name: eth7
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_koeln
+    root_causes:
+    - resource:
+        kind: link
+        name: koeln:eth7--muenchen:eth6
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: koeln
+      intf_name: eth8
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_koeln
+    root_causes:
+    - resource:
+        kind: link
+        name: koeln:eth8--stuttgart:eth6
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: koeln
+      intf_name: eth9
+      peer_host: pc_nuernberg
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_koeln
+    root_causes:
+    - resource:
+        kind: link
+        name: koeln:eth9--nuernberg:eth6
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: leipzig
+      intf_name: eth7
+      peer_host: pc_muenchen
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_leipzig
+    root_causes:
+    - resource:
+        kind: link
+        name: leipzig:eth7--muenchen:eth7
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: leipzig
+      intf_name: eth8
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_leipzig
+    root_causes:
+    - resource:
+        kind: link
+        name: leipzig:eth8--stuttgart:eth7
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: leipzig
+      intf_name: eth9
+      peer_host: pc_nuernberg
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_leipzig
+    root_causes:
+    - resource:
+        kind: link
+        name: leipzig:eth9--nuernberg:eth7
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: muenchen
+      intf_name: eth8
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_muenchen
+    root_causes:
+    - resource:
+        kind: link
+        name: muenchen:eth8--stuttgart:eth8
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: muenchen
+      intf_name: eth9
+      peer_host: pc_nuernberg
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_muenchen
+    root_causes:
+    - resource:
+        kind: link
+        name: muenchen:eth9--nuernberg:eth8
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id002
+    inject:
+      corruption_percentage: '10'
+      host_name: nuernberg
+      intf_name: eth9
+      peer_host: pc_stuttgart
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_nuernberg
+    root_causes:
+    - resource:
+        kind: link
+        name: nuernberg:eth9--stuttgart:eth9
+      fault_type: link_packet_corruption
+  - topo_size: s
+    igp: isis
+    bgp_mode: none
+    rpki: false
     backend: kathara
     device_profile: frr
-    traffic: &id001
+    traffic: &id003
       pattern: uniform
     inject:
       corruption_percentage: '10'
@@ -29,7 +1741,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: berlin
@@ -48,7 +1760,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: berlin
@@ -67,7 +1779,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: berlin
@@ -86,7 +1798,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: berlin
@@ -105,7 +1817,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: berlin
@@ -124,7 +1836,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: berlin
@@ -143,7 +1855,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: berlin
@@ -162,7 +1874,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: berlin
@@ -181,7 +1893,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: frankfurt
@@ -200,7 +1912,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: frankfurt
@@ -219,7 +1931,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: frankfurt
@@ -238,7 +1950,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: frankfurt
@@ -257,7 +1969,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: frankfurt
@@ -276,7 +1988,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: frankfurt
@@ -295,7 +2007,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: frankfurt
@@ -314,7 +2026,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: frankfurt
@@ -333,7 +2045,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: hamburg
@@ -352,7 +2064,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: hamburg
@@ -371,7 +2083,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: hamburg
@@ -390,7 +2102,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: hamburg
@@ -409,7 +2121,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: hamburg
@@ -428,7 +2140,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: hamburg
@@ -447,7 +2159,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: hamburg
@@ -466,7 +2178,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: hannover
@@ -485,7 +2197,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: hannover
@@ -504,7 +2216,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: hannover
@@ -523,7 +2235,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: hannover
@@ -542,7 +2254,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: hannover
@@ -561,7 +2273,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: hannover
@@ -580,7 +2292,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: karlsruhe
@@ -599,7 +2311,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: karlsruhe
@@ -618,7 +2330,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: karlsruhe
@@ -637,7 +2349,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: karlsruhe
@@ -656,7 +2368,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: karlsruhe
@@ -675,7 +2387,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: koeln
@@ -694,7 +2406,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: koeln
@@ -713,7 +2425,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: koeln
@@ -732,7 +2444,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: koeln
@@ -751,7 +2463,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: leipzig
@@ -770,7 +2482,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: leipzig
@@ -789,7 +2501,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: leipzig
@@ -808,7 +2520,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: muenchen
@@ -827,7 +2539,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: muenchen
@@ -846,7 +2558,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id003
     inject:
       corruption_percentage: '10'
       host_name: nuernberg
@@ -865,7 +2577,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: &id002
+    traffic: &id004
       pattern: uniform
     inject:
       corruption_percentage: '10'
@@ -885,7 +2597,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: berlin
@@ -904,7 +2616,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: berlin
@@ -923,7 +2635,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: berlin
@@ -942,7 +2654,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: berlin
@@ -961,7 +2673,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: berlin
@@ -980,7 +2692,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: berlin
@@ -999,7 +2711,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: berlin
@@ -1018,7 +2730,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: berlin
@@ -1037,7 +2749,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: frankfurt
@@ -1056,7 +2768,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: frankfurt
@@ -1075,7 +2787,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: frankfurt
@@ -1094,7 +2806,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: frankfurt
@@ -1113,7 +2825,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: frankfurt
@@ -1132,7 +2844,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: frankfurt
@@ -1151,7 +2863,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: frankfurt
@@ -1170,7 +2882,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: frankfurt
@@ -1189,7 +2901,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: hamburg
@@ -1208,7 +2920,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: hamburg
@@ -1227,7 +2939,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: hamburg
@@ -1246,7 +2958,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: hamburg
@@ -1265,7 +2977,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: hamburg
@@ -1284,7 +2996,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: hamburg
@@ -1303,7 +3015,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: hamburg
@@ -1322,7 +3034,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: hannover
@@ -1341,7 +3053,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: hannover
@@ -1360,7 +3072,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: hannover
@@ -1379,7 +3091,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: hannover
@@ -1398,7 +3110,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: hannover
@@ -1417,7 +3129,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: hannover
@@ -1436,7 +3148,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: karlsruhe
@@ -1455,7 +3167,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: karlsruhe
@@ -1474,7 +3186,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: karlsruhe
@@ -1493,7 +3205,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: karlsruhe
@@ -1512,7 +3224,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: karlsruhe
@@ -1531,7 +3243,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: koeln
@@ -1550,7 +3262,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: koeln
@@ -1569,7 +3281,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: koeln
@@ -1588,7 +3300,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: koeln
@@ -1607,7 +3319,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: leipzig
@@ -1626,7 +3338,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: leipzig
@@ -1645,7 +3357,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: leipzig
@@ -1664,7 +3376,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: muenchen
@@ -1683,7 +3395,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: muenchen
@@ -1702,7 +3414,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic: *id004
     inject:
       corruption_percentage: '10'
       host_name: nuernberg

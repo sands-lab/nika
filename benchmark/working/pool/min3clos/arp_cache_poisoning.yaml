@@ -1,0 +1,35 @@
+scenario:
+  name: min3clos
+failure:
+  fault_type: arp_cache_poisoning
+  cases:
+  - inject:
+      host_name: client1
+    root_causes:
+    - resource:
+        kind: node
+        node: client1
+      fault_type: arp_cache_poisoning
+  - inject:
+      host_name: client2
+    root_causes:
+    - resource:
+        kind: node
+        node: client2
+      fault_type: arp_cache_poisoning
+  - device_profile: sonic
+    inject:
+      host_name: client1
+    root_causes:
+    - resource:
+        kind: node
+        node: client1
+      fault_type: arp_cache_poisoning
+  - device_profile: sonic
+    inject:
+      host_name: client2
+    root_causes:
+    - resource:
+        kind: node
+        node: client2
+      fault_type: arp_cache_poisoning

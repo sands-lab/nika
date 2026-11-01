@@ -7,9 +7,2050 @@ failure:
     igp: isis
     bgp_mode: none
     rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: &id001
+      pattern: uniform
+    inject:
+      down_time: '1'
+      host_name: n1
+      intf_name: eth1
+      peer_host: pc_n2
+      probe_dst_ip: 10.254.0.46
+      symptom_host: pc_n1
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n1:eth1--n2:eth1
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n1
+      intf_name: eth2
+      peer_host: pc_n2
+      probe_dst_ip: 10.254.0.46
+      symptom_host: pc_n1
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n1:eth2--n2:eth2
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n1
+      intf_name: eth3
+      peer_host: pc_n21
+      probe_dst_ip: 10.254.0.54
+      symptom_host: pc_n1
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n1:eth3--n21:eth3
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n1
+      intf_name: eth4
+      peer_host: pc_n21
+      probe_dst_ip: 10.254.0.54
+      symptom_host: pc_n1
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n1:eth4--n21:eth4
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n1
+      intf_name: eth5
+      peer_host: pc_n20
+      probe_dst_ip: 10.254.0.50
+      symptom_host: pc_n1
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n1:eth5--n20:eth3
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n1
+      intf_name: eth6
+      peer_host: pc_n20
+      probe_dst_ip: 10.254.0.50
+      symptom_host: pc_n1
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n1:eth6--n20:eth4
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n10
+      intf_name: eth1
+      peer_host: pc_n9
+      probe_dst_ip: 10.254.0.106
+      symptom_host: pc_n10
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n10:eth1--n9:eth3
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n10
+      intf_name: eth2
+      peer_host: pc_n9
+      probe_dst_ip: 10.254.0.106
+      symptom_host: pc_n10
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n10:eth2--n9:eth4
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n10
+      intf_name: eth3
+      peer_host: pc_n12
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_n10
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n10:eth3--n12:eth4
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n10
+      intf_name: eth4
+      peer_host: pc_n12
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_n10
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n10:eth4--n12:eth5
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n10
+      intf_name: eth5
+      peer_host: pc_n11
+      probe_dst_ip: 10.254.0.10
+      symptom_host: pc_n10
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n10:eth5--n11:eth3
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n10
+      intf_name: eth6
+      peer_host: pc_n11
+      probe_dst_ip: 10.254.0.10
+      symptom_host: pc_n10
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n10:eth6--n11:eth4
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n11
+      intf_name: eth1
+      peer_host: pc_n12
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_n11
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n11:eth1--n12:eth6
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n11
+      intf_name: eth2
+      peer_host: pc_n12
+      probe_dst_ip: 10.254.0.14
+      symptom_host: pc_n11
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n11:eth2--n12:eth7
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n11
+      intf_name: eth5
+      peer_host: pc_n26
+      probe_dst_ip: 10.254.0.74
+      symptom_host: pc_n11
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n11:eth5--n26:eth1
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n11
+      intf_name: eth6
+      peer_host: pc_n26
+      probe_dst_ip: 10.254.0.74
+      symptom_host: pc_n11
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n11:eth6--n26:eth2
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n11
+      intf_name: eth7
+      peer_host: pc_n15
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_n11
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n11:eth7--n15:eth3
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n11
+      intf_name: eth8
+      peer_host: pc_n15
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_n11
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n11:eth8--n15:eth4
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n12
+      intf_name: eth1
+      peer_host: pc_n13
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_n12
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n12:eth1--n13:eth1
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n12
+      intf_name: eth2
+      peer_host: pc_n9
+      probe_dst_ip: 10.254.0.106
+      symptom_host: pc_n12
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n12:eth2--n9:eth5
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n12
+      intf_name: eth3
+      peer_host: pc_n9
+      probe_dst_ip: 10.254.0.106
+      symptom_host: pc_n12
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n12:eth3--n9:eth6
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n12
+      intf_name: eth8
+      peer_host: pc_n13
+      probe_dst_ip: 10.254.0.18
+      symptom_host: pc_n12
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n12:eth8--n13:eth6
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n13
+      intf_name: eth2
+      peer_host: pc_n15
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_n13
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n13:eth2--n15:eth5
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n13
+      intf_name: eth3
+      peer_host: pc_n15
+      probe_dst_ip: 10.254.0.26
+      symptom_host: pc_n13
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n13:eth3--n15:eth6
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n13
+      intf_name: eth4
+      peer_host: pc_n17
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_n13
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n13:eth4--n17:eth7
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n13
+      intf_name: eth5
+      peer_host: pc_n17
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_n13
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n13:eth5--n17:eth8
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n14
+      intf_name: eth1
+      peer_host: pc_n17
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_n14
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n14:eth1--n17:eth5
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n14
+      intf_name: eth2
+      peer_host: pc_n17
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_n14
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n14:eth2--n17:eth6
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n14
+      intf_name: eth3
+      peer_host: pc_n5
+      probe_dst_ip: 10.254.0.90
+      symptom_host: pc_n14
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n14:eth3--n5:eth7
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n14
+      intf_name: eth4
+      peer_host: pc_n5
+      probe_dst_ip: 10.254.0.90
+      symptom_host: pc_n14
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n14:eth4--n5:eth8
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n14
+      intf_name: eth5
+      peer_host: pc_n6
+      probe_dst_ip: 10.254.0.94
+      symptom_host: pc_n14
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n14:eth5--n6:eth5
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n14
+      intf_name: eth6
+      peer_host: pc_n6
+      probe_dst_ip: 10.254.0.94
+      symptom_host: pc_n14
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n14:eth6--n6:eth6
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n14
+      intf_name: eth7
+      peer_host: pc_n7
+      probe_dst_ip: 10.254.0.98
+      symptom_host: pc_n14
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n14:eth7--n7:eth5
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n14
+      intf_name: eth8
+      peer_host: pc_n7
+      probe_dst_ip: 10.254.0.98
+      symptom_host: pc_n14
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n14:eth8--n7:eth6
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n15
+      intf_name: eth1
+      peer_host: pc_n16
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_n15
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n15:eth1--n16:eth7
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n15
+      intf_name: eth2
+      peer_host: pc_n16
+      probe_dst_ip: 10.254.0.30
+      symptom_host: pc_n15
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n15:eth2--n16:eth8
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n16
+      intf_name: eth1
+      peer_host: pc_n19
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_n16
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n16:eth1--n19:eth9
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n16
+      intf_name: eth10
+      peer_host: pc_n17
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_n16
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n16:eth10--n17:eth2
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n16
+      intf_name: eth11
+      peer_host: pc_n18
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_n16
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n16:eth11--n18:eth3
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n16
+      intf_name: eth12
+      peer_host: pc_n18
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_n16
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n16:eth12--n18:eth4
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n16
+      intf_name: eth2
+      peer_host: pc_n19
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_n16
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n16:eth2--n19:eth10
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n16
+      intf_name: eth3
+      peer_host: pc_n24
+      probe_dst_ip: 10.254.0.66
+      symptom_host: pc_n16
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n16:eth3--n24:eth11
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n16
+      intf_name: eth4
+      peer_host: pc_n24
+      probe_dst_ip: 10.254.0.66
+      symptom_host: pc_n16
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n16:eth4--n24:eth12
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n16
+      intf_name: eth5
+      peer_host: pc_n26
+      probe_dst_ip: 10.254.0.74
+      symptom_host: pc_n16
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n16:eth5--n26:eth5
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n16
+      intf_name: eth6
+      peer_host: pc_n26
+      probe_dst_ip: 10.254.0.74
+      symptom_host: pc_n16
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n16:eth6--n26:eth6
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n16
+      intf_name: eth9
+      peer_host: pc_n17
+      probe_dst_ip: 10.254.0.34
+      symptom_host: pc_n16
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n16:eth9--n17:eth1
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n17
+      intf_name: eth3
+      peer_host: pc_n18
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_n17
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n17:eth3--n18:eth5
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n17
+      intf_name: eth4
+      peer_host: pc_n18
+      probe_dst_ip: 10.254.0.38
+      symptom_host: pc_n17
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n17:eth4--n18:eth6
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n18
+      intf_name: eth1
+      peer_host: pc_n19
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_n18
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n18:eth1--n19:eth7
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n18
+      intf_name: eth2
+      peer_host: pc_n19
+      probe_dst_ip: 10.254.0.42
+      symptom_host: pc_n18
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n18:eth2--n19:eth8
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n18
+      intf_name: eth7
+      peer_host: pc_n5
+      probe_dst_ip: 10.254.0.90
+      symptom_host: pc_n18
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n18:eth7--n5:eth4
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n18
+      intf_name: eth8
+      peer_host: pc_n5
+      probe_dst_ip: 10.254.0.90
+      symptom_host: pc_n18
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n18:eth8--n5:eth5
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n19
+      intf_name: eth1
+      peer_host: pc_n20
+      probe_dst_ip: 10.254.0.50
+      symptom_host: pc_n19
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n19:eth1--n20:eth11
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n19
+      intf_name: eth11
+      peer_host: pc_n24
+      probe_dst_ip: 10.254.0.66
+      symptom_host: pc_n19
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n19:eth11--n24:eth9
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n19
+      intf_name: eth12
+      peer_host: pc_n24
+      probe_dst_ip: 10.254.0.66
+      symptom_host: pc_n19
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n19:eth12--n24:eth10
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n19
+      intf_name: eth2
+      peer_host: pc_n20
+      probe_dst_ip: 10.254.0.50
+      symptom_host: pc_n19
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n19:eth2--n20:eth12
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n19
+      intf_name: eth3
+      peer_host: pc_n27
+      probe_dst_ip: 10.254.0.78
+      symptom_host: pc_n19
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n19:eth3--n27:eth9
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n19
+      intf_name: eth4
+      peer_host: pc_n27
+      probe_dst_ip: 10.254.0.78
+      symptom_host: pc_n19
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n19:eth4--n27:eth10
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n19
+      intf_name: eth5
+      peer_host: pc_n4
+      probe_dst_ip: 10.254.0.86
+      symptom_host: pc_n19
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n19:eth5--n4:eth3
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n19
+      intf_name: eth6
+      peer_host: pc_n4
+      probe_dst_ip: 10.254.0.86
+      symptom_host: pc_n19
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n19:eth6--n4:eth4
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n2
+      intf_name: eth3
+      peer_host: pc_n3
+      probe_dst_ip: 10.254.0.82
+      symptom_host: pc_n2
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n2:eth3--n3:eth1
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n2
+      intf_name: eth4
+      peer_host: pc_n3
+      probe_dst_ip: 10.254.0.82
+      symptom_host: pc_n2
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n2:eth4--n3:eth2
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n2
+      intf_name: eth5
+      peer_host: pc_n20
+      probe_dst_ip: 10.254.0.50
+      symptom_host: pc_n2
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n20:eth7--n2:eth5
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n2
+      intf_name: eth6
+      peer_host: pc_n20
+      probe_dst_ip: 10.254.0.50
+      symptom_host: pc_n2
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n20:eth8--n2:eth6
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n20
+      intf_name: eth1
+      peer_host: pc_n21
+      probe_dst_ip: 10.254.0.54
+      symptom_host: pc_n20
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n20:eth1--n21:eth5
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n20
+      intf_name: eth10
+      peer_host: pc_n27
+      probe_dst_ip: 10.254.0.78
+      symptom_host: pc_n20
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n20:eth10--n27:eth6
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n20
+      intf_name: eth2
+      peer_host: pc_n21
+      probe_dst_ip: 10.254.0.54
+      symptom_host: pc_n20
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n20:eth2--n21:eth6
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n20
+      intf_name: eth5
+      peer_host: pc_n22
+      probe_dst_ip: 10.254.0.58
+      symptom_host: pc_n20
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n20:eth5--n22:eth7
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n20
+      intf_name: eth6
+      peer_host: pc_n22
+      probe_dst_ip: 10.254.0.58
+      symptom_host: pc_n20
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n20:eth6--n22:eth8
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n20
+      intf_name: eth9
+      peer_host: pc_n27
+      probe_dst_ip: 10.254.0.78
+      symptom_host: pc_n20
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n20:eth9--n27:eth5
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n21
+      intf_name: eth1
+      peer_host: pc_n22
+      probe_dst_ip: 10.254.0.58
+      symptom_host: pc_n21
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n21:eth1--n22:eth5
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n21
+      intf_name: eth2
+      peer_host: pc_n22
+      probe_dst_ip: 10.254.0.58
+      symptom_host: pc_n21
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n21:eth2--n22:eth6
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n22
+      intf_name: eth1
+      peer_host: pc_n24
+      probe_dst_ip: 10.254.0.66
+      symptom_host: pc_n22
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n22:eth1--n24:eth7
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n22
+      intf_name: eth10
+      peer_host: pc_n27
+      probe_dst_ip: 10.254.0.78
+      symptom_host: pc_n22
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n22:eth10--n27:eth8
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n22
+      intf_name: eth2
+      peer_host: pc_n24
+      probe_dst_ip: 10.254.0.66
+      symptom_host: pc_n22
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n22:eth2--n24:eth8
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n22
+      intf_name: eth3
+      peer_host: pc_n23
+      probe_dst_ip: 10.254.0.62
+      symptom_host: pc_n22
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n22:eth3--n23:eth7
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n22
+      intf_name: eth4
+      peer_host: pc_n23
+      probe_dst_ip: 10.254.0.62
+      symptom_host: pc_n22
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n22:eth4--n23:eth8
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n22
+      intf_name: eth9
+      peer_host: pc_n27
+      probe_dst_ip: 10.254.0.78
+      symptom_host: pc_n22
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n22:eth9--n27:eth7
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n23
+      intf_name: eth1
+      peer_host: pc_n25
+      probe_dst_ip: 10.254.0.70
+      symptom_host: pc_n23
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n23:eth1--n25:eth3
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n23
+      intf_name: eth2
+      peer_host: pc_n25
+      probe_dst_ip: 10.254.0.70
+      symptom_host: pc_n23
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n23:eth2--n25:eth4
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n23
+      intf_name: eth3
+      peer_host: pc_n24
+      probe_dst_ip: 10.254.0.66
+      symptom_host: pc_n23
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n23:eth3--n24:eth5
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n23
+      intf_name: eth4
+      peer_host: pc_n24
+      probe_dst_ip: 10.254.0.66
+      symptom_host: pc_n23
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n23:eth4--n24:eth6
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n23
+      intf_name: eth5
+      peer_host: pc_n27
+      probe_dst_ip: 10.254.0.78
+      symptom_host: pc_n23
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n23:eth5--n27:eth3
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n23
+      intf_name: eth6
+      peer_host: pc_n27
+      probe_dst_ip: 10.254.0.78
+      symptom_host: pc_n23
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n23:eth6--n27:eth4
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n24
+      intf_name: eth1
+      peer_host: pc_n27
+      probe_dst_ip: 10.254.0.78
+      symptom_host: pc_n24
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n24:eth1--n27:eth1
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n24
+      intf_name: eth2
+      peer_host: pc_n27
+      probe_dst_ip: 10.254.0.78
+      symptom_host: pc_n24
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n24:eth2--n27:eth2
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n24
+      intf_name: eth3
+      peer_host: pc_n25
+      probe_dst_ip: 10.254.0.70
+      symptom_host: pc_n24
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n24:eth3--n25:eth5
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n24
+      intf_name: eth4
+      peer_host: pc_n25
+      probe_dst_ip: 10.254.0.70
+      symptom_host: pc_n24
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n24:eth4--n25:eth6
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n25
+      intf_name: eth1
+      peer_host: pc_n26
+      probe_dst_ip: 10.254.0.74
+      symptom_host: pc_n25
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n25:eth1--n26:eth3
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n25
+      intf_name: eth2
+      peer_host: pc_n26
+      probe_dst_ip: 10.254.0.74
+      symptom_host: pc_n25
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n25:eth2--n26:eth4
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n3
+      intf_name: eth3
+      peer_host: pc_n4
+      probe_dst_ip: 10.254.0.86
+      symptom_host: pc_n3
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n3:eth3--n4:eth1
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n3
+      intf_name: eth4
+      peer_host: pc_n4
+      probe_dst_ip: 10.254.0.86
+      symptom_host: pc_n3
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n3:eth4--n4:eth2
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n4
+      intf_name: eth5
+      peer_host: pc_n5
+      probe_dst_ip: 10.254.0.90
+      symptom_host: pc_n4
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n4:eth5--n5:eth2
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n4
+      intf_name: eth6
+      peer_host: pc_n5
+      probe_dst_ip: 10.254.0.90
+      symptom_host: pc_n4
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n4:eth6--n5:eth3
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n5
+      intf_name: eth1
+      peer_host: pc_n6
+      probe_dst_ip: 10.254.0.94
+      symptom_host: pc_n5
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n5:eth1--n6:eth1
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n5
+      intf_name: eth6
+      peer_host: pc_n6
+      probe_dst_ip: 10.254.0.94
+      symptom_host: pc_n5
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n5:eth6--n6:eth4
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n6
+      intf_name: eth2
+      peer_host: pc_n7
+      probe_dst_ip: 10.254.0.98
+      symptom_host: pc_n6
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n6:eth2--n7:eth1
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n6
+      intf_name: eth3
+      peer_host: pc_n7
+      probe_dst_ip: 10.254.0.98
+      symptom_host: pc_n6
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n6:eth3--n7:eth2
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n7
+      intf_name: eth3
+      peer_host: pc_n8
+      probe_dst_ip: 10.254.0.102
+      symptom_host: pc_n7
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n7:eth3--n8:eth1
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n7
+      intf_name: eth4
+      peer_host: pc_n8
+      probe_dst_ip: 10.254.0.102
+      symptom_host: pc_n7
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n7:eth4--n8:eth2
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n8
+      intf_name: eth3
+      peer_host: pc_n9
+      probe_dst_ip: 10.254.0.106
+      symptom_host: pc_n8
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n8:eth3--n9:eth1
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    traffic: *id001
+    inject:
+      down_time: '1'
+      host_name: n8
+      intf_name: eth4
+      peer_host: pc_n9
+      probe_dst_ip: 10.254.0.106
+      symptom_host: pc_n8
+      up_time: '1'
+    root_causes:
+    - resource:
+        kind: link
+        name: n8:eth4--n9:eth2
+      fault_type: link_flap
+  - topo_size: m
+    igp: isis
+    bgp_mode: none
+    rpki: false
     backend: kathara
     device_profile: frr
-    traffic: &id001
+    traffic: &id002
       pattern: uniform
     inject:
       down_time: '1'
@@ -30,7 +2071,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n1
@@ -50,7 +2091,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n1
@@ -70,7 +2111,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n1
@@ -90,7 +2131,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n1
@@ -110,7 +2151,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n1
@@ -130,7 +2171,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n10
@@ -150,7 +2191,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n10
@@ -170,7 +2211,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n10
@@ -190,7 +2231,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n10
@@ -210,7 +2251,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n10
@@ -230,7 +2271,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n10
@@ -250,7 +2291,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n11
@@ -270,7 +2311,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n11
@@ -290,7 +2331,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n11
@@ -310,7 +2351,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n11
@@ -330,7 +2371,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n11
@@ -350,7 +2391,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n11
@@ -370,7 +2411,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n12
@@ -390,7 +2431,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n12
@@ -410,7 +2451,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n12
@@ -430,7 +2471,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n12
@@ -450,7 +2491,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n13
@@ -470,7 +2511,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n13
@@ -490,7 +2531,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n13
@@ -510,7 +2551,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n13
@@ -530,7 +2571,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n14
@@ -550,7 +2591,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n14
@@ -570,7 +2611,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n14
@@ -590,7 +2631,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n14
@@ -610,7 +2651,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n14
@@ -630,7 +2671,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n14
@@ -650,7 +2691,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n14
@@ -670,7 +2711,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n14
@@ -690,7 +2731,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n15
@@ -710,7 +2751,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n15
@@ -730,7 +2771,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n16
@@ -750,7 +2791,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n16
@@ -770,7 +2811,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n16
@@ -790,7 +2831,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n16
@@ -810,7 +2851,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n16
@@ -830,7 +2871,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n16
@@ -850,7 +2891,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n16
@@ -870,7 +2911,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n16
@@ -890,7 +2931,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n16
@@ -910,7 +2951,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n16
@@ -930,7 +2971,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n17
@@ -950,7 +2991,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n17
@@ -970,7 +3011,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n18
@@ -990,7 +3031,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n18
@@ -1010,7 +3051,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n18
@@ -1030,7 +3071,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n18
@@ -1050,7 +3091,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n19
@@ -1070,7 +3111,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n19
@@ -1090,7 +3131,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n19
@@ -1110,7 +3151,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n19
@@ -1130,7 +3171,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n19
@@ -1150,7 +3191,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n19
@@ -1170,7 +3211,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n19
@@ -1190,7 +3231,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n19
@@ -1210,7 +3251,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n2
@@ -1230,7 +3271,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n2
@@ -1250,7 +3291,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n2
@@ -1270,7 +3311,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n2
@@ -1290,7 +3331,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n20
@@ -1310,7 +3351,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n20
@@ -1330,7 +3371,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n20
@@ -1350,7 +3391,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n20
@@ -1370,7 +3411,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n20
@@ -1390,7 +3431,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n20
@@ -1410,7 +3451,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n21
@@ -1430,7 +3471,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n21
@@ -1450,7 +3491,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n22
@@ -1470,7 +3511,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n22
@@ -1490,7 +3531,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n22
@@ -1510,7 +3551,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n22
@@ -1530,7 +3571,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n22
@@ -1550,7 +3591,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n22
@@ -1570,7 +3611,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n23
@@ -1590,7 +3631,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n23
@@ -1610,7 +3651,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n23
@@ -1630,7 +3671,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n23
@@ -1650,7 +3691,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n23
@@ -1670,7 +3711,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n23
@@ -1690,7 +3731,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n24
@@ -1710,7 +3751,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n24
@@ -1730,7 +3771,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n24
@@ -1750,7 +3791,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n24
@@ -1770,7 +3811,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n25
@@ -1790,7 +3831,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n25
@@ -1810,7 +3851,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n3
@@ -1830,7 +3871,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n3
@@ -1850,7 +3891,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n4
@@ -1870,7 +3911,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n4
@@ -1890,7 +3931,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n5
@@ -1910,7 +3951,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n5
@@ -1930,7 +3971,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n6
@@ -1950,7 +3991,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n6
@@ -1970,7 +4011,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n7
@@ -1990,7 +4031,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n7
@@ -2010,7 +4051,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n8
@@ -2030,7 +4071,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: n8

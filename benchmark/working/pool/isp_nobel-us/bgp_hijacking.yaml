@@ -7,6 +7,618 @@ failure:
     igp: isis
     bgp_mode: ibgp_rr
     rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: ann_arbor
+      observer_host: pc_atlanta
+      probe_dst_ip: 203.0.113.1
+      symptom_host: atlanta
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: ann_arbor
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: ann_arbor
+      observer_host: pc_boulder
+      probe_dst_ip: 203.0.115.1
+      symptom_host: boulder
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: ann_arbor
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: ann_arbor
+      observer_host: pc_washington
+      probe_dst_ip: 203.0.114.1
+      symptom_host: washington
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: ann_arbor
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: atlanta
+      observer_host: pc_boulder
+      probe_dst_ip: 203.0.115.1
+      symptom_host: boulder
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: atlanta
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: atlanta
+      observer_host: pc_houston
+      probe_dst_ip: 203.0.113.1
+      symptom_host: houston
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: atlanta
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: atlanta
+      observer_host: pc_san_diego
+      probe_dst_ip: 203.0.114.1
+      symptom_host: san_diego
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: atlanta
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: boulder
+      observer_host: pc_atlanta
+      probe_dst_ip: 203.0.113.1
+      symptom_host: atlanta
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: boulder
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: boulder
+      observer_host: pc_atlanta
+      probe_dst_ip: 203.0.114.1
+      symptom_host: atlanta
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: boulder
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: boulder
+      observer_host: pc_palo_alto
+      probe_dst_ip: 203.0.115.1
+      symptom_host: palo_alto
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: boulder
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: houston
+      observer_host: pc_atlanta
+      probe_dst_ip: 203.0.113.1
+      symptom_host: atlanta
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: houston
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: houston
+      observer_host: pc_atlanta
+      probe_dst_ip: 203.0.114.1
+      symptom_host: atlanta
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: houston
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: houston
+      observer_host: pc_boulder
+      probe_dst_ip: 203.0.115.1
+      symptom_host: boulder
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: houston
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: ithaca
+      observer_host: pc_atlanta
+      probe_dst_ip: 203.0.113.1
+      symptom_host: atlanta
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: ithaca
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: ithaca
+      observer_host: pc_atlanta
+      probe_dst_ip: 203.0.114.1
+      symptom_host: atlanta
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: ithaca
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: ithaca
+      observer_host: pc_boulder
+      probe_dst_ip: 203.0.115.1
+      symptom_host: boulder
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: ithaca
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: lincoln
+      observer_host: pc_atlanta
+      probe_dst_ip: 203.0.113.1
+      symptom_host: atlanta
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: lincoln
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: lincoln
+      observer_host: pc_washington
+      probe_dst_ip: 203.0.114.1
+      symptom_host: washington
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: lincoln
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: palo_alto
+      observer_host: pc_atlanta
+      probe_dst_ip: 203.0.113.1
+      symptom_host: atlanta
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: palo_alto
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: palo_alto
+      observer_host: pc_boulder
+      probe_dst_ip: 203.0.115.1
+      symptom_host: boulder
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: palo_alto
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: palo_alto
+      observer_host: pc_san_diego
+      probe_dst_ip: 203.0.114.1
+      symptom_host: san_diego
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: palo_alto
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: pittsburgh
+      observer_host: pc_atlanta
+      probe_dst_ip: 203.0.113.1
+      symptom_host: atlanta
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: pittsburgh
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: pittsburgh
+      observer_host: pc_atlanta
+      probe_dst_ip: 203.0.114.1
+      symptom_host: atlanta
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: pittsburgh
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: pittsburgh
+      observer_host: pc_boulder
+      probe_dst_ip: 203.0.115.1
+      symptom_host: boulder
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: pittsburgh
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: princeton
+      observer_host: pc_atlanta
+      probe_dst_ip: 203.0.113.1
+      symptom_host: atlanta
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: princeton
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: princeton
+      observer_host: pc_atlanta
+      probe_dst_ip: 203.0.114.1
+      symptom_host: atlanta
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: princeton
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: princeton
+      observer_host: pc_boulder
+      probe_dst_ip: 203.0.115.1
+      symptom_host: boulder
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: princeton
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: salt_lake_city
+      observer_host: pc_atlanta
+      probe_dst_ip: 203.0.113.1
+      symptom_host: atlanta
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: salt_lake_city
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: salt_lake_city
+      observer_host: pc_boulder
+      probe_dst_ip: 203.0.115.1
+      symptom_host: boulder
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: salt_lake_city
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: salt_lake_city
+      observer_host: pc_san_diego
+      probe_dst_ip: 203.0.114.1
+      symptom_host: san_diego
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: salt_lake_city
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: san_diego
+      observer_host: pc_atlanta
+      probe_dst_ip: 203.0.113.1
+      symptom_host: atlanta
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: san_diego
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: san_diego
+      observer_host: pc_atlanta
+      probe_dst_ip: 203.0.114.1
+      symptom_host: atlanta
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: san_diego
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: san_diego
+      observer_host: pc_boulder
+      probe_dst_ip: 203.0.115.1
+      symptom_host: boulder
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: san_diego
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: seattle
+      observer_host: pc_san_diego
+      probe_dst_ip: 203.0.114.1
+      symptom_host: san_diego
+      target_network: 203.0.114.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: seattle
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: urbana_champaign
+      observer_host: pc_atlanta
+      probe_dst_ip: 203.0.113.1
+      symptom_host: atlanta
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: urbana_champaign
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: urbana_champaign
+      observer_host: pc_boulder
+      probe_dst_ip: 203.0.115.1
+      symptom_host: boulder
+      target_network: 203.0.115.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: urbana_champaign
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
+    inject:
+      host_name: washington
+      observer_host: pc_atlanta
+      probe_dst_ip: 203.0.113.1
+      symptom_host: atlanta
+      target_network: 203.0.113.0/24
+    root_causes:
+    - resource:
+        kind: node
+        node: washington
+      fault_type: bgp_hijacking
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
     backend: kathara
     device_profile: frr
     inject:

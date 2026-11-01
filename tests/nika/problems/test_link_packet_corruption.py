@@ -134,7 +134,9 @@ class TestLinkPacketCorruptionE2E(IntegrationTestCase):
                 assert verify["verified"] is True, verify
                 assert verify["details"]["artifact"]["verified"] is True
                 assert verify["details"]["symptom"]["verified"] is True
-                resolved_intf = resolve_default_intf(parsed.intf_name, runtime)
+                resolved_intf = resolve_default_intf(
+                    parsed.intf_name, problem.net_env, parsed.host_name
+                )
                 host_qdisc = _qdisc(runtime, parsed.host_name, resolved_intf)
                 assert "netem" not in host_qdisc and "tbf" not in host_qdisc, host_qdisc
 

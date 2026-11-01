@@ -233,7 +233,7 @@ class IncastTrafficNetworkLimitation(ProblemBase):
     ) -> tuple[str, str]:
         if params.forwarding_device and params.egress_intf:
             return params.forwarding_device, params.egress_intf
-        needle = f"{params.host_name}:{resolve_default_intf('eth0', self.net_env)}"
+        needle = f"{params.host_name}:{resolve_default_intf('eth0', self.net_env, params.host_name)}"
         for _key, tps in iter_link_termination_points(self.net_env):
             endpoints = [str(ep) for ep in tps]
             if needle not in endpoints or len(endpoints) != 2:

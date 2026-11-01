@@ -291,7 +291,36 @@ def test_tag_pinned_image_names_the_pinned_version() -> None:
         ids["kathara/p4:latest"] = "pinned"
         _tag_pinned_image(di.KATHARA_P4_IMAGE)
 
-    fake_client.images.get.assert_called_once_with(di.KATHARA_P4_IMAGE)
+    fake_client.images.get.assert_called_once_with(
+        "kathara/p4@" + di.KATHARA_P4_IMAGE.split("@", 1)[1]
+    )
     fake_client.images.get.return_value.tag.assert_called_once_with(
         "kathara/p4", tag="latest"
     )
+
+
+@pytest.mark.parametrize(
+    ("image", "reference"),
+    [
+        (
+            "docker/sandbox-templates:shell-docker@sha256:abc",
+            "docker/sandbox-templates@sha256:abc",
+        ),
+        (
+            "registry.example:5000/image:tag@sha256:abc",
+            "registry.example:5000/image@sha256:abc",
+        ),
+        ("alpine:3.22", "alpine:3.22"),
+    ],
+)
+def test_docker_api_uses_digest_without_tag(image, reference):
+    client = MagicMock()
+    with patch.object(di, "_get_client", return_value=client):
+        assert di.image_exists(image)
+        di.image_architecture(image)
+        di.pull_image(image)
+    assert [call.args for call in client.images.get.call_args_list] == [
+        (reference,),
+        (reference,),
+    ]
+    client.images.pull.assert_called_once_with(reference)
