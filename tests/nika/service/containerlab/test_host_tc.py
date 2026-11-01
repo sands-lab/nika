@@ -111,12 +111,8 @@ def test_set_link_down_raises_when_host_peer_is_missing() -> None:
     controller.peer_name = MagicMock(
         side_effect=RuntimeCapabilityError("host veth is absent")
     )
-    controller.set_node_link_down = MagicMock(
-        side_effect=AssertionError("must not mutate the node")
-    )
     with pytest.raises(RuntimeCapabilityError, match="absent"):
         controller.set_link_down("leaf1", "eth1")
-    controller.set_node_link_down.assert_not_called()
 
 
 def test_set_tbf_raises_when_host_peer_is_missing() -> None:

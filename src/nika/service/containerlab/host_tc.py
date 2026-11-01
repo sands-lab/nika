@@ -200,36 +200,6 @@ class HostTcController:
         )
         return "host_peer", peer
 
-    def set_node_link_down(self, node: str, intf: str) -> None:
-        pid = self._container_pid(node)
-        self._run(
-            "nsenter",
-            "-t",
-            str(pid),
-            "-n",
-            "ip",
-            "link",
-            "set",
-            "dev",
-            intf,
-            "down",
-        )
-
-    def set_node_link_up(self, node: str, intf: str) -> None:
-        pid = self._container_pid(node)
-        self._run(
-            "nsenter",
-            "-t",
-            str(pid),
-            "-n",
-            "ip",
-            "link",
-            "set",
-            "dev",
-            intf,
-            "up",
-        )
-
     def link_peer_down(self, peer: str) -> bool:
         output = self._run("ip", "link", "show", "dev", peer).lower()
         return "state down" in output
@@ -345,42 +315,6 @@ done
         )
         self._wait_for_flap_pid(pid_path)
 
-    def start_node_link_flap(
-        self, node: str, intf: str, down_time: int, up_time: int
-    ) -> str:
-        """Flap a direct Containerlab link from the controller namespace.
-
-        Containerlab can connect two node namespaces directly, leaving no host
-        veth peer to manipulate. The worker remains on the controller host;
-        it enters the node namespace only to change the observable link state.
-        """
-        target = f"{node}:{intf}"
-        pid = self._container_pid(node)
-        set_state = f"nsenter -t {pid} -n ip link set dev {shlex.quote(intf)}"
-        pid_path = self._flap_pid_path(target)
-        self.stop_node_link_flap(node, intf)
-        script = f"""PID_FILE={shlex.quote(pid_path)}
-cleanup() {{
-    {set_state} up >/dev/null 2>&1 || true
-    rm -f "$PID_FILE"
-}}
-trap cleanup EXIT INT TERM
-echo $$ > "$PID_FILE"
-while true; do
-    {set_state} down
-    sleep {down_time}
-    {set_state} up
-    sleep {up_time}
-done
-"""
-        self._run(
-            "sh",
-            "-c",
-            f"nohup setsid /bin/sh -c {shlex.quote(script)} >/dev/null 2>&1 < /dev/null &",
-        )
-        self._wait_for_flap_pid(pid_path)
-        return target
-
     def link_flap_running(self, peer: str) -> bool:
         pid_path = self._flap_pid_path(peer)
         try:
@@ -405,27 +339,6 @@ done
                 self._run("ip", "link", "set", "dev", end, "up")
             except RuntimeCapabilityError:
                 pass
-
-    def stop_node_link_flap(self, node: str, intf: str) -> None:
-        target = f"{node}:{intf}"
-        pid_path = self._flap_pid_path(target)
-        stop_owned_flap_worker(self._run, pid_path)
-        pid = self._container_pid(node)
-        try:
-            self._run(
-                "nsenter",
-                "-t",
-                str(pid),
-                "-n",
-                "ip",
-                "link",
-                "set",
-                "dev",
-                intf,
-                "up",
-            )
-        except RuntimeCapabilityError:
-            pass
 
     @classmethod
     def cleanup_lab(cls, lab_name: str) -> None:

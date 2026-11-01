@@ -61,9 +61,6 @@ def test_link_flap_inject_sets_controller_target(monkeypatch) -> None:
         def start_link_flap(self, peer: str, down_time: int, up_time: int) -> None:
             seen["start"] = peer
 
-        def start_node_link_flap(self, *args, **kwargs):
-            raise AssertionError("must not flap inside the node")
-
     runtime = SimpleNamespace(backend="containerlab")
     problem = _problem(LinkFlap, runtime)
     monkeypatch.setattr(link_mod, "HostTcController", Controller)
@@ -91,12 +88,6 @@ def test_link_flap_verify_and_recover_discover_host_peer(monkeypatch) -> None:
 
         def stop_link_flap(self, target: str) -> None:
             seen["stop"] = target
-
-        def start_node_link_flap(self, *args, **kwargs):
-            raise AssertionError("must not flap inside the node")
-
-        def stop_node_link_flap(self, *args, **kwargs):
-            raise AssertionError("must not stop a node worker")
 
     runtime = SimpleNamespace(backend="containerlab")
     problem = _problem(LinkFlap, runtime)
@@ -140,9 +131,6 @@ def test_link_flap_inject_raises_when_host_peer_is_missing(monkeypatch) -> None:
         def peer_name(self, host: str, intf: str) -> str:
             raise RuntimeCapabilityError("host veth is absent")
 
-        def start_node_link_flap(self, *args, **kwargs):
-            raise AssertionError("must not flap inside the node")
-
         def start_link_flap(self, *args, **kwargs):
             raise AssertionError("must not start a host worker")
 
@@ -162,9 +150,6 @@ def test_link_down_verify_raises_when_host_peer_is_missing(monkeypatch) -> None:
 
         def peer_name(self, host: str, intf: str) -> str:
             raise RuntimeCapabilityError("host veth is absent")
-
-        def set_node_link_down(self, *args, **kwargs):
-            raise AssertionError("must not mutate the node")
 
         def link_peer_down(self, peer: str) -> bool:
             raise AssertionError("no peer")

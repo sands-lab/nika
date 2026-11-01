@@ -270,6 +270,9 @@ class ContainerlabRuntime(LabRuntime):
             )
         with self._node_map_lock:
             self._node_containers = {}
+        if result.returncode != 0 and self.exists():
+            # The nodes still run, so their host wires are live links.
+            return
         ends = wire_ends_for_topology(self._topology_file, self._lab_name)
         removed = remove_leftover_wire_ends(ends)
         if removed:
