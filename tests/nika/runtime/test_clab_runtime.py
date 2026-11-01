@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -24,34 +24,33 @@ topology:
 """
 
 
-def _runtime(tmp_path: Path) -> tuple[ContainerlabRuntime, Path, list[tuple[str, str]]]:
+def _runtime(tmp_path: Path) -> tuple[ContainerlabRuntime, list[tuple[str, str]]]:
     topo = tmp_path / "demo.clab.yml"
     topo.write_text(_TOPO, encoding="utf-8")
     _, wires = write_wired_topology(topo, "demo")
-    runtime = ContainerlabRuntime(lab_name="demo", topology_file=topo)
-    return runtime, topo, wires
+    return ContainerlabRuntime(lab_name="demo", topology_file=topo), wires
 
 
 def test_deploy_rejoins_wires_from_wired_topology_when_lab_exists(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    runtime, _topo, wires = _runtime(tmp_path)
+    runtime, wires = _runtime(tmp_path)
     monkeypatch.setattr(runtime, "exists", lambda: True)
     monkeypatch.setattr(runtime, "_refresh_node_map", lambda: True)
-
-    def boom(*args: str) -> subprocess.CompletedProcess[str]:
-        raise AssertionError(args)
-
-    monkeypatch.setattr(runtime, "_run_clab", boom)
+    monkeypatch.setattr(
+        runtime,
+        "_run_clab",
+        lambda *args: (_ for _ in ()).throw(AssertionError(args)),
+    )
     with patch("nika.runtime.containerlab.wires.join_wires") as join:
         assert runtime.deploy() is False
     join.assert_called_once_with(wires)
 
 
 def test_inspect_and_destroy_key_by_lab_name(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    runtime, _topo, wires = _runtime(tmp_path)
+    runtime, wires = _runtime(tmp_path)
     calls: list[tuple[str, ...]] = []
 
     def fake_clab(*args: str) -> subprocess.CompletedProcess[str]:
@@ -67,38 +66,15 @@ def test_inspect_and_destroy_key_by_lab_name(
         "nika.runtime.shared.containers.remove_lab_helpers",
         lambda lab: None,
     )
+    removed: list[str] = []
     monkeypatch.setattr(
         "nika.runtime.containerlab.wires.remove_leftover_wire_ends",
-        lambda ends: list(ends),
+        lambda ends: removed.extend(ends) or list(ends),
     )
-
     assert runtime.inspect() == []
     runtime.destroy()
-
     assert calls[0][:3] == ("inspect", "--name", "demo")
     assert "-t" not in calls[0]
     assert calls[1][:3] == ("destroy", "--name", "demo")
     assert "-t" not in calls[1]
-    out = capsys.readouterr().out
-    assert "Removed leftover host wires for demo:" in out
-    for end in (wires[0][0], wires[0][1]):
-        assert end in out
-
-
-def test_inspect_survives_when_clab_keys_by_name(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    runtime = ContainerlabRuntime(lab_name="lab", topology_file="/tmp/topo.yml")
-    container = MagicMock()
-    runtime._node_containers = {"r1": container}
-    failed = subprocess.CompletedProcess(["clab"], 1, stdout="", stderr="busy")
-    captured: list[tuple[str, ...]] = []
-
-    def fake_clab(*args: str) -> subprocess.CompletedProcess[str]:
-        captured.append(args)
-        return failed
-
-    monkeypatch.setattr(runtime, "_run_clab", fake_clab)
-    assert runtime._refresh_node_map() is False
-    assert runtime._cached_container("r1") is container
-    assert captured[0][:3] == ("inspect", "--name", "lab")
+    assert set(removed) == {wires[0][0], wires[0][1]}

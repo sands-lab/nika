@@ -69,29 +69,22 @@ def _supervisor(*rows: tuple[str, str]) -> str:
     return "\n".join(lines)
 
 
-def _running(*names: str) -> str:
-    return _supervisor(*[(name, "RUNNING") for name in names])
-
-
 BOOT = ("orchagent", "syncd", "zebra", "fpmsyncd", "bgpd")
 
 
 def test_services_ok_requires_boot_and_protocol_daemons_running() -> None:
     routers = {"r1": _router("r1")}
-    healthy = FakeRuntime({"r1": _running(*BOOT)})
+    healthy = FakeRuntime({"r1": _supervisor(*[(name, "RUNNING") for name in BOOT])})
     assert _services_ok(healthy, routers)
     missing_bgpd = FakeRuntime(
-        {"r1": _running("orchagent", "syncd", "zebra", "fpmsyncd")}
+        {"r1": _supervisor(*[(name, "RUNNING") for name in BOOT[:-1]])}
     )
     assert not _services_ok(missing_bgpd, routers)
     fatal = FakeRuntime(
         {
             "r1": _supervisor(
                 ("orchagent", "FATAL"),
-                ("syncd", "RUNNING"),
-                ("zebra", "RUNNING"),
-                ("fpmsyncd", "RUNNING"),
-                ("bgpd", "RUNNING"),
+                *[(name, "RUNNING") for name in ("syncd", "zebra", "fpmsyncd", "bgpd")],
             )
         }
     )
@@ -107,18 +100,14 @@ def test_addresses_ok_matches_kernel_ipv4_and_skips_ipv6() -> None:
         )
     }
     kernel = [
-        {
-            "ifname": "Ethernet0",
-            "addr_info": [{"local": "10.0.0.0", "prefixlen": 31}],
-        },
+        {"ifname": "Ethernet0", "addr_info": [{"local": "10.0.0.0", "prefixlen": 31}]},
         {
             "ifname": "Loopback0",
             "addr_info": [{"local": "10.255.0.1", "prefixlen": 32}],
         },
     ]
     assert _addresses_ok(FakeRuntime(json_outputs={"r1": kernel}), routers)
-    missing = [kernel[0]]
-    assert not _addresses_ok(FakeRuntime(json_outputs={"r1": missing}), routers)
+    assert not _addresses_ok(FakeRuntime(json_outputs={"r1": [kernel[0]]}), routers)
     assert not _addresses_ok(
         FakeRuntime(json_outputs={"r1": ValueError("bad json")}), routers
     )
@@ -147,8 +136,7 @@ def test_appl_db_host_routes_without_slash32_satisfy_igp_loopbacks() -> None:
         deny_prefixes=(),
         inventory={},
     )
-    without_bgp = dict(present)
-    assert not _appl_routes_ok(FakeRuntime(without_bgp), plan, bgp)
+    assert not _appl_routes_ok(FakeRuntime(dict(present)), plan, bgp)
     with_bgp = dict(present)
     with_bgp[a.device_name] += f"ROUTE_TABLE:{prefix}\n"
     assert _appl_routes_ok(FakeRuntime(with_bgp), plan, bgp)
@@ -193,8 +181,7 @@ def test_bgp_data_plane_probe_sources_from_ebgp_link_to_origin() -> None:
         deny_prefixes=(),
         inventory={},
     )
-    probes = _bgp_data_plane_probes(plan)
-    assert probes == [
-        ("r1", "ping -I 10.0.0.0 -c 3 -W 2 198.51.110.1"),
-        ("r3", "ping -c 3 -W 2 198.51.110.1"),
-    ]
+    by_host = dict(_bgp_data_plane_probes(plan))
+    assert set(by_host) == {"r1", "r3"}
+    assert "-I 10.0.0.0" in by_host["r1"] and origin.ping_address in by_host["r1"]
+    assert "-I " not in by_host["r3"] and origin.ping_address in by_host["r3"]

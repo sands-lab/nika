@@ -224,21 +224,20 @@ def test_profile_validation_covers_containerlab_provider_platforms(
     from nika.workflows.benchmark import generate
     from nika.workflows.benchmark import profile_validation as validation
 
+    root_causes = [
+        {
+            "resource": {"kind": "node", "node": "leaf1"},
+            "fault_type": "bgp_asn_misconfig",
+        }
+    ]
     cases = [
-        {"inject": {"host_name": "leaf1"}, "root_causes": []},
+        {"inject": {"host_name": "leaf1"}, "root_causes": root_causes},
         {
             "device_profile": "sonic",
             "inject": {"host_name": "leaf1"},
-            "root_causes": [],
+            "root_causes": root_causes,
         },
     ]
-    for case in cases:
-        case["root_causes"] = [
-            {
-                "resource": {"kind": "node", "node": "leaf1"},
-                "fault_type": "bgp_asn_misconfig",
-            }
-        ]
     (tmp_path / "min3clos").mkdir()
     (tmp_path / "min3clos" / "bgp_asn_misconfig.yaml").write_text(
         yaml.safe_dump(

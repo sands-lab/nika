@@ -175,22 +175,8 @@ class SrlApiTest:
         reset = api.exec_cmd.call_args_list[3][0][1]
         assert "neighbor 10.255.0.1 reset-peer" in reset
 
-    def test_srl_ospf_drop_precedes_the_ospf_accept_entry(self) -> None:
+    def test_srl_ospf_drop_precedes_accept_and_clears_neighbors(self) -> None:
         # SR Linux 24.10 default CPM filter: entry 290 accepts protocol 89.
-        accept = (
-            _CPM_DEFAULT
-            + "set / acl acl-filter cpm type ipv4 entry 290 match ipv4 protocol 89\n"
-            "set / acl acl-filter cpm type ipv4 entry 290 action accept\n"
-        )
-        api = _SRLStub()
-        api.exec_cmd = MagicMock(side_effect=[accept, "", ""])
-
-        assert api.srl_add_ospf_acl_drop("n1") == [245]
-        candidate = api.exec_cmd.call_args_list[1][0][1]
-        assert "entry 245 match ipv4 protocol 89" in candidate
-        assert "entry 245 action drop" in candidate
-
-    def test_srl_add_ospf_acl_drop_clears_neighbors(self) -> None:
         accept = (
             _CPM_DEFAULT
             + "set / acl acl-filter cpm type ipv4 entry 290 match ipv4 protocol 89\n"
@@ -208,6 +194,9 @@ class SrlApiTest:
         api.exec_cmd = MagicMock(side_effect=[accept, "", running, ""])
 
         assert api.srl_add_ospf_acl_drop("n1") == [245]
+        candidate = api.exec_cmd.call_args_list[1][0][1]
+        assert "entry 245 match ipv4 protocol 89" in candidate
+        assert "entry 245 action drop" in candidate
         reset = api.exec_cmd.call_args_list[3][0][1]
         assert (
             "tools network-instance default protocols ospf instance default "

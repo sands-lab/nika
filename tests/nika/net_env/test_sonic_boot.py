@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import subprocess
+from contextlib import nullcontext
 
 import pytest
 
@@ -28,9 +30,8 @@ class FakeRuntime:
 
 
 def _status(start_sh: str, *services: tuple[str, str], start_extra: str = "") -> str:
-    rows = [("start.sh", start_sh), *services]
     lines = []
-    for name, state in rows:
+    for name, state in (("start.sh", start_sh), *services):
         if name == "start.sh" and state == "EXITED":
             lines.append(f"{name:32} EXITED    Oct 31 06:00 PM{start_extra}")
         elif state == "RUNNING":
@@ -40,35 +41,30 @@ def _status(start_sh: str, *services: tuple[str, str], start_extra: str = "") ->
     return "\n".join(lines)
 
 
-def _running_services() -> tuple[tuple[str, str], ...]:
+def _running() -> tuple[tuple[str, str], ...]:
     return tuple((name, "RUNNING") for name in BOOT_SERVICES)
 
 
-def test_exited_start_script_with_running_services_is_ready() -> None:
-    output = _status("EXITED", *_running_services(), start_extra="   (exit status 1)")
-    assert _boot_state(FakeRuntime(output), "r1") == "ready"
-
-
-def test_transient_boot_service_after_start_script_exits_is_booting() -> None:
-    present = _running_services()[:-1]
-    output = _status("EXITED", *present, start_extra="   (exit status 1)")
-    assert _boot_state(FakeRuntime(output), "r1") == "booting"
-    starting = (*present, (BOOT_SERVICES[-1], "STARTING"))
-    assert _boot_state(FakeRuntime(_status("EXITED", *starting)), "r1") == "booting"
-    backoff = (*present, (BOOT_SERVICES[-1], "BACKOFF"))
-    assert _boot_state(FakeRuntime(_status("EXITED", *backoff)), "r1") == "booting"
-
-
-def test_stopped_boot_service_after_start_script_exits_is_failed() -> None:
-    present = _running_services()[:-1]
-    for state in ("FATAL", "STOPPED", "EXITED"):
-        output = _status("EXITED", *present, (BOOT_SERVICES[-1], state))
-        assert _boot_state(FakeRuntime(output), "r1") == "failed"
-
-
-def test_start_script_still_running_is_booting() -> None:
-    output = _status("RUNNING", *_running_services())
-    assert _boot_state(FakeRuntime(output), "r1") == "booting"
+@pytest.mark.parametrize(
+    ("start_sh", "last_state", "expected"),
+    [
+        ("EXITED", "RUNNING", "ready"),
+        ("EXITED", None, "booting"),
+        ("EXITED", "STARTING", "booting"),
+        ("EXITED", "BACKOFF", "booting"),
+        ("EXITED", "FATAL", "failed"),
+        ("EXITED", "STOPPED", "failed"),
+        ("EXITED", "EXITED", "failed"),
+        ("RUNNING", "RUNNING", "booting"),
+    ],
+)
+def test_boot_state_follows_start_script_and_service_status(
+    start_sh: str, last_state: str | None, expected: str
+) -> None:
+    extra = () if last_state is None else ((BOOT_SERVICES[-1], last_state),)
+    start_extra = "   (exit status 1)" if start_sh == "EXITED" else ""
+    output = _status(start_sh, *_running()[:-1], *extra, start_extra=start_extra)
+    assert _boot_state(FakeRuntime(output), "r1") == expected
 
 
 def test_loaded_image_ref_reads_name_and_id_lines() -> None:
@@ -79,64 +75,38 @@ def test_loaded_image_ref_reads_name_and_id_lines() -> None:
     assert _loaded_image_ref("nothing") is None
 
 
-class _FakeDownload:
-    def __init__(self, payload: bytes) -> None:
-        self._payload = payload
-
-    def read(self, size: int) -> bytes:
-        del size
-        data, self._payload = self._payload, b""
-        return data
-
-    def __enter__(self) -> _FakeDownload:
-        return self
-
-    def __exit__(self, *args) -> None:
-        return None
-
-
-def _stub_image_load(monkeypatch, tmp_path, *, exists, run, payload: bytes = b"gz"):
-    monkeypatch.setattr(common, "image_exists", exists)
+def test_ensure_sonic_image_skips_load_or_tags_without_rmi(
+    monkeypatch, tmp_path
+) -> None:
+    payload = b"gz"
     monkeypatch.setattr("nika.config.CACHE_DIR", tmp_path)
     monkeypatch.setattr(common, "ARTIFACT_SHA256", hashlib.sha256(payload).hexdigest())
     monkeypatch.setattr(
-        common.urllib.request, "urlopen", lambda *args, **kwargs: _FakeDownload(payload)
+        common.urllib.request,
+        "urlopen",
+        lambda *a, **k: nullcontext(io.BytesIO(payload)),
     )
-    monkeypatch.setattr(common.subprocess, "run", run)
 
-
-def test_ensure_sonic_image_returns_when_present(monkeypatch, tmp_path) -> None:
-    def run(*args, **kwargs):
-        raise AssertionError("docker must not run when the pin exists")
-
-    _stub_image_load(monkeypatch, tmp_path, exists=lambda image: True, run=run)
+    monkeypatch.setattr(common, "image_exists", lambda image: True)
+    monkeypatch.setattr(
+        common.subprocess,
+        "run",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("docker must not run")),
+    )
     ensure_sonic_image()
 
-
-def test_ensure_sonic_image_rechecks_after_lock(monkeypatch, tmp_path) -> None:
     seen = {"n": 0}
 
-    def exists(image: str) -> bool:
-        del image
+    def exists_after_lock(image: str) -> bool:
         seen["n"] += 1
         return seen["n"] > 1
 
-    def run(*args, **kwargs):
-        raise AssertionError("docker must not run after a concurrent load")
-
-    _stub_image_load(monkeypatch, tmp_path, exists=exists, run=run)
+    monkeypatch.setattr(common, "image_exists", exists_after_lock)
     ensure_sonic_image()
     assert seen["n"] == 2
 
-
-def test_ensure_sonic_image_tags_loaded_id_and_keeps_source(
-    monkeypatch, tmp_path
-) -> None:
     pinned = {"ready": False}
     calls: list[list[str]] = []
-
-    def exists(image: str) -> bool:
-        return pinned["ready"]
 
     def run(cmd, **kwargs):
         calls.append(list(cmd))
@@ -149,7 +119,8 @@ def test_ensure_sonic_image_tags_loaded_id_and_keeps_source(
             return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
         raise AssertionError(cmd)
 
-    _stub_image_load(monkeypatch, tmp_path, exists=exists, run=run)
+    monkeypatch.setattr(common, "image_exists", lambda image: pinned["ready"])
+    monkeypatch.setattr(common.subprocess, "run", run)
     ensure_sonic_image("docker-sonic-vs:pinned")
     assert ["docker", "tag", "sha256:abc", "docker-sonic-vs:pinned"] in calls
     assert all(cmd[:2] != ["docker", "rmi"] for cmd in calls)

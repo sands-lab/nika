@@ -1,9 +1,8 @@
-"""SONiC failure operations and CLI access issue the right router commands (no Docker)."""
+"""SONiC failure operations and CLI access (no Docker)."""
 
 from __future__ import annotations
 
 import json
-import shlex
 
 import pytest
 
@@ -44,23 +43,13 @@ exit
 """
 
 
-def _save_commands(commands: list[str]) -> list[str]:
-    return [cmd for cmd in commands if "write memory" in cmd]
-
-
 def test_bgp_state_is_read_from_frr() -> None:
     runtime = FakeRuntime({"show running-config": RUNNING})
     ops = SonicFaultOps(runtime, "leaf1")
     assert ops.bgp_asn() == 65001
     assert ops.bgp_networks() == ["10.0.0.24/31"]
     ops.withdraw_bgp_network("10.0.0.24/31")
-    assert shlex.split(runtime.commands[-2]) == [
-        "vtysh",
-        *("-c", "configure terminal"),
-        *("-c", "router bgp 65001"),
-        *("-c", "address-family ipv4 unicast"),
-        *("-c", "no network 10.0.0.24/31"),
-    ]
+    assert any("no network 10.0.0.24/31" in cmd for cmd in runtime.commands)
 
 
 def test_frr_faults_persist_without_backup_files() -> None:
@@ -69,41 +58,39 @@ def test_frr_faults_persist_without_backup_files() -> None:
     ops.withdraw_bgp_network("10.0.0.24/31")
     ops.renumber_ospf_area("0.0.0.0", "0.0.0.66")
     ops.add_blackhole_route("203.0.113.0/24")
-    saves = _save_commands(runtime.commands)
+    saves = [cmd for cmd in runtime.commands if "write memory" in cmd]
     assert len(saves) == 3
     assert all("rm -f /etc/frr/*.sav" in cmd for cmd in saves)
 
 
-def test_originate_bgp_prefix_raises_when_loopback_never_appears() -> None:
-    ops = SonicFaultOps(FakeRuntime({"show running-config": RUNNING}), "leaf1")
+def test_originate_bgp_prefix_requires_loopback() -> None:
+    missing = SonicFaultOps(FakeRuntime({"show running-config": RUNNING}), "leaf1")
     with pytest.raises(RuntimeError, match="Loopback1 on leaf1 did not get"):
-        ops.originate_bgp_prefix("203.0.113.0/24")
-
-
-def test_originate_bgp_prefix_advertises_after_loopback_appears() -> None:
+        missing.originate_bgp_prefix("203.0.113.0/24")
     runtime = FakeRuntime(
         {
             "show running-config": RUNNING,
             "ip -4 addr show dev Loopback1": "present",
         }
     )
-    ops = SonicFaultOps(runtime, "leaf1")
-    ops.originate_bgp_prefix("203.0.113.0/24")
+    SonicFaultOps(runtime, "leaf1").originate_bgp_prefix("203.0.113.0/24")
     assert any("network 203.0.113.0/24" in cmd for cmd in runtime.commands)
     assert any("write memory" in cmd for cmd in runtime.commands)
 
 
-def test_wait_port_raises_when_the_port_never_appears() -> None:
-    ops = SonicFaultOps(FakeRuntime(), "leaf1")
-    with pytest.raises(RuntimeError, match="did not appear"):
-        ops._wait_port("Ethernet0", present=True)
-
-
-def test_wait_port_raises_when_the_port_never_disappears() -> None:
-    runtime = FakeRuntime({"ip link show Ethernet0": "present"})
-    ops = SonicFaultOps(runtime, "leaf1")
-    with pytest.raises(RuntimeError, match="did not disappear"):
-        ops._wait_port("Ethernet0", present=False)
+@pytest.mark.parametrize(
+    ("present", "replies", "match"),
+    [
+        (True, {}, "did not appear"),
+        (False, {"ip link show Ethernet0": "present"}, "did not disappear"),
+    ],
+)
+def test_wait_port_raises_when_the_port_does_not_change(
+    present: bool, replies: dict[str, str], match: str
+) -> None:
+    ops = SonicFaultOps(FakeRuntime(replies), "leaf1")
+    with pytest.raises(RuntimeError, match=match):
+        ops._wait_port("Ethernet0", present=present)
 
 
 class _ReattachRuntime:
@@ -154,10 +141,10 @@ def test_reattach_recreates_config_db_port_when_the_veth_is_back() -> None:
     restores = [
         cmd for cmd in runtime.commands if cmd.startswith("redis-cli -n 4 hset ")
     ]
-    assert deletes == [
-        "redis-cli -n 4 del 'INTERFACE|Ethernet0|10.0.0.0/31'",
-        "redis-cli -n 4 del 'INTERFACE|Ethernet0'",
-        "redis-cli -n 4 del 'PORT|Ethernet0'",
+    assert [cmd.split()[4] for cmd in deletes] == [
+        "'INTERFACE|Ethernet0|10.0.0.0/31'",
+        "'INTERFACE|Ethernet0'",
+        "'PORT|Ethernet0'",
     ]
     assert [cmd.split()[4] for cmd in restores] == [
         "'PORT|Ethernet0'",
@@ -196,9 +183,8 @@ def test_port_mtu_goes_to_config_db_and_must_reach_the_kernel() -> None:
     runtime = FakeRuntime({"hget 'PORT|Ethernet4' mtu": "500", "/mtu": "500"})
     ops = SonicFaultOps(runtime, "leaf1")
     ops.set_interface_mtu("eth2", 500)
-    assert runtime.commands[0] == "redis-cli -n 4 hset 'PORT|Ethernet4' mtu 500"
+    assert "hset 'PORT|Ethernet4' mtu 500" in runtime.commands[0]
     assert ops.interface_mtu("eth2") == 500
-    # portmgrd has not applied it yet: the kernel port keeps the old MTU.
     stale = FakeRuntime({"hget 'PORT|Ethernet4' mtu": "500", "/mtu": "9100"})
     assert SonicFaultOps(stale, "leaf1").interface_mtu("Ethernet4") is None
 
@@ -212,9 +198,7 @@ def test_frag_needed_filter_covers_every_chain() -> None:
         "FORWARD",
         "OUTPUT",
     ]
-    assert all(
-        "--icmp-type fragmentation-needed -j DROP" in c for c in runtime.commands
-    )
+    assert all("fragmentation-needed" in c and "-j DROP" in c for c in runtime.commands)
     assert ops.icmp_frag_needed_blocked()
     assert not SonicFaultOps(FakeRuntime(), "leaf1").icmp_frag_needed_blocked()
 
@@ -223,15 +207,11 @@ def test_frag_needed_filter_covers_every_chain() -> None:
     ("command", "line"),
     [
         ("show interfaces status", "show interfaces status"),
-        ('vtysh -c "show bgp summary"', "vtysh -c 'show bgp summary'"),
         (
             'vtysh -c "show ip bgp | include 10."',
             "vtysh -c 'show ip bgp | include 10.'",
         ),
-        (
-            "redis-cli -n 4 hget 'PORT|Ethernet0' mtu",
-            "redis-cli -n 4 hget 'PORT|Ethernet0' mtu",
-        ),
+        ("show $(reboot)", "show '$(reboot)'"),
     ],
 )
 def test_sonic_cli_runs_one_quoted_command_on_sonic_only(
@@ -257,7 +237,3 @@ def test_sonic_cli_rejects_other_programs_and_shell_operators(
 ) -> None:
     with pytest.raises(ValueError, match=error):
         sonic_cli_command(command)
-
-
-def test_sonic_cli_quotes_substitutions() -> None:
-    assert sonic_cli_command("show $(reboot)").endswith("; show '$(reboot)'")

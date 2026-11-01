@@ -50,39 +50,25 @@ def _problem(net_env: SimpleNamespace) -> SimpleNamespace:
     )
 
 
-def test_crossing_ends_keeps_path_when_sonic_kernel_egress_matches(
-    monkeypatch,
+@pytest.mark.parametrize(
+    ("sonic", "intf", "route", "keep"),
+    [
+        (True, "eth1", "10.0.2.2 via 10.0.1.1 dev Ethernet0 src 10.0.1.2", True),
+        (True, "eth1", "10.0.2.2 via 10.0.1.1 dev Ethernet4 src 10.0.1.2", False),
+        (False, "e1-1", "10.0.2.2 via 10.0.0.1 dev eth0 src 10.0.0.2", True),
+    ],
+)
+def test_crossing_ends_matches_sonic_kernel_egress(
+    monkeypatch, sonic: bool, intf: str, route: str, keep: bool
 ) -> None:
-    problem = _problem(_env(sonic=True))
-    params = SimpleNamespace(forwarding_device="leaf1", intf_name="eth1")
+    problem = _problem(_env(sonic=sonic))
+    params = SimpleNamespace(forwarding_device="leaf1", intf_name=intf)
     declared = {"src": "client1", "dst": "10.0.2.2", "dst_host": "client2"}
     monkeypatch.setattr(cp, "_ends", lambda *_a, **_k: declared)
     monkeypatch.setattr(
         cp,
         "exec_or_empty",
-        lambda *_a, **_k: "10.0.2.2 via 10.0.1.1 dev Ethernet0 src 10.0.1.2",
-    )
-    assert cp._crossing_ends(problem, params) == declared
-
-
-def test_crossing_ends_rejects_sonic_path_on_a_different_ethernet(
-    monkeypatch,
-) -> None:
-    problem = _problem(_env(sonic=True))
-    params = SimpleNamespace(forwarding_device="leaf1", intf_name="eth1")
-    monkeypatch.setattr(
-        cp,
-        "_ends",
-        lambda *_a, **_k: {"src": "client1", "dst": "10.0.2.2", "dst_host": "client2"},
-    )
-    monkeypatch.setattr(
-        cp,
-        "exec_or_empty",
-        lambda runtime, node, cmd, **_k: (
-            "10.0.2.2 via 10.0.1.1 dev Ethernet4 src 10.0.1.2"
-            if "route get" in cmd
-            else ""
-        ),
+        lambda _rt, _node, cmd, **_k: route if "route get" in cmd else "",
     )
     monkeypatch.setattr(
         cp,
@@ -94,19 +80,7 @@ def test_crossing_ends_rejects_sonic_path_on_a_different_ethernet(
         },
     )
     ends = cp._crossing_ends(problem, params)
-    assert ends.get("error") == "no_end_host_path_leaves_the_device_port"
-
-
-def test_crossing_ends_keeps_path_when_srl_kernel_misses_topology_ports(
-    monkeypatch,
-) -> None:
-    problem = _problem(_env(sonic=False))
-    params = SimpleNamespace(forwarding_device="leaf1", intf_name="e1-1")
-    declared = {"src": "client1", "dst": "10.0.2.2", "dst_host": "client2"}
-    monkeypatch.setattr(cp, "_ends", lambda *_a, **_k: declared)
-    monkeypatch.setattr(
-        cp,
-        "exec_or_empty",
-        lambda *_a, **_k: "10.0.2.2 via 10.0.0.1 dev eth0 src 10.0.0.2",
-    )
-    assert cp._crossing_ends(problem, params) == declared
+    if keep:
+        assert ends == declared
+    else:
+        assert ends.get("error") == "no_end_host_path_leaves_the_device_port"

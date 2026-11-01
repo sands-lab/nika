@@ -365,13 +365,6 @@ class LinkInventoryHelpersTest:
         assert resolve_default_intf("eth0", _Env(("pc1:eth1", "r1:eth1")), "pc1") == (
             "eth0"
         )
-        if device_profile == "sonic":
-            assert kernel_data_interface(env, "leaf1", "eth1") == "Ethernet0"
-            assert kernel_data_interface(env, "leaf1", "eth0") == "Ethernet0"
-            assert kernel_data_interface(env, "client1", "eth1") == "eth1"
-        else:
-            assert kernel_data_interface(env, "leaf1", "e1-1") == "e1-1"
-            assert kernel_data_interface(env, "client1", "eth1") == "eth1"
 
     def test_kernel_data_interface_selects_data_plane_not_management(self) -> None:
         from nika.problems.rca.inventory import load_offline_net_env

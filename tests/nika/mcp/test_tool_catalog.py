@@ -40,18 +40,17 @@ async def test_generic_and_specialized_tool_catalog() -> None:
         assert {tool.name for tool in await server.list_tools()} == names
 
 
-@pytest.mark.parametrize("scenario", ["min3clos", "isp_dfn-bwin"])
-def test_containerlab_routers_get_their_platform_cli_server(scenario: str) -> None:
-    def vendor(device_profile: str | None) -> set[str]:
+def test_containerlab_routers_get_their_platform_cli_server() -> None:
+    def vendor(scenario: str, device_profile: str | None) -> set[str]:
         servers = select_diagnosis_servers(
             scenario, backend="containerlab", device_profile=device_profile
         )
         return {s for s in servers if s.startswith("containerlab_")}
 
-    assert vendor(None) == {"containerlab_srl_mcp_server"}
-    assert vendor("nokia_srlinux") == {"containerlab_srl_mcp_server"}
-    assert vendor("sonic") == {"containerlab_sonic_mcp_server"}
-    # The gateway checks the router argument against the node access policy.
+    for scenario in ("min3clos", "isp_dfn-bwin"):
+        assert vendor(scenario, None) == {"containerlab_srl_mcp_server"}
+        assert vendor(scenario, "nokia_srlinux") == {"containerlab_srl_mcp_server"}
+        assert vendor(scenario, "sonic") == {"containerlab_sonic_mcp_server"}
     assert TOOL_NODE_ARGUMENTS["sonic_exec_cli"] == ("device_name",)
 
 

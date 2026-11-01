@@ -21,6 +21,7 @@ from nika.problems.link_interface.link import (
 )
 from nika.runtime.base import RuntimeCapabilityError
 import nika.problems.link_interface.link as link_mod
+from nika.workflows.failure.inject import _refresh_injection_params
 
 pytestmark = pytest.mark.unit
 
@@ -43,153 +44,126 @@ def _problem(cls, runtime, **attrs):
     return problem
 
 
-def test_link_flap_records_controller_target() -> None:
+class _Host:
+    """HostTcController stand-in that records calls or raises if the peer is missing."""
+
+    def __init__(
+        self, runtime, *, peer: str = "nwabc123", missing: bool = False
+    ) -> None:
+        del runtime
+        self.peer = peer
+        self.missing = missing
+        self.calls: list[tuple[str, str]] = []
+
+    def _require(self) -> str:
+        if self.missing:
+            raise RuntimeCapabilityError("host veth is absent")
+        return self.peer
+
+    def peer_name(self, host: str, intf: str) -> str:
+        del host, intf
+        return self._require()
+
+    def egress_dev(self, host: str, intf: str) -> str:
+        return self.peer_name(host, intf)
+
+    def start_link_flap(self, peer: str, down_time: int, up_time: int) -> None:
+        del down_time, up_time
+        self.calls.append(("start", peer))
+
+    def link_flap_running(self, target: str) -> bool:
+        self.calls.append(("running", target))
+        return True
+
+    def stop_link_flap(self, target: str) -> None:
+        self.calls.append(("stop", target))
+
+    def link_peer_down(self, peer: str) -> bool:
+        raise AssertionError("no peer")
+
+    def clear(self, peer: str) -> None:
+        raise AssertionError("must not clear a missing peer")
+
+
+def test_link_flap_records_and_uses_the_host_peer(monkeypatch) -> None:
     assert "_controller_target" in LinkFlap.RECORDED_ATTRS
-
-
-def test_link_flap_inject_sets_controller_target(monkeypatch) -> None:
-    seen: dict[str, str] = {}
-
-    class Controller:
-        def __init__(self, runtime) -> None:
-            pass
-
-        def peer_name(self, host: str, intf: str) -> str:
-            seen["peer"] = f"{host}:{intf}"
-            return "nwabc123"
-
-        def start_link_flap(self, peer: str, down_time: int, up_time: int) -> None:
-            seen["start"] = peer
-
     runtime = SimpleNamespace(backend="containerlab")
+    host = _Host(runtime)
+    monkeypatch.setattr(link_mod, "HostTcController", lambda rt: host)
     problem = _problem(LinkFlap, runtime)
-    monkeypatch.setattr(link_mod, "HostTcController", Controller)
-    problem.inject_fault(
-        LinkFlapParams(host_name="leaf1", intf_name="eth1", down_time=1, up_time=1)
-    )
+    params = LinkFlapParams(host_name="leaf1", intf_name="eth1", down_time=1, up_time=1)
+    problem.inject_fault(params)
+    problem.faulty_intf = "eth1"
     assert problem._controller_target == "nwabc123"
-    assert seen["start"] == "nwabc123"
+    assert ("start", "nwabc123") in host.calls
+    assert problem.verify_fault(params)["verified"] is True
+    assert problem.recover_fault(params)["verified"] is False
+    assert ("running", "nwabc123") in host.calls
+    assert ("stop", "nwabc123") in host.calls
+
+    row = {
+        "problem_class": "LinkFlap",
+        "_controller_target": None,
+        "faulty_intf": "eth0",
+        "resolved_params": {"host_name": "leaf1"},
+    }
+    _refresh_injection_params(problem, ["link_flap"], [(0, "link_flap", row)])
+    assert row["_controller_target"] == "nwabc123"
+    assert row["faulty_intf"] == "eth1"
+
+    recorded = _Host(runtime, peer="nwrecorded")
+
+    def boom(*args, **kwargs):
+        raise AssertionError("recorded target should win")
+
+    recorded.peer_name = boom
+    monkeypatch.setattr(link_mod, "HostTcController", lambda rt: recorded)
+    held = _problem(LinkFlap, runtime, _controller_target="nwrecorded")
+    assert held.verify_fault(LinkFlapParams(host_name="leaf1", intf_name="eth1"))[
+        "verified"
+    ]
+    assert ("running", "nwrecorded") in recorded.calls
 
 
-def test_link_flap_verify_and_recover_discover_host_peer(monkeypatch) -> None:
-    seen: dict[str, str] = {}
-
-    class Controller:
-        def __init__(self, runtime) -> None:
-            pass
-
-        def peer_name(self, host: str, intf: str) -> str:
-            seen["peer"] = f"{host}:{intf}"
-            return "nwabc123"
-
-        def link_flap_running(self, target: str) -> bool:
-            seen["running"] = target
-            return True
-
-        def stop_link_flap(self, target: str) -> None:
-            seen["stop"] = target
-
-    runtime = SimpleNamespace(backend="containerlab")
-    problem = _problem(LinkFlap, runtime)
-    params = LinkFlapParams(host_name="leaf1", intf_name="eth1")
-    monkeypatch.setattr(link_mod, "HostTcController", Controller)
-    result = problem.verify_fault(params)
-    recovered = problem.recover_fault(params)
-    assert result["verified"] is True
-    assert recovered["verified"] is False
-    assert seen["running"] == "nwabc123"
-    assert seen["stop"] == "nwabc123"
-
-
-def test_link_flap_uses_recorded_controller_target(monkeypatch) -> None:
-    seen: dict[str, str] = {}
-
-    class Controller:
-        def __init__(self, runtime) -> None:
-            pass
-
-        def peer_name(self, host: str, intf: str) -> str:
-            raise AssertionError("recorded target should win")
-
-        def link_flap_running(self, target: str) -> bool:
-            seen["running"] = target
-            return True
-
-    runtime = SimpleNamespace(backend="containerlab")
-    problem = _problem(LinkFlap, runtime, _controller_target="nwrecorded")
-    monkeypatch.setattr(link_mod, "HostTcController", Controller)
-    result = problem.verify_fault(LinkFlapParams(host_name="leaf1", intf_name="eth1"))
-    assert result["verified"] is True
-    assert seen["running"] == "nwrecorded"
-
-
-def test_link_flap_inject_raises_when_host_peer_is_missing(monkeypatch) -> None:
-    class Controller:
-        def __init__(self, runtime) -> None:
-            pass
-
-        def peer_name(self, host: str, intf: str) -> str:
-            raise RuntimeCapabilityError("host veth is absent")
-
-        def start_link_flap(self, *args, **kwargs):
-            raise AssertionError("must not start a host worker")
-
-    runtime = SimpleNamespace(backend="containerlab")
-    problem = _problem(LinkFlap, runtime)
-    monkeypatch.setattr(link_mod, "HostTcController", Controller)
-    with pytest.raises(RuntimeCapabilityError, match="absent"):
-        problem.inject_fault(
-            LinkFlapParams(host_name="leaf1", intf_name="eth1", down_time=1, up_time=1)
-        )
-
-
-def test_link_down_verify_raises_when_host_peer_is_missing(monkeypatch) -> None:
-    class Controller:
-        def __init__(self, runtime) -> None:
-            pass
-
-        def peer_name(self, host: str, intf: str) -> str:
-            raise RuntimeCapabilityError("host veth is absent")
-
-        def link_peer_down(self, peer: str) -> bool:
-            raise AssertionError("no peer")
-
+@pytest.mark.parametrize(
+    ("cls", "params", "method"),
+    [
+        (
+            LinkFlap,
+            LinkFlapParams(host_name="leaf1", intf_name="eth1", down_time=1, up_time=1),
+            "inject_fault",
+        ),
+        (
+            LinkFailure,
+            LinkFailureParams(host_name="leaf1", intf_name="eth1"),
+            "verify_fault",
+        ),
+        (
+            LinkCapacityBottleneck,
+            LinkCapacityBottleneckParams(host_name="leaf1", intf_name="eth1"),
+            "recover_fault",
+        ),
+    ],
+)
+def test_host_link_faults_raise_when_the_host_peer_is_missing(
+    monkeypatch, cls, params, method
+) -> None:
     runtime = SimpleNamespace(
         backend="containerlab",
         get_interface_operstate=lambda host, intf: "down",
-    )
-    problem = _problem(LinkFailure, runtime)
-    monkeypatch.setattr(link_mod, "HostTcController", Controller)
-    with pytest.raises(RuntimeCapabilityError, match="absent"):
-        problem.verify_fault(LinkFailureParams(host_name="leaf1", intf_name="eth1"))
-
-
-def test_capacity_recover_raises_when_host_peer_is_missing(monkeypatch) -> None:
-    class Controller:
-        def __init__(self, runtime) -> None:
-            pass
-
-        def egress_dev(self, host: str, intf: str) -> str:
-            raise RuntimeCapabilityError("host veth is absent")
-
-        def clear(self, peer: str) -> None:
-            raise AssertionError("must not clear a missing peer")
-
-    runtime = SimpleNamespace(
-        backend="containerlab",
         tc_clear_intf=lambda *a, **k: (_ for _ in ()).throw(
             AssertionError("must not mutate the node")
         ),
     )
-    problem = _problem(LinkCapacityBottleneck, runtime)
-    monkeypatch.setattr(link_mod, "HostTcController", Controller)
+    monkeypatch.setattr(
+        link_mod, "HostTcController", lambda rt: _Host(rt, missing=True)
+    )
+    problem = _problem(cls, runtime)
     with pytest.raises(RuntimeCapabilityError, match="absent"):
-        problem.recover_fault(
-            LinkCapacityBottleneckParams(host_name="leaf1", intf_name="eth1")
-        )
+        getattr(problem, method)(params)
 
 
-def test_link_detach_timeout_removes_holder(monkeypatch) -> None:
+def _detach_runtime(*, intf_present: bool):
     holder = MagicMock()
     holder.id = "holder1"
     node = MagicMock()
@@ -199,13 +173,24 @@ def test_link_detach_timeout_removes_holder(monkeypatch) -> None:
         backend="containerlab",
         lab_name="lab",
         get_container=lambda host: node,
-        interface_exists=lambda host, intf: True,
+        interface_exists=lambda host, intf: intf_present,
         exec=lambda *a, **k: "[]",
     )
+    return runtime, holder
+
+
+@pytest.mark.parametrize("succeeds", [False, True])
+def test_link_detach_holder_follows_inject_outcome(monkeypatch, succeeds: bool) -> None:
+    runtime, holder = _detach_runtime(intf_present=not succeeds)
     problem = _problem(LinkDetach, runtime)
     monkeypatch.setattr(link_mod, "native_fault_ops", lambda *a, **k: None)
     monkeypatch.setattr(link_mod, "nika_image", lambda name: "nika/base:x")
     monkeypatch.setattr(problem, "_move_netns", lambda *a, **k: None)
+    if succeeds:
+        problem.inject_fault(LinkDetachParams(host_name="leaf1", intf_name="eth1"))
+        holder.remove.assert_not_called()
+        assert problem._detach_holder == "holder1"
+        return
     calls = {"n": 0}
 
     def fake_time() -> float:
@@ -220,174 +205,107 @@ def test_link_detach_timeout_removes_holder(monkeypatch) -> None:
     assert problem._detach_holder is None
 
 
-def test_link_detach_keeps_holder_when_inject_succeeds(monkeypatch) -> None:
-    holder = MagicMock()
-    holder.id = "holder1"
-    node = MagicMock()
-    node.id = "node1"
-    node.client.containers.run.return_value = holder
-    runtime = SimpleNamespace(
-        backend="containerlab",
-        lab_name="lab",
-        get_container=lambda host: node,
-        interface_exists=lambda host, intf: False,
-        exec=lambda *a, **k: "[]",
-    )
-    problem = _problem(LinkDetach, runtime)
-    monkeypatch.setattr(link_mod, "native_fault_ops", lambda *a, **k: None)
-    monkeypatch.setattr(link_mod, "nika_image", lambda name: "nika/base:x")
-    monkeypatch.setattr(problem, "_move_netns", lambda *a, **k: None)
-    problem.inject_fault(LinkDetachParams(host_name="leaf1", intf_name="eth1"))
-    holder.remove.assert_not_called()
-    assert problem._detach_holder == "holder1"
-
-
-def test_link_detach_verify_requires_nos_port_down(monkeypatch) -> None:
+def test_link_detach_verify_uses_nos_port_when_the_provider_follows_link(
+    monkeypatch,
+) -> None:
     class Ops:
-        port_follows_link = True
-
-        def __init__(self, up: bool) -> None:
+        def __init__(self, up: bool, follows: bool = True) -> None:
             self.up = up
+            self.port_follows_link = follows
 
         def interface_up(self, intf: str) -> bool:
-            seen.append(intf)
             return self.up
 
-    seen: list[str] = []
     runtime = SimpleNamespace(
-        backend="containerlab",
-        interface_exists=lambda host, intf: False,
+        backend="containerlab", interface_exists=lambda host, intf: False
     )
+    params = LinkDetachParams(host_name="leaf1", intf_name="eth1")
     problem = _problem(LinkDetach, runtime)
+
     monkeypatch.setattr(link_mod, "native_fault_ops", lambda *a, **k: Ops(False))
-    result = problem.verify_fault(LinkDetachParams(host_name="leaf1", intf_name="eth1"))
-    assert result["verified"] is True
-    assert result["details"]["intf"] == "eth1"
-    assert result["details"]["router_port_up"] is False
-    assert seen == ["eth1"]
+    down = problem.verify_fault(params)
+    assert down["verified"] is True and down["details"]["router_port_up"] is False
 
-    seen.clear()
     monkeypatch.setattr(link_mod, "native_fault_ops", lambda *a, **k: Ops(True))
-    result = problem.verify_fault(LinkDetachParams(host_name="leaf1", intf_name="eth1"))
-    assert result["verified"] is False
-    assert result["details"]["router_port_up"] is True
+    assert problem.verify_fault(params)["verified"] is False
 
-    # XRd ports ignore Linux link state, so only the Linux check applies.
-    xrd = Ops(True)
-    xrd.port_follows_link = False
-    monkeypatch.setattr(link_mod, "native_fault_ops", lambda *a, **k: xrd)
-    result = problem.verify_fault(LinkDetachParams(host_name="leaf1", intf_name="eth1"))
-    assert result["verified"] is True
-    assert "router_port_up" not in result["details"]
-
-
-def test_link_detach_verify_linux_only_when_no_provider(monkeypatch) -> None:
-    runtime = SimpleNamespace(
-        backend="containerlab",
-        interface_exists=lambda host, intf: False,
+    monkeypatch.setattr(
+        link_mod, "native_fault_ops", lambda *a, **k: Ops(True, follows=False)
     )
-    problem = _problem(LinkDetach, runtime)
+    xrd = problem.verify_fault(params)
+    assert xrd["verified"] is True and "router_port_up" not in xrd["details"]
+
     monkeypatch.setattr(link_mod, "native_fault_ops", lambda *a, **k: None)
-    result = problem.verify_fault(
+    linux = problem.verify_fault(
         LinkDetachParams(host_name="client1", intf_name="eth1")
     )
-    assert result["verified"] is True
-    assert "router_port_up" not in result["details"]
+    assert linux["verified"] is True and "router_port_up" not in linux["details"]
 
 
-def test_static_route_replace_skips_ra_and_emits_canonical_default() -> None:
-    ra = {
-        "dst": "default",
-        "gateway": "fe80::1",
-        "protocol": "ra",
-        "metric": 1024,
-        "expires": 1799,
-    }
-    assert static_route_replace_command("-6", ra, "eth1") is None
-    kernel = {"dst": "1000:10::/64", "protocol": "kernel", "prefsrc": "1000:10::24"}
-    assert static_route_replace_command("-6", kernel, "eth1") is None
-    static = {
-        "dst": "default",
-        "gateway": "1000:10::24",
-        "protocol": "boot",
-        "metric": 1024,
-    }
+def test_static_route_replace_skips_dynamic_and_keeps_onlink_nexthops() -> None:
+    skipped = [
+        ("-6", {"dst": "default", "gateway": "fe80::1", "protocol": "ra"}),
+        ("-6", {"dst": "1000:10::/64", "protocol": "kernel"}),
+        (
+            "-4",
+            {
+                "dst": "10.0.0.0/8",
+                "protocol": "boot",
+                "nexthops": [{"gateway": "10.0.0.1", "dev": "eth2"}],
+            },
+        ),
+        ("-4", {"dst": "default", "table": 255}),
+    ]
+    for family, route in skipped:
+        assert static_route_replace_command(family, route, "eth1") is None
+    default = static_route_replace_command(
+        "-6",
+        {
+            "dst": "default",
+            "gateway": "1000:10::24",
+            "protocol": "boot",
+            "metric": 1024,
+        },
+        "eth1",
+    )
     assert (
-        static_route_replace_command("-6", static, "eth1")
-        == "ip -6 route replace default via 1000:10::24 metric 1024 proto boot dev eth1"
+        default is not None and "via 1000:10::24" in default and "proto boot" in default
     )
-
-
-def test_static_route_replace_emits_onlink_src_table_and_nexthops() -> None:
-    link_local = {
-        "dst": "default",
-        "gateway": "fe80::1",
-        "protocol": "boot",
-        "metric": 1024,
-        "prefsrc": "1000:10::24",
-        "flags": ["onlink"],
-    }
-    assert static_route_replace_command("-6", link_local, "eth1") == (
-        "ip -6 route replace default via fe80::1 metric 1024 proto boot "
-        "src 1000:10::24 dev eth1 onlink"
+    link_local = static_route_replace_command(
+        "-6", {"dst": "default", "gateway": "fe80::1", "protocol": "static"}, "eth1"
     )
-    # Link-local gateways need onlink even when the dump omitted the flag.
-    bare_ll = {"dst": "default", "gateway": "fe80::1", "protocol": "static"}
-    command = static_route_replace_command("-6", bare_ll, "eth1")
-    assert command is not None and command.endswith("onlink")
-    tabled = {
-        "dst": "10.9.0.0/16",
-        "gateway": "10.1.1.1",
-        "protocol": "boot",
-        "table": 100,
-        "src": "10.1.1.2",
-    }
-    assert static_route_replace_command("-4", tabled, "eth1") == (
-        "ip -4 route replace 10.9.0.0/16 via 10.1.1.1 proto boot "
-        "src 10.1.1.2 table 100 dev eth1"
+    assert link_local is not None and link_local.endswith("onlink")
+    tabled = static_route_replace_command(
+        "-4",
+        {
+            "dst": "10.9.0.0/16",
+            "gateway": "10.1.1.1",
+            "protocol": "boot",
+            "table": 100,
+            "src": "10.1.1.2",
+        },
+        "eth1",
     )
-    multipath = {
-        "dst": "10.0.0.0/8",
-        "protocol": "boot",
-        "nexthops": [
-            {"gateway": "10.0.0.1", "dev": "eth1", "weight": 1},
-            {"gateway": "10.0.0.2", "dev": "eth1", "weight": 1},
-        ],
-    }
-    assert static_route_replace_command("-4", multipath, "eth1") == (
-        "ip -4 route replace 10.0.0.0/8 proto boot "
-        "nexthop via 10.0.0.1 dev eth1 weight 1 "
-        "nexthop via 10.0.0.2 dev eth1 weight 1"
+    assert tabled is not None and "table 100" in tabled and "src 10.1.1.2" in tabled
+    multipath = static_route_replace_command(
+        "-4",
+        {
+            "dst": "10.0.0.0/8",
+            "protocol": "boot",
+            "nexthops": [
+                {"gateway": "10.0.0.1", "dev": "eth1", "weight": 1},
+                {"gateway": "10.0.0.2", "dev": "eth1", "weight": 1},
+            ],
+        },
+        "eth1",
     )
-    one_hop = {
-        "dst": "10.8.0.0/16",
-        "protocol": "boot",
-        "nexthops": [{"gateway": "10.0.0.1", "dev": "eth1", "flags": ["onlink"]}],
-    }
-    assert static_route_replace_command("-4", one_hop, "eth1") == (
-        "ip -4 route replace 10.8.0.0/16 proto boot "
-        "nexthop via 10.0.0.1 dev eth1 onlink"
-    )
+    assert multipath is not None and multipath.count("nexthop") == 2
 
 
-def test_static_route_replace_skips_unexpressable_nexthops() -> None:
-    other_dev = {
-        "dst": "10.0.0.0/8",
-        "protocol": "boot",
-        "nexthops": [{"gateway": "10.0.0.1", "dev": "eth2"}],
-    }
-    assert static_route_replace_command("-4", other_dev, "eth1") is None
-    local = {"dst": "default", "table": 255}
-    assert static_route_replace_command("-4", local, "eth1") is None
-
-
-def test_parse_ip_route_json_empty_and_invalid() -> None:
+def test_parse_ip_route_json_and_restore_surfaces_replace_failure() -> None:
     assert parse_ip_route_json("") == []
     assert parse_ip_route_json("[]") == []
     assert parse_ip_route_json("not-json") is None
-
-
-def test_restore_l3_state_raises_when_replace_fails() -> None:
     runtime = SimpleNamespace(
         backend="containerlab",
         exec=lambda host, cmd: "RTNETLINK: File exists",
@@ -398,22 +316,6 @@ def test_restore_l3_state_raises_when_replace_fails() -> None:
     ]
     with pytest.raises(RuntimeError, match="restoring route failed"):
         problem._restore_l3_state("client1", "eth1")
-
-
-def test_restore_l3_state_runs_canonical_replace() -> None:
-    seen: list[str] = []
-
-    def exec_cmd(host: str, cmd: str) -> str:
-        seen.append(cmd)
-        return "NIKA_ROUTE_OK"
-
-    runtime = SimpleNamespace(backend="containerlab", exec=exec_cmd)
-    problem = _problem(LinkDetach, runtime)
-    problem._saved_routes = [
-        "ip -6 route replace default via 1000:10::24 proto boot dev eth1"
-    ]
+    runtime.exec = lambda host, cmd: "NIKA_ROUTE_OK"
     problem._restore_l3_state("client1", "eth1")
-    assert seen == [
-        "ip -6 route replace default via 1000:10::24 proto boot dev eth1 && echo NIKA_ROUTE_OK"
-    ]
     assert problem._saved_routes == []

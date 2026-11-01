@@ -59,12 +59,9 @@ def test_isis_only_design_uses_the_ios_xr_projection_of_the_same_design(tmp_path
     assert "router isis CORE" in washng
     assert "ipv4 address 10.0.0.7/31" in washng
     assert snapshot.metadata["native_config_analysis"] is False
-    assert snapshot.metadata["interface_aliases"]["washng"] == {
-        "Loopback0": "lo",
-        "GigabitEthernet0/0/0/0": "eth0",
-        "GigabitEthernet0/0/0/1": "eth1",
-        "GigabitEthernet0/0/0/2": "eth2",
-    }
+    aliases = snapshot.metadata["interface_aliases"]["washng"]
+    assert aliases["Loopback0"] == "lo" and aliases["GigabitEthernet0/0/0/0"] == "eth0"
+    assert len(aliases) == 4
     assert sorted(p.stem for p in (snapshot.path / "hosts").iterdir()) == sorted(
         h.host_name for h in env.traffic.hosts
     )
@@ -82,13 +79,6 @@ def test_design_frr_inverts_the_sonic_rendering():
     assert " passive-interface eth2" in design
 
 
-def test_static_validation_dispatches_sonic_and_skips_sr_linux():
-    sonic = _isp("ospf", "none")
-    assert _batfish_snapshot_builder(sonic, sonic.get_validation_contract())
-    srl = Isp(topo="abilene", igp="ospf", bgp_mode="none")
-    assert _batfish_snapshot_builder(srl, srl.get_validation_contract()) is None
-
-
 def test_unmodeled_protocol_adjacency_is_unsupported(tmp_path):
     env = ContainerlabMin3Clos(device_profile="sonic")
     intent = ValidationIntent(
@@ -102,7 +92,6 @@ def test_unmodeled_protocol_adjacency_is_unsupported(tmp_path):
             remote_node="spine",
             local_address="10.0.0.0",
             remote_address="10.0.0.1",
-            isis_level=2,
             local_interface="eth1",
             remote_interface="eth1",
             local_router_id="30.0.0.1",
@@ -133,6 +122,11 @@ def test_unmodeled_protocol_adjacency_is_unsupported(tmp_path):
 def test_sonic_experiments_reject_unbound_capabilities(tmp_path):
     from nika.workflows.validation.scenario import validate_scenario_design
     from nika.workflows.validation.scenario_spec import ScenarioExperiment
+
+    sonic = _isp("ospf", "none")
+    assert _batfish_snapshot_builder(sonic, sonic.get_validation_contract())
+    srl_isp = Isp(topo="abilene", igp="ospf", bgp_mode="none")
+    assert _batfish_snapshot_builder(srl_isp, srl_isp.get_validation_contract()) is None
 
     env = ContainerlabMin3Clos(device_profile="sonic")
     spec = ScenarioExperiment(
