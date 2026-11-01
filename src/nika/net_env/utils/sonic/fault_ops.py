@@ -291,20 +291,24 @@ class SonicFaultOps(RouterFaultOps):
             raise RuntimeError(f"SONiC port {port} on {self.node} did not {action}")
 
     def reattach_interface(self, interface: str) -> None:
-        # The virtual switch binds a port to its container interface when it
-        # creates the port, so the port is removed and created again from its
-        # own CONFIG_DB rows; addresses go after the port and before it.
+        # vslib opens an AF_PACKET socket on the container veth's ifindex when
+        # it creates the HOSTIF. Moving that veth out of the namespace leaves
+        # the socket with Iface=-1; the TAP stays up, so the port looks up
+        # while frames no longer cross. Recreating the CONFIG_DB PORT makes
+        # orchagent remove and create the HOSTIF, which binds a new socket to
+        # the returned veth. The veth itself is not a TAP and is left in place.
         port = self._port(interface)
         try:
             kernel = interface if interface.startswith("eth") else container_iface(port)
         except ValueError:
             kernel = port
-        # link_detach already moved the wired veth back; deleting CONFIG_DB
-        # PORT would remove that veth and replace it with an unwired port.
-        if "present" in self._exec(
+        if "present" not in self._exec(
             f"ip link show {shlex.quote(kernel)} >/dev/null 2>&1 && echo present"
         ):
-            return
+            raise RuntimeError(
+                f"SONiC kernel interface {kernel} on {self.node} is missing; "
+                "cannot rebind the virtual-switch port"
+            )
         rows = self._config_rows(f"PORT|{port}")
         rows.update(self._config_rows(f"INTERFACE|{port}"))
         rows.update(self._config_rows(f"INTERFACE|{port}|*"))

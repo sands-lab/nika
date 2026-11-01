@@ -106,6 +106,74 @@ def test_wait_port_raises_when_the_port_never_disappears() -> None:
         ops._wait_port("Ethernet0", present=False)
 
 
+class _ReattachRuntime:
+    """CONFIG_DB rows plus a TAP that follows PORT delete/restore."""
+
+    _PORT = (
+        "admin_status\nup\nalias\neth1\nindex\n0\n"
+        "lanes\n1,2,3,4\nmtu\n9100\nspeed\n40000"
+    )
+    _INTERFACE = "NULL\nNULL"
+
+    def __init__(self, *, kernel_present: bool = True) -> None:
+        self.commands: list[str] = []
+        self.kernel_present = kernel_present
+        self.tap_present = True
+
+    def exec(self, node: str, command: str, timeout: float = 30) -> str:
+        del node, timeout
+        self.commands.append(command)
+        if "ip link show eth1" in command:
+            return "present" if self.kernel_present else ""
+        if "keys 'PORT|Ethernet0'" in command:
+            return "PORT|Ethernet0"
+        if "keys 'INTERFACE|Ethernet0|*'" in command:
+            return "INTERFACE|Ethernet0|10.0.0.0/31"
+        if "keys 'INTERFACE|Ethernet0'" in command:
+            return "INTERFACE|Ethernet0"
+        if "hgetall 'PORT|Ethernet0'" in command:
+            return self._PORT
+        if "hgetall" in command:
+            return self._INTERFACE
+        if command.startswith("redis-cli -n 4 del 'PORT|Ethernet0'"):
+            self.tap_present = False
+            return ""
+        if command.startswith("redis-cli -n 4 hset 'PORT|Ethernet0'"):
+            self.tap_present = True
+            return ""
+        if "ip link show Ethernet0" in command or "ip link show 'Ethernet0'" in command:
+            return "present" if self.tap_present else ""
+        return ""
+
+
+def test_reattach_recreates_config_db_port_when_the_veth_is_back() -> None:
+    runtime = _ReattachRuntime()
+    SonicFaultOps(runtime, "leaf1").reattach_interface("eth1")
+    assert runtime.tap_present
+    deletes = [cmd for cmd in runtime.commands if cmd.startswith("redis-cli -n 4 del ")]
+    restores = [
+        cmd for cmd in runtime.commands if cmd.startswith("redis-cli -n 4 hset ")
+    ]
+    assert deletes == [
+        "redis-cli -n 4 del 'INTERFACE|Ethernet0|10.0.0.0/31'",
+        "redis-cli -n 4 del 'INTERFACE|Ethernet0'",
+        "redis-cli -n 4 del 'PORT|Ethernet0'",
+    ]
+    assert [cmd.split()[4] for cmd in restores] == [
+        "'PORT|Ethernet0'",
+        "'INTERFACE|Ethernet0'",
+        "'INTERFACE|Ethernet0|10.0.0.0/31'",
+    ]
+    assert "admin_status" in restores[0] and "up" in restores[0]
+
+
+def test_reattach_raises_when_the_veth_is_missing() -> None:
+    runtime = _ReattachRuntime(kernel_present=False)
+    with pytest.raises(RuntimeError, match="eth1 on leaf1 is missing"):
+        SonicFaultOps(runtime, "leaf1").reattach_interface("eth1")
+    assert not any("redis-cli -n 4 del " in cmd for cmd in runtime.commands)
+
+
 def test_ospf_interfaces_are_named_by_container_interface() -> None:
     interfaces = {"interfaces": {"Ethernet4": {"ipAddress": "10.0.0.0"}}}
     neighbors = {
