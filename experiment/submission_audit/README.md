@@ -8,7 +8,7 @@ The problems are [audit issues](../../GLOSSARY.md): confirmed defects in the ben
 * **Scan pipeline** (`evolve.py`, the skill's `review` command):
   1. An LLM reads every trial several times (scan samples) and answers one fixed question per issue class, citing the step it relies on.
   2. Findings are grouped across trials.
-  3. An adjudication call judges each group seen in two or more trials, or by two or more scan samples: a real problem, intended behaviour, or the audited agent's own mistake.
+  3. An adjudication call judges each group seen in two or more trials, or by two or more scan samples: a real problem, intended behaviour, or the audited agent's own mistake. Groups that a learned issue already matches, or that a built-in check of the same class identifying the instance (a state-changing command, an unlisted tool) fires on, are recorded without a call.
   4. Real groups become issue files without an LLM: the signature is the text their excerpts share.
   5. Per-environment tables of tasks, healthy runs, and tools are read the same way, so problems that only show across trials (a fault no configuration can see, a label always answered as another) become statistical signatures.
 
@@ -76,13 +76,14 @@ Both methods ran in the same four orders: date order and three shuffles (seeds 1
 | Method | Reference issues recovered after 1 / 5 / 10 / 15 / 21 leaderboard submissions | Recall | Issues written |
 | --- | --- | --- | --- |
 | Agent review | 0 to 7 / 14 to 20 / 25 to 37 / 29 to 44 / 39 to 45 | 0.42 to 0.48 | 68 to 81 |
-| Scan pipeline | 13 to 16 / 43 to 55 / 60 to 65 / 62 to 68 / 67 to 71 | 0.72 to 0.76 | 595 to 613 |
+| Scan pipeline (11 of about 2,000 issue files mapped with Cursor Auto) | 12 to 16 / 42 to 55 / 59 to 64 / 62 to 67 / 67 to 71 | 0.72 to 0.76 | 491 to 505 |
 
 * The scan pipeline recovers about as many reference issues after five leaderboard submissions as agent review does after all 21.
 * Problems that only show across trials are recovered. Over the four runs the scan pipeline recovers 7 of 7 injected failures that leave no observable symptom, 5 of 5 fault types that agents systematically confuse with another, and the 1 grading error; agent review recovers 5, 3, and 0.
 * The four scan-pipeline orders share the scans and verdicts of `prepare`, so their agreement (64 reference issues recovered in every order) overstates how stable the method is. The baseline orders ran independent agents.
-* The scan pipeline writes about eight times as many issues. 58% to 61% of them map to a reference issue, against 62% to 70% for agent review; much of the volume is one issue per instance of agent behaviour, such as each state-changing command an agent ran.
-* The runs above wrote an issue for every state-changing command the scan reported. The pipeline now treats such a group as recorded when a built-in check whose signature identifies the instance (`AGENT-STATE-MUTATION`, `POLICY-INIT-UNLISTED-TOOLS`) fires on its cited step. Applied to the stored memories of the four orders, this removes 104 to 119 issues per order (leaving 490 to 502) and no recovered reference issue. The four orders were not rerun with the rule.
+* The scan pipeline writes about seven times as many issues, and about half of them map to a reference issue, against 62% to 70% for agent review. Most of the rest are one issue per out-of-scope read or per lure, often with different wording for the same defect.
+* Without the built-in-check rule of step 3, the same runs wrote 595 to 613 issues, mostly one per state-changing command, with the same final recall. The rule also saves about 5% of the adjudication calls.
+* The runs with the rule reused the per-environment table findings and verdicts of the runs without it, dropping findings whose table row changed (`evolve replay --reuse-cohort`). Issue files that did not change kept their Qwen3.8 mapping, copied by hand because `map_issues.py` maps every file; the 11 new files were mapped with the same prompt through Cursor Auto, because no Qwen3.8 replica could be scheduled.
 
 **First leaderboard submission of each run.** `scan_eval.py` scans each run's first leaderboard submission with an empty memory. The four leaderboard submissions together contain 148 (reference issue, leaderboard submission) pairs for which `issue_refs.yaml` labels the steps that show the issue. A pair is reached when a finding cites one of its labelled steps with a verbatim excerpt.
 
@@ -100,6 +101,6 @@ For the 113 pairs that the three-sample Qwen scan reached, independent reviewers
 ## Limitations
 
 * One person checked the reference issues and the mapper's validation set.
-* The audits and the mapper use the same model, so a mapper error affects both methods alike.
+* The audits and the mapper use the same model, so a mapper error affects both methods alike. The exception is the 11 scan-pipeline issue files mapped with Cursor Auto.
 * The full runs cover one release and one model. Composer covered the first leaderboard submissions only, with one scan sample per trial.
 * The baseline runs gave the agents the earlier, method-only text of the skill; its method is the same as the reviewer, skeptic, and curator guides.
