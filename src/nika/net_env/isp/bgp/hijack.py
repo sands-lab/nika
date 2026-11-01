@@ -136,9 +136,9 @@ def lab_hijack_targets(
     """Hijack targets of a deployed ISP lab.
 
     With ``workload``, a prefix's clients are the routers whose stubs hold
-    sessions to the service at its address. Without it (routers that host no
-    service), every router with a stub is a client of every business prefix:
-    each stub reaches each one, so any diverted router is a visible victim.
+    sessions to its service: the originated ping address on the router, or the
+    originator's stub address when the service runs on the stub. Without a
+    workload, every router with a stub is a client of every business prefix.
     """
     if bgp_plan is None:
         return []
@@ -148,6 +148,11 @@ def lab_hijack_targets(
         return hijack_targets(plan, bgp_plan, stub_of, clients)
     router_of = {stub: router for router, stub in stub_of.items()}
     prefix_at = {o.ping_address: o.prefix for o in bgp_plan.originated}
+    address_of = {h.host_name: h.address for h in traffic.hosts}
+    for origin in bgp_plan.originated:
+        stub = stub_of.get(origin.device)
+        if stub is not None:
+            prefix_at.setdefault(address_of[stub], origin.prefix)
     clients = {}
     for process in workload.processes:
         if (

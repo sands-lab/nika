@@ -189,7 +189,11 @@ class BGPHijacking(ProblemBase):
             # Routers may hold updates for their minimum advertisement
             # interval (30 s for eBGP on IOS XR); inject returns once sent.
             network = str(ipaddress.ip_network(target_network, strict=False))
-            wait_until(lambda: ops.bgp_advertised_to(network), 60, interval_s=5)
+            if not wait_until(lambda: ops.bgp_advertised_to(network), 60, interval_s=5):
+                raise RuntimeError(
+                    f"{type(self).__name__}: {ops.profile} on {params.host_name!r} "
+                    f"did not advertise hijacked prefix {network}."
+                )
             self.logger.info(
                 f"Injected BGP hijacking on {params.host_name}: {target_network} "
                 f"({ops.profile})."

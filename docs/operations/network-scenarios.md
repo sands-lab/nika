@@ -480,7 +480,7 @@ uv run nika env run isp_abilene --device-profile routeros --igp isis
 Every ISP environment runs [business traffic](#business-traffic) that follows the topology's SNDlib demand matrix:
 
 - **Data-set syncs.** Each `pc_<router>` stub publishes an 8 MB data set over HTTP on port 8080 and repeatedly syncs the data set of the PoP it has the largest demand from; a PoP that no stub pulls from is synced by its own largest-demand destination. Each transfer is paced at 0.3–2.5 Mbit/s, scaled from its demand. In `ebgp` mode the pairs stay inside one AS.
-- **Sessions.** On Kathara, each business prefix hosts a web/push service on its originator's service address (the prefix's `.1`), and the three stubs that send that PoP the most demand keep persistent sessions and page loads to it. Without BGP, and on Containerlab, the busiest PoP's stub hosts the service instead.
+- **Sessions.** Each business prefix hosts a web/push service, and the three stubs that send that PoP the most demand keep persistent sessions and page loads to it. On Kathara FRR the service listens on the originator's prefix `.1`; on Containerlab and other platforms that cannot run the service on the router, it listens on that originator's stub. Without BGP, the busiest PoP's stub hosts the service instead.
 
 In `abilene`, `atlam5` reaches `atlang` over a GRE tunnel whose IP MTU is 1476 on both ends, so full-size TCP across that link relies on Path MTU Discovery.
 

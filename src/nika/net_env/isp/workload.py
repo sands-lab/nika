@@ -11,10 +11,10 @@ design lets communicate (one AS in ``ebgp`` mode):
   TCP load without saturating anything. Every lab link is a userspace switch
   that costs CPU per packet, so more transfers would slow the whole host.
 - **Long-lived sessions.** In BGP labs, each business prefix hosts a web/push
-  service on its originator's service address, and the stubs with the largest
-  demand toward that PoP keep persistent sessions and page loads to it. Without
-  BGP (or on routers that cannot run the service) the busiest PoP's stub hosts
-  it instead.
+  service, and the stubs with the largest demand toward that PoP keep persistent
+  sessions and page loads to it. Routers that can run the service listen on the
+  originator's prefix address; otherwise the originator's stub hosts it. Without
+  BGP the busiest PoP's stub hosts the service instead.
 
 - **Customer site.** In plain eBGP labs, one customer site behind a border
   router keeps sessions to the web service of a neighboring AS.
@@ -207,13 +207,18 @@ def _service_sites(
 ) -> list[tuple[str, str, str]]:
     """``(server_node, address, pop_device)`` of each long-lived service."""
     sites: dict[str, tuple[str, str, str]] = {}
-    if bgp_plan is not None and router_services:
+    if bgp_plan is not None:
         internal = set(bgp_plan.inventory.get("leak_prefixes") or ())
         for pref in sorted(bgp_plan.originated, key=lambda p: p.prefix):
             if pref.prefix not in internal:
-                sites.setdefault(
-                    pref.device, (pref.device, pref.ping_address, pref.device)
+                # Router-hosted: listen on the prefix address. Stub-hosted:
+                # the caller fills the originator's stub name and address.
+                site = (
+                    (pref.device, pref.ping_address, pref.device)
+                    if router_services
+                    else ("", "", pref.device)
                 )
+                sites.setdefault(pref.device, site)
         if sites:
             return list(sites.values())
     hubs: list[tuple[str, str, str]] = []
