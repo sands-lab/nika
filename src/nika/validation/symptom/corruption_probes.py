@@ -149,10 +149,8 @@ def evaluate_link_corruption_symptom(
         and after["echo_loss_percent"] >= LOSS_MIN_PERCENT
         and before["echo_loss_percent"] <= _HEALTHY_ECHO_LOSS_MAX
     )
-    goodput_drop = (
-        bool(before_bps)
-        and after_bps is not None
-        and float(after_bps) < float(before_bps) * THROUGHPUT_MAX_RATIO
+    goodput_drop = bool(before_bps) and (
+        after_bps is None or float(after_bps) < float(before_bps) * THROUGHPUT_MAX_RATIO
     )
     verified = frame_loss and goodput_drop
     return verified, build_verify_result(

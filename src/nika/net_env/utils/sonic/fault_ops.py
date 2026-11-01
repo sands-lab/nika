@@ -295,6 +295,16 @@ class SonicFaultOps(RouterFaultOps):
         # creates the port, so the port is removed and created again from its
         # own CONFIG_DB rows; addresses go after the port and before it.
         port = self._port(interface)
+        try:
+            kernel = interface if interface.startswith("eth") else container_iface(port)
+        except ValueError:
+            kernel = port
+        # link_detach already moved the wired veth back; deleting CONFIG_DB
+        # PORT would remove that veth and replace it with an unwired port.
+        if "present" in self._exec(
+            f"ip link show {shlex.quote(kernel)} >/dev/null 2>&1 && echo present"
+        ):
+            return
         rows = self._config_rows(f"PORT|{port}")
         rows.update(self._config_rows(f"INTERFACE|{port}"))
         rows.update(self._config_rows(f"INTERFACE|{port}|*"))
