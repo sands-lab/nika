@@ -299,17 +299,17 @@ cells:
   device_profile: iosxr
   failure: link_detach
   scenario: campus_lan
-  task_id: campus_lan__link_detach__s__h3d4f26287dd7
+  task_id: campus_lan__link_detach__s__h69d903d0732c
   inject:
-    host_name: dhcp_server
+    host_name: router_core_1
     intf_name: eth0
-  native_target: false
-  nika_commit: 0f9cdd835822
+  native_target: true
+  nika_commit: ddc9f74c0bae
   image: ios-xr/xrd-control-plane:26.2.1
-  date: '2026-10-25T00:00:33Z'
+  date: '2026-11-01T02:24:43Z'
   status: validated
   recovery: restored
-  duration_sec: 251
+  duration_sec: 261
 - environment: campus_lan
   device_profile: iosxr
   failure: link_down
@@ -409,16 +409,16 @@ cells:
   device_profile: iosxr
   failure: ospf_acl_block
   scenario: campus_lan
-  task_id: campus_lan__ospf_acl_block__hdf4cc7bfc3fb
+  task_id: campus_lan__ospf_acl_block__h81ed51355c70
   inject:
-    host_name: router_dist_1_1
-  native_target: false
-  nika_commit: 0f9cdd835822
+    host_name: router_core_1
+  native_target: true
+  nika_commit: 0f22c2e9b0aa
   image: ios-xr/xrd-control-plane:26.2.1
-  date: '2026-10-25T00:15:17Z'
+  date: '2026-11-01T00:02:16Z'
   status: validated
   recovery: not_defined
-  duration_sec: 261
+  duration_sec: 267
 - environment: campus_lan
   device_profile: iosxr
   failure: ospf_area_misconfiguration
@@ -437,33 +437,33 @@ cells:
   device_profile: iosxr
   failure: ospf_neighbor_missing
   scenario: campus_lan
-  task_id: campus_lan__ospf_neighbor_mi__h8e92a5ffd49d
+  task_id: campus_lan__ospf_neighbor_mi__h0d076fba7370
   inject:
-    host_name: router_dist_1_1
-  native_target: false
-  nika_commit: 0f9cdd835822
+    host_name: router_core_1
+  native_target: true
+  nika_commit: 0f22c2e9b0aa
   image: ios-xr/xrd-control-plane:26.2.1
-  date: '2026-10-25T00:24:28Z'
+  date: '2026-11-01T00:11:11Z'
   status: validated
   recovery: not_defined
-  duration_sec: 256
+  duration_sec: 247
 - environment: campus_lan
   device_profile: iosxr
   failure: receiver_resource_contention
   scenario: campus_lan
-  task_id: campus_lan__receiver_resourc__h808a926391bf
+  task_id: campus_lan__receiver_resourc__h2675aa27beae
   inject:
     duration: '3600'
-    host_name: pc_1_1_1_1
+    host_name: pc_2_1_1_1
     large_url: https://web0.local/packages/catalog.txt
     peer_host: web_server_0
   native_target: false
-  nika_commit: 0f9cdd835822
+  nika_commit: 0f22c2e9b0aa
   image: ios-xr/xrd-control-plane:26.2.1
-  date: '2026-10-25T00:28:57Z'
+  date: '2026-11-01T00:17:42Z'
   status: validated
   recovery: restored
-  duration_sec: 411
+  duration_sec: 283
 - environment: campus_lan
   device_profile: iosxr
   failure: web_dos_attack
@@ -779,17 +779,17 @@ cells:
   device_profile: routeros
   failure: link_detach
   scenario: campus_lan
-  task_id: campus_lan__link_detach__s__h45c5808434f8
+  task_id: campus_lan__link_detach__s__hadba7831edae
   inject:
-    host_name: dhcp_server
+    host_name: router_core_1
     intf_name: eth0
-  native_target: false
-  nika_commit: 0f9cdd835822
+  native_target: true
+  nika_commit: bf009b5be686
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-24T22:20:31Z'
+  date: '2026-11-01T00:27:27Z'
   status: validated
   recovery: restored
-  duration_sec: 129
+  duration_sec: 139
 - environment: campus_lan
   device_profile: routeros
   failure: link_down
@@ -903,6 +903,20 @@ cells:
   duration_sec: 132
 - environment: campus_lan
   device_profile: routeros
+  failure: ospf_acl_block
+  scenario: campus_lan
+  task_id: campus_lan__ospf_acl_block__h942e444b7d84
+  inject:
+    host_name: router_core_1
+  native_target: true
+  nika_commit: bf009b5be686
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-11-01T00:32:03Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 132
+- environment: campus_lan
+  device_profile: routeros
   failure: ospf_area_misconfiguration
   scenario: campus_lan
   task_id: campus_lan__ospf_area_miscon__h87fe1188abfc
@@ -917,21 +931,35 @@ cells:
   duration_sec: 133
 - environment: campus_lan
   device_profile: routeros
+  failure: ospf_neighbor_missing
+  scenario: campus_lan
+  task_id: campus_lan__ospf_neighbor_mi__h1ef602220940
+  inject:
+    host_name: router_core_1
+  native_target: true
+  nika_commit: bf009b5be686
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-11-01T00:56:59Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 135
+- environment: campus_lan
+  device_profile: routeros
   failure: receiver_resource_contention
   scenario: campus_lan
-  task_id: campus_lan__receiver_resourc__hd90dc57c19d7
+  task_id: campus_lan__receiver_resourc__h7374a5d89d26
   inject:
     duration: '3600'
-    host_name: pc_1_1_1_1
+    host_name: pc_2_1_1_1
     large_url: https://web0.local/packages/catalog.txt
     peer_host: web_server_0
   native_target: false
-  nika_commit: 0f9cdd835822
+  nika_commit: bf009b5be686
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-25T00:50:14Z'
+  date: '2026-11-01T01:06:47Z'
   status: validated
   recovery: restored
-  duration_sec: 394
+  duration_sec: 447
 - environment: campus_lan
   device_profile: routeros
   failure: web_dos_attack
@@ -1226,17 +1254,17 @@ cells:
   device_profile: iosxr
   failure: link_detach
   scenario: dc_clos
-  task_id: dc_clos__link_detach__s__ios__h95411de166a1
+  task_id: dc_clos__link_detach__s__ios__h15d72360a283
   inject:
-    host_name: client_0
+    host_name: leaf_router_0_0
     intf_name: eth0
-  native_target: false
-  nika_commit: 0f9cdd835822
+  native_target: true
+  nika_commit: ddc9f74c0bae
   image: ios-xr/xrd-control-plane:26.2.1
-  date: '2026-10-25T02:27:25Z'
+  date: '2026-11-01T02:29:25Z'
   status: validated
   recovery: restored
-  duration_sec: 279
+  duration_sec: 245
 - environment: dc_clos
   device_profile: iosxr
   failure: link_down
@@ -1651,17 +1679,17 @@ cells:
   device_profile: routeros
   failure: link_detach
   scenario: dc_clos
-  task_id: dc_clos__link_detach__s__rou__he8d794d51630
+  task_id: dc_clos__link_detach__s__rou__h5ee45b787eae
   inject:
-    host_name: client_0
+    host_name: leaf_router_0_0
     intf_name: eth0
-  native_target: false
-  nika_commit: 0f9cdd835822
+  native_target: true
+  nika_commit: 660bc9e208f7
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-24T20:17:41Z'
+  date: '2026-11-01T01:21:25Z'
   status: validated
   recovery: restored
-  duration_sec: 79
+  duration_sec: 92
 - environment: dc_clos
   device_profile: routeros
   failure: link_down
@@ -1861,21 +1889,21 @@ cells:
   device_profile: iosxr
   failure: bgp_hijacking
   scenario: enterprise_branch
-  task_id: enterprise_branch__bgp_hijac__hbb6066b63759
+  task_id: enterprise_branch__bgp_hijac__hc570463521a1
   inject:
-    export_prefix_list: LOCAL-ADV
-    host_name: br1_edge
-    observer_host: br2_corp_pc
-    probe_dst_ip: 10.10.10.2
-    symptom_host: br2_edge
-    target_network: 10.10.10.0/24
+    host_name: hq_edge
+    observer_host: br1_corp_pc
+    probe_dst_ip: 10.2.10.2
+    symptom_host: br1_edge
+    target_network: 10.2.10.0/24
   native_target: false
-  nika_commit: 0f9cdd835822
+  nika_commit: 660bc9e208f7
   image: ios-xr/xrd-control-plane:26.2.1
-  date: '2026-10-25T03:08:38Z'
-  status: validated
-  recovery: not_defined
-  duration_sec: 172
+  date: '2026-11-01T01:23:01Z'
+  status: failed
+  stage: deploy
+  error: Lab enterprise_branch__validate-d7763f failed to deploy after 3 attempts
+  duration_sec: 229
 - environment: enterprise_branch
   device_profile: iosxr
   failure: bgp_missing_route_advertisement
@@ -2054,20 +2082,23 @@ cells:
   device_profile: iosxr
   failure: link_capacity_bottleneck
   scenario: enterprise_branch
-  task_id: enterprise_branch__link_capa__hde3a8d494e20
+  task_id: enterprise_branch__link_capa__h21aec79ad01b
   inject:
-    burst: 64kb
-    host_name: br1_corp_pc
+    burst: 16kb
+    host_name: hq_srv
     intf_name: eth0
-    limit: 500kb
-    rate: 10kbit
+    limit: 32kb
+    rate: 512kbit
   native_target: false
-  nika_commit: 0f9cdd835822
+  nika_commit: 660bc9e208f7
   image: ios-xr/xrd-control-plane:26.2.1
-  date: '2026-10-25T03:53:50Z'
-  status: validated
-  recovery: restored
-  duration_sec: 192
+  date: '2026-11-01T01:26:54Z'
+  status: failed
+  stage: deploy
+  error: '409 Client Error for http+docker://localhost/v1.56/containers/304b293c6fe2b9c36560c46b9cb805340a6cfa1390a8ec66e14bac8e7f3e5e03/start:
+    Conflict ("cannot join network namespace of a non running container: container
+    kathara_ubuntu-datogwgeh7uhvse7pgeuyq_isp1_core_oSr6iQCsqwKbpywfUAW1Q is exited")'
+  duration_sec: 12
 - environment: enterprise_branch
   device_profile: iosxr
   failure: link_detach
@@ -2150,6 +2181,23 @@ cells:
   status: validated
   recovery: not_defined
   duration_sec: 171
+- environment: enterprise_branch
+  device_profile: iosxr
+  failure: mtu_mismatch
+  scenario: enterprise_branch
+  task_id: enterprise_branch__mtu_misma__hbeea92863b0e
+  inject:
+    host_name: br1_edge
+    intf_name: eth2
+    mtu: '500'
+  native_target: false
+  nika_commit: 660bc9e208f7
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-11-01T01:27:08Z'
+  status: failed
+  stage: deploy
+  error: Lab enterprise_branch__validate-1cd0c1 failed to deploy after 3 attempts
+  duration_sec: 228
 - environment: enterprise_branch
   device_profile: iosxr
   failure: nat_mapping_removed_without_drain
@@ -2350,21 +2398,20 @@ cells:
   device_profile: routeros
   failure: bgp_hijacking
   scenario: enterprise_branch
-  task_id: enterprise_branch__bgp_hijac__h2ee8090d0871
+  task_id: enterprise_branch__bgp_hijac__hcaed1e2a58a8
   inject:
-    export_prefix_list: LOCAL-ADV
-    host_name: br1_edge
-    observer_host: br2_corp_pc
-    probe_dst_ip: 10.10.10.2
-    symptom_host: br2_edge
-    target_network: 10.10.10.0/24
+    host_name: hq_edge
+    observer_host: br1_corp_pc
+    probe_dst_ip: 10.2.10.2
+    symptom_host: br1_edge
+    target_network: 10.2.10.0/24
   native_target: true
-  nika_commit: 0f9cdd835822
+  nika_commit: 660bc9e208f7
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-24T17:51:36Z'
+  date: '2026-11-01T01:31:00Z'
   status: validated
   recovery: not_defined
-  duration_sec: 90
+  duration_sec: 96
 - environment: enterprise_branch
   device_profile: routeros
   failure: bgp_missing_route_advertisement
@@ -2526,35 +2573,35 @@ cells:
   device_profile: routeros
   failure: link_capacity_bottleneck
   scenario: enterprise_branch
-  task_id: enterprise_branch__link_capa__h8f0a2005dae7
+  task_id: enterprise_branch__link_capa__h63916c8d7b94
   inject:
-    burst: 64kb
-    host_name: br1_edge
-    intf_name: eth1
-    limit: 500kb
-    rate: 10kbit
-  native_target: true
-  nika_commit: 0f9cdd835822
+    burst: 16kb
+    host_name: hq_srv
+    intf_name: eth0
+    limit: 32kb
+    rate: 512kbit
+  native_target: false
+  nika_commit: 660bc9e208f7
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-24T17:57:32Z'
+  date: '2026-11-01T01:32:39Z'
   status: validated
   recovery: restored
-  duration_sec: 104
+  duration_sec: 97
 - environment: enterprise_branch
   device_profile: routeros
   failure: link_detach
   scenario: enterprise_branch
-  task_id: enterprise_branch__link_deta__h9c63e7ee789f
+  task_id: enterprise_branch__link_deta__haa117f552961
   inject:
-    host_name: br1_corp_pc
-    intf_name: eth0
-  native_target: false
-  nika_commit: 0f9cdd835822
+    host_name: br1_edge
+    intf_name: eth1
+  native_target: true
+  nika_commit: 660bc9e208f7
   image: vrnetlab/mikrotik_routeros:7.21.5
-  date: '2026-10-24T21:02:50Z'
+  date: '2026-11-01T01:34:16Z'
   status: validated
   recovery: restored
-  duration_sec: 94
+  duration_sec: 104
 - environment: enterprise_branch
   device_profile: routeros
   failure: link_down
@@ -2854,6 +2901,26 @@ cells:
   duration_sec: 193
 - environment: isp
   device_profile: iosxr
+  failure: link_detach
+  scenario: isp_abilene
+  task_id: isp_abilene__link_detach__s__h0fe30ad8a5f2
+  inject:
+    host_name: atlam5
+    intf_name: eth0
+    peer_host: pc_atlang
+    probe_dst_ip: 10.254.0.6
+    symptom_host: pc_atlam5
+  native_target: true
+  nika_commit: 660bc9e208f7
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-11-01T01:36:06Z'
+  status: failed
+  stage: deploy
+  error: Native ISP iosxr with 12 routers needs an estimated 41.0 GiB including headroom;
+    only 32.6 GiB is available. Use a smaller topology or a host with more memory.
+  duration_sec: 0
+- environment: isp
+  device_profile: iosxr
   failure: link_down
   scenario: isp_abilene
   task_id: isp_abilene__link_down__s__i__h0041772e93f0
@@ -2909,6 +2976,38 @@ cells:
   status: validated
   recovery: restored
   duration_sec: 205
+- environment: isp
+  device_profile: iosxr
+  failure: ospf_acl_block
+  scenario: isp_abilene
+  task_id: isp_abilene__ospf_acl_block__h75d1f0944625
+  inject:
+    host_name: atlam5
+  native_target: true
+  nika_commit: 660bc9e208f7
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-11-01T01:36:07Z'
+  status: failed
+  stage: deploy
+  error: Native ISP iosxr with 12 routers needs an estimated 41.0 GiB including headroom;
+    only 32.6 GiB is available. Use a smaller topology or a host with more memory.
+  duration_sec: 0
+- environment: isp
+  device_profile: iosxr
+  failure: ospf_neighbor_missing
+  scenario: isp_abilene
+  task_id: isp_abilene__ospf_neighbor_m__h1054fad066c4
+  inject:
+    host_name: atlam5
+  native_target: true
+  nika_commit: 660bc9e208f7
+  image: ios-xr/xrd-control-plane:26.2.1
+  date: '2026-11-01T01:36:08Z'
+  status: failed
+  stage: deploy
+  error: Native ISP iosxr with 12 routers needs an estimated 41.0 GiB including headroom;
+    only 32.6 GiB is available. Use a smaller topology or a host with more memory.
+  duration_sec: 0
 - environment: isp
   device_profile: routeros
   failure: bgp_acl_block
@@ -3017,6 +3116,24 @@ cells:
   duration_sec: 127
 - environment: isp
   device_profile: routeros
+  failure: link_detach
+  scenario: isp_abilene
+  task_id: isp_abilene__link_detach__s__h6c95f956db02
+  inject:
+    host_name: atlam5
+    intf_name: eth1
+    peer_host: pc_atlang
+    probe_dst_ip: 10.254.0.6
+    symptom_host: pc_atlam5
+  native_target: true
+  nika_commit: 660bc9e208f7
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-11-01T01:36:11Z'
+  status: validated
+  recovery: restored
+  duration_sec: 129
+- environment: isp
+  device_profile: routeros
   failure: link_down
   scenario: isp_abilene
   task_id: isp_abilene__link_down__s__i__h6a3854c5d1c2
@@ -3051,6 +3168,20 @@ cells:
   duration_sec: 122
 - environment: isp
   device_profile: routeros
+  failure: ospf_acl_block
+  scenario: isp_abilene
+  task_id: isp_abilene__ospf_acl_block__h62e27796f058
+  inject:
+    host_name: atlam5
+  native_target: true
+  nika_commit: 660bc9e208f7
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-11-01T01:39:52Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 96
+- environment: isp
+  device_profile: routeros
   failure: ospf_area_misconfiguration
   scenario: isp_abilene
   task_id: isp_abilene__ospf_area_misco__hdbf40eeb58cb
@@ -3064,33 +3195,47 @@ cells:
   recovery: not_defined
   duration_sec: 104
 - environment: isp
-  device_profile: sonic
-  failure: bgp_acl_block
-  scenario: isp_dfn-bwin
-  task_id: isp_dfn-bwin__bgp_acl_block__h0f245e1ae34b
+  device_profile: routeros
+  failure: ospf_neighbor_missing
+  scenario: isp_abilene
+  task_id: isp_abilene__ospf_neighbor_m__ha67646e52587
   inject:
-    host_name: berlin
+    host_name: atlam5
   native_target: true
-  nika_commit: c75b9703323d
-  image: docker-sonic-vs:202505-1238524
-  date: '2026-10-30T10:27:29Z'
+  nika_commit: 660bc9e208f7
+  image: vrnetlab/mikrotik_routeros:7.21.5
+  date: '2026-11-01T02:22:38Z'
   status: validated
   recovery: not_defined
-  duration_sec: 102
+  duration_sec: 95
+- environment: isp
+  device_profile: sonic
+  failure: bgp_acl_block
+  scenario: isp_abilene
+  task_id: isp_abilene__bgp_acl_block__h9a0858796334
+  inject:
+    host_name: atlam5
+  native_target: true
+  nika_commit: 660bc9e208f7
+  image: docker-sonic-vs:202505-1238524
+  date: '2026-11-01T01:45:21Z'
+  status: validated
+  recovery: not_defined
+  duration_sec: 101
 - environment: isp
   device_profile: sonic
   failure: bgp_asn_misconfig
-  scenario: isp_dfn-bwin
-  task_id: isp_dfn-bwin__bgp_asn_miscon__h5e433d37d7e5
+  scenario: isp_abilene
+  task_id: isp_abilene__bgp_asn_misconf__h846f81ee9093
   inject:
-    host_name: berlin
+    host_name: atlam5
   native_target: true
-  nika_commit: c75b9703323d
+  nika_commit: 660bc9e208f7
   image: docker-sonic-vs:202505-1238524
-  date: '2026-10-30T10:29:11Z'
+  date: '2026-11-01T01:47:02Z'
   status: validated
   recovery: not_defined
-  duration_sec: 104
+  duration_sec: 101
 - environment: isp
   device_profile: sonic
   failure: bgp_hijacking
@@ -3129,228 +3274,228 @@ cells:
 - environment: isp
   device_profile: sonic
   failure: bgp_missing_route_advertisement
-  scenario: isp_dfn-bwin
-  task_id: isp_dfn-bwin__bgp_missing_ro__h65db6ecc1b65
+  scenario: isp_abilene
+  task_id: isp_abilene__bgp_missing_rou__hadf5f8c688e9
   inject:
-    host_name: muenchen
-    peer_host: pc_muenchen
+    host_name: snvang
+    peer_host: pc_snvang
     prefix: 203.0.113.0/24
     probe_dst_ip: 203.0.113.1
-    symptom_host: berlin
+    symptom_host: atlam5
   native_target: true
-  nika_commit: c75b9703323d
+  nika_commit: 660bc9e208f7
   image: docker-sonic-vs:202505-1238524
-  date: '2026-10-30T10:30:55Z'
+  date: '2026-11-01T01:48:44Z'
   status: validated
   recovery: not_defined
-  duration_sec: 106
+  duration_sec: 101
 - environment: isp
   device_profile: sonic
   failure: frr_service_down
-  scenario: isp_dfn-bwin
-  task_id: isp_dfn-bwin__frr_service_do__h4aa5cf951b1b
+  scenario: isp_abilene
+  task_id: isp_abilene__frr_service_dow__hb75ac9e86271
   inject:
-    host_name: berlin
+    host_name: atlam5
   native_target: true
-  nika_commit: c75b9703323d
+  nika_commit: 660bc9e208f7
   image: docker-sonic-vs:202505-1238524
-  date: '2026-10-30T10:32:41Z'
+  date: '2026-11-01T01:53:20Z'
   status: validated
   recovery: not_defined
-  duration_sec: 105
+  duration_sec: 99
 - environment: isp
   device_profile: sonic
   failure: host_static_blackhole
-  scenario: isp_dfn-bwin
-  task_id: isp_dfn-bwin__host_static_bl__h5f72ffe9a69d
+  scenario: isp_abilene
+  task_id: isp_abilene__host_static_bla__hbd81d450ced3
   inject:
-    host_name: berlin
+    host_name: atlam5
   native_target: true
-  nika_commit: c75b9703323d
+  nika_commit: 660bc9e208f7
   image: docker-sonic-vs:202505-1238524
-  date: '2026-10-30T10:34:26Z'
+  date: '2026-11-01T01:57:51Z'
   status: validated
   recovery: not_defined
-  duration_sec: 103
+  duration_sec: 101
 - environment: isp
   device_profile: sonic
   failure: icmp_acl_block
-  scenario: isp_dfn-bwin
-  task_id: isp_dfn-bwin__icmp_acl_block__h59bc3f4cbd92
+  scenario: isp_abilene
+  task_id: isp_abilene__icmp_acl_block__h65cfbc510288
   inject:
-    host_name: pc_berlin
+    host_name: pc_atlam5
   native_target: false
-  nika_commit: c75b9703323d
+  nika_commit: 660bc9e208f7
   image: docker-sonic-vs:202505-1238524
-  date: '2026-10-30T10:36:09Z'
+  date: '2026-11-01T02:02:37Z'
   status: validated
   recovery: not_defined
-  duration_sec: 101
+  duration_sec: 99
 - environment: isp
   device_profile: sonic
   failure: icmp_frag_needed_filter_misconfiguration
-  scenario: isp_dfn-bwin
-  task_id: isp_dfn-bwin__icmp_frag_need__h39735da5cac3
+  scenario: isp_abilene
+  task_id: isp_abilene__icmp_frag_neede__haf091b132de0
   inject:
-    host_name: berlin
+    host_name: atlam5
   native_target: true
-  nika_commit: c75b9703323d
+  nika_commit: 660bc9e208f7
   image: docker-sonic-vs:202505-1238524
-  date: '2026-10-30T10:37:51Z'
+  date: '2026-11-01T02:04:17Z'
   status: validated
   recovery: not_defined
-  duration_sec: 104
+  duration_sec: 100
 - environment: isp
   device_profile: sonic
   failure: link_capacity_bottleneck
-  scenario: isp_dfn-bwin
-  task_id: isp_dfn-bwin__link_capacity__h5402eb78ef55
+  scenario: isp_atlanta
+  task_id: isp_atlanta__link_capacity_b__h0998b762acd8
   inject:
     burst: 16kb
-    host_name: frankfurt
-    intf_name: eth4
+    host_name: n2
+    intf_name: eth3
     limit: 32kb
-    peer_host: pc_koeln
-    probe_dst_ip: 10.254.0.22
+    peer_host: pc_n6
+    probe_dst_ip: 10.254.0.46
     rate: 512kbit
-    symptom_host: pc_frankfurt
+    symptom_host: pc_n2
   native_target: true
-  nika_commit: c75b9703323d
+  nika_commit: 660bc9e208f7
   image: docker-sonic-vs:202505-1238524
-  date: '2026-10-30T10:39:35Z'
-  status: validated
-  recovery: restored
-  duration_sec: 101
-- environment: isp
-  device_profile: sonic
-  failure: link_detach
-  scenario: isp_dfn-bwin
-  task_id: isp_dfn-bwin__link_detach__s__h02e0d8fee12f
-  inject:
-    host_name: berlin
-    intf_name: eth1
-    peer_host: pc_frankfurt
-    probe_dst_ip: 10.254.0.6
-    symptom_host: pc_berlin
-  native_target: true
-  nika_commit: c75b9703323d
-  image: docker-sonic-vs:202505-1238524
-  date: '2026-10-30T10:41:16Z'
-  status: validated
-  recovery: restored
-  duration_sec: 151
-- environment: isp
-  device_profile: sonic
-  failure: link_down
-  scenario: isp_dfn-bwin
-  task_id: isp_dfn-bwin__link_down__s__hc40ed3ae4ecd
-  inject:
-    host_name: berlin
-    intf_name: eth1
-    peer_host: pc_frankfurt
-    probe_dst_ip: 10.254.0.6
-    symptom_host: pc_berlin
-  native_target: true
-  nika_commit: c75b9703323d
-  image: docker-sonic-vs:202505-1238524
-  date: '2026-10-30T10:43:48Z'
+  date: '2026-11-01T02:05:57Z'
   status: validated
   recovery: restored
   duration_sec: 103
 - environment: isp
   device_profile: sonic
-  failure: link_flap
-  scenario: isp_dfn-bwin
-  task_id: isp_dfn-bwin__link_flap__s__h0957845ee421
+  failure: link_detach
+  scenario: isp_abilene
+  task_id: isp_abilene__link_detach__s__h2f89bafd7ee3
   inject:
-    down_time: '1'
-    host_name: berlin
+    host_name: atlam5
     intf_name: eth1
-    peer_host: pc_frankfurt
+    peer_host: pc_atlang
     probe_dst_ip: 10.254.0.6
-    symptom_host: pc_berlin
-    up_time: '1'
+    symptom_host: pc_atlam5
   native_target: true
-  nika_commit: c75b9703323d
+  nika_commit: ddc9f74c0bae
   image: docker-sonic-vs:202505-1238524
-  date: '2026-10-30T10:45:32Z'
+  date: '2026-11-01T02:33:56Z'
   status: validated
   recovery: restored
-  duration_sec: 104
+  duration_sec: 143
+- environment: isp
+  device_profile: sonic
+  failure: link_down
+  scenario: isp_abilene
+  task_id: isp_abilene__link_down__s__i__hf02759de39b1
+  inject:
+    host_name: atlam5
+    intf_name: eth1
+    peer_host: pc_atlang
+    probe_dst_ip: 10.254.0.6
+    symptom_host: pc_atlam5
+  native_target: true
+  nika_commit: 660bc9e208f7
+  image: docker-sonic-vs:202505-1238524
+  date: '2026-11-01T02:09:22Z'
+  status: validated
+  recovery: restored
+  duration_sec: 99
+- environment: isp
+  device_profile: sonic
+  failure: link_flap
+  scenario: isp_abilene
+  task_id: isp_abilene__link_flap__s__i__h84a4c5b57bba
+  inject:
+    down_time: '1'
+    host_name: atlam5
+    intf_name: eth1
+    peer_host: pc_atlang
+    probe_dst_ip: 10.254.0.6
+    symptom_host: pc_atlam5
+    up_time: '1'
+  native_target: true
+  nika_commit: 660bc9e208f7
+  image: docker-sonic-vs:202505-1238524
+  date: '2026-11-01T02:11:01Z'
+  status: validated
+  recovery: restored
+  duration_sec: 99
 - environment: isp
   device_profile: sonic
   failure: link_packet_corruption
-  scenario: isp_dfn-bwin
-  task_id: isp_dfn-bwin__link_packet_co__h664fda2e340b
+  scenario: isp_abilene
+  task_id: isp_abilene__link_packet_cor__hba36b4f7461a
   inject:
     corruption_percentage: '10'
-    host_name: berlin
+    host_name: atlam5
     intf_name: eth1
-    peer_host: pc_frankfurt
+    peer_host: pc_atlang
     probe_dst_ip: 10.254.0.6
-    symptom_host: pc_berlin
+    symptom_host: pc_atlam5
   native_target: true
-  nika_commit: 804e7ef202a6
+  nika_commit: 660bc9e208f7
   image: docker-sonic-vs:202505-1238524
-  date: '2026-10-31T10:04:18Z'
+  date: '2026-11-01T02:12:41Z'
   status: validated
   recovery: restored
-  duration_sec: 104
+  duration_sec: 99
 - environment: isp
   device_profile: sonic
   failure: mtu_mismatch
-  scenario: isp_dfn-bwin
-  task_id: isp_dfn-bwin__mtu_mismatch__h7930ab6aaf1f
+  scenario: isp_abilene
+  task_id: isp_abilene__mtu_mismatch__s__hf58097fd66c4
   inject:
-    host_name: berlin
+    host_name: atlam5
     intf_name: eth1
     mtu: '500'
   native_target: true
-  nika_commit: c75b9703323d
+  nika_commit: 660bc9e208f7
   image: docker-sonic-vs:202505-1238524
-  date: '2026-10-30T10:47:16Z'
+  date: '2026-11-01T02:14:20Z'
   status: validated
   recovery: not_defined
-  duration_sec: 105
+  duration_sec: 99
 - environment: isp
   device_profile: sonic
   failure: ospf_acl_block
-  scenario: isp_dfn-bwin
-  task_id: isp_dfn-bwin__ospf_acl_block__h2b6ca6f35122
+  scenario: isp_abilene
+  task_id: isp_abilene__ospf_acl_block__hdcac59354ca8
   inject:
-    host_name: berlin
+    host_name: atlam5
   native_target: true
-  nika_commit: c75b9703323d
+  nika_commit: 660bc9e208f7
   image: docker-sonic-vs:202505-1238524
-  date: '2026-10-30T10:49:01Z'
+  date: '2026-11-01T02:16:00Z'
   status: validated
   recovery: not_defined
-  duration_sec: 116
+  duration_sec: 114
 - environment: isp
   device_profile: sonic
   failure: ospf_area_misconfiguration
-  scenario: isp_dfn-bwin
-  task_id: isp_dfn-bwin__ospf_area_misc__h2751925dabea
+  scenario: isp_abilene
+  task_id: isp_abilene__ospf_area_misco__he1dfe171fa06
   inject:
-    host_name: berlin
+    host_name: atlam5
   native_target: true
-  nika_commit: c75b9703323d
+  nika_commit: 660bc9e208f7
   image: docker-sonic-vs:202505-1238524
-  date: '2026-10-30T10:50:57Z'
+  date: '2026-11-01T02:17:54Z'
   status: validated
   recovery: not_defined
   duration_sec: 114
 - environment: isp
   device_profile: sonic
   failure: ospf_neighbor_missing
-  scenario: isp_dfn-bwin
-  task_id: isp_dfn-bwin__ospf_neighbor__h186a55655ee4
+  scenario: isp_abilene
+  task_id: isp_abilene__ospf_neighbor_m__h1988971c227b
   inject:
-    host_name: berlin
+    host_name: atlam5
   native_target: true
-  nika_commit: c75b9703323d
+  nika_commit: 660bc9e208f7
   image: docker-sonic-vs:202505-1238524
-  date: '2026-10-30T10:52:52Z'
+  date: '2026-11-01T02:19:48Z'
   status: validated
   recovery: not_defined
   duration_sec: 117
