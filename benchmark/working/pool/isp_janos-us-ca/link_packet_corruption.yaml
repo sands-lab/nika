@@ -9,6 +9,8 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: &id001
+      pattern: uniform
     inject:
       corruption_percentage: '10'
       host_name: atlanta
@@ -27,6 +29,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: atlanta
@@ -45,6 +48,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: atlanta
@@ -63,6 +67,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: atlanta
@@ -81,6 +86,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: atlanta
@@ -99,6 +105,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: atlanta
@@ -117,6 +124,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: atlanta
@@ -135,6 +143,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: atlanta
@@ -153,6 +162,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: boston
@@ -171,6 +181,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: boston
@@ -189,6 +200,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: boston
@@ -207,6 +219,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: boston
@@ -225,6 +238,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: calgary
@@ -243,6 +257,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: calgary
@@ -261,6 +276,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: calgary
@@ -279,6 +295,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: calgary
@@ -297,6 +314,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: calgary
@@ -315,6 +333,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: calgary
@@ -333,6 +352,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: charlotte
@@ -351,6 +371,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: charlotte
@@ -369,6 +390,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: charlotte
@@ -387,6 +409,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: charlotte
@@ -405,6 +428,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: charlotte
@@ -423,6 +447,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: charlotte
@@ -441,6 +466,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: chicago
@@ -459,6 +485,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: chicago
@@ -477,6 +504,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: chicago
@@ -495,6 +523,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: chicago
@@ -513,6 +542,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: chicago
@@ -531,6 +561,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: chicago
@@ -549,6 +580,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: chicago
@@ -567,6 +599,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: chicago
@@ -585,6 +618,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: cincinnati
@@ -603,6 +637,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: cincinnati
@@ -621,6 +656,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: cincinnati
@@ -639,6 +675,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: cincinnati
@@ -657,6 +694,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: cleveland
@@ -675,6 +713,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: cleveland
@@ -693,6 +732,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: cleveland
@@ -711,6 +751,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: cleveland
@@ -729,6 +770,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: cleveland
@@ -747,6 +789,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: cleveland
@@ -765,6 +808,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: dallas
@@ -783,6 +827,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: dallas
@@ -801,6 +846,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: dallas
@@ -819,6 +865,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: dallas
@@ -837,6 +884,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: dallas
@@ -855,6 +903,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: dallas
@@ -873,6 +922,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: dallas
@@ -891,6 +941,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: dallas
@@ -909,6 +960,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: dallas
@@ -927,6 +979,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: dallas
@@ -945,6 +998,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: denver
@@ -963,6 +1017,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: denver
@@ -981,6 +1036,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: denver
@@ -999,6 +1055,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: denver
@@ -1017,6 +1074,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: detroit
@@ -1035,6 +1093,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: detroit
@@ -1053,6 +1112,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: elpaso
@@ -1071,6 +1131,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: elpaso
@@ -1089,6 +1150,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: elpaso
@@ -1107,6 +1169,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: elpaso
@@ -1125,6 +1188,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: houston
@@ -1143,6 +1207,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: houston
@@ -1161,6 +1226,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: indianapolis
@@ -1179,6 +1245,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: indianapolis
@@ -1197,6 +1264,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: indianapolis
@@ -1215,6 +1283,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: indianapolis
@@ -1233,6 +1302,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: kansascity
@@ -1251,6 +1321,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: kansascity
@@ -1269,6 +1340,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: kansascity
@@ -1287,6 +1359,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: kansascity
@@ -1305,6 +1378,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: kansascity
@@ -1323,6 +1397,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: kansascity
@@ -1341,6 +1416,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: lasvegas
@@ -1359,6 +1435,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: lasvegas
@@ -1377,6 +1454,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: lasvegas
@@ -1395,6 +1473,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: lasvegas
@@ -1413,6 +1492,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: lasvegas
@@ -1431,6 +1511,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: lasvegas
@@ -1449,6 +1530,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: lasvegas
@@ -1467,6 +1549,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: lasvegas
@@ -1485,6 +1568,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: losangeles
@@ -1503,6 +1587,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: losangeles
@@ -1521,6 +1606,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: losangeles
@@ -1539,6 +1625,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: losangeles
@@ -1557,6 +1644,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: memphis
@@ -1575,6 +1663,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: memphis
@@ -1593,6 +1682,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: memphis
@@ -1611,6 +1701,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: memphis
@@ -1629,6 +1720,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: memphis
@@ -1647,6 +1739,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: memphis
@@ -1665,6 +1758,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: miami
@@ -1683,6 +1777,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: miami
@@ -1701,6 +1796,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: miami
@@ -1719,6 +1815,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: miami
@@ -1737,6 +1834,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: minneapolis
@@ -1755,6 +1853,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: minneapolis
@@ -1773,6 +1872,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: montreal
@@ -1791,6 +1891,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: montreal
@@ -1809,6 +1910,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: newyork
@@ -1827,6 +1929,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: newyork
@@ -1845,6 +1948,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: newyork
@@ -1863,6 +1967,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: newyork
@@ -1881,6 +1986,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: philadelphia
@@ -1899,6 +2005,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: philadelphia
@@ -1917,6 +2024,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: phoenix
@@ -1935,6 +2043,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: phoenix
@@ -1953,6 +2062,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: pittsburgh
@@ -1971,6 +2081,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: pittsburgh
@@ -1989,6 +2100,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: portland
@@ -2007,6 +2119,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: portland
@@ -2025,6 +2138,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: portland
@@ -2043,6 +2157,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: portland
@@ -2061,6 +2176,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: portland
@@ -2079,6 +2195,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: portland
@@ -2097,6 +2214,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: sacrameto
@@ -2115,6 +2233,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: sacrameto
@@ -2133,6 +2252,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: sacrameto
@@ -2151,6 +2271,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: sacrameto
@@ -2169,6 +2290,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: seattle
@@ -2187,6 +2309,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: seattle
@@ -2205,7 +2328,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: &id001
+    traffic: &id002
       pattern: uniform
     inject:
       corruption_percentage: '10'
@@ -2225,7 +2348,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: atlanta
@@ -2244,7 +2367,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: atlanta
@@ -2263,7 +2386,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: atlanta
@@ -2282,7 +2405,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: atlanta
@@ -2301,7 +2424,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: atlanta
@@ -2320,7 +2443,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: atlanta
@@ -2339,7 +2462,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: atlanta
@@ -2358,7 +2481,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: boston
@@ -2377,7 +2500,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: boston
@@ -2396,7 +2519,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: boston
@@ -2415,7 +2538,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: boston
@@ -2434,7 +2557,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: calgary
@@ -2453,7 +2576,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: calgary
@@ -2472,7 +2595,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: calgary
@@ -2491,7 +2614,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: calgary
@@ -2510,7 +2633,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: calgary
@@ -2529,7 +2652,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: calgary
@@ -2548,7 +2671,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: charlotte
@@ -2567,7 +2690,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: charlotte
@@ -2586,7 +2709,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: charlotte
@@ -2605,7 +2728,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: charlotte
@@ -2624,7 +2747,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: charlotte
@@ -2643,7 +2766,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: charlotte
@@ -2662,7 +2785,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: chicago
@@ -2681,7 +2804,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: chicago
@@ -2700,7 +2823,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: chicago
@@ -2719,7 +2842,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: chicago
@@ -2738,7 +2861,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: chicago
@@ -2757,7 +2880,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: chicago
@@ -2776,7 +2899,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: chicago
@@ -2795,7 +2918,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: chicago
@@ -2814,7 +2937,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: cincinnati
@@ -2833,7 +2956,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: cincinnati
@@ -2852,7 +2975,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: cincinnati
@@ -2871,7 +2994,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: cincinnati
@@ -2890,7 +3013,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: cleveland
@@ -2909,7 +3032,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: cleveland
@@ -2928,7 +3051,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: cleveland
@@ -2947,7 +3070,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: cleveland
@@ -2966,7 +3089,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: cleveland
@@ -2985,7 +3108,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: cleveland
@@ -3004,7 +3127,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: dallas
@@ -3023,7 +3146,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: dallas
@@ -3042,7 +3165,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: dallas
@@ -3061,7 +3184,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: dallas
@@ -3080,7 +3203,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: dallas
@@ -3099,7 +3222,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: dallas
@@ -3118,7 +3241,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: dallas
@@ -3137,7 +3260,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: dallas
@@ -3156,7 +3279,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: dallas
@@ -3175,7 +3298,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: dallas
@@ -3194,7 +3317,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: denver
@@ -3213,7 +3336,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: denver
@@ -3232,7 +3355,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: denver
@@ -3251,7 +3374,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: denver
@@ -3270,7 +3393,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: detroit
@@ -3289,7 +3412,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: detroit
@@ -3308,7 +3431,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: elpaso
@@ -3327,7 +3450,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: elpaso
@@ -3346,7 +3469,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: elpaso
@@ -3365,7 +3488,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: elpaso
@@ -3384,7 +3507,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: houston
@@ -3403,7 +3526,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: houston
@@ -3422,7 +3545,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: indianapolis
@@ -3441,7 +3564,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: indianapolis
@@ -3460,7 +3583,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: indianapolis
@@ -3479,7 +3602,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: indianapolis
@@ -3498,7 +3621,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: kansascity
@@ -3517,7 +3640,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: kansascity
@@ -3536,7 +3659,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: kansascity
@@ -3555,7 +3678,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: kansascity
@@ -3574,7 +3697,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: kansascity
@@ -3593,7 +3716,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: kansascity
@@ -3612,7 +3735,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: lasvegas
@@ -3631,7 +3754,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: lasvegas
@@ -3650,7 +3773,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: lasvegas
@@ -3669,7 +3792,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: lasvegas
@@ -3688,7 +3811,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: lasvegas
@@ -3707,7 +3830,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: lasvegas
@@ -3726,7 +3849,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: lasvegas
@@ -3745,7 +3868,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: lasvegas
@@ -3764,7 +3887,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: losangeles
@@ -3783,7 +3906,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: losangeles
@@ -3802,7 +3925,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: losangeles
@@ -3821,7 +3944,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: losangeles
@@ -3840,7 +3963,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: memphis
@@ -3859,7 +3982,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: memphis
@@ -3878,7 +4001,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: memphis
@@ -3897,7 +4020,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: memphis
@@ -3916,7 +4039,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: memphis
@@ -3935,7 +4058,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: memphis
@@ -3954,7 +4077,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: miami
@@ -3973,7 +4096,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: miami
@@ -3992,7 +4115,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: miami
@@ -4011,7 +4134,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: miami
@@ -4030,7 +4153,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: minneapolis
@@ -4049,7 +4172,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: minneapolis
@@ -4068,7 +4191,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: montreal
@@ -4087,7 +4210,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: montreal
@@ -4106,7 +4229,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: newyork
@@ -4125,7 +4248,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: newyork
@@ -4144,7 +4267,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: newyork
@@ -4163,7 +4286,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: newyork
@@ -4182,7 +4305,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: philadelphia
@@ -4201,7 +4324,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: philadelphia
@@ -4220,7 +4343,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: phoenix
@@ -4239,7 +4362,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: phoenix
@@ -4258,7 +4381,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: pittsburgh
@@ -4277,7 +4400,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: pittsburgh
@@ -4296,7 +4419,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: portland
@@ -4315,7 +4438,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: portland
@@ -4334,7 +4457,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: portland
@@ -4353,7 +4476,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: portland
@@ -4372,7 +4495,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: portland
@@ -4391,7 +4514,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: portland
@@ -4410,7 +4533,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: sacrameto
@@ -4429,7 +4552,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: sacrameto
@@ -4448,7 +4571,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: sacrameto
@@ -4467,7 +4590,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: sacrameto
@@ -4486,7 +4609,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: seattle
@@ -4505,7 +4628,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic: *id002
     inject:
       corruption_percentage: '10'
       host_name: seattle

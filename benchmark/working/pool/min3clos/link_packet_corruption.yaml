@@ -3,7 +3,9 @@ scenario:
 failure:
   fault_type: link_packet_corruption
   cases:
-  - inject:
+  - traffic: &id001
+      pattern: uniform
+    inject:
       corruption_percentage: '8'
       host_name: client1
       intf_name: eth1
@@ -14,7 +16,8 @@ failure:
         kind: link
         name: client1:eth1--leaf1:e1-2
       fault_type: link_packet_corruption
-  - inject:
+  - traffic: *id001
+    inject:
       corruption_percentage: '8'
       host_name: client2
       intf_name: eth1
@@ -25,7 +28,8 @@ failure:
         kind: link
         name: client2:eth1--leaf2:e1-2
       fault_type: link_packet_corruption
-  - inject:
+  - traffic: *id001
+    inject:
       corruption_percentage: '8'
       host_name: leaf1
       intf_name: e1-1
@@ -36,7 +40,8 @@ failure:
         kind: link
         name: leaf1:e1-1--spine:e1-1
       fault_type: link_packet_corruption
-  - inject:
+  - traffic: *id001
+    inject:
       corruption_percentage: '8'
       host_name: leaf2
       intf_name: e1-1
@@ -48,6 +53,8 @@ failure:
         name: leaf2:e1-1--spine:e1-2
       fault_type: link_packet_corruption
   - device_profile: sonic
+    traffic: &id002
+      pattern: uniform
     inject:
       corruption_percentage: '8'
       host_name: client1
@@ -60,6 +67,7 @@ failure:
         name: client1:eth1--leaf1:eth2
       fault_type: link_packet_corruption
   - device_profile: sonic
+    traffic: *id002
     inject:
       corruption_percentage: '8'
       host_name: client2
@@ -72,6 +80,7 @@ failure:
         name: client2:eth1--leaf2:eth2
       fault_type: link_packet_corruption
   - device_profile: sonic
+    traffic: *id002
     inject:
       corruption_percentage: '8'
       host_name: leaf1
@@ -84,6 +93,7 @@ failure:
         name: leaf1:eth1--spine:eth1
       fault_type: link_packet_corruption
   - device_profile: sonic
+    traffic: *id002
     inject:
       corruption_percentage: '8'
       host_name: leaf2

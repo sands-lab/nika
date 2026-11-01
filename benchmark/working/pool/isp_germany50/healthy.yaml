@@ -20,6 +20,14 @@ healthy:
     rpki: false
     backend: containerlab
     device_profile: sonic
+    traffic:
+      pattern: uniform
+  - topo_size: l
+    igp: isis
+    bgp_mode: none
+    rpki: false
+    backend: containerlab
+    device_profile: sonic
   - topo_size: l
     igp: isis
     bgp_mode: none

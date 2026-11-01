@@ -6,3 +6,6 @@ healthy:
       pattern: uniform
   - {}
   - device_profile: sonic
+    traffic:
+      pattern: uniform
+  - device_profile: sonic

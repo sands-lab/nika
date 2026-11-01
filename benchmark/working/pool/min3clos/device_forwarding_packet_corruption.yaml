@@ -3,7 +3,9 @@ scenario:
 failure:
   fault_type: device_forwarding_packet_corruption
   cases:
-  - inject:
+  - traffic:
+      pattern: uniform
+    inject:
       forwarding_device: spine
       intf_name: e1-2
       observer_device: client1
@@ -15,6 +17,8 @@ failure:
         node: spine
       fault_type: device_forwarding_packet_corruption
   - device_profile: sonic
+    traffic:
+      pattern: uniform
     inject:
       forwarding_device: spine
       intf_name: eth2
