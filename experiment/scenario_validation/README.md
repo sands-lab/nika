@@ -39,7 +39,7 @@ Run one specification through synthesis, static checks, native execution, declar
 uv run python experiment/scenario_validation/experiment.py experiment/scenario_validation/clos.json --output /tmp/routing-clos --runtime
 ```
 
-Use `campus.json`, `enterprise.json`, `clos-m.json` or `min3clos.json` for the other specimens. To run the eligible Clos, campus or enterprise routers on Cisco IOS XR, use `clos-iosxr.json`, `campus-iosxr.json` or `enterprise-iosxr.json`; they need the XRd image. `clos-routeros.json`, `campus-routeros.json` and `enterprise-routeros.json` run the same sequence with RouterOS routers; see [RouterOS routers in Ethernet environments](../../docs/development/scenario-verification.md#routeros-routers-in-ethernet-environments). `min3clos-sonic.json` checks the SONiC `min3clos` statically; omit `--runtime` for it. The two-router vendor scenarios derive their specification from the scenario's own router declarations instead:
+Use `campus.json`, `enterprise.json`, `clos-m.json` or `min3clos.json` for the other specimens. To run the eligible Clos, campus or enterprise routers on Cisco IOS XR, use `clos-iosxr.json`, `campus-iosxr.json` or `enterprise-iosxr.json`; they need the XRd image. `clos-routeros.json`, `campus-routeros.json` and `enterprise-routeros.json` run the same sequence with RouterOS routers; see [RouterOS routers in Ethernet environments](../../docs/development/scenario-verification.md#routeros-routers-in-ethernet-environments). The two-router vendor scenarios derive their specification from the scenario's own router declarations instead:
 
 ```bash
 uv run python experiment/scenario_validation/experiment.py --direct-bgp iosxr_simple_bgp --routing-model iosxr-bgp --output /tmp/routing-xrd --runtime

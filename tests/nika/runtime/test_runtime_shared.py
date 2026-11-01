@@ -126,3 +126,13 @@ def test_run_labelled_helper_stops_on_timeout() -> None:
 
     container.stop.assert_called_once()
     container.remove.assert_called_with(force=True)
+
+
+def test_missing_lab_does_not_remove_other_helpers(monkeypatch) -> None:
+    from nika.runtime.shared.containers import remove_lab_helpers
+
+    def client():
+        raise AssertionError("A missing lab must not remove helpers")
+
+    monkeypatch.setattr("nika.runtime.shared.containers.docker_client", client)
+    remove_lab_helpers(None)

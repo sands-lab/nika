@@ -74,3 +74,48 @@ def test_healthy_check_reads_pingmesh_summary() -> None:
     assert not check(snapshot(2))
     assert not check(snapshot(0, pairs=0))
     assert not check("tool_error: timeout")
+
+
+@pytest.mark.contract
+@pytest.mark.parametrize("profile", ["nokia_srlinux", "sonic"])
+def test_min3clos_oracle_covers_slow_flaps_and_declared_tcp_service(profile) -> None:
+    from nika.net_env.min3clos.lab import ContainerlabMin3Clos
+    from nika.problems.registry import get_problem_class
+    from nika.workflows.benchmark.inject_resolve import resolve_inject_params
+
+    options = {"backend": "containerlab", "device_profile": profile}
+    for failure in ("link_flap", "device_forwarding_packet_corruption"):
+        cls = get_problem_class(failure)
+        problem = cls(
+            "min3clos",
+            topology_file=ContainerlabMin3Clos(**options).topology_template(),
+            **options,
+        )
+        params = problem.parse_params(
+            resolve_inject_params(failure, "min3clos", "", seed=1, isp_options=options)
+        )
+        playbook = problem.oracle_playbook(params)
+        if failure == "link_flap":
+            period = params.down_time + params.up_time
+            evidence = [step for step in playbook.steps if step.evidence]
+            assert len(evidence) == 2
+            assert evidence[0].args["timeout"] > 2 * period
+            assert evidence[1].args["timeout"] > 3 * period
+            assert f"+{3 * period}" in evidence[1].args["command"]
+            assert "-W 0.1" in evidence[1].args["command"]
+        else:
+            assert problem.net_env.servers["web"] == ["client2"]
+            address = playbook.steps[0]
+            assert address.args["host_name"] == "client2"
+            assert "dev eth1 scope global" in address.args["command"]
+            checksum = next(step for step in playbook.steps if step.evidence)
+            assert (
+                "before=131"
+                in checksum.args({"corrupt_before": "TcpInCsumErrors 131 0.0"})[
+                    "command"
+                ]
+            )
+            assert checksum.expect("TcpInCsumErrorsDelta 5")
+            assert not checksum.expect("TcpInCsumErrorsDelta 0")
+            with pytest.raises(ValueError, match="baseline"):
+                checksum.args({})

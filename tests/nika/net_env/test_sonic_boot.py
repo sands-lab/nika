@@ -6,6 +6,7 @@ import hashlib
 import io
 import subprocess
 from contextlib import nullcontext
+from types import SimpleNamespace
 
 import pytest
 
@@ -20,15 +21,6 @@ from nika.net_env.utils.sonic.common import (
 pytestmark = pytest.mark.unit
 
 
-class FakeRuntime:
-    def __init__(self, output: str) -> None:
-        self.output = output
-
-    def exec(self, node: str, command: str, timeout: float = 20) -> str:
-        del node, command, timeout
-        return self.output
-
-
 def _status(start_sh: str, *services: tuple[str, str], start_extra: str = "") -> str:
     lines = []
     for name, state in (("start.sh", start_sh), *services):
@@ -39,10 +31,6 @@ def _status(start_sh: str, *services: tuple[str, str], start_extra: str = "") ->
         else:
             lines.append(f"{name:32} {state}")
     return "\n".join(lines)
-
-
-def _running() -> tuple[tuple[str, str], ...]:
-    return tuple((name, "RUNNING") for name in BOOT_SERVICES)
 
 
 @pytest.mark.parametrize(
@@ -63,8 +51,10 @@ def test_boot_state_follows_start_script_and_service_status(
 ) -> None:
     extra = () if last_state is None else ((BOOT_SERVICES[-1], last_state),)
     start_extra = "   (exit status 1)" if start_sh == "EXITED" else ""
-    output = _status(start_sh, *_running()[:-1], *extra, start_extra=start_extra)
-    assert _boot_state(FakeRuntime(output), "r1") == expected
+    running = tuple((name, "RUNNING") for name in BOOT_SERVICES[:-1])
+    output = _status(start_sh, *running, *extra, start_extra=start_extra)
+    runtime = SimpleNamespace(exec=lambda *args, **kwargs: output)
+    assert _boot_state(runtime, "r1") == expected
 
 
 def test_loaded_image_ref_reads_name_and_id_lines() -> None:
@@ -124,3 +114,33 @@ def test_ensure_sonic_image_skips_load_or_tags_without_rmi(
     ensure_sonic_image("docker-sonic-vs:pinned")
     assert ["docker", "tag", "sha256:abc", "docker-sonic-vs:pinned"] in calls
     assert all(cmd[:2] != ["docker", "rmi"] for cmd in calls)
+
+
+@pytest.mark.parametrize("failure", ["download", "checksum", "load"])
+def test_image_preparation_removes_archive_on_failure(monkeypatch, tmp_path, failure):
+    monkeypatch.setattr(common, "image_exists", lambda image: False)
+
+    def download(*args, **kwargs):
+        if failure == "download":
+            raise OSError("download interrupted")
+        return nullcontext(io.BytesIO(b"archive"))
+
+    monkeypatch.setattr(common.urllib.request, "urlopen", download)
+    monkeypatch.setattr(
+        common,
+        "ARTIFACT_SHA256",
+        "invalid" if failure == "checksum" else hashlib.sha256(b"archive").hexdigest(),
+    )
+
+    def load(*args, **kwargs):
+        raise subprocess.CalledProcessError(1, ["docker", "load"])
+
+    monkeypatch.setattr(common.subprocess, "run", load)
+    expected = {
+        "download": OSError,
+        "checksum": RuntimeError,
+        "load": subprocess.CalledProcessError,
+    }[failure]
+    with pytest.raises(expected):
+        common._load_sonic_image(tmp_path, "sonic:test")
+    assert list(tmp_path.iterdir()) == []

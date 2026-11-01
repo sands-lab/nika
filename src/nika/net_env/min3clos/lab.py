@@ -50,7 +50,7 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
         device_profile: str | None = None,
         **kwargs,
     ):
-        from nika.runtime.spec import NodeRole
+        from nika.runtime.spec import MachineInventory, NodeRole
 
         super().__init__(backend=backend, **kwargs)
         self.device_profile = device_profile or "nokia_srlinux"
@@ -101,10 +101,16 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
         for name in ("client1", "client2"):
             self.declare_machine(
                 name,
-                role=NodeRole.HOST,
+                role=NodeRole.SERVICE if name == "client2" else NodeRole.HOST,
+                service_type="web" if name == "client2" else None,
                 capabilities=("linux",),
                 reachability_target=True,
             )
+
+        inventory = MachineInventory(self.machine_identities)
+        self.hosts = inventory.names_for_role(NodeRole.HOST)
+        self.routers = inventory.names_for_role(NodeRole.ROUTER)
+        self.servers = inventory.services()
 
     def topology_replacements(self, lab_name: str) -> dict[str, str]:
         from nika.net_env.isp.containerlab.lab import (
@@ -331,14 +337,15 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
 
     def target_roles(self) -> dict[str, list[str]]:
         roles = super().target_roles()
-        clients = [h for h in roles["hosts"] if "client" in h] or roles["hosts"]
+        endpoints = sorted({*roles["hosts"], *roles["web"]})
+        clients = [h for h in endpoints if "client" in h] or endpoints
         return {
             **roles,
             "hosts": clients,
             "host1_pool": clients,
             "attacker_pool": clients,
             "routers": [r for r in roles["routers"] if "leaf" in r] or roles["routers"],
-            "web": clients,
+            "web": roles["web"],
             "l2_endpoints": clients,
         }
 

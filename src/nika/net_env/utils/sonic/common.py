@@ -104,12 +104,13 @@ def _load_sonic_image(cache: Path, image: str) -> None:
     print(f"Downloading SONiC-VS {SONIC_BRANCH} build {SONIC_BUILD_ID} ...")
     with tempfile.NamedTemporaryFile(dir=cache, suffix=".gz", delete=False) as handle:
         archive = Path(handle.name)
-        digest = hashlib.sha256()
-        with urllib.request.urlopen(ARTIFACT_URL, timeout=60) as response:
-            while chunk := response.read(1 << 20):
-                digest.update(chunk)
-                handle.write(chunk)
     try:
+        digest = hashlib.sha256()
+        with archive.open("wb") as handle:
+            with urllib.request.urlopen(ARTIFACT_URL, timeout=60) as response:
+                while chunk := response.read(1 << 20):
+                    digest.update(chunk)
+                    handle.write(chunk)
         if digest.hexdigest() != ARTIFACT_SHA256:
             raise RuntimeError(
                 f"SONiC-VS artifact sha256 {digest.hexdigest()} does not match "

@@ -1,5 +1,6 @@
 import json
 import re
+import shlex
 import time
 
 from pydantic import BaseModel, Field
@@ -219,12 +220,16 @@ def _probe_ends(net_env, node: str, intf: str) -> tuple[str, tuple[str, str]] | 
     return src, (target[0], kernel_data_interface(net_env, *target))
 
 
-def _burst_loss_ping(dst: str) -> str:
-    """60 probes at 200 ms; prints received sequence numbers and the summary."""
+def _burst_loss_ping(dst: str, seconds: int = 12) -> str:
+    """Sample timely replies with a fresh socket so delayed echoes count as lost."""
     return (
-        f"ping -i 0.2 -c 60 -W 1 {dst} 2>&1 | awk '/bytes from/"
-        '{for(i=1;i<=NF;i++) if($i ~ /^icmp_seq=/) printf "%s ", $i} '
-        '/packets transmitted/{print ""; print}\''
+        f"end=$(($(date +%s)+{seconds})); sent=0; received=0; "
+        'while [ "$(date +%s)" -lt "$end" ]; do '
+        "sent=$((sent+1)); "
+        f"if ping -n -c 1 -W 0.1 {shlex.quote(dst)} >/dev/null 2>&1; then "
+        'received=$((received+1)); printf "icmp_seq=%s " "$sent"; fi; '
+        "sleep 0.1; done; "
+        'printf "\n%s packets transmitted, %s received\n" "$sent" "$received"'
     )
 
 
@@ -641,13 +646,16 @@ class LinkFlap(ProblemBase):
                 f"Inspect {host}:{intf}, the attachment on the lossy paths.",
             )
         ]
+        period = params.down_time + params.up_time
+        state_seconds = max(8, 2 * period)
+        probe_seconds = max(12, 3 * period)
         if self.lab_backend == "containerlab":
             steps.append(
                 shell(
                     host,
-                    f"for i in $(seq 1 16); do cat /sys/class/net/{intf}/operstate; "
+                    f"for i in $(seq 1 {state_seconds * 2}); do cat /sys/class/net/{intf}/operstate; "
                     "sleep 0.5; done | sort | uniq -c",
-                    f"Sample the operational state of {host}:{intf} for 8 seconds.",
+                    f"Sample the operational state of {host}:{intf} for {state_seconds} seconds.",
                     all_of(
                         contains(r"\bup$", f"{host}:{intf} is seen up"),
                         contains(
@@ -655,7 +663,7 @@ class LinkFlap(ProblemBase):
                         ),
                     ),
                     evidence=True,
-                    timeout=20,
+                    timeout=state_seconds + 10,
                 )
             )
         else:
@@ -670,18 +678,18 @@ class LinkFlap(ProblemBase):
             )
         src = params.symptom_host or params.observer_device
         purpose = (
-            "Probe across the link every 200 ms for 12 seconds and look at which "
+            f"Probe across the link with a 100 ms reply deadline for {probe_seconds} seconds and look at which "
             "probes are lost."
         )
         if src and params.probe_dst_ip:
             steps.append(
                 shell(
                     src,
-                    _burst_loss_ping(params.probe_dst_ip),
+                    _burst_loss_ping(params.probe_dst_ip, seconds=probe_seconds),
                     purpose,
                     _ON_OFF_LOSS,
                     evidence=True,
-                    timeout=40,
+                    timeout=probe_seconds + 10,
                 )
             )
         elif (ends := _probe_ends(self.net_env, host, intf)) is not None:
@@ -691,11 +699,11 @@ class LinkFlap(ProblemBase):
                 toward(
                     src,
                     "flap_peer",
-                    _burst_loss_ping("{ip}"),
+                    _burst_loss_ping("{ip}", seconds=probe_seconds),
                     purpose,
                     _ON_OFF_LOSS,
                     evidence=True,
-                    timeout=40,
+                    timeout=probe_seconds + 10,
                 ),
             ]
         elif self.lab_backend != "containerlab":

@@ -490,3 +490,57 @@ def test_wipe_does_not_follow_a_foreign_containerlab_root(
 
     wipe_runtime_artifacts()
     assert (elsewhere / "keep").exists()
+
+
+@pytest.mark.unit
+def test_wipe_cleans_fault_helpers_before_backend_labs() -> None:
+    from nika.workflows.session.close import (
+        wipe_all_containerlab_labs,
+        wipe_kathara_labs,
+    )
+
+    with (
+        patch("nika.runtime.shared.containers.remove_lab_helpers") as helpers,
+        patch("Kathara.manager.Kathara.Kathara.get_instance") as kathara,
+    ):
+        order = MagicMock()
+        order.attach_mock(helpers, "helpers")
+        order.attach_mock(kathara.return_value.wipe, "wipe")
+        wipe_kathara_labs()
+        assert [call[0] for call in order.mock_calls] == ["helpers", "wipe"]
+        helpers.assert_called_once_with(all_labs=True)
+
+    with (
+        patch(
+            "nika.service.containerlab.host_tc.HostTcController.cleanup_lab"
+        ) as workers,
+        patch("nika.workflows.session.close.subprocess.run") as run,
+    ):
+        run.return_value.returncode = 0
+        order = MagicMock()
+        order.attach_mock(workers, "workers")
+        order.attach_mock(run, "backend")
+        wipe_all_containerlab_labs()
+        workers.assert_called_once_with(all_labs=True)
+        assert [call[0] for call in order.mock_calls] == [
+            "workers",
+            "backend",
+            "backend",
+        ]
+
+
+@pytest.mark.unit
+def test_wipe_removes_orphaned_holders_without_kathara() -> None:
+    from nika.workflows.session.close import wipe_kathara_labs
+
+    with (
+        patch("nika.runtime.shared.containers.docker_client") as client,
+        patch.dict("sys.modules", {"Kathara.manager.Kathara": None}),
+    ):
+        holder = MagicMock()
+        client.return_value.containers.list.return_value = [holder]
+        wipe_kathara_labs()
+        client.return_value.containers.list.assert_called_once_with(
+            all=True, filters={"label": "nika.lab_name"}
+        )
+        holder.remove.assert_called_once_with(force=True)

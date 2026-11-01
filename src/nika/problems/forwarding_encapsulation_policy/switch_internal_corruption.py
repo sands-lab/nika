@@ -10,6 +10,7 @@ from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
 from nika.problems.rca import node_resource
 from nika.problems.rca.inventory import (
     interfaces_for_node,
+    kernel_data_interface,
     iter_link_termination_points,
     parse_endpoint,
 )
@@ -369,27 +370,49 @@ class DeviceForwardingPacketCorruption(ProblemBase):
         device, intf = params.forwarding_device, params.intf_name
         client, web, upload = _tcp_probe_pair(self.net_env, device, intf)
         receiver = web if upload else client
+
+        def checksum_delta(outputs):
+            before = re.search(
+                r"TcpInCsumErrors\s+(\d+)", outputs.get("corrupt_before", "")
+            )
+            if before is None:
+                raise ValueError("TCP checksum baseline is missing")
+            return {
+                "host_name": receiver,
+                "command": "nstat -asz TcpInCsumErrors | "
+                f"awk -v before={before.group(1)} "
+                "'/^TcpInCsumErrors / {print \"TcpInCsumErrorsDelta\", $2-before}'",
+            }
+
+        # Containerlab applies corruption on the host wire, outside node tools.
+        host_wires = self.lab_backend == "containerlab"
         return OraclePlaybook(
             finding=(
-                f"An eBPF classifier on {device}:{intf} egress flips a payload "
-                "bit in a subset of TCP flows, so receivers drop those segments "
-                "with bad checksums while links and routing stay healthy."
+                f"TCP payloads crossing {device}:{intf} are corrupted, so "
+                "receivers drop those segments with bad checksums while "
+                "links and routing stay healthy."
             ),
             steps=[
                 shell(
                     web,
-                    "ip -4 -o addr show scope global | head -3",
+                    f"ip -4 -o addr show dev {kernel_data_interface(self.net_env, web)} scope global",
                     f"Look up the address of web server {web}.",
                     save_as="corrupt_server",
                 ),
-                _tcp_transfers(client, upload),
                 shell(
                     receiver,
-                    "nstat -asz TcpInCsumErrors TcpRetransSegs",
-                    f"Read the TCP checksum error counter on receiver {receiver}.",
+                    "nstat -asz TcpInCsumErrors",
+                    f"Record the TCP checksum error counter on receiver {receiver}.",
+                    save_as="corrupt_before",
+                ),
+                _tcp_transfers(client, upload),
+                OracleStep(
+                    f"Measure new TCP checksum errors on receiver {receiver}.",
+                    "exec_shell",
+                    checksum_delta,
                     contains(
-                        r"TcpInCsumErrors\s+[1-9]",
-                        "the receiver drops TCP segments with bad checksums",
+                        r"TcpInCsumErrorsDelta\s+[1-9]",
+                        "the transfers produce new TCP checksum errors",
                     ),
                     evidence=True,
                 ),
@@ -397,14 +420,16 @@ class DeviceForwardingPacketCorruption(ProblemBase):
                     device,
                     f"tc qdisc show dev {intf}; tc filter show dev {intf} egress",
                     f"Inspect the egress datapath of {device}:{intf}.",
-                    all_of(
+                    lacks(r"netem", "no netem impairment on the link")
+                    if host_wires
+                    else all_of(
                         lacks(r"netem", "no netem impairment on the link"),
                         contains(
                             r"\bbpf\b.*direct-action",
                             "an eBPF classifier rewrites egress packets",
                         ),
                     ),
-                    evidence=True,
+                    evidence=not host_wires,
                 ),
             ],
         )

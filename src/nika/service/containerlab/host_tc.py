@@ -341,9 +341,13 @@ done
                 pass
 
     @classmethod
-    def cleanup_lab(cls, lab_name: str) -> None:
-        """Stop only host-side flap helpers belonging to a lab being torn down."""
-        prefix = cls._flap_pid_prefix(lab_name)
+    def cleanup_lab(
+        cls, lab_name: str | None = None, *, all_labs: bool = False
+    ) -> None:
+        """Stop owned flap workers for one lab, or explicitly for all labs."""
+        if not lab_name and not all_labs:
+            return
+        prefix = "/tmp/nika-link-flap-" if all_labs else cls._flap_pid_prefix(lab_name)
         try:
             listing = cls._run(
                 "sh",
@@ -359,8 +363,7 @@ done
                 stop_owned_flap_worker(cls._run, pid_file)
 
     def _flap_pid_path(self, peer: str) -> str:
-        key = hashlib.blake2s(peer.encode(), digest_size=8).hexdigest()
-        return f"{self._flap_pid_prefix(self.runtime.lab_name)}{key}.pid"
+        return f"{self._flap_pid_prefix(self.runtime.lab_name)}{peer}.pid"
 
     def _container_pid(self, node: str) -> int:
         container = self.runtime.get_container(node)

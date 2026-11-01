@@ -50,10 +50,12 @@ def lift_cpu_cap(container: Any) -> None:
     api._raise_for_status(resp)
 
 
-def remove_lab_helpers(lab_name: str) -> None:
-    """Remove controller-side helpers labelled ``nika.lab_name=<lab_name>``."""
+def remove_lab_helpers(lab_name: str | None = None, *, all_labs: bool = False) -> None:
+    """Remove labeled controller helpers for one lab, or explicitly for all labs."""
+    if not lab_name and not all_labs:
+        return
     client = docker_client()
-    label = f"nika.lab_name={lab_name}"
+    label = "nika.lab_name" if all_labs else f"nika.lab_name={lab_name}"
     for container in client.containers.list(all=True, filters={"label": label}):
         container.remove(force=True)
 

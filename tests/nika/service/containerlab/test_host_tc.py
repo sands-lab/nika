@@ -85,3 +85,45 @@ def test_stop_owned_flap_worker_kills_only_matching_script(
     assert (kill in calls) is killed
     if not killed:
         assert all(call[0] != "kill" for call in calls)
+
+
+@pytest.mark.parametrize("lab_name", [None, "test_cleanup"])
+def test_cleanup_discovers_workers_and_preserves_reused_pids(
+    monkeypatch, lab_name
+) -> None:
+    prefix = (
+        HostTcController._flap_pid_prefix(lab_name)
+        if lab_name is not None
+        else "/tmp/nika-link-flap-"
+    )
+    owned = f"{prefix}owned.pid"
+    stale = f"{prefix}stale.pid"
+    calls = []
+
+    def run(*args):
+        calls.append(args)
+        if args[0] == "sh":
+            assert f"{prefix}*.pid" in args[2]
+            return f"{owned}\n{stale}\n"
+        return {
+            ("cat", owned): "4242",
+            ("cat", stale): "4343",
+            ("cat", "/proc/4242/cmdline"): f"/bin/sh -c PID_FILE={owned}",
+            ("cat", "/proc/4343/cmdline"): "sshd -D",
+        }.get(args, "")
+
+    monkeypatch.setattr(HostTcController, "_run", staticmethod(run))
+    HostTcController.cleanup_lab(lab_name, all_labs=lab_name is None)
+    assert [call for call in calls if call[0] == "kill"] == [
+        ("kill", "-KILL", "--", "-4242")
+    ]
+    assert ("rm", "-f", owned) in calls
+    assert ("rm", "-f", stale) in calls
+
+
+def test_missing_lab_does_not_stop_other_workers(monkeypatch) -> None:
+    def run(*args):
+        raise AssertionError("A missing lab must not run host cleanup")
+
+    monkeypatch.setattr(HostTcController, "_run", staticmethod(run))
+    HostTcController.cleanup_lab(None)

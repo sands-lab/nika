@@ -85,8 +85,9 @@ def translate_frr_design(
     design_names: dict[str, str] = {}
 
     def to_sonic(iface: str) -> str:
-        design_names[rename(iface)] = iface
-        return rename(iface)
+        port = rename(iface)
+        design_names[port] = iface
+        return port
 
     interface = None
     for line in frr_conf.splitlines():
