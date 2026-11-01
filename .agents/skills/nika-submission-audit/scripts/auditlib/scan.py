@@ -128,27 +128,34 @@ def _parse(text: str) -> list[dict[str, Any]]:
 _RETRY_STATUS = {429, 502, 503, 504}
 
 
+CLI_WORKSPACE = Path(tempfile.gettempdir()) / "nika-audit-cli"
+
+
 def _cli_chat(cfg: ScanConfig, system: str, user: str) -> dict:
-    """One answer from an agent CLI, run in an empty directory."""
+    """One answer from an agent CLI, run in one empty directory.
+
+    The CLI may keep per-workspace state (approved tools, servers), so every
+    call shares ``CLI_WORKSPACE`` instead of a new directory.
+    """
     t0 = time.time()
     prompt = f"{system}\n\n---\n\n{user}"
     error = ""
     for attempt in range(cfg.retries + 1):
         if attempt:
             time.sleep(min(60.0, 2.0**attempt))
-        with tempfile.TemporaryDirectory() as tmp:
-            try:
-                proc = subprocess.run(
-                    list(cfg.command),
-                    input=prompt,
-                    capture_output=True,
-                    text=True,
-                    cwd=tmp,
-                    timeout=cfg.timeout,
-                )
-            except subprocess.TimeoutExpired:
-                error = "timeout"
-                continue
+        CLI_WORKSPACE.mkdir(exist_ok=True)
+        try:
+            proc = subprocess.run(
+                list(cfg.command),
+                input=prompt,
+                capture_output=True,
+                text=True,
+                cwd=CLI_WORKSPACE,
+                timeout=cfg.timeout,
+            )
+        except subprocess.TimeoutExpired:
+            error = "timeout"
+            continue
         content = proc.stdout.strip()
         if proc.returncode == 0 and content:
             return {
