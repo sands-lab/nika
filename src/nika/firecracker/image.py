@@ -177,7 +177,8 @@ def vm_memory_mib(params: dict[str, Any]) -> int:
     A configured override for ``<scenario>@<device_profile>`` or the scenario
     applies first. A variant whose routers run a router platform is sized
     from what it deploys: each router needs its platform's
-    ``ROUTER_MEMORY_MIB``. Other labs use NIKA's sizes for large labs or
+    ``ROUTER_MEMORY_MIB``, and not below ``DEFAULT_VM_MEMORY_OVERRIDES`` for
+    that scenario. Other labs use NIKA's sizes for large labs or
     ``vm_memory``.
     """
     from nika.run_config.schema import DEFAULT_VM_MEMORY_OVERRIDES
@@ -188,7 +189,11 @@ def vm_memory_mib(params: dict[str, Any]) -> int:
     overrides = settings.vm_memory_overrides
     memory = overrides.get(f"{scenario}@{profile}") or overrides.get(scenario)
     if memory is None and _router_attr(profile, "ROUTER_MEMORY_MIB") is not None:
-        return _platform_memory_mib(json.dumps(params, sort_keys=True))
+        derived = _platform_memory_mib(json.dumps(params, sort_keys=True))
+        floor = DEFAULT_VM_MEMORY_OVERRIDES.get(scenario)
+        if floor is not None:
+            return max(derived, int(floor[:-3]) * 1024)
+        return derived
     if memory is None:
         memory = DEFAULT_VM_MEMORY_OVERRIDES.get(scenario, settings.vm_memory)
     return int(memory[:-3]) * 1024
@@ -200,8 +205,8 @@ def vm_cpus(params: dict[str, Any]) -> int:
     A configured override for ``<scenario>@<device_profile>`` or the scenario
     applies first. A variant whose routers run a router platform is sized
     from what it deploys: each router needs its platform's
-    ``ROUTER_CPU_MILLIS``. Other labs use NIKA's sizes for large labs or
-    ``vm_cpus``.
+    ``ROUTER_CPU_MILLIS``, and not below ``vm_cpus``. Other labs use NIKA's
+    sizes for large labs or ``vm_cpus``.
     """
     from nika.run_config.schema import DEFAULT_VM_CPU_OVERRIDES
 
@@ -211,7 +216,7 @@ def vm_cpus(params: dict[str, Any]) -> int:
     overrides = settings.vm_cpus_overrides
     cpus = overrides.get(f"{scenario}@{profile}") or overrides.get(scenario)
     if cpus is None and _router_attr(profile, "ROUTER_CPU_MILLIS") is not None:
-        return _platform_cpus(json.dumps(params, sort_keys=True))
+        return max(_platform_cpus(json.dumps(params, sort_keys=True)), settings.vm_cpus)
     if cpus is None:
         cpus = DEFAULT_VM_CPU_OVERRIDES.get(scenario, settings.vm_cpus)
     return cpus

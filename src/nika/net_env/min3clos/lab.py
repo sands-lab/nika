@@ -92,11 +92,12 @@ class ContainerlabMin3Clos(ContainerlabNetworkEnv):
 
         self.validation_contract = build_min3clos_contract(self.LAB_NAME)
         for name in self.ROUTERS:
-            self.declare_machine(
-                name,
-                role=NodeRole.ROUTER,
-                capabilities=("linux", "sonic" if self.sonic else "srl", "bgp"),
+            caps = (
+                ("linux", "sonic", "bgp")
+                if self.sonic
+                else ("linux", "srl", "nokia_srlinux", "bgp")
             )
+            self.declare_machine(name, role=NodeRole.ROUTER, capabilities=caps)
         for name in ("client1", "client2"):
             self.declare_machine(
                 name,
