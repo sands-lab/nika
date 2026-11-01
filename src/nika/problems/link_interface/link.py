@@ -21,7 +21,6 @@ from nika.problems.support.oracle import (
     iface_down,
     iface_state,
     lacks,
-    qdisc,
     shell,
 )
 from nika.problems.rca.inventory import (
@@ -268,13 +267,6 @@ def _saturated_link(output: str) -> bool:
 def _below_2mbps(rate: float | None) -> bool:
     """A measured rate (0 included) under 2 Mbit/s; no measurement is not."""
     return rate is not None and rate < 2e6
-
-
-def _tbf_rate_bps(output: str) -> float | None:
-    match = re.search(r"qdisc tbf .*?\brate ([0-9.]+)([KMG]?)bit", output)
-    if match is None:
-        return None
-    return float(match.group(1)) * _RATE_SCALE[match.group(2)]
 
 
 # ==================================================================
@@ -755,6 +747,60 @@ def _link_peer(net_env, node: str, intf: str) -> tuple[str, str] | None:
     return None
 
 
+def _attached_hosts(net_env, node: str) -> list[str]:
+    """End hosts whose one data link ends on ``node``."""
+    hosts = []
+    for _key, raw in iter_link_termination_points(net_env):
+        ends = [parse_endpoint(str(item))[0] for item in raw]
+        if len(ends) == 2 and node in ends:
+            other = ends[1] if ends[0] == node else ends[0]
+            if _single_homed(net_env, other):
+                hosts.append(other)
+    return sorted(hosts)
+
+
+def _hosts_across(net_env, node: str, intf: str) -> tuple[str, str] | None:
+    """End hosts whose traffic leaves ``node`` through ``intf``.
+
+    Each side is the link end itself when it is an end host, else a host
+    attached to it. A side with neither uses a host elsewhere in the
+    environment, as for a spine.
+    """
+    peer = _link_peer(net_env, node, intf)
+    if peer is None:
+        return None
+
+    def side(end: str, other: str) -> list[str]:
+        if _single_homed(net_env, end):
+            return [end]
+        return [h for h in _attached_hosts(net_env, end) if h != other]
+
+    near, far = side(node, peer[0]), side(peer[0], node)
+    elsewhere = _remote_host(net_env, {node, peer[0], *near, *far})
+    near = near or ([elsewhere] if elsewhere else [])
+    far = far or ([elsewhere] if elsewhere else [])
+    return (near[0], far[0]) if near and far and near[0] != far[0] else None
+
+
+def _iperf_step(src: str, dst: str, where: str) -> OracleStep:
+    """TCP throughput from ``src`` to ``dst`` must stay under 2 Mbit/s."""
+    return OracleStep(
+        f"Measure TCP throughput from {src} to {dst} {where}.",
+        "iperf_test",
+        {
+            "client_host_name": src,
+            "server_host_name": dst,
+            "duration": 10,
+            "client_args": "-f k",
+        },
+        Check(
+            "the path delivers under 2 Mbit/s",
+            lambda out: _below_2mbps(_receiver_bps(out)),
+        ),
+        evidence=True,
+    )
+
+
 def _link_row(ctx, row: dict, node: str, intf: str) -> dict[str, str] | None:
     """``row`` moved to ``node:intf``, with ISP observers for that direction."""
     from nika.net_env.isp.identity import is_isp_scenario
@@ -980,24 +1026,25 @@ class LinkCapacityBottleneck(ProblemBase):
         ]
         direction = f"leaving {host}:{intf}"
         ends = _probe_ends(self.net_env, host, intf)
+        across = _hosts_across(self.net_env, host, intf)
         if (
             self.lab_backend == "containerlab"
             and peer is not None
             and _role(self.net_env, peer[0])
         ):
-            # Node-to-node links are veth pairs with no host-side end, so the
-            # shaper sits on the node's own egress queue.
-            steps.append(
-                qdisc(
-                    host,
-                    intf,
-                    Check(
-                        f"a token-bucket shaper limits {host}:{intf} to below 2 Mbit/s",
-                        lambda out: _below_2mbps(_tbf_rate_bps(out)),
-                    ),
-                    f"Inspect the egress queueing discipline on {host}:{intf}.",
+            # Node-to-node links are shaped on their host-side wire, outside
+            # both nodes, so only throughput across the link shows the cap.
+            if params.probe_dst_ip and params.peer_host:
+                src = params.symptom_host or params.observer_device or host
+                dst = params.peer_host
+            elif across is not None:
+                src, dst = across
+            else:
+                raise ValueError(
+                    f"link_capacity_bottleneck on {host}:{intf}: no host pair "
+                    "measures the shaped direction"
                 )
-            )
+            steps.append(_iperf_step(src, dst, "across the link"))
         elif self.lab_backend == "containerlab":
             # A link to the host namespace is shaped on its host-side veth,
             # which transmits toward the node.
@@ -1054,24 +1101,7 @@ class LinkCapacityBottleneck(ProblemBase):
             ]
         elif params.probe_dst_ip and params.peer_host:
             src = params.symptom_host or params.observer_device or host
-            steps.append(
-                OracleStep(
-                    f"Measure TCP throughput from {src} to {params.peer_host} "
-                    "across the link.",
-                    "iperf_test",
-                    {
-                        "client_host_name": src,
-                        "server_host_name": params.peer_host,
-                        "duration": 10,
-                        "client_args": "-f k",
-                    },
-                    Check(
-                        "the path delivers under 2 Mbit/s",
-                        lambda out: _below_2mbps(_receiver_bps(out)),
-                    ),
-                    evidence=True,
-                )
-            )
+            steps.append(_iperf_step(src, params.peer_host, "across the link"))
         else:
             raise ValueError(
                 f"link_capacity_bottleneck on {host}:{intf}: no addressed probe "
