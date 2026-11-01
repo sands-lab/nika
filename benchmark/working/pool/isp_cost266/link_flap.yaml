@@ -1092,6 +1092,8 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: &id001
+      pattern: uniform
     inject:
       down_time: '1'
       host_name: amsterdam
@@ -1111,6 +1113,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: amsterdam
@@ -1130,6 +1133,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: amsterdam
@@ -1149,6 +1153,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: amsterdam
@@ -1168,6 +1173,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: athens
@@ -1187,6 +1193,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: athens
@@ -1206,6 +1213,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: athens
@@ -1225,6 +1233,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: barcelona
@@ -1244,6 +1253,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: barcelona
@@ -1263,6 +1273,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: barcelona
@@ -1282,6 +1293,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: belgrade
@@ -1301,6 +1313,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: belgrade
@@ -1320,6 +1333,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: belgrade
@@ -1339,6 +1353,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: berlin
@@ -1358,6 +1373,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: berlin
@@ -1377,6 +1393,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: berlin
@@ -1396,6 +1413,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: berlin
@@ -1415,6 +1433,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: berlin
@@ -1434,6 +1453,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: birmingham
@@ -1453,6 +1473,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: birmingham
@@ -1472,6 +1493,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: bordeaux
@@ -1491,6 +1513,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: bordeaux
@@ -1510,6 +1533,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: bordeaux
@@ -1529,6 +1553,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: brussels
@@ -1548,6 +1573,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: brussels
@@ -1567,6 +1593,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: budapest
@@ -1586,6 +1613,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: budapest
@@ -1605,6 +1633,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: copenhagen
@@ -1624,6 +1653,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: copenhagen
@@ -1643,6 +1673,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: dublin
@@ -1662,6 +1693,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: dublin
@@ -1681,6 +1713,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: dusseldorf
@@ -1700,6 +1733,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -1719,6 +1753,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -1738,6 +1773,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -1757,6 +1793,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: helsinki
@@ -1776,6 +1813,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: helsinki
@@ -1795,6 +1833,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: helsinki
@@ -1814,6 +1853,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: krakow
@@ -1833,6 +1873,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: lisbon
@@ -1852,6 +1893,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: lisbon
@@ -1871,6 +1913,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: lisbon
@@ -1890,6 +1933,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: london
@@ -1909,6 +1953,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: lyon
@@ -1928,6 +1973,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: lyon
@@ -1947,6 +1993,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: lyon
@@ -1966,6 +2013,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: marseille
@@ -1985,6 +2033,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: milan
@@ -2004,6 +2053,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: milan
@@ -2023,6 +2073,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: milan
@@ -2042,6 +2093,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: munich
@@ -2061,6 +2113,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: palermo
@@ -2080,6 +2133,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: paris
@@ -2099,6 +2153,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: prague
@@ -2118,6 +2173,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: rome
@@ -2137,6 +2193,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: strasbourg
@@ -2156,6 +2213,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: vienna

@@ -75,7 +75,13 @@ def echo(
 def _is_end_host(problem: Any, node: str) -> bool:
     identity = problem.net_env.machine_identities.get(node)
     if identity is not None:
-        return identity.role in {NodeRole.HOST, NodeRole.SERVICE}
+        # Infrastructure servers, such as a public web server or an RPKI
+        # validator, are endpoints too: they terminate traffic, not forward it.
+        return identity.role in {
+            NodeRole.HOST,
+            NodeRole.SERVICE,
+            NodeRole.INFRASTRUCTURE,
+        }
     return _is_endpoint_host(node)
 
 

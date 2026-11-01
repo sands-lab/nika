@@ -118,6 +118,10 @@ class ProblemBase:
     # fault-operations provider (SONiC on Containerlab).
     supported_backends: ClassVar[tuple[str, ...] | list[str] | None] = None
     minimum_path_bdp_bytes: ClassVar[int] = 0
+    # Kbit/s the path must forward for the symptom to show, such as when the
+    # fault slows a flow only where the endpoint, not the path, limits it.
+    # Compared with the routers' declared send cap (``interface_rate_kbps``).
+    minimum_path_rate_kbps: ClassVar[int] = 0
     # Native router failure operations (``problems/support/router_ops.py``)
     # this failure needs when its target is a router with a fault-operations
     # provider (IOS XR, RouterOS, SONiC).
@@ -155,6 +159,11 @@ class ProblemBase:
     # symptom needs. In a scenario that declares a workload, benchmark targets
     # must be ones that traffic exercises (``symptom_workload_target``).
     SYMPTOM_WORKLOAD: ClassVar[str | None] = None
+    # Background traffic profile (``nika.traffic.profiles``) that generated
+    # cases of this failure run with, such as ``{"pattern": "uniform"}``.
+    # ``nika benchmark generate`` writes it into each case's ``traffic:``; a
+    # case without that field runs without a profile.
+    TRAFFIC_PROFILE: ClassVar[dict[str, Any] | None] = None
 
     @classmethod
     def symptom_workload_target(
@@ -197,6 +206,7 @@ class ProblemBase:
             scenario_device_profiles,
             scenario_supported_backends,
             scenario_path_bdp_limit_bytes,
+            scenario_path_rate_limit_kbps,
         )
         from nika.net_env.isp.profiles import SUPPORTED_BACKEND_PROFILE_PAIRS
         from nika.problems.support.router_ops import (
@@ -232,6 +242,13 @@ class ProblemBase:
                 target.partition("/")[0], device_profile
             )
             if ceiling is not None and ceiling < cls.minimum_path_bdp_bytes:
+                return False
+
+        if cls.minimum_path_rate_kbps:
+            cap = scenario_path_rate_limit_kbps(
+                target.partition("/")[0], device_profile
+            )
+            if cap is not None and cap < cls.minimum_path_rate_kbps:
                 return False
 
         allowed = cls.COMPATIBLE_COLUMNS

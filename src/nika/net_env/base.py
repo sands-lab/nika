@@ -403,6 +403,80 @@ class NetworkEnvBase:
         """
         return None
 
+    def traffic_demands(self) -> dict[tuple[str, str], float] | None:
+        """Measured demand between host pairs, keyed ``(src_host, dst_host)``.
+
+        The ``demand`` background traffic pattern replays it
+        (:mod:`nika.traffic.profiles`). ``None`` when the scenario has none.
+        """
+        return None
+
+    def link_symptom_targets(self, node: str, intf: str) -> dict[str, str] | None:
+        """Observer and destination whose path crosses the link at ``node:intf``.
+
+        Returns ``{"observer_device": ..., "probe_dst_ip": ...}`` for links the
+        scenario's default probe path misses, or ``None`` to keep that path.
+        Link-quality failures probe from the observer to the destination.
+        """
+        return None
+
+    @classmethod
+    def path_rate_limit_kbps(cls, device_profile: str | None) -> int | None:
+        """Kbit/s that business paths carry at most under ``device_profile``.
+
+        The routers' declared send cap; a scenario that shapes its paths below
+        it says so. ``None`` when nothing caps them.
+        """
+        from nika.net_env.native_routers import platform_rate_limit_kbps
+
+        return platform_rate_limit_kbps(device_profile)
+
+    def nat_probe_server(self) -> tuple[str, str] | None:
+        """An outside ``(node, ipv4)`` Linux server that NATed hosts reach.
+
+        NAT symptom probes listen there. ``None`` makes them use the edge's
+        WAN next hop, which must then run Linux.
+        """
+        return None
+
+    def router_rate_limit_kbps(self) -> int | None:
+        """Lowest per-interface send cap of the lab's router platforms, or None.
+
+        Traffic that crosses the routers stays below it
+        (``nika.traffic.workload.rate_budget_kbps``).
+        """
+        from nika.net_env.native_routers import (
+            native_profiles,
+            platform_rate_limit_kbps,
+        )
+
+        capabilities = {
+            capability
+            for identity in self.machine_identities.values()
+            for capability in identity.capabilities
+        }
+        limits = [
+            platform_rate_limit_kbps(profile)
+            for profile in native_profiles() & capabilities
+        ]
+        return min((limit for limit in limits if limit), default=None)
+
+    def traffic_pod_nodes(self) -> frozenset[str]:
+        """Nodes without Python that run traffic programs in Kubernetes pods.
+
+        ``start_traffic_programs`` must start their programs.
+        """
+        return frozenset()
+
+    def start_traffic_programs(self, workload: "BusinessWorkload") -> None:
+        """Start a background traffic profile's programs (idempotent)."""
+        from nika.traffic.workload import start_workload
+
+        start_workload(self._build_runtime(), workload)
+
+    def stop_traffic_programs(self) -> None:
+        """Stop programs that ``start_traffic_programs`` runs outside the hosts."""
+
     def start_business_workload(self) -> "BusinessWorkload | None":
         """Start ``business_workload()`` on the deployed lab (idempotent)."""
         workload = self.business_workload()

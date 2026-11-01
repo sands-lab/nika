@@ -35,6 +35,15 @@ _DURATION = re.compile(r"(\d+)(ms|w|d|h|m|s)")
 _UNITS = {"w": 604800, "d": 86400, "h": 3600, "m": 60, "s": 1, "ms": 0.001}
 
 
+def _address_match(field: str, address: str) -> str:
+    """Match a connection address field, with or without its port.
+
+    RouterOS 7.21 prints the port in a separate field; earlier releases append
+    it to the address (``198.18.1.10:40840``).
+    """
+    return f'{field}="{address}" or {field}~"^{address}:"'
+
+
 class RouterOsFaultOps(RouterFaultOps):
     profile = "routeros"
 
@@ -527,15 +536,15 @@ class RouterOsFaultOps(RouterFaultOps):
     def clear_nat_mappings(self, address: str) -> None:
         self._cli(
             "/ip firewall connection remove [find protocol=tcp and "
-            f'reply-dst-address~"^{address}:"]; '
+            f"({_address_match('reply-dst-address', address)})]; "
             "/ip firewall connection remove [find protocol=tcp and "
-            f'dst-address~"^{address}:"]'
+            f"({_address_match('dst-address', address)})]"
         )
 
     def nat_mapping_count(self, address: str) -> int:
         return routeros_count(
             self._cli(
                 "/ip/firewall/connection/print count-only where protocol=tcp and "
-                f'reply-dst-address~"^{address}:"'
+                f"({_address_match('reply-dst-address', address)})"
             )
         )

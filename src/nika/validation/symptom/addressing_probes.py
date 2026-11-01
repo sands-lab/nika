@@ -161,17 +161,12 @@ def _observers(runtime: LabRuntime, target_ip: str, exclude: set[str]) -> dict:
         for ip in _probe_ips(runtime, node):
             if ip != target_ip and _reachable(runtime, observer, ip):
                 return {"observer": observer, "control_ip": ip, "target_ip": target_ip}
-    # SR Linux / SONiC keep IPv4 in the NOS, not in the kernel, so other
-    # routers have no Linux address to ping. The observer's default gateway
-    # is still a data-plane address it can reach.
-    getter = getattr(runtime, "get_default_gateway", None)
-    gateway = _valid_ipv4(getter(observer) or "") if callable(getter) else ""
+    # An isolated observer (a guest LAN behind NAT) may reach no other host,
+    # and SR Linux, SONiC and native routers expose no Linux address: its own
+    # gateway still shows that the observer's side of the network works.
+    gateway = runtime.get_default_gateway(observer)
     if gateway and gateway != target_ip and _reachable(runtime, observer, gateway):
-        return {
-            "observer": observer,
-            "control_ip": gateway,
-            "target_ip": target_ip,
-        }
+        return {"observer": observer, "control_ip": gateway, "target_ip": target_ip}
     return {}
 
 

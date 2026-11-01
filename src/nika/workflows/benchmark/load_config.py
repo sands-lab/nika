@@ -10,6 +10,7 @@ import yaml
 from nika.net_env.net_env_pool import resolve_scenario_id, scenario_fixed_topo_size
 from nika.problems.registry import get_problem_class, resolve_problem_name
 from nika.telemetry import telemetry_field
+from nika.traffic.profiles import traffic_field
 from nika.workflows.benchmark.healthy import HEALTHY_PROBLEM, is_healthy_case
 from nika.workflows.benchmark.isp_options import (
     ISP_OPTION_KEYS,
@@ -62,6 +63,7 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
     isp_backend = row.get("backend")
     isp_device_profile = row.get("device_profile")
     telemetry_option = telemetry_field(row.get("telemetry"))
+    telemetry_option.update(traffic_field(row.get("traffic")))
 
     if is_healthy_case(raw_problem):
         if inject:
@@ -232,7 +234,7 @@ def load_benchmark_yaml(path: str | Path) -> list[dict[str, Any]]:
 
 
 # Deploy fields a candidate case or healthy variant may set.
-CASE_PROFILE_FIELDS = ("topo_size", *ISP_OPTION_KEYS, "telemetry")
+CASE_PROFILE_FIELDS = ("topo_size", *ISP_OPTION_KEYS, "telemetry", "traffic")
 _VARIANT_META = frozenset(CASE_PROFILE_FIELDS)
 _CASE_META = frozenset(CASE_PROFILE_FIELDS) | {"inject", "root_causes"}
 

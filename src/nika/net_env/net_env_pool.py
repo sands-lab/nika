@@ -629,11 +629,28 @@ def scenario_path_bdp_limit_bytes(
     Unknown RTTs or unrestricted profiles have no declared ceiling. Runtime
     calibration must still check the actual flow before changing TCP buffers.
     """
-    bandwidth_bps = {"routeros": 1_000_000}.get(device_profile)
+    from nika.net_env.native_routers import platform_rate_limit_kbps
+
+    rate_kbps = platform_rate_limit_kbps(device_profile)
     rtt_ms = _require_scenario(scenario_name).nominal_path_rtt_ms
-    if bandwidth_bps is None or rtt_ms is None:
+    if rate_kbps is None or rtt_ms is None:
         return None
-    return bandwidth_bps * rtt_ms / 8000
+    return rate_kbps * 1000 * rtt_ms / 8000
+
+
+def scenario_path_rate_limit_kbps(
+    scenario_name: str, device_profile: str | None = None
+) -> int | None:
+    """Kbit/s the scenario's paths carry at most under ``device_profile``, or None.
+
+    See ``NetworkEnvBase.path_rate_limit_kbps``.
+    """
+    spec = _require_scenario(scenario_name)
+    binding = (spec.device_profiles or {}).get(device_profile or "")
+    if binding is None:
+        binding = spec.binding_for(spec.supported_backends[0])
+    cls = getattr(import_module(binding.module), binding.class_name)
+    return cls.path_rate_limit_kbps(device_profile)
 
 
 def scenario_device_profiles(scenario_name: str) -> tuple[str, ...]:

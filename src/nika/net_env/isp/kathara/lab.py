@@ -497,6 +497,11 @@ class Isp(NetworkEnvBase):
     def probe_intent(self) -> ProbeIntent | None:
         return stub_probe_intent(self.bgp_plan, self.traffic)
 
+    def traffic_demands(self):
+        from nika.net_env.isp.workload import stub_demands
+
+        return stub_demands(self.plan, self.traffic, self.topo)
+
     def business_workload(self):
         from nika.net_env.isp.workload import build_isp_workload
 

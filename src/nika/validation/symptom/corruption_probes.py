@@ -97,8 +97,12 @@ def _iperf(
 
 
 def _goodput(runtime: LabRuntime, ends: dict[str, Any], port: int) -> dict[str, Any]:
-    """Receiver-side TCP goodput from ``src`` toward ``dst``."""
-    return _iperf(runtime, ends, port=port, args=f"-t {IPERF_SECONDS}", seconds=15)
+    """Receiver-side TCP goodput from ``src`` toward ``dst``.
+
+    With ``ends["reverse"]`` the data flows from ``dst`` back to ``src``.
+    """
+    args = f"-t {IPERF_SECONDS}" + (" -R" if ends.get("reverse") else "")
+    return _iperf(runtime, ends, port=port, args=args, seconds=15)
 
 
 def _link_corruption_reading(problem: Any, ends: dict[str, Any]) -> dict[str, Any]:
@@ -117,10 +121,28 @@ def _link_corruption_reading(problem: Any, ends: dict[str, Any]) -> dict[str, An
     }
 
 
+def _data_flows_back(problem: Any, params: Any, ends: dict[str, Any]) -> bool:
+    """Whether data must flow from ``dst`` to ``src`` to leave the corrupted port.
+
+    Corruption acts on the target interface's egress. When the target's route
+    to the destination leaves through another interface (or the target owns
+    the destination), the probe data must flow back toward the observer.
+    Without a Linux route lookup on the target, only ownership decides.
+    """
+    route = exec_or_empty(
+        problem.runtime, params.host_name, f"ip -4 route get {ends['dst']}"
+    )
+    match = re.search(r"\bdev (\S+)", route)
+    if match is None:
+        return ends["dst_host"] == params.host_name
+    return match.group(1) != params.intf_name
+
+
 def link_corruption_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     ends = _ends(problem, params)
     if "error" in ends:
         return False, ends
+    ends["reverse"] = _data_flows_back(problem, params, ends)
     # A busy host can drop a few healthy echoes; re-read before judging the path.
     reading, _reads = healthy_read(
         lambda: _link_corruption_reading(problem, ends),

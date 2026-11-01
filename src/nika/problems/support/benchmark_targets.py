@@ -910,6 +910,18 @@ def link_target_options(
         node, intf = (eligible or parsed)[0]
         options.append(replace(link_base, host_name=node, intf_name=intf))
     rows = [{**aux, **row} for row in options]
+    if not isp and {"observer_device", "probe_dst_ip"} & set(aux):
+        # Links off the scenario's default probe path get their own observer.
+        rows = [
+            {
+                **row,
+                **(
+                    net_env.link_symptom_targets(row["host_name"], row["intf_name"])
+                    or {}
+                ),
+            }
+            for row in rows
+        ]
     if isp:
         from nika.net_env.isp.inject_targets import isp_link_symptom_targets
 

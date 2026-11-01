@@ -49,6 +49,12 @@ from nika.net_env.net_env_pool import (
 from nika.net_env.verify import LabVerifyTimeoutError, verify_lab_with_retry
 from nika.problems.support.polling import wait_until
 from nika.run_config.loader import get_run_config
+from nika.traffic.profiles import (
+    TrafficProfile,
+    normalize_traffic,
+    start_background_traffic,
+    stop_background_traffic,
+)
 from nika.telemetry import (
     apply_telemetry,
     configure_telemetry,
@@ -313,12 +319,18 @@ def start_net_env(
     routing_model: str | None = None,
     routing_configs: dict[str, str] | None = None,
     telemetry: Iterable[str] | None = None,
+    traffic: TrafficProfile | dict | str | None = None,
 ) -> str:
-    """Deploy the lab for ``scenario`` and create a new runtime session."""
+    """Deploy the lab for ``scenario`` and create a new runtime session.
+
+    ``traffic`` adds a background traffic profile (:mod:`nika.traffic.profiles`)
+    on top of the scenario's business workload.
+    """
     from nika.remote.config import is_remote_enabled
 
     canonical = resolve_scenario_id(scenario)
     telemetry_kinds = normalize_telemetry(telemetry)
+    traffic_profile = normalize_traffic(traffic)
     static_validation_enabled = (
         static_validation
         if static_validation is not None
@@ -355,6 +367,7 @@ def start_net_env(
             device_profile=device_profile,
             static_validation=static_validation_enabled,
             telemetry=list(telemetry_kinds),
+            traffic=traffic_profile.case_value() if traffic_profile else None,
         )
 
     size = _normalize_topo_size(topo_size)
@@ -457,6 +470,8 @@ def start_net_env(
         )
     if telemetry_kinds:
         scenario_params["telemetry"] = list(telemetry_kinds)
+    if traffic_profile:
+        scenario_params["traffic"] = traffic_profile.case_value()
     topology_file = getattr(net_env, "topology_file", None)
     runtime_workdir = getattr(net_env, "runtime_workdir", None)
     metadata = getattr(net_env, "metadata", None)
@@ -527,6 +542,7 @@ def start_net_env(
                     )
 
         lab_exists = net_env.lab_exists()
+        lab_reused = lab_exists and not redeploy
         from nika.net_env.utils.k8s_workload_cache import K8S_SCENARIOS, cache_scenario
 
         if canonical in K8S_SCENARIOS:
@@ -657,6 +673,26 @@ def start_net_env(
                 process_count=len(workload.processes),
                 node_count=len(workload.nodes),
                 duration_ms=elapsed_ms(workload_started),
+            )
+        if lab_reused:
+            # The reused lab may still run an earlier session's profile.
+            stop_background_traffic(net_env)
+        if traffic_profile:
+            traffic_started = time.perf_counter()
+            effective, background = start_background_traffic(net_env, traffic_profile)
+            log_event(
+                "env_traffic",
+                f"Started {traffic_profile.pattern} background traffic for "
+                f"{scenario} ({resolved_session_id}): "
+                f"{len(background.processes)} processes on "
+                f"{len(background.nodes)} hosts",
+                scenario=scenario,
+                session_id=resolved_session_id,
+                traffic=traffic_profile.case_value(),
+                traffic_effective=effective.case_value(),
+                process_count=len(background.processes),
+                node_count=len(background.nodes),
+                duration_ms=elapsed_ms(traffic_started),
             )
     except BaseException as exc:
         # Session is registered before deploy; clean up so interrupted starts

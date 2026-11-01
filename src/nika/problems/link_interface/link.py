@@ -4,6 +4,7 @@ import time
 
 from pydantic import BaseModel, Field
 
+from nika.problems.support.traffic import LOSS_EVIDENCE_TRAFFIC
 from nika.problems.base import (
     FailureDomain,
     ProblemBase,
@@ -500,6 +501,7 @@ class LinkFlap(ProblemBase):
     symptom_class = "loss"
     dynamic_artifact = True
     root_cause_name: str = "link_flap"
+    TRAFFIC_PROFILE = LOSS_EVIDENCE_TRAFFIC
     description = "Logical link flaps between up and down."
     TAGS: str = ["link"]
     # Acts on the link through a controller-side proxy, outside the router OS.

@@ -9,6 +9,8 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: &id001
+      pattern: uniform
     inject:
       down_time: '1'
       host_name: berlin
@@ -28,6 +30,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: berlin
@@ -47,6 +50,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: berlin
@@ -66,6 +70,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: berlin
@@ -85,6 +90,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: berlin
@@ -104,6 +110,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: berlin
@@ -123,6 +130,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: berlin
@@ -142,6 +150,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: berlin
@@ -161,6 +170,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: berlin
@@ -180,6 +190,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: erlangen
@@ -199,6 +210,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: erlangen
@@ -218,6 +230,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: erlangen
@@ -237,6 +250,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: erlangen
@@ -256,6 +270,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: erlangen
@@ -275,6 +290,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: erlangen
@@ -294,6 +310,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: erlangen
@@ -313,6 +330,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: erlangen
@@ -332,6 +350,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: essen
@@ -351,6 +370,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: essen
@@ -370,6 +390,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: essen
@@ -389,6 +410,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: essen
@@ -408,6 +430,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: essen
@@ -427,6 +450,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: essen
@@ -446,6 +470,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: essen
@@ -465,6 +490,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -484,6 +510,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -503,6 +530,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -522,6 +550,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -541,6 +570,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -560,6 +590,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -579,6 +610,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -598,6 +630,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: hamburg
@@ -617,6 +650,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: hamburg
@@ -636,6 +670,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: hamburg
@@ -655,6 +690,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: hamburg
@@ -674,6 +710,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: hamburg
@@ -693,6 +730,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: hannover
@@ -712,6 +750,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: hannover
@@ -731,6 +770,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: hannover
@@ -750,6 +790,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: hannover
@@ -769,6 +810,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: hannover
@@ -788,6 +830,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: koeln
@@ -807,6 +850,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: koeln
@@ -826,6 +870,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: koeln
@@ -845,6 +890,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: leipzig
@@ -864,6 +910,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: leipzig
@@ -883,6 +930,7 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: muenchen
@@ -1795,6 +1843,8 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: &id002
+      pattern: uniform
     inject:
       down_time: '1'
       host_name: berlin
@@ -1814,6 +1864,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: berlin
@@ -1833,6 +1884,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: berlin
@@ -1852,6 +1904,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: berlin
@@ -1871,6 +1924,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: berlin
@@ -1890,6 +1944,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: berlin
@@ -1909,6 +1964,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: berlin
@@ -1928,6 +1984,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: berlin
@@ -1947,6 +2004,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: berlin
@@ -1966,6 +2024,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: erlangen
@@ -1985,6 +2044,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: erlangen
@@ -2004,6 +2064,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: erlangen
@@ -2023,6 +2084,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: erlangen
@@ -2042,6 +2104,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: erlangen
@@ -2061,6 +2124,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: erlangen
@@ -2080,6 +2144,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: erlangen
@@ -2099,6 +2164,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: erlangen
@@ -2118,6 +2184,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: essen
@@ -2137,6 +2204,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: essen
@@ -2156,6 +2224,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: essen
@@ -2175,6 +2244,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: essen
@@ -2194,6 +2264,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: essen
@@ -2213,6 +2284,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: essen
@@ -2232,6 +2304,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: essen
@@ -2251,6 +2324,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -2270,6 +2344,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -2289,6 +2364,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -2308,6 +2384,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -2327,6 +2404,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -2346,6 +2424,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -2365,6 +2444,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -2384,6 +2464,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: hamburg
@@ -2403,6 +2484,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: hamburg
@@ -2422,6 +2504,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: hamburg
@@ -2441,6 +2524,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: hamburg
@@ -2460,6 +2544,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: hamburg
@@ -2479,6 +2564,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: hannover
@@ -2498,6 +2584,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: hannover
@@ -2517,6 +2604,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: hannover
@@ -2536,6 +2624,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: hannover
@@ -2555,6 +2644,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: hannover
@@ -2574,6 +2664,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: koeln
@@ -2593,6 +2684,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: koeln
@@ -2612,6 +2704,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: koeln
@@ -2631,6 +2724,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: leipzig
@@ -2650,6 +2744,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: leipzig
@@ -2669,6 +2764,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: muenchen
@@ -2688,6 +2784,8 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: &id003
+      pattern: uniform
     inject:
       down_time: '1'
       host_name: berlin
@@ -2707,6 +2805,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: berlin
@@ -2726,6 +2825,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: berlin
@@ -2745,6 +2845,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: berlin
@@ -2764,6 +2865,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: berlin
@@ -2783,6 +2885,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: berlin
@@ -2802,6 +2905,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: berlin
@@ -2821,6 +2925,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: berlin
@@ -2840,6 +2945,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: berlin
@@ -2859,6 +2965,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: erlangen
@@ -2878,6 +2985,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: erlangen
@@ -2897,6 +3005,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: erlangen
@@ -2916,6 +3025,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: erlangen
@@ -2935,6 +3045,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: erlangen
@@ -2954,6 +3065,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: erlangen
@@ -2973,6 +3085,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: erlangen
@@ -2992,6 +3105,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: erlangen
@@ -3011,6 +3125,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: essen
@@ -3030,6 +3145,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: essen
@@ -3049,6 +3165,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: essen
@@ -3068,6 +3185,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: essen
@@ -3087,6 +3205,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: essen
@@ -3106,6 +3225,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: essen
@@ -3125,6 +3245,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: essen
@@ -3144,6 +3265,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -3163,6 +3285,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -3182,6 +3305,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -3201,6 +3325,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -3220,6 +3345,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -3239,6 +3365,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -3258,6 +3385,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: frankfurt
@@ -3277,6 +3405,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: hamburg
@@ -3296,6 +3425,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: hamburg
@@ -3315,6 +3445,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: hamburg
@@ -3334,6 +3465,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: hamburg
@@ -3353,6 +3485,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: hamburg
@@ -3372,6 +3505,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: hannover
@@ -3391,6 +3525,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: hannover
@@ -3410,6 +3545,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: hannover
@@ -3429,6 +3565,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: hannover
@@ -3448,6 +3585,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: hannover
@@ -3467,6 +3605,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: koeln
@@ -3486,6 +3625,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: koeln
@@ -3505,6 +3645,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: koeln
@@ -3524,6 +3665,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: leipzig
@@ -3543,6 +3685,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: leipzig
@@ -3562,6 +3705,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: muenchen

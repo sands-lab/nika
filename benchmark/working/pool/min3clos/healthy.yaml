@@ -2,5 +2,7 @@ scenario:
   name: min3clos
 healthy:
   variants:
+  - traffic:
+      pattern: uniform
   - {}
   - device_profile: sonic

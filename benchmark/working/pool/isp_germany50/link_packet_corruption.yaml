@@ -1593,6 +1593,8 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: &id001
+      pattern: uniform
     inject:
       corruption_percentage: '10'
       host_name: aachen
@@ -1611,6 +1613,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: aachen
@@ -1629,6 +1632,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: aachen
@@ -1647,6 +1651,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: augsburg
@@ -1665,6 +1670,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: augsburg
@@ -1683,6 +1689,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: augsburg
@@ -1701,6 +1708,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: bayreuth
@@ -1719,6 +1727,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: bayreuth
@@ -1737,6 +1746,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: bayreuth
@@ -1755,6 +1765,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: berlin
@@ -1773,6 +1784,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: berlin
@@ -1791,6 +1803,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: berlin
@@ -1809,6 +1822,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: berlin
@@ -1827,6 +1841,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: berlin
@@ -1845,6 +1860,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: bielefeld
@@ -1863,6 +1879,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: bielefeld
@@ -1881,6 +1898,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: bielefeld
@@ -1899,6 +1917,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: bielefeld
@@ -1917,6 +1936,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: braunschweig
@@ -1935,6 +1955,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: braunschweig
@@ -1953,6 +1974,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: braunschweig
@@ -1971,6 +1993,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: braunschweig
@@ -1989,6 +2012,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: bremen
@@ -2007,6 +2031,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: bremen
@@ -2025,6 +2050,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: bremen
@@ -2043,6 +2069,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: bremerhaven
@@ -2061,6 +2088,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: chemnitz
@@ -2079,6 +2107,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: chemnitz
@@ -2097,6 +2126,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: darmstadt
@@ -2115,6 +2145,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: darmstadt
@@ -2133,6 +2164,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: darmstadt
@@ -2151,6 +2183,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: dortmund
@@ -2169,6 +2202,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: dortmund
@@ -2187,6 +2221,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: dortmund
@@ -2205,6 +2240,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: dortmund
@@ -2223,6 +2259,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: dresden
@@ -2241,6 +2278,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: dresden
@@ -2259,6 +2297,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: duesseldorf
@@ -2277,6 +2316,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: duesseldorf
@@ -2295,6 +2335,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: erfurt
@@ -2313,6 +2354,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: erfurt
@@ -2331,6 +2373,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: erfurt
@@ -2349,6 +2392,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: essen
@@ -2367,6 +2411,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: flensburg
@@ -2385,6 +2430,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: frankfurt
@@ -2403,6 +2449,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: frankfurt
@@ -2421,6 +2468,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: frankfurt
@@ -2439,6 +2487,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: freiburg
@@ -2457,6 +2506,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: freiburg
@@ -2475,6 +2525,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: fulda
@@ -2493,6 +2544,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: fulda
@@ -2511,6 +2563,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: fulda
@@ -2529,6 +2582,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: giessen
@@ -2547,6 +2601,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: giessen
@@ -2565,6 +2620,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: greifswald
@@ -2583,6 +2639,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: hamburg
@@ -2601,6 +2658,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: hamburg
@@ -2619,6 +2677,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: hamburg
@@ -2637,6 +2696,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: hannover
@@ -2655,6 +2715,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: kaiserslautern
@@ -2673,6 +2734,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: kaiserslautern
@@ -2691,6 +2753,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: kaiserslautern
@@ -2709,6 +2772,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: karlsruhe
@@ -2727,6 +2791,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: karlsruhe
@@ -2745,6 +2810,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: karlsruhe
@@ -2763,6 +2829,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: kempten
@@ -2781,6 +2848,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: kempten
@@ -2799,6 +2867,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: kiel
@@ -2817,6 +2886,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: koblenz
@@ -2835,6 +2905,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: koblenz
@@ -2853,6 +2924,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: koblenz
@@ -2871,6 +2943,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: konstanz
@@ -2889,6 +2962,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: leipzig
@@ -2907,6 +2981,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: magdeburg
@@ -2925,6 +3000,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: muenchen
@@ -2943,6 +3019,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: muenchen
@@ -2961,6 +3038,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: muenchen
@@ -2979,6 +3057,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: muenster
@@ -2997,6 +3076,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: norden
@@ -3015,6 +3095,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: norden
@@ -3033,6 +3114,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: nuernberg
@@ -3051,6 +3133,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: nuernberg
@@ -3069,6 +3152,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: oldenburg
@@ -3087,6 +3171,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: oldenburg
@@ -3105,6 +3190,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: passau
@@ -3123,6 +3209,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: saarbruecken
@@ -3141,6 +3228,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: stuttgart
@@ -3159,6 +3247,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       corruption_percentage: '10'
       host_name: stuttgart
