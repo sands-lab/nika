@@ -9,6 +9,7 @@ from typing import Any
 
 from nika.net_env.p4_dc_gateway.topology_model import INT_REPORTS, VIP_IP
 from nika.problems.base import build_verify_result
+from nika.traffic.profiles import endpoint_names
 from nika.traffic.workload import paused_workload
 
 _REPORTS = INT_REPORTS
@@ -636,7 +637,10 @@ def _ecn_burst(problem: Any, flows: dict[str, list[str]]) -> dict[str, int]:
     the burst runs and the marks come from the probed path only.
     """
     with paused_workload(
-        problem.runtime, problem.net_env.business_workload(), _QUIET_SETTLE_SEC
+        problem.runtime,
+        problem.net_env.business_workload(),
+        _QUIET_SETTLE_SEC,
+        hosts=endpoint_names(problem.net_env),
     ):
         return _ecn_burst_counted(problem, flows)
 

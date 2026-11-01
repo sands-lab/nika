@@ -370,7 +370,10 @@ class DCClos(NativeRouterEnv, NetworkEnvBase):
         from nika.net_env.dc_clos.workload import build_workload
 
         return build_workload(
-            sorted(self.client_addresses), list(self.web_urls), self.frr_routers()
+            sorted(self.client_addresses),
+            list(self.web_urls),
+            self.frr_routers(),
+            self.router_rate_limit_kbps(),
         )
 
     def _attach_service_workload(

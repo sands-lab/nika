@@ -3,5 +3,14 @@ scenario:
 healthy:
   variants:
   - topo_size: s
+    traffic:
+      pattern: uniform
+  - topo_size: s
   - topo_size: m
+    traffic:
+      pattern: uniform
+  - topo_size: m
+  - topo_size: l
+    traffic:
+      pattern: uniform
   - topo_size: l

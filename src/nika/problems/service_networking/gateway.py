@@ -74,10 +74,8 @@ def _peer_gateway(net_env, gateway: str) -> str | None:
 
 def _public_service_node(net_env) -> str | None:
     """Node hosting the public web service the NAT-ed sessions reach."""
-    from nika.net_env.enterprise_branch.addressing import isp_name_for
-
-    providers = getattr(getattr(net_env, "spec", None), "providers", None)
-    return isp_name_for(providers[0]) if providers else None
+    server = net_env.nat_probe_server()
+    return server[0] if server else None
 
 
 def _lb_agent_steps(

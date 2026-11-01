@@ -4,6 +4,8 @@ failure:
   fault_type: flow_rule_loop
   cases:
   - topo_size: s
+    traffic: &id001
+      pattern: uniform
     inject:
       host_name: leaf_1
       host_name_2: spine_1
@@ -15,6 +17,7 @@ failure:
         node: leaf_1
       fault_type: flow_rule_loop
   - topo_size: s
+    traffic: *id001
     inject:
       host_name: leaf_2
       host_name_2: spine_1
@@ -26,6 +29,7 @@ failure:
         node: leaf_2
       fault_type: flow_rule_loop
   - topo_size: s
+    traffic: *id001
     inject:
       host_name: leaf_3
       host_name_2: spine_1
@@ -37,6 +41,7 @@ failure:
         node: leaf_3
       fault_type: flow_rule_loop
   - topo_size: s
+    traffic: *id001
     inject:
       host_name: leaf_4
       host_name_2: spine_1
@@ -48,6 +53,8 @@ failure:
         node: leaf_4
       fault_type: flow_rule_loop
   - topo_size: m
+    traffic: &id002
+      pattern: uniform
     inject:
       host_name: leaf_1
       host_name_2: spine_2
@@ -59,6 +66,7 @@ failure:
         node: leaf_1
       fault_type: flow_rule_loop
   - topo_size: m
+    traffic: *id002
     inject:
       host_name: leaf_2
       host_name_2: spine_2
@@ -70,6 +78,7 @@ failure:
         node: leaf_2
       fault_type: flow_rule_loop
   - topo_size: m
+    traffic: *id002
     inject:
       host_name: leaf_3
       host_name_2: spine_2
@@ -81,6 +90,7 @@ failure:
         node: leaf_3
       fault_type: flow_rule_loop
   - topo_size: m
+    traffic: *id002
     inject:
       host_name: leaf_4
       host_name_2: spine_2
@@ -92,6 +102,7 @@ failure:
         node: leaf_4
       fault_type: flow_rule_loop
   - topo_size: m
+    traffic: *id002
     inject:
       host_name: leaf_5
       host_name_2: spine_2
@@ -103,6 +114,7 @@ failure:
         node: leaf_5
       fault_type: flow_rule_loop
   - topo_size: m
+    traffic: *id002
     inject:
       host_name: leaf_6
       host_name_2: spine_2
@@ -114,6 +126,7 @@ failure:
         node: leaf_6
       fault_type: flow_rule_loop
   - topo_size: m
+    traffic: *id002
     inject:
       host_name: leaf_7
       host_name_2: spine_2
@@ -125,6 +138,7 @@ failure:
         node: leaf_7
       fault_type: flow_rule_loop
   - topo_size: m
+    traffic: *id002
     inject:
       host_name: leaf_8
       host_name_2: spine_2
@@ -136,6 +150,8 @@ failure:
         node: leaf_8
       fault_type: flow_rule_loop
   - topo_size: l
+    traffic: &id003
+      pattern: uniform
     inject:
       host_name: leaf_1
       host_name_2: spine_4
@@ -147,6 +163,7 @@ failure:
         node: leaf_1
       fault_type: flow_rule_loop
   - topo_size: l
+    traffic: *id003
     inject:
       host_name: leaf_10
       host_name_2: spine_4
@@ -158,6 +175,7 @@ failure:
         node: leaf_10
       fault_type: flow_rule_loop
   - topo_size: l
+    traffic: *id003
     inject:
       host_name: leaf_11
       host_name_2: spine_4
@@ -169,6 +187,7 @@ failure:
         node: leaf_11
       fault_type: flow_rule_loop
   - topo_size: l
+    traffic: *id003
     inject:
       host_name: leaf_12
       host_name_2: spine_4
@@ -180,6 +199,7 @@ failure:
         node: leaf_12
       fault_type: flow_rule_loop
   - topo_size: l
+    traffic: *id003
     inject:
       host_name: leaf_13
       host_name_2: spine_4
@@ -191,6 +211,7 @@ failure:
         node: leaf_13
       fault_type: flow_rule_loop
   - topo_size: l
+    traffic: *id003
     inject:
       host_name: leaf_14
       host_name_2: spine_4
@@ -202,6 +223,7 @@ failure:
         node: leaf_14
       fault_type: flow_rule_loop
   - topo_size: l
+    traffic: *id003
     inject:
       host_name: leaf_15
       host_name_2: spine_4
@@ -213,6 +235,7 @@ failure:
         node: leaf_15
       fault_type: flow_rule_loop
   - topo_size: l
+    traffic: *id003
     inject:
       host_name: leaf_16
       host_name_2: spine_4
@@ -224,6 +247,7 @@ failure:
         node: leaf_16
       fault_type: flow_rule_loop
   - topo_size: l
+    traffic: *id003
     inject:
       host_name: leaf_2
       host_name_2: spine_4
@@ -235,6 +259,7 @@ failure:
         node: leaf_2
       fault_type: flow_rule_loop
   - topo_size: l
+    traffic: *id003
     inject:
       host_name: leaf_3
       host_name_2: spine_4
@@ -246,6 +271,7 @@ failure:
         node: leaf_3
       fault_type: flow_rule_loop
   - topo_size: l
+    traffic: *id003
     inject:
       host_name: leaf_4
       host_name_2: spine_4
@@ -257,6 +283,7 @@ failure:
         node: leaf_4
       fault_type: flow_rule_loop
   - topo_size: l
+    traffic: *id003
     inject:
       host_name: leaf_5
       host_name_2: spine_4
@@ -268,6 +295,7 @@ failure:
         node: leaf_5
       fault_type: flow_rule_loop
   - topo_size: l
+    traffic: *id003
     inject:
       host_name: leaf_6
       host_name_2: spine_4
@@ -279,6 +307,7 @@ failure:
         node: leaf_6
       fault_type: flow_rule_loop
   - topo_size: l
+    traffic: *id003
     inject:
       host_name: leaf_7
       host_name_2: spine_4
@@ -290,6 +319,7 @@ failure:
         node: leaf_7
       fault_type: flow_rule_loop
   - topo_size: l
+    traffic: *id003
     inject:
       host_name: leaf_8
       host_name_2: spine_4
@@ -301,6 +331,7 @@ failure:
         node: leaf_8
       fault_type: flow_rule_loop
   - topo_size: l
+    traffic: *id003
     inject:
       host_name: leaf_9
       host_name_2: spine_4

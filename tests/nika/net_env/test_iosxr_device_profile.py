@@ -103,9 +103,8 @@ def test_translation_keeps_areas_static_routes_and_underlay_delay() -> None:
     )
     provider = enterprise.deployment_configs["isp1_core"]
     assert "  198.18.1.10/32 100.64.0.17" in provider
-    assert (
-        "interface Loopback0\n ipv4 address 198.51.100.10/32\n no shutdown" in provider
-    )
+    # The public web server's LAN.
+    assert " ipv4 address 198.51.100.9/29\n no shutdown" in provider
     # XR traffic still passes the container qdiscs, but the XRd image has no
     # tc: the provider's WAN delay is applied from the router's namespace.
     assert (

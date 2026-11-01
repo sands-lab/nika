@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from nika.traffic.workload import BUSINESS_RATE_SHARE, rate_budget_kbps
 from nika.net_env.enterprise_branch.addressing import (
     host_name_for,
     lan_network,
@@ -48,21 +49,21 @@ class ScaleSpec:
 
 @dataclass(frozen=True)
 class OverlayQosSpec:
-    """Per-size WireGuard overlay egress capacity and EF reservation (mbit)."""
+    """Per-size WireGuard overlay egress capacity and EF reservation (kbit/s)."""
 
-    rate_mbit: int
-    ef_mbit: int
+    rate_kbit: int
+    ef_kbit: int
 
 
 # Overlay egress HTB: total rate and EF class guarantee. The EF guarantee
 # covers the largest call each egress carries (the br1 video link), so healthy
 # media never borrows; best effort gets the rest of the link.
 OVERLAY_QOS: dict[TopoSize, OverlayQosSpec] = {
-    "s": OverlayQosSpec(rate_mbit=8, ef_mbit=4),
-    "m": OverlayQosSpec(rate_mbit=16, ef_mbit=7),
+    "s": OverlayQosSpec(rate_kbit=8000, ef_kbit=4000),
+    "m": OverlayQosSpec(rate_kbit=16000, ef_kbit=7000),
     # l keeps the m rate: eight branches share the same hubs and underlay, and
     # a faster regional egress loads them enough to delay healthy traffic.
-    "l": OverlayQosSpec(rate_mbit=16, ef_mbit=7),
+    "l": OverlayQosSpec(rate_kbit=16000, ef_kbit=7000),
 }
 
 # DSCP EF = 46 → TOS 0xb8; mask 0xfc ignores ECN.
@@ -111,21 +112,57 @@ SYNC_OBJECT = "projects.tar"
 SYNC_OBJECT_MB = 32
 
 # Public web/push service that GUEST and IOT clients reach through their Site
-# Edge NAT. The primary provider (``isp1``) hosts it on a loopback address.
+# Edge NAT. A Linux server on a LAN of the primary provider (``isp1``) hosts it,
+# so it runs whatever platform the provider routers use.
+PUBLIC_SERVICE_HOST = "internet_web"
 PUBLIC_SERVICE_IP = "198.51.100.10"
+PUBLIC_SERVICE_GATEWAY = "198.51.100.9"
+PUBLIC_SERVICE_PREFIXLEN = 29
 
 
-def overlay_qos_for(topo_size: TopoSize) -> OverlayQosSpec:
+def overlay_qos_for(
+    topo_size: TopoSize, rate_limit_kbps: int | None = None
+) -> OverlayQosSpec:
+    """The size's overlay QoS, within the business share of a router send cap."""
     if topo_size not in OVERLAY_QOS:
         raise ValueError("topo_size should be one of 's', 'm', 'l'.")
-    return OVERLAY_QOS[topo_size]
+    return overlay_qos_within(OVERLAY_QOS[topo_size], rate_limit_kbps)
 
 
-def overlay_be_class(qos: OverlayQosSpec) -> tuple[int, int]:
-    """Return the BE class ceiling (mbit) and its byte-FIFO depth."""
-    be_mbit = max(qos.rate_mbit - qos.ef_mbit, 1)
-    # ~500ms of standing queue at the BE ceil (bytes = rate_bps * 0.5 / 8).
-    return be_mbit, max(int(be_mbit * 1_000_000 * 0.5 / 8), 64_000)
+def overlay_qos_scale(qos: OverlayQosSpec, rate_limit_kbps: int | None) -> float:
+    """Factor that fits ``qos`` into the business share of ``rate_limit_kbps``.
+
+    Edges whose platform caps each interface keep the design's proportions:
+    rates, the EF reservation and the workload shrink by the same factor.
+    """
+    budget = rate_budget_kbps(rate_limit_kbps, BUSINESS_RATE_SHARE)
+    return min(1.0, budget / qos.rate_kbit) if budget else 1.0
+
+
+def overlay_qos_within(
+    qos: OverlayQosSpec, rate_limit_kbps: int | None
+) -> OverlayQosSpec:
+    scale = overlay_qos_scale(qos, rate_limit_kbps)
+    if scale == 1.0:
+        return qos
+    return OverlayQosSpec(
+        rate_kbit=int(qos.rate_kbit * scale), ef_kbit=int(qos.ef_kbit * scale)
+    )
+
+
+def overlay_be_kbit(qos: OverlayQosSpec) -> int:
+    """Return the BE class ceiling (kbit/s): the link rate left after EF."""
+    return max(qos.rate_kbit - qos.ef_kbit, 1)
+
+
+def tc_rate(kbit: int) -> str:
+    """A rate as tc writes it: ``8mbit``, or ``600kbit`` below whole mbit."""
+    return f"{kbit // 1000}mbit" if kbit % 1000 == 0 else f"{kbit}kbit"
+
+
+def routeros_rate(kbit: int) -> str:
+    """A rate as RouterOS writes it: ``8M``, or ``600k`` below whole mbit."""
+    return f"{kbit // 1000}M" if kbit % 1000 == 0 else f"{kbit}k"
 
 
 def overlay_qos_startup_cmds(iface: str, qos: OverlayQosSpec) -> list[str]:
@@ -138,20 +175,22 @@ def overlay_qos_startup_cmds(iface: str, qos: OverlayQosSpec) -> list[str]:
     flows such as pings skip ahead, while a flow that sends above its fair
     share of the class is dropped.
     """
-    be_mbit, _ = overlay_be_class(qos)
+    be_kbit = overlay_be_kbit(qos)
+    rate, ef, be = tc_rate(qos.rate_kbit), tc_rate(qos.ef_kbit), tc_rate(be_kbit)
     # Token buckets hold 10 ms at the link rate, like a shaper's Bc = CIR x Tc,
     # so back-to-back packets of a flow within its rate are not throttled.
-    burst = f"burst {qos.rate_mbit * 1250} cburst {qos.rate_mbit * 1250}"
+    bucket = qos.rate_kbit * 1250 // 1000
+    burst = f"burst {bucket} cburst {bucket}"
     return [
         f"tc qdisc add dev {iface} root handle 1: htb default 20 || true",
         f"tc class add dev {iface} parent 1: classid 1:1 "
-        f"htb rate {qos.rate_mbit}mbit ceil {qos.rate_mbit}mbit {burst} || true",
+        f"htb rate {rate} ceil {rate} {burst} || true",
         # EF: reserved rate, may borrow unused BE capacity up to link ceil.
         f"tc class add dev {iface} parent 1:1 classid 1:10 "
-        f"htb rate {qos.ef_mbit}mbit ceil {qos.rate_mbit}mbit {burst} prio 1 || true",
+        f"htb rate {ef} ceil {rate} {burst} prio 1 || true",
         # BE: hard-capped so bulk cannot silently use EF's reservation.
         f"tc class add dev {iface} parent 1:1 classid 1:20 "
-        f"htb rate {be_mbit}mbit ceil {be_mbit}mbit {burst} prio 2 || true",
+        f"htb rate {be} ceil {be} {burst} prio 2 || true",
         f"tc filter add dev {iface} parent 1: protocol ip prio 1 u32 "
         f"match ip tos {TOS_EF:#x} 0xfc flowid 1:10 || true",
         f"tc qdisc add dev {iface} parent 1:10 handle 10: pfifo limit 100 || true",
@@ -246,7 +285,12 @@ class TopoSpec:
         return names
 
     def all_node_names(self) -> list[str]:
-        return self.edge_names() + self.isp_names() + self.host_names()
+        return [
+            *self.edge_names(),
+            *self.isp_names(),
+            *self.host_names(),
+            PUBLIC_SERVICE_HOST,
+        ]
 
     def advertised_prefixes(self) -> list[str]:
         return [
