@@ -25,6 +25,7 @@ Sessions (`runtime/`) and caches (`.nika_cache/`) live in the main Git checkout 
 | `nika inspect` | Local web UI for session trajectories, merged timelines, and scores |
 | `nika observability` | Turn monitoring of benchmark progress and lab CPU and memory `on` / `off`, viewed in Grafana; see [monitor benchmarks and lab resources](resource-monitoring.md) |
 | `nika remote` | Optional lab-host control plane (`serve` / `health`); see [remote lab execution](remote.md) |
+| `nika engine` | Build the benchmark engine image of a published release; see [benchmark engine](#nika-engine) |
 | `nika traffic` | Synthetic traffic (`od`, `web`, `matrix-replay`, `burst`) against the running lab |
 | `nika tui` | Interactive shell with slash commands and guided forms over this CLI (bare `nika` in a terminal opens it too); see [interactive shell](tui.md) |
 
@@ -336,7 +337,7 @@ For batch `--config` or `--release`, `--result_dir` is the run root (see [Result
 
 Release runs write `run.json` (and legacy `benchmark_job.json`) plus `RELEASE.lock.json` under `--result_dir`. Ad-hoc `--config` runs write `run.json` only. NIKA writes these files after you confirm the plan. Each trial `run.json` is stamped with `benchmark_id` / `benchmark_version` / `benchmark_split` / `nika_git_commit` / `scoring_id` / `trial_id` / `outcome`. Live progress of release and ad-hoc runs is under `runtime/benchmark_runs/{run_id}.json`.
 
-The result-dir `run.json` records the run identity: `agent_type`, `model`, `llm_provider`, `max_steps`, `max_tokens`, `reasoning_effort`, `agent_timeout_sec`, `access_role`, `n_trials`, `case_timeout_sec`, `official`, and the release `benchmark_id` / `version` / `split`. A resume with a different value for any of these fails before the plan prints; use a new `--result_dir` instead. Each resume from a different git commit appends an entry to `nika_git_history`. The file also records `results_schema` and a `provenance` block (NIKA version, benchmark engine, lifecycle protocol version, and host Docker and kernel versions); a resume with different provenance appends an entry to `provenance_history`.
+The result-dir `run.json` records the run identity: `agent_type`, `model`, `llm_provider`, `max_steps`, `max_tokens`, `reasoning_effort`, `agent_timeout_sec`, `access_role`, `n_trials`, `case_timeout_sec`, `official`, and the release `benchmark_id` / `version` / `split`. A resume with a different value for any of these fails before the plan prints; use a new `--result_dir` instead. Each resume from a different git commit appends an entry to `nika_git_history`. The file also records `schema_version` and a `provenance` block (NIKA version, benchmark engine and its API version, and host Docker and kernel versions); a resume with different provenance appends an entry to `provenance_history`.
 
 ### Console output
 
@@ -392,7 +393,7 @@ A failure after ground truth is written, but before the agent demonstrably start
 
 **`--session-tag TAG`** (`benchmark.session_tag`): embed `TAG` in each session id (`YYYYMMDD-HHMMSS-TAG-{hex}`).
 
-**`--role ROLE`**, **`--run-config PATH`**: same as on `nika agent run`. `--run-config` also sets the config that spawned trial workers load.
+**`--role ROLE`**, **`--run-config PATH`**: same as on `nika agent run`. `--run-config` also sets the config that spawned trial workers load. A release run uses the release's access policy and stops if the role selects a different one.
 
 ```bash
 nika benchmark run --config benchmark/working/cases.yaml --batch-size 4 --retry-passes 2 --result_dir results/my-run
@@ -551,6 +552,13 @@ Optional control plane for splitting the agent host from the lab host. See [remo
 - **`nika remote health [--url URL]`**: probe `/health` (uses `nika.remote.url` from YAML when `--url` is omitted).
 
 When `nika.remote.enabled` and `nika.remote.url` are set in `config/nika.yaml` on the agent host, `env` / `failure` / `agent` / `session` lab ops forward to the daemon transparently.
+
+## `nika engine`
+
+A release whose manifest pins a benchmark engine runs on a container built from its release tag. `nika benchmark run --release` builds or pulls that image and starts the container itself; see [benchmark release contracts](../development/benchmark-contracts.md#b-lifecycle-protocol).
+
+- **`nika engine build <tag>`**: build the benchmark engine image of a Git tag or commit ahead of a run, as `nika/benchmark-engine:<tag>`.
+- **`nika engine serve`**: the service that runs inside the container. The run starts it; you do not run it yourself.
 
 ---
 ---

@@ -260,7 +260,7 @@ def remove_orphaned_containerlab_management_network(lab_name: str | None) -> Non
         )
 
 
-def _cleanup_session_sandbox(session_meta: dict, *, session_id: str) -> None:
+def cleanup_session_sandbox(session_meta: dict, *, session_id: str) -> None:
     """Best-effort remove this session's agent sandbox after hard-kill/close.
 
     Scoped to ``agent_session_id`` only — never wipes other concurrent sandboxes.
@@ -311,7 +311,7 @@ def _cleanup_local_sandboxes(session_id: str | None, *, stop_all: bool) -> None:
             continue
         if meta.get("session_dir"):
             bind_session_dir(meta["session_dir"])
-        _cleanup_session_sandbox(meta, session_id=sid)
+        cleanup_session_sandbox(meta, session_id=sid)
 
 
 def _clear_orphan_session_record(
@@ -433,7 +433,7 @@ def _stop_session_record(
     # Drop this session's sandbox before lab undeploy so a slow/failed undeploy
     # cannot leave a hard-killed worker's microVM behind. Scoped by
     # agent_session_id only (safe with concurrent benchmarks).
-    _cleanup_session_sandbox(session_meta, session_id=session.session_id)
+    cleanup_session_sandbox(session_meta, session_id=session.session_id)
     backend = resolve_backend(session_meta)
     if session_meta.get("remote"):
         # A remote-mode session whose lab host this process is not connected
@@ -553,7 +553,7 @@ def _clear_session_record(
 
     # Covers stop_all forced cleanup when ``_stop_session_record`` failed
     # before its early sandbox pass. Idempotent when the early pass already ran.
-    _cleanup_session_sandbox(session_meta, session_id=session_id)
+    cleanup_session_sandbox(session_meta, session_id=session_id)
 
     try:
         ended_cnt = session.store.mark_session_failures_ended(

@@ -6,6 +6,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from nika.benchmark_engine.protocol import AgentAccess
+
 PolicyMode = Literal["two_phase"]
 
 # Append-only session logs the agent host follows while a remote trial runs.
@@ -62,6 +64,8 @@ class FailureInjectResponse(BaseModel):
 class McpAttachRequest(BaseModel):
     policy_mode: PolicyMode = "two_phase"
     public_host: str | None = None
+    # The access policy the gateway enforces; ``None``: the server's run config.
+    access: AgentAccess | None = None
 
 
 class McpAttachResponse(BaseModel):

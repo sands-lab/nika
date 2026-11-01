@@ -17,7 +17,7 @@ from nika.workflows.benchmark.release import (
     ReleaseError,
     load_release,
 )
-from nika.workflows.benchmark.provenance import check_results_schema
+from nika.workflows.benchmark.provenance import check_schema_version
 from nika.workflows.benchmark.trials import expand_trials
 from nika.workflows.leaderboard.aggregate import (
     aggregate_trial_results,
@@ -136,7 +136,7 @@ def validate_leaderboard_submission(
         )
 
     try:
-        check_results_schema(identity.run.results_schema)
+        check_schema_version(identity.run.schema_version)
     except UnsupportedContractVersion as exc:
         return ValidationReport(
             ok=False, errors=[f"{RESULTS_DIRNAME}/{IDENTITY_FILENAME}: {exc}"]

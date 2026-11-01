@@ -1,24 +1,28 @@
-"""Benchmark engine: deploys, injects, and scores trials (contract B).
+"""Benchmark engine: deploys, injects, serves tools to, and scores trials.
 
 Releases whose manifest pins no ``engine`` run on it in process; a release's
 engine container serves the same class. The wrapped workflows already forward
-to NIKA Remote when it is enabled.
+to NIKA Remote when it is enabled. Each trial's MCP gateway runs here too, so
+everything the agent observes comes from the release.
 """
 
 from __future__ import annotations
 
 import hashlib
+import os
 from pathlib import Path
 
 from nika.config import BENCHMARK_VERSION
 from nika.firecracker.trial import active_trial_lab
+from nika.mcp.gateway.lifecycle import SANDBOX_GATEWAY_AGENT_HOST, GatewayLeases
 from nika.net_env.net_env_pool import scenario_requires_topo_size
 from nika.benchmark_engine.host import engine_host_info
 from nika.benchmark_engine.protocol import (
-    PROTOCOL_VERSIONS,
+    API_VERSIONS,
     AgentEndpoints,
     EngineDescription,
     FaultCheck,
+    GatewayRequest,
     InjectResult,
     Resource,
     TrialHandle,
@@ -36,6 +40,9 @@ from nika.workflows.eval.session import run_eval_metrics
 from nika.workflows.failure.inject import inject_failure
 from nika.workflows.session.close import close_session, load_session_meta_for_close
 
+# Commit an engine image was built from (see ``docker/Dockerfile``).
+ENV_ENGINE_COMMIT = "NIKA_ENGINE_COMMIT"
+
 # Task-row keys forwarded to ``start_net_env`` as deployment parameters.
 _DEPLOY_KEYS = ("topo", "igp", "bgp_mode", "rpki", "backend", "device_profile")
 
@@ -45,7 +52,10 @@ def _sha256(path: Path) -> str:
 
 
 class BenchmarkEngine:
-    """Runs this NIKA's environments, failures, and scoring."""
+    """Runs this NIKA's environments, failures, MCP gateway, and scoring."""
+
+    def __init__(self) -> None:
+        self._gateways = GatewayLeases()
 
     def describe(self, release: str | None = None) -> EngineDescription:
         """Describe *release*; this engine serves every release NIKA ships."""
@@ -53,8 +63,11 @@ class BenchmarkEngine:
 
         release = load_release(release or BENCHMARK_VERSION)
         commit, dirty = read_git_commit()
+        if commit is None:
+            # An engine image: built from a clean commit, without ``.git``.
+            commit = os.environ.get(ENV_ENGINE_COMMIT) or None
         return EngineDescription(
-            protocol_versions=sorted(PROTOCOL_VERSIONS),
+            api_versions=sorted(API_VERSIONS),
             release_id=release.id,
             release_version=release.version,
             engine_commit=commit,
@@ -123,27 +136,63 @@ class BenchmarkEngine:
             ground_truth=(handle.trial_path / "ground_truth.json").is_file()
         )
 
-    def agent_endpoints(self, handle: TrialHandle) -> AgentEndpoints:
-        from nika.mcp.gateway.access import node_roles_for_session
-        from nika.mcp.gateway.lifecycle import resolve_session_backend
-        from nika.mcp.registry import select_diagnosis_servers
+    def agent_endpoints(
+        self, handle: TrialHandle, request: GatewayRequest
+    ) -> AgentEndpoints:
+        """Open the trial's MCP gateway; it serves this release's tools.
+
+        With NIKA Remote, the lab host runs the gateway next to the lab.
+        """
+        from nika.mcp.gateway.phase import phase_advance_token
+        from nika.mcp.registry import SUBMISSION_SERVER, select_diagnosis_servers
+        from nika.mcp.gateway.session_registry import get_session
+        from nika.runtime.factory import resolve_backend
         from nika.telemetry import telemetry_for_session
         from nika.utils.session_store import SessionStore
 
-        row = SessionStore().get_session(handle.session_id)
+        session_id = handle.session_id
+        row = SessionStore().get_session(session_id)
         scenario = str(row.get("scenario_name") or "")
-        return AgentEndpoints(
-            diagnosis_servers=(
-                select_diagnosis_servers(
-                    scenario,
-                    backend=row.get("backend") or resolve_session_backend(scenario),
-                    telemetry=telemetry_for_session(row),
-                )
-                if scenario
-                else None
-            ),
-            node_roles=node_roles_for_session(handle.session_id),
+        backend = resolve_backend(row)
+        servers = select_diagnosis_servers(
+            scenario, backend=backend, telemetry=telemetry_for_session(row)
         )
+        if SUBMISSION_SERVER not in servers:
+            servers.append(SUBMISSION_SERVER)
+        if remote_lab():
+            from nika.remote.client import RemoteClient
+
+            attach = RemoteClient().mcp_attach(session_id, access=request.access)
+            return AgentEndpoints(
+                gateway_url=attach.gateway_base_url,
+                agent_url=attach.gateway_base_url,
+                session_token=attach.session_token,
+                phase_token=attach.phase_token,
+                servers=servers,
+            )
+        manager = self._gateways.open(
+            session_id,
+            scenario_name=scenario,
+            host=request.bind_host,
+            sandbox=request.sandbox,
+            sandbox_agent_host=request.agent_host or SANDBOX_GATEWAY_AGENT_HOST,
+            backend=backend,
+            access=request.access,
+        )
+        return AgentEndpoints(
+            gateway_url=manager.base_url,
+            agent_url=manager.agent_url or manager.base_url,
+            session_token=get_session(session_id).access_token,
+            phase_token=phase_advance_token(session_id),
+            servers=servers,
+        )
+
+    def close_agent_endpoints(self, handle: TrialHandle) -> None:
+        if self._gateways.close(handle.session_id) or not remote_lab():
+            return
+        from nika.remote.client import RemoteClient
+
+        RemoteClient().mcp_detach(handle.session_id)
 
     def fault_check(self, handle: TrialHandle) -> FaultCheck:
         session_id = handle.session_id
@@ -194,6 +243,7 @@ class BenchmarkEngine:
         )
 
     def stop_trial(self, handle: TrialHandle, *, status: str = "finished") -> None:
+        self._gateways.close(handle.session_id)
         close_session(
             session_id=handle.session_id,
             undeploy=True,

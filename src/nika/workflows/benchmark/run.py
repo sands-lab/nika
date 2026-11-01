@@ -32,8 +32,8 @@ from nika.firecracker.trial import (
     reap_orphan_trials,
     release_trial,
 )
-from nika.benchmark_engine import benchmark_engine
-from nika.benchmark_engine.protocol import TrialHandle, TrialRequest
+from nika.benchmark_engine import benchmark_engine, release_engine
+from nika.benchmark_engine.protocol import AgentAccess, TrialHandle, TrialRequest
 from nika.utils.session import Session
 from nika.utils.session_artifacts import (
     RUN_FILENAME,
@@ -91,10 +91,10 @@ from nika.workflows.benchmark.release import (
     DEFAULT_RELEASE_VERSION,
     RUN_CONFIG_FILENAME,
     BenchmarkRelease,
-    ReleaseError,
     SplitName,
     build_job_metadata,
     build_run_identity,
+    check_run_settings,
     load_release,
     load_run_config,
     normalize_split,
@@ -455,6 +455,16 @@ def _share_dashboard(
         return None
     print_dashboard_link(record, output_mode=output_mode)
     return str(record["url"])
+
+
+# ``release_meta`` key of the release's access policy; not written to run.json.
+RELEASE_ACCESS_KEY = "agent_access"
+
+
+def _release_access(release_meta: dict | None) -> AgentAccess | None:
+    """The access policy a release run's trials pass to the engine's gateway."""
+    raw = (release_meta or {}).get(RELEASE_ACCESS_KEY)
+    return AgentAccess.model_validate(raw) if raw else None
 
 
 def _stamp_release_meta(session_id: str, release_meta: dict | None) -> None:
@@ -1005,6 +1015,7 @@ def run_single_case(
             # ``nika agent run``; batch trials stay quiet.
             stream_output=not trial_id,
             check_fault_presence=True,
+            access=_release_access(release_meta),
         )
         _require_submission(session_dir)
 
@@ -2070,77 +2081,83 @@ def run_benchmark_from_release(
     resolved = release or load_release(release_ref, split=resolved_split)
     if resolved.split != resolved_split:
         resolved = load_release(release_ref, split=resolved_split)
-    if resolved.manifest.get("engine") is not None:
-        raise ReleaseError(
-            f"Release {resolved.ref} runs on a pinned benchmark engine "
-            f"({resolved.manifest['engine'].get('tag')}), which this NIKA cannot "
-            "start yet."
-        )
-    engine = benchmark_engine().describe(resolved.version)
-    verify_engine(resolved, engine)
-    n_trials = resolved.n_trials
-    # Validate --task-id before preflight / image pulls so bad selectors fail fast.
-    planned: list[Trial] | None = None
-    if task_ids:
-        planned = select_trials(expand_trials(resolved.cases, n_trials), task_ids)
-    # With Firecracker execution, labs (and their images) live in the lab images.
-    preflight_release(resolved, check_images=check_images and not firecracker_enabled())
-
-    # Timeout is operational (run config / CLI), not a release pin.
-    if case_timeout is None:
-        from nika.run_config.schema import BenchmarkSettings
-
-        case_timeout = int(BenchmarkSettings.model_fields["case_timeout_sec"].default)
-    effective_timeout = int(case_timeout)
-    official = True
-
     results_root = resolve_results_root(result_dir)
-    proposed = build_job_metadata(
-        resolved,
-        agent_type=agent_type,
-        model=model,
-        llm_provider=llm_provider,
-        max_steps=max_steps,
-        n_trials=n_trials,
-        case_timeout_sec=effective_timeout,
-        official=official,
-        engine=engine,
-    )
-    existing = load_run_config(results_root)
-    job = merge_run_config(existing=existing, proposed=proposed)
-    if planned is not None:
-        case_count = len({trial.case_key for trial in planned})
-        scope = f"{case_count} cases, {len(planned)} trials"
-    else:
-        scope = f"{resolved.case_count} cases × {n_trials} trials"
-    job_path = results_root / RUN_CONFIG_FILENAME
-    plan_header = (
-        f"Release {resolved.ref} split={resolved.split} "
-        f"({scope}, "
-        f"official={official}, continue_on_error={continue_on_error}) → {job_path}"
-    )
+    with release_engine(
+        resolved.manifest.get("engine"),
+        results_root=results_root,
+        name=resolved.version,
+    ) as pinned_engine:
+        engine = benchmark_engine().describe(resolved.version)
+        verify_engine(resolved, engine)
+        check_run_settings(resolved, agent_type=agent_type)
+        n_trials = resolved.n_trials
+        # Validate --task-id before preflight / image pulls so bad selectors fail fast.
+        planned: list[Trial] | None = None
+        if task_ids:
+            planned = select_trials(expand_trials(resolved.cases, n_trials), task_ids)
+        # With Firecracker execution, labs (and their images) live in the lab images.
+        preflight_release(
+            resolved, check_images=check_images and not firecracker_enabled()
+        )
 
-    run_benchmark_trials(
-        benchmark_file=str(resolved.cases_path),
-        agent_type=agent_type,
-        llm_provider=llm_provider,
-        model=model,
-        max_steps=max_steps,
-        n_trials=n_trials,
-        batch_size=batch_size,
-        heavy_batch_size=heavy_batch_size,
-        result_dir=str(results_root),
-        resume=resume,
-        session_tag=session_tag,
-        case_timeout=effective_timeout,
-        continue_on_error=continue_on_error,
-        retry_passes=retry_passes,
-        release_meta=job,
-        task_ids=task_ids,
-        yes=yes,
-        verbose=verbose,
-        output_mode=output_mode,
-        plan_header=plan_header,
-        job=job,
-        check_images=check_images,
-    )
+        # Timeout is operational (run config / CLI), not a release pin.
+        if case_timeout is None:
+            from nika.run_config.schema import BenchmarkSettings
+
+            case_timeout = int(
+                BenchmarkSettings.model_fields["case_timeout_sec"].default
+            )
+        effective_timeout = int(case_timeout)
+        official = True
+
+        proposed = build_job_metadata(
+            resolved,
+            agent_type=agent_type,
+            model=model,
+            llm_provider=llm_provider,
+            max_steps=max_steps,
+            n_trials=n_trials,
+            case_timeout_sec=effective_timeout,
+            official=official,
+            engine=engine,
+            pinned_engine=pinned_engine,
+        )
+        existing = load_run_config(results_root)
+        job = merge_run_config(existing=existing, proposed=proposed)
+        if planned is not None:
+            case_count = len({trial.case_key for trial in planned})
+            scope = f"{case_count} cases, {len(planned)} trials"
+        else:
+            scope = f"{resolved.case_count} cases × {n_trials} trials"
+        job_path = results_root / RUN_CONFIG_FILENAME
+        plan_header = (
+            f"Release {resolved.ref} split={resolved.split} "
+            f"({scope}, "
+            f"official={official}, continue_on_error={continue_on_error}) → {job_path}"
+        )
+
+        run_benchmark_trials(
+            benchmark_file=str(resolved.cases_path),
+            agent_type=agent_type,
+            llm_provider=llm_provider,
+            model=model,
+            max_steps=max_steps,
+            n_trials=n_trials,
+            batch_size=batch_size,
+            heavy_batch_size=heavy_batch_size,
+            result_dir=str(results_root),
+            resume=resume,
+            session_tag=session_tag,
+            case_timeout=effective_timeout,
+            continue_on_error=continue_on_error,
+            retry_passes=retry_passes,
+            # Trials pass the release's access policy to the engine's gateway.
+            release_meta={**job, RELEASE_ACCESS_KEY: resolved.access.model_dump()},
+            task_ids=task_ids,
+            yes=yes,
+            verbose=verbose,
+            output_mode=output_mode,
+            plan_header=plan_header,
+            job=job,
+            check_images=check_images,
+        )

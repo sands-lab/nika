@@ -13,7 +13,7 @@ from nika.benchmark_engine.protocol import UnsupportedContractVersion
 from nika.config import REPO_ROOT
 from nika.evaluator.validity import has_agent_trace
 from nika.workflows.benchmark.release import ReleaseError, load_release
-from nika.workflows.benchmark.provenance import check_results_schema
+from nika.workflows.benchmark.provenance import check_schema_version
 from nika.workflows.benchmark.trials import expand_trials
 from nika.workflows.leaderboard.meta_input import MetaInputError, parse_metadata_payload
 from nika.workflows.leaderboard.schema import (
@@ -112,7 +112,7 @@ def validate_trajectory_package(
         )
 
     try:
-        check_results_schema(identity.run.results_schema)
+        check_schema_version(identity.run.schema_version)
     except UnsupportedContractVersion as exc:
         return ValidationReport(ok=False, errors=[f"{IDENTITY_FILENAME}: {exc}"])
 

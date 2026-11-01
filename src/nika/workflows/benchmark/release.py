@@ -43,10 +43,10 @@ from nika.mcp.registry import (
     SUBMISSION_SERVER,
 )
 from nika.benchmark_engine.protocol import (
+    API_VERSIONS,
+    AccessPolicy,
+    AgentAccess,
     EngineDescription,
-    MANIFEST_VERSIONS,
-    PROTOCOL_VERSIONS,
-    RESULTS_SCHEMA_VERSIONS,
     UnsupportedContractVersion,
     require_supported,
 )
@@ -98,6 +98,10 @@ DEFAULTS_V1 = {
     "n_trials": 3,
 }
 
+SUBMISSION_MODES = ("structured", "unstructured")
+# The name a run records for the access policy its release fixes.
+RELEASE_ACCESS_ROLE = "release"
+
 REQUIRED_SPLIT_FAMILIES = frozenset(
     {
         "campus",
@@ -148,6 +152,28 @@ class BenchmarkRelease:
         if value < 1:
             raise ReleaseError(f"Release defaults.n_trials must be >= 1 (got {value})")
         return value
+
+    @property
+    def evaluation(self) -> dict[str, Any]:
+        return dict(self.manifest.get("evaluation") or {})
+
+    @property
+    def access(self) -> AgentAccess:
+        """What the agent may touch during diagnosis; unset allows everything."""
+        return AgentAccess(
+            role=RELEASE_ACCESS_ROLE,
+            policy=AccessPolicy(**(self.evaluation.get("access") or {})),
+        )
+
+    @property
+    def max_trial_sec(self) -> int | None:
+        """The longest trial for which the release's tasks stay valid."""
+        value = self.evaluation.get("max_trial_sec")
+        return None if value is None else int(value)
+
+    @property
+    def submission_modes(self) -> tuple[str, ...]:
+        return tuple(self.evaluation.get("submission_modes") or SUBMISSION_MODES)
 
 
 def releases_dir() -> Path:
@@ -256,33 +282,53 @@ def _resolve_splits(manifest: dict[str, Any]) -> dict[str, Any]:
     )
 
 
-def _check_contract_versions(manifest: dict[str, Any], *, name: str) -> None:
-    """Refuse contract versions this NIKA does not speak (contract A).
+def _check_engine_api(manifest: dict[str, Any], *, name: str) -> None:
+    """Refuse an engine API version this NIKA does not speak (contract A).
 
-    Manifests that predate the contracts declare none of them.
+    Only a manifest with an ``engine`` block declares one; without it, the
+    current NIKA's engine runs the release in process.
     """
-    checks: list[tuple[str, Any, frozenset[int]]] = []
-    if "manifest_version" in manifest:
-        checks.append(
-            ("Release manifest", manifest["manifest_version"], MANIFEST_VERSIONS)
-        )
     engine = manifest.get("engine")
-    if engine is not None:
-        if not isinstance(engine, dict):
-            raise ReleaseError(f"Release {name}: 'engine' must be a mapping")
-        checks.append(("Lifecycle protocol", engine.get("protocol"), PROTOCOL_VERSIONS))
-        checks.append(
-            ("Results schema", engine.get("results_schema"), RESULTS_SCHEMA_VERSIONS)
+    if engine is None:
+        return
+    if not isinstance(engine, dict):
+        raise ReleaseError(f"Release {name}: 'engine' must be a mapping")
+    version = (engine.get("api") or {}).get("version")
+    if isinstance(version, bool) or not isinstance(version, int):
+        raise ReleaseError(
+            f"Release {name}: engine.api.version must be an integer, got {version!r}"
         )
-    for contract, version, supported in checks:
-        if isinstance(version, bool) or not isinstance(version, int):
-            raise ReleaseError(
-                f"Release {name}: {contract} version must be an integer, got {version!r}"
-            )
-        try:
-            require_supported(contract, version, supported)
-        except UnsupportedContractVersion as exc:
-            raise ReleaseError(f"Release {name}: {exc}") from exc
+    try:
+        require_supported("Engine API", version, API_VERSIONS)
+    except UnsupportedContractVersion as exc:
+        raise ReleaseError(f"Release {name}: {exc}") from exc
+
+
+def _check_evaluation(manifest: dict[str, Any], *, name: str) -> None:
+    """Refuse an ``evaluation`` block this NIKA cannot enforce."""
+    evaluation = manifest.get("evaluation") or {}
+    if not isinstance(evaluation, dict):
+        raise ReleaseError(f"Release {name}: 'evaluation' must be a mapping")
+    try:
+        AccessPolicy(**(evaluation.get("access") or {}))
+    except (TypeError, ValueError) as exc:
+        raise ReleaseError(f"Release {name}: invalid evaluation.access: {exc}") from exc
+    limit = evaluation.get("max_trial_sec")
+    if limit is not None and (
+        isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0
+    ):
+        raise ReleaseError(
+            f"Release {name}: evaluation.max_trial_sec must be a positive integer, "
+            f"got {limit!r}"
+        )
+    modes = evaluation.get("submission_modes")
+    if modes is not None and (
+        not isinstance(modes, list) or not modes or set(modes) - set(SUBMISSION_MODES)
+    ):
+        raise ReleaseError(
+            f"Release {name}: evaluation.submission_modes must list modes from "
+            f"{list(SUBMISSION_MODES)}, got {modes!r}"
+        )
 
 
 def _check_split_hash(meta: dict[str, Any], path: Path, *, name: str) -> None:
@@ -300,11 +346,10 @@ def _check_split_hash(meta: dict[str, Any], path: Path, *, name: str) -> None:
 
 def verify_engine(release: BenchmarkRelease, engine: EngineDescription) -> None:
     """Refuse to run *release* on an engine that does not match its manifest."""
-    if not set(engine.protocol_versions) & PROTOCOL_VERSIONS:
+    if not set(engine.api_versions) & API_VERSIONS:
         raise ReleaseError(
-            f"The benchmark engine of {release.ref} speaks lifecycle protocol "
-            f"versions {engine.protocol_versions}; this NIKA supports "
-            f"{sorted(PROTOCOL_VERSIONS)}."
+            f"The benchmark engine of {release.ref} speaks engine API versions "
+            f"{engine.api_versions}; this NIKA supports {sorted(API_VERSIONS)}."
         )
     if (engine.release_id, engine.release_version) != (release.id, release.version):
         raise ReleaseError(
@@ -319,6 +364,46 @@ def verify_engine(release: BenchmarkRelease, engine: EngineDescription) -> None:
             raise ReleaseError(
                 f"The benchmark engine's {cases_file} for {release.ref} does not "
                 f"match the sha256 in RELEASE.yaml (expected {expected}, got {actual})."
+            )
+
+
+def check_run_settings(release: BenchmarkRelease, *, agent_type: str | None) -> None:
+    """Refuse run settings that conflict with *release*'s ``evaluation``.
+
+    The access policy is part of the task, a trial may not outlast
+    ``max_trial_sec``, and only the listed submission modes are allowed.
+    """
+    from nika.agents.registry import find_agent_spec
+    from nika.mcp.gateway.access import configured_access
+    from nika.utils.agent_config import (
+        resolve_agent_timeout,
+        resolve_agent_type,
+        resolve_submission_settings,
+    )
+
+    configured = configured_access()
+    if configured.policy != release.access.policy:
+        raise ReleaseError(
+            f"Release {release.ref} fixes the agent's access policy "
+            f"({release.access.policy.model_dump()}); agent.access.role "
+            f"{configured.role!r} selects a different one. Release runs use the "
+            "release's policy."
+        )
+    timeout = resolve_agent_timeout()
+    limit = release.max_trial_sec
+    if limit is not None and timeout > limit:
+        raise ReleaseError(
+            f"agent.timeout_sec ({timeout}s) exceeds the {limit}s for which "
+            f"release {release.ref}'s tasks stay valid (evaluation.max_trial_sec)."
+        )
+    # Host-run agents (mock, oracle) answer from the ground truth themselves.
+    spec = find_agent_spec(resolve_agent_type(agent_type))
+    if spec is not None and spec.template is not None:
+        mode = resolve_submission_settings().mode
+        if mode not in release.submission_modes:
+            raise ReleaseError(
+                f"Release {release.ref} allows submission modes "
+                f"{list(release.submission_modes)}, not {mode!r}."
             )
 
 
@@ -360,7 +445,8 @@ def load_release_from_dir(
     manifest = _load_manifest(manifest_path)
     version = str(manifest.get("version") or root.name)
     _reject_deprecated_release(version)
-    _check_contract_versions(manifest, name=version)
+    _check_engine_api(manifest, name=version)
+    _check_evaluation(manifest, name=version)
     splits_raw = _resolve_splits(manifest)
     if split not in splits_raw:
         raise ReleaseError(
@@ -712,11 +798,13 @@ def build_run_identity(
     max_steps: int | None = None,
     n_trials: int = 1,
     engine: EngineDescription | None = None,
+    pinned_engine: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Agent/run fields shared by release and ad-hoc ``--config`` run configs.
 
-    *engine* is the benchmark engine's ``describe`` result for a release run;
-    it goes into the run's provenance.
+    *engine* is the benchmark engine's ``describe`` result for a release run,
+    and *pinned_engine* the ``tag`` and ``image`` of its container, if any;
+    both go into the run's provenance.
     """
     from nika.run_config.loader import get_run_config
     from nika.workflows.benchmark.provenance import run_results_fields
@@ -747,7 +835,7 @@ def build_run_identity(
         "submission": get_run_config().agent.submission.identity(),
         "n_trials": int(n_trials),
         "official": official,
-        **run_results_fields(engine, commit=commit, dirty=dirty),
+        **run_results_fields(engine, pinned=pinned_engine, commit=commit, dirty=dirty),
     }
 
 
@@ -763,6 +851,7 @@ def build_job_metadata(
     max_steps: int | None = None,
     n_trials: int = 1,
     engine: EngineDescription | None = None,
+    pinned_engine: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
         "benchmark_id": release.id,
@@ -786,6 +875,7 @@ def build_job_metadata(
             max_steps=max_steps,
             n_trials=n_trials,
             engine=engine,
+            pinned_engine=pinned_engine,
         ),
     }
 

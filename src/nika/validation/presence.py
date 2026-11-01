@@ -204,6 +204,14 @@ def _check_record(session_id: str, session_dir: Path, phase: str) -> dict[str, A
     }
 
 
+def _engine_container() -> bool:
+    """A benchmark engine container serves the run; it logs inject-time reads."""
+    from nika.benchmark_engine import benchmark_engine
+    from nika.benchmark_engine.client import EngineClient
+
+    return isinstance(benchmark_engine(), EngineClient)
+
+
 class PresenceWatch:
     """One during-agent read and one read before lab cleanup.
 
@@ -231,7 +239,9 @@ class PresenceWatch:
         self._thread: threading.Thread | None = None
 
     def start(self) -> None:
-        if bound_injected_problem(self.session_id) is None:
+        if bound_injected_problem(self.session_id) is None and not (
+            _engine_container() and anomaly_expected(self.session_dir)
+        ):
             self._run_phase("post_inject")
         self._thread = threading.Thread(
             target=self._during,

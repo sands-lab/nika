@@ -7,7 +7,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from nika.workflows.benchmark.provenance import (
-    UNVERSIONED_RESULTS_SCHEMA,
+    UNVERSIONED_SCHEMA,
     Provenance,
 )
 
@@ -148,7 +148,7 @@ class RunIdentity(BaseModel):
     nika_git_commit: str | None = None
     source_result_dir: str | None = None
     # Contract D; packages from runs recorded before it are schema 1.
-    results_schema: int = UNVERSIONED_RESULTS_SCHEMA
+    schema_version: int = UNVERSIONED_SCHEMA
     provenance: Provenance | None = None
 
 

@@ -37,6 +37,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
+from nika.benchmark_engine.protocol import EngineError
+
 COUNTED_OUTCOMES = frozenset({"success", "agent_failed"})
 ENDPOINT_FAILED = "endpoint_failed"
 INFRA_FAILED = "infra_failed"
@@ -457,6 +459,7 @@ def classify_trial_failure(
 ) -> FailureOutcome:
     """Map a post-inject trial exception to a failure outcome.
 
+    * A benchmark engine error → the outcome the engine reported.
     * With ``session_dir`` and no evidence that the agent started →
       ``endpoint_failed`` for endpoint signals, else ``infra_failed``
       (both retryable).
@@ -478,6 +481,9 @@ def classify_trial_failure(
     ``until`` is the case-kill instant used when attributing an in-flight LLM
     call; defaults to now when omitted.
     """
+    for item in _iter_exception_chain(exc):
+        if isinstance(item, EngineError):
+            return item.outcome
     if session_dir is not None and not agent_demonstrably_started(session_dir):
         return ENDPOINT_FAILED if is_endpoint_exception(exc) else INFRA_FAILED
     if session_dir is not None and trace_shows_endpoint_failure(session_dir):

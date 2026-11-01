@@ -98,25 +98,31 @@ class TestManifestContracts:
         root = self._release_dir(tmp_path)
         digest = hashlib.sha256((root / "dev.yaml").read_bytes()).hexdigest()
         manifest = yaml.safe_load((root / "RELEASE.yaml").read_text(encoding="utf-8"))
-        manifest["manifest_version"] = 1
         manifest["splits"]["dev"]["sha256"] = digest
+        manifest["evaluation"] = {
+            "max_trial_sec": 2400,
+            "access": {"tools": ["*"], "node_roles": ["host"]},
+            "submission_modes": ["structured"],
+        }
         (root / "RELEASE.yaml").write_text(yaml.safe_dump(manifest), encoding="utf-8")
 
-        assert load_release_from_dir(root, split="dev").case_count == 1
+        release = load_release_from_dir(root, split="dev")
+        assert release.case_count == 1
+        assert release.access.policy.node_roles == ["host"]
+        assert release.max_trial_sec == 2400
+        assert release.submission_modes == ("structured",)
 
     @pytest.mark.parametrize(
         ("fields", "message"),
         [
-            ({"manifest_version": 99}, "Release manifest version 99"),
             (
-                {"engine": {"tag": "v9.0.0", "protocol": 99, "results_schema": 1}},
-                "Lifecycle protocol version 99",
+                {"engine": {"tag": "v9.0.0", "api": {"version": 99}}},
+                "Engine API version 99",
             ),
-            (
-                {"engine": {"tag": "v9.0.0", "protocol": 1, "results_schema": 99}},
-                "Results schema version 99",
-            ),
-            ({"engine": {"tag": "v9.0.0"}}, "Lifecycle protocol version must be"),
+            ({"engine": {"tag": "v9.0.0"}}, "engine.api.version must be"),
+            ({"evaluation": {"access": {"hosts": ["*"]}}}, "evaluation.access"),
+            ({"evaluation": {"max_trial_sec": 0}}, "evaluation.max_trial_sec"),
+            ({"evaluation": {"submission_modes": ["free"]}}, "submission_modes"),
         ],
     )
     def test_unsupported_contract_version_is_refused(
@@ -138,7 +144,7 @@ class TestManifestContracts:
     @pytest.mark.parametrize(
         ("change", "message"),
         [
-            ({"protocol_versions": [99]}, "lifecycle protocol versions"),
+            ({"api_versions": [99]}, "engine API versions"),
             ({"release_version": "9.9.9"}, "not nika-bench@mini"),
             ({"task_file_sha256": {"dev.yaml": "0" * 64}}, "does not match"),
         ],
@@ -157,7 +163,7 @@ class TestManifestContracts:
         (root / "RELEASE.yaml").write_text(yaml.safe_dump(manifest), encoding="utf-8")
         release = load_release_from_dir(root, split="dev")
         fields = {
-            "protocol_versions": [1],
+            "api_versions": [1],
             "release_id": release.id,
             "release_version": release.version,
             "task_file_sha256": {"dev.yaml": digest},
@@ -170,13 +176,16 @@ class TestManifestContracts:
     def test_pinned_engine_release_does_not_run_in_process(
         self, tmp_path: Path
     ) -> None:
+        from nika.benchmark_engine.container import EngineContainerError
+
         root = self._release_dir(
             tmp_path,
-            engine={"tag": "v9.0.0", "protocol": 1, "results_schema": 1},
+            engine={"tag": "v9.0.0", "api": {"version": 1}},
         )
         release = load_release_from_dir(root, split="dev")
 
-        with pytest.raises(ReleaseError, match="pinned benchmark engine"):
+        # The run needs the engine built from the pinned tag, never this NIKA's.
+        with pytest.raises(EngineContainerError, match="v9.0.0"):
             run_benchmark_from_release(
                 release_ref="mini",
                 split="dev",
@@ -188,6 +197,48 @@ class TestManifestContracts:
                 result_dir=str(tmp_path / "results"),
                 check_images=False,
             )
+
+    @pytest.mark.parametrize(
+        ("evaluation", "settings", "message"),
+        [
+            ({}, {"node_roles": ["host"]}, "fixes the agent's access policy"),
+            ({"max_trial_sec": 600}, {"timeout": 1800}, "evaluation.max_trial_sec"),
+            ({"submission_modes": ["structured"]}, {"mode": "unstructured"}, "not"),
+        ],
+    )
+    def test_run_settings_that_conflict_with_the_release_are_refused(
+        self, tmp_path: Path, evaluation: dict, settings: dict, message: str
+    ) -> None:
+        from nika.benchmark_engine.protocol import AccessPolicy, AgentAccess
+        from nika.run_config.schema import AgentSubmissionSettings
+        from nika.workflows.benchmark.release import check_run_settings
+
+        release = load_release_from_dir(
+            self._release_dir(tmp_path, evaluation=evaluation), split="dev"
+        )
+        configured = AgentAccess(
+            role="custom",
+            policy=AccessPolicy(node_roles=settings.get("node_roles", ["*"])),
+        )
+        submission = AgentSubmissionSettings.model_construct(
+            mode=settings.get("mode", "structured")
+        )
+        with (
+            patch("nika.mcp.gateway.access.configured_access", return_value=configured),
+            patch(
+                "nika.utils.agent_config.resolve_agent_timeout",
+                return_value=settings.get("timeout", 600),
+            ),
+            patch(
+                "nika.utils.agent_config.resolve_submission_settings",
+                return_value=submission,
+            ),
+        ):
+            if "mode" in settings:
+                # Host-run agents choose no submission mode.
+                check_run_settings(release, agent_type="oracle")
+            with pytest.raises(ReleaseError, match=message):
+                check_run_settings(release, agent_type="byo.langgraph")
 
 
 class TestFreezeRelease:

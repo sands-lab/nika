@@ -15,7 +15,7 @@ import yaml
 from nika.config import REPO_ROOT, resolve_results_root
 from nika.benchmark_engine.protocol import UnsupportedContractVersion
 from nika.evaluator.validity import has_agent_trace
-from nika.workflows.benchmark.provenance import check_results_schema, results_schema_of
+from nika.workflows.benchmark.provenance import check_schema_version, schema_version_of
 from nika.workflows.benchmark.release import (
     ReleaseError,
     load_release,
@@ -314,9 +314,9 @@ def pack_leaderboard_submission(
         raise LeaderboardPackError(
             "Only official release runs can be packed (run.official must be true)"
         )
-    results_schema = results_schema_of(run_cfg)
+    schema_version = schema_version_of(run_cfg)
     try:
-        check_results_schema(results_schema)
+        check_schema_version(schema_version)
     except UnsupportedContractVersion as exc:
         raise LeaderboardPackError(f"run.json: {exc}") from exc
     submission_mode = (run_cfg.get("submission") or {}).get("mode", "structured")
@@ -434,7 +434,7 @@ def pack_leaderboard_submission(
             ),
             nika_git_commit=run_cfg.get("nika_git_commit"),
             source_result_dir=_relative_result_hint(results_root),
-            results_schema=results_schema,
+            schema_version=schema_version,
             provenance=run_cfg.get("provenance"),
         ),
         trajectories_relpath=traj_relpath,

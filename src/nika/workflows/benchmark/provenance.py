@@ -1,8 +1,10 @@
-"""Results schema version and run provenance (contract D).
+"""Run-record schema version and run provenance (contract D).
 
-The run directory's ``run.json`` records which results schema the run was
-written in and what produced it: this frontend, the benchmark engine, the
-lifecycle protocol version they spoke, and the host that ran the environments.
+The run directory's ``run.json`` records the schema version of the records
+this frontend wrote (``run.json``, ``nika.jsonl``, ``messages.jsonl``, and
+``model_calls.jsonl``) and what produced the run: this frontend, the
+benchmark engine and the engine API version they spoke, and the host that ran
+the environments. The engine API version covers the files the engine writes.
 """
 
 from __future__ import annotations
@@ -13,16 +15,18 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict
 
 from nika.benchmark_engine.protocol import (
-    PROTOCOL_VERSION,
-    PROTOCOL_VERSIONS,
-    RESULTS_SCHEMA_VERSION,
-    RESULTS_SCHEMA_VERSIONS,
+    API_VERSION,
+    API_VERSIONS,
     EngineDescription,
     UnsupportedContractVersion,
 )
 
-# Results recorded before ``run.json`` carried a schema version.
-UNVERSIONED_RESULTS_SCHEMA = 1
+# Run-record schema versions this frontend reads. Additive changes keep the
+# version; a breaking change adds a new one here.
+SCHEMA_VERSIONS: frozenset[int] = frozenset({1})
+SCHEMA_VERSION = max(SCHEMA_VERSIONS)
+# Runs recorded before ``run.json`` carried a schema version.
+UNVERSIONED_SCHEMA = 1
 
 
 class _Record(BaseModel):
@@ -37,9 +41,13 @@ class FrontendProvenance(_Record):
 
 
 class EngineProvenance(_Record):
-    """``tag`` and ``image`` are set when the release pins a benchmark engine."""
+    """``tag`` and ``image`` are set when the release pins a benchmark engine.
+
+    ``api`` is the engine API version the frontend and engine spoke.
+    """
 
     release: str | None = None
+    api: int
     tag: str | None = None
     commit: str | None = None
     dirty: bool | None = None
@@ -54,25 +62,24 @@ class HostProvenance(_Record):
 class Provenance(_Record):
     frontend: FrontendProvenance
     engine: EngineProvenance
-    protocol: int
     host: HostProvenance | None = None
 
 
-def results_schema_of(run: dict[str, Any]) -> Any:
-    """The results schema version a run directory's ``run.json`` records."""
-    return run.get("results_schema", UNVERSIONED_RESULTS_SCHEMA)
+def schema_version_of(run: dict[str, Any]) -> Any:
+    """The run-record schema version a run directory's ``run.json`` records."""
+    return run.get("schema_version", UNVERSIONED_SCHEMA)
 
 
-def check_results_schema(schema: Any) -> None:
+def check_schema_version(schema: Any) -> None:
     """Raise ``UnsupportedContractVersion`` unless this NIKA reads *schema*."""
     if not isinstance(schema, int) or isinstance(schema, bool):
         raise UnsupportedContractVersion(
-            f"results schema version must be an integer, got {schema!r}"
+            f"run-record schema version must be an integer, got {schema!r}"
         )
-    if schema not in RESULTS_SCHEMA_VERSIONS:
+    if schema not in SCHEMA_VERSIONS:
         raise UnsupportedContractVersion(
-            f"results schema version {schema} is not supported by this NIKA "
-            f"(supported: {', '.join(str(v) for v in sorted(RESULTS_SCHEMA_VERSIONS))}). "
+            f"run-record schema version {schema} is not supported by this NIKA "
+            f"(supported: {', '.join(str(v) for v in sorted(SCHEMA_VERSIONS))}). "
             "Upgrade NIKA to read these results."
         )
 
@@ -85,42 +92,52 @@ def _frontend_version() -> str | None:
 
 
 def build_provenance(
-    engine: EngineDescription | None, *, commit: str | None, dirty: bool
+    engine: EngineDescription | None,
+    *,
+    commit: str | None,
+    dirty: bool,
+    pinned: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Provenance of a run launched by this frontend at *commit*.
 
     *engine* is what ``describe`` reported for a release run. Without it (an
     ad-hoc task batch), the current NIKA's engine ran the trials in process.
+    *pinned* holds the ``tag`` and ``image`` of a benchmark engine container.
     """
     from nika.benchmark_engine.host import engine_host_info
 
     if engine is None:
-        engine_block = EngineProvenance(commit=commit, dirty=dirty)
+        engine_block = EngineProvenance(api=API_VERSION, commit=commit, dirty=dirty)
         host = engine_host_info()
-        protocol = PROTOCOL_VERSION
     else:
         engine_block = EngineProvenance(
             release=engine.release_version,
+            api=max(set(engine.api_versions) & API_VERSIONS),
             commit=engine.engine_commit,
             dirty=engine.engine_dirty,
+            **(pinned or {}),
         )
         host = engine.host
-        protocol = max(set(engine.protocol_versions) & PROTOCOL_VERSIONS)
     return Provenance(
         frontend=FrontendProvenance(
             version=_frontend_version(), commit=commit, dirty=dirty
         ),
         engine=engine_block,
-        protocol=protocol,
         host=HostProvenance(**host.model_dump()) if host is not None else None,
     ).model_dump(mode="json")
 
 
 def run_results_fields(
-    engine: EngineDescription | None, *, commit: str | None, dirty: bool
+    engine: EngineDescription | None,
+    *,
+    commit: str | None,
+    dirty: bool,
+    pinned: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """The contract D fields of a run directory's ``run.json``."""
     return {
-        "results_schema": RESULTS_SCHEMA_VERSION,
-        "provenance": build_provenance(engine, commit=commit, dirty=dirty),
+        "schema_version": SCHEMA_VERSION,
+        "provenance": build_provenance(
+            engine, commit=commit, dirty=dirty, pinned=pinned
+        ),
     }

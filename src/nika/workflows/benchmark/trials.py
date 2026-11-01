@@ -18,7 +18,7 @@ from nika.utils.session_artifacts import (
     write_json_atomic,
 )
 from nika.workflows.benchmark.isp_options import ISP_DEPLOY_KEYS
-from nika.workflows.benchmark.provenance import results_schema_of
+from nika.workflows.benchmark.provenance import schema_version_of
 from nika.workflows.benchmark.outcomes import (
     COUNTED_OUTCOMES,
     KNOWN_OUTCOMES,
@@ -732,12 +732,12 @@ def assert_run_config_compatible(
         for key in _RUN_IDENTITY_FIELDS
         if key in existing and old.get(key) != new.get(key)
     ]
-    if "results_schema" in proposed:
-        recorded = results_schema_of(existing)
-        if recorded != proposed["results_schema"]:
+    if "schema_version" in proposed:
+        recorded = schema_version_of(existing)
+        if recorded != proposed["schema_version"]:
             mismatches.append(
-                f"results_schema: existing={recorded!r} "
-                f"requested={proposed['results_schema']!r}"
+                f"schema_version: existing={recorded!r} "
+                f"requested={proposed['schema_version']!r}"
             )
     if mismatches:
         raise ValueError(
@@ -790,8 +790,8 @@ def merge_run_config(
         for key in _GIT_FIELDS:
             if key in proposed:
                 out[key] = proposed[key]
-    if "results_schema" in proposed:
-        out["results_schema"] = proposed["results_schema"]
+    if "schema_version" in proposed:
+        out["schema_version"] = proposed["schema_version"]
     if "provenance" in proposed:
         history = list(out.get("provenance_history") or [])
         if not history and existing.get("provenance"):
