@@ -79,6 +79,7 @@ class SwitchNamespaceBitflip:
             command=["sh", "-c", " && ".join(steps)],
             network_mode=network_mode,
             privileged=True,
+            labels={"nika.lab_name": self.runtime.lab_name},
         )
         try:
             loader.put_archive("/tmp", archive.getvalue())
