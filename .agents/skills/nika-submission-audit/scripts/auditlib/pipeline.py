@@ -114,7 +114,8 @@ def review_submission(
     precomputed: dict[str, list] | None = None,
 ) -> dict[str, Any]:
     """*precomputed*, when given, holds ``records`` (scan output) and
-    ``verdicts`` (one per group, in ``group_findings`` order)."""
+    ``verdicts`` (one per group, in ``group_findings`` order), and optionally
+    ``cohort`` (the ``cohort.json`` of an earlier run of the same order)."""
     workdir.mkdir(parents=True, exist_ok=True)
     timings: dict[str, float] = {}
     t0 = time.time()
@@ -202,13 +203,26 @@ def review_submission(
 
     t0 = time.time()
     cohort = {"findings": 0, "real": 0, "written": []}
-    if adjudicate is not None:
+    reuse = (precomputed or {}).get("cohort")
+    if adjudicate is not None or reuse is not None:
         rows = build_rows(current, list(history or []), report)
-        # Like the trial scan, the table scan only reports; the judge reasons.
-        found = scan_rows(
-            rows, kb, replace(adjudicate, thinking=False, max_tokens=8192)
-        )
-        verdicts_c = judge(found, rows, kb, adjudicate)
+        if reuse is not None:
+            # Table findings and verdicts from an earlier run of the same
+            # order; findings whose row changed are dropped.
+            texts = {r.id: r.text for r in rows}
+            kept = [c for c in reuse if c["excerpt"].strip() in texts.get(c["row"], "")]
+            found = [
+                {k: c[k] for k in ("class", "row", "claim", "excerpt")} for c in kept
+            ]
+            verdicts_c = [
+                {"verdict": c["verdict"], "reason": c.get("reason", "")} for c in kept
+            ]
+        else:
+            # Like the trial scan, the table scan only reports; the judge reasons.
+            found = scan_rows(
+                rows, kb, replace(adjudicate, thinking=False, max_tokens=8192)
+            )
+            verdicts_c = judge(found, rows, kb, adjudicate)
         results = curate_cohort(
             found,
             verdicts_c,

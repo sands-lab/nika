@@ -211,6 +211,11 @@ def cmd_replay(args: argparse.Namespace) -> None:
             shutil.copytree(step / "kb_before", kb_dir)
         else:
             shutil.copytree(kb_dir, step / "kb_before")
+        pre = {"records": records, "verdicts": verdicts}
+        if args.reuse_cohort:
+            pre["cohort"] = json.loads(
+                (args.reuse_cohort / step.name / "work" / "cohort.json").read_text()
+            )
         trial_records: list = []
         entry = review_submission(
             pkg,
@@ -220,7 +225,7 @@ def cmd_replay(args: argparse.Namespace) -> None:
             adjudicate=cohort_cfg,
             history=history,
             records_out=trial_records,
-            precomputed={"records": records, "verdicts": verdicts},
+            precomputed=pre,
         )
         history.extend(trial_records)
         entry["index"] = index
@@ -258,6 +263,12 @@ def main() -> None:
     p.add_argument("--base-url", help="LLM endpoint for the cross-trial stage.")
     p.add_argument("--model")
     p.add_argument("--cli", choices=tuple(CLI), help="Agent CLI instead of HTTP.")
+    p.add_argument(
+        "--reuse-cohort",
+        type=Path,
+        help="Earlier run of the same order whose cross-trial findings and "
+        "verdicts to reuse instead of calling the LLM.",
+    )
     p.add_argument("--workers", type=int, default=32)
     p.set_defaults(func=cmd_replay)
     args = parser.parse_args()
