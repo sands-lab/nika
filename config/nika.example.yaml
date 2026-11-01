@@ -147,9 +147,6 @@ nika:
     gateway_host: "127.0.0.1"
     # Bind the MCP gateway to this port. Set 0 to choose a free port.
     gateway_port: 0
-    # Maximum characters of tool result text kept for the agent, not counting
-    # truncation notices. Longer text keeps its beginning and end; 0 disables.
-    tool_output_max_chars: 10000
   static_validation:
     # Run supported topology checks with Batfish before deployment.
     enabled: false

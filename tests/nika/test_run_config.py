@@ -419,6 +419,14 @@ def test_saved_config_with_observability_still_loads() -> None:
         )
 
 
+def test_saved_config_with_tool_output_limit_still_loads() -> None:
+    """Configs copied from the old example keep loading; a changed limit warns."""
+    cfg = RunConfig.model_validate({"nika": {"mcp": {"tool_output_max_chars": 10000}}})
+    assert "tool_output_max_chars" not in cfg.model_dump()["nika"]["mcp"]
+    with pytest.warns(UserWarning, match="tool_output_max_chars is ignored"):
+        RunConfig.model_validate({"nika": {"mcp": {"tool_output_max_chars": 0}}})
+
+
 def test_profile_cli_config_show_accepts_run_config(tmp_path: Path) -> None:
     path = tmp_path / "codex-gptmini.yaml"
     path.write_text(

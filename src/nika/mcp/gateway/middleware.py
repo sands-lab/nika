@@ -23,7 +23,7 @@ from nika.mcp.gateway.session_registry import (
 from nika.mcp.tool_output import (
     jsonrpc_method,
     rewrite_http_body,
-    tool_output_max_chars,
+    MAX_CHARS,
 )
 
 _MCP_JSON = "application/json"
@@ -256,7 +256,7 @@ class _RewritingSend:
         new_body = rewrite_http_body(
             body,
             content_type=content_type,
-            max_chars=tool_output_max_chars(),
+            max_chars=MAX_CHARS,
             bound_call=self._bound_call,
         )
         headers = [

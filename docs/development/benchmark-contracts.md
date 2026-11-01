@@ -175,7 +175,9 @@ The contract covers:
 * The answer format, `{is_anomaly, root_causes}`, and the catalogs it is checked against: the fault ontology and the resource catalog.
 * The telemetry the agent may read.
 
-The benchmark engine runs the gateway and the tool servers, so contract C is whatever the release's engine serves. The manifest pins the one part that used to come from the user's configuration, the access policy, and no digest or tool snapshot needs maintaining.
+The benchmark engine runs the gateway and the tool servers, so contract C is whatever the release's engine serves, and no digest or tool snapshot needs maintaining. Two parts used to come from the user's configuration: the manifest now pins the access policy, and the tool output limit is fixed in the engine's code.
+
+The gateway's tool output limit is one uniform ceiling of 10,000 characters for every tool and every model, which is too tight for large context windows and can still be too loose for small ones. A later release can bound output per tool instead, through arguments with documented defaults on the tools whose output size is a property of the tool, such as packet capture and log queries. The gateway would keep only a high safety cap against runaway output, reported as an error, and the harness would manage its own context. That changes what agents encounter, so it is a new revision; 0.1.0 and 0.2.0 keep their limit.
 
 Rules:
 
