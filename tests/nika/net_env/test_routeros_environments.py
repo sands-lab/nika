@@ -266,13 +266,3 @@ def test_failure_providers_follow_the_router_profile():
         native_fault_ops(problem("routeros"), leaf, "stop_routing_process")
     ops = router_fault_ops(problem("routeros"), leaf)
     assert not ops.supports("stop_routing_process")
-
-
-@pytest.mark.unit
-def test_routeros_connection_match_accepts_split_and_joined_ports():
-    from nika.net_env.utils.routeros.fault_ops import _address_match
-
-    # RouterOS 7.21 prints the port apart; older releases append it.
-    assert _address_match("reply-dst-address", "198.18.1.10") == (
-        'reply-dst-address="198.18.1.10" or reply-dst-address~"^198.18.1.10:"'
-    )

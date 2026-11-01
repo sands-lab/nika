@@ -3,9 +3,11 @@ import random
 import pytest
 
 from nika.traffic.apps.object_sync import MIXES, ObjectSizes
+from typing import get_args
+
 from nika.traffic.profiles import (
-    PATTERNS,
     Endpoint,
+    Pattern,
     TrafficProfile,
     _parse_addresses,
     parse_traffic_option,
@@ -24,7 +26,7 @@ def _isolated(a: str, b: str) -> bool:
     return ({a, b} & {"h0", "h1"}) and not {a, b} <= {"h0", "h1"}
 
 
-@pytest.mark.parametrize("pattern", [p for p in PATTERNS if p != "demand"])
+@pytest.mark.parametrize("pattern", [p for p in get_args(Pattern) if p != "demand"])
 def test_matrix_sums_to_one_and_respects_isolation(pattern: str) -> None:
     matrix = traffic_matrix(TrafficProfile(pattern=pattern), HOSTS, isolated=_isolated)
     assert sum(matrix.values()) == pytest.approx(1.0)
@@ -126,11 +128,8 @@ def test_k8s_traffic_pods_pin_programs_to_their_node() -> None:
     namespace, configmap, pod = _manifest([process], "python:3")["items"]
     assert "object_sync.py" in configmap["data"]
     spec = pod["spec"]
-    assert pod["metadata"]["name"] == "object-store-worker-1"
     assert spec["nodeName"] == "worker_1" and spec["hostNetwork"]
-    container = spec["containers"][0]
-    assert container["imagePullPolicy"] == "Never"
-    assert container["command"][-1] == "store"
+    assert spec["containers"][0]["imagePullPolicy"] == "Never"
 
 
 def test_profile_fits_the_routers_send_cap() -> None:

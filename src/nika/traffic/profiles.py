@@ -57,8 +57,6 @@ if TYPE_CHECKING:
     from nika.runtime.base import LabRuntime
 
 Pattern = Literal["uniform", "gravity", "demand", "permutation", "hotspot", "incast"]
-PATTERNS: tuple[str, ...] = Pattern.__args__
-FLOW_SIZES: tuple[str, ...] = ("websearch", "datamining", "hadoop")
 
 STORE_PORT = 9100
 INCAST_PORT = 9101
@@ -123,12 +121,9 @@ class TrafficProfile(BaseModel):
         }
 
     def label(self) -> str:
-        """Short, stable identity for result directories and resume keys."""
+        """Readable, stable identity for result directories and resume keys."""
         extra = self.model_dump(mode="json", exclude_defaults=True, exclude={"pattern"})
-        if not extra:
-            return self.pattern
-        digest = zlib.crc32(repr(sorted(extra.items())).encode()) & 0xFFFFFF
-        return f"{self.pattern}-{digest:06x}"
+        return "+".join([self.pattern, *(f"{k}={v}" for k, v in sorted(extra.items()))])
 
 
 def fit_to_rate_limit(
