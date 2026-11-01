@@ -43,6 +43,7 @@ from nika.mcp.registry import (
     SUBMISSION_SERVER,
 )
 from nika.benchmark_engine.protocol import (
+    EngineDescription,
     MANIFEST_VERSIONS,
     PROTOCOL_VERSIONS,
     RESULTS_SCHEMA_VERSIONS,
@@ -295,6 +296,30 @@ def _check_split_hash(meta: dict[str, Any], path: Path, *, name: str) -> None:
             f"(expected {expected}, got {actual}). The task file differs from the "
             "published release."
         )
+
+
+def verify_engine(release: BenchmarkRelease, engine: EngineDescription) -> None:
+    """Refuse to run *release* on an engine that does not match its manifest."""
+    if not set(engine.protocol_versions) & PROTOCOL_VERSIONS:
+        raise ReleaseError(
+            f"The benchmark engine of {release.ref} speaks lifecycle protocol "
+            f"versions {engine.protocol_versions}; this NIKA supports "
+            f"{sorted(PROTOCOL_VERSIONS)}."
+        )
+    if (engine.release_id, engine.release_version) != (release.id, release.version):
+        raise ReleaseError(
+            f"The benchmark engine serves {engine.release_id}@"
+            f"{engine.release_version}, not {release.ref}."
+        )
+    for name, meta in (release.manifest.get("splits") or {}).items():
+        expected = (meta or {}).get("sha256")
+        cases_file = str(release.splits[name]["cases_file"])
+        actual = engine.task_file_sha256.get(cases_file)
+        if expected is not None and actual != str(expected):
+            raise ReleaseError(
+                f"The benchmark engine's {cases_file} for {release.ref} does not "
+                f"match the sha256 in RELEASE.yaml (expected {expected}, got {actual})."
+            )
 
 
 def _normalize_split_meta(meta: dict[str, Any] | None, *, name: str) -> dict[str, Any]:

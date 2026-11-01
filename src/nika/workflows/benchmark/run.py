@@ -100,6 +100,7 @@ from nika.workflows.benchmark.release import (
     normalize_split,
     preflight_release,
     release_fields_for_session,
+    verify_engine,
     write_job_metadata,
 )
 from nika.workflows.benchmark.resume import (
@@ -2070,6 +2071,7 @@ def run_benchmark_from_release(
             f"({resolved.manifest['engine'].get('tag')}), which this NIKA cannot "
             "start yet."
         )
+    verify_engine(resolved, benchmark_engine().describe(resolved.version))
     n_trials = resolved.n_trials
     # Validate --task-id before preflight / image pulls so bad selectors fail fast.
     planned: list[Trial] | None = None

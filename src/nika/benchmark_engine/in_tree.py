@@ -14,6 +14,7 @@ from nika.firecracker.trial import active_trial_lab
 from nika.net_env.net_env_pool import scenario_requires_topo_size
 from nika.benchmark_engine.protocol import (
     PROTOCOL_VERSIONS,
+    AgentEndpoints,
     EngineDescription,
     FaultCheck,
     InjectResult,
@@ -21,7 +22,12 @@ from nika.benchmark_engine.protocol import (
     TrialHandle,
     TrialRequest,
 )
-from nika.validation.presence import recheck_bound_artifact
+from nika.validation.presence import (
+    anomaly_expected,
+    bound_injected_problem,
+    recheck_bound_artifact,
+    remote_lab,
+)
 from nika.workflows.benchmark.healthy import write_healthy_session_artifacts
 from nika.workflows.env.start import start_net_env
 from nika.workflows.eval.session import run_eval_metrics
@@ -39,10 +45,11 @@ def _sha256(path: Path) -> str:
 class InTreeBenchmarkEngine:
     """Runs the current tree's environments, failures, and scoring."""
 
-    def describe(self) -> EngineDescription:
+    def describe(self, release: str | None = None) -> EngineDescription:
+        """Describe *release*; the in-tree engine serves every release in the tree."""
         from nika.workflows.benchmark.release import load_release, read_git_commit
 
-        release = load_release(BENCHMARK_VERSION)
+        release = load_release(release or BENCHMARK_VERSION)
         commit, dirty = read_git_commit()
         return EngineDescription(
             protocol_versions=sorted(PROTOCOL_VERSIONS),
@@ -112,12 +119,59 @@ class InTreeBenchmarkEngine:
             ground_truth=(handle.trial_path / "ground_truth.json").is_file()
         )
 
+    def agent_endpoints(self, handle: TrialHandle) -> AgentEndpoints:
+        from nika.mcp.gateway.access import node_roles_for_session
+        from nika.mcp.gateway.lifecycle import resolve_session_backend
+        from nika.mcp.registry import select_diagnosis_servers
+        from nika.telemetry import telemetry_for_session
+        from nika.utils.session_store import SessionStore
+
+        row = SessionStore().get_session(handle.session_id)
+        scenario = str(row.get("scenario_name") or "")
+        return AgentEndpoints(
+            diagnosis_servers=(
+                select_diagnosis_servers(
+                    scenario,
+                    backend=row.get("backend") or resolve_session_backend(scenario),
+                    telemetry=telemetry_for_session(row),
+                )
+                if scenario
+                else None
+            ),
+            node_roles=node_roles_for_session(handle.session_id),
+        )
+
     def fault_check(self, handle: TrialHandle) -> FaultCheck:
-        check = recheck_bound_artifact(handle.session_id)
+        session_id = handle.session_id
+        anomaly = anomaly_expected(handle.trial_path)
+        bound = bound_injected_problem(session_id)
+        if bound is None and not anomaly:
+            return FaultCheck(
+                result="not_applicable",
+                fault="healthy",
+                evidence={"reason": "no fault injected"},
+            )
+        if bound is None and anomaly and remote_lab():
+            try:
+                from nika.remote.client import RemoteClient
+
+                raw = RemoteClient().fault_artifact(session_id)
+            except Exception as exc:  # noqa: BLE001 - record a failed bounded read
+                raw = {"present": False, "error": f"{type(exc).__name__}: {exc}"}
+        else:
+            raw = recheck_bound_artifact(session_id)
+        error = str(raw.get("error") or "")
+        if raw.get("present"):
+            result = "present"
+        elif raw.get("unbound") or (error and error != "fault artifact absent"):
+            result = "error"
+        else:
+            result = "absent"
         return FaultCheck(
-            present=bool(check.get("present")),
-            fault=check.get("fault"),
-            error=check.get("error"),
+            result=result,
+            fault=raw.get("fault"),
+            evidence=raw.get("evidence") or {},
+            error=raw.get("error"),
         )
 
     def score(

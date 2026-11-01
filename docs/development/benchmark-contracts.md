@@ -105,7 +105,7 @@ Test: load every manifest under `benchmark/releases/` and verify its hashes; che
 
 ## B. Lifecycle protocol
 
-The lifecycle protocol is the only way the frontend asks the benchmark engine to do anything during a run. Today these steps are direct calls inside `run_single_case` (`src/nika/workflows/benchmark/run.py`): `start_net_env`, `inject_failure`, `start_agent` with a fault-presence check, `_require_submission`, then `close_session` and `run_eval_metrics`.
+The lifecycle protocol is the only way the frontend asks the benchmark engine to do anything during a run. Before it, the trial loop in `run_single_case` (`src/nika/workflows/benchmark/run.py`) called `start_net_env`, `inject_failure`, `close_session`, and `run_eval_metrics` directly, and the MCP gateway and the fault-presence check reached into the environment and failure code themselves.
 
 [NIKA Remote](../operations/remote.md) already runs environment deployment, failure injection, the fault-artifact recheck, session close, and artifact transfer behind an HTTP API (`src/nika/remote/`), so the benchmark engine is a NIKA Remote daemon built from the release tag. The lifecycle protocol versions that API, adds `describe`, `list_tasks`, and `score`, and moves the MCP gateway to the frontend.
 
@@ -131,7 +131,7 @@ Rules:
 
 The benchmark engine container mounts the host's Docker socket, `/var/run/netns`, and the run's results directory at the same absolute path, and runs on the host network with the privileges Containerlab needs. Environments therefore appear on the host as if the current tree had deployed them, and the frontend's observability attaches to them unchanged.
 
-[`protocol.py`](../../src/nika/benchmark_engine/protocol.py) defines the operations and the contract versions this NIKA supports. [`in_tree.py`](../../src/nika/benchmark_engine/in_tree.py) implements them in process for releases without a pinned benchmark engine.
+[`protocol.py`](../../src/nika/benchmark_engine/protocol.py) defines the operations and the contract versions this NIKA supports. [`in_tree.py`](../../src/nika/benchmark_engine/in_tree.py) implements them in process for releases without a pinned benchmark engine. The trial loop, the MCP gateway, and the fault-presence check now call only through it, and a release run checks `describe` against the manifest before it starts. Three parts wait for the engine container in step 4: `list_tasks`, so the frontend still reads task rows from the in-tree split files; `score` still writes `eval_metrics.json` instead of returning scores; and the trial loop still checks for `ground_truth.json` to classify failed trials.
 
 Test: run the same protocol test suite against the in-tree engine and against each published benchmark engine image.
 

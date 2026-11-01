@@ -850,6 +850,9 @@ class TestReleaseRunMetadata:
         result_dir = tmp_path / "results"
 
         with (
+            patch(
+                "nika.workflows.benchmark.release.RELEASES_DIR", tmp_path / "releases"
+            ),
             patch("nika.workflows.benchmark.run.preflight_release"),
             patch(
                 "nika.workflows.benchmark.run._run_trials_batch", return_value=[]
@@ -919,6 +922,9 @@ class TestReleaseRunMetadata:
             out_dir=tmp_path / "releases" / "mini-abort",
         )
         with (
+            patch(
+                "nika.workflows.benchmark.release.RELEASES_DIR", tmp_path / "releases"
+            ),
             patch("nika.workflows.benchmark.run.preflight_release"),
             patch("nika.workflows.benchmark.run.run_benchmark_trials") as run_trials,
             patch(

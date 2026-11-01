@@ -85,9 +85,28 @@ class InjectResult(_Message):
 
 
 class FaultCheck(_Message):
-    present: bool
+    """Whether the injected failure is still in place.
+
+    ``not_applicable`` means no failure was injected (a healthy task);
+    ``error`` means the engine could not read the failure's artifact.
+    """
+
+    result: Literal["present", "absent", "error", "not_applicable"]
     fault: str | None = None
+    evidence: dict[str, Any] = Field(default_factory=dict)
     error: str | None = None
+
+
+class AgentEndpoints(_Message):
+    """The tool surface of one trial (contract C).
+
+    ``diagnosis_servers`` is ``None`` when every mounted diagnosis server is
+    allowed. ``node_roles`` maps device names to the roles that access
+    policies select on.
+    """
+
+    diagnosis_servers: list[str] | None
+    node_roles: dict[str, str] = Field(default_factory=dict)
 
 
 class EngineError(RuntimeError):
@@ -115,11 +134,13 @@ def require_supported(contract: str, version: int, supported: frozenset[int]) ->
 class BenchmarkEngine(Protocol):
     """Lifecycle operations of contract B."""
 
-    def describe(self) -> EngineDescription: ...
+    def describe(self, release: str | None = None) -> EngineDescription: ...
 
     def start_trial(self, request: TrialRequest) -> TrialHandle: ...
 
     def inject(self, handle: TrialHandle, request: TrialRequest) -> InjectResult: ...
+
+    def agent_endpoints(self, handle: TrialHandle) -> AgentEndpoints: ...
 
     def fault_check(self, handle: TrialHandle) -> FaultCheck: ...
 
