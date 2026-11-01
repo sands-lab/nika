@@ -53,6 +53,7 @@ def _replace_command(running: str) -> str:
 
 class IosxrFaultOps(RouterFaultOps):
     profile = "iosxr"
+    port_follows_link = False
 
     def _show(self, command: str) -> str:
         return self.runtime.exec(

@@ -41,6 +41,9 @@ class RouterFaultOps:
     """Failure operations on one native router. Vendors override what they support."""
 
     profile = "native"
+    # Whether the router's port state follows the link of its container
+    # interface. XRd ignores Linux link state: its ports stay up and drop.
+    port_follows_link = True
 
     def __init__(self, runtime, node: str):
         self.runtime = runtime

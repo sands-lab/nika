@@ -896,7 +896,7 @@ class LinkDetach(ProblemBase):
         }
         nos_down = True
         ops = native_fault_ops(self, params.host_name, "interface_up")
-        if ops is not None:
+        if ops is not None and ops.port_follows_link:
             nos_down = not ops.interface_up(intf)
             details["router_port_up"] = not nos_down
         return build_verify_result(

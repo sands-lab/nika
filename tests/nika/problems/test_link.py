@@ -232,6 +232,8 @@ def test_link_detach_keeps_holder_when_inject_succeeds(monkeypatch) -> None:
 
 def test_link_detach_verify_requires_nos_port_down(monkeypatch) -> None:
     class Ops:
+        port_follows_link = True
+
         def __init__(self, up: bool) -> None:
             self.up = up
 
@@ -257,6 +259,14 @@ def test_link_detach_verify_requires_nos_port_down(monkeypatch) -> None:
     result = problem.verify_fault(LinkDetachParams(host_name="leaf1", intf_name="eth1"))
     assert result["verified"] is False
     assert result["details"]["router_port_up"] is True
+
+    # XRd ports ignore Linux link state, so only the Linux check applies.
+    xrd = Ops(True)
+    xrd.port_follows_link = False
+    monkeypatch.setattr(link_mod, "native_fault_ops", lambda *a, **k: xrd)
+    result = problem.verify_fault(LinkDetachParams(host_name="leaf1", intf_name="eth1"))
+    assert result["verified"] is True
+    assert "router_port_up" not in result["details"]
 
 
 def test_link_detach_verify_linux_only_when_no_provider(monkeypatch) -> None:
