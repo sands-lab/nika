@@ -286,9 +286,11 @@ def build_isp_workload(
         return transit
 
     budget = rate_budget_kbps(rate_limit_kbps, BUSINESS_RATE_SHARE)
-    peak = max(transit_of(flows).values(), default=0)
+    transit = transit_of(flows)
+    peak = max(transit.values(), default=0)
     if budget and peak > budget:
         flows = [replace(f, kbps=int(f.kbps * budget / peak)) for f in flows]
+        transit = transit_of(flows)
 
     processes: list[WorkloadProcess] = []
     exercises: list[WorkloadExercise] = []
@@ -327,7 +329,7 @@ def build_isp_workload(
             )
         )
         exercises.append(WorkloadExercise(BULK_DOWNLOAD, (host.host_name,)))
-    for target, kbps in sorted(transit_of(flows).items()):
+    for target, kbps in sorted(transit.items()):
         if kbps >= BULK_TRANSIT_MIN_KBPS:
             exercises.append(WorkloadExercise(BULK_TRANSIT, target))
 

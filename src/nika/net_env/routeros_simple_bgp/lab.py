@@ -172,11 +172,12 @@ class RouterOsSimpleBGP(NetworkEnvBase):
     def business_workload(self):
         from nika.net_env.utils.pair_workload import build_pair_workload
 
-        # pc1 -> router1 (eth1 in, eth0 out) -> router2 (eth0 in, eth1 out) -> pc2.
+        # pc1 -> router1 (eth2 in, eth1 out) -> router2 (eth1 in, eth2 out) -> pc2;
+        # eth0 of a RouterOS container is its management port.
         return build_pair_workload(
             ("pc1", "195.11.14.2"),
             ("pc2", "200.1.1.2"),
-            (("pc1", "eth0"), ("router1", "eth0"), ("router2", "eth1")),
+            (("pc1", "eth0"), ("router1", "eth1"), ("router2", "eth2")),
             rate_limit_kbps=self.router_rate_limit_kbps(),
         )
 

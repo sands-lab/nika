@@ -694,7 +694,7 @@ For an interactive session, pass the same settings to `nika env run`:
 uv run nika env run dc_clos -s s --traffic gravity,flow_sizes=hadoop,load_mbps=2
 ```
 
-A profile combines a traffic matrix, a flow-size distribution, and Poisson flow arrivals, the way data-center transport and WAN traffic-engineering studies describe their workloads. The programs present themselves as ordinary user services, like the business traffic: each sender is a backup agent (`backup-agent`) whose flows are HTTP uploads to object stores (`object-store`, port 9100) on the other hosts, and the `incast` pattern adds a sharded search service (`search-frontend` and `search-shard`) that answers over UDP.
+A profile combines a traffic matrix, a flow-size distribution, and Poisson flow arrivals, the way data-center transport and WAN traffic-engineering studies describe their workloads. The programs present themselves as ordinary user services, like the business traffic: each sender is a backup agent (`backup-agent`) whose flows are HTTP uploads to object stores (`object-store`, port 7480) on the other hosts, and the `incast` pattern adds a sharded search service (`search-frontend` and `search-shard`) that answers over UDP.
 
 | `pattern` | Traffic matrix | Typical use |
 | --- | --- | --- |

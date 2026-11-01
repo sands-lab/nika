@@ -564,7 +564,8 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
             PUBLIC_SERVICE_HOST,
             **{"image": nika_image("base"), "cpus": 0.5, "mem": "256m"},
         )
-        # Outside the enterprise: not a fault target or a PingMesh endpoint.
+        # Outside the enterprise: no node fault targets it and PingMesh does not
+        # probe it; its provider link can still fail.
         self.declare_machine(
             PUBLIC_SERVICE_HOST,
             role=NodeRole.INFRASTRUCTURE,

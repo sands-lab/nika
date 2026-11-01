@@ -58,8 +58,9 @@ if TYPE_CHECKING:
 
 Pattern = Literal["uniform", "gravity", "demand", "permutation", "hotspot", "incast"]
 
-STORE_PORT = 9100
-INCAST_PORT = 9101
+# 7480 is a common S3 object-store port; 9100 belongs to node_exporter.
+STORE_PORT = 7480
+INCAST_PORT = 7481
 INCAST_DATAGRAM = 1400
 # Installed command names; ``paused_workload`` also holds these still.
 # Profile programs present themselves as user services: a backup agent that
