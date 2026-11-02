@@ -4,20 +4,26 @@ failure:
   fault_type: mac_address_conflict
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      host_name: web_server_1
-      host_name_2: web_server_3
+      host_name: web_server_3
+      host_name_2: load_balancer
     root_causes:
     - resource:
         kind: interface
-        node: web_server_1
+        node: web_server_3
         name: eth0
       fault_type: mac_address_conflict
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: load_balancer
-      host_name_2: pc_1_1_1_1
+      host_name_2: web_server_2
     root_causes:
     - resource:
         kind: interface
@@ -26,32 +32,41 @@ failure:
       fault_type: mac_address_conflict
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      host_name: dhcp_server
-      host_name_2: web_server_0
+      host_name: dns_server
+      host_name_2: web_server_1
     root_causes:
     - resource:
         kind: interface
-        node: dhcp_server
+        node: dns_server
         name: eth0
       fault_type: mac_address_conflict
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      host_name: web_server_2
-      host_name_2: web_server_0
+      host_name: web_server_3
+      host_name_2: dns_server
     root_causes:
     - resource:
         kind: interface
-        node: web_server_2
+        node: web_server_3
         name: eth0
       fault_type: mac_address_conflict
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
-      host_name: load_balancer
-      host_name_2: pc_2_4_1_3
+      host_name: pc_2_1_2_2
+      host_name_2: pc_2_1_2_4
     root_causes:
     - resource:
         kind: interface
-        node: load_balancer
+        node: pc_2_1_2_2
         name: eth0
       fault_type: mac_address_conflict

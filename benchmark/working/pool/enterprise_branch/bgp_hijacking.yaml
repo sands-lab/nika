@@ -4,6 +4,9 @@ failure:
   fault_type: bgp_hijacking
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_edge
       observer_host: br1_corp_pc
@@ -16,6 +19,9 @@ failure:
         node: hq_edge
       fault_type: bgp_hijacking
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_edge
       observer_host: br2_corp_pc
@@ -29,6 +35,9 @@ failure:
       fault_type: bgp_hijacking
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_edge
       observer_host: br1_corp_pc
@@ -42,6 +51,9 @@ failure:
       fault_type: bgp_hijacking
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_edge
       observer_host: br2_corp_pc
@@ -55,6 +67,9 @@ failure:
       fault_type: bgp_hijacking
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_edge
       observer_host: br1_corp_pc
@@ -68,6 +83,9 @@ failure:
       fault_type: bgp_hijacking
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_edge
       observer_host: br2_corp_pc
@@ -80,6 +98,9 @@ failure:
         node: hq_edge
       fault_type: bgp_hijacking
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_edge
       observer_host: br1_corp_pc
@@ -92,6 +113,9 @@ failure:
         node: hq_edge
       fault_type: bgp_hijacking
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_edge
       observer_host: br1_corp_pc
@@ -104,6 +128,9 @@ failure:
         node: hq_edge
       fault_type: bgp_hijacking
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_edge
       observer_host: br1_corp_pc
@@ -116,6 +143,9 @@ failure:
         node: hq_edge
       fault_type: bgp_hijacking
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_edge
       observer_host: br2_corp_pc
@@ -128,6 +158,9 @@ failure:
         node: hq_edge
       fault_type: bgp_hijacking
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_edge
       observer_host: br1_corp_pc
@@ -140,6 +173,9 @@ failure:
         node: hq_edge
       fault_type: bgp_hijacking
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_edge
       observer_host: br1_corp_pc
@@ -152,6 +188,9 @@ failure:
         node: hq_edge
       fault_type: bgp_hijacking
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_edge
       observer_host: br1_corp_pc
@@ -164,6 +203,9 @@ failure:
         node: hq_edge
       fault_type: bgp_hijacking
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_edge
       observer_host: br1_corp_pc
@@ -176,6 +218,9 @@ failure:
         node: hq_edge
       fault_type: bgp_hijacking
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_edge
       observer_host: br1_corp_pc
@@ -188,6 +233,9 @@ failure:
         node: hq_edge
       fault_type: bgp_hijacking
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_edge
       observer_host: br1_corp_pc
@@ -200,6 +248,9 @@ failure:
         node: hq_edge
       fault_type: bgp_hijacking
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_edge
       observer_host: br1_corp_pc
@@ -212,6 +263,9 @@ failure:
         node: hq_edge
       fault_type: bgp_hijacking
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_edge
       observer_host: br2_corp_pc

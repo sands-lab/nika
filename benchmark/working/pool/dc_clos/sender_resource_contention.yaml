@@ -4,6 +4,9 @@ failure:
   fault_type: sender_resource_contention
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       client_host: client_0
       cpu_quota: '0.05'
@@ -20,6 +23,9 @@ failure:
       fault_type: sender_resource_contention
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       client_host: client_0
       cpu_quota: '0.05'
@@ -36,6 +42,9 @@ failure:
       fault_type: sender_resource_contention
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       client_host: client_0
       cpu_quota: '0.05'
@@ -51,6 +60,9 @@ failure:
         node: webserver0_pod0
       fault_type: sender_resource_contention
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       client_host: client_0
       cpu_quota: '0.05'
@@ -66,6 +78,9 @@ failure:
         node: webserver0_pod0
       fault_type: sender_resource_contention
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       client_host: client_0
       cpu_quota: '0.05'

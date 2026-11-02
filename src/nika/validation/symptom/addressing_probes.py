@@ -35,6 +35,10 @@ _FLAP_ECHOES = 50
 # echoes are lost, and each holder loses some. A healthy LAN loses none.
 _MIN_PAIR_LOSS_PERCENT = 25.0
 _MIN_HOLDER_LOSS_PERCENT = 4.0
+# A holder this dark has lost its frames to the other holder's port.
+_DARK_HOLDER_LOSS_PERCENT = 90.0
+# Echo requests of ten that show a dark holder still sends on the segment.
+_ALIVE_ECHOES = 5
 
 
 def _eth0_ip(runtime: LabRuntime, node: str) -> str:
@@ -81,13 +85,18 @@ def _reachable(runtime: LabRuntime, src: str, ip: str) -> bool:
 def _observers(runtime: LabRuntime, target_ip: str, exclude: set[str]) -> dict:
     """Pick a host that reaches ``target_ip`` and one more host as control.
 
-    Labs whose only hosts are the faulted pair (llmd_lab) observe from any
-    other node on the segment.
+    When no client-like host reaches it (llmd_lab's faulted pair, a load
+    balancer's private backends), another node on its segment observes.
     """
     nodes = [node for node in sorted(runtime.list_nodes()) if node not in exclude]
     candidates = [node for node in nodes if node.startswith(_HOST_PREFIXES)] or nodes
+    others = [node for node in nodes if node not in candidates]
     observer = next(
-        (node for node in candidates[:12] if _reachable(runtime, node, target_ip)),
+        (
+            node
+            for node in candidates[:12] + others[:12]
+            if _reachable(runtime, node, target_ip)
+        ),
         None,
     )
     if observer is None:
@@ -247,6 +256,28 @@ def _mac_conflict_reading(problem: Any, ends: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _echoes_reaching(runtime: LabRuntime, src: str, dst: str) -> int | None:
+    """ICMP echo requests ``dst`` counts while ``src`` sends it ten."""
+
+    def in_echos() -> int | None:
+        rows = [
+            line.split()
+            for line in exec_or_empty(runtime, dst, "cat /proc/net/snmp").splitlines()
+            if line.startswith("Icmp:")
+        ]
+        if len(rows) != 2 or "InEchos" not in rows[0]:
+            return None
+        return int(rows[1][rows[0].index("InEchos")])
+
+    ip = _eth0_ip(runtime, dst)
+    before = in_echos()
+    if ip is None or before is None:
+        return None
+    exec_or_empty(runtime, src, f"ping -c 10 -i 0.2 -W 1 -q {ip}", timeout=20)
+    after = in_echos()
+    return None if after is None else after - before
+
+
 def mac_conflict_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     """On the healthy segment the observer reaches the pair and the control."""
     ends = _mac_conflict_ends(problem, params)
@@ -262,11 +293,12 @@ def mac_conflict_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, An
 
 
 def mac_conflict(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
-    """Traffic to both holders of the MAC is lost; the control's is not.
+    """Traffic to the holders of the MAC is lost; the control's is not.
 
-    The bridge learns the shared MAC on whichever port sent last, so frames
-    for one host are delivered to the other while both answer traffic. A
-    wrong or stale MAC loses only one host's echoes; a conflict loses both.
+    A learning bridge moves the shared MAC to whichever port sent last, so
+    both holders lose echoes. A bridge that keeps it on one port darkens the
+    other holder entirely, though that holder still sends on the segment; a
+    host that is down sends nothing.
     """
     ends = getattr(problem, "_audit_mac_ends", None) or {}
     if not ends or "error" in ends:
@@ -276,11 +308,26 @@ def mac_conflict(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     holders = [reading[f"{role}_loss_percent"] for role in ("owner", "claimant")]
     measured = None not in holders
     pair_loss = sum(holders) / 2 if measured else None
-    verified = (
+    flapping = bool(measured and min(holders) >= _MIN_HOLDER_LOSS_PERCENT)
+    # A bridge that keeps the shared MAC on one port darkens the other holder
+    # only. It is alive and sending, unlike a host that is down: its echoes
+    # still reach the observer, while the replies go to the other port.
+    pinned: dict[str, Any] = {}
+    if measured and not flapping:
+        role = max(("owner", "claimant"), key=lambda r: reading[f"{r}_loss_percent"])
+        if reading[f"{role}_loss_percent"] >= _DARK_HOLDER_LOSS_PERCENT:
+            pinned = {
+                "dark_holder": ends[role],
+                "observer_echoes_from_dark_holder": _echoes_reaching(
+                    problem.runtime, ends[role], ends["observer"]
+                ),
+            }
+    alive = (pinned.get("observer_echoes_from_dark_holder") or 0) >= _ALIVE_ECHOES
+    verified = bool(
         control_ok
         and measured
         and pair_loss >= _MIN_PAIR_LOSS_PERCENT
-        and min(holders) >= _MIN_HOLDER_LOSS_PERCENT
+        and (flapping or alive)
     )
     return verified, build_verify_result(
         fault_type=problem.root_cause_name,
@@ -289,6 +336,7 @@ def mac_conflict(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
             **ends,
             "echoes": _FLAP_ECHOES,
             **reading,
+            **pinned,
             "pair_loss_percent": pair_loss,
             "min_pair_loss_percent": _MIN_PAIR_LOSS_PERCENT,
             "min_holder_loss_percent": _MIN_HOLDER_LOSS_PERCENT,

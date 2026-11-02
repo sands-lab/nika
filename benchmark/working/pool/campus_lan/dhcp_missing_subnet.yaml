@@ -4,6 +4,9 @@ failure:
   fault_type: dhcp_missing_subnet
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dhcp_server
       host_name_2: pc_1_1_1_1
@@ -15,6 +18,9 @@ failure:
       fault_type: dhcp_missing_subnet
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dhcp_server
       host_name_2: pc_1_1_1_1
@@ -26,6 +32,9 @@ failure:
       fault_type: dhcp_missing_subnet
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dhcp_server
       host_name_2: pc_1_1_1_1
@@ -36,6 +45,9 @@ failure:
         node: dhcp_server
       fault_type: dhcp_missing_subnet
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dhcp_server
       host_name_2: pc_1_1_1_1
@@ -46,6 +58,9 @@ failure:
         node: dhcp_server
       fault_type: dhcp_missing_subnet
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dhcp_server
       host_name_2: pc_1_1_1_1

@@ -4,6 +4,9 @@ failure:
   fault_type: snat_port_pool_exhaustion
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_edge
       port_end: '40063'
@@ -17,6 +20,9 @@ failure:
       fault_type: snat_port_pool_exhaustion
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_edge
       port_end: '40063'
@@ -30,6 +36,9 @@ failure:
       fault_type: snat_port_pool_exhaustion
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_edge
       port_end: '40063'
@@ -42,6 +51,9 @@ failure:
         node: br1_edge
       fault_type: snat_port_pool_exhaustion
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_edge
       port_end: '40063'
@@ -54,6 +66,9 @@ failure:
         node: br1_edge
       fault_type: snat_port_pool_exhaustion
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_edge
       port_end: '40063'

@@ -33,6 +33,8 @@ from nika.runtime.spec import NodeRole
 class IspVendor(NetworkEnvBase):
     """Compile any catalog ISP graph to a supported native OSPF/BGP platform."""
 
+    # Synthetic WAN traffic matrices follow a gravity model (Roughan, CCR 2005).
+    BASELINE_TRAFFIC = {"pattern": "gravity", "load_mbps": 1.0}
     ROUTING_PARAMETER_KINDS = frozenset({"ospf_costs", "isis_metrics", "bgp_imports"})
     LAB_NAME = "isp"
     TOPO_LEVEL = "medium"

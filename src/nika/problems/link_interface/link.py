@@ -1,9 +1,9 @@
+import math
 import re
 import time
 
 from pydantic import BaseModel, Field
 
-from nika.problems.support.traffic import LOSS_EVIDENCE_TRAFFIC
 from nika.problems.base import (
     FailureDomain,
     ProblemBase,
@@ -32,6 +32,7 @@ from nika.problems.rca.inventory import (
     resolve_default_intf,
 )
 from nika.problems.support.benchmark_targets import (
+    CARRIER_FLAP_UP_SEC,
     endpoint_target,
     isp_link_target,
     loaded_inventory,
@@ -101,10 +102,14 @@ def _probe_ends(net_env, node: str, intf: str) -> tuple[str, tuple[str, str]] | 
     return None
 
 
-def _burst_loss_ping(dst: str) -> str:
-    """60 probes at 200 ms; prints received sequence numbers and the summary."""
+def _burst_loss_ping(dst: str, count: int = 120) -> str:
+    """Probes at 100 ms; prints received sequence numbers and the summary.
+
+    At 100 ms an outage cut short by a reroute (about 0.5 s) still loses
+    several consecutive probes.
+    """
     return (
-        f"ping -i 0.2 -c 60 -W 1 {dst} 2>&1 | awk '/bytes from/"
+        f"ping -i 0.1 -c {count} -W 1 {dst} 2>&1 | awk '/bytes from/"
         '{for(i=1;i<=NF;i++) if($i ~ /^icmp_seq=/) printf "%s ", $i} '
         '/packets transmitted/{print ""; print}\''
     )
@@ -408,7 +413,6 @@ class LinkFlap(ProblemBase):
     symptom_class = "loss"
     dynamic_artifact = True
     root_cause_name: str = "link_flap"
-    TRAFFIC_PROFILE = LOSS_EVIDENCE_TRAFFIC
     description = "Logical link flaps between up and down."
     TAGS: str = ["link"]
     # Acts on the link through a controller-side proxy, outside the router OS.
@@ -429,7 +433,9 @@ class LinkFlap(ProblemBase):
         if is_isp_scenario(ctx.scenario):
             params = isp_link_target(ctx)
             params["down_time"] = "1"
-            params["up_time"] = "1"
+            params["up_time"] = (
+                CARRIER_FLAP_UP_SEC if ctx.backend == "containerlab" else "1"
+            )
             return params
         return resolve_link_flap_params(
             ctx.scenario,
@@ -575,19 +581,22 @@ class LinkFlap(ProblemBase):
                 )
             )
         src = params.symptom_host or params.observer_device
+        # Cover at least two outages, whatever the flap period.
+        count = max(120, math.ceil(2.5 * (params.down_time + params.up_time) / 0.1))
         purpose = (
-            "Probe across the link every 200 ms for 12 seconds and look at which "
-            "probes are lost."
+            f"Probe across the link every 100 ms for {round(count * 0.1)} seconds "
+            "and look at which probes are lost."
         )
+        timeout = round(count * 0.1) + 30
         if src and params.probe_dst_ip:
             steps.append(
                 shell(
                     src,
-                    _burst_loss_ping(params.probe_dst_ip),
+                    _burst_loss_ping(params.probe_dst_ip, count),
                     purpose,
                     _ON_OFF_LOSS,
                     evidence=True,
-                    timeout=40,
+                    timeout=timeout,
                 )
             )
         elif (ends := _probe_ends(self.net_env, host, intf)) is not None:
@@ -597,11 +606,11 @@ class LinkFlap(ProblemBase):
                 toward(
                     src,
                     "flap_peer",
-                    _burst_loss_ping("{ip}"),
+                    _burst_loss_ping("{ip}", count),
                     purpose,
                     _ON_OFF_LOSS,
                     evidence=True,
-                    timeout=40,
+                    timeout=timeout,
                 ),
             ]
         elif self.lab_backend != "containerlab":

@@ -3,7 +3,10 @@ scenario:
 failure:
   fault_type: k8s_coredns_isolated
   cases:
-  - inject:
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
       control_node: controller
       node_name: controller
       symptom_host: worker1

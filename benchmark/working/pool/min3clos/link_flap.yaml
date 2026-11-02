@@ -5,6 +5,7 @@ failure:
   cases:
   - traffic:
       pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: leaf1

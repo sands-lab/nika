@@ -4,6 +4,9 @@ failure:
   fault_type: host_incorrect_ip
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_1_1_1
     root_causes:
@@ -14,6 +17,9 @@ failure:
       fault_type: host_incorrect_ip
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_1_1_1
     root_causes:
@@ -24,6 +30,9 @@ failure:
       fault_type: host_incorrect_ip
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_1_1_1
     root_causes:
@@ -33,6 +42,9 @@ failure:
         name: eth0
       fault_type: host_incorrect_ip
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_2_2_1_2
     root_causes:
@@ -42,6 +54,9 @@ failure:
         name: eth0
       fault_type: host_incorrect_ip
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: pc_1_1_1_1
     root_causes:

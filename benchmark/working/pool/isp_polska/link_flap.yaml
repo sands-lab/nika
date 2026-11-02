@@ -9,8 +9,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: &id001
-      pattern: uniform
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: bialystok
@@ -30,7 +31,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: bialystok
@@ -50,7 +53,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: bialystok
@@ -70,7 +75,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: bydgoszcz
@@ -90,7 +97,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: bydgoszcz
@@ -110,7 +119,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: bydgoszcz
@@ -130,7 +141,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: gdansk
@@ -150,7 +163,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: gdansk
@@ -170,7 +185,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: katowice
@@ -190,7 +207,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: katowice
@@ -210,7 +229,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: katowice
@@ -230,7 +251,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: kolobrzeg
@@ -250,7 +273,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: krakow
@@ -270,7 +295,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: krakow
@@ -290,7 +317,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: lodz
@@ -310,7 +339,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: lodz
@@ -330,7 +361,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: poznan
@@ -350,7 +383,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: poznan
@@ -370,8 +405,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: &id002
-      pattern: uniform
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: bialystok
@@ -391,7 +427,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: bialystok
@@ -411,7 +449,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: bialystok
@@ -431,7 +471,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: bydgoszcz
@@ -451,7 +493,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: bydgoszcz
@@ -471,7 +515,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: bydgoszcz
@@ -491,7 +537,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: gdansk
@@ -511,7 +559,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: gdansk
@@ -531,7 +581,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: katowice
@@ -551,7 +603,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: katowice
@@ -571,7 +625,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: katowice
@@ -591,7 +647,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: kolobrzeg
@@ -611,7 +669,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: krakow
@@ -631,7 +691,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: krakow
@@ -651,7 +713,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: lodz
@@ -671,7 +735,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: lodz
@@ -691,7 +757,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: poznan
@@ -711,7 +779,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: poznan

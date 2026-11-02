@@ -5,24 +5,22 @@ healthy:
   - topo_size: s
     traffic:
       pattern: uniform
-  - topo_size: s
+      load_mbps: 1.0
   - topo_size: s
     device_profile: iosxr
     traffic:
       pattern: uniform
-  - topo_size: s
-    device_profile: iosxr
+      load_mbps: 1.0
   - topo_size: s
     device_profile: routeros
     traffic:
       pattern: uniform
-  - topo_size: s
-    device_profile: routeros
+      load_mbps: 1.0
   - topo_size: m
     traffic:
       pattern: uniform
-  - topo_size: m
+      load_mbps: 1.0
   - topo_size: l
     traffic:
       pattern: uniform
-  - topo_size: l
+      load_mbps: 1.0

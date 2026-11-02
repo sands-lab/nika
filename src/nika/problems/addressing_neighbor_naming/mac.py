@@ -11,7 +11,10 @@ from nika.problems.base import (
 )
 from nika.problems.support.benchmark_targets import (
     choice_distinct,
+    conflict_hosts,
     require_distinct_hosts,
+    segment_pair_options,
+    segment_host_pairs,
 )
 from nika.problems.support.oracle import (
     OraclePlaybook,
@@ -33,13 +36,11 @@ def _mac_of(output: str) -> str:
 
 
 def _mac_conflict_pair(net_env, rng: random.Random) -> tuple[str, str]:
-    """Prefer two distinct endpoint hosts so L2 MAC conflict is observable."""
-    hosts = list(net_env.hosts or [])
-    servers = net_env.servers or {}
-    for bucket in servers.values():
-        for name in bucket or []:
-            if name not in hosts:
-                hosts.append(name)
+    """Two hosts on one Layer-2 segment, so a third node sees the conflict."""
+    hosts = conflict_hosts(net_env)
+    pairs = segment_host_pairs(net_env, hosts)
+    if pairs:
+        return rng.choice(pairs)
     if len(hosts) >= 2:
         pair = choice_distinct(rng, hosts, hosts[0])
         return pair[0], pair[1]
@@ -84,6 +85,10 @@ class MacAddressConflict(ProblemBase):
     @classmethod
     def validate_benchmark_inject(cls, ctx, inject):
         require_distinct_hosts(ctx, cls.root_cause_name, inject)
+
+    @classmethod
+    def benchmark_inject_options(cls, ctx, base):
+        return segment_pair_options(ctx, base)
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)

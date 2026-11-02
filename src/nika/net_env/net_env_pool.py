@@ -640,6 +640,22 @@ def scenario_path_rate_limit_kbps(
     return cls.path_rate_limit_kbps(device_profile)
 
 
+def scenario_baseline_traffic(
+    scenario_name: str, device_profile: str | None = None
+) -> dict:
+    """Background traffic profile every generated case of the scenario runs.
+
+    See ``NetworkEnvBase.BASELINE_TRAFFIC``.
+    """
+    spec = _require_scenario(scenario_name)
+    binding = (spec.device_profiles or {}).get(device_profile or "")
+    if binding is None:
+        binding = spec.binding_for(spec.supported_backends[0])
+    return dict(
+        getattr(import_module(binding.module), binding.class_name).BASELINE_TRAFFIC
+    )
+
+
 def scenario_device_profiles(scenario_name: str) -> tuple[str, ...]:
     """Return native router profiles selectable for ``scenario_name`` on Kathara."""
     return tuple(sorted(_require_scenario(scenario_name).device_profiles or {}))

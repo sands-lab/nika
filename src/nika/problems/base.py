@@ -151,10 +151,10 @@ class ProblemBase:
     # symptom needs. In a scenario that declares a workload, benchmark targets
     # must be ones that traffic exercises (``symptom_workload_target``).
     SYMPTOM_WORKLOAD: ClassVar[str | None] = None
-    # Background traffic profile (``nika.traffic.profiles``) that generated
-    # cases of this failure run with, such as ``{"pattern": "uniform"}``.
-    # ``nika benchmark generate`` writes it into each case's ``traffic:``; a
-    # case without that field runs without a profile.
+    # Background traffic profile (``nika.traffic.profiles``) that replaces the
+    # environment's ``BASELINE_TRAFFIC`` in this failure's generated cases.
+    # Any difference from the baseline hints at the failure class, so set it
+    # only when the symptom cannot show under the baseline.
     TRAFFIC_PROFILE: ClassVar[dict[str, Any] | None] = None
 
     @classmethod

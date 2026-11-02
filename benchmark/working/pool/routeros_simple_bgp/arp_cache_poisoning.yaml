@@ -3,14 +3,20 @@ scenario:
 failure:
   fault_type: arp_cache_poisoning
   cases:
-  - inject:
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
       host_name: pc1
     root_causes:
     - resource:
         kind: node
         node: pc1
       fault_type: arp_cache_poisoning
-  - inject:
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
       host_name: pc2
     root_causes:
     - resource:

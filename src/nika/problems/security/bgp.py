@@ -170,7 +170,9 @@ class BGPHijacking(ProblemBase):
     @classmethod
     def validate_benchmark_inject(cls, ctx, inject):
         targets = _scenario_targets(ctx.net_env)
-        if targets:
+        # Rows without a target prefix (published before the scenario declared
+        # its hijacks) hijack the default target from an access router.
+        if targets and inject.get("target_network"):
             wanted = (inject.get("host_name"), inject.get("target_network"))
             if wanted not in {(t.hijacker, t.prefix) for t in targets}:
                 raise ValueError(
