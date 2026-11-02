@@ -244,7 +244,8 @@ Covers `nika benchmark run` / resume / release orchestration and runner YAML loa
 | `test_release.py` | Freeze/preflight/job metadata on mini releases |
 | `test_trials.py` | Trial / release runs: cases×K trials, resume, agent_failed retain, isolation, `runtime/benchmark_runs` progress; Docker E2E mini-release run |
 | `test_batch.py` | Parallel mock batch under shared `trials/` layout (`--config`, `n_trials=1`) |
-| `test_sandbox_benchmark.py` | Claude, Codex, OpenCode, and DeepSeek Harness sandbox single/parallel (`--batch-size 2`), on sbx and E2B |
+| `test_sandbox_benchmark.py` | Claude, Codex, OpenCode, and DeepSeek Harness sandbox single/parallel (`--batch-size 2`), and a `byo.langgraph` trial of a release that pins a benchmark engine, on sbx and E2B |
+| `test_engine_container_e2e.py` | An oracle trial of a release that pins a benchmark engine built from `HEAD`, run on the engine's container |
 | `test_curated_release_contract.py` | Test-only curated rows from `0.2.0` `test` split: subset contract, mock pack/validate, timeout+continue |
 | `test_curated_release_e2e.py` | Live Docker + `byo.langgraph` / DeepSeek on the curated subset (batch, resume, summary, pack/validate) |
 | `test_alias_load.py` | Reject legacy scenario aliases / invalid workload columns |

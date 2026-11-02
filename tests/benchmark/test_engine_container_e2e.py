@@ -8,22 +8,15 @@ oracle agent.
 from __future__ import annotations
 
 import json
-import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
-import yaml
 
-from nika.benchmark_engine.container import (
-    RUN_LABEL,
-    _git_commit,
-    image_id,
-    resolve_engine_image,
-)
-from nika.workflows.benchmark.release import RELEASES_DIR
+from nika.benchmark_engine.container import RUN_LABEL, image_id
 from nika.workflows.benchmark.run import run_benchmark_from_release
 from nika.workflows.benchmark.trials import is_valid_trial
+from tests.benchmark.trial_helpers import pinned_engine_release
 from tests.support.prerequisites import docker_available
 
 pytestmark = [
@@ -37,20 +30,7 @@ TASK = "dc_clos__receiver_resource_c__ha2be5b357067"
 def test_pinned_release_runs_on_engine_container(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    commit = _git_commit("HEAD")[:12]
-    engine = {"tag": commit, "api": {"version": 1}}
-    built = image_id(f"nika/benchmark-engine:{commit}") is None
-    image = resolve_engine_image(engine)
-    try:
-        release_dir = tmp_path / "releases" / "0.2.0"
-        shutil.copytree(RELEASES_DIR / "0.2.0", release_dir)
-        manifest = yaml.safe_load((release_dir / "RELEASE.yaml").read_text())
-        manifest["engine"] = {**engine, "image": image}
-        (release_dir / "RELEASE.yaml").write_text(yaml.safe_dump(manifest))
-        monkeypatch.setattr(
-            "nika.workflows.benchmark.release.RELEASES_DIR", tmp_path / "releases"
-        )
-
+    with pinned_engine_release(tmp_path, monkeypatch) as (commit, image):
         result_dir = tmp_path / "run"
         run_benchmark_from_release(
             release_ref="0.2.0",
@@ -84,13 +64,20 @@ def test_pinned_release_runs_on_engine_container(
         assert "Started network environment" in engine_log
         assert "Created new" in engine_log  # an MCP transport session
 
+        # This run's engine container, which mounts its results directory;
+        # other runs of the same release may use the label concurrently.
         running = subprocess.run(
-            ["docker", "ps", "-aq", "--filter", f"label={RUN_LABEL}=0.2.0"],
+            [
+                "docker",
+                "ps",
+                "-aq",
+                "--filter",
+                f"label={RUN_LABEL}=0.2.0",
+                "--filter",
+                f"volume={result_dir.resolve()}",
+            ],
             capture_output=True,
             text=True,
             check=True,
         )
         assert running.stdout.strip() == ""
-    finally:
-        if built:
-            subprocess.run(["docker", "image", "rm", image], check=False)

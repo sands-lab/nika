@@ -3,8 +3,13 @@
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
+import pytest
 import yaml
 
 ROW_A = {
@@ -59,3 +64,38 @@ def mini_cases_yaml(path: Path, rows: list[dict] | None = None) -> Path:
     payload = {"seed": 42, "cases": rows or [ROW_A, ROW_B]}
     path.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
     return path
+
+
+@contextmanager
+def pinned_engine_release(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[tuple[str, str]]:
+    """Release 0.2.0 pinned to a benchmark engine built from the committed ``HEAD``.
+
+    Yields the engine tag and image. Uncommitted changes are not in the image,
+    which is removed afterwards when this call built it.
+    """
+    from nika.benchmark_engine.container import (
+        _git_commit,
+        image_id,
+        resolve_engine_image,
+    )
+    from nika.workflows.benchmark.release import RELEASES_DIR
+
+    commit = _git_commit("HEAD")[:12]
+    engine = {"tag": commit, "api": {"version": 1}}
+    built = image_id(f"nika/benchmark-engine:{commit}") is None
+    image = resolve_engine_image(engine)
+    try:
+        release_dir = tmp_path / "releases" / "0.2.0"
+        shutil.copytree(RELEASES_DIR / "0.2.0", release_dir)
+        manifest = yaml.safe_load((release_dir / "RELEASE.yaml").read_text())
+        manifest["engine"] = {**engine, "image": image}
+        (release_dir / "RELEASE.yaml").write_text(yaml.safe_dump(manifest))
+        monkeypatch.setattr(
+            "nika.workflows.benchmark.release.RELEASES_DIR", tmp_path / "releases"
+        )
+        yield commit, image
+    finally:
+        if built:
+            subprocess.run(["docker", "image", "rm", image], check=False)
