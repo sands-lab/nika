@@ -24,6 +24,7 @@ from nika.validation.batfish.kathara import (
 )
 from nika.validation.batfish.snapshot import (
     _cumulus_frr_snapshot,
+    normalize_frr_for_batfish,
     _edge,
     prepare_snapshot,
 )
@@ -77,6 +78,13 @@ def project_vrf_imports(config: str) -> tuple[str, set[str]]:
 def build_overlay_snapshot(env, contract, root: Path, *, configs=None, shutdown=()):
     if shutdown:
         raise ValueError("The tunnel overlay projection models healthy state only")
+    from nika.net_env.native_routers import design_analyzed_routers
+
+    if design_analyzed_routers(env):
+        raise ValueError(
+            "The tunnel overlay projection does not model routers analyzed "
+            "through their routing design"
+        )
     root = prepare_snapshot(root)
     (root / "configs").mkdir(parents=True, exist_ok=True)
     (root / "batfish").mkdir(exist_ok=True)
@@ -90,8 +98,8 @@ def build_overlay_snapshot(env, contract, root: Path, *, configs=None, shutdown=
     tunnels: dict[str, list[tuple[str, str]]] = {}
     tunnel_addresses: dict[str, list[tuple[str, str]]] = {}
     for peer in env.bgp_import_peers():
-        wg = routers[peer.node].fs.readtext(f"etc/wireguard/{peer.interface}.conf")
-        (address,) = re.findall(r"^Address = ([0-9./]+)$", wg, re.M)
+        design = env.routing_design.router(peer.node)
+        address = design.interface(peer.interface).address
         network = str(IPv4Interface(address).network)
         tunnels.setdefault(network, []).append((peer.node, peer.interface))
         tunnel_addresses.setdefault(peer.node, []).append((address, peer.interface))
@@ -134,7 +142,7 @@ def build_overlay_snapshot(env, contract, root: Path, *, configs=None, shutdown=
                 + "\n".join(lines)
                 + "\n"
                 + statics
-                + config,
+                + normalize_frr_for_batfish(config),
             )
         )
     edges = link_edges(env, routers, aliases)

@@ -45,7 +45,7 @@ class RoutingFailureCheck(ContractModel):
     restore_nft_nodes: tuple[str, ...] = ()
     expected_failed_ids: tuple[str, ...] = Field(min_length=1)
     # Original intents the fault may or may not violate, depending on choices
-    # that completion does not pin down; their outcome is not checked.
+    # that completion does not pin down. Each still requires a concrete result.
     unconstrained_ids: tuple[str, ...] = ()
     static_edits: dict[str, tuple[str, str]] = Field(default_factory=dict)
 

@@ -1,0 +1,18 @@
+{
+  "digest": "8c4353fe856e042bc62bec47be3ac26c3b56a67bf43b9b3ff6fb028379df9594",
+  "netlab": "26.10",
+  "routers": [
+    "router_core_1",
+    "router_core_2",
+    "router_core_3",
+    "router_dist_1_1",
+    "router_dist_1_2",
+    "router_dist_1_3",
+    "router_dist_1_4",
+    "router_dist_2_1",
+    "router_dist_2_2",
+    "router_dist_2_3",
+    "router_dist_2_4",
+    "server_access_router"
+  ]
+}

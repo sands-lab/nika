@@ -108,6 +108,10 @@ class NetworkEnvBase:
         """Exact prefix ownership in the fixed BGP configuration sketch."""
         import re
 
+        design = getattr(self, "routing_design", None)
+        if design is not None:
+            return design.origin_prefixes()
+
         from nika.net_env.native_routers import router_sketches
 
         origins = {}

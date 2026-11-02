@@ -104,9 +104,18 @@ def assert_scenario_acceptance(
                 (output / f"model-{failure.name}.json").read_text()
             )
             predicted = {r.intent for r in model.results if r.status == "failed"}
-            assert expected <= predicted
-            expected = predicted
+            static_ids = {i.id for i in spec.healthy.intents}
+            assert predicted - set(failure.unconstrained_ids) == expected & static_ids
+            comparison = result["model_comparison"]
+            observed = set(result["failed_ids"]) & static_ids
+            assert set(comparison["only_model_failed_ids"]) == predicted - observed
+            assert set(comparison["only_runtime_failed_ids"]) == observed - predicted
         assert set(result["failed_ids"]) - set(failure.unconstrained_ids) == expected
+        impact = json.loads(
+            (output / f"impact-failure-{failure.name}.json").read_text()
+        )
+        assert impact["status"] == "passed"
+        assert set(impact["must_fail_ids"]) == expected
     for name in summary["runtime"]:
         report = check_report(output / f"runtime-{name}.json", runtime_states.get(name))
         assert summary["runtime"][name]["passed"] == len(report.results), name

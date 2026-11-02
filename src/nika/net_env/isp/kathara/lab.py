@@ -41,6 +41,7 @@ from nika.net_env.isp.traffic import (
     TrafficMatrixSeries,
     attach_traffic_stubs,
 )
+from nika.net_env.isp.rendered import IspRendered
 from nika.net_env.isp.contract import (
     IspValidationPolicy,
     build_isp_validation_contract,
@@ -69,7 +70,7 @@ def _stub_series_all_routers(plan: IspPlan) -> TrafficMatrixSeries:
     )
 
 
-class Isp(NetworkEnvBase):
+class Isp(IspRendered, NetworkEnvBase):
     ROUTING_PARAMETER_KINDS = frozenset({"ospf_costs", "isis_metrics", "bgp_imports"})
     LAB_NAME = "isp"
     TOPO_LEVEL = "medium"
@@ -87,6 +88,7 @@ class Isp(NetworkEnvBase):
         topo_size: str | None = None,
         scenario_id: str | None = None,
         routing_parameters: dict | None = None,
+        rendered: bool = True,
         **kwargs,
     ):
         # Ignore legacy kwargs from old sessions.
@@ -396,6 +398,10 @@ class Isp(NetworkEnvBase):
             )
 
         self.load_machines()
+        if rendered and routing_parameters is None:
+            from nika.net_env.synthesis.rendered import use_rendered_configs
+
+            use_rendered_configs(self, required=False)
 
     def _attach_customer_site(self, host_opts: dict) -> str | None:
         """Attach the eBGP customer site; return its interface on the provider."""

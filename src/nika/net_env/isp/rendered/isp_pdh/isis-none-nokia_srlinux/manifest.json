@@ -1,0 +1,17 @@
+{
+  "digest": "13344f0c26ce6bc9ad0cbc3566eb8d1bd24bee173f0dc77fb9f4c023974e9da4",
+  "netlab": "26.10",
+  "routers": [
+    "n1",
+    "n10",
+    "n11",
+    "n2",
+    "n3",
+    "n4",
+    "n5",
+    "n6",
+    "n7",
+    "n8",
+    "n9"
+  ]
+}

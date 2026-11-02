@@ -38,13 +38,23 @@ def _check_deployable(env) -> None:
     )
 
 
+def routeros_router_interface(name: str) -> str:
+    """Container name of a converted router's RouterOS port (``etherN+2`` is ``ethN``)."""
+    import re
+
+    if match := re.fullmatch(r"ether([2-9]|[1-9][0-9]+)", name):
+        return f"eth{int(match[1]) - 2}"
+    if name == "br0":
+        return name
+    raise ValueError(f"Unsupported RouterOS interface {name!r}")
+
+
 def _node(name: str, config: str) -> NativeRouterNode:
     """Concrete interfaces of a converted router under their container names."""
     import re
     import shlex
     from ipaddress import IPv4Address, IPv4Interface, IPv4Network
 
-    from nika.validation.batfish.routeros_isp import routeros_router_interface
     from nika.validation.batfish.vendor_bgp import vendor_addresses
 
     areas, networks, table = {}, [], "main"
@@ -74,35 +84,6 @@ def _node(name: str, config: str) -> NativeRouterNode:
     return NativeRouterNode(name, tuple(interfaces), route_tables=(("default", table),))
 
 
-def _projected_snapshot(project, config: str, shutdown) -> str:
-    """Return a projection of the RouterOS router as FRR snapshot content."""
-    import re
-
-    from nika.validation.batfish.snapshot import _cumulus_frr_snapshot
-
-    name = re.search(r"^/system identity set name=(\S+)$", config, re.M)
-    if name is None:
-        raise ValueError("RouterOS projection requires a concrete identity")
-    return _cumulus_frr_snapshot(
-        name[1],
-        "frr version 10.5\nfrr defaults traditional\n"
-        + project(name[1], config, shutdown=tuple(shutdown)),
-    )
-
-
-def _batfish_config(config: str, shutdown) -> str:
-    """Project the RouterOS router into FRR syntax under its container names."""
-    from nika.validation.batfish.routeros_isp import project_routeros_router
-
-    return _projected_snapshot(project_routeros_router, config, shutdown)
-
-
-def _static_underlay(config: str, shutdown) -> str:
-    from nika.validation.batfish.routeros_isp import project_routeros_static_underlay
-
-    return _projected_snapshot(project_routeros_static_underlay, config, shutdown)
-
-
 def _verify_contract(runtime, contract, plan):
     from nika.net_env.vendor_validation import verify_routeros_contract
 
@@ -128,14 +109,14 @@ PLATFORM = NativeRouterPlatform(
     verify_max_wait_sec=600,
     interface_rate_kbps=INTERFACE_RATE_KBPS,
     validation=NativeRouterValidation(
-        # The static model analyzes an FRR projection under container names.
+        # Batfish has no RouterOS parser; the static model analyzes the
+        # router's design rendered as FRR under its container names.
         interface=lambda name: name,
-        batfish_config=_batfish_config,
+        batfish_config=None,
         node=_node,
         verify_contract=_verify_contract,
         config_command=_config_command,
         route_inspection_command=CLI_COMMAND.format(command="/ip/route/print detail"),
-        static_underlay=_static_underlay,
     ),
     fault_ops=_fault_ops,
 )

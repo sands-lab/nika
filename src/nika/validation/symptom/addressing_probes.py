@@ -34,9 +34,8 @@ _ARP_COUNT = 4
 _FLAP_ECHOES = 50
 # While the bridge points the shared MAC at one port, echoes to both holders
 # reach that host and only its own are answered: about half of the pair's
-# echoes are lost, and each holder loses some. A healthy LAN loses none.
+# echoes are lost. A healthy LAN loses none.
 _MIN_PAIR_LOSS_PERCENT = 25.0
-_MIN_HOLDER_LOSS_PERCENT = 4.0
 
 
 def _valid_ipv4(text: str) -> str:
@@ -310,6 +309,26 @@ def _mac_conflict_reading(problem: Any, ends: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _holder_macs(problem: Any, ends: dict[str, Any]) -> dict[str, str | None]:
+    """The MAC each holder's address resolves to from the observer.
+
+    ARP requests are broadcast, so both holders receive and answer them
+    whichever port the bridge has learned for their MAC.
+    """
+    macs = {}
+    for role in ("owner", "claimant"):
+        ip = ends[f"{role}_ip"]
+        output = exec_or_empty(
+            problem.runtime,
+            ends["observer"],
+            f"ip neigh flush to {ip}; ping -c 1 -W 1 -q {ip} >/dev/null; "
+            f"ip neigh show to {ip}",
+        )
+        match = re.search(r"\blladdr (\S+)", output)
+        macs[f"{role}_mac"] = match.group(1).lower() if match else None
+    return macs
+
+
 def mac_conflict_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     """On the healthy segment the observer reaches the pair and the control."""
     ends = _mac_conflict_ends(problem, params)
@@ -320,30 +339,35 @@ def mac_conflict_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, An
         lambda: _mac_conflict_reading(problem, ends),
         lambda read: max((1e9 if v is None else v) for v in read.values()),
     )
+    macs = _holder_macs(problem, ends)
     ok = all(loss == 0.0 for loss in reading.values())
-    return ok, {**ends, "echoes": _FLAP_ECHOES, **reading}
+    return ok, {**ends, "echoes": _FLAP_ECHOES, **reading, **macs}
 
 
 def mac_conflict(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
-    """Traffic to both holders of the MAC is lost; the control's is not.
+    """Both addresses resolve to one MAC and traffic to the pair is lost.
 
     The bridge learns the shared MAC on whichever port sent last, so frames
-    for one host are delivered to the other while both answer traffic. A
-    wrong or stale MAC loses only one host's echoes; a conflict loses both.
+    for one host are delivered to the other. Which host loses traffic, and
+    whether the bridge moves during a reading, depends on when each host last
+    sent, so the reading requires the pair's loss and the shared ARP answer
+    rather than loss at each host. A wrong or stale MAC, or a host that is
+    down, does not answer ARP for both addresses with one MAC.
     """
     ends = getattr(problem, "_audit_mac_ends", None) or {}
     if not ends or "error" in ends:
         return False, {"error": "no_baseline_observer"}
     reading = _mac_conflict_reading(problem, ends)
+    macs = _holder_macs(problem, ends)
+    shared_mac = (
+        macs["owner_mac"] is not None and macs["owner_mac"] == macs["claimant_mac"]
+    )
     control_ok = reading["control_loss_percent"] == 0.0
     holders = [reading[f"{role}_loss_percent"] for role in ("owner", "claimant")]
     measured = None not in holders
     pair_loss = sum(holders) / 2 if measured else None
     verified = (
-        control_ok
-        and measured
-        and pair_loss >= _MIN_PAIR_LOSS_PERCENT
-        and min(holders) >= _MIN_HOLDER_LOSS_PERCENT
+        control_ok and measured and pair_loss >= _MIN_PAIR_LOSS_PERCENT and shared_mac
     )
     return verified, build_verify_result(
         fault_type=problem.root_cause_name,
@@ -352,9 +376,10 @@ def mac_conflict(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
             **ends,
             "echoes": _FLAP_ECHOES,
             **reading,
+            **macs,
+            "shared_mac": shared_mac,
             "pair_loss_percent": pair_loss,
             "min_pair_loss_percent": _MIN_PAIR_LOSS_PERCENT,
-            "min_holder_loss_percent": _MIN_HOLDER_LOSS_PERCENT,
             "control_ok": control_ok,
         },
     )

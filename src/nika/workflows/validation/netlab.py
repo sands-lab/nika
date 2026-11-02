@@ -41,6 +41,126 @@ def _ospf_binding(config, old, new):
     return block, block.replace(f" ip ospf area {area}\n", command)
 
 
+def analysis_device(device_profile: str, igp: str = "ospf") -> str:
+    """Return the syntax Batfish analyzes for a deployment's routers.
+
+    Batfish parses FRR and IOS XR but models IS-IS only for IOS XR. Other
+    deployments are analyzed through their design rendered by netlab: FRR for
+    OSPF, IOS XR for IS-IS.
+    """
+    return "iosxr" if device_profile == "iosxr" or igp == "isis" else "frr"
+
+
+def render_design_for_analysis(spec, env, parameters, directory):
+    """Render routers that Batfish cannot parse from their routing design.
+
+    Returns ``(configs, device)`` for those routers, or ``({}, None)`` when
+    Batfish parses every deployed router.
+    """
+    if spec.routing_model in {"srl-isp", "routeros-isp", "frr-isis"}:
+        from nika.net_env.isp.netlab import generate_netlab_configs
+
+        device = analysis_device(env.device_profile, env.plan.igp)
+        configs = generate_netlab_configs(
+            env.plan, env.bgp_plan, env.device_profile, directory, render_device=device
+        )
+        return configs, device
+    if spec.routing_model == "srl-bgp":
+        from nika.net_env.synthesis.netlab_srl import generate_srl_configs
+
+        return generate_srl_configs(env, parameters, directory, as_frr=True), "frr"
+    if spec.routing_model == "routeros-bgp":
+        from nika.net_env.synthesis.netlab_direct import generate_direct_bgp_configs
+
+        configs = generate_direct_bgp_configs(env, parameters, directory, as_frr=True)
+        return configs, "frr"
+    if getattr(env, "native_routers", None) and spec.routing_model == "frr":
+        from nika.net_env.native_routers import design_analyzed_routers
+        from nika.net_env.synthesis.netlab_kathara import generate_kathara_configs
+
+        analyzed = design_analyzed_routers(env)
+        if analyzed:
+            rendered = generate_kathara_configs(env, parameters, directory, as_frr=True)
+            return {name: rendered[name] for name in analyzed}, "frr"
+    return {}, None
+
+
+def bind_analysis_controls(spec, configs, device):
+    """Bind static controls on the rendered routers to the analyzed syntax."""
+    nodes = set(configs)
+    view = spec.model_copy(
+        update={
+            "counterexamples": tuple(
+                m for m in spec.counterexamples if m.node in nodes
+            ),
+            "failure_checks": tuple(
+                f.model_copy(
+                    update={
+                        "static_edits": {
+                            n: e for n, e in f.static_edits.items() if n in nodes
+                        }
+                    }
+                )
+                for f in spec.failure_checks
+            ),
+            "runtime_counterexamples": (),
+        }
+    )
+    bound = bind_netlab_controls(view, configs, device)
+    return spec.model_copy(
+        update={
+            "counterexamples": tuple(
+                m for m in spec.counterexamples if m.node not in nodes
+            )
+            + bound.counterexamples,
+            "failure_checks": tuple(
+                original.model_copy(
+                    update={
+                        "static_edits": {
+                            **original.static_edits,
+                            **rendered.static_edits,
+                        }
+                    }
+                )
+                for original, rendered in zip(spec.failure_checks, bound.failure_checks)
+            ),
+        }
+    )
+
+
+def _bind_routeros_runtime(controls, configs):
+    """Address netlab's RouterOS object names in native runtime controls."""
+    bound = []
+    for control in controls:
+        config = configs[control.node]
+        if control.name == "business-withdrawal" and "list=bgp-networks" in config:
+            control = control.model_copy(
+                update={
+                    key: tuple(
+                        c.replace("list=BGP-ORIGINS", "list=bgp-networks")
+                        for c in getattr(control, key)
+                    )
+                    for key in ("commands", "recovery")
+                }
+            )
+        elif control.name == "loopback-withdrawal":
+            (template,) = re.findall(
+                r"^/routing/ospf/interface-template add .*interface=loopback .*?$",
+                config,
+                re.M,
+            )
+            control = control.model_copy(
+                update={
+                    "commands": (
+                        "/routing/ospf/interface-template remove [find where interfaces=loopback]",
+                    ),
+                    "recovery": (template,),
+                }
+            )
+        bound.append(control)
+    return tuple(bound)
+
+
 def check_netlab_scope(spec, env):
     """Check the same supported construction scope in preparation and execution."""
     from nika.net_env.isp.igp.plan import IspPlan
@@ -61,14 +181,74 @@ def check_netlab_scope(spec, env):
 
         srl_topology(env)
     else:
-        if "import_preferences" in env.ROUTING_PARAMETER_KINDS:
-            from nika.net_env.synthesis.netlab_overlay import overlay_topology
+        from nika.net_env.synthesis.netlab_kathara import kathara_topology
 
-            overlay_topology(env)
-        else:
-            from nika.net_env.synthesis.netlab_kathara import kathara_topology
+        kathara_topology(env)
 
-            kathara_topology(env)
+
+def retained_capabilities(spec, env) -> list[dict[str, str]]:
+    """List the capabilities NIKA renders beside netlab output, with reasons."""
+    if getattr(env, "routing_design", None) is not None:
+        from nika.net_env.synthesis.netlab_kathara import (
+            retained_capabilities as design_capabilities,
+        )
+
+        return design_capabilities(env)
+    retained = []
+    if spec.routing_model in {"srl-bgp", "srl-isp"}:
+        retained.append(
+            (
+                "existing IPv6 interface addressing"
+                if spec.routing_model == "srl-bgp"
+                else "IGP ECMP capacity from the completed sketch",
+                "the pinned netlab SR Linux templates do not emit this attribute",
+            )
+        )
+    bgp_plan = getattr(env, "bgp_plan", None)
+    if spec.routing_model == "routeros-bgp" or (
+        getattr(env, "device_profile", None) == "routeros" and bgp_plan
+    ):
+        retained.append(
+            (
+                "BGP origins, exact-prefix admission and local-preference filters",
+                "netlab's routeros7 device declares no BGP advertise, prefix-list "
+                "or routing policy feature",
+            )
+        )
+    elif bgp_plan and any(p.session_type == "ibgp" for p in bgp_plan.sessions):
+        retained.append(
+            (
+                "iBGP attachment of upstream-generated admission policies",
+                "netlab's bgp.policy plugin binds policies to external peers only",
+            )
+        )
+    if getattr(env, "rpki", False) or getattr(env, "rtbh", False):
+        retained.append(
+            (
+                "RPKI/RTBH security policy and runtime attachments",
+                "netlab has no RPKI or RTBH module",
+            )
+        )
+    return [{"capability": c, "reason": r} for c, r in retained]
+
+
+def _bind_asn_edit(config, old, new):
+    """Rewrite every same-AS ``router bgp`` stanza that a generator emitted."""
+    bgp = re.fullmatch(r"router bgp (\d+)\n", old)
+    replacement = re.fullmatch(r"router bgp (\d+)\n", new)
+    if not (bgp and replacement and config.count(old) > 1):
+        return None
+    asn = bgp[1]
+    headers = re.findall(r"^router bgp (\d+)$", config, re.M)
+    if not headers or any(value != asn for value in headers):
+        raise ValueError("ASN fault does not identify same-AS router stanzas")
+    updated = re.sub(
+        rf"^router bgp {re.escape(asn)}$",
+        f"router bgp {replacement[1]}",
+        config,
+        flags=re.M,
+    )
+    return config, updated
 
 
 def _bind_frr_failure_edit(config, old, new):
@@ -96,20 +276,8 @@ def _bind_frr_failure_edit(config, old, new):
             if config.count(candidate_old) == 1:
                 return candidate_old, candidate_new
 
-    bgp = re.fullmatch(r"router bgp (\d+)\n", old)
-    replacement = re.fullmatch(r"router bgp (\d+)\n", new)
-    if bgp and replacement and config.count(old) > 1:
-        asn = bgp[1]
-        headers = re.findall(r"^router bgp (\d+)$", config, re.M)
-        if not headers or any(value != asn for value in headers):
-            raise ValueError("FRR ASN fault does not identify same-AS router stanzas")
-        updated = re.sub(
-            rf"^router bgp {re.escape(asn)}$",
-            f"router bgp {replacement[1]}",
-            config,
-            flags=re.M,
-        )
-        return config, updated
+    if asn_edit := _bind_asn_edit(config, old, new):
+        return asn_edit
 
     old_networks = re.findall(
         r"^\s*network\s+(\S+(?:\s+\S+)?)\s+area\s+(\S+)\s*$", old, re.M
@@ -176,6 +344,34 @@ def _frr_network(prefix):
     raise ValueError("Unsupported FRR OSPF network statement")
 
 
+def _frr_export_entry(config, old):
+    """Bind ``permit <prefix>`` to the outbound route-map entry that exports it."""
+    match = re.fullmatch(r"permit ([0-9./]+)", old.strip())
+    if not match:
+        raise ValueError("Export withdrawal must name the exported prefix")
+    lists = set(
+        re.findall(
+            rf"^ip prefix-list (\S+) seq [0-9]+ permit {re.escape(match[1])}$",
+            config,
+            re.M,
+        )
+    )
+    outbound = set(re.findall(r"^\s*neighbor \S+ route-map (\S+) out$", config, re.M))
+    entries = [
+        entry
+        for entry, policy, plist in re.findall(
+            r"^(route-map (\S+) permit [0-9]+)\n\s+match ip address prefix-list (\S+)$",
+            config,
+            re.M,
+        )
+        if policy in outbound and plist in lists
+    ]
+    if len(entries) != 1:
+        raise ValueError("Export withdrawal does not identify one outbound entry")
+    (entry,) = entries
+    return entry, entry.replace(" permit ", " deny ", 1)
+
+
 def _frr_bgp_network_line(config, old):
     match = re.fullmatch(r"\s*network ([0-9./]+)\s*", old)
     if not match:
@@ -208,16 +404,9 @@ def generate_configs(spec, env, parameters, directory):
     from nika.net_env.isp.igp.plan import IspPlan
 
     if isinstance(getattr(env, "plan", None), IspPlan):
-        from nika.net_env.isp.netlab import generate_netlab_configs
+        from nika.net_env.isp.netlab import generate_isp_configs
 
-        generated = generate_netlab_configs(
-            env.plan, env.bgp_plan, env.device_profile, directory
-        )
-        if env.backend == "containerlab":
-            from nika.net_env.synthesis.netlab_srl import retain_srl_attributes
-
-            generated = retain_srl_attributes(generated, env.routing_documents)
-        return generated
+        return generate_isp_configs(env, directory)
     if hasattr(env, "BGP_ROUTERS"):
         from nika.net_env.synthesis.netlab_direct import generate_direct_bgp_configs
 
@@ -228,23 +417,37 @@ def generate_configs(spec, env, parameters, directory):
         return generate_srl_configs(env, parameters, directory)
     from nika.net_env.synthesis.netlab_kathara import generate_kathara_configs
 
-    if "import_preferences" in env.ROUTING_PARAMETER_KINDS:
-        from nika.net_env.synthesis.netlab_overlay import generate_overlay_configs
-
-        return generate_overlay_configs(env, directory)
     return generate_kathara_configs(env, parameters, directory)
 
 
-def bind_netlab_controls(spec, configs, device_profile):
+def bind_netlab_controls(spec, configs, device_profile, *, analysis=None):
     """Keep original violation sets, changing only concrete mutation bindings.
 
     Custom fault bindings must already match the emitted candidate; unsupported
-    syntax is rejected by the regular experiment rather than skipped.
+    syntax is rejected by the regular experiment rather than skipped. For SR
+    Linux and RouterOS, ``analysis`` is the ``(configs, device)`` design
+    rendering that Batfish analyzes: static controls bind to it, and native
+    runtime controls bind to the generated device configuration.
     """
-    if device_profile == "nokia_srlinux":
-        from nika.workflows.validation.netlab_srl import bind_srl_controls
+    if analysis is not None and device_profile == "frr":
+        # FRR runtime controls need no rebinding for the rendered IS-IS design.
+        static = bind_analysis_controls(spec, *analysis)
+        return static.model_copy(
+            update={"runtime_counterexamples": spec.runtime_counterexamples}
+        )
+    if device_profile in {"nokia_srlinux", "routeros"}:
+        if analysis is None:
+            raise ValueError(
+                f"{device_profile} static controls bind to the rendered design"
+            )
+        if device_profile == "nokia_srlinux":
+            from nika.workflows.validation.netlab_srl import bind_srl_runtime
 
-        spec = bind_srl_controls(spec, configs)
+            runtime = bind_srl_runtime(spec.runtime_counterexamples, configs)
+        else:
+            runtime = _bind_routeros_runtime(spec.runtime_counterexamples, configs)
+        static = bind_analysis_controls(spec, *analysis)
+        return static.model_copy(update={"runtime_counterexamples": runtime})
     failures = []
     for failure in spec.failure_checks:
         edits = dict(failure.static_edits)
@@ -252,8 +455,10 @@ def bind_netlab_controls(spec, configs, device_profile):
             for node, (old, new) in edits.items():
                 edits[node] = _bind_frr_failure_edit(configs[node], old, new)
         else:
-            for node, (old, _) in edits.items():
-                if configs[node].count(old) != 1:
+            for node, (old, new) in edits.items():
+                if asn_edit := _bind_asn_edit(configs[node], old, new):
+                    edits[node] = asn_edit
+                elif configs[node].count(old) != 1:
                     raise ValueError(
                         "A modeled fault must identify one concrete statement per node"
                     )
@@ -266,36 +471,8 @@ def bind_netlab_controls(spec, configs, device_profile):
             static.append(mutation)
             continue
         old, new = mutation.old, mutation.new
-        if (
-            device_profile == "routeros"
-            and mutation.name == "missing-business-announcement"
-        ):
-            match = re.search(r"(?:network|address)=([0-9./]+)\s*$", mutation.old)
-            if not match:
-                raise ValueError(
-                    "RouterOS business announcement mutation has no prefix"
-                )
-            prefix = match[1]
-            (old,) = re.findall(
-                rf"^/ip/firewall/address-list add list=bgp-networks address={re.escape(prefix)}$",
-                config,
-                re.M,
-            )
-            new = ""
-            for i, control in enumerate(runtime):
-                if control.name == "business-withdrawal":
-                    runtime[i] = control.model_copy(
-                        update={
-                            "commands": tuple(
-                                command.replace("list=BGP-ORIGINS", "list=bgp-networks")
-                                for command in control.commands
-                            ),
-                            "recovery": tuple(
-                                command.replace("list=BGP-ORIGINS", "list=bgp-networks")
-                                for command in control.recovery
-                            ),
-                        }
-                    )
+        if device_profile == "frr" and mutation.name == "missing-export":
+            old, new = _frr_export_entry(config, old)
         elif (
             device_profile == "frr" and mutation.name == "missing-business-announcement"
         ):
@@ -305,39 +482,6 @@ def bind_netlab_controls(spec, configs, device_profile):
                     "Business withdrawal must remove the selected BGP line"
                 )
             new = ""
-        elif (
-            device_profile == "routeros"
-            and mutation.name == "missing-loopback-announcement"
-        ):
-            (old,) = re.findall(
-                r"^/routing/ospf/interface-template add .*interface=loopback .*?$",
-                config,
-                re.M,
-            )
-            new = ""
-            for i, control in enumerate(runtime):
-                if control.name == "loopback-withdrawal":
-                    runtime[i] = control.model_copy(
-                        update={
-                            "commands": (
-                                "/routing/ospf/interface-template remove [find where interfaces=loopback]",
-                            ),
-                            "recovery": (old,),
-                        }
-                    )
-        elif device_profile == "routeros" and mutation.name == "missing-rr-client-role":
-            adjacency = next(
-                i.adjacency
-                for i in spec.healthy.intents
-                if i.id in mutation.expected_failed_ids
-            )
-            peer = adjacency.remote_address.replace(".", "_")
-            (old,) = re.findall(
-                rf"^/routing/bgp/connection set .*name={re.escape(peer)}\].*local.role=ibgp-rr$",
-                config,
-                re.M,
-            )
-            new = old.replace("local.role=ibgp-rr", "local.role=ibgp")
         elif re.fullmatch(r"\s*network [0-9./]+ area [0-9.]+\s*", old):
             old, new = _ospf_binding(config, old, new)
         elif mutation.name == "missing-loopback-announcement":

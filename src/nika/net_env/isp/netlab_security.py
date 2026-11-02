@@ -102,12 +102,13 @@ def apply_netlab_security_overlay(
                 lines.extend(_rpki_reject_route_map(policy))
         if node_plan.export_deny_prefixes:
             maps = sorted({row["out"] for row in bindings.values() if "out" in row})
-            if not maps:
-                if any(row.get("type") == "ebgp" for row in neighbors):
-                    raise ValueError(
-                        f"Export deny overlay has no output policy on {name}"
-                    )
-            else:
+            if not maps and any(row.get("type") == "ebgp" for row in neighbors):
+                raise ValueError(f"Export deny overlay has no output policy on {name}")
+            if not maps and re.search(r"^route-map BGP-OUT-ipv4 ", config, re.M):
+                # The design defines the leak denial on every router's export
+                # policy, including routers without external peers.
+                maps = ["BGP-OUT-ipv4"]
+            if maps:
                 _require_business_list(config, name)
                 lines.extend(_leak_prefix_list(tuple(node_plan.export_deny_prefixes)))
                 for policy in maps:

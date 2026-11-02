@@ -124,14 +124,9 @@ def verify_srl_contract(runtime, *, contract, plan=None):
             if intent.bgp_route:
                 expected = intent.bgp_route
                 paths = selected_as_paths(json.loads(result.output), expected.prefix)
-                passed = bool(paths) == expected.present and all(
-                    (expected.exit_asn is None or path[:1] == (expected.exit_asn,))
-                    and (
-                        expected.origin_asn is None
-                        or path[-1:] == (expected.origin_asn,)
-                    )
-                    for path in paths
-                )
+                if not expected.selected:
+                    raise ValueError("Native checks read selected BGP paths only")
+                passed = expected.satisfied_by(paths)
                 evidence.update(selected_as_paths=paths, expected=expected.model_dump())
             elif intent.route_next_hops:
                 expected = intent.route_next_hops

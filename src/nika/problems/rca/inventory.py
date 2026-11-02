@@ -277,8 +277,13 @@ def load_offline_net_env(
     rpki: bool | None = None,
     backend: str | None = None,
     device_profile: str | None = None,
+    rendered: bool = True,
 ):
-    """Instantiate a scenario without deploying, for GT generation and migration."""
+    """Instantiate a scenario without deploying, for GT generation and migration.
+
+    ``rendered=False`` keeps NIKA's own router rendering instead of the stored
+    netlab configurations, for scenarios that store them.
+    """
     from nika.net_env.isp.identity import (
         is_isp_named_special,
         is_isp_scenario,
@@ -307,6 +312,8 @@ def load_offline_net_env(
     )
     if device_profile is not None:
         kwargs["device_profile"] = device_profile
+    if not rendered:
+        kwargs["rendered"] = False
     net_env = get_net_env_instance(scenario, **kwargs)
     if getattr(net_env, "lab", None) is not None:
         net_env.load_machines()
