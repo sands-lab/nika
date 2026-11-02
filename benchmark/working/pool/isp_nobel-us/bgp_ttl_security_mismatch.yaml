@@ -10,32 +10,6 @@ failure:
     backend: kathara
     device_profile: frr
     inject:
-      host_name: ann_arbor
-    root_causes:
-    - resource:
-        kind: node
-        node: ann_arbor
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: s
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: atlanta
-    root_causes:
-    - resource:
-        kind: node
-        node: atlanta
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: s
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    inject:
       host_name: boulder
     root_causes:
     - resource:
@@ -67,19 +41,6 @@ failure:
     - resource:
         kind: node
         node: ithaca
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: s
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: lincoln
-    root_causes:
-    - resource:
-        kind: node
-        node: lincoln
       fault_type: bgp_ttl_security_mismatch
   - topo_size: s
     igp: ospf
@@ -192,32 +153,6 @@ failure:
     backend: kathara
     device_profile: iosxr
     inject:
-      host_name: ann_arbor
-    root_causes:
-    - resource:
-        kind: node
-        node: ann_arbor
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: s
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: iosxr
-    inject:
-      host_name: atlanta
-    root_causes:
-    - resource:
-        kind: node
-        node: atlanta
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: s
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: iosxr
-    inject:
       host_name: boulder
     root_causes:
     - resource:
@@ -249,19 +184,6 @@ failure:
     - resource:
         kind: node
         node: ithaca
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: s
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: iosxr
-    inject:
-      host_name: lincoln
-    root_causes:
-    - resource:
-        kind: node
-        node: lincoln
       fault_type: bgp_ttl_security_mismatch
   - topo_size: s
     igp: ospf

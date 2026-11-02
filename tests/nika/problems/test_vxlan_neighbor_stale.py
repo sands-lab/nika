@@ -87,3 +87,25 @@ def test_inject_skips_macs_already_on_flannel() -> None:
     assert problem.injected_mac not in {_PEER_MAC, _NODE_MAC, colliding}
     assert problem.injected_mac in runtime.replaced[-1]
     assert "nud permanent" in runtime.replaced[-1]
+
+
+def test_oracle_compares_neighbor_with_observed_peer_and_existing_fdb():
+    problem = VxlanNeighborStale(None)
+    params = VxlanNeighborStaleParams(node_name="worker1", peer_name="worker2")
+    step = problem.oracle_playbook(params).steps[1]
+    output = (
+        f"peer_vtep={_PEER_VTEP} peer_mac={_PEER_MAC}\n"
+        f"{_PEER_VTEP} lladdr {_OTHER_MAC} PERMANENT\n"
+        f"FDB\n192.0.2.2 lladdr {_PEER_MAC} PERMANENT\n"
+        f"10.42.7.0/24 via {_PEER_VTEP} onlink\n"
+    )
+    assert step.expect(output)
+    assert not step.expect(
+        output.replace(f"lladdr {_OTHER_MAC}", f"lladdr {_PEER_MAC}")
+    )
+    assert not step.expect(
+        output.replace(
+            f"lladdr {_PEER_MAC} PERMANENT", f"lladdr {_OTHER_MAC} PERMANENT"
+        )
+    )
+    assert not step.expect(output.replace(f"via {_PEER_VTEP}", "via 10.42.8.0"))

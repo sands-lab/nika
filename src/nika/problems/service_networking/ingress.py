@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import shlex
 from urllib.parse import urlsplit
 
 from nika.problems.base import FailureDomain
@@ -12,6 +14,13 @@ from nika.problems.support.kubernetes.objects import (
     LAST_APPLIED,
     edit_spec,
     restore_spec,
+)
+from nika.problems.support.oracle import (
+    Check,
+    OraclePlaybook,
+    OracleStep,
+    contains,
+    shell,
 )
 
 RATE_ANNOTATION = "nginx.ingress.kubernetes.io/limit-rpm"
@@ -102,6 +111,108 @@ class IngressRateLimitMisconfig(K8sProblemBase):
 
     def root_cause_resources(self, params):
         return [node_resource(self.control_node(params))]
+
+    def oracle_playbook(self, params: K8sParams) -> OraclePlaybook:
+        control = self.control_node(params)
+        routes = workload_routes(self.net_env)
+        projection = f"""
+import json, sys
+data = json.load(sys.stdin)
+for obj in data['items']:
+    meta = obj['metadata']
+    annotation = meta.get('annotations', {{}}).get({RATE_ANNOTATION!r})
+    annotations = {{{RATE_ANNOTATION!r}: annotation}} if annotation is not None else {{}}
+    obj['metadata'] = {{'name': meta['name'], 'namespace': meta['namespace'], 'annotations': annotations}}
+    obj.pop('status', None)
+print(json.dumps(data, separators=(',', ':')))
+"""
+
+        def limited_routes(output):
+            found = []
+            for obj in json.loads(output)["items"]:
+                annotation = (
+                    obj["metadata"].get("annotations", {}).get(RATE_ANNOTATION, "")
+                )
+                if not annotation.isdigit():
+                    continue
+                for rule in obj["spec"].get("rules", []):
+                    for path in rule.get("http", {}).get("paths", []):
+                        route = routes.get(
+                            (rule.get("host", ""), path.get("path", "/"))
+                        )
+                        if route and 0 < int(annotation) < route[2]:
+                            found.append((route, int(annotation)))
+            return found
+
+        def burst_args(outputs):
+            (client, url, _), limit = limited_routes(outputs["ingress_policy"])[0]
+            script = f"""
+import collections, concurrent.futures, json, urllib.request, urllib.error
+def request(_):
+    try:
+        with urllib.request.urlopen({url!r}, timeout=3) as response:
+            response.read()
+            return response.status
+    except urllib.error.HTTPError as error:
+        return error.code
+    except Exception:
+        return 0
+with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:
+    print(json.dumps(dict(collections.Counter(pool.map(request, range({4 * (5 * limit + 1)}))))))
+"""
+            return {
+                "host_name": client,
+                "command": f"python3 -c {shlex.quote(script)}",
+                "timeout": 90,
+            }
+
+        def log_args(outputs):
+            (_, url, _), _ = limited_routes(outputs["ingress_policy"])[0]
+            return {
+                "host_name": control,
+                "command": "kubectl logs -n ingress-nginx -l app.kubernetes.io/component=controller --since=180s --tail=1000 "
+                f"| grep -F {shlex.quote(urlsplit(url).path)} | grep 'limiting requests' | tail -10",
+                "timeout": 30,
+            }
+
+        return OraclePlaybook(
+            finding="The Ingress minute-rate limit is below declared application demand. NGINX rejects requests on that route with its rate limiter.",
+            steps=[
+                shell(
+                    control,
+                    f"kubectl get ingress -A -o json | python3 -c {shlex.quote(projection)}",
+                    "Read rate-limit annotations on Ingress routes used by application clients.",
+                    Check(
+                        "A live Ingress limit is positive but below the declared request rate for its route.",
+                        lambda o: bool(limited_routes(o)),
+                    ),
+                    evidence=True,
+                    save_as="ingress_policy",
+                    timeout=30,
+                ),
+                OracleStep(
+                    "Send an HTTP burst from the application's client to the observed limited route.",
+                    "exec_shell",
+                    burst_args,
+                    Check(
+                        "Some HTTP requests return 503.",
+                        lambda o: json.loads(o).get("503", 0) > 0,
+                    ),
+                    attempts=3,
+                ),
+                OracleStep(
+                    "Read the controller's rate-limiter diagnostics for the application path.",
+                    "exec_shell",
+                    log_args,
+                    contains(
+                        r"limiting requests.*by zone",
+                        "NGINX reports rate-limiter rejection on this route, distinguishing rate policy from unavailable backends or a wrong IngressClass.",
+                    ),
+                    evidence=True,
+                    attempts=12,
+                ),
+            ],
+        )
 
     def inject_fault(self, params):
         self.control_node(params)

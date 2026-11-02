@@ -7,26 +7,6 @@ failure:
     backend: kathara
     device_profile: frr
     inject:
-      host_name: at1_at
-    root_causes:
-    - resource:
-        kind: node
-        node: at1_at
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: be1_be
-    root_causes:
-    - resource:
-        kind: node
-        node: be1_be
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    backend: kathara
-    device_profile: frr
-    inject:
       host_name: ch1_ch
     root_causes:
     - resource:
@@ -77,46 +57,6 @@ failure:
     backend: kathara
     device_profile: frr
     inject:
-      host_name: gr1_gr
-    root_causes:
-    - resource:
-        kind: node
-        node: gr1_gr
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: hr1_hr
-    root_causes:
-    - resource:
-        kind: node
-        node: hr1_hr
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: hu1_hu
-    root_causes:
-    - resource:
-        kind: node
-        node: hu1_hu
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: ie1_ie
-    root_causes:
-    - resource:
-        kind: node
-        node: ie1_ie
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    backend: kathara
-    device_profile: frr
-    inject:
       host_name: il1_il
     root_causes:
     - resource:
@@ -137,41 +77,11 @@ failure:
     backend: kathara
     device_profile: frr
     inject:
-      host_name: lu1_lu
-    root_causes:
-    - resource:
-        kind: node
-        node: lu1_lu
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    backend: kathara
-    device_profile: frr
-    inject:
       host_name: nl1_nl
     root_causes:
     - resource:
         kind: node
         node: nl1_nl
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: ny1_ny
-    root_causes:
-    - resource:
-        kind: node
-        node: ny1_ny
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: pl1_pl
-    root_causes:
-    - resource:
-        kind: node
-        node: pl1_pl
       fault_type: bgp_ttl_security_mismatch
   - topo_size: m
     backend: kathara
@@ -192,16 +102,6 @@ failure:
     - resource:
         kind: node
         node: se1_se
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: si1_si
-    root_causes:
-    - resource:
-        kind: node
-        node: si1_si
       fault_type: bgp_ttl_security_mismatch
   - topo_size: m
     backend: kathara

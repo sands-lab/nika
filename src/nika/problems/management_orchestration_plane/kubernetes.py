@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import re
+import shlex
 from collections.abc import Callable, Mapping
 from typing import Any, ClassVar
 
@@ -28,6 +30,7 @@ from nika.problems.base import (
     FailureDomain,
 )
 from nika.problems.support.oracle import (
+    Check,
     OraclePlaybook,
     OracleStep,
     contains,
@@ -45,6 +48,47 @@ APISERVER_PORT = 6443
 #: budget than the class default.
 NODE_NOTREADY_TIMEOUT_SEC: float = 240.0
 LOGS_REQUEST_TIMEOUT_SEC = 10
+
+
+def _oracle_workload_query(resources: str, fields: str) -> str:
+    """Read workload evidence without annotations or unrelated specification fields."""
+    script = f"""
+import json, sys
+keys = set('kind items metadata name namespace labels deletionTimestamp spec status {fields}'.split())
+def compact(value):
+    if isinstance(value, list):
+        return [compact(item) for item in value]
+    if isinstance(value, dict):
+        return {{k: v if k in {{'labels', 'selector', 'matchLabels'}} else compact(v) for k, v in value.items() if k in keys}}
+    return value
+data = json.load(sys.stdin)
+data['items'] = [o for o in data['items'] if o.get('kind') != 'Event' or 'readiness probe failed' in o.get('message', '').lower()]
+if 'taints' in keys:
+    data['items'] = [o for o in data['items'] if o['kind'] != 'Pod' or o.get('status', {{}}).get('phase') == 'Pending']
+if 'readinessProbe' in keys:
+    namespaces = set()
+    for pod in data['items']:
+        if pod['kind'] != 'Pod':
+            continue
+        statuses = pod.get('status', {{}}).get('containerStatuses', [])
+        if not statuses or not all(s.get('state', {{}}).get('running') and not s.get('ready') for s in statuses):
+            continue
+        for container in pod['spec']['containers']:
+            probe = container.get('readinessProbe', {{}})
+            port = next((probe[h].get('port') for h in ('httpGet', 'tcpSocket', 'grpc') if h in probe), None)
+            if isinstance(port, int) and port not in {{p['containerPort'] for p in container.get('ports', [])}}:
+                namespaces.add(pod['metadata']['namespace'])
+    data['items'] = [o for o in data['items'] if o.get('metadata', {{}}).get('namespace') in namespaces]
+selector_keys = {{k for o in data['items'] if o['kind'] == 'Deployment' for k in o['spec']['selector']['matchLabels']}}
+for obj in data['items']:
+    if obj['kind'] == 'Pod':
+        obj['metadata'].pop('name', None)
+        obj['metadata']['labels'] = {{k: v for k, v in obj['metadata'].get('labels', {{}}).items() if k in selector_keys}}
+    if obj['kind'] == 'Node':
+        obj['status']['conditions'] = [c for c in obj['status'].get('conditions', []) if c.get('type') == 'Ready']
+print(json.dumps(compact(data), separators=(',', ':')))
+"""
+    return f"kubectl get {resources} -A -o json | python3 -c {shlex.quote(script)}"
 
 
 class WorkerApiServerPartitionParams(K8sParams):
@@ -648,6 +692,57 @@ class DeploymentReplicasZero(K8sProblemBase):
             raise UnresolvedRootCauseError("No Kubernetes control-plane node.")
         return [node_resource(control)]
 
+    def oracle_playbook(self, params: DeploymentReplicasZeroParams) -> OraclePlaybook:
+        def scaled_zero(output):
+            items = json.loads(output)["items"]
+            for deploy in items:
+                if deploy["kind"] != "Deployment":
+                    continue
+                meta, spec = deploy["metadata"], deploy["spec"]
+                if params.deployment_name and meta["name"] != params.deployment_name:
+                    continue
+                if params.namespace and meta["namespace"] != params.namespace:
+                    continue
+                status = deploy.get("status", {})
+                labels = spec["selector"]["matchLabels"]
+                if (
+                    spec.get("replicas") == 0
+                    and status.get("observedGeneration", 0) >= meta["generation"]
+                    and status.get("replicas", 0) == 0
+                    and not any(
+                        p["kind"] == "Pod"
+                        and p["metadata"]["namespace"] == meta["namespace"]
+                        and all(
+                            p["metadata"].get("labels", {}).get(k) == v
+                            for k, v in labels.items()
+                        )
+                        for p in items
+                    )
+                ):
+                    return True
+            return False
+
+        return OraclePlaybook(
+            finding="The Deployment explicitly requests zero replicas and has no Pods. The controller has converged to that requested scale.",
+            steps=[
+                shell(
+                    self.control_node(params),
+                    _oracle_workload_query(
+                        "deployments,pods",
+                        "replicas observedGeneration generation selector matchLabels template",
+                    ),
+                    "Read desired replica counts, controller generations, and remaining workload Pods.",
+                    Check(
+                        "A Deployment requests zero replicas and has no remaining Pods, distinguishing explicit scale-down from failed readiness or scheduling.",
+                        scaled_zero,
+                    ),
+                    evidence=True,
+                    attempts=36,
+                    timeout=30,
+                )
+            ],
+        )
+
     def inject_fault(self, params: DeploymentReplicasZeroParams) -> None:
         k8s = self.runtime.lab_api
         control = self.control_node(params)
@@ -845,6 +940,65 @@ class NodeNoExecuteTaint(K8sProblemBase):
             )
         return [node_resource(node)]
 
+    def oracle_playbook(self, params: NodeNoExecuteTaintParams) -> OraclePlaybook:
+        def taint_blocks_workload(output):
+            items = json.loads(output)["items"]
+            for node in items:
+                if node["kind"] != "Node":
+                    continue
+                meta = node["metadata"]
+                if params.node_name and params.node_name not in {
+                    meta["name"],
+                    meta.get("labels", {}).get("kubernetes.io/hostname"),
+                }:
+                    continue
+                if not any(
+                    c["type"] == "Ready" and c["status"] == "True"
+                    for c in node.get("status", {}).get("conditions", [])
+                ) or not any(
+                    t.get("key") == params.taint_key
+                    and t.get("value") == params.taint_value
+                    and t.get("effect") == "NoExecute"
+                    for t in node["spec"].get("taints", [])
+                ):
+                    continue
+                if any(
+                    p["kind"] == "Pod"
+                    and p.get("status", {}).get("phase") == "Pending"
+                    and any(
+                        c.get("type") == "PodScheduled"
+                        and c.get("status") == "False"
+                        and c.get("reason") == "Unschedulable"
+                        and "untolerated taint" in c.get("message", "").lower()
+                        and params.taint_key in c.get("message", "")
+                        for c in p.get("status", {}).get("conditions", [])
+                    )
+                    for p in items
+                ):
+                    return True
+            return False
+
+        return OraclePlaybook(
+            finding="A Ready node carries an untolerated NoExecute taint. The evicted workload remains Pending because scheduling rejects that taint.",
+            steps=[
+                shell(
+                    self.control_node(params),
+                    _oracle_workload_query(
+                        "nodes,pods",
+                        "taints key value effect conditions type reason message phase",
+                    ),
+                    "Read node readiness and taints, then check the Pending workload's scheduling condition.",
+                    Check(
+                        "The node is Ready with a NoExecute taint, and a Pending Pod reports that taint as untolerated, distinguishing eviction from node failure.",
+                        taint_blocks_workload,
+                    ),
+                    evidence=True,
+                    attempts=36,
+                    timeout=30,
+                )
+            ],
+        )
+
     def inject_fault(self, params: NodeNoExecuteTaintParams) -> None:
         k8s = self.runtime.lab_api
         control = self.control_node(params)
@@ -966,6 +1120,89 @@ class ReadinessProbeMisconfig(K8sProblemBase):
 
     def root_cause_resources(self, params):
         return [node_resource(self.control_node(params))]
+
+    def oracle_playbook(self, params: ReadinessProbeMisconfigParams) -> OraclePlaybook:
+        def bad_readiness(output):
+            items = json.loads(output)["items"]
+            for deploy in items:
+                if (
+                    deploy["kind"] != "Deployment"
+                    or deploy["spec"].get("replicas", 1) < 1
+                ):
+                    continue
+                meta = deploy["metadata"]
+                if params.deployment_name and meta["name"] != params.deployment_name:
+                    continue
+                if params.namespace and meta["namespace"] != params.namespace:
+                    continue
+                labels = deploy["spec"]["selector"]["matchLabels"]
+                pods = [
+                    p
+                    for p in items
+                    if p["kind"] == "Pod"
+                    and p["metadata"]["namespace"] == meta["namespace"]
+                    and not p["metadata"].get("deletionTimestamp")
+                    and all(
+                        p["metadata"].get("labels", {}).get(k) == v
+                        for k, v in labels.items()
+                    )
+                ]
+                if not pods:
+                    continue
+                for pod in pods:
+                    statuses = pod.get("status", {}).get("containerStatuses", [])
+                    if not statuses or not all(
+                        s.get("state", {}).get("running") and not s.get("ready")
+                        for s in statuses
+                    ):
+                        break
+                    container = pod["spec"]["containers"][0]
+                    probe = container.get("readinessProbe", {})
+                    port = next(
+                        (
+                            probe[h].get("port")
+                            for h in ("httpGet", "tcpSocket", "grpc")
+                            if h in probe
+                        ),
+                        None,
+                    )
+                    if not isinstance(port, int) or port in {
+                        p["containerPort"] for p in container.get("ports", [])
+                    }:
+                        break
+                    if not any(
+                        e["kind"] == "Event"
+                        and e.get("involvedObject", {}).get("uid")
+                        == pod["metadata"]["uid"]
+                        and "readiness probe failed" in e.get("message", "").lower()
+                        and str(port) in e.get("message", "")
+                        for e in items
+                    ):
+                        break
+                else:
+                    return True
+            return False
+
+        return OraclePlaybook(
+            finding="The Deployment requests running replicas, but readiness probes address an undeclared port and kubelet reports probe connection failures on that port.",
+            steps=[
+                shell(
+                    self.control_node(params),
+                    _oracle_workload_query(
+                        "deployments,pods,events",
+                        "replicas selector matchLabels containers ports containerPort readinessProbe httpGet tcpSocket grpc port path containerStatuses ready state running startedAt involvedObject message uid",
+                    ),
+                    "Compare Pod readiness probes with application ports and kubelet probe-failure events.",
+                    Check(
+                        "Running containers are unready with failed readiness probes on an undeclared port, distinguishing probe misconfiguration from zero replicas or application crashes.",
+                        bad_readiness,
+                    ),
+                    evidence=True,
+                    attempts=36,
+                    timeout=30,
+                )
+            ],
+        )
 
     def inject_fault(self, params):
         import copy

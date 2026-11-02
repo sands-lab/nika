@@ -23,6 +23,7 @@ from nika.problems.support.oracle import (
     contains,
     lacks,
     ping_fails,
+    router_cli,
     shell,
     vtysh,
 )
@@ -106,6 +107,56 @@ def _bgp_peers(net_env, host: str) -> list[str]:
             }
         )
     return [peer for _intf, peer, _peer_intf in linked_routers(net_env, host)]
+
+
+# Read password presence without disclosing RouterOS's sensitive key value.
+_ORACLE_ROS_PASSWORDS = (
+    ":foreach c in=[/routing bgp connection find] do={ "
+    ':put ("peer=" . [/routing bgp connection get $c remote.address] . '
+    '" md5=" . ([:len [/routing bgp connection get $c tcp-md5-key]] > 0)) }'
+)
+
+
+def _oracle_bgp_peers(net_env, host: str) -> list[str]:
+    """Include logical BGP peers when sessions run over overlay interfaces."""
+    declared = getattr(net_env, "bgp_import_peers", lambda: ())()
+    local = [peer for peer in declared if peer.node == host]
+    remote = {
+        peer.node
+        for peer in declared
+        if peer.node != host
+        and any(
+            peer.local_asn == target.remote_asn and peer.remote_asn == target.local_asn
+            for target in local
+        )
+    }
+    return sorted(remote) if remote else _bgp_peers(net_env, host)
+
+
+def _oracle_password_peers(output: str) -> list[str]:
+    """Neighbors with authentication in observed FRR, XR, or RouterOS output."""
+    peers = re.findall(r"^\s*neighbor (\S+) password \S+", output, re.M)
+    peers += [
+        peer
+        for peer, body in re.findall(
+            r"^ neighbor (\S+)\n(.*?)^ !$", output, re.M | re.S
+        )
+        if re.search(r"^  password \S+", body, re.M)
+    ]
+    peers += [
+        peer.split("@", 1)[0].split("/", 1)[0]
+        for peer in re.findall(r"^peer=(\S+) md5=true\s*$", output, re.M)
+    ]
+    return sorted(set(peers))
+
+
+def _oracle_bgp_config(output: str) -> bool:
+    """Require a recognizable neighbor before checking absent settings."""
+    return bool(
+        re.search(r"^\s*neighbor \S+ (?:remote-as|interface)", output, re.M)
+        or re.search(r"^ neighbor \S+\n\s+remote-as ", output, re.M)
+        or re.search(r"^peer=\S+ md5=(?:true|false)\s*$", output, re.M)
+    )
 
 
 # A ``show bgp summary`` row whose session is not Established.
@@ -2502,9 +2553,14 @@ class BGPMaxPrefixExceeded(ProblemBase):
                 f"received prefixes already >= maximum-prefix {limit} before flood."
             )
 
-        bounded_parallel_map(
-            self._install_flood_policy, self._bgp_routers(receiver, peer)
-        )
+        routers = self._bgp_routers(receiver, peer)
+        # Native routers other than the endpoints get the flood permit too;
+        # recovery restores their saved configuration.
+        for host in routers:
+            ops = native_fault_ops(self, host, "save_config")
+            if ops is not None and host not in self._saved_native_configs:
+                self._saved_native_configs[host] = ops.save_config()
+        bounded_parallel_map(self._install_flood_policy, routers)
         self._advertise_flood(peer, peer_asn, prefixes)
 
         self._wait_session_state(
@@ -2586,6 +2642,71 @@ class BGPMaxPrefixExceeded(ProblemBase):
 
     def oracle_playbook(self, params: BGPMaxPrefixExceededParams) -> OraclePlaybook:
         receiver, peer, neighbor_ip = self._resolve_session(params)
+        from nika.problems.support.router_ops import native_router_profile
+
+        if native_router_profile(self.net_env, receiver):
+            return OraclePlaybook(
+                finding=(
+                    f"{receiver} holds its session to {peer} down because the "
+                    "peer exceeded its terminating prefix limit."
+                ),
+                steps=[
+                    router_cli(
+                        self.net_env,
+                        receiver,
+                        f"Read the prefix limit on {receiver}'s session to {peer}.",
+                        contains(
+                            r"maximum-prefix \d+|input.limit-process-routes-ipv4=\d+",
+                            "the receiver configures a terminating prefix limit",
+                        ),
+                        frr=vtysh("show running-config"),
+                        iosxr_command="show running-config router bgp",
+                        routeros_command=(
+                            "/routing/bgp/connection/print terse where "
+                            f'remote.address="{neighbor_ip}"'
+                        ),
+                        evidence=True,
+                    ),
+                    router_cli(
+                        self.net_env,
+                        receiver,
+                        f"Read why {receiver} holds the session to {peer} down.",
+                        all_of(
+                            contains(
+                                r"peer had exceeded the max\. no\. of prefixes configured"
+                                r"|^(?=[^\n]*remote\.address=)[^\n]*"
+                                r"(?:^|\s)limit-exceeded(?:\s|$)",
+                                "the session reports prefix overflow, distinguishing "
+                                "it from authentication, TTL, and ACL failures",
+                            ),
+                            contains(
+                                r"BGP state = Idle\b|^prefix-limit-established=0\s*$",
+                                "the session is down now, rather than carrying a historical reset reason",
+                            ),
+                        ),
+                        frr=vtysh(f"show bgp neighbors {neighbor_ip}"),
+                        iosxr_command=f"show bgp neighbor {neighbor_ip}",
+                        routeros_command=(
+                            "/routing/bgp/session/print terse where "
+                            f'remote.address="{neighbor_ip}"; '
+                            ':put ("prefix-limit-established=" . '
+                            "[/routing bgp session print count-only where "
+                            f'remote.address="{neighbor_ip}" established=yes])'
+                        ),
+                        evidence=True,
+                        attempts=12,
+                        interval_sec=10,
+                    ),
+                    router_cli(
+                        self.net_env,
+                        peer,
+                        f"Inspect the routes {peer} originates toward {receiver}.",
+                        frr=vtysh("show bgp ipv4 unicast"),
+                        iosxr_command="show bgp ipv4 unicast",
+                        routeros_command="/ip/firewall/address-list/print terse",
+                    ),
+                ],
+            )
 
         def peer_count(outputs) -> dict:
             match = re.search(
@@ -2854,15 +2975,19 @@ class BGPTtlSecurityMismatch(ProblemBase):
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
-        return {"host_name": ctx.router0}
+        # GTSM protects external sessions; prefer router0 when it has one.
+        ebgp = [r for r in ctx.routers if declared_ebgp(ctx.net_env, r) is not False]
+        host = ctx.router0 if ctx.router0 in ebgp else next(iter(ebgp), ctx.router0)
+        return {"host_name": host}
 
     @classmethod
     def validate_benchmark_inject(cls, ctx, inject):
         from nika.problems.support.benchmark_targets import require_node_capability
 
-        require_node_capability(
-            ctx, cls.root_cause_name, inject.get("host_name"), "bgp"
-        )
+        host = inject.get("host_name")
+        require_node_capability(ctx, cls.root_cause_name, host, "bgp")
+        if declared_ebgp(ctx.net_env, host) is False:
+            raise ValueError(f"{cls.root_cause_name} needs a router with eBGP sessions")
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
@@ -2960,6 +3085,64 @@ class BGPTtlSecurityMismatch(ProblemBase):
             },
         )
 
+    def oracle_playbook(self, params: BGPTtlSecurityMismatchParams) -> OraclePlaybook:
+        host = params.host_name
+        peers = _oracle_bgp_peers(self.net_env, host)
+        if not peers:
+            raise RuntimeCapabilityError(f"No BGP peer declared for {host}.")
+        steps = [
+            router_cli(
+                self.net_env,
+                host,
+                f"Read {host}'s receive TTL requirement for BGP.",
+                contains(
+                    r"^\s+(?:neighbor \S+ )?ttl-security(?: hops 1)?\s*$",
+                    "the target requires GTSM receive TTL, distinguishing it from "
+                    "an MD5 password or TCP port filter",
+                ),
+                frr=vtysh("show running-config"),
+                iosxr_command="show running-config router bgp",
+                evidence=True,
+            ),
+            router_cli(
+                self.net_env,
+                host,
+                f"Inspect BGP session states on {host} after the reset.",
+                contains(
+                    r"BGP state = (?:Idle|Active|Connect|OpenSent|OpenConfirm)\b",
+                    "at least one BGP session cannot establish under the TTL requirement",
+                ),
+                frr=vtysh("show bgp neighbors"),
+                iosxr_command="show bgp neighbors",
+                evidence=True,
+                attempts=18,
+                interval_sec=10,
+            ),
+        ]
+        for peer in peers:
+            steps.append(
+                router_cli(
+                    self.net_env,
+                    peer,
+                    f"Compare {peer}'s BGP TTL settings with {host}'s requirement.",
+                    Check(
+                        "the peer has BGP neighbors but no GTSM or multihop TTL "
+                        "setting, proving the receive TTL requirement is one-sided",
+                        lambda o: (
+                            _oracle_bgp_config(o)
+                            and not re.search(r"ttl-security|ebgp-multihop", o)
+                        ),
+                    ),
+                    frr=vtysh("show running-config"),
+                    iosxr_command="show running-config router bgp",
+                    evidence=True,
+                )
+            )
+        return OraclePlaybook(
+            finding=f"{host} requires GTSM TTL on BGP sessions whose peers do not enable it.",
+            steps=steps,
+        )
+
     def recover_fault(self, params: BGPTtlSecurityMismatchParams) -> dict:
         baseline = getattr(self, "_healthy_peers", None)
         if not baseline:
@@ -2999,12 +3182,34 @@ class BGPTtlSecurityMismatch(ProblemBase):
 # ==================================================================
 
 
+def declared_ebgp(net_env, router: str) -> bool | None:
+    """Whether ``router`` has an eBGP session, or ``None`` when nothing declares it.
+
+    The BGP inventory answers first; otherwise the router's FRR design,
+    including a converted router's, does.
+    """
+    from nika.net_env.native_routers import router_sketches
+
+    bgp = loaded_inventory(net_env).get("bgp")
+    sessions = bgp.get("sessions") if isinstance(bgp, dict) else None
+    if sessions:
+        return any(
+            s.get("local_device") == router and s.get("session_type") == "ebgp"
+            for s in sessions
+        )
+    sketch = router_sketches(net_env).get(router)
+    if sketch is None:
+        return None
+    return _config_has_ebgp(sketch[0])
+
+
 def has_declared_ebgp(net_env, router: str) -> bool:
-    """Whether ``router``'s FRR design, kept for its native conversion, has eBGP."""
-    sources = getattr(net_env, "native_sources", None) or {}
-    if router not in sources:
-        return False
-    config = sources[router][0]
+    """Whether ``router`` is declared with at least one eBGP session."""
+    return bool(declared_ebgp(net_env, router))
+
+
+def _config_has_ebgp(config: str) -> bool:
+    """Whether an FRR configuration has an eBGP neighbor."""
     local = re.search(r"^router bgp (\d+)\s*$", config, re.MULTILINE)
     remotes = re.findall(r"^\s+neighbor \S+ remote-as (\S+)", config, re.MULTILINE)
     return bool(local) and any(
@@ -3126,6 +3331,65 @@ class BGPSessionPolicyMissing(ProblemBase):
             fault_type=self.root_cause_name,
             verified=ops.bgp_session_policy_dropped(),
             details={"host": params.host_name, "profile": ops.profile},
+        )
+
+    def oracle_playbook(self, params: BGPSessionPolicyMissingParams) -> OraclePlaybook:
+        from nika.problems.support.router_ops import native_router_profile
+
+        host = params.host_name
+        profile = native_router_profile(self.net_env, host)
+        if profile == "iosxr":
+            check = Check(
+                "an Established eBGP session has the missing-policy marker (!), "
+                "distinguishing policy rejection from a failed BGP transport",
+                lambda o: bool(
+                    re.search(r"^\d+\.\d+\.\d+\.\d+\s+.*\s\d+!\s*$", o, re.M)
+                ),
+            )
+        elif profile == "routeros":
+            check = contains(
+                r"^undefined-bgp-policies=\d*[1-9]\d*\s*$",
+                "an Established eBGP session names undefined input and output chains, "
+                "distinguishing missing policy from session loss or defined rejection",
+            )
+        else:
+            raise RuntimeCapabilityError(f"No native BGP policy evidence on {host}.")
+        return OraclePlaybook(
+            finding=f"{host}'s Established BGP sessions have no usable route policy.",
+            steps=[
+                router_cli(
+                    self.net_env,
+                    host,
+                    f"Inspect {host}'s BGP policy bindings and session state.",
+                    check,
+                    frr=vtysh("show bgp summary"),
+                    iosxr_command="show bgp ipv4 unicast summary",
+                    routeros_command=(
+                        ":local missing 0; "
+                        ":foreach s in=[/routing bgp session find where established=yes] do={ "
+                        ":local inChain [/routing bgp session get $s input.filter]; "
+                        ":local outChain [/routing bgp session get $s output.filter-chain]; "
+                        ":if (([/routing bgp session get $s remote.as] != "
+                        "[/routing bgp session get $s local.as]) && "
+                        "([:len $inChain] > 0) && ([:len $outChain] > 0) && "
+                        "([/routing filter rule print count-only where chain=$inChain] = 0) && "
+                        "([/routing filter rule print count-only where chain=$outChain] = 0)) "
+                        "do={ :set missing ($missing + 1) } }; "
+                        ':put ("undefined-bgp-policies=" . $missing)'
+                    ),
+                    evidence=True,
+                    attempts=12,
+                    interval_sec=10,
+                ),
+                router_cli(
+                    self.net_env,
+                    host,
+                    f"Read {host}'s configured BGP neighbors and policies.",
+                    frr=vtysh("show running-config"),
+                    iosxr_command="show running-config router bgp",
+                    routeros_command="/routing/bgp/connection/print terse",
+                ),
+            ],
         )
 
     def recover_fault(self, params: BGPSessionPolicyMissingParams) -> dict:
@@ -3354,6 +3618,87 @@ class BGPMd5PasswordMismatch(ProblemBase):
                 "password_configured": configured,
                 "established_peers": sorted(peers),
             },
+        )
+
+    def oracle_playbook(self, params: BGPMd5PasswordMismatchParams) -> OraclePlaybook:
+        host = params.host_name
+        peers = _oracle_bgp_peers(self.net_env, host)
+        if not peers:
+            raise RuntimeCapabilityError(f"No BGP peer declared for {host}.")
+        config = router_cli(
+            self.net_env,
+            host,
+            f"Inspect TCP MD5 authentication on {host}'s BGP neighbors.",
+            Check(
+                "a BGP neighbor requires TCP MD5 authentication",
+                lambda o: bool(_oracle_password_peers(o)),
+            ),
+            frr=vtysh("show running-config"),
+            iosxr_command="show running-config router bgp",
+            routeros_command=_ORACLE_ROS_PASSWORDS,
+            evidence=True,
+            save_as="md5_config",
+        )
+
+        def neighbor_args(outputs):
+            # Select the neighbor from the observed authentication configuration.
+            neighbor = _oracle_password_peers(outputs.get("md5_config", ""))[0]
+            return router_cli(
+                self.net_env,
+                host,
+                "Read the authenticated neighbor's session state.",
+                frr=vtysh(f"show bgp neighbors {neighbor}"),
+                iosxr_command=f"show bgp neighbor {neighbor}",
+                routeros_command=(
+                    "/routing/bgp/session/print terse; "
+                    ":local up 0; "
+                    ":foreach s in=[/routing bgp session find where established=yes] do={ "
+                    # Session addresses can carry an @VRF suffix.
+                    ":local addr [:tostr [/routing bgp session get $s remote.address]]; "
+                    ':set addr [:pick $addr 0 [:find ($addr . "@") "@"]]; '
+                    f':if ($addr="{neighbor}") do={{ :set up ($up + 1) }} }}; '
+                    ':put ("authenticated-established=" . $up)'
+                ),
+            ).args
+
+        steps = [
+            config,
+            OracleStep(
+                "Read the session state of the neighbor that requires TCP MD5.",
+                config.tool,
+                neighbor_args,
+                contains(
+                    r"BGP state = (?:Idle|Active|Connect|OpenSent|OpenConfirm)\b"
+                    r"|^authenticated-established=0\s*$",
+                    "the authenticated session is not Established",
+                ),
+                evidence=True,
+                attempts=18,
+                interval_sec=10,
+            ),
+        ]
+        for peer in peers:
+            steps.append(
+                router_cli(
+                    self.net_env,
+                    peer,
+                    f"Compare {peer}'s BGP authentication with {host}'s requirement.",
+                    Check(
+                        "the peer has BGP neighbors but no TCP MD5 password, "
+                        "proving authentication is one-sided rather than an ACL or TTL fault",
+                        lambda o: (
+                            _oracle_bgp_config(o) and not _oracle_password_peers(o)
+                        ),
+                    ),
+                    frr=vtysh("show running-config"),
+                    iosxr_command="show running-config router bgp",
+                    routeros_command=_ORACLE_ROS_PASSWORDS,
+                    evidence=True,
+                )
+            )
+        return OraclePlaybook(
+            finding=f"{host} requires TCP MD5 on a BGP session whose peer has no password.",
+            steps=steps,
         )
 
     def recover_fault(self, params: BGPMd5PasswordMismatchParams) -> dict:

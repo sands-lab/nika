@@ -16,6 +16,13 @@ from nika.problems.support.benchmark_targets import (
     k8s_control_node,
 )
 from nika.problems.support.kubernetes.base import K8sParams, K8sProblemBase
+from nika.problems.support.oracle import (
+    Check,
+    OraclePlaybook,
+    OracleStep,
+    contains,
+    shell,
+)
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
 
@@ -174,6 +181,68 @@ class VxlanNeighborStale(K8sProblemBase):
                 "k8s_vxlan_neighbor_stale needs node_name for a unique resource."
             )
         return [node_resource(node)]
+
+    def oracle_playbook(self, params: VxlanNeighborStaleParams) -> OraclePlaybook:
+        def neighbor_args(outputs):
+            observed = outputs["peer_vtep"]
+            vtep, mac = _first_inet(observed), _first_mac(observed)
+            if not vtep or not mac:
+                raise ValueError("The peer VTEP address and MAC were not observed.")
+            return {
+                "host_name": params.node_name,
+                "command": f"echo peer_vtep={vtep} peer_mac={mac}; "
+                f"ip neigh show dev {_OVERLAY_DEV} to {vtep}; "
+                f"echo FDB; ip -f bridge neigh show dev {_OVERLAY_DEV}; "
+                f"ip route show dev {_OVERLAY_DEV}",
+                "timeout": 15,
+            }
+
+        def stale_neighbor(output):
+            match = re.search(r"peer_vtep=([0-9.]+) peer_mac=([0-9a-f:]+)", output)
+            if not match or "FDB\n" not in output:
+                return False
+            neighbor, fdb = output.split("FDB\n", 1)
+            vtep, mac = match.groups()
+            observed = re.search(
+                rf"^{re.escape(vtep)}\s+(?:dev {re.escape(_OVERLAY_DEV)}\s+)?"
+                r"lladdr ([0-9a-f:]+)\s+PERMANENT\b",
+                neighbor,
+                re.M | re.I,
+            )
+            return bool(
+                observed
+                and _normalize_mac(observed[1]) != mac
+                and re.search(
+                    rf"^[0-9.]+\s+lladdr {re.escape(mac)}\s+PERMANENT\b",
+                    fdb,
+                    re.M | re.I,
+                )
+                and re.search(rf"\bvia {re.escape(vtep)}\b", fdb)
+            )
+
+        return OraclePlaybook(
+            finding=f"The permanent VXLAN neighbor on {params.node_name} uses a different MAC from {params.peer_name}'s live VTEP, while the FDB still maps the live MAC.",
+            steps=[
+                shell(
+                    params.peer_name,
+                    f"ip -d link show dev {_OVERLAY_DEV}; ip -4 addr show dev {_OVERLAY_DEV}",
+                    "Read the peer's live VXLAN interface address and MAC.",
+                    contains(r"vxlan", "The peer has a VXLAN interface."),
+                    save_as="peer_vtep",
+                ),
+                OracleStep(
+                    "Compare the local permanent neighbor with the peer's observed MAC, FDB, and overlay route.",
+                    "exec_shell",
+                    neighbor_args,
+                    Check(
+                        "The routed peer VTEP has a wrong permanent neighbor MAC, while its live MAC remains in the FDB, distinguishing stale neighbor from FDB loss.",
+                        stale_neighbor,
+                    ),
+                    evidence=True,
+                    attempts=3,
+                ),
+            ],
+        )
 
     def _require_overlay(self, node: str) -> str:
         output = self.runtime.exec(

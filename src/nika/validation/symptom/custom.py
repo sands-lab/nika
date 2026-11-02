@@ -6,6 +6,10 @@ import time
 from typing import Any
 
 from nika.problems.base import build_verify_result
+from nika.validation.symptom.bgp_afi_probes import (
+    ipv4_family_baseline,
+    ipv4_family_missing,
+)
 from nika.validation.symptom.bgp_md5_probes import md5_baseline, md5_paths_withdrawn
 from nika.validation.symptom.addressing_probes import (
     assigned_address_baseline,
@@ -349,6 +353,7 @@ _CUSTOM: dict[str, Any] = {
     "bgp_ttl_security_mismatch": bgp_some_lost,
     "bgp_md5_password_mismatch": md5_paths_withdrawn,
     "bgp_session_policy_missing": session_policy_drops_routes,
+    "bgp_address_family_not_activated": ipv4_family_missing,
     "bgp_asn_misconfig": bgp_bad_peer_as,
     "bgp_max_prefix_exceeded": max_prefix_cease,
     "frr_service_down": routing_all_lost,
@@ -437,6 +442,7 @@ _CUSTOM_BASELINE: dict[str, Any] = {
     "bgp_ttl_security_mismatch": bgp_baseline,
     "bgp_md5_password_mismatch": md5_baseline,
     "bgp_session_policy_missing": session_policy_baseline,
+    "bgp_address_family_not_activated": ipv4_family_baseline,
     "bgp_asn_misconfig": bgp_baseline,
     "bgp_max_prefix_exceeded": max_prefix_baseline,
     "frr_service_down": routing_baseline,

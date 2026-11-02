@@ -244,6 +244,7 @@ def _session_deployment(
     """Return the lab backend, telemetry and router platform of *session_id*."""
     try:
         from nika.runtime.factory import resolve_backend
+        from nika.runtime.meta import meta_get
         from nika.utils.session_store import SessionStore
 
         row = SessionStore().get_session(session_id)

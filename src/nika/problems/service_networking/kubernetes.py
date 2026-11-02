@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import ipaddress
+import json
 import re
+import shlex
 from collections.abc import Callable, Mapping
 from typing import Any, ClassVar
 
@@ -41,6 +43,193 @@ from nika.utils.logger import system_logger
 logger = system_logger
 
 DEFAULT_PROBE_SERVICE = "kubernetes"
+
+
+def _oracle_service_query(resources: str, params=None) -> str:
+    """Keep diagnostic fields within the MCP observation budget."""
+    discovery = "scope = ['-A']\n"
+    if params is not None:
+        discovery = f"""
+requested_name, requested_namespace = {params.service_name!r}, {params.namespace!r}
+if requested_name:
+    namespace = requested_namespace or 'default'
+else:
+    refs = []
+    ingresses = json.loads(subprocess.check_output(['kubectl', 'get', 'ingress', '-A', '-o', 'json']))
+    for obj in ingresses['items']:
+        for rule in obj['spec'].get('rules', []):
+            for path in rule.get('http', {{}}).get('paths', []):
+                name = path.get('backend', {{}}).get('service', {{}}).get('name')
+                if name:
+                    refs.append((obj['metadata']['namespace'], name))
+    if not refs:
+        pools = json.loads(subprocess.check_output(['kubectl', 'get', 'inferencepool', '-A', '-o', 'json']))
+        for obj in pools['items']:
+            ref = obj['spec'].get('endpointPickerRef', {{}})
+            if ref.get('name') and ref.get('kind', 'Service') == 'Service':
+                refs.append((obj['metadata']['namespace'], ref['name']))
+    namespace, _ = min(ref for ref in refs if not requested_namespace or ref[0] == requested_namespace)
+scope = ['-n', namespace]
+"""
+    script = (
+        "import json, subprocess\n"
+        + discovery
+        + f"data = json.loads(subprocess.check_output(['kubectl', 'get', {resources!r}, *scope, '-o', 'json']))\n"
+        + """
+keys = set('kind items metadata name namespace labels deletionTimestamp spec selector matchLabels template containers ports containerPort targetPort protocol port type replicas ingressClassName rules http paths path backend service ipAddressPools ipAddressPoolSelectors status podIP conditions ready endpoints addresses loadBalancer ingress ip'.split())
+def compact(value):
+    if isinstance(value, list):
+        return [compact(item) for item in value]
+    if isinstance(value, dict):
+        return {k: v if k in {'labels', 'selector', 'matchLabels'} else compact(v) for k, v in value.items() if k in keys}
+    return value
+data = compact(data)
+selector_keys = {k for o in data['items'] if o['kind'] == 'Service' for k in o['spec'].get('selector', {})}
+for obj in data['items']:
+    kind = obj['kind']
+    meta = obj.get('metadata', {})
+    if kind == 'Pod':
+        meta.pop('name', None)
+        meta['labels'] = {k: v for k, v in meta.get('labels', {}).items() if k in selector_keys}
+        obj['status'] = {'podIP': obj.get('status', {}).get('podIP'), 'conditions': [c for c in obj.get('status', {}).get('conditions', []) if c.get('type') == 'Ready']}
+        obj['spec'] = {'containers': [{'ports': c.get('ports', [])} for c in obj['spec']['containers']]}
+    elif kind == 'EndpointSlice':
+        meta.pop('name', None)
+        meta['labels'] = {'kubernetes.io/service-name': meta.get('labels', {}).get('kubernetes.io/service-name')}
+        obj['endpoints'] = [{'addresses': e.get('addresses', []), 'conditions': {'ready': e.get('conditions', {}).get('ready')}} for e in obj.get('endpoints') or []]
+    else:
+        meta.pop('labels', None)
+    if kind == 'Deployment':
+        obj['spec'] = {'replicas': obj['spec'].get('replicas', 1), 'template': {'metadata': {'labels': obj['spec']['template']['metadata'].get('labels', {})}}}
+        obj.pop('status', None)
+print(json.dumps(data, separators=(',', ':')))
+"""
+    )
+    return f"python3 -c {shlex.quote(script)}"
+
+
+def _oracle_service_items(output: str, kind: str) -> list[dict]:
+    return [obj for obj in json.loads(output)["items"] if obj["kind"] == kind]
+
+
+def _oracle_ready(pod: dict) -> bool:
+    return not pod["metadata"].get("deletionTimestamp") and any(
+        c.get("type") == "Ready" and c.get("status") == "True"
+        for c in pod.get("status", {}).get("conditions", [])
+    )
+
+
+def _oracle_services(output: str, params) -> list[dict]:
+    return [
+        svc
+        for svc in _oracle_service_items(output, "Service")
+        if (not params.service_name or svc["metadata"]["name"] == params.service_name)
+        and (not params.namespace or svc["metadata"]["namespace"] == params.namespace)
+        and svc["spec"].get("selector")
+    ]
+
+
+def _oracle_service_slices(output: str, service: dict) -> list[dict]:
+    meta = service["metadata"]
+    return [
+        obj
+        for obj in _oracle_service_items(output, "EndpointSlice")
+        if obj["metadata"]["namespace"] == meta["namespace"]
+        and obj["metadata"].get("labels", {}).get("kubernetes.io/service-name")
+        == meta["name"]
+    ]
+
+
+def _oracle_port_mismatches(output: str, params) -> list[tuple[dict, dict, int, int]]:
+    matches = []
+    for svc in _oracle_services(output, params):
+        selector = svc["spec"]["selector"]
+        service_port = svc["spec"]["ports"][0]
+        target = service_port.get("targetPort")
+        if not isinstance(target, int):
+            continue
+        for pod in _oracle_service_items(output, "Pod"):
+            if pod["metadata"]["namespace"] != svc["metadata"]["namespace"]:
+                continue
+            labels = pod["metadata"].get("labels", {})
+            declared = [
+                port
+                for container in pod["spec"]["containers"]
+                for port in container.get("ports", [])
+                if port.get("protocol", "TCP") == "TCP"
+            ]
+            ports = [p["containerPort"] for p in declared]
+            named = next(
+                (
+                    p["containerPort"]
+                    for p in declared
+                    if p.get("name") == service_port.get("name") and p.get("name")
+                ),
+                None,
+            )
+            if not (
+                _oracle_ready(pod)
+                and all(labels.get(k) == v for k, v in selector.items())
+                and ports
+                and (target != named if named is not None else target not in ports)
+            ):
+                continue
+            ip = pod["status"].get("podIP")
+            if any(
+                any(p.get("port") == target for p in s.get("ports", []))
+                and any(
+                    ip in ep.get("addresses", [])
+                    and ep.get("conditions", {}).get("ready") is True
+                    for ep in s.get("endpoints", [])
+                )
+                for s in _oracle_service_slices(output, svc)
+            ):
+                matches.append((svc, pod, target, named or ports[0]))
+    return matches
+
+
+def _oracle_selector_mismatch(output: str, params) -> bool:
+    pods = _oracle_service_items(output, "Pod")
+    deployments = _oracle_service_items(output, "Deployment")
+    for svc in _oracle_services(output, params):
+        namespace = svc["metadata"]["namespace"]
+        selector = svc["spec"]["selector"]
+        if any(
+            d["metadata"]["namespace"] == namespace
+            and all(
+                d["spec"]["template"]["metadata"].get("labels", {}).get(k) == v
+                for k, v in selector.items()
+            )
+            for d in deployments
+        ):
+            continue
+        local = [p for p in pods if p["metadata"]["namespace"] == namespace]
+        if any(
+            all(
+                p["metadata"].get("labels", {}).get(k) == v for k, v in selector.items()
+            )
+            for p in local
+        ) or any(s.get("endpoints") for s in _oracle_service_slices(output, svc)):
+            continue
+        for deploy in deployments:
+            spec = deploy["spec"]
+            labels = spec["template"]["metadata"].get("labels", {})
+            if not (
+                deploy["metadata"]["namespace"] == namespace
+                and spec.get("replicas", 1) > 0
+                and sum(labels.get(k) != v for k, v in selector.items()) == 1
+            ):
+                continue
+            if any(
+                _oracle_ready(p)
+                and all(
+                    p["metadata"].get("labels", {}).get(k) == v
+                    for k, v in labels.items()
+                )
+                for p in local
+            ):
+                return True
+    return False
 
 
 class ClusterIPRoutingBrokenParams(K8sParams):
@@ -492,6 +681,82 @@ class ServiceTargetPortMismatch(K8sProblemBase):
             raise UnresolvedRootCauseError("No Kubernetes control-plane node.")
         return [node_resource(control)]
 
+    def oracle_playbook(
+        self, params: ServiceTargetPortMismatchParams
+    ) -> OraclePlaybook:
+        control = self.control_node(params)
+
+        def probe(outputs):
+            svc, pod, target, served = _oracle_port_mismatches(
+                outputs["port_inventory"], params
+            )[0]
+            ip = pod["status"]["podIP"]
+            ref = f"{svc['metadata']['namespace']}/{svc['metadata']['name']}"
+            named_target = next(
+                (
+                    p["name"]
+                    for c in pod["spec"]["containers"]
+                    for p in c.get("ports", [])
+                    if p.get("containerPort") == target and p.get("name")
+                ),
+                None,
+            )
+            service_port_name = svc["spec"]["ports"][0].get("name")
+            return {
+                "host_name": control,
+                "command": f"echo Service {shlex.quote(ref)} pod {ip} target {target} declared {served} "
+                f"target_name={shlex.quote(named_target or 'unnamed')} service_port_name={shlex.quote(service_port_name or 'unnamed')}; "
+                f"echo target $({tcp_connect_cmd(ip, target)}); "
+                f"echo declared $({tcp_connect_cmd(ip, served)})",
+                "timeout": 20,
+            }
+
+        return OraclePlaybook(
+            finding="The Service selects Ready Pods but forwards to the wrong targetPort. The same Pods accept TCP on their declared application port.",
+            steps=[
+                shell(
+                    control,
+                    _oracle_service_query("services,pods,endpointslices", params),
+                    "Compare Service target ports with selected Ready Pods and EndpointSlice ports.",
+                    Check(
+                        "Ready endpoints use an undeclared port or a different named port than the Service's application port.",
+                        lambda o: bool(_oracle_port_mismatches(o, params)),
+                    ),
+                    evidence=True,
+                    attempts=12,
+                    save_as="port_inventory",
+                    timeout=30,
+                ),
+                OracleStep(
+                    "Connect to the same Pod on the Service targetPort and its application port.",
+                    "exec_shell",
+                    probe,
+                    Check(
+                        "The application port accepts TCP. The targetPort either fails TCP or maps to another named listener, distinguishing port mismatch from readiness failure.",
+                        lambda o: bool(
+                            re.search(r"^declared CONNECTED$", o, re.M)
+                            and (
+                                re.search(r"^target NO_CONNECT$", o, re.M)
+                                or (
+                                    (
+                                        names := re.search(
+                                            r"target_name=(\S+) service_port_name=(\S+)",
+                                            o,
+                                        )
+                                    )
+                                    and names[1] != "unnamed"
+                                    and names[2] != "unnamed"
+                                    and names[1] != names[2]
+                                )
+                            )
+                        ),
+                    ),
+                    evidence=True,
+                    attempts=3,
+                ),
+            ],
+        )
+
     def inject_fault(self, params: ServiceTargetPortMismatchParams):
         k8s = self.runtime.lab_api
         control = self.control_node(params)
@@ -625,6 +890,27 @@ class ServiceSelectorMismatch(K8sProblemBase):
             raise UnresolvedRootCauseError("No Kubernetes control-plane node.")
         return [node_resource(control)]
 
+    def oracle_playbook(self, params: ServiceSelectorMismatchParams) -> OraclePlaybook:
+        return OraclePlaybook(
+            finding="The Service selector differs from the running workload's Pod labels. Ready Pods exist, but none match and the Service has no endpoints.",
+            steps=[
+                shell(
+                    self.control_node(params),
+                    _oracle_service_query(
+                        "services,pods,deployments,endpointslices", params
+                    ),
+                    "Compare the Service selector, Deployment template labels, Ready Pods, and EndpointSlices.",
+                    Check(
+                        "The selector differs by one workload label and selects no Pods, despite running Ready replicas. Empty endpoints therefore indicate a selector mismatch.",
+                        lambda o: _oracle_selector_mismatch(o, params),
+                    ),
+                    evidence=True,
+                    attempts=12,
+                    timeout=30,
+                )
+            ],
+        )
+
     def inject_fault(self, params: ServiceSelectorMismatchParams):
         k8s = self.runtime.lab_api
         control = self.control_node(params)
@@ -721,6 +1007,53 @@ class LoadBalancerAdvertisementMissing(K8sProblemBase):
         if not control:
             raise UnresolvedRootCauseError("No Kubernetes control-plane node.")
         return [node_resource(control)]
+
+    def oracle_playbook(
+        self, params: LoadBalancerAdvertisementMissingParams
+    ) -> OraclePlaybook:
+        def unadvertised(output):
+            pools = _oracle_service_items(output, "IPAddressPool")
+            names = {p["metadata"]["name"] for p in pools}
+            ads = [
+                *_oracle_service_items(output, "BGPAdvertisement"),
+                *_oracle_service_items(output, "L2Advertisement"),
+            ]
+            allocated = any(
+                s["spec"].get("type") == "LoadBalancer"
+                and any(
+                    i.get("ip")
+                    for i in s.get("status", {})
+                    .get("loadBalancer", {})
+                    .get("ingress", [])
+                )
+                for s in _oracle_service_items(output, "Service")
+            )
+            return bool(names and ads and allocated) and all(
+                a["spec"].get("ipAddressPools")
+                and not set(a["spec"]["ipAddressPools"]) & names
+                and not a["spec"].get("ipAddressPoolSelectors")
+                for a in ads
+            )
+
+        return OraclePlaybook(
+            finding="MetalLB allocates LoadBalancer addresses, but every advertisement references nonexistent pools, so no real address pool is advertised.",
+            steps=[
+                shell(
+                    self.control_node(params),
+                    _oracle_service_query(
+                        "ipaddresspools.metallb.io,bgpadvertisements.metallb.io,l2advertisements.metallb.io,services"
+                    ),
+                    "Compare MetalLB advertisement references with real pools and allocated LoadBalancer addresses.",
+                    Check(
+                        "LoadBalancer IPs and pools exist, but every advertisement selects nonexistent pools. This identifies advertisement configuration rather than IP allocation or a BGP session failure.",
+                        unadvertised,
+                    ),
+                    evidence=True,
+                    attempts=6,
+                    timeout=30,
+                )
+            ],
+        )
 
     def _advertisements(self, params) -> list[dict[str, Any]]:
         k8s = self.runtime.lab_api
@@ -840,6 +1173,52 @@ class IngressClassMismatch(K8sProblemBase):
         if not control:
             raise UnresolvedRootCauseError("No Kubernetes control-plane node.")
         return [node_resource(control)]
+
+    def oracle_playbook(self, params: K8sParams) -> OraclePlaybook:
+        def undefined_class(output):
+            classes = _oracle_service_items(output, "IngressClass")
+            names = {obj["metadata"]["name"] for obj in classes}
+            for ingress in _oracle_service_items(output, "Ingress"):
+                value = ingress["spec"].get("ingressClassName")
+                if not value or value in names or not names:
+                    continue
+                backends = {
+                    path["backend"].get("service", {}).get("name")
+                    for rule in ingress["spec"].get("rules", [])
+                    for path in rule.get("http", {}).get("paths", [])
+                }
+                if any(
+                    obj["metadata"]["namespace"] == ingress["metadata"]["namespace"]
+                    and obj["metadata"]
+                    .get("labels", {})
+                    .get("kubernetes.io/service-name")
+                    in backends
+                    and any(
+                        ep.get("conditions", {}).get("ready") is True
+                        for ep in obj.get("endpoints", [])
+                    )
+                    for obj in _oracle_service_items(output, "EndpointSlice")
+                ):
+                    return True
+            return False
+
+        return OraclePlaybook(
+            finding="An Ingress references an undefined IngressClass while its backend has Ready endpoints, so the installed controller ignores the route.",
+            steps=[
+                shell(
+                    self.control_node(params),
+                    _oracle_service_query("ingress,ingressclasses,endpointslices"),
+                    "Compare each Ingress class reference with installed classes and backend endpoint readiness.",
+                    Check(
+                        "The Ingress names no installed class despite available classes and Ready backend endpoints, distinguishing class mismatch from unavailable backends.",
+                        undefined_class,
+                    ),
+                    evidence=True,
+                    attempts=6,
+                    timeout=30,
+                )
+            ],
+        )
 
     def inject_fault(self, params: K8sParams) -> None:
         k8s = self.runtime.lab_api
