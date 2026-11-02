@@ -184,6 +184,16 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: s
+    inject:
+      host_name: internet_web
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: internet_web
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
     device_profile: iosxr
     inject:
       host_name: br1_corp_pc
@@ -382,6 +392,17 @@ failure:
         name: eth4
       fault_type: link_detach
   - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: internet_web
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: internet_web
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
     device_profile: routeros
     inject:
       host_name: br1_corp_pc
@@ -423,6 +444,17 @@ failure:
     - resource:
         kind: interface
         node: hq_corp_pc
+        name: eth0
+      fault_type: link_detach
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: internet_web
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: internet_web
         name: eth0
       fault_type: link_detach
   - topo_size: m
@@ -744,6 +776,16 @@ failure:
         kind: interface
         node: hq_edge
         name: eth5
+      fault_type: link_detach
+  - topo_size: m
+    inject:
+      host_name: internet_web
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: internet_web
+        name: eth0
       fault_type: link_detach
   - topo_size: l
     inject:
@@ -1264,4 +1306,14 @@ failure:
         kind: interface
         node: hq_edge
         name: eth5
+      fault_type: link_detach
+  - topo_size: l
+    inject:
+      host_name: internet_web
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: interface
+        node: internet_web
+        name: eth0
       fault_type: link_detach

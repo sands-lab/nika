@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import time
 from ipaddress import ip_network
 from typing import Any
@@ -13,8 +14,19 @@ from nika.problems.base import (
     build_verify_result,
     ProblemBase,
 )
+from nika.net_env.enterprise_branch.addressing import edge_name_for, lan_host_ip
 from nika.problems.rca import interface_resource
 from nika.problems.support.benchmark_targets import replace
+from nika.problems.support.oracle import (
+    Check,
+    OraclePlaybook,
+    OracleStep,
+    all_of,
+    contains,
+    lacks,
+    ping_works,
+    shell,
+)
 from nika.problems.support.polling import wait_until
 from nika.problems.support.router_ops import RouterFaultOps, native_fault_ops
 from nika.utils.logger import system_logger
@@ -74,6 +86,66 @@ def _bgp_neighbor_established(summary: str, peer_ip: str) -> bool:
         if peer_ip in line and len(fields) >= 10 and fields[9].isdigit():
             return True
     return False
+
+
+_RECENT_HANDSHAKE = contains(
+    r"\s[1-9][0-9]{8,}\s*$", "the peer has completed a handshake"
+)
+
+
+def _never_handshaked(output: str) -> bool:
+    stamps = [
+        line.split()[-1]
+        for line in output.splitlines()
+        if len(line.split()) == 2 and line.split()[-1].isdigit()
+    ]
+    return bool(stamps) and all(stamp == "0" for stamp in stamps)
+
+
+# A Curve25519 public key in WireGuard's base64 form.
+_WG_KEY = r"[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]="
+
+
+def _compare_peer_key(spoke_iface: str, hub_key_slot: str) -> Any:
+    """Compare the spoke's configured peer key with the Hub's own public key."""
+
+    def args(outputs: dict[str, str]) -> dict[str, Any]:
+        match = re.search(rf"^({_WG_KEY})$", outputs.get(hub_key_slot) or "", re.M)
+        if match is None:
+            command = "echo HUB_KEY_UNAVAILABLE"
+        else:
+            hub_key = match.group(1)
+            command = (
+                f"peer=$(wg show {spoke_iface} peers); "
+                f'echo "configured peer key: $peer"; '
+                f'echo "hub interface key: {hub_key}"; '
+                f'[ "$peer" = "{hub_key}" ] && echo PEER_KEY_MATCHES_HUB '
+                "|| echo PEER_KEY_MISMATCH; "
+                f"wg show {spoke_iface} endpoints; "
+                f"wg show {spoke_iface} latest-handshakes"
+            )
+        return {"command": command, "timeout": 15}
+
+    return args
+
+
+def _initiations_unanswered(spoke_wan: str, hub_wan: str, hub_port: int) -> Any:
+    """Spoke initiations reach the Hub and neither side answers the other."""
+    spoke, hub = re.escape(spoke_wan), re.escape(hub_wan)
+    return all_of(
+        contains(
+            rf"In +IP {spoke}\.\d+ > {hub}\.{hub_port}: UDP, length 148",
+            "handshake initiations from the spoke arrive at the Hub",
+        ),
+        lacks(
+            rf"Out +IP {hub}\.{hub_port} > {spoke}\.\d+: UDP, length 92",
+            "the Hub sends no handshake response",
+        ),
+        lacks(
+            rf"In +IP {spoke}\.\d+ > {hub}\.{hub_port}: UDP, length 92",
+            "the spoke answers no Hub initiation",
+        ),
+    )
 
 
 def _hq_peer_targets(net_env: Any, scenario: str) -> list[tuple[str, str]]:
@@ -299,6 +371,88 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
         )
         wait_until(lambda: not set(cleared) & ops.bgp_established_peers(), _SETTLE_SEC)
 
+    def oracle_playbook(
+        self, params: WireGuardPeerKeyMisconfigParams
+    ) -> OraclePlaybook:
+        edge = params.host_name
+        tunnels = sorted(self._spoke_tunnels(edge), key=lambda t: t.spoke_iface)
+        primary = next(t for t in tunnels if t.spoke_iface == params.intf_name)
+        steps: list[OracleStep] = [
+            ping_works(
+                edge,
+                primary.hub_wan_ip,
+                f"Check the underlay from {edge} to the Hub WAN address "
+                f"{primary.hub_wan_ip}.",
+            ),
+        ]
+        for tunnel in tunnels:
+            hub_edge, slot = edge_name_for(tunnel.hub), f"hubkey_{tunnel.spoke_iface}"
+            hub_end = f"{tunnel.hub_wan_ip}:{tunnel.listen_port_hub}"
+            steps.append(
+                shell(
+                    hub_edge,
+                    f"wg show {tunnel.hub_iface} public-key",
+                    f"Read the public key of {hub_edge}:{tunnel.hub_iface}, the "
+                    f"Hub end of {edge}:{tunnel.spoke_iface}.",
+                    contains(rf"^{_WG_KEY}$", "the Hub interface has a public key"),
+                    evidence=True,
+                    save_as=slot,
+                )
+            )
+            compare = _compare_peer_key(tunnel.spoke_iface, slot)
+            steps.append(
+                OracleStep(
+                    f"Compare the peer key on {edge}:{tunnel.spoke_iface} with "
+                    "the Hub key and check its endpoint and handshake.",
+                    "exec_shell",
+                    lambda out, compare=compare: {"host_name": edge, **compare(out)},
+                    all_of(
+                        contains(
+                            rf"^configured peer key: {_WG_KEY}$",
+                            "a peer key is configured",
+                        ),
+                        contains(
+                            r"^PEER_KEY_MISMATCH$", "the peer key is not the Hub's"
+                        ),
+                        contains(
+                            rf"\s{re.escape(hub_end)}\s*$",
+                            f"the peer endpoint is the Hub's {hub_end}",
+                        ),
+                        Check("no handshake has ever completed", _never_handshaked),
+                    ),
+                    evidence=True,
+                )
+            )
+            udp = (
+                f"udp and host {tunnel.spoke_wan_ip} and port "
+                f"{tunnel.listen_port_hub} and (udp[4:2] = 156 or udp[4:2] = 100)"
+            )
+            steps.append(
+                shell(
+                    hub_edge,
+                    f"timeout 15 tcpdump -lni any '{udp}' 2>&1 | head -12",
+                    f"Watch handshake packets for {edge}:{tunnel.spoke_iface} on "
+                    f"{hub_edge}: initiations must arrive and go unanswered.",
+                    _initiations_unanswered(
+                        tunnel.spoke_wan_ip, tunnel.hub_wan_ip, tunnel.listen_port_hub
+                    ),
+                    evidence=True,
+                    timeout=30,
+                    attempts=2,
+                    interval_sec=1,
+                )
+            )
+        ifaces = ", ".join(t.spoke_iface for t in tunnels)
+        return OraclePlaybook(
+            finding=(
+                f"Every WireGuard tunnel on {edge} ({ifaces}) names a peer public "
+                "key that is not its Hub's key: handshake initiations reach the "
+                "Hub but are never answered, so the overlay is down while the "
+                "underlay stays reachable."
+            ),
+            steps=steps,
+        )
+
     def _verify_native(
         self, ops: RouterFaultOps, params: WireGuardPeerKeyMisconfigParams
     ) -> dict:
@@ -518,6 +672,90 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
                 return ".".join(parts[:-1] + ["1"])
         raise RuntimeError(
             f"Cannot resolve Hub tunnel IP for {params.host_name}/{params.intf_name}"
+        )
+
+    def _target_host_ip(self, prefix: str) -> str:
+        """Primary host address on the LAN that owns *prefix*."""
+        for site in self.net_env.spec.sites.values():
+            for lan in site.lans:
+                if lan.prefix == prefix:
+                    return str(lan_host_ip(site.site_id, lan.role).ip)
+        return str(ip_network(prefix, strict=False).network_address + 2)
+
+    def oracle_playbook(
+        self, params: WireGuardAllowedIpsMisconfigParams
+    ) -> OraclePlaybook:
+        edge, iface = params.host_name, params.intf_name
+        target = str(ip_network(params.target_prefix, strict=False))
+        target_ip = self._target_host_ip(target)
+        hub_ip = self._resolve_hub_tunnel_ip(params)
+        spoke = self._spoke_site(edge)
+        local_ip = next(
+            (
+                t.spoke_tunnel_ip
+                for t in getattr(self.net_env, "built_tunnels", None) or []
+                if t.spoke == spoke and t.spoke_iface == iface
+            ),
+            "",
+        )
+        control = next(
+            p
+            for p in self.net_env.remote_prefixes_for_spoke(spoke)
+            if str(ip_network(p, strict=False)) != target
+        )
+        control_ip = self._target_host_ip(control)
+        escaped = target.replace(".", r"\.")
+        return OraclePlaybook(
+            finding=(
+                f"The Hub peer AllowedIPs on {edge}:{iface} omit {target}, so "
+                "WireGuard cryptokey routing refuses traffic that the routing "
+                "table sends into the tunnel."
+            ),
+            steps=[
+                shell(
+                    edge,
+                    f"ip route show table all | grep -E '^{escaped} '",
+                    f"Find the route {edge} uses for {target}.",
+                    contains(
+                        rf"^{escaped} .*dev {iface}( |$)",
+                        f"the route to {target} points into {iface}",
+                    ),
+                    evidence=True,
+                ),
+                ping_works(
+                    edge,
+                    hub_ip,
+                    f"Check the tunnel itself: ping the Hub tunnel address {hub_ip}.",
+                ),
+                shell(
+                    edge,
+                    f"wg show {iface} allowed-ips; wg show {iface} latest-handshakes",
+                    f"Inspect the cryptokey routing table of {edge}:{iface}.",
+                    all_of(
+                        contains(rf"{hub_ip}/32", "the Hub tunnel address is allowed"),
+                        lacks(escaped, f"{target} is missing from AllowedIPs"),
+                        _RECENT_HANDSHAKE,
+                    ),
+                    evidence=True,
+                ),
+                shell(
+                    edge,
+                    f"ping -c 2 -W 1 -I {iface} {target_ip} 2>&1 | head -3; "
+                    f"ping -c 2 -W 1 -I {iface} {control_ip} 2>&1 | tail -2",
+                    f"Send traffic into {iface} toward {target_ip} and, as a "
+                    f"control, toward {control_ip}.",
+                    all_of(
+                        contains(
+                            rf"From {re.escape(local_ip)} .*Destination Host Unreachable",
+                            f"{iface} itself rejects traffic to {target_ip}",
+                        ),
+                        contains(
+                            r"\b[1-9] received", f"{control_ip} answers through {iface}"
+                        ),
+                    ),
+                    evidence=True,
+                ),
+            ],
         )
 
     def _local_and_advertised_prefixes(self, spoke: str) -> tuple[list[str], list[str]]:

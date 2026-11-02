@@ -9,6 +9,8 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: &id001
+      pattern: uniform
     inject:
       down_time: '1'
       host_name: ann_arbor
@@ -28,6 +30,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: ann_arbor
@@ -47,6 +50,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: ann_arbor
@@ -66,6 +70,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: atlanta
@@ -85,6 +90,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: atlanta
@@ -104,6 +110,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: boulder
@@ -123,6 +130,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: boulder
@@ -142,6 +150,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: boulder
@@ -161,6 +170,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: houston
@@ -180,6 +190,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: houston
@@ -199,6 +210,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: ithaca
@@ -218,6 +230,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: ithaca
@@ -237,6 +250,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: lincoln
@@ -256,6 +270,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: palo_alto
@@ -275,6 +290,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: palo_alto
@@ -294,6 +310,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: palo_alto
@@ -313,6 +330,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: pittsburgh
@@ -332,6 +350,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: pittsburgh
@@ -351,6 +370,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: princeton
@@ -370,6 +390,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: san_diego
@@ -389,6 +410,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: seattle
@@ -408,6 +430,8 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: &id002
+      pattern: uniform
     inject:
       down_time: '1'
       host_name: ann_arbor
@@ -427,6 +451,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: ann_arbor
@@ -446,6 +471,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: ann_arbor
@@ -465,6 +491,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: atlanta
@@ -484,6 +511,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: atlanta
@@ -503,6 +531,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: boulder
@@ -522,6 +551,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: boulder
@@ -541,6 +571,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: boulder
@@ -560,6 +591,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: houston
@@ -579,6 +611,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: houston
@@ -598,6 +631,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: ithaca
@@ -617,6 +651,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: ithaca
@@ -636,6 +671,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: lincoln
@@ -655,6 +691,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: palo_alto
@@ -674,6 +711,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: palo_alto
@@ -693,6 +731,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: palo_alto
@@ -712,6 +751,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: pittsburgh
@@ -731,6 +771,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: pittsburgh
@@ -750,6 +791,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: princeton
@@ -769,6 +811,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: san_diego
@@ -788,6 +831,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: seattle

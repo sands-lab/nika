@@ -8,7 +8,8 @@ design lets communicate (one AS in ``ebgp`` mode):
   the data set, published over HTTP (port 8080), of the PoP they have the
   largest demand from, picking the largest-demand pairs. Each transfer is
   paced at a rate scaled from its demand, so the links it crosses carry steady
-  TCP load without saturating anything. Every lab link is a userspace switch
+  TCP load without saturating anything. Under a router send cap all transfers
+  shrink by one factor until the busiest interface fits the business share. Every lab link is a userspace switch
   that costs CPU per packet, so more transfers would slow the whole host.
 - **Long-lived sessions.** In BGP labs, each business prefix hosts a web/push
   service on its originator's service address, and the stubs with the largest
@@ -33,7 +34,7 @@ from __future__ import annotations
 import heapq
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from statistics import median
 from typing import TYPE_CHECKING
@@ -43,9 +44,11 @@ from nika.traffic.workload import (
     BULK_DOWNLOAD,
     BULK_TRANSIT,
     BULK_TRANSIT_MIN_KBPS,
+    BUSINESS_RATE_SHARE,
     BusinessWorkload,
     WorkloadExercise,
     WorkloadProcess,
+    rate_budget_kbps,
     routine_change_processes,
 )
 
@@ -101,6 +104,22 @@ def demand_by_device(topology: str | Path, plan: "IspPlan") -> dict:
         if src and dst and src != dst:
             demand[(src, dst)] += flow.rate
     return dict(demand)
+
+
+def stub_demands(
+    plan: "IspPlan", traffic: "IspTrafficAttachment", topology: str | Path
+) -> dict[tuple[str, str], float] | None:
+    """The topology's demand matrix between the PoP edge stubs, or ``None``.
+
+    Topology Zoo topologies have no demands.
+    """
+    host_of = {host.router_device: host.host_name for host in traffic.hosts}
+    demands = {
+        (host_of[src], host_of[dst]): rate
+        for (src, dst), rate in demand_by_device(topology, plan).items()
+        if src in host_of and dst in host_of
+    }
+    return demands or None
 
 
 def reachability_groups(plan: "IspPlan", bgp_plan: "BgpPlan | None") -> list[list[str]]:
@@ -237,6 +256,7 @@ def build_isp_workload(
     router_services: bool,
     router_iface: Callable[[str], str] = str,
     routine_changes: bool = False,
+    rate_limit_kbps: int | None = None,
 ) -> BusinessWorkload:
     """Workload of one ISP lab.
 
@@ -244,12 +264,33 @@ def build_isp_workload(
     ``router_iface`` maps plan interface names to the runtime's names;
     ``routine_changes`` makes every FRR router apply benign operator edits
     now and then, so its mgmtd commit history is not empty of other activity.
+    ``rate_limit_kbps`` is the routers' per-interface send cap, if any.
     """
     stub_of = {host.router_device: host for host in traffic.hosts}
     groups = reachability_groups(plan, bgp_plan)
     groups = [[d for d in g if d in stub_of] for g in groups]
     demand = demand_by_device(topology, plan)
     flows = select_bulk_flows(groups, demand)
+
+    def transit_of(flows: list[BulkFlow]) -> dict[tuple[str, str], int]:
+        """kbit/s each flow adds to every egress it is known to leave."""
+        transit: dict[tuple[str, str], int] = defaultdict(int)
+        for flow in flows:
+            server = stub_of[flow.server]
+            transit[(server.host_name, server.host_iface)] += flow.kbps
+            edge = next(e for e in traffic.edge_links if e.router_device == flow.client)
+            transit[(flow.client, edge.router_iface)] += flow.kbps
+            path = igp_unique_path(plan, groups, flow.server, flow.client)
+            for router, iface in path or ():
+                transit[(router, router_iface(iface))] += flow.kbps
+        return transit
+
+    budget = rate_budget_kbps(rate_limit_kbps, BUSINESS_RATE_SHARE)
+    transit = transit_of(flows)
+    peak = max(transit.values(), default=0)
+    if budget and peak > budget:
+        flows = [replace(f, kbps=int(f.kbps * budget / peak)) for f in flows]
+        transit = transit_of(flows)
 
     processes: list[WorkloadProcess] = []
     exercises: list[WorkloadExercise] = []
@@ -265,7 +306,6 @@ def build_isp_workload(
     by_client: dict[str, list[BulkFlow]] = defaultdict(list)
     for flow in flows:
         by_client[flow.client].append(flow)
-    transit: dict[tuple[str, str], int] = defaultdict(int)
     for client, pulls in sorted(by_client.items()):
         host = stub_of[client]
         urls = [
@@ -289,14 +329,6 @@ def build_isp_workload(
             )
         )
         exercises.append(WorkloadExercise(BULK_DOWNLOAD, (host.host_name,)))
-        for flow in pulls:
-            server = stub_of[flow.server]
-            transit[(server.host_name, server.host_iface)] += flow.kbps
-            edge = next(e for e in traffic.edge_links if e.router_device == flow.client)
-            transit[(flow.client, edge.router_iface)] += flow.kbps
-            path = igp_unique_path(plan, groups, flow.server, flow.client)
-            for router, iface in path or ():
-                transit[(router, router_iface(iface))] += flow.kbps
     for target, kbps in sorted(transit.items()):
         if kbps >= BULK_TRANSIT_MIN_KBPS:
             exercises.append(WorkloadExercise(BULK_TRANSIT, target))

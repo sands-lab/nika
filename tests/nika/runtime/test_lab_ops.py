@@ -274,6 +274,57 @@ class LabOpsTest:
         assert len(sleeps) == frr_api._BGP_ASN_ATTEMPTS - 1
         assert all(s == frr_api._BGP_ASN_RETRY_DELAY_SEC for s in sleeps)
 
+    def test_data_plane_ip_ignores_node_created_and_bridge_interfaces(self):
+        links = [
+            {"ifname": "lo", "addr_info": [{"family": "inet", "local": "127.0.0.1"}]},
+            {
+                "ifname": "flannel.1",
+                "addr_info": [{"family": "inet", "local": "10.42.1.0"}],
+            },
+            {
+                "ifname": "eth0",
+                "addr_info": [
+                    {"family": "inet", "local": "201.1.3.2", "prefixlen": 24}
+                ],
+            },
+            # Kathara ``bridged`` nodes attach eth1 to Docker's default bridge.
+            {
+                "ifname": "eth1",
+                "addr_info": [{"family": "inet", "local": "172.17.0.4"}],
+            },
+        ]
+        runtime = _StubRuntime({("pc1", "ip -j addr"): json.dumps(links)})
+
+        assert runtime.get_data_plane_host_ip("pc1") == "201.1.3.2"
+        assert runtime.get_data_plane_host_ip("pc1", with_prefix=True) == (
+            "201.1.3.2/24"
+        )
+
+    def test_frr_get_rpki_status_prefix_uses_supported_commands(self):
+        from nika.service.lab.frr_api import FRRAPIMixin
+
+        commands: list[str] = []
+
+        class _FRR(FRRAPIMixin):
+            def exec_cmd(self, node: str, cmd: str, **_kwargs) -> str:
+                commands.append(cmd)
+                return ""
+
+        runtime = _FRR()
+        runtime.frr_get_rpki_status("router1", prefix="2001:db8::1/32")
+        assert "vtysh -c 'show rpki prefix 2001:db8::/32' 2>/dev/null || true" in (
+            commands
+        )
+        assert any("show bgp ipv6 unicast 2001:db8::/32" in cmd for cmd in commands)
+
+        commands.clear()
+        runtime.frr_get_rpki_status("router1", prefix="203.0.113.7")
+        assert any("show rpki prefix 203.0.113.7/32" in cmd for cmd in commands)
+        assert any("show bgp ipv4 unicast 203.0.113.7'" in cmd for cmd in commands)
+
+        with pytest.raises(ValueError):
+            runtime.frr_get_rpki_status("router1", prefix="10.0.0.0/8'; reboot; '")
+
     def test_process_running(self):
         runtime = _StubRuntime(
             {("pc1", "pgrep -a named 2>/dev/null || echo NONE"): "123 named\n"}

@@ -20,8 +20,9 @@ from Kathara.model.Lab import Lab
 
 from nika.config import CACHE_DIR, RUNTIME_DIR
 from nika.net_env.base import NetworkEnvBase, ProbePath
+from nika.net_env.utils.k8s_traffic_pods import K8sTrafficPods
 from nika.net_env.utils.k8s_workload_cache import (
-    K3S_IMAGE,
+    K3S_NODE_IMAGE,
     K3S_SYSTEM_IMAGES,
     mount_workload_cache,
 )
@@ -37,11 +38,14 @@ from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 
 cur_path = os.path.dirname(os.path.abspath(__file__))
 
-_K3S_IMAGE = K3S_IMAGE
+_K3S_IMAGE = K3S_NODE_IMAGE
 _BASE_IMAGE = nika_image("base")
 
 # Per-node monitoring agent (``controller/k8s/uptime-agent.yaml``).
 _AGENT_IMAGE = "busybox:1.37.0-musl@sha256:5cec3fc171c87218698e85a52af7087de727372aae264a787b8112901a5b0092"
+
+# Python 3 for background traffic programs on the k3s nodes.
+_TRAFFIC_IMAGE = "python:3.12-alpine@sha256:e6dae589c1c05976188fd3bd019afd091445fc533ed2ea29001beddc7368a9c8"
 
 _KUBECONFIG_REMOTE_PATH = "/etc/rancher/k3s/k3s.yaml"
 
@@ -156,7 +160,7 @@ def ensure_helm_charts() -> list[Path]:
     return chart_paths
 
 
-class LLMDInferenceCluster(NetworkEnvBase):
+class LLMDInferenceCluster(K8sTrafficPods, NetworkEnvBase):
     LAB_NAME = "llmd_lab"
     K8S_HOST_IMAGES = (_K3S_IMAGE, _BASE_IMAGE)
     K8S_WORKLOAD_IMAGES = (
@@ -172,7 +176,10 @@ class LLMDInferenceCluster(NetworkEnvBase):
         "cr.agentgateway.dev/controller:v1.1.0@sha256:0c4179780a3353a20f403ed51c764127f2806b6aa1a5ecb6da7655b5b27d7926",
         "cr.agentgateway.dev/agentgateway:v1.1.0@sha256:b5fd647604aa37eb2da372206a6681dfd613461e2445d89ba0b80e8439a4ff29",
         _AGENT_IMAGE,
+        _TRAFFIC_IMAGE,
     )
+    # Runs background traffic programs on the k3s nodes.
+    TRAFFIC_POD_IMAGE = _TRAFFIC_IMAGE
     VERIFY_MAX_WAIT_SEC = 1800
     VERIFY_RETRY_DELAY_SEC = 2
     TOPO_LEVEL = "hard"
@@ -196,6 +203,9 @@ class LLMDInferenceCluster(NetworkEnvBase):
             "Service name. Hosts resolve lab names (client, web, controller, "
             "workers, llmd) through static /etc/hosts entries; the lab runs no "
             "DNS server for lab names (cluster DNS serves pods only). "
+            "The gateway address (llmd) is a MetalLB Layer 2 LoadBalancer IP "
+            "that kube-proxy serves on TCP port 80 only, so ping to it gets "
+            "no echo reply, only ICMP redirects; test it over HTTP. "
             # kubectl is only usable on the k3s server. Resource ids use device names or Kubernetes objects.
             "`kubectl` works only on controller (the k3s server); the worker "
             "devices ship the binary but have no kubeconfig. Resources are lab "

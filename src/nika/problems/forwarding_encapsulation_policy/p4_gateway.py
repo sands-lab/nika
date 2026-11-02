@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ipaddress
+import re
 
 from pydantic import BaseModel, Field
 
@@ -14,7 +15,23 @@ from nika.problems.support.benchmark_targets import (
     resolve_path_mtu_target,
 )
 from nika.problems.support.compatible_columns import LINUX_PMTU_COLUMNS
-from nika.problems.support.router_ops import native_fault_ops
+from nika.problems.support.p4_oracle import (
+    table_read,
+    bmv2_ports,
+    summary_regex,
+    int_path_rows,
+    int_path_summary,
+)
+from nika.problems.support.oracle import (
+    p4rt,
+    Check,
+    OraclePlaybook,
+    OracleStep,
+    contains,
+    nft_rule,
+    shell,
+)
+from nika.problems.support.router_ops import native_fault_ops, native_router_profile
 from nika.problems.support.p4_gateway import (
     set_icmp_frag_needed_filter,
     set_int_mtu,
@@ -186,6 +203,64 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
             {"host": params.host_name, "nft_rule": _FRAG_NEEDED_NFT_RULE},
         )
 
+    def oracle_playbook(
+        self, params: IcmpFragNeededFilterMisconfigurationParams
+    ) -> OraclePlaybook:
+        host = params.host_name
+        finding = (
+            f"{host} drops ICMP Fragmentation Needed (type 3 code 4), so senders "
+            "never learn the smaller path MTU and large DF packets are black-holed."
+        )
+        if self._uses_p4_filter(params):
+            model = self.net_env.model
+            client = model.client_on_gateway(host)
+            service = model.services[0]
+            return OraclePlaybook(
+                finding=finding,
+                steps=[
+                    shell(
+                        service.name,
+                        f"ip route get {client.ip}; ping -M do -s 1450 -c 3 -W 1 "
+                        f"{client.ip} 2>&1 | grep -E 'mtu|Frag|transmitted'",
+                        f"Send full-size DF packets from {service.name} to "
+                        f"{client.name}, behind {host}'s smaller access MTU; a "
+                        "cached path MTU predates the filter.",
+                    ),
+                    table_read(
+                        host,
+                        "icmp_acl",
+                        "an icmp_acl entry drops ICMP type 3 code 4",
+                        lambda rows: any(
+                            row["match"] == {"type": 3, "code": 4}
+                            and row["action"] == "drop"
+                            for row in rows
+                        ),
+                        f"List the ICMP ACL entries on {host}.",
+                    ),
+                ],
+            )
+        if native_router_profile(self.net_env, host) == "routeros":
+            step = OracleStep(
+                f"List the ICMP firewall filters on {host}.",
+                "routeros_exec",
+                {
+                    "router_name": host,
+                    "command": "/ip firewall filter print terse where protocol=icmp",
+                },
+                contains(
+                    r"icmp-options=3:4.*action=drop|action=drop.*icmp-options=3:4",
+                    "a filter drops ICMP type 3 code 4",
+                ),
+                evidence=True,
+            )
+        else:
+            step = nft_rule(
+                host,
+                r"frag-needed.*drop",
+                f"Inspect the packet filter on {host} for ICMP rules.",
+            )
+        return OraclePlaybook(finding=finding, steps=[step])
+
 
 class P4TcamEntryCorruptionParams(BaseModel):
     host_name: str = Field(description="Gateway or spine whose route entry is corrupt.")
@@ -334,6 +409,89 @@ class P4TcamEntryCorruption(ProblemBase):
             "details": {"switch": params.host_name, "interfaces": interfaces},
         }
 
+    def oracle_playbook(self, params: P4TcamEntryCorruptionParams) -> OraclePlaybook:
+        switch, target = params.host_name, params.target_ip
+        model = self.net_env.model
+        device_id = model.switch_info[switch].device_id
+        on_gateway = switch in model.gateways
+        sources = (
+            [model.client_on_gateway(switch).name]
+            if on_gateway
+            else [client.name for client in model.clients]
+        )
+        traffic = [
+            shell(
+                src,
+                f"ping -c 5 -i 0.2 -W 1 {target} 2>&1 | tail -2; "
+                "for i in $(seq 8); do curl -s -o /dev/null -m 1 "
+                f"-w '%{{http_code}} ' http://{target}/; done",
+                f"Send ICMP and HTTP probes from {src} to {target}.",
+                timeout=40,
+            )
+            for src in sources
+        ]
+        if on_gateway and params.control_source not in sources:
+            traffic.append(
+                shell(
+                    params.control_source,
+                    f"ping -c 3 -W 1 {target} 2>&1 | tail -2",
+                    f"Control: reach {target} from {params.control_source}, "
+                    f"which does not cross {switch}.",
+                    contains(r"\b[1-9][0-9]* received", "probes get replies"),
+                )
+            )
+
+        def lost_after_switch(output: str) -> bool:
+            rows = [r for r in int_path_rows(output) if r[0] == device_id]
+            ok = sum(r[3] for r in rows if r[2] == target)
+            lost = sum(r[4] for r in rows if r[2] == target)
+            other_ok = sum(r[3] for r in rows if r[2] != target)
+            other_lost = sum(r[4] for r in rows if r[2] != target)
+            return (
+                lost >= 3
+                and lost >= 4 * ok
+                and other_ok > 0
+                and other_lost <= 0.1 * (other_ok + other_lost)
+            )
+
+        return OraclePlaybook(
+            finding=(
+                f"{switch}'s forwarding hardware stops matching part of the route "
+                f"that covers {target}: packets to {target} leave {switch} and "
+                "vanish, while P4Runtime still reads the intended route and other "
+                "destinations on that route forward."
+            ),
+            steps=[
+                *traffic,
+                p4rt(
+                    f"read --switch {switch}",
+                    f"Read {switch}'s programmed pipeline, routes, and groups.",
+                    contains(
+                        summary_regex(
+                            switch,
+                            r'"pipeline_matches_intent":\s*true,[^{}]*?'
+                            r'"mismatches":\s*\[\s*\]',
+                        ),
+                        f"{switch}'s P4Runtime state matches the intent",
+                    ),
+                    evidence=True,
+                ),
+                int_path_summary(
+                    device_id,
+                    60,
+                    Check(
+                        f"INT traces to {target} end at switch_id {device_id} "
+                        "while other destinations through it are delivered",
+                        lost_after_switch,
+                    ),
+                    f"Locate where INT traces to {target} stop (switch_id "
+                    f"{device_id} is {switch}).",
+                    attempts=3,
+                    interval_sec=15,
+                ),
+            ],
+        )
+
 
 class IntInsufficientMtuHeadroomParams(BaseModel):
     host_name: str = Field(description="INT source gateway.")
@@ -385,4 +543,51 @@ class IntInsufficientMtuHeadroom(ProblemBase):
                 "int_mtu": params.int_mtu,
                 "observed_int_mtu": observed,
             },
+        )
+
+    def oracle_playbook(
+        self, params: IntInsufficientMtuHeadroomParams
+    ) -> OraclePlaybook:
+        switch, intf, port = params.host_name, params.intf_name, params.bmv2_port
+
+        def lowered(rows: list[dict]) -> bool:
+            mtus = {
+                int(row["match"]["egress_spec"]): int(row["params"]["mtu"])
+                for row in rows
+            }
+            return mtus.get(port) == params.int_mtu and any(
+                mtu > params.int_mtu for p, mtu in mtus.items() if p != port
+            )
+
+        def link_mtu_above(output: str) -> bool:
+            m = re.search(r"\bmtu (\d+)", output)
+            return bool(m) and int(m.group(1)) > params.int_mtu
+
+        return OraclePlaybook(
+            finding=(
+                f"The INT MTU of {switch}:{intf} (BMv2 port {port}) is "
+                f"{params.int_mtu}, below the link MTU, so near-MTU watched packets "
+                "leave without the INT-MX header and drop out of telemetry."
+            ),
+            steps=[
+                bmv2_ports(
+                    switch,
+                    contains(rf"(^|\s){port}@{intf}\b", f"port {port} is {intf}"),
+                ),
+                table_read(
+                    switch,
+                    "int_mtu_config",
+                    f"port {port} has INT MTU {params.int_mtu} while other ports "
+                    "allow more",
+                    lowered,
+                    f"Read the per-port INT MTU on {switch}.",
+                ),
+                shell(
+                    switch,
+                    f"ip link show dev {intf} | head -1",
+                    f"Read the link MTU of {switch}:{intf}.",
+                    Check(f"the link MTU exceeds {params.int_mtu}", link_mtu_above),
+                    evidence=True,
+                ),
+            ],
         )

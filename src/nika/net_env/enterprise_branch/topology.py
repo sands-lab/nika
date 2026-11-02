@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from nika.traffic.workload import BUSINESS_RATE_SHARE, rate_budget_kbps
 from nika.net_env.enterprise_branch.addressing import (
     host_name_for,
     lan_network,
@@ -48,7 +49,7 @@ class ScaleSpec:
 
 @dataclass(frozen=True)
 class OverlayQosSpec:
-    """WireGuard overlay egress capacity and EF reservation (kbit/s)."""
+    """Per-size WireGuard overlay egress capacity and EF reservation (kbit/s)."""
 
     rate_kbit: int
     ef_kbit: int
@@ -64,11 +65,6 @@ OVERLAY_QOS: dict[TopoSize, OverlayQosSpec] = {
     # a faster regional egress loads them enough to delay healthy traffic.
     "l": OverlayQosSpec(rate_kbit=16000, ef_kbit=7000),
 }
-
-# A Site Edge WAN interface also carries voice legs to other sites, WireGuard
-# overhead, and guest uploads, so an edge with an interface rate ceiling shapes
-# each overlay egress to this share of it.
-_CEILING_SHARE = 0.5
 
 # DSCP EF = 46 → TOS 0xb8; mask 0xfc ignores ECN.
 DSCP_EF = 46
@@ -116,41 +112,57 @@ SYNC_OBJECT = "projects.tar"
 SYNC_OBJECT_MB = 32
 
 # Public web/push service that GUEST and IOT clients reach through their Site
-# Edge NAT. The primary provider (``isp1``) hosts it on a loopback address.
+# Edge NAT. A Linux server on a LAN of the primary provider (``isp1``) hosts it,
+# so it runs whatever platform the provider routers use.
+PUBLIC_SERVICE_HOST = "internet_web"
 PUBLIC_SERVICE_IP = "198.51.100.10"
+PUBLIC_SERVICE_GATEWAY = "198.51.100.9"
+PUBLIC_SERVICE_PREFIXLEN = 29
 
 
-def overlay_scale(topo_size: TopoSize, rate_ceiling_bps: int | None) -> float:
-    """Return the factor that fits the overlay design under an interface ceiling.
-
-    The overlay rates and the regional load scale together, so their ratios,
-    and the EF and BE behavior they produce, stay the same.
-    """
-    if rate_ceiling_bps is None:
-        return 1.0
-    design_bps = overlay_qos_for(topo_size).rate_kbit * 1000
-    return min(1.0, rate_ceiling_bps * _CEILING_SHARE / design_bps)
-
-
-def overlay_qos_for(topo_size: TopoSize, scale: float = 1.0) -> OverlayQosSpec:
+def overlay_qos_for(
+    topo_size: TopoSize, rate_limit_kbps: int | None = None
+) -> OverlayQosSpec:
+    """The size's overlay QoS, within the business share of a router send cap."""
     if topo_size not in OVERLAY_QOS:
         raise ValueError("topo_size should be one of 's', 'm', 'l'.")
-    qos = OVERLAY_QOS[topo_size]
+    return overlay_qos_within(OVERLAY_QOS[topo_size], rate_limit_kbps)
+
+
+def overlay_qos_scale(qos: OverlayQosSpec, rate_limit_kbps: int | None) -> float:
+    """Factor that fits ``qos`` into the business share of ``rate_limit_kbps``.
+
+    Edges whose platform caps each interface keep the design's proportions:
+    rates, the EF reservation and the workload shrink by the same factor.
+    """
+    budget = rate_budget_kbps(rate_limit_kbps, BUSINESS_RATE_SHARE)
+    return min(1.0, budget / qos.rate_kbit) if budget else 1.0
+
+
+def overlay_qos_within(
+    qos: OverlayQosSpec, rate_limit_kbps: int | None
+) -> OverlayQosSpec:
+    scale = overlay_qos_scale(qos, rate_limit_kbps)
+    if scale == 1.0:
+        return qos
     return OverlayQosSpec(
-        rate_kbit=round(qos.rate_kbit * scale), ef_kbit=round(qos.ef_kbit * scale)
+        rate_kbit=int(qos.rate_kbit * scale), ef_kbit=int(qos.ef_kbit * scale)
     )
 
 
-def overlay_be_class(qos: OverlayQosSpec) -> tuple[int, int]:
-    """Return the BE class ceiling (kbit/s) and its byte-FIFO depth."""
-    be_kbit = max(qos.rate_kbit - qos.ef_kbit, 1)
-    # ~500ms of standing queue at the BE ceil (bytes = rate_bps * 0.5 / 8).
-    return be_kbit, max(int(be_kbit * 1000 * 0.5 / 8), 64_000)
+def overlay_be_kbit(qos: OverlayQosSpec) -> int:
+    """Return the BE class ceiling (kbit/s): the link rate left after EF."""
+    return max(qos.rate_kbit - qos.ef_kbit, 1)
 
 
 def tc_rate(kbit: int) -> str:
-    """Format a rate as ``tc`` prints it, in Mbit when it is whole."""
-    return f"{kbit // 1000}Mbit" if kbit % 1000 == 0 else f"{kbit}Kbit"
+    """A rate as tc writes it: ``8mbit``, or ``600kbit`` below whole mbit."""
+    return f"{kbit // 1000}mbit" if kbit % 1000 == 0 else f"{kbit}kbit"
+
+
+def routeros_rate(kbit: int) -> str:
+    """A rate as RouterOS writes it: ``8M``, or ``600k`` below whole mbit."""
+    return f"{kbit // 1000}M" if kbit % 1000 == 0 else f"{kbit}k"
 
 
 def overlay_qos_startup_cmds(iface: str, qos: OverlayQosSpec) -> list[str]:
@@ -163,13 +175,11 @@ def overlay_qos_startup_cmds(iface: str, qos: OverlayQosSpec) -> list[str]:
     flows such as pings skip ahead, while a flow that sends above its fair
     share of the class is dropped.
     """
-    be_kbit, _ = overlay_be_class(qos)
-    rate, ef, be = (
-        tc_rate(kbit).lower() for kbit in (qos.rate_kbit, qos.ef_kbit, be_kbit)
-    )
+    be_kbit = overlay_be_kbit(qos)
+    rate, ef, be = tc_rate(qos.rate_kbit), tc_rate(qos.ef_kbit), tc_rate(be_kbit)
     # Token buckets hold 10 ms at the link rate, like a shaper's Bc = CIR x Tc,
     # so back-to-back packets of a flow within its rate are not throttled.
-    bucket = qos.rate_kbit * 10 // 8
+    bucket = qos.rate_kbit * 1250 // 1000
     burst = f"burst {bucket} cburst {bucket}"
     return [
         f"tc qdisc add dev {iface} root handle 1: htb default 20 || true",
@@ -275,7 +285,12 @@ class TopoSpec:
         return names
 
     def all_node_names(self) -> list[str]:
-        return self.edge_names() + self.isp_names() + self.host_names()
+        return [
+            *self.edge_names(),
+            *self.isp_names(),
+            *self.host_names(),
+            PUBLIC_SERVICE_HOST,
+        ]
 
     def advertised_prefixes(self) -> list[str]:
         return [

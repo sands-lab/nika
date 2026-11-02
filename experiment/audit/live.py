@@ -699,7 +699,15 @@ def audit_case(row: dict[str, Any]) -> CaseAudit:
     if size and not scenario_requires_topo_size(scenario):
         size = None
     kwargs: dict[str, Any] = {}
-    for key in ("topo", "igp", "bgp_mode", "rpki", "backend", "device_profile"):
+    for key in (
+        "topo",
+        "igp",
+        "bgp_mode",
+        "rpki",
+        "backend",
+        "device_profile",
+        "traffic",
+    ):
         if key in row and row[key] is not None:
             kwargs[key] = row[key]
     session_id = start_net_env(

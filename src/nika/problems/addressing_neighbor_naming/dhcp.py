@@ -1,3 +1,5 @@
+import ipaddress
+import re
 import time
 
 from pydantic import BaseModel, Field
@@ -8,9 +10,24 @@ from nika.problems.base import (
     build_verify_result,
     ProblemBase,
 )
-from nika.problems.support.dhcp import client_subnet, subnet_declared
+from nika.problems.support.dhcp import (
+    DHCPD_CONF,
+    client_subnet,
+    dhcp_client_step,
+    host_ipv4,
+    lease_option,
+    subnet_declared,
+)
 from nika.problems.support.benchmark_targets import (
     dhcp_server_client,
+)
+from nika.problems.support.oracle import (
+    Check,
+    OraclePlaybook,
+    OracleStep,
+    all_of,
+    contains,
+    lacks,
 )
 from nika.utils.logger import system_logger
 
@@ -87,4 +104,82 @@ class DHCPMissingSubnet(ProblemBase):
                 "subnet": subnet,
                 "match_count": match_count,
             },
+        )
+
+    def oracle_playbook(self, params: DHCPMissingSubnetParams) -> OraclePlaybook:
+        server, client = params.host_name, params.host_name_2
+
+        def lease_subnet(out) -> str:
+            if params.subnet:
+                return params.subnet
+            text = out.get("lease", "")
+            m = re.search(r"fixed-address ([\d.]+);", text)
+            mask = lease_option(text, "subnet-mask")
+            if not (m and mask):
+                return ""
+            addr = m.group(1)
+            return str(
+                ipaddress.ip_network(f"{addr}/{mask}", strict=False).network_address
+            )
+
+        def no_declaration(out):
+            subnet = lease_subnet(out)
+            if not subnet:
+                # Without the segment's subnet the check cannot hold.
+                return {
+                    "host_name": server,
+                    "command": "echo SUBNET_UNKNOWN",
+                    "timeout": 15,
+                }
+            subnet = re.escape(subnet)
+            return {
+                "host_name": server,
+                "command": (
+                    "pgrep -af dhcpd | grep -v pgrep || echo NO_DHCPD; "
+                    f"grep -nE '^[[:space:]]*subnet ' {DHCPD_CONF}; "
+                    f"grep -cE '^[[:space:]]*subnet {subnet} netmask ' {DHCPD_CONF} "
+                    "| sed 's/^/client_subnet_declarations=/'"
+                ),
+                "timeout": 15,
+            }
+
+        return OraclePlaybook(
+            finding=(
+                f"The DHCP server {server} has no subnet declaration for the "
+                f"segment of {client}, so its clients get no lease or address."
+            ),
+            steps=[
+                dhcp_client_step(
+                    client,
+                    "ip -br link show dev eth0; ip -4 -o addr show dev eth0 scope global; "
+                    "tail -n 6 /var/log/startup.log 2>/dev/null",
+                    f"Check whether DHCP client {client} holds an address and lease.",
+                    all_of(
+                        contains(r"^eth0(@\S+)?\s+UP\b", "eth0 is up"),
+                        Check(
+                            "eth0 has no IPv4 address",
+                            lambda o: host_ipv4(o.split("dhclient=")[0]) is None,
+                        ),
+                        contains(r"^dhclient=running", "dhclient is still requesting"),
+                    ),
+                    evidence=True,
+                    save_as="lease",
+                    attempts=3,
+                ),
+                OracleStep(
+                    f"Check that dhcpd on {server} runs but declares no subnet for "
+                    f"the client segment.",
+                    "exec_shell",
+                    no_declaration,
+                    all_of(
+                        lacks(r"^NO_DHCPD$", "dhcpd is running"),
+                        contains(r"^\d+:\s*subnet ", "other subnets are declared"),
+                        contains(
+                            r"^client_subnet_declarations=0$",
+                            "the client's subnet is not declared",
+                        ),
+                    ),
+                    evidence=True,
+                ),
+            ],
         )

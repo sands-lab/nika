@@ -18,6 +18,7 @@ from nika.net_env.utils.routeros.common import (
     add_routeros_router,
     require_routeros_image,
 )
+from nika.net_env.utils.pair_workload import DATA_SET_STARTUP
 from nika.runtime.spec import NodeRole
 
 # Real data-link count per router (router-to-router + router-to-pc).
@@ -95,7 +96,9 @@ class RouterOsSimpleBGP(NetworkEnvBase):
         self.name = self.LAB_NAME
         self.instance = Kathara.get_instance()
         self.desc = (
-            "A simple BGP network with two MikroTik RouterOS routers and two pcs."
+            "A simple BGP network with two MikroTik RouterOS routers and two pcs. "
+            "The pcs replicate data sets to each other over HTTP, and pc1 keeps "
+            "web sessions to pc2."
         )
 
         from nika.net_env.synthesis.vendor_bgp import render_routeros_bgp_exports
@@ -148,16 +151,35 @@ class RouterOsSimpleBGP(NetworkEnvBase):
 
         self.lab.create_file_from_string(
             "ip addr add 195.11.14.2/24 dev eth0\n"
-            "ip route add default via 195.11.14.1 dev eth0\n",
+            "ip route add default via 195.11.14.1 dev eth0\n"
+            f"{DATA_SET_STARTUP}\n",
             "pc1.startup",
         )
         self.lab.create_file_from_string(
             "ip addr add 200.1.1.2/24 dev eth0\n"
-            "ip route add default via 200.1.1.1 dev eth0\n",
+            "ip route add default via 200.1.1.1 dev eth0\n"
+            f"{DATA_SET_STARTUP}\n",
             "pc2.startup",
         )
 
         self.load_machines()
+
+    @classmethod
+    def path_rate_limit_kbps(cls, device_profile: str | None) -> int | None:
+        """Both routers always run RouterOS."""
+        return super().path_rate_limit_kbps(device_profile or "routeros")
+
+    def business_workload(self):
+        from nika.net_env.utils.pair_workload import build_pair_workload
+
+        # pc1 -> router1 (eth2 in, eth1 out) -> router2 (eth1 in, eth2 out) -> pc2;
+        # eth0 of a RouterOS container is its management port.
+        return build_pair_workload(
+            ("pc1", "195.11.14.2"),
+            ("pc2", "200.1.1.2"),
+            (("pc1", "eth0"), ("router1", "eth1"), ("router2", "eth2")),
+            rate_limit_kbps=self.router_rate_limit_kbps(),
+        )
 
     def bgp_origin_prefixes(self):
         return {str(router["pc_ip"].network): name for name, router in ROUTERS.items()}

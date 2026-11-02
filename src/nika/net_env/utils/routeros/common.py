@@ -65,6 +65,10 @@ CONTAINER_MEMORY = "1g"
 _BRIDGED_PREFIX = "dp"
 
 
+# A CHR with the free license sends at most 1 Mbit/s per interface.
+INTERFACE_RATE_KBPS = 1000
+
+
 def routeros_interface(name: str) -> str:
     """Translate a reserved-layout container interface to its RouterOS port."""
     if name == "lo":

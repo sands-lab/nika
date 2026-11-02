@@ -14,6 +14,14 @@ from nika.problems.support.inject_resolve import resolve_victim_host_ip
 from nika.problems.support.router_ops import native_fault_ops
 
 from nika.problems.rca import node_resource
+from nika.problems.support.oracle import (
+    Check,
+    OraclePlaybook,
+    OracleStep,
+    contains,
+    shell,
+    vtysh,
+)
 
 from nika.problems.base import (
     FailureDomain,
@@ -43,6 +51,37 @@ def _first_bgp_prefix(route_output: str) -> str | None:
 def _is_endpoint_host(name: str, *, kind: str = "") -> bool:
     lowered = kind.lower()
     return any(key in name for key in ("client", "pc", "host")) or lowered == "linux"
+
+
+_BLACKHOLE_RE = re.compile(r"^blackhole (\d+\.\d+\.\d+\.\d+/\d+)", re.MULTILINE)
+
+
+def _blackhole_prefixes(output: str) -> list[str]:
+    return list(dict.fromkeys(_BLACKHOLE_RE.findall(output or "")))[:3]
+
+
+def _blackhole_overrides_rib(output: str) -> bool:
+    """A kernel blackhole is selected for a prefix the RIB also learns elsewhere."""
+    entries = re.split(r"(?=^Routing entry for )", output, flags=re.MULTILINE)
+    by_prefix: dict[str, list[str]] = {}
+    for entry in entries:
+        head = re.match(r"Routing entry for (\S+)", entry)
+        if head:
+            by_prefix.setdefault(head.group(1), []).append(entry)
+    for blocks in by_prefix.values():
+        local = any(
+            re.search(r'Known via "(kernel|static)"', b)
+            and re.search(r"Selected", b)
+            and re.search(r"blackhole", b)
+            for b in blocks
+        )
+        learned = any(
+            re.search(r'Known via "(bgp|ospf|isis)"', b) and "blackhole" not in b
+            for b in blocks
+        )
+        if local and learned:
+            return True
+    return False
 
 
 class StaticBlackHole(ProblemBase):
@@ -256,3 +295,77 @@ class StaticBlackHole(ProblemBase):
                 raise RuntimeCapabilityError(
                     f"{type(self).__name__} cannot verify_fault: unsupported backend {backend!r}."
                 )
+
+    def oracle_playbook(self, params: StaticBlackHoleParams) -> OraclePlaybook:
+        host = params.host_name
+        finding = (
+            f"A locally configured static blackhole route on {host} overrides "
+            "the learned route to a remote prefix and silently drops that traffic."
+        )
+        if self.lab_backend == "containerlab":
+            return OraclePlaybook(
+                finding=finding,
+                steps=[
+                    OracleStep(
+                        f"List static routes on {host}.",
+                        "srl_exec_cli",
+                        {
+                            "device_name": host,
+                            "command": "info flat from running network-instance "
+                            "default static-routes",
+                        },
+                        contains(
+                            r"static-routes route \S+ next-hop-group",
+                            "a static route points at a next-hop group",
+                        ),
+                        evidence=True,
+                    ),
+                    OracleStep(
+                        f"Inspect the next-hop groups on {host}.",
+                        "srl_exec_cli",
+                        {
+                            "device_name": host,
+                            "command": "info flat from running network-instance "
+                            "default next-hop-groups",
+                        },
+                        contains(
+                            r"group \S+ blackhole", "a next-hop group discards traffic"
+                        ),
+                        evidence=True,
+                    ),
+                ],
+            )
+
+        def rib_lookup(outputs) -> dict:
+            prefixes = _blackhole_prefixes(outputs.get("blackholes", ""))
+            command = (
+                vtysh(*(f"show ip route vrf all {p}" for p in prefixes)) + " | head -60"
+                if prefixes
+                else "echo NO_BLACKHOLE_ROUTE"
+            )
+            return {"host_name": host, "command": command, "timeout": 20}
+
+        return OraclePlaybook(
+            finding=finding,
+            steps=[
+                shell(
+                    host,
+                    "ip route show table all type blackhole 2>&1 | head -20",
+                    f"List blackhole routes in every routing table on {host}.",
+                    contains(r"^blackhole \d", "a blackhole route is installed"),
+                    evidence=True,
+                    save_as="blackholes",
+                ),
+                OracleStep(
+                    f"Look up each blackholed prefix in {host}'s routing daemon RIB.",
+                    "exec_shell",
+                    rib_lookup,
+                    Check(
+                        "a locally installed (kernel/static) blackhole is selected "
+                        "over a route the RIB learns from a routing protocol",
+                        _blackhole_overrides_rib,
+                    ),
+                    evidence=True,
+                ),
+            ],
+        )

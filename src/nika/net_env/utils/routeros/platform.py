@@ -12,6 +12,7 @@ from nika.net_env.native_routers import (
 )
 from nika.net_env.utils.routeros.common import (
     IMAGE,
+    INTERFACE_RATE_KBPS,
     require_routeros_image,
     routeros_config_applied,
 )
@@ -124,6 +125,7 @@ PLATFORM = NativeRouterPlatform(
     convert=convert_frr_routers,
     check_deployable=_check_deployable,
     verify_max_wait_sec=600,
+    interface_rate_kbps=INTERFACE_RATE_KBPS,
     validation=NativeRouterValidation(
         # The static model analyzes an FRR projection under container names.
         interface=lambda name: name,
@@ -135,9 +137,6 @@ PLATFORM = NativeRouterPlatform(
         static_underlay=_static_underlay,
     ),
     fault_ops=_fault_ops,
-    # The shipped CHR image runs the free license, 1 Mbps upload per interface:
-    # https://help.mikrotik.com/docs/spaces/ROS/pages/18350234/Cloud+Hosted+Router+CHR
-    interface_rate_bps=1_000_000,
 )
 
 

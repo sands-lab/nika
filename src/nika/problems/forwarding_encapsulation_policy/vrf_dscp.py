@@ -22,6 +22,7 @@ from nika.problems.base import (
 )
 from nika.problems.rca import interface_resource
 from nika.problems.support.benchmark_targets import replace, workload_exercises
+from nika.problems.support.oracle import Check, OraclePlaybook, all_of, contains, shell
 from nika.problems.support.router_ops import native_fault_ops
 from nika.runtime.base import RuntimeCapabilityError
 from nika.traffic.workload import REALTIME_BULK_CONTENTION
@@ -47,6 +48,12 @@ def _remark_targets(cls: type, net_env: Any, scenario: str) -> list[Any]:
             cls, net_env, {"host_name": target.edge, "intf_name": target.intf_name}
         )
     ]
+
+
+def _counter_grows(output: str) -> bool:
+    """Two counter readings taken a few seconds apart, the second higher."""
+    readings = [int(n) for n in _COUNTER_RE.findall(output)]
+    return len(readings) >= 2 and readings[-1] > readings[0] > 0
 
 
 class VrfDscpRemarkingParams(BaseModel):
@@ -242,6 +249,51 @@ class VrfDscpRemarking(ProblemBase):
         self.logger.info(
             f"Injected DSCP EF→CS0 remark on {edge} oif={iface} "
             f"saddr={self._corp_prefix}"
+        )
+
+    def oracle_playbook(self, params: VrfDscpRemarkingParams) -> OraclePlaybook:
+        edge, iface = params.host_name, params.intf_name
+        prefix = self._resolve_corp_prefix(params)
+        rule = (
+            rf'oifname "{iface}" ip saddr {re.escape(prefix)} ip dscp (ef|0x2e|46) '
+            r".*ip dscp set (cs0|0x00|0)\b"
+        )
+        remark_counter = (
+            f"nft -a list ruleset 2>/dev/null | grep -F 'oifname \"{iface}\"' "
+            "| grep -E 'dscp set' | head -4"
+        )
+        return OraclePlaybook(
+            finding=(
+                f"A mangle rule on {edge} rewrites CORP DSCP EF to CS0 on overlay "
+                f"egress {iface}, so realtime traffic falls out of the EF class "
+                "into best effort and competes with bulk transfers."
+            ),
+            steps=[
+                shell(
+                    edge,
+                    f"tc -s class show dev {iface} | head -30",
+                    f"Inspect the EF and best-effort QoS classes on {edge}:{iface}.",
+                ),
+                shell(
+                    edge,
+                    "nft list ruleset 2>&1 | grep -nE 'table|chain|hook|dscp' | head -40",
+                    f"Look for DSCP rewrite rules on {edge}.",
+                    contains(rule, f"EF from {prefix} leaving {iface} is set to CS0"),
+                    evidence=True,
+                ),
+                shell(
+                    edge,
+                    f"{remark_counter}; sleep 5; {remark_counter}",
+                    "Check that live EF traffic keeps hitting the rewrite rule.",
+                    all_of(
+                        contains(rule, "the rewrite rule matches"),
+                        Check("its packet counter grows", _counter_grows),
+                    ),
+                    evidence=True,
+                    timeout=25,
+                    attempts=2,
+                ),
+            ],
         )
 
     def _chain(self, params: VrfDscpRemarkingParams) -> str:

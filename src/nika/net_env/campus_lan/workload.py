@@ -7,6 +7,9 @@
   access blocks behind router_core_2, refresh the software catalog from the
   campus repository every few minutes: ``https://web0.local/packages/
   catalog.txt`` with gzip content encoding, about 3.3 MB on the wire.
+
+Under a router send cap the transfers are read at a limited rate
+(``pace_browsers``).
 """
 
 from __future__ import annotations
@@ -18,6 +21,7 @@ from nika.traffic.workload import (
     BusinessWorkload,
     WorkloadExercise,
     WorkloadProcess,
+    pace_browsers,
     routine_change_processes,
 )
 
@@ -30,7 +34,9 @@ PAGE_URLS = tuple(
 LAB_PC_PREFIX = "pc_2_"
 
 
-def build_workload(hosts: list[str], routers: list[str]) -> BusinessWorkload:
+def build_workload(
+    hosts: list[str], routers: list[str], rate_limit_kbps: int | None = None
+) -> BusinessWorkload:
     processes: list[WorkloadProcess] = []
     exercises: list[WorkloadExercise] = []
     for pc in sorted(h for h in hosts if h.startswith("pc_")):
@@ -61,5 +67,6 @@ def build_workload(hosts: list[str], routers: list[str]) -> BusinessWorkload:
                 )
             )
             exercises.append(WorkloadExercise(BULK_DOWNLOAD, (pc,)))
+    processes = pace_browsers(processes, rate_limit_kbps)
     processes += routine_change_processes(routers)
     return BusinessWorkload(processes=tuple(processes), exercises=tuple(exercises))

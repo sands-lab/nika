@@ -38,6 +38,10 @@ RESOLVE_TIMEOUT_SEC = 20.0
 MAX_CONCURRENT_PROBES = 16
 # Seconds past the last echo request before ping gives up on a silent pair.
 PING_DEADLINE_SLACK_SEC = 2
+# Worst-case seconds for the probe waves. With RESOLVE_TIMEOUT_SEC it stays
+# under the default MCP tool timeout (nika.mcp.read_timeout_sec, 120 s), so a
+# snapshot returns results instead of timing out the agent's tool call.
+PROBE_BUDGET_SEC = 90.0
 EXEC_TIMEOUT_SENTINEL = "[TIMEOUT]"
 _ANOMALY_ORDER: dict[AnomalyType, int] = {
     "policy_violation": 0,
@@ -50,6 +54,12 @@ _ANOMALY_ORDER: dict[AnomalyType, int] = {
 
 def _clamp_count(count: int) -> int:
     return max(MIN_COUNT, min(MAX_COUNT, count))
+
+
+def _pair_ceiling(count: int) -> int:
+    """Most pairs whose probe waves fit in PROBE_BUDGET_SEC at worst case."""
+    wave_sec = ping_exec_timeout(count) + 5
+    return MAX_CONCURRENT_PROBES * max(1, int(PROBE_BUDGET_SEC // wave_sec))
 
 
 def _validate_selection(
@@ -341,7 +351,10 @@ async def run_pingmesh_snapshot(
     )
     is_isolated = intent.isolation_matcher() if intent else (lambda _a, _b: False)
     pairs, candidate_pairs = _build_pairs(
-        resolved_sources, resolved_targets, max_pairs, is_isolated=is_isolated
+        resolved_sources,
+        resolved_targets,
+        min(max_pairs, _pair_ceiling(count)),
+        is_isolated=is_isolated,
     )
     if not pairs:
         raise ValueError(

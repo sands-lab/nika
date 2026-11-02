@@ -98,6 +98,12 @@ def _observers(runtime: LabRuntime, target_ip: str, exclude: set[str]) -> dict:
         ip = _eth0_ip(runtime, node)
         if ip and ip != target_ip and _reachable(runtime, observer, ip):
             return {"observer": observer, "control_ip": ip, "target_ip": target_ip}
+    # An isolated observer (a guest LAN behind NAT) may reach no other host,
+    # and native routers expose no Linux address: its own gateway still shows
+    # that the observer's side of the network works.
+    gateway = runtime.get_default_gateway(observer)
+    if gateway and gateway != target_ip and _reachable(runtime, observer, gateway):
+        return {"observer": observer, "control_ip": gateway, "target_ip": target_ip}
     return {}
 
 

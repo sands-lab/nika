@@ -43,6 +43,7 @@ Join the [NIKA Slack community](https://sands-lab.github.io/nika/community/) for
 | Understand what release version numbers mean and when they change | [Versioning policy](../VERSIONING.md) | Reference |
 | Run the 0.1.0 case collection | [Run release 0.1.0](compat/release-0.1.0.md) | How-to |
 | Understand ground truth, agent submissions, and scores | [Root-cause ground truth and scoring](benchmarks/root-cause-evaluation.md) | Reference |
+| Check that tasks are solvable and see each task's reference diagnosis | [Oracle solver](benchmarks/oracle-solver.md) | How-to |
 | Package a completed official release run | [Leaderboard submission](benchmarks/leaderboard-submission.md) | How-to |
 | Size hosts and `batch_size` from measured scenario startup cost | [Scenario startup performance](benchmarks/scenario_perf.md) | Reference |
 

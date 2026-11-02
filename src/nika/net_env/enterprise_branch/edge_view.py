@@ -54,7 +54,7 @@ class FrrEdgeView:
             "htb": "htb" in tc_out.lower(),
             "ef_class": "1:10" in tc_class,
             "be_class": "1:20" in tc_class,
-            "rate": f"rate {tc_rate(qos.rate_kbit)}" in tc_class,
+            "rate": tc_rate(qos.rate_kbit) in tc_class.lower(),
         }
 
     def ping(self, target: str) -> str:

@@ -6,14 +6,15 @@ import pytest
 
 from nika.config import pkg_path
 from nika.net_env.enterprise_branch.topology import (
+    OVERLAY_QOS,
     build_topo_spec,
     overlay_qos_for,
-    overlay_scale,
+    overlay_qos_scale,
 )
-from nika.net_env.native_routers import native_interface_rate_bps
 from nika.net_env.enterprise_branch.workload import (
     GUEST_ARGS,
     REGIONAL_LOAD,
+    RegionalLoad,
     VIDEO_PAYLOAD,
     build_workload,
 )
@@ -22,21 +23,25 @@ from nika.traffic.workload import NAT_SESSIONS, REALTIME_BULK_CONTENTION
 pytestmark = pytest.mark.unit
 
 
-@pytest.mark.parametrize(
-    ("size", "profile"),
-    [("s", None), ("m", None), ("l", None), ("s", "routeros")],
-)
+@pytest.mark.parametrize("rate_limit_kbps", [None, 1000])
+@pytest.mark.parametrize("size", ["s", "m", "l"])
 def test_regional_egress_is_unsaturated_until_ef_is_demoted(
-    size: str, profile: str | None
+    size: str, rate_limit_kbps: int | None
 ) -> None:
-    ceiling = native_interface_rate_bps(profile)
-    scale = overlay_scale(size, ceiling)
-    qos = overlay_qos_for(size, scale)
-    load = REGIONAL_LOAD[size].scaled(scale)
+    qos = overlay_qos_for(size, rate_limit_kbps)
+    scale = overlay_qos_scale(OVERLAY_QOS[size], rate_limit_kbps)
+    full = REGIONAL_LOAD[size]
+    load = RegionalLoad(
+        full.sync_pcs,
+        int(full.connection_kbps * scale),
+        int(full.video_kbps * scale),
+    )
+    workload = build_workload(build_topo_spec(size), [], rate_limit_kbps)
+    rates = {a for p in workload.processes if p.command == "filedist" for a in p.args}
+    assert f"{load.connection_kbps}k" in rates
+    if rate_limit_kbps:
+        assert qos.rate_kbit <= rate_limit_kbps
     be_kbps = qos.rate_kbit - qos.ef_kbit
-    # The overlay egress fits the edge's interface ceiling with headroom.
-    if ceiling is not None:
-        assert qos.rate_kbit * 1000 <= ceiling / 2
     # Headroom for a slow host servicing the shaper.
     assert load.sync_kbps <= 0.65 * be_kbps
     # Healthy media fits its EF guarantee, RTP/UDP/IP headers included.

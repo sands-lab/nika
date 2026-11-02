@@ -16,6 +16,7 @@ from nika.problems.rca.inventory import (
     resolve_default_intf,
 )
 from nika.problems.rca.models import UnresolvedRootCauseError
+from nika.problems.support.oracle import Check, OraclePlaybook, ping, shell
 from nika.traffic.workload import FAN_IN_BURSTS
 from nika.utils.logger import system_logger
 
@@ -98,6 +99,30 @@ def tbf_shape(tc_json: str) -> dict | None:
             limit = round(rate * lat / 1e6 + burst)
         return {"rate_bps": rate * 8, "burst_bytes": burst, "limit_bytes": limit}
     return None
+
+
+_TC_TEXT_RATE_RE = re.compile(r"qdisc tbf .*?\brate ([0-9.]+)([KMG]?)bit")
+_TC_TEXT_LAT_RE = re.compile(r"qdisc tbf .*?\blat ([0-9.]+)(us|ms|s)\b")
+_TC_TEXT_DROPPED_RE = re.compile(r"\(dropped (\d+),")
+
+
+def _shallow_line_rate_queue(tc_text: str) -> bool:
+    """``tc -s qdisc`` shows a line-rate TBF whose queue lasts under 20 ms and drops.
+
+    A capacity bottleneck shapes far below demand; this port drains at an
+    ordinary rate but holds only milliseconds of traffic.
+    """
+    rate, lat = _TC_TEXT_RATE_RE.search(tc_text), _TC_TEXT_LAT_RE.search(tc_text)
+    dropped = _TC_TEXT_DROPPED_RE.search(tc_text)
+    if rate is None or lat is None or dropped is None:
+        return False
+    scale = {"": 1, "K": 1e3, "M": 1e6, "G": 1e9}[rate.group(2)]
+    lat_ms = float(lat.group(1)) * {"us": 1e-3, "ms": 1.0, "s": 1e3}[lat.group(2)]
+    return (
+        float(rate.group(1)) * scale >= 5e6
+        and lat_ms < 20
+        and int(dropped.group(1)) > 0
+    )
 
 
 class IncastTrafficNetworkLimitationParams(BaseModel):
@@ -280,6 +305,53 @@ class IncastTrafficNetworkLimitation(ProblemBase):
                 "tc_output": tc_output,
                 "receiver": params.host_name,
             },
+        )
+
+    def oracle_playbook(
+        self, params: IncastTrafficNetworkLimitationParams
+    ) -> OraclePlaybook:
+        device, intf = self._egress_port(params)
+        receiver = params.host_name
+        steps = []
+        if params.observer_device and params.probe_dst_ip:
+            steps.append(
+                ping(
+                    params.observer_device,
+                    params.probe_dst_ip,
+                    f"Probe {receiver} across the fabric: the path itself is up.",
+                    count=5,
+                )
+            )
+        steps += [
+            shell(
+                device,
+                f"ip -s link show dev {intf} | head -8",
+                f"Read the egress counters of {device}:{intf}, the last hop "
+                f"toward {receiver}.",
+            ),
+            shell(
+                device,
+                f"tc -s qdisc show dev {intf}",
+                f"Inspect the egress queue of {device}:{intf} after the workers' "
+                "answer bursts.",
+                Check(
+                    "the port drains at a line rate (5 Mbit/s or more) through a "
+                    "queue under 20 ms deep that has tail-dropped packets",
+                    _shallow_line_rate_queue,
+                ),
+                evidence=True,
+                attempts=4,
+                interval_sec=15,
+            ),
+        ]
+        return OraclePlaybook(
+            finding=(
+                f"The egress port {device}:{intf} toward {receiver} has a queue "
+                "only milliseconds deep, so the synchronized answer bursts of "
+                "the workers overflow it and are tail-dropped although the port "
+                "is far from its line rate on average."
+            ),
+            steps=steps,
         )
 
     def recover_fault(self, params: IncastTrafficNetworkLimitationParams) -> dict:

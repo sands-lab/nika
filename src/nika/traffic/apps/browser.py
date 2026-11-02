@@ -8,7 +8,9 @@ the system trust store. With ``--gzip`` the user asks for gzip and decodes the
 body, so a damaged stream fails like it would in a package manager. With
 ``--keepalive`` a user keeps its connection to each server for a random
 ``--lifetime``, as browsers do. A failed or stalled transfer is dropped and
-retried after a short random backoff.
+retried after a short random backoff. With ``--max-kbps`` each transfer is
+read no faster than that rate through a small receive buffer, so TCP flow
+control holds the server to it, like a download manager's speed limit.
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ from __future__ import annotations
 import argparse
 import http.client
 import random
+import socket
 import ssl
 import threading
 import time
@@ -23,6 +26,10 @@ import zlib
 from urllib.parse import urlsplit
 
 CHUNK = 64 * 1024
+# Receive buffer and read size of a rate-limited transfer: a small window keeps
+# the server from sending far ahead of what the reader consumes.
+PACED_RCVBUF = 32 * 1024
+PACED_CHUNK = 8 * 1024
 
 
 def seconds_range(text: str) -> tuple[float, float]:
@@ -53,6 +60,9 @@ class User:
             conn = http.client.HTTPConnection(
                 host, port or 80, timeout=self.args.timeout
             )
+        if self.args.max_kbps:
+            conn.connect()
+            conn.sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, PACED_RCVBUF)
         return conn, time.monotonic() + self.rng.uniform(
             *seconds_range(self.args.lifetime)
         )
@@ -80,12 +90,17 @@ class User:
             decoder = (
                 zlib.decompressobj(16 + zlib.MAX_WBITS) if encoded == "gzip" else None
             )
+            started, received = time.monotonic(), 0
             while True:
-                chunk = response.read(CHUNK)
+                chunk = response.read(PACED_CHUNK if self.args.max_kbps else CHUNK)
                 if not chunk:
                     break
                 if decoder is not None:
                     decoder.decompress(chunk)
+                if self.args.max_kbps:
+                    received += len(chunk)
+                    due = received * 8 / (self.args.max_kbps * 1000)
+                    time.sleep(max(0.0, started + due - time.monotonic()))
             if decoder is not None and not decoder.eof:
                 raise OSError("truncated gzip stream")
         except BaseException:
@@ -117,6 +132,9 @@ def main() -> None:
     parser.add_argument("--keepalive", action="store_true")
     parser.add_argument("--lifetime", default="60-240", help="connection reuse, s")
     parser.add_argument("--timeout", type=float, default=30.0)
+    parser.add_argument(
+        "--max-kbps", type=float, default=0.0, help="read limit per transfer"
+    )
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
     users = [

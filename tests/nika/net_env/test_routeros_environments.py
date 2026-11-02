@@ -85,6 +85,8 @@ def test_enterprise_routeros_keeps_vrf_leaking_tunnels_and_guest_nat():
     assert "import.route-targets=65000:1,65000:10 export.route-targets=65000:20" in hub
     assert "nexthop-choice=force-self" in hub
     assert "queue tree add name=wg_br1-ef parent=wg_br1" in hub
+    # Every Site Edge translates guests to its own routed public address.
+    assert "to-addresses=198.18.0.10" in hub and "198.18.1.10 comment" not in hub
     # WAN propagation delay stays on the container link.
     assert "tc qdisc replace dev eth2 root netem" in native.lab.fs.readtext(
         "br1_edge.startup"

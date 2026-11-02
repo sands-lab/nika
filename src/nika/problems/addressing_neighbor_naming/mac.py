@@ -1,4 +1,5 @@
 import random
+import re
 
 from pydantic import BaseModel, Field
 
@@ -12,7 +13,23 @@ from nika.problems.support.benchmark_targets import (
     choice_distinct,
     require_distinct_hosts,
 )
+from nika.problems.support.oracle import (
+    OraclePlaybook,
+    OracleStep,
+    all_of,
+    contains,
+    lacks,
+    shell,
+)
 from nika.utils.logger import system_logger
+
+
+_MAC_RE = re.compile(r"link/ether ([0-9a-f]{2}(?::[0-9a-f]{2}){5})", re.IGNORECASE)
+
+
+def _mac_of(output: str) -> str:
+    match = _MAC_RE.search(output or "")
+    return match.group(1).lower() if match else ""
 
 
 def _mac_conflict_pair(net_env, rng: random.Random) -> tuple[str, str]:
@@ -100,4 +117,51 @@ class MacAddressConflict(ProblemBase):
                 "mac_0": mac_0,
                 "mac_1": mac_1,
             },
+        )
+
+    def oracle_playbook(self, params: MacAddressConflictParams) -> OraclePlaybook:
+        host, peer = params.host_name, params.host_name_2
+
+        def peer_mac_on_host(outputs) -> dict:
+            mac = _mac_of(outputs.get("peer_link", ""))
+            command = (
+                f"ip -o link show dev eth0 | grep -io 'link/ether {mac}' "
+                "|| echo MAC_DIFFERS"
+                if mac
+                else "echo PEER_MAC_UNKNOWN"
+            )
+            return {"host_name": host, "command": command, "timeout": 10}
+
+        return OraclePlaybook(
+            finding=(
+                f"{host}:eth0 uses the same MAC address as {peer}:eth0, so "
+                "switches and neighbors deliver their frames to the wrong host."
+            ),
+            steps=[
+                shell(
+                    host,
+                    "ip -o link show dev eth0; ip -4 -br addr show dev eth0",
+                    f"Read the MAC and address of {host}:eth0.",
+                    contains(r"link/ether", "eth0 has a MAC address"),
+                ),
+                shell(
+                    peer,
+                    "ip -o link show dev eth0; ip -4 -br addr show dev eth0",
+                    f"Read the MAC and address of {peer}:eth0, the host that lost traffic.",
+                    contains(r"link/ether", "eth0 has a MAC address"),
+                    save_as="peer_link",
+                ),
+                OracleStep(
+                    f"Compare {host}:eth0's MAC with {peer}:eth0's MAC.",
+                    "exec_shell",
+                    peer_mac_on_host,
+                    all_of(
+                        contains(r"link/ether", f"{host}:eth0 carries {peer}'s MAC"),
+                        lacks(
+                            r"MAC_DIFFERS|PEER_MAC_UNKNOWN", "the MACs are identical"
+                        ),
+                    ),
+                    evidence=True,
+                ),
+            ],
         )

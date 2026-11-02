@@ -13,6 +13,8 @@ from nika.problems.support.benchmark_targets import (
     p4_gateway_port_target,
     p4_port_options,
 )
+from nika.problems.support.p4_oracle import table_read, bmv2_ports
+from nika.problems.support.oracle import OraclePlaybook, contains
 from nika.problems.support.p4_gateway import set_ecn_threshold
 
 
@@ -69,4 +71,43 @@ class P4EcnThresholdMisconfiguration(ProblemBase):
                 "threshold": params.threshold,
                 "observed_threshold": observed,
             },
+        )
+
+    def oracle_playbook(
+        self, params: P4EcnThresholdMisconfigurationParams
+    ) -> OraclePlaybook:
+        switch, intf, port = params.host_name, params.intf_name, params.bmv2_port
+
+        def raised(rows: list[dict]) -> bool:
+            thresholds = {
+                int(row["match"]["egress_port"]): int(row["params"]["threshold"])
+                for row in rows
+            }
+            others = [t for p, t in thresholds.items() if p != port]
+            return (
+                thresholds.get(port) == params.threshold
+                and bool(others)
+                and max(others) < params.threshold
+            )
+
+        return OraclePlaybook(
+            finding=(
+                f"The ECN marking threshold of {switch}:{intf} (BMv2 port {port}) is "
+                f"{params.threshold} packets, far above the other ports, so the "
+                "queue builds before any packet is CE-marked."
+            ),
+            steps=[
+                bmv2_ports(
+                    switch,
+                    contains(rf"(^|\s){port}@{intf}\b", f"port {port} is {intf}"),
+                ),
+                table_read(
+                    switch,
+                    "ecn_config",
+                    f"port {port} marks ECN only at depth {params.threshold}, "
+                    "above every other port's threshold",
+                    raised,
+                    f"Read the per-port ECN marking thresholds on {switch}.",
+                ),
+            ],
         )

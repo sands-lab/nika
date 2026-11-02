@@ -9,6 +9,8 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: &id001
+      pattern: uniform
     inject:
       down_time: '1'
       host_name: n1
@@ -28,6 +30,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n1
@@ -47,6 +50,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n1
@@ -66,6 +70,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n1
@@ -85,6 +90,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n1
@@ -104,6 +110,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n1
@@ -123,6 +130,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n1
@@ -142,6 +150,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n1
@@ -161,6 +170,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n1
@@ -180,6 +190,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n1
@@ -199,6 +210,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n10
@@ -218,6 +230,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n10
@@ -237,6 +250,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n10
@@ -256,6 +270,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n10
@@ -275,6 +290,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n10
@@ -294,6 +310,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n10
@@ -313,6 +330,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n10
@@ -332,6 +350,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n10
@@ -351,6 +370,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n10
@@ -370,6 +390,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n10
@@ -389,6 +410,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n10
@@ -408,6 +430,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n10
@@ -427,6 +450,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n11
@@ -446,6 +470,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n11
@@ -465,6 +490,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n11
@@ -484,6 +510,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n11
@@ -503,6 +530,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n11
@@ -522,6 +550,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n11
@@ -541,6 +570,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n12
@@ -560,6 +590,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n12
@@ -579,6 +610,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n12
@@ -598,6 +630,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n12
@@ -617,6 +650,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n13
@@ -636,6 +670,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n13
@@ -655,6 +690,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n13
@@ -674,6 +710,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n13
@@ -693,6 +730,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n13
@@ -712,6 +750,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n13
@@ -731,6 +770,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n13
@@ -750,6 +790,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n13
@@ -769,6 +810,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n14
@@ -788,6 +830,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n14
@@ -807,6 +850,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n14
@@ -826,6 +870,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n14
@@ -845,6 +890,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n14
@@ -864,6 +910,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n14
@@ -883,6 +930,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n14
@@ -902,6 +950,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n14
@@ -921,6 +970,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n15
@@ -940,6 +990,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n15
@@ -959,6 +1010,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n15
@@ -978,6 +1030,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n15
@@ -997,6 +1050,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n16
@@ -1016,6 +1070,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n16
@@ -1035,6 +1090,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n16
@@ -1054,6 +1110,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n16
@@ -1073,6 +1130,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n16
@@ -1092,6 +1150,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n16
@@ -1111,6 +1170,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n16
@@ -1130,6 +1190,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n16
@@ -1149,6 +1210,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n17
@@ -1168,6 +1230,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n17
@@ -1187,6 +1250,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n17
@@ -1206,6 +1270,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n17
@@ -1225,6 +1290,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n17
@@ -1244,6 +1310,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n17
@@ -1263,6 +1330,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n18
@@ -1282,6 +1350,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n18
@@ -1301,6 +1370,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n18
@@ -1320,6 +1390,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n18
@@ -1339,6 +1410,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n18
@@ -1358,6 +1430,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n18
@@ -1377,6 +1450,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n18
@@ -1396,6 +1470,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n18
@@ -1415,6 +1490,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n19
@@ -1434,6 +1510,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n19
@@ -1453,6 +1530,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n19
@@ -1472,6 +1550,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n19
@@ -1491,6 +1570,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n2
@@ -1510,6 +1590,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n2
@@ -1529,6 +1610,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n2
@@ -1548,6 +1630,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n2
@@ -1567,6 +1650,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n20
@@ -1586,6 +1670,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n20
@@ -1605,6 +1690,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n20
@@ -1624,6 +1710,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n20
@@ -1643,6 +1730,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n21
@@ -1662,6 +1750,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n21
@@ -1681,6 +1770,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n21
@@ -1700,6 +1790,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n21
@@ -1719,6 +1810,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n22
@@ -1738,6 +1830,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n22
@@ -1757,6 +1850,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n23
@@ -1776,6 +1870,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n23
@@ -1795,6 +1890,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n23
@@ -1814,6 +1910,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n23
@@ -1833,6 +1930,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n23
@@ -1852,6 +1950,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n23
@@ -1871,6 +1970,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n23
@@ -1890,6 +1990,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n23
@@ -1909,6 +2010,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n24
@@ -1928,6 +2030,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n24
@@ -1947,6 +2050,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n24
@@ -1966,6 +2070,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n24
@@ -1985,6 +2090,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n25
@@ -2004,6 +2110,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n25
@@ -2023,6 +2130,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n25
@@ -2042,6 +2150,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n25
@@ -2061,6 +2170,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n26
@@ -2080,6 +2190,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n26
@@ -2099,6 +2210,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n26
@@ -2118,6 +2230,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n26
@@ -2137,6 +2250,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n26
@@ -2156,6 +2270,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n26
@@ -2175,6 +2290,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n27
@@ -2194,6 +2310,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n27
@@ -2213,6 +2330,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n28
@@ -2232,6 +2350,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n28
@@ -2251,6 +2370,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n28
@@ -2270,6 +2390,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n28
@@ -2289,6 +2410,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n28
@@ -2308,6 +2430,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n28
@@ -2327,6 +2450,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n28
@@ -2346,6 +2470,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n28
@@ -2365,6 +2490,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n29
@@ -2384,6 +2510,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n29
@@ -2403,6 +2530,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n29
@@ -2422,6 +2550,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n29
@@ -2441,6 +2570,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n3
@@ -2460,6 +2590,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n3
@@ -2479,6 +2610,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n3
@@ -2498,6 +2630,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n3
@@ -2517,6 +2650,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n30
@@ -2536,6 +2670,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n30
@@ -2555,6 +2690,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n31
@@ -2574,6 +2710,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n31
@@ -2593,6 +2730,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n31
@@ -2612,6 +2750,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n31
@@ -2631,6 +2770,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n32
@@ -2650,6 +2790,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n32
@@ -2669,6 +2810,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n32
@@ -2688,6 +2830,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n32
@@ -2707,6 +2850,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n33
@@ -2726,6 +2870,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n33
@@ -2745,6 +2890,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n33
@@ -2764,6 +2910,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n33
@@ -2783,6 +2930,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n33
@@ -2802,6 +2950,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n33
@@ -2821,6 +2970,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n34
@@ -2840,6 +2990,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n34
@@ -2859,6 +3010,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n34
@@ -2878,6 +3030,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n34
@@ -2897,6 +3050,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n34
@@ -2916,6 +3070,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n34
@@ -2935,6 +3090,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n35
@@ -2954,6 +3110,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n35
@@ -2973,6 +3130,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n36
@@ -2992,6 +3150,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n36
@@ -3011,6 +3170,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n37
@@ -3030,6 +3190,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n37
@@ -3049,6 +3210,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n37
@@ -3068,6 +3230,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n37
@@ -3087,6 +3250,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n4
@@ -3106,6 +3270,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n4
@@ -3125,6 +3290,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n4
@@ -3144,6 +3310,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n4
@@ -3163,6 +3330,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n5
@@ -3182,6 +3350,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n5
@@ -3201,6 +3370,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n5
@@ -3220,6 +3390,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n5
@@ -3239,6 +3410,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n6
@@ -3258,6 +3430,7 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: n6

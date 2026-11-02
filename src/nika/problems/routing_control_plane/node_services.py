@@ -6,6 +6,14 @@ from nika.problems.base import (
     build_verify_result,
     ProblemBase,
 )
+from nika.problems.routing_control_plane.ospf import linked_routers
+from nika.problems.support.oracle import (
+    OraclePlaybook,
+    contains,
+    process_absent,
+    shell,
+    vtysh,
+)
 from nika.problems.support.router_ops import native_fault_ops
 from nika.utils.logger import system_logger
 
@@ -47,6 +55,53 @@ class FrrDown(ProblemBase):
 
     def root_cause_resources(self, params: FrrDownParams):
         return [node_resource(params.host_name)]
+
+    def oracle_playbook(self, params: FrrDownParams) -> OraclePlaybook:
+        host = params.host_name
+        steps = [
+            shell(
+                host,
+                "ip -br link; ip route | head -40",
+                f"List {host}'s interfaces and the routes it still has.",
+            ),
+            process_absent(
+                host,
+                "zebra|bgpd|ospfd|ospf6d|isisd|staticd|watchfrr",
+                f"Check whether FRR's daemons run on {host}.",
+            ),
+            shell(
+                host,
+                vtysh("show ip route") + " 2>&1 | head -5",
+                f"Query FRR on {host} through vtysh.",
+                contains(
+                    r"failed to connect|is not running|Connection refused",
+                    "vtysh cannot reach the routing daemons",
+                ),
+                evidence=True,
+            ),
+        ]
+        for _intf, peer, _peer_intf in linked_routers(self.net_env, host)[:1]:
+            steps.append(
+                shell(
+                    peer,
+                    "; ".join(
+                        vtysh(show) + " 2>&1 | head -15"
+                        for show in (
+                            "show ip ospf neighbor",
+                            "show isis neighbor",
+                            "show bgp summary",
+                        )
+                    ),
+                    f"Check neighbor {peer}'s routing adjacencies toward {host}.",
+                )
+            )
+        return OraclePlaybook(
+            finding=(
+                f"The FRR routing daemons on {host} are not running, so it holds "
+                "no routing adjacencies and stops exchanging routes."
+            ),
+            steps=steps,
+        )
 
     def inject_fault(self, params: FrrDownParams):
         ops = native_fault_ops(self, params.host_name, "stop_routing_process")

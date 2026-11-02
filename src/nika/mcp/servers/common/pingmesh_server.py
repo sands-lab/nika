@@ -31,7 +31,9 @@ async def run_pingmesh_snapshot(
         targets: Probe targets (default: all discovered endpoints).
         count: Ping packets per pair (1-20; default 4).
         high_latency_ms: RTT average threshold for high-latency anomalies (default 100).
-        max_pairs: Maximum source-target pairs to probe (default 64).
+        max_pairs: Maximum source-target pairs to probe (default 64). Larger
+            counts lower the limit so the snapshot finishes within its time
+            budget (32 pairs at count 20).
         include_healthy: Also return a compact row for every probed pair
             (default false: only the summary and anomalies).
     """

@@ -33,6 +33,8 @@ from nika.net_env.sdn_l3_clos.fabric_manager.apply import onos_flow_snapshot
 from nika.net_env.sdn_l3_clos.topology_model import ONOS_OOB_IP, ONOS_REST_PORT
 from nika.net_env.verify import ping_stats
 from nika.problems.base import build_verify_result
+from nika.traffic.profiles import endpoint_names
+from nika.traffic.workload import paused_workload
 from nika.problems.forwarding_encapsulation_policy.flow_rules import (
     _device_id_for_switch,
     _onos_post_flow,
@@ -48,6 +50,9 @@ _LOG = "/tmp/probe-shadow.log"
 _HEALTHY_LOSS_PERCENT = 1.0
 # Loop evidence: packets the faulted link carries per offered flow.
 _LOOP_PACKETS_PER_FLOW = 5.0
+
+# Seconds for transfers already handed to the kernel to drain before counting.
+_QUIET_SETTLE_SEC = 8.0
 
 
 def _min_loss_percent(model: Any, switch: str) -> float:
@@ -225,9 +230,16 @@ def _loop_sample(problem: Any, params: Any) -> dict[str, Any] | None:
     )
     if not targets or source is None or control is None:
         return None
-    before = _link_packets(problem, spine, ports[spine])
-    path = _flows(problem, source, targets[0])
-    after = _link_packets(problem, spine, ports[spine])
+    # Port counters count every packet, so the lab's traffic holds still.
+    with paused_workload(
+        problem.runtime,
+        problem.net_env.business_workload(),
+        _QUIET_SETTLE_SEC,
+        hosts=endpoint_names(problem.net_env),
+    ):
+        before = _link_packets(problem, spine, ports[spine])
+        path = _flows(problem, source, targets[0])
+        after = _link_packets(problem, spine, ports[spine])
     link_packets = after - before if before is not None and after is not None else None
     return {
         "path": path,

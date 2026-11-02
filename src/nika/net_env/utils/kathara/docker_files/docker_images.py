@@ -49,6 +49,7 @@ NIKA_IMAGE_DOCKERFILES: dict[str, str] = {
     nika_image("fabric-controller"): "Dockerfile.fabric-controller",
     nika_image("tc-bpf"): "Dockerfile.tc-bpf",
     nika_image("skopeo"): "Dockerfile.skopeo",
+    nika_image("k3s"): "Dockerfile.k3s",
     nika_image("routinator"): "../isp/rpki/Dockerfile.routinator",
     nika_image("telemetry-collector"): "Dockerfile.telemetry-collector",
 }

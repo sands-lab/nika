@@ -77,6 +77,8 @@ VARIANT_KEYS = (
     "rpki",
     "backend",
     "device_profile",
+    # A background traffic profile runs inside the lab, so the image carries it.
+    "traffic",
 )
 # Paths whose content can change a deployed lab or the daemon serving it ...
 FINGERPRINT_PATHS = ("src/", "pyproject.toml")
@@ -138,6 +140,7 @@ def variant_for_row(row: dict[str, Any]) -> dict[str, Any]:
         scenario=scenario,
         topo_size=size,
         **{key: row.get(key) for key in ISP_DEPLOY_KEYS},
+        traffic=row.get("traffic") or None,
     )
 
 

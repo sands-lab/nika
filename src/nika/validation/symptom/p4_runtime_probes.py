@@ -14,6 +14,7 @@ from nika.net_env.p4_dc_fabric.fabric_manager.apply import (
     P4INFO_PATH,
 )
 from nika.net_env.verify import http_ok, ping_stats
+from nika.traffic.profiles import endpoint_names
 from nika.traffic.workload import paused_workload
 from nika.problems.base import build_verify_result
 from nika.net_env.net_env_pool import get_probe_path
@@ -132,7 +133,10 @@ def _sweep(
     while the sweep runs.
     """
     with paused_workload(
-        problem.runtime, problem.net_env.business_workload(), _QUIET_SETTLE_SEC
+        problem.runtime,
+        problem.net_env.business_workload(),
+        _QUIET_SETTLE_SEC,
+        hosts=endpoint_names(problem.net_env),
     ):
         return _sweep_counted(problem, ends, next_hops=next_hops)
 
@@ -427,7 +431,10 @@ def _crossed_reading(problem: Any, params: Any) -> dict[str, Any]:
     too and can load the shared switch, so it holds still during the reading.
     """
     with paused_workload(
-        problem.runtime, problem.net_env.business_workload(), _QUIET_SETTLE_SEC
+        problem.runtime,
+        problem.net_env.business_workload(),
+        _QUIET_SETTLE_SEC,
+        hosts=endpoint_names(problem.net_env),
     ):
         return _crossed_reading_quiet(problem, params)
 

@@ -47,8 +47,9 @@ def session_mcp_config(phase: str | None = None) -> dict[str, dict[str, Any]]:
 def mcp_read_timeout_seconds() -> float | None:
     """Return the MCP read timeout in seconds, or ``None`` when disabled.
 
-    LangGraph, AutoGen, and mcp-agent share this value. A read timeout keeps a
-    lost MCP response from blocking the whole run.
+    LangGraph, AutoGen, and mcp-agent use it as their read timeout, and the
+    Codex agents as ``tool_timeout_sec``. A timeout keeps a lost or slow MCP
+    response from blocking the whole run.
     """
     seconds = float(current_task().mcp_read_timeout_sec)
     return seconds if seconds > 0 else None

@@ -304,6 +304,24 @@ class KatharaRuntime(LabRuntime):
         links = next(self._instance.get_links_stats(lab_name=self.lab_name))
         return link_neighbors(links.values(), node)
 
+    def drop_boot_sources(self) -> None:
+        # Kathara extracts each node's lab files to /hostlab and copies them
+        # into place at boot. Nothing reads them afterwards, and the copies
+        # are the pristine baseline a fault could be diffed against.
+        def _drop(node: str) -> None:
+            try:
+                self.exec(node, "rm -rf /hostlab", timeout=30)
+            except Exception as exc:  # noqa: BLE001 - report and keep going
+                log_warning_event(
+                    "lab_boot_sources_kept",
+                    f"Could not remove /hostlab on {node}: {exc}",
+                    lab_name=self.lab_name,
+                    node=node,
+                    error=str(exc),
+                )
+
+        bounded_parallel_map(_drop, self.list_nodes())
+
     def list_dhcp_client_nodes(self) -> list[str]:
         """Return nodes explicitly declared as DHCP clients."""
         inventory = MachineInventory(self._net_env.machine_identities)

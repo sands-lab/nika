@@ -50,3 +50,23 @@ def test_probe_failures_are_structured(
     )
     assert result["status"] == status
     assert "Traceback" not in str(result)
+
+
+def test_destination_address_overrides_node_address() -> None:
+    runtime = Mock()
+    runtime.exec.side_effect = ["ready", "ready", "", '{"acked": 1, "elapsed_ms": 1.0}']
+    result = run_active_tcp_probe(
+        runtime,
+        source="pc_0_0",
+        destination="pc_0_1",
+        source_port=21001,
+        destination_port=5201,
+        payload_seed=9,
+        packets=1,
+        destination_address="2001:db8::7",
+    )
+    runtime.get_data_plane_host_ip.assert_not_called()
+    client = runtime.exec.call_args_list[-1].args[1]
+    assert "2001:db8::7" in client
+    assert result["destination_address"] == "2001:db8::7"
+    assert result["status"] == "ok"

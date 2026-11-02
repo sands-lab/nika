@@ -319,6 +319,11 @@ def benchmark_describe(
         envvar=ENV_RUN_CONFIG,
         help="Path to config/nika.yaml (default: config/nika.yaml).",
     ),
+    oracle: bool = typer.Option(
+        False,
+        "--oracle",
+        help="Also print the task's reference diagnosis path (the oracle playbook).",
+    ),
 ) -> None:
     """Print the decomposed fields for one task id."""
     from nika.workflows.benchmark.trials import (
@@ -334,13 +339,22 @@ def benchmark_describe(
     except ValueError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
-    typer.echo(
-        yaml.dump(
-            describe_task_payload(row),
-            sort_keys=False,
-            allow_unicode=True,
-        ).rstrip()
-    )
+    payload = describe_task_payload(row)
+    if oracle:
+        from nika.agents.oracle.plan import describe_plans, row_plans
+
+        ref = release
+        if ref is None and config is None:
+            ref = load_run_config(export_run_config_env(run_config)).benchmark.release
+        version = parse_release_ref(ref)[1] if ref else None
+        try:
+            payload["oracle"] = describe_plans(row_plans(row, release=version))
+        except Exception as exc:  # noqa: BLE001 - some plans need a running lab
+            payload["oracle"] = (
+                f"unavailable offline ({type(exc).__name__}: {exc}); run "
+                "`nika agent run --agent oracle` on a live session instead."
+            )
+    typer.echo(yaml.dump(payload, sort_keys=False, allow_unicode=True).rstrip())
 
 
 @benchmark_app.command("run")

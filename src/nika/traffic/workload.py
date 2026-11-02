@@ -51,6 +51,19 @@ FAN_IN_BURSTS = "fan_in_bursts"
 # connections keep opening through the gateway: ``(gateway,)``.
 VIP_KEEPALIVE_SESSIONS = "vip_keepalive_sessions"
 
+# Shares of a router platform's per-interface send cap
+# (``NetworkEnvBase.router_rate_limit_kbps``) that the business workload and a
+# background traffic profile may use. The rest is headroom: a hub's single WAN
+# port aggregates several tunnels, and tunnel encapsulation adds overhead.
+BUSINESS_RATE_SHARE = 0.6
+PROFILE_RATE_SHARE = 0.15
+
+
+def rate_budget_kbps(limit_kbps: int | None, share: float) -> float | None:
+    """The kbit/s ``share`` of ``limit_kbps``, or None when nothing caps the rate."""
+    return None if limit_kbps is None else limit_kbps * share
+
+
 INSTALL_DIR = "/usr/local/bin"
 # Launch rounds for processes that are not up yet, and the pause between them.
 START_ATTEMPTS = 3
@@ -109,6 +122,38 @@ class BusinessWorkload:
 
     def covers(self, kind: str, target: tuple[str, ...]) -> bool:
         return tuple(target) in self.targets(kind)
+
+
+def pace_browsers(
+    processes: Iterable[WorkloadProcess], rate_limit_kbps: int | None
+) -> list[WorkloadProcess]:
+    """Cap every ``browser`` transfer under a router send cap.
+
+    The business share of the cap is split evenly over all browser users, as
+    if every transfer crossed the same capped interface.
+    """
+    processes = list(processes)
+    budget = rate_budget_kbps(rate_limit_kbps, BUSINESS_RATE_SHARE)
+    browsers = [p for p in processes if p.app == "browser"]
+    if not budget or not browsers:
+        return processes
+
+    def users(process: WorkloadProcess) -> int:
+        args = list(process.args)
+        return int(args[args.index("--users") + 1]) if "--users" in args else 1
+
+    per_transfer = budget / sum(users(p) for p in browsers)
+    return [
+        WorkloadProcess(
+            p.node,
+            p.app,
+            p.command,
+            (*p.args, "--max-kbps", f"{per_transfer:.0f}"),
+        )
+        if p.app == "browser"
+        else p
+        for p in processes
+    ]
 
 
 def routine_change_processes(nodes: Iterable[str]) -> tuple[WorkloadProcess, ...]:
@@ -196,36 +241,45 @@ def start_workload(runtime: LabRuntime, workload: BusinessWorkload) -> None:
 
 
 def _signal_processes(
-    runtime: LabRuntime, workload: BusinessWorkload, signal: str
+    runtime: LabRuntime, paths: dict[str, set[str]], signal: str
 ) -> None:
-    by_node: dict[str, list[WorkloadProcess]] = defaultdict(list)
-    for process in workload.processes:
-        by_node[process.node].append(process)
-
     def send(node: str) -> None:
-        for process in by_node[node]:
-            pattern = f"^python3 {process.path}( |$)"
-            runtime.exec(node, f"pkill -{signal} -f {shlex.quote(pattern)} || true")
+        alternatives = "|".join(sorted(paths[node]))
+        pattern = f"^python3 ({alternatives})( |$)"
+        runtime.exec(node, f"pkill -{signal} -f {shlex.quote(pattern)} || true")
 
-    bounded_parallel_map(send, list(by_node))
+    bounded_parallel_map(send, list(paths))
 
 
 @contextmanager
 def paused_workload(
-    runtime: LabRuntime, workload: BusinessWorkload | None, settle_sec: float
+    runtime: LabRuntime,
+    workload: BusinessWorkload | None,
+    settle_sec: float,
+    hosts: Iterable[str] = (),
 ) -> Iterator[None]:
-    """Hold the workload's programs still while a measurement needs a quiet lab.
+    """Hold the lab's traffic programs still while a measurement needs a quiet lab.
 
-    For test-path probes that read whole-port counters. The programs stop
-    (SIGSTOP) and transfers already handed to the kernel get ``settle_sec`` to
-    drain; they resume (SIGCONT) afterwards, also on error.
+    For test-path probes that read whole-port counters. The workload's
+    programs, and any case background traffic on ``hosts``
+    (:mod:`nika.traffic.profiles`), stop (SIGSTOP); transfers already handed
+    to the kernel get ``settle_sec`` to drain. They resume (SIGCONT)
+    afterwards, also on error.
     """
-    if workload is None or not workload.processes:
+    from nika.traffic.profiles import BACKGROUND_COMMANDS, POD_PROGRAMS
+
+    paths: dict[str, set[str]] = defaultdict(set)
+    for process in workload.processes if workload else ():
+        paths[process.node].add(process.path)
+    for host in hosts:
+        paths[host].update(f"{INSTALL_DIR}/{c}" for c in BACKGROUND_COMMANDS)
+        paths[host].update(POD_PROGRAMS)
+    if not paths:
         yield
         return
-    _signal_processes(runtime, workload, "STOP")
+    _signal_processes(runtime, paths, "STOP")
     try:
         time.sleep(settle_sec)
         yield
     finally:
-        _signal_processes(runtime, workload, "CONT")
+        _signal_processes(runtime, paths, "CONT")

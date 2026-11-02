@@ -51,6 +51,7 @@ uv run nika agent run -a cli.codex -p openai -m gpt-5-mini \
 
 - [SADE](community/sade.md) combines a structured troubleshooting workflow with a skill library. Read the [SADE paper](https://arxiv.org/abs/2605.04530).
 - `mock` checks the pipeline without an LLM.
+- `oracle` runs the reference diagnosis of each task; see [Oracle solver](../benchmarks/oracle-solver.md).
 
 See the [agent reference](agent-reference.md) for provider support and options, or [custom agents](custom-agents.md) to add your own investigation loop.
 

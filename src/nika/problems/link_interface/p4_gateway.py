@@ -8,6 +8,20 @@ from nika.problems.support.benchmark_targets import (
     p4_gateway_port_target,
     p4_port_options,
 )
+from nika.problems.support.p4_oracle import (
+    bmv2_ports,
+    summary_regex,
+    int_path_rows,
+    int_path_summary,
+)
+from nika.problems.support.oracle import (
+    p4rt,
+    Check,
+    OraclePlaybook,
+    all_of,
+    contains,
+    shell,
+)
 from nika.runtime.kathara.vde_proxy import KatharaVdeFaultProxy
 
 
@@ -108,3 +122,92 @@ class SilentEgressPacketLoss(ProblemBase):
             "verified": controller.discover(params.host_name, params.intf_name) is None,
             "details": {"host": params.host_name, "intf": params.intf_name},
         }
+
+    def oracle_playbook(self, params: SilentEgressPacketLossParams) -> OraclePlaybook:
+        switch, intf, port = params.host_name, params.intf_name, params.bmv2_port
+        model = self.net_env.model
+        device_id = model.switch_info[switch].device_id
+        sources = (
+            [model.client_on_gateway(switch).name]
+            if switch in model.gateways
+            else [client.name for client in model.clients]
+        )
+        services = " ".join(service.ip for service in model.services)
+        traffic = [
+            shell(
+                src,
+                f"for i in $(seq 60); do for ip in {services}; do curl -s -o "
+                "/dev/null -m 3 -w '%{http_code}\\n' http://$ip/; done; done "
+                "| sort | uniq -c",
+                f"Open many short HTTP connections from {src} to every service, "
+                "so the flows hash across every uplink.",
+                timeout=240,
+            )
+            for src in sources
+        ]
+
+        def gray_loss_on_port(output: str) -> bool:
+            rows = [r for r in int_path_rows(output) if r[0] == device_id]
+            here = [r for r in rows if r[1] == port]
+            ok, lost = sum(r[3] for r in here), sum(r[4] for r in here)
+            rate = lost / max(1, ok + lost)
+            other_ok = sum(r[3] for r in rows if r[1] != port)
+            other_lost = sum(r[4] for r in rows if r[1] != port)
+            return (
+                lost >= 3
+                and len({r[2] for r in here if r[4]}) >= 2
+                and rate <= 0.2
+                and other_ok > 0
+                and other_lost < rate * (other_ok + other_lost) / 2
+            )
+
+        return OraclePlaybook(
+            finding=(
+                f"{switch}:{intf} (BMv2 port {port}) silently drops a small "
+                "fraction of the packets it transmits: the link is up, the "
+                "switch state is intact, and INT traces of flows to several "
+                "destinations end at that egress port."
+            ),
+            steps=[
+                shell(
+                    switch,
+                    f"ip -s link show dev {intf}",
+                    f"Check the state and error counters of {switch}:{intf}.",
+                    all_of(
+                        contains(r"state UP", "the link is up"),
+                        contains(r"<[^>]*LOWER_UP", "carrier is present"),
+                    ),
+                ),
+                bmv2_ports(
+                    switch,
+                    contains(rf"(^|\s){port}@{intf}\b", f"port {port} is {intf}"),
+                ),
+                p4rt(
+                    f"read --switch {switch}",
+                    f"Read {switch}'s programmed pipeline, routes, and groups.",
+                    contains(
+                        summary_regex(
+                            switch,
+                            r'"pipeline_matches_intent":\s*true,[^{}]*?'
+                            r'"mismatches":\s*\[\s*\]',
+                        ),
+                        f"{switch}'s P4Runtime state matches the intent",
+                    ),
+                ),
+                *traffic,
+                int_path_summary(
+                    device_id,
+                    180,
+                    Check(
+                        f"a few percent of INT traces to several destinations end "
+                        f"at switch_id {device_id} port {port}, at over twice the "
+                        "loss rate of the switch's other ports",
+                        gray_loss_on_port,
+                    ),
+                    f"Count delivered and lost INT traces per egress port (switch_id "
+                    f"{device_id} is {switch}).",
+                    attempts=4,
+                    interval_sec=30,
+                ),
+            ],
+        )

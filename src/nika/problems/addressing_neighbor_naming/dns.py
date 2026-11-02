@@ -1,4 +1,5 @@
 import random
+import re
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -12,6 +13,17 @@ from nika.problems.base import (
 from nika.problems.support.benchmark_targets import (
     choice,
 )
+from nika.problems.support.dns import dns_host_for_domain
+from nika.problems.support.oracle import (
+    Check,
+    OraclePlaybook,
+    OracleStep,
+    all_of,
+    contains,
+    http_probe,
+    numbers_after,
+    shell,
+)
 from nika.utils.logger import system_logger
 
 logger = system_logger
@@ -23,22 +35,6 @@ def _parse_web_url(url: str) -> tuple[str, str]:
         website = website[len("http://") :]
     domain = url.split(".")[1] if "." in url else "local"
     return website, domain
-
-
-def _dns_host_for_domain(
-    net_env, domain: str, fallback: str | None = None
-) -> str | None:
-    """Return the DNS server that serves ``domain`` (e.g. dns_pod1 -> pod1)."""
-    dns_servers = list((getattr(net_env, "servers", None) or {}).get("dns") or [])
-    if not dns_servers:
-        return fallback
-    if len(dns_servers) == 1:
-        return dns_servers[0]
-    for host in dns_servers:
-        # dc_clos: dns_pod{N} owns zone pod{N}
-        if host.startswith("dns_") and host[len("dns_") :] == domain:
-            return host
-    return fallback or dns_servers[0]
 
 
 def _dns_record_targets(net_env, rng: random.Random) -> tuple[str, str]:
@@ -68,6 +64,39 @@ def _align_dns_record_inject(net_env, row: dict[str, str]) -> dict[str, str]:
     out["target_domain"] = domain
     out["target_website"] = website
     return out
+
+
+def web_server_for(net_env, website: str, domain: str) -> str | None:
+    """Web server node that serves ``<website>.<domain>`` (web1 -> web_server_1)."""
+    m = re.search(r"(\d+)$", website)
+    if not m:
+        return None
+    index = m.group(1)
+    for node in (getattr(net_env, "servers", None) or {}).get("web") or []:
+        rest = node.replace(domain, "") if domain != "local" else node
+        if domain != "local" and domain not in node:
+            continue
+        if re.search(rf"(?<!\d){index}(?!\d)", rest):
+            return node
+    return None
+
+
+def answer_ip(output: str, name: str) -> str | None:
+    """A-record address that ``dig`` returned for *name*."""
+    m = re.search(
+        rf"^{re.escape(name)}\.?\s+\d+\s+IN\s+A\s+(\d+\.\d+\.\d+\.\d+)",
+        output,
+        re.MULTILINE,
+    )
+    return m.group(1) if m else None
+
+
+def fast_answer(name: str, max_ms: float) -> Check:
+    def predicate(o: str) -> bool:
+        times = numbers_after("Query time:", o)
+        return bool(answer_ip(o, name)) and bool(times) and times[0] < max_ms
+
+    return Check(f"an A record for {name} returns within {max_ms:.0f} ms", predicate)
 
 
 # ==================================================================
@@ -106,7 +135,7 @@ class DNSRecordError(ProblemBase):
             "target_website": website,
             "target_domain": domain,
             "host_name": (
-                _dns_host_for_domain(ctx.net_env, domain, fallback=ctx.dns0) or ctx.dns0
+                dns_host_for_domain(ctx.net_env, domain, fallback=ctx.dns0) or ctx.dns0
             ),
         }
 
@@ -130,7 +159,7 @@ class DNSRecordError(ProblemBase):
                 raise ValueError(
                     f"DNS record targets {website}.{domain} not found in web_urls for {ctx.scenario}: {urls}"
                 )
-        expected_host = _dns_host_for_domain(ctx.net_env, domain)
+        expected_host = dns_host_for_domain(ctx.net_env, domain)
         if expected_host and host_name and host_name != expected_host:
             raise ValueError(
                 f"DNS host {host_name!r} does not serve zone {domain!r} on {ctx.scenario}; "
@@ -207,4 +236,81 @@ class DNSRecordError(ProblemBase):
                 "dig_result": dig_result,
                 "dns_resolves_wrong": dns_resolves_wrong,
             },
+        )
+
+    def oracle_playbook(self, params: DNSRecordErrorParams) -> OraclePlaybook:
+        dns = params.host_name
+        name = f"{params.target_website}.{params.target_domain}"
+        zone = f"/etc/bind/db.{params.target_domain}"
+        web = web_server_for(self.net_env, params.target_website, params.target_domain)
+        client = next(iter(self.net_env.hosts or []), None)
+        steps = []
+        if client:
+            steps.append(
+                http_probe(
+                    client,
+                    f"http://{name}/",
+                    f"Reproduce the user symptom: fetch http://{name}/ by name from {client}.",
+                )
+            )
+        steps.append(
+            shell(
+                dns,
+                f"dig +time=2 +tries=1 @127.0.0.1 {name} 2>&1 | grep -E 'status:|IN\\s+A|Query time'; "
+                f"grep -nE '^{re.escape(params.target_website)}[[:space:]]' {zone}",
+                f"Ask the authoritative server {dns} for {name} and read its zone record.",
+                all_of(
+                    contains(r"status: NOERROR", "the server answers"),
+                    fast_answer(name, 500),
+                    contains(
+                        rf"^\d+:{re.escape(params.target_website)}\s+IN\s+A\s+[\d.]+",
+                        "the zone file holds the record",
+                    ),
+                ),
+                evidence=True,
+                save_as="answer",
+            )
+        )
+        if web:
+
+            def ownership(out):
+                ip = answer_ip(out.get("answer", ""), name) or "0.0.0.0"
+                return {
+                    "host_name": web,
+                    "command": (
+                        "ip -4 -o addr show scope global | awk '{print $2, $4}'; "
+                        f"ip -4 -o addr show scope global | grep -qw '{ip}' "
+                        f"&& echo OWNS={ip} || echo NOT_OWNED={ip}; "
+                        "curl -s -o /dev/null -m 3 -w 'http_local=%{http_code}\\n' "
+                        f"-H 'Host: {name}' http://127.0.0.1/; "
+                        # The server still runs the address it was provisioned with.
+                        "A=$(ip -4 -o addr show dev eth0 scope global "
+                        "| awk '{print $4}' | head -1); "
+                        'grep -qF "addr add $A" /var/log/startup.log '
+                        "&& echo BOOT_MATCH=$A || echo BOOT_DRIFT=$A"
+                    ),
+                    "timeout": 15,
+                }
+
+            steps.append(
+                OracleStep(
+                    f"Check that the web server {web} for {name} holds the "
+                    "published address and serves HTTP.",
+                    "exec_shell",
+                    ownership,
+                    all_of(
+                        contains(r"^NOT_OWNED=", "the A record is not its address"),
+                        contains(r"^http_local=[23]\d\d", "its web service is up"),
+                        contains(r"^BOOT_MATCH=", "it runs its provisioned address"),
+                    ),
+                    evidence=True,
+                )
+            )
+        return OraclePlaybook(
+            finding=(
+                f"The zone on {dns} publishes a wrong A record for {name}, so "
+                "clients resolve it quickly but connect to a host that is not "
+                "the web server."
+            ),
+            steps=steps,
         )

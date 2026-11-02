@@ -44,11 +44,16 @@ def active_tcp_probe(
     payload_seed: int,
     payload_size: int = 256,
     packets: int = 32,
+    destination_address: str | None = None,
 ) -> dict:
     """Send deterministic TCP payload probes over a chosen 5-tuple.
 
-    Change endpoints or ports to exercise a different ECMP path. Reports
-    endpoint observations only; does not infer intermediate nodes.
+    ``source`` and ``destination`` are lab node names; the listener runs on
+    ``destination``. Set ``destination_address`` to connect to another IP the
+    destination node owns (for example its loopback) instead of its data-plane
+    address. Change endpoints or ports to exercise a
+    different ECMP path. Reports endpoint observations only; does not infer
+    intermediate nodes.
     """
     from nika.traffic.active_probe import run_active_tcp_probe
 
@@ -61,6 +66,7 @@ def active_tcp_probe(
         payload_seed=payload_seed,
         payload_size=payload_size,
         packets=packets,
+        destination_address=destination_address,
     )
 
 

@@ -219,6 +219,10 @@ class CodexWorkerConfigTest:
         worker._setup_workspace()
         config = tomllib.loads((worker._codex_home / "config.toml").read_text())
         assert set(config["mcp_servers"]) == expected_servers
+        # Slow NIKA tools fail as tool errors before the stall timer fires.
+        assert {srv["tool_timeout_sec"] for srv in config["mcp_servers"].values()} == {
+            120.0
+        }
         if sandbox_provider:
             assert config["model_provider"] == "sandboxd"
             assert config["forced_login_method"] == "api"

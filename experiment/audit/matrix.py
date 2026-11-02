@@ -49,6 +49,7 @@ _ROW_KEYS = (
     "rpki",
     "backend",
     "device_profile",
+    "traffic",
 )
 
 

@@ -96,7 +96,9 @@ class CampusLan(NativeRouterEnv, NetworkEnvBase):
     def business_workload(self):
         from nika.net_env.campus_lan.workload import build_workload
 
-        return build_workload(list(self.hosts or []), self.frr_routers())
+        return build_workload(
+            list(self.hosts or []), self.frr_routers(), self.router_rate_limit_kbps()
+        )
 
     @classmethod
     def default_probe_path(cls, *, topo_size: str = "s", **deploy_kwargs) -> ProbePath:

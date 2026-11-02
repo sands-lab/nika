@@ -858,6 +858,7 @@ def run_single_case(
     backend: str | None = None,
     device_profile: str | None = None,
     telemetry: list[str] | None = None,
+    traffic: dict[str, Any] | None = None,
     verbose: bool = False,
     progress: BenchmarkProgress | None = None,
     progress_label: str | None = None,
@@ -887,6 +888,7 @@ def run_single_case(
         backend=backend,
         device_profile=device_profile,
         telemetry=telemetry,
+        traffic=traffic,
     )
     deploy_bits = [
         f"{_ISP_BANNER_LABELS[key]}: {'on' if key == 'rpki' else row[key]}"
@@ -895,6 +897,8 @@ def run_single_case(
     ]
     if telemetry:
         deploy_bits.append(f"Telemetry: {', '.join(telemetry)}")
+    if row.get("traffic"):
+        deploy_bits.append(f"Traffic: {row['traffic']['pattern']}")
     # Batch trials stay quiet unless -v; bare single-case CLI keeps the banner.
     if verbose or not trial_id:
         print(
@@ -981,6 +985,7 @@ def run_single_case(
             backend=backend,
             device_profile=device_profile,
             telemetry=telemetry,
+            traffic=row.get("traffic"),
         )
     session_dir = Path(predetermined_dir) if predetermined_dir else None
     gt_written = False
@@ -1262,6 +1267,7 @@ def _run_trial_case(
         case_key=trial.case_key,
         **{key: row.get(key) for key in ISP_DEPLOY_KEYS},
         telemetry=row.get("telemetry"),
+        traffic=row.get("traffic"),
         verbose=verbose,
         progress=progress,
         progress_label=trial.label if progress is not None else None,

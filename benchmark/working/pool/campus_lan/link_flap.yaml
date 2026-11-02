@@ -4,6 +4,8 @@ failure:
   fault_type: link_flap
   cases:
   - topo_size: s
+    traffic: &id001
+      pattern: uniform
     inject:
       down_time: '1'
       host_name: dhcp_server
@@ -17,6 +19,7 @@ failure:
         name: dhcp_server:eth0--server_access_router:eth6
       fault_type: link_flap
   - topo_size: s
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: dns_server
@@ -30,6 +33,7 @@ failure:
         name: dns_server:eth0--server_access_router:eth0
       fault_type: link_flap
   - topo_size: s
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: load_balancer
@@ -43,6 +47,7 @@ failure:
         name: load_balancer:eth0--server_access_router:eth5
       fault_type: link_flap
   - topo_size: s
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: pc_1_1_1_1
@@ -56,6 +61,7 @@ failure:
         name: pc_1_1_1_1:eth0--switch_access_1_1_1:eth1
       fault_type: link_flap
   - topo_size: s
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: pc_2_1_1_1
@@ -69,6 +75,7 @@ failure:
         name: pc_2_1_1_1:eth0--switch_access_2_1_1:eth1
       fault_type: link_flap
   - topo_size: s
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: router_core_1
@@ -82,6 +89,7 @@ failure:
         name: router_core_1:eth0--router_core_2:eth0
       fault_type: link_flap
   - topo_size: s
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: router_core_1
@@ -95,6 +103,7 @@ failure:
         name: router_core_1:eth1--router_core_3:eth0
       fault_type: link_flap
   - topo_size: s
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: router_core_1
@@ -108,6 +117,7 @@ failure:
         name: router_core_1:eth2--router_dist_1_1:eth0
       fault_type: link_flap
   - topo_size: s
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: router_core_2
@@ -121,6 +131,7 @@ failure:
         name: router_core_2:eth1--router_core_3:eth1
       fault_type: link_flap
   - topo_size: s
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: router_core_2
@@ -134,6 +145,7 @@ failure:
         name: router_core_2:eth2--router_dist_2_1:eth0
       fault_type: link_flap
   - topo_size: s
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: router_core_3
@@ -147,6 +159,7 @@ failure:
         name: router_core_3:eth2--server_access_router:eth7
       fault_type: link_flap
   - topo_size: s
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: router_dist_1_1
@@ -160,6 +173,7 @@ failure:
         name: router_dist_1_1:eth1--switch_access_1_1_1:eth0
       fault_type: link_flap
   - topo_size: s
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: router_dist_2_1
@@ -173,6 +187,7 @@ failure:
         name: router_dist_2_1:eth1--switch_access_2_1_1:eth0
       fault_type: link_flap
   - topo_size: s
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: server_access_router
@@ -186,6 +201,7 @@ failure:
         name: server_access_router:eth1--web_server_0:eth0
       fault_type: link_flap
   - topo_size: s
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: server_access_router
@@ -199,6 +215,7 @@ failure:
         name: server_access_router:eth2--web_server_1:eth0
       fault_type: link_flap
   - topo_size: s
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: server_access_router
@@ -212,6 +229,7 @@ failure:
         name: server_access_router:eth3--web_server_2:eth0
       fault_type: link_flap
   - topo_size: s
+    traffic: *id001
     inject:
       down_time: '1'
       host_name: server_access_router
@@ -226,6 +244,8 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
+    traffic: &id002
+      pattern: uniform
     inject:
       down_time: '1'
       host_name: dhcp_server
@@ -240,6 +260,7 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: dns_server
@@ -254,6 +275,7 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: load_balancer
@@ -268,6 +290,7 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: pc_1_1_1_1
@@ -282,6 +305,7 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: pc_2_1_1_1
@@ -296,6 +320,7 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: router_core_1
@@ -310,6 +335,7 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: router_core_1
@@ -324,6 +350,7 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: router_core_1
@@ -338,6 +365,7 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: router_core_2
@@ -352,6 +380,7 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: router_core_2
@@ -366,6 +395,7 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: router_core_3
@@ -380,6 +410,7 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: router_dist_1_1
@@ -394,6 +425,7 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: router_dist_2_1
@@ -408,6 +440,7 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: server_access_router
@@ -422,6 +455,7 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: server_access_router
@@ -436,6 +470,7 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: server_access_router
@@ -450,6 +485,7 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
+    traffic: *id002
     inject:
       down_time: '1'
       host_name: server_access_router
@@ -464,6 +500,8 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: routeros
+    traffic: &id003
+      pattern: uniform
     inject:
       down_time: '1'
       host_name: dhcp_server
@@ -478,6 +516,7 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: routeros
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: dns_server
@@ -492,6 +531,7 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: routeros
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: load_balancer
@@ -506,6 +546,7 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: routeros
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: pc_1_1_1_1
@@ -520,6 +561,7 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: routeros
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: pc_2_1_1_1
@@ -534,6 +576,7 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: routeros
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: router_dist_1_1
@@ -548,6 +591,7 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: routeros
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: router_dist_2_1
@@ -562,6 +606,7 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: routeros
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: server_access_router
@@ -576,6 +621,7 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: routeros
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: server_access_router
@@ -590,6 +636,7 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: routeros
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: server_access_router
@@ -604,6 +651,7 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: routeros
+    traffic: *id003
     inject:
       down_time: '1'
       host_name: server_access_router
@@ -617,6 +665,8 @@ failure:
         name: server_access_router:eth4--web_server_3:eth0
       fault_type: link_flap
   - topo_size: m
+    traffic: &id004
+      pattern: uniform
     inject:
       down_time: '1'
       host_name: dhcp_server
@@ -630,6 +680,7 @@ failure:
         name: dhcp_server:eth0--server_access_router:eth6
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: dns_server
@@ -643,6 +694,7 @@ failure:
         name: dns_server:eth0--server_access_router:eth0
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: load_balancer
@@ -656,6 +708,7 @@ failure:
         name: load_balancer:eth0--server_access_router:eth5
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: pc_1_1_1_1
@@ -669,6 +722,7 @@ failure:
         name: pc_1_1_1_1:eth0--switch_access_1_1_1:eth1
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: pc_1_1_1_2
@@ -682,6 +736,7 @@ failure:
         name: pc_1_1_1_2:eth0--switch_access_1_1_1:eth2
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: pc_1_1_2_1
@@ -695,6 +750,7 @@ failure:
         name: pc_1_1_2_1:eth0--switch_access_1_1_2:eth1
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: pc_1_1_2_2
@@ -708,6 +764,7 @@ failure:
         name: pc_1_1_2_2:eth0--switch_access_1_1_2:eth2
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: pc_1_2_1_1
@@ -721,6 +778,7 @@ failure:
         name: pc_1_2_1_1:eth0--switch_access_1_2_1:eth1
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: pc_1_2_1_2
@@ -734,6 +792,7 @@ failure:
         name: pc_1_2_1_2:eth0--switch_access_1_2_1:eth2
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: pc_1_2_2_1
@@ -747,6 +806,7 @@ failure:
         name: pc_1_2_2_1:eth0--switch_access_1_2_2:eth1
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: pc_1_2_2_2
@@ -760,6 +820,7 @@ failure:
         name: pc_1_2_2_2:eth0--switch_access_1_2_2:eth2
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: pc_2_1_1_1
@@ -773,6 +834,7 @@ failure:
         name: pc_2_1_1_1:eth0--switch_access_2_1_1:eth1
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: pc_2_1_1_2
@@ -786,6 +848,7 @@ failure:
         name: pc_2_1_1_2:eth0--switch_access_2_1_1:eth2
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: pc_2_1_2_1
@@ -799,6 +862,7 @@ failure:
         name: pc_2_1_2_1:eth0--switch_access_2_1_2:eth1
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: pc_2_1_2_2
@@ -812,6 +876,7 @@ failure:
         name: pc_2_1_2_2:eth0--switch_access_2_1_2:eth2
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: pc_2_2_1_1
@@ -825,6 +890,7 @@ failure:
         name: pc_2_2_1_1:eth0--switch_access_2_2_1:eth1
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: pc_2_2_1_2
@@ -838,6 +904,7 @@ failure:
         name: pc_2_2_1_2:eth0--switch_access_2_2_1:eth2
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: pc_2_2_2_1
@@ -851,6 +918,7 @@ failure:
         name: pc_2_2_2_1:eth0--switch_access_2_2_2:eth1
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: pc_2_2_2_2
@@ -864,6 +932,7 @@ failure:
         name: pc_2_2_2_2:eth0--switch_access_2_2_2:eth2
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: router_core_1
@@ -877,6 +946,7 @@ failure:
         name: router_core_1:eth0--router_core_2:eth0
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: router_core_1
@@ -890,6 +960,7 @@ failure:
         name: router_core_1:eth1--router_core_3:eth0
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: router_core_1
@@ -903,6 +974,7 @@ failure:
         name: router_core_1:eth2--router_dist_1_1:eth0
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: router_core_1
@@ -916,6 +988,7 @@ failure:
         name: router_core_1:eth3--router_dist_1_2:eth0
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: router_core_2
@@ -929,6 +1002,7 @@ failure:
         name: router_core_2:eth1--router_core_3:eth1
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: router_core_2
@@ -942,6 +1016,7 @@ failure:
         name: router_core_2:eth2--router_dist_2_1:eth0
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: router_core_2
@@ -955,6 +1030,7 @@ failure:
         name: router_core_2:eth3--router_dist_2_2:eth0
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: router_core_3
@@ -968,6 +1044,7 @@ failure:
         name: router_core_3:eth2--server_access_router:eth7
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: router_dist_1_1
@@ -981,6 +1058,7 @@ failure:
         name: router_dist_1_1:eth1--switch_access_1_1_1:eth0
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: router_dist_1_1
@@ -994,6 +1072,7 @@ failure:
         name: router_dist_1_1:eth2--switch_access_1_1_2:eth0
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: router_dist_1_2
@@ -1007,6 +1086,7 @@ failure:
         name: router_dist_1_2:eth1--switch_access_1_2_1:eth0
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: router_dist_1_2
@@ -1020,6 +1100,7 @@ failure:
         name: router_dist_1_2:eth2--switch_access_1_2_2:eth0
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: router_dist_2_1
@@ -1033,6 +1114,7 @@ failure:
         name: router_dist_2_1:eth1--switch_access_2_1_1:eth0
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: router_dist_2_1
@@ -1046,6 +1128,7 @@ failure:
         name: router_dist_2_1:eth2--switch_access_2_1_2:eth0
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: router_dist_2_2
@@ -1059,6 +1142,7 @@ failure:
         name: router_dist_2_2:eth1--switch_access_2_2_1:eth0
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: router_dist_2_2
@@ -1072,6 +1156,7 @@ failure:
         name: router_dist_2_2:eth2--switch_access_2_2_2:eth0
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: server_access_router
@@ -1085,6 +1170,7 @@ failure:
         name: server_access_router:eth1--web_server_0:eth0
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: server_access_router
@@ -1098,6 +1184,7 @@ failure:
         name: server_access_router:eth2--web_server_1:eth0
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: server_access_router
@@ -1111,6 +1198,7 @@ failure:
         name: server_access_router:eth3--web_server_2:eth0
       fault_type: link_flap
   - topo_size: m
+    traffic: *id004
     inject:
       down_time: '1'
       host_name: server_access_router
@@ -1124,6 +1212,8 @@ failure:
         name: server_access_router:eth4--web_server_3:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: &id005
+      pattern: uniform
     inject:
       down_time: '1'
       host_name: dhcp_server
@@ -1137,6 +1227,7 @@ failure:
         name: dhcp_server:eth0--server_access_router:eth6
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: dns_server
@@ -1150,6 +1241,7 @@ failure:
         name: dns_server:eth0--server_access_router:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: load_balancer
@@ -1163,6 +1255,7 @@ failure:
         name: load_balancer:eth0--server_access_router:eth5
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_1_1_1
@@ -1176,6 +1269,7 @@ failure:
         name: pc_1_1_1_1:eth0--switch_access_1_1_1:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_1_1_2
@@ -1189,6 +1283,7 @@ failure:
         name: pc_1_1_1_2:eth0--switch_access_1_1_1:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_1_1_3
@@ -1202,6 +1297,7 @@ failure:
         name: pc_1_1_1_3:eth0--switch_access_1_1_1:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_1_1_4
@@ -1215,6 +1311,7 @@ failure:
         name: pc_1_1_1_4:eth0--switch_access_1_1_1:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_1_2_1
@@ -1228,6 +1325,7 @@ failure:
         name: pc_1_1_2_1:eth0--switch_access_1_1_2:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_1_2_2
@@ -1241,6 +1339,7 @@ failure:
         name: pc_1_1_2_2:eth0--switch_access_1_1_2:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_1_2_3
@@ -1254,6 +1353,7 @@ failure:
         name: pc_1_1_2_3:eth0--switch_access_1_1_2:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_1_2_4
@@ -1267,6 +1367,7 @@ failure:
         name: pc_1_1_2_4:eth0--switch_access_1_1_2:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_1_3_1
@@ -1280,6 +1381,7 @@ failure:
         name: pc_1_1_3_1:eth0--switch_access_1_1_3:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_1_3_2
@@ -1293,6 +1395,7 @@ failure:
         name: pc_1_1_3_2:eth0--switch_access_1_1_3:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_1_3_3
@@ -1306,6 +1409,7 @@ failure:
         name: pc_1_1_3_3:eth0--switch_access_1_1_3:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_1_3_4
@@ -1319,6 +1423,7 @@ failure:
         name: pc_1_1_3_4:eth0--switch_access_1_1_3:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_1_4_1
@@ -1332,6 +1437,7 @@ failure:
         name: pc_1_1_4_1:eth0--switch_access_1_1_4:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_1_4_2
@@ -1345,6 +1451,7 @@ failure:
         name: pc_1_1_4_2:eth0--switch_access_1_1_4:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_1_4_3
@@ -1358,6 +1465,7 @@ failure:
         name: pc_1_1_4_3:eth0--switch_access_1_1_4:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_1_4_4
@@ -1371,6 +1479,7 @@ failure:
         name: pc_1_1_4_4:eth0--switch_access_1_1_4:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_2_1_1
@@ -1384,6 +1493,7 @@ failure:
         name: pc_1_2_1_1:eth0--switch_access_1_2_1:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_2_1_2
@@ -1397,6 +1507,7 @@ failure:
         name: pc_1_2_1_2:eth0--switch_access_1_2_1:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_2_1_3
@@ -1410,6 +1521,7 @@ failure:
         name: pc_1_2_1_3:eth0--switch_access_1_2_1:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_2_1_4
@@ -1423,6 +1535,7 @@ failure:
         name: pc_1_2_1_4:eth0--switch_access_1_2_1:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_2_2_1
@@ -1436,6 +1549,7 @@ failure:
         name: pc_1_2_2_1:eth0--switch_access_1_2_2:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_2_2_2
@@ -1449,6 +1563,7 @@ failure:
         name: pc_1_2_2_2:eth0--switch_access_1_2_2:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_2_2_3
@@ -1462,6 +1577,7 @@ failure:
         name: pc_1_2_2_3:eth0--switch_access_1_2_2:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_2_2_4
@@ -1475,6 +1591,7 @@ failure:
         name: pc_1_2_2_4:eth0--switch_access_1_2_2:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_2_3_1
@@ -1488,6 +1605,7 @@ failure:
         name: pc_1_2_3_1:eth0--switch_access_1_2_3:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_2_3_2
@@ -1501,6 +1619,7 @@ failure:
         name: pc_1_2_3_2:eth0--switch_access_1_2_3:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_2_3_3
@@ -1514,6 +1633,7 @@ failure:
         name: pc_1_2_3_3:eth0--switch_access_1_2_3:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_2_3_4
@@ -1527,6 +1647,7 @@ failure:
         name: pc_1_2_3_4:eth0--switch_access_1_2_3:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_2_4_1
@@ -1540,6 +1661,7 @@ failure:
         name: pc_1_2_4_1:eth0--switch_access_1_2_4:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_2_4_2
@@ -1553,6 +1675,7 @@ failure:
         name: pc_1_2_4_2:eth0--switch_access_1_2_4:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_2_4_3
@@ -1566,6 +1689,7 @@ failure:
         name: pc_1_2_4_3:eth0--switch_access_1_2_4:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_2_4_4
@@ -1579,6 +1703,7 @@ failure:
         name: pc_1_2_4_4:eth0--switch_access_1_2_4:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_3_1_1
@@ -1592,6 +1717,7 @@ failure:
         name: pc_1_3_1_1:eth0--switch_access_1_3_1:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_3_1_2
@@ -1605,6 +1731,7 @@ failure:
         name: pc_1_3_1_2:eth0--switch_access_1_3_1:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_3_1_3
@@ -1618,6 +1745,7 @@ failure:
         name: pc_1_3_1_3:eth0--switch_access_1_3_1:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_3_1_4
@@ -1631,6 +1759,7 @@ failure:
         name: pc_1_3_1_4:eth0--switch_access_1_3_1:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_3_2_1
@@ -1644,6 +1773,7 @@ failure:
         name: pc_1_3_2_1:eth0--switch_access_1_3_2:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_3_2_2
@@ -1657,6 +1787,7 @@ failure:
         name: pc_1_3_2_2:eth0--switch_access_1_3_2:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_3_2_3
@@ -1670,6 +1801,7 @@ failure:
         name: pc_1_3_2_3:eth0--switch_access_1_3_2:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_3_2_4
@@ -1683,6 +1815,7 @@ failure:
         name: pc_1_3_2_4:eth0--switch_access_1_3_2:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_3_3_1
@@ -1696,6 +1829,7 @@ failure:
         name: pc_1_3_3_1:eth0--switch_access_1_3_3:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_3_3_2
@@ -1709,6 +1843,7 @@ failure:
         name: pc_1_3_3_2:eth0--switch_access_1_3_3:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_3_3_3
@@ -1722,6 +1857,7 @@ failure:
         name: pc_1_3_3_3:eth0--switch_access_1_3_3:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_3_3_4
@@ -1735,6 +1871,7 @@ failure:
         name: pc_1_3_3_4:eth0--switch_access_1_3_3:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_3_4_1
@@ -1748,6 +1885,7 @@ failure:
         name: pc_1_3_4_1:eth0--switch_access_1_3_4:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_3_4_2
@@ -1761,6 +1899,7 @@ failure:
         name: pc_1_3_4_2:eth0--switch_access_1_3_4:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_3_4_3
@@ -1774,6 +1913,7 @@ failure:
         name: pc_1_3_4_3:eth0--switch_access_1_3_4:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_3_4_4
@@ -1787,6 +1927,7 @@ failure:
         name: pc_1_3_4_4:eth0--switch_access_1_3_4:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_4_1_1
@@ -1800,6 +1941,7 @@ failure:
         name: pc_1_4_1_1:eth0--switch_access_1_4_1:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_4_1_2
@@ -1813,6 +1955,7 @@ failure:
         name: pc_1_4_1_2:eth0--switch_access_1_4_1:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_4_1_3
@@ -1826,6 +1969,7 @@ failure:
         name: pc_1_4_1_3:eth0--switch_access_1_4_1:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_4_1_4
@@ -1839,6 +1983,7 @@ failure:
         name: pc_1_4_1_4:eth0--switch_access_1_4_1:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_4_2_1
@@ -1852,6 +1997,7 @@ failure:
         name: pc_1_4_2_1:eth0--switch_access_1_4_2:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_4_2_2
@@ -1865,6 +2011,7 @@ failure:
         name: pc_1_4_2_2:eth0--switch_access_1_4_2:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_4_2_3
@@ -1878,6 +2025,7 @@ failure:
         name: pc_1_4_2_3:eth0--switch_access_1_4_2:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_4_2_4
@@ -1891,6 +2039,7 @@ failure:
         name: pc_1_4_2_4:eth0--switch_access_1_4_2:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_4_3_1
@@ -1904,6 +2053,7 @@ failure:
         name: pc_1_4_3_1:eth0--switch_access_1_4_3:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_4_3_2
@@ -1917,6 +2067,7 @@ failure:
         name: pc_1_4_3_2:eth0--switch_access_1_4_3:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_4_3_3
@@ -1930,6 +2081,7 @@ failure:
         name: pc_1_4_3_3:eth0--switch_access_1_4_3:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_4_3_4
@@ -1943,6 +2095,7 @@ failure:
         name: pc_1_4_3_4:eth0--switch_access_1_4_3:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_4_4_1
@@ -1956,6 +2109,7 @@ failure:
         name: pc_1_4_4_1:eth0--switch_access_1_4_4:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_4_4_2
@@ -1969,6 +2123,7 @@ failure:
         name: pc_1_4_4_2:eth0--switch_access_1_4_4:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_4_4_3
@@ -1982,6 +2137,7 @@ failure:
         name: pc_1_4_4_3:eth0--switch_access_1_4_4:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_1_4_4_4
@@ -1995,6 +2151,7 @@ failure:
         name: pc_1_4_4_4:eth0--switch_access_1_4_4:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_1_1_1
@@ -2008,6 +2165,7 @@ failure:
         name: pc_2_1_1_1:eth0--switch_access_2_1_1:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_1_1_2
@@ -2021,6 +2179,7 @@ failure:
         name: pc_2_1_1_2:eth0--switch_access_2_1_1:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_1_1_3
@@ -2034,6 +2193,7 @@ failure:
         name: pc_2_1_1_3:eth0--switch_access_2_1_1:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_1_1_4
@@ -2047,6 +2207,7 @@ failure:
         name: pc_2_1_1_4:eth0--switch_access_2_1_1:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_1_2_1
@@ -2060,6 +2221,7 @@ failure:
         name: pc_2_1_2_1:eth0--switch_access_2_1_2:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_1_2_2
@@ -2073,6 +2235,7 @@ failure:
         name: pc_2_1_2_2:eth0--switch_access_2_1_2:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_1_2_3
@@ -2086,6 +2249,7 @@ failure:
         name: pc_2_1_2_3:eth0--switch_access_2_1_2:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_1_2_4
@@ -2099,6 +2263,7 @@ failure:
         name: pc_2_1_2_4:eth0--switch_access_2_1_2:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_1_3_1
@@ -2112,6 +2277,7 @@ failure:
         name: pc_2_1_3_1:eth0--switch_access_2_1_3:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_1_3_2
@@ -2125,6 +2291,7 @@ failure:
         name: pc_2_1_3_2:eth0--switch_access_2_1_3:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_1_3_3
@@ -2138,6 +2305,7 @@ failure:
         name: pc_2_1_3_3:eth0--switch_access_2_1_3:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_1_3_4
@@ -2151,6 +2319,7 @@ failure:
         name: pc_2_1_3_4:eth0--switch_access_2_1_3:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_1_4_1
@@ -2164,6 +2333,7 @@ failure:
         name: pc_2_1_4_1:eth0--switch_access_2_1_4:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_1_4_2
@@ -2177,6 +2347,7 @@ failure:
         name: pc_2_1_4_2:eth0--switch_access_2_1_4:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_1_4_3
@@ -2190,6 +2361,7 @@ failure:
         name: pc_2_1_4_3:eth0--switch_access_2_1_4:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_1_4_4
@@ -2203,6 +2375,7 @@ failure:
         name: pc_2_1_4_4:eth0--switch_access_2_1_4:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_2_1_1
@@ -2216,6 +2389,7 @@ failure:
         name: pc_2_2_1_1:eth0--switch_access_2_2_1:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_2_1_2
@@ -2229,6 +2403,7 @@ failure:
         name: pc_2_2_1_2:eth0--switch_access_2_2_1:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_2_1_3
@@ -2242,6 +2417,7 @@ failure:
         name: pc_2_2_1_3:eth0--switch_access_2_2_1:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_2_1_4
@@ -2255,6 +2431,7 @@ failure:
         name: pc_2_2_1_4:eth0--switch_access_2_2_1:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_2_2_1
@@ -2268,6 +2445,7 @@ failure:
         name: pc_2_2_2_1:eth0--switch_access_2_2_2:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_2_2_2
@@ -2281,6 +2459,7 @@ failure:
         name: pc_2_2_2_2:eth0--switch_access_2_2_2:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_2_2_3
@@ -2294,6 +2473,7 @@ failure:
         name: pc_2_2_2_3:eth0--switch_access_2_2_2:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_2_2_4
@@ -2307,6 +2487,7 @@ failure:
         name: pc_2_2_2_4:eth0--switch_access_2_2_2:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_2_3_1
@@ -2320,6 +2501,7 @@ failure:
         name: pc_2_2_3_1:eth0--switch_access_2_2_3:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_2_3_2
@@ -2333,6 +2515,7 @@ failure:
         name: pc_2_2_3_2:eth0--switch_access_2_2_3:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_2_3_3
@@ -2346,6 +2529,7 @@ failure:
         name: pc_2_2_3_3:eth0--switch_access_2_2_3:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_2_3_4
@@ -2359,6 +2543,7 @@ failure:
         name: pc_2_2_3_4:eth0--switch_access_2_2_3:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_2_4_1
@@ -2372,6 +2557,7 @@ failure:
         name: pc_2_2_4_1:eth0--switch_access_2_2_4:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_2_4_2
@@ -2385,6 +2571,7 @@ failure:
         name: pc_2_2_4_2:eth0--switch_access_2_2_4:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_2_4_3
@@ -2398,6 +2585,7 @@ failure:
         name: pc_2_2_4_3:eth0--switch_access_2_2_4:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_2_4_4
@@ -2411,6 +2599,7 @@ failure:
         name: pc_2_2_4_4:eth0--switch_access_2_2_4:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_3_1_1
@@ -2424,6 +2613,7 @@ failure:
         name: pc_2_3_1_1:eth0--switch_access_2_3_1:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_3_1_2
@@ -2437,6 +2627,7 @@ failure:
         name: pc_2_3_1_2:eth0--switch_access_2_3_1:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_3_1_3
@@ -2450,6 +2641,7 @@ failure:
         name: pc_2_3_1_3:eth0--switch_access_2_3_1:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_3_1_4
@@ -2463,6 +2655,7 @@ failure:
         name: pc_2_3_1_4:eth0--switch_access_2_3_1:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_3_2_1
@@ -2476,6 +2669,7 @@ failure:
         name: pc_2_3_2_1:eth0--switch_access_2_3_2:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_3_2_2
@@ -2489,6 +2683,7 @@ failure:
         name: pc_2_3_2_2:eth0--switch_access_2_3_2:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_3_2_3
@@ -2502,6 +2697,7 @@ failure:
         name: pc_2_3_2_3:eth0--switch_access_2_3_2:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_3_2_4
@@ -2515,6 +2711,7 @@ failure:
         name: pc_2_3_2_4:eth0--switch_access_2_3_2:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_3_3_1
@@ -2528,6 +2725,7 @@ failure:
         name: pc_2_3_3_1:eth0--switch_access_2_3_3:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_3_3_2
@@ -2541,6 +2739,7 @@ failure:
         name: pc_2_3_3_2:eth0--switch_access_2_3_3:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_3_3_3
@@ -2554,6 +2753,7 @@ failure:
         name: pc_2_3_3_3:eth0--switch_access_2_3_3:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_3_3_4
@@ -2567,6 +2767,7 @@ failure:
         name: pc_2_3_3_4:eth0--switch_access_2_3_3:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_3_4_1
@@ -2580,6 +2781,7 @@ failure:
         name: pc_2_3_4_1:eth0--switch_access_2_3_4:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_3_4_2
@@ -2593,6 +2795,7 @@ failure:
         name: pc_2_3_4_2:eth0--switch_access_2_3_4:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_3_4_3
@@ -2606,6 +2809,7 @@ failure:
         name: pc_2_3_4_3:eth0--switch_access_2_3_4:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_3_4_4
@@ -2619,6 +2823,7 @@ failure:
         name: pc_2_3_4_4:eth0--switch_access_2_3_4:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_4_1_1
@@ -2632,6 +2837,7 @@ failure:
         name: pc_2_4_1_1:eth0--switch_access_2_4_1:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_4_1_2
@@ -2645,6 +2851,7 @@ failure:
         name: pc_2_4_1_2:eth0--switch_access_2_4_1:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_4_1_3
@@ -2658,6 +2865,7 @@ failure:
         name: pc_2_4_1_3:eth0--switch_access_2_4_1:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_4_1_4
@@ -2671,6 +2879,7 @@ failure:
         name: pc_2_4_1_4:eth0--switch_access_2_4_1:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_4_2_1
@@ -2684,6 +2893,7 @@ failure:
         name: pc_2_4_2_1:eth0--switch_access_2_4_2:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_4_2_2
@@ -2697,6 +2907,7 @@ failure:
         name: pc_2_4_2_2:eth0--switch_access_2_4_2:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_4_2_3
@@ -2710,6 +2921,7 @@ failure:
         name: pc_2_4_2_3:eth0--switch_access_2_4_2:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_4_2_4
@@ -2723,6 +2935,7 @@ failure:
         name: pc_2_4_2_4:eth0--switch_access_2_4_2:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_4_3_1
@@ -2736,6 +2949,7 @@ failure:
         name: pc_2_4_3_1:eth0--switch_access_2_4_3:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_4_3_2
@@ -2749,6 +2963,7 @@ failure:
         name: pc_2_4_3_2:eth0--switch_access_2_4_3:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_4_3_3
@@ -2762,6 +2977,7 @@ failure:
         name: pc_2_4_3_3:eth0--switch_access_2_4_3:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_4_3_4
@@ -2775,6 +2991,7 @@ failure:
         name: pc_2_4_3_4:eth0--switch_access_2_4_3:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_4_4_1
@@ -2788,6 +3005,7 @@ failure:
         name: pc_2_4_4_1:eth0--switch_access_2_4_4:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_4_4_2
@@ -2801,6 +3019,7 @@ failure:
         name: pc_2_4_4_2:eth0--switch_access_2_4_4:eth2
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_4_4_3
@@ -2814,6 +3033,7 @@ failure:
         name: pc_2_4_4_3:eth0--switch_access_2_4_4:eth3
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: pc_2_4_4_4
@@ -2827,6 +3047,7 @@ failure:
         name: pc_2_4_4_4:eth0--switch_access_2_4_4:eth4
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_core_1
@@ -2840,6 +3061,7 @@ failure:
         name: router_core_1:eth0--router_core_2:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_core_1
@@ -2853,6 +3075,7 @@ failure:
         name: router_core_1:eth1--router_core_3:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_core_1
@@ -2866,6 +3089,7 @@ failure:
         name: router_core_1:eth2--router_dist_1_1:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_core_1
@@ -2879,6 +3103,7 @@ failure:
         name: router_core_1:eth3--router_dist_1_2:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_core_1
@@ -2892,6 +3117,7 @@ failure:
         name: router_core_1:eth4--router_dist_1_3:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_core_1
@@ -2905,6 +3131,7 @@ failure:
         name: router_core_1:eth5--router_dist_1_4:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_core_2
@@ -2918,6 +3145,7 @@ failure:
         name: router_core_2:eth1--router_core_3:eth1
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_core_2
@@ -2931,6 +3159,7 @@ failure:
         name: router_core_2:eth2--router_dist_2_1:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_core_2
@@ -2944,6 +3173,7 @@ failure:
         name: router_core_2:eth3--router_dist_2_2:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_core_2
@@ -2957,6 +3187,7 @@ failure:
         name: router_core_2:eth4--router_dist_2_3:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_core_2
@@ -2970,6 +3201,7 @@ failure:
         name: router_core_2:eth5--router_dist_2_4:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_core_3
@@ -2983,6 +3215,7 @@ failure:
         name: router_core_3:eth2--server_access_router:eth7
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_1_1
@@ -2996,6 +3229,7 @@ failure:
         name: router_dist_1_1:eth1--switch_access_1_1_1:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_1_1
@@ -3009,6 +3243,7 @@ failure:
         name: router_dist_1_1:eth2--switch_access_1_1_2:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_1_1
@@ -3022,6 +3257,7 @@ failure:
         name: router_dist_1_1:eth3--switch_access_1_1_3:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_1_1
@@ -3035,6 +3271,7 @@ failure:
         name: router_dist_1_1:eth4--switch_access_1_1_4:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_1_2
@@ -3048,6 +3285,7 @@ failure:
         name: router_dist_1_2:eth1--switch_access_1_2_1:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_1_2
@@ -3061,6 +3299,7 @@ failure:
         name: router_dist_1_2:eth2--switch_access_1_2_2:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_1_2
@@ -3074,6 +3313,7 @@ failure:
         name: router_dist_1_2:eth3--switch_access_1_2_3:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_1_2
@@ -3087,6 +3327,7 @@ failure:
         name: router_dist_1_2:eth4--switch_access_1_2_4:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_1_3
@@ -3100,6 +3341,7 @@ failure:
         name: router_dist_1_3:eth1--switch_access_1_3_1:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_1_3
@@ -3113,6 +3355,7 @@ failure:
         name: router_dist_1_3:eth2--switch_access_1_3_2:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_1_3
@@ -3126,6 +3369,7 @@ failure:
         name: router_dist_1_3:eth3--switch_access_1_3_3:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_1_3
@@ -3139,6 +3383,7 @@ failure:
         name: router_dist_1_3:eth4--switch_access_1_3_4:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_1_4
@@ -3152,6 +3397,7 @@ failure:
         name: router_dist_1_4:eth1--switch_access_1_4_1:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_1_4
@@ -3165,6 +3411,7 @@ failure:
         name: router_dist_1_4:eth2--switch_access_1_4_2:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_1_4
@@ -3178,6 +3425,7 @@ failure:
         name: router_dist_1_4:eth3--switch_access_1_4_3:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_1_4
@@ -3191,6 +3439,7 @@ failure:
         name: router_dist_1_4:eth4--switch_access_1_4_4:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_2_1
@@ -3204,6 +3453,7 @@ failure:
         name: router_dist_2_1:eth1--switch_access_2_1_1:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_2_1
@@ -3217,6 +3467,7 @@ failure:
         name: router_dist_2_1:eth2--switch_access_2_1_2:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_2_1
@@ -3230,6 +3481,7 @@ failure:
         name: router_dist_2_1:eth3--switch_access_2_1_3:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_2_1
@@ -3243,6 +3495,7 @@ failure:
         name: router_dist_2_1:eth4--switch_access_2_1_4:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_2_2
@@ -3256,6 +3509,7 @@ failure:
         name: router_dist_2_2:eth1--switch_access_2_2_1:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_2_2
@@ -3269,6 +3523,7 @@ failure:
         name: router_dist_2_2:eth2--switch_access_2_2_2:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_2_2
@@ -3282,6 +3537,7 @@ failure:
         name: router_dist_2_2:eth3--switch_access_2_2_3:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_2_2
@@ -3295,6 +3551,7 @@ failure:
         name: router_dist_2_2:eth4--switch_access_2_2_4:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_2_3
@@ -3308,6 +3565,7 @@ failure:
         name: router_dist_2_3:eth1--switch_access_2_3_1:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_2_3
@@ -3321,6 +3579,7 @@ failure:
         name: router_dist_2_3:eth2--switch_access_2_3_2:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_2_3
@@ -3334,6 +3593,7 @@ failure:
         name: router_dist_2_3:eth3--switch_access_2_3_3:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_2_3
@@ -3347,6 +3607,7 @@ failure:
         name: router_dist_2_3:eth4--switch_access_2_3_4:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_2_4
@@ -3360,6 +3621,7 @@ failure:
         name: router_dist_2_4:eth1--switch_access_2_4_1:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_2_4
@@ -3373,6 +3635,7 @@ failure:
         name: router_dist_2_4:eth2--switch_access_2_4_2:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_2_4
@@ -3386,6 +3649,7 @@ failure:
         name: router_dist_2_4:eth3--switch_access_2_4_3:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: router_dist_2_4
@@ -3399,6 +3663,7 @@ failure:
         name: router_dist_2_4:eth4--switch_access_2_4_4:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: server_access_router
@@ -3412,6 +3677,7 @@ failure:
         name: server_access_router:eth1--web_server_0:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: server_access_router
@@ -3425,6 +3691,7 @@ failure:
         name: server_access_router:eth2--web_server_1:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: server_access_router
@@ -3438,6 +3705,7 @@ failure:
         name: server_access_router:eth3--web_server_2:eth0
       fault_type: link_flap
   - topo_size: l
+    traffic: *id005
     inject:
       down_time: '1'
       host_name: server_access_router

@@ -112,6 +112,15 @@ def env_run(
             "Devices without support stay unconfigured."
         ),
     ),
+    traffic: str | None = typer.Option(
+        None,
+        "--traffic",
+        help=(
+            "Background traffic on top of the business workload: PATTERN[,KEY=VALUE...], "
+            "e.g. gravity,load_mbps=4,flow_sizes=hadoop. Patterns: uniform, gravity, "
+            "demand, permutation, hotspot, incast."
+        ),
+    ),
     instance_tag: str | None = typer.Option(
         None,
         "--instance-tag",
@@ -125,6 +134,7 @@ def env_run(
     ),
 ) -> None:
     """Deploy one scenario and start a new session."""
+    from nika.traffic.profiles import parse_traffic_option
     from nika.workflows.env.start import start_net_env
 
     session_id = start_net_env(
@@ -142,6 +152,7 @@ def env_run(
         device_profile=device_profile,
         static_validation=static_validation,
         telemetry=telemetry,
+        traffic=parse_traffic_option(traffic),
     )
     typer.echo(f"session_id={session_id}")
 
