@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import json
 import platform
 import tarfile
 from pathlib import Path
@@ -43,18 +44,17 @@ class SwitchEgressClassifier:
 
         return HostTcController(self.runtime)
 
-    def attach(self, node: str, intf: str, seed: int) -> str:
-        """Attach the classifier; return the device it is attached to."""
+    def attach(self, node: str, intf: str, seed: int) -> None:
+        """Attach the classifier to the selected egress."""
         if self._host_wires:
             dev = self._wire().egress_dev(node, intf)
             # Wire ends already carry a clsact qdisc for their redirect.
             self._load(dev, seed, network_mode="host", qdisc=False)
-            return dev
+            return
         node_container = self.runtime.get_container(node)
         self._load(
             intf, seed, network_mode=f"container:{node_container.id}", qdisc=True
         )
-        return intf
 
     def _load(self, dev: str, seed: int, *, network_mode: str, qdisc: bool) -> None:
         source = Path(__file__).with_name(self.SOURCE)
@@ -98,11 +98,32 @@ class SwitchEgressClassifier:
     def _filters(self, node: str, intf: str) -> str:
         if self._host_wires:
             wire = self._wire()
-            return wire.egress_filters(wire.egress_dev(node, intf))
-        return self.runtime.exec(node, f"tc filter show dev {intf} egress")
+            return wire._run(
+                "tc",
+                "-j",
+                "filter",
+                "show",
+                "dev",
+                wire.egress_dev(node, intf),
+                "egress",
+            )
+        return self.runtime.exec(node, f"tc -j filter show dev {intf} egress")
 
     def attached(self, node: str, intf: str) -> bool:
-        return "bpf" in self._filters(node, intf).lower()
+        output = self._filters(node, intf)
+        try:
+            filters = json.loads(output)
+        except ValueError as exc:
+            raise RuntimeCapabilityError(
+                f"Cannot read egress filters on {node}:{intf}: {output!r}"
+            ) from exc
+        if not isinstance(filters, list):
+            raise RuntimeCapabilityError(
+                f"Invalid egress filters on {node}:{intf}: {output!r}"
+            )
+        return any(
+            item.get("kind") == "bpf" and item.get("pref") == _PRIO for item in filters
+        )
 
     def detach(self, node: str, intf: str) -> None:
         """Remove this egress classifier."""

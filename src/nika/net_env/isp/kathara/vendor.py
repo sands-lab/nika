@@ -90,8 +90,7 @@ class IspVendor(IspRendered, NetworkEnvBase):
             first_interface_index=1 if self.device_profile == "routeros" else 0,
         )
         plan = compile_isp_plan(config)
-        # The customer site needs a Kathara FRR host and export policy.
-        self.bgp_plan = compile_bgp_plan(plan, self.bgp_mode, customer_site=False)
+        self.bgp_plan = compile_bgp_plan(plan, self.bgp_mode)
         plan = scope_igp_to_bgp_as(plan, self.bgp_plan)
         if routing_parameters is not None:
             from nika.net_env.synthesis.parameters import (
@@ -179,6 +178,12 @@ class IspVendor(IspRendered, NetworkEnvBase):
             self.plan, self.bgp_plan, workload=self.business_workload()
         )
         for node in self.plan.nodes:
+            customer_iface = (
+                self.bgp_plan.customer_interface(node) if self.bgp_plan else None
+            )
+            interfaces = [iface.name for iface in node.interfaces]
+            if customer_iface:
+                interfaces.append(customer_iface)
             if self.device_profile == "routeros":
                 from nika.net_env.utils.routeros.common import add_routeros_router
 
@@ -186,7 +191,7 @@ class IspVendor(IspRendered, NetworkEnvBase):
                     self.lab,
                     node.device_name,
                     config=self.deployment_configs[node.device_name],
-                    data_interfaces=len(node.interfaces),
+                    data_interfaces=len(interfaces),
                 )
             else:
                 machine = self.lab.new_machine(
@@ -209,7 +214,7 @@ class IspVendor(IspRendered, NetworkEnvBase):
                     self.lab,
                     machine,
                     self.deployment_configs[node.device_name],
-                    [iface.name for iface in node.interfaces],
+                    interfaces,
                 )
         for link in self.plan.links:
             self.lab.connect_machine_to_link(
@@ -248,6 +253,17 @@ class IspVendor(IspRendered, NetworkEnvBase):
             self.lab.connect_machine_to_link(
                 edge.host_name, edge.collision_domain, machine_iface_number=0
             )
+        from nika.net_env.isp.kathara.customer import attach_customer_site
+
+        attach_customer_site(
+            self,
+            {
+                "image": nika_image("base"),
+                "shell": "/bin/sh",
+                "mem": "256m",
+                "cpus": 0.5,
+            },
+        )
         self.load_machines()
 
     def probe_intent(self) -> ProbeIntent | None:
@@ -293,7 +309,10 @@ class IspVendor(IspRendered, NetworkEnvBase):
             f"Native ISP {self.device_profile}",
             routers=len(self.plan.nodes),
             per_router=3 * GIB if self.device_profile == "iosxr" else GIB,
-            hosts=len(self.traffic.hosts),
+            hosts=len(self.traffic.hosts)
+            + int(
+                self.bgp_plan is not None and self.bgp_plan.customer_site is not None
+            ),
         )
         super().deploy()
 

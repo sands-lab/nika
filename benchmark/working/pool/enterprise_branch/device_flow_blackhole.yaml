@@ -24,11 +24,21 @@ failure:
         kind: node
         node: hq_edge
       fault_type: device_flow_blackhole
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      forwarding_device: hq_edge
+      intf_name: eth0
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: hq_edge
+      fault_type: device_flow_blackhole
   - topo_size: m
     inject:
       forwarding_device: hq_edge
-      intf_name: eth5
-      probe_dst_ip: 10.0.20.2
+      intf_name: eth1
       seed: '42'
     root_causes:
     - resource:
@@ -38,8 +48,7 @@ failure:
   - topo_size: l
     inject:
       forwarding_device: hq_edge
-      intf_name: eth5
-      probe_dst_ip: 10.0.20.2
+      intf_name: eth1
       seed: '42'
     root_causes:
     - resource:

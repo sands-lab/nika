@@ -409,31 +409,9 @@ class Isp(IspRendered, NetworkEnvBase):
             use_rendered_configs(self, required=False)
 
     def _attach_customer_site(self, host_opts: dict) -> str | None:
-        """Attach the eBGP customer site; return its interface on the provider."""
-        site = self.bgp_plan.customer_site if self.bgp_plan is not None else None
-        if site is None:
-            return None
-        node = next(n for n in self.plan.nodes if n.device_name == site.provider)
-        provider_iface = f"eth{len(node.interfaces)}"
-        collision = f"cd_{site.host_name}"
-        self.lab.new_machine(site.host_name, **host_opts)
-        self.declare_machine(
-            site.host_name,
-            role=NodeRole.HOST,
-            capabilities=("linux",),
-            reachability_target=True,
-        )
-        self.lab.connect_machine_to_link(site.provider, collision)
-        self.lab.connect_machine_to_link(site.host_name, collision)
-        plen = site.prefix.rsplit("/", 1)[1]
-        self.lab.create_file_from_list(
-            [
-                f"ip addr add {site.address}/{plen} dev eth0",
-                f"ip route replace default via {site.gateway}",
-            ],
-            f"{site.host_name}.startup",
-        )
-        return provider_iface
+        from nika.net_env.isp.kathara.customer import attach_customer_site
+
+        return attach_customer_site(self, host_opts)
 
     def _attach_routinator(self) -> dict:
         """Attach an offline Routinator RTR next to the ROV observer."""

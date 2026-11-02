@@ -1,16 +1,18 @@
 import ipaddress
 import json
 import re
+import time
 
 from pydantic import BaseModel, Field
 
 from nika.problems.rca import node_resource
 from nika.problems.rca.inventory import (
+    interface_on,
     iter_link_termination_points,
     kernel_data_interface,
     parse_endpoint,
 )
-from nika.problems.support.frr import FRR_CONF, frr_config_command
+from nika.problems.support.frr import FRR_CONF, frr_config_command, frr_save_config
 from nika.problems.support.oracle import (
     Check,
     OraclePlaybook,
@@ -23,9 +25,10 @@ from nika.problems.base import (
     build_verify_result,
     ProblemBase,
 )
-from nika.problems.support.router_ops import native_fault_ops
+from nika.problems.support.router_ops import native_fault_ops, native_router_profile
 from nika.runtime.base import RuntimeCapabilityError
 from nika.runtime.spec import NodeRole
+from nika.problems.support.polling import wait_until
 from nika.utils.logger import system_logger
 
 _NETWORK_RE = re.compile(r"^\s*network\s+(\S+)\s+area\s+(\S+)\s*$", re.MULTILINE)
@@ -170,6 +173,38 @@ def _ospf_area_bindings(
             "OSPF configuration mixes network statements and interface area bindings"
         )
     return networks, interfaces
+
+
+def _full_frr_neighbors(raw: str) -> set[tuple[str, str]]:
+    """Full adjacency identities, independent of transient timers and DR role."""
+    neighbors = json.loads(raw).get("neighbors")
+    if not isinstance(neighbors, dict):
+        raise ValueError("Unreadable OSPF neighbors")
+    return {
+        (router_id, str(entry.get("ifaceName", "")))
+        for router_id, entries in neighbors.items()
+        for entry in (entries if isinstance(entries, list) else [entries])
+        if isinstance(entry, dict) and str(entry.get("nbrState", "")).startswith("Full")
+    }
+
+
+def _ospf_health(problem, host: str) -> dict[str, set]:
+    """Read Full neighbors and installed OSPF routes for recovery checks."""
+    from nika.validation.symptom.routing_probes import _ospf_routes
+
+    ops = native_fault_ops(problem, host, "ospf_neighbors")
+    neighbors = (
+        {
+            (neighbor.router_id, neighbor.interface)
+            for neighbor in ops.ospf_neighbors()
+            if neighbor.state.lower().startswith("full")
+        }
+        if ops is not None
+        else _full_frr_neighbors(
+            problem.runtime.exec(host, "vtysh -c 'show ip ospf neighbor json'")
+        )
+    )
+    return {"neighbors": neighbors, "routes": _ospf_routes(problem, host)}
 
 
 # ==================================================================
@@ -756,11 +791,69 @@ class OSPFDuplicateRouterId(ProblemBase):
     TAGS = ["ospf"]
     supported_backends = ("kathara",)
     Params = OSPFDuplicateRouterIdParams
-    RECORDED_ATTRS = ("duplicate_router_id",)
+    native_router_operations = frozenset(
+        {
+            "ospf_router_id",
+            "ospf_router_lsa_ids",
+            "ospf_neighbor_ids",
+            "ospf_neighbors",
+            "set_ospf_router_id",
+            "ospf_routes",
+            "connected_routes",
+            "save_config",
+            "restore_config",
+        }
+    )
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
-        return {"host_name": ctx.router0}
+        from nika.problems.support.benchmark_targets import choice
+
+        if cls._has_declared_stub(ctx.net_env, ctx.router0):
+            return {"host_name": ctx.router0}
+        targets = [r for r in ctx.routers if cls._has_declared_stub(ctx.net_env, r)]
+        return {"host_name": choice(ctx.rng, targets, ctx.router0)}
+
+    @staticmethod
+    def _has_declared_stub(net_env, host: str) -> bool:
+        from nika.net_env.native_routers import router_sketches
+
+        plan = getattr(net_env, "plan", None)
+        if plan is not None:
+            return plan.igp == "ospf" and any(
+                node.device_name == host
+                and any(not interface.passive for interface in node.interfaces)
+                for node in plan.nodes
+            )
+        sketches = router_sketches(net_env)
+        connected = {
+            router: {
+                ipaddress.ip_interface(cidr).network
+                for cidr in re.findall(r"ip addr add ([0-9./]+) dev", startup)
+            }
+            for router, (_, startup) in sketches.items()
+        }
+        own = connected.get(host, set())
+        others = set().union(
+            *(prefixes for r, prefixes in connected.items() if r != host)
+        )
+        networks, _ = _ospf_area_bindings(sketches.get(host, ("", ""))[0])
+        return any(
+            prefix.subnet_of(ipaddress.ip_network(network))
+            for prefix in own - others
+            for network, _ in networks
+        )
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        from nika.problems.support.benchmark_targets import require_node_capability
+
+        host = inject.get("host_name")
+        require_node_capability(ctx, cls.root_cause_name, host, "ospf")
+        if not cls._has_declared_stub(ctx.net_env, host):
+            raise ValueError(
+                f"{cls.root_cause_name} needs a router with an OSPF stub subnet"
+            )
 
     def __init__(self, scenario_name: str | None, **kwargs):
         super().__init__(scenario_name, **kwargs)
@@ -770,11 +863,25 @@ class OSPFDuplicateRouterId(ProblemBase):
         return [node_resource(params.host_name)]
 
     def _router_id(self, host: str) -> str | None:
+        ops = native_fault_ops(self, host, "ospf_router_id")
+        if ops is not None:
+            return ops.ospf_router_id()
         return _ospf_router_id(
             self.runtime.exec(host, "vtysh -c 'show ip ospf json' 2>/dev/null")
         )
 
     def _duplicate_candidate(self, host: str, own: str) -> str:
+        ops = native_fault_ops(self, host, "ospf_router_lsa_ids")
+        if ops is not None:
+            neighbors = ops.ospf_neighbor_ids()
+            candidates = (ops.ospf_router_lsa_ids() - neighbors - {own}) or (
+                neighbors - {own}
+            )
+            if not candidates:
+                raise RuntimeCapabilityError(
+                    f"No other OSPF router shares an area with {host!r}."
+                )
+            return min(candidates, key=ipaddress.ip_address)
         database = self.runtime.exec(
             host, "vtysh -c 'show ip ospf database' 2>/dev/null"
         )
@@ -815,6 +922,27 @@ class OSPFDuplicateRouterId(ProblemBase):
                 f"{type(self).__name__}: OSPF is not running on {params.host_name!r}."
             )
         self.duplicate_router_id = self._duplicate_candidate(params.host_name, own)
+        self._twin_host = next(
+            (
+                router
+                for router in self.net_env.routers or []
+                if router != params.host_name
+                and self._router_id(router) == self.duplicate_router_id
+            ),
+            None,
+        )
+        self._healthy_router_id = own
+        self._healthy_routing = {
+            host: _ospf_health(self, host)
+            for host in (params.host_name, self._twin_host)
+            if host is not None
+        }
+        ops = native_fault_ops(self, params.host_name, "set_ospf_router_id")
+        if ops is not None:
+            self._saved_config = ops.save_config()
+            self._orig_router_id = own
+            ops.set_ospf_router_id(self.duplicate_router_id)
+            return
         config = self.runtime.exec(params.host_name, f"cat {FRR_CONF}")
         self._file_has_router_id = bool(
             re.search(r"^\s*(ospf )?router-id ", _ospf_block(config), re.M)
@@ -840,9 +968,781 @@ class OSPFDuplicateRouterId(ProblemBase):
         )
 
     def recover_fault(self, params: OSPFDuplicateRouterIdParams) -> dict:
-        self._set_router_id(params.host_name, getattr(self, "_orig_router_id", None))
+        baseline = getattr(self, "_healthy_routing", None)
+        if not baseline:
+            return {"verified": False, "details": {"error": "no_healthy_baseline"}}
+        ops = native_fault_ops(self, params.host_name, "restore_config")
+        if ops is not None:
+            saved = getattr(self, "_saved_config", None)
+            if saved:
+                ops.set_ospf_router_id(self._orig_router_id)
+                ops.restore_config(saved)
+        else:
+            self._set_router_id(
+                params.host_name, getattr(self, "_orig_router_id", None)
+            )
+        # The twin that originally owned this ID can keep a stale LSA until
+        # its OSPF process restarts, so stub prefixes never return.
+        twin = getattr(self, "_twin_host", None)
+        if twin and native_router_profile(self.net_env, twin) is None:
+            self.runtime.exec(twin, "vtysh -c 'clear ip ospf process' >/dev/null 2>&1")
+
+        def healthy():
+            if self._router_id(params.host_name) != self._healthy_router_id:
+                return False
+            for host, before in baseline.items():
+                current = _ospf_health(self, host)
+                if any(not values <= current[key] for key, values in before.items()):
+                    return False
+            return True
+
+        restored = wait_until(healthy, 240, interval_s=3)
         running = self._router_id(params.host_name)
         return {
-            "verified": running != getattr(self, "duplicate_router_id", None),
+            "verified": restored and running == self._healthy_router_id,
             "details": {"host": params.host_name, "running_router_id": running},
         }
+
+
+# ==================================================================
+# Problem: OSPF network type mismatch
+# ==================================================================
+
+
+_FRR_NETWORK_TYPE = {
+    "BROADCAST": "broadcast",
+    "POINTOPOINT": "point-to-point",
+    "NBMA": "non-broadcast",
+    "POINTOMULTIPOINT": "point-to-multipoint",
+}
+
+
+def normalize_ospf_network_type(raw: str) -> str:
+    """Map a platform token to ``broadcast``, ``point-to-point``, or ``non-broadcast``."""
+    token = raw.lower().replace("_", "-").replace(" ", "")
+    if token in {"point-to-point", "pointtopoint", "ptp", "p2p"}:
+        return "point-to-point"
+    if token in {"non-broadcast", "nonbroadcast", "nbma"}:
+        return "non-broadcast"
+    if token == "broadcast":
+        return "broadcast"
+    return _FRR_NETWORK_TYPE.get(raw.upper(), raw.lower())
+
+
+def mismatch_ospf_network_type(current: str) -> str:
+    """The other of broadcast-style and point-to-point."""
+    if normalize_ospf_network_type(current) == "point-to-point":
+        return "broadcast"
+    return "point-to-point"
+
+
+def ospf_router_links(net_env) -> list[tuple[tuple[str, str], tuple[str, str]]]:
+    """Two-endpoint router-router links ``((a, ia), (b, ib))`` from the topology."""
+    routers = set(net_env.routers or [])
+    plan = getattr(net_env, "plan", None)
+    active = None
+    if plan is not None:
+        from nika.net_env.isp.igp.plan import active_igp_links
+
+        if plan.igp != "ospf":
+            return []
+        active = {
+            frozenset(
+                ((link.endpoint_a, link.iface_a), (link.endpoint_b, link.iface_b))
+            )
+            for link in active_igp_links(plan)
+        }
+    links = []
+    for _key, tps in iter_link_termination_points(net_env):
+        ends = [
+            (node, intf) for node, intf in map(parse_endpoint, tps) if node and intf
+        ]
+        router_ends = [(node, intf) for node, intf in ends if node in routers]
+        if len(ends) != 2 or len(router_ends) != 2:
+            continue
+        (left, left_intf), (right, right_intf) = router_ends
+        if left == right:
+            continue
+        if active is not None and frozenset(router_ends) not in active:
+            continue
+        links.append(((left, left_intf), (right, right_intf)))
+    return links
+
+
+def ospf_cut_edge_interfaces(net_env) -> list[tuple[str, str]]:
+    """Interfaces of router links whose far router has only one router neighbor."""
+    links = ospf_router_links(net_env)
+    degree: dict[str, int] = {}
+    for (left, _), (right, _) in links:
+        degree[left] = degree.get(left, 0) + 1
+        degree[right] = degree.get(right, 0) + 1
+    targets = {
+        endpoint
+        for pair in links
+        for endpoint, peer in (pair, pair[::-1])
+        if degree.get(peer[0], 0) == 1 or degree.get(endpoint[0], 0) == 1
+    }
+    return sorted(targets)
+
+
+def ospf_link_peer(net_env, host: str, intf: str) -> tuple[str, str] | None:
+    """The router on the other end of ``host:intf``, if the link is router-router."""
+    for (left, left_intf), (right, right_intf) in ospf_router_links(net_env):
+        if (left, left_intf) == (host, intf):
+            return right, right_intf
+        if (right, right_intf) == (host, intf):
+            return left, left_intf
+    return None
+
+
+def ospf_stub_router(net_env, host: str, intf: str) -> str | None:
+    """The degree-1 router of the cut-edge that contains ``host:intf``."""
+    peer = ospf_link_peer(net_env, host, intf)
+    if peer is None:
+        return None
+    degree: dict[str, int] = {}
+    for (left, _), (right, _) in ospf_router_links(net_env):
+        degree[left] = degree.get(left, 0) + 1
+        degree[right] = degree.get(right, 0) + 1
+    if degree.get(host, 0) == 1:
+        return host
+    if degree.get(peer[0], 0) == 1:
+        return peer[0]
+    return None
+
+
+def hosts_behind_router(net_env, router: str) -> list[str]:
+    """Hosts and services reached from ``router`` without crossing another router."""
+    from collections import deque
+
+    from nika.runtime.spec import NodeRole
+
+    routers = set(net_env.routers or [])
+    identities = getattr(net_env, "machine_identities", None) or {}
+    adjacency: dict[str, set[str]] = {}
+    for _key, tps in iter_link_termination_points(net_env):
+        nodes = [parse_endpoint(tp)[0] for tp in tps if parse_endpoint(tp)[0]]
+        for node in nodes:
+            adjacency.setdefault(node, set()).update(n for n in nodes if n != node)
+    seen = {router}
+    queue = deque([router])
+    hosts = []
+    while queue:
+        current = queue.popleft()
+        for neighbor in sorted(adjacency.get(current, ())):
+            if neighbor in seen or neighbor in routers:
+                continue
+            seen.add(neighbor)
+            role = getattr(identities.get(neighbor), "role", None)
+            if role in {NodeRole.HOST, NodeRole.SERVICE}:
+                hosts.append(neighbor)
+            else:
+                queue.append(neighbor)
+    return hosts
+
+
+class OSPFNetworkTypeMismatchParams(BaseModel):
+    """Parameters for injecting an OSPF network-type disagreement."""
+
+    host_name: str = Field(description="Target router host name.")
+    intf_name: str = Field(description="OSPF interface toward the neighbor.")
+
+
+class OSPFNetworkTypeMismatch(ProblemBase):
+    """One OSPF interface uses a different network type than its neighbor.
+
+    Broadcast (or NBMA) and point-to-point hellos can still bring the
+    adjacency to Full when hello and dead timers match, but one router-LSA
+    describes a transit network and the other a point-to-point link. SPF's
+    two-way check then rejects the link, so routes across it disappear.
+    See Cisco, "Troubleshoot Open Shortest Path First Route Database Issues":
+    https://www.cisco.com/c/en/us/support/docs/ip/open-shortest-path-first-ospf/7112-26.html
+    """
+
+    failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
+    symptom_probe = "custom"
+    symptom_class = "control_plane"
+    root_cause_name = "ospf_network_type_mismatch"
+    description = "OSPF interface network type does not match the neighbor."
+    effect_protocol = "ospf"
+    TAGS = ["ospf"]
+    supported_backends = ("kathara",)
+    native_router_operations = frozenset(
+        {
+            "ospf_network_type",
+            "set_ospf_network_type",
+            "ospf_interface_neighbor_full",
+            "ospf_neighbors",
+            "ospf_routes",
+        }
+    )
+    Params = OSPFNetworkTypeMismatchParams
+
+    @classmethod
+    def runs_on_device_profile(cls, device_profile: str) -> bool:
+        # XRd drops the adjacency when network type disagrees, so the
+        # Full-but-unrouted symptom does not appear.
+        if device_profile == "iosxr":
+            return False
+        return super().runs_on_device_profile(device_profile)
+
+    BENCHMARK_TARGETS = "canonical"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        targets = ospf_cut_edge_interfaces(ctx.net_env)
+        host, intf = ctx.rng.choice(targets or [(ctx.router0, "eth0")])
+        return {"host_name": host, "intf_name": intf}
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        host = inject.get("host_name")
+        intf = inject.get("intf_name")
+        if (host, intf) not in set(ospf_cut_edge_interfaces(ctx.net_env)):
+            raise ValueError(
+                f"{cls.root_cause_name} needs a cut-edge OSPF interface, "
+                f"not {host!r} {intf!r}"
+            )
+
+    def __init__(self, scenario_name: str | None, **kwargs):
+        super().__init__(scenario_name, **kwargs)
+        self.logger = system_logger
+
+    def root_cause_resources(self, params: OSPFNetworkTypeMismatchParams):
+        return [interface_on(self.net_env, params.host_name, params.intf_name)]
+
+    def _frr_network_type(self, host: str, intf: str) -> str | None:
+        raw = self.runtime.exec(
+            host, "vtysh -c 'show ip ospf interface json' 2>/dev/null"
+        )
+        try:
+            data = json.loads(raw)
+        except (ValueError, TypeError):
+            return None
+        entry = (data.get("interfaces") or {}).get(intf) or {}
+        token = entry.get("networkType")
+        return normalize_ospf_network_type(str(token)) if token else None
+
+    def _set_frr_network_type(self, host: str, intf: str, network_type: str) -> None:
+        self.runtime.exec(
+            host,
+            frr_config_command(f"interface {intf}", f"ip ospf network {network_type}"),
+        )
+        frr_save_config(self.runtime, host)
+
+    def inject_fault(self, params: OSPFNetworkTypeMismatchParams):
+        host, intf = params.host_name, params.intf_name
+        peer = ospf_link_peer(self.net_env, host, intf)
+        if peer is None:
+            raise RuntimeCapabilityError(f"No OSPF router peer for {host!r} {intf!r}")
+        self._healthy_routing = {
+            node: _ospf_health(self, node) for node in (host, peer[0])
+        }
+        ops = native_fault_ops(self, host, "set_ospf_network_type")
+        if ops is not None:
+            current = normalize_ospf_network_type(ops.ospf_network_type(intf))
+            injected = mismatch_ospf_network_type(current)
+            self._orig_network_type = current
+            self.injected_network_type = injected
+            ops.set_ospf_network_type(intf, injected)
+        else:
+            current = self._frr_network_type(host, intf)
+            if not current:
+                raise RuntimeCapabilityError(
+                    f"{type(self).__name__}: OSPF is not enabled on {host!r} {intf!r}."
+                )
+            injected = mismatch_ospf_network_type(current)
+            self._orig_network_type = current
+            self.injected_network_type = injected
+            self._set_frr_network_type(host, intf, injected)
+        self.logger.info(
+            f"Set OSPF network type {injected} on {host} {intf} (was {current})."
+        )
+
+    def verify_fault(self, params: OSPFNetworkTypeMismatchParams) -> dict:
+        host, intf = params.host_name, params.intf_name
+        expected = getattr(self, "injected_network_type", None)
+        ops = native_fault_ops(self, host, "ospf_network_type")
+        running = (
+            normalize_ospf_network_type(ops.ospf_network_type(intf))
+            if ops is not None
+            else self._frr_network_type(host, intf)
+        )
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=expected is not None and running == expected,
+            details={
+                "host": host,
+                "intf": intf,
+                "running_network_type": running,
+                "injected_network_type": expected,
+            },
+        )
+
+    def recover_fault(self, params: OSPFNetworkTypeMismatchParams) -> dict:
+        host, intf = params.host_name, params.intf_name
+        orig = getattr(self, "_orig_network_type", None)
+        baseline = getattr(self, "_healthy_routing", None)
+        if not orig or not baseline:
+            return {"verified": False, "details": {"error": "no_healthy_baseline"}}
+        ops = native_fault_ops(self, host, "set_ospf_network_type")
+        if ops is not None:
+            ops.set_ospf_network_type(intf, orig)
+        else:
+            self._set_frr_network_type(host, intf, orig)
+
+        def healthy():
+            for node, before in baseline.items():
+                current = _ospf_health(self, node)
+                if any(not values <= current[key] for key, values in before.items()):
+                    return False
+            return True
+
+        restored = wait_until(healthy, 120, interval_s=3)
+        running = (
+            normalize_ospf_network_type(ops.ospf_network_type(intf))
+            if ops is not None
+            else self._frr_network_type(host, intf)
+        )
+        return {
+            "verified": restored and running == orig,
+            "details": {
+                "host": host,
+                "intf": intf,
+                "running_network_type": running,
+            },
+        }
+
+
+class OSPFHelloIntervalMismatchParams(BaseModel):
+    """Parameters for an OSPF interface timer disagreement."""
+
+    host_name: str = Field(description="Target router host name.")
+    intf_name: str = Field(description="OSPF interface toward the neighbor.")
+
+
+class OSPFHelloIntervalMismatch(ProblemBase):
+    """One interface advertises hello and dead intervals its neighbor rejects.
+
+    RFC 2328 section 10.5 requires both HelloInterval and RouterDeadInterval
+    to match before a received Hello can refresh the neighbor. Changing one
+    side therefore expires the adjacency while the interface stays up.
+    https://www.rfc-editor.org/rfc/rfc2328#section-10.5
+    """
+
+    failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
+    root_cause_name = "ospf_hello_interval_mismatch"
+    description = "OSPF interface hello and dead intervals differ from the neighbor."
+    symptom_probe = "custom"
+    symptom_class = "control_plane"
+    effect_protocol = "ospf"
+    TAGS = ["ospf"]
+    COMPATIBLE_COLUMNS = None
+    supported_backends = ("kathara",)
+    native_router_operations = frozenset(
+        {
+            "ospf_interface_timers",
+            "set_ospf_interface_timers",
+            "ospf_interface_neighbor_full",
+            "ospf_routes",
+        }
+    )
+    Params = OSPFHelloIntervalMismatchParams
+    BENCHMARK_TARGETS = "canonical"
+
+    @staticmethod
+    def _targets(net_env):
+        return [
+            (host, intf)
+            for host, intf in ospf_cut_edge_interfaces(net_env)
+            if hosts_behind_router(net_env, ospf_stub_router(net_env, host, intf))
+        ]
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        targets = cls._targets(ctx.net_env)
+        host, intf = ctx.rng.choice(targets or [(ctx.router0, "eth0")])
+        return {"host_name": host, "intf_name": intf}
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        from nika.problems.support.benchmark_targets import require_node_capability
+
+        host, intf = inject.get("host_name"), inject.get("intf_name")
+        require_node_capability(ctx, cls.root_cause_name, host, "ospf")
+        if (host, intf) not in cls._targets(ctx.net_env):
+            raise ValueError(
+                f"{cls.root_cause_name} needs an OSPF cut edge serving hosts"
+            )
+
+    def root_cause_resources(self, params: OSPFHelloIntervalMismatchParams):
+        return [node_resource(params.host_name)]
+
+    def _timers(self, host: str, intf: str) -> tuple[int, int]:
+        ops = native_fault_ops(self, host, "ospf_interface_timers")
+        if ops is not None:
+            return ops.ospf_interface_timers(intf)
+        output = self.runtime.exec(host, f"vtysh -c 'show ip ospf interface {intf}'")
+        match = re.search(
+            r"Timer intervals configured, Hello (\d+)s?, Dead (\d+)s?", output
+        )
+        if not match:
+            raise RuntimeCapabilityError(f"No OSPF timers on {host!r} {intf!r}")
+        return int(match[1]), int(match[2])
+
+    def _set_timers(self, host: str, intf: str, timers: tuple[int, int]) -> None:
+        hello, dead = timers
+        ops = native_fault_ops(self, host, "set_ospf_interface_timers")
+        if ops is not None:
+            ops.set_ospf_interface_timers(intf, hello, dead)
+        else:
+            self.runtime.exec(
+                host,
+                frr_config_command(
+                    f"interface {intf}",
+                    f"ip ospf hello-interval {hello}",
+                    f"ip ospf dead-interval {dead}",
+                ),
+            )
+            frr_save_config(self.runtime, host)
+
+    def _full(self, host: str, intf: str) -> bool:
+        ops = native_fault_ops(self, host, "ospf_interface_neighbor_full")
+        if ops is not None:
+            return ops.ospf_interface_neighbor_full(intf)
+        raw = self.runtime.exec(host, "vtysh -c 'show ip ospf neighbor json'")
+        neighbors = json.loads(raw).get("neighbors", {})
+        return any(
+            row.get("ifaceName", "").split(":")[0] == intf
+            and row.get("nbrState", "").lower().startswith("full")
+            for rows in neighbors.values()
+            for row in (rows if isinstance(rows, list) else [rows])
+            if isinstance(row, dict)
+        )
+
+    def _routes(self, host: str) -> set[str]:
+        ops = native_fault_ops(self, host, "ospf_routes")
+        if ops is not None:
+            return ops.ospf_routes()
+        raw = self.runtime.exec(host, "vtysh -c 'show ip route ospf json'")
+        return {
+            prefix
+            for prefix, routes in json.loads(raw).items()
+            if any(row.get("selected") for row in routes)
+        }
+
+    def link_health(self, params: OSPFHelloIntervalMismatchParams) -> dict:
+        """Read adjacency, link state, and routes at both ends of the selected link."""
+        host, intf = params.host_name, params.intf_name
+        peer = ospf_link_peer(self.net_env, host, intf)
+        if peer is None:
+            raise RuntimeCapabilityError(f"No OSPF router peer for {host!r} {intf!r}")
+        return {
+            node: {
+                "full": self._full(node, interface),
+                "interface_up": self.runtime.get_interface_operstate(node, interface)
+                == "up",
+                "routes": sorted(self._routes(node)),
+            }
+            for node, interface in ((host, intf), peer)
+        }
+
+    def inject_fault(self, params: OSPFHelloIntervalMismatchParams):
+        host, intf = params.host_name, params.intf_name
+        if (host, intf) not in self._targets(self.net_env):
+            raise RuntimeCapabilityError(
+                "OSPF timer mismatch needs a cut edge serving hosts"
+            )
+        peer = ospf_link_peer(self.net_env, host, intf)
+        original = self._timers(host, intf)
+        if original != self._timers(*peer):
+            raise RuntimeCapabilityError("OSPF interface timers already disagree")
+        self._healthy_link = self.link_health(params)
+        if not all(
+            row["full"] and row["interface_up"] for row in self._healthy_link.values()
+        ):
+            raise RuntimeCapabilityError(
+                "OSPF timer mismatch needs a healthy Full adjacency"
+            )
+        if not any(row["routes"] for row in self._healthy_link.values()):
+            raise RuntimeCapabilityError("OSPF cut edge has no learned routes")
+        self._original_timers = original
+        self.injected_timers = next(
+            timers
+            for timers in ((5, 20), (10, 40), (15, 60))
+            if timers[0] != original[0] and timers[1] != original[1]
+        )
+        self._set_timers(host, intf, self.injected_timers)
+
+    def verify_fault(self, params: OSPFHelloIntervalMismatchParams) -> dict:
+        running = self._timers(params.host_name, params.intf_name)
+        peer = ospf_link_peer(self.net_env, params.host_name, params.intf_name)
+        neighbor = self._timers(*peer) if peer else None
+        expected = getattr(self, "injected_timers", None)
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=expected is not None
+            and running == expected
+            and running != neighbor,
+            details={
+                "host": params.host_name,
+                "intf": params.intf_name,
+                "running_timers": running,
+                "neighbor_timers": neighbor,
+            },
+        )
+
+    def recover_fault(self, params: OSPFHelloIntervalMismatchParams) -> dict:
+        original = getattr(self, "_original_timers", None)
+        baseline = getattr(self, "_healthy_link", None)
+        if original is None or not baseline:
+            return {"verified": False, "details": {"error": "no_healthy_baseline"}}
+        self._set_timers(params.host_name, params.intf_name, original)
+        deadline = time.monotonic() + 120
+        while True:
+            health = self.link_health(params)
+            restored = all(
+                row["full"]
+                and row["interface_up"]
+                and set(baseline[node]["routes"]) <= set(row["routes"])
+                for node, row in health.items()
+            )
+            if restored or time.monotonic() >= deadline:
+                break
+            time.sleep(3)
+        running = self._timers(params.host_name, params.intf_name)
+        return {
+            "verified": restored and running == original,
+            "details": {"running_timers": running, "link": health},
+        }
+
+
+# ==================================================================
+# Problem: OSPF area range suppression
+# ==================================================================
+
+
+def ospf_area_branches(net_env) -> dict[tuple[str, str], dict]:
+    """Non-backbone components with exactly one ABR and an exact prefix cover."""
+    from nika.net_env.native_routers import router_sketches
+
+    bindings = {}
+    for host, (config, startup) in router_sketches(net_env).items():
+        addresses = re.findall(r"ip addr add ([0-9./]+) dev", startup)
+        bindings[host] = {
+            (
+                str(ipaddress.IPv4Interface(address).network),
+                str(ipaddress.IPv4Address(int(area) if area.isdigit() else area)),
+            )
+            for address in addresses
+            for network, area in ospf_networks(config)
+            if ipaddress.IPv4Interface(address).ip in ipaddress.IPv4Network(network)
+        }
+    areas = {area for rows in bindings.values() for _, area in rows} - {"0.0.0.0"}
+    result = {}
+    for area in sorted(areas):
+        remaining = {
+            host for host, rows in bindings.items() if any(a == area for _, a in rows)
+        }
+        while remaining:
+            component = {min(remaining)}
+            while True:
+                prefixes = {
+                    p for host in component for p, a in bindings[host] if a == area
+                }
+                expanded = component | {
+                    host
+                    for host in remaining
+                    if any(a == area and p in prefixes for p, a in bindings[host])
+                }
+                if expanded == component:
+                    break
+                component = expanded
+            remaining -= component
+            abrs = [
+                host
+                for host in component
+                if any(a == "0.0.0.0" for _, a in bindings[host])
+            ]
+            observers = sorted(set(bindings) - component)
+            if len(abrs) != 1 or not observers:
+                continue
+            host = abrs[0]
+            result[host, area] = {
+                "area": area,
+                "members": sorted(component),
+                "observers": observers,
+                "prefixes": sorted(prefixes),
+                "ranges": [
+                    str(p)
+                    for p in ipaddress.collapse_addresses(
+                        ipaddress.IPv4Network(p) for p in prefixes
+                    )
+                ],
+                "interfaces": {
+                    r: sorted(
+                        {
+                            intf
+                            for left, right in ospf_router_links(net_env)
+                            for node, intf in (left, right)
+                            if node == r
+                        }
+                    )
+                    for r in bindings
+                },
+                "backbone_observer": next(
+                    (
+                        r
+                        for r in observers
+                        if all(a == "0.0.0.0" for _, a in bindings[r])
+                    ),
+                    None,
+                ),
+            }
+    return result
+
+
+class OspfAreaRangeSuppressionParams(BaseModel):
+    host_name: str = Field(description="Target area border router.")
+    area: str = Field(description="Non-backbone OSPF area ID.")
+
+
+class OspfAreaRangeSuppression(ProblemBase):
+    """An ABR suppresses the exact subnets of a non-backbone area component.
+
+    RFC 2328 section 12.4.3 and Appendix C.2 define DoNotAdvertise area
+    ranges: the ABR originates no Type-3 LSAs for their component networks.
+    https://www.rfc-editor.org/rfc/rfc2328#section-12.4.3
+    FRR: https://docs.frrouting.org/en/latest/ospfd.html#ospf-area
+    IOS XR: https://www.cisco.com/c/en/us/td/docs/routers/asr9000/software/routing/command/reference/b-routing-cr-asr9000/ospf-commands.html
+    RouterOS: https://help.mikrotik.com/docs/spaces/ROS/pages/331612216/routing+ospf
+    """
+
+    failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
+    root_cause_name = "ospf_area_range_suppression"
+    description = "An OSPF area border router has suppressing area address ranges."
+    symptom_desc = "Hosts in one distribution branch cannot reach other areas."
+    symptom_probe = "custom"
+    symptom_class = "control_plane"
+    effect_protocol = "ospf"
+    TAGS = ["ospf"]
+    COMPATIBLE_COLUMNS = frozenset({"campus_lan"})
+    supported_backends = ("kathara",)
+    BENCHMARK_TARGETS = "canonical"
+    Params = OspfAreaRangeSuppressionParams
+    native_router_operations = frozenset(
+        {
+            "ospf_area_ranges",
+            "set_ospf_area_ranges",
+            "ospf_summary_lsa_ids",
+            "ospf_routes",
+            "connected_routes",
+            "ospf_interface_neighbor_full",
+        }
+    )
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        targets = sorted(ospf_area_branches(ctx.net_env))
+        if not targets:
+            raise ValueError(
+                "OSPF range suppression needs a non-backbone branch with a single ABR"
+            )
+        host, area = ctx.rng.choice(targets)
+        return {"host_name": host, "area": area}
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        area = str(inject.get("area", ""))
+        area = str(ipaddress.IPv4Address(int(area) if area.isdigit() else area))
+        if (inject.get("host_name"), area) not in ospf_area_branches(ctx.net_env):
+            raise ValueError(
+                "OSPF range suppression needs a non-backbone branch with a single ABR"
+            )
+
+    def root_cause_resources(self, params):
+        return [node_resource(params.host_name)]
+
+    def branch(self, params):
+        area = params.area
+        area = str(ipaddress.IPv4Address(int(area) if area.isdigit() else area))
+        branch = ospf_area_branches(self.net_env).get((params.host_name, area))
+        if not branch or not branch["backbone_observer"]:
+            raise RuntimeCapabilityError(
+                "No independently advertised OSPF branch for this ABR and area"
+            )
+        return branch
+
+    def _ranges(self, host, area):
+        ops = native_fault_ops(self, host, "ospf_area_ranges")
+        if ops is not None:
+            return ops.ospf_area_ranges(area)
+        config = self.runtime.exec(host, "vtysh -c 'show running-config'")
+        return {
+            prefix: "not-advertise" in options.split()
+            for a, prefix, options in re.findall(
+                r"^ area (\S+) range (\S+)([^\n]*)", _ospf_block(config), re.M
+            )
+            if str(ipaddress.IPv4Address(int(a) if a.isdigit() else a)) == area
+        }
+
+    def _set_ranges(self, host, area, ranges, suppress):
+        ops = native_fault_ops(self, host, "set_ospf_area_ranges")
+        if ops is not None:
+            ops.set_ospf_area_ranges(area, ranges, suppress)
+        else:
+            lines = [
+                f"area {area} range {prefix} not-advertise"
+                if suppress
+                else f"no area {area} range {prefix}"
+                for prefix in ranges
+            ]
+            self.runtime.exec(host, frr_config_command("router ospf", *lines))
+            frr_save_config(self.runtime, host)
+
+    def inject_fault(self, params):
+        from nika.validation.symptom.ospf_range_probes import area_range_baseline
+
+        branch = self.branch(params)
+        if self._ranges(params.host_name, branch["area"]):
+            raise RuntimeCapabilityError(
+                "Target OSPF area already has configured ranges"
+            )
+        # Normal injection also rejects a target with no healthy inter-area routes.
+        baseline = getattr(self, "_audit_ospf_range", None)
+        if not baseline or baseline["host"] != params.host_name:
+            ok, details = area_range_baseline(self, params)
+            if not ok:
+                raise RuntimeCapabilityError(
+                    f"OSPF branch has no healthy suppression baseline: {details}"
+                )
+        self.suppressed_ranges = branch["ranges"]
+        self._set_ranges(params.host_name, branch["area"], self.suppressed_ranges, True)
+
+    def verify_fault(self, params):
+        branch = self.branch(params)
+        running = self._ranges(params.host_name, branch["area"])
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=all(running.get(p) is True for p in branch["ranges"]),
+            details={
+                "host": params.host_name,
+                "area": branch["area"],
+                "ranges": running,
+            },
+        )
+
+    def recover_fault(self, params):
+        from nika.validation.symptom.ospf_range_probes import area_range_restored
+
+        branch = self.branch(params)
+        self._set_ranges(
+            params.host_name,
+            branch["area"],
+            getattr(self, "suppressed_ranges", []),
+            False,
+        )
+        ok, details = area_range_restored(self, params)
+        running = self._ranges(params.host_name, branch["area"])
+        removed = not any(p in running for p in branch["ranges"])
+        return {"verified": ok and removed, "details": details}

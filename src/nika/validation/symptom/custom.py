@@ -6,6 +6,7 @@ import time
 from typing import Any
 
 from nika.problems.base import build_verify_result
+from nika.validation.symptom.bgp_md5_probes import md5_baseline, md5_paths_withdrawn
 from nika.validation.symptom.addressing_probes import (
     assigned_address_baseline,
     assigned_address_unreachable,
@@ -73,6 +74,10 @@ from nika.validation.symptom.p4_runtime_probes import (
     table_exhaustion,
     table_exhaustion_baseline,
 )
+from nika.validation.symptom.ospf_range_probes import (
+    area_range_baseline,
+    area_range_suppressed,
+)
 from nika.validation.symptom.routing_probes import (
     bgp_all_lost,
     bgp_bad_peer_as,
@@ -82,10 +87,17 @@ from nika.validation.symptom.routing_probes import (
     max_prefix_cease,
     ospf_all_lost,
     ospf_baseline,
+    ospf_full_unrouted,
+    ospf_timer_mismatch,
+    ospf_timer_mismatch_baseline,
+    ospf_full_unrouted_baseline,
     ospf_one_lost,
     ospf_some_lost,
     ospf_stub_baseline,
     ospf_stubs_withdrawn,
+    isis_adj_and_stubs_lost,
+    isis_stub_baseline,
+    isis_stubs_withdrawn,
     routing_all_lost,
     routing_baseline,
 )
@@ -110,15 +122,31 @@ from nika.validation.symptom.sdn_probes import (
     flow_shadow_baseline,
     switch_controller_conflict,
 )
+from nika.validation.symptom.ingress_probes import (
+    ingress_rate_baseline,
+    ingress_rate_limited,
+)
 from nika.validation.symptom.k8s_probes import (
+    ingress_class_baseline,
+    ingress_class_broken,
     clusterip_baseline,
     clusterip_broken,
     coredns_baseline,
     coredns_isolated,
     lb_advertisement_baseline,
     lb_advertisement_withdrawn,
+    noexecute_taint_baseline,
+    noexecute_taint_broken,
+    readiness_baseline,
+    readiness_broken,
+    replicas_zero_baseline,
+    replicas_zero_broken,
+    selector_baseline,
+    selector_broken,
     target_port_baseline,
     target_port_broken,
+    vxlan_neighbor_baseline,
+    vxlan_neighbor_stale,
     worker_partition,
     worker_partition_baseline,
 )
@@ -253,6 +281,7 @@ def _vrf_dscp_remarking(problem: Any, params: Any) -> tuple[bool, dict[str, Any]
 
 
 _CUSTOM: dict[str, Any] = {
+    "ospf_area_range_suppression": area_range_suppressed,
     "incast_traffic_network_limitation": incast_queueing,
     "link_down": link_path_lost,
     "link_detach": link_path_lost,
@@ -277,10 +306,17 @@ _CUSTOM: dict[str, Any] = {
     "switch_datapath_id_conflict": switch_controller_conflict,
     "flow_rule_loop": flow_loop,
     "k8s_clusterip_routing_broken": clusterip_broken,
+    "k8s_vxlan_neighbor_stale": vxlan_neighbor_stale,
     "k8s_service_target_port_mismatch": target_port_broken,
+    "k8s_service_selector_mismatch": selector_broken,
+    "k8s_ingress_class_mismatch": ingress_class_broken,
+    "k8s_ingress_rate_limit_misconfig": ingress_rate_limited,
     "lb_advertisement_missing": lb_advertisement_withdrawn,
     "k8s_coredns_isolated": coredns_isolated,
     "k8s_worker_apiserver_partition": worker_partition,
+    "k8s_readiness_probe_misconfig": readiness_broken,
+    "k8s_deployment_replicas_zero": replicas_zero_broken,
+    "k8s_node_noexecute_taint": noexecute_taint_broken,
     "silent_egress_packet_loss": silent_loss,
     "load_balancer_overload": lb_overload,
     "lb_connection_state_exhaustion": lb_race,
@@ -304,6 +340,7 @@ _CUSTOM: dict[str, Any] = {
     "dhcp_spoofed_subnet": dhcp_spoofed_subnet,
     "bgp_acl_block": bgp_all_lost,
     "bgp_ttl_security_mismatch": bgp_some_lost,
+    "bgp_md5_password_mismatch": md5_paths_withdrawn,
     "bgp_session_policy_missing": session_policy_drops_routes,
     "bgp_asn_misconfig": bgp_bad_peer_as,
     "bgp_max_prefix_exceeded": max_prefix_cease,
@@ -312,6 +349,10 @@ _CUSTOM: dict[str, Any] = {
     "ospf_area_misconfiguration": ospf_some_lost,
     "ospf_neighbor_missing": ospf_one_lost,
     "ospf_duplicate_router_id": ospf_stubs_withdrawn,
+    "ospf_network_type_mismatch": ospf_full_unrouted,
+    "ospf_hello_interval_mismatch": ospf_timer_mismatch,
+    "isis_metric_style_mismatch": isis_stubs_withdrawn,
+    "isis_circuit_level_mismatch": isis_adj_and_stubs_lost,
     "bgp_hijacking": hijack_attracts,
     "bgp_rpki_invalid_route_leak": rpki_leak_split,
     "bgp_missing_route_advertisement": advertisement_withdrawn,
@@ -325,6 +366,7 @@ _CUSTOM: dict[str, Any] = {
 
 # Pre-inject measurements of the same signal a custom probe reads after inject.
 _CUSTOM_BASELINE: dict[str, Any] = {
+    "ospf_area_range_suppression": area_range_baseline,
     "receiver_resource_contention": receiver_baseline,
     "web_dos_attack": web_dos_baseline,
     "load_balancer_overload": lb_baseline,
@@ -366,8 +408,15 @@ _CUSTOM_BASELINE: dict[str, Any] = {
     "silent_egress_packet_loss": silent_loss_baseline,
     "incast_traffic_network_limitation": incast_baseline,
     "k8s_worker_apiserver_partition": worker_partition_baseline,
+    "k8s_readiness_probe_misconfig": readiness_baseline,
+    "k8s_deployment_replicas_zero": replicas_zero_baseline,
+    "k8s_node_noexecute_taint": noexecute_taint_baseline,
     "k8s_clusterip_routing_broken": clusterip_baseline,
+    "k8s_vxlan_neighbor_stale": vxlan_neighbor_baseline,
     "k8s_service_target_port_mismatch": target_port_baseline,
+    "k8s_service_selector_mismatch": selector_baseline,
+    "k8s_ingress_class_mismatch": ingress_class_baseline,
+    "k8s_ingress_rate_limit_misconfig": ingress_rate_baseline,
     "lb_advertisement_missing": lb_advertisement_baseline,
     "k8s_coredns_isolated": coredns_baseline,
     "dhcp_spoofed_gateway": dhcp_client_baseline,
@@ -377,6 +426,7 @@ _CUSTOM_BASELINE: dict[str, Any] = {
     "dhcp_service_down": dhcp_offer_baseline,
     "bgp_acl_block": bgp_baseline,
     "bgp_ttl_security_mismatch": bgp_baseline,
+    "bgp_md5_password_mismatch": md5_baseline,
     "bgp_session_policy_missing": session_policy_baseline,
     "bgp_asn_misconfig": bgp_baseline,
     "bgp_max_prefix_exceeded": max_prefix_baseline,
@@ -385,6 +435,10 @@ _CUSTOM_BASELINE: dict[str, Any] = {
     "ospf_area_misconfiguration": ospf_baseline,
     "ospf_neighbor_missing": ospf_baseline,
     "ospf_duplicate_router_id": ospf_stub_baseline,
+    "ospf_network_type_mismatch": ospf_full_unrouted_baseline,
+    "ospf_hello_interval_mismatch": ospf_timer_mismatch_baseline,
+    "isis_metric_style_mismatch": isis_stub_baseline,
+    "isis_circuit_level_mismatch": isis_stub_baseline,
     "bgp_hijacking": hijack_baseline,
     "bgp_rpki_invalid_route_leak": rpki_leak_baseline,
     "bgp_missing_route_advertisement": advertisement_baseline,

@@ -17,26 +17,6 @@ failure:
     backend: kathara
     device_profile: frr
     inject:
-      host_name: frankfurt
-    root_causes:
-    - resource:
-        kind: node
-        node: frankfurt
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: hamburg
-    root_causes:
-    - resource:
-        kind: node
-        node: hamburg
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    backend: kathara
-    device_profile: frr
-    inject:
       host_name: hannover
     root_causes:
     - resource:

@@ -65,6 +65,9 @@ def configure_xrd_router(
     The machine keeps its name and links; ``linux_interfaces`` are the data
     ports XR takes over, named as :func:`iosxr_interface` maps them.
     """
+    data_interfaces = [name for name in linux_interfaces if name != "lo"]
+    if not data_interfaces:
+        raise ValueError("XRd requires an Ethernet data interface")
     machine.update_meta({"image": IMAGE, "mem": XRD_MEMORY, "cpus": 1.0})
     machine.add_meta("privileged", True)
     machine.add_meta("ipv6", True)
@@ -72,14 +75,14 @@ def configure_xrd_router(
     machine.add_meta(
         "env",
         build_xr_interfaces_env(
-            *((name, iosxr_interface(name)) for name in linux_interfaces)
+            *((name, iosxr_interface(name)) for name in data_interfaces)
         ),
     )
     machine.add_meta("env", XR_ZTP_DISABLE_ENV)
     machine.create_file_from_string(config, CONFIG_FILE_PATH)
     lab.create_file_from_list(
         build_xr_startup_script(
-            CONFIG_FILE_PATH, wait_iface=iosxr_interface(linux_interfaces[0])
+            CONFIG_FILE_PATH, wait_iface=iosxr_interface(data_interfaces[0])
         ),
         f"{machine.name}.startup",
     )

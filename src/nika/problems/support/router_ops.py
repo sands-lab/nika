@@ -37,6 +37,16 @@ class SourceNat:
     protocol: str | None = None
 
 
+@dataclass(frozen=True)
+class OspfNeighbor:
+    """An OSPFv2 neighbor on a native interface."""
+
+    router_id: str
+    address: str
+    interface: str
+    state: str
+
+
 class RouterFaultOps:
     """Failure operations on one native router. Vendors override what they support."""
 
@@ -104,6 +114,50 @@ class RouterFaultOps:
         """Hard-reset the BGP session to ``peer``, like ``clear ip bgp``."""
         self._unsupported("Resetting a BGP session")
 
+    def bgp_received_prefix_count(self, peer: str) -> int:
+        """Return the current IPv4 prefix count received from ``peer``."""
+        self._unsupported("Reading received BGP prefixes")
+
+    def bgp_prefix_limit(self, peer: str) -> int | None:
+        """Return the configured IPv4 prefix limit for ``peer``, if present."""
+        self._unsupported("Reading a BGP prefix limit")
+
+    def set_bgp_prefix_limit(self, peer: str, limit: int) -> None:
+        """Set a terminating IPv4 prefix limit without an automatic restart."""
+        self._unsupported("Setting a BGP prefix limit")
+
+    def bgp_prefix_limit_exceeded(self, peer: str) -> bool:
+        """Whether the session is held down because it exceeded its prefix limit."""
+        self._unsupported("Reading BGP prefix-limit state")
+
+    def bgp_last_notification(self, peer: str) -> str | None:
+        """Return the last received BGP NOTIFICATION reason from ``peer``."""
+        self._unsupported("Reading a BGP notification")
+
+    def permit_bgp_prefixes(self, prefix: str, length: int) -> None:
+        """Permit more-specifics of ``prefix`` with ``length`` in bound BGP policies."""
+        self._unsupported("Permitting BGP prefixes")
+
+    def advertise_bgp_prefixes(self, prefixes: list[str]) -> None:
+        """Back the prefixes with discard routes and originate them in BGP."""
+        self._unsupported("Advertising BGP prefixes")
+
+    def has_bgp_route(self, prefix: str) -> bool:
+        """Whether the IPv4 BGP table has an available path to ``prefix``."""
+        self._unsupported("Reading a BGP route")
+
+    def set_bgp_password(self, peer: str, password: str | None) -> None:
+        """Set TCP MD5 authentication for one peer, or remove it with ``None``."""
+        self._unsupported("Changing a BGP neighbor password")
+
+    def bgp_password_configured(self, peer: str) -> bool:
+        """Whether the neighbor has a TCP MD5 password."""
+        self._unsupported("Reading a BGP neighbor password")
+
+    def bgp_received_prefixes(self, peer: str) -> set[str]:
+        """Return IPv4 prefixes currently learned through the selected BGP peer."""
+        self._unsupported("Reading routes from a BGP peer")
+
     def remote_bgp_prefixes(self) -> list[str]:
         """Return the active BGP-learned prefixes the router does not serve itself."""
         self._unsupported("Listing BGP-learned prefixes")
@@ -127,7 +181,73 @@ class RouterFaultOps:
         """Whether every eBGP session lacks a route policy the router can apply."""
         self._unsupported("Reading BGP session policies")
 
+    def enable_bgp_ttl_security(self) -> None:
+        """Enable one-hop receive TTL security and reset BGP sessions."""
+        self._unsupported("Enabling BGP TTL security")
+
+    def bgp_ttl_security_enabled(self) -> bool:
+        """Whether every BGP neighbor has one-hop receive TTL security."""
+        self._unsupported("Reading BGP TTL security")
+
+    # ------------------------------------------------------------------
+    # BGP session reset (GTSM recover)
+    # ------------------------------------------------------------------
+
+    def reset_bgp(self) -> None:
+        """Reset every BGP session so a recovered TTL-security config takes effect."""
+        self._unsupported("Resetting BGP sessions")
+
     # OSPF
+
+    def ospf_area_ranges(self, area: str) -> dict[str, bool]:
+        """Return area ranges mapped to whether they suppress advertisements."""
+        self._unsupported("Reading OSPF area ranges")
+
+    def set_ospf_area_ranges(
+        self, area: str, prefixes: list[str], suppress: bool
+    ) -> None:
+        """Add suppressing ranges, or remove those exact ranges."""
+        self._unsupported("Changing OSPF area ranges")
+
+    def ospf_summary_lsa_ids(self, area: str) -> set[str]:
+        """Return live Type-3 LSA link-state IDs in the specified area."""
+        self._unsupported("Reading OSPF summary LSAs")
+
+    def ospf_neighbors(self) -> list[OspfNeighbor]:
+        """Return OSPFv2 neighbors, including their adjacency states."""
+        self._unsupported("Reading OSPF neighbors")
+
+    def ospf_bindings(self) -> dict[str, tuple[str, ...]]:
+        """Map active OSPF binding IDs to the native interfaces they cover."""
+        self._unsupported("Reading OSPF bindings")
+
+    def remove_ospf_binding(self, binding: str) -> None:
+        """Remove one binding returned by ``ospf_bindings``."""
+        self._unsupported("Removing an OSPF binding")
+
+    def ospf_router_id(self) -> str | None:
+        """Return the running OSPFv2 router ID."""
+        self._unsupported("Reading the OSPF router ID")
+
+    def ospf_router_lsa_ids(self) -> set[str]:
+        """Return router-LSA originators in the router's OSPFv2 areas."""
+        self._unsupported("Reading OSPF router LSAs")
+
+    def ospf_neighbor_ids(self) -> set[str]:
+        """Return the router IDs of OSPFv2 neighbors."""
+        self._unsupported("Reading OSPF neighbor IDs")
+
+    def set_ospf_router_id(self, router_id: str) -> None:
+        """Set the OSPFv2 router ID and restart OSPF to apply it."""
+        self._unsupported("Changing the OSPF router ID")
+
+    def ospf_routes(self) -> set[str]:
+        """Return active IPv4 prefixes learned through OSPF."""
+        self._unsupported("Reading OSPF routes")
+
+    def connected_routes(self) -> set[str]:
+        """Return connected IPv4 subnet prefixes, excluding local host routes."""
+        self._unsupported("Reading connected routes")
 
     def ospf_interface_areas(self) -> list[str]:
         """Return the dotted area ID of each OSPF interface binding, in order."""
@@ -148,6 +268,58 @@ class RouterFaultOps:
     def remove_ospf_interface(self, interface: str) -> None:
         """Delete the OSPF configuration that runs OSPF on container ``interface``."""
         self._unsupported("Removing an OSPF interface")
+
+    # OSPF interface network type
+
+    def ospf_network_type(self, interface: str) -> str:
+        """Return the OSPF network type of ``interface``.
+
+        One of ``broadcast``, ``point-to-point``, or ``non-broadcast``.
+        """
+        self._unsupported("Reading an OSPF network type")
+
+    def set_ospf_network_type(self, interface: str, network_type: str) -> None:
+        """Set the OSPF network type of ``interface``."""
+        self._unsupported("Changing an OSPF network type")
+
+    def ospf_interface_timers(self, interface: str) -> tuple[int, int]:
+        """Return the OSPF hello and dead intervals in seconds on ``interface``."""
+        self._unsupported("Reading OSPF interface timers")
+
+    def set_ospf_interface_timers(self, interface: str, hello: int, dead: int) -> None:
+        """Set the OSPF hello and dead intervals on one interface."""
+        self._unsupported("Changing OSPF interface timers")
+
+    def ospf_interface_neighbor_full(self, interface: str) -> bool:
+        """Whether ``interface`` holds a Full OSPF neighbor."""
+        self._unsupported("Reading an OSPF neighbor")
+
+    # ------------------------------------------------------------------
+    # IS-IS metric style
+    # ------------------------------------------------------------------
+
+    def isis_metric_style(self) -> str:
+        """Return the configured IS-IS metric style (``narrow`` or ``wide``)."""
+        self._unsupported("Reading the IS-IS metric style")
+
+    def set_isis_metric_style(self, style: str) -> None:
+        """Set the IS-IS metric style to ``narrow`` or ``wide``."""
+        self._unsupported("Changing the IS-IS metric style")
+
+    # ------------------------------------------------------------------
+    # IS-IS level (instance is-type / circuit levels)
+    # ------------------------------------------------------------------
+
+    def isis_level(self) -> str:
+        """Return the configured IS-IS level.
+
+        One of ``level-1``, ``level-1-2``, or ``level-2-only``.
+        """
+        self._unsupported("Reading the IS-IS level")
+
+    def set_isis_level(self, level: str) -> None:
+        """Set the IS-IS instance (and circuits) to ``level``."""
+        self._unsupported("Changing the IS-IS level")
 
     # Packet filters
 
@@ -173,6 +345,10 @@ class RouterFaultOps:
         self._unsupported("Reading ICMP filters")
 
     # Routes and interfaces
+
+    def ipv4_addresses(self) -> set[str]:
+        """Return the router's configured IPv4 interface addresses."""
+        self._unsupported("Reading IPv4 addresses")
 
     def add_blackhole_route(self, prefix: str) -> None:
         """Blackhole ``prefix`` in every routing table that carries it."""
@@ -394,16 +570,21 @@ def unsupported_native_targets(problem_cls, net_env, nodes) -> dict[str, str]:
     return unsupported
 
 
-def native_fault_ops(problem, node: str, operation: str) -> RouterFaultOps | None:
+def native_fault_ops(
+    problem, node: str, operation: str, *, frr_fallback: bool = False
+) -> RouterFaultOps | None:
     """Return ``node``'s provider, checked to implement ``operation``.
 
     Returns ``None`` for nodes without a native router profile, which keep the
     failure's default implementation. A native router never falls back to that
-    implementation: if its provider lacks ``operation``, this raises
+    implementation unless ``frr_fallback`` permits its declared FRR shell path.
+    Otherwise, if its provider lacks ``operation``, this raises
     ``RuntimeCapabilityError`` before the failure changes anything.
     """
     ops = router_fault_ops(problem, node)
     if ops is not None and not ops.supports(operation):
+        if frr_fallback and ops.supports("frr_shell"):
+            return None
         raise RuntimeCapabilityError(
             f"{operation} is not supported on {ops.profile} router {node!r}."
         )

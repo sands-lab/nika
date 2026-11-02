@@ -497,7 +497,25 @@ def _connect_reading(problem: Any, ends: dict[str, Any]) -> dict[str, Any]:
         ">/dev/null 2>&1 & echo $!",
     ).split()
     try:
-        time.sleep(1.0)
+        ready = False
+        deadline = time.monotonic() + 5
+        while pid and pid[-1].isdigit() and time.monotonic() < deadline:
+            sockets = exec_or_empty(
+                runtime,
+                ends["dst_host"],
+                f"ss -Hltnp 'sport = :{_LISTEN_PORT}'",
+            )
+            if f"pid={pid[-1]}," in sockets:
+                ready = True
+                break
+            time.sleep(0.1)
+        if not ready:
+            return {
+                "attempts": 0,
+                "failed": 0,
+                "echo_loss_percent": None,
+                "error": "listener_not_ready",
+            }
         out = exec_or_empty(
             runtime,
             ends["src"],
@@ -534,7 +552,12 @@ def _facing_ends(problem: Any, params: Any) -> dict[str, Any]:
     if getattr(identity, "role", None) not in {NodeRole.HOST, NodeRole.SERVICE}:
         return _crossing_ends(problem, params)
     addresses = dict(lab_addresses(problem.runtime).get(peer[0], []))
-    src = _ends(problem, params).get("src")
+    path = _resolve_path(
+        problem.scenario_name,
+        params,
+        topo_size=getattr(problem.net_env, "topo_size", None) or "s",
+    )
+    src = path.src_host if path is not None else None
     if peer[1] not in addresses or not src or src == peer[0]:
         return _crossing_ends(problem, params)
     dst = str(ipaddress.ip_interface(addresses[peer[1]]).ip)

@@ -1,0 +1,19 @@
+scenario:
+  name: isp_zib54
+failure:
+  fault_type: ospf_hello_interval_mismatch
+  cases:
+  - topo_size: l
+    igp: ospf
+    bgp_mode: none
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: n9
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: node
+        node: n9
+      fault_type: ospf_hello_interval_mismatch

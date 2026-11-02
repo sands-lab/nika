@@ -26,7 +26,13 @@ def server_facing_port(ctx) -> tuple[str, str] | None:
     took before, so the fault reaches the business traffic on any host.
     """
     devices = set(ctx.routers) | set(ctx.switches)
-    servers = [*(ctx.servers.get("web") or []), ctx.web0]
+    # Search the whole web role, not only the RNG `web0` draw. On larger
+    # enterprise_branch sizes some web-role PCs sit behind a switch.
+    servers = [
+        *(ctx.servers.get("web") or []),
+        *(ctx.roles.get("web") or []),
+        ctx.web0,
+    ]
     for server in dict.fromkeys(s for s in servers if s):
         for _key, tps in iter_link_termination_points(ctx.net_env):
             ends = [parse_endpoint(str(tp)) for tp in tps]
@@ -59,6 +65,16 @@ class DeviceFlowBlackhole(DeviceForwardingPacketCorruption):
     )
     Params = DeviceFlowBlackholeParams
     INJECTOR = SwitchFlowBlackhole
+    # TC egress classifier on the container interface, outside the router OS.
+    native_router_operations = frozenset()
+
+    @classmethod
+    def runs_on_device_profile(cls, device_profile: str) -> bool:
+        # XRd presents forwarded packets as locally originated
+        # (ingress_ifindex 0) on the container egress.
+        if device_profile == "iosxr":
+            return False
+        return super().runs_on_device_profile(device_profile)
 
     def root_cause_resources(self, params):
         return [node_resource(params.forwarding_device)]
