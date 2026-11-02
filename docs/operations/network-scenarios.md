@@ -152,7 +152,7 @@ Site Edge routers terminate WireGuard site-to-site tunnels and run eBGP over tho
 
 Every Site Edge is dual-homed to both providers. SERVER stays one host per hub (HTTP anchor). Enterprise LANs use `10.<site_id>.<role>.0/24` (role octet `10` CORP, `20` SERVER, `30` IOT, `40` GUEST). Provider PE links use `100.64.0.0/16`. Tunnel addressing uses `172.30.0.0/16`. HQ ASN is `65000`; branches use `65001+`; DC2 uses `65010`.
 
-Healthy Site Edges preserve DSCP on CORP overlay traffic and shape each WireGuard overlay egress with a dual-class HTB queue: EF (DSCP 46) gets a reserved high-priority class; CS0/BE is hard-capped at the rest of the link and served by `fq_codel`, as WAN-edge QoS pairs fair queueing and AQM with the default class (Cisco `fair-queue` in `class-default`, OpenWrt SQM `simple.qos`). Bulk transfers keep no standing queue and pings skip ahead of them, while a flow sending above its fair share of the class is dropped. Per-size overlay egress capacity is `s` 8 mbit (EF 4), `m` and `l` 16 mbit (EF 7). Size `l` keeps the `m` rate because its eight branches share the same hubs and underlay. RouterOS Site Edges use a scaled overlay; see [Run other environments on RouterOS routers](#run-other-environments-on-routeros-routers).
+Healthy Site Edges preserve DSCP on CORP overlay traffic and shape each WireGuard overlay egress with a dual-class HTB queue: EF (DSCP 46) gets a reserved high-priority class; CS0/BE is hard-capped at the rest of the link and served by `fq_codel`, as WAN-edge QoS pairs fair queueing and AQM with the default class (Cisco `fair-queue` in `class-default`, OpenWrt SQM `simple.qos`). Bulk transfers keep no standing queue and pings skip ahead of them, while a flow sending above its fair share of the class is dropped. Per-size overlay egress capacity is `s` 8 mbit (EF 4), `m` and `l` 16 mbit (EF 7). Size `l` keeps the `m` rate because its eight branches share the same hubs and underlay.
 
 GUEST and IOT LANs break out to the Internet locally. Each Site Edge source-NATs them to its own routed public address `198.18.<site_id>.10` on the primary WAN (br1 also holds `198.18.1.11`), and the Linux server `internet_web` on a LAN of `isp1_core` (`198.51.100.8/29`) hosts the public web service `198.51.100.10`. It runs on every device profile, including XRd providers.
 
@@ -416,8 +416,6 @@ uv run nika env run enterprise_branch -s s --device-profile routeros
 | `enterprise_branch` | Site edges | Per-role VRFs, WireGuard, overlay eBGP, guest NAT and EF/BE overlay QoS | `s` |
 
 Each router is a VM that needs about 1 GiB, so NIKA checks available memory before it creates any container. A router supports at most 30 data ports. The RPKI and RTBH ISP specials remain FRR only.
-
-The RouterOS image runs the free CHR license, which limits each interface to 1 Mbps upload. On RouterOS Site Edges, `enterprise_branch` scales its overlay QoS and the br1 sync and video load by the same factor, so each overlay egress uses half of that limit: 500 kbit with a 250 kbit EF reservation at size `s`. G.711 voice keeps its codec rate.
 
 Agents run RouterOS commands with the `routeros_exec` tool of [`kathara_routeros_mcp_server`](../agents/mcp-servers.md#use-dedicated-diagnosis-tools). RouterOS `ether1` is vrnetlab's management port. In an ISP environment, container interface `ethN` is RouterOS `ether(N+1)`; in the other environments, `ethN` is `ether(N+2)`.
 
