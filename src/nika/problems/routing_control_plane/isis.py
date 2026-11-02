@@ -7,6 +7,7 @@ from nika.problems.base import (
     ProblemBase,
     build_verify_result,
 )
+from nika.net_env.isp.identity import list_isp_base_scenarios
 from nika.problems.rca import node_resource
 from nika.problems.support.frr import frr_config_command, frr_save_config
 from nika.problems.support.polling import wait_until
@@ -42,6 +43,22 @@ def _metric_style(config: str) -> str | None:
 def _is_type(config: str) -> str | None:
     match = _IS_TYPE_RE.search(_isis_block(config))
     return match[1] if match else None
+
+
+def _hello_authentication(config: str) -> dict[str, str]:
+    """Read authentication on FRR circuits that send IS-IS hellos."""
+    circuits = {}
+    for match in re.finditer(
+        r"^interface (\S+)[^\n]*\n(.*?)(?=^\S|\Z)", config, re.M | re.S
+    ):
+        interface, block = match.groups()
+        if not re.search(r"^ ip router isis \S+", block, re.M):
+            continue
+        if re.search(r"^ isis passive\s*$", block, re.M):
+            continue
+        auth = re.search(r"^ isis password (\S+)", block, re.M)
+        circuits[interface] = auth[1] if auth else "none"
+    return circuits
 
 
 def _routing_state(problem, host: str) -> dict[str, set]:
@@ -296,4 +313,132 @@ class IsisCircuitLevelMismatch(ProblemBase):
         return {
             "verified": restored and level == orig,
             "details": {"host": params.host_name, "isis_level": level},
+        }
+
+
+class IsisAuthenticationMismatchParams(BaseModel):
+    host_name: str = Field(description="Target router host name.")
+
+
+class IsisAuthenticationMismatch(ProblemBase):
+    """Hello authentication is enabled on one router's circuits only.
+
+    RFC 5304 section 2 defines HMAC-MD5 authentication for IS-IS Hello
+    PDUs. Requiring authentication on one side rejects the peer's hellos,
+    so adjacencies expire and routes through the router disappear.
+    https://www.rfc-editor.org/rfc/rfc5304#section-2
+    FRR uses interface ``isis password md5``:
+    https://docs.frrouting.org/en/stable-10.5/isisd.html
+    IOS XR uses interface ``hello-password hmac-md5 clear``:
+    https://www.cisco.com/c/en/us/td/docs/routers/xr12000/software/xr12k_r4-1/routing/command/reference/routing_cr41xr12k_chapter3.pdf
+    """
+
+    failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
+    symptom_probe = "custom"
+    symptom_class = "control_plane"
+    root_cause_name = "isis_authentication_mismatch"
+    description = "IS-IS hello authentication is inconsistent with neighboring routers."
+    effect_protocol = "isis"
+    TAGS = ["isis"]
+    COMPATIBLE_COLUMNS = frozenset(
+        f"{scenario}/isis" for scenario in list_isp_base_scenarios()
+    )
+    isp_protocol = {"igp": "isis", "bgp_mode": "none", "rpki": False}
+    supported_backends = ("kathara",)
+    native_router_operations = frozenset(
+        {"isis_hello_authentication", "set_isis_hello_password"}
+    )
+    Params = IsisAuthenticationMismatchParams
+
+    @classmethod
+    def runs_on_device_profile(cls, device_profile: str) -> bool:
+        # RouterOS 7.21.5 exposes no hello authentication parameters in its
+        # IS-IS interface-template or instance CLI schemas.
+        if device_profile == "routeros":
+            return False
+        return super().runs_on_device_profile(device_profile)
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": ctx.router0}
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        from nika.problems.support.benchmark_targets import require_node_capability
+
+        require_node_capability(
+            ctx, cls.root_cause_name, inject.get("host_name"), "isis"
+        )
+
+    def root_cause_resources(self, params: IsisAuthenticationMismatchParams):
+        return [node_resource(params.host_name)]
+
+    def _authentication(self, host: str) -> dict[str, str]:
+        ops = native_fault_ops(self, host, "isis_hello_authentication")
+        if ops is not None:
+            return ops.isis_hello_authentication()
+        config = self.runtime.exec(host, "vtysh -c 'show running-config' 2>/dev/null")
+        return _hello_authentication(config)
+
+    def _set_password(self, host: str, password: str | None) -> None:
+        ops = native_fault_ops(self, host, "set_isis_hello_password")
+        if ops is not None:
+            ops.set_isis_hello_password(password)
+            return
+        lines = []
+        for interface in self._authentication(host):
+            lines.extend(
+                [
+                    f"interface {interface}",
+                    f"isis password md5 {password}" if password else "no isis password",
+                    "exit",
+                ]
+            )
+        self.runtime.exec(host, frr_config_command(*lines))
+        frr_save_config(self.runtime, host)
+
+    def inject_fault(self, params: IsisAuthenticationMismatchParams):
+        from nika.validation.symptom.routing_probes import facing_interfaces
+
+        host = params.host_name
+        for router in sorted({host, *facing_interfaces(self, host)}):
+            modes = self._authentication(router)
+            if not modes or any(mode != "none" for mode in modes.values()):
+                raise RuntimeCapabilityError(
+                    f"{type(self).__name__} requires unauthenticated IS-IS circuits on {router!r}."
+                )
+        self._healthy_routing = _routing_state(self, host)
+        self._circuits = set(self._authentication(host))
+        self._set_password(host, "K7m4P9r2")
+
+    def verify_fault(self, params: IsisAuthenticationMismatchParams) -> dict:
+        modes = self._authentication(params.host_name)
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=bool(modes)
+            and set(modes) == getattr(self, "_circuits", set(modes))
+            and all(mode == "md5" for mode in modes.values()),
+            details={"host": params.host_name, "hello_authentication": modes},
+        )
+
+    def recover_fault(self, params: IsisAuthenticationMismatchParams) -> dict:
+        baseline = getattr(self, "_healthy_routing", None)
+        if not baseline:
+            return {"verified": False, "details": {"error": "no_healthy_baseline"}}
+        host = params.host_name
+        self._set_password(host, None)
+        restored = wait_until(
+            lambda: (
+                self._authentication(host) == dict.fromkeys(self._circuits, "none")
+                and _routing_restored(self, host, baseline)
+            ),
+            120,
+            interval_s=3,
+        )
+        return {
+            "verified": restored,
+            "details": {
+                "host": host,
+                "hello_authentication": self._authentication(host),
+            },
         }

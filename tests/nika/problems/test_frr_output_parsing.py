@@ -4,6 +4,7 @@ import pytest
 
 from nika.problems.routing_control_plane.bgp import bgp_neighbors_by_instance
 from nika.problems.routing_control_plane.ospf import router_lsa_origins
+from nika.problems.routing_control_plane.isis import _hello_authentication
 
 pytestmark = pytest.mark.unit
 
@@ -65,4 +66,35 @@ def test_router_lsa_origins_skips_other_lsa_types():
     assert router_lsa_origins(OSPF_DATABASE) == {
         "0.0.0.0": {"10.255.0.4", "10.255.0.7"},
         "0.0.0.1": {"172.16.0.9"},
+    }
+
+
+def test_isis_hello_authentication_skips_passive_and_non_isis_interfaces():
+    config = """\
+interface eth0
+ ip router isis CORE
+ isis password md5 K7m4P9r2
+exit
+interface eth1
+ ip router isis CORE
+exit
+interface eth2
+ ip router isis CORE
+ isis password clear K7m4P9r2
+exit
+interface lo
+ ip router isis CORE
+ isis passive
+exit
+interface eth3
+ ip address 192.0.2.1/24
+exit
+router isis CORE
+ is-type level-2-only
+exit
+"""
+    assert _hello_authentication(config) == {
+        "eth0": "md5",
+        "eth1": "none",
+        "eth2": "clear",
     }

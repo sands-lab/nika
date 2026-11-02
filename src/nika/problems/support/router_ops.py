@@ -295,6 +295,14 @@ class RouterFaultOps:
         """Set the IS-IS instance (and circuits) to ``level``."""
         self._unsupported("Changing the IS-IS level")
 
+    def isis_hello_authentication(self) -> dict[str, str]:
+        """Return hello authentication modes on non-passive IS-IS interfaces."""
+        self._unsupported("Reading IS-IS hello authentication")
+
+    def set_isis_hello_password(self, password: str | None) -> None:
+        """Set MD5 hello authentication on active circuits, or remove it."""
+        self._unsupported("Changing IS-IS hello authentication")
+
     # Packet filters
 
     def block_bgp_transport(self) -> None:
