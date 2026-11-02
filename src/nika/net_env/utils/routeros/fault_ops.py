@@ -17,6 +17,7 @@ from nika.net_env.utils.routeros.parse import (
     routeros_bgp_received_notification,
     routeros_count,
     routeros_established_bgp_peers,
+    routeros_filter_rules,
     routeros_terse_rows,
 )
 from nika.problems.support.router_ops import (
@@ -352,6 +353,55 @@ class RouterOsFaultOps(RouterFaultOps):
             - prefixes("/routing/route/print terse where connect and afi=ip")
         )
 
+    def _import_prefix_rules(self) -> dict[str, tuple[str, str, int]]:
+        chains = {
+            row["input.filter"]
+            for row in self._rows("/routing/bgp/connection/print terse")
+            if row.get("input.filter")
+        }
+        rules = {}
+        for row in routeros_filter_rules(
+            self._cli("/routing/filter/rule/print terse where !disabled")
+        ):
+            chain, rule = row.get("chain"), row.get("rule", "")
+            if chain not in chains:
+                continue
+            match = re.fullmatch(
+                r"if \(dst (in|==) (\d+\.\d+\.\d+\.\d+/\d+)"
+                r"(?: && dst-len <= (\d+))?\) \{ ([^{}]*accept;) \}",
+                rule,
+            )
+            if not match:
+                continue
+            operator, prefix, length, _action = match.groups()
+            network = ipaddress.ip_network(prefix)
+            if operator == "in" and length is None:
+                continue
+            rules[chain] = (rule, str(network), int(length or network.prefixlen))
+        return rules
+
+    def bgp_import_prefix_ranges(self) -> dict[str, tuple[str, int]]:
+        return {k: (p, n) for k, (_rule, p, n) in self._import_prefix_rules().items()}
+
+    def set_bgp_import_prefix_range(
+        self, name: str, prefix: str, maximum_length: int
+    ) -> None:
+        rule, existing, _length = self._import_prefix_rules()[name]
+        network = ipaddress.ip_network(prefix)
+        if existing != str(network) or not network.prefixlen <= maximum_length <= 32:
+            raise ValueError("Invalid BGP import prefix range")
+        condition = (
+            f"dst == {network}"
+            if maximum_length == network.prefixlen
+            else f"dst in {network} && dst-len <= {int(maximum_length)}"
+        )
+        updated = re.sub(r"(?<=if \().*?(?=\))", condition, rule, count=1)
+        self._cli(
+            f'/routing filter rule set [find chain="{name}" rule="{rule}"] '
+            f'rule="{updated}"; '
+            "/routing bgp session refresh [find]"
+        )
+
     def originate_bgp_prefix(self, prefix: str) -> None:
         from ipaddress import ip_network
 
@@ -658,6 +708,34 @@ class RouterOsFaultOps(RouterFaultOps):
         raw = row.get("type") or "broadcast"
         return self._OSPF_TYPE_FROM_ROS.get(raw, raw)
 
+    def ospf_interface_area_type(self, interface: str) -> tuple[str, str]:
+        name = self._ospf_template(interface)["area"]
+        rows = self._rows(f'/routing/ospf/area/print terse where name="{name}"')
+        if len(rows) != 1 or "area-id" not in rows[0]:
+            raise RuntimeError(f"No single OSPF area {name} on {self.node}")
+        return rows[0]["area-id"], rows[0].get("type", "default").replace(
+            "default", "normal"
+        )
+
+    def set_ospf_interface_area_type(self, interface: str, area_type: str) -> None:
+        if area_type not in {"normal", "stub"}:
+            raise ValueError(f"Unsupported OSPF area type: {area_type}")
+        name = self._ospf_template(interface)["area"]
+        areas = self._rows(f'/routing/ospf/area/print terse where name="{name}"')
+        if len(areas) != 1 or "instance" not in areas[0]:
+            raise RuntimeError(
+                f"No single OSPF instance for area {name} on {self.node}"
+            )
+        instance = areas[0]["instance"]
+        value = "default" if area_type == "normal" else "stub"
+        # RouterOS retains Full neighbors after an area-type edit. Restart the
+        # owning instance so its Hellos use the new ExternalRoutingCapability.
+        self._cli(
+            f'/routing ospf area set [find where name="{name}"] type={value}; '
+            f'/routing ospf instance disable [find where name="{instance}"]; '
+            f':delay 2s; /routing ospf instance enable [find where name="{instance}"]'
+        )
+
     def _ospf_single_interface_template(self, interface: str) -> dict[str, str]:
         row = self._ospf_template(interface)
         template_id = row["id"]
@@ -884,6 +962,30 @@ class RouterOsFaultOps(RouterFaultOps):
             and row.get("new-dscp") == str(to_dscp)
         ]
 
+    def set_queue_bandwidth(self, name: str, rate_kbps: int, ceil_kbps: int) -> None:
+        self._cli(
+            f'/queue tree set [find name="{name}"] '
+            f"limit-at={rate_kbps}k max-limit={ceil_kbps}k"
+        )
+
+    def queue_state(self, name: str) -> dict[str, int]:
+        # get returns numeric rates; print abbreviates rates and wraps stats.
+        fields = ("limit-at", "max-limit", "bytes", "packets", "dropped")
+        output = self._cli(
+            "; ".join(
+                f':put [/queue tree get [find name="{name}"] {field}]'
+                for field in fields
+            )
+        )
+        rate, ceil, sent, packets, drops = (int(value) for value in output.split())
+        return {
+            "rate_kbps": rate // 1000,
+            "ceil_kbps": ceil // 1000,
+            "bytes": sent,
+            "packets": packets,
+            "drops": drops,
+        }
+
     def add_dscp_remark(
         self, interface: str, source_prefix: str, from_dscp: int, to_dscp: int
     ) -> None:
@@ -914,6 +1016,18 @@ class RouterOsFaultOps(RouterFaultOps):
             )
             if "dst-address" in row
         ]
+
+    def vpn_import_targets(self, vrf: str) -> set[str]:
+        rows = self._rows(f'/routing/bgp/vpn/print terse where vrf="{vrf}"')
+        if len(rows) != 1:
+            raise ValueError(f"Expected one BGP VPN policy for {self.node}:{vrf}")
+        return set(filter(None, rows[0].get("import.route-targets", "").split(",")))
+
+    def set_vpn_import_targets(self, vrf: str, targets: set[str]) -> None:
+        self._cli(
+            f'/routing bgp vpn set [find vrf="{vrf}"] '
+            f'import.route-targets="{",".join(sorted(targets))}"'
+        )
 
     def add_source_nat(
         self,

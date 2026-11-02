@@ -103,6 +103,44 @@ def _incast_e2e_cases() -> list[FailureE2ECase]:
 
 
 CORE_E2E_CASES = (
+    FailureE2ECase(
+        problem="vrf_route_target_mismatch",
+        scenario="enterprise_branch",
+        env_run_args=("-s", "s", "--device-profile", "routeros"),
+        inject_params={"host_name": "br1_edge"},
+    ),
+    FailureE2ECase(
+        problem="vrf_route_target_mismatch",
+        scenario="enterprise_branch",
+        env_run_args=("-s", "s", "--device-profile", "routeros"),
+        inject_params={"host_name": "hq_edge", "vrf_name": "vrf_server"},
+        inject_seed=2,
+    ),
+    *(
+        FailureE2ECase(
+            problem="overlay_qos_ef_undersized",
+            scenario="enterprise_branch",
+            topo_size=size,
+            env_run_args=("-s", size)
+            + (("--device-profile", profile) if profile == "routeros" else ()),
+        )
+        for profile in ("frr", "routeros")
+        for size in (("s",) if profile == "routeros" else ("s", "m", "l"))
+    ),
+    *(
+        FailureE2ECase(
+            problem="ospf_stub_area_mismatch",
+            scenario="campus_lan",
+            env_run_args=("-s", "s")
+            + (("--device-profile", profile) if profile != "frr" else ()),
+            inject_params=(
+                {"host_name": "router_core_1", "intf_name": "eth2"}
+                if profile == "iosxr"
+                else {"host_name": "router_dist_1_1", "intf_name": "eth0"}
+            ),
+        )
+        for profile in ("frr", "iosxr", "routeros")
+    ),
     *(
         FailureE2ECase(
             problem="bgp_address_family_not_activated",
@@ -565,6 +603,16 @@ CORE_E2E_CASES = (
             inject_params={"host_name": "leaf_router_0_1"},
         )
         for profile in ("iosxr", "routeros")
+    ),
+    *(
+        FailureE2ECase(
+            problem="bgp_prefix_list_length_mismatch",
+            scenario="enterprise_branch",
+            env_run_args=("-s", "s")
+            + (("--device-profile", profile) if profile != "frr" else ()),
+            inject_params={"host_name": "br1_edge"},
+        )
+        for profile in ("frr", "routeros", "iosxr")
     ),
     FailureE2ECase(
         problem="bgp_session_policy_missing",

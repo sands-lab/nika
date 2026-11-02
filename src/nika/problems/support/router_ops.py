@@ -175,6 +175,20 @@ class RouterFaultOps:
         """
         self._unsupported("Removing BGP session policies")
 
+    def bgp_import_prefix_ranges(self) -> dict[str, tuple[str, int]]:
+        """Single-entry aggregate filters bound to BGP import policies.
+
+        Map the native filter identifier to (aggregate, maximum length).
+        Exact matches report the aggregate's own length.
+        """
+        self._unsupported("Reading BGP import prefix ranges")
+
+    def set_bgp_import_prefix_range(
+        self, name: str, prefix: str, maximum_length: int
+    ) -> None:
+        """Change an existing import filter's length match and refresh imports."""
+        self._unsupported("Changing BGP import prefix ranges")
+
     def bgp_session_policy_dropped(self) -> bool:
         """Whether every eBGP session lacks a route policy the router can apply."""
         self._unsupported("Reading BGP session policies")
@@ -255,7 +269,15 @@ class RouterFaultOps:
         """Run the OSPF interfaces of ``area`` in ``new_area`` instead."""
         self._unsupported("Changing an OSPF area")
 
-    # OSPF interface network type
+    # OSPF interface and area settings
+
+    def ospf_interface_area_type(self, interface: str) -> tuple[str, str]:
+        """Return the dotted area ID and type (normal, stub, or nssa)."""
+        self._unsupported("Reading an OSPF area type")
+
+    def set_ospf_interface_area_type(self, interface: str, area_type: str) -> None:
+        """Change the type of the area containing ``interface``."""
+        self._unsupported("Changing an OSPF area type")
 
     def ospf_network_type(self, interface: str) -> str:
         """Return the OSPF network type of ``interface``.
@@ -333,6 +355,14 @@ class RouterFaultOps:
 
     # Routes and interfaces
 
+    def vpn_import_targets(self, vrf: str) -> set[str]:
+        """Return the route targets imported by the VRF's BGP VPN policy."""
+        self._unsupported("Reading VPN import route targets")
+
+    def set_vpn_import_targets(self, vrf: str, targets: set[str]) -> None:
+        """Replace only the VRF's BGP VPN import route targets."""
+        self._unsupported("Changing VPN import route targets")
+
     def ipv4_addresses(self) -> set[str]:
         """Return the router's configured IPv4 interface addresses."""
         self._unsupported("Reading IPv4 addresses")
@@ -366,6 +396,14 @@ class RouterFaultOps:
         self._unsupported("Removing an interface address")
 
     # Tunnels, QoS marking and NAT
+
+    def set_queue_bandwidth(self, name: str, rate_kbps: int, ceil_kbps: int) -> None:
+        """Set a named egress queue's guarantee and ceiling in kbit/s."""
+        self._unsupported("Setting queue bandwidth")
+
+    def queue_state(self, name: str) -> dict[str, int]:
+        """Read a named queue's rate_kbps, ceil_kbps, bytes, packets and drops."""
+        self._unsupported("Reading queue state")
 
     def tunnel_peer(self, interface: str) -> TunnelPeer:
         self._unsupported("Reading a tunnel peer")

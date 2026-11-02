@@ -561,12 +561,12 @@ def assert_readiness_probe_recover(ctx: FailureE2EContext) -> None:
     )
 
 
-def assert_ospf_timer_link_recover(ctx: FailureE2EContext) -> None:
+def assert_ospf_cut_edge_recover(ctx: FailureE2EContext) -> None:
     import json
 
     from nika.net_env.verify import ping_stats
 
-    base = ctx.problem._audit_ospf_timer_link
+    base = ctx.problem._audit_ospf_cut_link
     _wait_for_ping(ctx.runtime, base["src"], base["dst"])
     loss = ping_stats(
         ctx.runtime, base["src"], base["dst"], count=5, interval_sec=0.2
@@ -577,7 +577,7 @@ def assert_ospf_timer_link_recover(ctx: FailureE2EContext) -> None:
         == f"node/{ctx.parsed.host_name}"
     )
     print(
-        "OSPF timer evidence: "
+        "OSPF cut-edge evidence: "
         + json.dumps(
             {
                 "baseline": base,
@@ -642,12 +642,44 @@ def assert_ipv4_family_recover(ctx: FailureE2EContext) -> None:
     )
 
 
+def assert_overlay_ef_recover(ctx: FailureE2EContext) -> None:
+    import json
+
+    assert (
+        ctx.problem.root_cause_resources(ctx.parsed)[0].id
+        == f"node/{ctx.parsed.host_name}"
+    )
+    print(
+        "Overlay EF evidence: "
+        + json.dumps(
+            {
+                "topo_size": ctx.topo_size,
+                "device_profile": ctx.problem.net_env.device_profile or "frr",
+                "artifact": ctx.verify,
+                "symptom": ctx.symptom,
+                "recovered": ctx.recovered,
+            }
+        ),
+        flush=True,
+    )
+
+
+def assert_prefix_length_recover(ctx: FailureE2EContext) -> None:
+    from nika.validation.symptom.bgp_prefix_probes import prefix_length_baseline
+
+    healthy, reading = prefix_length_baseline(ctx.problem, ctx.parsed)
+    assert healthy, reading
+
+
 HOOKS: dict[str, dict[str, Any]] = {
+    "overlay_qos_ef_undersized": {"post_recover": assert_overlay_ef_recover},
+    "bgp_prefix_list_length_mismatch": {"post_recover": assert_prefix_length_recover},
     "bgp_address_family_not_activated": {"post_recover": assert_ipv4_family_recover},
     "k8s_readiness_probe_misconfig": {
         "post_recover": assert_readiness_probe_recover,
     },
-    "ospf_hello_interval_mismatch": {"post_recover": assert_ospf_timer_link_recover},
+    "ospf_hello_interval_mismatch": {"post_recover": assert_ospf_cut_edge_recover},
+    "ospf_stub_area_mismatch": {"post_recover": assert_ospf_cut_edge_recover},
     "ospf_duplicate_router_id": {"post_recover": assert_ospf_stubs_recover},
     "bgp_max_prefix_exceeded": {"post_recover": assert_max_prefix_recover},
     "bgp_ttl_security_mismatch": {"post_recover": assert_bgp_adjacencies_recover},

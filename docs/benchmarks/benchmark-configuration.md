@@ -687,6 +687,36 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 </tr>
 <tr>
+<td><code>bgp_prefix_list_length_mismatch</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
 <td><code>bgp_rpki_invalid_route_leak</code></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -1068,6 +1098,66 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 <td align="center"></td>
 <td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>ospf_stub_area_mismatch</code></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>vrf_route_target_mismatch</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -3261,6 +3351,36 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 </tr>
 <tr>
+<td><code>overlay_qos_ef_undersized</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
 <td><code>p4_ecn_threshold_misconfiguration</code></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -3713,6 +3833,17 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center">◆✓</td>
 </tr>
 <tr>
+<td><code>bgp_prefix_list_length_mismatch</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">◆</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
 <td><code>bgp_session_policy_missing</code></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -3843,6 +3974,28 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center"></td>
 <td align="center">○</td>
 <td align="center">◆</td>
+</tr>
+<tr>
+<td><code>ospf_stub_area_mismatch</code></td>
+<td align="center">◆</td>
+<td align="center">◆</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>vrf_route_target_mismatch</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">◆</td>
+<td align="center"></td>
+<td align="center"></td>
 </tr>
 <tr>
 <td><code>arp_acl_block</code></td>
@@ -4182,6 +4335,17 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center">○✓</td>
 <td align="center">○✓</td>
 <td align="center">○✓</td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>overlay_qos_ef_undersized</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">◆</td>
 <td align="center"></td>
 <td align="center"></td>
 </tr>

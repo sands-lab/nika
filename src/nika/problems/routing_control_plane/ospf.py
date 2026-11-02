@@ -35,9 +35,10 @@ from nika.utils.logger import system_logger
 _NETWORK_RE = re.compile(r"^\s*network\s+(\S+)\s+area\s+(\S+)\s*$", re.MULTILINE)
 
 
-def _ospf_pair(first, second, read, differs, description):
+def _ospf_pair(first, second, read, differs, description, *, read_peer=None):
     """Compare two CLI observations, carrying the first through saved outputs."""
     previous = {}
+    read_peer = read_peer or read
 
     def args(outputs):
         previous["value"] = read(outputs["ospf_local"])
@@ -59,8 +60,8 @@ def _ospf_pair(first, second, read, differs, description):
                 description,
                 lambda o: (
                     previous.get("value") is not None
-                    and read(o) is not None
-                    and differs(previous["value"], read(o))
+                    and read_peer(o) is not None
+                    and differs(previous["value"], read_peer(o))
                 ),
             ),
             evidence=True,
@@ -1464,6 +1465,15 @@ def hosts_behind_router(net_env, router: str) -> list[str]:
     return hosts
 
 
+def ospf_host_cut_edges(net_env) -> list[tuple[str, str]]:
+    """OSPF cut edges whose leaf router serves hosts or services."""
+    return [
+        (host, intf)
+        for host, intf in ospf_cut_edge_interfaces(net_env)
+        if hosts_behind_router(net_env, ospf_stub_router(net_env, host, intf))
+    ]
+
+
 class OSPFNetworkTypeMismatchParams(BaseModel):
     """Parameters for injecting an OSPF network-type disagreement."""
 
@@ -1658,6 +1668,50 @@ class OSPFNetworkTypeMismatch(ProblemBase):
         }
 
 
+def _ospf_link_full(problem, host: str, intf: str) -> bool:
+    ops = native_fault_ops(problem, host, "ospf_interface_neighbor_full")
+    if ops is not None:
+        return ops.ospf_interface_neighbor_full(intf)
+    raw = problem.runtime.exec(host, "vtysh -c 'show ip ospf neighbor json'")
+    neighbors = json.loads(raw).get("neighbors", {})
+    return any(
+        row.get("ifaceName", "").split(":")[0] == intf
+        and row.get("nbrState", "").lower().startswith("full")
+        for rows in neighbors.values()
+        for row in (rows if isinstance(rows, list) else [rows])
+        if isinstance(row, dict)
+    )
+
+
+def _ospf_learned_routes(problem, host: str) -> set[str]:
+    ops = native_fault_ops(problem, host, "ospf_routes")
+    if ops is not None:
+        return ops.ospf_routes()
+    raw = problem.runtime.exec(host, "vtysh -c 'show ip route ospf json'")
+    return {
+        prefix
+        for prefix, routes in json.loads(raw).items()
+        if any(row.get("selected") for row in routes)
+    }
+
+
+def ospf_link_health(problem, params) -> dict:
+    """Read adjacency, link state, and routes at both ends of the selected link."""
+    host, intf = params.host_name, params.intf_name
+    peer = ospf_link_peer(problem.net_env, host, intf)
+    if peer is None:
+        raise RuntimeCapabilityError(f"No OSPF router peer for {host!r} {intf!r}")
+    return {
+        node: {
+            "full": _ospf_link_full(problem, node, interface),
+            "interface_up": problem.runtime.get_interface_operstate(node, interface)
+            == "up",
+            "routes": sorted(_ospf_learned_routes(problem, node)),
+        }
+        for node, interface in ((host, intf), peer)
+    }
+
+
 class OSPFHelloIntervalMismatchParams(BaseModel):
     """Parameters for an OSPF interface timer disagreement."""
 
@@ -1696,11 +1750,7 @@ class OSPFHelloIntervalMismatch(ProblemBase):
 
     @staticmethod
     def _targets(net_env):
-        return [
-            (host, intf)
-            for host, intf in ospf_cut_edge_interfaces(net_env)
-            if hosts_behind_router(net_env, ospf_stub_router(net_env, host, intf))
-        ]
+        return ospf_host_cut_edges(net_env)
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
@@ -1768,46 +1818,8 @@ class OSPFHelloIntervalMismatch(ProblemBase):
             )
             frr_save_config(self.runtime, host)
 
-    def _full(self, host: str, intf: str) -> bool:
-        ops = native_fault_ops(self, host, "ospf_interface_neighbor_full")
-        if ops is not None:
-            return ops.ospf_interface_neighbor_full(intf)
-        raw = self.runtime.exec(host, "vtysh -c 'show ip ospf neighbor json'")
-        neighbors = json.loads(raw).get("neighbors", {})
-        return any(
-            row.get("ifaceName", "").split(":")[0] == intf
-            and row.get("nbrState", "").lower().startswith("full")
-            for rows in neighbors.values()
-            for row in (rows if isinstance(rows, list) else [rows])
-            if isinstance(row, dict)
-        )
-
-    def _routes(self, host: str) -> set[str]:
-        ops = native_fault_ops(self, host, "ospf_routes")
-        if ops is not None:
-            return ops.ospf_routes()
-        raw = self.runtime.exec(host, "vtysh -c 'show ip route ospf json'")
-        return {
-            prefix
-            for prefix, routes in json.loads(raw).items()
-            if any(row.get("selected") for row in routes)
-        }
-
     def link_health(self, params: OSPFHelloIntervalMismatchParams) -> dict:
-        """Read adjacency, link state, and routes at both ends of the selected link."""
-        host, intf = params.host_name, params.intf_name
-        peer = ospf_link_peer(self.net_env, host, intf)
-        if peer is None:
-            raise RuntimeCapabilityError(f"No OSPF router peer for {host!r} {intf!r}")
-        return {
-            node: {
-                "full": self._full(node, interface),
-                "interface_up": self.runtime.get_interface_operstate(node, interface)
-                == "up",
-                "routes": sorted(self._routes(node)),
-            }
-            for node, interface in ((host, intf), peer)
-        }
+        return ospf_link_health(self, params)
 
     def inject_fault(self, params: OSPFHelloIntervalMismatchParams):
         host, intf = params.host_name, params.intf_name
@@ -1880,7 +1892,7 @@ class OSPFHelloIntervalMismatch(ProblemBase):
 
 
 # ==================================================================
-# Problem: OSPF area range suppression
+# OSPF non-backbone areas
 # ==================================================================
 
 
@@ -1962,6 +1974,264 @@ def ospf_area_branches(net_env) -> dict[tuple[str, str], dict]:
                 ),
             }
     return result
+
+
+def _ospf_area_modes(output: str, profile: str | None) -> dict[str, str]:
+    """Read area types from FRR/XR OSPF configuration or RouterOS area rows."""
+    from nika.net_env.utils.routeros.parse import routeros_terse_rows
+
+    if profile == "routeros":
+        return {
+            row["area-id"]: row.get("type", "default").replace("default", "normal")
+            for row in routeros_terse_rows(output)
+            if "area-id" in row
+        }
+    modes = {}
+    if profile == "iosxr":
+        current = None
+        for line in output.splitlines():
+            if match := re.fullmatch(r" area (\S+)", line):
+                token = match[1]
+                current = str(
+                    ipaddress.IPv4Address(int(token) if token.isdigit() else token)
+                )
+                modes[current] = "normal"
+            elif current and (match := re.match(r"^  (stub|nssa)\b", line)):
+                modes[current] = match[1]
+        return modes
+    for _, area in ospf_networks(output) + _ospf_interface_areas(output):
+        modes[str(ipaddress.IPv4Address(int(area) if area.isdigit() else area))] = (
+            "normal"
+        )
+    for area, mode in re.findall(
+        r"^ area (\S+) (stub|nssa)\b", _ospf_block(output), re.M
+    ):
+        modes[str(ipaddress.IPv4Address(int(area) if area.isdigit() else area))] = mode
+    return modes
+
+
+class OspfStubAreaMismatchParams(BaseModel):
+    host_name: str = Field(description="Target router host name.")
+    intf_name: str = Field(description="OSPF interface in area 1 toward the neighbor.")
+
+
+class OspfStubAreaMismatch(ProblemBase):
+    """One router declares area 1 stub while its peer keeps a normal area.
+
+    Standards: RFC 2328 sections 10.5 and A.2 require Hello E-bit agreement:
+    https://www.rfc-editor.org/rfc/rfc2328#section-10.5
+    https://www.rfc-editor.org/rfc/rfc2328#appendix-A.2
+    RFC 1583 section 4.5 describes area-wide ExternalRoutingCapability:
+    https://freesoft.org/CIE/RFC/1583/24.htm
+    Vendor troubleshooting document: Cisco Community, "OSPF routers do not
+    form neighbor relationship due to a mismatch in hello parameters", lists
+    the stub-area flag among the parameters that prevent adjacency formation:
+    https://community.cisco.com/t5/networking-knowledge-base/ospf-routers-do-not-form-neighbor-relationship-due-to-a-mismatch/ta-p/3131411
+    """
+
+    failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
+    root_cause_name = "ospf_stub_area_mismatch"
+    description = "OSPF neighbors disagree on whether their area is stub."
+    symptom_probe = "custom"
+    symptom_class = "control_plane"
+    effect_protocol = "ospf"
+    TAGS = ["ospf"]
+    COMPATIBLE_COLUMNS = frozenset({"campus_lan"})
+    supported_backends = ("kathara",)
+    native_router_operations = frozenset(
+        {
+            "ospf_interface_area_type",
+            "set_ospf_interface_area_type",
+            "ospf_interface_neighbor_full",
+            "ospf_routes",
+        }
+    )
+    Params = OspfStubAreaMismatchParams
+    BENCHMARK_TARGETS = "canonical"
+
+    @staticmethod
+    def _targets(net_env):
+        branches = [
+            set(branch["members"])
+            for (_, area), branch in ospf_area_branches(net_env).items()
+            if area == "0.0.0.1"
+        ]
+        return [
+            (host, intf)
+            for host, intf in ospf_host_cut_edges(net_env)
+            if any(
+                {host, ospf_link_peer(net_env, host, intf)[0]} <= members
+                for members in branches
+            )
+        ]
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        targets = cls._targets(ctx.net_env)
+        if not targets:
+            raise ValueError("No area-1 OSPF cut edge serving hosts")
+        native = [
+            target
+            for target in targets
+            if native_router_profile(ctx.net_env, target[0]) is not None
+        ]
+        host, intf = ctx.rng.choice(native or targets)
+        return {"host_name": host, "intf_name": intf}
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        from nika.problems.support.benchmark_targets import require_node_capability
+
+        host, intf = inject.get("host_name"), inject.get("intf_name")
+        require_node_capability(ctx, cls.root_cause_name, host, "ospf")
+        if (host, intf) not in cls._targets(ctx.net_env):
+            raise ValueError(
+                "OSPF stub mismatch needs an area-1 cut edge serving hosts"
+            )
+
+    def root_cause_resources(self, params: OspfStubAreaMismatchParams):
+        return [node_resource(params.host_name)]
+
+    def _area_type(self, host, intf):
+        ops = native_fault_ops(self, host, "ospf_interface_area_type")
+        if ops is not None:
+            return ops.ospf_interface_area_type(intf)
+        raw = self.runtime.exec(host, vtysh(f"show ip ospf interface {intf}"))
+        match = re.search(r"\bArea (\d+\.\d+\.\d+\.\d+)(?: \[(Stub|NSSA)\])?", raw)
+        if not match:
+            raise RuntimeCapabilityError(f"No OSPF area on {host}:{intf}")
+        return match[1], (match[2] or "normal").lower()
+
+    def _set_area_type(self, host, intf, mode):
+        ops = native_fault_ops(self, host, "set_ospf_interface_area_type")
+        if ops is not None:
+            ops.set_ospf_interface_area_type(intf, mode)
+        else:
+            self.runtime.exec(
+                host,
+                frr_config_command(
+                    "router ospf", "area 1 stub" if mode == "stub" else "no area 1 stub"
+                ),
+            )
+            frr_save_config(self.runtime, host)
+
+    def link_health(self, params: OspfStubAreaMismatchParams) -> dict:
+        return ospf_link_health(self, params)
+
+    def inject_fault(self, params: OspfStubAreaMismatchParams):
+        host, intf = params.host_name, params.intf_name
+        if (host, intf) not in self._targets(self.net_env):
+            raise RuntimeCapabilityError(
+                "OSPF stub mismatch needs an area-1 cut edge serving hosts"
+            )
+        peer = ospf_link_peer(self.net_env, host, intf)
+        if self._area_type(host, intf) != ("0.0.0.1", "normal") or self._area_type(
+            *peer
+        ) != ("0.0.0.1", "normal"):
+            raise RuntimeCapabilityError(
+                "OSPF stub mismatch needs matching normal area 1"
+            )
+        baseline = self.link_health(params)
+        if not all(
+            row["full"] and row["interface_up"] and row["routes"]
+            for row in baseline.values()
+        ):
+            raise RuntimeCapabilityError(
+                "OSPF stub mismatch needs Full neighbors and learned routes"
+            )
+        self._healthy_link = baseline
+        self._set_area_type(host, intf, "stub")
+
+    def verify_fault(self, params: OspfStubAreaMismatchParams) -> dict:
+        host, intf = params.host_name, params.intf_name
+        local = self._area_type(host, intf)
+        peer = ospf_link_peer(self.net_env, host, intf)
+        remote = self._area_type(*peer) if peer else None
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=local == ("0.0.0.1", "stub") and remote == ("0.0.0.1", "normal"),
+            details={
+                "host": host,
+                "intf": intf,
+                "local_area": local,
+                "peer_area": remote,
+            },
+        )
+
+    def recover_fault(self, params: OspfStubAreaMismatchParams) -> dict:
+        baseline = getattr(self, "_healthy_link", None)
+        if not baseline:
+            return {"verified": False, "details": {"error": "no_healthy_baseline"}}
+        self._set_area_type(params.host_name, params.intf_name, "normal")
+        health = {}
+
+        def healthy():
+            health.update(self.link_health(params))
+            return all(
+                row["full"]
+                and row["interface_up"]
+                and set(baseline[node]["routes"]) <= set(row["routes"])
+                for node, row in health.items()
+            )
+
+        restored = wait_until(healthy, 120, interval_s=3)
+        return {
+            "verified": restored
+            and self._area_type(params.host_name, params.intf_name)
+            == ("0.0.0.1", "normal"),
+            "details": {"link": health},
+        }
+
+    def oracle_playbook(self, params: OspfStubAreaMismatchParams) -> OraclePlaybook:
+        host, intf = params.host_name, params.intf_name
+        peer = ospf_link_peer(self.net_env, host, intf)
+        if peer is None:
+            raise RuntimeCapabilityError(f"No OSPF peer for {host}:{intf}")
+
+        def area_step(node):
+            return router_cli(
+                self.net_env,
+                node,
+                f"Read the configured OSPF area types on {node}.",
+                frr=vtysh("show running-config"),
+                iosxr_command="show running-config router ospf",
+                routeros_command="/routing/ospf/area/print terse",
+            )
+
+        def read_interface(output):
+            area = re.search(r"\bArea (\S+)|\barea=(\S+)", output)
+            timers, network = _ospf_timers(output), _ospf_type(output)
+            if not area or not timers or not network:
+                return None
+            token = next(g for g in area.groups() if g).rstrip(",")
+            if re.fullmatch(r"\d+|\d+(?:\.\d+){3}", token):
+                token = str(
+                    ipaddress.IPv4Address(int(token) if token.isdigit() else token)
+                )
+            return token, timers, network
+
+        return OraclePlaybook(
+            finding=f"{host} declares area 1 stub while {peer[0]} keeps it normal, rejecting Hellos with a different E-bit.",
+            steps=_ospf_pair(
+                _ospf_interface_step(self.net_env, host, intf),
+                _ospf_interface_step(self.net_env, *peer),
+                read_interface,
+                lambda a, b: a == b,
+                "both interfaces run OSPF with matching area, hello/dead timers, and network type",
+            )
+            + _ospf_pair(
+                area_step(host),
+                area_step(peer[0]),
+                lambda o: _ospf_area_modes(
+                    o, native_router_profile(self.net_env, host)
+                ).get("0.0.0.1"),
+                lambda a, b: a == "stub" and b == "normal",
+                "area 1 is stub locally and normal on the peer, distinguishing the E-bit disagreement from an area ID or timer mismatch",
+                read_peer=lambda o: _ospf_area_modes(
+                    o, native_router_profile(self.net_env, peer[0])
+                ).get("0.0.0.1"),
+            ),
+        )
 
 
 class OspfAreaRangeSuppressionParams(BaseModel):

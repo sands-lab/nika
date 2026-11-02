@@ -35,6 +35,21 @@ def routeros_terse_rows(output: str) -> list[dict[str, str]]:
     ]
 
 
+def routeros_filter_rules(output: str) -> list[dict[str, str]]:
+    """Read filter rules whose final ``rule`` property may contain unquoted spaces."""
+    rows = []
+    for line in output.splitlines():
+        for row in routeros_terse_rows(line):
+            match = re.search(r"\brule=(.*)$", line)
+            if match:
+                rule = match[1].strip()
+                if rule.startswith('"') and rule.endswith('"'):
+                    rule = rule[1:-1]
+                row["rule"] = rule
+            rows.append(row)
+    return rows
+
+
 def routeros_established_bgp_peers(output: str) -> set[str]:
     """Return remote addresses from ``/routing/bgp/session/print terse``.
 

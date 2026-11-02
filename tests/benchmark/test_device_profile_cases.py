@@ -24,6 +24,17 @@ from nika.workflows.benchmark.load_config import normalize_benchmark_row
 pytestmark = pytest.mark.contract
 
 
+@pytest.mark.parametrize("profile", ["frr", "iosxr", "routeros"])
+def test_vrf_import_mismatch_requires_routeros_forwarding(profile):
+    cases, _ = build_failure_cases(
+        problem="vrf_route_target_mismatch",
+        scenario="enterprise_branch",
+        topo_size="s",
+        isp_options={"device_profile": profile},
+    )
+    assert bool(cases) is (profile == "routeros")
+
+
 @pytest.mark.parametrize(
     ("scenario", "profile", "bgp_mode", "supported"),
     [
