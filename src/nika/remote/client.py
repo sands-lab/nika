@@ -135,8 +135,12 @@ class RemoteClient:
         *,
         policy_mode: PolicyMode = "two_phase",
         public_host: str | None = None,
+        access=None,
+        tool_call_limits: dict[str, int] | None = None,
     ) -> McpAttachResponse:
         body = McpAttachRequest(
+            access=access,
+            tool_call_limits=tool_call_limits,
             policy_mode=policy_mode,
             public_host=public_host or self.config.host,
         )

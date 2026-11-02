@@ -251,3 +251,52 @@ def test_tool_result_reads_json_and_event_stream_bodies() -> None:
     assert tool_result(json.dumps(ok).encode(), "application/json") == (False, "up")
     sse = f"event: message\ndata: {json.dumps(failed)}\n\n".encode()
     assert tool_result(sse, "text/event-stream")[0] is True
+
+
+def test_fixed_model_refuses_other_models_without_upstream_call(tmp_path, upstream):
+    log = ModelCallLog(
+        tmp_path / "model_calls.jsonl", max_requests=3, expected_model="fixed"
+    )
+    with TestClient(create_model_proxy_app(upstream, token="t", call_log=log)) as proxy:
+        headers = {"authorization": "Bearer t"}
+        refused = proxy.post("/v1/responses", headers=headers, json={"model": "other"})
+        assert refused.status_code == 400
+        assert "fixed run model" in refused.text
+        accepted = proxy.post(
+            "/v1/chat/completions", headers=headers, json={"model": "fixed"}
+        )
+        assert accepted.status_code == 200
+    rows = [json.loads(line) for line in log.path.read_text().splitlines()]
+    assert [r["status"] for r in rows] == [400, 200]
+    assert log._in_flight == 0
+
+
+def test_context_compaction_uses_request_budget_and_async_side_routes_are_refused(
+    tmp_path, upstream
+):
+    log = ModelCallLog(
+        tmp_path / "model_calls.jsonl", max_requests=1, expected_model="fixed"
+    )
+    with TestClient(create_model_proxy_app(upstream, token="t", call_log=log)) as proxy:
+        headers = {"authorization": "Bearer t"}
+        blocked = proxy.post(
+            "/v1/batches", headers=headers, json={"input_file_id": "unapproved"}
+        )
+        assert blocked.status_code == 400
+        assert "outside the fixed-model" in blocked.text
+        metadata = proxy.post(
+            "/v1/messages/count_tokens", headers=headers, json={"model": "fixed"}
+        )
+        assert metadata.status_code == 200
+        compact = proxy.post(
+            "/v1/responses/compact",
+            headers=headers,
+            json={"model": "fixed", "input": []},
+        )
+        assert compact.status_code == 200
+        refused = proxy.post(
+            "/v1/responses", headers=headers, json={"model": "fixed", "input": []}
+        )
+        assert refused.status_code == 400 and log.exhausted.is_set()
+    rows = [json.loads(line) for line in log.path.read_text().splitlines()]
+    assert [r["llm_request"] for r in rows] == [False, False, True, True]

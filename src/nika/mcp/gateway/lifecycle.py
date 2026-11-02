@@ -233,6 +233,8 @@ def mcp_gateway_for_session(
     sandbox: bool = False,
     sandbox_agent_host: str = SANDBOX_GATEWAY_AGENT_HOST,
     backend: str | None = None,
+    access=None,
+    tool_call_limits: dict[str, int] | None = None,
 ) -> Iterator[McpGatewayManager]:
     """Start gateway, register *session_id*, expose URL via env, then clean up.
 
@@ -252,7 +254,7 @@ def mcp_gateway_for_session(
     from nika.telemetry import telemetry_for_session
     from nika.utils.session_store import SessionStore
 
-    access = get_run_config().agent.access
+    access = access if access is not None else get_run_config().agent.access
     role = access.role
     policy = access.roles[role]
     row = SessionStore().get_session(session_id)
@@ -266,6 +268,11 @@ def mcp_gateway_for_session(
         scenario_name=scenario_name,
         session_dir=session_dir,
         access_policy=snapshot["diagnosis"],
+        tool_call_limits=(
+            get_run_config().agent.tool_call_limits
+            if tool_call_limits is None
+            else tool_call_limits
+        ),
         node_roles=node_roles,
         diagnosis_servers=(
             select_diagnosis_servers(

@@ -29,6 +29,12 @@ def resolve_state_dir() -> Path:
     ``git rev-parse --git-common-dir``. Otherwise this is the repository
     root of the installed package.
     """
+    override = os.environ.get("NIKA_STATE_DIR", "").strip()
+    if override:
+        path = Path(override).expanduser()
+        if not path.is_absolute():
+            raise ValueError("NIKA_STATE_DIR must be an absolute path")
+        return path.resolve()
     try:
         completed = subprocess.run(
             ["git", "rev-parse", "--git-common-dir"],

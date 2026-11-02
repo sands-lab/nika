@@ -75,6 +75,7 @@ class AgentManifest(BaseModel):
         default_factory=lambda: sorted(ALL_PROVIDERS)
     )
     credential_family: Literal["openai", "anthropic"] = "openai"
+    subscription: bool = False
     supports_max_tokens: bool = True
     default_model: str | None = None
     sandbox: SandboxDefinition | None = None
@@ -112,6 +113,7 @@ class AgentManifest(BaseModel):
             import_root=import_root,
             providers=frozenset(self.providers),
             credential_family=self.credential_family,
+            subscription=self.subscription,
             supports_max_tokens=self.supports_max_tokens,
             default_model=self.default_model,
             template=sandbox.base,

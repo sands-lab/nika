@@ -64,12 +64,18 @@ def record_tool_call(
     is_error: bool,
     output: str,
     denied: str = "",
+    call_id: str | None = None,
+    elapsed_ms: float | None = None,
+    raw_output: str | None = None,
 ) -> None:
     """Append one tool call to the session's ``tool_calls.jsonl``."""
     if not session_dir:
         return
     entry = {
         "timestamp": datetime.now(UTC).isoformat(),
+        "call_id": call_id,
+        "duration_ms": elapsed_ms,
+        "raw_output": raw_output,
         "phase": phase,
         "server": server,
         "tool": tool,

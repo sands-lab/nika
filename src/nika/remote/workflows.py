@@ -404,10 +404,15 @@ def remote_mcp_gateway(
     """Attach a remote MCP gateway; yield ``(gateway_base_url, port)``."""
     client = _client()
     cfg = load_remote_config()
+    from nika.run_config.loader import get_run_config
+
+    settings = get_run_config().agent
     attach = client.mcp_attach(
         session_id,
         policy_mode=policy_mode,
         public_host=cfg.host,
+        access=settings.access,
+        tool_call_limits=settings.tool_call_limits,
     )
     exported = {
         ENV_GATEWAY_URL: attach.gateway_base_url,
