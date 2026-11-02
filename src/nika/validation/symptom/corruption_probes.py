@@ -58,8 +58,35 @@ def _ends(problem: Any, params: Any) -> dict[str, Any]:
         None,
     )
     if owner is None:
-        return {"error": "no_node_owns_the_probe_destination", "dst": path.dst_ip}
+        return _host_behind(problem, path.src_host, path.dst_ip)
     return {"src": path.src_host, "dst": path.dst_ip, "dst_host": owner}
+
+
+def _host_behind(problem: Any, src: str, router_ip: str) -> dict[str, Any]:
+    """An end host that ``src`` reaches through the router address ``router_ip``.
+
+    A native router (XRd, RouterOS) keeps its addresses outside Linux and runs
+    no iperf3, so the probe measures toward a host whose traceroute from
+    ``src`` passes that address, crossing the same link.
+    """
+    runtime = problem.runtime
+    addresses = lab_addresses(runtime)
+    hosts = [
+        node
+        for node in addresses
+        if node != src
+        and addresses[node]
+        and getattr(problem.net_env.machine_identities.get(node), "role", None)
+        in {NodeRole.HOST, NodeRole.SERVICE}
+    ]
+    for host in hosts[:12]:
+        ip = str(ipaddress.ip_interface(addresses[host][0][1]).ip)
+        trace = exec_or_empty(
+            runtime, src, f"traceroute -n -q 1 -w 1 -m 8 {ip}", timeout=20
+        )
+        if router_ip in re.findall(r"\b\d+\.\d+\.\d+\.\d+\b", trace):
+            return {"src": src, "dst": ip, "dst_host": host, "via": router_ip}
+    return {"error": "no_end_host_behind_the_probe_destination", "dst": router_ip}
 
 
 def _iperf(

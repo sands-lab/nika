@@ -4,6 +4,9 @@ failure:
   fault_type: mtu_mismatch
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_edge
       intf_name: eth2
@@ -16,6 +19,9 @@ failure:
       fault_type: mtu_mismatch
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_edge
       intf_name: eth2
@@ -28,6 +34,9 @@ failure:
       fault_type: mtu_mismatch
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_edge
       intf_name: eth2
@@ -39,6 +48,9 @@ failure:
         name: eth2
       fault_type: mtu_mismatch
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_edge
       intf_name: eth2
@@ -50,6 +62,9 @@ failure:
         name: eth2
       fault_type: mtu_mismatch
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_edge
       intf_name: eth2

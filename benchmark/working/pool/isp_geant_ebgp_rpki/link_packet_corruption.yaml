@@ -6,8 +6,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: &id001
-      pattern: uniform
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: at1_at
@@ -23,7 +24,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: at1_at
@@ -39,7 +42,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: at1_at
@@ -55,7 +60,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: at1_at
@@ -71,7 +78,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: at1_at
@@ -87,7 +96,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: be1_be
@@ -103,7 +114,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: be1_be
@@ -119,7 +132,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: be1_be
@@ -135,7 +150,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: ch1_ch
@@ -151,7 +168,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: ch1_ch
@@ -167,7 +186,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: cz1_cz
@@ -183,7 +204,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: cz1_cz
@@ -199,7 +222,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: cz1_cz
@@ -215,7 +240,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: de1_de
@@ -231,7 +258,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: de1_de
@@ -247,7 +276,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: de1_de
@@ -263,7 +294,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: de1_de
@@ -279,7 +312,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: de1_de
@@ -295,7 +330,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: de1_de
@@ -311,7 +348,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: es1_es
@@ -327,7 +366,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: es1_es
@@ -343,7 +384,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: es1_es
@@ -359,7 +402,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: fr1_fr
@@ -375,7 +420,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: fr1_fr
@@ -391,7 +438,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: gr1_gr
@@ -407,7 +456,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: hr1_hr
@@ -423,7 +474,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: hr1_hr
@@ -439,7 +492,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: hu1_hu
@@ -455,7 +510,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: ie1_ie
@@ -471,7 +528,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: il1_il
@@ -487,7 +546,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: il1_il
@@ -503,7 +564,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: nl1_nl
@@ -519,7 +582,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: ny1_ny
@@ -535,7 +600,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: pl1_pl
@@ -551,7 +618,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: pt1_pt
@@ -567,7 +636,9 @@ failure:
   - topo_size: m
     backend: kathara
     device_profile: frr
-    traffic: *id001
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       corruption_percentage: '10'
       host_name: se1_se

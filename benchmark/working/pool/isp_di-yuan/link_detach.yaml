@@ -9,6 +9,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_1
       intf_name: e1-1
@@ -27,6 +30,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_1
       intf_name: e1-2
@@ -45,6 +51,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_1
       intf_name: e1-3
@@ -63,6 +72,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_1
       intf_name: e1-4
@@ -81,6 +93,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_1
       intf_name: e1-5
@@ -99,6 +114,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_1
       intf_name: e1-6
@@ -117,6 +135,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_1
       intf_name: e1-7
@@ -135,6 +156,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_10
       intf_name: e1-1
@@ -153,6 +177,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_10
       intf_name: e1-2
@@ -171,6 +198,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_10
       intf_name: e1-3
@@ -189,6 +219,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_10
       intf_name: e1-4
@@ -207,6 +240,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_10
       intf_name: e1-6
@@ -225,6 +261,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_10
       intf_name: e1-7
@@ -243,6 +282,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_10
       intf_name: e1-8
@@ -261,6 +303,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_11
       intf_name: e1-2
@@ -279,6 +324,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_11
       intf_name: e1-3
@@ -297,6 +345,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_11
       intf_name: e1-4
@@ -315,6 +366,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_11
       intf_name: e1-5
@@ -333,6 +387,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_11
       intf_name: e1-6
@@ -351,6 +408,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_11
       intf_name: e1-7
@@ -369,6 +429,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_11
       intf_name: e1-8
@@ -387,6 +450,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_2
       intf_name: e1-4
@@ -405,6 +471,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_2
       intf_name: e1-5
@@ -423,6 +492,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_2
       intf_name: e1-6
@@ -441,6 +513,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_2
       intf_name: e1-7
@@ -459,6 +534,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_2
       intf_name: e1-8
@@ -477,6 +555,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_3
       intf_name: e1-1
@@ -495,6 +576,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_3
       intf_name: e1-2
@@ -513,6 +597,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_3
       intf_name: e1-3
@@ -531,6 +618,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_3
       intf_name: e1-7
@@ -549,6 +639,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_4
       intf_name: e1-1
@@ -567,6 +660,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_4
       intf_name: e1-2
@@ -585,6 +681,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_4
       intf_name: e1-5
@@ -603,6 +702,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_4
       intf_name: e1-6
@@ -621,6 +723,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_4
       intf_name: e1-7
@@ -639,6 +744,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_5
       intf_name: e1-1
@@ -657,6 +765,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_5
       intf_name: e1-2
@@ -675,6 +786,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_5
       intf_name: e1-3
@@ -693,6 +807,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_5
       intf_name: e1-6
@@ -711,6 +828,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_6
       intf_name: e1-1
@@ -729,6 +849,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_7
       intf_name: e1-1
@@ -747,6 +870,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_7
       intf_name: e1-6
@@ -1521,6 +1647,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_1
       intf_name: eth0
@@ -1539,6 +1668,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_1
       intf_name: eth1
@@ -1557,6 +1689,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_1
       intf_name: eth2
@@ -1575,6 +1710,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_1
       intf_name: eth3
@@ -1593,6 +1731,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_1
       intf_name: eth4
@@ -1611,6 +1752,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_1
       intf_name: eth5
@@ -1629,6 +1773,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_1
       intf_name: eth6
@@ -1647,6 +1794,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_10
       intf_name: eth0
@@ -1665,6 +1815,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_10
       intf_name: eth1
@@ -1683,6 +1836,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_10
       intf_name: eth2
@@ -1701,6 +1857,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_10
       intf_name: eth3
@@ -1719,6 +1878,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_10
       intf_name: eth5
@@ -1737,6 +1899,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_10
       intf_name: eth6
@@ -1755,6 +1920,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_10
       intf_name: eth7
@@ -1773,6 +1941,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_11
       intf_name: eth1
@@ -1791,6 +1962,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_11
       intf_name: eth2
@@ -1809,6 +1983,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_11
       intf_name: eth3
@@ -1827,6 +2004,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_11
       intf_name: eth4
@@ -1845,6 +2025,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_11
       intf_name: eth5
@@ -1863,6 +2046,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_11
       intf_name: eth6
@@ -1881,6 +2067,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_11
       intf_name: eth7
@@ -1899,6 +2088,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_2
       intf_name: eth3
@@ -1917,6 +2109,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_2
       intf_name: eth4
@@ -1935,6 +2130,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_2
       intf_name: eth5
@@ -1953,6 +2151,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_2
       intf_name: eth6
@@ -1971,6 +2172,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_2
       intf_name: eth7
@@ -1989,6 +2193,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_3
       intf_name: eth0
@@ -2007,6 +2214,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_3
       intf_name: eth1
@@ -2025,6 +2235,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_3
       intf_name: eth2
@@ -2043,6 +2256,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_3
       intf_name: eth6
@@ -2061,6 +2277,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_4
       intf_name: eth0
@@ -2079,6 +2298,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_4
       intf_name: eth1
@@ -2097,6 +2319,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_4
       intf_name: eth4
@@ -2115,6 +2340,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_4
       intf_name: eth5
@@ -2133,6 +2361,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_4
       intf_name: eth6
@@ -2151,6 +2382,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_5
       intf_name: eth0
@@ -2169,6 +2403,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_5
       intf_name: eth1
@@ -2187,6 +2424,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_5
       intf_name: eth2
@@ -2205,6 +2445,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_5
       intf_name: eth5
@@ -2223,6 +2466,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_6
       intf_name: eth0
@@ -2241,6 +2487,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_7
       intf_name: eth0
@@ -2259,6 +2508,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: n_7
       intf_name: eth5

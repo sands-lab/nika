@@ -8,6 +8,9 @@ healthy:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
   - topo_size: s
     igp: isis
     bgp_mode: ibgp_rr
@@ -20,18 +23,27 @@ healthy:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
   - topo_size: s
     igp: isis
     bgp_mode: ibgp_rr
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
   - topo_size: s
     igp: isis
     bgp_mode: ibgp_rr
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
   - topo_size: s
     igp: isis
     bgp_mode: none
@@ -39,13 +51,8 @@ healthy:
     backend: containerlab
     device_profile: nokia_srlinux
     traffic:
-      pattern: uniform
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: containerlab
-    device_profile: nokia_srlinux
+      pattern: gravity
+      load_mbps: 1.0
   - topo_size: s
     igp: isis
     bgp_mode: none
@@ -67,13 +74,8 @@ healthy:
     backend: kathara
     device_profile: frr
     traffic:
-      pattern: uniform
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: frr
+      pattern: gravity
+      load_mbps: 1.0
   - topo_size: s
     igp: isis
     bgp_mode: none
@@ -81,25 +83,26 @@ healthy:
     backend: kathara
     device_profile: iosxr
     traffic:
-      pattern: uniform
-  - topo_size: s
-    igp: isis
-    bgp_mode: none
-    rpki: false
-    backend: kathara
-    device_profile: iosxr
+      pattern: gravity
+      load_mbps: 1.0
   - topo_size: s
     igp: isis
     bgp_mode: none
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
   - topo_size: s
     igp: ospf
     bgp_mode: ebgp
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
   - topo_size: s
     igp: ospf
     bgp_mode: ebgp
@@ -112,18 +115,27 @@ healthy:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
   - topo_size: s
     igp: ospf
     bgp_mode: ebgp
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
   - topo_size: s
     igp: ospf
     bgp_mode: ebgp
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
   - topo_size: s
     igp: ospf
     bgp_mode: none
@@ -142,6 +154,9 @@ healthy:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
   - topo_size: s
     igp: ospf
     bgp_mode: none
@@ -154,3 +169,6 @@ healthy:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0

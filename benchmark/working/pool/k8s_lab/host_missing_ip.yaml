@@ -3,7 +3,10 @@ scenario:
 failure:
   fault_type: host_missing_ip
   cases:
-  - inject:
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
       host_name: client
       intf_name: eth0
     root_causes:

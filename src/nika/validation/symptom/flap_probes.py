@@ -113,7 +113,9 @@ def _echo_train(
 def flap_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     """Every echo of the train is answered on the healthy path."""
     topo_size = getattr(problem.net_env, "topo_size", None) or "s"
-    path = _resolve_path(problem.scenario_name, params, topo_size=topo_size)
+    path = _resolve_path(
+        problem.scenario_name, params, topo_size=topo_size, net_env=problem.net_env
+    )
     if path is None or not path.dst_ip:
         return False, {"error": "no_probe_path"}
     train = _echo_train(problem.runtime, path.src_host, path.dst_ip)
@@ -149,14 +151,11 @@ def evaluate_link_flap_symptom(
     )
     if "error" in train:
         return False, {"error": "flap_probe_failed", "after": train}
-    # Loss tracks the configured down/up duty cycle. Failed-echo waits
-    # under-count the down interval; NOS hold-down can stretch it.
-    period = float(params.down_time + params.up_time)
-    duty_percent = 100.0 * float(params.down_time) / period
-    min_loss = max(1.0, 0.2 * duty_percent)
-    max_loss = min(90.0, max(80.0, 4.0 * duty_percent))
+    # The flap shows as repeated bursts of consecutive lost echoes between
+    # answered runs. A router that reroutes around the down port cuts each
+    # burst short, so the share of lost echoes has no floor beyond them.
     periodic_loss = (
-        min_loss <= train["loss_percent"] <= max_loss
+        train["loss_percent"] <= 80.0
         and train["down_runs"] >= MIN_CYCLES
         and train["up_runs"] >= MIN_CYCLES
     )

@@ -11,7 +11,7 @@ import ipaddress
 from Kathara.manager.Kathara import Kathara
 from Kathara.model.Lab import Lab
 
-from nika.net_env.base import NetworkEnvBase
+from nika.net_env.base import NetworkEnvBase, ProbePath
 from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 from nika.net_env.utils.routeros.common import (
     CONFIG_FILE_PATH,
@@ -163,6 +163,16 @@ class RouterOsSimpleBGP(NetworkEnvBase):
         )
 
         self.load_machines()
+
+    @classmethod
+    def default_probe_path(cls, *, topo_size: str = "s", **deploy_kwargs) -> ProbePath:
+        # pc1 reaches pc2 across both routers and the eBGP session between them.
+        return ProbePath(
+            src_host="pc1",
+            dst_ip="200.1.1.2",
+            control_plane_host="router1",
+            peer_host="pc2",
+        )
 
     @classmethod
     def path_rate_limit_kbps(cls, device_profile: str | None) -> int | None:

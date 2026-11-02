@@ -143,13 +143,18 @@ def _reachable(runtime: LabRuntime, src: str, ip: str) -> bool:
 def _observers(runtime: LabRuntime, target_ip: str, exclude: set[str]) -> dict:
     """Pick a host that reaches ``target_ip`` and one more host as control.
 
-    Labs whose only hosts are the faulted pair (llmd_lab) observe from any
-    other node on the segment.
+    When no client-like host reaches it (llmd_lab's faulted pair, a load
+    balancer's private backends), another node on its segment observes.
     """
     nodes = [node for node in sorted(runtime.list_nodes()) if node not in exclude]
     candidates = [node for node in nodes if node.startswith(_HOST_PREFIXES)] or nodes
+    others = [node for node in nodes if node not in candidates]
     observer = next(
-        (node for node in candidates[:12] if _reachable(runtime, node, target_ip)),
+        (
+            node
+            for node in candidates[:12] + others[:12]
+            if _reachable(runtime, node, target_ip)
+        ),
         None,
     )
     if observer is None:
@@ -509,8 +514,8 @@ def _arp_responders(
 def _arp_ends(problem: Any, params: Any) -> dict[str, Any]:
     """A third node on the segment of the copied address, and a control address.
 
-    The control is another node's address on the same segment; exactly one
-    host answers ARP for it before and after inject.
+    The control is another address with one ARP responder on the segment,
+    or a reachable remote endpoint when the segment has only three hosts.
     """
     runtime = problem.runtime
     cidr = runtime.get_host_ip(params.host_name, "eth0", with_prefix=True) or ""
@@ -518,15 +523,32 @@ def _arp_ends(problem: Any, params: Any) -> dict[str, Any]:
         return {}
     network = ipaddress.ip_interface(cidr).network
     pair = {params.host_name, params.host_name_2}
+    addresses = lab_addresses(runtime)
     members = [
         (node, intf, str(ipaddress.ip_interface(address).ip))
-        for node, rows in lab_addresses(runtime).items()
+        for node, rows in addresses.items()
         if node not in pair
         for intf, address in rows
         if ipaddress.ip_interface(address).ip in network
     ]
     observer, intf, _ip = members[0] if members else ("", "", "")
     control = next((ip for node, _i, ip in members if node != observer), None)
+    control_probe = "arp"
+    if not control and observer:
+        control = next(
+            (
+                str(ipaddress.ip_interface(address).ip)
+                for node, rows in addresses.items()
+                if node not in pair | {observer} and node.startswith(_HOST_PREFIXES)
+                for _intf, address in rows
+                if ipaddress.ip_interface(address).ip not in network
+                and _reachable(
+                    runtime, observer, str(ipaddress.ip_interface(address).ip)
+                )
+            ),
+            None,
+        )
+        control_probe = "icmp"
     if not control:
         return {}
     return {
@@ -534,6 +556,7 @@ def _arp_ends(problem: Any, params: Any) -> dict[str, Any]:
         "observer_intf": intf,
         "address": cidr.split("/")[0],
         "control_address": control,
+        "control_probe": control_probe,
         "owner_mac": runtime.get_host_mac_address(params.host_name, "eth0").lower(),
         "claimant_mac": runtime.get_host_mac_address(
             params.host_name_2, "eth0"
@@ -546,10 +569,14 @@ def _arp_reading(problem: Any, ends: dict[str, Any]) -> dict[str, Any]:
     macs, raw = _arp_responders(
         runtime, ends["observer"], ends["observer_intf"], ends["address"]
     )
+    reading = {"arp_responders": macs, "raw": raw}
+    if ends.get("control_probe") == "icmp":
+        loss = _loss(runtime, ends["observer"], ends["control_address"])
+        return {**reading, "control_loss_percent": loss, "control_ok": loss == 0.0}
     control, _raw = _arp_responders(
         runtime, ends["observer"], ends["observer_intf"], ends["control_address"]
     )
-    return {"arp_responders": macs, "control_responders": control, "raw": raw}
+    return {**reading, "control_responders": control, "control_ok": len(control) == 1}
 
 
 def ip_conflict_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
@@ -560,7 +587,7 @@ def ip_conflict_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any
         return False, {"error": "no_third_node_on_the_segment"}
     reading = _arp_reading(problem, ends)
     ok = reading["arp_responders"] == [ends["owner_mac"]]
-    return ok and len(reading["control_responders"]) == 1, {**ends, **reading}
+    return ok and reading["control_ok"], {**ends, **reading}
 
 
 def ip_conflict(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
@@ -569,7 +596,7 @@ def ip_conflict(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     if not ends:
         return False, {"error": "no_baseline_observer"}
     reading = _arp_reading(problem, ends)
-    control_ok = len(reading["control_responders"]) == 1
+    control_ok = reading["control_ok"]
     verified = (
         ends["owner_mac"] in reading["arp_responders"]
         and ends["claimant_mac"] in reading["arp_responders"]

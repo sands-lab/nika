@@ -9,6 +9,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: berlin
     root_causes:
@@ -22,6 +25,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: frankfurt
     root_causes:
@@ -35,6 +41,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hamburg
     root_causes:
@@ -48,6 +57,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hannover
     root_causes:
@@ -61,6 +73,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: karlsruhe
     root_causes:
@@ -74,6 +89,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: koeln
     root_causes:
@@ -87,6 +105,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: leipzig
     root_causes:
@@ -100,6 +121,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: muenchen
     root_causes:
@@ -113,6 +137,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: nuernberg
     root_causes:
@@ -126,6 +153,9 @@ failure:
     rpki: false
     backend: containerlab
     device_profile: nokia_srlinux
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: stuttgart
     root_causes:
@@ -269,6 +299,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: berlin
     root_causes:
@@ -282,6 +315,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: frankfurt
     root_causes:
@@ -295,6 +331,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hamburg
     root_causes:
@@ -308,6 +347,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hannover
     root_causes:
@@ -321,6 +363,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: karlsruhe
     root_causes:
@@ -334,6 +379,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: koeln
     root_causes:
@@ -347,6 +395,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: leipzig
     root_causes:
@@ -360,6 +411,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: muenchen
     root_causes:
@@ -373,6 +427,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: nuernberg
     root_causes:
@@ -386,6 +443,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: frr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: stuttgart
     root_causes:
@@ -399,6 +459,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: berlin
     root_causes:
@@ -412,6 +475,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: frankfurt
     root_causes:
@@ -425,6 +491,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hamburg
     root_causes:
@@ -438,6 +507,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hannover
     root_causes:
@@ -451,6 +523,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: karlsruhe
     root_causes:
@@ -464,6 +539,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: koeln
     root_causes:
@@ -477,6 +555,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: leipzig
     root_causes:
@@ -490,6 +571,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: muenchen
     root_causes:
@@ -503,6 +587,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: nuernberg
     root_causes:
@@ -516,6 +603,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: iosxr
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: stuttgart
     root_causes:
@@ -529,6 +619,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: berlin
     root_causes:
@@ -542,6 +635,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: frankfurt
     root_causes:
@@ -555,6 +651,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hamburg
     root_causes:
@@ -568,6 +667,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: hannover
     root_causes:
@@ -581,6 +683,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: karlsruhe
     root_causes:
@@ -594,6 +699,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: koeln
     root_causes:
@@ -607,6 +715,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: leipzig
     root_causes:
@@ -620,6 +731,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: muenchen
     root_causes:
@@ -633,6 +747,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: nuernberg
     root_causes:
@@ -646,6 +763,9 @@ failure:
     rpki: false
     backend: kathara
     device_profile: routeros
+    traffic:
+      pattern: gravity
+      load_mbps: 1.0
     inject:
       host_name: stuttgart
     root_causes:

@@ -4,6 +4,9 @@ failure:
   fault_type: arp_acl_block
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_corp_pc
     root_causes:
@@ -12,6 +15,9 @@ failure:
         node: br1_corp_pc
       fault_type: arp_acl_block
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_guest_pc
     root_causes:
@@ -20,6 +26,9 @@ failure:
         node: br1_guest_pc
       fault_type: arp_acl_block
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_corp_pc
     root_causes:
@@ -28,6 +37,9 @@ failure:
         node: br2_corp_pc
       fault_type: arp_acl_block
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_guest_pc
     root_causes:
@@ -36,6 +48,9 @@ failure:
         node: br2_guest_pc
       fault_type: arp_acl_block
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_corp_pc
     root_causes:
@@ -44,6 +59,9 @@ failure:
         node: dc2_corp_pc
       fault_type: arp_acl_block
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_guest_pc
     root_causes:
@@ -52,6 +70,9 @@ failure:
         node: dc2_guest_pc
       fault_type: arp_acl_block
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_srv
     root_causes:
@@ -60,6 +81,9 @@ failure:
         node: dc2_srv
       fault_type: arp_acl_block
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_corp_pc
     root_causes:
@@ -68,6 +92,9 @@ failure:
         node: hq_corp_pc
       fault_type: arp_acl_block
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_guest_pc
     root_causes:
@@ -76,6 +103,9 @@ failure:
         node: hq_guest_pc
       fault_type: arp_acl_block
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_srv
     root_causes:
@@ -85,6 +115,9 @@ failure:
       fault_type: arp_acl_block
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_corp_pc
     root_causes:
@@ -94,6 +127,9 @@ failure:
       fault_type: arp_acl_block
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_guest_pc
     root_causes:
@@ -103,6 +139,9 @@ failure:
       fault_type: arp_acl_block
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_corp_pc
     root_causes:
@@ -112,6 +151,9 @@ failure:
       fault_type: arp_acl_block
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_guest_pc
     root_causes:
@@ -121,6 +163,9 @@ failure:
       fault_type: arp_acl_block
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_corp_pc
     root_causes:
@@ -130,6 +175,9 @@ failure:
       fault_type: arp_acl_block
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_guest_pc
     root_causes:
@@ -139,6 +187,9 @@ failure:
       fault_type: arp_acl_block
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_srv
     root_causes:
@@ -148,6 +199,9 @@ failure:
       fault_type: arp_acl_block
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_corp_pc
     root_causes:
@@ -157,6 +211,9 @@ failure:
       fault_type: arp_acl_block
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_guest_pc
     root_causes:
@@ -166,6 +223,9 @@ failure:
       fault_type: arp_acl_block
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_srv
     root_causes:
@@ -175,6 +235,9 @@ failure:
       fault_type: arp_acl_block
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_corp_pc
     root_causes:
@@ -184,6 +247,9 @@ failure:
       fault_type: arp_acl_block
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_guest_pc
     root_causes:
@@ -193,6 +259,9 @@ failure:
       fault_type: arp_acl_block
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_corp_pc
     root_causes:
@@ -202,6 +271,9 @@ failure:
       fault_type: arp_acl_block
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_guest_pc
     root_causes:
@@ -211,6 +283,9 @@ failure:
       fault_type: arp_acl_block
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_corp_pc
     root_causes:
@@ -220,6 +295,9 @@ failure:
       fault_type: arp_acl_block
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_guest_pc
     root_causes:
@@ -229,6 +307,9 @@ failure:
       fault_type: arp_acl_block
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_srv
     root_causes:
@@ -238,6 +319,9 @@ failure:
       fault_type: arp_acl_block
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_corp_pc
     root_causes:
@@ -247,6 +331,9 @@ failure:
       fault_type: arp_acl_block
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_guest_pc
     root_causes:
@@ -256,6 +343,9 @@ failure:
       fault_type: arp_acl_block
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_srv
     root_causes:
@@ -264,6 +354,9 @@ failure:
         node: hq_srv
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_corp_pc
     root_causes:
@@ -272,6 +365,9 @@ failure:
         node: br1_corp_pc
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_corp_pc2
     root_causes:
@@ -280,6 +376,9 @@ failure:
         node: br1_corp_pc2
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_guest_pc
     root_causes:
@@ -288,6 +387,9 @@ failure:
         node: br1_guest_pc
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_guest_pc2
     root_causes:
@@ -296,6 +398,9 @@ failure:
         node: br1_guest_pc2
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_iot_pc
     root_causes:
@@ -304,6 +409,9 @@ failure:
         node: br1_iot_pc
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_iot_pc2
     root_causes:
@@ -312,6 +420,9 @@ failure:
         node: br1_iot_pc2
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_corp_pc
     root_causes:
@@ -320,6 +431,9 @@ failure:
         node: br2_corp_pc
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_corp_pc2
     root_causes:
@@ -328,6 +442,9 @@ failure:
         node: br2_corp_pc2
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_guest_pc
     root_causes:
@@ -336,6 +453,9 @@ failure:
         node: br2_guest_pc
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_guest_pc2
     root_causes:
@@ -344,6 +464,9 @@ failure:
         node: br2_guest_pc2
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_iot_pc
     root_causes:
@@ -352,6 +475,9 @@ failure:
         node: br2_iot_pc
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_iot_pc2
     root_causes:
@@ -360,6 +486,9 @@ failure:
         node: br2_iot_pc2
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br3_corp_pc
     root_causes:
@@ -368,6 +497,9 @@ failure:
         node: br3_corp_pc
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br3_corp_pc2
     root_causes:
@@ -376,6 +508,9 @@ failure:
         node: br3_corp_pc2
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br3_guest_pc
     root_causes:
@@ -384,6 +519,9 @@ failure:
         node: br3_guest_pc
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br3_guest_pc2
     root_causes:
@@ -392,6 +530,9 @@ failure:
         node: br3_guest_pc2
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br3_iot_pc
     root_causes:
@@ -400,6 +541,9 @@ failure:
         node: br3_iot_pc
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br3_iot_pc2
     root_causes:
@@ -408,6 +552,9 @@ failure:
         node: br3_iot_pc2
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br4_corp_pc
     root_causes:
@@ -416,6 +563,9 @@ failure:
         node: br4_corp_pc
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br4_corp_pc2
     root_causes:
@@ -424,6 +574,9 @@ failure:
         node: br4_corp_pc2
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br4_guest_pc
     root_causes:
@@ -432,6 +585,9 @@ failure:
         node: br4_guest_pc
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br4_guest_pc2
     root_causes:
@@ -440,6 +596,9 @@ failure:
         node: br4_guest_pc2
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br4_iot_pc
     root_causes:
@@ -448,6 +607,9 @@ failure:
         node: br4_iot_pc
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br4_iot_pc2
     root_causes:
@@ -456,6 +618,9 @@ failure:
         node: br4_iot_pc2
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_corp_pc
     root_causes:
@@ -464,6 +629,9 @@ failure:
         node: dc2_corp_pc
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_corp_pc2
     root_causes:
@@ -472,6 +640,9 @@ failure:
         node: dc2_corp_pc2
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_guest_pc
     root_causes:
@@ -480,6 +651,9 @@ failure:
         node: dc2_guest_pc
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_guest_pc2
     root_causes:
@@ -488,6 +662,9 @@ failure:
         node: dc2_guest_pc2
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_iot_pc
     root_causes:
@@ -496,6 +673,9 @@ failure:
         node: dc2_iot_pc
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_iot_pc2
     root_causes:
@@ -504,6 +684,9 @@ failure:
         node: dc2_iot_pc2
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_srv
     root_causes:
@@ -512,6 +695,9 @@ failure:
         node: dc2_srv
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_corp_pc
     root_causes:
@@ -520,6 +706,9 @@ failure:
         node: hq_corp_pc
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_corp_pc2
     root_causes:
@@ -528,6 +717,9 @@ failure:
         node: hq_corp_pc2
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_guest_pc
     root_causes:
@@ -536,6 +728,9 @@ failure:
         node: hq_guest_pc
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_guest_pc2
     root_causes:
@@ -544,6 +739,9 @@ failure:
         node: hq_guest_pc2
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_iot_pc
     root_causes:
@@ -552,6 +750,9 @@ failure:
         node: hq_iot_pc
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_iot_pc2
     root_causes:
@@ -560,6 +761,9 @@ failure:
         node: hq_iot_pc2
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_srv
     root_causes:
@@ -568,6 +772,9 @@ failure:
         node: hq_srv
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_corp_pc
     root_causes:
@@ -576,6 +783,9 @@ failure:
         node: br1_corp_pc
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_corp_pc2
     root_causes:
@@ -584,6 +794,9 @@ failure:
         node: br1_corp_pc2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_corp_pc3
     root_causes:
@@ -592,6 +805,9 @@ failure:
         node: br1_corp_pc3
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_corp_pc4
     root_causes:
@@ -600,6 +816,9 @@ failure:
         node: br1_corp_pc4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_guest_pc
     root_causes:
@@ -608,6 +827,9 @@ failure:
         node: br1_guest_pc
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_guest_pc2
     root_causes:
@@ -616,6 +838,9 @@ failure:
         node: br1_guest_pc2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_guest_pc3
     root_causes:
@@ -624,6 +849,9 @@ failure:
         node: br1_guest_pc3
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_guest_pc4
     root_causes:
@@ -632,6 +860,9 @@ failure:
         node: br1_guest_pc4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_iot_pc
     root_causes:
@@ -640,6 +871,9 @@ failure:
         node: br1_iot_pc
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_iot_pc2
     root_causes:
@@ -648,6 +882,9 @@ failure:
         node: br1_iot_pc2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_iot_pc3
     root_causes:
@@ -656,6 +893,9 @@ failure:
         node: br1_iot_pc3
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br1_iot_pc4
     root_causes:
@@ -664,6 +904,9 @@ failure:
         node: br1_iot_pc4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_corp_pc
     root_causes:
@@ -672,6 +915,9 @@ failure:
         node: br2_corp_pc
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_corp_pc2
     root_causes:
@@ -680,6 +926,9 @@ failure:
         node: br2_corp_pc2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_corp_pc3
     root_causes:
@@ -688,6 +937,9 @@ failure:
         node: br2_corp_pc3
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_corp_pc4
     root_causes:
@@ -696,6 +948,9 @@ failure:
         node: br2_corp_pc4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_guest_pc
     root_causes:
@@ -704,6 +959,9 @@ failure:
         node: br2_guest_pc
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_guest_pc2
     root_causes:
@@ -712,6 +970,9 @@ failure:
         node: br2_guest_pc2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_guest_pc3
     root_causes:
@@ -720,6 +981,9 @@ failure:
         node: br2_guest_pc3
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_guest_pc4
     root_causes:
@@ -728,6 +992,9 @@ failure:
         node: br2_guest_pc4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_iot_pc
     root_causes:
@@ -736,6 +1003,9 @@ failure:
         node: br2_iot_pc
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_iot_pc2
     root_causes:
@@ -744,6 +1014,9 @@ failure:
         node: br2_iot_pc2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_iot_pc3
     root_causes:
@@ -752,6 +1025,9 @@ failure:
         node: br2_iot_pc3
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br2_iot_pc4
     root_causes:
@@ -760,6 +1036,9 @@ failure:
         node: br2_iot_pc4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br3_corp_pc
     root_causes:
@@ -768,6 +1047,9 @@ failure:
         node: br3_corp_pc
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br3_corp_pc2
     root_causes:
@@ -776,6 +1058,9 @@ failure:
         node: br3_corp_pc2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br3_corp_pc3
     root_causes:
@@ -784,6 +1069,9 @@ failure:
         node: br3_corp_pc3
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br3_corp_pc4
     root_causes:
@@ -792,6 +1080,9 @@ failure:
         node: br3_corp_pc4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br3_guest_pc
     root_causes:
@@ -800,6 +1091,9 @@ failure:
         node: br3_guest_pc
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br3_guest_pc2
     root_causes:
@@ -808,6 +1102,9 @@ failure:
         node: br3_guest_pc2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br3_guest_pc3
     root_causes:
@@ -816,6 +1113,9 @@ failure:
         node: br3_guest_pc3
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br3_guest_pc4
     root_causes:
@@ -824,6 +1124,9 @@ failure:
         node: br3_guest_pc4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br3_iot_pc
     root_causes:
@@ -832,6 +1135,9 @@ failure:
         node: br3_iot_pc
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br3_iot_pc2
     root_causes:
@@ -840,6 +1146,9 @@ failure:
         node: br3_iot_pc2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br3_iot_pc3
     root_causes:
@@ -848,6 +1157,9 @@ failure:
         node: br3_iot_pc3
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br3_iot_pc4
     root_causes:
@@ -856,6 +1168,9 @@ failure:
         node: br3_iot_pc4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br4_corp_pc
     root_causes:
@@ -864,6 +1179,9 @@ failure:
         node: br4_corp_pc
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br4_corp_pc2
     root_causes:
@@ -872,6 +1190,9 @@ failure:
         node: br4_corp_pc2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br4_corp_pc3
     root_causes:
@@ -880,6 +1201,9 @@ failure:
         node: br4_corp_pc3
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br4_corp_pc4
     root_causes:
@@ -888,6 +1212,9 @@ failure:
         node: br4_corp_pc4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br4_guest_pc
     root_causes:
@@ -896,6 +1223,9 @@ failure:
         node: br4_guest_pc
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br4_guest_pc2
     root_causes:
@@ -904,6 +1234,9 @@ failure:
         node: br4_guest_pc2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br4_guest_pc3
     root_causes:
@@ -912,6 +1245,9 @@ failure:
         node: br4_guest_pc3
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br4_guest_pc4
     root_causes:
@@ -920,6 +1256,9 @@ failure:
         node: br4_guest_pc4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br4_iot_pc
     root_causes:
@@ -928,6 +1267,9 @@ failure:
         node: br4_iot_pc
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br4_iot_pc2
     root_causes:
@@ -936,6 +1278,9 @@ failure:
         node: br4_iot_pc2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br4_iot_pc3
     root_causes:
@@ -944,6 +1289,9 @@ failure:
         node: br4_iot_pc3
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br4_iot_pc4
     root_causes:
@@ -952,6 +1300,9 @@ failure:
         node: br4_iot_pc4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br5_corp_pc
     root_causes:
@@ -960,6 +1311,9 @@ failure:
         node: br5_corp_pc
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br5_corp_pc2
     root_causes:
@@ -968,6 +1322,9 @@ failure:
         node: br5_corp_pc2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br5_corp_pc3
     root_causes:
@@ -976,6 +1333,9 @@ failure:
         node: br5_corp_pc3
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br5_corp_pc4
     root_causes:
@@ -984,6 +1344,9 @@ failure:
         node: br5_corp_pc4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br5_guest_pc
     root_causes:
@@ -992,6 +1355,9 @@ failure:
         node: br5_guest_pc
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br5_guest_pc2
     root_causes:
@@ -1000,6 +1366,9 @@ failure:
         node: br5_guest_pc2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br5_guest_pc3
     root_causes:
@@ -1008,6 +1377,9 @@ failure:
         node: br5_guest_pc3
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br5_guest_pc4
     root_causes:
@@ -1016,6 +1388,9 @@ failure:
         node: br5_guest_pc4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br5_iot_pc
     root_causes:
@@ -1024,6 +1399,9 @@ failure:
         node: br5_iot_pc
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br5_iot_pc2
     root_causes:
@@ -1032,6 +1410,9 @@ failure:
         node: br5_iot_pc2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br5_iot_pc3
     root_causes:
@@ -1040,6 +1421,9 @@ failure:
         node: br5_iot_pc3
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br5_iot_pc4
     root_causes:
@@ -1048,6 +1432,9 @@ failure:
         node: br5_iot_pc4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br6_corp_pc
     root_causes:
@@ -1056,6 +1443,9 @@ failure:
         node: br6_corp_pc
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br6_corp_pc2
     root_causes:
@@ -1064,6 +1454,9 @@ failure:
         node: br6_corp_pc2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br6_corp_pc3
     root_causes:
@@ -1072,6 +1465,9 @@ failure:
         node: br6_corp_pc3
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br6_corp_pc4
     root_causes:
@@ -1080,6 +1476,9 @@ failure:
         node: br6_corp_pc4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br6_guest_pc
     root_causes:
@@ -1088,6 +1487,9 @@ failure:
         node: br6_guest_pc
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br6_guest_pc2
     root_causes:
@@ -1096,6 +1498,9 @@ failure:
         node: br6_guest_pc2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br6_guest_pc3
     root_causes:
@@ -1104,6 +1509,9 @@ failure:
         node: br6_guest_pc3
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br6_guest_pc4
     root_causes:
@@ -1112,6 +1520,9 @@ failure:
         node: br6_guest_pc4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br6_iot_pc
     root_causes:
@@ -1120,6 +1531,9 @@ failure:
         node: br6_iot_pc
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br6_iot_pc2
     root_causes:
@@ -1128,6 +1542,9 @@ failure:
         node: br6_iot_pc2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br6_iot_pc3
     root_causes:
@@ -1136,6 +1553,9 @@ failure:
         node: br6_iot_pc3
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br6_iot_pc4
     root_causes:
@@ -1144,6 +1564,9 @@ failure:
         node: br6_iot_pc4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br7_corp_pc
     root_causes:
@@ -1152,6 +1575,9 @@ failure:
         node: br7_corp_pc
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br7_corp_pc2
     root_causes:
@@ -1160,6 +1586,9 @@ failure:
         node: br7_corp_pc2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br7_corp_pc3
     root_causes:
@@ -1168,6 +1597,9 @@ failure:
         node: br7_corp_pc3
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br7_corp_pc4
     root_causes:
@@ -1176,6 +1608,9 @@ failure:
         node: br7_corp_pc4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br7_guest_pc
     root_causes:
@@ -1184,6 +1619,9 @@ failure:
         node: br7_guest_pc
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br7_guest_pc2
     root_causes:
@@ -1192,6 +1630,9 @@ failure:
         node: br7_guest_pc2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br7_guest_pc3
     root_causes:
@@ -1200,6 +1641,9 @@ failure:
         node: br7_guest_pc3
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br7_guest_pc4
     root_causes:
@@ -1208,6 +1652,9 @@ failure:
         node: br7_guest_pc4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br7_iot_pc
     root_causes:
@@ -1216,6 +1663,9 @@ failure:
         node: br7_iot_pc
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br7_iot_pc2
     root_causes:
@@ -1224,6 +1674,9 @@ failure:
         node: br7_iot_pc2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br7_iot_pc3
     root_causes:
@@ -1232,6 +1685,9 @@ failure:
         node: br7_iot_pc3
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br7_iot_pc4
     root_causes:
@@ -1240,6 +1696,9 @@ failure:
         node: br7_iot_pc4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br8_corp_pc
     root_causes:
@@ -1248,6 +1707,9 @@ failure:
         node: br8_corp_pc
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br8_corp_pc2
     root_causes:
@@ -1256,6 +1718,9 @@ failure:
         node: br8_corp_pc2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br8_corp_pc3
     root_causes:
@@ -1264,6 +1729,9 @@ failure:
         node: br8_corp_pc3
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br8_corp_pc4
     root_causes:
@@ -1272,6 +1740,9 @@ failure:
         node: br8_corp_pc4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br8_guest_pc
     root_causes:
@@ -1280,6 +1751,9 @@ failure:
         node: br8_guest_pc
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br8_guest_pc2
     root_causes:
@@ -1288,6 +1762,9 @@ failure:
         node: br8_guest_pc2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br8_guest_pc3
     root_causes:
@@ -1296,6 +1773,9 @@ failure:
         node: br8_guest_pc3
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br8_guest_pc4
     root_causes:
@@ -1304,6 +1784,9 @@ failure:
         node: br8_guest_pc4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br8_iot_pc
     root_causes:
@@ -1312,6 +1795,9 @@ failure:
         node: br8_iot_pc
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br8_iot_pc2
     root_causes:
@@ -1320,6 +1806,9 @@ failure:
         node: br8_iot_pc2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br8_iot_pc3
     root_causes:
@@ -1328,6 +1817,9 @@ failure:
         node: br8_iot_pc3
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: br8_iot_pc4
     root_causes:
@@ -1336,6 +1828,9 @@ failure:
         node: br8_iot_pc4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_corp_pc
     root_causes:
@@ -1344,6 +1839,9 @@ failure:
         node: dc2_corp_pc
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_corp_pc2
     root_causes:
@@ -1352,6 +1850,9 @@ failure:
         node: dc2_corp_pc2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_corp_pc3
     root_causes:
@@ -1360,6 +1861,9 @@ failure:
         node: dc2_corp_pc3
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_corp_pc4
     root_causes:
@@ -1368,6 +1872,9 @@ failure:
         node: dc2_corp_pc4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_guest_pc
     root_causes:
@@ -1376,6 +1883,9 @@ failure:
         node: dc2_guest_pc
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_guest_pc2
     root_causes:
@@ -1384,6 +1894,9 @@ failure:
         node: dc2_guest_pc2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_guest_pc3
     root_causes:
@@ -1392,6 +1905,9 @@ failure:
         node: dc2_guest_pc3
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_guest_pc4
     root_causes:
@@ -1400,6 +1916,9 @@ failure:
         node: dc2_guest_pc4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_iot_pc
     root_causes:
@@ -1408,6 +1927,9 @@ failure:
         node: dc2_iot_pc
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_iot_pc2
     root_causes:
@@ -1416,6 +1938,9 @@ failure:
         node: dc2_iot_pc2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_iot_pc3
     root_causes:
@@ -1424,6 +1949,9 @@ failure:
         node: dc2_iot_pc3
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_iot_pc4
     root_causes:
@@ -1432,6 +1960,9 @@ failure:
         node: dc2_iot_pc4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: dc2_srv
     root_causes:
@@ -1440,6 +1971,9 @@ failure:
         node: dc2_srv
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_corp_pc
     root_causes:
@@ -1448,6 +1982,9 @@ failure:
         node: hq_corp_pc
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_corp_pc2
     root_causes:
@@ -1456,6 +1993,9 @@ failure:
         node: hq_corp_pc2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_corp_pc3
     root_causes:
@@ -1464,6 +2004,9 @@ failure:
         node: hq_corp_pc3
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_corp_pc4
     root_causes:
@@ -1472,6 +2015,9 @@ failure:
         node: hq_corp_pc4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_guest_pc
     root_causes:
@@ -1480,6 +2026,9 @@ failure:
         node: hq_guest_pc
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_guest_pc2
     root_causes:
@@ -1488,6 +2037,9 @@ failure:
         node: hq_guest_pc2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_guest_pc3
     root_causes:
@@ -1496,6 +2048,9 @@ failure:
         node: hq_guest_pc3
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_guest_pc4
     root_causes:
@@ -1504,6 +2059,9 @@ failure:
         node: hq_guest_pc4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_iot_pc
     root_causes:
@@ -1512,6 +2070,9 @@ failure:
         node: hq_iot_pc
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_iot_pc2
     root_causes:
@@ -1520,6 +2081,9 @@ failure:
         node: hq_iot_pc2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_iot_pc3
     root_causes:
@@ -1528,6 +2092,9 @@ failure:
         node: hq_iot_pc3
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_iot_pc4
     root_causes:
@@ -1536,6 +2103,9 @@ failure:
         node: hq_iot_pc4
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: hq_srv
     root_causes:

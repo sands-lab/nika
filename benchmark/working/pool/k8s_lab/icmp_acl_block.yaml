@@ -3,7 +3,10 @@ scenario:
 failure:
   fault_type: icmp_acl_block
   cases:
-  - inject:
+  - traffic:
+      pattern: uniform
+      load_mbps: 1.0
+    inject:
       host_name: client
     root_causes:
     - resource:

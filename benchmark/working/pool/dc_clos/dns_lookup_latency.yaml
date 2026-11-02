@@ -4,6 +4,9 @@ failure:
   fault_type: dns_lookup_latency
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       delay_ms: '1000'
       host_name: dns_pod0
@@ -15,6 +18,9 @@ failure:
       fault_type: dns_lookup_latency
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       delay_ms: '1000'
       host_name: dns_pod0
@@ -26,6 +32,9 @@ failure:
       fault_type: dns_lookup_latency
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       delay_ms: '1000'
       host_name: dns_pod0
@@ -36,6 +45,9 @@ failure:
         node: dns_pod0
       fault_type: dns_lookup_latency
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       delay_ms: '1000'
       host_name: dns_pod0
@@ -46,6 +58,9 @@ failure:
         node: dns_pod0
       fault_type: dns_lookup_latency
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       delay_ms: '1000'
       host_name: dns_pod0

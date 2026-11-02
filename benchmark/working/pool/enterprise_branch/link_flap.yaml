@@ -4,8 +4,9 @@ failure:
   fault_type: link_flap
   cases:
   - topo_size: s
-    traffic: &id001
+    traffic:
       pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br1_corp_pc
@@ -19,7 +20,9 @@ failure:
         name: br1_corp_pc:eth0--br1_edge:eth0
       fault_type: link_flap
   - topo_size: s
-    traffic: *id001
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br1_edge
@@ -33,7 +36,9 @@ failure:
         name: br1_edge:eth1--br1_guest_pc:eth0
       fault_type: link_flap
   - topo_size: s
-    traffic: *id001
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br1_edge
@@ -47,7 +52,9 @@ failure:
         name: br1_edge:eth2--isp1_core:eth2
       fault_type: link_flap
   - topo_size: s
-    traffic: *id001
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br1_edge
@@ -61,7 +68,9 @@ failure:
         name: br1_edge:eth3--isp2_core:eth2
       fault_type: link_flap
   - topo_size: s
-    traffic: *id001
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br2_corp_pc
@@ -75,7 +84,9 @@ failure:
         name: br2_corp_pc:eth0--br2_edge:eth0
       fault_type: link_flap
   - topo_size: s
-    traffic: *id001
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br2_edge
@@ -89,7 +100,9 @@ failure:
         name: br2_edge:eth1--br2_guest_pc:eth0
       fault_type: link_flap
   - topo_size: s
-    traffic: *id001
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br2_edge
@@ -103,7 +116,9 @@ failure:
         name: br2_edge:eth2--isp1_core:eth3
       fault_type: link_flap
   - topo_size: s
-    traffic: *id001
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br2_edge
@@ -117,7 +132,9 @@ failure:
         name: br2_edge:eth3--isp2_core:eth3
       fault_type: link_flap
   - topo_size: s
-    traffic: *id001
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dc2_corp_pc
@@ -131,7 +148,9 @@ failure:
         name: dc2_corp_pc:eth0--dc2_edge:eth0
       fault_type: link_flap
   - topo_size: s
-    traffic: *id001
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dc2_edge
@@ -145,7 +164,9 @@ failure:
         name: dc2_edge:eth1--dc2_srv:eth0
       fault_type: link_flap
   - topo_size: s
-    traffic: *id001
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dc2_edge
@@ -159,7 +180,9 @@ failure:
         name: dc2_edge:eth2--dc2_guest_pc:eth0
       fault_type: link_flap
   - topo_size: s
-    traffic: *id001
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dc2_edge
@@ -173,7 +196,9 @@ failure:
         name: dc2_edge:eth3--isp1_core:eth1
       fault_type: link_flap
   - topo_size: s
-    traffic: *id001
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dc2_edge
@@ -187,7 +212,9 @@ failure:
         name: dc2_edge:eth4--isp2_core:eth1
       fault_type: link_flap
   - topo_size: s
-    traffic: *id001
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hq_corp_pc
@@ -201,7 +228,9 @@ failure:
         name: hq_corp_pc:eth0--hq_edge:eth0
       fault_type: link_flap
   - topo_size: s
-    traffic: *id001
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hq_edge
@@ -215,7 +244,9 @@ failure:
         name: hq_edge:eth1--hq_srv:eth0
       fault_type: link_flap
   - topo_size: s
-    traffic: *id001
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hq_edge
@@ -229,7 +260,9 @@ failure:
         name: hq_edge:eth2--hq_guest_pc:eth0
       fault_type: link_flap
   - topo_size: s
-    traffic: *id001
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hq_edge
@@ -243,7 +276,9 @@ failure:
         name: hq_edge:eth3--isp1_core:eth0
       fault_type: link_flap
   - topo_size: s
-    traffic: *id001
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hq_edge
@@ -257,7 +292,9 @@ failure:
         name: hq_edge:eth4--isp2_core:eth0
       fault_type: link_flap
   - topo_size: s
-    traffic: *id001
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: internet_web
@@ -272,8 +309,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
-    traffic: &id002
+    traffic:
       pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br1_corp_pc
@@ -288,7 +326,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br1_edge
@@ -303,7 +343,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br1_edge
@@ -318,7 +360,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br1_edge
@@ -333,7 +377,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br2_corp_pc
@@ -348,7 +394,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br2_edge
@@ -363,7 +411,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br2_edge
@@ -378,7 +428,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br2_edge
@@ -393,7 +445,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dc2_corp_pc
@@ -408,7 +462,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dc2_edge
@@ -423,7 +479,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dc2_edge
@@ -438,7 +496,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dc2_edge
@@ -453,7 +513,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dc2_edge
@@ -468,7 +530,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hq_corp_pc
@@ -483,7 +547,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hq_edge
@@ -498,7 +564,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hq_edge
@@ -513,7 +581,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hq_edge
@@ -528,7 +598,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hq_edge
@@ -543,7 +615,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: iosxr
-    traffic: *id002
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: internet_web
@@ -558,8 +632,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: routeros
-    traffic: &id003
+    traffic:
       pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br1_corp_pc
@@ -574,7 +649,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: routeros
-    traffic: *id003
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br1_edge
@@ -589,7 +666,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: routeros
-    traffic: *id003
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br1_edge
@@ -604,7 +683,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: routeros
-    traffic: *id003
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br1_edge
@@ -619,7 +700,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: routeros
-    traffic: *id003
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br2_corp_pc
@@ -634,7 +717,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: routeros
-    traffic: *id003
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br2_edge
@@ -649,7 +734,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: routeros
-    traffic: *id003
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br2_edge
@@ -664,7 +751,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: routeros
-    traffic: *id003
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br2_edge
@@ -679,7 +768,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: routeros
-    traffic: *id003
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dc2_corp_pc
@@ -694,7 +785,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: routeros
-    traffic: *id003
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dc2_edge
@@ -709,7 +802,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: routeros
-    traffic: *id003
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dc2_edge
@@ -724,7 +819,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: routeros
-    traffic: *id003
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dc2_edge
@@ -739,7 +836,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: routeros
-    traffic: *id003
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dc2_edge
@@ -754,7 +853,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: routeros
-    traffic: *id003
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hq_corp_pc
@@ -769,7 +870,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: routeros
-    traffic: *id003
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hq_edge
@@ -784,7 +887,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: routeros
-    traffic: *id003
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hq_edge
@@ -799,7 +904,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: routeros
-    traffic: *id003
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hq_edge
@@ -814,7 +921,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: routeros
-    traffic: *id003
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hq_edge
@@ -829,7 +938,9 @@ failure:
       fault_type: link_flap
   - topo_size: s
     device_profile: routeros
-    traffic: *id003
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: internet_web
@@ -843,8 +954,9 @@ failure:
         name: internet_web:eth0--isp1_core:eth4
       fault_type: link_flap
   - topo_size: m
-    traffic: &id004
+    traffic:
       pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br1_edge
@@ -858,7 +970,9 @@ failure:
         name: br1_edge:eth3--isp1_core:eth2
       fault_type: link_flap
   - topo_size: m
-    traffic: *id004
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br1_edge
@@ -872,7 +986,9 @@ failure:
         name: br1_edge:eth4--isp2_core:eth2
       fault_type: link_flap
   - topo_size: m
-    traffic: *id004
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br2_edge
@@ -886,7 +1002,9 @@ failure:
         name: br2_edge:eth3--isp1_core:eth3
       fault_type: link_flap
   - topo_size: m
-    traffic: *id004
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br2_edge
@@ -900,7 +1018,9 @@ failure:
         name: br2_edge:eth4--isp2_core:eth3
       fault_type: link_flap
   - topo_size: m
-    traffic: *id004
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br3_edge
@@ -914,7 +1034,9 @@ failure:
         name: br3_edge:eth3--isp1_core:eth4
       fault_type: link_flap
   - topo_size: m
-    traffic: *id004
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br3_edge
@@ -928,7 +1050,9 @@ failure:
         name: br3_edge:eth4--isp2_core:eth4
       fault_type: link_flap
   - topo_size: m
-    traffic: *id004
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br4_edge
@@ -942,7 +1066,9 @@ failure:
         name: br4_edge:eth3--isp1_core:eth5
       fault_type: link_flap
   - topo_size: m
-    traffic: *id004
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br4_edge
@@ -956,7 +1082,9 @@ failure:
         name: br4_edge:eth4--isp2_core:eth5
       fault_type: link_flap
   - topo_size: m
-    traffic: *id004
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dc2_edge
@@ -970,7 +1098,9 @@ failure:
         name: dc2_edge:eth1--dc2_srv:eth0
       fault_type: link_flap
   - topo_size: m
-    traffic: *id004
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dc2_edge
@@ -984,7 +1114,9 @@ failure:
         name: dc2_edge:eth4--isp1_core:eth1
       fault_type: link_flap
   - topo_size: m
-    traffic: *id004
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dc2_edge
@@ -998,7 +1130,9 @@ failure:
         name: dc2_edge:eth5--isp2_core:eth1
       fault_type: link_flap
   - topo_size: m
-    traffic: *id004
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hq_edge
@@ -1012,7 +1146,9 @@ failure:
         name: hq_edge:eth1--hq_srv:eth0
       fault_type: link_flap
   - topo_size: m
-    traffic: *id004
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hq_edge
@@ -1026,7 +1162,9 @@ failure:
         name: hq_edge:eth4--isp1_core:eth0
       fault_type: link_flap
   - topo_size: m
-    traffic: *id004
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hq_edge
@@ -1040,7 +1178,9 @@ failure:
         name: hq_edge:eth5--isp2_core:eth0
       fault_type: link_flap
   - topo_size: m
-    traffic: *id004
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: internet_web
@@ -1054,8 +1194,9 @@ failure:
         name: internet_web:eth0--isp1_core:eth6
       fault_type: link_flap
   - topo_size: l
-    traffic: &id005
+    traffic:
       pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br1_edge
@@ -1069,7 +1210,9 @@ failure:
         name: br1_edge:eth3--isp1_core:eth2
       fault_type: link_flap
   - topo_size: l
-    traffic: *id005
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br1_edge
@@ -1083,7 +1226,9 @@ failure:
         name: br1_edge:eth4--isp2_core:eth2
       fault_type: link_flap
   - topo_size: l
-    traffic: *id005
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br2_edge
@@ -1097,7 +1242,9 @@ failure:
         name: br2_edge:eth3--isp1_core:eth3
       fault_type: link_flap
   - topo_size: l
-    traffic: *id005
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br2_edge
@@ -1111,7 +1258,9 @@ failure:
         name: br2_edge:eth4--isp2_core:eth3
       fault_type: link_flap
   - topo_size: l
-    traffic: *id005
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br3_edge
@@ -1125,7 +1274,9 @@ failure:
         name: br3_edge:eth3--isp1_core:eth4
       fault_type: link_flap
   - topo_size: l
-    traffic: *id005
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br3_edge
@@ -1139,7 +1290,9 @@ failure:
         name: br3_edge:eth4--isp2_core:eth4
       fault_type: link_flap
   - topo_size: l
-    traffic: *id005
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br4_edge
@@ -1153,7 +1306,9 @@ failure:
         name: br4_edge:eth3--isp1_core:eth5
       fault_type: link_flap
   - topo_size: l
-    traffic: *id005
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br4_edge
@@ -1167,7 +1322,9 @@ failure:
         name: br4_edge:eth4--isp2_core:eth5
       fault_type: link_flap
   - topo_size: l
-    traffic: *id005
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br5_edge
@@ -1181,7 +1338,9 @@ failure:
         name: br5_edge:eth3--isp1_core:eth6
       fault_type: link_flap
   - topo_size: l
-    traffic: *id005
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br5_edge
@@ -1195,7 +1354,9 @@ failure:
         name: br5_edge:eth4--isp2_core:eth6
       fault_type: link_flap
   - topo_size: l
-    traffic: *id005
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br6_edge
@@ -1209,7 +1370,9 @@ failure:
         name: br6_edge:eth3--isp1_core:eth7
       fault_type: link_flap
   - topo_size: l
-    traffic: *id005
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br6_edge
@@ -1223,7 +1386,9 @@ failure:
         name: br6_edge:eth4--isp2_core:eth7
       fault_type: link_flap
   - topo_size: l
-    traffic: *id005
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br7_edge
@@ -1237,7 +1402,9 @@ failure:
         name: br7_edge:eth3--isp1_core:eth8
       fault_type: link_flap
   - topo_size: l
-    traffic: *id005
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br7_edge
@@ -1251,7 +1418,9 @@ failure:
         name: br7_edge:eth4--isp2_core:eth8
       fault_type: link_flap
   - topo_size: l
-    traffic: *id005
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br8_edge
@@ -1265,7 +1434,9 @@ failure:
         name: br8_edge:eth3--isp1_core:eth9
       fault_type: link_flap
   - topo_size: l
-    traffic: *id005
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: br8_edge
@@ -1279,7 +1450,9 @@ failure:
         name: br8_edge:eth4--isp2_core:eth9
       fault_type: link_flap
   - topo_size: l
-    traffic: *id005
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dc2_edge
@@ -1293,7 +1466,9 @@ failure:
         name: dc2_edge:eth1--dc2_srv:eth0
       fault_type: link_flap
   - topo_size: l
-    traffic: *id005
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dc2_edge
@@ -1307,7 +1482,9 @@ failure:
         name: dc2_edge:eth4--isp1_core:eth1
       fault_type: link_flap
   - topo_size: l
-    traffic: *id005
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: dc2_edge
@@ -1321,7 +1498,9 @@ failure:
         name: dc2_edge:eth5--isp2_core:eth1
       fault_type: link_flap
   - topo_size: l
-    traffic: *id005
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hq_edge
@@ -1335,7 +1514,9 @@ failure:
         name: hq_edge:eth1--hq_srv:eth0
       fault_type: link_flap
   - topo_size: l
-    traffic: *id005
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hq_edge
@@ -1349,7 +1530,9 @@ failure:
         name: hq_edge:eth4--isp1_core:eth0
       fault_type: link_flap
   - topo_size: l
-    traffic: *id005
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: hq_edge
@@ -1363,7 +1546,9 @@ failure:
         name: hq_edge:eth5--isp2_core:eth0
       fault_type: link_flap
   - topo_size: l
-    traffic: *id005
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       down_time: '1'
       host_name: internet_web

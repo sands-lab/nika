@@ -4,8 +4,9 @@ failure:
   fault_type: p4_action_selector_member_misconfig
   cases:
   - topo_size: s
-    traffic: &id001
+    traffic:
       pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_1
     root_causes:
@@ -14,7 +15,9 @@ failure:
         node: leaf_1
       fault_type: p4_action_selector_member_misconfig
   - topo_size: s
-    traffic: *id001
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_2
     root_causes:
@@ -23,8 +26,9 @@ failure:
         node: leaf_2
       fault_type: p4_action_selector_member_misconfig
   - topo_size: m
-    traffic: &id002
+    traffic:
       pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_1
     root_causes:
@@ -33,7 +37,9 @@ failure:
         node: leaf_1
       fault_type: p4_action_selector_member_misconfig
   - topo_size: m
-    traffic: *id002
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_2
     root_causes:
@@ -42,7 +48,9 @@ failure:
         node: leaf_2
       fault_type: p4_action_selector_member_misconfig
   - topo_size: m
-    traffic: *id002
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_3
     root_causes:
@@ -51,7 +59,9 @@ failure:
         node: leaf_3
       fault_type: p4_action_selector_member_misconfig
   - topo_size: m
-    traffic: *id002
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_4
     root_causes:
@@ -60,8 +70,9 @@ failure:
         node: leaf_4
       fault_type: p4_action_selector_member_misconfig
   - topo_size: l
-    traffic: &id003
+    traffic:
       pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_1
     root_causes:
@@ -70,7 +81,9 @@ failure:
         node: leaf_1
       fault_type: p4_action_selector_member_misconfig
   - topo_size: l
-    traffic: *id003
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_2
     root_causes:
@@ -79,7 +92,9 @@ failure:
         node: leaf_2
       fault_type: p4_action_selector_member_misconfig
   - topo_size: l
-    traffic: *id003
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_3
     root_causes:
@@ -88,7 +103,9 @@ failure:
         node: leaf_3
       fault_type: p4_action_selector_member_misconfig
   - topo_size: l
-    traffic: *id003
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_4
     root_causes:
@@ -97,7 +114,9 @@ failure:
         node: leaf_4
       fault_type: p4_action_selector_member_misconfig
   - topo_size: l
-    traffic: *id003
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_5
     root_causes:
@@ -106,7 +125,9 @@ failure:
         node: leaf_5
       fault_type: p4_action_selector_member_misconfig
   - topo_size: l
-    traffic: *id003
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_6
     root_causes:
@@ -115,7 +136,9 @@ failure:
         node: leaf_6
       fault_type: p4_action_selector_member_misconfig
   - topo_size: l
-    traffic: *id003
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_7
     root_causes:
@@ -124,7 +147,9 @@ failure:
         node: leaf_7
       fault_type: p4_action_selector_member_misconfig
   - topo_size: l
-    traffic: *id003
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: leaf_8
     root_causes:

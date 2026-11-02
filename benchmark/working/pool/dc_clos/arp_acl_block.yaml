@@ -4,6 +4,9 @@ failure:
   fault_type: arp_acl_block
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_0
     root_causes:
@@ -13,6 +16,9 @@ failure:
       fault_type: arp_acl_block
   - topo_size: s
     device_profile: iosxr
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_0
     root_causes:
@@ -22,6 +28,9 @@ failure:
       fault_type: arp_acl_block
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_0
     root_causes:
@@ -30,6 +39,9 @@ failure:
         node: client_0
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_0
     root_causes:
@@ -38,6 +50,9 @@ failure:
         node: client_0
       fault_type: arp_acl_block
   - topo_size: m
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_1
     root_causes:
@@ -46,6 +61,9 @@ failure:
         node: client_1
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_0
     root_causes:
@@ -54,6 +72,9 @@ failure:
         node: client_0
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_1
     root_causes:
@@ -62,6 +83,9 @@ failure:
         node: client_1
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_2
     root_causes:
@@ -70,6 +94,9 @@ failure:
         node: client_2
       fault_type: arp_acl_block
   - topo_size: l
+    traffic:
+      pattern: uniform
+      load_mbps: 1.0
     inject:
       host_name: client_3
     root_causes:
