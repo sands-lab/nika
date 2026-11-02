@@ -42,3 +42,7 @@ A NIKA benchmark is a set of **tasks**. Each task combines a **network environme
 | **Harness** | The code around the model: the investigation loop, prompts, tool access, and step limits. It can be a thin wrapper or a full framework such as LangGraph or Claude Code. Use it when the code around the model is the subject, for example when comparing harnesses with the same model. |
 | **Provider** | Where NIKA sends model requests: `openai`, `anthropic`, `deepseek`, or `custom` for a self-hosted endpoint. |
 | **MCP tools** | The tools an agent uses to inspect the environment, such as running commands on devices or a Pingmesh snapshot. NIKA serves them through the MCP gateway. |
+
+## Rollout
+
+A rollout is one complete task attempt executed through NIKA’s benchmark lifecycle. An external client supplies a task and agent configuration; NIKA returns the native outcome, terminal reward when available, and artifact paths. See [external rollout clients](docs/development/rollout-clients.md).

@@ -10,7 +10,7 @@ def test_episode_contract_accepts_native_and_firecracker():
     for backend in ("native", "firecracker"):
         request = RolloutRequest.model_validate(
             {
-                "request_id": "policy-v3/task-42/attempt-2",
+                "request_id": "policy/task-42/attempt-2",
                 "task": {"scenario": "dc_clos", "problem": "healthy", "topo_size": "s"},
                 "run_config": {
                     "agent": {"type": "external"},
