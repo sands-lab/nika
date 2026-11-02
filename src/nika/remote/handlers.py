@@ -66,6 +66,7 @@ class RemoteHandlerState:
         public_host: str,
         backend: str | None = None,
         access: AgentAccess | None = None,
+        tool_call_limits: dict[str, int] | None = None,
     ) -> McpAttachResponse:
         manager = self.gateways.open(
             session_id,
@@ -78,6 +79,7 @@ class RemoteHandlerState:
             # backend-specific MCP servers; match the deployed lab.
             backend=backend,
             access=access,
+            tool_call_limits=tool_call_limits,
         )
         # Agent-facing URL for this session's gateway. Read from the manager,
         # never from process-global env: concurrent attaches run in parallel
@@ -219,6 +221,7 @@ def handle_mcp_attach(session_id: str, request: McpAttachRequest) -> McpAttachRe
             policy_mode=request.policy_mode,
             public_host=public_host,
             access=request.access,
+            tool_call_limits=request.tool_call_limits,
         )
     except Exception:
         logger.exception("mcp attach failed session_id=%s", session_id)

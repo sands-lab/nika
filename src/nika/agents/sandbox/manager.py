@@ -52,6 +52,7 @@ from nika.agents.sandbox.workspace import (
 )
 from nika.runtime.factory import resolve_backend
 from nika.runtime.meta import device_profile_for
+from nika.run_config.loader import get_run_config
 from nika.telemetry import telemetry_for_session
 from nika.utils.agent_session_id import resolve_agent_session_id
 from nika.utils.logger import elapsed_ms, log_event
@@ -274,6 +275,7 @@ class SandboxManager:
             call_log = ModelCallLog(
                 session_dir / MODEL_CALLS_FILENAME,
                 max_requests=max_steps if max_steps is not None else 20,
+                expected_model=model if get_run_config().agent.fixed_model else None,
             )
             credential_env = backend.prepare_host(
                 agent_type=agent_type, llm_provider=llm_provider, call_log=call_log

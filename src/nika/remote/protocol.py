@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -62,6 +62,9 @@ class FailureInjectResponse(BaseModel):
 
 
 class McpAttachRequest(BaseModel):
+    tool_call_limits: (
+        dict[Literal["diagnosis", "submission"], Annotated[int, Field(ge=0)]] | None
+    ) = None
     policy_mode: PolicyMode = "two_phase"
     public_host: str | None = None
     # The access policy the gateway enforces; ``None``: the server's run config.

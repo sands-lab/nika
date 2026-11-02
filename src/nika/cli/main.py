@@ -32,6 +32,11 @@ LAZY_COMMANDS.update(
         "eval": LazyCommandSpec(
             "nika.cli.commands.evaluation", "eval_app", "Evaluate agent runs."
         ),
+        "rollout": LazyCommandSpec(
+            "nika.cli.commands.rollout",
+            "rollout_app",
+            "Run one task attempt for an external framework.",
+        ),
         "benchmark": LazyCommandSpec(
             "nika.cli.commands.benchmark", "benchmark_app", "Run benchmark cases."
         ),

@@ -35,7 +35,10 @@ def resolve_state_dir() -> Path:
     """
     override = os.environ.get(ENV_STATE_DIR, "").strip()
     if override:
-        return Path(override)
+        path = Path(override).expanduser()
+        if not path.is_absolute():
+            raise ValueError("NIKA_STATE_DIR must be an absolute path")
+        return path.resolve()
     try:
         completed = subprocess.run(
             ["git", "rev-parse", "--git-common-dir"],

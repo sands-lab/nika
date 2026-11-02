@@ -294,13 +294,34 @@ def create_model_proxy_app(
             if call_log is not None
             else (0, "", False, True)
         )
-        if not allowed:
+        wrong_model = (
+            call_log is not None
+            and call_log.expected_model is not None
+            and counted
+            and (_json_object(body) or {}).get("model") != call_log.expected_model
+        )
+        forbidden_endpoint = (
+            call_log is not None
+            and call_log.expected_model is not None
+            and request.method not in {"GET", "HEAD"}
+            and not counted
+            and not (
+                request.method == "POST"
+                and path.rstrip("/").endswith("/messages/count_tokens")
+            )
+        )
+        if not allowed or wrong_model or forbidden_endpoint:
             refused = {
                 "type": "error",
                 "error": {
                     "type": "invalid_request_error",
-                    "message": "The LLM request budget (max_steps) of this phase "
-                    "is used up.",
+                    "message": (
+                        "The endpoint is outside the fixed-model generation and metadata APIs."
+                        if forbidden_endpoint
+                        else "The model differs from the fixed run model."
+                        if wrong_model
+                        else "The LLM request budget (max_steps) of this phase is used up."
+                    ),
                 },
             }
             call_log.record(
@@ -314,7 +335,7 @@ def create_model_proxy_app(
                 response=json.dumps(refused).encode(),
                 streamed=False,
                 started=started,
-                admitted=False,
+                admitted=allowed,
             )
             return JSONResponse(refused, status_code=400)
         agent_body = body
