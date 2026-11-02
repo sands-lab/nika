@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from starlette.testclient import TestClient
@@ -27,6 +27,82 @@ from nika.run_config.loader import reset_run_config, set_run_config
 from nika.run_config.schema import RunConfig
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.mark.parametrize(
+    ("restore", "bound", "history"),
+    [
+        (True, False, False),
+        (False, True, True),
+        (True, True, False),
+        (True, False, True),
+    ],
+)
+def test_rebind_recovers_only_uninjected_snapshots(tmp_path, restore, bound, history):
+    from nika.remote import handlers
+    from nika.remote.protocol import SessionRebindRequest
+    from nika.utils.session_store import SessionStore
+
+    store = SessionStore(tmp_path / "sessions", tmp_path / "sessions.db")
+    original = tmp_path / "image"
+    original.mkdir()
+    store.create_session(
+        {
+            "session_id": "image",
+            "session_dir": str(original),
+            "failure_injections": [{"fault": "injected"}] if history else [],
+        }
+    )
+    env = MagicMock()
+    env.post_restore.return_value = True
+    binding = (object(), object()) if bound else None
+    blocked = restore and (bound or history)
+    with (
+        patch.object(handlers, "SessionStore", return_value=store),
+        patch.object(handlers, "Session"),
+        patch.object(handlers, "bound_injected_problem", return_value=binding),
+        patch.object(handlers, "bind_injected_problem"),
+        patch.object(handlers, "clear_injected_problem"),
+        patch.object(handlers, "bind_session_dir"),
+        patch.object(handlers, "log_event"),
+        patch("nika.workflows.session.close.session_net_env", return_value=env),
+    ):
+        request = SessionRebindRequest(session_id="trial", restore_runtime=restore)
+        if blocked:
+            with pytest.raises(ValueError, match="injected environment"):
+                handlers.handle_session_rebind("image", request)
+            assert original.is_dir()
+            assert store.get_session("image")["session_id"] == "image"
+        else:
+            result = handlers.handle_session_rebind("image", request)
+            assert result.session_id == "trial"
+            assert result.session["runtime_restored"] is restore
+            assert (tmp_path / "trial").is_dir()
+            assert not original.exists()
+            with pytest.raises(FileNotFoundError):
+                store.get_session("image")
+    assert env.post_restore.call_count == int(restore and not blocked)
+
+
+@pytest.mark.parametrize("restored", [False, True])
+def test_recovered_protocols_require_complete_verification(restored):
+    from nika.remote import handlers
+
+    env = object()
+    with (
+        patch.object(handlers, "SessionStore") as store,
+        patch.object(handlers, "bind_session_dir"),
+        patch.object(handlers, "log_event"),
+        patch("nika.workflows.session.close.session_net_env", return_value=env),
+        patch("nika.net_env.verify.verify_lab_with_retry", return_value={}) as verify,
+    ):
+        store.return_value.get_session.return_value = {
+            "status": "running",
+            "session_dir": "/owned",
+            "runtime_restored": restored,
+        }
+        handlers.handle_session_verify("owned")
+    verify.assert_called_once_with(env, full=restored)
 
 
 @pytest.fixture(autouse=True)

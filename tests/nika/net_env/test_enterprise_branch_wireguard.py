@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+from unittest.mock import MagicMock, patch
 
 from nika.net_env.enterprise_branch.topology import (
     SCALE,
@@ -20,6 +21,49 @@ from nika.problems.forwarding_encapsulation_policy.wireguard import (
 )
 
 pytestmark = pytest.mark.unit
+
+
+@pytest.mark.parametrize(
+    ("size", "profile"),
+    [(size, profile) for size in ("s", "m", "l") for profile in (None, "iosxr")]
+    + [("s", "routeros")],
+)
+def test_restore_selects_linux_tunnel_nodes(size, profile):
+    from nika.net_env.enterprise_branch.lab import EnterpriseBranch
+
+    with patch("nika.net_env.enterprise_branch.lab.Kathara.get_instance"):
+        env = EnterpriseBranch(topo_size=size, device_profile=profile)
+    runtime = MagicMock()
+    env.runtime = runtime
+    with (
+        patch(
+            "nika.net_env.enterprise_branch.wireguard.restore_peer_sessions"
+        ) as resume,
+        patch("nika.utils.logger.log_event") as log,
+    ):
+        recovered = env.post_restore()
+    expected = {
+        node
+        for node, identity in env.machine_identities.items()
+        if "wireguard" in identity.capabilities and node not in env.native_routers
+    }
+    assert {call.args[1] for call in resume.call_args_list} == expected
+    assert recovered is bool(expected)
+    assert all(call.args[0] is runtime for call in resume.call_args_list)
+    if profile == "routeros":
+        assert log.call_count == len(env.native_routers)
+        assert all(
+            call.args[0] == "env_restore_unsupported" for call in log.call_args_list
+        )
+
+
+def test_failed_peer_restore_stops_the_trial():
+    from nika.net_env.enterprise_branch.wireguard import restore_peer_sessions
+
+    runtime = MagicMock()
+    runtime.exec.return_value = "[TIMEOUT] Command exceeded its execution budget"
+    with pytest.raises(RuntimeError, match="WireGuard session recovery failed"):
+        restore_peer_sessions(runtime, "edge")
 
 
 def test_wrong_hub_peer_key_is_not_a_lab_edge_key() -> None:

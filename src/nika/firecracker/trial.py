@@ -198,6 +198,7 @@ class TrialLab:
             new_session_id=session_id,
             result_dir=result_dir,
             session_dir=session_dir,
+            restore_runtime=self.case is None,
         )
         if self.case is not None:
             # The lab carries its failure: check the injected artifact instead.

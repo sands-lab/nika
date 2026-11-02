@@ -32,6 +32,19 @@ class _FakeLab:
         return {}
 
 
+@pytest.mark.parametrize("full", [False, True])
+def test_recovery_can_require_full_checks(monkeypatch, full):
+    monkeypatch.setattr(
+        "nika.net_env.verify._runtime_validation_depth", lambda: "light"
+    )
+    startup_result = {"verified": True, "checks": {"hq_path": True}}
+    full_result = {"verified": True, "checks": {"hq_path": True, "dc2_path": True}}
+    env = _FakeLab(startup_result)
+    monkeypatch.setattr(env, "verify_lab", lambda: full_result)
+    result = verify_lab_with_retry(env, full=full)
+    assert result is (full_result if full else startup_result)
+
+
 def test_verify_lab_with_retry_raises_structured_timeout(tmp_path: Path) -> None:
     bind_session_dir(tmp_path)
     result = {
