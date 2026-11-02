@@ -327,6 +327,7 @@ def remote_rebind_session(
     new_session_id: str | None = None,
     result_dir: str | None = None,
     session_dir: str | None = None,
+    restore_runtime: bool = False,
 ) -> str:
     """Give a running remote session a fresh identity and mirror it locally.
 
@@ -336,7 +337,10 @@ def remote_rebind_session(
     resolved_id = new_session_id or make_session_id()
     client = _client()
     resp = client.rebind_session(
-        session_id, resolved_id, agent_session_id=make_agent_session_id()
+        session_id,
+        resolved_id,
+        agent_session_id=make_agent_session_id(),
+        restore_runtime=restore_runtime,
     )
     session = _mirror_session_locally(
         resp.session, result_dir=result_dir, session_dir=session_dir

@@ -383,6 +383,30 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
             pairs.append((edge_name_for(bt.hub), bt.hub_iface))
         return pairs
 
+    def post_restore(self) -> bool:
+        from nika.net_env.enterprise_branch.wireguard import restore_peer_sessions
+        from nika.utils.logger import log_event
+
+        nodes = []
+        for node, identity in self.machine_identities.items():
+            if "wireguard" not in identity.capabilities:
+                continue
+            if node in self.native_routers:
+                log_event(
+                    "env_restore_unsupported",
+                    f"WireGuard session recovery is unavailable for {node}",
+                    node=node,
+                    device_profile=self.native_routers[node],
+                )
+                continue
+            nodes.append(node)
+        if not nodes:
+            return False
+        runtime = self._build_runtime()
+        for node in nodes:
+            restore_peer_sessions(runtime, node)
+        return True
+
     def _next_wan(self) -> IPv4Network:
         return next(self._wan_pool)
 

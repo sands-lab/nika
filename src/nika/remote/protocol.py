@@ -89,6 +89,8 @@ class SessionRebindRequest(BaseModel):
     session_id: str
     # Minted by the agent host: a restored lab host's clock is the snapshot's.
     agent_session_id: str | None = None
+    # Healthy image restores resume transient protocols before failure injection.
+    restore_runtime: bool = False
 
 
 class SessionRebindResponse(BaseModel):

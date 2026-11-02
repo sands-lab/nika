@@ -87,7 +87,7 @@ class FirecrackerSettings(BaseModel):
     # which Firecracker execution requires. Without them (false), the guest runs
     # on 4 KiB pages and concurrent case-image restores slow the lab for seconds.
     huge_pages: bool = True
-    # Re-run the startup lab verification after each restore, as a cold deploy does.
+    # Verify restored environments before injection; rebuilt protocols receive full checks.
     verify_after_restore: bool = True
     # Also keep each failure case as a case image (snapshot after injection, its
     # memory stored as a compressed diff against the lab image): trials skip

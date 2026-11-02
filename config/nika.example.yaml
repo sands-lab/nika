@@ -92,7 +92,7 @@ nika:
       # 2 MiB huge pages, required: reserve them on the host first (see the
       # docs). Each running copy holds its own huge pages.
       huge_pages: true
-      # Verify the lab again after each restore, as a native deploy does.
+      # Verify restored environments before injection; rebuilt protocols receive full checks.
       verify_after_restore: true
       # Also keep each failure task as a case image (snapshot right after
       # injection, tens of MiB each): trials skip verification and injection,
