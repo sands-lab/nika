@@ -4,7 +4,7 @@ Use `nika.rollout` when a search, evaluation or training-side sampler needs one 
 
 The interface has no dependency on a particular optimizer. It accepts native NIKA task and run-configuration schemas. It does not implement other benchmark environments or a persistent reset/step worker.
 
-Start with a working [NIKA installation](../operations/installation.md), [run configuration](../operations/configuration.md), and [external agent project](../agents/custom-agents.md). For snapshot execution, complete the [Firecracker setup](../operations/firecracker.md) first.
+Start with a working [NIKA installation](../operations/installation.md), [run configuration](../operations/configuration.md), and [external agent project](../agents/agent-reference.md#custom-agent-registration). For snapshot execution, complete the [Firecracker setup](../operations/firecracker.md) first.
 
 ## Request one episode
 
@@ -19,10 +19,16 @@ A version 1 `RolloutRequest` contains:
 
 Keep reference answers and held-out data outside the external agent project. NIKA copies that project to the normal sandbox. Set `run_config.agent.type` to the manifest's `id`; registering a project does not change the selected agent type. The rollout wrapper registers it in an output-local agent registry. See [custom agent registration](../agents/agent-reference.md#custom-agent-registration) for the manifest contract.
 
-Create a request from an existing native configuration and one task:
+Run the following commands from the NIKA checkout root. [List and export a task](../operations/cli-reference.md#browse-and-try-an-example-case), using a returned task ID:
+
+```sh
+uv run nika case browse --env dc_clos --failure host_missing_ip --json
+uv run nika case browse --task-id TASK_ID --output my-case.yaml
+```
+
+Replace `TASK_ID` with a task ID from the listing. Create a request from the exported row and your prepared external project:
 
 ```python
-import json
 from pathlib import Path
 
 import yaml
@@ -30,12 +36,15 @@ from nika.rollout import RolloutRequest, run_rollout
 from nika.run_config.schema import RunConfig
 
 config = RunConfig.model_validate(yaml.safe_load(Path("config/nika.yaml").read_text()))
-task = json.loads(Path("case.json").read_text())
+project = Path("/absolute/path/to/agent-project")
+manifest = yaml.safe_load((project / "nika-agent.yaml").read_text())
+config.agent.type = manifest["id"]
+task = yaml.safe_load(Path("my-case.yaml").read_text())["cases"][0]
 request = RolloutRequest(
     request_id="candidate-task-42-attempt-1",
     task=task,
     run_config=config,
-    agent_project=Path("/absolute/path/to/agent-project"),
+    agent_project=project,
 )
 Path("request.json").write_text(request.model_dump_json(indent=2))
 result = run_rollout(request, Path("results/candidate-task-42-attempt-1"))
@@ -80,7 +89,7 @@ The normal model and case timeout settings still apply. Optional agent settings 
 - `fixed_model: true`: the host proxy rejects another model name and refuses unmetered write API routes. Responses compaction counts as a generation request. Read APIs and message token counting remain available.
 - `tool_call_limits`: a mapping from phase to primitive MCP-call cap, for example `diagnosis: 60` and `submission: 20`. Empty defaults preserve existing behavior.
 
-These are trusted host settings, not candidate-reported counters. Gateway reservations are shared across mounted tool servers and session aliases. A composite made of several calls consumes several reservations. Denied calls are recorded without executing the primitive. Gateway evidence includes actual arguments, raw output, duration and call identity. Controller-selected roles and primitive limits are forwarded to the remote Firecracker gateway.
+The host enforces these limits across MCP servers and connections. A composite tool consumes one unit for each underlying MCP call. Candidate-reported counters do not control the limit. Denied calls are recorded without executing the primitive. Gateway evidence includes actual arguments, raw output, duration and call identity. Controller-selected roles and primitive limits are forwarded to the remote Firecracker gateway.
 
 The model proxy records actual request and response bodies, response status, duration and usage. Model names identify the serving model; they do not establish a weight-checkpoint digest. Fixed-model mode does not by itself pin every provider sampling parameter. A comparative experiment must also bind and audit its inference configuration.
 
