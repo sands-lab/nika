@@ -18,9 +18,8 @@ Neither the scan (packets carry the built-in checks' hits only) nor a group's
 verdict depends on the memory, so stage A computes them once for every
 submission. Stage B starts from the skill's built-in part and, submission by
 submission, runs the deterministic audit with the grown memory, treats groups a
-learned issue, or a built-in check that identifies the instance, already
-fires on as recorded, takes the stored verdicts of the
-others, and writes issue files for the real ones (``auditlib.pipeline``). The
+learned issue's signature or an instance-identifying built-in check already
+covers as recorded, takes the stored verdicts of the others, and writes issue files for the real ones (``auditlib.pipeline``). The
 cross-trial tables include earlier submissions, so stage B reads and judges
 them with the LLM given by ``--base-url`` or ``--cli``.
 Adjudication cost counts only the verdicts stage B uses. Each step keeps the
@@ -32,36 +31,22 @@ from __future__ import annotations
 
 import argparse
 import json
-import random
 import shutil
 import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 
-from experiment.submission_audit import skill  # noqa: F401  (adds auditlib to sys.path)
+from experiment.submission_audit.skill import builtin_kb_dir, submissions
 from experiment.submission_audit.scan_eval import CLI
 
 from auditlib.adjudicate import adjudicate_groups
 from auditlib.aggregate import group_findings
-from auditlib.kb import KB_DIR, load_kb
+from auditlib.kb import load_kb
 from auditlib.pipeline import review_submission, worth_judging
 from auditlib.runner import audit_trajectories
 from auditlib.scan import ScanConfig, scan_trials
 from auditlib.trace import load_trial, trial_dirs
-
-
-def builtin_kb_dir(dest: Path) -> Path:
-    shutil.copytree(KB_DIR, dest, ignore=shutil.ignore_patterns("issues"))
-    (dest / "issues").mkdir()
-    return dest
-
-
-def submissions(root: Path, order: str, shuffle_seed: int) -> list[Path]:
-    paths = sorted(p for p in root.iterdir() if p.is_dir() and trial_dirs(p))
-    if order == "shuffle":
-        random.Random(shuffle_seed).shuffle(paths)
-    return paths
 
 
 def load_scan(path: Path) -> list[dict]:

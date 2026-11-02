@@ -93,8 +93,12 @@ def issue_text(data: dict) -> str:
     return yaml.safe_dump(keep, sort_keys=False, allow_unicode=True, width=100)[:6000]
 
 
-def map_run(run: Path, cfg: ScanConfig, system: str, valid: set[str]) -> dict:
-    """Map the issues the run learned; the memory it started with is skipped."""
+def map_run(
+    run: Path, cfg: ScanConfig, system: str, valid: set[str]
+) -> tuple[dict, list[str]]:
+    """Map the issues the run learned; the memory it started with is skipped.
+
+    Returns the mapping and the ids of issues whose LLM call failed."""
     steps = sorted(
         p for p in run.iterdir() if p.is_dir() and p.name[:3].rstrip("_").isdigit()
     )
@@ -113,8 +117,10 @@ def map_run(run: Path, cfg: ScanConfig, system: str, valid: set[str]) -> dict:
         except yaml.YAMLError:
             texts.append(path.read_text()[:6000])
 
-    def one(text: str) -> list[str]:
+    def one(text: str) -> list[str] | None:
         result = chat(client, cfg, system, text)
+        if result.get("error"):
+            return None
         match = _JSON.search(result.get("content") or "")
         try:
             data = json.loads(match.group(0)) if match else {}
@@ -125,7 +131,8 @@ def map_run(run: Path, cfg: ScanConfig, system: str, valid: set[str]) -> dict:
     with httpx.Client(limits=httpx.Limits(max_connections=cfg.workers)) as client:
         with ThreadPoolExecutor(cfg.workers) as pool:
             refs = list(pool.map(one, texts))
-    return {p.stem: r for p, r in zip(files, refs)}
+    failed = [p.stem for p, r in zip(files, refs) if r is None]
+    return {p.stem: r for p, r in zip(files, refs) if r is not None}, failed
 
 
 def main() -> None:
@@ -159,8 +166,14 @@ def main() -> None:
         timeout=600,
     )
     runs = sorted(p for p in args.runs.iterdir() if (p / "kb" / "issues").is_dir())
+    failures = 0
     for run in runs:
-        mapping = map_run(run, cfg, system, valid)
+        mapping, failed = map_run(run, cfg, system, valid)
+        if failed:
+            # A partial mapping would lower the run's recall silently.
+            failures += 1
+            print(f"{run.name}: {len(failed)} LLM calls failed; mapping not written")
+            continue
         (run / args.out_name).write_text(
             "# Written issues mapped to reference issues by the LLM mapper.\n"
             + yaml.safe_dump(mapping, width=100)
@@ -176,6 +189,8 @@ def main() -> None:
                 f"recall {both / max(1, len(gold)):.2f}"
             )
         print(line, flush=True)
+    if failures:
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

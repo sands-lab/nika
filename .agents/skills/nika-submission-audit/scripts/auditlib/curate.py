@@ -1,8 +1,8 @@
 """Turn adjudicated scan groups into issue files, without an LLM.
 
 For each group the adjudicator called real, the curator decides whether the
-memory already records it (a learned issue fires on the group's cited steps)
-and, if not, writes one issue file. The signature is the longest text the
+memory already records it (a learned issue's signature matches the group's
+excerpts) and, if not, writes one issue file. The signature is the longest text the
 group's excerpts share, with numbers generalised; it must fire on the group's
 own sources and mostly on the group's trials across the submission, so a
 pattern that matches everywhere is not recorded. Title, summary, scope, and
@@ -19,7 +19,7 @@ from typing import Any
 
 import yaml
 
-from auditlib.detectors import run_trial
+from auditlib.detectors import in_scope, run_trial
 from auditlib.kb import Issue, KnowledgeBase
 from auditlib.review import check_issue
 from auditlib.trace import Trial
@@ -107,54 +107,44 @@ def _parse_ref(ref: Any) -> tuple[str, int] | None:
         return None
 
 
-def _shares_text(a: str, b: str) -> bool:
-    a, b = _ws(a).lower(), _ws(b).lower()
-    m = SequenceMatcher(None, a, b, autojunk=False).find_longest_match(
-        0, len(a), 0, len(b)
-    )
-    return m.size >= _MIN_PATTERN
-
-
 def recorded_by(
     group: dict[str, Any],
     hits: dict[str, list[dict[str, Any]]],
-    learned: dict[str, str],
-    exact: frozenset[str] = frozenset(),
+    exact: dict[str, str],
 ) -> str | None:
-    """An issue of the group's class that already matches its evidence.
+    """An issue that identifies the instance and fires on a cited step.
 
-    *learned* maps the id of each issue that may record a group to its class. The issue must fire on one of the
-    group's cited steps, and the text it matched must overlap one of the
-    group's excerpts: a step often shows several unrelated things, so firing
-    on the same step alone does not mean the same finding. Issues in *exact*
-    identify the instance itself (a state-changing command at that step), so
-    firing on the step is enough.
+    *exact* maps the id of each such issue (a state-changing command, an
+    unlisted tool) to its class. Issues with text signatures record a group
+    through their signature instead (``covered_by_signature``).
     """
     refs = {r for r in map(_parse_ref, group.get("all_refs") or []) if r}
-    excerpts = (group.get("excerpts") or [])[:5]
     for trial, step in refs:
         for hit in hits.get(trial, []):
             issue = hit.get("issue")
-            if (
-                learned.get(issue) == group.get("class")
-                and hit.get("step") == step
-                and (
-                    issue in exact
-                    or any(_shares_text(hit.get("excerpt", ""), e) for e in excerpts)
-                )
-            ):
+            if exact.get(issue) == group.get("class") and hit.get("step") == step:
                 return str(issue)
     return None
 
 
-def covered_by_signature(group: dict[str, Any], issues: list[Issue]) -> str | None:
+def covered_by_signature(
+    group: dict[str, Any], issues: list[Issue], trials: dict[str, Trial]
+) -> str | None:
     """A learned issue whose text signature matches one of the group's excerpts.
 
     The same text signature means the same recorded finding, whatever class
-    the scan filed the group under.
+    the scan filed the group under, provided the issue's scope covers one of
+    the group's trials.
     """
     excerpts = [e for e in (group.get("excerpts") or [])[:10] if e.strip()]
+    mine = [
+        trials[t]
+        for t in {r[0] for r in map(_parse_ref, group.get("all_refs") or []) if r}
+        if t in trials
+    ]
     for issue in issues:
+        if not any(in_scope(issue, t) for t in mine):
+            continue
         for sig in issue.detect:
             if sig.kind == "text" and sig.regex is not None:
                 if any(sig.regex.search(e) for e in excerpts):

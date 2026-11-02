@@ -34,12 +34,14 @@ from pathlib import Path
 
 import yaml
 
-from experiment.submission_audit.skill import (
+from experiment.submission_audit.skill import (  # adds auditlib to sys.path
     REPO_ROOT,
     SKILL_DIR,
-)  # adds auditlib to sys.path
+    builtin_kb_dir,
+    submissions,
+)
 from auditlib.cohort import TrialRecord
-from auditlib.kb import KB_DIR, KnowledgeBaseError, load_kb
+from auditlib.kb import KnowledgeBaseError, load_kb
 from auditlib.review import check_issue, load_issue_file
 from auditlib.runner import audit_trajectories, render_markdown, write_report
 from auditlib.trace import trial_dirs
@@ -96,6 +98,23 @@ _LEARNED = ("lessons.md",)
 _FILE_TOOLS = ("Read", "Glob", "Grep", "Edit", "Write")
 
 
+def readable_only(*keep: Path) -> set[Path]:
+    """Every entry beside the paths from the root to *keep*.
+
+    Denying these leaves only *keep* readable, so an agent cannot read a NIKA
+    checkout (the skill's learned issues) or another run's memory, wherever
+    they are on the host.
+    """
+    path_to = {a for k in keep for a in (k, *k.parents)}
+    hidden = set()
+    for parent in {a for k in keep for a in k.parents}:
+        try:
+            hidden |= {c for c in parent.iterdir() if c not in path_to}
+        except OSError:
+            continue
+    return hidden
+
+
 def build_workspace(
     out: Path, kb_dir: Path, *, trajectories: Path
 ) -> tuple[Path, Path, Path]:
@@ -129,21 +148,7 @@ def build_workspace(
         encoding="utf-8",
     )
     wrapper.chmod(0o755)
-    hidden = {
-        REPO_ROOT,
-        Path.home(),
-        Path("/workspace/nika"),
-        Path("/workspace/nika-leaderboard"),
-        Path("/workspace/nika-state"),
-        Path("/workspace/nika-audit-runs"),
-    }
-    hidden |= {
-        p.resolve()
-        for p in out.resolve().parent.iterdir()
-        if p.resolve() != out.resolve()
-    }
-    # A rule on a directory that holds the workspace would hide it too.
-    hidden -= set(out.resolve().parents)
+    hidden = readable_only(out.resolve(), trajectories.resolve())
     deny = [f"{tool}(/{p}/**)" for p in sorted(hidden) for tool in _FILE_TOOLS]
     deny += [f"{tool}(/{trajectories.resolve()}/**)" for tool in ("Edit", "Write")]
     settings = out / "agent_settings.json"
@@ -254,10 +259,6 @@ def _run_agent(
     return {"sec": round(time.time() - t0, 1), "exit": code, **_agent_usage(stdout)}
 
 
-def write_markdown(report: dict, path: Path) -> None:
-    path.write_text(render_markdown(report) + "\n", encoding="utf-8")
-
-
 def _agent_usage(stdout: str) -> dict:
     """Cost and turns from ``claude -p --output-format json``; empty otherwise."""
     try:
@@ -272,14 +273,6 @@ def _agent_usage(stdout: str) -> dict:
         "agent_turns": data.get("num_turns"),
         "agent_output_tokens": usage.get("output_tokens"),
     }
-
-
-def submissions(root: Path, order: str, shuffle_seed: int) -> list[Path]:
-    """Submission packages under *root*, by date prefix or shuffled."""
-    paths = sorted(p for p in Path(root).iterdir() if p.is_dir() and trial_dirs(p))
-    if order == "shuffle":
-        random.Random(shuffle_seed).shuffle(paths)
-    return paths
 
 
 def _check_new_issues(kb_dir: Path, before: dict[str, bytes], traj: Path) -> list[dict]:
@@ -324,26 +317,17 @@ def replay(args: argparse.Namespace) -> None:
     if args.resume and (out / "replay.json").is_file():
         kb_dir = out / "kb"
         log = json.loads((out / "replay.json").read_text(encoding="utf-8"))
-    elif args.start_kb:
-        kb_dir = out / "kb"
-        shutil.rmtree(kb_dir, ignore_errors=True)
-        shutil.copytree(args.start_kb, kb_dir)
     else:
         # Built-in part only: taxonomy, policy, generic checks; no issues.
         kb_dir = out / "kb"
         shutil.rmtree(kb_dir, ignore_errors=True)
-        shutil.copytree(KB_DIR, kb_dir, ignore=shutil.ignore_patterns("issues"))
-        (kb_dir / "issues").mkdir()
+        builtin_kb_dir(kb_dir)
     history: list[TrialRecord] = []
     workspace, settings, reviewer_settings = build_workspace(
         out, kb_dir, trajectories=Path(args.trajectories)
     )
     packages = submissions(Path(args.trajectories), args.order, args.shuffle_seed)
-    if args.only:
-        packages = [p for p in packages if p.name in set(args.only)]
     for index, pkg in enumerate(packages):
-        if args.limit and index >= args.limit:
-            break
         step = out / f"{index:02d}_{pkg.name}"
         if index < len(log):
             # Resumed: rebuild history from the finished step's own snapshot.
@@ -368,7 +352,6 @@ def replay(args: argparse.Namespace) -> None:
             pkg,
             kb=kb,
             history=list(history),
-            repo=Path(args.repo) if args.repo else None,
             records_out=records,
         )
         write_report(report, step / "audit.json")
@@ -381,7 +364,7 @@ def replay(args: argparse.Namespace) -> None:
             "leads": [r["id"] for r in report["leads"]],
         }
         before = {p.name: p.read_bytes() for p in (kb_dir / "issues").glob("*.yaml")}
-        write_markdown(report, step / "audit.md")
+        (step / "audit.md").write_text(render_markdown(report) + "\n", encoding="utf-8")
         work = (step / "work").resolve()
         work.mkdir(exist_ok=True)
         env = {
@@ -480,18 +463,8 @@ def main() -> None:
         "--trajectories", required=True, help="trajectories/<release> root"
     )
     parser.add_argument("--out", required=True)
-    parser.add_argument(
-        "--start-kb",
-        type=Path,
-        help="Start from this issue memory instead of the skill's generic checks.",
-    )
     parser.add_argument("--order", default="date", choices=("date", "shuffle"))
     parser.add_argument("--shuffle-seed", type=int, default=0)
-    parser.add_argument("--limit", type=int, default=0)
-    parser.add_argument(
-        "--only", nargs="*", help="Replay only these submissions, in order."
-    )
-    parser.add_argument("--repo", help="NIKA checkout for regression checks")
     parser.add_argument(
         "--agent-cmd", default="claude -p --permission-mode acceptEdits"
     )

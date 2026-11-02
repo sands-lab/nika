@@ -84,7 +84,7 @@ def _evidence(trial: Trial, step: int) -> str:
 
 
 def group_prompt(group: dict[str, Any], trials: dict[str, Trial]) -> str:
-    refs = group.get("refs") or [e["ref"] for e in group.get("examples", [])]
+    refs = group["refs"]
     parts = [f"Class: {group['class']}", f"Claim: {group['claim']}"]
     for other in group.get("other_claims") or []:
         parts.append(f"Also stated as: {other}")

@@ -164,7 +164,9 @@ def _cli_chat(cfg: ScanConfig, system: str, user: str) -> dict:
                 "finish": "stop",
                 "sec": round(time.time() - t0, 1),
             }
-        error = (proc.stderr or proc.stdout)[-300:]
+        error = (proc.stderr or proc.stdout)[
+            -300:
+        ] or f"exit {proc.returncode}, no output"
     return {"error": error, "sec": round(time.time() - t0, 1)}
 
 

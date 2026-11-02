@@ -8,7 +8,7 @@
 The test submissions are the first submission of each run in ``--runs``:
 there the run's reviewer agents started with an empty issue memory, as the
 scanner does. The scanner asks every trial the issue-class questions of the
-skill's taxonomy (``audit.py scan``), with the built-in checks' hits attached.
+skill's taxonomy (``auditlib.scan``), with the built-in checks' hits attached.
 
 A reference issue counts as found by the scanner in a submission when a
 finding with a verified citation sits in a trial that shows the issue
@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
 import tempfile
 import time
 import tomllib
@@ -32,10 +31,10 @@ from pathlib import Path
 
 import yaml
 
-from experiment.submission_audit import skill  # noqa: F401  (adds auditlib to sys.path)
+from experiment.submission_audit.skill import builtin_kb_dir
 
 from auditlib.detectors import run_trial
-from auditlib.kb import KB_DIR, load_kb
+from auditlib.kb import load_kb
 from auditlib.runner import audit_trajectories
 from auditlib.scan import ScanConfig, scan_trials
 from auditlib.trace import load_trial, trial_dirs
@@ -58,7 +57,7 @@ def _codex_without_mcp() -> tuple[str, ...]:
 
 
 # Agent CLIs that can stand in for the HTTP endpoint (prompt on stdin).
-_CODEX = ("codex", "exec", "--skip-git-repo-check", "-s", "read-only")
+_CODEX = ("codex", "exec", "--ephemeral", "--skip-git-repo-check", "-s", "read-only")
 _NO_MCP = _codex_without_mcp()
 CLI = {
     "codex": (*_CODEX, *_NO_MCP, "-"),
@@ -120,9 +119,7 @@ def run_written(step: Path, run: Path) -> set[str]:
 
 def builtin_hits(pkg: Path) -> dict[str, list]:
     with tempfile.TemporaryDirectory() as tmp:
-        kb_dir = Path(tmp) / "kb"
-        shutil.copytree(KB_DIR, kb_dir, ignore=shutil.ignore_patterns("issues"))
-        (kb_dir / "issues").mkdir()
+        kb_dir = builtin_kb_dir(Path(tmp) / "kb")
         report = audit_trajectories(pkg, kb=load_kb(kb_dir))
     return report.get("trials", {})
 

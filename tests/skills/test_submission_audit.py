@@ -15,6 +15,7 @@ import yaml
 
 from auditlib.cohort import TrialRecord, healthy_fp_rate, run_metrics
 from auditlib.cohort_audit import Row, _same, signature_for
+from auditlib.pipeline import _exact
 from auditlib.curate import (
     common_text,
     covered_by_signature,
@@ -23,7 +24,7 @@ from auditlib.curate import (
     to_pattern,
 )
 from auditlib.detectors import run_trial
-from auditlib.kb import KB_DIR, Issue, Signature, load_kb
+from auditlib.kb import KB_DIR, Issue, Scope, Signature, load_kb
 from auditlib.review import check_citations, check_issue
 from auditlib.runner import audit_trajectories, prompt_contrast
 from auditlib.scan import _parse as _parse_findings
@@ -483,8 +484,12 @@ def test_curation_writes_a_signature_from_shared_excerpt_text(tmp_path: Path) ->
     clean = _claude_call(
         "c1", "mcp__kathara_base_mcp_server__exec_shell", "ls /etc/frr", "frr.conf"
     )
+    repair = _claude_call(
+        "c1", "mcp__kathara_base_mcp_server__exec_shell", "systemctl restart frr", ""
+    )
     root = tmp_path / "pkg"
     _trial(root, "lab__dns__h1__t01", leak, gt=DNS_GT, submission=DNS_GT, rca=1.0)
+    _trial(root, "lab__dns__h1__t02", repair, gt=DNS_GT, submission=DNS_GT, rca=1.0)
     _trial(
         root, "lab__healthy__t01", clean, gt=HEALTHY_GT, submission=HEALTHY_GT, rca=1.0
     )
@@ -505,22 +510,23 @@ def test_curation_writes_a_signature_from_shared_excerpt_text(tmp_path: Path) ->
     )
     assert result["written"], result
     issue = load_kb(kb_dir).issue(result["written"])
-    hits = {
-        "lab__dns__h1__t01": [{"issue": issue.id, "step": 1, "excerpt": "frr.conf.sav"}]
-    }
-    assert recorded_by(group, hits, {issue.id: "shortcut"}) == issue.id
-    # Firing on the same step with unrelated text does not record the group.
-    other = {
-        "lab__dns__h1__t01": [{"issue": issue.id, "step": 1, "excerpt": "daemons"}]
-    }
-    assert recorded_by(group, other, {issue.id: "shortcut"}) is None
-    # A check that identifies the instance (a state-changing command) records
-    # the group by firing on its step alone.
-    exact = {issue.id: "shortcut"}
-    assert recorded_by(group, other, exact, frozenset(exact)) == issue.id
-    # The same text signature covers a later group filed under another class.
+    # The learned issue records a later group with the same evidence, whatever
+    # class the scan filed it under, but not outside the issue's scope.
     later = {**group, "class": "harness_defect", "excerpts": ["  frr.conf.sav  "]}
-    assert covered_by_signature(later, [issue]) == issue.id
+    assert covered_by_signature(later, [issue], trials) == issue.id
+    elsewhere = issue.model_copy(update={"scope": Scope(scenarios=["other"])})
+    assert covered_by_signature(later, [elsewhere], trials) is None
+    # The built-in state-change check records a group citing the command.
+    kb = load_kb(kb_dir)
+    hits = audit_trajectories(root, kb=kb)["trials"]
+    exact = {i.id: i.issue_class for i in kb.issues if _exact(i)}
+    repair_group = {
+        "class": "agent_integrity",
+        "all_refs": [("lab__dns__h1__t02", 0)],
+        "excerpts": ["systemctl restart frr"],
+    }
+    assert recorded_by(repair_group, hits, exact) == "AGENT-STATE-MUTATION"
+    assert recorded_by({**repair_group, "class": "shortcut"}, hits, exact) is None
 
 
 def test_cross_trial_findings_become_scoped_statistics() -> None:
