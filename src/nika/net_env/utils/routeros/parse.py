@@ -57,3 +57,26 @@ def routeros_count(output: str) -> int:
     """Read ``print count-only`` output; errors and timeouts count as zero."""
     value = output.strip()
     return int(value) if value.isdigit() else 0
+
+
+def routeros_bgp_received_notification(output: str) -> str | None:
+    """Decode the input session's NOTIFICATION, including optional RFC 4486 data."""
+    section = re.search(
+        r"(?:^|\s)input\.(.*?)(?=\s(?:remote|local|output)\.|\Z)",
+        output,
+        re.S,
+    )
+    if section is None:
+        return None
+    match = re.search(
+        r"(?:^|\s)(?:input\.|\.)?last-notification=([0-9a-fA-F]+)\b",
+        section[1],
+    )
+    if match is None or len(match[1]) % 2:
+        return None
+    message = bytes.fromhex(match[1])
+    if len(message) < 21 or message[:16] != b"\xff" * 16 or message[18] != 3:
+        return None
+    if message[19:21] == b"\x06\x01":
+        return "Cease/Maximum Number of Prefixes Reached"
+    return f"BGP error {message[19]}/{message[20]}"

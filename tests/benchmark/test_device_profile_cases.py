@@ -35,6 +35,14 @@ def test_compatibility_follows_the_vendor_fault_operations() -> None:
     )
     # Acting on the container interface needs no router operation.
     assert failure_supports_profile(get_problem_class("link_down"), "routeros")
+    # TC on the container veth; RouterOS CHR still crosses it.
+    blackhole = get_problem_class("device_flow_blackhole")
+    assert blackhole.runs_on_device_profile("routeros")
+    assert not blackhole.runs_on_device_profile("iosxr")
+    # XRd drops the adjacency instead of staying Full but unrouted.
+    mismatch = get_problem_class("ospf_network_type_mismatch")
+    assert mismatch.runs_on_device_profile("routeros")
+    assert not mismatch.runs_on_device_profile("iosxr")
     # Without a native implementation a failure stays on FRR/Linux nodes.
     frr_down = get_problem_class("frr_service_down")
     assert not failure_supports_profile(frr_down, "iosxr")
@@ -71,7 +79,7 @@ def test_targets_avoid_native_routers_that_cannot_run_the_failure() -> None:
     )
     assert not cases
     assert {row["reason"] for row in rejected} == {"unsupported_device_profile"}
-    # campus_lan converts only its core: OSPF faults keep the FRR routers.
+    # campus_lan converts its core: the OSPF binding fault also targets XR.
     cases, _ = build_failure_cases(
         problem="ospf_neighbor_missing",
         scenario="campus_lan",
@@ -79,7 +87,7 @@ def test_targets_avoid_native_routers_that_cannot_run_the_failure() -> None:
         isp_options={"device_profile": "iosxr"},
     )
     targets = {case["inject"]["host_name"] for case in cases}
-    assert targets and not any(name.startswith("router_core") for name in targets)
+    assert any(name.startswith("router_core") for name in targets)
     # A native implementation targets the XR routers, named as NIKA nodes.
     cases, _ = build_failure_cases(
         problem="bgp_asn_misconfig",
@@ -94,6 +102,19 @@ def test_targets_avoid_native_routers_that_cannot_run_the_failure() -> None:
             "fault_type": "bgp_asn_misconfig",
         }
     ]
+    cases, rejected = build_failure_cases(
+        problem="ospf_network_type_mismatch",
+        scenario="isp_abilene",
+        topo_size="s",
+        isp_options={
+            "igp": "ospf",
+            "bgp_mode": "none",
+            "rpki": False,
+            "device_profile": "iosxr",
+        },
+    )
+    assert not cases
+    assert {row["reason"] for row in rejected} == {"unsupported_device_profile"}
 
 
 def test_native_rows_parse_and_need_licensed_images() -> None:
@@ -120,6 +141,30 @@ def test_native_rows_parse_and_need_licensed_images() -> None:
     assert deployment_needs_licensed_images("dc_clos", "iosxr")
     assert not deployment_needs_licensed_images("dc_clos")
     assert deployment_needs_licensed_images("routeros_simple_bgp")
+
+
+def test_bgp_md5_targets_originate_paths_in_route_reflector_plans() -> None:
+    from nika.net_env.isp.bgp import compile_bgp_plan
+    from nika.net_env.isp.igp import IspConfig, compile_isp_plan
+
+    plan = compile_bgp_plan(
+        compile_isp_plan(IspConfig(topology="abilene", igp="isis")), "ibgp_rr"
+    )
+    originators = {item.device for item in plan.originated}
+    for profile in ("frr", "iosxr", "routeros"):
+        cases, rejected = build_failure_cases(
+            problem="bgp_md5_password_mismatch",
+            scenario="isp_abilene",
+            topo_size="s",
+            isp_options={
+                "igp": "isis",
+                "bgp_mode": "ibgp_rr",
+                "rpki": False,
+                "device_profile": profile,
+            },
+        )
+        assert {case["inject"]["host_name"] for case in cases} == originators
+        assert all(row["inject"]["host_name"] not in originators for row in rejected)
 
 
 def _native_operations_used(problem_cls) -> set[str]:
@@ -344,3 +389,103 @@ def test_containerlab_catalog_task_id_round_trip() -> None:
     assert rows
     row = rows[0]
     assert load_example_cases(catalog, task_id=task_id_for_row(row)) == [row]
+
+
+@pytest.mark.parametrize("profile", ["iosxr", "routeros"])
+def test_duplicate_ospf_id_targets_have_stub_subnets(profile):
+    cases, rejected = build_failure_cases(
+        problem="ospf_duplicate_router_id",
+        scenario="campus_lan",
+        topo_size="s",
+        isp_options={"device_profile": profile},
+    )
+    assert {case["inject"]["host_name"] for case in cases} == {
+        "router_dist_1_1",
+        "router_dist_2_1",
+        "server_access_router",
+    }
+    assert {row["inject"]["host_name"] for row in rejected} == {
+        "router_core_1",
+        "router_core_2",
+        "router_core_3",
+    }
+    cases, rejected = build_failure_cases(
+        problem="ospf_duplicate_router_id",
+        scenario="isp_abilene",
+        topo_size="s",
+        isp_options={
+            "device_profile": profile,
+            "igp": "ospf",
+            "bgp_mode": "ebgp",
+            "rpki": False,
+        },
+    )
+    assert cases and not rejected
+    assert failure_supports_profile(
+        get_problem_class("ospf_duplicate_router_id"), profile
+    )
+
+
+def test_bgp_ttl_security_requires_a_reproducible_native_mismatch():
+    problem = get_problem_class("bgp_ttl_security_mismatch")
+    assert failure_supports_profile(problem, "iosxr")
+    assert not failure_supports_profile(problem, "routeros")
+    for profile in ("iosxr", "routeros"):
+        cases, rejected = build_failure_cases(
+            problem="bgp_ttl_security_mismatch",
+            scenario="dc_clos",
+            topo_size="s",
+            isp_options={"device_profile": profile},
+        )
+        if profile == "iosxr":
+            assert cases and not rejected
+        else:
+            assert not cases
+            assert {row["reason"] for row in rejected} == {"unsupported_device_profile"}
+
+
+@pytest.mark.parametrize("profile", ["frr", "iosxr", "routeros"])
+def test_ospf_timer_mismatch_requires_a_host_serving_cut_edge(profile):
+    from types import SimpleNamespace
+
+    from nika.net_env.net_env_pool import get_net_env_instance
+    from nika.problems.routing_control_plane.ospf import ospf_router_links
+    from nika.problems.rca.materialize import ground_truth_for_case
+
+    problem = get_problem_class("ospf_hello_interval_mismatch")
+    env = get_net_env_instance("campus_lan", topo_size="s", device_profile=profile)
+    ctx = SimpleNamespace(net_env=env, scenario="campus_lan", topo_size="s")
+    valid = {"host_name": "router_core_1", "intf_name": "eth2"}
+    problem.validate_benchmark_inject(ctx, valid)
+    truth = ground_truth_for_case(
+        problem=problem.root_cause_name,
+        params=valid,
+        scenario="campus_lan",
+        topo_size="s",
+        net_env=env,
+    )
+    assert [cause.resource.id for cause in truth.root_causes] == ["node/router_core_1"]
+    if profile != "frr":
+        assert failure_supports_profile(problem, profile)
+    for ends in ospf_router_links(env):
+        if all(node.startswith("router_core_") for node, _ in ends):
+            host, intf = ends[0]
+            with pytest.raises(ValueError, match="cut edge serving hosts"):
+                problem.validate_benchmark_inject(
+                    ctx, {"host_name": host, "intf_name": intf}
+                )
+            break
+    else:
+        pytest.fail("campus topology has no redundant core link")
+
+
+def test_ospf_timer_mismatch_reports_an_environment_without_a_cut_edge():
+    cases, rejected = build_failure_cases(
+        problem="ospf_hello_interval_mismatch",
+        scenario="isp_france",
+        topo_size="s",
+        isp_options={"igp": "ospf", "bgp_mode": "none", "rpki": False},
+    )
+    assert not cases
+    assert {row["reason"] for row in rejected} == {"case_validation_failed"}
+    assert all("cut edge serving hosts" in row["error"] for row in rejected)

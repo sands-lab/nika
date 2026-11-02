@@ -1,0 +1,52 @@
+scenario:
+  name: campus_lan
+failure:
+  fault_type: ospf_area_range_suppression
+  cases:
+  - topo_size: s
+    inject:
+      area: 0.0.0.1
+      host_name: router_core_1
+    root_causes:
+    - resource:
+        kind: node
+        node: router_core_1
+      fault_type: ospf_area_range_suppression
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      area: 0.0.0.1
+      host_name: router_core_2
+    root_causes:
+    - resource:
+        kind: node
+        node: router_core_2
+      fault_type: ospf_area_range_suppression
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      area: 0.0.0.1
+      host_name: router_core_1
+    root_causes:
+    - resource:
+        kind: node
+        node: router_core_1
+      fault_type: ospf_area_range_suppression
+  - topo_size: m
+    inject:
+      area: 0.0.0.1
+      host_name: router_core_2
+    root_causes:
+    - resource:
+        kind: node
+        node: router_core_2
+      fault_type: ospf_area_range_suppression
+  - topo_size: l
+    inject:
+      area: 0.0.0.1
+      host_name: router_core_2
+    root_causes:
+    - resource:
+        kind: node
+        node: router_core_2
+      fault_type: ospf_area_range_suppression

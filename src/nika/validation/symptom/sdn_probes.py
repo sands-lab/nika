@@ -298,9 +298,11 @@ def _switch_connections(problem: Any) -> tuple[dict[str, bool], dict[str, str]]:
     """
     states: dict[str, bool] = {}
     errors: dict[str, str] = {}
-    for switch, item in _switch_controller_state(
-        problem.runtime, problem.net_env
-    ).items():
+    try:
+        observations = _switch_controller_state(problem.runtime, problem.net_env)
+    except Exception as exc:  # noqa: BLE001 - runtime transports use different errors
+        return {}, {"controller_state": str(exc)}
+    for switch, item in observations.items():
         value = item["is_connected"].strip('"').lower()
         if value in {"true", "false"}:
             states[switch] = value == "true"

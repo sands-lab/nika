@@ -78,15 +78,21 @@ def test_iosxr_interfaces_precede_routing_modes(igp, bgp_mode) -> None:
     assert originating
 
 
-def test_native_isp_omits_the_kathara_customer_site_and_runs_stub_workload() -> None:
+@pytest.mark.parametrize("profile", ["iosxr", "routeros"])
+def test_native_isp_attaches_the_customer_site_and_keeps_stub_workloads(
+    profile,
+) -> None:
     from nika.net_env.net_env_pool import get_net_env_instance
 
     env = get_net_env_instance(
-        "isp_abilene", device_profile="iosxr", igp="ospf", bgp_mode="ebgp"
+        "isp_abilene", device_profile=profile, igp="ospf", bgp_mode="ebgp"
     )
     assert env.bgp_plan is not None
-    assert env.bgp_plan.customer_site is None
-    assert "customer_site" not in env.bgp_plan.inventory
+    site = env.bgp_plan.customer_site
+    assert site is not None
+    assert env.inventory["bgp"]["customer_site"]["prefix"] == site.prefix
+    assert site.host_name in env.lab.machines
+    assert site.gateway in env.deployment_configs[site.provider]
     stubs = {host.host_name for host in env.traffic.hosts}
     workload = env.business_workload()
     assert workload.processes

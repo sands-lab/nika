@@ -11,7 +11,7 @@ from Kathara.model.Lab import Lab
 from nika.net_env.utils.download_object import download_object_commands
 from nika.config import pkg_path
 from nika.net_env.base import NetworkEnvBase, ProbePath
-from nika.net_env.native_routers import NativeRouterEnv
+from nika.net_env.native_routers import NativeRouterEnv, native_interface_rate_bps
 from nika.net_env.probe_intent import ProbeIntent
 from nika.net_env.enterprise_branch.addressing import (
     VRF_TABLE,
@@ -44,6 +44,7 @@ from nika.net_env.enterprise_branch.topology import (
     dscp_remark_inject_targets,
     hub_iface_for,
     overlay_qos_for,
+    overlay_scale,
     overlay_qos_startup_cmds,
     primary_hq_peer_targets,
     remote_advertised_prefixes_for_spoke,
@@ -265,6 +266,10 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
         super().__init__(**kwargs)
         self.topo_size: TopoSize = topo_size
         self.spec: TopoSpec = build_topo_spec(topo_size)
+        # Native edges with an interface rate ceiling run a scaled overlay.
+        self.overlay_scale = overlay_scale(
+            topo_size, native_interface_rate_bps(device_profile)
+        )
         self.lab = Lab(self.LAB_NAME)
         self.name = self.LAB_NAME
         self.instance = Kathara.get_instance()
@@ -661,7 +666,7 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
                 )
                 edge.cmd_list.append(f"wg-quick up {iface}")
                 # Healthy overlay egress QoS: EF vs BE classes; no DSCP rewrite.
-                qos = overlay_qos_for(self.spec.size)
+                qos = overlay_qos_for(self.spec.size, self.overlay_scale)
                 edge.cmd_list.extend(overlay_qos_startup_cmds(iface, qos))
 
             # Local-only VRFs: default via primary ISP PE in default VRF + NAT.
@@ -773,7 +778,9 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
         from nika.net_env.enterprise_branch.workload import build_workload
         from nika.traffic.workload import BusinessWorkload
 
-        workload = build_workload(self.spec, self.frr_routers())
+        workload = build_workload(
+            self.spec, self.frr_routers(), scale=self.overlay_scale
+        )
         native = set(self.native_routers)
         if not native:
             return workload
@@ -840,6 +847,7 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
             topo_size=self.topo_size,
             built_tunnels=self.built_tunnels,
             spec=self.spec,
+            overlay_scale=self.overlay_scale,
             **extra,
         )
         if self.device_profile != "routeros":

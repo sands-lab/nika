@@ -2,7 +2,6 @@ import ipaddress
 import json
 import random
 import re
-import time
 
 from pydantic import BaseModel, Field
 
@@ -10,7 +9,11 @@ from nika.net_env.isp.bgp.frr import EXPORT_DENY_PREFIX_LIST
 from nika.problems.support.frr import frr_config_command, frr_save_config
 from nika.problems.support.inject_resolve import resolve_victim_host_ip
 from nika.problems.support.polling import wait_until
-from nika.problems.support.router_ops import RouterFaultOps, router_fault_ops
+from nika.problems.support.router_ops import (
+    RouterFaultOps,
+    native_fault_ops,
+    router_fault_ops,
+)
 from nika.problems.rca import node_resource
 from nika.problems.base import (
     FailureDomain,
@@ -1411,6 +1414,14 @@ class BGPMaxPrefixExceededParams(BaseModel):
 
 
 class BGPMaxPrefixExceeded(ProblemBase):
+    """An excessive advertisement trips a receiver's terminating prefix limit.
+
+    RFC 4486 section 3 defines Cease subcode 1, Maximum Number of Prefixes
+    Reached. The receiver must hold the session down and withdraw its unique
+    customer route, rather than merely reject excess routes.
+    https://www.rfc-editor.org/rfc/rfc4486#section-3
+    """
+
     root_cause_resource_match = "any"
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
     symptom_probe = "custom"
@@ -1420,6 +1431,25 @@ class BGPMaxPrefixExceeded(ProblemBase):
     TAGS: str = ["bgp", "isp"]
     COMPATIBLE_COLUMNS = frozenset({"isp_abilene/ebgp", "isp_geant/ebgp"})
     isp_protocol = {"igp": "ospf", "bgp_mode": "ebgp", "rpki": False}
+    native_router_operations = frozenset(
+        {
+            "bgp_established_peers",
+            "bgp_received_prefix_count",
+            "bgp_asn",
+            "bgp_prefix_limit",
+            "set_bgp_prefix_limit",
+            "bgp_prefix_limit_exceeded",
+            "bgp_last_notification",
+            "permit_bgp_prefixes",
+            "advertise_bgp_prefixes",
+            "has_bgp_route",
+            "bgp_networks",
+            "save_config",
+            "restore_config",
+            "reset_bgp_session",
+            "ipv4_addresses",
+        }
+    )
 
     Params = BGPMaxPrefixExceededParams
 
@@ -1441,6 +1471,13 @@ class BGPMaxPrefixExceeded(ProblemBase):
         params = dict(customer_route_session(bgp_inv))
         params["flood_count"] = "120"
         return params
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        from nika.problems.support.benchmark_targets import require_node_capability
+
+        for key in ("receiver_name", "peer_name"):
+            require_node_capability(ctx, cls.root_cause_name, inject.get(key), "bgp")
 
     symptom_desc = (
         "An eBGP peer advertises more prefixes than the receiver's configured "
@@ -1506,12 +1543,18 @@ class BGPMaxPrefixExceeded(ProblemBase):
         )
 
     def _neighbor_output(self, router: str, neighbor_ip: str) -> str:
-        return self.runtime.exec(
+        output = self.runtime.exec(
             router,
             f"vtysh -c 'show bgp neighbors {neighbor_ip}' 2>/dev/null || true",
         )
+        if f"BGP neighbor is {neighbor_ip}," not in output:
+            raise ValueError(f"Unreadable BGP neighbor {neighbor_ip} on {router!r}")
+        return output
 
     def _session_established(self, router: str, neighbor_ip: str) -> bool:
+        ops = native_fault_ops(self, router, "bgp_established_peers")
+        if ops is not None:
+            return neighbor_ip in ops.bgp_established_peers()
         out = self._neighbor_output(router, neighbor_ip)
         for line in out.splitlines():
             lower = line.lower()
@@ -1520,6 +1563,9 @@ class BGPMaxPrefixExceeded(ProblemBase):
         return False
 
     def _received_prefix_count(self, router: str, neighbor_ip: str) -> int:
+        ops = native_fault_ops(self, router, "bgp_received_prefix_count")
+        if ops is not None:
+            return ops.bgp_received_prefix_count(neighbor_ip)
         out = self._neighbor_output(router, neighbor_ip)
         for pattern in (
             r"Prefix received(?: count)?:\s*(\d+)",
@@ -1532,11 +1578,8 @@ class BGPMaxPrefixExceeded(ProblemBase):
         summary = self.runtime.exec(
             router, "vtysh -c 'show bgp summary json' 2>/dev/null || true"
         )
-        try:
-            peers = json.loads(summary).get("ipv4Unicast", {}).get("peers", {})
-            return int(peers.get(neighbor_ip, {}).get("pfxRcd", 0))
-        except (ValueError, TypeError, AttributeError):
-            return 0
+        peers = json.loads(summary)["ipv4Unicast"]["peers"]
+        return int(peers[neighbor_ip]["pfxRcd"])
 
     def customer_route(self, receiver: str, peer: str) -> dict | None:
         """The scenario's customer route that ``receiver`` learns only from ``peer``."""
@@ -1550,10 +1593,18 @@ class BGPMaxPrefixExceeded(ProblemBase):
         return None
 
     def _has_route(self, router: str, prefix: str) -> bool:
+        ops = native_fault_ops(self, router, "has_bgp_route")
+        if ops is not None:
+            return ops.has_bgp_route(prefix)
         out = self.runtime.exec(
             router, f"vtysh -c 'show bgp ipv4 unicast {prefix}' 2>/dev/null || true"
         )
-        return "Network not in table" not in out and prefix.split("/")[0] in out
+        if "Network not in table" in out:
+            return False
+        paths = re.search(r"Paths:\s*\((\d+) available", out)
+        if f"BGP routing table entry for {prefix}" not in out or paths is None:
+            raise ValueError(f"Unreadable BGP route {prefix} on {router!r}")
+        return int(paths[1]) > 0
 
     def _business_prefix_missing(self, receiver: str, peer: str) -> bool:
         bgp = self._bgp_inventory()
@@ -1571,19 +1622,7 @@ class BGPMaxPrefixExceeded(ProblemBase):
             ]
         if not peer_prefixes:
             return True
-        missing = 0
-        for prefix in peer_prefixes:
-            out = self.runtime.exec(
-                receiver,
-                f"vtysh -c 'show bgp ipv4 unicast {prefix}' 2>/dev/null || true",
-            )
-            if "Network not in table" in out:
-                missing += 1
-                continue
-            network = prefix.split("/")[0]
-            if network not in out and prefix not in out:
-                missing += 1
-        return missing == len(peer_prefixes)
+        return any(not self._has_route(receiver, prefix) for prefix in peer_prefixes)
 
     def _flood_policy_maps(self, device: str) -> list[str]:
         config = self.runtime.exec(device, "vtysh -c 'show running-config'")
@@ -1603,6 +1642,10 @@ class BGPMaxPrefixExceeded(ProblemBase):
         return maps
 
     def _install_flood_policy(self, device: str) -> None:
+        ops = native_fault_ops(self, device, "permit_bgp_prefixes")
+        if ops is not None:
+            ops.permit_bgp_prefixes("198.19.0.0/16", 24)
+            return
         # Include solved import policies, not only the baseline policy names.
         lines = [
             f"ip prefix-list {_FLOOD_PREFIX_LIST} seq 5 permit 198.19.0.0/16 le 24"
@@ -1638,6 +1681,10 @@ class BGPMaxPrefixExceeded(ProblemBase):
         return sorted(f"{_FLOOD_PREFIX_BASE}.{octet}.0/24" for octet in octets[:count])
 
     def _advertise_flood(self, peer: str, asn: int, prefixes: list[str]) -> None:
+        ops = native_fault_ops(self, peer, "advertise_bgp_prefixes")
+        if ops is not None:
+            ops.advertise_bgp_prefixes(prefixes)
+            return
         lines: list[str] = []
         config = self.runtime.exec(peer, "vtysh -c 'show running-config'")
         if "no bgp network import-check" not in config:
@@ -1666,6 +1713,10 @@ class BGPMaxPrefixExceeded(ProblemBase):
     def _set_maximum_prefix(
         self, receiver: str, asn: int, neighbor_ip: str, limit: int
     ) -> None:
+        ops = native_fault_ops(self, receiver, "set_bgp_prefix_limit")
+        if ops is not None:
+            ops.set_bgp_prefix_limit(neighbor_ip, limit)
+            return
         cmd = frr_config_command(
             f"router bgp {asn}",
             "address-family ipv4 unicast",
@@ -1692,20 +1743,37 @@ class BGPMaxPrefixExceeded(ProblemBase):
         timeout_s: float = 90.0,
         poll_s: float = 2.0,
     ) -> bool:
-        deadline = time.time() + timeout_s
-        while time.time() < deadline:
-            if self._session_established(router, neighbor_ip) == established:
-                return True
-            time.sleep(poll_s)
-        return self._session_established(router, neighbor_ip) == established
+        return wait_until(
+            lambda: self._session_established(router, neighbor_ip) == established,
+            timeout_s,
+            interval_s=poll_s,
+        )
 
     def inject_fault(self, params: BGPMaxPrefixExceededParams):
         if self.lab_backend != "kathara":
             raise RuntimeCapabilityError(
                 f"{type(self).__name__} cannot inject_fault: unsupported backend "
-                f"{self.lab_backend!r} (Kathara + FRR only)."
+                f"{self.lab_backend!r} (Kathara only)."
             )
         receiver, peer, neighbor_ip = self._resolve_session(params)
+        self._saved_native_configs = {}
+        self._native_peer_baseline = {}
+        for host in (receiver, peer):
+            ops = native_fault_ops(self, host, "save_config")
+            if ops is not None:
+                self._saved_native_configs[host] = ops.save_config()
+                self._native_peer_baseline[host] = ops.bgp_established_peers()
+        if self._saved_native_configs and set(self._saved_native_configs) != {
+            receiver,
+            peer,
+        }:
+            raise RuntimeCapabilityError(
+                "BGP maximum-prefix requires both session endpoints to use native profiles or FRR"
+            )
+        if self._saved_native_configs and self.customer_route(receiver, peer) is None:
+            raise RuntimeCapabilityError(
+                "BGP maximum-prefix requires the unique customer route in the deployed inventory"
+            )
         if not self._session_established(receiver, neighbor_ip):
             # Allow BGP to finish converging after deploy.
             if not self._wait_session_state(
@@ -1723,8 +1791,8 @@ class BGPMaxPrefixExceeded(ProblemBase):
         flood_count = max(params.flood_count, limit + 15)
         prefixes = self._flood_prefixes(flood_count, peer=peer, neighbor_ip=neighbor_ip)
 
-        receiver_asn = self.runtime.frr_get_bgp_asn_number(receiver)
-        peer_asn = self.runtime.frr_get_bgp_asn_number(peer)
+        receiver_asn = self._asn(receiver)
+        peer_asn = self._asn(peer)
 
         self._set_maximum_prefix(receiver, receiver_asn, neighbor_ip, limit)
         # Confirm session still up with received < limit before the flood.
@@ -1742,21 +1810,16 @@ class BGPMaxPrefixExceeded(ProblemBase):
         self._install_flood_policy(receiver)
         self._advertise_flood(peer, peer_asn, prefixes)
 
-        exceeded_seen = False
-        deadline = time.time() + 90.0
-        while time.time() < deadline:
-            count = self._received_prefix_count(receiver, neighbor_ip)
-            if count > limit:
-                exceeded_seen = True
-            if not self._session_established(receiver, neighbor_ip):
-                break
-            time.sleep(2.0)
+        self._wait_session_state(
+            receiver, neighbor_ip, established=False, timeout_s=90.0
+        )
 
         if self._session_established(receiver, neighbor_ip):
             # Force a refresh if FRR has not yet applied the limit.
-            self.runtime.exec(
-                peer, "vtysh -c 'clear ip bgp * soft out' 2>/dev/null || true"
-            )
+            if not self._saved_native_configs:
+                self.runtime.exec(
+                    peer, "vtysh -c 'clear ip bgp * soft out' 2>/dev/null || true"
+                )
             self._wait_session_state(
                 receiver, neighbor_ip, established=False, timeout_s=60.0
             )
@@ -1769,7 +1832,6 @@ class BGPMaxPrefixExceeded(ProblemBase):
             "peer_asn": peer_asn,
             "limit": limit,
             "prefixes": prefixes,
-            "exceeded_seen": exceeded_seen,
         }
         self.logger.info(
             f"Injected bgp_max_prefix_exceeded: peer={peer} flooded "
@@ -1789,20 +1851,24 @@ class BGPMaxPrefixExceeded(ProblemBase):
                 f"{self.lab_backend!r}."
             )
         receiver, peer, neighbor_ip = self._resolve_session(params)
-        receiver_cfg = self.runtime.exec(
-            receiver, "vtysh -c 'show running-config' 2>/dev/null || true"
-        )
-        match = re.search(
-            rf"neighbor {re.escape(neighbor_ip)} maximum-prefix (\d+)", receiver_cfg
-        )
-        limit = int(match.group(1)) if match else None
+        ops = native_fault_ops(self, receiver, "bgp_prefix_limit")
+        if ops is not None:
+            limit = ops.bgp_prefix_limit(neighbor_ip)
+            held_for_limit = ops.bgp_prefix_limit_exceeded(neighbor_ip)
+        else:
+            receiver_cfg = self.runtime.exec(
+                receiver, "vtysh -c 'show running-config' 2>/dev/null || true"
+            )
+            match = re.search(
+                rf"neighbor {re.escape(neighbor_ip)} maximum-prefix (\d+)", receiver_cfg
+            )
+            limit = int(match.group(1)) if match else None
+            neighbor = self._neighbor_output(receiver, neighbor_ip)
+            held_for_limit = (
+                "peer had exceeded the max. no. of prefixes" in neighbor.lower()
+            )
         flood = len(self._discover_flood_prefixes(peer))
-        neighbor = self._neighbor_output(receiver, neighbor_ip)
         session_down = not self._session_established(receiver, neighbor_ip)
-        # FRR prints this only for a session it shut for an exceeded limit.
-        held_for_limit = (
-            "peer had exceeded the max. no. of prefixes" in neighbor.lower()
-        )
         verified = (
             limit is not None and flood > limit and session_down and held_for_limit
         )
@@ -1827,6 +1893,14 @@ class BGPMaxPrefixExceeded(ProblemBase):
         )
 
     def _discover_flood_prefixes(self, peer: str) -> list[str]:
+        ops = native_fault_ops(self, peer, "bgp_networks")
+        if ops is not None:
+            return sorted(
+                p
+                for p in ops.bgp_networks()
+                if (network := ipaddress.ip_network(p)).prefixlen == 24
+                and network.subnet_of(ipaddress.ip_network("198.19.0.0/16"))
+            )
         conf = self.runtime.exec(
             peer, "vtysh -c 'show running-config' 2>/dev/null || true"
         )
@@ -1836,6 +1910,14 @@ class BGPMaxPrefixExceeded(ProblemBase):
         if found:
             return sorted(set(found))
         return []
+
+    def _asn(self, host: str) -> int:
+        ops = native_fault_ops(self, host, "bgp_asn")
+        return (
+            ops.bgp_asn()
+            if ops is not None
+            else self.runtime.frr_get_bgp_asn_number(host)
+        )
 
     def recover_fault(self, params: BGPMaxPrefixExceededParams) -> dict:
         """Withdraw flood prefixes, remove max-prefix, restore eBGP convergence."""
@@ -1849,6 +1931,42 @@ class BGPMaxPrefixExceeded(ProblemBase):
         receiver = str(state.get("receiver") or receiver)
         peer = str(state.get("peer") or peer)
         neighbor_ip = str(state.get("neighbor_ip") or neighbor_ip)
+        saved = getattr(self, "_saved_native_configs", {})
+        if saved:
+            for host, config in saved.items():
+                ops = native_fault_ops(self, host, "restore_config")
+                ops.restore_config(config)
+            ops = native_fault_ops(self, receiver, "reset_bgp_session")
+            ops.reset_bgp_session(neighbor_ip)
+
+            def sessions_back():
+                for host, peers in self._native_peer_baseline.items():
+                    ops = native_fault_ops(self, host, "bgp_established_peers")
+                    if not peers <= ops.bgp_established_peers():
+                        return False
+                return self._session_established(receiver, neighbor_ip)
+
+            session_up = wait_until(sessions_back, 180)
+            site = self.customer_route(receiver, peer)
+
+            def restored():
+                return (
+                    site is not None
+                    and self._has_route(receiver, str(site["prefix"]))
+                    and not self._business_prefix_missing(receiver, peer)
+                )
+
+            routes_ok = wait_until(restored, 60) if session_up else False
+            return {
+                "verified": session_up and routes_ok,
+                "details": {
+                    "receiver": receiver,
+                    "peer": peer,
+                    "session_established": session_up,
+                    "business_routes_restored": routes_ok,
+                    "withdrawn_prefixes": len(state.get("prefixes", [])),
+                },
+            }
         prefixes = list(state.get("prefixes") or [])
         if not prefixes:
             prefixes = self._discover_flood_prefixes(peer)
@@ -1939,11 +2057,12 @@ class BGPTtlSecurityMismatchParams(BaseModel):
 class BGPTtlSecurityMismatch(ProblemBase):
     """TTL security (RFC 5082 GTSM) on one router's BGP neighbors only.
 
-    The router then drops every BGP packet whose TTL is below 255. Its eBGP
+    FRR then drops every BGP packet whose TTL is below 255. Its eBGP
     peers still send with TTL 1, and iBGP packets from peers more than one
     hop away arrive below 255, so those sessions never reach Established;
     a directly connected iBGP peer still gets through. Nothing filters TCP
-    179: the kernel drops the packets through the socket's minimum TTL. See
+    179: the kernel drops the packets through the socket's minimum TTL. Native
+    providers enable the platform's receive-TTL check for eBGP. See
     the AWS Direct Connect note on TTL security:
     https://docs.aws.amazon.com/directconnect/latest/UserGuide/ts-ttl-security.html
     """
@@ -1959,6 +2078,17 @@ class BGPTtlSecurityMismatch(ProblemBase):
     # keep their sessions, so the router may lose none of its routes.
     isp_protocol = {"igp": "ospf", "bgp_mode": "ebgp", "rpki": False}
     supported_backends = ("kathara",)
+    native_router_operations = frozenset(
+        {
+            "enable_bgp_ttl_security",
+            "bgp_established_peers",
+            "ipv4_addresses",
+            "bgp_ttl_security_enabled",
+            "save_config",
+            "restore_config",
+            "reset_bgp",
+        }
+    )
     Params = BGPTtlSecurityMismatchParams
 
     @classmethod
@@ -2019,7 +2149,28 @@ class BGPTtlSecurityMismatch(ProblemBase):
         )
         return neighbors, secured
 
+    def _established(self, host: str) -> set[str]:
+        from nika.validation.symptom.routing_probes import bgp_neighbors
+
+        ops = native_fault_ops(self, host, "bgp_established_peers")
+        if ops is not None:
+            return ops.bgp_established_peers()
+        peers = bgp_neighbors(self.runtime, host)
+        if peers is None:
+            raise RuntimeCapabilityError(f"Unreadable BGP sessions on {host!r}.")
+        return {peer for peer, row in peers.items() if row["state"] == "Established"}
+
     def inject_fault(self, params: BGPTtlSecurityMismatchParams):
+        self._healthy_peers = self._established(params.host_name)
+        if not self._healthy_peers:
+            raise RuntimeCapabilityError(
+                "BGP TTL security needs an established session."
+            )
+        ops = native_fault_ops(self, params.host_name, "enable_bgp_ttl_security")
+        if ops is not None:
+            self._saved_config = ops.save_config()
+            ops.enable_bgp_ttl_security()
+            return
         if not self._neighbors(params.host_name):
             raise RuntimeCapabilityError(
                 f"{type(self).__name__}: {params.host_name!r} has no BGP neighbors."
@@ -2030,6 +2181,13 @@ class BGPTtlSecurityMismatch(ProblemBase):
         )
 
     def verify_fault(self, params: BGPTtlSecurityMismatchParams) -> dict:
+        ops = native_fault_ops(self, params.host_name, "bgp_ttl_security_enabled")
+        if ops is not None:
+            return build_verify_result(
+                fault_type=self.root_cause_name,
+                verified=ops.bgp_ttl_security_enabled(),
+                details={"host": params.host_name, "profile": ops.profile},
+            )
         neighbors, secured = self._secured(params.host_name)
         return build_verify_result(
             fault_type=self.root_cause_name,
@@ -2042,10 +2200,35 @@ class BGPTtlSecurityMismatch(ProblemBase):
         )
 
     def recover_fault(self, params: BGPTtlSecurityMismatchParams) -> dict:
+        baseline = getattr(self, "_healthy_peers", None)
+        if not baseline:
+            return {"verified": False, "details": {"error": "no_healthy_baseline"}}
+        ops = native_fault_ops(self, params.host_name, "restore_config")
+        if ops is not None:
+            saved = getattr(self, "_saved_config", None)
+            if saved:
+                ops.restore_config(saved)
+            reset = native_fault_ops(self, params.host_name, "reset_bgp")
+            if reset is not None:
+                reset.reset_bgp()
+            restored = bool(saved) and wait_until(
+                lambda: baseline <= self._established(params.host_name),
+                180,
+                interval_s=3,
+            )
+            return {
+                "verified": restored and not ops.bgp_ttl_security_enabled(),
+                "details": {"host": params.host_name},
+            }
         self._apply(params.host_name, enable=False)
+        restored = wait_until(
+            lambda: baseline <= self._established(params.host_name),
+            180,
+            interval_s=3,
+        )
         neighbors, secured = self._secured(params.host_name)
         return {
-            "verified": not secured,
+            "verified": restored and not secured,
             "details": {"host": params.host_name, "neighbors": neighbors},
         }
 
@@ -2056,24 +2239,16 @@ class BGPTtlSecurityMismatch(ProblemBase):
 
 
 def has_declared_ebgp(net_env, router: str) -> bool:
-    """Whether ``router``'s declared design gives it an eBGP session.
-
-    Converted environments keep each native router's FRR sketch; native ISP
-    labs keep their BGP plan.
-    """
+    """Whether ``router``'s FRR design, kept for its native conversion, has eBGP."""
     sources = getattr(net_env, "native_sources", None) or {}
-    if router in sources:
-        config = sources[router][0]
-        local = re.search(r"^router bgp (\d+)\s*$", config, re.MULTILINE)
-        remotes = re.findall(r"^\s+neighbor \S+ remote-as (\S+)", config, re.MULTILINE)
-        return bool(local) and any(
-            remote == "external" or (remote.isdigit() and remote != local[1])
-            for remote in remotes
-        )
-    plan = getattr(net_env, "bgp_plan", None)
-    return any(
-        session.local_device == router and session.session_type == "ebgp"
-        for session in getattr(plan, "sessions", ())
+    if router not in sources:
+        return False
+    config = sources[router][0]
+    local = re.search(r"^router bgp (\d+)\s*$", config, re.MULTILINE)
+    remotes = re.findall(r"^\s+neighbor \S+ remote-as (\S+)", config, re.MULTILINE)
+    return bool(local) and any(
+        remote == "external" or (remote.isdigit() and remote != local[1])
+        for remote in remotes
     )
 
 
@@ -2104,14 +2279,16 @@ class BGPSessionPolicyMissing(ProblemBase):
     effect_protocol = "bgp"
     TAGS = ["bgp"]
     # Validated on the IOS XR and RouterOS dc_clos fabrics, where every router
-    # peers over eBGP and the web server sits behind a leaf.
-    COMPATIBLE_COLUMNS = frozenset({"dc_clos"})
+    # peers over eBGP and the web server sits behind a leaf, and on the RouterOS
+    # enterprise_branch Site Edges, whose overlay sessions carry every LAN.
+    COMPATIBLE_COLUMNS = frozenset({"dc_clos", "enterprise_branch"})
     supported_backends = ("kathara",)
     native_router_operations = frozenset(
         {
             "drop_bgp_session_policy",
             "bgp_session_policy_dropped",
             "bgp_established_peers",
+            "remote_bgp_prefixes",
             "save_config",
             "restore_config",
         }
@@ -2168,6 +2345,12 @@ class BGPSessionPolicyMissing(ProblemBase):
             native_fault_ops(self, host, "drop_bgp_session_policy"), host
         )
         self._saved_config = ops.save_config()
+        self._healthy_peers = ops.bgp_established_peers()
+        self._healthy_routes = set(ops.remote_bgp_prefixes())
+        if not self._healthy_peers:
+            raise RuntimeCapabilityError(
+                "BGP session policy needs an established session."
+            )
         ops.drop_bgp_session_policy()
         self.logger.info(f"Dropped eBGP session policies on {params.host_name}.")
 
@@ -2190,10 +2373,242 @@ class BGPSessionPolicyMissing(ProblemBase):
         host = params.host_name
         ops = self._native(native_fault_ops(self, host, "restore_config"), host)
         saved = getattr(self, "_saved_config", None)
-        if saved:
-            ops.restore_config(saved)
+        peers = getattr(self, "_healthy_peers", None)
+        routes = getattr(self, "_healthy_routes", None)
+        if not saved or not peers or routes is None:
+            return {"verified": False, "details": {"error": "no_healthy_baseline"}}
+        ops.restore_config(saved)
+        restored = wait_until(
+            lambda: (
+                peers <= ops.bgp_established_peers()
+                and routes <= set(ops.remote_bgp_prefixes())
+            ),
+            180,
+            interval_s=3,
+        )
         dropped = ops.bgp_session_policy_dropped()
         return {
-            "verified": bool(saved) and not dropped,
+            "verified": restored and not dropped,
             "details": {"host": params.host_name, "policy_dropped": dropped},
+        }
+
+
+class BGPMd5PasswordMismatchParams(BaseModel):
+    """Parameters for configuring TCP MD5 on one side of one BGP session."""
+
+    host_name: str = Field(description="Target router host name.")
+    neighbor_ip: str | None = Field(
+        default=None,
+        description="Neighbor address; defaults to the lowest established IPv4 peer.",
+    )
+
+
+class BGPMd5PasswordMismatch(ProblemBase):
+    """A BGP neighbor requires TCP MD5 while its peer sends unsigned segments.
+
+    RFC 2385 requires receivers to discard segments with a missing or invalid
+    signature. Set a password on one router only and reset that session;
+    the other router's authentication, TTL, policy and filters stay unchanged.
+    Sources:
+    https://www.rfc-editor.org/rfc/rfc2385
+    https://docs.frrouting.org/en/latest/bgp.html#clicmd-neighbor-PEER-password-PASSWORD
+    https://help.mikrotik.com/docs/spaces/ROS/pages/331612228/routing+bgp
+    https://www.cisco.com/c/en/us/td/docs/ios_xr_sw/iosxr_r3-7/routing/command/reference/rr37bgp.html
+    """
+
+    failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
+    symptom_probe = "custom"
+    symptom_class = "control_plane"
+    root_cause_name = "bgp_md5_password_mismatch"
+    description = (
+        "A BGP neighbor requires a TCP MD5 password configured on one side only."
+    )
+    symptom_desc = "A routing session fails and withdraws the paths learned through it."
+    effect_protocol = "bgp"
+    TAGS = ["bgp"]
+    COMPATIBLE_COLUMNS = frozenset(
+        {
+            "dc_clos",
+            "enterprise_branch",
+            "iosxr_simple_bgp",
+            "routeros_simple_bgp",
+            "isp_abilene/ebgp",
+            "isp_abilene/ibgp_rr",
+        }
+    )
+    supported_backends = ("kathara",)
+    native_router_operations = frozenset(
+        {
+            "set_bgp_password",
+            "bgp_password_configured",
+            "bgp_established_peers",
+            "reset_bgp_session",
+            "ipv4_addresses",
+            "bgp_received_prefixes",
+        }
+    )
+    Params = BGPMd5PasswordMismatchParams
+    RECORDED_ATTRS = ("neighbor_ip",)
+    _PASSWORD = "r7Q4m2V9p6"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        plan = getattr(ctx.net_env, "bgp_plan", None)
+        originators = sorted({item.device for item in getattr(plan, "originated", ())})
+        return {"host_name": choice(ctx.rng, originators, ctx.router0)}
+
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        from nika.problems.support.benchmark_targets import require_node_capability
+
+        require_node_capability(
+            ctx, cls.root_cause_name, inject.get("host_name"), "bgp"
+        )
+        plan = getattr(ctx.net_env, "bgp_plan", None)
+        if plan is not None and inject.get("host_name") not in {
+            item.device for item in plan.originated
+        }:
+            raise ValueError(
+                f"{cls.root_cause_name} needs a router with a declared BGP prefix"
+            )
+
+    def root_cause_resources(self, params: BGPMd5PasswordMismatchParams):
+        return [node_resource(params.host_name)]
+
+    def _established(self, host: str) -> set[str]:
+        ops = native_fault_ops(self, host, "bgp_established_peers")
+        if ops is not None:
+            return ops.bgp_established_peers()
+        data = json.loads(self.runtime.exec(host, "vtysh -c 'show bgp neighbors json'"))
+        return {
+            peer
+            for peer, state in data.items()
+            if isinstance(state, dict) and state.get("bgpState") == "Established"
+        }
+
+    def _check_tcp_md5(self, host: str) -> None:
+        if native_fault_ops(self, host, "set_bgp_password") is not None:
+            return
+        import shlex
+
+        # Exercise setsockopt in the router's network namespace before mutation.
+        script = (
+            "import socket,struct; s=socket.socket(); "
+            "addr=struct.pack('HH4s8s',socket.AF_INET,0,socket.inet_aton('127.0.0.2'),b'\\0'*8); "
+            "s.setsockopt(socket.IPPROTO_TCP,14,addr+b'\\0'*112+"
+            "struct.pack('BBHi',0,0,4,0)+b'q83z'+b'\\0'*76); print('TCP_MD5SIG_OK')"
+        )
+        output = self.runtime.exec(host, f"python3 -c {shlex.quote(script)}")
+        if "TCP_MD5SIG_OK" not in output:
+            raise RuntimeCapabilityError(
+                f"TCP_MD5SIG is unavailable on {host!r}: {output}"
+            )
+
+    def _password_configured(self, host: str, peer: str) -> bool:
+        ops = native_fault_ops(self, host, "bgp_password_configured")
+        if ops is not None:
+            return ops.bgp_password_configured(peer)
+        config = self.runtime.exec(host, "vtysh -c 'show running-config'")
+        return bool(
+            re.search(rf"^ neighbor {re.escape(peer)} password .+$", config, re.M)
+        )
+
+    def _set_password(self, host: str, peer: str, password: str | None) -> None:
+        ops = native_fault_ops(self, host, "set_bgp_password")
+        if ops is not None:
+            ops.set_bgp_password(peer, password)
+        else:
+            config = self.runtime.exec(host, "vtysh -c 'show running-config'")
+            block = next(
+                (
+                    b
+                    for b, peers in bgp_neighbors_by_instance(config).items()
+                    if peer in peers and " vrf " not in b
+                ),
+                None,
+            )
+            if block is None:
+                raise RuntimeCapabilityError(
+                    f"No default-instance BGP neighbor {peer!r} on {host!r}."
+                )
+            command = (
+                f"neighbor {peer} password {password}"
+                if password is not None
+                else f"no neighbor {peer} password"
+            )
+            output = self.runtime.exec(host, frr_config_command(block, command))
+            if "%" in output or "Error" in output:
+                raise RuntimeCapabilityError(
+                    f"BGP password command failed on {host!r}: {output}"
+                )
+            frr_save_config(self.runtime, host)
+        self._reset(host, peer)
+
+    def _reset(self, host: str, peer: str) -> None:
+        ops = native_fault_ops(self, host, "reset_bgp_session")
+        if ops is not None:
+            ops.reset_bgp_session(peer)
+        else:
+            self.runtime.exec(host, f"vtysh -c 'clear bgp {peer}'")
+
+    def select_neighbor(self, params: BGPMd5PasswordMismatchParams) -> str:
+        """Select an established IPv4 neighbor before baseline or injection."""
+        peers = self._established(params.host_name)
+        selected = params.neighbor_ip or getattr(self, "neighbor_ip", None)
+        if not selected:
+            addresses = sorted(
+                ipaddress.IPv4Address(p)
+                for p in peers
+                if re.fullmatch(r"\d+\.\d+\.\d+\.\d+", p)
+            )
+            selected = str(addresses[0]) if addresses else None
+        if selected is None or str(ipaddress.IPv4Address(selected)) not in peers:
+            raise RuntimeCapabilityError(
+                f"No established IPv4 BGP peer {selected!r} on {params.host_name!r}."
+            )
+        self.neighbor_ip = selected
+        return selected
+
+    def inject_fault(self, params: BGPMd5PasswordMismatchParams):
+        host = params.host_name
+        peer = self.select_neighbor(params)
+        self._check_tcp_md5(host)
+        if self._password_configured(host, peer):
+            raise RuntimeCapabilityError(
+                f"BGP neighbor {peer} on {host!r} already uses TCP MD5."
+            )
+        self._healthy_peers = self._established(host)
+        self._set_password(host, peer, self._PASSWORD)
+
+    def verify_fault(self, params: BGPMd5PasswordMismatchParams) -> dict:
+        peer = getattr(self, "neighbor_ip", None)
+        configured = bool(peer) and self._password_configured(params.host_name, peer)
+        peers = self._established(params.host_name)
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=configured and peer not in peers,
+            details={
+                "host": params.host_name,
+                "neighbor_ip": peer,
+                "password_configured": configured,
+                "established_peers": sorted(peers),
+            },
+        )
+
+    def recover_fault(self, params: BGPMd5PasswordMismatchParams) -> dict:
+        peer = getattr(self, "neighbor_ip", None)
+        healthy = getattr(self, "_healthy_peers", set())
+        if peer and healthy:
+            self._set_password(params.host_name, peer, None)
+        restored = bool(healthy) and wait_until(
+            lambda: healthy <= self._established(params.host_name), 180, interval_s=3
+        )
+        return {
+            "verified": restored
+            and not self._password_configured(params.host_name, peer),
+            "details": {
+                "host": params.host_name,
+                "neighbor_ip": peer,
+                "established_peers": sorted(self._established(params.host_name)),
+            },
         }

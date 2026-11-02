@@ -48,22 +48,27 @@ class ScaleSpec:
 
 @dataclass(frozen=True)
 class OverlayQosSpec:
-    """Per-size WireGuard overlay egress capacity and EF reservation (mbit)."""
+    """WireGuard overlay egress capacity and EF reservation (kbit/s)."""
 
-    rate_mbit: int
-    ef_mbit: int
+    rate_kbit: int
+    ef_kbit: int
 
 
 # Overlay egress HTB: total rate and EF class guarantee. The EF guarantee
 # covers the largest call each egress carries (the br1 video link), so healthy
 # media never borrows; best effort gets the rest of the link.
 OVERLAY_QOS: dict[TopoSize, OverlayQosSpec] = {
-    "s": OverlayQosSpec(rate_mbit=8, ef_mbit=4),
-    "m": OverlayQosSpec(rate_mbit=16, ef_mbit=7),
+    "s": OverlayQosSpec(rate_kbit=8000, ef_kbit=4000),
+    "m": OverlayQosSpec(rate_kbit=16000, ef_kbit=7000),
     # l keeps the m rate: eight branches share the same hubs and underlay, and
     # a faster regional egress loads them enough to delay healthy traffic.
-    "l": OverlayQosSpec(rate_mbit=16, ef_mbit=7),
+    "l": OverlayQosSpec(rate_kbit=16000, ef_kbit=7000),
 }
+
+# A Site Edge WAN interface also carries voice legs to other sites, WireGuard
+# overhead, and guest uploads, so an edge with an interface rate ceiling shapes
+# each overlay egress to this share of it.
+_CEILING_SHARE = 0.5
 
 # DSCP EF = 46 → TOS 0xb8; mask 0xfc ignores ECN.
 DSCP_EF = 46
@@ -115,17 +120,37 @@ SYNC_OBJECT_MB = 32
 PUBLIC_SERVICE_IP = "198.51.100.10"
 
 
-def overlay_qos_for(topo_size: TopoSize) -> OverlayQosSpec:
+def overlay_scale(topo_size: TopoSize, rate_ceiling_bps: int | None) -> float:
+    """Return the factor that fits the overlay design under an interface ceiling.
+
+    The overlay rates and the regional load scale together, so their ratios,
+    and the EF and BE behavior they produce, stay the same.
+    """
+    if rate_ceiling_bps is None:
+        return 1.0
+    design_bps = overlay_qos_for(topo_size).rate_kbit * 1000
+    return min(1.0, rate_ceiling_bps * _CEILING_SHARE / design_bps)
+
+
+def overlay_qos_for(topo_size: TopoSize, scale: float = 1.0) -> OverlayQosSpec:
     if topo_size not in OVERLAY_QOS:
         raise ValueError("topo_size should be one of 's', 'm', 'l'.")
-    return OVERLAY_QOS[topo_size]
+    qos = OVERLAY_QOS[topo_size]
+    return OverlayQosSpec(
+        rate_kbit=round(qos.rate_kbit * scale), ef_kbit=round(qos.ef_kbit * scale)
+    )
 
 
 def overlay_be_class(qos: OverlayQosSpec) -> tuple[int, int]:
-    """Return the BE class ceiling (mbit) and its byte-FIFO depth."""
-    be_mbit = max(qos.rate_mbit - qos.ef_mbit, 1)
+    """Return the BE class ceiling (kbit/s) and its byte-FIFO depth."""
+    be_kbit = max(qos.rate_kbit - qos.ef_kbit, 1)
     # ~500ms of standing queue at the BE ceil (bytes = rate_bps * 0.5 / 8).
-    return be_mbit, max(int(be_mbit * 1_000_000 * 0.5 / 8), 64_000)
+    return be_kbit, max(int(be_kbit * 1000 * 0.5 / 8), 64_000)
+
+
+def tc_rate(kbit: int) -> str:
+    """Format a rate as ``tc`` prints it, in Mbit when it is whole."""
+    return f"{kbit // 1000}Mbit" if kbit % 1000 == 0 else f"{kbit}Kbit"
 
 
 def overlay_qos_startup_cmds(iface: str, qos: OverlayQosSpec) -> list[str]:
@@ -138,20 +163,24 @@ def overlay_qos_startup_cmds(iface: str, qos: OverlayQosSpec) -> list[str]:
     flows such as pings skip ahead, while a flow that sends above its fair
     share of the class is dropped.
     """
-    be_mbit, _ = overlay_be_class(qos)
+    be_kbit, _ = overlay_be_class(qos)
+    rate, ef, be = (
+        tc_rate(kbit).lower() for kbit in (qos.rate_kbit, qos.ef_kbit, be_kbit)
+    )
     # Token buckets hold 10 ms at the link rate, like a shaper's Bc = CIR x Tc,
     # so back-to-back packets of a flow within its rate are not throttled.
-    burst = f"burst {qos.rate_mbit * 1250} cburst {qos.rate_mbit * 1250}"
+    bucket = qos.rate_kbit * 10 // 8
+    burst = f"burst {bucket} cburst {bucket}"
     return [
         f"tc qdisc add dev {iface} root handle 1: htb default 20 || true",
         f"tc class add dev {iface} parent 1: classid 1:1 "
-        f"htb rate {qos.rate_mbit}mbit ceil {qos.rate_mbit}mbit {burst} || true",
+        f"htb rate {rate} ceil {rate} {burst} || true",
         # EF: reserved rate, may borrow unused BE capacity up to link ceil.
         f"tc class add dev {iface} parent 1:1 classid 1:10 "
-        f"htb rate {qos.ef_mbit}mbit ceil {qos.rate_mbit}mbit {burst} prio 1 || true",
+        f"htb rate {ef} ceil {rate} {burst} prio 1 || true",
         # BE: hard-capped so bulk cannot silently use EF's reservation.
         f"tc class add dev {iface} parent 1:1 classid 1:20 "
-        f"htb rate {be_mbit}mbit ceil {be_mbit}mbit {burst} prio 2 || true",
+        f"htb rate {be} ceil {be} {burst} prio 2 || true",
         f"tc filter add dev {iface} parent 1: protocol ip prio 1 u32 "
         f"match ip tos {TOS_EF:#x} 0xfc flowid 1:10 || true",
         f"tc qdisc add dev {iface} parent 1:10 handle 10: pfifo limit 100 || true",

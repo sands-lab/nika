@@ -221,7 +221,7 @@ class DeviceForwardingPacketCorruption(ProblemBase):
             raise RuntimeCapabilityError(
                 f"{self.root_cause_name} requires a router or switch target"
             )
-        self._bitflip_token = self.INJECTOR(self.runtime).attach(
+        self.INJECTOR(self.runtime).attach(
             params.forwarding_device, params.intf_name, params.seed
         )
 
@@ -242,7 +242,6 @@ class DeviceForwardingPacketCorruption(ProblemBase):
         injector.detach(
             params.forwarding_device,
             params.intf_name,
-            getattr(self, "_bitflip_token", None),
         )
         return {
             "verified": not injector.attached(

@@ -13,6 +13,17 @@ failure:
         kind: node
         node: leaf_router_0_1
       fault_type: device_flow_blackhole
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      forwarding_device: leaf_router_0_1
+      intf_name: eth2
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: leaf_router_0_1
+      fault_type: device_flow_blackhole
   - topo_size: m
     inject:
       forwarding_device: leaf_router_0_1

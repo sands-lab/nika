@@ -205,6 +205,15 @@ class ResourceMappingTest:
         )
         assert resource.id == "k8s/NetworkPolicy/word-ns/nika-deny-ingress"
 
+    def test_vxlan_neighbor_stale_is_source_node(self) -> None:
+        env = _Env(("n1:eth0", "n2:eth0"))
+        resource = _resources(
+            "k8s_vxlan_neighbor_stale",
+            {"control_node": "n1", "node_name": "n2", "peer_name": "n1"},
+            env,
+        )
+        assert resource.id == "node/n2"
+
     def test_coredns_is_node_holding_drop_rules(self) -> None:
         env = _Env(("n1:eth0", "n2:eth0"))
         resource = _resources(

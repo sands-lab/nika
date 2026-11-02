@@ -216,6 +216,7 @@ def verify_enterprise_branch_lab(
     spec: TopoSpec | None = None,
     edge_view: FrrEdgeView = FRR_EDGES,
     provider_routes: str = FRR_PROVIDER_ROUTES,
+    overlay_scale: float = 1.0,
     **_kwargs: Any,
 ) -> dict[str, Any]:
     spec = spec or build_topo_spec(topo_size)
@@ -461,7 +462,7 @@ def verify_enterprise_branch_lab(
         checks[key] = isolated
 
     # --- Overlay egress QoS: HTB EF/BE classes on every WireGuard iface ---
-    qos = overlay_qos_for(topo_size)
+    qos = overlay_qos_for(topo_size, overlay_scale)
     seen_qos: set[tuple[str, str]] = set()
     qos_jobs: list[tuple[str, str]] = []
     for bt in tunnels:

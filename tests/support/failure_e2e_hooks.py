@@ -504,7 +504,125 @@ def assert_tcp_rwnd_recover(ctx: FailureE2EContext) -> None:
     assert restored_bps / baseline["healthy_bps"] >= 0.8
 
 
+def assert_ospf_stubs_recover(ctx: FailureE2EContext) -> None:
+    from nika.problems.support.polling import wait_until
+    from nika.validation.symptom.routing_probes import _ospf_routes
+
+    stubs = ctx.problem._audit_ospf_stubs["stubs"]
+
+    def restored():
+        observers = {
+            r for prefixes in stubs.values() for obs in prefixes.values() for r in obs
+        }
+        routed = {r: _ospf_routes(ctx.problem, r) for r in observers}
+        return all(
+            prefix in routed[r]
+            for prefixes in stubs.values()
+            for prefix, obs in prefixes.items()
+            for r in obs
+        )
+
+    assert wait_until(restored, 180), stubs
+
+
+def assert_bgp_adjacencies_recover(ctx: FailureE2EContext) -> None:
+    from nika.problems.support.polling import wait_until
+    from nika.validation.symptom.routing_probes import _read_view, _is_up
+
+    plan = ctx.problem._audit_routing_plan
+
+    def restored():
+        states, _, errors = _read_view(ctx.problem, ctx.parsed.host_name, plan)
+        return not errors and all(_is_up("bgp", states.get(key)) for key in plan["up"])
+
+    assert wait_until(restored, 180), plan
+
+
+def assert_readiness_probe_recover(ctx: FailureE2EContext) -> None:
+    from nika.problems.support.kubernetes.objects import LAST_APPLIED
+    from nika.validation.symptom.k8s_probes import target_port_baseline
+
+    problem = ctx.problem
+    original = problem._original
+    meta = original["metadata"]
+    live = problem.runtime.lab_api.kubectl_json(
+        problem.control_node(ctx.parsed),
+        f"get deploy {meta['name']} -n {meta['namespace']}",
+    )
+    assert live["spec"] == original["spec"]
+    assert (live["metadata"].get("annotations") or {}).get(LAST_APPLIED) == (
+        meta.get("annotations") or {}
+    ).get(LAST_APPLIED)
+    healthy, traffic = target_port_baseline(problem, ctx.parsed)
+    assert healthy, traffic
+    print(
+        f"readiness {ctx.scenario}: fault={ctx.symptom}; recovered={ctx.recovered}; traffic={traffic}",
+        flush=True,
+    )
+
+
+def assert_ospf_timer_link_recover(ctx: FailureE2EContext) -> None:
+    import json
+
+    from nika.net_env.verify import ping_stats
+
+    base = ctx.problem._audit_ospf_timer_link
+    _wait_for_ping(ctx.runtime, base["src"], base["dst"])
+    loss = ping_stats(
+        ctx.runtime, base["src"], base["dst"], count=5, interval_sec=0.2
+    ).loss_percent
+    assert loss == 0.0, {"src": base["src"], "dst": base["dst"], "loss": loss}
+    assert (
+        ctx.problem.root_cause_resources(ctx.parsed)[0].id
+        == f"node/{ctx.parsed.host_name}"
+    )
+    print(
+        "OSPF timer evidence: "
+        + json.dumps(
+            {
+                "baseline": base,
+                "artifact": ctx.verify,
+                "symptom": ctx.symptom,
+                "recovery": ctx.recovered,
+                "recovered_loss": loss,
+            },
+            default=str,
+        )
+    )
+
+
+def assert_max_prefix_recover(ctx: FailureE2EContext) -> None:
+    """The customer regains reachability after the receiver relearns its route."""
+    site = ctx.problem.customer_route(ctx.parsed.receiver_name, ctx.parsed.peer_name)
+    assert site is not None
+    assert not ctx.problem._discover_flood_prefixes(ctx.parsed.peer_name)
+    _wait_for_ping(ctx.runtime, str(site["host"]), str(site["service_address"]))
+
+
+def assert_bgp_md5_recover(ctx: FailureE2EContext) -> None:
+    from nika.problems.support.polling import wait_until
+    from nika.validation.symptom.bgp_md5_probes import _received_prefixes
+
+    assert_bgp_adjacencies_recover(ctx)
+    base = ctx.problem._audit_md5
+    assert wait_until(
+        lambda: (
+            set(base["prefixes"])
+            <= _received_prefixes(ctx.problem, base["observer"], base["local_address"])
+        ),
+        180,
+    ), base
+
+
 HOOKS: dict[str, dict[str, Any]] = {
+    "k8s_readiness_probe_misconfig": {
+        "post_recover": assert_readiness_probe_recover,
+    },
+    "ospf_hello_interval_mismatch": {"post_recover": assert_ospf_timer_link_recover},
+    "ospf_duplicate_router_id": {"post_recover": assert_ospf_stubs_recover},
+    "bgp_max_prefix_exceeded": {"post_recover": assert_max_prefix_recover},
+    "bgp_ttl_security_mismatch": {"post_recover": assert_bgp_adjacencies_recover},
+    "bgp_md5_password_mismatch": {"post_recover": assert_bgp_md5_recover},
     "link_down": {"post_recover": assert_link_down_recover},
     "link_detach": {
         "pre_inject": assert_link_detach_pre,

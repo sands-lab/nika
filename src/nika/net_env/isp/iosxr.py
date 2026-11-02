@@ -62,6 +62,14 @@ def render_iosxr_isp(plan: IspPlan, bgp_plan: BgpPlan | None = None) -> dict[str
                     "!",
                 ]
             )
+        site = bgp_plan.customer_site if bgp_plan is not None else None
+        if site is not None and node.device_name == site.provider:
+            lines += [
+                f"interface {iosxr_interface(bgp_plan.customer_interface(node))}",
+                f" ipv4 address {site.gateway}/{site.prefix.split('/')[1]}",
+                " no shutdown",
+                "!",
+            ]
         if bgp_plan is not None:
             lines.extend(_origin_interfaces(bgp_nodes[node.device_name]))
         # XR resolves a command in the innermost mode that accepts it, so all
@@ -153,6 +161,7 @@ def _origin_interfaces(node: BgpNodePlan) -> list[str]:
 
 def _render_bgp(node: BgpNodePlan, plan: BgpPlan) -> list[str]:
     lines = []
+    site = plan.customer_site
     # Match the original FRR BUSINESS allow-list, including the dormant prefix
     # used by unauthorized-origin failures and additional planned origins.
     lines.append("prefix-set BUSINESS")
@@ -175,6 +184,28 @@ def _render_bgp(node: BgpNodePlan, plan: BgpPlan) -> list[str]:
                 "!",
             ]
         )
+    if site is not None:
+        lines += [
+            "route-policy CUSTOMER-IN",
+            f" if destination in ({site.prefix}) then",
+            "  pass",
+            " else",
+            "  apply BGP-IN",
+            " endif",
+            "end-policy",
+            "!",
+        ]
+        if node.device_name == site.provider:
+            lines += [
+                "route-policy CUSTOMER-OUT",
+                f" if destination in ({site.prefix}) then",
+                "  pass",
+                " else",
+                "  apply BGP-OUT",
+                " endif",
+                "end-policy",
+                "!",
+            ]
     inbound = {}
     for index, (neighbor, terms) in enumerate(node.import_policies):
         name = f"NC-IN-{index}"
@@ -190,9 +221,11 @@ def _render_bgp(node: BgpNodePlan, plan: BgpPlan) -> list[str]:
             else:
                 lines.append("  drop")
         if terms:
-            lines.extend([" else", "  apply BGP-IN", " endif"])
+            lines.extend(
+                [" else", f"  apply {'CUSTOMER-IN' if site else 'BGP-IN'}", " endif"]
+            )
         else:
-            lines.append(" apply BGP-IN")
+            lines.append(f" apply {'CUSTOMER-IN' if site else 'BGP-IN'}")
         lines.extend(["end-policy", "!"])
     lines.extend([f"router bgp {node.asn}", f" bgp router-id {node.router_id}"])
     if node.cluster_id:
@@ -200,6 +233,8 @@ def _render_bgp(node: BgpNodePlan, plan: BgpPlan) -> list[str]:
     lines.append(" address-family ipv4 unicast")
     for origin in sorted(node.originated, key=lambda p: p.prefix):
         lines.append(f"  network {origin.prefix}")
+    if site is not None and node.device_name == site.provider:
+        lines.append(f"  network {site.prefix}")
     lines.append(" !")
     for session in sorted(node.sessions, key=lambda s: (s.remote_ip, s.remote_device)):
         lines.extend(
@@ -213,12 +248,24 @@ def _render_bgp(node: BgpNodePlan, plan: BgpPlan) -> list[str]:
         lines.append("  address-family ipv4 unicast")
         if session.route_reflector_client:
             lines.append("   route-reflector-client")
+        inbound_policy = inbound.get(
+            session.remote_ip, "CUSTOMER-IN" if site else "BGP-IN"
+        )
+        outbound_policy = "BGP-OUT"
+        if site and session.session_type == "ibgp":
+            outbound_policy = "CUSTOMER-IN"
+        elif (
+            site
+            and node.device_name == site.provider
+            and session.remote_ip == site.partner_ip
+        ):
+            outbound_policy = "CUSTOMER-OUT"
         # Preserve reflected next hops (RFC 4456 section 4). Passive OSPF
         # advertisements already make the external-link subnets reachable.
         lines.extend(
             [
-                f"   route-policy {inbound.get(session.remote_ip, 'BGP-IN')} in",
-                "   route-policy BGP-OUT out",
+                f"   route-policy {inbound_policy} in",
+                f"   route-policy {outbound_policy} out",
                 "  !",
                 " !",
             ]

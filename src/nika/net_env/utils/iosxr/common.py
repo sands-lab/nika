@@ -54,6 +54,9 @@ def configure_xrd_router(
     The machine keeps its name and links; ``linux_interfaces`` are the data
     ports XR takes over, named as :func:`iosxr_interface` maps them.
     """
+    data_interfaces = [name for name in linux_interfaces if name != "lo"]
+    if not data_interfaces:
+        raise ValueError("XRd requires an Ethernet data interface")
     machine.update_meta({"image": IMAGE, "mem": XRD_MEMORY, "cpus": 1.0})
     machine.add_meta("privileged", True)
     machine.add_meta("ipv6", True)
@@ -61,14 +64,14 @@ def configure_xrd_router(
     machine.add_meta(
         "env",
         build_xr_interfaces_env(
-            *((name, iosxr_interface(name)) for name in linux_interfaces)
+            *((name, iosxr_interface(name)) for name in data_interfaces)
         ),
     )
     machine.add_meta("env", XR_ZTP_DISABLE_ENV)
     machine.create_file_from_string(config, CONFIG_FILE_PATH)
     lab.create_file_from_list(
         build_xr_startup_script(
-            CONFIG_FILE_PATH, wait_iface=iosxr_interface(linux_interfaces[0])
+            CONFIG_FILE_PATH, wait_iface=iosxr_interface(data_interfaces[0])
         ),
         f"{machine.name}.startup",
     )
@@ -89,17 +92,24 @@ def build_xr_startup_script(
     wait_iface: str,
 ) -> list[str]:
     """Kathara startup: wait for XR, then retry failed native configuration calls."""
-    check_cmd_1 = (
-        _CLI_COMMAND.format(command="show run")
-        + " | egrep -e 'No configuration change' -e 'No such file or directory'"
+    # Unconfigured XR interfaces are Shutdown with IP processing disabled.
+    # ZTP also needs its scratch directory before it can create a CLI user.
+    interface_cmd = _CLI_COMMAND.format(command=f"show ip interface {wait_iface}")
+    ready_marker = shlex.quote(
+        rf"^{re.escape(wait_iface)} is .*, ipv4 protocol is (Up|Down)([[:space:]]|$)"
     )
-    check_cmd_2 = (
-        _CLI_COMMAND.format(command=f"sh ip interface {wait_iface}")
-        + " | egrep -e 'ipv4 protocol is Down'"
-    )
-    check_cmd_3 = (
-        _CLI_COMMAND.format(command=f"sh ipv6 interface {wait_iface}")
-        + " | egrep -e 'ipv6 protocol is Down'"
+    wait_for_interface = "\n".join(
+        [
+            "xr_ready=0",
+            "for _xr_ready_try in $(seq 1 240); do",
+            f'  if [[ -d /disk0:/ztp/tmp ]] && _xr_ready_out=$({interface_cmd} 2>&1) && grep -Eq {ready_marker} <<< "$_xr_ready_out"; then',
+            "    xr_ready=1",
+            "    break",
+            "  fi",
+            "  sleep 3",
+            "done",
+            '[[ "$xr_ready" -eq 1 ]] || { echo "ERROR: XR interface or ZTP scratch directory did not become ready"; exit 1; }',
+        ]
     )
 
     # Namespace initialization can fail with multiple native error strings.
@@ -123,12 +133,7 @@ def build_xr_startup_script(
 
     return [
         "pgrep xrd-startup; while [[ $? -eq 0 ]]; do sleep 3; pgrep xrd-startup; done",
-        check_cmd_1,
-        f"while [[ $? -eq 0 ]]; do sleep 3; {check_cmd_1}; done",
-        check_cmd_2,
-        f"while [[ $? -eq 0 ]]; do sleep 3; {check_cmd_2}; done",
-        check_cmd_3,
-        f"while [[ $? -eq 0 ]]; do sleep 3; {check_cmd_3}; done",
+        wait_for_interface,
         "source /pkg/bin/ztp_helper.sh; ztp_disable; ztp_kill_all; killall -9 pyztp2",
         apply_with_retry,
     ]

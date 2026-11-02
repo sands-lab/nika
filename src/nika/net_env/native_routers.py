@@ -95,6 +95,9 @@ class NativeRouterPlatform:
     # (runtime, node) -> provider of failure operations; see
     # ``nika.problems.support.router_ops``. None when no failure is supported.
     fault_ops: Callable[[object, str], object] | None = None
+    # Upload ceiling of every interface of the shipped image, in bit/s; None
+    # when the image does not limit forwarding.
+    interface_rate_bps: int | None = None
 
 
 # Vendor modules exposing ``PLATFORM``; add a profile here to support it.
@@ -113,6 +116,13 @@ def native_platform(profile: str) -> NativeRouterPlatform:
     if profile not in _PLATFORMS:
         raise ValueError(f"No native router platform for device_profile={profile!r}")
     return import_module(_PLATFORMS[profile]).PLATFORM
+
+
+def native_interface_rate_bps(profile: str | None) -> int | None:
+    """Return the per-interface upload ceiling of ``profile``'s image, if any."""
+    if profile not in _PLATFORMS:
+        return None
+    return native_platform(profile).interface_rate_bps
 
 
 class NativeRouterEnv:
@@ -289,11 +299,23 @@ def run_in_network_namespace(env, node: str, commands: Sequence[str]) -> None:
     from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
     from nika.runtime.shared.containers import docker_client
 
+    from docker.errors import ContainerError
+
     container = env._build_runtime().get_container(node)
-    docker_client().containers.run(
-        nika_image("base"),
-        ["/bin/sh", "-ec", "\n".join(commands)],
+    image = nika_image("base")
+    command = ["/bin/sh", "-ec", "\n".join(commands)]
+    helper = docker_client().containers.create(
+        image,
+        command,
         network_mode=f"container:{container.id}",
         cap_add=["NET_ADMIN"],
-        remove=True,
     )
+    try:
+        helper.start()
+        status = helper.wait()["StatusCode"]
+        if status:
+            raise ContainerError(
+                helper, status, command, image, helper.logs(stdout=False, stderr=True)
+            )
+    finally:
+        helper.remove(force=True)

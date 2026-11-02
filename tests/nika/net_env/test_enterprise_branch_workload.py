@@ -5,7 +5,12 @@ from __future__ import annotations
 import pytest
 
 from nika.config import pkg_path
-from nika.net_env.enterprise_branch.topology import build_topo_spec, overlay_qos_for
+from nika.net_env.enterprise_branch.topology import (
+    build_topo_spec,
+    overlay_qos_for,
+    overlay_scale,
+)
+from nika.net_env.native_routers import native_interface_rate_bps
 from nika.net_env.enterprise_branch.workload import (
     GUEST_ARGS,
     REGIONAL_LOAD,
@@ -17,16 +22,26 @@ from nika.traffic.workload import NAT_SESSIONS, REALTIME_BULK_CONTENTION
 pytestmark = pytest.mark.unit
 
 
-@pytest.mark.parametrize("size", ["s", "m", "l"])
-def test_regional_egress_is_unsaturated_until_ef_is_demoted(size: str) -> None:
-    qos = overlay_qos_for(size)
-    load = REGIONAL_LOAD[size]
-    be_kbps = (qos.rate_mbit - qos.ef_mbit) * 1000
+@pytest.mark.parametrize(
+    ("size", "profile"),
+    [("s", None), ("m", None), ("l", None), ("s", "routeros")],
+)
+def test_regional_egress_is_unsaturated_until_ef_is_demoted(
+    size: str, profile: str | None
+) -> None:
+    ceiling = native_interface_rate_bps(profile)
+    scale = overlay_scale(size, ceiling)
+    qos = overlay_qos_for(size, scale)
+    load = REGIONAL_LOAD[size].scaled(scale)
+    be_kbps = qos.rate_kbit - qos.ef_kbit
+    # The overlay egress fits the edge's interface ceiling with headroom.
+    if ceiling is not None:
+        assert qos.rate_kbit * 1000 <= ceiling / 2
     # Headroom for a slow host servicing the shaper.
     assert load.sync_kbps <= 0.65 * be_kbps
     # Healthy media fits its EF guarantee, RTP/UDP/IP headers included.
     assert load.video_kbps * (VIDEO_PAYLOAD + 40) / (VIDEO_PAYLOAD + 12) <= (
-        qos.ef_mbit * 1000
+        qos.ef_kbit
     )
     assert load.sync_kbps + load.video_kbps > 1.1 * be_kbps
     # Demoted, the video gets at most its fair share of BE or what the sync
@@ -34,7 +49,7 @@ def test_regional_egress_is_unsaturated_until_ef_is_demoted(size: str) -> None:
     left = max(be_kbps - load.sync_kbps, be_kbps / (load.sync_pcs + 1))
     assert 1 - left / load.video_kbps > 0.25
     # EF may borrow up to the link rate while BE stays below its ceiling.
-    assert load.sync_kbps + load.video_kbps < qos.rate_mbit * 1000
+    assert load.sync_kbps + load.video_kbps < qos.rate_kbit
 
 
 @pytest.mark.parametrize("size", ["s", "m", "l"])

@@ -253,7 +253,7 @@ def rpki_leak_split(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
 
 
 def _advertised_by(
-    runtime: LabRuntime, observer: str, host: str, addrs: set[str], asn: int | None
+    runtime: LabRuntime, observer: str, addrs: set[str], asn: int | None
 ) -> list[str] | None:
     table = _table(runtime, observer)
     if table is None:
@@ -280,7 +280,7 @@ def advertisement_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, A
     )
     seen: dict[str, list[str]] = {}
     for observer in observers:
-        learned = _advertised_by(runtime, observer, host, addrs, asn)
+        learned = _advertised_by(runtime, observer, addrs, asn)
         if learned is None:
             continue
         if wanted:
@@ -328,9 +328,7 @@ def advertisement_withdrawn(problem: Any, params: Any) -> tuple[bool, dict[str, 
         remaining: dict[str, list[str]] = {}
         errors: list[str] = []
         for observer, prefixes in base["seen"].items():
-            learned = _advertised_by(
-                runtime, observer, params.host_name, addrs, base["asn"]
-            )
+            learned = _advertised_by(runtime, observer, addrs, base["asn"])
             if learned is None:
                 errors.append(f"bgp_query_failed_on_{observer}")
                 continue
@@ -366,35 +364,48 @@ def _policy_probe_ends(problem: Any, router: str) -> dict[str, Any]:
     behind = attached_end_hosts(problem.net_env, router)
     if not behind:
         return {"error": "no_end_host_behind_router"}
-    target = behind[0]
-    intf = next(
-        (
-            parse_endpoint(str(tp))[1]
-            for _key, tps in iter_link_termination_points(problem.net_env)
-            if {router, target} <= {parse_endpoint(str(tp))[0] for tp in tps}
-            for tp in tps
-            if parse_endpoint(str(tp))[0] == target
-        ),
-        None,
-    )
-    address = intf and dict(lab_addresses(problem.runtime).get(target, [])).get(intf)
     topo_size = getattr(problem.net_env, "topo_size", None) or "s"
     path = get_probe_path(problem.scenario_name, topo_size=topo_size)
-    # The scenario's client, or else any end host not behind the router.
+    identities = problem.net_env.machine_identities or {}
+
+    def facing_address(host: str) -> str | None:
+        intf = next(
+            (
+                parse_endpoint(str(tp))[1]
+                for _key, tps in iter_link_termination_points(problem.net_env)
+                if {router, host} <= {parse_endpoint(str(tp))[0] for tp in tps}
+                for tp in tps
+                if parse_endpoint(str(tp))[0] == host
+            ),
+            None,
+        )
+        address = intf and dict(addresses_by_host.get(host, [])).get(intf)
+        return str(ipaddress.ip_interface(address).ip) if address else None
+
+    addresses_by_host = lab_addresses(problem.runtime)
+    addresses = {host: facing_address(host) for host in behind}
+    # The scenario's own destination, else a service, else any host: the
+    # environment's policy may block traffic between end-user hosts.
+    ranked = sorted(
+        (host for host in behind if addresses[host]),
+        key=lambda host: (
+            addresses[host] != getattr(path, "dst_ip", None),
+            getattr(identities.get(host), "role", None) is not NodeRole.SERVICE,
+            host,
+        ),
+    )
     others = [
         node
-        for node, identity in (problem.net_env.machine_identities or {}).items()
+        for node, identity in identities.items()
         if getattr(identity, "role", None) in {NodeRole.HOST, NodeRole.SERVICE}
     ]
     candidates = [getattr(path, "src_host", None), *sorted(others)]
     src = next((n for n in candidates if n and n not in behind), None)
-    if not address or not src:
-        return {"error": "no_remote_client", "target": target}
-    return {
-        "src": src,
-        "dst_host": target,
-        "dst": str(ipaddress.ip_interface(address).ip),
-    }
+    if not ranked or not src:
+        return {"error": "no_remote_client", "behind": behind}
+    target = ranked[0]
+    address = addresses[target]
+    return {"src": src, "dst_host": target, "dst": address}
 
 
 def session_policy_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
@@ -402,17 +413,17 @@ def session_policy_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, 
     from nika.problems.support.router_ops import router_fault_ops
 
     ops = router_fault_ops(problem, params.host_name)
-    peers = sorted(ops.bgp_established_peers()) if ops else []
     ends = _policy_probe_ends(problem, params.host_name)
     if "error" in ends:
         return False, ends
     # A freshly started lab may still be resolving neighbors; read again.
     deadline = time.monotonic() + _ROUTE_WAIT_SEC
     while True:
+        peers = sorted(ops.bgp_established_peers()) if ops else []
         loss = ping_stats(
             problem.runtime, ends["src"], ends["dst"], count=10
         ).loss_percent
-        if loss == 0.0 or time.monotonic() >= deadline:
+        if (peers and loss == 0.0) or time.monotonic() >= deadline:
             break
         time.sleep(_POLL_SEC)
     problem._audit_session_policy = {"peers": peers, "ends": ends}

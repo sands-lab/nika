@@ -291,6 +291,15 @@ def test_mtu_mismatch_k8s_lab_uses_controller_facing_leaf() -> None:
     assert params["intf_name"] == "eth2"
 
 
+@pytest.mark.parametrize("scenario", ["k8s_lab", "llmd_lab"])
+def test_vxlan_neighbor_stale_picks_distinct_k8s_nodes(scenario: str) -> None:
+    params = resolve_inject_params("k8s_vxlan_neighbor_stale", scenario, "s", seed=1)
+    assert params["node_name"]
+    assert params["peer_name"]
+    assert params["node_name"] != params["peer_name"]
+    validate_benchmark_case(scenario, "k8s_vxlan_neighbor_stale", params, "s")
+
+
 def test_icmp_frag_needed_filter_resolves_on_dc_clos() -> None:
     params = resolve_inject_params(
         "icmp_frag_needed_filter_misconfiguration", "dc_clos", "s", seed=1
@@ -829,3 +838,16 @@ def test_dns_record_error_pairs_dns_host_with_owned_zone(topo_size: str) -> None
             },
             "m",
         )
+
+
+@pytest.mark.parametrize("topo_size", ["s", "m", "l"])
+def test_device_flow_blackhole_targets_server_facing_port(topo_size: str) -> None:
+    """enterprise_branch m/l must pin the HQ server port, not an ISP uplink."""
+    inject = resolve_inject_params(
+        "device_flow_blackhole", "enterprise_branch", topo_size, seed=42
+    )
+    assert inject["forwarding_device"] == "hq_edge"
+    assert inject["intf_name"] == ("eth0" if topo_size == "s" else "eth1")
+    validate_benchmark_case(
+        "enterprise_branch", "device_flow_blackhole", inject, topo_size
+    )

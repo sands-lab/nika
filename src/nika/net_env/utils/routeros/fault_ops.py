@@ -8,15 +8,23 @@ provider quotes typed values or selects rows after reading them.
 
 from __future__ import annotations
 
+import ipaddress
 import re
 
 from nika.net_env.utils.routeros.common import routeros_port
 from nika.net_env.utils.routeros.parse import (
+    _CLI_ERROR,
+    routeros_bgp_received_notification,
     routeros_count,
     routeros_established_bgp_peers,
     routeros_terse_rows,
 )
-from nika.problems.support.router_ops import RouterFaultOps, SourceNat, TunnelPeer
+from nika.problems.support.router_ops import (
+    OspfNeighbor,
+    RouterFaultOps,
+    SourceNat,
+    TunnelPeer,
+)
 from nika.service.lab.routeros_api import CLI_COMMAND
 
 _BGP_PORT_RULES = tuple(
@@ -38,9 +46,16 @@ class RouterOsFaultOps(RouterFaultOps):
     # CLI access
 
     def _cli(self, command: str) -> str:
-        return self.runtime.exec(
+        output = self.runtime.exec(
             self.node, CLI_COMMAND.format(command=command), timeout=30
         )
+        if output.startswith("[TIMEOUT]"):
+            raise RuntimeError(f"RouterOS command timed out on {self.node}: {command}")
+        if _CLI_ERROR.search(output):
+            raise RuntimeError(
+                f"RouterOS command failed on {self.node}: {output.strip()}"
+            )
+        return output
 
     def _rows(self, command: str) -> list[dict[str, str]]:
         return routeros_terse_rows(self._cli(command))
@@ -133,10 +148,120 @@ class RouterOsFaultOps(RouterFaultOps):
         names = [
             row["name"]
             for row in self._rows("/routing/bgp/connection/print terse")
-            if row.get("remote.address", "").split("@")[0] == peer
+            if row.get("remote.address", "").split("@")[0].split("/")[0] == peer
         ]
         if names:
+            self._cli(
+                f'/routing bgp session clear [find where remote.address="{peer}"] flag=limit-exceeded'
+            )
             self._reset_connections(names)
+
+    def _bgp_session_output(self, peer: str) -> str:
+        return self._cli(
+            f'/routing/bgp/session/print terse where remote.address="{ipaddress.IPv4Address(peer)}"'
+        )
+
+    def bgp_received_prefix_count(self, peer: str) -> int:
+        rows = routeros_terse_rows(self._bgp_session_output(peer))
+        if len(rows) != 1 or not rows[0].get("prefix-count", "").isdigit():
+            raise ValueError(
+                f"RouterOS omitted received prefix count for {peer}: {rows}"
+            )
+        return int(rows[0]["prefix-count"])
+
+    def bgp_prefix_limit(self, peer: str) -> int | None:
+        rows = self._rows(
+            f'/routing/bgp/connection/print terse where remote.address="{ipaddress.IPv4Address(peer)}"'
+        )
+        if len(rows) != 1:
+            raise ValueError(f"No single BGP connection to {peer}")
+        value = rows[0].get("input.limit-process-routes-ipv4")
+        return int(value) if value else None
+
+    def set_bgp_prefix_limit(self, peer: str, limit: int) -> None:
+        self._cli(
+            f'/routing bgp connection set [find where remote.address="{ipaddress.IPv4Address(peer)}"] input.limit-process-routes-ipv4={int(limit)}'
+        )
+
+    def bgp_prefix_limit_exceeded(self, peer: str) -> bool:
+        output = self._bgp_session_output(peer)
+        return bool(re.search(r"(?:^|\s)limit-exceeded(?:\s|$)", output))
+
+    def bgp_last_notification(self, peer: str) -> str | None:
+        return routeros_bgp_received_notification(self._bgp_session_output(peer))
+
+    def permit_bgp_prefixes(self, prefix: str, length: int) -> None:
+        chains = {
+            row[key]
+            for row in self._rows("/routing/bgp/connection/print terse")
+            for key in ("input.filter", "output.filter-chain")
+            if row.get(key)
+        }
+        commands = [
+            f'/routing filter rule add chain="{chain}" '
+            f'rule="if (dst in {ipaddress.ip_network(prefix)} && dst-len == {int(length)}) {{ accept; }}" '
+            f'place-before=[:pick [/routing filter rule find where chain="{chain}"] 0]'
+            for chain in sorted(chains)
+        ]
+        if not commands:
+            raise ValueError(f"No bound BGP filters on {self.node}")
+        self._cli("; ".join(commands))
+
+    def advertise_bgp_prefixes(self, prefixes: list[str]) -> None:
+        lists = self._origin_lists()
+        if not lists:
+            raise ValueError(f"No BGP origin list on {self.node}")
+        self._cli(
+            "; ".join(
+                command
+                for prefix in prefixes
+                for command in [
+                    f"/ip route add dst-address={ipaddress.ip_network(prefix)} blackhole",
+                    *(
+                        f'/ip firewall address-list add list="{name}" address={ipaddress.ip_network(prefix)}'
+                        for name in sorted(lists)
+                    ),
+                ]
+            )
+        )
+
+    def has_bgp_route(self, prefix: str) -> bool:
+        return bool(
+            self._rows(
+                f'/routing/route/print terse where bgp and afi=ip and dst-address="{ipaddress.ip_network(prefix)}"'
+            )
+        )
+
+    def set_bgp_password(self, peer: str, password: str | None) -> None:
+        peer = str(ipaddress.ip_address(peer))
+        self._cli(
+            f'/routing bgp connection set [find remote.address="{peer}"] '
+            f'tcp-md5-key="{password or ""}"'
+        )
+
+    def bgp_password_configured(self, peer: str) -> bool:
+        peer = str(ipaddress.ip_address(peer))
+        output = self._cli(
+            ":put ([:len [/routing bgp connection get "
+            f'[find remote.address="{peer}"] tcp-md5-key]] > 0)'
+        )
+        value = output.strip()
+        if value not in {"true", "false"}:
+            raise ValueError(
+                f"Unreadable BGP password state for {peer} on {self.node!r}"
+            )
+        return value == "true"
+
+    def bgp_received_prefixes(self, peer: str) -> set[str]:
+        peer = str(ipaddress.ip_address(peer))
+        rows = self._rows("/routing/route/print terse where bgp and afi=ip")
+        prefixes = {
+            row["dst-address"]
+            for row in rows
+            if row.get("belongs-to", "").split("@", 1)[0] == f"bgp-IP-{peer}"
+            and "dst-address" in row
+        }
+        return prefixes
 
     def remote_bgp_prefixes(self) -> list[str]:
         def prefixes(query: str) -> set[str]:
@@ -229,7 +354,9 @@ class RouterOsFaultOps(RouterFaultOps):
             count = self._cli(
                 f'/routing/filter/rule/print count-only where chain="{chain}"'
             )
-            return routeros_count(count) > 0
+            if not count.strip().isdigit():
+                raise ValueError(f"Unreadable BGP filter count on {self.node!r}")
+            return int(count.strip()) > 0
 
         rows = self._ebgp_connections()
         return bool(rows) and all(
@@ -238,12 +365,13 @@ class RouterOsFaultOps(RouterFaultOps):
             for row in rows
         )
 
-    # Packet filters
-
     # Running configuration
 
     def save_config(self) -> str:
-        return self._cli("/export terse")
+        saved = self._cli("/export terse")
+        if not saved.strip():
+            raise ValueError(f"Unreadable RouterOS configuration on {self.node!r}")
+        return saved
 
     def restore_config(self, saved: str) -> None:
         from nika.net_env.utils.routeros.common import routeros_restore_script
@@ -253,6 +381,130 @@ class RouterOsFaultOps(RouterFaultOps):
             self._cli(script)
 
     # OSPF
+
+    def _ospf_area_name(self, area: str) -> str:
+        names = [
+            row["name"]
+            for row in self._rows("/routing/ospf/area/print terse")
+            if row.get("area-id") == area
+        ]
+        if len(names) != 1:
+            raise ValueError(f"No single OSPF area {area} on {self.node!r}")
+        return names[0]
+
+    def ospf_area_ranges(self, area: str) -> dict[str, bool]:
+        name = self._ospf_area_name(area)
+        return {
+            row["prefix"]: row.get("advertise", "yes") == "no"
+            for row in self._rows("/routing/ospf/area/range/print terse")
+            if row.get("area") == name
+        }
+
+    def set_ospf_area_ranges(
+        self, area: str, prefixes: list[str], suppress: bool
+    ) -> None:
+        name = self._ospf_area_name(area)
+        lines = [
+            f'/routing ospf area range add area="{name}" prefix={ipaddress.IPv4Network(p)} advertise=no'
+            if suppress
+            else f'/routing ospf area range remove [find where area="{name}" and prefix="{ipaddress.IPv4Network(p)}"]'
+            for p in prefixes
+        ]
+        if lines:
+            self._cli("; ".join(lines))
+
+    def ospf_summary_lsa_ids(self, area: str) -> set[str]:
+        name = self._ospf_area_name(area)
+        return {
+            row["id"]
+            for row in self._rows("/routing/ospf/lsa/print terse")
+            if row.get("area") in {name, area}
+            and row.get("type") in {"summary-network", "inter-area-prefix"}
+            and int(row.get("age", "3600")) < 3600
+        }
+
+    def ospf_neighbors(self) -> list[OspfNeighbor]:
+        return [
+            OspfNeighbor(
+                row["router-id"],
+                row["address"],
+                re.split(r"[%@,]", row.get("interface") or row.get("iface") or "")[0],
+                row.get("state", ""),
+            )
+            for row in self._rows("/routing/ospf/neighbor/print terse")
+            if "router-id" in row and "address" in row
+        ]
+
+    def ospf_bindings(self) -> dict[str, tuple[str, ...]]:
+        addresses = self._rows("/ip/address/print terse")
+        bindings = {}
+        for row in self._ospf_templates():
+            ports = {name for name in row.get("interfaces", "").split(",") if name}
+            networks = [
+                ipaddress.ip_network(prefix, strict=False)
+                for prefix in row.get("networks", "").split(",")
+                if prefix
+            ]
+            for address in addresses:
+                if any(
+                    ipaddress.ip_interface(address["address"]).ip in network
+                    for network in networks
+                ):
+                    ports.add(address["interface"])
+            bindings[row["id"]] = tuple(sorted(ports))
+        return bindings
+
+    def remove_ospf_binding(self, binding: str) -> None:
+        if not re.fullmatch(r"\*[0-9A-Fa-f]+", binding):
+            raise ValueError("OSPF interface template has no stable ID")
+        self._cli(f"/routing ospf interface-template remove {binding}")
+
+    def ospf_router_id(self) -> str | None:
+        rows = self._rows(
+            "/routing/ospf/instance/print terse where version=2 and !disabled"
+        )
+        return rows[0].get("router-id") if len(rows) == 1 else None
+
+    def ospf_router_lsa_ids(self) -> set[str]:
+        return {
+            row["originator"]
+            for row in self._rows("/routing/ospf/lsa/print terse where type=router")
+            if "originator" in row
+        }
+
+    def ospf_neighbor_ids(self) -> set[str]:
+        return {
+            row["router-id"]
+            for row in self._rows("/routing/ospf/neighbor/print terse")
+            if "router-id" in row
+        }
+
+    def set_ospf_router_id(self, router_id: str) -> None:
+        from ipaddress import IPv4Address
+
+        self._cli(
+            f"/routing ospf instance set [find version=2] router-id={IPv4Address(router_id)}; "
+            "/routing ospf instance disable [find version=2]; :delay 2s; "
+            "/routing ospf instance enable [find version=2]"
+        )
+
+    def ospf_routes(self) -> set[str]:
+        return {
+            row["dst-address"]
+            for row in self._rows(
+                "/routing/route/print terse where ospf and active and afi=ip"
+            )
+            if "dst-address" in row
+        }
+
+    def connected_routes(self) -> set[str]:
+        return {
+            row["dst-address"]
+            for row in self._rows(
+                "/routing/route/print terse where connect and active and afi=ip"
+            )
+            if "dst-address" in row
+        }
 
     def ospf_interface_areas(self) -> list[str]:
         areas = {
@@ -273,6 +525,122 @@ class RouterOsFaultOps(RouterFaultOps):
             f'/routing ospf area set [find where area-id="{area}"] '
             f'area-id="{new_area}"; /routing ospf instance disable [find]; '
             ":delay 2s; /routing ospf instance enable [find]"
+        )
+
+    # OSPF interface network type
+
+    _OSPF_TYPE_TO_ROS = {
+        "broadcast": "broadcast",
+        "point-to-point": "ptp",
+        "non-broadcast": "nbma",
+    }
+    _OSPF_TYPE_FROM_ROS = {
+        "broadcast": "broadcast",
+        "ptp": "point-to-point",
+        "nbma": "non-broadcast",
+    }
+
+    def _ospf_templates(self) -> list[dict[str, str]]:
+        # Terse output omits internal IDs. Prefix each row with its find ID.
+        output = self._cli(
+            ":foreach templateId in=[/routing ospf interface-template find where !disabled] do={"
+            ':put (".id=" . $templateId); '
+            "/routing ospf interface-template print terse from=$templateId}"
+        )
+        parts = re.split(r"(?m)^\.id=(\*[0-9A-Fa-f]+)\s*\r?$", output)
+        rows = []
+        for template_id, terse in zip(parts[1::2], parts[2::2], strict=True):
+            for row in routeros_terse_rows(terse):
+                rows.append({**row, "id": template_id})
+        return rows
+
+    def _ospf_template(self, interface: str) -> dict[str, str]:
+        port = self._port(interface)
+        addresses = [
+            ipaddress.ip_interface(cidr).ip
+            for cidr in self.interface_addresses(interface)
+        ]
+        for row in self._ospf_templates():
+            if row.get("disabled") == "yes":
+                continue
+            names = row.get("interfaces", "").split(",")
+            networks = row.get("networks", "").split(",")
+            if port in names or any(
+                address in ipaddress.ip_network(network, strict=False)
+                for network in networks
+                if network
+                for address in addresses
+            ):
+                if not re.fullmatch(r"\*[0-9A-Fa-f]+", row.get("id", "")):
+                    raise RuntimeError("OSPF interface template has no stable ID")
+                return row
+        raise RuntimeError(f"No OSPF interface template for {interface} on {self.node}")
+
+    def ospf_network_type(self, interface: str) -> str:
+        row = self._ospf_template(interface)
+        raw = row.get("type") or "broadcast"
+        return self._OSPF_TYPE_FROM_ROS.get(raw, raw)
+
+    def _ospf_single_interface_template(self, interface: str) -> dict[str, str]:
+        row = self._ospf_template(interface)
+        template_id = row["id"]
+        port = self._port(interface)
+        ports = {name for name in row.get("interfaces", "").split(",") if name}
+        networks = [
+            ipaddress.ip_network(network, strict=False)
+            for network in row.get("networks", "").split(",")
+            if network
+        ]
+        if networks:
+            for address in self._rows("/ip/address/print terse"):
+                ip = ipaddress.ip_interface(address["address"]).ip
+                if any(ip in network for network in networks):
+                    ports.add(address["interface"])
+        if ports != {port}:
+            # A preceding copy does not rebind existing RouterOS OSPF interfaces.
+            # Reject shared bindings before changing any other adjacency.
+            raise RuntimeError(
+                f"OSPF template {template_id} on {self.node} covers other interfaces: "
+                f"{', '.join(sorted(ports - {port}))}"
+            )
+        return row
+
+    def set_ospf_network_type(self, interface: str, network_type: str) -> None:
+        template_id = self._ospf_single_interface_template(interface)["id"]
+        ros_type = self._OSPF_TYPE_TO_ROS.get(network_type, network_type)
+        self._cli(f"/routing ospf interface-template set {template_id} type={ros_type}")
+
+    def ospf_interface_timers(self, interface: str) -> tuple[int, int]:
+        row = self._ospf_template(interface)
+        timers = []
+        for key, default in (("hello-interval", "10s"), ("dead-interval", "40s")):
+            raw = row.get(key, default)
+            parts = list(_DURATION.finditer(raw))
+            if not parts or "".join(part[0] for part in parts) != raw:
+                raise RuntimeError(f"Unrecognized OSPF timer {raw!r} on {self.node}")
+            seconds = sum(int(part[1]) * _UNITS[part[2]] for part in parts)
+            if seconds < 1 or int(seconds) != seconds:
+                raise RuntimeError(f"OSPF timer is not whole seconds: {raw!r}")
+            timers.append(int(seconds))
+        return tuple(timers)
+
+    def set_ospf_interface_timers(self, interface: str, hello: int, dead: int) -> None:
+        template_id = self._ospf_single_interface_template(interface)["id"]
+        self._cli(
+            f"/routing ospf interface-template set {template_id} "
+            f"hello-interval={int(hello)}s dead-interval={int(dead)}s"
+        )
+
+    def ospf_interface_neighbor_full(self, interface: str) -> bool:
+        port = self._port(interface)
+
+        def row_port(row: dict[str, str]) -> str:
+            # RouterOS may append a VRF or address suffix, as in ``ether2%main``.
+            return re.split(r"[%@,]", row.get("interface") or row.get("iface") or "")[0]
+
+        return any(
+            row.get("state", "").lower().startswith("full") and row_port(row) == port
+            for row in self._rows("/routing/ospf/neighbor/print terse")
         )
 
     def _filter_rules(self) -> list[dict[str, str]]:
@@ -316,6 +684,13 @@ class RouterOsFaultOps(RouterFaultOps):
         return set(_FILTER_CHAINS) <= chains
 
     # Routes and interfaces
+
+    def ipv4_addresses(self) -> set[str]:
+        return {
+            row["address"].split("/")[0]
+            for row in self._rows("/ip/address/print terse")
+            if "address" in row
+        }
 
     def add_blackhole_route(self, prefix: str) -> None:
         tables = {
@@ -509,3 +884,77 @@ class RouterOsFaultOps(RouterFaultOps):
                 f'reply-dst-address~"^{address}:"'
             )
         )
+
+    # ------------------------------------------------------------------
+    # IS-IS metric style
+    # ------------------------------------------------------------------
+
+    def isis_metric_style(self) -> str:
+        values = {
+            row.get("metric-type")
+            for row in self._rows("/routing/isis/instance/print terse")
+            if row.get("metric-type")
+        }
+        if len(values) != 1:
+            raise ValueError(
+                f"No single IS-IS metric-type on RouterOS router {self.node!r}"
+            )
+        value = str(next(iter(values)))
+        # RouterOS names old-style (narrow) metrics ``old``.
+        return "narrow" if value == "old" else value
+
+    def set_isis_metric_style(self, style: str) -> None:
+        ros_style = "old" if style == "narrow" else style
+        self._cli(f"/routing isis instance set [find] metric-type={ros_style}")
+
+    # ------------------------------------------------------------------
+    # IS-IS level (instance is-type / circuit levels)
+    # ------------------------------------------------------------------
+
+    _ISIS_LEVEL_TO_ROS = {
+        "level-1": "l1",
+        "level-1-2": "l1-2",
+        "level-2-only": "l2",
+    }
+    _ISIS_LEVEL_FROM_ROS = {
+        "l1": "level-1",
+        "l1-2": "level-1-2",
+        "l2": "level-2-only",
+    }
+
+    def isis_level(self) -> str:
+        values = {
+            row.get("levels")
+            for row in self._rows("/routing/isis/interface-template/print terse")
+            if row.get("levels")
+        }
+        if len(values) != 1:
+            raise ValueError(
+                f"No single IS-IS interface level on RouterOS router {self.node!r}"
+            )
+        value = str(next(iter(values)))
+        return self._ISIS_LEVEL_FROM_ROS.get(value, value)
+
+    def set_isis_level(self, level: str) -> None:
+        ros_level = self._ISIS_LEVEL_TO_ROS.get(level)
+        if ros_level is None:
+            raise ValueError(f"Unsupported IS-IS level {level!r}")
+        new_metric = {"l1": "ptp.l1.metric", "l2": "ptp.l2.metric"}.get(ros_level)
+        old_metrics = [
+            key for key in ("ptp.l1.metric", "ptp.l2.metric") if key != new_metric
+        ]
+        for row in self._rows("/routing/isis/interface-template/print terse"):
+            iface = row.get("interfaces")
+            if not iface:
+                continue
+            selector = f'[find interfaces="{iface}"]'
+            metric = row.get("ptp.l1.metric") or row.get("ptp.l2.metric")
+            for key in old_metrics:
+                if row.get(key):
+                    self._cli(f"/routing isis interface-template set {selector} !{key}")
+            parts = [f"levels={ros_level}"]
+            if metric and new_metric:
+                parts.append(f"{new_metric}={metric}")
+            self._cli(
+                f"/routing isis interface-template set {selector} {' '.join(parts)}"
+            )

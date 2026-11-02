@@ -135,6 +135,9 @@ PLATFORM = NativeRouterPlatform(
         static_underlay=_static_underlay,
     ),
     fault_ops=_fault_ops,
+    # The shipped CHR image runs the free license, 1 Mbps upload per interface:
+    # https://help.mikrotik.com/docs/spaces/ROS/pages/18350234/Cloud+Hosted+Router+CHR
+    interface_rate_bps=1_000_000,
 )
 
 

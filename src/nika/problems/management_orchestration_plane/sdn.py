@@ -412,7 +412,10 @@ class SwitchDatapathIdConflict(ProblemBase):
         switches = [*model.leaves, *model.spines]
         if switch not in switches:
             raise ValueError(f"{switch!r} is not an OpenFlow switch of the fabric")
-        return next(other for other in switches if other != switch)
+        other = next((other for other in switches if other != switch), None)
+        if other is None:
+            raise ValueError("A datapath ID conflict requires at least two switches")
+        return other
 
     def inject_fault(self, params: SwitchDatapathIdConflictParams):
         self._original_datapath_id = _datapath_id(self.runtime, params.host_name)
@@ -449,8 +452,23 @@ class SwitchDatapathIdConflict(ProblemBase):
                 f"ovs-vsctl set bridge {params.host_name} "
                 f"other-config:datapath-id={original}",
             )
-        running = _datapath_id(self.runtime, params.host_name)
-        return {
-            "verified": bool(original) and running == original,
-            "details": {"host": params.host_name, "datapath_id": running},
-        }
+        deadline = time.monotonic() + _DISCONNECT_WAIT_SEC
+        while True:
+            running = _datapath_id(self.runtime, params.host_name)
+            state = _switch_controller_state(self.runtime, self.net_env)
+            restored = (
+                bool(original)
+                and running == original
+                and bool(state)
+                and all(item["is_connected"] == "true" for item in state.values())
+            )
+            if restored or time.monotonic() >= deadline:
+                return {
+                    "verified": restored,
+                    "details": {
+                        "host": params.host_name,
+                        "datapath_id": running,
+                        "switch_connections": state,
+                    },
+                }
+            time.sleep(2.0)

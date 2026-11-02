@@ -87,9 +87,15 @@ def qos_marks(iface: str) -> tuple[str, str]:
     return f"{iface}-ef", f"{iface}-be"
 
 
+def ros_rate(kbit: int) -> str:
+    """Format a rate as RouterOS prints it, in M when it is whole."""
+    return f"{kbit // 1000}M" if kbit % 1000 == 0 else f"{kbit}k"
+
+
 def render_overlay_qos(iface: str, qos: OverlayQosSpec) -> list[str]:
     """Classify EF into a reserved class and cap BE, like the HTB on FRR edges."""
-    be_mbit, be_bytes = overlay_be_class(qos)
+    be_kbit, be_bytes = overlay_be_class(qos)
+    rate = ros_rate(qos.rate_kbit)
     ef, be = qos_marks(iface)
     return [
         "/ip firewall mangle add chain=postrouting "
@@ -98,12 +104,12 @@ def render_overlay_qos(iface: str, qos: OverlayQosSpec) -> list[str]:
         "/ip firewall mangle add chain=postrouting "
         f"out-interface={iface} action=mark-packet new-packet-mark={be} "
         "passthrough=no comment=overlay-qos",
-        f"/queue tree add name={iface} parent={iface} max-limit={qos.rate_mbit}M",
+        f"/queue tree add name={iface} parent={iface} max-limit={rate}",
         f"/queue tree add name={ef} parent={iface} packet-mark={ef} "
-        f"limit-at={qos.ef_mbit}M max-limit={qos.rate_mbit}M priority=1 "
+        f"limit-at={ros_rate(qos.ef_kbit)} max-limit={rate} priority=1 "
         "queue=ef-fifo",
         f"/queue tree add name={be} parent={iface} packet-mark={be} "
-        f"limit-at={be_mbit}M max-limit={be_mbit}M priority=2 "
+        f"limit-at={ros_rate(be_kbit)} max-limit={ros_rate(be_kbit)} priority=2 "
         f"queue=be-fifo-{be_bytes}",
     ]
 
@@ -137,7 +143,7 @@ def render_routeros_edge(edge: RouterOsEdge, qos: OverlayQosSpec) -> str:
     )
     lines.extend(_render_tunnels(edge))
     lines.extend(_render_local_only(edge))
-    _be_mbit, be_bytes = overlay_be_class(qos)
+    _be_kbit, be_bytes = overlay_be_class(qos)
     lines.extend(
         [
             "/queue type add name=ef-fifo kind=pfifo pfifo-limit=100",
@@ -421,7 +427,7 @@ def edge_router(env, name: str):
             tunnels=tuple(tunnels),
             advertised=tuple(lan.prefix for lan in site.lans if lan.advertise),
         ),
-        overlay_qos_for(env.spec.size),
+        overlay_qos_for(env.spec.size, env.overlay_scale),
     )
     return RouterOsRouter(
         config,
@@ -507,7 +513,7 @@ class RouterOsEdgeView(FrrEdgeView):
         root = next((row for row in trees if row.get("packet-mark", "") == ""), {})
         iface = root.get("name", "")
         ef_mark, be_mark = qos_marks(iface)
-        be_mbit, _ = overlay_be_class(qos)
+        be_kbit, _ = overlay_be_class(qos)
         ef, be = by_mark.get(ef_mark, {}), by_mark.get(be_mark, {})
         classified = {
             row.get("new-packet-mark"): row
@@ -517,10 +523,11 @@ class RouterOsEdgeView(FrrEdgeView):
         return {
             "htb": bool(root),
             "ef_class": ef.get("priority") == "1"
-            and ef.get("limit-at") == f"{qos.ef_mbit}M"
+            and ef.get("limit-at") == ros_rate(qos.ef_kbit)
             and classified.get(ef_mark, {}).get("dscp") == str(DSCP_EF),
-            "be_class": be.get("max-limit") == f"{be_mbit}M" and be_mark in classified,
-            "rate": root.get("max-limit") == f"{qos.rate_mbit}M",
+            "be_class": be.get("max-limit") == ros_rate(be_kbit)
+            and be_mark in classified,
+            "rate": root.get("max-limit") == ros_rate(qos.rate_kbit),
         }
 
     def ping(self, target: str) -> str:

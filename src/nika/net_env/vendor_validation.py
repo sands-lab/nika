@@ -73,6 +73,9 @@ def _parse_iosxr_bgp_summary(output: str) -> tuple[int | None, dict[str, _BgpPee
         # An Established peer shows its prefix count; XR appends "!" when the
         # eBGP session has no policy and drops every route.
         state = fields[-1]
+        # XR appends the reason a session is down, as in "Idle (PfxCt)".
+        if state.startswith("(") and len(fields) > remote_as_index + 2:
+            state = fields[-2]
         established = bool(re.fullmatch(r"\d+!?", state)) or (
             state.lower() == "established"
         )

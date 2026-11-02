@@ -1,0 +1,16 @@
+scenario:
+  name: isp_abilene_ebgp_rpki
+failure:
+  fault_type: ospf_hello_interval_mismatch
+  cases:
+  - topo_size: s
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hstnng
+      intf_name: eth0
+    root_causes:
+    - resource:
+        kind: node
+        node: hstnng
+      fault_type: ospf_hello_interval_mismatch

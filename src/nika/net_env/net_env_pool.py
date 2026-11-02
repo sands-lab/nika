@@ -611,12 +611,13 @@ def scenario_path_bdp_limit_bytes(
 ) -> float | None:
     """Nominal path BDP ceiling for profiles with a known forwarding limit.
 
-    The shipped CHR image uses the free license (1 Mbps upload per interface):
-    https://help.mikrotik.com/docs/spaces/ROS/pages/18350234/Cloud+Hosted+Router+CHR
-    Unknown RTTs or unrestricted profiles have no declared ceiling. Runtime
-    calibration must still check the actual flow before changing TCP buffers.
+    The limit is the profile's declared per-interface upload ceiling. Unknown
+    RTTs or unrestricted profiles have no declared ceiling. Runtime calibration
+    must still check the actual flow before changing TCP buffers.
     """
-    bandwidth_bps = {"routeros": 1_000_000}.get(device_profile)
+    from nika.net_env.native_routers import native_interface_rate_bps
+
+    bandwidth_bps = native_interface_rate_bps(device_profile)
     rtt_ms = _require_scenario(scenario_name).nominal_path_rtt_ms
     if bandwidth_bps is None or rtt_ms is None:
         return None

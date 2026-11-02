@@ -5,30 +5,6 @@ failure:
   cases:
   - topo_size: s
     inject:
-      host_name: router_core_1
-    root_causes:
-    - resource:
-        kind: node
-        node: router_core_1
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    inject:
-      host_name: router_core_2
-    root_causes:
-    - resource:
-        kind: node
-        node: router_core_2
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    inject:
-      host_name: router_core_3
-    root_causes:
-    - resource:
-        kind: node
-        node: router_core_3
-      fault_type: ospf_duplicate_router_id
-  - topo_size: s
-    inject:
       host_name: router_dist_1_1
     root_causes:
     - resource:
@@ -78,29 +54,32 @@ failure:
         kind: node
         node: server_access_router
       fault_type: ospf_duplicate_router_id
-  - topo_size: m
+  - topo_size: s
+    device_profile: routeros
     inject:
-      host_name: router_core_1
+      host_name: router_dist_1_1
     root_causes:
     - resource:
         kind: node
-        node: router_core_1
+        node: router_dist_1_1
       fault_type: ospf_duplicate_router_id
-  - topo_size: m
+  - topo_size: s
+    device_profile: routeros
     inject:
-      host_name: router_core_2
+      host_name: router_dist_2_1
     root_causes:
     - resource:
         kind: node
-        node: router_core_2
+        node: router_dist_2_1
       fault_type: ospf_duplicate_router_id
-  - topo_size: m
+  - topo_size: s
+    device_profile: routeros
     inject:
-      host_name: router_core_3
+      host_name: server_access_router
     root_causes:
     - resource:
         kind: node
-        node: router_core_3
+        node: server_access_router
       fault_type: ospf_duplicate_router_id
   - topo_size: m
     inject:
@@ -141,30 +120,6 @@ failure:
     - resource:
         kind: node
         node: server_access_router
-      fault_type: ospf_duplicate_router_id
-  - topo_size: l
-    inject:
-      host_name: router_core_1
-    root_causes:
-    - resource:
-        kind: node
-        node: router_core_1
-      fault_type: ospf_duplicate_router_id
-  - topo_size: l
-    inject:
-      host_name: router_core_2
-    root_causes:
-    - resource:
-        kind: node
-        node: router_core_2
-      fault_type: ospf_duplicate_router_id
-  - topo_size: l
-    inject:
-      host_name: router_core_3
-    root_causes:
-    - resource:
-        kind: node
-        node: router_core_3
       fault_type: ospf_duplicate_router_id
   - topo_size: l
     inject:

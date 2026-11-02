@@ -1,0 +1,12 @@
+scenario:
+  name: k8s_lab
+failure:
+  fault_type: k8s_readiness_probe_misconfig
+  cases:
+  - inject:
+      control_node: controller
+    root_causes:
+    - resource:
+        kind: node
+        node: controller
+      fault_type: k8s_readiness_probe_misconfig

@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import json
-import shlex
-from collections.abc import Callable
 from typing import Any, ClassVar
 
 from pydantic import Field
@@ -16,8 +13,13 @@ from nika.problems.rca import (
 
 from nika.problems.support.benchmark_targets import choice, k8s_control_node
 from nika.problems.support.kubernetes.base import K8sParams, K8sProblemBase
-
 from nika.problems.support.kubernetes.node_filter import NodeFilter, NodeFilterError
+from nika.problems.support.kubernetes.objects import (
+    DEFAULT_PROBE_NAMESPACE,
+    edit_spec,
+    restore_spec,
+    selected_service,
+)
 
 from nika.problems.base import (
     FailureDomain,
@@ -27,8 +29,6 @@ from nika.utils.logger import system_logger
 logger = system_logger
 
 DEFAULT_PROBE_SERVICE = "kubernetes"
-
-DEFAULT_PROBE_NAMESPACE = "default"
 
 
 class ClusterIPRoutingBrokenParams(K8sParams):
@@ -292,84 +292,15 @@ class ClusterIPRoutingBroken(K8sProblemBase):
         }
 
 
-LAST_APPLIED = "kubectl.kubernetes.io/last-applied-configuration"
-
-
-def _object_ref(obj: dict[str, Any]) -> str:
-    meta = obj["metadata"]
-    scope = f" -n {meta['namespace']}" if meta.get("namespace") else ""
-    return f"{obj['kind'].lower()} {meta['name']}{scope}"
-
-
-def edit_spec(
-    k8s: Any, control: str, obj: dict[str, Any], edit: Callable[[dict], None]
-) -> None:
-    """Apply ``edit`` to the live spec and to the last-applied manifest.
-
-    The annotation then shows the edited manifest an operator would have
-    applied, not the server-filled live object.
-    """
-    spec = json.loads(json.dumps(obj["spec"]))
-    edit(spec)
-    _patch_spec(k8s, control, obj, obj["spec"], spec)
-    applied = (obj["metadata"].get("annotations") or {}).get(LAST_APPLIED)
-    if applied:
-        manifest = json.loads(applied)
-        edit(manifest.setdefault("spec", {}))
-        _annotate(k8s, control, obj, json.dumps(manifest, separators=(",", ":")))
-
-
-def restore_spec(k8s: Any, control: str, obj: dict[str, Any]) -> None:
-    """Return the live spec and the last-applied annotation to ``obj``'s."""
-    live = k8s.kubectl_json(control, f"get {_object_ref(obj)}")
-    _patch_spec(k8s, control, obj, live["spec"], obj["spec"])
-    _annotate(
-        k8s, control, obj, (obj["metadata"].get("annotations") or {}).get(LAST_APPLIED)
-    )
-
-
-def _patch_spec(k8s, control, obj, current: dict, wanted: dict) -> None:
-    # A merge patch keeps keys it does not name; null the ones to drop.
-    patch = {"spec": {**dict.fromkeys(set(current) - set(wanted)), **wanted}}
-    k8s.kubectl(
-        control,
-        f"patch {_object_ref(obj)} --type=merge -p {shlex.quote(json.dumps(patch))}",
-    )
-
-
-def _annotate(k8s, control, obj, value: str | None) -> None:
-    setting = f"{LAST_APPLIED}={value}" if value is not None else f"{LAST_APPLIED}-"
-    k8s.kubectl(
-        control, f"annotate {_object_ref(obj)} --overwrite {shlex.quote(setting)}"
-    )
-
-
-def ingress_backends(k8s: Any, control: str) -> list[tuple[str, str, str, str]]:
-    """``(namespace, service, host, path)`` for each Ingress HTTP backend, sorted."""
-    backends = []
-    for item in k8s.kubectl_json(control, "get ingress -A").get("items", []):
-        namespace = item["metadata"]["namespace"]
-        for rule in item["spec"].get("rules", []):
-            for path in (rule.get("http") or {}).get("paths", []):
-                service = ((path.get("backend") or {}).get("service") or {}).get("name")
-                if service:
-                    backends.append(
-                        (
-                            namespace,
-                            service,
-                            rule.get("host", ""),
-                            path.get("path", "/"),
-                        )
-                    )
-    return sorted(backends)
-
-
 class ServiceTargetPortMismatchParams(K8sParams):
     """Parameters for pointing a Service at a port its Pods do not serve."""
 
     service_name: str = Field(
         default="",
-        description="Service to change; defaults to the first Service behind an Ingress.",
+        description=(
+            "Service to change; defaults to the first Ingress backend or "
+            "InferencePool endpoint-picker Service."
+        ),
     )
     namespace: str = Field(default="", description="Namespace of `service_name`.")
 
@@ -390,7 +321,7 @@ class ServiceTargetPortMismatch(K8sProblemBase):
     symptom_class = "unreachable"
     root_cause_name = "k8s_service_target_port_mismatch"
     description = "A Kubernetes Service forwards to a port its Pods do not serve."
-    TAGS: ClassVar[list[str]] = ["kubernetes", "k3s", "ingress"]
+    TAGS: ClassVar[list[str]] = ["kubernetes", "k3s"]
     Params = ServiceTargetPortMismatchParams
     RECORDED_ATTRS = (*K8sProblemBase.RECORDED_ATTRS, "service_ref")
     BENCHMARK_TARGETS = "canonical"
@@ -404,12 +335,12 @@ class ServiceTargetPortMismatch(K8sProblemBase):
         self.service_ref: str | None = None
 
     def _service(self, params: ServiceTargetPortMismatchParams) -> tuple[str, str]:
-        if params.service_name:
-            return params.namespace or DEFAULT_PROBE_NAMESPACE, params.service_name
-        backends = ingress_backends(self.runtime.lab_api, self.control_node(params))
-        if not backends:
-            raise ValueError("No Ingress backend Service to change.")
-        return backends[0][0], backends[0][1]
+        return selected_service(
+            self.runtime.lab_api,
+            self.control_node(params),
+            params.service_name,
+            params.namespace,
+        )
 
     def root_cause_resources(self, params: ServiceTargetPortMismatchParams):
         # The Service object is not a catalog resource; the cluster that
@@ -426,9 +357,29 @@ class ServiceTargetPortMismatch(K8sProblemBase):
         service = k8s.kubectl_json(control, f"get service {name} -n {namespace}")
         self._original = service
         port = service["spec"]["ports"][0]
-        target = _as_port(port.get("targetPort")) or int(port["port"])
+        target = _as_port(port.get("targetPort"))
+        used = set()
+        if target is None:
+            selector = service["spec"].get("selector") or {}
+            if not selector:
+                raise ValueError(f"Service {namespace}/{name} has no selector.")
+            labels = ",".join(
+                f"{key}={value}" for key, value in sorted(selector.items())
+            )
+            pods = k8s.kubectl_json(control, f"get pods -n {namespace} -l {labels}")
+            used.update(
+                int(item["containerPort"])
+                for pod in pods.get("items", [])
+                for container in pod["spec"].get("containers", [])
+                for item in container.get("ports", [])
+            )
+            target = int(port["port"])
+        else:
+            used.add(target)
         # The common slip: the Service port typed where the Pod port belongs.
         wrong = int(port["port"]) if int(port["port"]) != target else target + 1
+        while wrong in used or wrong > 65535:
+            wrong = wrong % 65535 + 1
 
         def edit(spec: dict) -> None:
             spec["ports"][0]["targetPort"] = wrong
@@ -439,7 +390,7 @@ class ServiceTargetPortMismatch(K8sProblemBase):
         self.record_k8s_object("service", name, namespace=namespace)
         logger.info(f"Set targetPort {wrong} on Service {self.service_ref}.")
 
-    def _target_port(self, params) -> int | None:
+    def _target_port(self, params) -> int | str:
         namespace, name = (self.service_ref or "/").split("/", 1)
         value = self.runtime.lab_api.kubectl_jsonpath(
             self.control_node(params),
@@ -447,7 +398,8 @@ class ServiceTargetPortMismatch(K8sProblemBase):
             "{.spec.ports[0].targetPort}",
             namespace=namespace,
         )
-        return _as_port(value)
+        parsed = _as_port(value)
+        return parsed if parsed is not None else value
 
     def verify_fault(self, params: ServiceTargetPortMismatchParams) -> dict:
         wrong = getattr(self, "wrong_target_port", None)
@@ -459,29 +411,147 @@ class ServiceTargetPortMismatch(K8sProblemBase):
         )
 
     def recover_fault(self, params: ServiceTargetPortMismatchParams) -> dict:
+        from nika.validation.symptom.k8s_probes import target_port_baseline
+
         original = getattr(self, "_original", None)
-        if original:
-            restore_spec(self.runtime.lab_api, self.control_node(params), original)
-        port = original["spec"]["ports"][0]["targetPort"] if original else None
-        restored = original is not None and self._target_port(params) == _as_port(port)
-        return {"verified": restored, "details": {"service": self.service_ref}}
+        if not original:
+            return {"verified": False, "details": {"error": "No original Service."}}
+        restore_spec(self.runtime.lab_api, self.control_node(params), original)
+        port = original["spec"]["ports"][0]["targetPort"]
+
+        def check():
+            healthy, details = target_port_baseline(self, params)
+            return self._target_port(params) == port and healthy, {
+                "service": self.service_ref,
+                **details,
+            }
+
+        return self.poll_verify(check)
+
+
+class ServiceSelectorMismatchParams(K8sParams):
+    """Parameters for pointing a Service selector away from its Pods' labels."""
+
+    service_name: str = Field(
+        default="",
+        description=(
+            "Service to change; defaults to the first Ingress backend or "
+            "InferencePool endpoint-picker Service."
+        ),
+    )
+    namespace: str = Field(default="", description="Namespace of `service_name`.")
+
+
+class ServiceSelectorMismatch(K8sProblemBase):
+    """A Service's selector no longer matches the labels on its Pods.
+
+    A Deployment rollout can rename a label without updating the Service, so
+    the Service has no endpoints. Traffic to it fails; the Pods stay Running
+    and Ready. See "Debug Services" in the Kubernetes documentation:
+    https://kubernetes.io/docs/tasks/debug/debug-application/debug-service/
+    """
+
+    failure_domain = FailureDomain.SERVICE_NETWORKING
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
+    root_cause_name = "k8s_service_selector_mismatch"
+    description = "A Kubernetes Service selector no longer matches its Pods' labels."
+    TAGS: ClassVar[list[str]] = ["kubernetes", "k3s"]
+    Params = ServiceSelectorMismatchParams
+    RECORDED_ATTRS = (*K8sProblemBase.RECORDED_ATTRS, "service_ref")
+    BENCHMARK_TARGETS = "canonical"
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"control_node": k8s_control_node(ctx)}
+
+    def __init__(self, scenario_name: str | None = None, **kwargs: Any) -> None:
+        super().__init__(scenario_name, **kwargs)
+        self.service_ref: str | None = None
+
+    def _service(self, params: ServiceSelectorMismatchParams) -> tuple[str, str]:
+        return selected_service(
+            self.runtime.lab_api,
+            self.control_node(params),
+            params.service_name,
+            params.namespace,
+        )
+
+    def root_cause_resources(self, params: ServiceSelectorMismatchParams):
+        control = params.control_node or self.control_node(params)
+        if not control:
+            raise UnresolvedRootCauseError("No Kubernetes control-plane node.")
+        return [node_resource(control)]
+
+    def inject_fault(self, params: ServiceSelectorMismatchParams):
+        k8s = self.runtime.lab_api
+        control = self.control_node(params)
+        namespace, name = self._service(params)
+        service = k8s.kubectl_json(control, f"get service {name} -n {namespace}")
+        self._original = service
+        selector = dict((service.get("spec") or {}).get("selector") or {})
+        if not selector:
+            raise ValueError(f"Service {namespace}/{name} has no selector.")
+        key = min(selector)
+        wrong = {**selector, key: f"{selector[key]}-v2"}
+
+        def edit(spec: dict) -> None:
+            spec["selector"] = dict(wrong)
+
+        edit_spec(k8s, control, service, edit)
+        self.service_ref = f"{namespace}/{name}"
+        self.wrong_selector = wrong
+        self.record_k8s_object("service", name, namespace=namespace)
+        logger.info(f"Updated selector on Service {self.service_ref}.")
+
+    def _selector(self, params) -> dict[str, str]:
+        namespace, name = (self.service_ref or "/").split("/", 1)
+        service = self.runtime.lab_api.kubectl_json(
+            self.control_node(params), f"get service {name} -n {namespace}"
+        )
+        return dict((service.get("spec") or {}).get("selector") or {})
+
+    def verify_fault(self, params: ServiceSelectorMismatchParams) -> dict:
+        wrong = getattr(self, "wrong_selector", None)
+        return self.poll_verify(
+            lambda: (
+                wrong is not None and self._selector(params) == wrong,
+                {"service": self.service_ref, "selector": wrong},
+            )
+        )
+
+    def recover_fault(self, params: ServiceSelectorMismatchParams) -> dict:
+        from nika.validation.symptom.k8s_probes import target_port_baseline
+
+        original = getattr(self, "_original", None)
+        if not original:
+            return {"verified": False, "details": {"error": "No original Service."}}
+        restore_spec(self.runtime.lab_api, self.control_node(params), original)
+
+        def check():
+            healthy, details = target_port_baseline(self, params)
+            restored = self._selector(params) == original["spec"]["selector"]
+            return restored and healthy, {"service": self.service_ref, **details}
+
+        return self.poll_verify(check)
 
 
 class LoadBalancerAdvertisementMissingParams(K8sParams):
-    """Parameters for leaving MetalLB's address pool without a BGP advertisement."""
+    """Parameters for leaving MetalLB's address pool without an advertisement."""
 
 
 METALLB_NAMESPACE = "metallb-system"
 
 
 class LoadBalancerAdvertisementMissing(K8sProblemBase):
-    """MetalLB's BGP advertisement names an address pool that does not exist.
+    """MetalLB's advertisement names an address pool that does not exist.
 
     MetalLB still assigns LoadBalancer IPs from the real pool, but announces
-    an address only for pools that a BGPAdvertisement selects, so every
-    speaker withdraws the service addresses while its BGP sessions stay up.
+    an address only for pools that a BGPAdvertisement or L2Advertisement
+    selects, so every speaker withdraws the service addresses. BGP sessions,
+    when present, stay up; in L2 mode the speakers stop answering ARP.
     Clients outside the cluster lose the LoadBalancer IPs. See MetalLB's
-    "Configuration" guide on BGPAdvertisement:
+    "Configuration" guide:
     https://metallb.universe.tf/configuration/
     """
 
@@ -490,11 +560,15 @@ class LoadBalancerAdvertisementMissing(K8sProblemBase):
     symptom_class = "unreachable"
     root_cause_name = "lb_advertisement_missing"
     description = "The load balancer announces no route for its service addresses."
-    TAGS: ClassVar[list[str]] = ["kubernetes", "k3s", "metallb", "bgp"]
+    TAGS: ClassVar[list[str]] = ["kubernetes", "k3s", "metallb"]
     Params = LoadBalancerAdvertisementMissingParams
     BENCHMARK_TARGETS = "canonical"
     # Pool name an advertisement references after a rename that missed it.
     UNDEFINED_POOL = "ingress-pool"
+    _ADVERTISEMENTS = (
+        ("bgpadvertisements", "BGPAdvertisement"),
+        ("l2advertisements", "L2Advertisement"),
+    )
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
@@ -507,9 +581,17 @@ class LoadBalancerAdvertisementMissing(K8sProblemBase):
         return [node_resource(control)]
 
     def _advertisements(self, params) -> list[dict[str, Any]]:
-        return self.runtime.lab_api.kubectl_json(
-            self.control_node(params), f"get bgpadvertisements -n {METALLB_NAMESPACE}"
-        ).get("items", [])
+        k8s = self.runtime.lab_api
+        control = self.control_node(params)
+        items = []
+        for resource, kind in self._ADVERTISEMENTS:
+            payload = k8s.kubectl_json(
+                control, f"get {resource} -n {METALLB_NAMESPACE}"
+            )
+            for item in payload.get("items", []):
+                item["kind"] = item.get("kind") or kind
+                items.append(item)
+        return items
 
     def _pools(self, params) -> set[str]:
         items = self.runtime.lab_api.kubectl_json(
@@ -522,7 +604,9 @@ class LoadBalancerAdvertisementMissing(K8sProblemBase):
         control = self.control_node(params)
         advertisements = self._advertisements(params)
         if not advertisements:
-            raise ValueError("MetalLB has no BGPAdvertisement to change.")
+            raise ValueError("MetalLB has no advertisement to change.")
+        if self.UNDEFINED_POOL in self._pools(params):
+            raise ValueError(f"MetalLB pool {self.UNDEFINED_POOL!r} already exists.")
         self._originals = advertisements
 
         def edit(spec: dict) -> None:
@@ -532,11 +616,11 @@ class LoadBalancerAdvertisementMissing(K8sProblemBase):
         for advertisement in advertisements:
             edit_spec(k8s, control, advertisement, edit)
             self.record_k8s_object(
-                "bgpadvertisement",
+                advertisement["kind"].lower(),
                 advertisement["metadata"]["name"],
                 namespace=METALLB_NAMESPACE,
             )
-        logger.info("Pointed MetalLB BGP advertisements at an undefined pool.")
+        logger.info("Pointed MetalLB advertisements at an undefined pool.")
 
     def _advertised_pools(self, params) -> set[str]:
         pools = self._pools(params)
@@ -560,8 +644,130 @@ class LoadBalancerAdvertisementMissing(K8sProblemBase):
         return self.poll_verify(check)
 
     def recover_fault(self, params: LoadBalancerAdvertisementMissingParams) -> dict:
+        from nika.validation.symptom.k8s_probes import lb_advertisement_baseline
+
+        originals = getattr(self, "_originals", [])
+        if not originals:
+            return {"verified": False, "details": {"error": "No saved advertisements."}}
         control = self.control_node(params)
-        for advertisement in getattr(self, "_originals", []):
+        for advertisement in originals:
             restore_spec(self.runtime.lab_api, control, advertisement)
-        advertised = self._advertised_pools(params)
-        return {"verified": bool(advertised), "details": {"pools": sorted(advertised)}}
+
+        def check():
+            advertised = self._advertised_pools(params)
+            healthy, details = lb_advertisement_baseline(self, params)
+            return bool(advertised) and healthy, {
+                "pools": sorted(advertised),
+                **details,
+            }
+
+        return self.poll_verify(check)
+
+
+class IngressClassMismatch(K8sProblemBase):
+    """An Ingress references an IngressClass that no longer exists.
+
+    A controller migration can rename the class without updating an Ingress.
+    The controller ignores its routes, returning its default 404, while the
+    backend Services and Pods remain healthy. Kubernetes defines the class
+    reference in its IngressClass documentation:
+    https://kubernetes.io/docs/concepts/services-networking/ingress/#ingress-class
+    """
+
+    failure_domain = FailureDomain.SERVICE_NETWORKING
+    symptom_probe = "custom"
+    symptom_class = "unreachable"
+    root_cause_name = "k8s_ingress_class_mismatch"
+    description = "A Kubernetes Ingress references an undefined IngressClass."
+    symptom_desc = "Requests for application paths return HTTP 404."
+    TAGS: ClassVar[list[str]] = ["kubernetes", "k3s", "ingress"]
+    Params = K8sParams
+    BENCHMARK_TARGETS = "canonical"
+    RECORDED_ATTRS = (*K8sProblemBase.RECORDED_ATTRS, "ingress_ref")
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"control_node": k8s_control_node(ctx)}
+
+    def __init__(self, scenario_name: str | None = None, **kwargs: Any) -> None:
+        super().__init__(scenario_name, **kwargs)
+        self.ingress_ref: str | None = None
+
+    def root_cause_resources(self, params: K8sParams):
+        control = params.control_node or self.control_node(params)
+        if not control:
+            raise UnresolvedRootCauseError("No Kubernetes control-plane node.")
+        return [node_resource(control)]
+
+    def inject_fault(self, params: K8sParams) -> None:
+        k8s = self.runtime.lab_api
+        control = self.control_node(params)
+        items = k8s.kubectl_json(control, "get ingress -A").get("items", [])
+        if not items:
+            raise ValueError("No Ingress to change.")
+        ingress = min(
+            items,
+            key=lambda obj: (obj["metadata"]["namespace"], obj["metadata"]["name"]),
+        )
+        # A list response omits the individual object's kind.
+        ingress["kind"] = "Ingress"
+        self._original = ingress
+        self.ingress_ref = (
+            f"{ingress['metadata']['namespace']}/{ingress['metadata']['name']}"
+        )
+        classes = {
+            obj["metadata"]["name"]
+            for obj in k8s.kubectl_json(control, "get ingressclass").get("items", [])
+        }
+        wrong = "nginx-migrated"
+        while wrong in classes:
+            wrong += "-old"
+        self.undefined_class = wrong
+
+        def edit(spec: dict) -> None:
+            spec["ingressClassName"] = wrong
+
+        edit_spec(k8s, control, ingress, edit)
+        self.record_k8s_object(
+            "ingress",
+            ingress["metadata"]["name"],
+            namespace=ingress["metadata"]["namespace"],
+        )
+        logger.info(f"Set ingressClassName {wrong} on Ingress {self.ingress_ref}.")
+
+    def _ingress(self, params: K8sParams) -> dict[str, Any]:
+        namespace, name = (self.ingress_ref or "/").split("/", 1)
+        return self.runtime.lab_api.kubectl_json(
+            self.control_node(params), f"get ingress {name} -n {namespace}"
+        )
+
+    def verify_fault(self, params: K8sParams) -> dict:
+        def check():
+            value = self._ingress(params)["spec"].get("ingressClassName")
+            classes = self.runtime.lab_api.kubectl_json(
+                self.control_node(params), "get ingressclass"
+            ).get("items", [])
+            missing = value not in {obj["metadata"]["name"] for obj in classes}
+            return value == self.undefined_class and missing, {
+                "ingress": self.ingress_ref,
+                "ingress_class": value,
+                "class_undefined": missing,
+            }
+
+        return self.poll_verify(check)
+
+    def recover_fault(self, params: K8sParams) -> dict:
+        from nika.validation.symptom.k8s_probes import ingress_class_baseline
+
+        original = getattr(self, "_original", None)
+        if not original:
+            return {"verified": False, "details": {"error": "No saved Ingress."}}
+        restore_spec(self.runtime.lab_api, self.control_node(params), original)
+        healthy, details = ingress_class_baseline(self, params)
+        restored = self._ingress(params)["spec"].get("ingressClassName") == original[
+            "spec"
+        ].get("ingressClassName")
+        return {
+            "verified": restored and healthy,
+            "details": {"ingress": self.ingress_ref, **details},
+        }

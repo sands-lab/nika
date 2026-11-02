@@ -79,9 +79,17 @@ class RegionalLoad:
     def sync_kbps(self) -> int:
         return self.sync_pcs * self.connection_kbps
 
+    def scaled(self, scale: float) -> RegionalLoad:
+        """Return the load for an overlay scaled by ``overlay_scale``."""
+        return RegionalLoad(
+            sync_pcs=self.sync_pcs,
+            connection_kbps=round(self.connection_kbps * scale),
+            video_kbps=round(self.video_kbps * scale),
+        )
+
 
 # BE ceilings are 4 / 9 / 9 mbit and EF reservations 4 / 7 / 7 mbit
-# (``OVERLAY_QOS``). Sync uses 60% of BE, which leaves headroom when the host
+# (``OVERLAY_QOS``); a scaled overlay scales this load by the same factor. Sync uses 60% of BE, which leaves headroom when the host
 # is slow to service the shaper. Each connection runs at 2.4-2.7 mbit, well
 # above what a small receive window carries over the ~80 ms branch path. The
 # video fits its EF guarantee (RTP/UDP/IP headers add about 2.5%); moved into
@@ -111,14 +119,16 @@ def _ip(spec: TopoSpec, site: str, role: str, index: int = 0) -> str:
     return str(lan_host_ip(spec.sites[site].site_id, role, index).ip)
 
 
-def build_workload(spec: TopoSpec, routers: list[str]) -> BusinessWorkload:
+def build_workload(
+    spec: TopoSpec, routers: list[str], *, scale: float = 1.0
+) -> BusinessWorkload:
     size = spec.size
-    load = REGIONAL_LOAD[size]
+    load = REGIONAL_LOAD[size].scaled(scale)
     regional_corp = _lan(spec, REGIONAL_BRANCH, "corp").host_names
     syncing = regional_corp[: load.sync_pcs]
     if len(syncing) < load.sync_pcs:
         raise ValueError("regional branch has fewer CORP PCs than sync clients")
-    if load.sync_kbps > overlay_qos_for(size).rate_mbit * 1000:
+    if load.sync_kbps > overlay_qos_for(size, scale).rate_kbit:
         raise ValueError("regional sync exceeds the overlay egress")
     sync_url = f"http://{_ip(spec, 'hq', 'server')}:{SYNC_PORT}/{SYNC_OBJECT}"
     hq_phone = _lan(spec, "hq", "corp").host_names[0]
