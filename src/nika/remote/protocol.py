@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, Field
+
+from nika.run_config.schema import AgentAccessSettings
 
 PolicyMode = Literal["two_phase"]
 
@@ -57,6 +59,10 @@ class FailureInjectResponse(BaseModel):
 
 
 class McpAttachRequest(BaseModel):
+    access: AgentAccessSettings | None = None
+    tool_call_limits: (
+        dict[Literal["diagnosis", "submission"], Annotated[int, Field(ge=0)]] | None
+    ) = None
     policy_mode: PolicyMode = "two_phase"
     public_host: str | None = None
 

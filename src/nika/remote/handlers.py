@@ -77,6 +77,8 @@ class RemoteHandlerState:
         policy_mode: PolicyMode,
         public_host: str,
         backend: str | None = None,
+        access=None,
+        tool_call_limits: dict[str, int] | None = None,
     ) -> McpAttachResponse:
         self.detach_gateway(session_id)
         stack = ExitStack()
@@ -91,6 +93,8 @@ class RemoteHandlerState:
                 # Multi-backend scenarios (e.g. ISP on Containerlab) serve
                 # backend-specific MCP servers; match the deployed lab.
                 backend=backend,
+                access=access,
+                tool_call_limits=tool_call_limits,
             )
         )
         self.gateways[session_id] = GatewayLease(stack=stack, manager=manager)
@@ -235,6 +239,8 @@ def handle_mcp_attach(session_id: str, request: McpAttachRequest) -> McpAttachRe
             backend=resolve_backend(meta),
             policy_mode=request.policy_mode,
             public_host=public_host,
+            access=request.access,
+            tool_call_limits=request.tool_call_limits,
         )
     except Exception:
         logger.exception("mcp attach failed session_id=%s", session_id)

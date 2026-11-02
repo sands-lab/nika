@@ -32,7 +32,13 @@ MODEL_CALLS_FILENAME = "model_calls.jsonl"
 
 # Model generation endpoints of the OpenAI and Anthropic APIs. Token counting
 # and model listing are not LLM requests.
-_GENERATION_SUFFIXES = ("/messages", "/chat/completions", "/responses", "/completions")
+_GENERATION_SUFFIXES = (
+    "/messages",
+    "/chat/completions",
+    "/responses",
+    "/responses/compact",
+    "/completions",
+)
 
 
 def is_generation_request(method: str, path: str) -> bool:
@@ -159,6 +165,7 @@ class ModelCallLog:
 
     path: Path
     max_requests: int | None = None
+    expected_model: str | None = field(default=None, kw_only=True)
     phase: str = DIAGNOSIS
     exhausted: threading.Event = field(default_factory=threading.Event)
     _counted: int = 0
