@@ -24,7 +24,8 @@ def engine_build(
     typer.echo(image)
 
 
-@engine_app.command("serve")
+# Started by an engine image's entrypoint, never by users.
+@engine_app.command("serve", hidden=True)
 def engine_serve(
     host: str = typer.Option("127.0.0.1", "--host", help="Bind address."),
     port: int = typer.Option(8710, "--port", "-p", help="TCP port."),

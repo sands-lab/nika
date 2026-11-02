@@ -558,7 +558,6 @@ When `nika.remote.enabled` and `nika.remote.url` are set in `config/nika.yaml` o
 A release whose manifest pins a benchmark engine runs on a container built from its release tag. `nika benchmark run --release` builds or pulls that image and starts the container itself; see [benchmark release contracts](../development/benchmark-contracts.md#b-lifecycle-protocol).
 
 - **`nika engine build <tag>`**: build the benchmark engine image of a Git tag or commit ahead of a run, as `nika/benchmark-engine:<tag>`.
-- **`nika engine serve`**: the service that runs inside the container. The run starts it; you do not run it yourself.
 
 ---
 ---

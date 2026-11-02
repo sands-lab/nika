@@ -1,12 +1,16 @@
 #!/bin/sh
-# Run the engine as the frontend's user, so the sessions and results it writes
-# into the shared directories stay owned by that user.
+# Start the engine service with the container's arguments as its flags
+# (--host, --port, --parent-pid; the run's token is in NIKA_ENGINE_TOKEN).
+# This launch interface is part of the engine API version, so the frontend
+# never depends on the command that implements it. The service runs as the
+# frontend's user, so the sessions and results it writes into the shared
+# directories stay owned by that user.
 set -eu
 
 uid="${NIKA_UID:-0}"
 gid="${NIKA_GID:-0}"
 if [ "${uid}" = "0" ]; then
-  exec "$@"
+  exec nika engine serve "$@"
 fi
 
 groupadd -o -g "${gid}" nika 2>/dev/null || true
@@ -30,4 +34,4 @@ if [ -f /run/nika/kathara.conf ]; then
 fi
 
 exec setpriv --reuid "${uid}" --regid "${gid}" --init-groups \
-  env HOME=/home/nika USER=nika "$@"
+  env HOME=/home/nika USER=nika nika engine serve "$@"

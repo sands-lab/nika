@@ -46,4 +46,3 @@ RUN if [ -f uv.lock ]; then uv sync --frozen --no-dev; \
 ENV NIKA_ENGINE_COMMIT=${NIKA_COMMIT}
 
 ENTRYPOINT ["/opt/nika/src/nika/benchmark_engine/docker/entrypoint.sh"]
-CMD ["nika", "engine", "serve"]

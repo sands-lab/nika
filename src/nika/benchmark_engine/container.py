@@ -205,11 +205,9 @@ def _docker_run_args(
     kathara_conf = Path.home() / ".config" / "kathara.conf"
     if kathara_conf.is_file():
         args += _bind(kathara_conf, "/run/nika/kathara.conf", ro=True)
+    # The image's entrypoint starts the engine service with these flags.
     return args + [
         image,
-        "nika",
-        "engine",
-        "serve",
         "--host",
         "127.0.0.1",
         "--port",
