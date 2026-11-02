@@ -205,7 +205,7 @@ class PhaseGateMiddleware:
                     output=output,
                     call_id=call_id,
                     elapsed_ms=round((time.monotonic() - call_started) * 1000, 1),
-                    raw_output=tool_result(raw_body, content_type)[1],
+                    raw_output=raw_body.decode("utf-8", errors="replace"),
                 )
 
         outbound = (

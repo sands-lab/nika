@@ -183,3 +183,25 @@ def test_unknown_session_is_an_error_not_an_empty_tool_list(
     for response in (init, listed, stream):
         assert response.status_code == 403
         assert "Unknown X-Session-Id" in response.json()["error"]["message"]
+
+
+def test_metered_primitive_keeps_raw_protocol_and_denies_next_call(gateway, tmp_path):
+    register_session(
+        "metered",
+        scenario_name="simple_bgp",
+        session_dir=str(tmp_path),
+        access_policy=_OPEN,
+        tool_call_limits={"diagnosis": 1},
+    )
+    transport = _initialize(gateway, "metered")
+    response = _call(gateway, "metered", transport, "nika_test_probe_binding")
+    assert response.status_code == 200
+    denied = _result(_call(gateway, "metered", transport, "nika_test_probe_binding"))
+    assert denied["error"]["code"] == -32003
+    rows = [
+        json.loads(line)
+        for line in (tmp_path / "tool_calls.jsonl").read_text().splitlines()
+    ]
+    assert rows[0]["call_id"] and rows[0]["duration_ms"] >= 0
+    assert '"result"' in rows[0]["raw_output"]
+    assert rows[1]["denied"] == "primitive_tool_budget_exhausted"
