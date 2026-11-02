@@ -573,6 +573,20 @@ CORE_E2E_CASES = (
         for profile in ("iosxr", "routeros")
     ),
     FailureE2ECase(
+        problem="isis_authentication_mismatch",
+        scenario="isp_abilene",
+        env_run_args=("--igp", "isis"),
+        isp_options={"igp": "isis", "bgp_mode": "none", "rpki": False},
+        inject_seed=1,
+    ),
+    FailureE2ECase(
+        problem="isis_authentication_mismatch",
+        scenario="isp_arpanet196912",
+        env_run_args=("--igp", "isis", "--device-profile", "iosxr"),
+        isp_options={"igp": "isis", "bgp_mode": "none", "rpki": False},
+        inject_seed=1,
+    ),
+    FailureE2ECase(
         problem="bmv2_switch_down",
         scenario="p4_dc_fabric",
         env_run_args=("-s", "s"),

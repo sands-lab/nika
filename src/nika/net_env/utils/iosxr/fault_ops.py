@@ -789,6 +789,36 @@ class IosxrFaultOps(RouterFaultOps):
         lines.append("!")
         self._apply(*lines)
 
+    def isis_hello_authentication(self) -> dict[str, str]:
+        _, config = self._isis_config()
+        circuits = {}
+        for match in re.finditer(
+            r"^ interface (\S+)\n(.*?)(?=^ !|^!|\Z)", config, re.M | re.S
+        ):
+            interface, block = match.groups()
+            if re.search(r"^  passive\s*$", block, re.M):
+                continue
+            auth = re.search(r"^  hello-password (\S+)", block, re.M)
+            mode = auth[1] if auth else "none"
+            circuits[interface] = "md5" if mode == "hmac-md5" else mode
+        return circuits
+
+    def set_isis_hello_password(self, password: str | None) -> None:
+        process, _ = self._isis_config()
+        lines = [f"router isis {process}"]
+        for interface in self.isis_hello_authentication():
+            lines.extend(
+                [
+                    f" interface {interface}",
+                    f"  hello-password hmac-md5 clear {password}"
+                    if password
+                    else "  no hello-password",
+                    " !",
+                ]
+            )
+        lines.append("!")
+        self._apply(*lines)
+
     # ------------------------------------------------------------------
     # BGP session reset (GTSM recover)
     # ------------------------------------------------------------------

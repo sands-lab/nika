@@ -2,8 +2,8 @@
 
 A fault on one router shows up on its neighbors: their OSPF or IS-IS
 adjacency with it, or their BGP session to it, goes down. These probes read
-only the neighbors, never the faulted router's own protocol state. Each
-``*_baseline`` records the healthy adjacencies on the problem before inject;
+the neighbors' protocol state; circuit-health checks also read the target.
+Each ``*_baseline`` records the healthy adjacencies before inject;
 the matching symptom polls the same neighbors until the protocol timers have
 run out and compares.
 """
@@ -1300,3 +1300,55 @@ def isis_adj_and_stubs_lost(problem: Any, params: Any) -> tuple[bool, dict[str, 
             "errors": errors,
         },
     )
+
+
+def _isis_live_interfaces(problem: Any, host: str) -> dict[str, str]:
+    """IS-IS circuit states from the running protocol, independent of adjacencies."""
+    if _native_profile(problem, host) == "iosxr":
+        from nika.service.lab.iosxr_api import CLI_COMMAND
+
+        raw = problem.runtime.exec(
+            host, CLI_COMMAND.format(command="show isis interface brief"), timeout=90
+        )
+        return {
+            re.sub(r"^Gi(?=\d)", "GigabitEthernet", name): state
+            for name, state in re.findall(
+                r"^\s*(\S+)\s+(?:Yes|No)\s+\S+\s+\S+\s+\S+\s+\S+\s+(Up|Down)\b",
+                raw,
+                re.M,
+            )
+        }
+    raw = problem.runtime.exec(
+        host, "vtysh -c 'show isis interface detail'", timeout=30
+    )
+    return dict(re.findall(r"Interface: (\S+), State: (\S+), Active", raw))
+
+
+def isis_authentication_baseline(
+    problem: Any, params: Any
+) -> tuple[bool, dict[str, Any]]:
+    ok, details = isis_stub_baseline(problem, params)
+    modes = problem._authentication(params.host_name)
+    states = _isis_live_interfaces(problem, params.host_name)
+    circuits = sorted(modes)
+    problem._audit_isis_hello_circuits = circuits
+    details.update({"hello_authentication": modes, "circuit_states": states})
+    return (
+        ok
+        and bool(circuits)
+        and all(modes[c] == "none" and states.get(c) == "Up" for c in circuits),
+        details,
+    )
+
+
+def isis_authentication_lost(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    circuits = getattr(problem, "_audit_isis_hello_circuits", [])
+    if not circuits:
+        return False, {"error": "no_healthy_circuit_baseline", "host": params.host_name}
+    ok, result = isis_adj_and_stubs_lost(problem, params)
+    states = _isis_live_interfaces(problem, params.host_name)
+    running = bool(circuits) and all(states.get(c) == "Up" for c in circuits)
+    result.setdefault("details", {})["circuit_states"] = states
+    result["details"]["isis_circuits_running"] = running
+    result["verified"] = ok and running
+    return ok and running, result
