@@ -17,6 +17,8 @@ Fact families:
 * ``bgp_route``: selected BGP paths (AS path, local preference, next hop).
 * ``rib``: main-RIB protocol, next hops, metric and administrative distance.
 * ``fib``: recursively resolved egress interface and gateway set.
+* ``forwarding``: flows whose disposition differs between the candidates,
+  found exhaustively by Batfish's ``differentialReachability``.
 """
 
 from __future__ import annotations
@@ -424,6 +426,13 @@ class BatfishFactCollector:
         ]
         if bad:
             raise RuntimeError(f"Batfish could not parse candidate files: {bad}")
+        from nika.validation.batfish.client import unaccepted_parse_warnings
+
+        dropped = unaccepted_parse_warnings(self._frame(self._session.q.parseWarning()))
+        if dropped:
+            raise RuntimeError(
+                f"Batfish ignored statements that may change routing: {dropped[:20]}"
+            )
         return {
             "components": dict(self._session.get_component_versions()),
             "parse_status": {
@@ -435,6 +444,26 @@ class BatfishFactCollector:
 
     def use(self, name: str) -> None:
         self._snapshot = name
+
+    def forwarding_differences(
+        self, candidate: str, reference: str
+    ) -> tuple[FactDifference, ...]:
+        """Flows whose dispositions differ between two loaded candidates."""
+        frame = (
+            self._session.q.differentialReachability()
+            .answer(snapshot=candidate, reference_snapshot=reference)
+            .frame()
+        )
+        return tuple(
+            FactDifference(
+                kind="forwarding",
+                node=row.Flow.ingressNode,
+                key=f"{row.Flow.srcIp}->{row.Flow.dstIp} {row.Flow.ipProtocol}",
+                native=sorted({t.disposition for t in row.Reference_Traces}),
+                candidate=sorted({t.disposition for t in row.Snapshot_Traces}),
+            )
+            for row in frame.itertuples()
+        )
 
     def close(self) -> None:
         self._session.delete_network(self._network)

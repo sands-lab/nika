@@ -497,8 +497,8 @@
         {
             "name": "wrong-bgp-asn",
             "node": "leaf_router_0_0",
-            "old": "remote.address=172.16.0.4 remote.as=65100",
-            "new": "remote.address=172.16.0.4 remote.as=65099",
+            "old": "neighbor 172.16.0.4 remote-as 65100",
+            "new": "neighbor 172.16.0.4 remote-as 65099",
             "expected_failed_ids": [
                 "adj.leaf_router_0_0.spine_router_0_0",
                 "adj.spine_router_0_0.leaf_router_0_0"

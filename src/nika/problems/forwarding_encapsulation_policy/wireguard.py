@@ -28,12 +28,13 @@ from nika.problems.support.oracle import (
     shell,
 )
 from nika.problems.support.polling import wait_until
+from nika.problems.support.wireguard import LinuxWireGuard
 from nika.problems.support.router_ops import RouterFaultOps, native_fault_ops
 from nika.utils.logger import system_logger
 
 # Upper bound for overlay BGP to drop after peer-key change + neighbor clear.
 _SETTLE_SEC = 25
-# AllowedIPs rewrite keeps BGP up; brief pause for syncconf to apply.
+# AllowedIPs rewrite keeps BGP up; brief pause for the peer change to apply.
 _ALLOWED_IPS_SETTLE_SEC = 5
 
 # Fixed unused Curve25519 public key (not any Site Edge key in keys.txt).
@@ -68,16 +69,6 @@ def allowed_ips_for_spoke_hub_peer(
             continue
         entries.append(prefix)
     return ", ".join(entries)
-
-
-def _wg_syncconf(runtime: Any, edge: str, iface: str) -> None:
-    """Apply the edited conf live; the stripped temp file does not outlive the call."""
-    strip = f"/tmp/{iface}.strip"
-    runtime.exec(
-        edge,
-        f"wg-quick strip {iface} > {strip} && wg syncconf {iface} {strip}; "
-        f"rm -f {strip}",
-    )
 
 
 def _bgp_neighbor_established(summary: str, peer_ip: str) -> bool:
@@ -278,32 +269,13 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
         for tunnel in tunnels:
             if tunnel.spoke == spoke and tunnel.spoke_iface == iface:
                 return tunnel.hub_tunnel_ip
-        conf = self.runtime.exec(
-            edge,
-            f"grep -E '^Address = ' /etc/wireguard/{iface}.conf",
-        ).strip()
-        if "Address = " in conf:
-            cidr = conf.split("=", 1)[1].strip()
-            ip = cidr.split("/", 1)[0]
-            parts = ip.split(".")
-            if len(parts) == 4 and parts[-1] == "2":
-                return ".".join(parts[:-1] + ["1"])
         raise RuntimeError(f"Cannot resolve Hub tunnel IP for {edge}/{iface}")
 
     def _wg_ifaces_on_edge(self, edge: str) -> list[str]:
         tunnels = self._spoke_tunnels(edge)
         if tunnels:
             return sorted({t.spoke_iface for t in tunnels})
-        # Offline / missing built_tunnels: discover conf files.
-        listing = self.runtime.exec(
-            edge, "ls /etc/wireguard/*.conf 2>/dev/null || true"
-        ).strip()
-        ifaces: list[str] = []
-        for token in listing.split():
-            name = token.rsplit("/", 1)[-1]
-            if name.endswith(".conf"):
-                ifaces.append(name[: -len(".conf")])
-        return sorted(ifaces)
+        return LinuxWireGuard(self.runtime, edge).interfaces()
 
     def inject_fault(self, params: WireGuardPeerKeyMisconfigParams):
         edge = params.host_name
@@ -321,14 +293,10 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
             self._inject_native(ops, edge, ifaces, wrong_key)
             return
         cleared: list[str] = []
+        wireguard = LinuxWireGuard(self.runtime, edge)
         for iface in ifaces:
             hub_tun_ip = self._resolve_hub_tunnel_ip(edge, iface)
-            conf_path = f"/etc/wireguard/{iface}.conf"
-            self.runtime.exec(
-                edge,
-                f"sed -i 's|^PublicKey = .*|PublicKey = {wrong_key}|' {conf_path}",
-            )
-            _wg_syncconf(self.runtime, edge, iface)
+            wireguard.set_tunnel_peer_public_key(iface, wrong_key)
             self.runtime.exec(
                 edge,
                 f"vtysh -c 'clear ip bgp {hub_tun_ip}' 2>/dev/null || true",
@@ -498,11 +466,10 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
         per_iface: dict[str, dict[str, Any]] = {}
         all_ok = bool(ifaces) and params.intf_name in ifaces
 
+        wireguard = LinuxWireGuard(self.runtime, edge)
         for iface in ifaces:
-            conf = self.runtime.exec(
-                edge, f"grep -E '^PublicKey = ' /etc/wireguard/{iface}.conf || true"
-            ).strip()
-            conf_ok = conf == f"PublicKey = {expected}"
+            peer_key = wireguard.tunnel_peer(iface).public_key
+            conf_ok = peer_key == expected
 
             link = self.runtime.exec(
                 edge, f"ip -o link show {iface} 2>/dev/null || true"
@@ -530,7 +497,7 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
             iface_ok = conf_ok and iface_up and peer_present and handshake_ok
             all_ok = all_ok and iface_ok
             per_iface[iface] = {
-                "conf_public_key_line": conf,
+                "peer_public_key": peer_key,
                 "iface_link": link,
                 "wg_show": wg_show,
                 "latest_handshakes": handshakes,
@@ -660,16 +627,6 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
         for tunnel in tunnels:
             if tunnel.spoke == spoke and tunnel.spoke_iface == params.intf_name:
                 return tunnel.hub_tunnel_ip
-        conf = self.runtime.exec(
-            params.host_name,
-            f"grep -E '^Address = ' /etc/wireguard/{params.intf_name}.conf",
-        ).strip()
-        if "Address = " in conf:
-            cidr = conf.split("=", 1)[1].strip()
-            ip = cidr.split("/", 1)[0]
-            parts = ip.split(".")
-            if len(parts) == 4 and parts[-1] == "2":
-                return ".".join(parts[:-1] + ["1"])
         raise RuntimeError(
             f"Cannot resolve Hub tunnel IP for {params.host_name}/{params.intf_name}"
         )
@@ -790,15 +747,9 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
                 f"target_prefix {params.target_prefix} still present in allowlist"
             )
 
-        if ops is not None:
-            ops.set_tunnel_peer_allowed_addresses(iface, allowlist.split(", "))
-        else:
-            conf_path = f"/etc/wireguard/{iface}.conf"
-            self.runtime.exec(
-                edge,
-                f"sed -i 's|^AllowedIPs = .*|AllowedIPs = {allowlist}|' {conf_path}",
-            )
-            _wg_syncconf(self.runtime, edge, iface)
+        (ops or LinuxWireGuard(self.runtime, edge)).set_tunnel_peer_allowed_addresses(
+            iface, allowlist.split(", ")
+        )
         self.logger.info(
             f"Injected WireGuard AllowedIPs omit of {params.target_prefix} "
             f"on {edge}/{iface} (hub tunnel {hub_tun_ip} retained; BGP untouched)."
@@ -818,13 +769,9 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
         if ops is not None:
             return self._verify_native(ops, params, target, hub_tun_ip)
 
-        conf_line = self.runtime.exec(
-            edge, f"grep -E '^AllowedIPs = ' /etc/wireguard/{iface}.conf || true"
-        ).strip()
-        allowed_value = (
-            conf_line.split("=", 1)[1].strip() if "AllowedIPs = " in conf_line else ""
+        entries = list(
+            LinuxWireGuard(self.runtime, edge).tunnel_peer(iface).allowed_addresses
         )
-        entries = [e.strip() for e in allowed_value.split(",") if e.strip()]
         conf_omits_target = (
             target not in entries and params.target_prefix not in entries
         )
@@ -870,7 +817,7 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
                 "intf_name": iface,
                 "target_prefix": params.target_prefix,
                 "hub_tunnel_ip": hub_tun_ip,
-                "allowed_ips_line": conf_line,
+                "allowed_addresses": entries,
                 "conf_omits_target": conf_omits_target,
                 "conf_keeps_tunnel": conf_keeps_tunnel,
                 "latest_handshakes": handshakes,

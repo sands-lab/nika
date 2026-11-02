@@ -125,8 +125,8 @@
     {
       "name": "wrong-bgp-asn",
       "node": "leaf1",
-      "old": "peer-as: 65056",
-      "new": "peer-as: 65057",
+      "old": "neighbor 10.0.0.1 remote-as 65056",
+      "new": "neighbor 10.0.0.1 remote-as 65057",
       "expected_failed_ids": [
         "adj.leaf1.spine",
         "adj.spine.leaf1",
@@ -137,8 +137,8 @@
     {
       "name": "missing-export",
       "node": "leaf1",
-      "old": "prefix-set: NC-OUT-0-1\n      action:\n        policy-result: accept",
-      "new": "prefix-set: NC-OUT-0-1\n      action:\n        policy-result: reject",
+      "old": "route-map NC_OUT_0-ipv4 permit 10",
+      "new": "route-map NC_OUT_0-ipv4 deny 10",
       "expected_failed_ids": [
         "reach.leaf1.leaf2",
         "reach.leaf2.leaf1"

@@ -51,24 +51,24 @@ def consistency_snapshot_builder(env, routing_model: str | None = None):
             routing_model = "frr-overlay"
         else:
             routing_model = "frr"
-    if routing_model == "srl-isp":
-        from nika.validation.batfish.srl_isp import build_srl_isp_snapshot
-
-        return routing_model, build_srl_isp_snapshot
-    if routing_model == "srl-bgp":
-        from nika.validation.batfish.srl import build_srl_snapshot
-
-        return routing_model, build_srl_snapshot
-    if routing_model in {"iosxr-isp", "routeros-isp", "iosxr-bgp", "routeros-bgp"}:
+    if routing_model in {
+        "srl-isp",
+        "srl-bgp",
+        "routeros-isp",
+        "routeros-bgp",
+        "frr-isis",
+    }:
+        # Batfish models neither platform nor FRR IS-IS; their static analysis
+        # reads the design rendered by netlab, the same for both generators.
+        raise ValueError(
+            f"Generator consistency needs a Batfish parser; {routing_model} has none"
+        )
+    if routing_model in {"iosxr-isp", "iosxr-bgp"}:
         from nika.validation.batfish.vendor_bgp import build_vendor_snapshot
 
         return routing_model, partial(
             build_vendor_snapshot, routing_model=routing_model
         )
-    if routing_model == "frr-isis":
-        from nika.validation.batfish.isis import build_isis_snapshot
-
-        return routing_model, build_isis_snapshot
     if routing_model == "frr-overlay":
         from nika.validation.batfish.overlay import build_overlay_snapshot
 
@@ -133,6 +133,7 @@ def compare_config_generators(
     """
     from nika.net_env.net_env_pool import get_net_env_instance
     from nika.net_env.synthesis.configuration import apply_routing_configs
+    from nika.net_env.synthesis.rendered import stores_configs
     from nika.net_env.synthesis.netlab import NETLAB_VERSION
     from nika.workflows.validation.netlab import check_netlab_scope, generate_configs
 
@@ -146,7 +147,12 @@ def compare_config_generators(
     if parameters is not None:
         kwargs["routing_parameters"] = parameters.model_dump(mode="json")
 
-    native_env = get_net_env_instance(scenario, **kwargs)
+    # Compare NIKA's own rendering, not the stored netlab configurations.
+    native_env = get_net_env_instance(
+        scenario,
+        **kwargs,
+        **({"rendered": False} if stores_configs(scenario) else {}),
+    )
     routing_model, builder = consistency_snapshot_builder(native_env, routing_model)
     if getattr(native_env, "native_routers", None):
         from nika.net_env.native_routers import require_native_validation
@@ -157,7 +163,10 @@ def compare_config_generators(
                 f"Generator comparison of mixed-vendor deployments does not cover {routing_model}"
             )
         require_native_validation(native_env)
-    candidate_env = get_net_env_instance(scenario, **kwargs)
+    # The candidate's configurations are replaced by the generated ones below.
+    candidate_env = get_net_env_instance(
+        scenario, **kwargs, **({"rendered": False} if stores_configs(scenario) else {})
+    )
     check_netlab_scope(None, candidate_env)
     generated = generate_configs(None, candidate_env, parameters, output / "netlab")
     apply_routing_configs(candidate_env, generated)
@@ -197,6 +206,7 @@ def compare_config_generators(
                 )
                 + "\n"
             )
+        forwarding = collector.forwarding_differences("netlab", "native")
     finally:
         collector.close()
     report = ConsistencyReport(
@@ -218,7 +228,7 @@ def compare_config_generators(
         }
         | {"probe_routes": len(probes)},
         fact_counts={name: fact_counts(f) for name, f in facts.items()},
-        differences=diff_facts(facts["native"], facts["netlab"]),
+        differences=diff_facts(facts["native"], facts["netlab"]) + forwarding,
     )
     report.write(output / "report.json")
     return report

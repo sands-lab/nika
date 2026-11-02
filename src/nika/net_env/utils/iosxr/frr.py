@@ -187,42 +187,33 @@ def _render_bgp(bgp: Bgp) -> list[str]:
     return lines
 
 
-def retained_netlab_fragment(hostname: str, frr_conf: str, startup: str) -> str:
-    """Return the XR statements of an FRR router design that netlab does not emit.
+def retained_netlab_fragment(router, bound: set[tuple[str, str]]) -> str:
+    """Return the XR statements of a router design that netlab does not emit.
 
-    NIKA keeps static routes in Linux startup commands, outside the netlab
-    sketch; on XR they become ``router static``. The pinned netlab XR template
-    also enables no BGP multipath and admits eBGP routes only through
-    ``bgp unsafe-ebgp-policy``. This fragment keeps the FRR design's eBGP
-    multipath and its open eBGP policy as explicit pass policies on directions
-    without a solved route map.
+    The pinned netlab XR template enables no BGP multipath and admits eBGP
+    routes only through ``bgp unsafe-ebgp-policy``. This fragment keeps the
+    design's eBGP multipath and its open eBGP policy as explicit pass policies
+    on the ``(peer, direction)`` pairs without a bound route policy.
     """
+    if not router.neighbors:
+        return ""
     lines = []
-    static_routes = _parse_startup(startup).static_routes
-    if static_routes:
-        lines.extend(["router static", " address-family ipv4 unicast"])
-        lines.extend(f"  {prefix} {hop}" for prefix, hop in static_routes)
-        lines.extend([" !", "!"])
-    bgp, _, _ = parse_frr(frr_conf, hostname)
-    if bgp is None:
-        return "\n".join([*lines, ""]) if lines else ""
-    external = [peer for peer, asn in bgp.neighbors.items() if asn != bgp.asn]
-    open_policy = not bgp.requires_policy and external
+    external = [p.address for p in router.neighbors if p.remote_as != router.asn]
+    open_policy = not router.ebgp_requires_policy and external
     if open_policy:
         lines.extend([f"route-policy {PASS_POLICY}", " pass", "end-policy", "!"])
-    lines.append(f"router bgp {bgp.asn}")
-    if bgp.multipath_relax:
+    lines.append(f"router bgp {router.asn}")
+    if router.bgp_multipath:
         lines.append(" bgp bestpath as-path multipath-relax")
-    if bgp.maximum_paths:
         lines.extend(
             [
                 " address-family ipv4 unicast",
-                f"  maximum-paths ebgp {bgp.maximum_paths}",
+                f"  maximum-paths ebgp {router.bgp_multipath}",
                 " !",
             ]
         )
     for peer in external if open_policy else ():
-        directions = [d for d in ("in", "out") if (peer, d) not in bgp.route_maps]
+        directions = [d for d in ("in", "out") if (peer, d) not in bound]
         if directions:
             lines.extend([f" neighbor {peer}", "  address-family ipv4 unicast"])
             lines.extend(f"   route-policy {PASS_POLICY} {d}" for d in directions)

@@ -9,6 +9,7 @@ from typing import ClassVar, Literal
 
 import yaml
 
+from nika.net_env.isp.rendered import IspRendered
 from nika.config import clab_workdir
 from nika.net_env.probe_intent import ProbeIntent
 from nika.net_env.isp.brief import design_notes, ebgp_scope_note, stub_probe_intent
@@ -80,7 +81,7 @@ def _stub_series_all_routers(plan: IspPlan) -> TrafficMatrixSeries:
     )
 
 
-class Isp(ContainerlabNetworkEnv):
+class Isp(IspRendered, ContainerlabNetworkEnv):
     """SNDlib ISP on Containerlab with nokia_srlinux routers + linux stubs."""
 
     ROUTING_PARAMETER_KINDS = frozenset({"ospf_costs", "isis_metrics", "bgp_imports"})
@@ -103,6 +104,7 @@ class Isp(ContainerlabNetworkEnv):
         topo_size: str | None = None,
         scenario_id: str | None = None,
         routing_parameters: dict | None = None,
+        rendered: bool = True,
         **kwargs,
     ):
         kwargs.pop("traffic_mode", None)
@@ -219,6 +221,10 @@ class Isp(ContainerlabNetworkEnv):
         )
         self.desc += design_notes(self.plan, self.bgp_plan, router_services=False)
         self._populate_role_lists()
+        if rendered and routing_parameters is None:
+            from nika.net_env.synthesis.rendered import use_rendered_configs
+
+            use_rendered_configs(self, required=False)
 
     def probe_intent(self) -> ProbeIntent | None:
         return stub_probe_intent(self.bgp_plan, self.traffic)
@@ -386,6 +392,10 @@ class Isp(ContainerlabNetworkEnv):
     def routing_documents(self):
         if hasattr(self, "_completed_routing_documents"):
             return self._completed_routing_documents
+        return self.native_routing_documents()
+
+    def native_routing_documents(self):
+        """SR Linux documents NIKA renders from the plan."""
         documents = {}
         bgp_by_device = {}
         if self.bgp_plan is not None:

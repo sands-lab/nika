@@ -131,27 +131,16 @@ def build_direct_bgp_experiment(scenario, *, routing_model):
         for i in intents
         if i.property == "reachability" and i.destination.name in local_hosts
     )
-    export_old = (
-        "  done"
+    # Static controls mutate the analyzed syntax: native IOS XR, or the FRR
+    # rendering of the RouterOS design, whose binding selects the export entry.
+    export_old, export_new = (
+        ("  done", "  drop")
         if routing_model == "iosxr-bgp"
-        else f"if (dst == {local_network} && dst-len == {local_network.prefixlen}) {{ accept; }}"
-    )
-    export_new = (
-        "  drop"
-        if routing_model == "iosxr-bgp"
-        else export_old.replace("accept;", "reject;")
+        else (f"permit {local_network}", f"deny {local_network}")
     )
     all_ids = tuple(i.id for i in contract.intents)
-    old_asn = (
-        f"remote-as {original['peer_as']}"
-        if routing_model == "iosxr-bgp"
-        else f"remote.as={original['peer_as']}"
-    )
-    bad_asn = (
-        f"remote-as {original['peer_as'] + 100}"
-        if routing_model == "iosxr-bgp"
-        else f"remote.as={original['peer_as'] + 100}"
-    )
+    old_asn = f"remote-as {original['peer_as']}"
+    bad_asn = f"remote-as {original['peer_as'] + 100}"
     native_controls = ()
     if routing_model == "routeros-bgp":
         connection = f"[find where remote.address={original['peer_ip']}]"

@@ -5,7 +5,7 @@ import pytest
 from tests.support.scenario_validation import assert_scenario_acceptance
 
 from nika.net_env.net_env_pool import get_net_env_instance
-from nika.validation.batfish.vendor_bgp import project_routeros_bgp, vendor_configs
+from nika.validation.batfish.vendor_bgp import vendor_configs
 from nika.workflows.validation.direct_bgp import build_direct_bgp_experiment
 from nika.workflows.validation.scenario import validate_scenario_design
 
@@ -73,12 +73,6 @@ def test_original_vendor_requirements_are_platform_independent(scenario, model):
     assert (
         env.BGP_INTERFACE_MAP[spec.incidents[0].intf_name] == env.BGP_PEERING_INTERFACE
     )
-
-
-@pytest.mark.unit
-def test_routeros_projection_rejects_unmodeled_forwarding():
-    with pytest.raises(ValueError, match="Unsupported RouterOS statement"):
-        project_routeros_bgp("router1", "/ip firewall filter add action=drop\n")
 
 
 @pytest.mark.integration

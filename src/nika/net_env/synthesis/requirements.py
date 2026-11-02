@@ -244,6 +244,39 @@ RoutingRequirement = Annotated[
 ]
 
 
+def design_addresses(env, node: str) -> list[tuple[str, str]]:
+    """Return ``(address/prefix, interface)`` pairs of a router's design.
+
+    ISP environments read their plan, Ethernet environments their recorded
+    routing design; neither reads rendered configuration.
+    """
+    from nika.net_env.isp.igp.plan import IspPlan
+
+    plan = getattr(env, "plan", None)
+    design = getattr(env, "routing_design", None)
+    known = (
+        {n.device_name for n in plan.nodes}
+        if isinstance(plan, IspPlan)
+        else set(design.routers)
+        if design is not None
+        else set(env.lab.machines)
+    )
+    if node not in known:
+        raise ValueError("Routing path has an unknown terminal router")
+    if isinstance(plan, IspPlan):
+        (planned,) = [n for n in plan.nodes if n.device_name == node]
+        return [(f"{planned.loopback}/32", "lo")] + [
+            (f"{i.address}/{i.prefixlen}", i.name) for i in planned.interfaces
+        ]
+    if design is not None:
+        return [(i.address, i.name) for i in design.routers[node].interfaces]
+    from nika.validation.batfish.kathara import startup_addresses
+
+    return startup_addresses(
+        env.lab.fs.readtext(f"{node}.startup"), include_loopback=True
+    )
+
+
 def resolve_routing_requirements(spec, env):
     """Project original path/selection semantics into existing typed predicates.
 
@@ -291,40 +324,12 @@ def resolve_routing_requirements(spec, env):
     requirements = {name: [] for name in states}
     for requirement in spec.behavior:
         if isinstance(requirement, (OspfPathRequirement, LinkStatePathsRequirement)):
-            from nika.validation.batfish.kathara import startup_addresses
-
             terminal = (
                 requirement.path
                 if isinstance(requirement, OspfPathRequirement)
                 else requirement.paths[0]
             )[-1]
-            if getattr(env, "device_profile", None) == "nokia_srlinux":
-                from nika.validation.batfish.srl_isp import srl_addresses
-
-                addresses = srl_addresses(env.routing_documents[terminal])
-            elif terminal in getattr(env, "native_routers", {}):
-                from nika.validation.batfish.vendor_bgp import vendor_addresses
-
-                addresses = vendor_addresses(
-                    env.deployment_configs[terminal], env.native_routers[terminal]
-                )
-            elif hasattr(env, "BGP_ROUTERS") and getattr(
-                env, "device_profile", None
-            ) in {"iosxr", "routeros"}:
-                from nika.validation.batfish.vendor_bgp import (
-                    vendor_addresses,
-                    vendor_configs,
-                )
-
-                addresses = vendor_addresses(
-                    vendor_configs(env)[terminal], env.device_profile
-                )
-            else:
-                if terminal not in env.lab.machines:
-                    raise ValueError("Routing path has an unknown terminal router")
-                addresses = startup_addresses(
-                    env.lab.fs.readtext(f"{terminal}.startup"), include_loopback=True
-                )
+            addresses = design_addresses(env, terminal)
             if not any(
                 IPv4Interface(address).network == IPv4Network(requirement.prefix)
                 for address, _ in addresses

@@ -11,6 +11,8 @@ from nika.net_env.native_routers import NativeRouterEnv
 class CampusLan(NativeRouterEnv, NetworkEnvBase):
     ROUTING_PARAMETER_KINDS = frozenset({"ospf_costs"})
     LAB_NAME = "campus_lan"
+    # Deploys the netlab configurations stored under rendered/.
+    STORES_RENDERED_CONFIGS = True
     TOPO_LEVEL = "medium"
     # Distribution and server gateways bridge access ports and relay DHCP;
     # XRd Control Plane cannot route a bridged interface, so they stay FRR.
@@ -26,6 +28,7 @@ class CampusLan(NativeRouterEnv, NetworkEnvBase):
         topo_size: Literal["s", "m", "l"] = "s",
         routing_parameters: dict | None = None,
         device_profile: str | None = None,
+        rendered: bool = True,
         **kwargs,
     ):
         from nika.net_env.campus_lan.lab_dhcp import (
@@ -44,6 +47,10 @@ class CampusLan(NativeRouterEnv, NetworkEnvBase):
         if getattr(self, "lab", None) is not None:
             self.lab.name = self.LAB_NAME
         self.apply_device_profile(device_profile)
+        if rendered and routing_parameters is None:
+            from nika.net_env.synthesis.rendered import use_rendered_configs
+
+            use_rendered_configs(self)
 
     def router_roles(self) -> dict[str, list[str]]:
         roles = {"core": [], "distribution": [], "server_gateway": []}

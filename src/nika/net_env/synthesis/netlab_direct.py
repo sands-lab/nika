@@ -13,9 +13,14 @@ from nika.net_env.synthesis.netlab import run_netlab
 from nika.net_env.synthesis.parameters import RoutingParameters
 
 
-def direct_bgp_topology(env, parameters=None) -> tuple[dict, str]:
-    """Build explicit links, peers, origins, and export policy for direct eBGP."""
+def direct_bgp_topology(env, parameters=None, *, as_frr=False) -> tuple[dict, str]:
+    """Build explicit links, peers, origins, and export policy for direct eBGP.
+
+    With ``as_frr``, the design is rendered as FRR under its logical interface
+    names for static analysis.
+    """
     profile = _profile(env)
+    render = "frr" if as_frr else profile
     if (
         env.backend != "kathara"
         or "bgp_exports" not in getattr(env, "ROUTING_PARAMETER_KINDS", ())
@@ -81,8 +86,12 @@ def direct_bgp_topology(env, parameters=None) -> tuple[dict, str]:
     from nika.net_env.iosxr_simple_bgp.lab import IMAGE as IOSXR_IMAGE
     from nika.net_env.utils.routeros.common import IMAGE as ROUTEROS_IMAGE
 
-    device = "iosxr" if profile == "iosxr" else "routeros7"
-    module = ["bgp", "routing"] if profile == "iosxr" else ["bgp"]
+    device = {"iosxr": "iosxr", "routeros": "routeros7"}.get(render, render)
+    module = ["bgp"] if render == "routeros" else ["bgp", "routing"]
+    ifname = {
+        peer_logical: peer_logical if as_frr else peering,
+        client_logical: client_logical if as_frr else interface_map[client_logical],
+    }
     topology = {
         "name": "nika-direct-bgp",
         "provider": "clab",
@@ -96,7 +105,7 @@ def direct_bgp_topology(env, parameters=None) -> tuple[dict, str]:
         "nodes": {},
         "links": [],
     }
-    if profile == "iosxr":
+    if render != "routeros":
         topology["plugin"] = ["bgp.policy"]
 
     business = sorted(origins)
@@ -106,8 +115,10 @@ def direct_bgp_topology(env, parameters=None) -> tuple[dict, str]:
             "bgp.as": asn,
             "bgp.router_id": str(link_ip.ip),
         }
-        if profile == "iosxr":
+        if render == "iosxr":
             node["box"] = IOSXR_IMAGE
+        if render != "routeros":
+            # The export design; RouterOS binds it as a filter chain below.
             routing_prefix = {"ORIGINS": [{"ipv4": prefix} for prefix in business]}
             policies = {"BGP-IN": [{"action": "permit"}]}
             export = export_by_node.get(name)
@@ -137,17 +148,17 @@ def direct_bgp_topology(env, parameters=None) -> tuple[dict, str]:
     left_row, right_row = rows[left], rows[right]
     left_endpoint = {
         "node": left,
-        "ifname": peering,
+        "ifname": ifname[peer_logical],
         "ipv4": str(left_row[0]),
         "bgp.advertise": False,
     }
     right_endpoint = {
         "node": right,
-        "ifname": peering,
+        "ifname": ifname[peer_logical],
         "ipv4": str(right_row[0]),
         "bgp.advertise": False,
     }
-    if profile == "iosxr":
+    if render != "routeros":
         for endpoint in (left_endpoint, right_endpoint):
             endpoint["bgp.policy"] = {"in": "BGP-IN", "out": "BGP-OUT"}
     topology["links"].append(
@@ -160,7 +171,7 @@ def direct_bgp_topology(env, parameters=None) -> tuple[dict, str]:
                 "interfaces": [
                     {
                         "node": name,
-                        "ifname": interface_map[client_logical],
+                        "ifname": ifname[client_logical],
                         "ipv4": str(pc_ip),
                         "bgp.advertise": True,
                     }
@@ -170,8 +181,8 @@ def direct_bgp_topology(env, parameters=None) -> tuple[dict, str]:
     return topology, profile
 
 
-def generate_direct_bgp_configs(env, parameters, directory: Path):
-    topology, profile = direct_bgp_topology(env, parameters)
+def generate_direct_bgp_configs(env, parameters, directory: Path, *, as_frr=False):
+    topology, profile = direct_bgp_topology(env, parameters, as_frr=as_frr)
     configs, transformed = run_netlab(topology, directory)
     expected_nodes = set(env.BGP_ROUTERS)
     if (
@@ -202,8 +213,8 @@ def generate_direct_bgp_configs(env, parameters, directory: Path):
     }
     if actual_origins != expected_origins:
         raise ValueError("netlab direct BGP origins differ from the original sketch")
-    _validate_interfaces(env, transformed)
-    if profile == "routeros":
+    _validate_interfaces(env, transformed, logical=as_frr)
+    if profile == "routeros" and not as_frr:
         configs = _routeros_exact_export_filters(env, configs, transformed, parameters)
     return configs
 
@@ -217,16 +228,23 @@ def _profile(env) -> str:
     raise ValueError("Direct BGP environment must declare one supported vendor model")
 
 
-def _validate_interfaces(env, transformed):
+def _validate_interfaces(env, transformed, *, logical=False):
+    (peer,) = [
+        (name, native)
+        for name, native in env.BGP_INTERFACE_MAP.items()
+        if native == env.BGP_PEERING_INTERFACE
+    ]
+    (client,) = [
+        (name, native)
+        for name, native in env.BGP_INTERFACE_MAP.items()
+        if native != env.BGP_PEERING_INTERFACE
+    ]
+    index = 0 if logical else 1
     expected = {}
     for name, row in env.BGP_ROUTERS.items():
         expected[name] = {
-            str(IPv4Interface(row["link_ip"])): env.BGP_PEERING_INTERFACE,
-            str(IPv4Interface(row["pc_ip"])): next(
-                native
-                for logical, native in env.BGP_INTERFACE_MAP.items()
-                if native != env.BGP_PEERING_INTERFACE
-            ),
+            str(IPv4Interface(row["link_ip"])): peer[index],
+            str(IPv4Interface(row["pc_ip"])): client[index],
         }
     for name, node in transformed["nodes"].items():
         actual = {

@@ -11,6 +11,8 @@ from pathlib import Path
 
 import yaml
 
+from nika.net_env.synthesis.configuration import RouterConfigs
+
 NETLAB_VERSION = "26.10"
 
 
@@ -22,8 +24,12 @@ class _SrlLoader(yaml.SafeLoader):
         return super().construct_mapping(node, deep=deep)
 
 
-def run_netlab(topology: dict, directory: Path) -> tuple[dict[str, str], dict]:
-    """Compile a topology offline and return node configs plus transformed data."""
+def run_netlab(topology: dict, directory: Path) -> tuple[RouterConfigs, dict]:
+    """Compile a topology offline and return node configs plus transformed data.
+
+    FRR modules that netlab emits as Linux shell scripts, such as WireGuard
+    tunnels, are returned in ``RouterConfigs.scripts`` instead of the FRR text.
+    """
     try:
         installed = version("networklab")
     except PackageNotFoundError as exc:
@@ -59,7 +65,7 @@ def run_netlab(topology: dict, directory: Path) -> tuple[dict[str, str], dict]:
         raise RuntimeError(f"netlab compilation failed; see {directory / 'netlab.log'}")
 
     transformed = json.loads((directory / "transformed.json").read_text())
-    configs = {}
+    configs = RouterConfigs()
     for name, node in transformed["nodes"].items():
         root = directory / "node_files" / name
         modules = ["initial", *node["module"]]
@@ -98,6 +104,13 @@ def run_netlab(topology: dict, directory: Path) -> tuple[dict[str, str], dict]:
         fragments = []
         for module in modules:
             fragment = (root / module).read_text()
+            if (
+                node["device"] == "frr"
+                and module != "initial"
+                and fragment.startswith("#!/bin/bash")
+            ):
+                configs.scripts.setdefault(name, {})[module] = fragment
+                continue
             if node["device"] == "frr" and module == "initial":
                 # Upstream packages FRR initial CLI in a shell heredoc. Extract
                 # the literal CLI; NIKA already owns Linux interface creation.
