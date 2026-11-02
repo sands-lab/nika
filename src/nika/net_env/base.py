@@ -363,6 +363,10 @@ class NetworkEnvBase:
         """Run once the lab is deployed and verified."""
         return
 
+    def post_restore(self) -> bool:
+        """Resume transient protocols and report whether full verification is needed."""
+        return False
+
     def seal_baseline(self) -> None:
         """Leave no pristine on-disk baseline that a fault could be diffed against.
 

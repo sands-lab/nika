@@ -928,7 +928,9 @@ class LabVerifyTimeoutError(RuntimeError):
         self.max_wait_sec = max_wait_sec
 
 
-def verify_lab_with_retry(net_env: NetworkEnvBase) -> dict[str, Any] | None:
+def verify_lab_with_retry(
+    net_env: NetworkEnvBase, *, full: bool = False
+) -> dict[str, Any] | None:
     """Poll startup or full lab verification until success or timeout.
 
     With ``nika.runtime_validation.depth: light`` (default), prefer
@@ -936,11 +938,12 @@ def verify_lab_with_retry(net_env: NetworkEnvBase) -> dict[str, Any] | None:
     ``verify_lab``.
 
     Returns ``None`` when the scenario defines no startup verification.
+    Set ``full=True`` to verify every path after protocol recovery.
     """
     from nika.utils.logger import log_event
     from nika.utils.session_log_summaries import failed_checks_map, summarize_lab_verify
 
-    if _runtime_validation_depth() == "full":
+    if full or _runtime_validation_depth() == "full":
         verify = net_env.verify_lab
     else:
         verify = getattr(net_env, "startup_verify_lab", net_env.verify_lab)

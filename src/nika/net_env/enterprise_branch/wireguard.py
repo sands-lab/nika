@@ -3,8 +3,37 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from nika.config import pkg_path
+
+if TYPE_CHECKING:
+    from nika.runtime.base import LabRuntime
+
+
+def restore_peer_sessions(runtime: LabRuntime, node: str) -> None:
+    """Rebuild ephemeral peer sessions from the running WireGuard configuration."""
+    output = runtime.exec(
+        node,
+        """set -eu
+umask 077
+state_file=$(mktemp)
+trap 'rm -f "$state_file"' EXIT HUP INT TERM
+interfaces=$(wg show interfaces)
+for interface in $interfaces; do
+    wg showconf "$interface" > "$state_file"
+    peers=$(wg show "$interface" peers)
+    for peer in $peers; do
+        wg set "$interface" peer "$peer" remove
+    done
+    wg setconf "$interface" "$state_file"
+done
+echo NIKA_WG_RESTORED
+""",
+        timeout=30,
+    )
+    if "NIKA_WG_RESTORED" not in output.splitlines():
+        raise RuntimeError(f"WireGuard session recovery failed on {node}")
 
 
 def load_key_pairs(path: Path | None = None) -> list[tuple[str, str]]:
