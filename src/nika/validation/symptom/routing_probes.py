@@ -933,9 +933,7 @@ def ospf_full_unrouted(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]
     )
 
 
-def ospf_timer_mismatch_baseline(
-    problem: Any, params: Any
-) -> tuple[bool, dict[str, Any]]:
+def ospf_cut_edge_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     """Record Full neighbors, learned routes, and reachability across the cut edge."""
     ends = _ospf_cut_edge_ends(problem, params.host_name, params.intf_name)
     if "error" in ends:
@@ -967,20 +965,33 @@ def ospf_timer_mismatch_baseline(
         "loss": loss,
     }
     if ok:
-        problem._audit_ospf_timer_link = base
+        problem._audit_ospf_cut_link = base
     return ok, base
 
 
 def ospf_timer_mismatch(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     """Both adjacencies expire, the destination route withdraws, and host pings fail."""
-    base = getattr(problem, "_audit_ospf_timer_link", None)
-    if not base or (base["host"], base["intf"]) != (params.host_name, params.intf_name):
-        return False, {"error": "no_healthy_timer_baseline"}
-    deadline = (
-        time.monotonic()
-        + max(problem._original_timers[1], problem.injected_timers[1])
-        + 60
+    if not getattr(problem, "_audit_ospf_cut_link", None):
+        return False, {"error": "no_healthy_cut_edge_baseline"}
+    return _ospf_cut_edge_lost(
+        problem,
+        params,
+        max(problem._original_timers[1], problem.injected_timers[1]) + 60,
     )
+
+
+def ospf_stub_area_mismatch(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
+    """Stub disagreement removes the adjacency, learned routes, and host reachability."""
+    return _ospf_cut_edge_lost(problem, params, 120)
+
+
+def _ospf_cut_edge_lost(
+    problem: Any, params: Any, timeout: float
+) -> tuple[bool, dict[str, Any]]:
+    base = getattr(problem, "_audit_ospf_cut_link", None)
+    if not base or (base["host"], base["intf"]) != (params.host_name, params.intf_name):
+        return False, {"error": "no_healthy_cut_edge_baseline"}
+    deadline = time.monotonic() + timeout
     while True:
         health = problem.link_health(params)
         loss = ping_stats(

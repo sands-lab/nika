@@ -548,6 +548,25 @@ class IosxrFaultOps(RouterFaultOps):
             return "non-broadcast"
         return "broadcast" if token == "broadcast" else token
 
+    def ospf_interface_area_type(self, interface: str) -> tuple[str, str]:
+        process, area = self._ospf_area_of(self._xr_interface(interface))
+        config = self._show(f"show running-config router ospf {process} area {area}")
+        match = re.search(r"^  (stub|nssa)\b", config, re.M)
+        dotted = str(ipaddress.IPv4Address(int(area) if area.isdigit() else area))
+        return dotted, match[1] if match else "normal"
+
+    def set_ospf_interface_area_type(self, interface: str, area_type: str) -> None:
+        if area_type not in {"normal", "stub"}:
+            raise ValueError(f"Unsupported OSPF area type: {area_type}")
+        process, area = self._ospf_area_of(self._xr_interface(interface))
+        self._apply(
+            f"router ospf {process}",
+            f" area {area}",
+            "  stub" if area_type == "stub" else "  no stub",
+            " !",
+            "!",
+        )
+
     def set_ospf_network_type(self, interface: str, network_type: str) -> None:
         xr_if = self._xr_interface(interface)
         process, area = self._ospf_area_of(xr_if)

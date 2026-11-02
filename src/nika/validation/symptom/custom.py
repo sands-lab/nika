@@ -6,6 +6,10 @@ import time
 from typing import Any
 
 from nika.problems.base import build_verify_result
+from nika.validation.symptom.vrf_probes import (
+    vrf_import_baseline,
+    vrf_import_routes_lost,
+)
 from nika.validation.symptom.bgp_afi_probes import (
     ipv4_family_baseline,
     ipv4_family_missing,
@@ -34,6 +38,10 @@ from nika.validation.symptom.dns_probes import (
     dns_lookup_slow,
     dns_name_unresolvable,
     dns_wrong_record,
+)
+from nika.validation.symptom.bgp_prefix_probes import (
+    prefix_length_baseline,
+    prefix_length_drops_routes,
 )
 from nika.validation.symptom.bgp_route_probes import (
     advertisement_baseline,
@@ -93,7 +101,8 @@ from nika.validation.symptom.routing_probes import (
     ospf_baseline,
     ospf_full_unrouted,
     ospf_timer_mismatch,
-    ospf_timer_mismatch_baseline,
+    ospf_stub_area_mismatch,
+    ospf_cut_edge_baseline,
     ospf_full_unrouted_baseline,
     ospf_one_lost,
     ospf_some_lost,
@@ -290,7 +299,92 @@ def _vrf_dscp_remarking(problem: Any, params: Any) -> tuple[bool, dict[str, Any]
     )
 
 
+def _overlay_ef_sample(problem: Any, params: Any, media_probe) -> tuple[bool, dict]:
+    from nika.net_env.verify import ping_stats
+    from nika.problems.traffic_queueing_resource.tcp_rwnd_helpers import primary_ipv4
+
+    before = {q: problem.queue_state(params, q) for q in ("ef", "be")}
+    media_ok, media = media_probe(problem, params)
+    ping = ping_stats(
+        problem.runtime,
+        params.src_host,
+        primary_ipv4(problem.runtime, params.dst_host),
+        count=5,
+        interval_sec=0.2,
+    )
+    after = {q: problem.queue_state(params, q) for q in ("ef", "be")}
+    delta = {
+        q: {k: after[q][k] - before[q][k] for k in ("bytes", "packets", "drops")}
+        for q in before
+    }
+    control_ok = (
+        ping.loss_percent == 0
+        and delta["be"]["bytes"] > 0
+        and delta["be"]["drops"] == 0
+    )
+    return media_ok and control_ok, {
+        "media": media,
+        "before": before,
+        "after": after,
+        "delta": delta,
+        "ping_loss_percent": ping.loss_percent,
+        "ping_rtt_ms": ping.rtt_avg_ms,
+        "control_ok": control_ok,
+    }
+
+
+def _overlay_ef_baseline(problem: Any, params: Any) -> tuple[bool, dict]:
+    # Recovery can drain a standing FIFO during the first media reading.
+    # Require a fresh window with healthy media and no further queue drops.
+    attempts = []
+    for _ in range(3):
+        ok, sample = _overlay_ef_sample(problem, params, _vrf_dscp_baseline)
+        ok = (
+            ok
+            and sample["delta"]["ef"]["packets"] > 0
+            and sample["delta"]["ef"]["drops"] == 0
+        )
+        attempts.append(
+            {
+                "media_loss_percent": sample["media"]["loss_percent"],
+                "ef_drops": sample["delta"]["ef"]["drops"],
+                "control_ok": sample["control_ok"],
+            }
+        )
+        if ok:
+            break
+    sample["attempts"] = attempts
+    problem._audit_overlay_baseline = sample
+    return ok, sample
+
+
+def _overlay_ef_undersized(problem: Any, params: Any) -> tuple[bool, dict]:
+    # At CHR rates the existing FIFO can hold over 30 seconds of media.
+    # Receive sequence gaps appear after those already queued packets leave.
+    attempts = []
+    for _ in range(3):
+        ok, sample = _overlay_ef_sample(problem, params, _vrf_dscp_remarking)
+        attempts.append(sample)
+        ok = (
+            ok
+            and sample["delta"]["ef"]["drops"] > 0
+            and sample["delta"]["ef"]["packets"] > 0
+        )
+        if ok:
+            break
+    return ok, build_verify_result(
+        fault_type=problem.root_cause_name,
+        verified=ok,
+        details={
+            "baseline": getattr(problem, "_audit_overlay_baseline", None),
+            "attempts": attempts,
+            **sample,
+        },
+    )
+
+
 _CUSTOM: dict[str, Any] = {
+    "overlay_qos_ef_undersized": _overlay_ef_undersized,
     "ospf_area_range_suppression": area_range_suppressed,
     "incast_traffic_network_limitation": incast_queueing,
     "link_down": link_path_lost,
@@ -353,6 +447,8 @@ _CUSTOM: dict[str, Any] = {
     "bgp_ttl_security_mismatch": bgp_some_lost,
     "bgp_md5_password_mismatch": md5_paths_withdrawn,
     "bgp_session_policy_missing": session_policy_drops_routes,
+    "vrf_route_target_mismatch": vrf_import_routes_lost,
+    "bgp_prefix_list_length_mismatch": prefix_length_drops_routes,
     "bgp_address_family_not_activated": ipv4_family_missing,
     "bgp_asn_misconfig": bgp_bad_peer_as,
     "bgp_max_prefix_exceeded": max_prefix_cease,
@@ -363,6 +459,7 @@ _CUSTOM: dict[str, Any] = {
     "ospf_duplicate_router_id": ospf_stubs_withdrawn,
     "ospf_network_type_mismatch": ospf_full_unrouted,
     "ospf_hello_interval_mismatch": ospf_timer_mismatch,
+    "ospf_stub_area_mismatch": ospf_stub_area_mismatch,
     "isis_metric_style_mismatch": isis_stubs_withdrawn,
     "isis_circuit_level_mismatch": isis_adj_and_stubs_lost,
     "isis_authentication_mismatch": isis_authentication_lost,
@@ -379,6 +476,7 @@ _CUSTOM: dict[str, Any] = {
 
 # Pre-inject measurements of the same signal a custom probe reads after inject.
 _CUSTOM_BASELINE: dict[str, Any] = {
+    "overlay_qos_ef_undersized": _overlay_ef_baseline,
     "ospf_area_range_suppression": area_range_baseline,
     "receiver_resource_contention": receiver_baseline,
     "web_dos_attack": web_dos_baseline,
@@ -442,6 +540,8 @@ _CUSTOM_BASELINE: dict[str, Any] = {
     "bgp_ttl_security_mismatch": bgp_baseline,
     "bgp_md5_password_mismatch": md5_baseline,
     "bgp_session_policy_missing": session_policy_baseline,
+    "vrf_route_target_mismatch": vrf_import_baseline,
+    "bgp_prefix_list_length_mismatch": prefix_length_baseline,
     "bgp_address_family_not_activated": ipv4_family_baseline,
     "bgp_asn_misconfig": bgp_baseline,
     "bgp_max_prefix_exceeded": max_prefix_baseline,
@@ -451,7 +551,8 @@ _CUSTOM_BASELINE: dict[str, Any] = {
     "ospf_neighbor_missing": ospf_baseline,
     "ospf_duplicate_router_id": ospf_stub_baseline,
     "ospf_network_type_mismatch": ospf_full_unrouted_baseline,
-    "ospf_hello_interval_mismatch": ospf_timer_mismatch_baseline,
+    "ospf_hello_interval_mismatch": ospf_cut_edge_baseline,
+    "ospf_stub_area_mismatch": ospf_cut_edge_baseline,
     "isis_metric_style_mismatch": isis_stub_baseline,
     "isis_circuit_level_mismatch": isis_stub_baseline,
     "isis_authentication_mismatch": isis_authentication_baseline,
