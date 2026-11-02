@@ -80,13 +80,13 @@ class SbxBackend(SandboxBackend):
                 "Install docker-sbx and run `sbx login`."
             )
 
-    def prepare_templates(self, agent_types: Sequence[str]) -> list[str]:
-        """Return the sbx template images for *agent_types* to pull on the host.
-
-        Runs call this before deploying anything, so a network policy that
-        cannot confine the sandboxes stops the run here.
-        """
+    def preflight(self) -> None:
+        """Also stop when the global sbx policy cannot confine the sandboxes."""
+        self.ensure_available()
         require_confinable_sbx_policy()
+
+    def prepare_templates(self, agent_types: Sequence[str]) -> list[str]:
+        """Return the sbx template images for *agent_types* to pull on the host."""
         return required_sbx_template_images(*agent_types)
 
     def prepare_host(

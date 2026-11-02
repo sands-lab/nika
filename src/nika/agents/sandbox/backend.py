@@ -61,6 +61,10 @@ class SandboxBackend(ABC):
     def ensure_available(self) -> None:
         """Raise ``RuntimeError`` when this runtime cannot be used on the host."""
 
+    def preflight(self) -> None:
+        """Raise when a run's agents could not start; runs call it before deploying."""
+        self.ensure_available()
+
     @abstractmethod
     def prepare_templates(self, agent_types: Sequence[str]) -> list[str]:
         """Make the sandbox templates of *agent_types* ready (idempotent).

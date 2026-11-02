@@ -1865,6 +1865,13 @@ def run_benchmark_trials(
     if not confirm_run(yes=yes):
         print("Aborted.")
         return
+    from nika.agents.registry import get_agent_spec
+
+    if get_agent_spec(agent_type).template is not None:
+        from nika.agents.sandbox.backend import get_backend
+        from nika.agents.sandbox.config import resolve_sandbox_config
+
+        get_backend(resolve_sandbox_config()).preflight()
 
     # Confirmed: persist the run config, then pull sandbox images once per job
     # before any case/lab deploy so parallel trials do not race on the first
