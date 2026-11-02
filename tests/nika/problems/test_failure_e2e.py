@@ -442,6 +442,14 @@ CORE_E2E_CASES = (
     ),
     *(
         FailureE2ECase(
+            problem="k8s_coredns_forward_loop",
+            scenario=scenario,
+            topo_size="",
+        )
+        for scenario in ("k8s_lab", "llmd_lab")
+    ),
+    *(
+        FailureE2ECase(
             problem="k8s_readiness_probe_misconfig",
             scenario=scenario,
             topo_size="",

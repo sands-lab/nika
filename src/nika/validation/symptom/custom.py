@@ -126,6 +126,10 @@ from nika.validation.symptom.ingress_probes import (
     ingress_rate_baseline,
     ingress_rate_limited,
 )
+from nika.validation.symptom.coredns_loop_probes import (
+    forward_loop_baseline,
+    forward_loop_broken,
+)
 from nika.validation.symptom.k8s_probes import (
     ingress_class_baseline,
     ingress_class_broken,
@@ -313,6 +317,7 @@ _CUSTOM: dict[str, Any] = {
     "k8s_ingress_rate_limit_misconfig": ingress_rate_limited,
     "lb_advertisement_missing": lb_advertisement_withdrawn,
     "k8s_coredns_isolated": coredns_isolated,
+    "k8s_coredns_forward_loop": forward_loop_broken,
     "k8s_worker_apiserver_partition": worker_partition,
     "k8s_readiness_probe_misconfig": readiness_broken,
     "k8s_deployment_replicas_zero": replicas_zero_broken,
@@ -419,6 +424,7 @@ _CUSTOM_BASELINE: dict[str, Any] = {
     "k8s_ingress_rate_limit_misconfig": ingress_rate_baseline,
     "lb_advertisement_missing": lb_advertisement_baseline,
     "k8s_coredns_isolated": coredns_baseline,
+    "k8s_coredns_forward_loop": forward_loop_baseline,
     "dhcp_spoofed_gateway": dhcp_client_baseline,
     "dhcp_spoofed_dns": dhcp_client_baseline,
     "dhcp_spoofed_subnet": dhcp_client_baseline,
