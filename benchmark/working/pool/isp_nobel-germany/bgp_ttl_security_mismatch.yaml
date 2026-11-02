@@ -10,50 +10,11 @@ failure:
     backend: kathara
     device_profile: frr
     inject:
-      host_name: berlin
-    root_causes:
-    - resource:
-        kind: node
-        node: berlin
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: bremen
-    root_causes:
-    - resource:
-        kind: node
-        node: bremen
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    inject:
       host_name: dortmund
     root_causes:
     - resource:
         kind: node
         node: dortmund
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: duesseldorf
-    root_causes:
-    - resource:
-        kind: node
-        node: duesseldorf
       fault_type: bgp_ttl_security_mismatch
   - topo_size: m
     igp: ospf
@@ -88,63 +49,11 @@ failure:
     backend: kathara
     device_profile: frr
     inject:
-      host_name: hamburg
-    root_causes:
-    - resource:
-        kind: node
-        node: hamburg
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: hannover
-    root_causes:
-    - resource:
-        kind: node
-        node: hannover
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: karlsruhe
-    root_causes:
-    - resource:
-        kind: node
-        node: karlsruhe
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    inject:
       host_name: koeln
     root_causes:
     - resource:
         kind: node
         node: koeln
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: leipzig
-    root_causes:
-    - resource:
-        kind: node
-        node: leipzig
       fault_type: bgp_ttl_security_mismatch
   - topo_size: m
     igp: ospf
@@ -171,19 +80,6 @@ failure:
     - resource:
         kind: node
         node: muenchen
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: norden
-    root_causes:
-    - resource:
-        kind: node
-        node: norden
       fault_type: bgp_ttl_security_mismatch
   - topo_size: m
     igp: ospf

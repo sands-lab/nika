@@ -4,6 +4,8 @@ failure:
   fault_type: device_flow_blackhole
   cases:
   - topo_size: s
+    traffic:
+      pattern: uniform
     inject:
       forwarding_device: leaf_router_0_1
       intf_name: eth2
@@ -15,6 +17,8 @@ failure:
       fault_type: device_flow_blackhole
   - topo_size: s
     device_profile: routeros
+    traffic:
+      pattern: uniform
     inject:
       forwarding_device: leaf_router_0_1
       intf_name: eth2
@@ -25,6 +29,8 @@ failure:
         node: leaf_router_0_1
       fault_type: device_flow_blackhole
   - topo_size: m
+    traffic:
+      pattern: uniform
     inject:
       forwarding_device: leaf_router_0_1
       intf_name: eth4
@@ -35,6 +41,8 @@ failure:
         node: leaf_router_0_1
       fault_type: device_flow_blackhole
   - topo_size: l
+    traffic:
+      pattern: uniform
     inject:
       forwarding_device: leaf_router_0_1
       intf_name: eth8

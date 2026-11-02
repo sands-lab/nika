@@ -507,6 +507,36 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 </thead>
 <tbody>
 <tr>
+<td><code>bgp_address_family_not_activated</code></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
 <td><code>bgp_asn_misconfig</code></td>
 <td align="center"></td>
 <td align="center">○</td>
@@ -769,6 +799,36 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center">○</td>
 <td align="center">○</td>
 <td align="center">●</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
+<td><code>isis_authentication_mismatch</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -2319,6 +2379,36 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 </thead>
 <tbody>
 <tr>
+<td><code>k8s_coredns_forward_loop</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
 <td><code>k8s_deployment_replicas_zero</code></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -3568,6 +3658,17 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center">◆</td>
 </tr>
 <tr>
+<td><code>bgp_address_family_not_activated</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">◆</td>
+<td align="center">○</td>
+<td align="center">◆</td>
+<td align="center">○</td>
+<td align="center">◆</td>
+</tr>
+<tr>
 <td><code>bgp_asn_misconfig</code></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -3642,6 +3743,17 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 <td align="center">○✓</td>
 <td align="center">○✓</td>
 <td align="center">○</td>
+<td align="center">○</td>
+</tr>
+<tr>
+<td><code>isis_authentication_mismatch</code></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">◆</td>
 <td align="center">○</td>
 </tr>
 <tr>

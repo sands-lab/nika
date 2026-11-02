@@ -10,45 +10,6 @@ failure:
     backend: kathara
     device_profile: frr
     inject:
-      host_name: albany
-    root_causes:
-    - resource:
-        kind: node
-        node: albany
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: atlanta
-    root_causes:
-    - resource:
-        kind: node
-        node: atlanta
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: boston
-    root_causes:
-    - resource:
-        kind: node
-        node: boston
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    inject:
       host_name: charlotte
     root_causes:
     - resource:
@@ -62,63 +23,11 @@ failure:
     backend: kathara
     device_profile: frr
     inject:
-      host_name: chicago
-    root_causes:
-    - resource:
-        kind: node
-        node: chicago
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: cleveland
-    root_causes:
-    - resource:
-        kind: node
-        node: cleveland
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    inject:
       host_name: dallas
     root_causes:
     - resource:
         kind: node
         node: dallas
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: denver
-    root_causes:
-    - resource:
-        kind: node
-        node: denver
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: detroit
-    root_causes:
-    - resource:
-        kind: node
-        node: detroit
       fault_type: bgp_ttl_security_mismatch
   - topo_size: m
     igp: ospf
@@ -179,45 +88,6 @@ failure:
     backend: kathara
     device_profile: frr
     inject:
-      host_name: lasvegas
-    root_causes:
-    - resource:
-        kind: node
-        node: lasvegas
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: losangeles
-    root_causes:
-    - resource:
-        kind: node
-        node: losangeles
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: miami
-    root_causes:
-    - resource:
-        kind: node
-        node: miami
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    inject:
       host_name: minneapolis
     root_causes:
     - resource:
@@ -236,71 +106,6 @@ failure:
     - resource:
         kind: node
         node: nashville
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: neworleans
-    root_causes:
-    - resource:
-        kind: node
-        node: neworleans
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: newyork
-    root_causes:
-    - resource:
-        kind: node
-        node: newyork
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: saltlakecity
-    root_causes:
-    - resource:
-        kind: node
-        node: saltlakecity
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: sanfrancisco
-    root_causes:
-    - resource:
-        kind: node
-        node: sanfrancisco
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: seattle
-    root_causes:
-    - resource:
-        kind: node
-        node: seattle
       fault_type: bgp_ttl_security_mismatch
   - topo_size: m
     igp: ospf

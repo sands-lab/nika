@@ -12,6 +12,7 @@ from nika.problems.support.kubernetes.base import (
     K8sProblemBase,
     control_node_from_net_env,
 )
+from nika.problems.support.oracle import OraclePlaybook, all_of, contains, shell
 
 
 def forward_to_self(corefile: str) -> str:
@@ -62,6 +63,43 @@ class CoreDNSForwardLoop(K8sProblemBase):
 
     def root_cause_resources(self, params):
         return [node_resource(self.control_node(params))]
+
+    def oracle_playbook(self, params: K8sParams) -> OraclePlaybook:
+        control = self.control_node(params)
+        return OraclePlaybook(
+            finding="CoreDNS forwards root-zone queries to its own loopback listener. Its loop plugin detects the forwarding loop and terminates DNS service.",
+            steps=[
+                shell(
+                    control,
+                    "kubectl get configmap coredns -n kube-system -o jsonpath='{.data.Corefile}'",
+                    "Read the active CoreDNS Corefile and check the root-zone upstream and loop detector.",
+                    all_of(
+                        contains(
+                            r"^\s*forward\s+\.\s+127\.0\.0\.1\s*(?:\{|$)",
+                            "Root-zone forwarding uses CoreDNS's own loopback listener.",
+                        ),
+                        contains(
+                            r"^\s*loop\s*(?:#.*)?$", "The loop detector is enabled."
+                        ),
+                    ),
+                    evidence=True,
+                ),
+                shell(
+                    control,
+                    "kubectl logs -n kube-system -l k8s-app=kube-dns --all-containers=true --prefix --tail=40 --previous; "
+                    "kubectl logs -n kube-system -l k8s-app=kube-dns --all-containers=true --prefix --tail=40",
+                    "Read current and previous CoreDNS logs for the loop detector's fatal diagnostic.",
+                    contains(
+                        r"plugin/loop:.*Loop .*detected",
+                        "CoreDNS explicitly reports a forwarding loop, distinguishing this crash from DNS filtering, process termination, or unrelated CrashLoopBackOff.",
+                    ),
+                    evidence=True,
+                    attempts=24,
+                    interval_sec=5,
+                    timeout=30,
+                ),
+            ],
+        )
 
     def _corefile(self, params):
         return self.runtime.lab_api.kubectl_json(

@@ -24,6 +24,31 @@ from nika.workflows.benchmark.load_config import normalize_benchmark_row
 pytestmark = pytest.mark.contract
 
 
+@pytest.mark.parametrize(
+    ("scenario", "profile", "bgp_mode", "supported"),
+    [
+        ("dc_clos", "frr", None, False),
+        ("dc_clos", "iosxr", None, False),
+        ("dc_clos", "routeros", None, True),
+        ("enterprise_branch", "iosxr", None, False),
+        ("isp_arpanet196912", "routeros", "ebgp", True),
+    ],
+)
+def test_ipv4_family_cases_require_a_platform_that_keeps_bgp_established(
+    scenario, profile, bgp_mode, supported
+):
+    options = {"device_profile": profile}
+    if bgp_mode is not None:
+        options.update(igp="ospf", bgp_mode=bgp_mode, rpki=False)
+    cases, _ = build_failure_cases(
+        problem="bgp_address_family_not_activated",
+        scenario=scenario,
+        topo_size="s",
+        isp_options=options,
+    )
+    assert bool(cases) is supported
+
+
 def test_compatibility_follows_the_vendor_fault_operations() -> None:
     # A failure needs every operation its native path uses; profiles offer
     # the operations their provider implements.

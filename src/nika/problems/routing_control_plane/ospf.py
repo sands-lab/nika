@@ -2,6 +2,7 @@ import ipaddress
 import json
 import re
 import time
+from dataclasses import replace
 
 from pydantic import BaseModel, Field
 
@@ -16,6 +17,7 @@ from nika.problems.support.oracle import (
     Check,
     OraclePlaybook,
     OracleStep,
+    router_cli,
     shell,
     vtysh,
 )
@@ -31,6 +33,82 @@ from nika.runtime.spec import NodeRole
 from nika.utils.logger import system_logger
 
 _NETWORK_RE = re.compile(r"^\s*network\s+(\S+)\s+area\s+(\S+)\s*$", re.MULTILINE)
+
+
+def _ospf_pair(first, second, read, differs, description):
+    """Compare two CLI observations, carrying the first through saved outputs."""
+    previous = {}
+
+    def args(outputs):
+        previous["value"] = read(outputs["ospf_local"])
+        return second.args
+
+    return [
+        replace(
+            first,
+            save_as="ospf_local",
+            expect=Check(
+                "the local OSPF setting is readable", lambda o: read(o) is not None
+            ),
+            evidence=False,
+        ),
+        replace(
+            second,
+            args=args,
+            expect=Check(
+                description,
+                lambda o: (
+                    previous.get("value") is not None
+                    and read(o) is not None
+                    and differs(previous["value"], read(o))
+                ),
+            ),
+            evidence=True,
+        ),
+    ]
+
+
+def _ospf_interface_step(net_env, host, intf):
+    from nika.net_env.utils.iosxr.common import iosxr_interface
+    from nika.net_env.utils.routeros.common import routeros_port
+
+    return router_cli(
+        net_env,
+        host,
+        f"Read OSPF network type, timers, area, and adjacency on {host}:{intf}.",
+        frr=vtysh(f"show ip ospf interface {intf}"),
+        iosxr_command=f"show ospf interface {iosxr_interface(intf)}",
+        routeros_command=(
+            "/routing/ospf/interface/print detail where "
+            f'interface="{routeros_port(net_env, host, intf)}"'
+        ),
+    )
+
+
+def _ospf_timers(output):
+    match = re.search(r"Hello (\d+)s?, Dead (\d+)s?", output)
+    if match:
+        return int(match[1]), int(match[2])
+    timers = []
+    for key in ("hello-interval", "dead-interval"):
+        match = re.search(rf"\b{key}=(\S+)", output)
+        if not match:
+            return None
+        token = match[1]
+        parts = re.findall(r"(\d+)([hms])", token)
+        if not parts or "".join(n + u for n, u in parts) != token:
+            return None
+        timers.append(sum(int(n) * {"h": 3600, "m": 60, "s": 1}[u] for n, u in parts))
+    return tuple(timers)
+
+
+def _ospf_type(output):
+    match = re.search(r"Network Type (\S+)|\btype=(\S+)", output)
+    return (
+        normalize_ospf_network_type(next(g for g in match.groups() if g).rstrip(","))
+        if match
+        else None
+    )
 
 
 def _ospf_block(config: str) -> str:
@@ -529,6 +607,8 @@ class OSPFNeighborMissing(ProblemBase):
         links = linked_routers(self.net_env, host)
         if not links:
             raise RuntimeCapabilityError(f"No router linked to {host}.")
+        if native_router_profile(self.net_env, host) is not None:
+            return self._native_oracle_playbook(host, links)
 
         def uncovered(output: str) -> list[str]:
             """Router-facing interfaces that are up and addressed but not in OSPF.
@@ -571,7 +651,7 @@ class OSPFNeighborMissing(ProblemBase):
                     f"{_OSPF_IF_SUMMARY}; echo ===; ip -br -4 addr",
                     f"Compare {host}'s OSPF interfaces with its addressed links.",
                     Check(
-                        "an up, addressed interface toward a router is not in OSPF",
+                        "an up, addressed router link lacks OSPF while other interfaces run it, distinguishing an omitted binding from link loss or a stopped process",
                         lambda o: bool(uncovered(o)),
                     ),
                     evidence=True,
@@ -582,8 +662,7 @@ class OSPFNeighborMissing(ProblemBase):
                     "exec_shell",
                     peer_args,
                     Check(
-                        "the neighbor runs OSPF on the link (not passive) but has "
-                        "no adjacency",
+                        "the peer runs non-passive OSPF without an adjacency, excluding disabled peer participation as the cause of the missing neighbor",
                         _enabled_without_adjacency,
                     ),
                     evidence=True,
@@ -592,6 +671,139 @@ class OSPFNeighborMissing(ProblemBase):
                     interval_sec=10,
                 ),
             ],
+        )
+
+    def _native_oracle_playbook(self, host, links):
+        from nika.net_env.utils.iosxr.common import iosxr_interface
+        from nika.net_env.utils.routeros.common import routeros_port
+        from nika.net_env.utils.routeros.parse import routeros_terse_rows
+
+        profile = native_router_profile(self.net_env, host)
+
+        def port(node, intf):
+            return (
+                iosxr_interface(intf)
+                if profile == "iosxr"
+                else routeros_port(self.net_env, node, intf)
+            )
+
+        observed = {}
+
+        def running(output):
+            observed["running"] = {
+                row["name"] for row in routeros_terse_rows(output) if "name" in row
+            }
+            return bool(observed["running"])
+
+        def bindings(output):
+            observed["ospf"] = output
+            return bool(re.search(r"Area |area=", output))
+
+        def uncovered(output):
+            ospf = observed.get("ospf", "")
+            if not re.search(r"Area |area=", ospf):
+                return False
+            if profile == "iosxr":
+                addressed = set(
+                    re.findall(
+                        r"^(\S+)\s+\d+\.\d+\.\d+\.\d+\s+Up\s+Up", output, re.M | re.I
+                    )
+                )
+            else:
+                addressed = {
+                    row["interface"]
+                    for row in routeros_terse_rows(output)
+                    if "address" in row and "interface" in row
+                } & observed.get("running", set())
+            missing = [
+                link
+                for link in links
+                if port(host, link[0]) in addressed
+                and not re.search(
+                    rf"(?<![\w/]){re.escape(port(host, link[0]))}(?![\w/])", ospf
+                )
+            ]
+            observed["missing"] = missing
+            return bool(missing)
+
+        active_peers = set()
+        peer_steps = []
+        for index, link in enumerate(links):
+            _, peer, intf = link
+
+            def peer_enabled(output, candidate=link, last=index == len(links) - 1):
+                enabled = bool(re.search(r"Area |area=", output))
+                if enabled:
+                    active_peers.add(candidate)
+                else:
+                    active_peers.discard(candidate)
+                return (
+                    bool(active_peers.intersection(observed.get("missing", [])))
+                    if last
+                    else enabled
+                )
+
+            last = index == len(links) - 1
+            peer_steps.append(
+                replace(
+                    _ospf_interface_step(self.net_env, peer, intf),
+                    expect=Check(
+                        "the peer still runs OSPF on an observed uncovered link"
+                        if last
+                        else "the peer runs OSPF on this router link",
+                        peer_enabled,
+                    ),
+                    evidence=last,
+                    attempts=6,
+                    interval_sec=10,
+                )
+            )
+        steps = (
+            [
+                router_cli(
+                    self.net_env,
+                    host,
+                    f"List running Ethernet ports on {host}.",
+                    Check("the router reports running Ethernet ports", running),
+                    frr="ip -br link",
+                    routeros_command="/interface/ethernet/print terse where running=yes",
+                )
+            ]
+            if profile == "routeros"
+            else []
+        )
+        return OraclePlaybook(
+            finding=f"{host} has an addressed router link missing from its running OSPF interfaces while the peer runs OSPF.",
+            steps=steps
+            + [
+                router_cli(
+                    self.net_env,
+                    host,
+                    f"List the live OSPF interfaces on {host}.",
+                    Check(
+                        "OSPF runs on at least one interface, excluding a stopped OSPF process",
+                        bindings,
+                    ),
+                    frr=_OSPF_IF_SUMMARY,
+                    iosxr_command="show ospf interface",
+                    routeros_command="/routing/ospf/interface/print terse",
+                    save_as="host_ospf",
+                ),
+                router_cli(
+                    self.net_env,
+                    host,
+                    f"Find an addressed router link omitted from OSPF on {host}.",
+                    Check(
+                        "an up, addressed router link lacks OSPF while OSPF runs elsewhere, distinguishing an omitted binding from link, timer, or authentication failures",
+                        uncovered,
+                    ),
+                    frr="ip -br -4 addr",
+                    iosxr_command="show ipv4 interface brief",
+                    routeros_command="/ip/address/print terse",
+                    evidence=True,
+                ),
+            ]
+            + peer_steps,
         )
 
     def inject_fault(self, params: OSPFNeighborMissingParams):
@@ -915,6 +1127,63 @@ class OSPFDuplicateRouterId(ProblemBase):
 
     def root_cause_resources(self, params: OSPFDuplicateRouterIdParams):
         return [node_resource(params.host_name)]
+
+    def oracle_playbook(self, params: OSPFDuplicateRouterIdParams) -> OraclePlaybook:
+        from nika.net_env.native_routers import router_sketches
+
+        host = params.host_name
+        routers = sorted(self.net_env.routers or router_sketches(self.net_env))
+        observations = {}
+
+        def read_id(output):
+            match = re.search(
+                r"Router ID[: ]+(\d+\.\d+\.\d+\.\d+)|with ID (\d+\.\d+\.\d+\.\d+)|router-id=(\d+\.\d+\.\d+\.\d+)",
+                output,
+                re.I,
+            )
+            return next((g for g in match.groups() if g), None) if match else None
+
+        steps = []
+        for router in [host, *(r for r in routers if r != host)]:
+
+            def remember(output, node=router):
+                observations[node] = read_id(output)
+                return observations[node] is not None
+
+            steps.append(
+                router_cli(
+                    self.net_env,
+                    router,
+                    f"Read the live OSPF router ID on {router}.",
+                    Check("the running OSPF process reports its router ID", remember),
+                    frr=vtysh("show ip ospf"),
+                    iosxr_command="show ospf",
+                    routeros_command="/routing/ospf/instance/print terse where version=2 and !disabled",
+                    attempts=12,
+                    interval_sec=10,
+                )
+            )
+        last = steps[-1]
+
+        def duplicate(output):
+            last.expect(output)
+            own = observations.get(host)
+            return bool(
+                own and any(r != host and rid == own for r, rid in observations.items())
+            )
+
+        steps[-1] = replace(
+            last,
+            expect=Check(
+                "distinct routers report the same live OSPF router ID, distinguishing an ID collision from timer or area disagreement",
+                duplicate,
+            ),
+            evidence=True,
+        )
+        return OraclePlaybook(
+            finding=f"{host} shares its running OSPF router ID with another router.",
+            steps=steps,
+        )
 
     def _router_id(self, host: str) -> str | None:
         ops = native_fault_ops(self, host, "ospf_router_id")
@@ -1265,6 +1534,27 @@ class OSPFNetworkTypeMismatch(ProblemBase):
     def root_cause_resources(self, params: OSPFNetworkTypeMismatchParams):
         return [interface_on(self.net_env, params.host_name, params.intf_name)]
 
+    def oracle_playbook(self, params: OSPFNetworkTypeMismatchParams) -> OraclePlaybook:
+        host, intf = params.host_name, params.intf_name
+        peer = ospf_link_peer(self.net_env, host, intf)
+        if peer is None:
+            raise RuntimeCapabilityError(f"No OSPF peer for {host}:{intf}")
+
+        def read(output):
+            network_type, timers = _ospf_type(output), _ospf_timers(output)
+            return (network_type, timers) if network_type and timers else None
+
+        return OraclePlaybook(
+            finding=f"{host}:{intf} and its peer use different OSPF network types with matching timers.",
+            steps=_ospf_pair(
+                _ospf_interface_step(self.net_env, host, intf),
+                _ospf_interface_step(self.net_env, *peer),
+                read,
+                lambda a, b: a[0] != b[0] and a[1] == b[1],
+                "OSPF network types differ across the link while hello/dead timers match, distinguishing network type disagreement from timer mismatch",
+            ),
+        )
+
     def _frr_network_type(self, host: str, intf: str) -> str | None:
         raw = self.runtime.exec(
             host, "vtysh -c 'show ip ospf interface json' 2>/dev/null"
@@ -1431,6 +1721,24 @@ class OSPFHelloIntervalMismatch(ProblemBase):
 
     def root_cause_resources(self, params: OSPFHelloIntervalMismatchParams):
         return [node_resource(params.host_name)]
+
+    def oracle_playbook(
+        self, params: OSPFHelloIntervalMismatchParams
+    ) -> OraclePlaybook:
+        host, intf = params.host_name, params.intf_name
+        peer = ospf_link_peer(self.net_env, host, intf)
+        if peer is None:
+            raise RuntimeCapabilityError(f"No OSPF peer for {host}:{intf}")
+        return OraclePlaybook(
+            finding=f"{host}:{intf} advertises OSPF hello/dead timers that differ from its peer.",
+            steps=_ospf_pair(
+                _ospf_interface_step(self.net_env, host, intf),
+                _ospf_interface_step(self.net_env, *peer),
+                _ospf_timers,
+                lambda a, b: a[0] != b[0] and a[1] != b[1],
+                "both endpoints run OSPF but their hello and dead intervals disagree, distinguishing timer mismatch from a missing OSPF binding",
+            ),
+        )
 
     def _timers(self, host: str, intf: str) -> tuple[int, int]:
         ops = native_fault_ops(self, host, "ospf_interface_timers")
@@ -1716,6 +2024,123 @@ class OspfAreaRangeSuppression(ProblemBase):
 
     def root_cause_resources(self, params):
         return [node_resource(params.host_name)]
+
+    def oracle_playbook(self, params: OspfAreaRangeSuppressionParams) -> OraclePlaybook:
+        from nika.net_env.utils.routeros.parse import routeros_terse_rows
+
+        host = params.host_name
+        branch = self.branch(params)
+        area = branch["area"]
+        profile = native_router_profile(self.net_env, host)
+        area_names = set()
+
+        def names(output):
+            area_names.update(
+                row["name"]
+                for row in routeros_terse_rows(output)
+                if row.get("area-id") == area and "name" in row
+            )
+            return bool(area_names)
+
+        def suppresses(output):
+            ranges = []
+            if profile == "routeros":
+                ranges = [
+                    row["prefix"]
+                    for row in routeros_terse_rows(output)
+                    if row.get("area") in area_names
+                    and row.get("advertise") == "no"
+                    and row.get("disabled", "no") != "yes"
+                    and "prefix" in row
+                ]
+            elif profile == "iosxr":
+                current = None
+                for line in output.splitlines():
+                    if match := re.match(r"^ area (\S+)", line):
+                        current = str(
+                            ipaddress.IPv4Address(
+                                int(match[1]) if match[1].isdigit() else match[1]
+                            )
+                        )
+                    elif current == area and (
+                        match := re.match(r"^  range (\S+)(.*)", line)
+                    ):
+                        options = match[2].split()
+                        if "not-advertise" in options:
+                            ranges.append(
+                                match[1]
+                                if "/" in match[1]
+                                else f"{match[1]}/{options[0]}"
+                            )
+            else:
+                ranges = [
+                    prefix
+                    for token, prefix, options in re.findall(
+                        r"^ area (\S+) range (\S+)([^\n]*)", _ospf_block(output), re.M
+                    )
+                    if str(
+                        ipaddress.IPv4Address(int(token) if token.isdigit() else token)
+                    )
+                    == area
+                    and "not-advertise" in options.split()
+                ]
+            return bool(ranges) and all(
+                any(
+                    ipaddress.IPv4Network(prefix).subnet_of(ipaddress.IPv4Network(r))
+                    for r in ranges
+                )
+                for prefix in branch["prefixes"]
+            )
+
+        steps = []
+        if profile == "routeros":
+            steps.append(
+                router_cli(
+                    self.net_env,
+                    host,
+                    f"Read the live name for OSPF area {area}.",
+                    Check("the configured area ID maps to an area name", names),
+                    frr=vtysh("show running-config"),
+                    routeros_command="/routing/ospf/area/print terse",
+                )
+            )
+        steps.extend(
+            [
+                router_cli(
+                    self.net_env,
+                    host,
+                    f"Inspect the advertisement policy for OSPF area {area} on {host}.",
+                    Check(
+                        "active not-advertise ranges cover this branch in the selected area, distinguishing summary suppression from adjacency loss or route filtering",
+                        suppresses,
+                    ),
+                    frr=vtysh("show running-config"),
+                    iosxr_command="show running-config router ospf",
+                    routeros_command="/routing/ospf/area/range/print terse",
+                    evidence=True,
+                ),
+                router_cli(
+                    self.net_env,
+                    host,
+                    f"Inspect OSPF adjacencies on the ABR {host}.",
+                    frr=vtysh("show ip ospf neighbor"),
+                    iosxr_command="show ospf neighbor",
+                    routeros_command="/routing/ospf/neighbor/print terse",
+                ),
+                router_cli(
+                    self.net_env,
+                    branch["backbone_observer"],
+                    "Inspect summary LSAs outside the suppressed area.",
+                    frr=vtysh("show ip ospf database summary"),
+                    iosxr_command="show ospf database summary",
+                    routeros_command="/routing/ospf/lsa/print terse",
+                ),
+            ]
+        )
+        return OraclePlaybook(
+            f"{host} suppresses the branch prefixes with OSPF area {area} address ranges.",
+            steps,
+        )
 
     def branch(self, params):
         area = params.area

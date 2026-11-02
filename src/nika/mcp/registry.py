@@ -189,15 +189,19 @@ def select_diagnosis_servers(
     *,
     backend: str | None = None,
     telemetry: Iterable[str] = (),
+    device_profile: str | None = None,
 ) -> list[str]:
     """Return MCP server names needed for diagnosis on *scenario*.
 
     ``telemetry`` lists the kinds the session was started with (see
-    ``nika.telemetry.telemetry_for_session``).
+    ``nika.telemetry.telemetry_for_session``). ``device_profile`` adds the CLI
+    server of the native routers a ``--device-profile`` session runs.
     """
     backend = _resolve_diagnosis_backend(scenario_name, backend)
 
     tokens = _scenario_tokens(scenario_name)
+    if device_profile in ("iosxr", "routeros"):
+        tokens.add(device_profile)
     servers = [
         DIAGNOSIS_HOST_SERVER,
         DIAGNOSIS_PINGMESH_SERVER,

@@ -665,3 +665,18 @@ class PacketCaptureLiveE2ETest(SharedSessionTestCase):
         assert missing["returned"] == 0
         assert missing["total_available"] == 0
         assert not (session_dir / "packet_captures").exists()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("profile", "server"),
+    [
+        ("iosxr", "kathara_iosxr_mcp_server"),
+        ("routeros", "kathara_routeros_mcp_server"),
+    ],
+)
+def test_device_profile_sessions_get_their_router_cli(profile, server) -> None:
+    from nika.mcp.registry import select_diagnosis_servers
+
+    assert server not in select_diagnosis_servers("dc_clos")
+    assert server in select_diagnosis_servers("dc_clos", device_profile=profile)

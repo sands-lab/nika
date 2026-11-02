@@ -1,14 +1,31 @@
 """Silent per-flow black hole in a forwarding device."""
 
+import json
+import re
+import shlex
+
 from nika.problems.rca import node_resource
 from nika.problems.rca.inventory import iter_link_termination_points, parse_endpoint
 from nika.problems.forwarding_encapsulation_policy.switch_internal_corruption import (
     DeviceForwardingPacketCorruption,
     SwitchInternalPacketCorruptionParams,
+    _tcp_probe_pair,
 )
 from nika.problems.forwarding_encapsulation_policy.switch_internal_corruption_bpf import (
     SwitchEgressClassifier,
 )
+from nika.problems.support.oracle import (
+    Check,
+    OraclePlaybook,
+    OracleStep,
+    all_of,
+    contains,
+    lacks,
+    router_cli,
+    shell,
+    vtysh,
+)
+from nika.runtime.spec import NodeRole
 
 
 class DeviceFlowBlackholeParams(SwitchInternalPacketCorruptionParams):
@@ -42,6 +59,38 @@ def server_facing_port(ctx) -> tuple[str, str] | None:
             if node in devices:
                 return node, intf
     return None
+
+
+def _flow_probe_target(net_env, device: str, intf: str) -> tuple[str, str, int]:
+    """Choose a declared TCP service across the affected egress port."""
+    try:
+        client, server, _ = _tcp_probe_pair(net_env, device, intf)
+        return client, server, 80
+    except ValueError:
+        # Workload-owned services need not appear in the legacy web inventory.
+        peers = {
+            node
+            for _, tps in iter_link_termination_points(net_env)
+            if f"{device}:{intf}" in tps
+            for tp in tps
+            if (node := parse_endpoint(str(tp))[0]) != device
+        }
+        hosts = {
+            n
+            for n, identity in net_env.machine_identities.items()
+            if identity.role == NodeRole.HOST
+        }
+        for process in net_env.business_workload().processes:
+            if (
+                process.app not in {"file_server", "web_service"}
+                or "--port" not in process.args
+            ):
+                continue
+            clients = hosts - peers if process.node in peers else hosts & peers
+            if clients:
+                port = int(process.args[process.args.index("--port") + 1])
+                return min(clients), process.node, port
+        raise ValueError(f"No declared TCP service crosses {device}:{intf}.") from None
 
 
 class DeviceFlowBlackhole(DeviceForwardingPacketCorruption):
@@ -78,6 +127,102 @@ class DeviceFlowBlackhole(DeviceForwardingPacketCorruption):
 
     def root_cause_resources(self, params):
         return [node_resource(params.forwarding_device)]
+
+    def oracle_playbook(self, params: DeviceFlowBlackholeParams) -> OraclePlaybook:
+        device, intf = params.forwarding_device, params.intf_name
+        client, web, port = _flow_probe_target(self.net_env, device, intf)
+
+        def probe_args(outputs):
+            match = re.search(r"\binet ([0-9.]+)/", outputs["flow_server"])
+            if not match:
+                raise ValueError("The web server address was not observed.")
+            script = f"""
+import json, socket, struct
+address = {match[1]!r}
+results = {{}}
+for port in range(20000, 20048):
+    outcomes = []
+    for repeat in range(2):
+        with socket.socket() as sock:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack('ii', 1, 0))
+            sock.settimeout(1.5)
+            try:
+                sock.bind(('', port))
+                sock.connect((address, {port}))
+                outcomes.append('connected')
+            except TimeoutError:
+                outcomes.append('timeout')
+            except OSError as error:
+                outcomes.append(type(error).__name__)
+    results[str(port)] = outcomes
+print(json.dumps(results))
+"""
+            return {
+                "host_name": client,
+                "command": f"ping -c 3 -W 1 {match[1]}; python3 -c {shlex.quote(script)}",
+                "timeout": 180,
+            }
+
+        def selective_handshake_loss(output):
+            if not re.search(r"\b[1-9]\d* (?:packets )?received", output):
+                return False
+            results = json.loads(output[output.index("{") :])
+            values = list(results.values())
+            return (
+                len(values) == 48
+                and all(v in (["connected"] * 2, ["timeout"] * 2) for v in values)
+                and ["connected"] * 2 in values
+                and ["timeout"] * 2 in values
+            )
+
+        steps = [
+            shell(
+                web,
+                "ip -4 -o addr show scope global",
+                f"Read the live address of TCP service host {web}.",
+                save_as="flow_server",
+            ),
+            OracleStep(
+                "Repeat TCP handshakes on 48 fixed source ports and compare them with ICMP reachability.",
+                "exec_shell",
+                probe_args,
+                Check(
+                    "ICMP succeeds, but identical TCP tuples consistently time out while others connect. Handshake loss distinguishes flow blackholing from payload corruption.",
+                    selective_handshake_loss,
+                ),
+                evidence=True,
+                attempts=3,
+            ),
+            shell(
+                device,
+                f"tc qdisc show dev {intf}; tc -s filter show dev {intf} egress",
+                "Inspect the forwarding container's egress classifier and link impairment configuration.",
+                all_of(
+                    contains(
+                        r"\bbpf\b.*direct-action",
+                        "An egress BPF classifier handles the affected flows.",
+                    ),
+                    lacks(r"\bnetem\b", "No netem impairment explains packet loss."),
+                ),
+                evidence=True,
+            ),
+        ]
+        if self.net_env.machine_identities[device].role == NodeRole.ROUTER:
+            steps.append(
+                router_cli(
+                    self.net_env,
+                    device,
+                    "Inspect the forwarding device's routing state through its native CLI.",
+                    frr=vtysh("show ip route", "show bgp summary"),
+                    iosxr_command="show route ipv4 unicast",
+                    routeros_command="/ip route print detail",
+                )
+            )
+        return OraclePlaybook(
+            finding=f"{device}:{intf} carries an egress BPF classifier and consistently loses selected TCP handshakes, while other flows and ICMP use the same path successfully.",
+            steps=steps,
+        )
 
     @classmethod
     def benchmark_inject_params(cls, ctx):

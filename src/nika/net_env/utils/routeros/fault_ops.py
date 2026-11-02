@@ -79,7 +79,9 @@ class RouterOsFaultOps(RouterFaultOps):
             return routeros_port(net_env, self.node, interface)
         return interface
 
-    def _reset_connections(self, names: list[str] | None = None) -> None:
+    def _reset_connections(
+        self, names: list[str] | None = None, *, before_enable: str = ""
+    ) -> None:
         # Without a pause RouterOS keeps the sessions it would reset.
         selector = (
             "[find]"
@@ -88,7 +90,8 @@ class RouterOsFaultOps(RouterFaultOps):
         )
         self._cli(
             f"/routing bgp connection disable {selector}; :delay 2s; "
-            f"/routing bgp connection enable {selector}"
+            + (f"{before_enable}; " if before_enable else "")
+            + f"/routing bgp connection enable {selector}"
         )
 
     # BGP
@@ -177,6 +180,71 @@ class RouterOsFaultOps(RouterFaultOps):
                 f"RouterOS omitted received prefix count for {peer}: {rows}"
             )
         return int(rows[0]["prefix-count"])
+
+    def _bgp_connection(self, peer: str) -> dict[str, str]:
+        peer = str(ipaddress.IPv4Address(peer))
+        connections = [
+            row
+            for row in self._rows("/routing/bgp/connection/print terse")
+            if row.get("remote.address", "").split("@")[0].split("/")[0] == peer
+        ]
+        if len(connections) != 1:
+            raise ValueError(f"No single BGP connection to {peer} on {self.node!r}")
+        return connections[0]
+
+    def set_bgp_ipv4_unicast(self, peer: str, enabled: bool) -> None:
+        connection = self._bgp_connection(peer)
+        families = set(filter(None, connection.get("afi", "ip").split(",")))
+        if enabled:
+            families.add("ip")
+        else:
+            families.discard("ip")
+        # Keep a non-IPv4 family when IPv4 was the only configured family.
+        afi = ",".join(sorted(families or {"ipv6"}))
+        self._reset_connections(
+            [connection["name"]],
+            before_enable=(
+                f'/routing bgp connection set [find name="{connection["name"]}"] '
+                f"afi={afi}"
+            ),
+        )
+
+    def restore_bgp_ipv4_unicast(self, peer: str, configuration: str) -> None:
+        connection = self._bgp_connection(peer)
+        self._reset_connections(
+            [connection["name"]],
+            before_enable=(
+                f'/routing bgp connection set [find name="{connection["name"]}"] '
+                f"afi={configuration}"
+            ),
+        )
+
+    def bgp_ipv4_unicast_status(self, peer: str) -> dict:
+        peer = str(ipaddress.IPv4Address(peer))
+        connection = self._bgp_connection(peer)
+        sessions = [
+            row
+            for row in self._rows(
+                "/routing/bgp/session/print terse where established=yes"
+            )
+            if row.get("remote.address", "").split("@")[0] == peer
+        ]
+        if len(sessions) > 1:
+            raise ValueError(f"Ambiguous BGP session to {peer} on {self.node!r}")
+        session = sessions[0] if len(sessions) == 1 else {}
+        count = session.get("prefix-count", "")
+        if session and not count.isdigit():
+            raise ValueError(f"Unreadable BGP prefix count for {peer} on {self.node!r}")
+        configured = set(connection.get("afi", "ip").split(","))
+        local = set(session.get("local.afi", "").split(","))
+        remote = set(session.get("remote.afi", "").split(","))
+        return {
+            "configuration": connection.get("afi", "ip"),
+            "configured": "ip" in configured,
+            "negotiated": "ip" in local & remote,
+            "state": "Established" if session else "NotEstablished",
+            "received_prefix_count": int(count) if session else 0,
+        }
 
     def bgp_prefix_limit(self, peer: str) -> int | None:
         rows = self._rows(

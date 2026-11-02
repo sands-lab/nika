@@ -11,7 +11,14 @@ from nika.net_env.isp.identity import list_isp_base_scenarios
 from nika.problems.rca import node_resource
 from nika.problems.support.frr import frr_config_command, frr_save_config
 from nika.problems.support.polling import wait_until
-from nika.problems.support.router_ops import native_fault_ops
+from nika.problems.support.oracle import (
+    Check,
+    OraclePlaybook,
+    contains,
+    router_cli,
+    vtysh,
+)
+from nika.problems.support.router_ops import native_fault_ops, native_router_profile
 from nika.runtime.base import RuntimeCapabilityError
 from nika.utils.logger import system_logger
 
@@ -36,8 +43,12 @@ def _isis_process(config: str) -> str | None:
 
 
 def _metric_style(config: str) -> str | None:
-    match = _METRIC_STYLE_RE.search(_isis_block(config))
-    return match[1] if match else None
+    block = _isis_block(config)
+    if not block:
+        return None
+    # FRR omits its default wide metric style from running-config.
+    match = _METRIC_STYLE_RE.search(block)
+    return match[1] if match else _WIDE
 
 
 def _is_type(config: str) -> str | None:
@@ -94,6 +105,130 @@ def _routing_restored(problem, host: str, baseline: dict[str, set]) -> bool:
     return all(values <= state[key] for key, values in baseline.items())
 
 
+def _isis_oracle(problem, host, setting):
+    """Read the target and its peers to distinguish IS-IS configuration faults."""
+    from nika.net_env.utils.routeros.parse import routeros_terse_rows
+    from nika.validation.symptom.routing_probes import facing_interfaces
+
+    peers = sorted(facing_interfaces(problem, host))
+    if not peers:
+        raise RuntimeCapabilityError(f"No IS-IS router linked to {host}")
+    steps = []
+    descriptions = {
+        "metric": "the target uses narrow metrics while its peers use wide metrics, distinguishing incompatible reachability TLVs from level or authentication mismatch",
+        "level": "the target runs Level 1 while its peers run Level 2 only, distinguishing disjoint levels from hello authentication or metric mismatch",
+        "auth": "the target requires MD5 hello authentication while its peers send unauthenticated hellos, distinguishing authentication rejection from level or metric mismatch",
+    }
+    observed = {}
+
+    def value(output, profile):
+        if profile == "routeros":
+            rows = routeros_terse_rows(output)
+            key = "metric-type" if setting == "metric" else "levels"
+            values = {row[key] for row in rows if key in row}
+            if len(values) != 1:
+                return None
+            return {"old": "narrow", "l1": "level-1", "l2": "level-2-only"}.get(
+                next(iter(values)), next(iter(values))
+            )
+        if not re.search(r"^router isis \S+", output, re.M):
+            return None
+        if setting == "metric":
+            if profile is None:
+                return _metric_style(output)
+            match = re.search(r"^\s*metric-style (\S+)", output, re.M)
+            return match[1] if match else "wide"
+        if setting == "level":
+            match = re.search(r"^\s*is-type (\S+)", output, re.M)
+            return match[1] if match else "level-1-2"
+        if profile != "iosxr":
+            return _hello_authentication(output)
+        circuits = {}
+        for match in re.finditer(
+            r"^ interface (\S+)\n(.*?)(?=^ !|^!|\Z)", output, re.M | re.S
+        ):
+            interface, block = match.groups()
+            if re.search(r"^  passive\s*$", block, re.M):
+                continue
+            mode = re.search(r"^  hello-password (\S+)", block, re.M)
+            circuits[interface] = (
+                "md5"
+                if mode and mode[1] == "hmac-md5"
+                else (mode[1] if mode else "none")
+            )
+        return circuits or None
+
+    nodes = [*peers, host]
+
+    def mismatch():
+        if setting == "auth":
+            return (
+                bool(observed.get(host))
+                and all(mode == "md5" for mode in observed[host].values())
+                and all(
+                    observed.get(peer)
+                    and all(mode == "none" for mode in observed[peer].values())
+                    for peer in peers
+                )
+            )
+        target, neighbor = (
+            ("narrow", "wide") if setting == "metric" else ("level-1", "level-2-only")
+        )
+        return observed.get(host) == target and all(
+            observed.get(peer) == neighbor for peer in peers
+        )
+
+    for node in nodes:
+        profile = native_router_profile(problem.net_env, node)
+
+        def check(output, router=node, platform=profile):
+            observed[router] = value(output, platform)
+            return mismatch() if router == host else observed[router] is not None
+
+        steps.append(
+            router_cli(
+                problem.net_env,
+                node,
+                f"Read the IS-IS {setting} configuration on {node}.",
+                Check(
+                    descriptions[setting]
+                    if node == host
+                    else "the peer's IS-IS setting is readable",
+                    check,
+                ),
+                frr=vtysh("show running-config"),
+                iosxr_command="show running-config router isis",
+                routeros_command="/routing/isis/instance/print terse"
+                if setting == "metric"
+                else "/routing/isis/interface-template/print terse",
+                evidence=node == host,
+            )
+        )
+    steps.append(
+        router_cli(
+            problem.net_env,
+            host,
+            f"Inspect IS-IS adjacency state on {host}.",
+            contains(
+                r"\bUp\b|state=up",
+                "IS-IS retains an Up adjacency despite incompatible metric encodings",
+            )
+            if setting == "metric"
+            else None,
+            frr=vtysh("show isis neighbor"),
+            iosxr_command="show isis adjacency",
+            routeros_command="/routing/isis/neighbor/print terse",
+            evidence=setting == "metric",
+            attempts=12,
+            interval_sec=10,
+        )
+    )
+    return OraclePlaybook(
+        f"{host} has an IS-IS {setting} mismatch with its directly connected peers.",
+        steps,
+    )
+
+
 class IsisMetricStyleMismatchParams(BaseModel):
     """Parameters for injecting an IS-IS metric-style mismatch."""
 
@@ -140,6 +275,9 @@ class IsisMetricStyleMismatch(ProblemBase):
 
     def root_cause_resources(self, params: IsisMetricStyleMismatchParams):
         return [node_resource(params.host_name)]
+
+    def oracle_playbook(self, params: IsisMetricStyleMismatchParams) -> OraclePlaybook:
+        return _isis_oracle(self, params.host_name, "metric")
 
     def _set_style(self, host: str, style: str) -> None:
         ops = native_fault_ops(self, host, "set_isis_metric_style")
@@ -252,6 +390,9 @@ class IsisCircuitLevelMismatch(ProblemBase):
 
     def root_cause_resources(self, params: IsisCircuitLevelMismatchParams):
         return [node_resource(params.host_name)]
+
+    def oracle_playbook(self, params: IsisCircuitLevelMismatchParams) -> OraclePlaybook:
+        return _isis_oracle(self, params.host_name, "level")
 
     def _set_level(self, host: str, level: str) -> None:
         ops = native_fault_ops(self, host, "set_isis_level")
@@ -372,6 +513,11 @@ class IsisAuthenticationMismatch(ProblemBase):
 
     def root_cause_resources(self, params: IsisAuthenticationMismatchParams):
         return [node_resource(params.host_name)]
+
+    def oracle_playbook(
+        self, params: IsisAuthenticationMismatchParams
+    ) -> OraclePlaybook:
+        return _isis_oracle(self, params.host_name, "auth")
 
     def _authentication(self, host: str) -> dict[str, str]:
         ops = native_fault_ops(self, host, "isis_hello_authentication")

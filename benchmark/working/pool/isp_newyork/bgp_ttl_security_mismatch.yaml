@@ -10,50 +10,11 @@ failure:
     backend: kathara
     device_profile: frr
     inject:
-      host_name: n1
-    root_causes:
-    - resource:
-        kind: node
-        node: n1
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    inject:
       host_name: n10
     root_causes:
     - resource:
         kind: node
         node: n10
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: n11
-    root_causes:
-    - resource:
-        kind: node
-        node: n11
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: n12
-    root_causes:
-    - resource:
-        kind: node
-        node: n12
       fault_type: bgp_ttl_security_mismatch
   - topo_size: m
     igp: ospf
@@ -114,19 +75,6 @@ failure:
     backend: kathara
     device_profile: frr
     inject:
-      host_name: n2
-    root_causes:
-    - resource:
-        kind: node
-        node: n2
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    inject:
       host_name: n3
     root_causes:
     - resource:
@@ -145,19 +93,6 @@ failure:
     - resource:
         kind: node
         node: n4
-      fault_type: bgp_ttl_security_mismatch
-  - topo_size: m
-    igp: ospf
-    bgp_mode: ebgp
-    rpki: false
-    backend: kathara
-    device_profile: frr
-    inject:
-      host_name: n5
-    root_causes:
-    - resource:
-        kind: node
-        node: n5
       fault_type: bgp_ttl_security_mismatch
   - topo_size: m
     igp: ospf

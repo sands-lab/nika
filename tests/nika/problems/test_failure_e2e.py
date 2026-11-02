@@ -105,6 +105,40 @@ def _incast_e2e_cases() -> list[FailureE2ECase]:
 CORE_E2E_CASES = (
     *(
         FailureE2ECase(
+            problem="bgp_address_family_not_activated",
+            scenario=scenario,
+            env_run_args=("-s", "s", "--device-profile", "routeros"),
+            inject_params={"host_name": host},
+        )
+        for scenario, host in (
+            ("dc_clos", "leaf_router_0_0"),
+            ("enterprise_branch", "br1_edge"),
+        )
+    ),
+    *(
+        FailureE2ECase(
+            problem="bgp_address_family_not_activated",
+            scenario="isp_abilene",
+            env_run_args=(
+                "--igp",
+                "isis" if mode == "ibgp_rr" else "ospf",
+                "--bgp-mode",
+                mode,
+                "--device-profile",
+                "routeros",
+            ),
+            isp_options={
+                "igp": "isis" if mode == "ibgp_rr" else "ospf",
+                "bgp_mode": mode,
+                "rpki": False,
+            },
+            inject_params={"host_name": "sttlng" if mode == "ibgp_rr" else "atlang"},
+            inject_seed=0 if mode == "ebgp" else 1,
+        )
+        for mode in ("ebgp", "ibgp_rr")
+    ),
+    *(
+        FailureE2ECase(
             problem="ospf_hello_interval_mismatch",
             scenario=scenario,
             env_run_args=(

@@ -104,6 +104,18 @@ class RouterFaultOps:
         """Return the current IPv4 prefix count received from ``peer``."""
         self._unsupported("Reading received BGP prefixes")
 
+    def set_bgp_ipv4_unicast(self, peer: str, enabled: bool) -> None:
+        """Activate or deactivate IPv4 unicast for one BGP neighbor."""
+        self._unsupported("Changing BGP IPv4 unicast activation")
+
+    def bgp_ipv4_unicast_status(self, peer: str) -> dict:
+        """Read family configuration, IPv4 activation, negotiation, state, and prefix count."""
+        self._unsupported("Reading BGP IPv4 unicast activation")
+
+    def restore_bgp_ipv4_unicast(self, peer: str, configuration: str) -> None:
+        """Restore the opaque family configuration returned by the status reader."""
+        self._unsupported("Restoring BGP IPv4 unicast activation")
+
     def bgp_prefix_limit(self, peer: str) -> int | None:
         """Return the configured IPv4 prefix limit for ``peer``, if present."""
         self._unsupported("Reading a BGP prefix limit")

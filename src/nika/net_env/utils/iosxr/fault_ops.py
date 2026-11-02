@@ -208,9 +208,9 @@ class IosxrFaultOps(RouterFaultOps):
                     "end-policy",
                     "!",
                 ]
-        if not lines:
-            raise ValueError(f"No bound BGP route policies on {self.node}")
-        self._apply(*lines)
+        # A router with no bound eBGP policy filters nothing to open.
+        if lines:
+            self._apply(*lines)
 
     def advertise_bgp_prefixes(self, prefixes: list[str]) -> None:
         self._apply(
@@ -294,22 +294,30 @@ class IosxrFaultOps(RouterFaultOps):
             )
         )
 
-    def _ebgp_policies(self) -> dict[str, list[str]]:
-        """eBGP neighbor -> its IPv4 unicast ``route-policy`` lines."""
+    def _ebgp_neighbors(self) -> list[tuple[str, str]]:
+        """Neighbor blocks whose remote AS differs from the local AS."""
         config = self._show("show running-config router bgp")
         local = _ROUTER_BGP.search(config)
+        return [
+            (peer, body)
+            for peer, body in _NEIGHBOR_BLOCK.findall(config)
+            if local
+            and (remote := re.search(r"^  remote-as (\d+)$", body, re.M))
+            and remote[1] != local[1]
+        ]
+
+    def _ebgp_policies(self) -> dict[str, list[str]]:
+        """eBGP neighbor -> its IPv4 unicast ``route-policy`` lines."""
         policies = {}
-        for peer, body in _NEIGHBOR_BLOCK.findall(config):
-            remote = re.search(r"^  remote-as (\d+)$", body, re.MULTILINE)
+        for peer, body in self._ebgp_neighbors():
             unicast = re.search(
                 r"^  address-family ipv4 unicast\n(.*?)^  !$", body, re.M | re.S
             )
-            if local and remote and remote[1] != local[1]:
-                policies[peer] = re.findall(
-                    r"^   (route-policy \S+ (?:in|out))$",
-                    unicast[1] if unicast else "",
-                    re.MULTILINE,
-                )
+            policies[peer] = re.findall(
+                r"^   (route-policy \S+ (?:in|out))$",
+                unicast[1] if unicast else "",
+                re.MULTILINE,
+            )
         return policies
 
     def drop_bgp_session_policy(self) -> None:
@@ -328,10 +336,10 @@ class IosxrFaultOps(RouterFaultOps):
         return bool(policies) and not any(policies.values())
 
     def enable_bgp_ttl_security(self) -> None:
-        config = self._show("show running-config router bgp")
-        peers = _NEIGHBOR_BLOCK.findall(config)
+        # IOS XR accepts ttl-security only on external neighbors.
+        peers = self._ebgp_neighbors()
         if not peers:
-            raise ValueError(f"No BGP neighbors on {self.node!r}")
+            raise ValueError(f"No eBGP neighbors on {self.node!r}")
         lines = [f"router bgp {self.bgp_asn()}"]
         for peer, _ in peers:
             lines += [f" neighbor {peer}", "  ttl-security", " !"]
@@ -339,7 +347,7 @@ class IosxrFaultOps(RouterFaultOps):
         self._show("clear bgp *")
 
     def bgp_ttl_security_enabled(self) -> bool:
-        peers = _NEIGHBOR_BLOCK.findall(self._show("show running-config router bgp"))
+        peers = self._ebgp_neighbors()
         return bool(peers) and all(
             re.search(r"^  ttl-security$", body, re.M) for _, body in peers
         )

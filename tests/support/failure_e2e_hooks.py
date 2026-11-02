@@ -614,7 +614,36 @@ def assert_bgp_md5_recover(ctx: FailureE2EContext) -> None:
     ), base
 
 
+def assert_ipv4_family_recover(ctx: FailureE2EContext) -> None:
+    import json
+
+    assert (
+        ctx.problem.root_cause_resources(ctx.parsed)[0].id
+        == f"node/{ctx.parsed.host_name}"
+    )
+    baseline = ctx.problem._audit_ipv4_family
+    status = ctx.problem.ipv4_status(ctx.parsed.host_name, baseline["neighbor_ip"])
+    prefixes = ctx.problem.ipv4_prefixes(ctx.parsed.host_name, baseline["neighbor_ip"])
+    assert status["state"] == "Established", status
+    assert status["configured"] and status["negotiated"], status
+    assert status["received_prefix_count"] > 0, status
+    assert set(baseline["prefixes"]) <= prefixes, prefixes
+    print(
+        "BGP IPv4 family evidence: "
+        + json.dumps(
+            {
+                "baseline": baseline,
+                "artifact": ctx.verify,
+                "symptom": ctx.symptom,
+                "recovery": ctx.recovered,
+                "observed_after_recovery": {**status, "prefixes": sorted(prefixes)},
+            }
+        )
+    )
+
+
 HOOKS: dict[str, dict[str, Any]] = {
+    "bgp_address_family_not_activated": {"post_recover": assert_ipv4_family_recover},
     "k8s_readiness_probe_misconfig": {
         "post_recover": assert_readiness_probe_recover,
     },
