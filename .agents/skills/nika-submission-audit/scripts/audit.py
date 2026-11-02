@@ -8,7 +8,6 @@ Commands:
   review      Full audit of one submission: audit, scan, group, adjudicate, record.
   run         Deterministic audit of a trajectories package or result directory.
   packet      Reviewer packet for one trial: header, hits, numbered steps.
-  scan        Ask every trial the issue-class questions through an LLM endpoint.
   cite-check  Keep findings whose evidence occurs verbatim in the cited step.
   kb-list     List knowledge-base issues.
   kb-validate Load the knowledge base and report errors.
@@ -34,8 +33,6 @@ sys.path.insert(1, str(REPO_ROOT))
 
 from auditlib.kb import KB_DIR, KnowledgeBaseError, load_kb  # noqa: E402
 from auditlib.trace import load_trial, trial_dirs  # noqa: E402
-
-FAIL_ON = ("block", "warn", "never")
 
 
 def cmd_run(args: argparse.Namespace) -> int:
@@ -63,10 +60,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     if args.markdown:
         args.markdown.write_text(text + "\n", encoding="utf-8")
     print(text)
-    verdict = report["verdict"]
-    if args.fail_on == "warn" and verdict in ("warn", "block"):
-        return 1
-    return 1 if args.fail_on == "block" and verdict == "block" else 0
+    return 0
 
 
 def cmd_review(args: argparse.Namespace) -> int:
@@ -128,50 +122,6 @@ def cmd_packet(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_scan(args: argparse.Namespace) -> int:
-    from collections import Counter
-
-    from auditlib.scan import ScanConfig, scan_trials
-
-    if not args.base_url or not args.model:
-        sys.exit("scan needs --base-url and --model (or NIKA_AUDIT_LLM_URL/_MODEL)")
-    paths = trial_dirs(args.path)
-    if args.trials:
-        wanted = set(args.trials)
-        paths = [p for p in paths if p.name in wanted]
-    hits = {}
-    if args.audit:
-        hits = json.loads(args.audit.read_text(encoding="utf-8")).get("trials", {})
-    cfg = ScanConfig(
-        base_url=args.base_url,
-        model=args.model,
-        api_key=os.environ.get("NIKA_AUDIT_LLM_KEY", "none"),
-        samples=args.samples,
-        workers=args.workers,
-        max_tokens=args.max_tokens,
-        thinking={"on": True, "off": False}.get(args.thinking),
-    )
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    with args.out.open("w", encoding="utf-8") as fh:
-
-        def write(record: dict) -> None:
-            fh.write(json.dumps(record) + "\n")
-            fh.flush()
-
-        records = scan_trials(paths, load_kb(args.kb), cfg, hits=hits, on_result=write)
-    supported = Counter(
-        f["class"]
-        for r in records
-        for f in r["findings"]
-        if f["citation_status"] == "supported"
-    )
-    errors = sum(bool(r["errors"]) for r in records)
-    print(f"{len(records)} scans, {errors} with errors; supported findings by class:")
-    for cls, n in supported.most_common():
-        print(f"  {cls:24} {n}")
-    return 0
-
-
 def cmd_cite_check(args: argparse.Namespace) -> int:
     from auditlib.review import check_citations
 
@@ -197,8 +147,6 @@ def cmd_kb_list(args: argparse.Namespace) -> int:
     kb = load_kb(args.kb)
     print(f"knowledge base: {len(kb.issues)} issues")
     for issue in sorted(kb.issues, key=lambda i: (i.issue_class, i.id)):
-        if args.role and issue.role != args.role:
-            continue
         print(
             f"{issue.id:44} {issue.issue_class:20} {issue.role:5} {issue.severity:5} "
             f"{issue.status:9} {issue.title}"
@@ -264,7 +212,6 @@ def main() -> int:
         type=Path,
         help="NIKA git checkout, to detect regressions after fixes.",
     )
-    p.add_argument("--fail-on", choices=FAIL_ON, default="never")
 
     p = add("packet", cmd_packet, "Reviewer packet for one trial.")
     p.add_argument("trial", type=Path)
@@ -290,30 +237,12 @@ def main() -> int:
     p.add_argument("--samples", type=int, default=3, help="Scans per trial.")
     p.add_argument("--workers", type=int, default=64, help="Parallel requests.")
 
-    p = add("scan", cmd_scan, "Scan every trial with the issue-class questions.")
-    p.add_argument("path", type=Path, help="Trajectories package or result directory.")
-    p.add_argument("--out", type=Path, required=True, help="JSON lines, one per scan.")
-    p.add_argument("--audit", type=Path, help="audit.json whose hits are attached.")
-    p.add_argument("--base-url", default=os.environ.get("NIKA_AUDIT_LLM_URL"))
-    p.add_argument("--model", default=os.environ.get("NIKA_AUDIT_LLM_MODEL"))
-    p.add_argument("--samples", type=int, default=1, help="Scans per trial.")
-    p.add_argument("--workers", type=int, default=64, help="Parallel requests.")
-    p.add_argument("--trials", nargs="*", help="Only these trial ids.")
-    p.add_argument("--max-tokens", type=int, default=8192)
-    p.add_argument(
-        "--thinking",
-        choices=("on", "off", "default"),
-        default="default",
-        help="Reasoning mode, for endpoints that support enable_thinking.",
-    )
-
     p = add("cite-check", cmd_cite_check, "Verify findings' citations.")
     p.add_argument("findings", type=Path)
     p.add_argument("--trajectories", type=Path, required=True)
     p.add_argument("--out", type=Path)
 
-    p = add("kb-list", cmd_kb_list, "List knowledge-base issues.")
-    p.add_argument("--role", choices=("known", "lead"))
+    add("kb-list", cmd_kb_list, "List knowledge-base issues.")
 
     add("kb-validate", cmd_kb_validate, "Validate the knowledge base.")
 

@@ -85,7 +85,7 @@ def group_findings(
     *,
     min_overlap: float = 0.5,
 ) -> list[dict[str, Any]]:
-    """Group the supported findings of scan *records* (``audit.py scan`` output).
+    """Group the supported findings of scan *records* (``auditlib.scan.scan_trials`` output).
 
     Returns group summaries, most widespread and most agreed first.
     """

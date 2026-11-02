@@ -4,9 +4,9 @@
    learned issues) over every trial.
 2. The scan asks every trial the issue-class questions (LLM, parallel).
 3. Findings are grouped across trials.
-4. Groups a learned issue already fires on, or a built-in check whose
-   signature identifies the instance (a state-changing command, a tool
-   outside the policy), are recorded; the rest are adjudicated (LLM, one
+4. Groups whose excerpts a learned issue's signature matches (within the
+   issue's scope), or that an issue identifying the instance (a state-changing
+   command, a tool outside the policy) fires on at a cited step, are recorded; the rest are adjudicated (LLM, one
    call per group).
 5. Groups judged real become issue files (deterministic curation), unless a
    recorded issue's text signature already matches their evidence.
@@ -52,17 +52,11 @@ def _align(verdicts: list, results: list) -> list:
     return [next(it) if v["verdict"] == "real" else None for v in verdicts]
 
 
-# Signature kinds that identify one instance completely (a state-changing
-# command, a tool outside the policy, a validity flag). A built-in check of
-# these kinds records a group at its step; text checks only find a shape, so a
-# group they fire on may still be a specific issue worth its own file.
-_INSTANCE_KINDS = {
-    "mutation",
-    "tool_policy",
-    "validity",
-    "regrade",
-    "fingerprint_drift",
-}
+# Signature kinds that identify one instance at its step (a state-changing
+# command, a tool outside the policy). An issue of these kinds records a group
+# at that step; text checks only find a shape, so a group they fire on may
+# still be a specific issue worth its own file.
+_INSTANCE_KINDS = {"mutation", "tool_policy"}
 
 
 def _exact(issue) -> bool:
@@ -143,17 +137,12 @@ def review_submission(
 
     trials = {p.name: load_trial(p) for p in trial_dirs(pkg)}
     groups = group_findings(records, trials)
-    learned = {
-        i.id: i.issue_class
-        for i in kb.issues
-        if (kb_dir / "issues" / f"{i.id}.yaml").is_file()
-    }
-    learned_issues = [i for i in kb.issues if i.id in learned]
+    learned = [i for i in kb.issues if (kb_dir / "issues" / f"{i.id}.yaml").is_file()]
     exact = {i.id: i.issue_class for i in kb.issues if _exact(i)}
     for g in groups:
         g["recorded_by"] = recorded_by(
-            g, report.get("trials", {}), learned | exact, frozenset(exact)
-        ) or covered_by_signature(g, learned_issues)
+            g, report.get("trials", {}), exact
+        ) or covered_by_signature(g, learned, trials)
     samples = max((r.get("sample", 0) for r in records), default=0) + 1
     todo = [
         i
@@ -183,6 +172,7 @@ def review_submission(
         same = covered_by_signature(
             g,
             [i for i in fresh.issues if (kb_dir / "issues" / f"{i.id}.yaml").is_file()],
+            trials,
         )
         if same:
             g["curation"] = {"written": None, "recorded_by": same}
@@ -210,7 +200,13 @@ def review_submission(
             # Table findings and verdicts from an earlier run of the same
             # order; findings whose row changed are dropped.
             texts = {r.id: r.text for r in rows}
-            kept = [c for c in reuse if c["excerpt"].strip() in texts.get(c["row"], "")]
+            # Failed judge calls are not reused, so their findings are dropped.
+            kept = [
+                c
+                for c in reuse
+                if not c.get("error")
+                and c["excerpt"].strip() in texts.get(c["row"], "")
+            ]
             found = [
                 {k: c[k] for k in ("class", "row", "claim", "excerpt")} for c in kept
             ]

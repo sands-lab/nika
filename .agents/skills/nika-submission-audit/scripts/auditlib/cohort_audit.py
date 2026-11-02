@@ -24,8 +24,8 @@ from typing import Any
 import httpx
 import yaml
 
-from auditlib.adjudicate import VERDICTS
 from auditlib.cohort import TrialRecord, run_metrics
+from auditlib.curate import PREFIX
 from auditlib.kb import Issue, KnowledgeBase
 from auditlib.scan import ScanConfig, chat
 
@@ -167,6 +167,7 @@ Reply with JSON only:
 {{"findings": [{{"class": "<class id>", "row": "<row id>", "claim": "<one \
 sentence>", "excerpt": "<verbatim part of the row>"}}]}}"""
 
+JUDGE_VERDICTS = ("real", "by_design", "agent_weakness", "unclear")
 JUDGE_SYSTEM = """\
 You review one candidate problem that a scan of cross-trial statistics \
 reported for NIKA, a benchmark for network troubleshooting agents. Decide \
@@ -244,7 +245,7 @@ def judge(
         data = _parse(result.get("content", ""))
         verdict = str(data.get("verdict") or "unclear")
         return {
-            "verdict": verdict if verdict in VERDICTS else "unclear",
+            "verdict": verdict if verdict in JUDGE_VERDICTS else "unclear",
             "reason": str(data.get("reason") or ""),
             "error": result.get("error", ""),
         }
@@ -358,17 +359,7 @@ def curate(
         if same is not None:
             out.append({"row": row.id, "written": None, "recorded_by": same.id})
             continue
-        prefix = {
-            "fault_not_realized": "FNR",
-            "signal_invisible": "SIG",
-            "label_unidentifiable": "LABEL",
-            "healthy_lure": "LURE",
-            "grading_error": "GRADE",
-            "harness_defect": "HARNESS",
-            "agent_integrity": "AGENT",
-            "shortcut": "LEAK",
-            "run_validity": "RUN",
-        }.get(f["class"], "ISSUE")
+        prefix = PREFIX.get(f["class"], "ISSUE")
         target = (
             scope.get("fault_types")
             or scope.get("scenarios")

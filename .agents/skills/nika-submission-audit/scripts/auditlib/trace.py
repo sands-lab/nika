@@ -28,7 +28,6 @@ StepKind = Literal[
 ]
 
 MESSAGES_FILE = "messages.jsonl"
-NIKA_LOG_FILE = "nika.jsonl"
 
 
 @dataclass
@@ -51,23 +50,6 @@ class Step:
     is_error: bool = False
     meta: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> dict[str, Any]:
-        out: dict[str, Any] = {
-            "index": self.index,
-            "line": self.line,
-            "phase": self.phase,
-            "kind": self.kind,
-        }
-        for key in ("tool", "server", "call_id"):
-            if getattr(self, key):
-                out[key] = getattr(self, key)
-        if self.is_error:
-            out["is_error"] = True
-        out["text"] = self.text
-        if self.meta:
-            out["meta"] = self.meta
-        return out
-
 
 @dataclass
 class Trial:
@@ -80,7 +62,6 @@ class Trial:
     submission: dict[str, Any]
     ground_truth: dict[str, Any]
     eval_metrics: dict[str, Any]
-    nika_events: list[dict[str, Any]]
     bad_lines: int = 0
 
     @property
@@ -335,23 +316,6 @@ def _read_json(path: Path) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
-def _read_jsonl(path: Path) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    try:
-        handle = path.open(encoding="utf-8", errors="replace")
-    except OSError:
-        return rows
-    with handle:
-        for raw in handle:
-            try:
-                row = json.loads(raw)
-            except json.JSONDecodeError:
-                continue
-            if isinstance(row, dict):
-                rows.append(row)
-    return rows
-
-
 def load_trial(path: Path) -> Trial:
     """Read one trial directory of a trajectory package or benchmark result."""
     path = Path(path)
@@ -364,7 +328,6 @@ def load_trial(path: Path) -> Trial:
         submission=_read_json(path / "submission.json"),
         ground_truth=_read_json(path / "ground_truth.json"),
         eval_metrics=_read_json(path / "eval_metrics.json"),
-        nika_events=_read_jsonl(path / NIKA_LOG_FILE),
         bad_lines=bad,
     )
 
