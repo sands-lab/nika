@@ -10,10 +10,7 @@ The shared workflow currently covers the supported ISP profiles, `dc_clos`,
 Use the retained test matrices below to reproduce acceptance for a deployment.
 Adapter support alone does not imply native acceptance for every size, vendor or fault.
 
-`k8s_lab` and `llmd_lab` retain their existing runtime checks and are not integrated
-with this specification-driven experiment. For SDN and P4, recorded end-to-end
-acceptance covers sizes `s` and `m` and the declared ICMP forwarding requirements. It does
-not establish full controller, P4 program or stateful service correctness.
+`k8s_lab` and `llmd_lab` retain their existing runtime checks and are not integrated with this specification-driven experiment. For SDN and P4, recorded end-to-end acceptance covers sizes `s`, `m` and `l` and the declared ICMP forwarding requirements. It does not establish full controller, P4 program or stateful service correctness.
 
 ## Run an experiment
 

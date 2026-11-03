@@ -794,6 +794,11 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
                 # an unprivileged container cannot write.
                 edge.machine.add_meta("privileged", True)
             for iface in wireguard:
+                # The startup addresses each tunnel, as it does every Linux
+                # interface; netlab's script creates the interface and peer.
+                edge.cmd_list.append(
+                    f"ip addr replace {edge.tunnels[iface][0]} dev {iface}"
+                )
                 # Healthy overlay egress QoS: EF vs BE classes; no DSCP rewrite.
                 qos = overlay_qos_for(self.spec.size)
                 edge.cmd_list.extend(overlay_qos_startup_cmds(iface, qos))
