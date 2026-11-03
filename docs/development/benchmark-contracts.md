@@ -6,7 +6,7 @@ This document defines the four versioned contracts between those two halves, how
 
 ## Frontend and benchmark engine
 
-The **frontend** is the NIKA you run. The **benchmark engine** is the code of one published release, built from that release's Git tag and run as a separate container. One process cannot import two versions of `nika`, and an old release also pins its own Python dependencies, emulator tooling, and images, so the benchmark engine never runs inside the frontend's Python process. The engine runs its environments on an emulation backend such as Kathará, Containerlab, or Kubernetes; "backend" keeps that meaning.
+The **frontend** is the NIKA you run. The **benchmark engine** is the code of one published release, built from that release's Git tag and run as a separate container. One process cannot import two versions of `nika`, and an old release also pins its own Python dependencies, emulator tooling, and images, so a published release's benchmark engine never runs inside the frontend's Python process. A manifest without an `engine` block, such as an ad-hoc task batch, runs on the current NIKA's engine in process instead (see [A. Release manifest](#a-release-manifest)). The engine runs its environments on an emulation backend such as Kathará, Containerlab, or Kubernetes; "backend" keeps that meaning.
 
 ```mermaid
 flowchart LR
