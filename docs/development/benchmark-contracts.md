@@ -71,7 +71,6 @@ id: nika-bench
 version: 0.1.0
 engine:
   tag: v0.1.0                         # protected Git tag in sands-lab/nika
-  image: ghcr.io/sands-lab/nika-engine:0.1.0
   api:
     version: 1                        # lifecycle operations, manifest format, engine-written files
 splits:
@@ -156,7 +155,8 @@ The benchmark engine container mounts the host's Docker socket, `/var/run/netns`
 When a manifest declares an `engine` block, the frontend starts one container for the run ([`container.py`](../../src/nika/benchmark_engine/container.py)) and stops it when the run ends:
 
 * **Launch.** The image's entrypoint starts the engine service. The frontend passes only `--host`, `--port`, and `--parent-pid` (the service exits when that frontend process ends), with the run's token in `NIKA_ENGINE_TOKEN`. Every engine image accepts these arguments; they are part of the engine API version, like the lifecycle operations.
-* **Image.** The frontend uses `engine.image` if it is present locally or can be pulled, and otherwise builds the image from `engine.tag` with the [Dockerfile](../../src/nika/benchmark_engine/docker/Dockerfile) at that tag. `nika engine build <tag>` builds it ahead of time. The build context is `git archive` of the tag's commit. The repository does not track `uv.lock`, so the build resolves Python dependencies as of the commit's time, and rebuilding a tag gives the same versions. The run's provenance records the image ID.
+* **Image.** The frontend uses the local image `nika/benchmark-engine:<tag>` when its commit label matches `engine.tag`, and otherwise builds it from `engine.tag` with the [Dockerfile](../../src/nika/benchmark_engine/docker/Dockerfile) at that tag. `nika engine build <tag>` builds it ahead of time. The build context is `git archive` of the tag's commit. The repository does not track `uv.lock`, so the build resolves Python dependencies as of the commit's time, and rebuilding a tag gives the same versions. The run's provenance records the image ID.
+* **Image override.** A manifest may set `engine.image` to an image that is present locally or can be pulled, and the frontend then runs that image as given, without checking that it was built from `engine.tag`. Releases do not need it; the tag identifies the engine.
 * **Shared host state.** The container runs as the frontend's user on the host network and process namespace. It mounts the Docker socket, `/var/run/netns`, NIKA's `runtime/` and `.nika_cache/` directories, the run's results directory, and the Containerlab working directory, each at the same path, together with the host's Kathará settings. The sessions the engine creates are therefore in the frontend's session store, and `nika session ps` and `nika session close` handle them as usual.
 * **Access.** The engine listens on the host's loopback interface and accepts only lifecycle requests that carry the run's token. The gateway it opens for a trial binds where the agent's sandbox reaches it, as on a host install, and accepts only MCP requests that carry that trial's session token. The gateway writes `tool_calls.jsonl` into the shared trial directory.
 * **Limits.** Firecracker execution and NIKA Remote cannot run a release that pins a benchmark engine yet, and the frontend stops such a run with an error. [#308](https://github.com/sands-lab/nika/issues/308) runs pinned engines on NIKA Remote lab hosts. The engine exits when the frontend process ends; environments left behind are removed with `nika session close`.
