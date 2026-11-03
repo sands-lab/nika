@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -105,3 +106,49 @@ def release_engine(
         finally:
             for key in exported:
                 os.environ.pop(key, None)
+
+
+def recorded_engine(trial_dir: str | Path) -> dict[str, Any] | None:
+    """The pinned benchmark engine that ran the trial in *trial_dir*, if any.
+
+    A run records the engine's ``tag`` and ``image`` in the provenance of the
+    ``run.json`` next to its ``trials`` directory.
+    """
+    path = Path(trial_dir)
+    if path.parent.name != "trials":
+        return None
+    try:
+        run = json.loads((path.parent.parent / "run.json").read_text("utf-8"))
+        engine = run["provenance"]["engine"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    if not isinstance(engine, dict) or not engine.get("image"):
+        return None
+    return engine
+
+
+def stop_recorded_trial(
+    session_id: str, trial_dir: str | Path | None, *, status: str = "finished"
+) -> bool:
+    """Tear a trial down through the pinned benchmark engine that ran it.
+
+    The engine container exits with its run, so this starts it again from
+    the image the run recorded. Returns False when no pinned engine ran the
+    trial, so the caller closes it in this process.
+    """
+    engine = recorded_engine(trial_dir) if trial_dir else None
+    if engine is None:
+        return False
+    from nika.benchmark_engine.client import EngineClient
+    from nika.benchmark_engine.container import engine_container, resolve_engine_image
+    from nika.benchmark_engine.protocol import TrialHandle
+
+    image = resolve_engine_image(engine)
+    run_root = Path(str(trial_dir)).parent.parent
+    name = f"close-{engine.get('release') or 'run'}"
+    with engine_container(image, run_id=name, results_root=run_root) as container:
+        EngineClient(container.base_url, token=container.token).stop_trial(
+            TrialHandle(session_id=session_id, trial_dir=str(trial_dir)),
+            status=status,
+        )
+    return True

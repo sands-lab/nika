@@ -374,6 +374,7 @@ def test_task_uses_opaque_session_id(tmp_path) -> None:
     manager = SandboxManager(_sbx_config())
     task = manager.build_task(
         session=session,
+        task_description=session.task_description,
         spec=get_agent_spec("sdk.codex_sdk"),
         model="gpt-test",
         max_steps=5,
@@ -435,6 +436,7 @@ def test_open_session_collects_artifacts_when_policy_cleanup_fails(
         with pytest.raises(OSError, match="policy cleanup failed"):
             with manager.open_session(
                 session=session,
+                task_description=session.task_description,
                 agent_type="cli.codex",
                 model="gpt-5-mini",
                 max_steps=10,
@@ -513,6 +515,7 @@ def test_open_session_preserves_host_submission_on_collect(tmp_path) -> None:
         patch("nika.agents.sandbox.manager.log_event"),
         manager.open_session(
             session=session,
+            task_description=session.task_description,
             agent_type="cli.codex",
             model="gpt-5-mini",
             max_steps=10,
@@ -587,6 +590,7 @@ def test_sandbox_manifest_omits_host_session_dir(tmp_path) -> None:
         ):
             manifest = manager.build_task(
                 session=session,
+                task_description=session.task_description,
                 spec=get_agent_spec("sdk.claude_sdk"),
                 model="deepseek-v4-flash",
                 max_steps=10,

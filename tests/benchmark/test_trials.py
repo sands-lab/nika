@@ -174,6 +174,34 @@ class TestTrialHelpers:
         healed = json.loads((path / "run.json").read_text(encoding="utf-8"))
         assert healed["outcome"] == "success"
 
+    def test_resume_scores_a_solved_trial_through_the_engine(
+        self, tmp_path: Path
+    ) -> None:
+        from nika.benchmark_engine import use_engine
+
+        trials = expand_trials([ROW_A], n_trials=1)
+        path = trial_dir(tmp_path, trials[0].case_key, 1)
+        _write_valid_trial(path, outcome="success")
+        (path / "eval_metrics.json").unlink()
+        assert not is_valid_trial(path)
+        scored: list[str] = []
+
+        class _Engine:
+            def score(self, handle, *, result_dir=None, infra_evidence=False):
+                scored.append(handle.session_id)
+                (handle.trial_path / "eval_metrics.json").write_text(
+                    "{}", encoding="utf-8"
+                )
+
+        # The run's engine scores it; the frontend never grades an answer.
+        with use_engine(_Engine()):
+            _root, pending = scan_trials(
+                trials=trials, result_dir=tmp_path, resume=True
+            )
+        assert pending == []
+        assert scored == [path.name]
+        assert is_valid_trial(path)
+
     def test_resume_heals_finished_without_outcome_agent_failed(
         self, tmp_path: Path
     ) -> None:
@@ -758,6 +786,7 @@ class TestAgentFailedFinalization:
                     (),
                     {
                         "update_session": lambda self, key, value: None,
+                        "task_description": "Diagnose the network.",
                     },
                 )(),
             ),
@@ -808,6 +837,7 @@ class TestAgentFailedFinalization:
                     "session_id": trial.trial_id,
                     "status": "running",
                     "scenario_name": "dc_clos",
+                    "ready": True,
                 }
             ),
             encoding="utf-8",
@@ -849,9 +879,7 @@ class TestAgentFailedFinalization:
         )
         assert metrics.get("rca_f1") == 0.0
 
-    def test_finalize_without_ground_truth_keeps_error_status(
-        self, tmp_path: Path
-    ) -> None:
+    def test_finalize_before_ready_keeps_error_status(self, tmp_path: Path) -> None:
         trial = expand_trials([ROW_A], n_trials=1)[0]
         session_path = trial_dir(tmp_path, trial.case_key, trial.trial_index)
         session_path.mkdir(parents=True)

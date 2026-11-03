@@ -245,7 +245,8 @@ def engine_container(
 ) -> Iterator[EngineContainer]:
     """Run one benchmark engine container for a run, then stop it.
 
-    The container's log is saved as ``benchmark_engine.log`` in *results_root*.
+    The container's log is appended to ``benchmark_engine.log`` in
+    *results_root*, after the logs of earlier containers for the same results.
     The engine also exits by itself when this process ends.
     """
     port = _free_port()
@@ -276,7 +277,6 @@ def engine_container(
         yield container
     finally:
         logs = _run(["docker", "logs", name])
-        (results_root / "benchmark_engine.log").write_text(
-            logs.stdout + logs.stderr, encoding="utf-8"
-        )
+        with (results_root / "benchmark_engine.log").open("a", encoding="utf-8") as log:
+            log.write(logs.stdout + logs.stderr)
         _run(["docker", "stop", "--time", "30", name])

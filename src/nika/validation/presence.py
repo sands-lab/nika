@@ -185,13 +185,8 @@ def recheck_artifact_with_retry(problem: Any, params: Any) -> dict[str, Any]:
     return raw
 
 
-def _check_record(session_id: str, session_dir: Path, phase: str) -> dict[str, Any]:
-    from nika.benchmark_engine import benchmark_engine
-    from nika.benchmark_engine.protocol import TrialHandle
-
-    check = benchmark_engine().fault_check(
-        TrialHandle(session_id=session_id, trial_dir=str(session_dir))
-    )
+def presence_record(check: Any, phase: str) -> dict[str, Any]:
+    """The ``fault_presence_recheck`` record of a ``fault_check`` result."""
     return {
         "phase": phase,
         "timestamp": datetime.now(UTC).isoformat(),
@@ -204,12 +199,14 @@ def _check_record(session_id: str, session_dir: Path, phase: str) -> dict[str, A
     }
 
 
-def _engine_container() -> bool:
-    """A benchmark engine container serves the run; it logs inject-time reads."""
+def _check_record(session_id: str, session_dir: Path, phase: str) -> dict[str, Any]:
     from nika.benchmark_engine import benchmark_engine
-    from nika.benchmark_engine.client import EngineClient
+    from nika.benchmark_engine.protocol import TrialHandle
 
-    return isinstance(benchmark_engine(), EngineClient)
+    check = benchmark_engine().fault_check(
+        TrialHandle(session_id=session_id, trial_dir=str(session_dir))
+    )
+    return presence_record(check, phase)
 
 
 class PresenceWatch:
@@ -217,7 +214,8 @@ class PresenceWatch:
 
     The during-agent read waits ``delay_sec``, then runs once. If the agent
     returns first, ``finish`` performs that read before cleanup. Reads are
-    only logged; they do not change the trial outcome.
+    only logged; they do not change the trial outcome. The engine's ``begin``
+    logs the post-inject read.
     """
 
     def __init__(
@@ -239,10 +237,6 @@ class PresenceWatch:
         self._thread: threading.Thread | None = None
 
     def start(self) -> None:
-        if bound_injected_problem(self.session_id) is None and not (
-            _engine_container() and anomaly_expected(self.session_dir)
-        ):
-            self._run_phase("post_inject")
         self._thread = threading.Thread(
             target=self._during,
             name=f"fault-presence-{self.session_id}",

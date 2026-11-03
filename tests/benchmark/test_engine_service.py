@@ -19,11 +19,11 @@ from nika.benchmark_engine.protocol import (
     AccessPolicy,
     AgentAccess,
     AgentEndpoints,
+    AgentTask,
     EngineDescription,
     EngineError,
     FaultCheck,
     GatewayRequest,
-    InjectResult,
     Resource,
     TrialHandle,
     TrialRequest,
@@ -57,11 +57,25 @@ GATEWAY = GatewayRequest(
 )
 
 
+REQUEST = TrialRequest(
+    task={"scenario": "dc_clos"},
+    failures=["link_down"],
+    session_id=HANDLE.session_id,
+    trial_dir=HANDLE.trial_dir,
+    release="0.2.0",
+)
+TASK = AgentTask(task_description="Hosts in pod 1 cannot reach the web server.")
+
+
 class _StubEngine:
     """Records calls and answers like an engine would."""
 
     def __init__(self) -> None:
         self.calls: list[tuple] = []
+        # Set to hold start_trial until the test releases it.
+        self.release: threading.Event | None = None
+        self.deploying = threading.Event()
+        self.begin_error: Exception | None = None
 
     def describe(self, release=None):
         self.calls.append(("describe", release))
@@ -73,11 +87,16 @@ class _StubEngine:
 
     def start_trial(self, request):
         self.calls.append(("start_trial", request))
+        self.deploying.set()
+        if self.release is not None:
+            self.release.wait(10)
         return HANDLE
 
-    def inject(self, handle, request):
-        self.calls.append(("inject", handle, request))
-        return InjectResult(ground_truth=True)
+    def begin(self, handle):
+        self.calls.append(("begin", handle))
+        if self.begin_error is not None:
+            raise self.begin_error
+        return TASK
 
     def agent_endpoints(self, handle, request):
         self.calls.append(("agent_endpoints", handle, request))
@@ -95,7 +114,7 @@ class _StubEngine:
     def stop_trial(self, handle, *, status="finished"):
         if handle.session_id == "gone":
             raise FileNotFoundError("Session 'gone' not found")
-        if status == "error":
+        if handle.session_id == "broken":
             raise EngineError("undeploy failed", outcome="infra_failed")
         self.calls.append(("stop_trial", handle, status))
 
@@ -119,12 +138,12 @@ def _serve(app) -> Iterator[str]:
 
 def test_client_drives_every_operation_over_http() -> None:
     engine = _StubEngine()
-    request = TrialRequest(task={"scenario": "dc_clos"}, failures=["link_down"])
     with _serve(create_engine_app(engine, token=TOKEN)) as url:
         client = EngineClient(url, token=TOKEN)
         assert client.describe("0.1.0").release_version == "0.1.0"
-        assert client.start_trial(request) == HANDLE
-        assert client.inject(HANDLE, request).ground_truth is True
+        assert client.start_trial(REQUEST) == HANDLE
+        # The agent's task comes from the engine, not the shared session store.
+        assert client.begin(HANDLE) == TASK
         assert client.agent_endpoints(HANDLE, GATEWAY) == ENDPOINTS
         client.close_agent_endpoints(HANDLE)
         assert client.fault_check(HANDLE).result == "present"
@@ -134,18 +153,73 @@ def test_client_drives_every_operation_over_http() -> None:
         with pytest.raises(FileNotFoundError):
             client.stop_trial(HANDLE.model_copy(update={"session_id": "gone"}))
         with pytest.raises(EngineError) as failed:
-            client.stop_trial(HANDLE, status="error")
+            client.stop_trial(HANDLE.model_copy(update={"session_id": "broken"}))
         assert failed.value.outcome == "infra_failed"
         assert classify_trial_failure(failed.value) == "infra_failed"
         with pytest.raises(EngineError, match="invalid engine token"):
             EngineClient(url, token="wrong").describe()
 
-    assert ("start_trial", request) in engine.calls
+    assert ("start_trial", REQUEST) in engine.calls
+    assert ("begin", HANDLE) in engine.calls
     # The release's access policy reaches the engine that runs the gateway.
     assert ("agent_endpoints", HANDLE, GATEWAY) in engine.calls
     assert ("close_agent_endpoints", HANDLE) in engine.calls
     assert ("score", HANDLE, "/results", True) in engine.calls
     assert ("stop_trial", HANDLE, "aborted") in engine.calls
+
+
+def test_repeated_requests_do_not_redo_work_and_a_retry_redeploys() -> None:
+    engine = _StubEngine()
+    engine.begin_error = EngineError("symptoms never appeared", outcome="infra_failed")
+    with _serve(create_engine_app(engine, token=TOKEN)) as url:
+        client = EngineClient(url, token=TOKEN)
+        assert client.start_trial(REQUEST) == HANDLE
+        # A start resent after a dropped connection finds the deployed trial.
+        assert client.start_trial(REQUEST) == HANDLE
+        with pytest.raises(EngineError, match="symptoms never appeared") as failed:
+            client.begin(HANDLE)
+        assert failed.value.outcome == "infra_failed"
+        client.stop_trial(HANDLE, status="error")
+        client.stop_trial(HANDLE, status="error")
+        # A retried trial reuses its session ID and deploys again.
+        assert client.start_trial(REQUEST) == HANDLE
+
+    assert [call[0] for call in engine.calls] == [
+        "start_trial",
+        "begin",
+        "stop_trial",
+        "start_trial",
+    ]
+
+
+def test_stop_during_deployment_waits_for_it_then_tears_down() -> None:
+    engine = _StubEngine()
+    engine.release = threading.Event()
+    starting: dict[str, BaseException] = {}
+
+    with _serve(create_engine_app(engine, token=TOKEN)) as url:
+        client = EngineClient(url, token=TOKEN)
+
+        def start() -> None:
+            try:
+                client.start_trial(REQUEST)
+            except EngineError as exc:
+                starting["error"] = exc
+
+        starter = threading.Thread(target=start)
+        starter.start()
+        assert engine.deploying.wait(5)
+        stopper = threading.Thread(target=client.stop_trial, args=(HANDLE,))
+        stopper.start()
+        time.sleep(0.3)
+        # The stop waits for the deployment instead of racing it.
+        assert [call[0] for call in engine.calls] == ["start_trial"]
+        engine.release.set()
+        stopper.join(10)
+        starter.join(10)
+
+    assert [call[0] for call in engine.calls] == ["start_trial", "stop_trial"]
+    assert "was stopped" in str(starting["error"])
 
 
 def test_engine_gateway_exports_the_engine_gateway_for_one_agent_run(

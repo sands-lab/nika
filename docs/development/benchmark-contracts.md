@@ -120,7 +120,7 @@ Test: load every manifest under `benchmark/releases/` and verify its hashes; che
 
 The lifecycle protocol is the only way the frontend asks the benchmark engine to do anything during a run. Before it, the trial loop in `run_single_case` (`src/nika/workflows/benchmark/run.py`) called `start_net_env`, `inject_failure`, `close_session`, and `run_eval_metrics` directly, and the MCP gateway and the fault-presence check reached into the environment and failure code themselves.
 
-[NIKA Remote](../operations/remote.md) already runs environment deployment, failure injection, the fault-artifact recheck, session close, and artifact transfer behind an HTTP API (`src/nika/remote/`), and its attach call already runs the MCP gateway next to the environment and returns the gateway URL and tokens. The benchmark engine is therefore a NIKA Remote daemon built from the release tag. The lifecycle protocol versions that API and adds `describe`, `list_tasks`, and `score`.
+The same protocol applies wherever the benchmark engine runs. The engine always runs on the host that runs the environments, because it deploys them through that host's Docker and serves each trial's MCP gateway next to them. [NIKA Remote](../operations/remote.md) has a separate API (`src/nika/remote/`) that mirrors the hands-on commands, such as `nika env start` and `nika failure inject`, for the current NIKA on a remote lab host. For a release without an `engine` block, the in-process engine forwards deployment, injection, and the gateway to that API when NIKA Remote is enabled. To run a pinned engine on a remote lab host, NIKA Remote will start the engine's container there, and the frontend will speak the same lifecycle protocol to it.
 
 The benchmark engine is a long-lived HTTP service on the host loopback interface. It serves the lifecycle operations under `/v<API version>/`, and the MCP gateway it opens for each trial serves the agent directly. It stays up for the whole run and holds per-trial state between calls, which some steps need: the fault-presence check, for example, reuses the failure instance that injected the fault. One benchmark engine serves all the trials of a run, including parallel ones.
 
@@ -128,8 +128,9 @@ The benchmark engine is a long-lived HTTP service on the host loopback interface
 | --- | --- | --- |
 | `describe` | Release | Supported engine API versions, release ID and version, engine commit, task-file hashes, host Docker and kernel versions |
 | `list_tasks` | Split | Task IDs and the deployment parameters the frontend schedules on, never ground truth |
-| `start_trial` | Task ID, trial index, trial directory | Trial handle, and every resource the benchmark engine created |
-| `inject` | Trial handle | Ready once the failure is active and its symptoms are observable |
+| `start_trial` | Task ID, release version, trial index, trial directory | Trial handle, and every resource the benchmark engine created |
+| `begin` | Trial handle | The task description the agent receives, once the agent may start; for every current task, its failure is then injected and verified |
+| `trial_status` | Session ID | Over HTTP, the trial's state (see [Trial states](#trial-states)) |
 | `agent_endpoints` | Trial handle, access policy, where the agent runs | The trial's MCP gateway (contract C): its URL for the frontend and for the agent, the session and phase tokens, and the MCP servers it serves |
 | `close_agent_endpoints` | Trial handle | Closes the trial's MCP gateway |
 | `fault_check` | Trial handle | Whether the injected failure is still present |
@@ -138,8 +139,12 @@ The benchmark engine is a long-lived HTTP service on the host loopback interface
 
 Rules:
 
-* The benchmark engine reports every resource it creates: Docker containers and networks, Kathará labs, and Containerlab labs, each with the labels or names needed to remove it. The frontend records them in its session store (`STATE_DIR/runtime/sessions.db`), so `nika session ps` lists trials of any release and `nika session close` tears them down through `stop_trial`, or from the resource list when the benchmark engine is gone.
-* Ground truth stays in the benchmark engine until `score`. The frontend decides whether a failed trial can be scored from the `inject` result, not by reading `ground_truth.json`.
+* The benchmark engine reports every resource it creates: Docker containers and networks, Kathará labs, and Containerlab labs, each with the labels or names needed to remove it. The frontend records them in its session store (`STATE_DIR/runtime/sessions.db`), so `nika session ps` lists trials of any release.
+* The engine that deployed a trial also tears it down through `stop_trial`, on Ctrl+C as at the end of a trial. A pinned engine's container exits with its run, so `nika session close` and `nika session wipe` start it again from the image that the run's `run.json` records.
+* The frontend sends the release version in the `start_trial` request and receives the agent's task description from `begin`, instead of exchanging them through the engine's session record.
+* `begin` marks the moment the agent is about to start, and the engine decides what the task needs by then. A task that injects a failure later in the trial schedules it in the engine from that moment, and the frontend's calls stay the same.
+* The frontend decides whether a failed trial can be scored by whether `begin` returned, which it records as `ready` in the trial's `run.json` so that a parent process can read it after a worker dies. It does not read `ground_truth.json` for this decision.
+* The frontend never grades an answer itself. When resume finds a solved trial without metrics, it asks the run's engine to `score` it.
 * Errors carry one of the outcome classes in `src/nika/workflows/benchmark/outcomes.py` (`agent_failed`, `endpoint_failed`, `infra_failed`), so retry and resume behave the same for every release.
 * The frontend moves a trial from diagnosis to submission through the gateway's phase endpoint, with the phase token from `agent_endpoints`, which never reaches the agent. The gateway freezes the diagnosis report and returns the submission context.
 * Within an engine API version, changes are additive only (see [Contract versions](#contract-versions)).
@@ -156,9 +161,41 @@ When a manifest declares an `engine` block, the frontend starts one container fo
 * **Access.** The engine listens on the host's loopback interface and accepts only lifecycle requests that carry the run's token. The gateway it opens for a trial binds where the agent's sandbox reaches it, as on a host install, and accepts only MCP requests that carry that trial's session token. The gateway writes `tool_calls.jsonl` into the shared trial directory.
 * **Limits.** Firecracker execution and NIKA Remote cannot run a release that pins a benchmark engine yet, and the frontend stops such a run with an error. The engine exits when the frontend process ends; environments left behind are removed with `nika session close`.
 
-Three parts still go through the trial directory, which the engine container shares: the frontend reads task rows from the split files that ship with it instead of calling `list_tasks`, `score` writes `eval_metrics.json` instead of returning scores, and the trial loop checks for `ground_truth.json` to classify failed trials.
+Some parts still rely on the frontend's split files or on the trial directory that the engine container shares, so ground truth reaches the frontend before `score`:
+
+* The frontend reads task rows, including their expected root causes, from the split files that ship with it, and sends them to `start_trial` instead of task IDs from `list_tasks`.
+* `begin` writes `ground_truth.json` into the trial directory, and `score` writes `eval_metrics.json` there instead of returning scores.
+
+Once the frontend sends task IDs only and the engine writes `ground_truth.json` at `score`, ground truth stays in the engine until `score`. A pinned engine on a remote lab host needs the engine's files to come back through the protocol instead of a shared directory.
+
+The frontend also still writes its own trial fields, such as `ready`, the agent settings, and the run's provenance, through the session record that the engine creates, and the sandbox manager reads the environment name and lab backend from that record. An engine from an earlier release therefore has to keep that record in the format the current frontend reads.
 
 Test: run the same protocol test suite against the current NIKA's engine and against each published benchmark engine image.
+
+### Trial states
+
+Deploying an environment or preparing a trial can take many minutes. A request held open that long fails when the connection drops or a timeout expires first, and the engine keeps working on a trial the frontend has given up on. Over HTTP, `start_trial`, `begin`, and `stop_trial` therefore answer at once with the trial's state and do their work in the background, and the frontend polls `trial_status` until the state settles.
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> deploying: start_trial
+    deploying --> deployed
+    deployed --> preparing: begin
+    preparing --> ready
+    ready --> stopping: stop_trial
+    stopping --> stopped
+    deploying --> failed
+    preparing --> failed
+    stopping --> failed
+```
+
+* The frontend chooses each trial's session ID, so it can ask about or stop a trial whose `start_trial` answer never reached it.
+* Repeating `start_trial`, `begin`, or `stop_trial` returns the trial's current state instead of redoing the work. `start_trial` on a stopped or failed trial starts a new attempt, which is how a retried trial reuses its session ID.
+* `stop_trial` is accepted in any state. The engine runs one operation per trial at a time, so a stop sent while the trial deploys or prepares waits for that work and then tears the environment down.
+* A `ready` state carries the agent's task, and a `failed` state carries the error and its outcome class.
+
+`EngineClient` keeps the blocking methods of `LifecycleProtocol` by polling, so the trial loop is the same for the in-process engine and an engine container.
 
 ## C. Agent interface
 
@@ -194,11 +231,11 @@ The results schema defines what a run writes, so the current frontend can packag
 | File | Written by | Contents |
 | --- | --- | --- |
 | `run.json` (run directory) | Frontend | Run configuration, budgets, provenance |
-| `run.json` (trial directory) | Frontend | Trial identity, outcome, score status |
+| `run.json` (trial directory) | Frontend | Trial identity, whether the trial became `ready`, outcome, score status |
 | `nika.jsonl`, `messages.jsonl`, `model_calls.jsonl` | Frontend | Lifecycle events, agent messages, model calls |
 | `tool_calls.jsonl` | Benchmark engine (gateway) | Every tool call the agent made |
 | `submission.json` | Benchmark engine (`submit` tool) | The validated answer |
-| `ground_truth.json` | Benchmark engine | Injected failures; written at injection today, and by `score` once ground truth leaves the shared trial directory |
+| `ground_truth.json` | Benchmark engine | Injected failures; written by `begin` today, and by `score` once ground truth leaves the shared trial directory |
 | `eval_metrics.json` | Benchmark engine for scores, frontend for token, step, and tool-call counts | Per-trial metrics |
 
 Every run directory records `schema_version` and a `provenance` block in `run.json`:

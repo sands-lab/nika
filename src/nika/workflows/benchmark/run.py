@@ -114,7 +114,6 @@ from nika.workflows.benchmark.run_progress import (
 )
 from nika.workflows.benchmark.trials import (
     Trial,
-    _restore_success_eval_metrics,
     expand_trials,
     has_valid_submission,
     heal_trial_outcome,
@@ -126,6 +125,7 @@ from nika.workflows.benchmark.trials import (
     store_session_id_for_trial,
     trial_dir,
     trial_outcome,
+    trial_ready,
 )
 from nika.workflows.session.close import close_session
 
@@ -332,11 +332,9 @@ def cleanup_benchmark_interrupt(
                 )
             continue
         try:
-            close_session(
-                session_id=session_id,
-                undeploy=True,
-                session_dir=matched,
-                status="aborted",
+            # The run's engine tears the trial down, as it deployed it.
+            benchmark_engine().stop_trial(
+                _trial_handle(session_id, matched), status="aborted"
             )
             _mark_session_aborted(matched)
             closed += 1
@@ -473,6 +471,11 @@ def _stamp_release_meta(session_id: str, release_meta: dict | None) -> None:
     session = Session().load_running_session(session_id=session_id)
     for key, value in release_fields_for_session(release_meta).items():
         session.update_session(key, value)
+
+
+def _stamp_ready(session_id: str, ready: bool) -> None:
+    """Record in ``run.json`` whether ``begin`` returned."""
+    Session().load_running_session(session_id=session_id).update_session("ready", ready)
 
 
 def _stamp_trial_meta(
@@ -661,7 +664,9 @@ def _finalize_failed_trial(
 ) -> None:
     """Close the lab and stamp a post-inject failure outcome with ``score_status``.
 
-    ``agent_failed`` is a counted finished slot (kept by resume).
+    Callers finalize only trials that became ready (``begin`` returned), so
+    the agent had a valid task. ``agent_failed`` is a counted finished slot
+    (kept by resume).
     ``endpoint_failed`` / ``infra_failed`` are retryable: ``status=error``, not
     counted, cleaned on resume — no eval_metrics placeholders for those.
     """
@@ -670,7 +675,6 @@ def _finalize_failed_trial(
     _ensure_messages_file(session_dir)
 
     has_submission = has_valid_submission(session_dir)
-    has_ground_truth = (session_dir / "ground_truth.json").is_file()
     if has_submission:
         # Submission-first: agent finished even if a later step failed.
         outcome = "success"
@@ -679,16 +683,10 @@ def _finalize_failed_trial(
     elif outcome == "infra_failed":
         score_status = "infra_error"
     elif outcome == "endpoint_failed":
-        score_status = resolve_score_status(
-            has_submission=False,
-            infra_evidence=False,
-            has_ground_truth=has_ground_truth,
-        )
+        score_status = resolve_score_status(has_submission=False, infra_evidence=False)
     else:
         score_status = resolve_score_status(
-            has_submission=False,
-            infra_evidence=is_infra_error_evidence(error),
-            has_ground_truth=has_ground_truth,
+            has_submission=False, infra_evidence=is_infra_error_evidence(error)
         )
 
     _set_trial_outcome(
@@ -748,7 +746,7 @@ def _finalize_post_inject_failure(
     result_dir: str | None,
     error: BaseException,
 ) -> str:
-    """Finalize a trial that failed after ground truth was written.
+    """Finalize a trial that failed after it became ready for the agent.
 
     A valid ``submission.json`` means the agent finished its task, so the trial
     is a ``success`` even when a later step (agent timeout, sandbox teardown,
@@ -779,15 +777,15 @@ def _finalize_timed_out_trial(
     result_dir: str | None,
     error: BaseException,
 ) -> None:
-    """After a watchdog kill, stamp a failure when GT was already written."""
+    """After a watchdog kill, stamp a failure when the trial had become ready."""
     results_root = resolve_results_root(result_dir)
     session_dir = trial_dir(results_root, trial.case_key, trial.trial_index)
     session_id = (
         store_session_id_for_trial(trial.trial_id, result_dir) or trial.trial_id
     )
-    if not (session_dir / "ground_truth.json").is_file():
-        # Killed during deploy/inject: nothing to score, but undeploy the lab
-        # so it cannot overlap the next (possibly exclusive) trial.
+    if not trial_ready(session_dir):
+        # Killed before ``begin`` returned: nothing to score, but undeploy the
+        # lab so it cannot overlap the next (possibly exclusive) trial.
         _close_quietly(session_id, session_dir, status="error")
         return
     outcome = _finalize_post_inject_failure(
@@ -821,13 +819,11 @@ def _close_and_eval_success(
             _trial_handle(session_id, session_dir), result_dir=result_dir
         )
     except Exception as eval_error:  # noqa: BLE001 - outcome already stamped
+        # Never write -1 placeholders for a success: --resume scores it again.
         print(
             f"WARNING: could not write eval metrics for success "
             f"trial {session_id}: {eval_error}"
         )
-        # Rebuild from on-disk artifacts; never write -1 placeholders for a
-        # success, which would block --resume from repairing the metrics.
-        _restore_success_eval_metrics(session_dir)
     _stamp_closed_outcome(
         session_id=session_id,
         session_dir=session_dir,
@@ -973,22 +969,24 @@ def run_single_case(
         trial_dir=predetermined_dir,
         result_dir=result_dir,
         session_tag=session_tag,
+        release=(release_meta or {}).get("version"),
     )
 
     _phase("deploy")
     handle = engine.start_trial(request)
     session_id = handle.session_id
     session_dir = handle.trial_path
-    gt_written = False
+    ready = False
 
     try:
-        if not healthy and not handle.preinjected:
-            _phase("inject")
-            # inject_failure resolves release-scoped failure variants from the
-            # session's benchmark_version, so stamp it first.
-            _stamp_release_meta(session_id, release_meta)
-        gt_written = engine.inject(handle, request).ground_truth
+        _stamp_ready(session_id, False)
+        _phase("prepare")
+        task = engine.begin(handle)
+        # Failed-trial triage reads this: the agent got a valid task.
+        _stamp_ready(session_id, True)
+        ready = True
 
+        _stamp_release_meta(session_id, release_meta)
         session = Session().load_running_session(session_id=session_id)
         session.update_session(
             "benchmark_fingerprint",
@@ -996,7 +994,6 @@ def run_single_case(
         )
         if candidate_option_id:
             session.update_session("candidate_option_id", candidate_option_id)
-        _stamp_release_meta(session_id, release_meta)
         _stamp_trial_meta(
             session_id,
             trial_id=trial_id,
@@ -1011,6 +1008,7 @@ def run_single_case(
             model=model,
             max_steps=max_steps,
             session_id=session_id,
+            task_description=task.task_description,
             # Bare single-case CLI streams agent output like session-mode
             # ``nika agent run``; batch trials stay quiet.
             stream_output=not trial_id,
@@ -1065,7 +1063,7 @@ def run_single_case(
         # success (valid submission), counted agent_failed, or retryable
         # endpoint_failed / infra_failed. Bare single-case CLI (no trial_id)
         # still raises so abort-on-error behavior is preserved.
-        if trial_id and (gt_written or (session_dir / "ground_truth.json").is_file()):
+        if trial_id and ready:
             outcome = _finalize_post_inject_failure(
                 session_id=session_id,
                 session_dir=session_dir,
@@ -1324,8 +1322,8 @@ def _run_trial_with_timeout(
             _stop_worker(proc)
             raise RuntimeError(f"[{trial.trial_id}] trial worker did not exit")
         if proc.exitcode not in (0, None):
-            # Worker may have finalized already; if not and GT exists, classify
-            # the crash (agent never started / endpoint → retryable).
+            # Worker may have finalized already; if not and the trial was ready,
+            # classify the crash (agent never started / endpoint → retryable).
             results_root = resolve_results_root(result_dir)
             session_dir = trial_dir(results_root, trial.case_key, trial.trial_index)
             # The worker logged the real cause before dying; surface it here so
@@ -1345,7 +1343,7 @@ def _run_trial_with_timeout(
                 # The worker handled SIGTERM/SIGINT and undeployed its lab;
                 # leave the slot incomplete for --resume.
                 raise crash_error
-            if not (session_dir / "ground_truth.json").is_file() or (
+            if not trial_ready(session_dir) or (
                 not is_valid_trial(session_dir)
                 and not heal_trial_outcome(session_dir)
                 and not is_finalized_failure(session_dir)

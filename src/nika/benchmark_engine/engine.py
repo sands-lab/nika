@@ -20,17 +20,22 @@ from nika.benchmark_engine.host import engine_host_info
 from nika.benchmark_engine.protocol import (
     API_VERSIONS,
     AgentEndpoints,
+    AgentTask,
     EngineDescription,
+    EngineError,
     FaultCheck,
     GatewayRequest,
-    InjectResult,
     Resource,
     TrialHandle,
     TrialRequest,
 )
+from nika.utils.logger import bind_session_dir
+from nika.utils.session import Session
 from nika.validation.presence import (
     anomaly_expected,
     bound_injected_problem,
+    log_presence_check,
+    presence_record,
     recheck_bound_artifact,
     remote_lab,
 )
@@ -56,6 +61,9 @@ class BenchmarkEngine:
 
     def __init__(self) -> None:
         self._gateways = GatewayLeases()
+        # Started trials: the request ``begin`` prepares, and whether the
+        # environment came up with its failure already injected.
+        self._started: dict[str, tuple[TrialRequest, bool]] = {}
 
     def describe(self, release: str | None = None) -> EngineDescription:
         """Describe *release*; this engine serves every release NIKA ships."""
@@ -109,32 +117,59 @@ class BenchmarkEngine:
                 **{key: task.get(key) for key in _DEPLOY_KEYS},
             )
         trial_dir = request.trial_dir
-        if trial_dir is None:
-            try:
+        try:
+            if request.release:
+                # Injection resolves the release's failure variants from it.
+                Session().load_running_session(session_id=session_id).update_session(
+                    "benchmark_version", request.release
+                )
+            if trial_dir is None:
                 trial_dir = str(load_session_meta_for_close(session_id)["session_dir"])
-            except BaseException:
-                close_session(session_id=session_id, undeploy=True, status="error")
-                raise
+        except BaseException:
+            close_session(session_id=session_id, undeploy=True, status="error")
+            raise
+        preinjected = image_lab is not None and image_lab.case is not None
+        self._started[session_id] = (request, preinjected)
         return TrialHandle(
             session_id=session_id,
             trial_dir=trial_dir,
             resources=[Resource(kind="nika_session", id=session_id)],
-            preinjected=image_lab is not None and image_lab.case is not None,
         )
 
-    def inject(self, handle: TrialHandle, request: TrialRequest) -> InjectResult:
+    def begin(self, handle: TrialHandle) -> AgentTask:
+        """Make the trial ready for the agent, which starts right after.
+
+        Injects the task's failure and returns once it is verified in place. A
+        healthy task gets its no-fault artifacts, and a lab restored with its
+        failure already injected needs nothing. Logs the post-inject fault
+        read and returns the task the agent receives.
+        """
+        session_id = handle.session_id
+        try:
+            request, preinjected = self._started[session_id]
+        except KeyError:
+            raise EngineError(
+                f"trial {session_id} was not started by this engine"
+            ) from None
         if request.healthy:
-            write_healthy_session_artifacts(handle.session_id)
-        elif not handle.preinjected:
+            write_healthy_session_artifacts(session_id)
+        elif not preinjected:
             inject_failure(
                 problem_names=list(request.failures),
-                session_id=handle.session_id,
+                session_id=session_id,
                 param_overrides=dict(request.inject),
                 expected_root_causes=request.expected_root_causes,
             )
-        return InjectResult(
-            ground_truth=(handle.trial_path / "ground_truth.json").is_file()
-        )
+        if bound_injected_problem(session_id) is None:
+            # No injection in this process logged it: a healthy task, a lab
+            # restored with its failure, or an injection on a NIKA Remote host.
+            bind_session_dir(handle.trial_path)
+            log_presence_check(presence_record(self.fault_check(handle), "post_inject"))
+        session = Session().load_running_session(session_id=session_id)
+        task_description = getattr(session, "task_description", None)
+        if not task_description:
+            raise EngineError(f"trial {session_id} has no task description")
+        return AgentTask(task_description=task_description)
 
     def agent_endpoints(
         self, handle: TrialHandle, request: GatewayRequest
@@ -243,6 +278,7 @@ class BenchmarkEngine:
         )
 
     def stop_trial(self, handle: TrialHandle, *, status: str = "finished") -> None:
+        self._started.pop(handle.session_id, None)
         self._gateways.close(handle.session_id)
         close_session(
             session_id=handle.session_id,

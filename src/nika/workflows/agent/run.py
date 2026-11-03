@@ -35,6 +35,7 @@ def start_agent(
     max_steps: int | None = None,
     *,
     session_id: str | None = None,
+    task_description: str | None = None,
     reasoning_effort: str | None = None,
     stream_output: bool = True,
     check_fault_presence: bool = False,
@@ -49,7 +50,8 @@ def start_agent(
     Every agent runs in its own sandbox; only test agents that need host state
     (``template=None``, e.g. ``mock``) run in this process. *access* is the
     release's access policy; without it, the run config's ``agent.access.role``
-    selects one.
+    selects one. A benchmark trial passes the *task_description* that the
+    engine's ``begin`` returned; a hands-on session uses its own.
     """
     from nika.agents.submission import ReportMapper
     from nika.run_config.loader import get_run_config
@@ -99,6 +101,8 @@ def start_agent(
 
     session = Session()
     session.load_running_session(session_id=session_id)
+    if task_description is None:
+        task_description = session.task_description
     session.update_session("agent_type", agent_type)
     if llm_provider is not None:
         session.update_session("llm_provider", llm_provider)
@@ -191,6 +195,7 @@ def start_agent(
             if use_sandbox:
                 SandboxManager(sandbox_config).run(
                     session=session,
+                    task_description=task_description,
                     agent_type=agent_type,
                     model=model,
                     max_steps=max_steps,
@@ -218,7 +223,7 @@ def start_agent(
                 )
                 run_agent(
                     agent,
-                    session.task_description,
+                    task_description,
                     timeout_sec=timeout_sec,
                     report_mapper=report_mapper,
                 )

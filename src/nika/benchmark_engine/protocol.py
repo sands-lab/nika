@@ -56,6 +56,8 @@ class TrialRequest(_Message):
 
     ``task`` is the task row as the split file defines it. A pinned benchmark
     engine checks it against its own copy; the current NIKA's engine deploys it.
+    ``release`` is the version of the release the task belongs to, which
+    selects that release's failure variants.
     """
 
     task: dict[str, Any]
@@ -67,6 +69,7 @@ class TrialRequest(_Message):
     trial_dir: str | None = None
     result_dir: str | None = None
     session_tag: str | None = None
+    release: str | None = None
 
 
 class Resource(_Message):
@@ -82,18 +85,41 @@ class TrialHandle(_Message):
     session_id: str
     trial_dir: str
     resources: list[Resource] = Field(default_factory=list)
-    # The environment was restored with the failure already injected.
-    preinjected: bool = False
 
     @property
     def trial_path(self) -> Path:
         return Path(self.trial_dir)
 
 
-class InjectResult(_Message):
-    """``ground_truth`` is true once the trial can be scored."""
+class AgentTask(_Message):
+    """What the agent is told when its trial is ready, as ``begin`` returns it."""
 
-    ground_truth: bool
+    task_description: str
+
+
+# A trial's lifecycle as the engine service tracks it.
+TrialState = Literal[
+    "deploying", "deployed", "preparing", "ready", "stopping", "stopped", "failed"
+]
+
+
+class TrialStatus(_Message):
+    """A trial's state, as the engine service reports it over HTTP.
+
+    ``start_trial``, ``begin``, and ``stop_trial`` answer at once with it, and
+    the frontend polls ``trial_status`` until the state settles. ``handle`` is
+    set once the environment is deployed, and ``task`` once the trial is
+    ready. ``error``, ``error_type``, and ``outcome`` describe a ``failed``
+    state.
+    """
+
+    session_id: str
+    state: TrialState
+    handle: TrialHandle | None = None
+    task: AgentTask | None = None
+    error: str | None = None
+    error_type: str | None = None
+    outcome: FailureOutcome | None = None
 
 
 class FaultCheck(_Message):
@@ -183,7 +209,9 @@ class LifecycleProtocol(Protocol):
 
     def start_trial(self, request: TrialRequest) -> TrialHandle: ...
 
-    def inject(self, handle: TrialHandle, request: TrialRequest) -> InjectResult: ...
+    def begin(self, handle: TrialHandle) -> AgentTask:
+        """Return the agent's task once it may start; the engine decides when."""
+        ...
 
     def agent_endpoints(
         self, handle: TrialHandle, request: GatewayRequest
