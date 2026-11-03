@@ -68,7 +68,7 @@ nika session close -y
 nika eval metrics
 ```
 
-Artifacts are copied to the local `{nika.result_dir}/{session_id}/` directory (default `results/{session_id}/`), and evaluation runs locally. Remote mode also applies to `nika benchmark run`.
+Artifacts are copied to the local `{nika.result_dir}/{session_id}/` directory (default `results/{session_id}/`), and evaluation runs locally. Remote mode also applies to `nika benchmark run`, except for a release that pins a benchmark engine, such as `0.2.0`, which remote mode cannot run yet ([#308](https://github.com/sands-lab/nika/issues/308)).
 
 While `nika failure inject` and `nika agent run` execute, the agent host follows the remote `nika.jsonl` and `messages.jsonl` and appends new lines to the local copies about once a second, so you can watch a remote trial as it runs.
 

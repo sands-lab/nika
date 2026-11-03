@@ -2087,6 +2087,13 @@ def run_benchmark_from_release(
     if resolved.split != resolved_split:
         resolved = load_release(release_ref, split=resolved_split)
     results_root = resolve_results_root(result_dir)
+    # Settings and --task-id need only the manifest: check them before the
+    # benchmark engine starts, which can mean building its image.
+    check_run_settings(resolved, agent_type=agent_type)
+    n_trials = resolved.n_trials
+    planned: list[Trial] | None = None
+    if task_ids:
+        planned = select_trials(expand_trials(resolved.cases, n_trials), task_ids)
     with release_engine(
         resolved.manifest.get("engine"),
         results_root=results_root,
@@ -2094,12 +2101,6 @@ def run_benchmark_from_release(
     ) as pinned_engine:
         engine = benchmark_engine().describe(resolved.version)
         verify_engine(resolved, engine)
-        check_run_settings(resolved, agent_type=agent_type)
-        n_trials = resolved.n_trials
-        # Validate --task-id before preflight / image pulls so bad selectors fail fast.
-        planned: list[Trial] | None = None
-        if task_ids:
-            planned = select_trials(expand_trials(resolved.cases, n_trials), task_ids)
         # With Firecracker execution, labs (and their images) live in the lab images.
         preflight_release(
             resolved, check_images=check_images and not firecracker_enabled()

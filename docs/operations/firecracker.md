@@ -145,8 +145,10 @@ the host, over vsock.
 Run benchmarks as usual:
 
 ```shell
-nika benchmark run --release 0.2.0 --split test
+nika benchmark run --config benchmark/working/cases.yaml
 ```
+
+Firecracker execution cannot run a release that pins a benchmark engine, such as `0.2.0`, yet.
 
 With Firecracker execution, every trial of the run uses a Firecracker VM, and
 the runner schedules for that:
