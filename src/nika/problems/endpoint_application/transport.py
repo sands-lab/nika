@@ -1152,6 +1152,8 @@ class ReceiverResourceContention(ProblemBase):
                     "downloads": self._last_downloads,
                 },
             }
+        quota_restored = True
+        quota_error = None
         if getattr(self, "_receiver_quota_applied", False):
             try:
                 set_nano_cpus(
@@ -1159,17 +1161,23 @@ class ReceiverResourceContention(ProblemBase):
                     params.host_name,
                     int(getattr(self, "_original_nano_cpus", 0) or 0),
                 )
-            except Exception:  # noqa: BLE001
-                pass
+                quota_restored = read_nano_cpus(self.runtime, params.host_name) == int(
+                    getattr(self, "_original_nano_cpus", 0) or 0
+                )
+            except Exception as exc:  # noqa: BLE001
+                quota_restored = False
+                quota_error = str(exc)
         _remove_archive_job(self.runtime, params.host_name, self._archive or {})
         time.sleep(1.0)
         gone = not _archive_job_running(
             container_commands(self.runtime, params.host_name)
         )
         return {
-            "verified": gone,
+            "verified": gone and quota_restored,
             "details": {
                 "host": params.host_name,
                 "workload_gone": gone,
+                "quota_restored": quota_restored,
+                "quota_error": quota_error,
             },
         }

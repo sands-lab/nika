@@ -466,6 +466,12 @@ class ProblemBase:
             f"{type(self).__name__} must implement root_cause_resources()."
         )
 
+    def recover_fault(self, params: Any = None) -> dict:
+        """Undo this instance's injection and verify the restored state."""
+        raise NotImplementedError(
+            f"{type(self).__name__} must implement recover_fault()."
+        )
+
     def oracle_playbook(self, params: Any = None) -> OraclePlaybook:
         """Return the reference diagnosis path that confirms this fault.
 

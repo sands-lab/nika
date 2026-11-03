@@ -122,7 +122,7 @@ See the [SNDlib ISP scenarios reference](../operations/network-scenarios.md#sndl
 
 Failures live under `src/nika/problems/<failure_domain>/`. The directory name must match the class `failure_domain`. Cross-domain base classes and helpers live under `src/nika/problems/support/`; support packages must not define registered failures. The registry discovers a concrete `ProblemBase` subclass when it sets `root_cause_name`, validates all taxonomy fields, and builds `META` during import. Put attacks, spoofing, and poisoning failures under `security`.
 
-Each fault is a single `ProblemBase` subclass that implements injection, verification, and unified ground truth via `get_ground_truth()`. Do not split one fault into separate Detection / Localization / RCA classes.
+Each fault is a single `ProblemBase` subclass that implements injection, verification, recovery, and unified ground truth via `get_ground_truth()`. Do not split one fault into separate Detection / Localization / RCA classes.
 
 ```python
 from pydantic import BaseModel, Field
@@ -153,6 +153,9 @@ class MyFault(ProblemBase):
         super().__init__(scenario_name, **kwargs)
 
     def inject_fault(self, params: MyFaultParams):
+        self._original_state = self.runtime.get_interface_operstate(params.host_name, params.intf_name)
+        if self._original_state != "up":
+            raise RuntimeError("The target interface must be up before injection.")
         self.runtime.set_interface_state(params.host_name, params.intf_name, "down")
 
     def root_cause_resources(self, params: MyFaultParams):
@@ -165,6 +168,14 @@ class MyFault(ProblemBase):
             verified=operstate == "down",
             details={"host": params.host_name, "intf": params.intf_name, "operstate": operstate},
         )
+
+    def recover_fault(self, params: MyFaultParams) -> dict:
+        original = getattr(self, "_original_state", None)
+        if original not in {"up", "down"}:
+            return build_verify_result(self.root_cause_name, False, {"error": "Original interface state is unavailable."})
+        self.runtime.set_interface_state(params.host_name, params.intf_name, original)
+        observed = self.runtime.get_interface_operstate(params.host_name, params.intf_name)
+        return build_verify_result(self.root_cause_name, observed == original, {"operstate": observed})
 ```
 
 Notes:
@@ -177,6 +188,8 @@ Notes:
 - Agents can compare devices, so leave no change that singles out the target beyond the root cause itself. Supporting configuration that the fault needs but that is not its root cause, such as a policy that admits a prefix flood, goes on every comparable device, as `bgp_max_prefix_exceeded` does.
 - NIKA already removes two on-disk shortcuts. When an environment starts, it deletes the `/hostlab` directory inside every Kathara node, which holds that node's original lab files, and saves every FRR router's running config. After injection, it recreates every FRR router's saved config files, keeping each router's own content, and gives them all one shared timestamp.
 - `verify_fault()` must prove the injection artifacts are present (nft/tc/config/process/quota). Failed verification marks the injection as failed and stops the run. Do not put slow network-impact probes in `verify_fault`; put those in the test-path API `nika.validation.symptom.evaluate_symptom` (contracts under `src/nika/validation/symptom/`).
+- Capture recovery state in controller memory before mutation, and call `recover_fault(params)` on the injecting instance in the same Python process. Undo only the failure's changes. Return `verified=True` only after reading back the restored state; report missing snapshots or failed restoration explicitly. Test repeated recovery, partial injection, and healthy behavior after protocol convergence.
+- `MultiFaultProblem.recover_fault()` undoes attempted injections in reverse order. It stops at a failed recovery and retains that step and the earlier steps for retry, preserving the order of dependent snapshots.
 - Implement `root_cause_resources(params)` so NIKA can derive structured RCA ground truth from injection parameters. Do not maintain a second root-cause table. Use `link_containing_endpoint` for controller-side cable faults (`link_down`, `link_flap`, `link_packet_corruption`); use `interface_on` when the mutated object is an interface. See [Root-cause ground truth and scoring](../benchmarks/root-cause-evaluation.md).
 - Implement `oracle_playbook(params)` with the reference diagnosis an operator would follow to confirm this fault through the agent's MCP tools. A contract test rejects a failure without one. See [Write a playbook for a new failure](../benchmarks/oracle-solver.md#write-a-playbook-for-a-new-failure).
 - `Params` must be a Pydantic model. `nika failure describe` and benchmark YAML validation use it as the injection schema.
@@ -314,7 +327,7 @@ uv run nika benchmark validate-profiles --environment dc_clos --device-profile r
 uv run nika benchmark validate-profiles --environment min3clos --device-profile sonic
 ```
 
-Each result is written to `benchmark/working/validation/device_profiles.yaml` as `validated`, `failed` (with the stage and error) or `unsupported` (a `RuntimeCapabilityError`), with the NIKA commit, vendor image tag and date. Do not edit this file by hand. Cells run one at a time under `/tmp/nika-heavy-lab.lock`, and recorded cells are skipped, so an interrupted run resumes; pass `--rerun` to repeat them. Run it on demand or nightly, not for every change: a native lab takes several minutes to boot. The base ISP scenarios share one capability surface, so they form a single `isp` environment.
+Each result is written to `benchmark/working/validation/device_profiles.yaml` as `validated`, `failed` (with the stage and error) or `unsupported` (a `RuntimeCapabilityError`), with the NIKA commit, vendor image tag and date. Do not edit this file by hand. Cells run one at a time under `/tmp/nika-heavy-lab.lock`. Recorded cells are skipped so an interrupted run resumes; validated records without `recovery: restored` are rerun. Pass `--rerun` to repeat recorded cells. Run it on demand or nightly, not for every change: a native lab takes several minutes to boot. The base ISP scenarios share one capability surface, so they form a single `isp` environment.
 
 The coverage matrix shows the declared compatibility and the last result per cell. `nika benchmark generate --validated-only` keeps IOS XR, RouterOS and SONiC cases only for validated cells.
 

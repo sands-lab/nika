@@ -24,6 +24,7 @@ from nika.problems.support.oracle import (
     numbers_after,
     shell,
 )
+from nika.problems.support.recovery import FileSnapshot, checked_exec
 from nika.utils.logger import system_logger
 
 logger = system_logger
@@ -190,6 +191,14 @@ class DNSRecordError(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: DNSRecordErrorParams):
+        self._zone_snapshot = FileSnapshot.capture(
+            self.runtime, params.host_name, f"/etc/bind/db.{params.target_domain}"
+        )
+        self._original_dns_answer = checked_exec(
+            self.runtime,
+            params.host_name,
+            f"dig +short +time=2 +tries=1 @127.0.0.1 {params.target_website}.{params.target_domain} A",
+        )
         if params.wrong_ip:
             wrong_ip = params.wrong_ip
         else:
@@ -215,6 +224,33 @@ class DNSRecordError(ProblemBase):
         logger.info(
             f"Injecting DNS record error on {params.host_name}: mapping {params.target_website}:{params.target_domain} "
             f"to wrong IP {wrong_ip} instead of {right_ip}"
+        )
+
+    def recover_fault(self, params: DNSRecordErrorParams) -> dict:
+        snapshot = getattr(self, "_zone_snapshot", None)
+        if snapshot is None:
+            return build_verify_result(
+                fault_type=self.root_cause_name,
+                verified=False,
+                details={"error": "Pre-injection DNS zone is unavailable."},
+            )
+        snapshot.restore(self.runtime, params.host_name)
+        checked_exec(
+            self.runtime,
+            params.host_name,
+            "rndc reload 2>/dev/null || service named restart",
+        )
+        answer = checked_exec(
+            self.runtime,
+            params.host_name,
+            f"dig +short +time=2 +tries=1 @127.0.0.1 {params.target_website}.{params.target_domain} A",
+        )
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=snapshot.matches(self.runtime, params.host_name)
+            and sorted(answer.splitlines())
+            == sorted(self._original_dns_answer.splitlines()),
+            details={"host": params.host_name},
         )
 
     def verify_fault(self, params: DNSRecordErrorParams) -> dict:

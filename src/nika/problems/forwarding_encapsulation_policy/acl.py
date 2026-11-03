@@ -1,3 +1,8 @@
+from nika.problems.support.nft_recovery import NftDropRecovery
+import shlex
+import json
+
+from nika.problems.support.recovery import checked_exec
 import re
 
 from pydantic import BaseModel, Field
@@ -37,6 +42,76 @@ from nika.problems.support.oracle import (
 from nika.problems.support.polling import wait_until
 from nika.problems.support.router_ops import native_fault_ops
 from nika.runtime.base import RuntimeCapabilityError
+
+
+class _AclRecovery:
+    def _add_drop_rule(self, node, rule, *, family="inet"):
+        if not hasattr(self, "_nft_recovery"):
+            self._nft_recovery = NftDropRecovery()
+        self._nft_recovery.add(self.runtime, node, rule, family=family)
+
+    def recover_fault(self, params) -> dict:
+        if hasattr(self, "_native_saved"):
+            ops, saved = self._native_saved
+            ops.restore_config(saved)
+            check = getattr(
+                ops, getattr(self, "_native_filter_check", "bgp_transport_blocked")
+            )
+            ok = check() == self._native_blocked
+        elif hasattr(self, "_srl_acl_entries"):
+            self.runtime.srl_run_script(
+                params.host_name,
+                [
+                    "enter candidate",
+                    *[
+                        f"delete /acl acl-filter cpm type ipv4 entry {seq}"
+                        for seq in self._srl_acl_entries
+                    ],
+                    "commit now",
+                ],
+            )
+            ok = all(
+                not self.runtime.srl_bgp_acl_drop_179_present(
+                    params.host_name, {seq: port}
+                )
+                for seq, port in self._srl_acl_entries.items()
+            )
+        else:
+            recovery = getattr(self, "_nft_recovery", None)
+            ok = recovery is not None and recovery.restore(self.runtime)
+        if hasattr(self, "_neighbors"):
+            for row in self._neighbors:
+                checked_exec(
+                    self.runtime,
+                    params.host_name,
+                    "ip neigh replace "
+                    + shlex.join(
+                        [
+                            row["dst"],
+                            "dev",
+                            row["dev"],
+                            "lladdr",
+                            row["lladdr"],
+                            "nud",
+                            "permanent",
+                        ]
+                    ),
+                )
+            current = json.loads(
+                checked_exec(
+                    self.runtime, params.host_name, "ip -j neigh show nud permanent"
+                )
+            )
+            present = {(r["dst"], r["dev"], r.get("lladdr")) for r in current}
+            ok = ok and all(
+                (r["dst"], r["dev"], r.get("lladdr")) in present
+                for r in self._neighbors
+            )
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=ok,
+            details={"host": params.host_name},
+        )
 
 
 def _verify_nft_drop(
@@ -188,7 +263,7 @@ class BGPAclBlockParams(BaseModel):
     host_name: str = Field(description="Target router host name.")
 
 
-class BGPAclBlock(ProblemBase):
+class BGPAclBlock(_AclRecovery, ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     symptom_probe = "custom"
     symptom_class = "control_plane"
@@ -196,7 +271,13 @@ class BGPAclBlock(ProblemBase):
     description = "BGP control-plane traffic is blocked by an ACL."
     TAGS: str = ["bgp"]
     native_router_operations = frozenset(
-        {"bgp_established_peers", "bgp_transport_blocked", "block_bgp_transport"}
+        {
+            "bgp_established_peers",
+            "bgp_transport_blocked",
+            "block_bgp_transport",
+            "save_config",
+            "restore_config",
+        }
     )
     supported_backends = ("kathara", "containerlab")
 
@@ -221,19 +302,22 @@ class BGPAclBlock(ProblemBase):
     def inject_fault(self, params: BGPAclBlockParams):
         ops = native_fault_ops(self, params.host_name, "block_bgp_transport")
         if ops is not None:
+            self._native_saved = (ops, ops.save_config())
+            self._native_blocked = ops.bgp_transport_blocked()
             ops.block_bgp_transport()
             wait_until(lambda: not ops.bgp_established_peers(), 8)
             return
         match self.lab_backend:
             case "containerlab":
-                self._srl_acl_entries = self.runtime.srl_add_bgp_acl_drop_179(
+                self._srl_acl_entries = self.runtime.srl_bgp_acl_drop_179_entries(
                     params.host_name
                 )
+                self.runtime.srl_add_bgp_acl_drop_179(params.host_name)
             case "kathara":
-                self.runtime.add_nft_drop_rule(
+                self._add_drop_rule(
                     params.host_name, "tcp dport 179 drop", family="inet"
                 )
-                self.runtime.add_nft_drop_rule(
+                self._add_drop_rule(
                     params.host_name, "tcp sport 179 drop", family="inet"
                 )
                 # Hard-reset every session so the ACL takes effect now instead
@@ -443,7 +527,7 @@ def _routeros_ospf_drop(output: str) -> bool:
     )
 
 
-class OSPFAclBlock(ProblemBase):
+class OSPFAclBlock(_AclRecovery, ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     symptom_probe = "custom"
     symptom_class = "control_plane"
@@ -465,6 +549,9 @@ class OSPFAclBlock(ProblemBase):
     def inject_fault(self, params: OSPFAclBlockParams):
         ops = native_fault_ops(self, params.host_name, "block_ospf")
         if ops is not None:
+            self._native_saved = (ops, ops.save_config())
+            self._native_blocked = ops.ospf_blocked()
+            self._native_filter_check = "ospf_blocked"
             ops.block_ospf()
             return
         match self.lab_backend:
@@ -487,13 +574,38 @@ class OSPFAclBlock(ProblemBase):
                         f"adjacencies: {neighbors}"
                     )
             case "kathara":
-                self.runtime.add_nft_drop_rule(
+                self._add_drop_rule(
                     params.host_name, "ip protocol ospf drop", family="inet"
                 )
             case backend:
                 raise RuntimeCapabilityError(
                     f"{type(self).__name__} cannot inject_fault: unsupported backend {backend!r}."
                 )
+
+    def recover_fault(self, params):
+        if hasattr(self, "_srl_acl_entries"):
+            entries = self._srl_acl_entries
+            self.runtime.srl_run_script(
+                params.host_name,
+                [
+                    "enter candidate",
+                    *(
+                        f"delete /acl acl-filter cpm type ipv4 entry {seq}"
+                        for seq in entries
+                    ),
+                    "commit now",
+                ],
+            )
+            return build_verify_result(
+                fault_type=self.root_cause_name,
+                verified=bool(entries)
+                and all(
+                    not self.runtime.srl_ospf_acl_drop_present(params.host_name, [seq])
+                    for seq in entries
+                ),
+                details={"host": params.host_name},
+            )
+        return super().recover_fault(params)
 
     def verify_fault(self, params: OSPFAclBlockParams) -> dict:
         """Verify the router's packet filter drops OSPF."""
@@ -571,7 +683,6 @@ class OSPFAclBlock(ProblemBase):
         )
 
 
-
 # ==================================================================
 
 
@@ -581,7 +692,7 @@ class ARPAclBlockParams(BaseModel):
     host_name: str = Field(description="Target host name.")
 
 
-class ARPAclBlock(ProblemBase):
+class ARPAclBlock(_AclRecovery, ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     symptom_probe = "path_ping"
     symptom_class = "unreachable"
@@ -601,7 +712,12 @@ class ARPAclBlock(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: ARPAclBlockParams):
-        self.runtime.add_nft_drop_rule(params.host_name, "drop", family="arp")
+        self._neighbors = json.loads(
+            checked_exec(
+                self.runtime, params.host_name, "ip -j neigh show nud permanent"
+            )
+        )
+        self._add_drop_rule(params.host_name, "drop", family="arp")
         # Clos/P4 startups install nud permanent GW neigh; flush all leaves those.
         self.runtime.exec(params.host_name, "ip neigh flush nud permanent")
         self.runtime.exec(params.host_name, "ip neigh flush all")
@@ -660,7 +776,7 @@ class IcmpAclBlockParams(BaseModel):
     host_name: str = Field(description="Target host name.")
 
 
-class IcmpAclBlock(ProblemBase):
+class IcmpAclBlock(_AclRecovery, ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     symptom_probe = "path_ping"
     symptom_class = "unreachable"
@@ -678,9 +794,7 @@ class IcmpAclBlock(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: IcmpAclBlockParams):
-        self.runtime.add_nft_drop_rule(
-            params.host_name, "ip protocol icmp drop", family="ip"
-        )
+        self._add_drop_rule(params.host_name, "ip protocol icmp drop", family="ip")
 
     def verify_fault(self, params: IcmpAclBlockParams) -> dict:
         """Verify nftables has a rule blocking ICMP traffic."""
@@ -734,7 +848,7 @@ class HttpAclBlockParams(BaseModel):
     host_name: str = Field(description="Target host name.")
 
 
-class HttpAclBlock(ProblemBase):
+class HttpAclBlock(_AclRecovery, ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     symptom_probe = "path_http"
     symptom_class = "unreachable"
@@ -752,9 +866,7 @@ class HttpAclBlock(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: HttpAclBlockParams):
-        self.runtime.add_nft_drop_rule(
-            params.host_name, "tcp dport 80 drop", family="inet"
-        )
+        self._add_drop_rule(params.host_name, "tcp dport 80 drop", family="inet")
 
     def verify_fault(self, params: HttpAclBlockParams) -> dict:
         """Verify nftables has a rule blocking HTTP (port 80) traffic."""
@@ -813,7 +925,7 @@ class DNSPortBlockedParams(BaseModel):
     host_name: str = Field(description="Target DNS server host name.")
 
 
-class DNSPortBlocked(ProblemBase):
+class DNSPortBlocked(_AclRecovery, ProblemBase):
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     symptom_probe = "custom"
     symptom_class = "unreachable"
@@ -832,12 +944,8 @@ class DNSPortBlocked(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: DNSPortBlockedParams):
-        self.runtime.add_nft_drop_rule(
-            params.host_name, "tcp dport 53 drop", family="inet"
-        )
-        self.runtime.add_nft_drop_rule(
-            params.host_name, "udp dport 53 drop", family="inet"
-        )
+        self._add_drop_rule(params.host_name, "tcp dport 53 drop", family="inet")
+        self._add_drop_rule(params.host_name, "udp dport 53 drop", family="inet")
 
     def verify_fault(self, params: DNSPortBlockedParams) -> dict:
         """Verify nftables has rules blocking DNS port 53."""

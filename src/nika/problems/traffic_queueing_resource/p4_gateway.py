@@ -55,8 +55,28 @@ class P4EcnThresholdMisconfiguration(ProblemBase):
         return [interface_resource(params.host_name, params.intf_name)]
 
     def inject_fault(self, params: P4EcnThresholdMisconfigurationParams):
+        self._original_threshold = read_runtime_config_value(
+            self.runtime, params.host_name, "ecn_config", params.bmv2_port
+        )
+        if self._original_threshold is None:
+            raise RuntimeError("Cannot read the ECN threshold before injection")
         set_ecn_threshold(
             self.runtime, params.host_name, params.bmv2_port, params.threshold
+        )
+
+    def recover_fault(self, params: P4EcnThresholdMisconfigurationParams) -> dict:
+        original = getattr(self, "_original_threshold", None)
+        if original is not None:
+            set_ecn_threshold(
+                self.runtime, params.host_name, params.bmv2_port, original
+            )
+        observed = read_runtime_config_value(
+            self.runtime, params.host_name, "ecn_config", params.bmv2_port
+        )
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=original is not None and observed == original,
+            details={"original_threshold": original, "observed_threshold": observed},
         )
 
     def verify_fault(self, params: P4EcnThresholdMisconfigurationParams) -> dict:

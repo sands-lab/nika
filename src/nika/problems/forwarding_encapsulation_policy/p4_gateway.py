@@ -7,6 +7,8 @@ import re
 
 from pydantic import BaseModel, Field
 
+from nika.problems.support.nft_recovery import NftDropRecovery
+from nika.problems.support.p4runtime_writes import p4runtime_write, require_ok
 from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
 from nika.problems.rca import interface_resource, node_resource
 from nika.problems.support.benchmark_targets import (
@@ -124,7 +126,12 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
     )
     TAGS = ["icmp"]
     native_router_operations = frozenset(
-        {"block_icmp_frag_needed", "icmp_frag_needed_blocked"}
+        {
+            "block_icmp_frag_needed",
+            "icmp_frag_needed_blocked",
+            "save_config",
+            "restore_config",
+        }
     )
     COMPATIBLE_COLUMNS = LINUX_PMTU_COLUMNS | {"p4_dc_gateway"}
     COMPATIBLE_PLATFORMS = LINUX_PMTU_PLATFORMS
@@ -165,18 +172,78 @@ class IcmpFragNeededFilterMisconfiguration(ProblemBase):
 
     def inject_fault(self, params: IcmpFragNeededFilterMisconfigurationParams):
         if self._uses_p4_filter(params):
+            observed = _read_switch(self.runtime, params.host_name)
+            if observed is None:
+                raise RuntimeError("Cannot read the ICMP filter before injection")
+            self._original_icmp_acl = list(
+                (observed.get("runtime_config") or {}).get("icmp_acl") or []
+            )
             self._result = set_icmp_frag_needed_filter(self.runtime, params.host_name)
             return
         ops = native_fault_ops(self, params.host_name, "block_icmp_frag_needed")
         if ops is not None:
+            self._native_saved = (ops, ops.save_config())
+            self._native_blocked = ops.icmp_frag_needed_blocked()
             ops.block_icmp_frag_needed()
             self._result = f"{ops.profile}-filter-frag-needed"
             return
-        self.runtime.add_nft_drop_rule(
-            params.host_name, _FRAG_NEEDED_NFT_RULE, family="ip"
+        self._nft_recovery = NftDropRecovery()
+        self._nft_recovery.add(
+            self.runtime, params.host_name, _FRAG_NEEDED_NFT_RULE, family="ip"
         )
         _age_out_path_mtus(self.runtime, self.net_env)
         self._result = "linux-nft-frag-needed"
+
+    def recover_fault(self, params: IcmpFragNeededFilterMisconfigurationParams) -> dict:
+        if self._uses_p4_filter(params):
+            original = getattr(self, "_original_icmp_acl", None)
+            if original is None:
+                ok = False
+            else:
+                observed = _read_switch(self.runtime, params.host_name)
+                if observed is None:
+                    raise RuntimeError("Cannot read the ICMP filter during recovery")
+                present = any(
+                    r.get("keys") == [3, 4] and not r.get("is_default")
+                    for r in (observed.get("runtime_config") or {}).get("icmp_acl", [])
+                )
+                was_present = any(
+                    r.get("keys") == [3, 4] and not r.get("is_default")
+                    for r in original
+                )
+                if present and not was_present:
+                    require_ok(
+                        p4runtime_write(
+                            self.runtime,
+                            params.host_name,
+                            [
+                                {
+                                    "type": "DELETE",
+                                    "table": "icmp_acl",
+                                    "match": {"type": 3, "code": 4},
+                                }
+                            ],
+                        ),
+                        "ICMP filter removal",
+                    )
+                current = _read_switch(self.runtime, params.host_name)
+                ok = (
+                    current is not None
+                    and ((current.get("runtime_config") or {}).get("icmp_acl") or [])
+                    == original
+                )
+        elif hasattr(self, "_native_saved"):
+            ops, saved = self._native_saved
+            ops.restore_config(saved)
+            ok = ops.icmp_frag_needed_blocked() == self._native_blocked
+        else:
+            recovery = getattr(self, "_nft_recovery", None)
+            ok = recovery is not None and recovery.restore(self.runtime)
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=ok,
+            details={"host": params.host_name},
+        )
 
     def verify_fault(self, params: IcmpFragNeededFilterMisconfigurationParams) -> dict:
         if self._uses_p4_filter(params):
@@ -543,7 +610,25 @@ class IntInsufficientMtuHeadroom(ProblemBase):
         return [interface_resource(params.host_name, params.intf_name)]
 
     def inject_fault(self, params: IntInsufficientMtuHeadroomParams):
+        self._original_int_mtu = read_runtime_config_value(
+            self.runtime, params.host_name, "int_mtu_config", params.bmv2_port
+        )
+        if self._original_int_mtu is None:
+            raise RuntimeError("Cannot read the INT MTU before injection")
         set_int_mtu(self.runtime, params.host_name, params.bmv2_port, params.int_mtu)
+
+    def recover_fault(self, params: IntInsufficientMtuHeadroomParams) -> dict:
+        original = getattr(self, "_original_int_mtu", None)
+        if original is not None:
+            set_int_mtu(self.runtime, params.host_name, params.bmv2_port, original)
+        observed = read_runtime_config_value(
+            self.runtime, params.host_name, "int_mtu_config", params.bmv2_port
+        )
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=original is not None and observed == original,
+            details={"original_mtu": original, "observed_mtu": observed},
+        )
 
     def verify_fault(self, params: IntInsufficientMtuHeadroomParams) -> dict:
         observed = read_runtime_config_value(
