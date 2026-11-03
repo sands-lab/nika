@@ -6,6 +6,7 @@ NetComplete workflow completes link metrics and supported AS-local import polici
 
 from __future__ import annotations
 
+import re
 from dataclasses import replace
 from pathlib import Path
 
@@ -1473,25 +1474,35 @@ def build_benchmark_isp_experiment(
                     "end",
                 )
         else:
+            config = env.deployment_configs[target]
             if env.bgp_plan:
-                origin = (
-                    f"/ip firewall address-list add list=BGP-ORIGINS address={prefix}"
+                # NIKA's and netlab's renderings name the origin list differently.
+                origins = (
+                    "BGP-ORIGINS" if "list=BGP-ORIGINS " in config else "bgp-networks"
+                )
+                origin_entry = (
+                    f"/ip firewall address-list add list={origins} address={prefix}"
                 )
                 withdraw_native = (
                     "/ip firewall address-list remove "
-                    f"[find where list=BGP-ORIGINS and address={prefix}]",
+                    f"[find where list={origins} and address={prefix}]",
                 )
-                recover_native = (origin,)
+                recover_native = (origin_entry,)
             else:
+                from nika.net_env.utils.routeros.common import routeros_interface
+
+                loopback = routeros_interface("lo")
                 template = next(
                     line
-                    for line in env.deployment_configs[target].splitlines()
-                    if line.startswith(f"/routing {plan.igp} interface-template add ")
-                    and "interfaces=lo0 " in line
+                    for line in config.splitlines()
+                    if re.match(
+                        rf"/routing[ /]{plan.igp}[ /]interface-template add ", line
+                    )
+                    and re.search(rf" interfaces?={loopback}(?: |$)", line)
                 )
                 withdraw_native = (
                     f"/routing {plan.igp} interface-template remove "
-                    "[find where interfaces=lo0]",
+                    f"[find where interfaces={loopback}]",
                 )
                 # The loopback keeps its address; only its IGP circuit goes.
                 recover_native = (template,)

@@ -40,6 +40,10 @@ def test_isp_benchmark_variants_deploy_current_rendered_configs(scenario, option
     from nika.net_env.synthesis.rendered import renderable
 
     env = get_net_env_instance(scenario, **options)
+    if (options.get("device_profile"), options.get("igp")) == ("routeros", "isis"):
+        # netlab's RouterOS templates have no IS-IS module; NIKA renders these.
+        assert not renderable(env)
+        return
     assert renderable(env), "netlab must generate every stored ISP variant"
     stored = stored_configs(env)
     if env.backend == "containerlab":

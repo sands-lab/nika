@@ -178,6 +178,13 @@ def rendered_variants(env_cls, scenario: str) -> list[dict]:
     return variants
 
 
+def current_configs(env) -> RouterConfigs | None:
+    """Return the stored configurations, or None when the variant has none."""
+    if not renderable(env) or not is_stored(env):
+        return None
+    return stored_configs(env)
+
+
 def use_rendered_configs(env, *, required: bool = True) -> bool:
     """Deploy the stored netlab configurations instead of NIKA's rendering.
 
