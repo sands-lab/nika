@@ -22,6 +22,12 @@ def main():
     parser.add_argument("--run", action="store_true")
     parser.add_argument("--runtime", action="store_true")
     parser.add_argument("--config-generator", choices=["netlab"], default=None)
+    parser.add_argument(
+        "--compare-methods",
+        action="store_true",
+        help="With --runtime, also check each runtime state's installed FIB with "
+        "NetKAT and compare it with Batfish and the probes.",
+    )
     parser.add_argument("--scenario", action="append", default=[])
     args = parser.parse_args()
     if args.runtime and not args.run:
@@ -86,6 +92,7 @@ def main():
                     spec,
                     root,
                     runtime=args.runtime,
+                    compare_methods=args.compare_methods,
                     config_generator=args.config_generator,
                 ),
             }

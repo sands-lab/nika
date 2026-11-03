@@ -87,6 +87,7 @@ def validate_scenario_design(
     parameters: RoutingParameters | None = None,
     batfish_verifier: BatfishVerifier | None = None,
     config_generator: str | None = None,
+    compare_methods: bool = False,
 ):
     if spec.routing_model == "netkat":
         from nika.workflows.validation.forwarding import validate_forwarding_design
@@ -466,6 +467,7 @@ def validate_scenario_design(
         return configs
 
     summary = {"static": {}, "runtime": {}, "counterexamples": {}}
+    comparison = None
     if analysis_render:
         summary["static_analysis"] = {
             "design_rendering": analysis_syntax,
@@ -637,6 +639,25 @@ def validate_scenario_design(
             started = True
             session = Session().load_running_session(session_id)
             backend = runtime_for_session(session)
+            if compare_methods:
+                from nika.workflows.validation.method_comparison import (
+                    MethodComparison,
+                )
+
+                comparison = MethodComparison(env, backend, output)
+
+            def static_report(stage):
+                """The Batfish report on the analyzed configurations of a state."""
+                incident = stage.removesuffix("-additional")
+                if stage == "healthy" or stage.endswith(("-restored", "-recovered")):
+                    return output / "static-healthy.json"
+                if stage.startswith("failure-"):
+                    return output / (
+                        "model-" + stage.removeprefix("failure-") + ".json"
+                    )
+                if any(i.name == incident for i in spec.incidents):
+                    return output / f"static-{incident}.json"
+                return None
 
             def run_config(node, command):
                 """Run a configuration operation; native routers commit slowly."""
@@ -665,6 +686,8 @@ def validate_scenario_design(
                         accept(report, output / f"runtime-{name}.json")
                     time.sleep(3)
                 summary["runtime"][name] = {"passed": len(report.results), "failed": 0}
+                if comparison:
+                    comparison.observe(name, contract, [report], static_report(name))
                 system_logger.info(
                     "runtime %s %s %s", spec.scenario, name, summary["runtime"][name]
                 )
@@ -698,6 +721,10 @@ def validate_scenario_design(
                         json.dumps(impact, indent=2) + "\n"
                     )
                     if impact["status"] == "passed":
+                        if comparison:
+                            comparison.observe(
+                                name, spec.healthy, reports[:1], static_report(name)
+                            )
                         return impact["failed_ids"]
                     if time.monotonic() > deadline:
                         raise RuntimeError(
@@ -1012,6 +1039,8 @@ def validate_scenario_design(
                         pass
             finally:
                 client.close()
+    if comparison:
+        summary["method_comparison"] = comparison.summary
     summary["status"] = "passed"
     summary["validation_scope"] = "static-and-runtime" if runtime else "static-only"
     (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
