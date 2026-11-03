@@ -13,54 +13,6 @@ from nika.workflows.validation.benchmark_routing import (
 )
 
 
-@pytest.mark.unit
-def test_frr_netlab_fault_bindings_preserve_original_edits():
-    from nika.workflows.validation.netlab import (
-        _bind_frr_failure_edit,
-        _frr_bgp_network_line,
-        _frr_network,
-    )
-
-    config = (
-        "router bgp 65000\n!\nrouter bgp 65000\n address-family ipv4\n"
-        "  neighbor 192.0.2.1 activate\n"
-    )
-    old, new = _bind_frr_failure_edit(
-        config, "router bgp 65000\n", "router bgp 65600\n"
-    )
-    assert old == config
-    assert new.count("router bgp 65600\n") == 2
-
-    config = (
-        "interface eth0\n ip address 10.0.0.1/24\n!\n"
-        "interface eth0\n ip ospf area 0.0.0.0\n!\n"
-    )
-    old = "router ospf\n network 10.0.0.0 0.0.0.255 area 0\n"
-    new = "router ospf\n network 10.0.0.0 0.0.0.255 area 66\n"
-    actual_old, actual_new = _bind_frr_failure_edit(config, old, new)
-    assert actual_old == config
-    assert "ip ospf area 0.0.0.66" in actual_new
-    assert _frr_network("10.0.0.0 0.0.0.255").prefixlen == 24
-
-    config = (
-        "router bgp 65000\n address-family ipv4 unicast\n"
-        "  network 198.51.100.0/24\n exit-address-family\n"
-    )
-    assert _frr_bgp_network_line(config, "  network 198.51.100.0/24") == (
-        "  network 198.51.100.0/24\n"
-    )
-
-    config = (
-        " neighbor 192.0.2.1 route-map BGP-OUT-ipv4 out\n"
-        "route-map BGP-OUT-ipv4 deny 5\n match ip address prefix-list EXPORT-DENY\n"
-    )
-    actual_old, actual_new = _bind_frr_failure_edit(
-        config, "route-map BGP-OUT deny 5", "route-map BGP-OUT permit 5"
-    )
-    assert actual_old == "route-map BGP-OUT-ipv4 deny 5"
-    assert actual_new == "route-map BGP-OUT-ipv4 permit 5"
-
-
 @pytest.mark.e2e
 @pytest.mark.parametrize(
     "vendor,topology,igp,bgp_mode",

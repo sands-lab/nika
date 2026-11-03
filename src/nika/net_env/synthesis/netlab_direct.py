@@ -181,9 +181,11 @@ def direct_bgp_topology(env, parameters=None, *, as_frr=False) -> tuple[dict, st
     return topology, profile
 
 
-def generate_direct_bgp_configs(env, parameters, directory: Path, *, as_frr=False):
+def generate_direct_bgp_configs(
+    env, parameters, directory: Path, *, as_frr=False, changes=()
+):
     topology, profile = direct_bgp_topology(env, parameters, as_frr=as_frr)
-    configs, transformed = run_netlab(topology, directory)
+    configs, transformed = run_netlab(topology, directory, changes)
     expected_nodes = set(env.BGP_ROUTERS)
     if (
         set(configs) != expected_nodes

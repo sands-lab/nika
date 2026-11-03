@@ -335,18 +335,23 @@ def generate_netlab_configs(
     directory: Path,
     *,
     render_device: str | None = None,
+    changes=(),
 ) -> dict[str, str]:
     """Run pinned upstream compilation offline and retain input/model/fragments.
 
     The caller owns the directory: netlab replaces its node_files subdirectory.
     No provider deployment or shell configuration fragment is executed.
-    ``render_device`` emits the ``device_profile`` design in another syntax.
+    ``render_device`` emits the ``device_profile`` design in another syntax;
+    ``changes`` are design changes rendered into the configurations.
     """
     render = render_device or device_profile
     topology = netlab_topology(plan, bgp, device_profile, render_device=render)
-    configs, transformed = run_netlab(topology, directory)
+    configs, transformed = run_netlab(topology, directory, changes)
+    # Completing statements follow the model the templates rendered, which
+    # includes the design changes of a negative control.
+    rendered_model = configs.model
     if bgp and render != "routeros":
-        configs = _bind_ibgp_policies(configs, transformed, bgp.mode)
+        configs = _bind_ibgp_policies(configs, rendered_model, bgp.mode)
     if render == "frr" and bgp:
         # netlab requires unique virtual interface identities. NIKA already owns
         # one dummy interface with multiple origin addresses; bind those emitted
@@ -361,6 +366,8 @@ def generate_netlab_configs(
                 )
         from nika.net_env.isp.netlab_security import apply_netlab_security_overlay
 
+        # The overlay checks the unchanged design against the plan and binds
+        # its statements by peer address, which design changes keep.
         configs = apply_netlab_security_overlay(configs, transformed, bgp)
         # Existing incident injectors address these fixed admission policies.
         # Bind the upstream AF-qualified names consistently at definitions and
@@ -372,7 +379,7 @@ def generate_netlab_configs(
                 text,
             )
     if render == "routeros":
-        configs = _routeros_policy_fragments(configs, transformed, plan, bgp)
+        configs = _routeros_policy_fragments(configs, rendered_model, plan, bgp)
     # Netlab derives sessions from explicit AS/RR inputs. Reject a different sketch
     # rather than silently changing the authored control-plane design.
     actual, expected = set(), set()
@@ -406,10 +413,10 @@ def generate_netlab_configs(
     return configs
 
 
-def generate_isp_configs(env, directory: Path) -> dict[str, str]:
+def generate_isp_configs(env, directory: Path, changes=()) -> dict[str, str]:
     """Generate an ISP deployment's router configurations with netlab."""
     generated = generate_netlab_configs(
-        env.plan, env.bgp_plan, env.device_profile, directory
+        env.plan, env.bgp_plan, env.device_profile, directory, changes=changes
     )
     if env.backend == "containerlab":
         from nika.net_env.synthesis.netlab_srl import retain_srl_attributes
@@ -440,8 +447,16 @@ def _routeros_policy_fragments(configs, transformed, plan, bgp):
                     lines.append(
                         f"/ip/address add interface=lo1 address={origin.ping_address}/{plen}"
                     )
+        # A negative control may withdraw an origin from the rendered model.
+        advertised = {
+            str(prefix.get("ipv4"))
+            for prefix in node.get("bgp", {}).get("advertise", [])
+        }
         for origin in sorted(bnode.originated, key=lambda item: item.prefix):
-            if f"list=bgp-networks address={origin.prefix}" not in current:
+            if (
+                origin.prefix in advertised
+                and f"list=bgp-networks address={origin.prefix}" not in current
+            ):
                 lines.append(
                     f"/ip/firewall/address-list add list=bgp-networks address={origin.prefix}"
                 )

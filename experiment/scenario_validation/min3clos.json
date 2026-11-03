@@ -132,6 +132,14 @@
         "adj.spine.leaf1",
         "reach.leaf1.leaf2",
         "reach.leaf2.leaf1"
+      ],
+      "changes": [
+        {
+          "kind": "peer_asn",
+          "node": "leaf1",
+          "peer": "10.0.0.1",
+          "asn": 65057
+        }
       ]
     },
     {
@@ -142,6 +150,14 @@
       "expected_failed_ids": [
         "reach.leaf1.leaf2",
         "reach.leaf2.leaf1"
+      ],
+      "changes": [
+        {
+          "kind": "deny_export",
+          "node": "leaf1",
+          "peer": "10.0.0.1",
+          "prefix": "10.0.0.24/31"
+        }
       ]
     }
   ],

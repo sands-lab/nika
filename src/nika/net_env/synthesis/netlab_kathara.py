@@ -307,14 +307,16 @@ def kathara_topology(env, parameters=None, *, as_frr=False):
     return topology, sessions
 
 
-def generate_kathara_configs(env, parameters, directory: Path, *, as_frr=False):
+def generate_kathara_configs(
+    env, parameters, directory: Path, *, as_frr=False, changes=()
+):
     """Generate every router's configuration from the recorded design.
 
     With ``as_frr``, every router is generated as FRR; static analysis uses
     this rendering for routers that Batfish cannot parse.
     """
     topology, expected = kathara_topology(env, parameters, as_frr=as_frr)
-    configs, model = run_netlab(topology, directory)
+    configs, model = run_netlab(topology, directory, changes)
     actual = {
         (name, peer["ipv4"], peer["as"])
         for name, node in model["nodes"].items()

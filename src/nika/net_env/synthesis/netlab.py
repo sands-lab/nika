@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import os
 import subprocess
@@ -24,12 +25,35 @@ class _SrlLoader(yaml.SafeLoader):
         return super().construct_mapping(node, deep=deep)
 
 
-def run_netlab(topology: dict, directory: Path) -> tuple[RouterConfigs, dict]:
+def _run(directory: Path, command: list[str], log: str) -> None:
+    result = subprocess.run(
+        [sys.executable, *command],
+        cwd=directory,
+        env={k: v for k, v in os.environ.items() if not k.startswith("NETLAB_")},
+        capture_output=True,
+        text=True,
+        timeout=300,
+    )
+    (directory / log).write_text(result.stdout + result.stderr)
+    if result.returncode:
+        raise RuntimeError(f"netlab compilation failed; see {directory / log}")
+
+
+def run_netlab(
+    topology: dict, directory: Path, changes=()
+) -> tuple[RouterConfigs, dict]:
     """Compile a topology offline and return node configs plus transformed data.
 
     FRR modules that netlab emits as Linux shell scripts, such as WireGuard
     tunnels, are returned in ``RouterConfigs.scripts`` instead of the FRR text.
+    ``changes`` are :class:`~nika.net_env.synthesis.changes.DesignChange`
+    objects rendered into the configs. The returned model excludes the
+    changes to netlab's transformed model, so callers can check its sessions
+    against their sketch; ``configs.model`` is the model the configs were
+    rendered from.
     """
+    from nika.net_env.synthesis.changes import apply_input_changes
+
     try:
         installed = version("networklab")
     except PackageNotFoundError as exc:
@@ -41,31 +65,37 @@ def run_netlab(topology: dict, directory: Path) -> tuple[RouterConfigs, dict]:
 
     directory = directory.resolve()
     directory.mkdir(parents=True, exist_ok=True)
+    if any(change.kind == "discard_route" for change in changes):
+        topology = apply_input_changes(copy.deepcopy(topology), changes)
     (directory / "topology.yml").write_text(yaml.safe_dump(topology, sort_keys=False))
-    result = subprocess.run(
-        [
-            sys.executable,
-            "-c",
-            "from netsim.cli import main; main()",
-            "create",
-            "topology.yml",
-            "-o",
-            "config",
-            "-o",
-            "json=transformed.json",
-        ],
-        cwd=directory,
-        env={k: v for k, v in os.environ.items() if not k.startswith("NETLAB_")},
-        capture_output=True,
-        text=True,
-        timeout=300,
-    )
-    (directory / "netlab.log").write_text(result.stdout + result.stderr)
-    if result.returncode:
-        raise RuntimeError(f"netlab compilation failed; see {directory / 'netlab.log'}")
+    create = ["-c", "from netsim.cli import main; main()", "create", "topology.yml"]
+    model_changes = [c for c in changes if c.kind != "discard_route"]
+    if not model_changes:
+        _run(
+            directory,
+            [*create, "-o", "config", "-o", "json=transformed.json"],
+            "netlab.log",
+        )
+    else:
+        _run(
+            directory,
+            [*create, "-o", "pickle", "-o", "json=transformed.json"],
+            "netlab.log",
+        )
+        (directory / "changes.json").write_text(
+            json.dumps([c.model_dump(mode="json") for c in model_changes])
+        )
+        _run(
+            directory,
+            ["-m", "nika.net_env.synthesis.netlab_render", "changes.json"],
+            "netlab-render.log",
+        )
 
     transformed = json.loads((directory / "transformed.json").read_text())
-    configs = RouterConfigs()
+    rendered = directory / "rendered.json"
+    configs = RouterConfigs(
+        model=json.loads(rendered.read_text()) if model_changes else transformed
+    )
     for name, node in transformed["nodes"].items():
         root = directory / "node_files" / name
         modules = ["initial", *node["module"]]
