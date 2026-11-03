@@ -109,17 +109,13 @@ class VxlanNeighborStale(K8sProblemBase):
     Params = VxlanNeighborStaleParams
     RECORDED_ATTRS = (
         *K8sProblemBase.RECORDED_ATTRS,
-        "overlay_dev",
         "peer_vtep",
-        "original_mac",
         "injected_mac",
     )
 
     def __init__(self, scenario_name: str | None = None, **kwargs: Any) -> None:
         super().__init__(scenario_name, **kwargs)
-        self.overlay_dev: str = _OVERLAY_DEV
         self.peer_vtep: str | None = None
-        self.original_mac: str | None = None
         self.injected_mac: str | None = None
 
     @classmethod
@@ -244,7 +240,7 @@ class VxlanNeighborStale(K8sProblemBase):
             ],
         )
 
-    def _require_overlay(self, node: str) -> str:
+    def _require_overlay(self, node: str) -> None:
         output = self.runtime.exec(
             node, f"ip -d link show dev {shlex.quote(_OVERLAY_DEV)} 2>/dev/null || true"
         )
@@ -253,8 +249,6 @@ class VxlanNeighborStale(K8sProblemBase):
                 f"{type(self).__name__}: no VXLAN overlay device "
                 f"{_OVERLAY_DEV!r} on {node!r}."
             )
-        self.overlay_dev = _OVERLAY_DEV
-        return _OVERLAY_DEV
 
     def _peer_vtep(self, params: VxlanNeighborStaleParams) -> tuple[str, str]:
         dev = _OVERLAY_DEV
@@ -324,7 +318,6 @@ class VxlanNeighborStale(K8sProblemBase):
             )
         injected = previous_vtep_mac(peer_mac, self._overlay_macs())
         self.peer_vtep = vtep
-        self.original_mac = current
         self.injected_mac = injected
         self._set_neigh(node, vtep, injected)
         logger.info(
@@ -368,8 +361,7 @@ class VxlanNeighborStale(K8sProblemBase):
         }
 
     def recover_fault(self, params: VxlanNeighborStaleParams) -> dict:
-        vtep, peer_mac = self._peer_vtep(params)
-        original = peer_mac
+        vtep, original = self._peer_vtep(params)
         injected = _normalize_mac(self.injected_mac)
         if original:
             self._set_neigh(params.node_name, vtep, original)

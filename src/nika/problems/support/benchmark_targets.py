@@ -1088,3 +1088,34 @@ def attached_end_hosts(net_env, router: str) -> list[str]:
                 in {NodeRole.HOST, NodeRole.SERVICE}
             }
     return sorted(hosts)
+
+
+def hosts_behind_router(net_env, router: str) -> list[str]:
+    """Hosts and services reached from ``router`` without crossing another router."""
+    from collections import deque
+
+    from nika.problems.rca.inventory import iter_link_termination_points, parse_endpoint
+    from nika.runtime.spec import NodeRole
+
+    routers = set(net_env.routers or [])
+    identities = getattr(net_env, "machine_identities", None) or {}
+    adjacency: dict[str, set[str]] = {}
+    for _key, tps in iter_link_termination_points(net_env):
+        nodes = [parse_endpoint(tp)[0] for tp in tps if parse_endpoint(tp)[0]]
+        for node in nodes:
+            adjacency.setdefault(node, set()).update(n for n in nodes if n != node)
+    seen = {router}
+    queue = deque([router])
+    hosts = []
+    while queue:
+        current = queue.popleft()
+        for neighbor in sorted(adjacency.get(current, ())):
+            if neighbor in seen or neighbor in routers:
+                continue
+            seen.add(neighbor)
+            role = getattr(identities.get(neighbor), "role", None)
+            if role in {NodeRole.HOST, NodeRole.SERVICE}:
+                hosts.append(neighbor)
+            else:
+                queue.append(neighbor)
+    return hosts

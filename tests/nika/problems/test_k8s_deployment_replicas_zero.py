@@ -101,3 +101,28 @@ def test_explicit_deployment_without_traffic_path_is_rejected(
     )
     with pytest.raises(ValueError, match="no Service on"):
         problem._targets(params)
+
+
+@pytest.mark.parametrize("pods", [0, 1])
+def test_zero_replica_symptom_waits_for_pods_to_drain(monkeypatch, pods):
+    from nika.validation.symptom import k8s_probes as probes
+
+    problem = SimpleNamespace(
+        service_ref="business/app",
+        deployment_ref="business/deploy",
+        root_cause_name="k8s_deployment_replicas_zero",
+        _audit_service_codes={"business/app": "200"},
+        _audit_service_probes={
+            "business/app": probes.HttpProbeRequest(url="http://app/")
+        },
+    )
+    monkeypatch.setattr(probes, "_client", lambda _: "client")
+    monkeypatch.setattr(probes, "_http_exchange", lambda *_: ("503", ""))
+    monkeypatch.setattr(
+        probes,
+        "_deployment_sample",
+        lambda _: {"replicas": 0, "pods": pods, "ready_pods": 0},
+    )
+    monkeypatch.setattr(probes, "_wait_for", lambda check: check())
+    ok, _ = probes.replicas_zero_broken(problem, None)
+    assert ok is (pods == 0)

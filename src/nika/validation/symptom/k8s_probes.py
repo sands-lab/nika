@@ -569,11 +569,6 @@ def _selector_sample(problem: Any) -> dict[str, Any]:
     }
 
 
-def selector_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
-    """Every traffic URL answers before inject."""
-    return target_port_baseline(problem, params)
-
-
 def selector_broken(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     """The Service has no endpoints; its URL fails; the original Pods stay Ready."""
     client = _client(problem)
@@ -815,6 +810,7 @@ def replicas_zero_broken(problem: Any, params: Any) -> tuple[bool, dict[str, Any
             and not probes[target].succeeded(status, body)
             and others_same
             and sample["replicas"] == 0
+            and sample["pods"] == 0
             and sample["ready_pods"] == 0
         )
         return ok, {

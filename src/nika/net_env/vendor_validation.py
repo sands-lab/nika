@@ -164,7 +164,7 @@ def _native_command(platform: str, command: str) -> str:
 
 def _check_output(output: str) -> None:
     if not output.strip() or re.search(
-        r"syntax error|unknown command|invalid command|invalid input|bad command|failure:|expected end of command",
+        r"\[TIMEOUT\]|syntax error|unknown command|invalid command|invalid input|bad command|failure:|expected end of command",
         output,
         re.I,
     ):
@@ -174,7 +174,7 @@ def _check_output(output: str) -> None:
 def _ros_rows(output: str, key: str) -> list[dict[str, str]]:
     _check_output(output)
     rows = []
-    for block in re.split(r"(?m)^\s*(?=\d+\s)", output):
+    for block in re.split(r"(?m)^\s*(?=\d+\s|[A-Za-z+]+\s+afi=)", output):
         if re.search(rf"(?:^|\s){re.escape(key)}=", block):
             rows.append(_ros_properties(block))
     if not rows and not re.search(
@@ -182,6 +182,43 @@ def _ros_rows(output: str, key: str) -> list[dict[str, str]]:
     ):
         raise ValueError("Unrecognized RouterOS table output")
     return rows
+
+
+def _routeros_aspath(row: dict[str, str]) -> str:
+    value = row.get("bgp.as-path", row.get("as-path"))
+    if value is None:
+        # RouterOS omits the empty AS_PATH on iBGP routes.
+        if not row.get("bgp.session") or not row.get("bgp.origin", row.get("origin")):
+            raise ValueError("RouterOS BGP route omitted path attributes")
+        value = ""
+    return value.replace(",", " ")
+
+
+def routeros_bgp_table(output: str) -> dict[str, list[dict]]:
+    """Read all paths from RouterOS ``/routing/route/print detail where bgp and afi=ip``."""
+    table: dict[str, list[dict]] = {}
+    for row in _ros_rows(output, "dst-address"):
+        prefix = str(IPv4Network(row["dst-address"]))
+        if "routing-table" not in row:
+            raise ValueError("RouterOS BGP route omitted its routing table")
+        if row["routing-table"] != "main":
+            continue
+        aspath = _routeros_aspath(row)
+        if "contribution" not in row or "gateway" not in row:
+            raise ValueError("RouterOS BGP route omitted path attributes")
+        table.setdefault(prefix, []).append(
+            {
+                "aspath": aspath,
+                "best": row["contribution"] in {"active", "best-candidate"},
+                "nexthops": [
+                    str(IPv4Address(hop.split("%", 1)[0]))
+                    for hop in row["gateway"].split(",")
+                ],
+                "originator": row.get("bgp.originator-id", row.get("originator-id")),
+                "peer_router_id": row.get("bgp.peer-router-id"),
+            }
+        )
+    return table
 
 
 def _iosxr_neighbor(output: str) -> tuple[str, _BgpPeer]:
@@ -235,43 +272,90 @@ def _route_next_hops(output: str, platform: str, prefix: str) -> set[str]:
     }
 
 
-def _selected_as_paths(
-    output: str, platform: str, prefix: str
-) -> list[tuple[int, ...]]:
+def iosxr_bgp_table_prefixes(output: str) -> list[str]:
+    """Read exact prefixes from IOS XR's IPv4 unicast BGP summary table."""
     _check_output(output)
-    if platform == "routeros":
-        paths = []
-        for row in _ros_rows(output, "dst-address"):
-            if row["dst-address"] != prefix:
-                continue
-            value = row.get("bgp.as-path", row.get("as-path"))
-            if value is None:
-                raise ValueError("Selected RouterOS BGP route omitted its AS path")
-            if value and not re.fullmatch(r"\d+(?:[, ]+\d+)*", value):
-                raise ValueError("AS selection checks require sequence AS paths")
-            paths.append(tuple(int(asn) for asn in re.findall(r"\d+", value)))
-        return paths
+    count = re.search(r"Processed (\d+) prefixes, (\d+) paths", output)
+    if count is None or "Network" not in output or "Next Hop" not in output:
+        raise ValueError("Unrecognized IOS XR BGP table output")
+    prefixes = sorted(
+        {
+            str(IPv4Network(prefix))
+            for prefix in re.findall(r"(?m)^[^\n]*?(\d+\.\d+\.\d+\.\d+/\d+)\s", output)
+        }
+    )
+    if len(prefixes) != int(count[1]):
+        raise ValueError("IOS XR BGP table prefix count is incomplete")
+    return prefixes
+
+
+def iosxr_bgp_prefix_paths(output: str, prefix: str) -> list[dict]:
+    """Read every path, including unselected paths, from an exact IOS XR BGP query."""
+    _check_output(output)
     if re.search(r"(?:Network|Route) not (?:in table|found)", output, re.I):
         return []
     if not re.search(
         rf"BGP routing table entry for\s+{re.escape(prefix)}(?:\s|,|$)", output
     ):
         raise ValueError("Unrecognized IOS XR BGP route output")
+    available = re.search(r"Paths: \((\d+) available", output)
+    if available is None:
+        raise ValueError("IOS XR omitted its BGP path count")
     paths = []
     for block in re.split(r"(?m)^\s*Path #\d+:", output)[1:]:
-        if not re.search(r"(?:^|[, ])best(?:[, \n]|$)", block, re.I):
-            continue
         sequence = re.search(
-            r"(?m)^\s*(Local|\d+(?: +\d+)*)(?:, \(Received from a RR-client\))?\s*$",
+            r"(?m)^[ \t]*(Local|[\d{}(),. ]+)(?:, \(Received from a RR-client\))?[ \t]*\n"
+            r"(?=[ \t]*[\d.]+(?: \(.*?\))? from )",
             block,
         )
-        if sequence is None:
-            raise ValueError("Selected IOS XR path omitted a sequence AS path")
-        paths.append(
-            () if sequence[1] == "Local" else tuple(map(int, sequence[1].split()))
+        hop = re.search(
+            r"(?m)^\s*([\d.]+)(?: \(.*?\))? from ([\d.]+)(?: \(([\d.]+)\))?",
+            block,
         )
-    if not paths and not re.search(r"(?:0 available|no best path)", output, re.I):
-        raise ValueError("IOS XR BGP route omitted its selected path")
+        if sequence is None or hop is None or not re.search(r"\bOrigin ", block):
+            raise ValueError("IOS XR BGP route omitted path attributes")
+        originator = re.search(r"Originator(?: ID)?:\s*([\d.]+)", block, re.I)
+        paths.append(
+            {
+                "aspath": "" if sequence[1] == "Local" else sequence[1].strip(),
+                "best": bool(re.search(r"(?:^|[, ])best(?:[, \n]|$)", block, re.I)),
+                "nexthops": [str(IPv4Address(hop[1]))],
+                "originator": originator[1] if originator else None,
+                # XR prints the originator ID in parentheses on reflected paths.
+                "peer_router_id": None if originator else hop[3],
+            }
+        )
+    if len(paths) != int(available[1]):
+        raise ValueError("IOS XR BGP route path count is incomplete")
+    return paths
+
+
+def _selected_as_paths(
+    output: str, platform: str, prefix: str
+) -> list[tuple[int, ...]]:
+    _check_output(output)
+    if platform == "routeros":
+        # The validation command already filters to selected routes.
+        values = []
+        for row in _ros_rows(output, "dst-address"):
+            if row["dst-address"] != prefix:
+                continue
+            values.append(_routeros_aspath(row))
+    else:
+        values = [
+            path["aspath"]
+            for path in iosxr_bgp_prefix_paths(output, prefix)
+            if path["best"]
+        ]
+        if not values and not re.search(
+            r"(?:0 available|no best path|not (?:in table|found))", output, re.I
+        ):
+            raise ValueError("IOS XR BGP route omitted its selected path")
+    paths = []
+    for value in values:
+        if value and not re.fullmatch(r"\d+(?: +\d+)*", value):
+            raise ValueError("AS selection checks require sequence AS paths")
+        paths.append(tuple(int(asn) for asn in value.split()))
     return paths
 
 

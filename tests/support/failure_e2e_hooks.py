@@ -558,33 +558,11 @@ def assert_ospf_acl_withdrawal(ctx: FailureE2EContext) -> None:
         return not observed["neighbors"] and not observed["routes"]
 
     assert wait_until(withdrawn, 90, interval_s=3), observed
-    ctx.before = {key: len(values) for key, values in observed.items()}
 
 
 def assert_ospf_acl_recover(ctx: FailureE2EContext) -> None:
-    import json
-
     assert ctx.recovered is not None
     assert ctx.recovered["verified"] is True, ctx.recovered
-    print(
-        "ospf_acl_block "
-        + json.dumps(
-            {
-                "scenario": ctx.scenario,
-                "profile": ctx.problem.net_env.device_profile or "frr",
-                "target": ctx.parsed.host_name,
-                "baseline": {
-                    node: {key: len(values) for key, values in state.items()}
-                    for node, state in ctx.problem._healthy_routing.items()
-                },
-                "faulted": ctx.before,
-                "symptom": ctx.symptom,
-                "recovered": ctx.recovered,
-            },
-            sort_keys=True,
-        ),
-        flush=True,
-    )
 
 
 def assert_ospf_stubs_recover(ctx: FailureE2EContext) -> None:
@@ -638,15 +616,9 @@ def assert_readiness_probe_recover(ctx: FailureE2EContext) -> None:
     ).get(LAST_APPLIED)
     healthy, traffic = target_port_baseline(problem, ctx.parsed)
     assert healthy, traffic
-    print(
-        f"readiness {ctx.scenario}: fault={ctx.symptom}; recovered={ctx.recovered}; traffic={traffic}",
-        flush=True,
-    )
 
 
 def assert_ospf_cut_edge_recover(ctx: FailureE2EContext) -> None:
-    import json
-
     from nika.net_env.verify import ping_stats
 
     base = ctx.problem._audit_ospf_cut_link
@@ -658,19 +630,6 @@ def assert_ospf_cut_edge_recover(ctx: FailureE2EContext) -> None:
     assert (
         ctx.problem.root_cause_resources(ctx.parsed)[0].id
         == f"node/{ctx.parsed.host_name}"
-    )
-    print(
-        "OSPF cut-edge evidence: "
-        + json.dumps(
-            {
-                "baseline": base,
-                "artifact": ctx.verify,
-                "symptom": ctx.symptom,
-                "recovery": ctx.recovered,
-                "recovered_loss": loss,
-            },
-            default=str,
-        )
     )
 
 
@@ -698,8 +657,6 @@ def assert_bgp_md5_recover(ctx: FailureE2EContext) -> None:
 
 
 def assert_ipv4_family_recover(ctx: FailureE2EContext) -> None:
-    import json
-
     assert (
         ctx.problem.root_cause_resources(ctx.parsed)[0].id
         == f"node/{ctx.parsed.host_name}"
@@ -711,39 +668,12 @@ def assert_ipv4_family_recover(ctx: FailureE2EContext) -> None:
     assert status["configured"] and status["negotiated"], status
     assert status["received_prefix_count"] > 0, status
     assert set(baseline["prefixes"]) <= prefixes, prefixes
-    print(
-        "BGP IPv4 family evidence: "
-        + json.dumps(
-            {
-                "baseline": baseline,
-                "artifact": ctx.verify,
-                "symptom": ctx.symptom,
-                "recovery": ctx.recovered,
-                "observed_after_recovery": {**status, "prefixes": sorted(prefixes)},
-            }
-        )
-    )
 
 
 def assert_overlay_ef_recover(ctx: FailureE2EContext) -> None:
-    import json
-
     assert (
         ctx.problem.root_cause_resources(ctx.parsed)[0].id
         == f"node/{ctx.parsed.host_name}"
-    )
-    print(
-        "Overlay EF evidence: "
-        + json.dumps(
-            {
-                "topo_size": ctx.topo_size,
-                "device_profile": ctx.problem.net_env.device_profile or "frr",
-                "artifact": ctx.verify,
-                "symptom": ctx.symptom,
-                "recovered": ctx.recovered,
-            }
-        ),
-        flush=True,
     )
 
 

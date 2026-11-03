@@ -20,15 +20,6 @@ _NODE_MAC = "2a:19:1a:1b:ee:ab"
 _OTHER_MAC = "4e:11:22:33:44:55"
 
 
-def test_previous_vtep_mac_is_locally_administered_unicast() -> None:
-    mac = previous_vtep_mac(_PEER_MAC, {_PEER_MAC})
-    assert mac == previous_vtep_mac(_PEER_MAC, {_PEER_MAC})
-    assert mac != _PEER_MAC
-    first = int(mac[:2], 16)
-    assert first & 0x01 == 0
-    assert first & 0x02 == 0x02
-
-
 class _OverlayRuntime:
     def __init__(self) -> None:
         self.macs = {
@@ -87,6 +78,12 @@ def test_inject_skips_macs_already_on_flannel() -> None:
     assert problem.injected_mac not in {_PEER_MAC, _NODE_MAC, colliding}
     assert problem.injected_mac in runtime.replaced[-1]
     assert "nud permanent" in runtime.replaced[-1]
+    first = int(problem.injected_mac[:2], 16)
+    assert first & 0x01 == 0
+    assert first & 0x02 == 0x02
+    assert problem.verify_fault(params)["verified"]
+    assert problem.recover_fault(params)["verified"]
+    assert runtime.neigh[_PEER_VTEP] == _PEER_MAC
 
 
 def test_oracle_compares_neighbor_with_observed_peer_and_existing_fdb():

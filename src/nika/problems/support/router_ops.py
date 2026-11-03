@@ -68,6 +68,14 @@ class RouterFaultOps:
         """Return the running local BGP ASN."""
         self._unsupported("Reading the BGP ASN")
 
+    def bgp_prefix_paths(self, prefix: str) -> list[dict]:
+        """Return every IPv4 BGP path for exactly ``prefix``; raise on unreadable output."""
+        self._unsupported("Reading BGP paths")
+
+    def bgp_table(self) -> dict[str, list[dict]]:
+        """Return all IPv4 unicast BGP paths by prefix; raise on unreadable output."""
+        self._unsupported("Reading the BGP table")
+
     def set_bgp_asn(self, asn: int) -> None:
         """Replace the local BGP ASN, keeping the rest of the BGP configuration."""
         self._unsupported("Changing the BGP ASN")

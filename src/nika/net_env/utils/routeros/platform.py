@@ -26,14 +26,14 @@ from nika.service.lab.routeros_api import CLI_COMMAND
 
 
 def _check_deployable(env) -> None:
-    from nika.net_env.utils.native_admission import GIB, require_native_lab_memory
+    from nika.net_env.utils.native_admission import require_native_lab_memory
 
     require_routeros_image(IMAGE)
     routers = len(env.native_routers)
     require_native_lab_memory(
         f"{env.LAB_NAME} on RouterOS",
         routers=routers,
-        per_router=ROUTER_MEMORY_MIB * GIB // 1024,
+        per_router=PLATFORM.memory_per_router,
         hosts=len(env.lab.machines) - routers,
     )
 

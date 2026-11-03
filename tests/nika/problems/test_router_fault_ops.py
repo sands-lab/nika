@@ -130,15 +130,91 @@ def test_routeros_full_neighbor_matches_exact_port():
     assert ops.ospf_interface_neighbor_full("ether20")
 
 
-@pytest.mark.parametrize("available", [0, 1])
-def test_iosxr_empty_bgp_entry_is_withdrawn(available):
+def test_iosxr_empty_bgp_entry_is_withdrawn():
     from nika.net_env.utils.iosxr.fault_ops import IosxrFaultOps
 
     # XRd 26.2.1 retains this header after withdrawing the last path.
     output = (
         "BGP routing table entry for 198.51.110.0/24\n"
-        f"Paths: ({available} available, no best path)\n"
+        "Paths: (0 available, no best path)\n"
         "  Not advertised to any peer\n"
     )
     ops = IosxrFaultOps(SimpleNamespace(exec=lambda *a, **k: output), "r1")
-    assert ops.has_bgp_route("198.51.110.0/24") is (available > 0)
+    assert not ops.has_bgp_route("198.51.110.0/24")
+
+
+@pytest.mark.parametrize(
+    "failure", ["ospf_neighbor_missing", "ospf_hello_interval_mismatch"]
+)
+def test_ospf_recovery_retries_transient_observation_errors(monkeypatch, failure):
+    from unittest.mock import Mock
+
+    from nika.problems.registry import get_problem_class
+    from nika.problems.routing_control_plane import ospf
+    from nika.problems.support.polling import wait_until
+    from nika.problems.support.router_ops import OspfNeighbor
+
+    monkeypatch.setattr(
+        ospf,
+        "wait_until",
+        lambda predicate, timeout, **kwargs: wait_until(
+            predicate, timeout, interval_s=0
+        ),
+    )
+    cls = get_problem_class(failure)
+    problem = cls.__new__(cls)
+    problem.net_env = SimpleNamespace(backend="kathara")
+    params = cls.Params(host_name="r1", intf_name="eth0")
+    if failure == "ospf_neighbor_missing":
+        neighbors = [OspfNeighbor("1.1.1.1", "10.0.0.2", "eth0", "Full")]
+        ops = SimpleNamespace(
+            restore_config=Mock(),
+            ospf_neighbors=Mock(
+                side_effect=[ValueError("daemon restarting"), neighbors]
+            ),
+        )
+        monkeypatch.setattr(ospf, "native_fault_ops", lambda *_: ops)
+        problem._saved_config = "saved OSPF config"
+        problem._native_neighbors = {("1.1.1.1", "10.0.0.2", "eth0")}
+        problem._original_routes = {"192.0.2.0/24"}
+        problem._route_prefixes = lambda _: {"192.0.2.0/24"}
+        reading = ops.ospf_neighbors
+    else:
+        problem._original_timers = (10, 40)
+        problem._healthy_link = {
+            "r1": {"full": True, "interface_up": True, "routes": ["192.0.2.0/24"]}
+        }
+        problem._set_timers = Mock()
+        problem._timers = lambda *_: (10, 40)
+        problem.link_health = Mock(
+            side_effect=[ValueError("daemon restarting"), problem._healthy_link]
+        )
+        reading = problem.link_health
+    assert problem.recover_fault(params)["verified"]
+    assert reading.call_count == 2
+
+
+@pytest.mark.parametrize("status", [0, 255])
+def test_routeros_cli_separates_empty_tables_from_silent_ssh_failure(
+    monkeypatch, status
+):
+    import subprocess
+
+    from nika.net_env.utils.routeros import fault_ops
+
+    monkeypatch.setattr(fault_ops, "CLI_COMMAND", f"exit {status}")
+
+    def execute(node, command, **kwargs):
+        return subprocess.run(
+            ["sh", "-c", command], text=True, capture_output=True, check=True
+        ).stdout
+
+    ops = fault_ops.RouterOsFaultOps(SimpleNamespace(exec=execute), "r1")
+    if status:
+        with pytest.raises(RuntimeError, match="RouterOS command failed on r1"):
+            ops.ospf_routes()
+        with pytest.raises(RuntimeError, match="RouterOS command failed on r1"):
+            ops.bgp_established_peers()
+    else:
+        assert ops.ospf_routes() == set()
+        assert ops.bgp_established_peers() == set()

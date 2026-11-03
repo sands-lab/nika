@@ -80,7 +80,26 @@ class IosxrFaultOps(RouterFaultOps):
         self._exec(build_xr_config_command(lines))
 
     def bgp_asn(self) -> int:
-        return self.runtime.iosxr_get_bgp_asn_number(self.node)
+        from nika.net_env.vendor_validation import _parse_iosxr_bgp_summary
+
+        asn, _ = _parse_iosxr_bgp_summary(self._show("show bgp summary"))
+        if asn is None:
+            raise ValueError("IOS XR BGP summary omitted the local AS number")
+        return asn
+
+    def bgp_prefix_paths(self, prefix: str) -> list[dict]:
+        from nika.net_env.vendor_validation import iosxr_bgp_prefix_paths
+
+        prefix = str(ipaddress.IPv4Network(prefix))
+        return iosxr_bgp_prefix_paths(
+            self._show(f"show bgp ipv4 unicast {prefix}"), prefix
+        )
+
+    def bgp_table(self) -> dict[str, list[dict]]:
+        from nika.net_env.vendor_validation import iosxr_bgp_table_prefixes
+
+        prefixes = iosxr_bgp_table_prefixes(self._show("show bgp ipv4 unicast"))
+        return {prefix: self.bgp_prefix_paths(prefix) for prefix in prefixes}
 
     def set_bgp_asn(self, asn: int) -> None:
         current = self.bgp_asn()
@@ -231,14 +250,7 @@ class IosxrFaultOps(RouterFaultOps):
         )
 
     def has_bgp_route(self, prefix: str) -> bool:
-        net = str(ipaddress.ip_network(prefix))
-        output = self._show(f"show bgp ipv4 unicast {net}")
-        paths = re.search(r"Paths:\s*\((\d+) available", output)
-        return (
-            f"BGP routing table entry for {net}" in output
-            and paths is not None
-            and int(paths[1]) > 0
-        )
+        return bool(self.bgp_prefix_paths(prefix))
 
     def set_bgp_password(self, peer: str, password: str | None) -> None:
         peer = str(ipaddress.ip_address(peer))
@@ -564,24 +576,6 @@ class IosxrFaultOps(RouterFaultOps):
             f"router ospf {process}",
             f" area {area}",
             "  stub" if area_type == "stub" else "  no stub",
-            " !",
-            "!",
-        )
-
-    def set_ospf_network_type(self, interface: str, network_type: str) -> None:
-        xr_if = self._xr_interface(interface)
-        process, area = self._ospf_area_of(xr_if)
-        xr_type = {
-            "point-to-point": "point-to-point",
-            "broadcast": "broadcast",
-            "non-broadcast": "non-broadcast",
-        }.get(network_type, network_type)
-        self._apply(
-            f"router ospf {process}",
-            f" area {area}",
-            f"  interface {xr_if}",
-            f"   network {xr_type}",
-            "  !",
             " !",
             "!",
         )
