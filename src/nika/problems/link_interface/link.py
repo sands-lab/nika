@@ -347,6 +347,11 @@ class LinkFailure(ProblemBase):
             )
             if peer is not None:
                 self._set_link_operational_up(peer[0], peer[1])
+            restore_routes = getattr(self.net_env, "restore_link_routes", None)
+            if restore_routes is not None:
+                restore_routes(self.runtime, params.host_name, intf)
+                if peer is not None:
+                    restore_routes(self.runtime, *peer)
             restored = (
                 self.runtime.get_interface_operstate(params.host_name, intf) == "up"
             )

@@ -6,6 +6,15 @@ from nika.problems.base import build_verify_result
 from nika.problems.support.polling import wait_until
 
 
+def _remote_prefixes(problem, params, routing):
+    from nika.problems.routing_control_plane.vrf import _site_lan
+
+    site, _, _ = _site_lan(problem.net_env, params.host_name, params.vrf_name)
+    return (set(routing["overlay"]) & set(routing["vrf"])) - {
+        lan.prefix for lan in site.lans
+    }
+
+
 def vrf_import_baseline(problem, params):
     def healthy():
         problem._audit_vrf_routing = problem.routing_readings(params)
@@ -13,7 +22,7 @@ def vrf_import_baseline(problem, params):
         routing = problem._audit_vrf_routing
         return (
             bool(routing["peers"])
-            and bool(routing["overlay"])
+            and bool(_remote_prefixes(problem, params, routing))
             and bool(routing["handshakes"])
             and all(
                 age is not None and age < 180 for age in routing["handshakes"].values()
@@ -32,12 +41,7 @@ def vrf_import_routes_lost(problem, params):
     baseline = getattr(problem, "_audit_vrf_routing", None)
     if not baseline:
         return False, {"error": "no_healthy_vrf_baseline"}
-    from nika.problems.routing_control_plane.vrf import _site_lan
-
-    site, _, _ = _site_lan(problem.net_env, params.host_name, params.vrf_name)
-    remote = (set(baseline["overlay"]) & set(baseline["vrf"])) - {
-        lan.prefix for lan in site.lans
-    }
+    remote = _remote_prefixes(problem, params, baseline)
     routing, paths = {}, {}
 
     def withdrawn():

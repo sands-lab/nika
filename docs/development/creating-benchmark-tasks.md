@@ -263,6 +263,8 @@ cases:
     root_causes: []
 ```
 
+A multi-fault row uses `problems: [first_failure, second_failure]` and nests injection parameters under each failure ID in `inject`. NIKA injects the failures in list order. When a failure class sets `MULTI_INJECT_DWELL_SEC`, NIKA waits that many seconds after injecting it before injecting the next failure, so telemetry records the earlier condition. The default is zero. See the [latent backup task](../../benchmark/experiments/latent_backup.yaml) for an ordered pair that uses this interval.
+
 Regenerate the candidate catalog and refresh the failure × scenario tables in [Benchmark configuration](../benchmarks/benchmark-configuration.md) after adding a failure or scenario:
 
 ```shell

@@ -25,14 +25,16 @@ pytestmark = pytest.mark.contract
 
 
 @pytest.mark.parametrize("profile", ["frr", "iosxr", "routeros"])
-def test_vrf_import_mismatch_requires_routeros_forwarding(profile):
+def test_vrf_import_mismatch_targets_business_edges_in_each_deployment(profile):
     cases, _ = build_failure_cases(
         problem="vrf_route_target_mismatch",
         scenario="enterprise_branch",
         topo_size="s",
         isp_options={"device_profile": profile},
     )
-    assert bool(cases) is (profile == "routeros")
+    # IOS XR replaces providers only; its Site Edges still run FRR.
+    assert cases
+    assert all(case["inject"]["host_name"].endswith("_edge") for case in cases)
 
 
 @pytest.mark.parametrize(

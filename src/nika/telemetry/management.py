@@ -110,6 +110,18 @@ def attach(net_env: NetworkEnvBase, kinds: tuple[str, ...]) -> dict[str, Any]:
             "mgmt_iface": _connect_last(lab, name),
             "data_ifaces": data_ifaces,
         }
+        if (getattr(net_env, "native_routers", None) or {}).get(name) == "routeros":
+            from nika.net_env.utils.routeros.common import (
+                append_routeros_interface,
+                routeros_port,
+            )
+
+            append_routeros_interface(
+                lab, lab.machines[name], plan_devices[name]["mgmt_iface"]
+            )
+            plan_devices[name]["mgmt_port"] = routeros_port(
+                net_env, name, plan_devices[name]["mgmt_iface"]
+            )
     lab.create_file_from_list(
         [
             f"ip link add {SWITCH_BRIDGE} type bridge stp_state 0",
@@ -262,7 +274,8 @@ def configure(runtime: LabRuntime, plan: dict[str, Any]) -> dict[str, Any]:
     ros_hidden = ",".join(
         sorted(
             {
-                routeros.linux_to_ether(plan["devices"][name]["mgmt_iface"])
+                plan["devices"][name].get("mgmt_port")
+                or routeros.linux_to_ether(plan["devices"][name]["mgmt_iface"])
                 for name, version in versions.get(PROMETHEUS, {}).items()
                 if routeros.is_ros(version)
             }
