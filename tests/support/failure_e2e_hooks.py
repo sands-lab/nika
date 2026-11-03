@@ -6,6 +6,8 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from nika.problems.support.polling import wait_until
+from nika.validation.symptom.custom import evaluate_custom_baseline
 from nika.net_env.verify import ping_ok
 from nika.runtime.kathara.vde_proxy import KatharaVdeFaultProxy
 
@@ -329,6 +331,15 @@ def resolve_bgp_hijack_target(ctx: FailureE2EContext) -> None:
         ctx.parsed.target_network = ctx.problem._default_target_network()
 
 
+def assert_bgp_hijack_recover(ctx: FailureE2EContext) -> None:
+    repeated = ctx.problem.recover_fault(ctx.parsed)
+    assert repeated["verified"], repeated
+    assert wait_until(
+        lambda: evaluate_custom_baseline("bgp_hijacking", ctx.problem, ctx.parsed)[0],
+        45,
+    )
+
+
 def assert_receiver_resource_contention_pre(ctx: FailureE2EContext) -> None:
     """Ensure the receiver can fetch a large object before contention."""
     from nika.net_env.verify import http_download_stats
@@ -541,6 +552,7 @@ HOOKS: dict[str, dict[str, Any]] = {
     },
     "bgp_hijacking": {
         "pre_inject": resolve_bgp_hijack_target,
+        "post_recover": assert_bgp_hijack_recover,
     },
     "k8s_networkpolicy_deny": {
         "pre_inject": assert_isolation_http_pre,

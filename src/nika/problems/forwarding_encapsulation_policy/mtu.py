@@ -124,6 +124,13 @@ class MtuMismatch(ProblemBase):
                 )
 
     def _set_mtu(self, host: str, intf: str, mtu: int) -> None:
+        original = getattr(self, "_original_mtus", {})
+        if (host, intf) not in original:
+            value = self._read_mtu(host, intf)
+            if value is None:
+                raise RuntimeError(f"Cannot read MTU on {host}:{intf}")
+            original[host, intf] = value
+            self._original_mtus = original
         ops = native_fault_ops(self, host, "set_interface_mtu")
         if ops is not None:
             ops.set_interface_mtu(intf, mtu)
@@ -136,6 +143,20 @@ class MtuMismatch(ProblemBase):
         system_logger.info(
             f"Injected MTU mismatch on {params.host_name}:{params.intf_name} "
             f"(mtu={params.mtu})"
+        )
+
+    def recover_fault(self, params: MtuMismatchParams) -> dict:
+        original = getattr(self, "_original_mtus", {})
+        for (host, intf), mtu in original.items():
+            self._set_mtu(host, intf, mtu)
+        observed = {
+            f"{host}:{intf}": self._read_mtu(host, intf) for host, intf in original
+        }
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=bool(original)
+            and all(observed[f"{h}:{i}"] == mtu for (h, i), mtu in original.items()),
+            details={"observed_mtus": observed},
         )
 
     def oracle_playbook(self, params: MtuMismatchParams) -> OraclePlaybook:

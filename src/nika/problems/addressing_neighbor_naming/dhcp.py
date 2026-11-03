@@ -29,6 +29,7 @@ from nika.problems.support.oracle import (
     contains,
     lacks,
 )
+from nika.problems.support.recovery import DHCPRecovery
 from nika.utils.logger import system_logger
 
 
@@ -73,6 +74,7 @@ class DHCPMissingSubnet(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: DHCPMissingSubnetParams):
+        self._dhcp_recovery = DHCPRecovery.capture(self.runtime, params.host_name)
         dhcp_server = params.host_name
         client_host = params.host_name_2
         system_logger.info(
@@ -84,6 +86,17 @@ class DHCPMissingSubnet(ProblemBase):
         self._injected_subnet = subnet
         # Renew now so clients do not keep a valid lease until it expires.
         self.runtime.renew_dhcp_leases(self.runtime.list_dhcp_client_nodes())
+
+    def recover_fault(self, params: DHCPMissingSubnetParams) -> dict:
+        snapshot = getattr(self, "_dhcp_recovery", None)
+        verified = snapshot is not None and snapshot.restore(
+            self.runtime, params.host_name
+        )
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=verified,
+            details={"host": params.host_name, "state_available": snapshot is not None},
+        )
 
     def verify_fault(self, params: DHCPMissingSubnetParams) -> dict:
         """Verify the deleted subnet is absent from dhcpd.conf."""

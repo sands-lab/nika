@@ -25,6 +25,10 @@ from nika.problems.support.benchmark_targets import (
     prefer_prefixed_node,
 )
 from nika.problems.forwarding_encapsulation_policy.p4runtime_helpers import (
+    capture_entity,
+    capture_switch,
+    restore_switch,
+    restore_entities,
     ecmp_target as _ecmp_target,
     gateway_backend_leaf,
     load_blackhole_pipeline,
@@ -259,6 +263,14 @@ class P4ActionSelectorMemberMisconfig(ProblemBase):
             for m in intent["switches"][params.host_name]["members"]
             if int(m["member_id"]) == int(member_id)
         )
+        self._original_entities = [
+            (
+                "member",
+                capture_entity(
+                    self.runtime, params.host_name, "members", "member_id", member_id
+                ),
+            )
+        ]
         member["port"] = _BAD_PORT
         result = require_ok(
             p4runtime_write(
@@ -281,6 +293,11 @@ class P4ActionSelectorMemberMisconfig(ProblemBase):
             member_id,
             params.host_name,
             _BAD_PORT,
+        )
+
+    def recover_fault(self, params: P4ActionSelectorMemberMisconfigParams) -> dict:
+        return restore_entities(
+            self, params.host_name, getattr(self, "_original_entities", [])
         )
 
     def verify_fault(self, params: P4ActionSelectorMemberMisconfigParams) -> dict:
@@ -386,6 +403,14 @@ class P4EcmpGroupMemberMissing(ProblemBase):
             for g in intent["switches"][params.host_name]["groups"]
             if int(g["group_id"]) == int(group_id)
         )
+        self._original_entities = [
+            (
+                "group",
+                capture_entity(
+                    self.runtime, params.host_name, "groups", "group_id", group_id
+                ),
+            )
+        ]
         remaining = [m for m in group["member_ids"] if int(m) != int(member_id)]
         result = require_ok(
             p4runtime_write(
@@ -407,6 +432,11 @@ class P4EcmpGroupMemberMissing(ProblemBase):
             "peer": peer,
             "result": result,
         }
+
+    def recover_fault(self, params: P4EcmpGroupMemberMissingParams) -> dict:
+        return restore_entities(
+            self, params.host_name, getattr(self, "_original_entities", [])
+        )
 
     def verify_fault(self, params: P4EcmpGroupMemberMissingParams) -> dict:
         intent = load_intent(self.runtime)
@@ -503,6 +533,7 @@ class P4RuntimePipelineMismatch(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: P4RuntimePipelineMismatchParams):
+        self._original_switch = capture_switch(self.runtime, params.host_name)
         p4info, json_path = load_blackhole_pipeline(
             self.runtime, params.host_name, _BLACKHOLE_P4
         )
@@ -522,6 +553,11 @@ class P4RuntimePipelineMismatch(ProblemBase):
                 f"pipeline push failed on {params.host_name}: {set_error}"
             )
         logger.info("Loaded mismatched pipeline on %s: %s", params.host_name, result)
+
+    def recover_fault(self, params: P4RuntimePipelineMismatchParams) -> dict:
+        return restore_switch(
+            self, params.host_name, getattr(self, "_original_switch", None)
+        )
 
     def verify_fault(self, params: P4RuntimePipelineMismatchParams) -> dict:
         observed = run_manager(
@@ -707,7 +743,17 @@ class P4RuntimePartialWrite(ProblemBase):
         )
 
         intent = load_intent(self.runtime)
+        self._original_intent = copy.deepcopy(intent)
         pair = partial_write_routes(intent, params.host_name)
+        self._original_entities = [
+            (
+                "group",
+                capture_entity(
+                    self.runtime, params.host_name, "groups", "group_id", gid
+                ),
+            )
+            for gid in (pair["victim_group"], pair["host_group"])
+        ]
         self._pair = pair
         _copy_in(
             self.runtime,
@@ -735,6 +781,21 @@ class P4RuntimePartialWrite(ProblemBase):
                 f"batch on {params.host_name} was not partially applied: {result}"
             )
         logger.info("Partial P4Runtime batch on %s: %s", params.host_name, codes)
+
+    def recover_fault(self, params: P4RuntimePartialWriteParams) -> dict:
+        from nika.net_env.p4_dc_fabric.fabric_manager.apply import INTENT_PATH, _copy_in
+
+        original = getattr(self, "_original_intent", None)
+        if original is not None:
+            _copy_in(
+                self.runtime,
+                "fabric_mgr",
+                INTENT_PATH,
+                json.dumps(original, indent=2).encode(),
+            )
+        return restore_entities(
+            self, params.host_name, getattr(self, "_original_entities", [])
+        )
 
     def verify_fault(self, params: P4RuntimePartialWriteParams) -> dict:
         """Read groups and routes: the group rewrites applied, the routes did not."""
@@ -902,6 +963,7 @@ class P4TableResourceExhaustion(ProblemBase):
         prefixes = _host_route_filler(
             intent, params.host_name, max(0, size - len(existing))
         )
+        self._filler_prefixes = [p for p in prefixes if p not in existing]
         result = p4runtime_write(
             self.runtime,
             params.host_name,
@@ -913,6 +975,38 @@ class P4TableResourceExhaustion(ProblemBase):
             "added": sum(1 for s in result["statuses"] if s["code"] == "OK"),
             "errors": [s for s in result["statuses"] if s["code"] != "OK"][:3],
         }
+
+    def recover_fault(self, params: P4TableResourceExhaustionParams) -> dict:
+        prefixes = getattr(self, "_filler_prefixes", None)
+        observed = run_manager(
+            self.runtime, "read", "--switch", params.host_name, timeout=60
+        )
+        state = (observed.get("switches") or {}).get(params.host_name) or {}
+        existing = {row["prefix"] for row in state.get("ipv4_lpm", [])}
+        if prefixes is not None:
+            remove = [p for p in prefixes if p in existing]
+            if remove:
+                require_ok(
+                    p4runtime_write(
+                        self.runtime,
+                        params.host_name,
+                        [{"type": "DELETE", "lpm": {"prefix": p}} for p in remove],
+                        timeout=120,
+                    ),
+                    "filler removal",
+                )
+        observed = run_manager(
+            self.runtime, "read", "--switch", params.host_name, timeout=60
+        )
+        state = (observed.get("switches") or {}).get(params.host_name) or {}
+        remaining = {row["prefix"] for row in state.get("ipv4_lpm", [])}
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=prefixes is not None
+            and bool(state)
+            and not remaining.intersection(prefixes),
+            details={"host": params.host_name},
+        )
 
     def verify_fault(self, params: P4TableResourceExhaustionParams) -> dict:
         """Read the live LPM table and compare its occupancy with its size."""

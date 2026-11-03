@@ -1,6 +1,7 @@
 import ipaddress
 import json
 import re
+import shlex
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -11,7 +12,12 @@ from nika.problems.base import (
     build_verify_result,
     ProblemBase,
 )
-from nika.problems.support.frr import frr_config_command, frr_save_config
+from nika.problems.support.frr import (
+    FRR_CONF,
+    FRR_DIR,
+    frr_config_command,
+    frr_save_config,
+)
 from nika.problems.support.oracle import (
     Check,
     OraclePlaybook,
@@ -29,6 +35,7 @@ from nika.net_env.utils.kathara.frr_origin import (
     BGP_ORIGIN_IFACE,
     ENSURE_BGP_ORIGIN_IFACE_CMD,
 )
+from nika.problems.support.recovery import FileSnapshot, checked_exec
 from nika.problems.support.polling import wait_until
 from nika.problems.support.router_ops import native_fault_ops
 from nika.runtime.base import RuntimeCapabilityError
@@ -143,7 +150,15 @@ class BGPHijacking(ProblemBase):
     root_cause_name: str = "bgp_hijacking"
     description = "An unauthorized BGP prefix is advertised (hijack)."
     TAGS: str = ["bgp"]
-    native_router_operations = frozenset({"bgp_advertised_to", "originate_bgp_prefix"})
+    native_router_operations = frozenset(
+        {
+            "bgp_advertised_to",
+            "originate_bgp_prefix",
+            "save_config",
+            "restore_config",
+            "bgp_networks",
+        }
+    )
     INCOMPATIBLE_SCENARIOS = {
         "routeros_simple_bgp": "The injector reads and edits the FRR BGP "
         "configuration, which RouterOS routers do not have."
@@ -359,6 +374,8 @@ class BGPHijacking(ProblemBase):
         self._target_network = target_network
         ops = native_fault_ops(self, params.host_name, "originate_bgp_prefix")
         if ops is not None:
+            self._native_bgp_config = ops.save_config()
+            self._native_bgp_networks = sorted(ops.bgp_networks())
             # The provider also admits the prefix through the router's export
             # policy, the native form of ``export_prefix_list``.
             ops.originate_bgp_prefix(target_network)
@@ -379,6 +396,39 @@ class BGPHijacking(ProblemBase):
                 )
             case "kathara":
                 asn_number = self.runtime.frr_get_bgp_asn_number(params.host_name)
+                self._bgp_asn = asn_number
+                self._bgp_running = checked_exec(
+                    self.runtime, params.host_name, "vtysh -c 'show running-config'"
+                )
+                paths = checked_exec(
+                    self.runtime,
+                    params.host_name,
+                    'for file in /etc/frr/*.conf; do test ! -f "$file" || printf \'%s\\n\' "$file"; done',
+                )
+                self._bgp_files = [
+                    FileSnapshot.capture(self.runtime, params.host_name, path)
+                    for path in sorted(
+                        set(paths.splitlines())
+                        | {FRR_CONF, f"{FRR_DIR}/bgpd.conf", f"{FRR_DIR}/zebra.conf"}
+                    )
+                ]
+                self._origin_link = checked_exec(
+                    self.runtime,
+                    params.host_name,
+                    f"if ip link show {BGP_ORIGIN_IFACE} >/dev/null 2>&1; then echo present; fi",
+                )
+                self._origin_link_up = not self._origin_link or "UP" in json.loads(
+                    checked_exec(
+                        self.runtime,
+                        params.host_name,
+                        f"ip -j link show dev {BGP_ORIGIN_IFACE}",
+                    )
+                )[0].get("flags", [])
+                self._origin_local_routes = checked_exec(
+                    self.runtime,
+                    params.host_name,
+                    f"ip -4 route show table local exact {shlex.quote(target_network)}",
+                )
                 # Off ``lo`` so the IGP does not carry it: only BGP spreads a hijack.
                 self.runtime.exec(params.host_name, ENSURE_BGP_ORIGIN_IFACE_CMD)
                 # Behind a prefix-list export policy the operator error includes
@@ -416,6 +466,125 @@ class BGPHijacking(ProblemBase):
                 raise RuntimeCapabilityError(
                     f"{type(self).__name__} cannot inject_fault: unsupported backend {backend!r}."
                 )
+
+    def recover_fault(self, params: BGPHijackingParams) -> dict:
+        host = params.host_name
+        target = getattr(self, "_target_network", None)
+        if target is None:
+            return build_verify_result(
+                fault_type=self.root_cause_name,
+                verified=False,
+                details={"error": "Pre-injection BGP state is unavailable."},
+            )
+        ops = native_fault_ops(self, host, "originate_bgp_prefix")
+        if ops is not None:
+            saved = getattr(self, "_native_bgp_config", None)
+            if saved is None:
+                return build_verify_result(
+                    fault_type=self.root_cause_name,
+                    verified=False,
+                    details={
+                        "error": "Pre-injection native router configuration is unavailable."
+                    },
+                )
+            ops.restore_config(saved)
+            verified = sorted(ops.bgp_networks()) == self._native_bgp_networks
+        elif self.lab_backend == "kathara":
+            if not hasattr(self, "_bgp_running"):
+                return build_verify_result(
+                    fault_type=self.root_cause_name,
+                    verified=False,
+                    details={
+                        "error": "Pre-injection FRR configuration is unavailable."
+                    },
+                )
+            running = self._bgp_running
+            current_running = checked_exec(
+                self.runtime, host, "vtysh -c 'show running-config'"
+            )
+            commands = []
+            network_line = rf"^[ \t]+network {re.escape(target)}$"
+            if not re.search(network_line, running, re.M) and re.search(
+                network_line, current_running, re.M
+            ):
+                commands.extend(
+                    [f"router bgp {self._bgp_asn}", f"no network {target}", "exit"]
+                )
+            if not self._origin_link:
+                if re.search(rf"^interface {BGP_ORIGIN_IFACE}$", current_running, re.M):
+                    commands.append(f"no interface {BGP_ORIGIN_IFACE}")
+            else:
+                block = re.search(
+                    rf"^interface {BGP_ORIGIN_IFACE}\n(.*?)(?=^!)", running, re.M | re.S
+                )
+                current_block = re.search(
+                    rf"^interface {BGP_ORIGIN_IFACE}\n(.*?)(?=^!)",
+                    current_running,
+                    re.M | re.S,
+                )
+                if (
+                    (not block or f" ip address {target}" not in block[1].splitlines())
+                    and current_block
+                    and f" ip address {target}" in current_block[1].splitlines()
+                ):
+                    commands.extend(
+                        [
+                            f"interface {BGP_ORIGIN_IFACE}",
+                            f"no ip address {target}",
+                            "exit",
+                        ]
+                    )
+            if params.export_prefix_list:
+                name = params.export_prefix_list
+                pattern = rf"^ip prefix-list {re.escape(name)} seq 1 .*$"
+                old = re.search(pattern, running, re.M)
+                current = re.search(pattern, current_running, re.M)
+                if (old[0] if old else None) != (current[0] if current else None):
+                    if current:
+                        commands.append(f"no ip prefix-list {name} seq 1")
+                    if old:
+                        commands.append(old[0])
+            if not self._origin_link:
+                # FRR rejects deleting an interface that still exists in the kernel.
+                checked_exec(
+                    self.runtime,
+                    host,
+                    f"if ip link show {BGP_ORIGIN_IFACE} >/dev/null 2>&1; then ip link del {BGP_ORIGIN_IFACE}; fi",
+                )
+            if commands:
+                checked_exec(self.runtime, host, frr_config_command(*commands))
+            if self._origin_link and not self._origin_link_up:
+                checked_exec(
+                    self.runtime, host, f"ip link set dev {BGP_ORIGIN_IFACE} down"
+                )
+            route = checked_exec(
+                self.runtime,
+                host,
+                f"ip -4 route show table local exact {shlex.quote(target)}",
+            )
+            if route and not self._origin_local_routes:
+                checked_exec(
+                    self.runtime,
+                    host,
+                    f"ip route del local {shlex.quote(target)} table local",
+                )
+            for original in self._origin_local_routes.splitlines():
+                checked_exec(
+                    self.runtime, host, "ip route replace " + original + " table local"
+                )
+            for snapshot in self._bgp_files:
+                snapshot.restore(self.runtime, host)
+            current = checked_exec(self.runtime, host, "vtysh -c 'show running-config'")
+            verified = current == running
+        else:
+            raise RuntimeCapabilityError(
+                f"BGP recovery is unsupported on {self.lab_backend!r}."
+            )
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=verified,
+            details={"host": host, "target_network": target},
+        )
 
     def verify_fault(self, params: BGPHijackingParams) -> dict:
         """Verify the router is advertising the hijacked network via BGP."""

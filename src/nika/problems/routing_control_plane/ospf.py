@@ -19,6 +19,7 @@ from nika.problems.base import (
     build_verify_result,
     ProblemBase,
 )
+from nika.problems.support.recovery import FileSnapshot
 from nika.problems.support.router_ops import native_fault_ops
 from nika.runtime.base import RuntimeCapabilityError
 from nika.runtime.spec import NodeRole
@@ -178,7 +179,9 @@ class OSPFAreaMisconfig(ProblemBase):
     effect_protocol = "ospf"
 
     TAGS: str = ["ospf"]
-    native_router_operations = frozenset({"ospf_interface_areas", "renumber_ospf_area"})
+    native_router_operations = frozenset(
+        {"ospf_interface_areas", "renumber_ospf_area", "save_config", "restore_config"}
+    )
 
     Params = OSPFAreaMisconfigParams
 
@@ -200,8 +203,10 @@ class OSPFAreaMisconfig(ProblemBase):
         if not areas:
             raise RuntimeError(f"Could not find OSPF area on {params.host_name}")
         self._orig_areas = set(areas)
+        self._ospf_native_config = ops.save_config()
         correct_area = areas[0]
         wrong_area = "0.0.0.66" if correct_area != "0.0.0.66" else "0.0.0.99"
+        self._area_move = (correct_area, wrong_area)
         ops.renumber_ospf_area(correct_area, wrong_area)
         self.logger.info(
             f"Injected OSPF area misconfiguration on {params.host_name} from "
@@ -282,10 +287,13 @@ class OSPFAreaMisconfig(ProblemBase):
             params.host_name, "vtysh -c 'show running-config'"
         )
         statements, interface_bindings = _ospf_area_bindings(running_cfg)
+        self._area_original_bindings = (statements, interface_bindings)
+        self._ospf_file = FileSnapshot.capture(self.runtime, params.host_name, FRR_CONF)
         if not statements and not interface_bindings:
             raise RuntimeError(f"Could not find OSPF area on {params.host_name}")
         correct_area = (statements or interface_bindings)[0][-1]
         wrong_area = "66" if correct_area != "66" else "99"
+        self._area_move = (correct_area, wrong_area)
         # Keep the original area set in memory; a .bak file would expose it.
         self._orig_areas = {binding[-1] for binding in statements + interface_bindings}
         # Move the bindings in the running daemon (no restart), then keep the
@@ -327,6 +335,53 @@ class OSPFAreaMisconfig(ProblemBase):
             )
         self.logger.info(
             f"Injected OSPF area misconfiguration on {params.host_name} from area {correct_area} to {wrong_area}."
+        )
+
+    def recover_fault(self, params: OSPFAreaMisconfigParams) -> dict:
+        move = getattr(self, "_area_move", None)
+        if move is None:
+            return build_verify_result(
+                self.root_cause_name, False, {"error": "no_recovery_snapshot"}
+            )
+        original, wrong = move
+        ops = native_fault_ops(self, params.host_name, "renumber_ospf_area")
+        if ops is not None:
+            ops.restore_config(self._ospf_native_config)
+            restored = set(ops.ospf_interface_areas()) == self._orig_areas
+        else:
+            networks, interfaces = self._area_original_bindings
+            if networks:
+                commands = ["router ospf"]
+                for prefix, area in networks:
+                    if area == original:
+                        commands += [
+                            f"no network {prefix} area {wrong}",
+                            f"network {prefix} area {area}",
+                        ]
+            else:
+                commands = []
+                for interface, area in interfaces:
+                    if area == original:
+                        commands += [
+                            f"interface {interface}",
+                            f"no ip ospf area {wrong}",
+                            f"ip ospf area {area}",
+                            "exit",
+                        ]
+            self.runtime.exec(params.host_name, frr_config_command(*commands))
+            self._ospf_file.restore(self.runtime, params.host_name)
+            file_restored = True
+            current = self.runtime.exec(
+                params.host_name, "vtysh -c 'show running-config'"
+            )
+            restored = file_restored and _ospf_area_bindings(current) == (
+                networks,
+                interfaces,
+            )
+        return build_verify_result(
+            self.root_cause_name,
+            bool(restored),
+            {"host": params.host_name, "bindings_restored": bool(restored)},
         )
 
     def verify_fault(self, params: OSPFAreaMisconfigParams) -> dict:
@@ -526,6 +581,8 @@ class OSPFNeighborMissing(ProblemBase):
         # startup file loses the line too, leaving no commented-out line that
         # points at the change.
         kind, binding, area = self._single_adjacency_binding(params.host_name)
+        self._ospf_file = FileSnapshot.capture(self.runtime, params.host_name, FRR_CONF)
+        self._dropped_binding = (kind, binding, area)
         if kind == "network":
             prefix = binding
             self.runtime.exec(
@@ -559,6 +616,32 @@ class OSPFNeighborMissing(ProblemBase):
         self.logger.info(
             f"Injected OSPF neighbor missing on {params.host_name} "
             f"(removed {kind} binding {binding} area {area})."
+        )
+
+    def recover_fault(self, params: OSPFNeighborMissingParams) -> dict:
+        binding = getattr(self, "_dropped_binding", None)
+        if binding is None:
+            return build_verify_result(
+                self.root_cause_name, False, {"error": "no_recovery_snapshot"}
+            )
+        kind, target, area = binding
+        commands = (
+            ("router ospf", f"network {target} area {area}")
+            if kind == "network"
+            else (f"interface {target}", f"ip ospf area {area}")
+        )
+        self.runtime.exec(params.host_name, frr_config_command(*commands))
+        self._ospf_file.restore(self.runtime, params.host_name)
+        file_restored = True
+        current = self.runtime.exec(params.host_name, "vtysh -c 'show running-config'")
+        networks, interfaces = _ospf_area_bindings(current)
+        restored = file_restored and (target, area) in (
+            networks if kind == "network" else interfaces
+        )
+        return build_verify_result(
+            self.root_cause_name,
+            bool(restored),
+            {"host": params.host_name, "binding": binding},
         )
 
     def verify_fault(self, params: OSPFNeighborMissingParams) -> dict:
