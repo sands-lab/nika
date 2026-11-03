@@ -3279,6 +3279,14 @@
       "expected_failed_ids": [
         "adj.leaf_router_0_0.spine_router_0_0",
         "adj.spine_router_0_0.leaf_router_0_0"
+      ],
+      "changes": [
+        {
+          "kind": "peer_asn",
+          "node": "leaf_router_0_0",
+          "peer": "172.16.0.32",
+          "asn": 65099
+        }
       ]
     }
   ],

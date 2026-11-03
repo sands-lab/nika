@@ -47,6 +47,7 @@ from nika.net_env.isp.igp.plan import (
     shortest_paths,
 )
 from nika.net_env.net_env_pool import list_all_net_envs, resolve_scenario_backend
+from nika.net_env.synthesis.changes import DesignChange
 from nika.problems.rca.inventory import load_offline_net_env
 from nika.problems.routing_control_plane.bgp import (
     ASN_MISCONFIG_OFFSET,
@@ -299,6 +300,7 @@ def _iosxr_static_controls(env, plan, healthy, bgp_announcement):
                 node=local,
                 old=original,
                 new=original.replace("   route-reflector-client\n", ""),
+                changes=(DesignChange(kind="rr_client", node=local, peer=peer),),
                 expected_failed_ids=(role.id,),
             )
         )
@@ -889,12 +891,18 @@ def build_benchmark_isp_experiment(
             recovery_commands = {}
             nft_nodes = ()
             static_edits = {}
+            static_changes = ()
             if problem == "bgp_asn_misconfig":
                 asn = next(n.asn for n in env.bgp_plan.nodes if n.device_name == target)
                 # FRR and IOS XR, the analyzed syntaxes, share this header.
                 old = f"router bgp {asn}\n"
                 new = f"router bgp {asn + ASN_MISCONFIG_OFFSET}\n"
                 static_edits = {target: (old, new)}
+                static_changes = (
+                    DesignChange(
+                        kind="local_asn", node=target, asn=asn + ASN_MISCONFIG_OFFSET
+                    ),
+                )
             if problem in {"bgp_asn_misconfig", "bgp_acl_block"}:
                 failed = tuple(
                     sorted(
@@ -1115,6 +1123,7 @@ def build_benchmark_isp_experiment(
                     recovery_commands=recovery_commands,
                     restore_nft_nodes=nft_nodes,
                     static_edits=static_edits,
+                    changes=static_changes,
                 )
             )
             continue
@@ -1254,6 +1263,16 @@ def build_benchmark_isp_experiment(
                     requirements=contract(removed),
                     expected_failed_ids=tuple(failed),
                     static_edits={target: (old, new)},
+                    changes=tuple(
+                        DesignChange(
+                            kind="interface_area",
+                            node=target,
+                            prefix=str(IPv4Network(prefix, strict=False)),
+                            area=wrong_area,
+                        )
+                        for prefix, area in statements
+                        if area == correct_area
+                    ),
                 )
             )
     # Removing one original loopback announcement isolates the return path while
@@ -1342,6 +1361,7 @@ def build_benchmark_isp_experiment(
                 node=role_node,
                 old=f"  neighbor {peer} route-reflector-client",
                 new="",
+                changes=(DesignChange(kind="rr_client", node=role_node, peer=peer),),
                 expected_failed_ids=(role.id,),
             )
         )
@@ -1608,6 +1628,13 @@ def build_benchmark_isp_experiment(
                 node=target,
                 old=old_announcement,
                 new=static_replacement,
+                changes=(
+                    DesignChange(kind="withdraw_origin", node=target, prefix=prefix)
+                    if env.bgp_plan
+                    else DesignChange(
+                        kind="interface_area", node=target, prefix=prefix
+                    ),
+                ),
                 expected_failed_ids=failed_ids,
             ),
             *role_static,

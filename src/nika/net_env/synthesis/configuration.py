@@ -9,11 +9,18 @@ class RouterConfigs(dict):
 
     ``scripts`` maps a router to ``{module: script}`` for netlab modules that
     configure Linux instead of the routing daemon, such as WireGuard tunnels.
+    ``model`` is the netlab model the configurations were rendered from.
     """
 
-    def __init__(self, configs=(), scripts: dict[str, dict[str, str]] | None = None):
+    def __init__(
+        self,
+        configs=(),
+        scripts: dict[str, dict[str, str]] | None = None,
+        model: dict | None = None,
+    ):
         super().__init__(configs)
         self.scripts = dict(scripts or {})
+        self.model = model
 
 
 def netlab_script_command(module: str) -> str:

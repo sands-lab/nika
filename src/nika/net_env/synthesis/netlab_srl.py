@@ -297,7 +297,7 @@ def frr_interface(name: str) -> str:
 
 
 def generate_srl_configs(
-    env, parameters, directory: Path, *, as_frr=False
+    env, parameters, directory: Path, *, as_frr=False, changes=()
 ) -> dict[str, str]:
     """Compile SR Linux BGP completion to per-node netlab operation YAML.
 
@@ -312,7 +312,7 @@ def generate_srl_configs(
     for link in topology["links"]:
         for endpoint in link["interfaces"]:
             endpoint.pop("ipv6", None)
-    configs, model = run_netlab(topology, directory)
+    configs, model = run_netlab(topology, directory, changes)
     actual = {
         (name, peer["ipv4"], peer["as"])
         for name, node in model["nodes"].items()

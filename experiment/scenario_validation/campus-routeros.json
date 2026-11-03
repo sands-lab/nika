@@ -893,6 +893,14 @@
                 "reach.router_dist_1_1.server_access_router",
                 "reach.router_dist_2_1.router_dist_1_1",
                 "reach.server_access_router.router_dist_1_1"
+            ],
+            "changes": [
+                {
+                    "kind": "interface_area",
+                    "node": "router_dist_1_1",
+                    "prefix": "172.16.0.6/31",
+                    "area": "2"
+                }
             ]
         },
         {
@@ -906,6 +914,13 @@
                 "reach.router_dist_2_1.server_access_router",
                 "reach.server_access_router.router_dist_1_1",
                 "reach.server_access_router.router_dist_2_1"
+            ],
+            "changes": [
+                {
+                    "kind": "discard_route",
+                    "node": "router_core_2",
+                    "prefix": "10.200.0.0/24"
+                }
             ]
         }
     ],
@@ -945,7 +960,21 @@
                     " network 172.16.0.6/31 area 1\n network 10.1.1.0/24 area 1",
                     " network 172.16.0.6/31 area 66\n network 10.1.1.0/24 area 66"
                 ]
-            }
+            },
+            "changes": [
+                {
+                    "kind": "interface_area",
+                    "node": "router_dist_1_1",
+                    "prefix": "172.16.0.6/31",
+                    "area": "66"
+                },
+                {
+                    "kind": "interface_area",
+                    "node": "router_dist_1_1",
+                    "prefix": "10.1.1.0/24",
+                    "area": "66"
+                }
+            ]
         }
     ],
     "behavior": [

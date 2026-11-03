@@ -334,10 +334,7 @@ def validate_scenario_design(
         )
     if native_routers:
         runtime_verifier = verify_native_router_contract(env, runtime_verifier)
-    from nika.workflows.validation.netlab import (
-        bind_analysis_controls,
-        render_design_for_analysis,
-    )
+    from nika.workflows.validation.netlab import render_design_for_analysis
 
     # Batfish cannot parse SR Linux or RouterOS. Static analysis reads their
     # routing design rendered by netlab; native checks read the routers.
@@ -358,7 +355,7 @@ def validate_scenario_design(
     if config_generator == "netlab":
         from nika.net_env.synthesis.configuration import apply_routing_configs
         from nika.workflows.validation.netlab import (
-            bind_netlab_controls,
+            bind_runtime_controls,
             generate_configs,
         )
 
@@ -372,7 +369,7 @@ def validate_scenario_design(
                 node: yaml.safe_dump(document, sort_keys=False)
                 for node, document in env.routing_documents.items()
             }
-        spec = bind_netlab_controls(
+        spec = bind_runtime_controls(
             spec,
             control_configs,
             "nokia_srlinux"
@@ -382,13 +379,7 @@ def validate_scenario_design(
                 "device_profile",
                 spec.routing_model.split("-")[0] if native_vendor else "frr",
             ),
-            analysis=(analysis_render, analysis_syntax) if analysis_render else None,
         )
-        (output / "resolved-spec.json").write_text(
-            spec.model_dump_json(indent=2) + "\n"
-        )
-    elif analysis_render:
-        spec = bind_analysis_controls(spec, analysis_render, analysis_syntax)
         (output / "resolved-spec.json").write_text(
             spec.model_dump_json(indent=2) + "\n"
         )
@@ -438,6 +429,41 @@ def validate_scenario_design(
 
     def analysis_configs():
         return {**candidate_configs(), **analysis_render}
+
+    def changed_configs(name, changes, edits):
+        """Configurations of a negative control for static analysis.
+
+        netlab renders the control's design changes on the routers whose
+        analyzed configuration comes from netlab. Text edits apply verbatim
+        elsewhere: to routers NIKA renders itself, and to statements NIKA
+        retains beside netlab's output.
+        """
+        configs = analysis_configs()
+        from_netlab = set(analysis_render) | set(generated_configs or ())
+        for change in changes:
+            if change.node not in from_netlab and change.node not in edits:
+                raise ValueError(f"{name} needs a text edit for {change.node}")
+        changed = {c.node for c in changes}
+        if changed & set(analysis_render):
+            rendered, _ = render_design_for_analysis(
+                spec, env, parameters, output / "changes" / name / "analysis", changes
+            )
+            configs.update({n: rendered[n] for n in analysis_render})
+        deployed = set(generated_configs or ()) - set(analysis_render)
+        if changed & deployed:
+            rendered = generate_configs(
+                spec, env, parameters, output / "changes" / name / "netlab", changes
+            )
+            configs.update({n: rendered[n] for n in deployed})
+        for node, (old, new) in edits.items():
+            if node in changed and node in from_netlab:
+                continue
+            if configs[node].count(old) != 1:
+                raise ValueError(
+                    f"{name} must identify exactly one configuration statement"
+                )
+            configs[node] = configs[node].replace(old, new, 1)
+        return configs
 
     summary = {"static": {}, "runtime": {}, "counterexamples": {}}
     if analysis_render:
@@ -528,13 +554,12 @@ def validate_scenario_design(
                 "static %s %s %s", spec.scenario, name, summary["static"][name]
             )
         for mutation in spec.counterexamples:
-            configs = analysis_configs()
-            if configs[mutation.node].count(mutation.old) != 1:
-                raise ValueError(
-                    "Counterexample must identify exactly one concrete configuration statement"
-                )
-            configs[mutation.node] = configs[mutation.node].replace(
-                mutation.old, mutation.new, 1
+            configs = changed_configs(
+                mutation.name,
+                mutation.changes,
+                {}
+                if mutation.old is None
+                else {mutation.node: (mutation.old, mutation.new)},
             )
             snapshot = snapshot_builder(
                 env,
@@ -566,15 +591,11 @@ def validate_scenario_design(
             }
         predicted_failures = {}
         for failure in spec.failure_checks:
-            if not failure.static_edits:
+            if not failure.static_edits and not failure.changes:
                 continue
-            configs = analysis_configs()
-            for node, (old, new) in failure.static_edits.items():
-                if configs[node].count(old) != 1:
-                    raise ValueError(
-                        "A modeled fault must identify one concrete statement per node"
-                    )
-                configs[node] = configs[node].replace(old, new, 1)
+            configs = changed_configs(
+                failure.name, failure.changes, failure.static_edits
+            )
             snapshot = snapshot_builder(
                 env,
                 spec.healthy,
