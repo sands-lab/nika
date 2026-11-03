@@ -17,8 +17,8 @@ Fact families:
 * ``bgp_route``: selected BGP paths (AS path, local preference, next hop).
 * ``rib``: main-RIB protocol, next hops, metric and administrative distance.
 * ``fib``: recursively resolved egress interface and gateway set.
-* ``forwarding``: flows whose disposition differs between the candidates,
-  found exhaustively by Batfish's ``differentialReachability``.
+* ``forwarding``: example flows that ``differentialReachability`` finds
+  delivered in one candidate but not the other.
 """
 
 from __future__ import annotations

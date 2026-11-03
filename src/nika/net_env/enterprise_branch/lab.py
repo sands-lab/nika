@@ -400,9 +400,11 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
             use_rendered_configs,
         )
 
-        if not (rendered and routing_parameters is None and use_rendered_configs(self)):
-            # NIKA renders the routers; netlab still configures the tunnels.
+        if routing_parameters is not None:
+            # NIKA renders the solved routing; netlab still configures the tunnels.
             deploy_netlab_scripts(self, routing_parameters)
+        elif rendered:
+            use_rendered_configs(self)
 
     def probe_intent(self) -> ProbeIntent | None:
         """Overlay roles form one reachability domain; each local-only LAN its own."""
