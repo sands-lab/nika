@@ -71,7 +71,7 @@ Register metadata without importing the backend package:
 ```python
 "my_scenario": NetEnvSpec(
     lab_name="my_scenario",
-    module="nika.net_env.kathara.example.my_scenario.lab",
+    module="nika.net_env.my_scenario.lab",
     class_name="MyScenario",
     tags=("link", "icmp", "pc"),
     supported_backends=("kathara",),
