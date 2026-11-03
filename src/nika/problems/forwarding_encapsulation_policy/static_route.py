@@ -3,6 +3,7 @@
 import ipaddress
 import json
 import re
+import shlex
 
 from pydantic import BaseModel, Field
 
@@ -11,6 +12,7 @@ from nika.problems.support.benchmark_targets import (
     require_role_member,
 )
 from nika.problems.support.inject_resolve import resolve_victim_host_ip
+from nika.problems.support.recovery import route_lines
 from nika.problems.support.router_ops import native_fault_ops
 
 from nika.problems.rca import node_resource
@@ -92,7 +94,13 @@ class StaticBlackHole(ProblemBase):
     description = "A static blackhole route drops traffic to a prefix locally."
     TAGS: str = ["bgp"]
     native_router_operations = frozenset(
-        {"add_blackhole_route", "blackhole_routes", "remote_bgp_prefixes"}
+        {
+            "add_blackhole_route",
+            "blackhole_routes",
+            "remote_bgp_prefixes",
+            "save_config",
+            "restore_config",
+        }
     )
     supported_backends = ("kathara", "containerlab")
 
@@ -205,17 +213,36 @@ class StaticBlackHole(ProblemBase):
         host_network = ipaddress.ip_network(self._blackhole_network, strict=False)
         match self.lab_backend:
             case "containerlab":
+                self._srl_paths = [
+                    f"/network-instance default static-routes route {host_network}",
+                    "/network-instance default next-hop-groups group static-nhg-1",
+                ]
+                self._srl_saved = [
+                    self.runtime.srl_run_script(
+                        params.host_name, [f"info flat from running {path}"]
+                    )
+                    for path in self._srl_paths
+                ]
                 self.runtime.srl_add_blackhole_static(
                     params.host_name, self._blackhole_network
                 )
             case "kathara" if ops := native_fault_ops(
                 self, params.host_name, "add_blackhole_route"
             ):
+                self._native_saved = (ops, ops.save_config())
+                self._native_blackholes = sorted(ops.blackhole_routes())
                 ops.add_blackhole_route(str(host_network))
             case "kathara":
                 # A VRF router forwards end-host traffic from the VRF's table,
                 # so the blackhole goes into every table that routes the prefix.
+                self._original_routes = {}
                 for table in self._tables_routing(params.host_name, host_network):
+                    self._original_routes[table] = route_lines(
+                        self.runtime.exec(
+                            params.host_name,
+                            f"ip -4 route show table {table} exact {host_network}",
+                        )
+                    )
                     self.runtime.exec(
                         params.host_name,
                         f"ip route replace blackhole {host_network} table {table}",
@@ -226,6 +253,70 @@ class StaticBlackHole(ProblemBase):
                 )
         self.logger.info(
             f"Injected addition of blackhole route {host_network} on {params.host_name}."
+        )
+
+    def recover_fault(self, params: StaticBlackHoleParams) -> dict:
+        network = getattr(self, "_blackhole_network", None)
+        if hasattr(self, "_native_saved"):
+            ops, saved = self._native_saved
+            ops.restore_config(saved)
+            ok = sorted(ops.blackhole_routes()) == self._native_blackholes
+        elif hasattr(self, "_srl_saved"):
+            commands = [
+                "enter candidate",
+                *[f"delete {path}" for path in self._srl_paths],
+            ]
+            commands += [
+                line.strip().removeprefix("set ")
+                for saved in self._srl_saved
+                for line in saved.splitlines()
+                if line.strip().startswith("set /")
+            ]
+            self.runtime.srl_run_script(params.host_name, [*commands, "commit now"])
+            ok = all(
+                self.runtime.srl_run_script(
+                    params.host_name, [f"info flat from running {path}"]
+                )
+                == saved
+                for path, saved in zip(self._srl_paths, self._srl_saved)
+            )
+        else:
+            original = getattr(self, "_original_routes", {})
+            for table, routes in original.items():
+                current = self.runtime.exec(
+                    params.host_name, f"ip -4 route show table {table} exact {network}"
+                )
+                if any(
+                    line.startswith(f"blackhole {network}")
+                    for line in current.splitlines()
+                ):
+                    self.runtime.exec(
+                        params.host_name,
+                        f"ip route del blackhole {network} table {table}",
+                    )
+                for route in routes:
+                    self.runtime.exec(
+                        params.host_name,
+                        "ip route replace "
+                        + shlex.join(route.split())
+                        + f" table {table}",
+                    )
+            ok = bool(original) and all(
+                sorted(
+                    route_lines(
+                        self.runtime.exec(
+                            params.host_name,
+                            f"ip -4 route show table {table} exact {network}",
+                        )
+                    )
+                )
+                == sorted(routes)
+                for table, routes in original.items()
+            )
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=ok,
+            details={"host": params.host_name, "network": network},
         )
 
     def _tables_routing(self, router: str, network) -> list[str]:

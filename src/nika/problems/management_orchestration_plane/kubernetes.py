@@ -294,6 +294,7 @@ class WorkerApiServerPartition(K8sProblemBase):
         )
 
         node_filter = NodeFilter(self.runtime, device)
+        self._recovery_filter = node_filter
         for spec in specs:
             node_filter.block(spec)
 
@@ -302,6 +303,13 @@ class WorkerApiServerPartition(K8sProblemBase):
             f"dropped {', '.join(self.blocked_specs)}. The kubelet can no longer post "
             "status, so the node will report NotReady while its running pods survive."
         )
+
+    def recover_fault(self, params: WorkerApiServerPartitionParams) -> dict:
+        node_filter = getattr(self, "_recovery_filter", None)
+        if node_filter is None:
+            return {"verified": False, "details": {"error": "injection_state_missing"}}
+        removed = node_filter.recover()
+        return {"verified": removed, "details": {"owned_rules_removed": removed}}
 
     def verify_fault(self, params: WorkerApiServerPartitionParams) -> dict:
         k8s = self.runtime.lab_api

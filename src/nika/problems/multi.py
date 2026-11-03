@@ -72,6 +72,7 @@ class MultiFaultProblem(ProblemBase):
     ):
         super().__init__(scenario_name, **kwargs)
         self.sub_faults = sub_faults
+        self._recovery_pending: list[tuple[str, ProblemBase, Any]] = []
         self.problem_names = list(problem_names or [])
         if not self.problem_names:
             self.problem_names = [
@@ -139,6 +140,8 @@ class MultiFaultProblem(ProblemBase):
         return resources
 
     def inject_fault(self, params: MultiFaultParams | None = None) -> None:
+        if self._recovery_pending:
+            raise RuntimeError("Recover pending injections before injecting again.")
         resolved = (
             params if isinstance(params, MultiFaultParams) else self._resolved_params
         )
@@ -148,11 +151,42 @@ class MultiFaultProblem(ProblemBase):
             )
         for name, fault in self._fault_pairs():
             parsed = resolved.sub_params.get(name)
+            self._recovery_pending.append((name, fault, parsed))
             if parsed is not None:
                 fault.inject_fault(parsed)
             else:
                 fault.inject_fault()
         self._refresh_aggregates()
+
+    def recover_fault(self, params: MultiFaultParams | None = None) -> dict:
+        """Undo attempted injections in reverse order, retaining failed undo steps."""
+        results = []
+        # Stop at a failed step: an older snapshot may otherwise overwrite it.
+        while self._recovery_pending:
+            name, fault, parsed = self._recovery_pending[-1]
+            try:
+                recover = getattr(fault, "recover_fault", None)
+                if not callable(recover):
+                    raise NotImplementedError(
+                        f"{name} does not implement recover_fault"
+                    )
+                result = recover(parsed) if parsed is not None else recover()
+                if not isinstance(result, dict) or result.get("verified") is not True:
+                    results.append({"problem": name, "result": result})
+                    break
+            except Exception as exc:
+                results.append({"problem": name, "verified": False, "error": str(exc)})
+                break
+            results.append({"problem": name, "result": result})
+            self._recovery_pending.pop()
+        return build_verify_result(
+            fault_type=str(self.root_cause_name),
+            verified=not self._recovery_pending,
+            details={
+                "sub_results": results,
+                "pending": [name for name, _, _ in self._recovery_pending],
+            },
+        )
 
     def verify_fault(self, params: MultiFaultParams | None = None) -> dict:
         """Verify all sub-faults and aggregate results."""
