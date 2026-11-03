@@ -362,14 +362,12 @@ def validate_forwarding_design(spec, output, *, runtime=False):
             # Apply the same configuration counterexample through the native API.
             if program:
                 from nika.net_env.p4_dc_fabric.fabric_manager.apply import run_manager
+                from nika.problems.support.p4runtime_writes import p4runtime_write
 
-                result = run_manager(
+                result = p4runtime_write(
                     backend,
-                    "delete-lpm",
-                    "--switch",
                     ep.switch,
-                    "--prefix",
-                    f"{ep.address}/32",
+                    [{"type": "DELETE", "lpm": {"prefix": f"{ep.address}/32"}}],
                 )
                 if not result.get("ok"):
                     raise RuntimeError("Native LPM withdrawal failed")
