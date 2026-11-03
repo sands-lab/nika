@@ -28,10 +28,6 @@ from nika.problems.support.oracle import (
 from nika.runtime.spec import NodeRole
 
 
-class DeviceFlowBlackholeParams(SwitchInternalPacketCorruptionParams):
-    """Forwarding device egress port and the hash seed that picks the dropped flows."""
-
-
 class SwitchFlowBlackhole(SwitchEgressClassifier):
     SOURCE = "flow_blackhole.bpf.c"
 
@@ -67,7 +63,7 @@ def _flow_probe_target(net_env, device: str, intf: str) -> tuple[str, str, int]:
         client, server, _ = _tcp_probe_pair(net_env, device, intf)
         return client, server, 80
     except ValueError:
-        # Workload-owned services need not appear in the legacy web inventory.
+        # Workload-owned services need not appear in the web inventory.
         peers = {
             node
             for _, tps in iter_link_termination_points(net_env)
@@ -112,7 +108,7 @@ class DeviceFlowBlackhole(DeviceForwardingPacketCorruption):
         "Some TCP and UDP connections across the fabric hang while ping and "
         "routing stay healthy."
     )
-    Params = DeviceFlowBlackholeParams
+    Params = SwitchInternalPacketCorruptionParams
     INJECTOR = SwitchFlowBlackhole
     # TC egress classifier on the container interface, outside the router OS.
     native_router_operations = frozenset()
@@ -128,7 +124,9 @@ class DeviceFlowBlackhole(DeviceForwardingPacketCorruption):
     def root_cause_resources(self, params):
         return [node_resource(params.forwarding_device)]
 
-    def oracle_playbook(self, params: DeviceFlowBlackholeParams) -> OraclePlaybook:
+    def oracle_playbook(
+        self, params: SwitchInternalPacketCorruptionParams
+    ) -> OraclePlaybook:
         device, intf = params.forwarding_device, params.intf_name
         client, web, port = _flow_probe_target(self.net_env, device, intf)
 

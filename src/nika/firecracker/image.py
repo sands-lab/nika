@@ -67,6 +67,9 @@ FREE_PAGE_REPORT_SEC = 5
 BUILD_DEPLOY_TIMEOUT_SEC = 1800
 # Free space kept on the Firecracker root beyond a build's VM memory.
 BUILD_SPACE_MARGIN_MIB = 4096
+# Guest memory the VM's own kernel and services hold (about 0.7 GiB measured),
+# added to a native vendor lab's admission estimate.
+GUEST_OVERHEAD_MIB = 1024
 # Deploy parameters that change the lab; mirrors ``start_net_env``'s keywords.
 VARIANT_KEYS = (
     "scenario",
@@ -166,10 +169,31 @@ def lab_settings() -> dict[str, Any]:
     return {section: nika[section] for section in LAB_SETTING_SECTIONS}
 
 
-def vm_memory_mib(scenario: str) -> int:
+def vm_memory_mib(params: dict[str, Any]) -> int:
+    """VM memory of variant ``params``: its configured size, or more when the
+    lab's native vendor routers need more (the lab's own admission estimate)."""
     settings = firecracker_settings()
+    scenario = str(params.get("scenario"))
     memory = settings.vm_memory_overrides.get(scenario, settings.vm_memory)
-    return int(memory[:-3]) * 1024
+    return max(
+        int(memory[:-3]) * 1024, _native_lab_mib(json.dumps(params, sort_keys=True))
+    )
+
+
+@functools.cache
+def _native_lab_mib(params_json: str) -> int:
+    """Whole GiB of VM memory a native vendor lab needs; 0 for other labs."""
+    params = json.loads(params_json)
+    if params.get("device_profile") in (None, "frr"):
+        return 0
+    from nika.net_env.net_env_pool import get_net_env_instance
+
+    deploy = {key: value for key, value in params.items() if key != "scenario"}
+    env = get_net_env_instance(str(params["scenario"]), **deploy)
+    estimate = getattr(env, "native_lab_memory", lambda: None)()
+    if not estimate:
+        return 0
+    return -(-((estimate >> 20) + GUEST_OVERHEAD_MIB) // 1024) * 1024
 
 
 def vm_cpus(scenario: str) -> int:
@@ -193,7 +217,7 @@ def image_key(params: dict[str, Any]) -> str:
         "code": code_fingerprint(),
         "base": base_manifest().get("id"),
         "cpus": vm_cpus(str(params.get("scenario"))),
-        "memory_mib": vm_memory_mib(str(params.get("scenario"))),
+        "memory_mib": vm_memory_mib(params),
         "huge_pages": settings.huge_pages,
         "firecracker": binary_id(firecracker_binary()),
     }
@@ -265,19 +289,19 @@ def free_root_mib() -> int:
     return stat.f_bavail * stat.f_frsize >> 20
 
 
-def build_space_mib(scenario: str) -> int:
+def build_space_mib(params: dict[str, Any]) -> int:
     """Root space a build needs: its snapshot first writes the whole VM memory."""
-    return vm_memory_mib(scenario) + BUILD_SPACE_MARGIN_MIB
+    return vm_memory_mib(params) + BUILD_SPACE_MARGIN_MIB
 
 
-def require_build_space(scenario: str) -> None:
+def require_build_space(params: dict[str, Any]) -> None:
     """Fail before a build that could fill the Firecracker root.
 
     A full btrfs root fails every build and trial (and the run's own logs when
     they live there).
     """
     free_mib = free_root_mib()
-    need_mib = build_space_mib(scenario)
+    need_mib = build_space_mib(params)
     if free_mib < need_mib:
         raise RuntimeError(
             f"Only {free_mib / 1024:.0f} GiB free on {root()}; a build needs about "
@@ -307,7 +331,7 @@ def _build(build: Path, key: str, params: dict[str, Any]) -> None:
         # An interrupted build (we hold its lock): stop its VM before deleting it.
         kill_pid_file(build / "firecracker.pid")
         shutil.rmtree(build)
-    require_build_space(str(params.get("scenario")))
+    require_build_space(params)
     build.mkdir(parents=True)
     (build / "builder.json").write_text(
         json.dumps(
@@ -322,7 +346,7 @@ def _build(build: Path, key: str, params: dict[str, Any]) -> None:
         initrd=str(base / manifest["initrd"]) if manifest.get("initrd") else None,
         boot_args=manifest["boot_args"],
         cpus=vm_cpus(str(params["scenario"])),
-        memory_mib=vm_memory_mib(str(params["scenario"])),
+        memory_mib=vm_memory_mib(params),
         huge_pages=settings.huge_pages,
         free_page_reporting=not settings.huge_pages,
     )

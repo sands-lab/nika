@@ -284,24 +284,33 @@ class IspVendor(NetworkEnvBase):
 
         return isp_topology_probe_path(topo, deploy_kwargs.get("bgp_mode"))
 
+    def _memory_inputs(self) -> dict[str, int]:
+        from nika.net_env.native_routers import native_platform
+
+        return {
+            "routers": len(self.plan.nodes),
+            "per_router": native_platform(self.device_profile).memory_per_router,
+            "hosts": len(self.traffic.hosts)
+            + int(
+                self.bgp_plan is not None and self.bgp_plan.customer_site is not None
+            ),
+        }
+
+    def native_lab_memory(self) -> int:
+        """Estimated bytes the lab needs (see ``native_lab_memory``)."""
+        from nika.net_env.utils.native_admission import native_lab_memory
+
+        return native_lab_memory(**self._memory_inputs())
+
     def deploy(self):
         if not image_exists(self._image):
             raise RuntimeError(
                 f"Native ISP image {self._image!r} must be installed locally"
             )
-        from nika.net_env.utils.native_admission import (
-            GIB,
-            require_native_lab_memory,
-        )
+        from nika.net_env.utils.native_admission import require_native_lab_memory
 
         require_native_lab_memory(
-            f"Native ISP {self.device_profile}",
-            routers=len(self.plan.nodes),
-            per_router=3 * GIB if self.device_profile == "iosxr" else GIB,
-            hosts=len(self.traffic.hosts)
-            + int(
-                self.bgp_plan is not None and self.bgp_plan.customer_site is not None
-            ),
+            f"Native ISP {self.device_profile}", **self._memory_inputs()
         )
         super().deploy()
 

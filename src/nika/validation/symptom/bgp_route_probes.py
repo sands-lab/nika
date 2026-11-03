@@ -16,6 +16,7 @@ from typing import Any
 from nika.net_env.net_env_pool import get_probe_path
 from nika.net_env.verify import exec_or_empty, ping_stats
 from nika.problems.base import build_verify_result
+from nika.problems.support.router_ops import router_fault_ops
 from nika.runtime.base import LabRuntime
 from nika.validation.symptom.routing_probes import bgp_speakers_of, host_addresses
 
@@ -34,10 +35,18 @@ def _json(runtime: LabRuntime, node: str, command: str) -> Any:
         return None
 
 
-def prefix_paths(runtime: LabRuntime, router: str, prefix: str) -> list[dict] | None:
+def prefix_paths(problem: Any, router: str, prefix: str) -> list[dict] | None:
     """Paths ``router`` holds for exactly ``prefix``; ``None`` when unreadable."""
-    data = _json(runtime, router, f"vtysh -c 'show bgp ipv4 unicast {prefix} json'")
-    if data is None:
+    try:
+        ops = router_fault_ops(problem, router)
+        if ops is not None:
+            return ops.bgp_prefix_paths(prefix)
+    except Exception:  # noqa: BLE001 - unreadable is distinct from an empty table
+        return None
+    data = _json(
+        problem.runtime, router, f"vtysh -c 'show bgp ipv4 unicast {prefix} json'"
+    )
+    if not isinstance(data, dict) or (data and "paths" not in data):
         return None
     return [
         {
@@ -51,8 +60,14 @@ def prefix_paths(runtime: LabRuntime, router: str, prefix: str) -> list[dict] | 
     ]
 
 
-def _table(runtime: LabRuntime, router: str) -> dict[str, list[dict]] | None:
-    data = _json(runtime, router, "vtysh -c 'show bgp ipv4 unicast json'")
+def _table(problem: Any, router: str) -> dict[str, list[dict]] | None:
+    try:
+        ops = router_fault_ops(problem, router)
+        if ops is not None:
+            return ops.bgp_table()
+    except Exception:  # noqa: BLE001 - unreadable is distinct from an empty table
+        return None
+    data = _json(problem.runtime, router, "vtysh -c 'show bgp ipv4 unicast json'")
     if data is None or not isinstance(data.get("routes"), dict):
         return None
     return {
@@ -61,6 +76,8 @@ def _table(runtime: LabRuntime, router: str) -> dict[str, list[dict]] | None:
                 "aspath": str(path.get("path") or ""),
                 "best": bool(path.get("bestpath")),
                 "nexthops": [hop.get("ip") for hop in path.get("nexthops") or []],
+                "originator": path.get("originatorId"),
+                "peer_router_id": (path.get("peer") or {}).get("routerId"),
             }
             for path in paths
         ]
@@ -68,11 +85,27 @@ def _table(runtime: LabRuntime, router: str) -> dict[str, list[dict]] | None:
     }
 
 
-def _local_asn(runtime: LabRuntime, router: str) -> int | None:
-    data = _json(runtime, router, "vtysh -c 'show bgp summary json'")
+def _local_asn(problem: Any, router: str) -> int | None:
+    try:
+        ops = router_fault_ops(problem, router)
+        if ops is not None:
+            return ops.bgp_asn()
+    except Exception:  # noqa: BLE001 - an unreadable identity cannot identify an origin
+        return None
+    data = _json(problem.runtime, router, "vtysh -c 'show bgp summary json'")
     unicast = (data or {}).get("ipv4Unicast") or {}
     asn = unicast.get("as")
     return int(asn) if isinstance(asn, int) else None
+
+
+def _router_addresses(problem: Any, router: str) -> set[str] | None:
+    try:
+        ops = router_fault_ops(problem, router)
+        if ops is not None:
+            return ops.ipv4_addresses()
+    except Exception:  # noqa: BLE001 - unreadable addresses cannot identify an origin
+        return None
+    return host_addresses(problem.runtime, router)
 
 
 def _origin_asn(path: dict) -> int | None:
@@ -125,19 +158,26 @@ def _hijack_reading(problem: Any, params: Any) -> dict[str, Any]:
     if observer is None:
         reading["error"] = "no_remote_observer_for_hijack"
         return reading
-    hijacker_addrs = host_addresses(runtime, params.host_name)
+    hijacker_addrs = _router_addresses(problem, params.host_name)
+    if hijacker_addrs is None:
+        reading["error"] = f"address_query_failed_on_{params.host_name}"
+        return reading
     # The hijacker also holds the target address; it does not identify the hijacker.
     net = ipaddress.ip_network(target, strict=False)
     hijacker_addrs = {a for a in hijacker_addrs if ipaddress.ip_address(a) not in net}
-    paths = prefix_paths(runtime, observer, target)
+    paths = prefix_paths(problem, observer, target)
     reading["paths"] = paths
     if paths is None:
         reading["error"] = f"bgp_query_failed_on_{observer}"
         return reading
     # Behind an eBGP hub that rewrites the next hop, the hijacker's AS as the
     # path origin identifies it (``_from_router``).
-    hijacker_asn = _local_asn(runtime, params.host_name)
-    observer_asn = _local_asn(runtime, observer)
+    hijacker_asn = _local_asn(problem, params.host_name)
+    observer_asn = _local_asn(problem, observer)
+    for router, asn in ((params.host_name, hijacker_asn), (observer, observer_asn)):
+        if asn is None:
+            reading["error"] = f"bgp_query_failed_on_{router}"
+            return reading
     reading["best_via_hijacker"] = any(
         path["best"] and _from_router(path, hijacker_addrs, hijacker_asn, observer_asn)
         for path in paths
@@ -207,7 +247,7 @@ def _rpki_reading(problem: Any) -> dict[str, Any]:
     for role, router in (("non_rov", non_rov), ("rov", rov)):
         learned: dict[str, bool] = {}
         for prefix in prefixes:
-            paths = prefix_paths(runtime, router, prefix)
+            paths = prefix_paths(problem, router, prefix)
             if paths is None:
                 reading["error"] = f"bgp_query_failed_on_{router}"
                 return reading
@@ -253,12 +293,14 @@ def rpki_leak_split(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
 
 
 def _advertised_by(
-    runtime: LabRuntime, observer: str, addrs: set[str], asn: int | None
+    problem: Any, observer: str, addrs: set[str], asn: int | None
 ) -> list[str] | None:
-    table = _table(runtime, observer)
-    if table is None:
+    table = _table(problem, observer)
+    if table is None or asn is None:
         return None
-    observer_asn = _local_asn(runtime, observer)
+    observer_asn = _local_asn(problem, observer)
+    if observer_asn is None:
+        return None
     return sorted(
         prefix
         for prefix, paths in table.items()
@@ -268,36 +310,52 @@ def _advertised_by(
 
 def advertisement_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
     """Record the prefixes remote observers learn from the originator before inject."""
-    runtime = problem.runtime
     host = params.host_name
-    addrs = host_addresses(runtime, host)
-    asn = _local_asn(runtime, host)
+    problem._audit_advertised = None
+    addrs = _router_addresses(problem, host)
+    asn = _local_asn(problem, host)
+    if addrs is None or asn is None:
+        return False, {"host": host, "error": f"bgp_identity_query_failed_on_{host}"}
     wanted = getattr(params, "prefix", None)
     observers = (
         [params.symptom_host]
         if getattr(params, "symptom_host", None)
         else bgp_speakers_of(problem, host)
     )
+    if not getattr(params, "symptom_host", None):
+        identities = problem.net_env.machine_identities
+        observers = [
+            node
+            for node in observers
+            if node not in identities or "bgp" in identities[node].capabilities
+        ]
     seen: dict[str, list[str]] = {}
+    errors: list[str] = []
     for observer in observers:
-        learned = _advertised_by(runtime, observer, addrs, asn)
+        learned = _advertised_by(problem, observer, addrs, asn)
         if learned is None:
+            errors.append(f"bgp_query_failed_on_{observer}")
             continue
         if wanted:
             learned = [p for p in learned if p == str(ipaddress.ip_network(wanted))]
         if learned:
             seen[observer] = learned
-    problem._audit_advertised = {
-        "host": host,
-        "addresses": sorted(addrs),
-        "asn": asn,
-        "seen": seen,
-    }
-    ok = bool(seen)
+    problem._audit_advertised = (
+        None
+        if errors
+        else {
+            "host": host,
+            "addresses": sorted(addrs),
+            "asn": asn,
+            "seen": seen,
+        }
+    )
+    ok = not errors and bool(seen)
     return ok, {
         "host": host,
         "asn": asn,
         "observers": seen,
+        "errors": errors,
         **_data_path(problem, params),
     }
 
@@ -321,14 +379,13 @@ def advertisement_withdrawn(problem: Any, params: Any) -> tuple[bool, dict[str, 
         or not base.get("seen")
     ):
         return False, {"error": "no_healthy_advertisement_baseline"}
-    runtime = problem.runtime
     addrs = set(base["addresses"])
     deadline = time.monotonic() + _ROUTE_WAIT_SEC
     while True:
         remaining: dict[str, list[str]] = {}
         errors: list[str] = []
         for observer, prefixes in base["seen"].items():
-            learned = _advertised_by(runtime, observer, addrs, base["asn"])
+            learned = _advertised_by(problem, observer, addrs, base["asn"])
             if learned is None:
                 errors.append(f"bgp_query_failed_on_{observer}")
                 continue
@@ -336,7 +393,7 @@ def advertisement_withdrawn(problem: Any, params: Any) -> tuple[bool, dict[str, 
             if still:
                 remaining[observer] = still
         ok = not errors and not remaining
-        if ok or time.monotonic() >= deadline:
+        if ok or errors or time.monotonic() >= deadline:
             break
         time.sleep(_POLL_SEC)
     details = {

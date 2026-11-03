@@ -3190,11 +3190,6 @@ def declared_ebgp(net_env, router: str) -> bool | None:
     return _config_has_ebgp(sketch[0])
 
 
-def has_declared_ebgp(net_env, router: str) -> bool:
-    """Whether ``router`` is declared with at least one eBGP session."""
-    return bool(declared_ebgp(net_env, router))
-
-
 def _config_has_ebgp(config: str) -> bool:
     """Whether an FRR configuration has an eBGP neighbor."""
     local = re.search(r"^router bgp (\d+)\s*$", config, re.MULTILINE)
@@ -3256,7 +3251,7 @@ class BGPSessionPolicyMissing(ProblemBase):
             router
             for router in ctx.routers
             if native_router_profile(ctx.net_env, router)
-            and has_declared_ebgp(ctx.net_env, router)
+            and declared_ebgp(ctx.net_env, router)
             and attached_end_hosts(ctx.net_env, router)
         ]
         return {"host_name": choice(ctx.rng, native, ctx.router0)}
@@ -3270,7 +3265,7 @@ class BGPSessionPolicyMissing(ProblemBase):
         # native platform's; FRR here runs without ``ebgp-requires-policy``.
         if not native_router_profile(ctx.net_env, host):
             raise ValueError(f"{cls.root_cause_name} needs a native router target")
-        if not has_declared_ebgp(ctx.net_env, host):
+        if not declared_ebgp(ctx.net_env, host):
             raise ValueError(f"{cls.root_cause_name} needs a router with eBGP sessions")
         if not attached_end_hosts(ctx.net_env, host):
             raise ValueError(f"{cls.root_cause_name} needs a router with end hosts")

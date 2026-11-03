@@ -97,6 +97,8 @@ class NativeRouterPlatform:
     fault_ops: Callable[[object, str], object] | None = None
     # Most kbit/s an interface of this platform sends, when the image caps it.
     interface_rate_kbps: int | None = None
+    # Memory one router reserves in the admission estimate (bytes).
+    memory_per_router: int = 1024**3
 
 
 # Vendor modules exposing ``PLATFORM``; add a profile here to support it.
@@ -191,6 +193,19 @@ class NativeRouterEnv:
     def _eligible(self, roles) -> tuple[str, ...]:
         by_role = self.router_roles()
         return tuple(sorted({name for role in roles for name in by_role.get(role, ())}))
+
+    def native_lab_memory(self) -> int | None:
+        """Estimated bytes the lab needs; ``None`` without native routers."""
+        if not self.native_routers:
+            return None
+        from nika.net_env.utils.native_admission import native_lab_memory
+
+        routers = len(self.native_routers)
+        return native_lab_memory(
+            routers=routers,
+            per_router=native_platform(self.device_profile).memory_per_router,
+            hosts=len(self.lab.machines) - routers,
+        )
 
     def deploy(self):
         if self.native_routers:

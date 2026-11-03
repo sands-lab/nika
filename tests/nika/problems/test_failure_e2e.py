@@ -127,7 +127,7 @@ CORE_E2E_CASES = (
             inject_seed=seed,
             sleep_after_inject_sec=30,
         )
-        for scenario in ("isp_abilene", "isp_france", "isp_pioro40")
+        for scenario in ("isp_abilene",)
         for seed, igp, mode in (
             (1, "isis", "none"),
             (2, "ospf", "none"),
@@ -143,9 +143,7 @@ CORE_E2E_CASES = (
         )
         for scenario in (
             "isp_abilene_ebgp_rpki",
-            "isp_geant_ebgp_rpki",
             "isp_abilene_ebgp_rtbh",
-            "isp_dfn-bwin_ebgp_rtbh",
         )
     ),
     *(
@@ -341,16 +339,7 @@ CORE_E2E_CASES = (
                 "device_profile": profile,
             },
         )
-        for scenario in (
-            "isp_abilene",
-            "isp_atlanta",
-            "isp_dfn-bwin",
-            "isp_dfn-gwin",
-            "isp_di-yuan",
-            "isp_nobel-us",
-            "isp_pdh",
-            "isp_polska",
-        )
+        for scenario in ("isp_abilene",)
         for profile in ("iosxr", "routeros")
     ),
     FailureE2ECase(

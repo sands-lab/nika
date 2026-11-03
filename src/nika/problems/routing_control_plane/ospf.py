@@ -1,12 +1,12 @@
 import ipaddress
 import json
 import re
-import time
 from dataclasses import replace
 
 from pydantic import BaseModel, Field
 
 from nika.problems.rca import node_resource
+from nika.problems.support.benchmark_targets import hosts_behind_router
 from nika.problems.rca.inventory import (
     interface_on,
     iter_link_termination_points,
@@ -23,8 +23,8 @@ from nika.problems.support.oracle import (
     vtysh,
 )
 from nika.problems.support.ospf import (
-    full_frr_neighbors as _full_frr_neighbors,
-    ospf_health as _ospf_health,
+    full_frr_neighbors,
+    ospf_health,
 )
 from nika.problems.support.polling import wait_until
 from nika.problems.base import (
@@ -575,7 +575,7 @@ class OSPFNeighborMissing(ProblemBase):
         config = self.runtime.exec(host, "vtysh -c 'show running-config'")
         statements, interfaces = _ospf_area_bindings(config)
         raw = self.runtime.exec(host, "vtysh -c 'show ip ospf neighbor json'")
-        self._frr_neighbors = _full_frr_neighbors(raw)
+        self._frr_neighbors = full_frr_neighbors(raw)
         try:
             neighbors = json.loads(raw).get("neighbors") or {}
         except (ValueError, AttributeError):
@@ -910,7 +910,7 @@ class OSPFNeighborMissing(ProblemBase):
     def inject_fault(self, params: OSPFNeighborMissingParams):
         if getattr(self.net_env, "backend", None) == "containerlab":
             host = params.host_name
-            self._srl_health = _ospf_health(self, host)
+            self._srl_health = ospf_health(self, host)
             neighbors = self.runtime.lab_api.srl_ospf_neighbors(host)
             interface = next(
                 (
@@ -1104,7 +1104,7 @@ class OSPFNeighborMissing(ProblemBase):
             self.runtime.lab_api.srl_configure(params.host_name, *self._srl_restore)
 
             def healthy():
-                state = _ospf_health(self, params.host_name)
+                state = ospf_health(self, params.host_name)
                 return all(
                     values <= state[key] for key, values in self._srl_health.items()
                 )
@@ -1153,24 +1153,20 @@ class OSPFNeighborMissing(ProblemBase):
                 )
                 return (
                     bool(self._frr_neighbors)
-                    and _full_frr_neighbors(raw) == self._frr_neighbors
+                    and full_frr_neighbors(raw) == self._frr_neighbors
                     and self._original_routes <= self._route_prefixes(params.host_name)
                 )
 
-        deadline = time.monotonic() + 120
-        while True:
-            ok = healthy()
-            if ok or time.monotonic() >= deadline:
-                return {
-                    "verified": ok,
-                    "details": {
-                        "host": params.host_name,
-                        "adjacencies_restored": ok,
-                        "original_route_count": len(self._original_routes),
-                        "routes_restored": ok,
-                    },
-                }
-            time.sleep(3)
+        ok = wait_until(healthy, 120, interval_s=3)
+        return {
+            "verified": ok,
+            "details": {
+                "host": params.host_name,
+                "adjacencies_restored": ok,
+                "original_route_count": len(self._original_routes),
+                "routes_restored": ok,
+            },
+        }
 
 
 # ==================================================================
@@ -1473,7 +1469,7 @@ class OSPFDuplicateRouterId(ProblemBase):
         )
         self._healthy_router_id = own
         self._healthy_routing = {
-            host: _ospf_health(self, host)
+            host: ospf_health(self, host)
             for host in (params.host_name, self._twin_host)
             if host is not None
         }
@@ -1539,7 +1535,7 @@ class OSPFDuplicateRouterId(ProblemBase):
             if self._router_id(params.host_name) != self._healthy_router_id:
                 return False
             for host, before in baseline.items():
-                current = _ospf_health(self, host)
+                current = ospf_health(self, host)
                 if any(not values <= current[key] for key, values in before.items()):
                     return False
             return True
@@ -1673,36 +1669,6 @@ def ospf_stub_router(net_env, host: str, intf: str) -> str | None:
     return None
 
 
-def hosts_behind_router(net_env, router: str) -> list[str]:
-    """Hosts and services reached from ``router`` without crossing another router."""
-    from collections import deque
-
-    from nika.runtime.spec import NodeRole
-
-    routers = set(net_env.routers or [])
-    identities = getattr(net_env, "machine_identities", None) or {}
-    adjacency: dict[str, set[str]] = {}
-    for _key, tps in iter_link_termination_points(net_env):
-        nodes = [parse_endpoint(tp)[0] for tp in tps if parse_endpoint(tp)[0]]
-        for node in nodes:
-            adjacency.setdefault(node, set()).update(n for n in nodes if n != node)
-    seen = {router}
-    queue = deque([router])
-    hosts = []
-    while queue:
-        current = queue.popleft()
-        for neighbor in sorted(adjacency.get(current, ())):
-            if neighbor in seen or neighbor in routers:
-                continue
-            seen.add(neighbor)
-            role = getattr(identities.get(neighbor), "role", None)
-            if role in {NodeRole.HOST, NodeRole.SERVICE}:
-                hosts.append(neighbor)
-            else:
-                queue.append(neighbor)
-    return hosts
-
-
 def ospf_host_cut_edges(net_env) -> list[tuple[str, str]]:
     """OSPF cut edges whose leaf router serves hosts or services."""
     return [
@@ -1831,7 +1797,7 @@ class OSPFNetworkTypeMismatch(ProblemBase):
         if peer is None:
             raise RuntimeCapabilityError(f"No OSPF router peer for {host!r} {intf!r}")
         self._healthy_routing = {
-            node: _ospf_health(self, node) for node in (host, peer[0])
+            node: ospf_health(self, node) for node in (host, peer[0])
         }
         ops = native_fault_ops(self, host, "set_ospf_network_type")
         if ops is not None:
@@ -1888,7 +1854,7 @@ class OSPFNetworkTypeMismatch(ProblemBase):
 
         def healthy():
             for node, before in baseline.items():
-                current = _ospf_health(self, node)
+                current = ospf_health(self, node)
                 if any(not values <= current[key] for key, values in before.items()):
                     return False
             return True
@@ -1987,7 +1953,6 @@ class OSPFHelloIntervalMismatch(ProblemBase):
     symptom_class = "control_plane"
     effect_protocol = "ospf"
     TAGS = ["ospf"]
-    COMPATIBLE_COLUMNS = None
     supported_backends = ("kathara", "containerlab")
     native_router_operations = frozenset(
         {
@@ -2135,18 +2100,18 @@ class OSPFHelloIntervalMismatch(ProblemBase):
         if original is None or not baseline:
             return {"verified": False, "details": {"error": "no_healthy_baseline"}}
         self._set_timers(params.host_name, params.intf_name, original)
-        deadline = time.monotonic() + 120
-        while True:
-            health = self.link_health(params)
-            restored = all(
+        health = {}
+
+        def healthy():
+            health.update(self.link_health(params))
+            return all(
                 row["full"]
                 and row["interface_up"]
                 and set(baseline[node]["routes"]) <= set(row["routes"])
                 for node, row in health.items()
             )
-            if restored or time.monotonic() >= deadline:
-                break
-            time.sleep(3)
+
+        restored = wait_until(healthy, 120, interval_s=3)
         running = self._timers(params.host_name, params.intf_name)
         return {
             "verified": restored and running == original,

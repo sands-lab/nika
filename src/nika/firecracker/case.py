@@ -114,7 +114,7 @@ def ensure_case(row: dict[str, Any]) -> CaseImage:
         build = cases_dir() / f"{key}.build"
         if build.exists():
             shutil.rmtree(build)  # an interrupted build; we hold its lock
-        require_build_space(str(row["scenario"]))
+        require_build_space(variant_for_row(row))
         build.mkdir(parents=True)
         try:
             _build_case(build, key, row)

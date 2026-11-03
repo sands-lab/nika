@@ -35,7 +35,7 @@ def _cli(args, *, timeout=900):
 
 def run_latent_backup_e2e(test, profile):
     session_id = None
-    evidence = {"profile": profile, "readings": {}}
+    evidence = {}
     try:
         session_id = start_net_env(
             "enterprise_branch",
@@ -46,7 +46,6 @@ def run_latent_backup_e2e(test, profile):
         )
         row = test._assert_session_ready(session_id, "enterprise_branch")
         directory = Path(row["session_dir"])
-        print(f"latent-backup session={session_id} artifacts={directory}", flush=True)
         kwargs = test._scenario_kwargs(session_id)
         params = resolve_multi_inject_params(
             PROBLEMS,
@@ -69,9 +68,8 @@ def run_latent_backup_e2e(test, profile):
         api = SimpleNamespace(exec_cmd=runtime.exec)
         metric = "routeros_bgp_peer_up" if profile == "routeros" else "frr_bgp_peer_up"
         query = f'{metric}{{node="{kp.host_name}",neighbor="{tunnel.hub_tunnel_ip}"}}'
-        evidence["params"] = params
 
-        def path(stage, healthy, *, primary_up):
+        def path(healthy, *, primary_up):
             reading = {}
 
             def expected():
@@ -80,52 +78,36 @@ def run_latent_backup_e2e(test, profile):
                 return reading["received"] == (5 if healthy else 0)
 
             assert wait_until(expected, 240, interval_s=5), reading
-            evidence["readings"][stage] = reading
-            print(f"{profile} {stage}: {json.dumps(reading)}", flush=True)
             guest_reading = echo(runtime, guest, public, count=5)
-            evidence["readings"][f"{stage}_guest"] = guest_reading
             assert guest_reading["received"] == (5 if primary_up else 0), guest_reading
-            print(f"{profile} {stage}_guest: {json.dumps(guest_reading)}", flush=True)
 
         ok, baseline = evaluate_custom_baseline(KEY, key, kp)
         assert ok, baseline
-        evidence["baseline"] = baseline
 
         def metric_up():
             evidence["healthy_metric"] = prometheus_query_for(api, query=query)
             return any(row.get("value") == 1.0 for row in evidence["healthy_metric"])
 
         assert wait_until(metric_up, 120, interval_s=5), evidence.get("healthy_metric")
-        evidence["cli_state"] = _cli(
-            [
-                "exec",
-                "--session_id",
-                session_id,
-                lp.host_name,
-                f"ip -br link show dev {lp.intf_name}; vtysh -c 'show bgp summary'",
-            ]
-        )
         started = time.time()
         key.inject_fault(kp)
         assert key.verify_fault(kp)["verified"]
         ok, latent = evaluate_custom_symptom(KEY, key, kp)
         assert ok, latent
-        evidence["latent"] = latent
         assert len(latent["established"]) == len(baseline["established"]) - 1, latent
-        path("latent_only", True, primary_up=True)
+        path(True, primary_up=True)
         # Record a bounded pre-primary interval after the exporter has caught up.
         time.sleep(15)
         latent_start = time.time()
         time.sleep(20)
         primary_time = time.time()
-        evidence["latent_interval"] = [latent_start, primary_time]
         args = ["failure", "inject", *PROBLEMS, "--session_id", session_id]
         for name, fields in params.items():
             for field, value in fields.items():
                 args += ["--set", f"{name}.{field}={value}"]
         _cli(args)
         test._assert_multi_failure_injected(PROBLEMS, session_id)
-        path("both_faults", False, primary_up=False)
+        path(False, primary_up=False)
 
         def all_sessions_lost():
             ok, reading = evaluate_custom_symptom(KEY, key, kp)
@@ -172,7 +154,6 @@ def run_latent_backup_e2e(test, profile):
         )
         oracle = json.loads((directory / "oracle.json").read_text())
         assert oracle["solved"] is True, oracle
-        evidence["oracle"] = oracle
         metrics, status = build_eval_metrics_payload(
             gt=json.loads((directory / "ground_truth.json").read_text()),
             submission=json.loads((directory / "submission.json").read_text()),
@@ -180,23 +161,22 @@ def run_latent_backup_e2e(test, profile):
         )
         assert status == "scored", metrics
         assert metrics["detection_score"] == metrics["rca_accuracy"] == 1.0, metrics
-        evidence["scores"] = metrics
 
         assert link.recover_fault(lp)["verified"]
-        path("primary_recovered", True, primary_up=True)
+        path(True, primary_up=True)
         assert key.verify_fault(kp)["verified"], (
             "Latent fault disappeared with primary recovery"
         )
         link.inject_fault(lp)
-        path("both_faults_again", False, primary_up=False)
+        path(False, primary_up=False)
         assert key.recover_fault(kp)["verified"]
-        path("backup_recovered", True, primary_up=False)
+        path(True, primary_up=False)
         assert wait_until(metric_up, 120, interval_s=5), evidence.get("healthy_metric")
         assert link.verify_fault(lp)["verified"], (
             "Primary fault disappeared with backup recovery"
         )
         assert link.recover_fault(lp)["verified"]
-        path("both_recovered", True, primary_up=True)
+        path(True, primary_up=True)
 
         def all_sessions_restored():
             ok, reading = evaluate_custom_baseline(KEY, key, kp)
@@ -208,13 +188,7 @@ def run_latent_backup_e2e(test, profile):
         )
     finally:
         if session_id is not None:
-            directory = Path(test._session_row(session_id)["session_dir"])
-            try:
-                (directory / "latent_backup_validation.json").write_text(
-                    json.dumps(evidence, indent=2)
-                )
-            finally:
-                test._close_session(session_id)
+            test._close_session(session_id)
 
     run_eval_metrics(session_id=session_id)
     metrics = json.loads((directory / "eval_metrics.json").read_text())

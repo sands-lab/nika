@@ -16,8 +16,6 @@ from nika.problems.support.frr import frr_config_command, frr_save_config
 from nika.problems.support.oracle import (
     Check,
     OraclePlaybook,
-    contains,
-    iosxr,
     router_cli,
     vtysh,
 )
@@ -305,26 +303,6 @@ class BGPPrefixListLengthMismatch(ProblemBase):
                         for r in routeros_terse_rows(routes)
                     )
                 )
-        elif profile == "iosxr":
-
-            def evidence(output):
-                imports = set(re.findall(r"^\s+route-policy (\S+) in$", output, re.M))
-                bound_sets = {
-                    name
-                    for policy, body in re.findall(
-                        r"^route-policy (\S+)\n(.*?)^end-policy", output, re.M | re.S
-                    )
-                    if policy in imports
-                    for name in re.findall(r"\bdestination in ([\w-]+)", body)
-                }
-                return any(
-                    name in bound_sets and ipaddress.ip_network(prefix).prefixlen < 24
-                    for name, prefix in re.findall(
-                        r"^prefix-set (\S+)\n\s+(\d+\.\d+\.\d+\.\d+/\d+)\s*\nend-set",
-                        output,
-                        re.M,
-                    )
-                )
         else:
 
             def evidence(output):
@@ -359,7 +337,6 @@ class BGPPrefixListLengthMismatch(ProblemBase):
                     + "; "
                     + vtysh("show running-config")
                     + " | grep -E '^ip prefix-list |^route-map |^ match |^router bgp |^ +neighbor .*route-map'",
-                    iosxr_command="show running-config",
                     routeros_command=(
                         '/routing bgp session print terse where established=yes; :put "=== CONNECTIONS ==="; '
                         '/routing bgp connection print terse; :put "=== FILTERS ==="; '
@@ -372,17 +349,4 @@ class BGPPrefixListLengthMismatch(ProblemBase):
                 )
             ],
         )
-        if profile == "iosxr":
-            playbook.steps.append(
-                iosxr(
-                    host,
-                    "show bgp ipv4 unicast summary",
-                    "Confirm Established peers receive zero prefixes.",
-                    contains(
-                        r"^\S+\s+\d+\s+\d+(?:\s+\d+){5}\s+\S+\s+0\s*$",
-                        "an Established peer accepts zero prefixes",
-                    ),
-                    evidence=True,
-                )
-            )
         return playbook

@@ -840,7 +840,6 @@ def _ospf_cut_edge_ends(problem: Any, host: str, intf: str) -> dict[str, Any]:
     """A host behind the stub router of ``host:intf`` and a host that is not."""
     from nika.net_env.net_env_pool import get_probe_path
     from nika.problems.routing_control_plane.ospf import (
-        hosts_behind_router,
         ospf_stub_router,
     )
     from nika.runtime.spec import NodeRole
@@ -848,6 +847,8 @@ def _ospf_cut_edge_ends(problem: Any, host: str, intf: str) -> dict[str, Any]:
     stub = ospf_stub_router(problem.net_env, host, intf)
     if stub is None:
         return {"error": "not_a_cut_edge", "host": host, "intf": intf}
+    from nika.problems.support.benchmark_targets import hosts_behind_router
+
     behind = hosts_behind_router(problem.net_env, stub)
     dst_host = None
     dst = None
@@ -1054,10 +1055,14 @@ def _route_query(runtime: LabRuntime, router: str, command: str, timeout: float)
     Unlike ``exec_or_empty``, an empty answer stays an empty route table.
     """
     try:
-        out = runtime.exec(router, command, timeout=timeout)
+        out = runtime.exec(
+            router,
+            f"( {command} ) || printf '\n[ROUTE_QUERY_FAILED]\n'",
+            timeout=timeout,
+        )
     except Exception:  # noqa: BLE001 - a failed read is not an empty table
         return None
-    return None if _QUERY_ERROR.search(out) else out
+    return None if "[ROUTE_QUERY_FAILED]" in out or _QUERY_ERROR.search(out) else out
 
 
 def _isis_routes(problem: Any, router: str) -> set[str] | None:
@@ -1156,7 +1161,11 @@ def isis_stub_baseline(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]
             - set().union(*(connected[r] for r in routers if r != owner))
             for owner, prefixes in connected.items()
         }
-    routed = {router: _isis_routes(problem, router) or set() for router in routers}
+    problem._audit_isis_stubs = None
+    routed = {router: _isis_routes(problem, router) for router in routers}
+    unreadable = [router for router, routes in routed.items() if routes is None]
+    if unreadable:
+        return False, {"error": "isis_route_query_failed", "routers": unreadable}
     stubs: dict[str, dict[str, list[str]]] = {}
     for owner, prefixes in own.items():
         others = [router for router in routers if router != owner]

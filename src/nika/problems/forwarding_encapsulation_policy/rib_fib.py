@@ -14,8 +14,11 @@ from nika.net_env.verify import (
 )
 from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
 from nika.problems.rca import node_resource
-from nika.problems.routing_control_plane.ospf import hosts_behind_router, linked_routers
-from nika.problems.support.benchmark_targets import require_node_capability
+from nika.problems.routing_control_plane.ospf import linked_routers
+from nika.problems.support.benchmark_targets import (
+    hosts_behind_router,
+    require_node_capability,
+)
 from nika.problems.support.oracle import Check, OraclePlaybook, OracleStep, shell, vtysh
 from nika.problems.support.polling import wait_until
 from nika.runtime.base import RuntimeCapabilityError

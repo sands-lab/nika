@@ -56,12 +56,15 @@ class RouterOsFaultOps(RouterFaultOps):
     # CLI access
 
     def _cli(self, command: str) -> str:
+        cli = CLI_COMMAND.format(command=command)
         output = self.runtime.exec(
-            self.node, CLI_COMMAND.format(command=command), timeout=30
+            self.node,
+            f"( {cli} ) || printf '\n[ROUTEROS_COMMAND_FAILED]\n'",
+            timeout=30,
         )
         if output.startswith("[TIMEOUT]"):
             raise RuntimeError(f"RouterOS command timed out on {self.node}: {command}")
-        if _CLI_ERROR.search(output):
+        if "[ROUTEROS_COMMAND_FAILED]" in output or _CLI_ERROR.search(output):
             raise RuntimeError(
                 f"RouterOS command failed on {self.node}: {output.strip()}"
             )
@@ -104,6 +107,27 @@ class RouterOsFaultOps(RouterFaultOps):
         if len(values) != 1 or not str(next(iter(values))).isdigit():
             raise ValueError(f"No single BGP AS on RouterOS router {self.node!r}")
         return int(next(iter(values)))
+
+    def bgp_table(self) -> dict[str, list[dict]]:
+        from nika.net_env.vendor_validation import routeros_bgp_table
+
+        return routeros_bgp_table(
+            self._cli("/routing/route/print detail where bgp and afi=ip")
+        )
+
+    def bgp_prefix_paths(self, prefix: str) -> list[dict]:
+        from ipaddress import IPv4Network
+
+        from nika.net_env.vendor_validation import routeros_bgp_table
+
+        prefix = str(IPv4Network(prefix))
+        table = routeros_bgp_table(
+            self._cli(
+                "/routing/route/print detail where bgp and afi=ip "
+                f'and dst-address="{prefix}"'
+            )
+        )
+        return table.get(prefix, [])
 
     def set_bgp_asn(self, asn: int) -> None:
         self._cli(f"/routing bgp instance set [find] as={int(asn)}")
@@ -304,11 +328,7 @@ class RouterOsFaultOps(RouterFaultOps):
         )
 
     def has_bgp_route(self, prefix: str) -> bool:
-        return bool(
-            self._rows(
-                f'/routing/route/print terse where bgp and afi=ip and dst-address="{ipaddress.ip_network(prefix)}"'
-            )
-        )
+        return bool(self.bgp_prefix_paths(prefix))
 
     def set_bgp_password(self, peer: str, password: str | None) -> None:
         peer = str(ipaddress.ip_address(peer))

@@ -184,7 +184,7 @@ in the lab takes 7–9 s while several copies restore at once.
 
 ### VM size
 
-Each VM gets `vm_cpus` vCPUs (default 4) and `vm_memory` (default 4 GiB), which fits most Kathara labs. Larger labs get more by default: 8 GiB for `dc_clos`, `k8s_lab`, `llmd_lab`, `min3clos` and Cisco XRd (`iosxr_simple_bgp`). 11 SR Linux nodes use about 10 host cores natively, so `isp_pdh`, `isp_di-yuan` and `isp_dfn-gwin` get 20 GiB and 12 vCPUs. `dc_clos` size l uses about 4.2 GiB in the guest. An image build warns when a lab leaves less than a quarter of its VM memory free; raise `vm_memory_overrides` for that environment:
+Each VM gets `vm_cpus` vCPUs (default 4) and `vm_memory` (default 4 GiB), which fits most Kathara labs. Larger labs get more by default: 8 GiB for `dc_clos`, `k8s_lab`, `llmd_lab`, `min3clos` and Cisco XRd (`iosxr_simple_bgp`). 11 SR Linux nodes use about 10 host cores natively, so `isp_pdh`, `isp_di-yuan` and `isp_dfn-gwin` get 20 GiB and 12 vCPUs. `dc_clos` size l uses about 4.2 GiB in the guest. Labs with RouterOS or IOS XR routers are sized from their routers: about 1 GiB per RouterOS router and 3 GiB per IOS XR router, plus the lab's other nodes and the guest system. For example, `enterprise_branch` on RouterOS gets 11 GiB, `isp_abilene` on RouterOS 18 GiB, and `isp_abilene` on IOS XR 43 GiB, so the huge-page pool must hold that much for one copy. An image build warns when a lab leaves less than a quarter of its VM memory free; raise `vm_memory_overrides` for that environment:
 
 ```yaml
 nika:
@@ -194,7 +194,7 @@ nika:
         k8s_lab: 12GiB
 ```
 
-Use `vm_cpus_overrides` to change an environment's vCPU allocation. Both override maps take precedence over the sizes above. Few vCPUs per VM keep one copy's bursts (verification, injection, the agent's commands) from starving the copies next to it.
+Use `vm_cpus_overrides` to change an environment's vCPU allocation. Both override maps take precedence over the sizes above, except that a RouterOS or IOS XR lab never gets less memory than its routers need. Few vCPUs per VM keep one copy's bursts (verification, injection, the agent's commands) from starving the copies next to it.
 
 ### Case images (optional)
 

@@ -181,6 +181,33 @@ def test_remote_inject_checks_benchmark_root_causes() -> None:
     assert inject.call_args.kwargs["expected_root_causes"] == expected
 
 
+def test_remote_failure_inject_accepts_multi_fault_overrides() -> None:
+    overrides = {
+        "wireguard_peer_key_misconfiguration": {
+            "host_name": "br1_edge",
+            "intf_name": "wg_hq_b",
+        },
+        "link_down": {"host_name": "isp1_core", "intf_name": "eth2"},
+    }
+    with (
+        patch("nika.remote.handlers.inject_failure") as inject,
+        patch(
+            "nika.remote.handlers.session_public_dict",
+            return_value={"session_id": "s1"},
+        ),
+    ):
+        handle_failure_inject(
+            FailureInjectRequest.model_validate(
+                {
+                    "session_id": "s1",
+                    "problem_names": list(overrides),
+                    "param_overrides": overrides,
+                }
+            )
+        )
+    assert inject.call_args.kwargs["param_overrides"] == overrides
+
+
 def test_remote_app_health_no_auth() -> None:
     app = create_remote_app()
     client = TestClient(app)

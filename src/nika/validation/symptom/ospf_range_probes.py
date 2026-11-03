@@ -9,7 +9,8 @@ import re
 from nika.net_env.native_routers import router_sketches
 from nika.net_env.verify import ping_stats
 from nika.problems.base import build_verify_result
-from nika.problems.routing_control_plane.ospf import hosts_behind_router, ospf_networks
+from nika.problems.routing_control_plane.ospf import ospf_networks
+from nika.problems.support.benchmark_targets import hosts_behind_router
 from nika.problems.support.polling import wait_until
 from nika.problems.support.router_ops import native_fault_ops
 from nika.validation.symptom.routing_probes import (
