@@ -2,7 +2,7 @@
 
 NIKA checks whether a constructed network satisfies its original behavior specification. This walkthrough follows one Abilene design through routing completion, device configuration, static analysis and real execution. Each step identifies its input and output.
 
-Run this experiment explicitly during environment development. For `dc_clos`, `campus_lan`, `enterprise_branch` and FRR or SR Linux ISP deployments, normal benchmark startup deploys router configurations that netlab generated offline from the environment's design; see [Deploy stored configurations](#deploy-stored-configurations). Saved constructions can be reused without rerunning synthesis and analysis.
+Run this experiment explicitly during environment development. For the FRR and IOS XR profiles of `dc_clos`, `campus_lan` and `enterprise_branch`, and for FRR or SR Linux ISP deployments, normal benchmark startup deploys router configurations that netlab generated offline from the environment's design; see [Deploy stored configurations](#deploy-stored-configurations). Saved constructions can be reused without rerunning synthesis and analysis.
 
 ## Why these stages are separate
 
@@ -192,18 +192,20 @@ Before relying on netlab for a design, compare its candidate with NIKA's native 
 
 ### Deploy stored configurations
 
-Running netlab at every startup would slow deployment and make it depend on netlab, so NIKA stores netlab's output in the package and deploys it. `dc_clos`, `campus_lan` and `enterprise_branch` store each size for FRR, and for IOS XR where that profile is supported. ISP environments store the FRR and Nokia SR Linux variants (IGP, BGP mode and options) that the benchmark pool and current release use.
+Running netlab at every startup would slow deployment and make it depend on netlab, so NIKA stores netlab's output in the package and deploys it. `dc_clos`, `campus_lan` and `enterprise_branch` store each size for FRR, and for IOS XR where that profile is supported. ISP environments store the FRR and Nokia SR Linux variants (IGP, BGP mode and options) that the benchmark pool and current release use. Ordinary startup and `--check` read the stored files and do not need netlab.
+
+Environment developers regenerate the stored configurations from the repository root after changing a design. Regeneration runs the pinned netlab, so add `--extra netlab` to the `uv sync` command you use, for example `uv sync --extra batfish --extra netlab`.
 
 ```bash
 uv run nika env render --scenario enterprise_branch
 uv run nika env render --scenario enterprise_branch --check
 ```
 
-The first command regenerates the stored configurations under the environment's `rendered/` directory, with a digest of the design and the netlab version. At startup, NIKA recomputes the digest and deploys the stored configurations. If the design changed, startup stops and names the command to run. `--check` runs the same comparison without writing and exits nonzero when a stored variant is stale.
+`nika env render` regenerates the stored configurations under the environment's `rendered/` directory, with a digest of the design and the netlab version. At startup, NIKA recomputes the digest and deploys the stored configurations. If the design changed, startup stops and names the command to run. `--check` runs the same comparison without writing and exits nonzero when a stored variant is stale.
 
 RouterOS routers keep NIKA's own rendering in every environment, and so do IOS XR routers in ISP environments. netlab does not generate the deployed RouterOS routers in Ethernet environments, and in ISP environments the runtime operations and fault bindings use NIKA's object names. `nika env render` reports any other variant that netlab cannot generate, which also keeps NIKA's rendering. An ISP deployment outside the stored variants, such as an ad-hoc topology, does the same.
 
-netlab configures some Linux features with shell scripts instead of routing-daemon configuration. For WireGuard tunnels on FRR site edges, its `tunnel.wireguard` plugin creates each interface and peer with `wg set`; NIKA stores this script beside the router configuration and runs it from `/etc/netlab/` at startup. When NIKA renders the routers, such as during a validation run with solved parameters, NIKA generates the script with netlab at startup instead. These routers keep no `wg-quick` files: the script holds their WireGuard configuration, and `wg show` displays the running tunnel state.
+netlab configures some Linux features with shell scripts instead of routing-daemon configuration. For WireGuard tunnels on FRR Site Edges, its `tunnel.wireguard` plugin creates each interface and peer with `wg set`; NIKA stores this script beside the router configuration and runs it from `/etc/netlab/` at startup. During a validation run with solved routing parameters, NIKA renders the routers and generates this script with netlab at startup. These routers keep no `wg-quick` files: the script holds their WireGuard configuration, and `wg show` displays the running tunnel state.
 
 ## 5. Check the final candidate with Batfish
 
