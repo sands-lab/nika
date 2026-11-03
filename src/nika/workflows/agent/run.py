@@ -2,12 +2,15 @@
 
 import logging
 import time
+from contextlib import ExitStack
+from urllib.parse import urlparse
 
 from nika.agents.registry import create_agent, get_agent_spec, run_agent
 from nika.agents.sandbox import SandboxManager
 from nika.agents.sandbox.backend import backend_class, get_backend
 from nika.agents.sandbox.config import resolve_sandbox_config
-from nika.mcp.gateway.lifecycle import mcp_gateway_for_session
+from nika.agents.mcp_config import engine_gateway
+from nika.benchmark_engine.protocol import AgentAccess, GatewayRequest
 from nika.utils.agent_config import (
     resolve_agent_model,
     resolve_agent_timeout,
@@ -32,6 +35,7 @@ def start_agent(
     max_steps: int | None = None,
     *,
     session_id: str | None = None,
+    task_description: str | None = None,
     reasoning_effort: str | None = None,
     stream_output: bool = True,
     check_fault_presence: bool = False,
@@ -39,11 +43,15 @@ def start_agent(
     sandbox_cpus: int | None = None,
     sandbox_memory: str | None = None,
     sandbox_offline_sdk_wheels: bool | None = None,
+    access: AgentAccess | None = None,
 ) -> None:
     """Load the running session, run the agent on ``task_description``, then end the session.
 
     Every agent runs in its own sandbox; only test agents that need host state
-    (``template=None``, e.g. ``mock``) run in this process.
+    (``template=None``, e.g. ``mock``) run in this process. *access* is the
+    release's access policy; without it, the run config's ``agent.access.role``
+    selects one. A benchmark trial passes the *task_description* that the
+    engine's ``begin`` returned; a hands-on session uses its own.
     """
     from nika.agents.submission import ReportMapper
     from nika.run_config.loader import get_run_config
@@ -93,6 +101,8 @@ def start_agent(
 
     session = Session()
     session.load_running_session(session_id=session_id)
+    if task_description is None:
+        task_description = session.task_description
     session.update_session("agent_type", agent_type)
     if llm_provider is not None:
         session.update_session("llm_provider", llm_provider)
@@ -160,101 +170,68 @@ def start_agent(
     try:
         from nika.remote.config import is_remote_enabled
 
-        if is_remote_enabled():
-            from nika.remote.workflows import (
-                follow_remote_logs,
-                pull_session_artifacts,
-                remote_mcp_gateway,
+        sandbox_backend = backend_class(sandbox_config.backend)
+        with ExitStack() as stack:
+            endpoints = stack.enter_context(
+                engine_gateway(
+                    session.session_id,
+                    session.session_dir,
+                    GatewayRequest(
+                        access=access,
+                        sandbox=use_sandbox,
+                        bind_host=(
+                            sandbox_backend.gateway_bind_host if use_sandbox else None
+                        ),
+                        agent_host=sandbox_backend.gateway_agent_host,
+                    ),
+                )
             )
+            if is_remote_enabled():
+                from nika.remote.workflows import follow_remote_logs
 
-            with (
-                remote_mcp_gateway(session.session_id) as (
-                    gateway_base_url,
-                    gateway_port,
-                ),
-                follow_remote_logs(session.session_id, session.session_dir),
-            ):
-                if use_sandbox:
-                    SandboxManager(sandbox_config).run(
-                        session=session,
-                        agent_type=agent_type,
-                        model=model,
-                        max_steps=max_steps,
-                        timeout_sec=timeout_sec,
-                        reasoning_effort=reasoning_effort,
-                        max_tokens=max_tokens,
-                        llm_provider=llm_provider,
-                        mcp_gateway_agent_url=gateway_base_url,
-                        gateway_port=gateway_port,
-                        stream_output=stream_output,
-                        report_mapper=report_mapper,
-                    )
-                else:
-                    agent = create_agent(
-                        agent_type,
-                        session_id=session.session_id,
-                        llm_provider=llm_provider,
-                        model=model,
-                        max_steps=max_steps,
-                        reasoning_effort=reasoning_effort,
-                        max_tokens=max_tokens,
-                        stream_output=stream_output,
-                    )
-                    run_agent(
-                        agent,
-                        session.task_description,
-                        timeout_sec=timeout_sec,
-                        report_mapper=report_mapper,
-                    )
+                stack.enter_context(
+                    follow_remote_logs(session.session_id, session.session_dir)
+                )
+            if use_sandbox:
+                SandboxManager(sandbox_config).run(
+                    session=session,
+                    task_description=task_description,
+                    agent_type=agent_type,
+                    model=model,
+                    max_steps=max_steps,
+                    timeout_sec=timeout_sec,
+                    reasoning_effort=reasoning_effort,
+                    max_tokens=max_tokens,
+                    llm_provider=llm_provider,
+                    mcp_gateway_agent_url=endpoints.agent_url,
+                    # The port this host dials; a NIKA Remote client may map it
+                    # (e.g. a local forwarder to a lab VM).
+                    gateway_port=int(urlparse(endpoints.agent_url).port or 0),
+                    stream_output=stream_output,
+                    report_mapper=report_mapper,
+                )
+            else:
+                agent = create_agent(
+                    agent_type,
+                    session_id=session.session_id,
+                    llm_provider=llm_provider,
+                    model=model,
+                    max_steps=max_steps,
+                    reasoning_effort=reasoning_effort,
+                    max_tokens=max_tokens,
+                    stream_output=stream_output,
+                )
+                run_agent(
+                    agent,
+                    task_description,
+                    timeout_sec=timeout_sec,
+                    report_mapper=report_mapper,
+                )
+        if is_remote_enabled():
+            from nika.remote.workflows import pull_session_artifacts
+
             # Pull remote-written artifacts (e.g. submission.json) after the agent.
             pull_session_artifacts(session.session_id, session.session_dir)
-        else:
-            sandbox_backend = backend_class(sandbox_config.backend)
-            with mcp_gateway_for_session(
-                session.session_id,
-                scenario_name=session.scenario_name,
-                host=sandbox_backend.gateway_bind_host if use_sandbox else None,
-                sandbox=use_sandbox,
-                sandbox_agent_host=sandbox_backend.gateway_agent_host,
-                backend=getattr(session, "backend", None),
-            ) as gateway_manager:
-                if use_sandbox:
-                    gateway_agent_url = gateway_manager.agent_url
-                    if not gateway_agent_url:
-                        raise RuntimeError(
-                            "MCP gateway agent URL was not set for sandbox execution"
-                        )
-                    SandboxManager(sandbox_config).run(
-                        session=session,
-                        agent_type=agent_type,
-                        model=model,
-                        max_steps=max_steps,
-                        timeout_sec=timeout_sec,
-                        reasoning_effort=reasoning_effort,
-                        max_tokens=max_tokens,
-                        llm_provider=llm_provider,
-                        mcp_gateway_agent_url=gateway_agent_url,
-                        gateway_port=gateway_manager.port,
-                        stream_output=stream_output,
-                        report_mapper=report_mapper,
-                    )
-                else:
-                    agent = create_agent(
-                        agent_type,
-                        session_id=session.session_id,
-                        llm_provider=llm_provider,
-                        model=model,
-                        max_steps=max_steps,
-                        reasoning_effort=reasoning_effort,
-                        max_tokens=max_tokens,
-                        stream_output=stream_output,
-                    )
-                    run_agent(
-                        agent,
-                        session.task_description,
-                        timeout_sec=timeout_sec,
-                        report_mapper=report_mapper,
-                    )
     except BaseException as exc:
         agent_exc = exc
         if not isinstance(exc, (KeyboardInterrupt, SystemExit)):

@@ -8,15 +8,17 @@ import pytest
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from mcp.shared.exceptions import McpError
 
-from nika.agents.mcp_config import begin_submission_mcp_phase
-from nika.agents.mcp_config import MCPServerConfig
-from nika.run_config.loader import reset_run_config, set_run_config
-from nika.run_config.schema import RunConfig
-from nika.mcp.gateway.lifecycle import mcp_gateway_for_session
+from nika.agents.mcp_config import (
+    MCPServerConfig,
+    begin_submission_mcp_phase,
+    engine_gateway,
+)
+from nika.benchmark_engine.protocol import AccessPolicy, AgentAccess, GatewayRequest
 from nika.mcp.registry import (
     DIAGNOSIS_HOST_SERVER,
     SUBMISSION_SERVER,
 )
+from nika.utils.session_store import SessionStore
 from tests.support.integration_base import IntegrationTestCase
 from tests.support.prerequisites import docker_available
 
@@ -29,24 +31,15 @@ class McpAccessE2ETest(IntegrationTestCase):
         self,
     ) -> None:
         session_id = self._start_env("simple_bgp")
-        config = RunConfig.model_validate(
-            {
-                "agent": {
-                    "access": {
-                        "role": "network-admin",
-                        "roles": {
-                            "network-admin": {
-                                "tools": ["exec_shell", "submit"],
-                                "node_roles": ["router"],
-                            }
-                        },
-                    }
-                }
-            }
+        session_dir = SessionStore().get_session(session_id)["session_dir"]
+        # A release's access policy reaches the engine's gateway through the
+        # protocol, not through the run config.
+        access = AgentAccess(
+            role="network-admin",
+            policy=AccessPolicy(tools=["exec_shell", "submit"], node_roles=["router"]),
         )
-        set_run_config(config)
         try:
-            with mcp_gateway_for_session(session_id, scenario_name="simple_bgp"):
+            with engine_gateway(session_id, session_dir, GatewayRequest(access=access)):
 
                 async def exercise() -> tuple[str, str, str]:
                     client = MultiServerMCPClient(
@@ -80,5 +73,4 @@ class McpAccessE2ETest(IntegrationTestCase):
             assert denied == "node_not_allowed"
             assert after_switch == "submission_network_access_denied"
         finally:
-            reset_run_config()
             self._close_session(session_id)

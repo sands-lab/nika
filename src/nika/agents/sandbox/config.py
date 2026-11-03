@@ -15,6 +15,8 @@ ENV_GATEWAY_URL = "NIKA_MCP_GATEWAY_URL"
 ENV_GATEWAY_AGENT_URL = "NIKA_MCP_GATEWAY_AGENT_URL"
 # Access token of a remote gateway's session (a local gateway keeps its own).
 ENV_GATEWAY_SESSION_TOKEN = "NIKA_MCP_GATEWAY_SESSION_TOKEN"
+# Comma-separated MCP servers the trial's gateway serves to the agent.
+ENV_GATEWAY_SERVERS = "NIKA_MCP_GATEWAY_SERVERS"
 
 SANDBOX_GATEWAY_HOST_BRIDGE = "host.docker.internal"
 

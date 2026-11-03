@@ -43,7 +43,12 @@ def _error_response(exc: BaseException, *, status: int = 400) -> JSONResponse:
 
 
 async def health(_request: Request) -> JSONResponse:
-    return JSONResponse(HealthResponse().model_dump())
+    from nika.benchmark_engine.host import local_host_info
+
+    host = await run_in_threadpool(local_host_info)
+    return JSONResponse(
+        HealthResponse(docker=host.docker, kernel=host.kernel).model_dump()
+    )
 
 
 async def env_start(request: Request) -> JSONResponse:

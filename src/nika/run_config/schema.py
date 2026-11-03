@@ -16,6 +16,7 @@ from pydantic import (
 )
 
 from nika.agents.provider_env import validate_provider_for_agent
+from nika.mcp.tool_output import MAX_CHARS
 
 
 class RemoteSettings(BaseModel):
@@ -218,23 +219,33 @@ class McpSettings(BaseModel):
     read_timeout_sec: float = 120.0
     gateway_host: str = "127.0.0.1"
     gateway_port: int = 0
-    # Maximum characters of tool result text kept for the agent, not counting
-    # truncation notices. Longer text keeps its beginning and end (whole items
-    # for list results); 0 disables.
-    tool_output_max_chars: int = 10000
+
+    @model_validator(mode="before")
+    @classmethod
+    def _drop_tool_output_limit(cls, data: Any) -> Any:
+        """Ignore ``tool_output_max_chars``, which configs from older NIKA set.
+
+        The tool output limit is part of what the agent observes, so the
+        release's benchmark engine fixes it.
+        """
+        if not isinstance(data, dict) or "tool_output_max_chars" not in data:
+            return data
+        data = dict(data)
+        if data.pop("tool_output_max_chars") != MAX_CHARS:
+            # A UserWarning, because Python hides DeprecationWarning by default.
+            warnings.warn(
+                "nika.mcp.tool_output_max_chars is ignored: the benchmark "
+                f"engine fixes the tool output limit at {MAX_CHARS} characters.",
+                UserWarning,
+                stacklevel=2,
+            )
+        return data
 
     @field_validator("gateway_port")
     @classmethod
     def _gateway_port_non_negative(cls, value: int) -> int:
         if value < 0:
             raise ValueError("nika.mcp.gateway_port must be >= 0")
-        return value
-
-    @field_validator("tool_output_max_chars")
-    @classmethod
-    def _tool_output_chars_non_negative(cls, value: int) -> int:
-        if value < 0:
-            raise ValueError("nika.mcp.tool_output_max_chars must be >= 0")
         return value
 
 

@@ -1,12 +1,18 @@
 id: nika-bench
 version: 0.2.0
+engine:
+  tag: da91a98ada54
+  api:
+    version: 1
 splits:
   dev:
     cases_file: dev.yaml
     case_count: 84
+    sha256: 69ac787a9fb140a785261583d4a11b9ffadb260809c50d34add81c2212e9d245
   test:
     cases_file: test.yaml
     case_count: 85
+    sha256: 4779ddf7457fa9002712f5e334269f5b38e173351e8642cb2c2571223c08bb63
 default_split_for_release: test
 defaults:
   n_trials: 3

@@ -101,7 +101,13 @@ A valid capture with zero packets still returns an artifact. If no nonempty capt
 
 ## Tool output limit
 
-`nika.mcp.tool_output_max_chars` (10,000 by default; see [MCP settings](../operations/configuration.md#mcp-settings)) limits how many characters of each tool result's text the agent receives. The truncation warning and elision markers are added on top of that limit, and non-text content is not counted. Text over the limit keeps its first and last `tool_output_max_chars / 2` characters and reports how many were elided. List results, such as `prometheus_query`, `syslog_query`, `netflow_query`, `int_query_telemetry`, and `k8s_list_events`, keep whole items from both ends and report how many items were elided. Each kept item therefore stays valid JSON. If neither the first nor the last item fits, the result is truncated by characters instead. Both cases start with the same warning that the output was truncated.
+Some tool results, such as long command output, full routing tables, device logs, or event lists, can run to hundreds of kilobytes. One such result could fill the model's context window and end the trial for a reason unrelated to the diagnosis. The MCP gateway therefore passes at most 10,000 characters of each tool result's text to the agent.
+
+The limit is part of what the agent observes, like the tool list and the phase rules, so every agent gets the same one and each release's [benchmark engine](../development/benchmark-contracts.md#c-agent-interface) fixes it. A larger or disabled limit would change the task and make scores incomparable, so NIKA has no setting for it.
+
+The limit is a ceiling, not context management. To read less, an agent asks for less: `prometheus_query`, `syslog_query`, `netflow_query`, and `k8s_list_events` take a `limit`; `packet_capture_start` takes a capture filter, `max_packets`, and `max_duration_sec`, and `packet_capture_inspect` takes a display filter and a `limit`; and `exec_shell` commands can pipe through `head` or `grep`. Deciding what stays in the model's context across calls is the harness's job, because only the harness knows its model's context window.
+
+The truncation warning and elision markers are added on top of that limit, and non-text content is not counted. Text over the limit keeps its first and last 5,000 characters and reports how many were elided. List results, such as `prometheus_query`, `syslog_query`, `netflow_query`, `int_query_telemetry`, and `k8s_list_events`, keep whole items from both ends and report how many items were elided. Each kept item therefore stays valid JSON. If neither the first nor the last item fits, the result is truncated by characters instead. Both cases start with the same warning that the output was truncated.
 
 ## Submit a diagnosis
 

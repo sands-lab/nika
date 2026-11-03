@@ -137,7 +137,6 @@ def test_image_build_liveness_protects_running_builds() -> None:
 
 
 def test_remote_gateway_yields_the_port_this_host_dials() -> None:
-    from nika.remote import workflows
     from nika.remote.client import RemoteClient
     from nika.remote.protocol import McpAttachResponse
 
@@ -151,16 +150,11 @@ def test_remote_gateway_yields_the_port_this_host_dials() -> None:
     attach = McpAttachResponse(
         session_id="s1", gateway_port=8800, gateway_base_url="http://0.0.0.0:8800"
     )
-    with (
-        remote_override(cfg),
-        patch.object(workflows, "_client", return_value=client),
-        patch.object(client, "_request", return_value=attach.model_dump()),
-        patch.object(client, "mcp_detach"),
-    ):
-        with workflows.remote_mcp_gateway("s1") as (url, port):
-            # E2B tunnels dial (url host, port) from this host: both must point
-            # at the local forwarder, not the lab VM's gateway port.
-            assert (url, port) == ("http://127.0.0.1:41001", 41001)
+    with patch.object(client, "_request", return_value=attach.model_dump()):
+        url = client.mcp_attach("s1").gateway_base_url
+    # E2B tunnels dial the agent URL's host and port from this host: both must
+    # point at the local forwarder, not the lab VM's gateway port.
+    assert url == "http://127.0.0.1:41001"
 
 
 def test_gateway_route_follows_the_sandbox_runtime() -> None:
