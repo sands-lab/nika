@@ -1965,6 +1965,36 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 <td align="center"></td>
 </tr>
 <tr>
+<td><code>rib_fib_inconsistency</code></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center">○</td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+<td align="center"></td>
+</tr>
+<tr>
 <td><code>vrf_dscp_remarking</code></td>
 <td align="center"></td>
 <td align="center"></td>
@@ -4113,14 +4143,14 @@ IOS XR and RouterOS deployments of the environments that declare them (`isp` sta
 </tr>
 <tr>
 <td><code>ospf_acl_block</code></td>
-<td align="center">○✓</td>
-<td align="center">○</td>
+<td align="center">◆✓</td>
+<td align="center">◆</td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
 <td align="center"></td>
-<td align="center">○</td>
-<td align="center">○</td>
+<td align="center">◆</td>
+<td align="center">◆</td>
 </tr>
 <tr>
 <td><code>vrf_dscp_remarking</code></td>

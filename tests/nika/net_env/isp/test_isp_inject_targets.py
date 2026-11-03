@@ -18,6 +18,20 @@ from nika.net_env.isp.igp import IspConfig, compile_isp_plan
 pytestmark = pytest.mark.unit
 
 
+def test_containerlab_ospf_cut_edges_keep_active_igp_links() -> None:
+    from nika.net_env.net_env_pool import get_net_env_instance
+    from nika.problems.routing_control_plane.ospf import ospf_host_cut_edges
+
+    env = get_net_env_instance(
+        "isp_abilene", backend="containerlab", igp="ospf", bgp_mode="ebgp"
+    )
+    targets = ospf_host_cut_edges(env)
+    assert ("atlang", "e1-1") in targets
+    assert ("atlam5", "e1-1") in targets
+    # Cross-AS links are passive IGP boundaries even when they connect routers.
+    assert ("atlang", "e1-3") not in targets
+
+
 def test_link_and_router_targets_polska() -> None:
     plan = compile_isp_plan(IspConfig(topology="polska"))
     inv = plan.inventory

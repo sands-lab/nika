@@ -35,13 +35,20 @@ def tcp_md5_counters(netstat: str) -> dict[str, int]:
 def _kernel_errors(problem: Any, host: str) -> dict[str, int]:
     if router_fault_ops(problem, host) is not None:
         return {}
-    counters = tcp_md5_counters(problem.runtime.exec(host, "cat /proc/net/netstat"))
+    command = (
+        "ip netns exec srbase-default cat /proc/net/netstat"
+        if problem.runtime.backend == "containerlab"
+        else "cat /proc/net/netstat"
+    )
+    counters = tcp_md5_counters(problem.runtime.exec(host, command))
     if not counters:
         raise ValueError(f"Unreadable TCP MD5 counters on {host!r}")
     return counters
 
 
 def _received_prefixes(problem: Any, router: str, peer: str) -> set[str]:
+    if problem.runtime.backend == "containerlab":
+        return problem.runtime.lab_api.srl_bgp_received_prefixes(router, peer)
     ops = router_fault_ops(problem, router)
     if ops is not None:
         return ops.bgp_received_prefixes(peer)

@@ -547,6 +547,46 @@ def assert_tcp_rwnd_recover(ctx: FailureE2EContext) -> None:
     assert restored_bps / baseline["healthy_bps"] >= 0.8
 
 
+def assert_ospf_acl_withdrawal(ctx: FailureE2EContext) -> None:
+    from nika.problems.support.ospf import ospf_health
+    from nika.problems.support.polling import wait_until
+
+    observed = {}
+
+    def withdrawn():
+        observed.update(ospf_health(ctx.problem, ctx.parsed.host_name))
+        return not observed["neighbors"] and not observed["routes"]
+
+    assert wait_until(withdrawn, 90, interval_s=3), observed
+    ctx.before = {key: len(values) for key, values in observed.items()}
+
+
+def assert_ospf_acl_recover(ctx: FailureE2EContext) -> None:
+    import json
+
+    assert ctx.recovered is not None
+    assert ctx.recovered["verified"] is True, ctx.recovered
+    print(
+        "ospf_acl_block "
+        + json.dumps(
+            {
+                "scenario": ctx.scenario,
+                "profile": ctx.problem.net_env.device_profile or "frr",
+                "target": ctx.parsed.host_name,
+                "baseline": {
+                    node: {key: len(values) for key, values in state.items()}
+                    for node, state in ctx.problem._healthy_routing.items()
+                },
+                "faulted": ctx.before,
+                "symptom": ctx.symptom,
+                "recovered": ctx.recovered,
+            },
+            sort_keys=True,
+        ),
+        flush=True,
+    )
+
+
 def assert_ospf_stubs_recover(ctx: FailureE2EContext) -> None:
     from nika.problems.support.polling import wait_until
     from nika.validation.symptom.routing_probes import _ospf_routes
@@ -723,6 +763,10 @@ HOOKS: dict[str, dict[str, Any]] = {
     },
     "ospf_hello_interval_mismatch": {"post_recover": assert_ospf_cut_edge_recover},
     "ospf_stub_area_mismatch": {"post_recover": assert_ospf_cut_edge_recover},
+    "ospf_acl_block": {
+        "post_inject": assert_ospf_acl_withdrawal,
+        "post_recover": assert_ospf_acl_recover,
+    },
     "ospf_duplicate_router_id": {"post_recover": assert_ospf_stubs_recover},
     "bgp_max_prefix_exceeded": {"post_recover": assert_max_prefix_recover},
     "bgp_ttl_security_mismatch": {"post_recover": assert_bgp_adjacencies_recover},

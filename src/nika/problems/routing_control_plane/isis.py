@@ -20,6 +20,7 @@ from nika.problems.support.oracle import (
 )
 from nika.problems.support.router_ops import native_fault_ops, native_router_profile
 from nika.runtime.base import RuntimeCapabilityError
+from nika.service.containerlab.srl_api import srl_instance, srl_linux_intf
 from nika.utils.logger import system_logger
 
 _ISIS_ROUTER_RE = re.compile(r"^router isis (\S+)\s*$", re.MULTILINE)
@@ -69,6 +70,29 @@ def _hello_authentication(config: str) -> dict[str, str]:
             continue
         auth = re.search(r"^ isis password (\S+)", block, re.M)
         circuits[interface] = auth[1] if auth else "none"
+    return circuits
+
+
+def _srl_authentication(instance: dict) -> dict[str, str]:
+    circuits = {}
+    for interface in instance.get("interface", []):
+        if interface.get("passive", False):
+            continue
+        auth = {
+            **instance.get("authentication", {}),
+            **interface.get("authentication", {}),
+        }
+        mode = auth.get("key", {}).get("crypto-algorithm") or (
+            "keychain" if auth.get("keychain") else None
+        )
+        hello = auth.get("hello-authentication", {})
+        circuits[srl_linux_intf(interface["interface-name"])] = (
+            "md5"
+            if mode == "hmac-md5"
+            and hello.get("generate")
+            and hello.get("check-received") == "strict"
+            else (mode or "none")
+        )
     return circuits
 
 
@@ -122,6 +146,19 @@ def _isis_oracle(problem, host, setting):
     observed = {}
 
     def value(output, profile):
+        if getattr(problem.net_env, "backend", None) == "containerlab":
+            instance = srl_instance(output, "isis")
+            if setting == "metric":
+                return next(
+                    row.get("metric-style", "wide")
+                    for row in instance["level"]
+                    if row["level-number"] == 2
+                )
+            if setting == "level":
+                return {"L1": _LEVEL1, "L2": _LEVEL2, "L1L2": "level-1-2"}.get(
+                    instance["level-capability"]
+                )
+            return _srl_authentication(instance)
         if profile == "routeros":
             rows = routeros_terse_rows(output)
             key = "metric-type" if setting == "metric" else "levels"
@@ -201,6 +238,7 @@ def _isis_oracle(problem, host, setting):
                 routeros_command="/routing/isis/instance/print terse"
                 if setting == "metric"
                 else "/routing/isis/interface-template/print terse",
+                srl_command="info from running network-instance default protocols isis | as json",
                 evidence=node == host,
             )
         )
@@ -218,6 +256,7 @@ def _isis_oracle(problem, host, setting):
             frr=vtysh("show isis neighbor"),
             iosxr_command="show isis adjacency",
             routeros_command="/routing/isis/neighbor/print terse",
+            srl_command="show network-instance default protocols isis adjacency",
             evidence=setting == "metric",
             attempts=12,
             interval_sec=10,
@@ -243,6 +282,9 @@ class IsisMetricStyleMismatch(ProblemBase):
     and the narrow router ignores TLV 135, so each side's prefixes leave the
     other's routing table. See RFC 5305:
     https://www.rfc-editor.org/rfc/rfc5305
+    SR Linux 24.10 accepts narrow metrics but retains peer routes, so it is
+    excluded: the required Up-but-unrouted symptom does not appear.
+    https://documentation.nokia.com/srlinux/24-10/books/routing-protocols/is-is.html
     """
 
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
@@ -358,6 +400,8 @@ class IsisCircuitLevelMismatch(ProblemBase):
     ``circuit-type level-1`` alone is ignored while the instance stays
     Level-2 only. See RFC 1195:
     https://www.rfc-editor.org/rfc/rfc1195
+    SR Linux level-capability:
+    https://documentation.nokia.com/srlinux/24-10/books/routing-protocols/is-is.html
     """
 
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
@@ -368,7 +412,7 @@ class IsisCircuitLevelMismatch(ProblemBase):
     effect_protocol = "isis"
     TAGS = ["isis"]
     isp_protocol = {"igp": "isis", "bgp_mode": "none", "rpki": False}
-    supported_backends = ("kathara",)
+    supported_backends = ("kathara", "containerlab")
     native_router_operations = frozenset({"isis_level", "set_isis_level"})
     Params = IsisCircuitLevelMismatchParams
 
@@ -395,6 +439,47 @@ class IsisCircuitLevelMismatch(ProblemBase):
         return _isis_oracle(self, params.host_name, "level")
 
     def _set_level(self, host: str, level: str) -> None:
+        if getattr(self.net_env, "backend", None) == "containerlab":
+            instance = self.runtime.lab_api.srl_protocol_instance(
+                host, "isis", state=False
+            )
+            mode = {_LEVEL1: "L1", _LEVEL2: "L2", "level-1-2": "L1L2"}[level]
+            base = (
+                f"/network-instance default protocols isis instance {instance['name']}"
+            )
+            old_number = 2 if level == _LEVEL1 else 1
+            paths = [
+                base,
+                *(
+                    f"{base} interface {i['interface-name']}"
+                    for i in instance["interface"]
+                    if any(
+                        row["level-number"] == old_number for row in i.get("level", [])
+                    )
+                ),
+            ]
+            commands = [f"delete {path} level {old_number}" for path in paths]
+            if level == _LEVEL1:
+                flat = self.runtime.lab_api.srl_exec_cli(
+                    host, f"info flat from running {base}"
+                )
+                self._srl_level_config = [
+                    line.removeprefix("set ")
+                    for line in flat.splitlines()
+                    if line.startswith("set /") and " level 2 " in line
+                ]
+                commands.extend(
+                    line.replace(" level 2 ", " level 1 ")
+                    for line in self._srl_level_config
+                )
+            else:
+                commands.extend(self._srl_level_config)
+            self.runtime.lab_api.srl_configure(
+                host,
+                *commands,
+                f"{base} level-capability {mode}",
+            )
+            return
         ops = native_fault_ops(self, host, "set_isis_level")
         if ops is not None:
             ops.set_isis_level(level)
@@ -411,6 +496,11 @@ class IsisCircuitLevelMismatch(ProblemBase):
         frr_save_config(self.runtime, host)
 
     def _level(self, host: str) -> str | None:
+        if getattr(self.net_env, "backend", None) == "containerlab":
+            instance = self.runtime.lab_api.srl_protocol_instance(host, "isis")
+            return {"L1": _LEVEL1, "L2": _LEVEL2, "L1L2": "level-1-2"}.get(
+                instance["level-capability"]
+            )
         ops = native_fault_ops(self, host, "isis_level")
         if ops is not None:
             return ops.isis_level()
@@ -419,6 +509,13 @@ class IsisCircuitLevelMismatch(ProblemBase):
 
     def inject_fault(self, params: IsisCircuitLevelMismatchParams):
         current = self._level(params.host_name)
+        if (
+            getattr(self.net_env, "backend", None) == "containerlab"
+            and current != _LEVEL2
+        ):
+            raise RuntimeCapabilityError(
+                "SR Linux level mismatch requires a Level-2-only instance."
+            )
         if current not in {_LEVEL2, "level-1-2"}:
             raise RuntimeCapabilityError(
                 f"{type(self).__name__}: unsupported healthy IS-IS level {current!r} on {params.host_name!r}."
@@ -468,6 +565,8 @@ class IsisAuthenticationMismatch(ProblemBase):
     PDUs. Requiring authentication on one side rejects the peer's hellos,
     so adjacencies expire and routes through the router disappear.
     https://www.rfc-editor.org/rfc/rfc5304#section-2
+    SR Linux interface authentication:
+    https://documentation.nokia.com/srlinux/24-10/books/routing-protocols/is-is.html
     FRR uses interface ``isis password md5``:
     https://docs.frrouting.org/en/stable-10.5/isisd.html
     IOS XR uses interface ``hello-password hmac-md5 clear``:
@@ -485,7 +584,7 @@ class IsisAuthenticationMismatch(ProblemBase):
         f"{scenario}/isis" for scenario in list_isp_base_scenarios()
     )
     isp_protocol = {"igp": "isis", "bgp_mode": "none", "rpki": False}
-    supported_backends = ("kathara",)
+    supported_backends = ("kathara", "containerlab")
     native_router_operations = frozenset(
         {"isis_hello_authentication", "set_isis_hello_password"}
     )
@@ -520,6 +619,10 @@ class IsisAuthenticationMismatch(ProblemBase):
         return _isis_oracle(self, params.host_name, "auth")
 
     def _authentication(self, host: str) -> dict[str, str]:
+        if getattr(self.net_env, "backend", None) == "containerlab":
+            return _srl_authentication(
+                self.runtime.lab_api.srl_protocol_instance(host, "isis", state=False)
+            )
         ops = native_fault_ops(self, host, "isis_hello_authentication")
         if ops is not None:
             return ops.isis_hello_authentication()
@@ -527,6 +630,27 @@ class IsisAuthenticationMismatch(ProblemBase):
         return _hello_authentication(config)
 
     def _set_password(self, host: str, password: str | None) -> None:
+        if getattr(self.net_env, "backend", None) == "containerlab":
+            instance = self.runtime.lab_api.srl_protocol_instance(
+                host, "isis", state=False
+            )
+            commands = []
+            for interface in instance["interface"]:
+                if interface.get("passive", False):
+                    continue
+                path = f"/network-instance default protocols isis instance {instance['name']} interface {interface['interface-name']} authentication"
+                commands.extend(
+                    [
+                        f"{path} key crypto-algorithm hmac-md5",
+                        f"{path} key auth-password {password}",
+                        f"{path} hello-authentication generate true",
+                        f"{path} hello-authentication check-received strict",
+                    ]
+                    if password
+                    else [f"delete {path}"]
+                )
+            self.runtime.lab_api.srl_configure(host, *commands)
+            return
         ops = native_fault_ops(self, host, "set_isis_hello_password")
         if ops is not None:
             ops.set_isis_hello_password(password)

@@ -103,6 +103,74 @@ def _incast_e2e_cases() -> list[FailureE2ECase]:
 
 
 CORE_E2E_CASES = (
+    *(
+        FailureE2ECase(
+            problem="rib_fib_inconsistency",
+            scenario=scenario,
+            env_run_args=("-s", "s"),
+            inject_params={"host_name": host},
+            sleep_after_inject_sec=30,
+        )
+        for scenario, host in (
+            ("dc_clos", "super_spine_router_0"),
+            ("campus_lan", "router_dist_1_1"),
+        )
+    ),
+    *(
+        FailureE2ECase(
+            problem="rib_fib_inconsistency",
+            scenario=scenario,
+            env_run_args=("--igp", igp, "--bgp-mode", mode),
+            isp_options={"igp": igp, "bgp_mode": mode, "rpki": False},
+            inject_seed=seed,
+            sleep_after_inject_sec=30,
+        )
+        for scenario in ("isp_abilene", "isp_france", "isp_pioro40")
+        for seed, igp, mode in (
+            (1, "isis", "none"),
+            (2, "ospf", "none"),
+            (3, "isis", "ibgp_rr"),
+            (4, "ospf", "ebgp"),
+        )
+    ),
+    *(
+        FailureE2ECase(
+            problem="rib_fib_inconsistency",
+            scenario=scenario,
+            sleep_after_inject_sec=30,
+        )
+        for scenario in (
+            "isp_abilene_ebgp_rpki",
+            "isp_geant_ebgp_rpki",
+            "isp_abilene_ebgp_rtbh",
+            "isp_dfn-bwin_ebgp_rtbh",
+        )
+    ),
+    *(
+        FailureE2ECase(
+            problem="ospf_acl_block",
+            scenario=scenario,
+            env_run_args=(
+                (("-s", "s") if scenario == "campus_lan" else ("--igp", "ospf"))
+                + (("--device-profile", profile) if profile != "frr" else ())
+            ),
+            isp_options=(
+                {
+                    "igp": "ospf",
+                    "bgp_mode": "none",
+                    "rpki": False,
+                    "device_profile": profile,
+                }
+                if scenario == "isp_abilene"
+                else None
+            ),
+            inject_params={
+                "host_name": "router_core_1" if scenario == "campus_lan" else "sttlng"
+            },
+        )
+        for scenario in ("campus_lan", "isp_abilene")
+        for profile in ("frr", "iosxr", "routeros")
+    ),
     FailureE2ECase(
         problem="vrf_route_target_mismatch",
         scenario="enterprise_branch",
@@ -705,6 +773,67 @@ def _pipeline_mismatch_e2e_cases() -> list[FailureE2ECase]:
 def _all_e2e_cases() -> list[FailureE2ECase]:
     return [
         *CORE_E2E_CASES,
+        *(
+            FailureE2ECase(
+                problem=problem,
+                scenario="isp_dfn-bwin",
+                topo_size="",
+                env_run_args=("--backend", "containerlab", "--igp", "isis"),
+                isp_options={"igp": "isis", "bgp_mode": "none", "rpki": False},
+                inject_params={"host_name": "berlin"},
+            )
+            for problem in (
+                "isis_circuit_level_mismatch",
+                "isis_authentication_mismatch",
+            )
+        ),
+        *(
+            FailureE2ECase(
+                problem=problem,
+                scenario="isp_abilene",
+                topo_size="",
+                env_run_args=(
+                    "--backend",
+                    "containerlab",
+                    "--igp",
+                    "ospf",
+                    "--bgp-mode",
+                    "ebgp",
+                ),
+                isp_options={"igp": "ospf", "bgp_mode": "ebgp", "rpki": False},
+                inject_params={
+                    "host_name": "atlang",
+                    **(
+                        {"intf_name": "e1-1"}
+                        if problem == "ospf_hello_interval_mismatch"
+                        else {}
+                    ),
+                },
+            )
+            for problem in (
+                "ospf_duplicate_router_id",
+                "ospf_hello_interval_mismatch",
+                "ospf_neighbor_missing",
+            )
+        ),
+        *(
+            FailureE2ECase(
+                problem="bgp_md5_password_mismatch",
+                scenario="isp_abilene",
+                topo_size="",
+                env_run_args=(
+                    "--backend",
+                    "containerlab",
+                    "--igp",
+                    igp,
+                    "--bgp-mode",
+                    mode,
+                ),
+                isp_options={"igp": igp, "bgp_mode": mode, "rpki": False},
+                inject_seed=1,
+            )
+            for igp, mode in (("isis", "ibgp_rr"), ("ospf", "ebgp"))
+        ),
         *_link_detach_e2e_cases(),
         *_incast_e2e_cases(),
         *_pipeline_mismatch_e2e_cases(),
@@ -731,6 +860,10 @@ def _case_id(case: FailureE2ECase) -> str:
     parts = [case.problem, case.scenario]
     if profile := _device_profile(case):
         parts.append(profile)
+    if "--backend" in case.env_run_args:
+        parts.append(case.env_run_args[case.env_run_args.index("--backend") + 1])
+        if "--bgp-mode" in case.env_run_args:
+            parts.append(case.env_run_args[case.env_run_args.index("--bgp-mode") + 1])
     if case.inject_seed != 1:
         parts.append(f"seed{case.inject_seed}")
     if case.topo_size not in ("", "s"):
@@ -746,7 +879,9 @@ def _skip_reason(case: FailureE2ECase) -> str | None:
     profile = _device_profile(case)
     if profile and not docker_image_available(_VENDOR_IMAGES[profile]):
         return f"{_VENDOR_IMAGES[profile]} image not installed"
-    if case.scenario == "min3clos" and not containerlab_prerequisites():
+    if (
+        case.scenario == "min3clos" or "containerlab" in case.env_run_args
+    ) and not containerlab_prerequisites():
         return "containerlab/gnmic not available"
     # Shared GHA runners: netns move for link_detach is unreliable.
     if case.problem == "link_detach" and artifact_verify_only():

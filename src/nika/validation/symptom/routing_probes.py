@@ -202,6 +202,8 @@ def bgp_neighbors(runtime: LabRuntime, router: str) -> dict[str, dict] | None:
 
 
 def _ospf_neighbors(runtime: LabRuntime, router: str) -> list[dict] | None:
+    if runtime.backend == "containerlab":
+        return runtime.lab_api.srl_ospf_neighbors(router)
     data = _load_json(
         exec_or_empty(
             runtime, router, "vtysh -c 'show ip ospf neighbor json' 2>/dev/null"
@@ -253,6 +255,8 @@ def _isis_identity_ids(problem: Any, host: str) -> set[str]:
 def _isis_neighbors(
     runtime: LabRuntime, router: str, *, profile: str | None = None
 ) -> list[dict] | None:
+    if runtime.backend == "containerlab":
+        return runtime.lab_api.srl_isis_neighbors(router)
     if profile == "iosxr":
         from nika.net_env.isp.iosxr import parse_iosxr_isis_adjacencies
         from nika.service.lab.iosxr_api import CLI_COMMAND
@@ -675,6 +679,8 @@ def max_prefix_cease(problem: Any, params: Any) -> tuple[bool, dict[str, Any]]:
 
 def _ospf_routes(problem: Any, router: str) -> set[str]:
     """Active IPv4 prefixes the router learned through OSPF."""
+    if problem.runtime.backend == "containerlab":
+        return problem.runtime.lab_api.srl_routes(router, "ospf")
     ops = router_fault_ops(problem, router)
     if ops is not None:
         return ops.ospf_routes()
@@ -687,6 +693,10 @@ def _ospf_routes(problem: Any, router: str) -> set[str]:
 
 
 def _ospf_router_id(problem: Any, router: str) -> str | None:
+    if problem.runtime.backend == "containerlab":
+        return problem.runtime.lab_api.srl_protocol_instance(router, "ospf")[
+            "router-id"
+        ]
     ops = router_fault_ops(problem, router)
     if ops is not None:
         return ops.ospf_router_id()
@@ -699,6 +709,8 @@ _DUPLICATE_ID_WAIT_SEC = 240.0
 
 
 def _connected_routes(problem: Any, router: str) -> set[str]:
+    if problem.runtime.backend == "containerlab":
+        return problem.runtime.lab_api.srl_routes(router, "local")
     ops = router_fault_ops(problem, router)
     if ops is not None:
         return ops.connected_routes()
@@ -1051,6 +1063,8 @@ def _route_query(runtime: LabRuntime, router: str, command: str, timeout: float)
 def _isis_routes(problem: Any, router: str) -> set[str] | None:
     """Prefixes ``router`` installs from IS-IS; ``None`` when unreadable."""
     runtime = problem.runtime
+    if getattr(runtime, "backend", None) == "containerlab":
+        return runtime.lab_api.srl_routes(router, "isis")
     profile = _native_profile(problem, router)
     if profile == "iosxr":
         from nika.service.lab.iosxr_api import CLI_COMMAND
@@ -1315,6 +1329,14 @@ def isis_adj_and_stubs_lost(problem: Any, params: Any) -> tuple[bool, dict[str, 
 
 def _isis_live_interfaces(problem: Any, host: str) -> dict[str, str]:
     """IS-IS circuit states from the running protocol, independent of adjacencies."""
+    if problem.runtime.backend == "containerlab":
+        from nika.service.containerlab.srl_api import srl_linux_intf
+
+        instance = problem.runtime.lab_api.srl_protocol_instance(host, "isis")
+        return {
+            srl_linux_intf(i["interface-name"]): i["oper-state"].capitalize()
+            for i in instance["interface"]
+        }
     if _native_profile(problem, host) == "iosxr":
         from nika.service.lab.iosxr_api import CLI_COMMAND
 

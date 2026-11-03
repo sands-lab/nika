@@ -1,9 +1,14 @@
 """Routing oracle evidence rejects healthy settings and neighboring fault causes."""
 
+import json
 from types import SimpleNamespace
 
 import pytest
 
+from nika.problems.forwarding_encapsulation_policy.acl import (
+    _xr_ospf_drop_applied,
+    _xr_ospf_no_adjacencies,
+)
 from nika.problems.routing_control_plane.isis import (
     IsisAuthenticationMismatch,
     IsisCircuitLevelMismatch,
@@ -18,7 +23,9 @@ pytestmark = pytest.mark.unit
 
 
 def _env(profile):
+    intf = "e1-1" if profile == "nokia_srlinux" else "eth1"
     return SimpleNamespace(
+        backend="containerlab" if profile == "nokia_srlinux" else "kathara",
         routers=["r1", "r2"],
         machine_identities={
             node: SimpleNamespace(capabilities=[profile], role="router")
@@ -27,8 +34,8 @@ def _env(profile):
         inventory={
             "links": [
                 {
-                    "endpoint_a": {"device": "r1", "iface": "eth1"},
-                    "endpoint_b": {"device": "r2", "iface": "eth1"},
+                    "endpoint_a": {"device": "r1", "iface": intf},
+                    "endpoint_b": {"device": "r2", "iface": intf},
                 }
             ]
         },
@@ -39,6 +46,30 @@ def _playbook(cls, profile, **params):
     problem = cls.__new__(cls)
     problem.net_env = _env(profile)
     return problem.oracle_playbook(cls.Params(host_name="r1", **params))
+
+
+def test_srl_timer_oracle_compares_observed_interface_timers():
+    def output(hello, dead):
+        interface = {
+            "interface-name": "ethernet-1/1.0",
+            "hello-interval": hello,
+            "dead-interval": dead,
+        }
+        instance = {
+            "name": "default",
+            "area": [{"area-id": "0.0.0.0", "interface": [interface]}],
+        }
+        ni = {"name": "default", "protocols": {"ospf": {"instance": [instance]}}}
+        return json.dumps({"network-instance": [ni]})
+
+    def evidence(local, peer):
+        playbook = _playbook(
+            OSPFHelloIntervalMismatch, "nokia_srlinux", intf_name="e1-1"
+        )
+        return _evidence(playbook, [local, peer])
+
+    assert evidence(output(5, 20), output(10, 40))
+    assert not evidence(output(10, 40), output(10, 40))
 
 
 def _evidence(playbook, outputs):
@@ -275,3 +306,46 @@ def test_area_suppression_requires_target_area_and_advertise_policy(profile):
         assert _evidence(plan, outputs())
         assert not _evidence(plan, outputs(""))
         assert not _evidence(plan, outputs(area="2"))
+
+
+def test_ospf_acl_evidence_requires_a_drop_on_every_ospf_interface():
+    config = """ipv4 access-list CONTROL-FILTER
+ 10 deny ospf any any
+ 20 permit ipv4 any any
+!
+interface GigabitEthernet0/0/0/0
+ ipv4 access-group CONTROL-FILTER ingress
+!
+interface GigabitEthernet0/0/0/1
+ ipv4 access-group CONTROL-FILTER ingress
+!
+router ospf 1
+ area 0
+  interface GigabitEthernet0/0/0/0
+  !
+  interface GigabitEthernet0/0/0/1
+  !
+ !
+!
+"""
+    assert _xr_ospf_drop_applied(config)
+    assert _xr_ospf_drop_applied(config.replace("deny ospf", "deny 89"))
+    assert not _xr_ospf_drop_applied(config.replace("deny ospf", "permit ospf"))
+    assert not _xr_ospf_drop_applied(
+        config.replace(" 10 deny", " 5 permit ipv4 any any\n 10 deny")
+    )
+    assert not _xr_ospf_drop_applied(config.replace(" ingress", " egress"))
+    assert not _xr_ospf_drop_applied(
+        config.replace(
+            "interface GigabitEthernet0/0/0/1\n ipv4 access-group CONTROL-FILTER ingress",
+            "interface GigabitEthernet0/0/0/1\n ipv4 address 192.0.2.1 255.255.255.252",
+        )
+    )
+
+
+def test_xr_ospf_adjacency_evidence_requires_zero_on_every_interface():
+    empty = "Neighbor Count is 0, Adjacent neighbor count is 0"
+    assert _xr_ospf_no_adjacencies(empty + "\n" + empty)
+    assert not _xr_ospf_no_adjacencies(empty + "\nAdjacent neighbor count is 2")
+    assert not _xr_ospf_no_adjacencies("")
+    assert not _xr_ospf_no_adjacencies("% Invalid input")

@@ -882,6 +882,31 @@ class RouterOsFaultOps(RouterFaultOps):
             for chain, port in _BGP_PORT_RULES
         )
 
+    def block_ospf_transport(self) -> str:
+        position = " place-before=0" if self._filter_rules() else ""
+        rule_id = self._cli(
+            ":put [/ip firewall filter add chain=input protocol=ospf action=drop"
+            + position
+            + "]"
+        ).strip()
+        if not re.fullmatch(r"\*[0-9A-Fa-f]+", rule_id):
+            raise ValueError(f"RouterOS omitted the firewall rule ID: {rule_id!r}")
+        return rule_id
+
+    def ospf_transport_blocked(self) -> bool:
+        return any(
+            row.get("chain") == "input"
+            and row.get("protocol") in {"ospf", "89"}
+            and row.get("action") == "drop"
+            and row.get("disabled", "no") == "no"
+            for row in self._rows("/ip/firewall/filter/print terse where !disabled")
+        )
+
+    def unblock_ospf_transport(self, filter_id: str) -> None:
+        if not re.fullmatch(r"\*[0-9A-Fa-f]+", filter_id):
+            raise ValueError(f"Invalid RouterOS firewall rule ID: {filter_id!r}")
+        self._cli(f"/ip firewall filter remove {filter_id}")
+
     def block_icmp_frag_needed(self) -> None:
         for chain in _FILTER_CHAINS:
             self._cli(
