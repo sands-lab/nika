@@ -27,10 +27,11 @@ from nika.net_env.utils.kathara.docker_files.docker_images import (
     image_exists,
     nika_image,
 )
+from nika.net_env.isp.rendered import IspRendered
 from nika.runtime.spec import NodeRole
 
 
-class IspVendor(NetworkEnvBase):
+class IspVendor(IspRendered, NetworkEnvBase):
     """Compile any catalog ISP graph to a supported native OSPF/BGP platform."""
 
     ROUTING_PARAMETER_KINDS = frozenset({"ospf_costs", "isis_metrics", "bgp_imports"})
@@ -54,6 +55,7 @@ class IspVendor(NetworkEnvBase):
         topo_size: str | None = None,
         routing_parameters: dict | None = None,
         routing_model: str | None = None,
+        rendered: bool = True,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -143,6 +145,11 @@ class IspVendor(NetworkEnvBase):
 
             native_interface = routeros_interface
             self.deployment_configs = render_routeros_isp(self.plan, self.bgp_plan)
+        if rendered and routing_parameters is None:
+            from nika.net_env.synthesis.rendered import current_configs
+
+            # Native routers read their configuration at boot, before startup.
+            self.deployment_configs = current_configs(self) or self.deployment_configs
         self._native_interface = native_interface
         self.BGP_CONFIG_PATH = CONFIG_FILE_PATH
         self.BGP_ROUTERS = {node.device_name: node for node in self.plan.nodes}

@@ -2,7 +2,7 @@
 
 NIKA checks whether a constructed network satisfies its original behavior specification. This walkthrough follows one Abilene design through routing completion, device configuration, static analysis and real execution. Each step identifies its input and output.
 
-Run this experiment explicitly during environment development. For the FRR and IOS XR profiles of `dc_clos`, `campus_lan` and `enterprise_branch`, and for ISP deployments, normal benchmark startup deploys router configurations that netlab generated offline from the environment's design; see [Deploy stored configurations](#deploy-stored-configurations). Saved constructions can be reused without rerunning synthesis and analysis.
+Run this experiment explicitly during environment development. For the FRR and IOS XR profiles of `dc_clos`, `campus_lan` and `enterprise_branch`, and for the stored ISP variants that netlab can generate, normal benchmark startup deploys router configurations that netlab generated offline from the environment's design; see [Deploy stored configurations](#deploy-stored-configurations). Saved constructions can be reused without rerunning synthesis and analysis.
 
 ## Why these stages are separate
 

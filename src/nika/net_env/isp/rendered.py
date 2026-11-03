@@ -2,12 +2,8 @@
 
 Each ISP scenario stores one variant per IGP, BGP mode and device profile
 that the benchmark uses, under ``isp/rendered/<scenario>/<variant>``. A
-deployment without stored configurations, such as an ad-hoc topology, keeps
-NIKA's rendering.
-
-IOS XR and RouterOS ISP deployments keep NIKA's rendering: their runtime
-operations, telemetry and fault bindings address the object names that NIKA
-renders, such as the RouterOS ``lo0`` loopback, which netlab names differently.
+deployment without stored configurations, such as an ad-hoc topology or a
+design netlab cannot generate, keeps NIKA's rendering.
 """
 
 from __future__ import annotations
@@ -25,7 +21,7 @@ from nika.net_env.isp.igp.config import (
 # Deployment options that select a stored variant.
 VARIANT_OPTIONS = ("igp", "bgp_mode", "rpki", "rtbh", "device_profile", "backend")
 # Device profiles whose ISP deployments run the stored netlab configurations.
-RENDERED_PROFILES = frozenset({"frr", "nokia_srlinux"})
+RENDERED_PROFILES = frozenset({"frr", "nokia_srlinux", "iosxr", "routeros"})
 
 
 def benchmark_variants(scenario: str) -> list[dict]:
@@ -37,6 +33,7 @@ def benchmark_variants(scenario: str) -> list[dict]:
         data = yaml.safe_load(path.read_text())
         for section in ("failure", "healthy"):
             cases += (data.get(section) or {}).get("cases", [])
+        cases += (data.get("healthy") or {}).get("variants", [])
     release = BENCHMARK_DIR / "releases" / BENCHMARK_VERSION
     for split in ("dev", "test"):
         path = release / f"{split}.yaml"

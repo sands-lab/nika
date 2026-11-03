@@ -12,6 +12,8 @@ from nika.net_env.utils.routeros.common import MAX_DATA_INTERFACES, routeros_int
 
 __all__ = ["render_routeros_isp", "routeros_interface", "routeros_isp_readiness"]
 
+LOOPBACK = routeros_interface("lo")
+
 SUPPORTED_IGPS = ("ospf", "isis")
 
 
@@ -50,8 +52,8 @@ def render_routeros_isp(
     for node in plan.nodes:
         lines = [
             f"/system identity set name={node.device_name}",
-            "/interface bridge add name=lo0 protocol-mode=none",
-            f"/ip address add address={node.loopback}/32 interface=lo0",
+            f"/interface bridge add name={LOOPBACK} protocol-mode=none",
+            f"/ip address add address={node.loopback}/32 interface={LOOPBACK}",
             *(
                 f"/ip address add address={iface.address}/{iface.prefixlen} "
                 f"interface={routeros_interface(iface.name)}"
@@ -69,7 +71,7 @@ def _render_ospf(node: PlannedNode) -> list[str]:
     lines = [
         f"/routing ospf instance add name=CORE version=2 router-id={node.router_id}",
         "/routing ospf area add name=backbone instance=CORE area-id=0.0.0.0",
-        "/routing ospf interface-template add area=backbone interfaces=lo0 "
+        f"/routing ospf interface-template add area=backbone interfaces={LOOPBACK} "
         f"networks={node.loopback}/32 type=broadcast passive cost=1",
     ]
     for iface in node.interfaces:
@@ -95,7 +97,7 @@ def _render_isis(node: PlannedNode) -> list[str]:
     lines = [
         f"/routing isis instance add name=CORE afi=ip areas={area} "
         f"system-id={system_id} metric-type=wide",
-        "/routing isis interface-template add instance=CORE interfaces=lo0 "
+        f"/routing isis interface-template add instance=CORE interfaces={LOOPBACK} "
         "levels=l2 passive",
     ]
     for iface in node.interfaces:
