@@ -5,6 +5,7 @@ import pytest
 from nika.problems.routing_control_plane.bgp import bgp_neighbors_by_instance
 from nika.problems.routing_control_plane.ospf import router_lsa_origins
 from nika.problems.routing_control_plane.isis import _hello_authentication
+from nika.problems.routing_control_plane.vrf import _frr_imports
 
 pytestmark = pytest.mark.unit
 
@@ -98,3 +99,32 @@ exit
         "eth1": "none",
         "eth2": "clear",
     }
+
+
+def test_vrf_imports_do_not_mix_instances_or_address_families():
+    config = """\
+router bgp 65000
+ address-family ipv4 unicast
+  import vrf vrf_corp
+  import vrf vrf_server
+ exit-address-family
+exit
+router bgp 65000 vrf vrf_corp
+ address-family ipv4 unicast
+  import vrf default
+  import vrf vrf_server
+ exit-address-family
+ address-family ipv6 unicast
+  import vrf vrf_iot
+ exit-address-family
+exit
+router bgp 65000 vrf vrf_server
+ address-family ipv4 unicast
+  import vrf vrf_guest
+  import vrf vrf_corp
+ exit-address-family
+exit
+"""
+    assert _frr_imports(config, "vrf_corp") == {"default", "vrf_server"}
+    assert _frr_imports(config, "vrf_server") == {"vrf_guest", "vrf_corp"}
+    assert _frr_imports(config, "vrf_guest") == set()

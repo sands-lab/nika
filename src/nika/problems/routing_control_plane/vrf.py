@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+import re
+import time
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -9,13 +12,29 @@ from pydantic import BaseModel, Field
 from nika.net_env.enterprise_branch.addressing import lan_edge_ip, lan_host_ip
 from nika.net_env.enterprise_branch.topology import OVERLAY_ROLES, PUBLIC_SERVICE_IP
 from nika.net_env.utils.routeros.parse import routeros_terse_rows
-from nika.net_env.verify import ping_stats
+from nika.net_env.verify import frr_bgp_established_peers, ping_stats
 from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
 from nika.problems.rca import node_resource
+from nika.problems.support.frr import frr_config_command, frr_save_config
 from nika.problems.support.polling import wait_until
-from nika.problems.support.oracle import Check, OraclePlaybook, routeros
+from nika.problems.support.oracle import Check, OraclePlaybook, routeros, shell, vtysh
 from nika.problems.support.router_ops import native_fault_ops, native_router_profile
 from nika.runtime.base import RuntimeCapabilityError
+
+
+def _frr_imports(config: str, vrf: str) -> set[str]:
+    """Read IPv4 import sources from one BGP VRF, excluding other instances."""
+    block = re.search(
+        rf"^router bgp \d+ vrf {re.escape(vrf)}\n(.*?)(?=^\S|\Z)",
+        config,
+        re.M | re.S,
+    )
+    family = re.search(
+        r"^ address-family ipv4 unicast\n(.*?)^ exit-address-family",
+        block[1] if block else "",
+        re.M | re.S,
+    )
+    return set(re.findall(r"^  import vrf (\S+)$", family[1] if family else "", re.M))
 
 
 def _site_lan(net_env, host: str, vrf: str):
@@ -33,19 +52,21 @@ def _site_lan(net_env, host: str, vrf: str):
 
 
 class VrfRouteTargetMismatchParams(BaseModel):
-    host_name: str = Field(description="Target RouterOS Site Edge.")
+    host_name: str = Field(description="Target Site Edge.")
     vrf_name: Literal["vrf_corp", "vrf_server"] = Field(
         default="vrf_corp", description="Business VRF whose import target changes."
     )
 
 
 class VrfRouteTargetMismatch(ProblemBase):
-    """One business VRF imports a route target that its overlay does not export.
+    """One business VRF imports from the wrong routing domain.
 
     RFC 4364 section 4.3.1 defines import/export target matching:
     https://www.rfc-editor.org/rfc/rfc4364.html#section-4.3.1
     MikroTik's vendor configuration document describes local BGP VPN leaking:
     https://help.mikrotik.com/docs/spaces/ROS/pages/328206/Virtual+Routing+and+Forwarding+-+VRF
+    FRR derives route targets from the source named by ``import vrf``:
+    https://docs.frrouting.org/en/latest/bgp.html#clicmd-import-vrf-VRFNAME
 
     The NHS Wales incident report describes a route-leaking change admitting
     an unintended default through customer VRF import target 64627:16:
@@ -55,14 +76,15 @@ class VrfRouteTargetMismatch(ProblemBase):
     These sources establish the operational impact of import changes and RT
     loss; neither describes this exact import-target typo.
 
-    FRR is excluded: replacing ``import vrf default`` removes VRF routes but
-    Linux falls back to the main table, preserving endpoint connectivity.
+    RouterOS imports a mistyped route target. FRR imports the guest VRF instead
+    of the default VRF that carries overlay routes. Its unreachable VRF default
+    prevents fallback to the main table after remote routes disappear.
     """
 
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
     root_cause_name = "vrf_route_target_mismatch"
     description = (
-        "A business VRF's import route target does not match the overlay export target."
+        "A business VRF's import source does not match the overlay routing domain."
     )
     symptom_desc = "Users at one site cannot reach remote business services."
     symptom_probe = "custom"
@@ -85,9 +107,7 @@ class VrfRouteTargetMismatch(ProblemBase):
 
     @classmethod
     def runs_on_device_profile(cls, device_profile: str) -> bool:
-        return device_profile == "routeros" and super().runs_on_device_profile(
-            device_profile
-        )
+        return device_profile == "frr" or super().runs_on_device_profile(device_profile)
 
     @classmethod
     def benchmark_inject_params(cls, ctx):
@@ -95,7 +115,7 @@ class VrfRouteTargetMismatch(ProblemBase):
             edge.name
             for edge in ctx.net_env._edges.values()
             if not ctx.net_env.spec.sites[edge.site].is_hub
-            and native_router_profile(ctx.net_env, edge.name) == "routeros"
+            and native_router_profile(ctx.net_env, edge.name) in {None, "routeros"}
         )
         return {
             "host_name": ctx.rng.choice(targets) if targets else ctx.router0,
@@ -105,19 +125,58 @@ class VrfRouteTargetMismatch(ProblemBase):
     @classmethod
     def validate_benchmark_inject(cls, ctx, inject):
         host = inject.get("host_name")
-        if native_router_profile(ctx.net_env, host) != "routeros":
-            raise ValueError("VRF import mismatch needs a RouterOS Site Edge")
+        if native_router_profile(ctx.net_env, host) not in {None, "routeros"}:
+            raise ValueError("VRF import mismatch needs an FRR or RouterOS Site Edge")
         _site_lan(ctx.net_env, host, inject.get("vrf_name", "vrf_corp"))
 
     def root_cause_resources(self, params):
         return [node_resource(params.host_name)]
 
     def _require_target(self, params):
-        if native_router_profile(self.net_env, params.host_name) != "routeros":
+        if native_router_profile(self.net_env, params.host_name) not in {
+            None,
+            "routeros",
+        }:
             raise RuntimeCapabilityError(
-                "VRF import mismatch requires RouterOS. FRR retains main-table forwarding."
+                "VRF import mismatch requires an FRR or RouterOS Site Edge."
             )
         _site_lan(self.net_env, params.host_name, params.vrf_name)
+
+    def _import_sources(self, params):
+        if native_router_profile(self.net_env, params.host_name) == "routeros":
+            site, _, _ = _site_lan(self.net_env, params.host_name, params.vrf_name)
+            return f"{site.asn}:1", f"{site.asn}:2"
+        return "default", "vrf_guest"
+
+    def _imports(self, params):
+        ops = native_fault_ops(self, params.host_name, "vpn_import_targets")
+        if ops:
+            return ops.vpn_import_targets(params.vrf_name)
+        return _frr_imports(
+            self.runtime.exec(params.host_name, vtysh("show running-config")),
+            params.vrf_name,
+        )
+
+    def _set_imports(self, params, imports):
+        ops = native_fault_ops(self, params.host_name, "set_vpn_import_targets")
+        if ops:
+            ops.set_vpn_import_targets(params.vrf_name, imports)
+            return
+        current = self._imports(params)
+        site, _, _ = _site_lan(self.net_env, params.host_name, params.vrf_name)
+        output = self.runtime.exec(
+            params.host_name,
+            frr_config_command(
+                f"router bgp {site.asn} vrf {params.vrf_name}",
+                "address-family ipv4 unicast",
+                *(f"no import vrf {vrf}" for vrf in sorted(current - imports)),
+                *(f"import vrf {vrf}" for vrf in sorted(imports - current)),
+                "exit-address-family",
+            ),
+        )
+        if "%" in output:
+            raise RuntimeError(f"FRR rejected the VRF import update: {output}")
+        frr_save_config(self.runtime, params.host_name)
 
     def probe_paths(self, params):
         site, lan, _ = _site_lan(self.net_env, params.host_name, params.vrf_name)
@@ -141,6 +200,10 @@ class VrfRouteTargetMismatch(ProblemBase):
         for other in site.lans:
             if other.role in OVERLAY_ROLES and other != lan:
                 paths[other.vrf] = (other.host_name, paths["remote"][1])
+                paths[f"local_{other.vrf}"] = (
+                    lan.host_name,
+                    str(lan_host_ip(site.site_id, other.role).ip),
+                )
         return paths
 
     def path_readings(self, params):
@@ -152,6 +215,45 @@ class VrfRouteTargetMismatch(ProblemBase):
     def routing_readings(self, params):
         ops = native_fault_ops(self, params.host_name, "vrf_routes")
         _, _, edge = _site_lan(self.net_env, params.host_name, params.vrf_name)
+        if ops is None:
+            output = self.runtime.exec(
+                params.host_name,
+                vtysh(
+                    "show bgp summary json",
+                    "show ip route json",
+                    f"show ip route vrf {params.vrf_name} json",
+                )
+                + "; wg show all latest-handshakes",
+            )
+            tables = []
+            for _ in range(3):
+                table, end = json.JSONDecoder().raw_decode(output.lstrip())
+                tables.append(table)
+                output = output.lstrip()[end:]
+            handshakes = {
+                fields[0]: time.time() - int(fields[2]) if int(fields[2]) else None
+                for line in output.splitlines()
+                if len(fields := line.split()) == 3 and fields[0] in edge.tunnels
+            }
+            readings = {
+                "peers": sorted(frr_bgp_established_peers(json.dumps(tables[0])))
+            }
+            for name, table in zip(("overlay", "vrf"), tables[1:], strict=True):
+                readings[name] = sorted(
+                    prefix
+                    for prefix, routes in table.items()
+                    if any(
+                        route.get("selected")
+                        and not any(
+                            nh.get("unreachable") for nh in route.get("nexthops", [])
+                        )
+                        for route in routes
+                    )
+                )
+            readings["handshakes"] = {
+                iface: handshakes.get(iface) for iface in edge.tunnels
+            }
+            return readings
         return {
             "peers": sorted(ops.bgp_established_peers()),
             "overlay": sorted(ops.vrf_routes("overlay")),
@@ -164,12 +266,8 @@ class VrfRouteTargetMismatch(ProblemBase):
 
     def inject_fault(self, params):
         self._require_target(params)
-        ops = native_fault_ops(self, params.host_name, "set_vpn_import_targets")
-        imports = ops.vpn_import_targets(params.vrf_name)
-        # The overlay imports the local business targets; its own export is
-        # the common target imported by every business VRF.
-        site, _, _ = _site_lan(self.net_env, params.host_name, params.vrf_name)
-        overlay_target = f"{site.asn}:1"
+        imports = self._imports(params)
+        overlay_target, wrong_target = self._import_sources(params)
         if overlay_target not in imports:
             raise RuntimeCapabilityError(
                 "Business VRF does not import the overlay target"
@@ -180,17 +278,16 @@ class VrfRouteTargetMismatch(ProblemBase):
             raise RuntimeCapabilityError(
                 "VRF import mismatch needs healthy overlay routing"
             )
-        wrong_imports = (imports - {overlay_target}) | {f"{site.asn}:2"}
-        ops.set_vpn_import_targets(params.vrf_name, wrong_imports)
+        wrong_imports = (imports - {overlay_target}) | {wrong_target}
+        self._set_imports(params, wrong_imports)
 
     def verify_fault(self, params):
         self._require_target(params)
-        ops = native_fault_ops(self, params.host_name, "vpn_import_targets")
-        imports = ops.vpn_import_targets(params.vrf_name)
-        site, _, _ = _site_lan(self.net_env, params.host_name, params.vrf_name)
+        imports = self._imports(params)
+        overlay_target, wrong_target = self._import_sources(params)
         return build_verify_result(
             fault_type=self.root_cause_name,
-            verified=f"{site.asn}:1" not in imports and f"{site.asn}:2" in imports,
+            verified=overlay_target not in imports and wrong_target in imports,
             details={
                 "host": params.host_name,
                 "vrf": params.vrf_name,
@@ -202,6 +299,45 @@ class VrfRouteTargetMismatch(ProblemBase):
         _, lan, _ = _site_lan(self.net_env, params.host_name, params.vrf_name)
         remote = self.probe_paths(params)["remote"][1]
         prefix = remote.rsplit(".", 1)[0] + ".0/24"
+
+        if native_router_profile(self.net_env, params.host_name) is None:
+            return OraclePlaybook(
+                finding=f"{params.host_name}:{lan.vrf} imports vrf_guest instead of the overlay's default VRF.",
+                steps=[
+                    shell(
+                        params.host_name,
+                        vtysh("show running-config")
+                        + f" | sed -n '/^router bgp [0-9]* vrf {lan.vrf}$/,/^exit$/p'; "
+                        + vtysh(
+                            "show bgp summary",
+                            f"show ip route vrf {lan.vrf} {prefix}",
+                            f"show ip route {prefix}",
+                        )
+                        + "; wg show all latest-handshakes",
+                        "Compare the business import source with the overlay VRF and inspect sessions, routes, and tunnels.",
+                        Check(
+                            "the business VRF imports vrf_guest and has no import from default",
+                            lambda output: (
+                                "vrf_guest" in _frr_imports(output, lan.vrf)
+                                and "default" not in _frr_imports(output, lan.vrf)
+                            ),
+                        ),
+                        evidence=True,
+                    ),
+                    shell(
+                        lan.host_name,
+                        f"ping -c 4 -W 2 {remote}; ping -c 4 -W 2 {self.probe_paths(params)['gateway'][1]}",
+                        "Compare remote service reachability with the local gateway.",
+                        Check(
+                            "the remote service loses all four probes and the local gateway answers four",
+                            lambda output: (
+                                "4 packets transmitted, 0 received" in output
+                                and "4 packets transmitted, 4 received" in output
+                            ),
+                        ),
+                    ),
+                ],
+            )
 
         def mismatch(output):
             rows = routeros_terse_rows(output)
@@ -233,12 +369,11 @@ class VrfRouteTargetMismatch(ProblemBase):
 
     def recover_fault(self, params):
         self._require_target(params)
-        ops = native_fault_ops(self, params.host_name, "set_vpn_import_targets")
         imports = getattr(self, "_healthy_imports", None)
         baseline = getattr(self, "_healthy_routing", None)
         if not imports or not baseline:
             return {"verified": False, "details": {"error": "no_healthy_baseline"}}
-        ops.set_vpn_import_targets(params.vrf_name, imports)
+        self._set_imports(params, imports)
 
         def healthy():
             self._recovered_routing = self.routing_readings(params)

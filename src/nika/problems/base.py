@@ -155,6 +155,8 @@ class ProblemBase:
     # Co-injected failures whose params ``coordinate_benchmark_inject`` adjusts
     # when a multi-fault case is exactly this failure plus these.
     BENCHMARK_COORDINATES: ClassVar[frozenset[str]] = frozenset()
+    # Retain this fault before injecting the next fault, to record its history.
+    MULTI_INJECT_DWELL_SEC: ClassVar[float] = 0.0
     # Exercise kind (``nika.traffic.workload``) of scenario business traffic the
     # symptom needs. In a scenario that declares a workload, benchmark targets
     # must be ones that traffic exercises (``symptom_workload_target``).

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 from contextlib import suppress
 from dataclasses import dataclass
+from pathlib import Path
 
 import pytest
 
@@ -171,18 +173,26 @@ CORE_E2E_CASES = (
         for scenario in ("campus_lan", "isp_abilene")
         for profile in ("frr", "iosxr", "routeros")
     ),
-    FailureE2ECase(
-        problem="vrf_route_target_mismatch",
-        scenario="enterprise_branch",
-        env_run_args=("-s", "s", "--device-profile", "routeros"),
-        inject_params={"host_name": "br1_edge"},
+    *(
+        FailureE2ECase(
+            problem="vrf_route_target_mismatch",
+            scenario="enterprise_branch",
+            env_run_args=("-s", "s")
+            + (("--device-profile", profile) if profile == "routeros" else ()),
+            inject_params={"host_name": host, "vrf_name": vrf},
+            inject_seed=seed,
+        )
+        for profile in ("frr", "routeros")
+        for host, vrf, seed in (
+            ("br1_edge", "vrf_corp", 1),
+            ("hq_edge", "vrf_server", 2),
+        )
     ),
     FailureE2ECase(
         problem="vrf_route_target_mismatch",
         scenario="enterprise_branch",
-        env_run_args=("-s", "s", "--device-profile", "routeros"),
-        inject_params={"host_name": "hq_edge", "vrf_name": "vrf_server"},
-        inject_seed=2,
+        env_run_args=("-s", "s", "--device-profile", "iosxr"),
+        inject_params={"host_name": "br1_edge"},
     ),
     *(
         FailureE2ECase(
@@ -935,3 +945,77 @@ class TestFailureE2E(IntegrationTestCase):
         finally:
             if session_id is not None:
                 self._close_session(session_id)
+
+
+class TestLatentBackupE2E(IntegrationTestCase):
+    @pytest.mark.parametrize(
+        "profile",
+        ["frr", "routeros"],
+        ids=lambda p: f"latent-backup-enterprise_branch-{p}",
+    )
+    def test_primary_failure_exposes_standby(self, profile):
+        from tests.support.latent_backup_e2e import run_latent_backup_e2e
+
+        case = FailureE2ECase(
+            problem="wireguard_peer_key_misconfiguration",
+            scenario="enterprise_branch",
+            env_run_args=("--device-profile", profile) if profile != "frr" else (),
+        )
+        if reason := _skip_reason(case):
+            pytest.skip(reason)
+        run_latent_backup_e2e(self, profile)
+
+
+@pytest.mark.parametrize("profile", ("frr", "routeros"))
+@pytest.mark.parametrize(
+    "problem,params",
+    (
+        (
+            "wireguard_peer_key_misconfiguration",
+            {"host_name": "br1_edge", "intf_name": "wg_hq"},
+        ),
+        (
+            "wireguard_allowed_ips_misconfiguration",
+            {
+                "host_name": "br1_edge",
+                "intf_name": "wg_hq",
+                "target_prefix": "10.0.20.0/24",
+            },
+        ),
+        (
+            "vrf_dscp_remarking",
+            {
+                "host_name": "hq_edge",
+                "intf_name": "wg_br1",
+                "src_host": "hq_corp_pc",
+                "dst_host": "br1_corp_pc",
+            },
+        ),
+    ),
+    ids=("wireguard_peer_key", "wireguard_allowed_ips", "vrf_dscp_remarking"),
+)
+class TestEnterpriseOracleE2E(IntegrationTestCase):
+    def test_oracle_confirms_site_edge_fault(self, profile, problem, params):
+        from nika.workflows.eval.session import run_eval_metrics
+
+        args = ("-s", "s") + (("--device-profile", profile) if profile != "frr" else ())
+        case = FailureE2ECase(problem, "enterprise_branch", env_run_args=args)
+        if reason := _skip_reason(case):
+            pytest.skip(reason)
+        session_id = None
+        try:
+            session_id = self._start_env(case.scenario, list(args))
+            self._assert_session_ready(session_id, case.scenario)
+            self._inject_failure(problem, params, session_id=session_id)
+            self._run_agent(agent_type="oracle", session_id=session_id)
+            result_dir = Path(self._session_row(session_id)["session_dir"])
+            oracle = json.loads((result_dir / "oracle.json").read_text())
+            assert oracle["solved"] is True, oracle
+        finally:
+            if session_id is not None:
+                self._close_session(session_id)
+        run_eval_metrics(session_id=session_id)
+        metrics = json.loads((result_dir / "eval_metrics.json").read_text())
+        assert metrics["detection_score"] == 1.0, metrics
+        assert metrics["rca_accuracy"] == 1.0, metrics
+        assert metrics["rca_f1"] == 1.0, metrics

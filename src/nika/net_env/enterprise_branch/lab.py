@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from ipaddress import IPv4Interface, IPv4Network
+from ipaddress import IPv4Address, IPv4Interface, IPv4Network
 
 from Kathara.manager.Kathara import Kathara, Machine
 from Kathara.model.Lab import Lab
@@ -147,7 +147,7 @@ def _edge_policies(
     return prefix_lists, policies, "RM-OUT-TRANSIT" if is_hub else "RM-OUT-LOCAL"
 
 
-def _vrf_bgp_instance(asn: int, router_id: str, role: str) -> list[str]:
+def _vrf_bgp_instance(asn: int, router_id: str, role: str, overlay_roles: tuple[str, ...]) -> list[str]:
     return [
         f"router bgp {asn} vrf {vrf_name(role)}",
         f" bgp router-id {router_id}",
@@ -158,6 +158,7 @@ def _vrf_bgp_instance(asn: int, router_id: str, role: str) -> list[str]:
         # FRR 10.x accepts `import vrf default` only (no inline route-map).
         # Guest/IOT have no BGP VRF instance, so they never import overlay.
         "  import vrf default",
+        *(f"  import vrf {vrf_name(other)}" for other in overlay_roles if other != role),
         " exit-address-family",
         "!",
         "!",
@@ -172,7 +173,7 @@ def _vrf_leaking(asn: int, router_id: str, overlay_roles: tuple[str, ...]) -> st
         + "".join(f"  import vrf {vrf_name(role)}\n" for role in overlay_roles)
         + " exit-address-family\n!\n"
         + "\n".join(
-            "\n".join(_vrf_bgp_instance(asn, router_id, role)) + "\n"
+            "\n".join(_vrf_bgp_instance(asn, router_id, role, overlay_roles)) + "\n"
             for role in overlay_roles
         )
     )
@@ -264,7 +265,7 @@ def _render_edge_frr(
     lines.extend([" exit-address-family", "!", "!"])
 
     for role in overlay_roles:
-        lines.extend(_vrf_bgp_instance(asn, router_id, role))
+        lines.extend(_vrf_bgp_instance(asn, router_id, role, overlay_roles))
 
     lines.extend(["line vty", "!", ""])
     return "\n".join(lines)
@@ -576,6 +577,11 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
                 table = VRF_TABLE[lan.role]
                 edge.cmd_list.append(f"ip link add {lan.vrf} type vrf table {table}")
                 edge.cmd_list.append(f"ip link set dev {lan.vrf} up")
+                # A lookup that misses the VRF table must not fall through to
+                # the main table (kernel VRF setup guidance).
+                edge.cmd_list.append(
+                    f"ip route add table {table} unreachable default metric 4278198272"
+                )
             for lan in site.lans:
                 link = f"{edge.name}_{site.name}_{lan.role}"
                 self.lab.connect_machine_to_link(edge.name, link)
@@ -984,9 +990,62 @@ class EnterpriseBranch(NativeRouterEnv, NetworkEnvBase):
         """(Branch edge, WireGuard iface) pairs with a primary HQ peer."""
         return primary_hq_peer_targets(self._target_size())
 
+    def wireguard_failover_targets(self) -> list[tuple[str, str, str, str]]:
+        """Standby peers on an independent provider, paired with the primary WAN."""
+        from nika.problems.rca.inventory import (
+            iter_link_termination_points,
+            parse_endpoint,
+        )
+
+        targets = []
+        for spoke in self.spec.branch_names():
+            edge = self._edges[spoke]
+            primary = next(
+                t for t in self.built_tunnels if t.spoke == spoke and t.primary
+            )
+            wan = edge.wan[primary.provider][3]
+            peer = next(
+                parse_endpoint(str(endpoint))
+                for _, endpoints in iter_link_termination_points(self)
+                if f"{edge.name}:{wan}" in {str(e) for e in endpoints}
+                for endpoint in endpoints
+                if str(endpoint) != f"{edge.name}:{wan}"
+            )
+            for tunnel in self.built_tunnels:
+                if (
+                    tunnel.spoke == spoke
+                    and not tunnel.primary
+                    and tunnel.provider != primary.provider
+                ):
+                    targets.append((edge.name, tunnel.spoke_iface, *peer))
+        return targets
+
     def remote_prefixes_for_spoke(self, spoke: str) -> list[str]:
         """Advertised CORP/SERVER prefixes not owned by ``spoke``."""
         return remote_advertised_prefixes_for_spoke(self._target_size(), spoke)
+
+    def restore_link_routes(self, runtime, host: str, interface: str) -> None:
+        """Restore authored kernel routes flushed when a Linux attachment goes down."""
+        if host in self.native_routers:
+            return
+        startup = self.lab.fs.readtext(f"{host}.startup")
+        networks = [
+            IPv4Interface(cidr).network
+            for cidr in re.findall(
+                rf"^ip addr add (\S+) dev {re.escape(interface)}$", startup, re.M
+            )
+        ]
+        for line in startup.splitlines():
+            if not line.startswith("ip route add "):
+                continue
+            gateway = re.search(r"\bvia (\S+)", line)
+            if gateway and any(
+                IPv4Address(gateway[1]) in network for network in networks
+            ):
+                command = line.removesuffix(" || true").replace(
+                    "ip route add ", "ip route replace ", 1
+                )
+                runtime.exec(host, command)
 
     def bgp_hijack_targets(self) -> list[HijackTarget]:
         """Originations that divert another site's traffic to the hijacker."""
