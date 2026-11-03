@@ -184,6 +184,30 @@ def routeros(
     )
 
 
+def srl(
+    router: str,
+    command: str,
+    purpose: str,
+    expect: Check | None = None,
+    *,
+    evidence: bool = False,
+    attempts: int = 1,
+    interval_sec: float = 5.0,
+    save_as: str | None = None,
+) -> OracleStep:
+    """Run an SR Linux CLI command through the agent's ``srl_exec_cli`` tool."""
+    return OracleStep(
+        purpose,
+        "srl_exec_cli",
+        {"device_name": router, "command": command},
+        expect,
+        evidence=evidence,
+        attempts=attempts,
+        interval_sec=interval_sec,
+        save_as=save_as,
+    )
+
+
 def router_cli(
     net_env,
     router: str,
@@ -193,6 +217,7 @@ def router_cli(
     frr: str,
     iosxr_command: str | None = None,
     routeros_command: str | None = None,
+    srl_command: str | None = None,
     evidence: bool = False,
     attempts: int = 1,
     interval_sec: float = 5.0,
@@ -200,9 +225,9 @@ def router_cli(
 ) -> OracleStep:
     """Read *router* with the CLI of its platform.
 
-    FRR routers run *frr* through ``exec_shell``; IOS XR and RouterOS routers
-    run the matching native command through their MCP tool. A platform without
-    a command raises, so a playbook cannot silently skip a device profile.
+    FRR routers run *frr* through ``exec_shell``. IOS XR, RouterOS, and SR Linux
+    run the matching command through their MCP tool. A missing platform command
+    raises ``ValueError``.
     """
     from nika.problems.support.router_ops import native_router_profile
 
@@ -213,6 +238,10 @@ def router_cli(
         interval_sec=interval_sec,
         save_as=save_as,
     )
+    if getattr(net_env, "backend", None) == "containerlab":
+        if srl_command is None:
+            raise ValueError(f"No SR Linux command for {purpose!r}")
+        return srl(router, srl_command, purpose, expect, **options)
     if profile == "iosxr":
         if iosxr_command is None:
             raise ValueError(f"No IOS XR command for {purpose!r}")

@@ -20,6 +20,7 @@ from nika.service.lab.iosxr_api import (
 # Interface ACL a misconfigured transit filter would carry; the name says
 # nothing about what it drops.
 _FILTER_ACL = "TRANSIT-FILTER"
+_OSPF_FILTER_ACL = "CONTROL-FILTER"
 # Loopback holding an originated prefix; Loopback0 is the router ID.
 _ORIGIN_LOOPBACK = "Loopback1"
 _ADDRESSED_INTERFACE = re.compile(
@@ -653,6 +654,74 @@ class IosxrFaultOps(RouterFaultOps):
             f"ipv4 access-group {_FILTER_ACL} {direction}" in applied
             for direction in ("ingress", "egress")
         )
+
+    def _ospf_filter_interfaces(self) -> list[str]:
+        addressed = {interface for interface, _ in self._addressed_interfaces()}
+        return sorted(
+            {
+                interface
+                for ports in self.ospf_bindings().values()
+                for interface in ports
+            }
+            & addressed
+        )
+
+    def block_ospf_transport(self) -> str:
+        interfaces = self._ospf_filter_interfaces()
+        if not interfaces:
+            raise ValueError(f"No OSPF interfaces on {self.node!r}")
+        config = self._show("show running-config")
+        if f"ipv4 access-list {_OSPF_FILTER_ACL}" in config:
+            raise ValueError(f"ACL {_OSPF_FILTER_ACL} already exists on {self.node!r}")
+        for interface, body in re.findall(
+            r"^interface (\S+)\n(.*?)(?=^!|\Z)", config, re.M | re.S
+        ):
+            if interface in interfaces and re.search(
+                r"^ ipv4 access-group \S+ ingress", body, re.M
+            ):
+                raise ValueError(f"{self.node}:{interface} already has an ingress ACL")
+        lines = [
+            f"ipv4 access-list {_OSPF_FILTER_ACL}",
+            " 10 deny ospf any any",
+            " 20 permit ipv4 any any",
+            "!",
+        ]
+        for interface in interfaces:
+            lines += [
+                f"interface {interface}",
+                f" ipv4 access-group {_OSPF_FILTER_ACL} ingress",
+                "!",
+            ]
+        self._apply(*lines)
+        return _OSPF_FILTER_ACL
+
+    def ospf_transport_blocked(self) -> bool:
+        acl = self._show(f"show running-config ipv4 access-list {_OSPF_FILTER_ACL}")
+        if not re.search(r"^ 10 deny (?:ospf|89) any any\s*$", acl, re.M):
+            return False
+        config = self._show("show running-config interface")
+        applied = {
+            interface
+            for interface, body in re.findall(
+                r"^interface (\S+)\n(.*?)(?=^!|\Z)", config, re.M | re.S
+            )
+            if f" ipv4 access-group {_OSPF_FILTER_ACL} ingress" in body
+        }
+        interfaces = set(self._ospf_filter_interfaces())
+        return bool(interfaces) and interfaces <= applied
+
+    def unblock_ospf_transport(self, filter_id: str) -> None:
+        if filter_id != _OSPF_FILTER_ACL:
+            raise ValueError(f"Unknown IOS XR OSPF filter: {filter_id!r}")
+        lines = []
+        for interface in self._ospf_filter_interfaces():
+            lines += [
+                f"interface {interface}",
+                f" no ipv4 access-group {_OSPF_FILTER_ACL} ingress",
+                "!",
+            ]
+        self._apply(*lines)
+        self._apply(f"no ipv4 access-list {_OSPF_FILTER_ACL}")
 
     # Routes
 

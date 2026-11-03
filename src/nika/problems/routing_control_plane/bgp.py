@@ -19,6 +19,7 @@ from nika.problems.support.oracle import (
     lacks,
     ping_fails,
     router_cli,
+    srl,
     shell,
     vtysh,
 )
@@ -45,6 +46,7 @@ from nika.problems.support.benchmark_targets import (
     role_subset,
 )
 from nika.runtime.base import RuntimeCapabilityError
+from nika.service.containerlab.srl_api import srl_json
 from nika.utils.logger import system_logger
 from nika.utils.parallel import bounded_parallel_map
 
@@ -142,6 +144,11 @@ def _oracle_password_peers(output: str) -> list[str]:
         peer.split("@", 1)[0].split("/", 1)[0]
         for peer in re.findall(r"^peer=(\S+) md5=true\s*$", output, re.M)
     ]
+    peers += re.findall(
+        r"^set / network-instance default protocols bgp neighbor (\S+) authentication password \S+",
+        output,
+        re.M,
+    )
     return sorted(set(peers))
 
 
@@ -151,6 +158,11 @@ def _oracle_bgp_config(output: str) -> bool:
         re.search(r"^\s*neighbor \S+ (?:remote-as|interface)", output, re.M)
         or re.search(r"^ neighbor \S+\n\s+remote-as ", output, re.M)
         or re.search(r"^peer=\S+ md5=(?:true|false)\s*$", output, re.M)
+        or re.search(
+            r"^set / network-instance default protocols bgp neighbor \S+ peer-group ",
+            output,
+            re.M,
+        )
     )
 
 
@@ -3414,6 +3426,8 @@ class BGPMd5PasswordMismatch(ProblemBase):
     https://docs.frrouting.org/en/latest/bgp.html#clicmd-neighbor-PEER-password-PASSWORD
     https://help.mikrotik.com/docs/spaces/ROS/pages/331612228/routing+bgp
     https://www.cisco.com/c/en/us/td/docs/ios_xr_sw/iosxr_r3-7/routing/command/reference/rr37bgp.html
+    SR Linux neighbor authentication password:
+    https://documentation.nokia.com/srlinux/24-10/books/routing-protocols/protocol-authentication.html
     """
 
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
@@ -3436,7 +3450,7 @@ class BGPMd5PasswordMismatch(ProblemBase):
             "isp_abilene/ibgp_rr",
         }
     )
-    supported_backends = ("kathara",)
+    supported_backends = ("kathara", "containerlab")
     native_router_operations = frozenset(
         {
             "set_bgp_password",
@@ -3476,6 +3490,12 @@ class BGPMd5PasswordMismatch(ProblemBase):
         return [node_resource(params.host_name)]
 
     def _established(self, host: str) -> set[str]:
+        if self.lab_backend == "containerlab":
+            return {
+                peer
+                for peer, row in self.runtime.lab_api.srl_bgp_neighbors(host).items()
+                if row["state"] == "established"
+            }
         ops = native_fault_ops(self, host, "bgp_established_peers")
         if ops is not None:
             return ops.bgp_established_peers()
@@ -3487,6 +3507,8 @@ class BGPMd5PasswordMismatch(ProblemBase):
         }
 
     def _check_tcp_md5(self, host: str) -> None:
+        if self.lab_backend == "containerlab":
+            return
         if native_fault_ops(self, host, "set_bgp_password") is not None:
             return
         import shlex
@@ -3505,6 +3527,11 @@ class BGPMd5PasswordMismatch(ProblemBase):
             )
 
     def _password_configured(self, host: str, peer: str) -> bool:
+        if self.lab_backend == "containerlab":
+            config = self.runtime.lab_api.srl_exec_cli(
+                host, "info flat from running network-instance default protocols bgp"
+            )
+            return peer in _oracle_password_peers(config)
         ops = native_fault_ops(self, host, "bgp_password_configured")
         if ops is not None:
             return ops.bgp_password_configured(peer)
@@ -3514,6 +3541,16 @@ class BGPMd5PasswordMismatch(ProblemBase):
         )
 
     def _set_password(self, host: str, peer: str, password: str | None) -> None:
+        if self.lab_backend == "containerlab":
+            path = f"/network-instance default protocols bgp neighbor {peer} authentication"
+            self.runtime.lab_api.srl_configure(
+                host,
+                f"{path} password {password}"
+                if password
+                else f"delete {path} password",
+            )
+            self._reset(host, peer)
+            return
         ops = native_fault_ops(self, host, "set_bgp_password")
         if ops is not None:
             ops.set_bgp_password(peer, password)
@@ -3545,6 +3582,12 @@ class BGPMd5PasswordMismatch(ProblemBase):
         self._reset(host, peer)
 
     def _reset(self, host: str, peer: str) -> None:
+        if self.lab_backend == "containerlab":
+            self.runtime.lab_api.srl_exec_cli(
+                host,
+                f"tools network-instance default protocols bgp neighbor {peer} reset-peer",
+            )
+            return
         ops = native_fault_ops(self, host, "reset_bgp_session")
         if ops is not None:
             ops.reset_bgp_session(peer)
@@ -3611,6 +3654,7 @@ class BGPMd5PasswordMismatch(ProblemBase):
             frr=vtysh("show running-config"),
             iosxr_command="show running-config router bgp",
             routeros_command=_ORACLE_ROS_PASSWORDS,
+            srl_command="info flat from running network-instance default protocols bgp neighbor * authentication",
             evidence=True,
             save_as="md5_config",
         )
@@ -3634,6 +3678,7 @@ class BGPMd5PasswordMismatch(ProblemBase):
                     f':if ($addr="{neighbor}") do={{ :set up ($up + 1) }} }}; '
                     ':put ("authenticated-established=" . $up)'
                 ),
+                srl_command=f"info flat from state network-instance default protocols bgp neighbor {neighbor} session-state",
             ).args
 
         steps = [
@@ -3644,7 +3689,7 @@ class BGPMd5PasswordMismatch(ProblemBase):
                 neighbor_args,
                 contains(
                     r"BGP state = (?:Idle|Active|Connect|OpenSent|OpenConfirm)\b"
-                    r"|^authenticated-established=0\s*$",
+                    r"|^authenticated-established=0\s*$|session-state (?:idle|active|connect|opensent|openconfirm)\b",
                     "the authenticated session is not Established",
                 ),
                 evidence=True,
@@ -3652,7 +3697,45 @@ class BGPMd5PasswordMismatch(ProblemBase):
                 interval_sec=10,
             ),
         ]
+
+        def srl_unauthenticated(output):
+            data = srl_json(output)
+            if not data:
+                return True
+            bgp = data["network-instance"][0]["protocols"]["bgp"]
+            return not any(
+                n.get("authentication", {}).get("password")
+                or n.get("authentication", {}).get("keychain")
+                for n in bgp.get("neighbor", [])
+            )
+
         for peer in peers:
+            if getattr(self.net_env, "backend", None) == "containerlab":
+                steps.extend(
+                    [
+                        srl(
+                            peer,
+                            "info flat from running network-instance default protocols bgp neighbor * peer-group",
+                            f"Read {peer}'s configured BGP neighbors.",
+                            Check(
+                                "the peer has configured BGP neighbors",
+                                _oracle_bgp_config,
+                            ),
+                            evidence=True,
+                        ),
+                        srl(
+                            peer,
+                            "info from running network-instance default protocols bgp neighbor * authentication | as json",
+                            f"Inspect authentication on {peer}'s BGP neighbors.",
+                            Check(
+                                "the configured peer has no BGP authentication password or keychain",
+                                srl_unauthenticated,
+                            ),
+                            evidence=True,
+                        ),
+                    ]
+                )
+                continue
             steps.append(
                 router_cli(
                     self.net_env,

@@ -346,6 +346,18 @@ class RouterFaultOps:
     def bgp_transport_blocked(self) -> bool:
         self._unsupported("Reading BGP transport filters")
 
+    def block_ospf_transport(self) -> str:
+        """Drop incoming OSPF (IP protocol 89) and return the filter identifier."""
+        self._unsupported("Blocking OSPF transport")
+
+    def ospf_transport_blocked(self) -> bool:
+        """Whether the OSPF drop filter is active on every OSPF interface."""
+        self._unsupported("Reading OSPF transport filters")
+
+    def unblock_ospf_transport(self, filter_id: str) -> None:
+        """Remove the OSPF transport drop filter."""
+        self._unsupported("Removing OSPF transport filters")
+
     def block_icmp_frag_needed(self) -> None:
         """Drop ICMP Fragmentation Needed in every direction."""
         self._unsupported("Blocking ICMP Fragmentation Needed")

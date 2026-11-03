@@ -18,8 +18,13 @@ from nika.problems.support.oracle import (
     OraclePlaybook,
     OracleStep,
     router_cli,
+    srl,
     shell,
     vtysh,
+)
+from nika.problems.support.ospf import (
+    full_frr_neighbors as _full_frr_neighbors,
+    ospf_health as _ospf_health,
 )
 from nika.problems.support.polling import wait_until
 from nika.problems.base import (
@@ -30,6 +35,7 @@ from nika.problems.base import (
 from nika.problems.support.router_ops import native_fault_ops, native_router_profile
 from nika.runtime.base import RuntimeCapabilityError
 from nika.runtime.spec import NodeRole
+from nika.service.containerlab.srl_api import srl_subif, srl_instance, srl_json
 from nika.utils.logger import system_logger
 
 _NETWORK_RE = re.compile(r"^\s*network\s+(\S+)\s+area\s+(\S+)\s*$", re.MULTILINE)
@@ -70,13 +76,20 @@ def _ospf_pair(first, second, read, differs, description, *, read_peer=None):
 
 
 def _ospf_interface_step(net_env, host, intf):
+    purpose = f"Read OSPF network type, timers, area, and adjacency on {host}:{intf}."
+    if getattr(net_env, "backend", None) == "containerlab":
+        return srl(
+            host,
+            f"info from state network-instance default protocols ospf instance * area * interface {srl_subif(intf)} | as json",
+            purpose,
+        )
     from nika.net_env.utils.iosxr.common import iosxr_interface
     from nika.net_env.utils.routeros.common import routeros_port
 
     return router_cli(
         net_env,
         host,
-        f"Read OSPF network type, timers, area, and adjacency on {host}:{intf}.",
+        purpose,
         frr=vtysh(f"show ip ospf interface {intf}"),
         iosxr_command=f"show ospf interface {iosxr_interface(intf)}",
         routeros_command=(
@@ -86,7 +99,30 @@ def _ospf_interface_step(net_env, host, intf):
     )
 
 
+def _srl_ospf_interface(problem, host, intf, *, state=True):
+    instance = problem.runtime.lab_api.srl_protocol_instance(host, "ospf", state=state)
+    for area in instance.get("area", []):
+        for interface in area.get("interface", []):
+            if interface["interface-name"] == srl_subif(intf):
+                path = f"/network-instance default protocols ospf instance {instance['name']} area {area['area-id']} interface {interface['interface-name']}"
+                return path, interface
+    raise RuntimeCapabilityError(f"No OSPF binding on {host}:{intf}")
+
+
+def _srl_observed_interface(output):
+    instance = srl_instance(output, "ospf")
+    interfaces = [i for a in instance.get("area", []) for i in a.get("interface", [])]
+    return interfaces[0] if len(interfaces) == 1 else {}
+
+
 def _ospf_timers(output):
+    if output.strip().startswith("{"):
+        timers = _srl_observed_interface(output)
+        return (
+            (timers["hello-interval"], timers["dead-interval"])
+            if "hello-interval" in timers and "dead-interval" in timers
+            else None
+        )
     match = re.search(r"Hello (\d+)s?, Dead (\d+)s?", output)
     if match:
         return int(match[1]), int(match[2])
@@ -241,38 +277,6 @@ def _ospf_area_bindings(
             "OSPF configuration mixes network statements and interface area bindings"
         )
     return networks, interfaces
-
-
-def _full_frr_neighbors(raw: str) -> set[tuple[str, str]]:
-    """Full adjacency identities, independent of transient timers and DR role."""
-    neighbors = json.loads(raw).get("neighbors")
-    if not isinstance(neighbors, dict):
-        raise ValueError("Unreadable OSPF neighbors")
-    return {
-        (router_id, str(entry.get("ifaceName", "")))
-        for router_id, entries in neighbors.items()
-        for entry in (entries if isinstance(entries, list) else [entries])
-        if isinstance(entry, dict) and str(entry.get("nbrState", "")).startswith("Full")
-    }
-
-
-def _ospf_health(problem, host: str) -> dict[str, set]:
-    """Read Full neighbors and installed OSPF routes for recovery checks."""
-    from nika.validation.symptom.routing_probes import _ospf_routes
-
-    ops = native_fault_ops(problem, host, "ospf_neighbors")
-    neighbors = (
-        {
-            (neighbor.router_id, neighbor.interface)
-            for neighbor in ops.ospf_neighbors()
-            if neighbor.state.lower().startswith("full")
-        }
-        if ops is not None
-        else _full_frr_neighbors(
-            problem.runtime.exec(host, "vtysh -c 'show ip ospf neighbor json'")
-        )
-    )
-    return {"neighbors": neighbors, "routes": _ospf_routes(problem, host)}
 
 
 # ==================================================================
@@ -512,6 +516,8 @@ class OSPFNeighborMissing(ProblemBase):
     the neighbor after its inactivity timer. Remove a binding covering exactly
     one Full adjacency, preserving the other bindings and node ground truth.
     https://www.rfc-editor.org/rfc/rfc2328#section-9.2
+    SR Linux OSPF instance and interface configuration:
+    https://documentation.nokia.com/srlinux/24-10/books/routing-protocols/ospf.html
     """
 
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
@@ -522,6 +528,7 @@ class OSPFNeighborMissing(ProblemBase):
     effect_protocol = "ospf"
 
     TAGS: str = ["ospf"]
+    supported_backends = ("kathara", "containerlab")
     native_router_operations = frozenset(
         {
             "ospf_neighbors",
@@ -608,6 +615,8 @@ class OSPFNeighborMissing(ProblemBase):
         links = linked_routers(self.net_env, host)
         if not links:
             raise RuntimeCapabilityError(f"No router linked to {host}.")
+        if getattr(self.net_env, "backend", None) == "containerlab":
+            return self._srl_oracle_playbook(host, links)
         if native_router_profile(self.net_env, host) is not None:
             return self._native_oracle_playbook(host, links)
 
@@ -807,7 +816,132 @@ class OSPFNeighborMissing(ProblemBase):
             + peer_steps,
         )
 
+    def _srl_oracle_playbook(self, host, links):
+        observed = {}
+
+        def local(output):
+            instance = srl_instance(output, "ospf")
+            enabled = {
+                i["interface-name"]
+                for a in instance.get("area", [])
+                for i in a.get("interface", [])
+            }
+            missing = [link for link in links if srl_subif(link[0]) not in enabled]
+            if len(missing) != 1 or not enabled:
+                return False
+            observed["link"] = missing[0]
+            return True
+
+        def peer_args(_outputs):
+            _, peer, intf = observed["link"]
+            return {
+                "device_name": peer,
+                "command": f"info from state network-instance default protocols ospf instance * area * interface {srl_subif(intf)} | as json",
+            }
+
+        def interface_args(_outputs):
+            intf, _, _ = observed["link"]
+            port = srl_subif(intf).split(".")[0]
+            return {
+                "device_name": host,
+                "command": f"info from state interface {port} | as json",
+            }
+
+        def addressed(output):
+            return any(
+                interface.get("oper-state") == "up"
+                and any(
+                    sub.get("index") == 0
+                    and sub.get("oper-state") == "up"
+                    and bool(sub.get("ipv4", {}).get("address"))
+                    for sub in interface.get("subinterface", [])
+                )
+                for interface in srl_json(output).get("interface", [])
+            )
+
+        return OraclePlaybook(
+            f"{host} lacks one router-facing OSPF interface binding while its peer still runs OSPF.",
+            [
+                srl(
+                    host,
+                    "info from running network-instance default protocols ospf | as json",
+                    "Read the target's OSPF interface bindings.",
+                    Check(
+                        "exactly one router-facing interface lacks an OSPF binding",
+                        local,
+                    ),
+                    evidence=True,
+                ),
+                OracleStep(
+                    "Inspect the interface whose OSPF binding is missing.",
+                    "srl_exec_cli",
+                    interface_args,
+                    Check(
+                        "the physical port and its addressed IPv4 subinterface remain up",
+                        addressed,
+                    ),
+                    evidence=True,
+                ),
+                OracleStep(
+                    "Read OSPF on the peer's side of the missing binding.",
+                    "srl_exec_cli",
+                    peer_args,
+                    Check(
+                        "the peer interface runs OSPF and has no Full adjacency",
+                        lambda o: (
+                            bool(i := _srl_observed_interface(o))
+                            and not i.get("passive", False)
+                            and not any(
+                                n["adjacency-state"]
+                                .split(":")[-1]
+                                .lower()
+                                .startswith("full")
+                                for n in i.get("neighbor", [])
+                            )
+                        ),
+                    ),
+                    evidence=True,
+                    attempts=12,
+                    interval_sec=10,
+                ),
+            ],
+        )
+
     def inject_fault(self, params: OSPFNeighborMissingParams):
+        if getattr(self.net_env, "backend", None) == "containerlab":
+            host = params.host_name
+            self._srl_health = _ospf_health(self, host)
+            neighbors = self.runtime.lab_api.srl_ospf_neighbors(host)
+            interface = next(
+                (
+                    n["iface"]
+                    for n in neighbors
+                    if n["state"].lower().startswith("full")
+                    and sum(r["iface"] == n["iface"] for r in neighbors) == 1
+                ),
+                None,
+            )
+            if interface is None:
+                raise RuntimeCapabilityError(f"No single Full OSPF adjacency on {host}")
+            path, binding = _srl_ospf_interface(self, host, interface, state=False)
+            self._srl_binding = path, binding
+            flat = self.runtime.lab_api.srl_exec_cli(
+                host, "info flat from running " + path
+            )
+            self._srl_restore = [
+                line.removeprefix("set ")
+                for line in flat.splitlines()
+                if line.startswith("set /")
+            ]
+            if not self._srl_restore:
+                raise RuntimeCapabilityError(
+                    f"Unreadable OSPF binding on {host}:{interface}"
+                )
+            self._srl_before = self.runtime.lab_api.srl_protocol_instance(
+                host, "ospf", state=False
+            )
+            self.runtime.lab_api.srl_configure(host, f"delete {path}")
+            return
         self._original_routes = self._route_prefixes(params.host_name)
         ops = native_fault_ops(self, params.host_name, "remove_ospf_binding")
         if ops is not None:
@@ -877,6 +1011,28 @@ class OSPFNeighborMissing(ProblemBase):
 
     def verify_fault(self, params: OSPFNeighborMissingParams) -> dict:
         """Verify one OSPF binding is gone while the other bindings remain."""
+        if getattr(self.net_env, "backend", None) == "containerlab":
+            from copy import deepcopy
+
+            expected = deepcopy(self._srl_before)
+            _, binding = self._srl_binding
+            for area in expected["area"]:
+                area["interface"] = [
+                    i
+                    for i in area["interface"]
+                    if i["interface-name"] != binding["interface-name"]
+                ]
+            running = self.runtime.lab_api.srl_protocol_instance(
+                params.host_name, "ospf", state=False
+            )
+            return build_verify_result(
+                fault_type=self.root_cause_name,
+                verified=running == expected,
+                details={
+                    "host": params.host_name,
+                    "removed_interface": binding["interface-name"],
+                },
+            )
         ops = native_fault_ops(self, params.host_name, "ospf_bindings")
         if ops is not None:
             before = getattr(self, "_native_bindings", {})
@@ -939,6 +1095,27 @@ class OSPFNeighborMissing(ProblemBase):
 
     def recover_fault(self, params: OSPFNeighborMissingParams) -> dict:
         """Restore the binding and wait for Full neighbors and OSPF-learned routes."""
+        if getattr(self.net_env, "backend", None) == "containerlab":
+            saved = getattr(self, "_srl_binding", None)
+            if not saved:
+                return {"verified": False, "details": {"error": "no_saved_binding"}}
+            path, binding = saved
+            # Restore the exact authored subtree, including metrics and timers.
+            self.runtime.lab_api.srl_configure(params.host_name, *self._srl_restore)
+
+            def healthy():
+                state = _ospf_health(self, params.host_name)
+                return all(
+                    values <= state[key] for key, values in self._srl_health.items()
+                )
+
+            return {
+                "verified": wait_until(healthy, 120, interval_s=3),
+                "details": {
+                    "host": params.host_name,
+                    "restored_interface": binding["interface-name"],
+                },
+            }
         ops = native_fault_ops(self, params.host_name, "restore_config")
         if ops is not None:
             saved = getattr(self, "_saved_config", None)
@@ -1047,6 +1224,8 @@ class OSPFDuplicateRouterId(ProblemBase):
     choice is reproducible. See Cisco, "Troubleshooting Duplicate Router IDs
     with OSPF":
     https://www.cisco.com/c/en/us/support/docs/ip/open-shortest-path-first-ospf/23862-duplicate-router-id-ospf.html
+    SR Linux OSPF instance and interface configuration:
+    https://documentation.nokia.com/srlinux/24-10/books/routing-protocols/ospf.html
     """
 
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
@@ -1056,7 +1235,7 @@ class OSPFDuplicateRouterId(ProblemBase):
     description = "OSPF router ID duplicates the router ID of another router."
     effect_protocol = "ospf"
     TAGS = ["ospf"]
-    supported_backends = ("kathara",)
+    supported_backends = ("kathara", "containerlab")
     Params = OSPFDuplicateRouterIdParams
     native_router_operations = frozenset(
         {
@@ -1137,6 +1316,8 @@ class OSPFDuplicateRouterId(ProblemBase):
         observations = {}
 
         def read_id(output):
+            if getattr(self.net_env, "backend", None) == "containerlab":
+                return srl_instance(output, "ospf").get("router-id")
             match = re.search(
                 r"Router ID[: ]+(\d+\.\d+\.\d+\.\d+)|with ID (\d+\.\d+\.\d+\.\d+)|router-id=(\d+\.\d+\.\d+\.\d+)",
                 output,
@@ -1160,6 +1341,7 @@ class OSPFDuplicateRouterId(ProblemBase):
                     frr=vtysh("show ip ospf"),
                     iosxr_command="show ospf",
                     routeros_command="/routing/ospf/instance/print terse where version=2 and !disabled",
+                    srl_command="info from state network-instance default protocols ospf instance * router-id | as json",
                     attempts=12,
                     interval_sec=10,
                 )
@@ -1187,6 +1369,8 @@ class OSPFDuplicateRouterId(ProblemBase):
         )
 
     def _router_id(self, host: str) -> str | None:
+        if getattr(self.net_env, "backend", None) == "containerlab":
+            return self.runtime.lab_api.srl_protocol_instance(host, "ospf")["router-id"]
         ops = native_fault_ops(self, host, "ospf_router_id")
         if ops is not None:
             return ops.ospf_router_id()
@@ -1195,6 +1379,29 @@ class OSPFDuplicateRouterId(ProblemBase):
         )
 
     def _duplicate_candidate(self, host: str, own: str) -> str:
+        if getattr(self.net_env, "backend", None) == "containerlab":
+            instance = self.runtime.lab_api.srl_protocol_instance(host, "ospf")
+            neighbors = {
+                n["router-id"]
+                for area in instance.get("area", [])
+                for interface in area.get("interface", [])
+                for n in interface.get("neighbor", [])
+            }
+            in_area = {
+                lsa["advertising-router"]
+                for area in instance.get("area", [])
+                for kind in area.get("lsdb", {})
+                .get("lsa-types", {})
+                .get("lsa-type", [])
+                if kind["type"].split(":")[-1] == "router-lsa"
+                for lsa in kind.get("lsas", {}).get("lsa", [])
+            } - {own}
+            candidates = (in_area - neighbors) or (neighbors - {own})
+            if not candidates:
+                raise RuntimeCapabilityError(
+                    f"No other OSPF router shares an area with {host!r}."
+                )
+            return min(candidates, key=ipaddress.ip_address)
         ops = native_fault_ops(self, host, "ospf_router_lsa_ids")
         if ops is not None:
             neighbors = ops.ospf_neighbor_ids()
@@ -1227,6 +1434,15 @@ class OSPFDuplicateRouterId(ProblemBase):
 
     def _set_router_id(self, host: str, router_id: str | None) -> None:
         """Apply ``router_id`` (``None``: derive it) to ospfd and frr.conf."""
+        if getattr(self.net_env, "backend", None) == "containerlab":
+            instance = self.runtime.lab_api.srl_protocol_instance(
+                host, "ospf", state=False
+            )
+            self.runtime.lab_api.srl_configure(
+                host,
+                f"/network-instance default protocols ospf instance {instance['name']} router-id {router_id}",
+            )
+            return
         line = f"ospf router-id {router_id}" if router_id else "no ospf router-id"
         self.runtime.exec(host, frr_config_command("router ospf", line))
         # A new router ID takes effect only when the OSPF process restarts.
@@ -1261,6 +1477,10 @@ class OSPFDuplicateRouterId(ProblemBase):
             for host in (params.host_name, self._twin_host)
             if host is not None
         }
+        if getattr(self.net_env, "backend", None) == "containerlab":
+            self._orig_router_id = own
+            self._set_router_id(params.host_name, self.duplicate_router_id)
+            return
         ops = native_fault_ops(self, params.host_name, "set_ospf_router_id")
         if ops is not None:
             self._saved_config = ops.save_config()
@@ -1308,7 +1528,11 @@ class OSPFDuplicateRouterId(ProblemBase):
         # The twin that originally owned this ID can keep a stale LSA until
         # its OSPF process restarts, so stub prefixes never return.
         twin = getattr(self, "_twin_host", None)
-        if twin and native_router_profile(self.net_env, twin) is None:
+        if (
+            twin
+            and getattr(self.net_env, "backend", None) != "containerlab"
+            and native_router_profile(self.net_env, twin) is None
+        ):
             self.runtime.exec(twin, "vtysh -c 'clear ip ospf process' >/dev/null 2>&1")
 
         def healthy():
@@ -1367,12 +1591,26 @@ def ospf_router_links(net_env) -> list[tuple[tuple[str, str], tuple[str, str]]]:
     active = None
     if plan is not None:
         from nika.net_env.isp.igp.plan import active_igp_links
+        from nika.net_env.isp.igp.ifaces import srl_e1_name
 
         if plan.igp != "ospf":
             return []
         active = {
             frozenset(
-                ((link.endpoint_a, link.iface_a), (link.endpoint_b, link.iface_b))
+                (
+                    (
+                        link.endpoint_a,
+                        srl_e1_name(link.iface_a)
+                        if net_env.backend == "containerlab"
+                        else link.iface_a,
+                    ),
+                    (
+                        link.endpoint_b,
+                        srl_e1_name(link.iface_b)
+                        if net_env.backend == "containerlab"
+                        else link.iface_b,
+                    ),
+                )
             )
             for link in active_igp_links(plan)
         }
@@ -1490,6 +1728,9 @@ class OSPFNetworkTypeMismatch(ProblemBase):
     two-way check then rejects the link, so routes across it disappear.
     See Cisco, "Troubleshoot Open Shortest Path First Route Database Issues":
     https://www.cisco.com/c/en/us/support/docs/ip/open-shortest-path-first-ospf/7112-26.html
+    SR Linux 24.10 is excluded: changing interface-type drops the adjacency,
+    so the required Full-but-unrouted symptom is absent. Nokia configuration:
+    https://documentation.nokia.com/srlinux/24-10/books/routing-protocols/ospf.html
     """
 
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
@@ -1669,6 +1910,11 @@ class OSPFNetworkTypeMismatch(ProblemBase):
 
 
 def _ospf_link_full(problem, host: str, intf: str) -> bool:
+    if getattr(problem.net_env, "backend", None) == "containerlab":
+        return any(
+            n["iface"] == intf and n["state"].lower().startswith("full")
+            for n in problem.runtime.lab_api.srl_ospf_neighbors(host)
+        )
     ops = native_fault_ops(problem, host, "ospf_interface_neighbor_full")
     if ops is not None:
         return ops.ospf_interface_neighbor_full(intf)
@@ -1684,6 +1930,8 @@ def _ospf_link_full(problem, host: str, intf: str) -> bool:
 
 
 def _ospf_learned_routes(problem, host: str) -> set[str]:
+    if getattr(problem.net_env, "backend", None) == "containerlab":
+        return problem.runtime.lab_api.srl_routes(host, "ospf")
     ops = native_fault_ops(problem, host, "ospf_routes")
     if ops is not None:
         return ops.ospf_routes()
@@ -1726,6 +1974,10 @@ class OSPFHelloIntervalMismatch(ProblemBase):
     to match before a received Hello can refresh the neighbor. Changing one
     side therefore expires the adjacency while the interface stays up.
     https://www.rfc-editor.org/rfc/rfc2328#section-10.5
+    SR Linux OSPF instance and interface configuration:
+    https://documentation.nokia.com/srlinux/24-10/books/routing-protocols/ospf.html
+    SR Linux interface timer leaves:
+    https://documentation.nokia.com/srlinux/24-10/books/data-model-reference/srl_nokia-network-instance_0.html#d4839
     """
 
     failure_domain = FailureDomain.ROUTING_CONTROL_PLANE
@@ -1736,7 +1988,7 @@ class OSPFHelloIntervalMismatch(ProblemBase):
     effect_protocol = "ospf"
     TAGS = ["ospf"]
     COMPATIBLE_COLUMNS = None
-    supported_backends = ("kathara",)
+    supported_backends = ("kathara", "containerlab")
     native_router_operations = frozenset(
         {
             "ospf_interface_timers",
@@ -1791,6 +2043,9 @@ class OSPFHelloIntervalMismatch(ProblemBase):
         )
 
     def _timers(self, host: str, intf: str) -> tuple[int, int]:
+        if getattr(self.net_env, "backend", None) == "containerlab":
+            timers = _srl_ospf_interface(self, host, intf)[1]
+            return timers["hello-interval"], timers["dead-interval"]
         ops = native_fault_ops(self, host, "ospf_interface_timers")
         if ops is not None:
             return ops.ospf_interface_timers(intf)
@@ -1804,6 +2059,14 @@ class OSPFHelloIntervalMismatch(ProblemBase):
 
     def _set_timers(self, host: str, intf: str, timers: tuple[int, int]) -> None:
         hello, dead = timers
+        if getattr(self.net_env, "backend", None) == "containerlab":
+            path, _ = _srl_ospf_interface(self, host, intf)
+            self.runtime.lab_api.srl_configure(
+                host,
+                f"{path} hello-interval {hello}",
+                f"{path} dead-interval {dead}",
+            )
+            return
         ops = native_fault_ops(self, host, "set_ospf_interface_timers")
         if ops is not None:
             ops.set_ospf_interface_timers(intf, hello, dead)

@@ -6,6 +6,7 @@ import time
 from typing import Any
 
 from nika.problems.base import build_verify_result
+from nika.validation.symptom.rib_fib_probes import rib_fib_baseline, rib_fib_diverged
 from nika.validation.symptom.vrf_probes import (
     vrf_import_baseline,
     vrf_import_routes_lost,
@@ -384,6 +385,7 @@ def _overlay_ef_undersized(problem: Any, params: Any) -> tuple[bool, dict]:
 
 
 _CUSTOM: dict[str, Any] = {
+    "rib_fib_inconsistency": rib_fib_diverged,
     "overlay_qos_ef_undersized": _overlay_ef_undersized,
     "ospf_area_range_suppression": area_range_suppressed,
     "incast_traffic_network_limitation": incast_queueing,
@@ -476,6 +478,7 @@ _CUSTOM: dict[str, Any] = {
 
 # Pre-inject measurements of the same signal a custom probe reads after inject.
 _CUSTOM_BASELINE: dict[str, Any] = {
+    "rib_fib_inconsistency": rib_fib_baseline,
     "overlay_qos_ef_undersized": _overlay_ef_baseline,
     "ospf_area_range_suppression": area_range_baseline,
     "receiver_resource_contention": receiver_baseline,
