@@ -88,18 +88,22 @@ def build_xr_startup_script(
     *,
     wait_iface: str,
 ) -> list[str]:
-    """Kathara startup: wait for XR, then retry failed native configuration calls."""
-    check_cmd_1 = (
-        _CLI_COMMAND.format(command="show run")
-        + " | egrep -e 'No configuration change' -e 'No such file or directory'"
+    """Kathara startup: wait for XR, then retry failed native configuration calls.
+
+    XR is ready when its CLI lists ``wait_iface``. Its configuration stays
+    uncommitted until ``xrapply`` runs, so readiness cannot wait for a commit.
+    """
+    ready_cmd = (
+        _CLI_COMMAND.format(command="show ipv4 interface brief")
+        + f" | grep -q '^{wait_iface} '"
     )
-    check_cmd_2 = (
-        _CLI_COMMAND.format(command=f"sh ip interface {wait_iface}")
-        + " | egrep -e 'ipv4 protocol is Down'"
-    )
-    check_cmd_3 = (
-        _CLI_COMMAND.format(command=f"sh ipv6 interface {wait_iface}")
-        + " | egrep -e 'ipv6 protocol is Down'"
+    wait_ready = "\n".join(
+        [
+            "for _xr_wait in $(seq 1 300); do",
+            f"  {ready_cmd} && break",
+            "  sleep 3",
+            "done",
+        ]
     )
 
     # Namespace initialization can fail with multiple native error strings.
@@ -123,12 +127,7 @@ def build_xr_startup_script(
 
     return [
         "pgrep xrd-startup; while [[ $? -eq 0 ]]; do sleep 3; pgrep xrd-startup; done",
-        check_cmd_1,
-        f"while [[ $? -eq 0 ]]; do sleep 3; {check_cmd_1}; done",
-        check_cmd_2,
-        f"while [[ $? -eq 0 ]]; do sleep 3; {check_cmd_2}; done",
-        check_cmd_3,
-        f"while [[ $? -eq 0 ]]; do sleep 3; {check_cmd_3}; done",
+        wait_ready,
         "source /pkg/bin/ztp_helper.sh; ztp_disable; ztp_kill_all; killall -9 pyztp2",
         apply_with_retry,
     ]
