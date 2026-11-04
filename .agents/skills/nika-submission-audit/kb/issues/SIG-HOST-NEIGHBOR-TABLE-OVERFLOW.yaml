@@ -1,0 +1,18 @@
+id: SIG-HOST-NEIGHBOR-TABLE-OVERFLOW
+title: Host neighbour table overflow in large labs
+class: healthy_lure
+severity: warn
+status: fixed
+fixed_in: c00630bc
+summary: Large labs overflowed the host's shared ARP/NDP table (gc_thresh3), so some pairs failed with
+  no fault injected (healthy-hunter H2).
+detect:
+- kind: text
+  exclude_authored: false
+  pattern: neighbou?r table overflow|No buffer space available
+provenance:
+  source: healthy-hunter paper_cases H2
+  date: '2026-10-12'
+  refs:
+  - healthy-hunter H2
+  found_by: live_audit

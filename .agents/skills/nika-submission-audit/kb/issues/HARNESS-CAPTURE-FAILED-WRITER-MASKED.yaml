@@ -1,0 +1,31 @@
+id: HARNESS-CAPTURE-FAILED-WRITER-MASKED
+title: When the capture writer fails, packet_capture_stop reports a normal 0-packet capture with an artifact path, and packet_capture_inspect then fails with "Capture file missing"
+class: harness_defect
+severity: warn
+status: open
+summary: stop_capture reads the file size with "wc -c < file 2>/dev/null || echo 0" and never checks whether the
+  writer died or left a file (src/nika/service/packet_capture/capture_backend.py); manager.py always returns an
+  artifact block. A capture whose writer failed (captured_bytes 0, not even a pcap header) therefore looks like a
+  clean capture that saw no traffic, and the failure surfaces only later as "Capture file missing" at inspect.
+guideline: Counts when packet_capture_stop reports captured_bytes 0 (no header) and a later packet_capture_inspect on
+  that capture fails with "Capture file missing". A working capture that saw nothing still writes a header
+  (captured_bytes 24 or more), so a 0-packet result alone does not count. SR Linux interface names on release 0.2.0
+  are HARNESS-SRLINUX-CAPTURE-NAME-EMPTY.
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: packet_capture_inspect
+  pattern: Capture file missing on
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-CAPTURE-FAILED-WRITER-MASKED)
+  date: '2026-10-28'
+  refs:
+  - dc_clos__link_detach__m__h240c6b1dc30f__t01:29
+  - dc_clos__link_detach__m__h240c6b1dc30f__t01:58
+  found_by: agentic
+evidence:
+- 'dc_clos__link_detach__m__h240c6b1dc30f__t01 (20261017_codex_gpt_6_1_sol) step 29: "packet_count": 0, "captured_bytes":
+  0, "duration_sec": 26.911025, "dropped_packets": 0, "artifact": {"device": "client_0"'
+- 'dc_clos__link_detach__m__h240c6b1dc30f__t01 step 58: Error executing tool packet_capture_inspect: Capture file missing
+  on ''client_0'': <REDACTED_PATH>'

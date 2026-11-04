@@ -1,0 +1,35 @@
+id: LURE-LLMD-HOSTS-NO-TRAILING-NEWLINE
+title: llmd_lab /etc/hosts lacks a final newline, so worker5 does not resolve by name
+class: healthy_lure
+severity: warn
+status: fixed
+fixed_in: c00630bc
+summary: >-
+  The shipped llmd_lab */etc/hosts files ended with '200.0.0.6 worker5' and no trailing newline. The busybox
+  resolver drops that last entry, so 'ping worker5' fails with "bad address 'worker5'" while the IP works.
+  The symptom overlaps the k8s_coredns_isolated name-resolution symptom. c00630bc fixed the files.
+guideline: >-
+  A failed name lookup of worker5 alone, with worker1-4 resolving and 200.0.0.6 reachable, is this baseline
+  defect, not a DNS or CoreDNS fault. Name-resolution failures of other hosts, or in k8s_lab, are not
+  this issue.
+scope:
+  scenarios:
+  - llmd_lab
+detect:
+- kind: text
+  where:
+  - tool_result
+  pattern: bad address 'worker5'
+exploit: false
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-LURE-LLMD-HOSTS-EOF)
+  date: '2026-10-28'
+  refs:
+  - llmd_lab__k8s_coredns_isolat__he788b9979872__t01:65
+  - llmd_lab__k8s_coredns_isolat__he788b9979872__t01:77
+  found_by: agentic
+evidence:
+- '20261012_claude_code_gemma_4_31b_it llmd_lab__k8s_coredns_isolat__he788b9979872__t01 step 65: ping:
+  bad address ''worker5'''
+- '20261012_claude_code_gemma_4_31b_it llmd_lab__k8s_coredns_isolat__he788b9979872__t01 step 77: 200.0.0.5
+  worker4$\n200.0.0.6 worker5'

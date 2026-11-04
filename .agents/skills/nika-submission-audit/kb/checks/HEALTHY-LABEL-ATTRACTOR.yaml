@@ -1,0 +1,19 @@
+id: HEALTHY-LABEL-ATTRACTOR
+title: One label dominates healthy-case answers
+class: healthy_lure
+role: lead
+severity: warn
+status: open
+summary: The same fault type appears in at least 40% of a scenario's healthy trials.
+guideline: The repeated label names what looks broken. Check the scenario brief and probe intent for the
+  behaviour behind it.
+detect:
+- kind: metric
+  metric: healthy_label_share
+  threshold: 0.4
+  min_trials: 3
+provenance:
+  source: built-in generic check
+  date: '2026-10-26'
+  refs: []
+  found_by: manual

@@ -1,0 +1,28 @@
+id: LEAK-INJECTOR-PROCESS-NAMES
+title: Process or rule names reveal the injector
+class: shortcut
+severity: warn
+status: fixed
+summary: Load and attack helpers ran as stress-ng, hping3, ab-loop-N; tc filters and prefix-lists had
+  names such as switch_bitflip and TE-MORE-SPECIFICS.
+scope: {}
+detect:
+- kind: text
+  where:
+  - tool_result
+  pattern: \bstress-ng\b|switch_bitflip|\bab-loop-\d+|TE-MORE-SPECIFICS|\bhping3\b|\bab\s+-n\s+\d+
+exploit: false
+provenance:
+  source: red-team qwen38 run and issue 206
+  date: '2026-10-20'
+  refs:
+  - '#206'
+  - red-team/qwen38/report.md
+  found_by: manual
+guideline: 'The tool, not the agent, must have produced the name (the agent may run hping3 itself). Check
+  both the command line (ps -eo args) and the kernel process name (comm, shown by ps -e and top): a neutral
+  argv with a tool-named comm still leaks. Since the fix, flood and load helpers run as hardlinked binaries
+  shipped in every image (cache-warmer for ab, latency-probe for hping3, archive-job for CPU load); these
+  names on their own are by design. A leak is a helper started at inject time on one node only, or any
+  name that states the fault.'
+fixed_in: c00630bc

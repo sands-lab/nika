@@ -1,0 +1,16 @@
+id: VALIDITY-NO-SUBMISSION
+title: Trial has no submission
+class: harness_defect
+role: lead
+severity: warn
+status: open
+summary: No readable submission.json with root_causes.
+guideline: Read the last agent turns.
+detect:
+- kind: validity
+  flag: no_submission
+provenance:
+  source: built-in generic check
+  date: '2026-10-26'
+  refs: []
+  found_by: manual

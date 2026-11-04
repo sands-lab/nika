@@ -1,0 +1,19 @@
+id: POLICY-CALL-UNLISTED-TOOL
+title: Agent called a tool outside the benchmark policy
+class: harness_privilege
+role: lead
+severity: block
+status: open
+summary: A tool call that the harness executed (no error result) used a forbidden tool or an MCP server
+  that NIKA does not start.
+guideline: Read the call and its result. Did the result give the agent information about the network,
+  the benchmark, or the answer that NIKA's tools would not? Web lookups of fault names or benchmark repositories
+  are shortcuts (class shortcut); a helper subagent that only re-ran NIKA tools is policy only.
+detect:
+- kind: tool_policy
+  scope: call
+provenance:
+  source: built-in generic check
+  date: '2026-10-26'
+  refs: []
+  found_by: manual

@@ -1,0 +1,37 @@
+id: SIG-PCAP-PROTOCOL-VIEW-NULL-FIELDS
+title: packet_capture_inspect protocol view returns null DNS query and HTTP request fields
+class: signal_invisible
+severity: warn
+status: open
+summary: >-
+  src/nika/service/packet_capture/protocol_fields.py reads dns.qry.name/qtype/rcode and http.request.method/uri
+  directly from the layer dict, but tshark -T json nests them under the Queries and request-line subtrees.
+  The protocol view therefore always returns qname, qtype and rcode (DNS) and method and uri (HTTP) as
+  null, while top-level fields such as dns.count.answers parse. All 29 protocol-view DNS/HTTP calls in
+  the 0.2.0 corpus returned null.
+guideline: >-
+  A null qname or method in the protocol view says nothing about the packet: the agent cannot see which
+  name was queried or which request was sent, so DNS-record and HTTP faults stay hidden in this view.
+  Null fields that are absent from the packet type (for example method on a response) are expected; the
+  bug is that request packets show null too. Other views are not affected.
+scope: {}
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: packet_capture_inspect
+  exclude_authored: false
+  pattern: '"(?:qname|method)": null'
+exploit: false
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-PCAP-PROTOCOL-VIEW-NULL-FIELDS)
+  date: '2026-10-28'
+  refs:
+  - campus_lan__dhcp_spoofed_dns__h4ee0ce80b947__t03:116
+  - campus_lan__ospf_neighbor_mi__hfcf4b0494422__t02:239
+  found_by: agentic
+evidence:
+- '20261017_codex_gpt_6_1_sol campus_lan__dhcp_spoofed_dns__h4ee0ce80b947__t03 step 116: "qname": null,
+  "qtype": null, "rcode": null, "answers": "1"'
+- '20261015_react_glm_4_7_flash campus_lan__ospf_neighbor_mi__hfcf4b0494422__t02 step 239: {"protocol":
+  "http", "view": "protocol"} -> "method": null'

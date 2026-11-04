@@ -1,0 +1,19 @@
+id: HARNESS-ACTIVE-PROBE-REJECTS-IPS
+title: active_tcp_probe rejects IP addresses as endpoints
+class: harness_defect
+severity: info
+status: open
+summary: active_tcp_probe takes device names; agents that pass an IP address get 'Device `<ip>` is not
+  running', which reads like a down host. About a quarter to four fifths of its calls failed in most 0.2.0
+  submissions.
+guideline: An agent that concludes a host is down from this error was misled by the tool, not by the network.
+detect:
+- kind: text
+  tool: active_tcp_probe
+  exclude_authored: false
+  pattern: Device `\d{1,3}(?:\.\d{1,3}){3}` is not running
+provenance:
+  source: submission audit of 21 0.2.0 submissions, lead TOOL-HIGH-ERROR-RATE
+  date: '2026-10-25'
+  refs: []
+  found_by: deterministic

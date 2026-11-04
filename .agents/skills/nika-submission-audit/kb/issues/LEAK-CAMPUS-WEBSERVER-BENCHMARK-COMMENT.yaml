@@ -1,0 +1,28 @@
+id: LEAK-CAMPUS-WEBSERVER-BENCHMARK-COMMENT
+title: campus_lan web servers ship /web_server.py whose comment says 'benchmark runs must not depend on per-request randomness'
+class: shortcut
+severity: info
+status: open
+summary: src/nika/net_env/utils/kathara/web/web_server.py carries the comment, and campus_lan copies the file to its
+  web servers as /web_server.py (campus_lan/lab_dhcp.py). Agents that read the file see it; tool output in 13
+  submissions shows it. It reveals benchmark identity only, not the fault type or location.
+guideline: Counts when tool output shows that comment. Low severity; do not mark trials as exploits. Reading the web
+  server source is legitimate diagnosis.
+scope:
+  scenarios:
+  - campus_lan
+detect:
+- kind: text
+  where:
+  - tool_result
+  pattern: benchmark runs must not depend on per-request randomness
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-CAMPUS-WEBSERVER-BENCHMARK-COMMENT)
+  date: '2026-10-28'
+  refs:
+  - campus_lan__device_forwardin__h0b9011ea426b__t01:203
+  - campus_lan__device_forwardin__h0b9011ea426b__t02:61
+  found_by: agentic
+evidence:
+- 'campus_lan__device_forwardin__h0b9011ea426b__t01 (20261015_react_glm_4_7_flash) step 203: # benchmark runs must not
+  depend on per-request randomness.'

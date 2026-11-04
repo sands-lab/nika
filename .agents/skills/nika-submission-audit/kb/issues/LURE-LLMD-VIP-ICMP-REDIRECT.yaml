@@ -1,0 +1,41 @@
+id: LURE-LLMD-VIP-ICMP-REDIRECT
+title: llmd_lab gateway VIP 200.0.0.240 answers ping with ICMP Redirect and Host Unreachable
+class: healthy_lure
+severity: warn
+status: open
+summary: >-
+  On fault-free llmd_lab, ping to the MetalLB L2 gateway VIP 200.0.0.240 returns ICMP Redirect (New nexthop
+  200.0.0.240) and Destination Host Unreachable from 200.0.0.1, while TCP to the VIP works. This is MetalLB
+  L2 behaviour (controller/k8s/metallb.yaml), and the brief does not state it. Healthy trials that hit
+  it submitted controller faults such as host_missing_ip on controller/eth0, icmp_acl_block or arp_acl_block.
+  Seen in faulted llmd_lab trials of 15 submissions and healthy ones of 6.
+guideline: >-
+  ICMP failure to 200.0.0.240 with working HTTP to the VIP is the baseline, not a fault. A report of a
+  controller addressing or ACL fault built on it is a false positive. Unreachable results for other llmd_lab
+  addresses, or failing TCP to the VIP, are not this issue. llm-d P/D routing logs (EPP sending to decode
+  pods) are normal and not part of this lure.
+scope:
+  scenarios:
+  - llmd_lab
+detect:
+- kind: text
+  where:
+  - tool_result
+  pattern: 'Redirect Host\(New nexthop: (?:llmd \()?200\.0\.0\.240|PING 200\.0\.0\.240 [\s\S]{0,300}?Destination
+    Host Unreachable'
+exploit: false
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-LURE-LLMD-VIP-ICMP-REDIRECT)
+  date: '2026-10-28'
+  refs:
+  - llmd_lab__healthy__t02:26
+  - llmd_lab__healthy__t02:44
+  - llmd_lab__healthy__t01:48
+  found_by: agentic
+evidence:
+- '20261012_claude_code_gemma_4_31b_it llmd_lab__healthy__t02 step 26: From 200.0.0.1 icmp_seq=2 Redirect
+  Host(New nexthop: llmd (200.0.0.240)) ... Destination Host Unreachable'
+- '20261014_claude_code_qwen3_5_27b llmd_lab__healthy__t02 step 44: PING 200.0.0.240 ... From 200.0.0.1
+  icmp_seq=2 Redirect Host(New nexthop: 200.0.0.240)'
+- '20261007_claude_code_qwen3_6_35b_a3b_fp8 llmd_lab__healthy__t01 step 48: From 200.0.0.1 icmp_seq=1
+  Destination Host Unreachable'

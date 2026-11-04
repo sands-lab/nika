@@ -1,0 +1,33 @@
+id: HARNESS-MCP-TRANSPORT-POST-ERROR
+title: MCP tool calls from cli.claude intermittently fail with 'Error POSTing to endpoint' (EOF or connection reset), losing the result
+class: harness_defect
+severity: warn
+status: open
+summary: In release 0.2.0, 28 transport errors in 17 trials across 6 cli.claude submissions hit exec_shell, p4rt_exec,
+  and iperf_test. Short commands failed too (a `pkill; iperf3 -s -D`, and `p4rt_exec read-table --help` whose
+  parallel call succeeded), so this is a transport fault between the agent CLI and the NIKA MCP endpoint on
+  localhost, not agent misuse. The traces do not show which component on 127.0.0.1 resets the connection.
+guideline: Counts on a tool result 'Error POSTing to endpoint - EOF' or '... read - connection reset by peer' on a
+  127.0.0.1 MCP endpoint. The call's result is lost; the agent may retry. Does not count for tool errors the NIKA
+  tool itself returns, or for "unknown session" errors (HARNESS-UNKNOWN-MCP-SESSION).
+scope:
+  agent_types:
+  - cli.claude
+detect:
+- kind: text
+  where:
+  - tool_result
+  pattern: 'Error POSTing to endpoint: (?:EOF|read tcp\S* \S+: read: connection reset by peer)'
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-MCP-TRANSPORT-POST-ERROR)
+  date: '2026-10-28'
+  refs:
+  - campus_lan__dhcp_missing_sub__h495aae94c5be__t03:182
+  - p4_dc_gateway__p4_table_entr__hb84a5ff985c3__t03:19
+  - sdn_l3_clos__healthy__l__t03:71
+  found_by: agentic
+evidence:
+- 'campus_lan__dhcp_missing_sub__h495aae94c5be__t03 (20261010_claude_code_qwen3_8_27b_fp8) step 182: Error POSTing to
+  endpoint: EOF'
+- 'p4_dc_gateway__p4_table_entr__hb84a5ff985c3__t03 (20261016_claude_code_claude_opus_5_5) step 19: Error POSTing to
+  endpoint: read tcp4 127.0.0.1:37064->127.0.0.1:49527: read: connection reset by peer'

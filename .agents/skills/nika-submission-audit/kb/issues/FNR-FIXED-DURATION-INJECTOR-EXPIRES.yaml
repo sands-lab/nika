@@ -1,0 +1,36 @@
+id: FNR-FIXED-DURATION-INJECTOR-EXPIRES
+title: tcp_syn_flood_attack and receiver_resource_contention run for a fixed 3600 s and stop before the end of trials longer than 1 h
+class: fault_not_realized
+severity: warn
+status: open
+summary: The SYN flood runs under `timeout {duration}s` with duration 3600 (src/nika/problems/security/tcp_syn_flood.py),
+  and the receiver contention stress starts with `--duration 3600` (src/nika/problems/endpoint_application/transport.py).
+  Neither injector is renewed, so in a trial that runs longer than an hour after injection the fault expires on
+  its own while the agent is still working. The before_cleanup recheck then reports the fault artifact absent,
+  and the agent may spend its last steps on a network that no longer has the fault.
+guideline: Counts when the fault_absent_at_cleanup flag fires on one of these two fault types, the trial ran more
+  than 3600 s after injection, and the trace has no kill, stress, tc, or iptables command against the fault (no
+  AGENT-STATE-MUTATION hit on the faulted node). Does not count when the trial is shorter than an hour or the agent
+  removed the fault itself. Faults whose load loops until recovery (campus_lan load_balancer_overload, whose ab
+  workers loop) are not part of this issue; an absent recheck there has another cause.
+scope:
+  fault_types:
+  - tcp_syn_flood_attack
+  - receiver_resource_contention
+detect:
+- kind: validity
+  flag: fault_absent_at_cleanup
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-FIXED-DURATION-INJECTOR-EXPIRES)
+  date: '2026-10-28'
+  refs:
+  - p4_dc_gateway__tcp_syn_flood__hc408eaaa9f62__t02:250
+  - p4_dc_gateway__tcp_syn_flood__hc408eaaa9f62__t02:448
+  - dc_clos__receiver_resource_c__ha2be5b357067__t01:nika.jsonl:13
+  found_by: agentic
+evidence:
+- 'p4_dc_gateway__tcp_syn_flood__hc408eaaa9f62__t02 (20261010_claude_code_qwen3_8_27b_fp8) step 448: client_1''s
+  startup is just network configuration — no generator. So the HTTP traffic generator is being launched externally
+  (by the scenario harness), temporarily, and then terminated.'
+- 'dc_clos__receiver_resource_c__ha2be5b357067__t01 (20261007_claude_code_qwen3_6_35b_a3b_fp8) nika.jsonl:13: Fault
+  artifact absent: phase=before_cleanup fault=receiver_resource_contention'

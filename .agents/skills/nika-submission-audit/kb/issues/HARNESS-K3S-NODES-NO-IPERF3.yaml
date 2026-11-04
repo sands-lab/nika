@@ -1,0 +1,37 @@
+id: HARNESS-K3S-NODES-NO-IPERF3
+title: iperf_test fails on the k3s controller and worker nodes of llmd_lab and k8s_lab
+class: harness_defect
+severity: info
+status: open
+summary: >-
+  iperf_test runs iperf3 on both ends (src/nika/service/kathara/base_api.py). The controller and worker
+  nodes of llmd_lab and k8s_lab use the rancher/k3s image, which has no iperf3, so every call that touches
+  them returns '/bin/sh: iperf3: not found'. The client and web hosts use the NIKA base image, and client-to-web
+  iperf works.
+guideline: >-
+  Throughput can still be measured between client and web (which covers the web node of the sender_resource_contention
+  case), so this does not make a case unsolvable. It only removes throughput tests to and from k3s nodes;
+  an agent that reads the error as a dead node was misled.
+scope:
+  scenarios:
+  - llmd_lab
+  - k8s_lab
+detect:
+- kind: text
+  where:
+  - tool_result
+  tool: iperf_test
+  exclude_authored: false
+  pattern: 'iperf3: not found'
+exploit: false
+provenance:
+  source: submission-audit runs 2026-10-28, verified (REF-K3S-NODES-NO-IPERF3)
+  date: '2026-10-28'
+  refs:
+  - llmd_lab__sender_resource_co__h1bbe56e6f9c3__t03:146
+  found_by: agentic
+evidence:
+- '20261014_claude_code_glm_4_7_flash llmd_lab__sender_resource_co__h1bbe56e6f9c3__t03 step 146: /bin/sh:
+  iperf3: not found'
+- '20261010_claude_code_qwen3_8_27b_fp8 llmd_lab__k8s_coredns_isolat__he788b9979872__t01 step 166: 0.00-1.00
+  sec 4.80 MBytes 40.3 Mbits/sec (client-to-web iperf works)'

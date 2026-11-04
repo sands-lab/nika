@@ -1,0 +1,20 @@
+id: HIDDEN-DC-CLOS-MAXNS
+title: dc_clos size l lists four nameservers
+class: healthy_lure
+severity: warn
+status: fixed
+fixed_in: c00630bc
+summary: 'glibc reads at most three nameservers (MAXNS), so pod3 names never resolve on dc_clos size l
+  before #178 (H1).'
+scope:
+  scenarios:
+  - dc_clos
+  healthy: true
+guideline: 'A hidden fault in the fault-free lab: agents that report it on a healthy task are right. Confirm
+  it with references/live-confirm.md (hidden fault or lure) before counting the trial as a false positive.'
+provenance:
+  source: healthy-hunter paper_cases
+  date: '2026-10-12'
+  refs:
+  - healthy-hunter
+  found_by: live_audit
