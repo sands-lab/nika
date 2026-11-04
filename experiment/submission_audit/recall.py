@@ -3,7 +3,7 @@
     uv run python -m experiment.submission_audit.recall \\
         --runs /path/to/evolve-root --out recall.json
 
-Each run directory (from ``replay.py``) holds one step per submission with
+Each run directory (from ``evolve.py replay``) holds one step per submission with
 the issue memory before that step (``NN_<submission>/kb_before``), the final
 memory (``kb``), and a mapping of every issue the run wrote to the reference
 issues it describes (``map_issues.py`` writes ``mapping_llm.yaml``; the agent
