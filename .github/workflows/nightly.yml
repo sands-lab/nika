@@ -131,6 +131,8 @@ jobs:
         run: uv sync --group labs --group dev
       - name: Clab failure inject contract
         run: uv run pytest tests/nika/problems/test_failure_inject_contract.py::test_clab_failure_inject_contract -q -ra
+      - name: Close stopped Containerlab nodes after topology loss
+        run: uv run pytest tests/nika/workflows/test_session_containerlab_cleanup_live.py -q -ra
 
   failure-e2e:
     name: failure artifact e2e ${{ matrix.shard.name }} (${{ matrix.os }})

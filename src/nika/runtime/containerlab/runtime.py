@@ -247,8 +247,24 @@ class ContainerlabRuntime(LabRuntime):
             print(
                 f"Error destroying containerlab lab {self._lab_name}: {result.stderr or result.stdout}"
             )
+        # A successful clab destroy can leave stopped nodes behind. The
+        # topology may also be gone after an interrupted session close.
+        for container in self._docker.containers.list(
+            all=True, filters={"label": f"containerlab={self._lab_name}"}
+        ):
+            try:
+                container.remove(force=True, v=True)
+            except docker.errors.NotFound:
+                pass
         with self._node_map_lock:
             self._node_containers = {}
+
+    def has_leftover_resources(self) -> bool:
+        return bool(
+            self._docker.containers.list(
+                all=True, filters={"label": f"containerlab={self._lab_name}"}
+            )
+        )
 
     def exists(self) -> bool:
         return self._refresh_node_map() and bool(self._node_containers)
