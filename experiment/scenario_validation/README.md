@@ -49,7 +49,7 @@ The output directory contains the original and resolved specifications, NetCompl
 
 Fault-impact reports are `impact-model-<name>.json` and `impact-failure-<name>.json`; see [fault impact acceptance](../../docs/development/scenario-verification.md#6-deploy-observe-inject-and-recover) for their contents and rules.
 
-To compare Batfish, a NetKAT check of the installed FIB and the native probes on the same requirements, add `--compare-methods` to a `--runtime` run of `experiment.py` or `benchmark_isp.py`. It needs the KATch image from [Verify SDN and P4 fabrics](#verify-sdn-and-p4-fabrics); [Deploy, observe, inject and recover](../../docs/development/scenario-verification.md#6-deploy-observe-inject-and-recover) describes what it records.
+To compare Batfish, a NetKAT check of the installed FIB and the native probes on the same requirements, add `--compare-methods` to a `--runtime` run of `experiment.py` or `benchmark_isp.py`. It needs the KATch image from [Verify SDN and P4 fabrics](#verify-sdn-and-p4-fabrics); [Compare verification methods](../../docs/development/scenario-verification.md#compare-verification-methods) describes what it records.
 
 The workflow closes its own native session and removes a Batfish service only when it created that service, and stops a stopped analyzer again after restarting it. It leaves a running analyzer in place. For independently managed analyzers, pass `batfish_verifier=BatfishVerifier(host=..., port=...)` to the Python workflow and manage that service in the caller.
 
