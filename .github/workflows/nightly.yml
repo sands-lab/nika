@@ -252,6 +252,19 @@ jobs:
     timeout-minutes: 180
     steps:
       - uses: actions/checkout@v5
+      - name: Free unused SDK space on the ephemeral runner
+        if: runner.environment == 'github-hosted'
+        # These SDKs are unrelated to NIKA. Preserve Docker images and lab caches.
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /usr/share/swift
+      - name: Require disk headroom for heavy labs
+        run: |
+          docker_root=$(docker info --format '{{.DockerRootDir}}')
+          available=$(df -B1 --output=avail "$docker_root" | tail -n 1)
+          df -h "$docker_root"
+          if [ "$available" -lt 32212254720 ]; then
+            echo "::error::NIKA heavy labs require at least 30 GiB free on the Docker filesystem to avoid Kubernetes DiskPressure and pod eviction. Use a runner with more disk space."
+            exit 1
+          fi
       - uses: astral-sh/setup-uv@v10.1.0
         with:
           version: ${{ env.UV_VERSION }}
@@ -262,13 +275,16 @@ jobs:
       - name: Install (labs)
         run: uv sync --group labs --group dev
       - name: k8s_lab + llmd_lab light startup (serial)
-        run: >
-          uv run pytest
-          tests/nika/net_env/test_scenario_e2e.py::K8sScenarioE2ETest
-          -q -ra --maxfail=1
-          || uv run pytest
-          tests/nika/net_env/test_scenario_e2e.py::K8sScenarioE2ETest
-          -q -ra --maxfail=1
+        run: |
+          docker_root=$(docker info --format '{{.DockerRootDir}}')
+          available=$(df -B1 --output=avail "$docker_root" | tail -n 1)
+          df -h "$docker_root"
+          if [ "$available" -lt 32212254720 ]; then
+            echo "::error::NIKA heavy labs require at least 30 GiB free on the Docker filesystem to avoid Kubernetes DiskPressure and pod eviction. Use a runner with more disk space."
+            exit 1
+          fi
+          uv run pytest tests/nika/net_env/test_scenario_e2e.py::K8sScenarioE2ETest -q -ra --maxfail=1 ||
+            uv run pytest tests/nika/net_env/test_scenario_e2e.py::K8sScenarioE2ETest -q -ra --maxfail=1
 
   engine-runtimes-sequential:
     name: pinned engine k8s + llmd + SR Linux (amd64)
@@ -279,6 +295,19 @@ jobs:
       NIKA_CI_ENGINE_SPLIT: test
     steps:
       - uses: actions/checkout@v5
+      - name: Free unused SDK space on the ephemeral runner
+        if: runner.environment == 'github-hosted'
+        # These SDKs are unrelated to NIKA. Preserve Docker images and lab caches.
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /usr/share/swift
+      - name: Require disk headroom for heavy labs
+        run: |
+          docker_root=$(docker info --format '{{.DockerRootDir}}')
+          available=$(df -B1 --output=avail "$docker_root" | tail -n 1)
+          df -h "$docker_root"
+          if [ "$available" -lt 32212254720 ]; then
+            echo "::error::NIKA heavy labs require at least 30 GiB free on the Docker filesystem to avoid Kubernetes DiskPressure and pod eviction. Use a runner with more disk space."
+            exit 1
+          fi
       - uses: astral-sh/setup-uv@v10.1.0
         with:
           version: ${{ env.UV_VERSION }}
@@ -297,14 +326,38 @@ jobs:
       - name: k8s_lab oracle through engine
         env:
           NIKA_CI_ENGINE_TASK_ID: k8s_lab__k8s_networkpolicy_d__hadf9af15da3f
-        run: uv run pytest tests/benchmark/test_engine_container_e2e.py -q -ra
+        run: |
+          docker_root=$(docker info --format '{{.DockerRootDir}}')
+          available=$(df -B1 --output=avail "$docker_root" | tail -n 1)
+          df -h "$docker_root"
+          if [ "$available" -lt 32212254720 ]; then
+            echo "::error::NIKA heavy labs require at least 30 GiB free on the Docker filesystem to avoid Kubernetes DiskPressure and pod eviction. Use a runner with more disk space."
+            exit 1
+          fi
+          uv run pytest tests/benchmark/test_engine_container_e2e.py -q -ra
       - name: llmd_lab oracle through engine
         if: ${{ !cancelled() && steps.engine-build.outcome == 'success' }}
         env:
           NIKA_CI_ENGINE_TASK_ID: llmd_lab__k8s_coredns_isolat__h7de12dd02b9a
-        run: uv run pytest tests/benchmark/test_engine_container_e2e.py -q -ra
+        run: |
+          docker_root=$(docker info --format '{{.DockerRootDir}}')
+          available=$(df -B1 --output=avail "$docker_root" | tail -n 1)
+          df -h "$docker_root"
+          if [ "$available" -lt 32212254720 ]; then
+            echo "::error::NIKA heavy labs require at least 30 GiB free on the Docker filesystem to avoid Kubernetes DiskPressure and pod eviction. Use a runner with more disk space."
+            exit 1
+          fi
+          uv run pytest tests/benchmark/test_engine_container_e2e.py -q -ra
       - name: isp_pdh SR Linux oracle through engine
         if: ${{ !cancelled() && steps.engine-build.outcome == 'success' }}
         env:
           NIKA_CI_ENGINE_TASK_ID: isp_pdh__bgp_acl_block__s__i__hbe4170621772
-        run: uv run pytest tests/benchmark/test_engine_container_e2e.py -q -ra
+        run: |
+          docker_root=$(docker info --format '{{.DockerRootDir}}')
+          available=$(df -B1 --output=avail "$docker_root" | tail -n 1)
+          df -h "$docker_root"
+          if [ "$available" -lt 32212254720 ]; then
+            echo "::error::NIKA heavy labs require at least 30 GiB free on the Docker filesystem to avoid Kubernetes DiskPressure and pod eviction. Use a runner with more disk space."
+            exit 1
+          fi
+          uv run pytest tests/benchmark/test_engine_container_e2e.py -q -ra

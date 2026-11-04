@@ -18,8 +18,72 @@ env:
   GNMIC_VERSION: "0.48.0"
 
 jobs:
+  engine-build:
+    name: prepare release engine (amd64)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Free unused SDK space on the ephemeral runner
+        if: runner.environment == 'github-hosted'
+        # These SDKs are unrelated to NIKA. Preserve Docker images and lab caches.
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /usr/share/swift
+      - name: Require disk headroom for engine and lab images
+        run: |
+          docker_root=$(docker info --format '{{.DockerRootDir}}')
+          available=$(df -B1 --output=avail "$docker_root" | tail -n 1)
+          df -h "$docker_root"
+          if [ "$available" -lt 32212254720 ]; then
+            echo "::error::NIKA heavy labs require at least 30 GiB free on the Docker filesystem to avoid Kubernetes DiskPressure and pod eviction. Use a runner with more disk space."
+            exit 1
+          fi
+      - uses: astral-sh/setup-uv@v10.1.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+      - name: Install (labs)
+        run: uv sync --group labs --group dev
+      - name: Resolve the manifest's actual engine once
+        env:
+          NIKA_CI_ENGINE_RELEASE: ${{ inputs.release }}
+        run: |
+          uv run python - <<'PYTHON'
+          import json
+          import os
+          import subprocess
+          from pathlib import Path
+          from nika.benchmark_engine.container import resolve_engine_image
+          from nika.workflows.benchmark.release import load_release
+
+          release = load_release(os.environ["NIKA_CI_ENGINE_RELEASE"])
+          engine = release.manifest.get("engine")
+          if not engine:
+              raise ValueError(f"Release {release.version} has no pinned engine")
+          image = resolve_engine_image(engine)
+          canonical = f"nika/benchmark-engine:{engine['tag']}"
+          subprocess.run(["docker", "image", "tag", image, canonical], check=True)
+          metadata = json.loads(subprocess.check_output(
+              ["docker", "image", "inspect", canonical], text=True
+          ))[0]
+          tags = sorted(set(metadata.get("RepoTags") or []) | {canonical})
+          archive = Path(os.environ["RUNNER_TEMP"]) / "release-engine.tar"
+          subprocess.run(["docker", "image", "save", "-o", str(archive), *tags], check=True)
+          PYTHON
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-engine-image
+          path: ${{ runner.temp }}/release-engine.tar
+          compression-level: 0
+          retention-days: 1
+
   verify:
     name: release ${{ inputs.release }} shard ${{ matrix.shard }}
+    needs: engine-build
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     strategy:
@@ -48,6 +112,19 @@ jobs:
               exit 1
             fi
           done
+      - name: Free unused SDK space on the ephemeral runner
+        if: runner.environment == 'github-hosted'
+        # These SDKs are unrelated to NIKA. Preserve Docker images and lab caches.
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /usr/share/swift
+      - name: Require disk headroom for engine and lab images
+        run: |
+          docker_root=$(docker info --format '{{.DockerRootDir}}')
+          available=$(df -B1 --output=avail "$docker_root" | tail -n 1)
+          df -h "$docker_root"
+          if [ "$available" -lt 32212254720 ]; then
+            echo "::error::NIKA heavy labs require at least 30 GiB free on the Docker filesystem to avoid Kubernetes DiskPressure and pod eviction. Use a runner with more disk space."
+            exit 1
+          fi
       - uses: astral-sh/setup-uv@v10.1.0
         with:
           version: ${{ env.UV_VERSION }}
@@ -71,6 +148,23 @@ jobs:
           gnmic version
       - name: Install (labs)
         run: uv sync --group labs --group dev
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-engine-image
+          path: ${{ runner.temp }}/release-engine
+      - name: Load the release engine with its original tags
+        run: |
+          docker image load -i "$RUNNER_TEMP/release-engine/release-engine.tar"
+          rm "$RUNNER_TEMP/release-engine/release-engine.tar"
+      - name: Require disk headroom before trial deployment
+        run: |
+          docker_root=$(docker info --format '{{.DockerRootDir}}')
+          available=$(df -B1 --output=avail "$docker_root" | tail -n 1)
+          df -h "$docker_root"
+          if [ "$available" -lt 32212254720 ]; then
+            echo "::error::NIKA heavy labs require at least 30 GiB free on the Docker filesystem to avoid Kubernetes DiskPressure and pod eviction. Use a runner with more disk space."
+            exit 1
+          fi
       - name: Verify every task on its pinned engine and compare in process
         # Each runner executes one trial at a time, including heavy labs.
         run: >-
