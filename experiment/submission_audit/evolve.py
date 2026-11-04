@@ -33,6 +33,7 @@ import argparse
 import json
 import shutil
 import tempfile
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -40,10 +41,9 @@ from pathlib import Path
 from experiment.submission_audit.skill import builtin_kb_dir, submissions
 from experiment.submission_audit.scan_eval import CLI
 
-from auditlib.adjudicate import adjudicate_groups
 from auditlib.aggregate import group_findings
 from auditlib.kb import load_kb
-from auditlib.pipeline import review_submission, worth_judging
+from auditlib.pipeline import _verdicts, review_submission, worth_judging
 from auditlib.runner import audit_trajectories
 from auditlib.scan import ScanConfig, scan_trials
 from auditlib.trace import load_trial, trial_dirs
@@ -68,24 +68,38 @@ def scan_one(pkg: Path, out: Path, scan: ScanConfig) -> bool:
     Returns whether every trial and sample scanned without a failed call."""
     out.mkdir(parents=True, exist_ok=True)
     path = out / "scan.jsonl"
-    if (out / "scan.done").is_file():
+    expected = {(p.name, s) for p in trial_dirs(pkg) for s in range(scan.samples)}
+    cached = load_scan(path) if path.is_file() else []
+    valid = {(r["trial"], r["sample"]) for r in cached if not r["errors"]}
+    if (out / "scan.done").is_file() and expected <= valid:
         return True
+    (out / "scan.done").unlink(missing_ok=True)
     done = set()
     if path.is_file():
-        done = {(r["trial"], r["sample"]) for r in load_scan(path) if not r["errors"]}
+        done = valid
+        with path.open("rb+") as fh:
+            fh.seek(0, 2)
+            if fh.tell():
+                fh.seek(-1, 2)
+                if fh.read(1) != b"\n":
+                    fh.write(b"\n")
     with tempfile.TemporaryDirectory() as tmp:
         kb = load_kb(builtin_kb_dir(Path(tmp) / "kb"))
         hits = audit_trajectories(pkg, kb=kb).get("trials", {})
     with path.open("a", encoding="utf-8") as fh:
+        lock = threading.Lock()
 
         def write(record: dict) -> None:
-            fh.write(json.dumps(record) + "\n")
-            fh.flush()
+            with lock:
+                fh.write(json.dumps(record) + "\n")
+                fh.flush()
 
         records = scan_trials(
             trial_dirs(pkg), kb, scan, hits=hits, on_result=write, done=done
         )
-    if any(r["errors"] for r in records):
+    if any(r["errors"] for r in records) or not expected <= {
+        (r["trial"], r["sample"]) for r in load_scan(path) if not r["errors"]
+    }:
         return False
     (out / "scan.done").touch()
     return True
@@ -94,8 +108,6 @@ def scan_one(pkg: Path, out: Path, scan: ScanConfig) -> bool:
 def adjudicate_one(pkg: Path, out: Path, adjudicate: ScanConfig) -> str:
     """Adjudicate the groups worth judging; others are stored as skipped."""
     verdict_path = out / "verdicts.json"
-    if verdict_path.is_file():
-        return pkg.name
     records = load_scan(out / "scan.jsonl")
     samples = max((r["sample"] for r in records), default=0) + 1
     with tempfile.TemporaryDirectory() as tmp:
@@ -103,7 +115,7 @@ def adjudicate_one(pkg: Path, out: Path, adjudicate: ScanConfig) -> str:
     trials = {p.name: load_trial(p) for p in trial_dirs(pkg)}
     groups = group_findings(records, trials)
     todo = [i for i, g in enumerate(groups) if worth_judging(g, samples)]
-    judged = adjudicate_groups([groups[i] for i in todo], trials, kb, adjudicate)
+    judged = _verdicts(out / "verdict-cache.json", groups, todo, trials, kb, adjudicate)
     failed = sum(bool(v["error"]) for v in judged)
     if failed:
         return f"{pkg.name}: {failed} adjudications failed, rerun to retry"
@@ -189,6 +201,7 @@ def cmd_replay(args: argparse.Namespace) -> None:
                 kb=load_kb(step / "kb_before"),
                 history=list(history),
                 records_out=history,
+                repo=args.repo,
             )
             continue
         if (step / "kb_before").is_dir():  # interrupted: restart from its memory
@@ -201,6 +214,12 @@ def cmd_replay(args: argparse.Namespace) -> None:
             pre["cohort"] = json.loads(
                 (args.reuse_cohort / step.name / "work" / "cohort.json").read_text()
             )
+        if args.reuse_contracts:
+            pre["contracts"] = json.loads(
+                (
+                    args.reuse_contracts / step.name / "work" / "contracts.json"
+                ).read_text()
+            )["results"]
         trial_records: list = []
         entry = review_submission(
             pkg,
@@ -211,6 +230,7 @@ def cmd_replay(args: argparse.Namespace) -> None:
             history=history,
             records_out=trial_records,
             precomputed=pre,
+            repo=args.repo,
         )
         history.extend(trial_records)
         entry["index"] = index
@@ -255,8 +275,20 @@ def main() -> None:
         "verdicts to reuse instead of calling the LLM.",
     )
     p.add_argument("--workers", type=int, default=32)
+    p.add_argument(
+        "--repo",
+        type=Path,
+        help="Source checkout for pinned contract checks and regressions.",
+    )
+    p.add_argument(
+        "--reuse-contracts",
+        type=Path,
+        help="Earlier run of the same order whose source observations and factual reviews to reuse.",
+    )
     p.set_defaults(func=cmd_replay)
     args = parser.parse_args()
+    if args.command == "replay" and args.reuse_contracts and args.repo is None:
+        parser.error("--reuse-contracts requires --repo")
     args.func(args)
 
 

@@ -8,8 +8,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from nika.config import REPO_ROOT
-
+REPO_ROOT = Path(__file__).resolve().parents[2]
 SKILL_DIR = REPO_ROOT / ".agents" / "skills" / "nika-submission-audit"
 SCRIPTS = SKILL_DIR / "scripts"
 

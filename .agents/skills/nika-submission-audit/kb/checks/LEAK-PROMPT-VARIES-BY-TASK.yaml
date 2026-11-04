@@ -5,8 +5,8 @@ role: lead
 severity: warn
 status: open
 summary: >-
-  Within one environment, a prompt line appears in at least half of the fault
-  tasks and in none of the healthy tasks. Healthy and fault tasks should get
+  Within one recorded deployment and code version, a prompt line appears in
+  two fault tasks, or half of a smaller profile, and no healthy tasks. Both should get
   the same prompt; a line that differs by task variant tells the agent that a
   fault exists before it looks at the network.
 guideline: >-

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import asdict, dataclass, field
+from functools import cached_property
 from typing import Any
 
 from auditlib.kb import Issue, KnowledgeBase, Policy, Signature
@@ -85,6 +86,8 @@ def in_scope(issue: Issue, trial: Trial) -> bool:
         return False
     if scope.scenarios and trial.scenario not in scope.scenarios:
         return False
+    if scope.backends and str(trial.run.get("backend")) not in scope.backends:
+        return False
     if scope.agent_types and str(trial.run.get("agent_type")) not in scope.agent_types:
         return False
     release = str(trial.run.get("benchmark_version") or "")
@@ -110,6 +113,19 @@ class TrialContext:
         call = self.call_of(step)
         return call.tool if call else ""
 
+    @cached_property
+    def mutating_calls(self) -> list[tuple[Step, re.Match[str]]]:
+        matches = []
+        for step in self.trial.calls():
+            if step.tool not in self.policy.node_exec_tools:
+                continue
+            match = self.policy.mutating_regex.search(
+                _QUOTED_PATTERN_ARGS.sub(" ", step.text)
+            )
+            if match:
+                matches.append((step, match))
+        return matches
+
     @property
     def validity_flags(self) -> list[str]:
         if self._validity is None:
@@ -133,6 +149,14 @@ def _text_hits(issue: Issue, sig: Signature, ctx: TrialContext) -> list[Hit]:
             continue
         if sig.tool_regex and not sig.tool_regex.fullmatch(ctx.tool_of(step)):
             continue
+        if sig.before_mutation and any(
+            changed.index <= step.index for changed, _ in ctx.mutating_calls
+        ):
+            continue
+        if sig.call_regex:
+            producer = step if step.kind == "tool_call" else ctx.call_of(step)
+            if producer is None or not sig.call_regex.search(producer.text):
+                continue
         authored = ""
         if step.kind == "tool_result" and sig.exclude_authored:
             call = ctx.call_of(step)
@@ -295,23 +319,18 @@ _QUOTED_PATTERN_ARGS = re.compile(
 
 
 def _mutation_hits(issue: Issue, ctx: TrialContext) -> list[Hit]:
-    policy = ctx.policy
     hits: list[Hit] = []
-    for step in ctx.trial.calls():
-        if step.tool not in policy.node_exec_tools:
-            continue
-        match = policy.mutating_regex.search(_QUOTED_PATTERN_ARGS.sub(" ", step.text))
-        if match:
-            hits.append(
-                Hit(
-                    issue.id,
-                    ctx.trial.trial_id,
-                    step.index,
-                    step.line,
-                    excerpt(step.text, match.start(), match.end(), 60),
-                    {"tool": step.tool},
-                )
+    for step, match in ctx.mutating_calls:
+        hits.append(
+            Hit(
+                issue.id,
+                ctx.trial.trial_id,
+                step.index,
+                step.line,
+                excerpt(step.text, match.start(), match.end(), 60),
+                {"tool": step.tool},
             )
+        )
     return hits
 
 

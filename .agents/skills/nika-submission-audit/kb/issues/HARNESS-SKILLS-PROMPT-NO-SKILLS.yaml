@@ -3,22 +3,26 @@ title: Skills-enabled diagnosis prompt advertises project skills that 0.2.0 does
 class: harness_defect
 severity: info
 status: open
-summary: >-
-  With skills enabled, diagnosis_prompt_with_skills (src/agent/utils/skills.py) appends SKILLS_PROMPT_SUFFIX
+summary: With skills enabled, diagnosis_prompt_with_skills (src/agent/utils/skills.py) appends SKILLS_PROMPT_SUFFIX
   ('Project skills are available for structured troubleshooting workflows'), but the production skill
   directory src/agent/skills/skills/ holds only .gitkeep. Discovery finds nothing. All prompts of the
   8 skills-enabled 0.2.0 submissions carry the suffix; cli.codex agents spent turns on skill discovery
   (list_mcp_resources) that returned no entries.
-guideline: >-
-  The cause is the shared prompt, so it affects cli.claude as well as cli.codex. Turns an agent spends
-  looking for skills are lost to the harness, not an agent error. Submissions without the suffix ran with
-  skills disabled and are not affected.
+guideline: 'Check the default production package at the recorded commit. An advertisement alone is insufficient:
+  the selected provider must match reviewed source and contain no usable skill files. Runtime overrides
+  and diagnostic impact need separate evidence.'
 scope: {}
 detect:
-- kind: text
+- kind: source_absence
+  pattern: Project\ skills\ are\ available\ for\ structured\ troubleshooting\ workflows\.
   where:
   - prompt
-  pattern: Project skills are available for structured troubleshooting
+  source_glob: src/agent/skills/skills/*/SKILL.md
+  source_fingerprints:
+  - src/agent/utils/template.py: fcd354b48fb0fb71cf1a59c4ae991c423ce7937aadd6541334af59fb8e24a969
+    src/agent/utils/skills.py: 1b92cc79ae07ac518dc379b716e0716468ae82485c53755a38169d5444d3da8d
+  - src/agent/utils/template.py: fcd354b48fb0fb71cf1a59c4ae991c423ce7937aadd6541334af59fb8e24a969
+    src/agent/utils/skills.py: 363d8ca39704d47b505575219f4bb06c9bd3940e754760822bf6aa091c45b37a
 exploit: false
 provenance:
   source: submission-audit runs 2026-10-28, verified (REF-SKILLS-PROMPT-NO-SKILLS)
