@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import pwd
 import re
 import secrets
 import subprocess
@@ -188,6 +189,8 @@ def _docker_run_args(
         f"NIKA_UID={os.getuid()}",
         "-e",
         f"NIKA_GID={os.getgid()}",
+        "-e",
+        f"NIKA_USER={pwd.getpwuid(os.getuid()).pw_name}",
         "-e",
         f"{ENV_ENGINE_TOKEN}={token}",
         *_bind("/var/run/docker.sock"),

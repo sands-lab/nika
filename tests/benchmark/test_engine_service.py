@@ -7,6 +7,7 @@ import threading
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
+from types import SimpleNamespace
 
 import pytest
 import uvicorn
@@ -65,6 +66,29 @@ REQUEST = TrialRequest(
     release="0.2.0",
 )
 TASK = AgentTask(task_description="Hosts in pod 1 cannot reach the web server.")
+
+
+def test_engine_launch_preserves_frontend_passwd_identity(
+    monkeypatch, tmp_path
+) -> None:
+    from nika.benchmark_engine import container
+
+    monkeypatch.setattr(container, "RUNTIME_DIR", tmp_path / "runtime")
+    monkeypatch.setattr(container, "CACHE_DIR", tmp_path / "cache")
+    monkeypatch.setattr(container, "clab_runtime_root", lambda **_: tmp_path / "clab")
+    monkeypatch.setenv("USER", "unrelated-environment-user")
+    monkeypatch.setattr(
+        container.pwd, "getpwuid", lambda _: SimpleNamespace(pw_name="frontend-user")
+    )
+    args = container._docker_run_args(
+        "image",
+        name="engine",
+        run_id="run",
+        results_root=tmp_path,
+        port=1234,
+        token="t",
+    )
+    assert "NIKA_USER=frontend-user" in args
 
 
 class _StubEngine:
