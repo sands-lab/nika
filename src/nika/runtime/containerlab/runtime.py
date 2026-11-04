@@ -256,13 +256,33 @@ class ContainerlabRuntime(LabRuntime):
                 container.remove(force=True, v=True)
             except docker.errors.NotFound:
                 pass
+        netns = Path("/var/run/netns")
+        if netns.is_dir():
+            for path in netns.iterdir():
+                if (
+                    path.name.startswith(f"clab-{self._lab_name}-")
+                    and path.is_symlink()
+                ):
+                    subprocess.run(
+                        ["sudo", "-n", "unlink", "--", str(path)],
+                        check=True,
+                        capture_output=True,
+                        timeout=30,
+                    )
         with self._node_map_lock:
             self._node_containers = {}
 
     def has_leftover_resources(self) -> bool:
+        netns = Path("/var/run/netns")
         return bool(
             self._docker.containers.list(
                 all=True, filters={"label": f"containerlab={self._lab_name}"}
+            )
+        ) or (
+            netns.is_dir()
+            and any(
+                path.name.startswith(f"clab-{self._lab_name}-") and path.is_symlink()
+                for path in netns.iterdir()
             )
         )
 

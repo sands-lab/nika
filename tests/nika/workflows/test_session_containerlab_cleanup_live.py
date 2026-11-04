@@ -32,6 +32,8 @@ def test_close_cleans_stopped_nodes_without_topology_and_preserves_sibling(tmp_p
         selector = {"label": f"containerlab={meta['lab_name']}"}
         nodes = client.containers.list(all=True, filters=selector)
         assert nodes
+        namespaces = [Path("/var/run/netns") / node.name for node in nodes]
+        assert all(path.is_symlink() for path in namespaces)
         sibling = client.containers.create(
             "nika/base:0.2.0",
             command="true",
@@ -47,6 +49,7 @@ def test_close_cleans_stopped_nodes_without_topology_and_preserves_sibling(tmp_p
         close_session(session_id=session_id)
         assert not client.containers.list(all=True, filters=selector)
         assert not runtime.has_leftover_resources()
+        assert not any(path.is_symlink() for path in namespaces)
         sibling.reload()
         assert sibling.status == "created"
         with pytest.raises(FileNotFoundError):
