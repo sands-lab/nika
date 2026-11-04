@@ -702,9 +702,16 @@ def preflight_release(
             }
         )
     else:
+        from nika.workflows.benchmark.multi_fault import row_problems
+
         problems = {
-            row["problem"]
+            problem
             for row in release.cases
+            for problem in (
+                row_problems(row)
+                if row.get("schedule") is not None
+                else [row["problem"]]
+            )
             if not is_healthy_case(row["problem"])
         }
         missing_problems = sorted(problems - set(list_avail_problem_instances()))

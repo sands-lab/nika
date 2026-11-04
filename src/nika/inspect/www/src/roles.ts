@@ -85,8 +85,19 @@ export interface OverviewSpan {
   startMs: number;
   endMs: number;
   error?: boolean;
+  nikaTone?: "failure" | "traffic" | "lifecycle";
   /** ``false`` for later blocks of one Claude response (not a new LLM request). */
   turnStart?: boolean;
+  schedule?: {
+    caption: string;
+    kind: "failure" | "traffic" | "agent";
+    state: string;
+    plannedStartMs: number;
+    plannedEndMs: number;
+    actualStartMs: number | null;
+    actualEndMs: number | null;
+    recovered: boolean;
+  };
 }
 
 const DEFAULT_MARK_MS = 250;
@@ -458,7 +469,7 @@ export function buildOverviewSpans(events: CanonicalTraceEvent[]): OverviewSpan[
       role,
       label:
         role === "nika"
-          ? ev.event?.replaceAll("_", " ") || "nika"
+          ? ev.event === "schedule_event" ? ev.summary : ev.event?.replaceAll("_", " ") || "nika"
           : role === "assistant"
             ? ev.event || "model"
             : roleLabel(role),

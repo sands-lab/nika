@@ -18,7 +18,7 @@ import shutil
 import sys
 import threading
 import time
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -28,6 +28,7 @@ from agent.protocols import DIAGNOSIS, SUBMISSION
 from agent.runtime.contract import (
     ENV_WORKSPACE,
     REPORT_FILENAME,
+    TASK_FILENAME,
     SUBMISSION_CONTEXT_FILENAME,
 )
 from agent.runtime.task import LlmClientSettings, Task
@@ -517,34 +518,67 @@ class SandboxManager:
         workspace = sandbox_session.workspace_dir
         mirror = sandbox_session.trace_mirror
         call_log = sandbox_session.call_log
-        exhausted = self._run_step(
-            sandbox_session=sandbox_session,
-            phase=DIAGNOSIS,
-            stream_output=stream_output,
-            timeout_sec=remaining(),
-            budget_sec=timeout_sec,
-        )
-        if exhausted:
-            report = self._budget_report(
-                sandbox_session, session_dir=session.session_dir
+        from nika.workflows.schedule import continuation_prompt, scheduler_for
+
+        scheduler = scheduler_for(session.session_id)
+        while True:
+            observed_complete = scheduler.complete.is_set() if scheduler else True
+            revision = scheduler.observation_revision() if scheduler else 0
+            exhausted = self._run_step(
+                sandbox_session=sandbox_session,
+                phase=DIAGNOSIS,
+                stream_output=stream_output,
+                timeout_sec=remaining(),
+                budget_sec=timeout_sec,
             )
-            # The submission step reads the frozen report from the workspace.
-            write_workspace_text(
-                workspace / REPORT_FILENAME,
-                json.dumps({"report": report}, ensure_ascii=False),
-            )
-            self.backend.push_files(sandbox_id, workspace, [REPORT_FILENAME])
-        else:
-            self.backend.pull_files(sandbox_id, workspace, [REPORT_FILENAME])
-            report_path = workspace / REPORT_FILENAME
-            try:
-                report = json.loads(read_workspace_text(report_path))["report"]
-            except (OSError, ValueError, KeyError, TypeError) as exc:
+            if exhausted:
+                report = self._budget_report(
+                    sandbox_session, session_dir=session.session_dir
+                )
+                # The submission step reads the frozen report from the workspace.
+                write_workspace_text(
+                    workspace / REPORT_FILENAME,
+                    json.dumps({"report": report}, ensure_ascii=False),
+                )
+                self.backend.push_files(sandbox_id, workspace, [REPORT_FILENAME])
+            else:
+                self.backend.pull_files(sandbox_id, workspace, [REPORT_FILENAME])
+                report_path = workspace / REPORT_FILENAME
+                try:
+                    report = json.loads(read_workspace_text(report_path))["report"]
+                except (OSError, ValueError, KeyError, TypeError) as exc:
+                    raise RuntimeError(
+                        f"Agent diagnosis step left no report: {exc}"
+                    ) from exc
+                if not isinstance(report, str):
+                    raise RuntimeError("Agent diagnosis step left a non-text report")
+            if scheduler is None:
+                break
+            scheduler.raise_if_failed()
+            if observed_complete:
+                break
+            if exhausted:
                 raise RuntimeError(
-                    f"Agent diagnosis step left no report: {exc}"
-                ) from exc
-            if not isinstance(report, str):
-                raise RuntimeError("Agent diagnosis step left a non-text report")
+                    "Diagnosis request budget exhausted before observation completed"
+                )
+            while (
+                not scheduler.complete.is_set()
+                and scheduler.observation_revision() == revision
+            ):
+                if remaining() is not None and remaining() <= 0:
+                    from nika.agents.registry import AgentTimeoutError
+
+                    raise AgentTimeoutError(
+                        "Agent observation exceeded agent.timeout_sec"
+                    )
+                scheduler.wait_for_progress(revision, 1.0)
+            task_path = workspace / TASK_FILENAME
+            task = json.loads(read_workspace_text(task_path))
+            task["task_description"] = continuation_prompt(
+                session.task_description, report
+            )
+            write_workspace_text(task_path, json.dumps(task, ensure_ascii=False))
+            self.backend.push_files(sandbox_id, workspace, [TASK_FILENAME])
         if mirror is not None:
             mirror.set_phase(SUBMISSION)
         if call_log is not None:
@@ -681,6 +715,7 @@ class SandboxManager:
         gateway_port: int,
         stream_output: bool = True,
         report_mapper: ReportMapper | None = None,
+        before_diagnosis: Callable[[], None] | None = None,
     ) -> SandboxRunResult:
         """Create a sandbox, run the agent, collect artifacts."""
         with self.open_session(
@@ -696,6 +731,8 @@ class SandboxManager:
             gateway_port=gateway_port,
             stream_output=stream_output,
         ) as sandbox_session:
+            if before_diagnosis is not None:
+                before_diagnosis()
             self._run_in_sandbox(
                 sandbox_session=sandbox_session,
                 stream_output=stream_output,

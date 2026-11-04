@@ -25,6 +25,7 @@ A NIKA benchmark is a set of **tasks**. Each task combines a **network environme
 | --- | --- |
 | **Failure** (fault) | A root cause NIKA injects into an environment, such as `link_down`. Code and configuration may call the failure type a *problem* (`problem:`); the `--problem` option of `nika agent run` instead selects a task label. |
 | **Session** | One deployed environment with its injected failures and results directory, from deployment until it is closed. |
+| **Schedule** | A task's timeline for failure injection, recovery, traffic activation, and agent startup. Each session measures offsets from its own ready time; see [Incident scheduling](docs/benchmarks/scheduling.md). |
 | **Diagnosis** | The run phase in which the agent investigates the environment and writes a free-text report. |
 | **Submission** | The run phase in which the agent turns its frozen report into a structured answer: the failed resources and fault types. |
 | **Ground truth** | The failures NIKA actually injected, which the submission is scored against. |

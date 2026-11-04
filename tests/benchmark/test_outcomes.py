@@ -695,6 +695,7 @@ def _run_case_with_failing_agent(tmp_path: Path, agent_effect) -> Path:
         from nika.utils.session_store import SessionStore
         from nika.workflows.benchmark.run import run_single_case
 
+        scheduler_cls.return_value.prepare.side_effect = fake_inject
         try:
             run_single_case(
                 problem="link_down",

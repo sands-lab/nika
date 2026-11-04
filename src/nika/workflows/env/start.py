@@ -321,6 +321,8 @@ def start_net_env(
     routing_configs: dict[str, str] | None = None,
     telemetry: Iterable[str] | None = None,
     traffic: TrafficProfile | dict | str | None = None,
+    defer_background_traffic: bool = False,
+    defer_business_traffic: bool = False,
 ) -> str:
     """Deploy the lab for ``scenario`` and create a new runtime session.
 
@@ -370,6 +372,8 @@ def start_net_env(
             static_validation=static_validation_enabled,
             telemetry=list(telemetry_kinds),
             traffic=traffic_profile.case_value() if traffic_profile else None,
+            defer_background_traffic=defer_background_traffic,
+            defer_business_traffic=defer_business_traffic,
         )
 
     size = _normalize_topo_size(topo_size)
@@ -672,7 +676,11 @@ def start_net_env(
         # Every case of a scenario carries the same traffic, so a workload
         # that does not start fails the session start.
         workload_started = time.perf_counter()
-        workload = net_env.start_business_workload()
+        workload = (
+            net_env.start_business_workload(services_only=True)
+            if defer_business_traffic
+            else net_env.start_business_workload()
+        )
         if workload is not None:
             log_event(
                 "env_workload",
@@ -687,7 +695,7 @@ def start_net_env(
         if lab_reused:
             # The reused lab may still run an earlier session's profile.
             stop_background_traffic(net_env)
-        if traffic_profile:
+        if traffic_profile and not defer_background_traffic:
             traffic_started = time.perf_counter()
             effective, background = start_background_traffic(net_env, traffic_profile)
             log_event(

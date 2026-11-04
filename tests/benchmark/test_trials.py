@@ -793,6 +793,9 @@ class TestAgentFailedFinalization:
         ):
             from nika.workflows.benchmark.run import run_single_case
 
+            scheduler_cls.side_effect = lambda sid, *args, **kw: MagicMock(
+                prepare=MagicMock(side_effect=lambda: fake_inject(session_id=sid))
+            )
             sid, sdir = run_single_case(
                 problem="link_down",
                 scenario="dc_clos",

@@ -50,11 +50,103 @@ def test_restored_images_resume_protocols_and_keep_case_fault_checks(injected, v
     assert client.return_value.verify_session.call_count == int(verify and not injected)
 
 
+def test_scheduled_trials_restore_uninjected_workloads_at_their_planned_start():
+    from nika.firecracker.case import wants_case_image
+
+    set_run_config(
+        RunConfig.model_validate(
+            {"nika": {"execution": {"firecracker": {"case_images": True}}}}
+        )
+    )
+    row = {
+        "scenario": "dc_clos",
+        "topo_size": "s",
+        "problem": "link_down",
+        "traffic": {"pattern": "incast"},
+        "schedule": {
+            "agent_start": 0,
+            "events": [
+                {"traffic": "business", "at": 10},
+                {"traffic": "background", "at": 20},
+                {
+                    "problem": "link_down",
+                    "inject": {"host_name": "client_0", "intf_name": "eth0"},
+                    "at": 30,
+                },
+            ],
+        },
+    }
+    assert not wants_case_image(row)
+    params = image.variant_for_row(row)
+    assert params["defer_business_traffic"] is True
+    assert params["defer_background_traffic"] is True
+    static = {key: value for key, value in row.items() if key != "schedule"}
+    assert wants_case_image(static)
+    assert "defer_business_traffic" not in image.variant_for_row(static)
+    assert (
+        image.variant_for_row(
+            {**row, "schedule": {**row["schedule"], "agent_start": 99}}
+        )
+        == params
+    )
+
+
 @pytest.fixture(autouse=True)
 def _clean_run_config():
     reset_run_config()
     yield
     reset_run_config()
+
+
+@pytest.mark.parametrize("sync_fails", [False, True])
+def test_restored_vm_synchronizes_utc_before_lab_exposure(
+    tmp_path, monkeypatch, sync_fails
+):
+    import re
+    import time
+    from types import SimpleNamespace
+    from nika.firecracker import trial
+
+    lab = object.__new__(trial.TrialLab)
+    lab.image = SimpleNamespace(key="healthy", path=tmp_path / "image")
+    lab.case = None
+    lab.dir = tmp_path / "restored"
+    lab.trial_key = "clock-test"
+    lab.owner = "clock-test"
+    lab.timings = {}
+    lab.sandbox_backend = None
+    calls = []
+    before = time.time()
+
+    def synchronize(uds, command, *, timeout):
+        assert calls == ["ready"]
+        assert uds == lab.dir / trial.VSOCK
+        timestamp = float(re.search(r"@([0-9.]+)", command)[1])
+        assert before <= timestamp <= time.time()
+        calls.append("synchronized")
+        if sync_fails:
+            raise trial.VmmError("Clock synchronization failed")
+
+    def expose(backend):
+        assert calls == ["ready", "synchronized"]
+        raise RuntimeError("Lab exposure reached")
+
+    monkeypatch.setattr(
+        trial, "firecracker_settings", lambda: SimpleNamespace(huge_pages=False)
+    )
+    monkeypatch.setattr(trial, "_clone", lambda *args: None)
+    monkeypatch.setattr(trial, "firecracker_binary", lambda: "firecracker")
+    monkeypatch.setattr(trial, "Firecracker", MagicMock())
+    monkeypatch.setattr(
+        trial, "wait_http_ok", lambda *args, **kw: calls.append("ready")
+    )
+    monkeypatch.setattr(trial, "guest_exec", synchronize)
+    monkeypatch.setattr(trial, "gateway_route", expose)
+    with pytest.raises(
+        RuntimeError,
+        match="Clock synchronization failed" if sync_fails else "Lab exposure reached",
+    ):
+        lab._restore()
 
 
 def test_firecracker_settings_default_off_and_validated() -> None:

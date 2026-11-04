@@ -70,9 +70,7 @@ from nika.workflows.benchmark.healthy import (
 from nika.workflows.benchmark.isp_options import ISP_DEPLOY_KEYS
 from nika.workflows.benchmark.load_config import load_benchmark_input
 from nika.workflows.benchmark.multi_fault import (
-    flatten_inject_overrides,
-    inject_overrides,
-    row_inject_args,
+    nested_inject_map,
     row_problems,
 )
 from nika.workflows.benchmark.outcomes import (
@@ -523,7 +521,7 @@ def validate_inject_params(
     if topo_size:
         kwargs["topo_size"] = topo_size
     if len(resolved_problems) > 1:
-        nested = flatten_inject_overrides(
+        nested = nested_inject_map(
             {"problem": problem, "problems": resolved_problems, "inject": params}
         )
         problem_inst = get_problem_instance(
@@ -861,6 +859,7 @@ def run_single_case(
     device_profile: str | None = None,
     telemetry: list[str] | None = None,
     traffic: dict[str, Any] | None = None,
+    schedule: dict[str, Any] | None = None,
     verbose: bool = False,
     progress: BenchmarkProgress | None = None,
     progress_label: str | None = None,
@@ -892,6 +891,20 @@ def run_single_case(
         telemetry=telemetry,
         traffic=traffic,
     )
+    from nika.schedule import schedule_for_task
+    from nika.workflows.schedule import SessionScheduler
+
+    if schedule is not None:
+        row["schedule"] = schedule
+        row["problems"] = list(
+            problems
+            or [e["problem"] for e in schedule.get("events", []) if e.get("problem")]
+        )
+    elif problems:
+        row["problems"] = problems
+    plan = schedule_for_task(row, (release_meta or {}).get("version"))
+    if schedule is not None:
+        row["schedule"] = plan.case_value()
     deploy_bits = [
         f"{_ISP_BANNER_LABELS[key]}: {'on' if key == 'rpki' else row[key]}"
         for key in ISP_DEPLOY_KEYS
@@ -918,20 +931,6 @@ def run_single_case(
         raise ValueError(
             f"Scenario '{scenario}' requires a non-empty topology size (-s s|m|l)."
         )
-
-    resolved_problems = list(
-        problems or row_problems({"problem": problem, "inject": inject_params})
-    )
-    inject_args = inject_overrides(problem, resolved_problems, inject_params)
-
-    validate_inject_params(
-        problem,
-        scenario,
-        topo_size or "",
-        inject_params,
-        problems=resolved_problems,
-        release=(release_meta or {}).get("version"),
-    )
 
     predetermined_dir: str | None = None
     if trial_id:
@@ -1045,6 +1044,11 @@ def run_single_case(
                     session_dir, outcome="success", score_status="scored"
                 )
     except BaseException as exc:
+        if scheduler is not None:
+            try:
+                scheduler.close()
+            except Exception as cleanup_error:
+                exc.add_note(f"Schedule cleanup failed: {cleanup_error}")
         # Ctrl+C / SystemExit: undeploy the lab, leave the trial incomplete for
         # --resume, and re-raise. Do not count as agent_failed.
         if _is_user_interrupt(exc):
@@ -1222,7 +1226,12 @@ def _run_trial_case(
     progress: BenchmarkProgress | None = None,
 ) -> None:
     row = trial.row
-    problems, _, expected_root_causes = row_inject_args(row)
+    problems = row_problems(row)
+    expected_root_causes = (
+        None
+        if row.get("root_causes_status") == "unresolved"
+        else row.get("root_causes")
+    )
     run_single_case(
         problem=row["problem"],
         problems=problems,
@@ -1244,6 +1253,7 @@ def _run_trial_case(
         **{key: row.get(key) for key in ISP_DEPLOY_KEYS},
         telemetry=row.get("telemetry"),
         traffic=row.get("traffic"),
+        **({"schedule": row["schedule"]} if row.get("schedule") is not None else {}),
         verbose=verbose,
         progress=progress,
         progress_label=trial.label if progress is not None else None,
@@ -1276,7 +1286,7 @@ def _run_trial_with_timeout(
         release_meta=release_meta,
         verbose=verbose,
     )
-    if case_timeout <= 0 and not isolate:
+    if case_timeout <= 0 and not isolate and trial.row.get("schedule") is None:
         # In-process: Live can receive phase hooks directly.
         _run_trial(trial, progress=progress, **kwargs)
         return
