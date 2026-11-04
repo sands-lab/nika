@@ -120,8 +120,9 @@ image.
 The root needs room for the base image (12 GiB) plus the lab images you keep:
 each holds the memory its lab uses, compressed to 0.3–4 GiB, and release 0.2.0's
 test split needs 23 GiB ([per environment](#per-environment)). NIKA starts a
-build only while the root has room for the VM's whole `vm_memory` (4–20 GiB)
-per running build. Rebuilding the base briefly needs room for two bases.
+build only while the root has room for the VM's whole `vm_memory` per running
+build: 4–20 GiB for release 0.2.0, more for RouterOS and IOS XR labs (see
+[VM size](#vm-size)). Rebuilding the base briefly needs room for two bases.
 
 To keep the images elsewhere, such as on a separate disk, set
 `nika.execution.firecracker.root` to a directory on btrfs or XFS before you run
@@ -348,7 +349,7 @@ once, tools that probe the network (ping meshes, HTTP tests) took 20–150%
 longer in their median than in the native run, which ran fewer trials at once.
 
 While a lab image is built, its snapshot temporarily needs the VM's whole
-`vm_memory` (4–20 GiB) of free disk. Disk sizes are with btrfs, where NIKA stores
+`vm_memory` of free disk (see [VM size](#vm-size)). Disk sizes are with btrfs, where NIKA stores
 images zstd-compressed (about 3.5× smaller); on XFS they are uncompressed. See
 [Huge pages and disk](#huge-pages-and-disk).
 

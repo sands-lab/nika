@@ -170,11 +170,13 @@ On Containerlab, link failures (`link_down`, `link_flap`, `link_capacity_bottlen
 
 A primary WAN outage can expose an existing error on the standby tunnel. The [coordinated task definition](../../benchmark/experiments/latent_backup.yaml) pairs `wireguard_peer_key_misconfiguration` with `scope: interface` on `br1_edge:wg_hq_b` and `link_down` on the branch attachment to `isp1`. Ground truth labels both root causes. The primary attachment carries both the preferred HQ tunnel and the DC2 fallback; the affected standby reaches HQ through the independent `isp2` provider.
 
-Run both task variants with the oracle:
+The definition has two variants of `enterprise_branch` at size `s`: FRR Site Edges and `device_profile: routeros`. The RouterOS variant needs the locally built RouterOS image and KVM (see [RouterOS setup](network-scenarios.md#routeros-simple-bgp-scenario)). Run both variants with the oracle:
 
 ```shell
 uv run nika benchmark run --config benchmark/experiments/latent_backup.yaml --agent oracle
 ```
+
+Without the RouterOS image, add `--device-profile frr` to run only the FRR variant.
 
 NIKA retains the first fault for 30 seconds before injecting the second, so `telemetry: [syslog, prometheus]` can record the standby BGP session down while primary traffic still works. Inspect `frr_bgp_peer_up` or `routeros_bgp_peer_up` by node and neighbor, together with the BGP neighbor syslog events. The standby session is Established at startup, so its history shows it going down after the key error and staying down until the primary fails.
 
@@ -182,7 +184,7 @@ The task's live test checks corporate access to HQ and guest Internet access. Bo
 
 The task models a failure pattern from two sources. Google's [*Evolve or Die*](https://research.google/pubs/pub45623/) (SIGCOMM 2016 research paper, sections 5 and 7.1) finds many failures during management operations and describes fallback strategies. Cloudflare's [November 2023 postmortem](https://blog.cloudflare.com/post-mortem-on-cloudflare-control-plane-and-analytics-outage/) (operator incident report, “Designing for Data Center Level Failure” and “Some Products and Features Delayed Restart”) reports dependencies missed by incomplete facility failure tests and recovery procedures that teams had not fully tested.
 
-The definition has two variants of `enterprise_branch` at size `s`: FRR Site Edges and `device_profile: routeros`. It remains outside the working pool and published releases. Incorporating it changes evaluation conditions and requires a new benchmark revision under the [versioning policy](../../VERSIONING.md).
+The task remains outside the working pool and published releases. Incorporating it changes evaluation conditions and requires a new benchmark revision under the [versioning policy](../../VERSIONING.md).
 
 ### Service Networking
 
