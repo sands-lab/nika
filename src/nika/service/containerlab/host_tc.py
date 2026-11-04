@@ -12,6 +12,7 @@ import shlex
 import subprocess
 
 from nika.runtime.base import RuntimeCapabilityError
+from nika.runtime.shared.containers import isolated_container_pid
 from nika.utils.network_change_log import log_network_change
 
 # Every host command here is a short iproute2/tc/nsenter call; a stuck sudo
@@ -446,10 +447,14 @@ done
 
     def _container_pid(self, node: str) -> int:
         container = self.runtime.get_container(node)
-        container.reload()
-        pid = int(container.attrs.get("State", {}).get("Pid") or 0)
-        if pid <= 0:
-            raise RuntimeCapabilityError(f"container for {node!r} is not running")
+        pid = isolated_container_pid(container)
+        namespaces = self._run(
+            "stat", "-Lc", "%i", f"/proc/{pid}/ns/net", "/proc/1/ns/net"
+        ).split()
+        if len(namespaces) != 2 or namespaces[0] == namespaces[1]:
+            raise RuntimeCapabilityError(
+                f"Refusing host network namespace for lab node {node!r}"
+            )
         return pid
 
     def _wait_for_flap_pid(self, pid_path: str) -> None:

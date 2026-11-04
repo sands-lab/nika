@@ -15,6 +15,7 @@ from nika.runtime.kathara.tap import (
     record_lab_taps,
 )
 from nika.runtime.shared.containers import (
+    isolated_container_pid,
     lift_cpu_cap,
     pause_container,
     unpause_container,
@@ -55,6 +56,7 @@ class KatharaRuntime(LabRuntime):
 
     def _exec_raw(self, node: str, cmd: str, *, timeout: float = 10.0) -> str:
         def _run() -> str:
+            isolated_container_pid(self.get_container(node))
             # stream=False returns (stdout, stderr, exit_code).
             stdout, stderr, _ = self._instance.exec(
                 machine_name=node,

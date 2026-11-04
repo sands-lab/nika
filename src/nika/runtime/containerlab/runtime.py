@@ -15,6 +15,7 @@ from nika.runtime.base import LabRuntime
 from nika.runtime.containerlab.parse import parse_clab_topology
 from nika.runtime.shared.containers import (
     docker_client,
+    isolated_container_pid,
     pause_container,
     unpause_container,
 )
@@ -320,13 +321,16 @@ class ContainerlabRuntime(LabRuntime):
 
         def _run() -> str:
             try:
+                isolated_container_pid(container)
                 _, (stdout, stderr) = container.exec_run(
                     ["/bin/sh", "-c", shell_cmd], demux=True
                 )
             except docker.errors.NotFound:
                 # The lab was redeployed under the same name; look it up again.
                 self._forget_container(node, container)
-                _, (stdout, stderr) = self._cached_container(node).exec_run(
+                replacement = self.get_container(node)
+                isolated_container_pid(replacement)
+                _, (stdout, stderr) = replacement.exec_run(
                     ["/bin/sh", "-c", shell_cmd], demux=True
                 )
             return merge_exec_output(stdout, stderr)

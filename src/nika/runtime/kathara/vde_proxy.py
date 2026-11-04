@@ -23,7 +23,7 @@ from pathlib import Path
 import docker
 
 from nika.runtime.base import RuntimeCapabilityError
-from nika.runtime.shared.containers import docker_client
+from nika.runtime.shared.containers import docker_client, isolated_container_pid
 from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
 
 _SPLICE_SOURCE = (Path(__file__).with_name("vde_splice.py")).read_text()
@@ -85,8 +85,7 @@ class KatharaVdeFaultProxy:
         endpoint, peer = self._link_ends(node, intf)
         hub = self._hub_ctl(endpoint)
         container = self.runtime.get_container(endpoint.node)
-        container.reload()
-        node_pid = container.attrs["State"]["Pid"]
+        node_pid = isolated_container_pid(container)
         key = self._key(node, intf)
         labels = {
             "nika.fault_proxy": key,
