@@ -5,29 +5,6 @@
   "reference_issues": 93,
   "model": "Qwen3.8-27B-FP8",
   "evaluation_date": "2026-11-04",
-  "fixed_input_comparison": {
-    "description": "Shared candidate scans and group verdicts; shared mapper cache. Development corpus.",
-    "control": {
-      "issue_files": 533,
-      "recovered_references": 72,
-      "recall": 0.7741935483870968
-    },
-    "source_assisted": {
-      "issue_files": 544,
-      "recovered_references": 78,
-      "recall": 0.8387096774193549
-    },
-    "gained_references": [
-      "REF-BRIEF-MULTIACCESS-TOPOLOGY",
-      "REF-K8S-LAB-AS2R1-HOST-EGRESS",
-      "REF-K8S-PROMPT-FAULT-WORDING",
-      "REF-P4RT-HELP",
-      "REF-SKILLS-PROMPT-NO-SKILLS",
-      "REF-SRLINUX-CAPTURE-NAME-EMPTY"
-    ],
-    "lost_references": [],
-    "additional_root_mechanisms": 5
-  },
   "regenerated_scan_evaluation": {
     "valid_trial_samples": 16065,
     "samples_per_trial": 3,
@@ -118,21 +95,6 @@
     "mapping_policy": "Original valid Qwen mappings, with one separately recorded exact canonical-title response for an invalid-ID failure. No reference gain from format recovery.",
     "limits": "Component replays share the regenerated scans. These trajectories informed development; they are not an untouched test set."
   },
-  "sparse_prompt_comparison": {
-    "before_affected_trials": 182,
-    "after_affected_trials": 239,
-    "gained_trials": 57,
-    "lost_trials": 0,
-    "additional_reference_issues": 0
-  },
-  "deterministic_reaudit": {
-    "memory": "544-issue fixed-input source-assisted memory",
-    "matched_conditions": 544,
-    "audit_seconds": 293.2302478281781,
-    "kb_load_seconds": 1.7347890799865127,
-    "model_calls": 0,
-    "limits": "Observed trajectories and known conditions. Does not measure the 612-card memory, unknown-defect discovery, or relative speedup."
-  },
   "evidence_screen": {
     "memory_issue_files": 611,
     "sample_size": 16,
@@ -147,5 +109,11 @@
     "Independently reviewed final-memory precision",
     "Unseen-release or unseen-family generalization"
   ],
-  "implementation_note": "Results precede production cleanup and subsequent bug fixes. They are not measurements of a new post-cleanup model run."
+  "implementation_note": "Results precede production cleanup and subsequent bug fixes. They are not measurements of a new post-cleanup model run.",
+  "archive": {
+    "url": "https://drive.google.com/drive/folders/1n-uHxY8kP0MvI9o2HtSKb4UfnXLFF23L",
+    "recall_package": "recall-reproduction.tar.zst",
+    "offline_command": "python3 reproduce.py",
+    "contents": "Original issues, model responses, evaluated source, trajectories, and separately labelled controls and ablations."
+  }
 }
