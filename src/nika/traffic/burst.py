@@ -6,7 +6,7 @@ import hashlib
 import re
 import shlex
 import time
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from typing import Literal
 
 from nika.runtime.base import LabRuntime
@@ -113,6 +113,50 @@ def build_burst_flows(
 class BurstTrafficGenerator:
     def __init__(self, runtime: LabRuntime):
         self.runtime = runtime
+
+    def prepare(
+        self,
+        *,
+        sources: list[str],
+        destination: str,
+        protocol: Literal["udp", "tcp"],
+        seed: int,
+    ) -> PreparedBurst:
+        """Resolve endpoints and start owned receivers before a timed burst."""
+        flows, destination_ip = self._resolve_flows(
+            sources, destination, protocol, seed, 1
+        )
+        prepared = PreparedBurst(self.runtime, flows, destination_ip)
+        try:
+            for flow in flows:
+                if (
+                    not self.runtime.exec(
+                        flow.destination, "command -v iperf3", timeout=10
+                    )
+                    .strip()
+                    .startswith("/")
+                ):
+                    raise RuntimeError(
+                        f"Burst receiver {flow.destination!r} requires iperf3"
+                    )
+                output = self.runtime.exec(
+                    flow.destination,
+                    f"iperf3 -s -1 --forceflush -p {flow.destination_port} >/tmp/burst-server-{flow.flow_id}.log 2>&1 & echo $!",
+                    timeout=10,
+                ).strip()
+                if not output.isdigit():
+                    raise RuntimeError(f"Burst receiver returned no PID: {output}")
+                prepared.processes.append(
+                    (
+                        flow.destination,
+                        int(output),
+                        f"/tmp/burst-server-{flow.flow_id}.log",
+                    )
+                )
+            return prepared
+        except BaseException:
+            prepared.stop()
+            raise
 
     def _resolve_flows(
         self,
@@ -259,3 +303,46 @@ class BurstTrafficGenerator:
             "sender_pids": sender_pids,
             "sink_pids": sink_pids,
         }
+
+
+@dataclass
+class PreparedBurst:
+    """A timed burst's resolved flows and owned receiver/sender processes."""
+
+    runtime: LabRuntime
+    flows: list[BurstFlow]
+    destination_ip: str
+    processes: list[tuple[str, int, str]] = field(default_factory=list)
+
+    def start(self, *, rate: str, packet_size: int, stop_at: float) -> None:
+        _rate_bps(rate)
+        for flow in self.flows:
+            duration = stop_at - time.monotonic()
+            if duration <= 0:
+                raise RuntimeError("Burst activation missed its scheduled window")
+            udp = "-u" if flow.protocol == "udp" else ""
+            command = (
+                f"exec iperf3 --forceflush -c {shlex.quote(self.destination_ip)} -p {flow.destination_port} "
+                f"{udp} -b {shlex.quote(rate)} -l {packet_size} -t {duration:.6f} "
+                f"--cport {flow.source_port}"
+            )
+            output = self.runtime.exec(
+                flow.source,
+                f"({command}) >/tmp/burst-{flow.flow_id}.log 2>&1 & echo $!",
+                timeout=10,
+            ).strip()
+            if not output.isdigit():
+                raise RuntimeError(f"Burst sender returned no PID: {output}")
+            self.processes.append(
+                (flow.source, int(output), f"/tmp/burst-{flow.flow_id}.log")
+            )
+
+    def stop(self) -> None:
+        for host, pid, logfile in list(self.processes):
+            # Guard against a finished process's PID being reused by another service.
+            self.runtime.exec(
+                host,
+                f'if [ "$(readlink /proc/{pid}/fd/1)" = {shlex.quote(logfile)} ]; then kill {pid}; fi',
+                timeout=10,
+            )
+            self.processes.remove((host, pid, logfile))

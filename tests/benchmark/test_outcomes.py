@@ -671,7 +671,7 @@ def _run_case_with_failing_agent(tmp_path: Path, agent_effect) -> Path:
             "nika.workflows.benchmark.run.start_net_env",
             side_effect=fake_start_net_env,
         ),
-        patch("nika.workflows.benchmark.run.inject_failure", side_effect=fake_inject),
+        patch("nika.workflows.schedule.SessionScheduler") as scheduler_cls,
         patch("nika.workflows.benchmark.run.start_agent", side_effect=fake_agent),
         patch("nika.workflows.benchmark.run.close_session"),
         patch("nika.workflows.benchmark.run._stamp_release_meta"),
@@ -688,6 +688,7 @@ def _run_case_with_failing_agent(tmp_path: Path, agent_effect) -> Path:
         from nika.utils.session_store import SessionStore
         from nika.workflows.benchmark.run import run_single_case
 
+        scheduler_cls.return_value.prepare.side_effect = fake_inject
         try:
             run_single_case(
                 problem="link_down",

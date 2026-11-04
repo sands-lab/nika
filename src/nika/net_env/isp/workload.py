@@ -299,6 +299,7 @@ def build_isp_workload(
             WorkloadProcess(
                 node=stub_of[device].host_name,
                 app="file_server",
+                traffic_source=False,
                 command="filedist",
                 args=("--root", BULK_ROOT, "--port", str(BULK_PORT)),
             )
@@ -346,6 +347,7 @@ def build_isp_workload(
             WorkloadProcess(
                 node=node,
                 app="web_service",
+                traffic_source=False,
                 command="portal",
                 args=("--port", str(SERVICE_PORT), "--seed", seed_for(node)),
             )

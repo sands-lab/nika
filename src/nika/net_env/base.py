@@ -475,12 +475,19 @@ class NetworkEnvBase:
     def stop_traffic_programs(self) -> None:
         """Stop programs that ``start_traffic_programs`` runs outside the hosts."""
 
-    def start_business_workload(self) -> "BusinessWorkload | None":
-        """Start ``business_workload()`` on the deployed lab (idempotent)."""
+    def start_business_workload(
+        self, *, services_only: bool = False
+    ) -> "BusinessWorkload | None":
+        """Start business programs, or prepare only services and maintenance."""
         workload = self.business_workload()
         if workload is None or not workload.processes:
             return None
-        from nika.traffic.workload import start_workload
+        from nika.traffic.workload import BusinessWorkload, start_workload
+
+        if services_only:
+            workload = BusinessWorkload(
+                processes=tuple(p for p in workload.processes if not p.traffic_source)
+            )
 
         start_workload(self._build_runtime(), workload)
         return workload

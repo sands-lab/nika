@@ -65,14 +65,11 @@ from nika.workflows.benchmark.display import (
 )
 from nika.workflows.benchmark.healthy import (
     is_healthy_case,
-    write_healthy_session_artifacts,
 )
 from nika.workflows.benchmark.isp_options import ISP_DEPLOY_KEYS
 from nika.workflows.benchmark.load_config import load_benchmark_input
 from nika.workflows.benchmark.multi_fault import (
-    flatten_inject_overrides,
-    inject_overrides,
-    row_inject_args,
+    nested_inject_map,
     row_problems,
 )
 from nika.workflows.benchmark.outcomes import (
@@ -130,7 +127,6 @@ from nika.workflows.eval.session import (
     eval_results,
     run_eval_metrics,
 )
-from nika.workflows.failure.inject import inject_failure
 from nika.workflows.session.close import close_session, load_session_meta_for_close
 
 
@@ -514,7 +510,7 @@ def validate_inject_params(
     if topo_size:
         kwargs["topo_size"] = topo_size
     if len(resolved_problems) > 1:
-        nested = flatten_inject_overrides(
+        nested = nested_inject_map(
             {"problem": problem, "problems": resolved_problems, "inject": params}
         )
         problem_inst = get_problem_instance(
@@ -859,6 +855,7 @@ def run_single_case(
     device_profile: str | None = None,
     telemetry: list[str] | None = None,
     traffic: dict[str, Any] | None = None,
+    schedule: dict[str, Any] | None = None,
     verbose: bool = False,
     progress: BenchmarkProgress | None = None,
     progress_label: str | None = None,
@@ -890,6 +887,20 @@ def run_single_case(
         telemetry=telemetry,
         traffic=traffic,
     )
+    from nika.schedule import schedule_for_task
+    from nika.workflows.schedule import SessionScheduler
+
+    if schedule is not None:
+        row["schedule"] = schedule
+        row["problems"] = list(
+            problems
+            or [e["problem"] for e in schedule.get("events", []) if e.get("problem")]
+        )
+    elif problems:
+        row["problems"] = problems
+    plan = schedule_for_task(row, (release_meta or {}).get("version"))
+    if schedule is not None:
+        row["schedule"] = plan.case_value()
     deploy_bits = [
         f"{_ISP_BANNER_LABELS[key]}: {'on' if key == 'rpki' else row[key]}"
         for key in ISP_DEPLOY_KEYS
@@ -919,20 +930,6 @@ def run_single_case(
         )
     if not scenario_requires_topo_size(scenario):
         size = None
-
-    resolved_problems = list(
-        problems or row_problems({"problem": problem, "inject": inject_params})
-    )
-    inject_args = inject_overrides(problem, resolved_problems, inject_params)
-
-    validate_inject_params(
-        problem,
-        scenario,
-        topo_size or "",
-        inject_params,
-        problems=resolved_problems,
-        release=(release_meta or {}).get("version"),
-    )
 
     predetermined_dir: str | None = None
     if trial_id:
@@ -986,29 +983,35 @@ def run_single_case(
             device_profile=device_profile,
             telemetry=telemetry,
             traffic=row.get("traffic"),
+            **(
+                {"defer_background_traffic": True}
+                if plan.activates("background")
+                else {}
+            ),
+            **({"defer_business_traffic": True} if plan.activates("business") else {}),
         )
     session_dir = Path(predetermined_dir) if predetermined_dir else None
     gt_written = False
+    scheduler = None
 
     try:
         if session_dir is None:
             session_dir = Path(load_session_meta_for_close(session_id)["session_dir"])
-        if is_healthy_case(problem):
-            write_healthy_session_artifacts(session_id)
-        elif image_lab is not None and image_lab.case is not None:
-            # Restored from a case image: injected and ground truth written there.
-            pass
-        else:
-            _phase("inject")
-            # inject_failure resolves release-scoped failure variants from the
-            # session's benchmark_version, so stamp it first.
-            _stamp_release_meta(session_id, release_meta)
-            inject_failure(
-                problem_names=resolved_problems,
-                session_id=session_id,
-                param_overrides=inject_args,
-                expected_root_causes=expected_root_causes,
-            )
+        _stamp_release_meta(session_id, release_meta)
+        from nika.remote.config import is_remote_enabled
+        from nika.remote.schedule import RemoteSessionScheduler
+
+        scheduler_type = (
+            RemoteSessionScheduler if is_remote_enabled() else SessionScheduler
+        )
+        scheduler = scheduler_type(
+            session_id,
+            plan,
+            traffic=row.get("traffic"),
+            expected_root_causes=expected_root_causes,
+            restored=image_lab is not None and image_lab.case is not None,
+        )
+        scheduler.prepare()
         gt_written = (session_dir / "ground_truth.json").is_file()
 
         session = Session().load_running_session(session_id=session_id)
@@ -1027,17 +1030,26 @@ def run_single_case(
         )
 
         _phase("agent")
-        start_agent(
-            agent_type=agent_type,
-            llm_provider=llm_provider,
-            model=model,
-            max_steps=max_steps,
-            session_id=session_id,
-            # Bare single-case CLI streams agent output like session-mode
-            # ``nika agent run``; batch trials stay quiet.
-            stream_output=not trial_id,
-            check_fault_presence=True,
-        )
+
+        def release_scheduled_agent() -> None:
+            scheduler.start()
+            scheduler.wait_agent_start()
+
+        try:
+            start_agent(
+                agent_type=agent_type,
+                llm_provider=llm_provider,
+                model=model,
+                max_steps=max_steps,
+                session_id=session_id,
+                stream_output=not trial_id,
+                check_fault_presence=plan.static,
+                diagnosis_ready=release_scheduled_agent,
+            )
+            scheduler.raise_if_failed()
+        finally:
+            owned_scheduler, scheduler = scheduler, None
+            owned_scheduler.close()
         _require_submission(session_dir)
 
         _phase("eval")
@@ -1064,6 +1076,11 @@ def run_single_case(
                     session_dir, outcome="success", score_status="scored"
                 )
     except BaseException as exc:
+        if scheduler is not None:
+            try:
+                scheduler.close()
+            except Exception as cleanup_error:
+                exc.add_note(f"Schedule cleanup failed: {cleanup_error}")
         # Ctrl+C / SystemExit: undeploy the lab, leave the trial incomplete for
         # --resume, and re-raise. Do not count as agent_failed.
         if _is_user_interrupt(exc):
@@ -1246,7 +1263,12 @@ def _run_trial_case(
     progress: BenchmarkProgress | None = None,
 ) -> None:
     row = trial.row
-    problems, _, expected_root_causes = row_inject_args(row)
+    problems = row_problems(row)
+    expected_root_causes = (
+        None
+        if row.get("root_causes_status") == "unresolved"
+        else row.get("root_causes")
+    )
     run_single_case(
         problem=row["problem"],
         problems=problems,
@@ -1268,6 +1290,7 @@ def _run_trial_case(
         **{key: row.get(key) for key in ISP_DEPLOY_KEYS},
         telemetry=row.get("telemetry"),
         traffic=row.get("traffic"),
+        **({"schedule": row["schedule"]} if row.get("schedule") is not None else {}),
         verbose=verbose,
         progress=progress,
         progress_label=trial.label if progress is not None else None,
@@ -1300,7 +1323,7 @@ def _run_trial_with_timeout(
         release_meta=release_meta,
         verbose=verbose,
     )
-    if case_timeout <= 0 and not isolate:
+    if case_timeout <= 0 and not isolate and trial.row.get("schedule") is None:
         # In-process: Live can receive phase hooks directly.
         _run_trial(trial, progress=progress, **kwargs)
         return

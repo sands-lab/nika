@@ -103,6 +103,8 @@ def format_trial_label(row: dict[str, Any], *, trial_index: int) -> str:
     if topo != "":
         bits.append(str(topo))
     bits.extend(_inject_label_parts(row.get("inject")))
+    if row.get("schedule") is not None:
+        bits.append(f"schedule={case_key_for_row(row).rsplit('__h', 1)[-1]}")
     bits.append(f"t{trial_index:02d}")
     return " ".join(bits)
 
@@ -142,7 +144,7 @@ def case_key_for_row(row: dict[str, Any]) -> str:
     full = "__".join([base, *inject_parts])
     # Keep trial directory names short for nested runtime paths. Retain the
     # readable scenario/problem prefix and hash the full identity when needed.
-    if len(full) + 5 <= 48:
+    if len(full) + 5 <= 48 and row.get("schedule") is None:
         return full
     digest = hashlib.sha1(benchmark_row_fingerprint(row).encode("utf-8")).hexdigest()[
         :12
@@ -215,6 +217,8 @@ def task_catalog_entry(row: dict[str, Any]) -> dict[str, Any]:
         entry["telemetry"] = list(row["telemetry"])
     if row.get("traffic"):
         entry["traffic"] = dict(row["traffic"])
+    if row.get("schedule") is not None:
+        entry["schedule"] = row["schedule"]
     return entry
 
 
@@ -366,6 +370,11 @@ def has_valid_submission(session_dir: str | Path) -> bool:
     ``success`` regardless of what happened afterwards (agent timeout during
     teardown, sandbox cleanup error, worker kill before metrics).
     """
+    status_path = Path(session_dir) / "schedule-status.json"
+    if status_path.exists():
+        status = _read_json(status_path)
+        if not status or not status.get("completed") or status.get("error"):
+            return False
     return _read_json(Path(session_dir) / "submission.json") is not None
 
 

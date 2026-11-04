@@ -18,13 +18,7 @@ from nika.problems.rca import UnresolvedRootCauseError, canonical_root_causes
 from nika.problems.rca.inventory import load_offline_net_env
 from nika.telemetry import telemetry_field
 from nika.traffic.profiles import traffic_field
-
-
-def _load_raw(path: Path) -> dict[str, Any]:
-    data = yaml.safe_load(path.read_text(encoding="utf-8"))
-    if not isinstance(data, dict) or "cases" not in data:
-        raise ValueError(f"Invalid benchmark YAML (missing top-level 'cases'): {path}")
-    return data
+from nika.workflows.benchmark.load_config import read_benchmark_document
 
 
 def _topo_size(row: dict[str, Any]) -> str:
@@ -32,6 +26,44 @@ def _topo_size(row: dict[str, Any]) -> str:
     if topo in ("-", None):
         return ""
     return str(topo)
+
+
+def _materialize_schedule(row: dict[str, Any]) -> dict[str, Any]:
+    from nika.schedule import Schedule
+    from nika.problems.rca.materialize import assert_root_causes_match
+    from nika.workflows.benchmark.load_config import normalize_benchmark_row
+
+    normalized = normalize_benchmark_row(row)
+    plan = Schedule.model_validate(normalized["schedule"])
+    env = load_offline_net_env(
+        normalized["scenario"],
+        normalized.get("topo_size") or "",
+        **{key: normalized[key] for key in ISP_DEPLOY_KEYS if key in normalized},
+    )
+    events, causes = [], []
+    for event in plan.events:
+        if event.problem:
+            truth = ground_truth_for_case(
+                problem=event.problem,
+                params=event.inject,
+                scenario=normalized["scenario"],
+                net_env=env,
+            )
+            if event.root_causes is not None:
+                assert_root_causes_match(truth, event.root_causes)
+            roots = canonical_root_causes(truth.root_causes)
+            causes.extend(truth.root_causes)
+            event = event.model_copy(update={"root_causes": roots})
+        events.append(event)
+    normalized["schedule"] = plan.model_copy(update={"events": events}).case_value()
+    normalized["root_causes"] = canonical_root_causes(
+        list({cause.pair_key(): cause for cause in causes}.values())
+    )
+    return {
+        key: value
+        for key, value in normalized.items()
+        if key not in {"problem", "problems", "inject"}
+    }
 
 
 def materialize_case(
@@ -42,6 +74,8 @@ def materialize_case(
     """Copy identity fields and attach ``root_causes`` from the failure class."""
     if not isinstance(row, dict):
         raise ValueError("Benchmark case must be a mapping")
+    if row.get("schedule") is not None:
+        return _materialize_schedule(row)
     scenario = str(row["scenario"])
     problems = row_problems(row)
     problem = str(row.get("problem") or "+".join(problems))
@@ -148,7 +182,7 @@ def migrate_benchmark_yaml(
     allow_unresolved: bool = False,
 ) -> dict[str, Any]:
     src = Path(input_path)
-    data = _load_raw(src)
+    data = read_benchmark_document(src)
     cases = list(data.get("cases") or [])
     env_cache: dict[tuple[str, str], Any] = {}
     unresolved: list[dict[str, Any]] = []

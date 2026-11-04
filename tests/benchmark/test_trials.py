@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import replace
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -708,9 +708,8 @@ class TestAgentFailedFinalization:
                 side_effect=fake_start_net_env,
             ),
             patch(
-                "nika.workflows.benchmark.run.inject_failure",
-                side_effect=fake_inject,
-            ),
+                "nika.workflows.schedule.SessionScheduler",
+            ) as scheduler_cls,
             patch(
                 "nika.workflows.benchmark.run.start_agent",
                 side_effect=RuntimeError("agent boom"),
@@ -735,6 +734,9 @@ class TestAgentFailedFinalization:
         ):
             from nika.workflows.benchmark.run import run_single_case
 
+            scheduler_cls.side_effect = lambda sid, *args, **kw: MagicMock(
+                prepare=MagicMock(side_effect=lambda: fake_inject(session_id=sid))
+            )
             sid, sdir = run_single_case(
                 problem="link_down",
                 scenario="dc_clos",

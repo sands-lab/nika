@@ -99,6 +99,16 @@ class RemoteClient:
             self._request("GET", "/health", timeout=10.0)
         )
 
+    def schedule_operation(
+        self, session_id: str, operation: str, *, body: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        return self._request(
+            "GET" if operation == "status" else "POST",
+            f"/v1/sessions/{session_id}/schedule/{operation}",
+            body=body,
+            timeout=10.0 if operation == "status" else None,
+        )
+
     # Deploy + verify and inject + verify block server-side for as long as the
     # scenario's verify budget allows (up to 30 min for large labs), so these
     # calls wait for the server's answer instead of a fixed client timeout.

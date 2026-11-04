@@ -22,7 +22,7 @@ import zlib
 from collections import defaultdict
 from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from nika.config import pkg_path
 from nika.runtime.base import LabRuntime
@@ -75,13 +75,15 @@ class WorkloadProcess:
     """One long-running program on one node.
 
     ``app`` names a module in :mod:`nika.traffic.apps`; ``command`` is the
-    installed name, unique per node.
+    installed name, unique per node. ``traffic_source=False`` prepares a service
+    or maintenance process before scheduled business traffic starts.
     """
 
     node: str
     app: str
     command: str
     args: tuple[str, ...] = ()
+    traffic_source: bool = True
 
     @property
     def path(self) -> str:
@@ -144,12 +146,7 @@ def pace_browsers(
 
     per_transfer = budget / sum(users(p) for p in browsers)
     return [
-        WorkloadProcess(
-            p.node,
-            p.app,
-            p.command,
-            (*p.args, "--max-kbps", f"{per_transfer:.0f}"),
-        )
+        replace(p, args=(*p.args, "--max-kbps", f"{per_transfer:.0f}"))
         if p.app == "browser"
         else p
         for p in processes
@@ -165,6 +162,7 @@ def routine_change_processes(nodes: Iterable[str]) -> tuple[WorkloadProcess, ...
         WorkloadProcess(
             node=node,
             app="change_window",
+            traffic_source=False,
             command="change-window",
             args=("--seed", str(zlib.crc32(f"{node}change-window".encode()) & 0xFFFF)),
         )

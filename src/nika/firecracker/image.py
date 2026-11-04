@@ -79,6 +79,8 @@ VARIANT_KEYS = (
     "device_profile",
     # A background traffic profile runs inside the lab, so the image carries it.
     "traffic",
+    "defer_background_traffic",
+    "defer_business_traffic",
 )
 # Paths whose content can change a deployed lab or the daemon serving it ...
 FINGERPRINT_PATHS = ("src/", "pyproject.toml")
@@ -136,11 +138,22 @@ def variant_for_row(row: dict[str, Any]) -> dict[str, Any]:
     size = row.get("topo_size") or None
     if not scenario_requires_topo_size(scenario):
         size = None
+    from nika.schedule import Schedule
+
+    plan = (
+        Schedule.model_validate(row["schedule"])
+        if row.get("schedule") is not None
+        else None
+    )
     return variant(
         scenario=scenario,
         topo_size=size,
         **{key: row.get(key) for key in ISP_DEPLOY_KEYS},
         traffic=row.get("traffic") or None,
+        defer_background_traffic=True
+        if plan and plan.activates("background")
+        else None,
+        defer_business_traffic=True if plan and plan.activates("business") else None,
     )
 
 
