@@ -48,7 +48,7 @@ jobs:
             [ "$(printf '%s\n' "$files" | wc -l)" -ge 3000 ] && core=true
             while IFS= read -r f; do
               case "$f" in
-                src/*|benchmark/*|config/*|pyproject.toml|uv.lock|.python-version|.github/workflows/ci.yml)
+                src/*|benchmark/*|config/*|pyproject.toml|uv.lock|.python-version|.github/workflows/ci.yml|.github/workflows/nightly.yml|.github/workflows/release-engine-verify.yml)
                   core=true ;;
                 tests/ci/*|tests/support/*|tests/benchmark/*|tests/nika/workflows/integration/*|tests/conftest.py)
                   heavy=true unit=true ;;

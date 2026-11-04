@@ -285,8 +285,7 @@ jobs:
             echo "::error::NIKA heavy labs require at least 30 GiB free on the Docker filesystem to avoid Kubernetes DiskPressure and pod eviction. Use a runner with more disk space."
             exit 1
           fi
-          uv run pytest tests/nika/net_env/test_scenario_e2e.py::K8sScenarioE2ETest -q -ra --maxfail=1 ||
-            uv run pytest tests/nika/net_env/test_scenario_e2e.py::K8sScenarioE2ETest -q -ra --maxfail=1
+          uv run pytest tests/nika/net_env/test_scenario_e2e.py::K8sScenarioE2ETest -q -ra --maxfail=1
 
   engine-runtimes-sequential:
     name: pinned engine k8s + llmd + SR Linux (amd64)

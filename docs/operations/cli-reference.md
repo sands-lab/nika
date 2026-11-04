@@ -138,7 +138,6 @@ Aligned with `nika agent run`:
 - **`nika session wipe [-y]`**: close every running session and wipe all leftover Kathara, Containerlab, and runtime working files.
 
 ---
----
 
 ## `nika inspect`
 
@@ -178,7 +177,6 @@ nika inspect [--result-dir PATH] [--host 127.0.0.1] [--port 7580] [--no-open]
 - **`nika env ps`**: list running lab instances (one row per deployed lab). Columns: env id, size, status, age, active session count, endpoint.
 
 ---
----
 
 ## `nika failure`
 
@@ -187,7 +185,6 @@ nika inspect [--result-dir PATH] [--host 127.0.0.1] [--port 7580] [--no-open]
 - **`nika failure inject PROBLEM [PROBLEM …] [--session_id ID] [--set key=value …]`**: inject for a selected running session and write ground truth. Repeat **`--set`** to override injection parameters (see `describe` for valid keys).
 - **`nika failure ps [--session_id ID]`**: list persisted failure injection records for one session.
 
----
 ---
 
 ## `nika exec`
@@ -207,7 +204,6 @@ Example: `nika exec --timeout 30 pc1 ping -c 3 10.0.0.2`
 Put options before `HOST`. `nika exec` passes every argument after `HOST` to the container command, so a trailing `--timeout 30` becomes a `ping` argument and the timeout stays at 10 seconds.
 
 ---
----
 
 ## `nika config`
 
@@ -218,7 +214,6 @@ The tracked template is `config/nika.example.yaml` (preferred for new setups). P
 
 Lab deployment and verification timings live under `nika.lab`. MCP client and gateway settings live under `nika.mcp`. The `byo.langgraph` LLM client reads timeout and retry settings from `agent.llm`. See the [run configuration reference](configuration.md) for defaults and constraints.
 
----
 ---
 
 ## `nika agent`
@@ -281,7 +276,6 @@ Lab deployment and verification timings live under `nika.lab`. MCP client and ga
 
   Manual lab/session commands are documented under **`nika env`**, **`nika failure`**, and **`nika session`** below.
 
----
 ---
 
 ## `nika benchmark`
@@ -443,7 +437,6 @@ nika eval summary --result_dir results/
 - LLM judge and CSV summary are separate `nika eval` steps, not part of `benchmark run`.
 
 ---
----
 
 ## `nika eval`
 
@@ -503,7 +496,6 @@ When you compare against the raw CSV:
 The same report prints automatically when `nika benchmark run` finishes.
 
 ---
----
 
 ## `nika leaderboard`
 
@@ -526,7 +518,6 @@ nika leaderboard submit --result_dir results/my-run \
 | `--title TEXT` | GitHub PR title (default `Add submission <package>`) |
 | `--body TEXT` | GitHub PR body (default: a short generated summary) |
 
----
 ---
 
 ## `nika observability`
@@ -555,11 +546,10 @@ When `nika.remote.enabled` and `nika.remote.url` are set in `config/nika.yaml` o
 
 ## `nika engine`
 
-A release whose manifest pins a benchmark engine runs on a container built from its release tag. `nika benchmark run --release` builds that image on first use and starts the container itself; see [benchmark release contracts](../development/benchmark-contracts.md#b-lifecycle-protocol).
+A release whose manifest pins a benchmark engine runs on a container selected by its `engine` block. NIKA builds `engine.tag` from a Git tag or commit unless the manifest supplies an available `engine.image`. `nika benchmark run --release` resolves the image, builds it when needed, and starts the container itself; see [benchmark release contracts](../development/benchmark-contracts.md#b-lifecycle-protocol).
 
-- **`nika engine build <tag>`**: build the benchmark engine image of a Git tag or commit ahead of a run, as `nika/benchmark-engine:<tag>`.
+- **`nika engine build <ref>`**: build the benchmark engine image of a Git tag or commit ahead of a run. NIKA prints the local image name.
 
----
 ---
 
 ## `nika traffic`
@@ -637,7 +627,6 @@ Options:
 - **`--pages-min`**, **`--pages-max`**
 - **`--no-loop`**: one browsing session per client host then exit
 
----
 ---
 
 ## Helpful paths
