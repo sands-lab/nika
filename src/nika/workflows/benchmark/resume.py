@@ -38,6 +38,8 @@ def _fingerprint_inject(row: dict[str, Any]) -> dict[str, Any]:
 
 def benchmark_row_identity(row: dict[str, Any]) -> dict[str, Any]:
     """Stable identity fields for one catalog/case row (names + deploy params)."""
+    from nika.schedule import Schedule
+
     return {
         "scenario": row["scenario"],
         "problem": row["problem"],
@@ -51,6 +53,18 @@ def benchmark_row_identity(row: dict[str, Any]) -> dict[str, Any]:
         **({"telemetry": list(row["telemetry"])} if row.get("telemetry") else {}),
         **traffic_field(row.get("traffic")),
         "inject": _fingerprint_inject(row),
+        **(
+            {
+                "schedule": Schedule.model_validate(row["schedule"]).model_dump(
+                    mode="json",
+                    exclude_none=True,
+                    exclude_defaults=True,
+                    exclude={"events": {"__all__": {"root_causes"}}},
+                )
+            }
+            if row.get("schedule") is not None
+            else {}
+        ),
     }
 
 
@@ -77,6 +91,17 @@ def benchmark_option_id(row: dict[str, Any]) -> str:
     if profile:
         identity.append(("traffic", profile.label()))
     identity.append(("problem", row["problem"]))
+    if row.get("schedule") is not None:
+        identity.append(
+            (
+                "schedule",
+                json.dumps(
+                    benchmark_row_identity(row)["schedule"],
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+            )
+        )
     identity.extend(
         (f"inject.{key}", value)
         for key, value in sorted((row.get("inject") or {}).items())

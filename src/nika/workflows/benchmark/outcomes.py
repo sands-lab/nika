@@ -478,6 +478,18 @@ def classify_trial_failure(
     ``until`` is the case-kill instant used when attributing an in-flight LLM
     call; defaults to now when omitted.
     """
+    from nika.workflows.schedule import ScheduleError
+
+    if isinstance(exc, ScheduleError):
+        return INFRA_FAILED
+    if session_dir is not None:
+        status_path = Path(session_dir) / "schedule-status.json"
+        if status_path.is_file():
+            try:
+                if json.loads(status_path.read_text()).get("error"):
+                    return INFRA_FAILED
+            except (OSError, ValueError):
+                return INFRA_FAILED
     if session_dir is not None and not agent_demonstrably_started(session_dir):
         return ENDPOINT_FAILED if is_endpoint_exception(exc) else INFRA_FAILED
     if session_dir is not None and trace_shows_endpoint_failure(session_dir):

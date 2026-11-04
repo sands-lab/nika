@@ -54,6 +54,20 @@ LOCAL_ONLY_KEYS = (
     "sandbox_domain",
     "remote_clock_offset_sec",
     "firecracker",
+    "benchmark_id",
+    "benchmark_version",
+    "benchmark_split",
+    "benchmark_job_id",
+    "benchmark_run_id",
+    "benchmark_official",
+    "benchmark_n_trials",
+    "benchmark_fingerprint",
+    "scoring_id",
+    "nika_git_commit",
+    "candidate_option_id",
+    "trial_id",
+    "trial_index",
+    "case_key",
 )
 
 
@@ -285,6 +299,8 @@ def remote_start_net_env(
     static_validation: bool = False,
     telemetry: list[str] | None = None,
     traffic: dict[str, Any] | None = None,
+    defer_background_traffic: bool = False,
+    defer_business_traffic: bool = False,
 ) -> str:
     """Deploy a lab on the remote host and mirror the session locally."""
     suffix = uuid4().hex[:6]
@@ -312,6 +328,8 @@ def remote_start_net_env(
             static_validation=static_validation,
             telemetry=list(telemetry or []),
             traffic=traffic,
+            defer_background_traffic=defer_background_traffic,
+            defer_business_traffic=defer_business_traffic,
         )
     )
     session = _mirror_session_locally(
@@ -367,7 +385,7 @@ def remote_inject_failure(
     problem_names: list[str],
     *,
     session_id: str | None = None,
-    param_overrides: dict[str, str] | None = None,
+    param_overrides: dict[str, Any] | None = None,
     expected_root_causes: list | None = None,
 ) -> None:
     """Inject faults on the remote host and sync artifacts locally."""

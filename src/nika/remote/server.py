@@ -9,6 +9,7 @@ import uvicorn
 
 from nika.remote.api import create_remote_app
 from nika.remote.config import ENV_REMOTE_SERVER
+from nika.utils.session_store import SessionStore
 
 _CONSOLE_MARKER = "_nika_remote_console"
 
@@ -45,6 +46,8 @@ def serve_remote(
     """Start the remote control-plane HTTP server (blocking)."""
     os.environ[ENV_REMOTE_SERVER] = "1"
     configure_host_logging()
+    # Prepare the index before concurrent requests create their first sessions.
+    SessionStore()
     # Import the MCP submission path up front: the first phase advance otherwise
     # pays for it, which is slow on a lab host restored from a VM snapshot.
     import nika.workflows.agent.submission  # noqa: F401

@@ -175,6 +175,7 @@ def test_validation_results_round_trip_and_key_isp_as_one_environment(
         "device_profile": "iosxr",
         "failure": "bgp_asn_misconfig",
         "status": VALIDATED,
+        "recovery": "restored",
     }
     write_results({"dc_clos/iosxr/bgp_asn_misconfig": record}, path)
     assert load_results(path) == {"dc_clos/iosxr/bgp_asn_misconfig": record}
@@ -262,6 +263,7 @@ def test_profile_validation_resumes_and_preserves_other_writers(tmp_path, monkey
             "failure": current.failure,
             "task_id": task_id_for_row(current.row),
             "status": "validated",
+            "recovery": "restored",
             "duration_sec": 1,
         }
 
@@ -401,3 +403,42 @@ def test_public_service_link_is_observed_from_a_guest_host() -> None:
     row = next(c for c in cases if c["inject"]["host_name"] == "internet_web")
     assert row["inject"]["observer_device"].endswith("_guest_pc")
     assert row["inject"]["probe_dst_ip"] == "198.51.100.10"
+
+
+@pytest.mark.parametrize("receipt", [None, "not_defined"])
+def test_cached_validation_requires_a_recovery_receipt(tmp_path, monkeypatch, receipt):
+    from contextlib import nullcontext
+    from unittest.mock import Mock
+    from nika.workflows.benchmark import profile_validation as validation
+    from nika.workflows.benchmark.trials import task_id_for_row
+    from nika.net_env.utils.kathara.docker_files import docker_images
+
+    row = {
+        "scenario": "dc_clos",
+        "topo_size": "s",
+        "device_profile": "routeros",
+        "problem": "bgp_asn_misconfig",
+        "inject": {"host_name": "leaf_router_0_0"},
+    }
+    cell = validation.Cell("dc_clos", "routeros", row["problem"], row, True)
+    previous = {
+        "environment": cell.environment,
+        "device_profile": cell.device_profile,
+        "failure": cell.failure,
+        "task_id": task_id_for_row(row),
+        "status": validation.VALIDATED,
+    }
+    if receipt is not None:
+        previous["recovery"] = receipt
+    path = tmp_path / "validation.yaml"
+    validation.write_results({cell.key: previous}, path)
+    assert validation.validated_cells(path) == set()
+    run = Mock(return_value={**previous, "recovery": "restored", "duration_sec": 0})
+    monkeypatch.setattr(validation, "run_cell", run)
+    monkeypatch.setattr(validation, "heavy_lab_lock", nullcontext)
+    monkeypatch.setattr(validation, "profile_image", lambda profile: "test-image")
+    monkeypatch.setattr(docker_images, "image_exists", lambda image: True)
+    for _ in range(2):
+        validation.validate_cells([cell], results_path=path, echo=lambda message: None)
+    run.assert_called_once_with(cell, result_dir=None)
+    assert validation.validated_cells(path) == {cell.key}

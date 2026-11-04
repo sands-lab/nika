@@ -439,12 +439,12 @@ def stop_background_traffic(net_env: "NetworkEnvBase") -> None:
     net_env.stop_traffic_programs()
 
 
-def start_background_traffic(
+def prepare_background_traffic(
     net_env: "NetworkEnvBase", profile: TrafficProfile
 ) -> tuple[TrafficProfile, BusinessWorkload]:
-    """Plan ``profile`` on the deployed lab and start it (idempotent).
+    """Resolve a profile and its programs on the deployed lab without starting it.
 
-    Returns the profile as run, after ``fit_to_rate_limit``, and its programs.
+    Returns the rate-adjusted profile and its programs.
     """
     limits = [
         net_env.router_rate_limit_kbps(),
@@ -473,5 +473,13 @@ def start_background_traffic(
         isolated=intent.isolation_matcher() if intent else (lambda a, b: False),
         demands=net_env.traffic_demands() if profile.pattern == "demand" else None,
     )
-    net_env.start_traffic_programs(workload)
     return profile, workload
+
+
+def start_background_traffic(
+    net_env: "NetworkEnvBase", profile: TrafficProfile
+) -> tuple[TrafficProfile, BusinessWorkload]:
+    """Resolve and start a background traffic profile (idempotent)."""
+    effective, workload = prepare_background_traffic(net_env, profile)
+    net_env.start_traffic_programs(workload)
+    return effective, workload

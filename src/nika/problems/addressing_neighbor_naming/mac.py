@@ -95,10 +95,26 @@ class MacAddressConflict(ProblemBase):
     def inject_fault(self, params: MacAddressConflictParams):
         device_0 = params.host_name
         device_1 = params.host_name_2
+        self._original_mac = self.runtime.get_host_mac_address(device_0, "eth0")
+        if not self._original_mac:
+            raise RuntimeError(f"Cannot read the original MAC on {device_0}:eth0")
         target_mac = self.runtime.get_host_mac_address(device_1, "eth0")
         self.runtime.exec(device_0, f"ip link set dev eth0 address {target_mac}")
         self.logger.info(
             f"Injected MAC address conflict on {device_0} with MAC {target_mac} of {device_1}"
+        )
+
+    def recover_fault(self, params: MacAddressConflictParams) -> dict:
+        original = getattr(self, "_original_mac", None)
+        if original:
+            self.runtime.exec(
+                params.host_name, f"ip link set dev eth0 address {original}"
+            )
+        current = self.runtime.get_host_mac_address(params.host_name, "eth0")
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=bool(original) and current.lower() == original.lower(),
+            details={"host": params.host_name, "state_available": bool(original)},
         )
 
     def verify_fault(self, params: MacAddressConflictParams) -> dict:

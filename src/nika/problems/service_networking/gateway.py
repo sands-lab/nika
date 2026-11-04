@@ -19,6 +19,8 @@ from nika.problems.support.oracle import (
     contains,
     shell,
 )
+from nika.problems.support.polling import wait_until
+from nika.problems.support.recovery import FileSnapshot, IPv4Snapshot, checked_exec
 from nika.problems.support.router_ops import native_fault_ops
 from nika.traffic.workload import NAT_SESSIONS, VIP_KEEPALIVE_SESSIONS
 
@@ -203,6 +205,9 @@ class LbConnectionStateExhaustion(ProblemBase):
         )
 
     def inject_fault(self, params: LbConnectionStateExhaustionParams):
+        self._lb_config = FileSnapshot.capture(
+            self.runtime, params.host_name, _LB_CONFIG
+        )
         from nika.net_env.p4_dc_gateway.l4_lb import set_agent_config
 
         # A connection limit sized for a much smaller site; the agent rereads
@@ -215,6 +220,32 @@ class LbConnectionStateExhaustion(ProblemBase):
             if self.verify_fault(params)["verified"]:
                 return
             time.sleep(1.0)
+
+    def recover_fault(self, params: LbConnectionStateExhaustionParams) -> dict:
+        from nika.net_env.p4_dc_gateway.l4_lb import learner_status
+
+        snapshot = getattr(self, "_lb_config", None)
+        if snapshot is None or snapshot.content is None:
+            return build_verify_result(
+                self.root_cause_name, False, {"error": "no_recovery_snapshot"}
+            )
+        # Restore only the field owned by this failure.
+        from nika.net_env.p4_dc_gateway.l4_lb import set_agent_config
+
+        original = json.loads(snapshot.content)["max_connections"]
+        set_agent_config(self.runtime, params.host_name, max_connections=original)
+        restored = wait_until(
+            lambda: (
+                learner_status(self.runtime, params.host_name).get("max_connections")
+                == original
+            ),
+            15,
+        )
+        return build_verify_result(
+            self.root_cause_name,
+            restored,
+            {"host": params.host_name, "max_connections": original},
+        )
 
     def verify_fault(self, params: LbConnectionStateExhaustionParams) -> dict:
         from nika.net_env.p4_dc_gateway.l4_lb import learner_status
@@ -321,6 +352,9 @@ class LbPendingConnectionUpdateRace(ProblemBase):
         )
 
     def inject_fault(self, params: LbPendingConnectionUpdateRaceParams):
+        self._lb_config = FileSnapshot.capture(
+            self.runtime, params.host_name, _LB_CONFIG
+        )
         from nika.net_env.p4_dc_gateway.l4_lb import set_agent_config
 
         set_agent_config(
@@ -332,6 +366,32 @@ class LbPendingConnectionUpdateRace(ProblemBase):
             if self.verify_fault(params)["verified"]:
                 return
             time.sleep(0.5)
+
+    def recover_fault(self, params: LbPendingConnectionUpdateRaceParams) -> dict:
+        from nika.net_env.p4_dc_gateway.l4_lb import learner_status
+
+        snapshot = getattr(self, "_lb_config", None)
+        if snapshot is None or snapshot.content is None:
+            return build_verify_result(
+                self.root_cause_name, False, {"error": "no_recovery_snapshot"}
+            )
+        # Restore only the field owned by this failure.
+        from nika.net_env.p4_dc_gateway.l4_lb import set_agent_config
+
+        original = json.loads(snapshot.content)["learning_delay_ms"]
+        set_agent_config(self.runtime, params.host_name, learning_delay_ms=original)
+        restored = wait_until(
+            lambda: (
+                learner_status(self.runtime, params.host_name).get("learning_delay_ms")
+                == original
+            ),
+            15,
+        )
+        return build_verify_result(
+            self.root_cause_name,
+            restored,
+            {"host": params.host_name, "learning_delay_ms": original},
+        )
 
     def verify_fault(self, params: LbPendingConnectionUpdateRaceParams) -> dict:
         from nika.net_env.p4_dc_gateway.l4_lb import learner_status
@@ -371,7 +431,9 @@ class SnatPortPoolExhaustion(ProblemBase):
     description = "SNAT source-port pool is exhausted."
     symptom_desc = "The available SNAT source-port pool is exhausted for concurrent outbound connections."
     TAGS = ["vpn", "http", "nat"]
-    native_router_operations = frozenset({"add_source_nat", "source_nat_rules"})
+    native_router_operations = frozenset(
+        {"add_source_nat", "source_nat_rules", "save_config", "restore_config"}
+    )
     Params = SnatPortPoolExhaustionParams
     SYMPTOM_WORKLOAD = NAT_SESSIONS
 
@@ -451,6 +513,8 @@ class SnatPortPoolExhaustion(ProblemBase):
             raise ValueError("port_end must be greater than or equal to port_start")
         ops = native_fault_ops(self, params.host_name, "add_source_nat")
         if ops is not None:
+            self._snat_native_config = ops.save_config()
+            self._snat_native_rules = ops.source_nat_rules()
             # Ahead of the healthy pool rule, like the higher-priority nft chain.
             ops.add_source_nat(
                 params.source_prefix,
@@ -459,14 +523,88 @@ class SnatPortPoolExhaustion(ProblemBase):
                 to_ports=f"{params.port_start}-{params.port_end}",
             )
             return
+        self._snat_handles_before = set(
+            re.findall(
+                r"# handle (\d+)",
+                checked_exec(
+                    self.runtime,
+                    params.host_name,
+                    "nft -a list chain ip nat POSTROUTING",
+                ),
+            )
+        )
+        self._snat_owned_handles = None
         # A port-restricted rule placed ahead of the site's own SNAT rule in
         # the edge's POSTROUTING chain, as an operator edit would leave it; a
         # separate chain would exist only on this edge and stand out.
-        self.runtime.exec(
-            params.host_name,
-            f"nft insert rule ip nat POSTROUTING ip protocol tcp "
-            f"ip saddr {params.source_prefix} "
-            f"snat to {params.public_ip}:{params.port_start}-{params.port_end}",
+        try:
+            self.runtime.exec(
+                params.host_name,
+                f"nft insert rule ip nat POSTROUTING ip protocol tcp "
+                f"ip saddr {params.source_prefix} "
+                f"snat to {params.public_ip}:{params.port_start}-{params.port_end}",
+            )
+        finally:
+            chain = checked_exec(
+                self.runtime, params.host_name, "nft -a list chain ip nat POSTROUTING"
+            )
+            self._snat_owned_handles = {
+                match[1]
+                for line in chain.splitlines()
+                if (match := re.search(r"# handle (\d+)", line))
+                and match[1] not in self._snat_handles_before
+                and f"ip saddr {params.source_prefix} " in line
+                and f"snat to {params.public_ip}:{params.port_start}-{params.port_end}"
+                in line
+            }
+
+    def recover_fault(self, params: SnatPortPoolExhaustionParams) -> dict:
+        host = params.host_name
+        ops = native_fault_ops(self, host, "source_nat_rules")
+        if ops is not None:
+            if not hasattr(self, "_snat_native_config"):
+                return build_verify_result(
+                    self.root_cause_name, False, {"error": "no_recovery_snapshot"}
+                )
+            ops.restore_config(self._snat_native_config)
+            restored = ops.source_nat_rules() == self._snat_native_rules
+        else:
+            owned = getattr(self, "_snat_owned_handles", None)
+            if owned is None:
+                return build_verify_result(
+                    self.root_cause_name, False, {"error": "no_recovery_snapshot"}
+                )
+            wanted = f"snat to {params.public_ip}:{params.port_start}-{params.port_end}"
+            chain = checked_exec(
+                self.runtime, host, "nft -a list chain ip nat POSTROUTING"
+            )
+            for line in chain.splitlines():
+                match = re.search(r"# handle (\d+)", line)
+                if (
+                    match
+                    and match[1] in owned
+                    and f"ip saddr {params.source_prefix} " in line
+                    and wanted in line
+                ):
+                    checked_exec(
+                        self.runtime,
+                        host,
+                        f"nft delete rule ip nat POSTROUTING handle {match[1]}",
+                    )
+            chain = checked_exec(
+                self.runtime, host, "nft -a list chain ip nat POSTROUTING"
+            )
+            restored = not any(
+                (m := re.search(r"# handle (\d+)", line))
+                and m[1] in owned
+                and f"ip saddr {params.source_prefix} " in line
+                and wanted in line
+                for line in chain.splitlines()
+            )
+        return build_verify_result(
+            self.root_cause_name,
+            bool(restored),
+            {"host": host, "pool_restored": bool(restored)},
         )
 
     def verify_fault(self, params: SnatPortPoolExhaustionParams) -> dict:
@@ -516,6 +654,9 @@ class NatMappingRemovedWithoutDrain(ProblemBase):
     native_router_operations = frozenset(
         {
             "add_source_nat",
+            "source_nat_rules",
+            "save_config",
+            "restore_config",
             "clear_nat_mappings",
             "interface_addresses",
             "nat_mapping_count",
@@ -640,6 +781,8 @@ class NatMappingRemovedWithoutDrain(ProblemBase):
     def inject_fault(self, params: NatMappingRemovedWithoutDrainParams):
         ops = native_fault_ops(self, params.host_name, "clear_nat_mappings")
         if ops is not None:
+            self._nat_native_config = ops.save_config()
+            self._nat_native_rules = ops.source_nat_rules()
             wan, active = params.wan_interface, params.nat_ip_a
             self._before = {
                 "addresses": ops.interface_addresses(wan),
@@ -650,6 +793,9 @@ class NatMappingRemovedWithoutDrain(ProblemBase):
             # Withdraw without draining: drop the mappings that used it.
             ops.clear_nat_mappings(active)
             return
+        self._nat_addresses = IPv4Snapshot.capture(
+            self.runtime, params.host_name, params.wan_interface
+        )
         self._before = self.runtime.exec(
             params.host_name,
             f"ip -4 addr show dev {params.wan_interface}; "
@@ -672,6 +818,11 @@ class NatMappingRemovedWithoutDrain(ProblemBase):
                 f"no SNAT rule for {params.source_prefix} to {params.nat_ip_a} "
                 f"on {params.host_name}"
             )
+        self._nat_original_rule = next(
+            (handles[0], line.split("# handle", 1)[0].strip())
+            for line in chain.splitlines()
+            if (match := re.search(r"# handle (\d+)", line)) and match[1] == handles[0]
+        )
         self.runtime.exec(
             params.host_name,
             f"nft replace rule ip nat POSTROUTING handle {handles[0]} "
@@ -689,6 +840,48 @@ class NatMappingRemovedWithoutDrain(ProblemBase):
         self.runtime.exec(
             params.host_name,
             f"conntrack -D -p tcp --orig-dst {params.nat_ip_a} 2>/dev/null || true",
+        )
+
+    def recover_fault(self, params: NatMappingRemovedWithoutDrainParams) -> dict:
+        host = params.host_name
+        ops = native_fault_ops(self, host, "source_nat_rules")
+        if ops is not None:
+            if not hasattr(self, "_nat_native_config"):
+                return build_verify_result(
+                    self.root_cause_name, False, {"error": "no_recovery_snapshot"}
+                )
+            ops.restore_config(self._nat_native_config)
+            restored = (
+                ops.source_nat_rules() == self._nat_native_rules
+                and ops.interface_addresses(params.wan_interface)
+                == self._before["addresses"]
+            )
+        else:
+            original = getattr(self, "_nat_original_rule", None)
+            if original is None:
+                return build_verify_result(
+                    self.root_cause_name, False, {"error": "no_recovery_snapshot"}
+                )
+            handle, rule = original
+            checked_exec(
+                self.runtime,
+                host,
+                f"nft replace rule ip nat POSTROUTING handle {handle} {rule}",
+            )
+            self._nat_addresses.restore(self.runtime, host)
+            chain = self.runtime.exec(host, "nft -a list chain ip nat POSTROUTING")
+            restored = any(
+                line.split("# handle", 1)[0].strip() == rule
+                for line in chain.splitlines()
+            )
+        return build_verify_result(
+            self.root_cause_name,
+            bool(restored),
+            {
+                "host": host,
+                "configuration_restored": bool(restored),
+                "session_recovery": "New connections can use the restored mapping. Deleted connection state cannot be restored.",
+            },
         )
 
     def verify_fault(self, params: NatMappingRemovedWithoutDrainParams) -> dict:

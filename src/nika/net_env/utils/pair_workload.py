@@ -62,6 +62,7 @@ def build_pair_workload(
             WorkloadProcess(
                 node=server,
                 app="file_server",
+                traffic_source=False,
                 command="filedist",
                 args=("--root", "/var/www", "--port", str(BULK_PORT)),
             )
@@ -82,6 +83,7 @@ def build_pair_workload(
         WorkloadProcess(
             node=second[0],
             app="web_service",
+            traffic_source=False,
             command="portal",
             args=("--port", "80", "--seed", "2"),
         ),

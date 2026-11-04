@@ -226,7 +226,25 @@ async def run_pipeline(
     from agent.base import run_submission_phase
     from nika.agents.mcp_config import begin_submission_mcp_phase
 
-    report = await agent.run_diagnosis(task_description)
+    from nika.workflows.schedule import continuation_prompt, scheduler_for
+
+    scheduler = scheduler_for(agent.session_id)
+    prompt = task_description
+    while True:
+        observed_complete = scheduler.complete.is_set() if scheduler else True
+        revision = scheduler.observation_revision() if scheduler else 0
+        report = await agent.run_diagnosis(prompt)
+        if scheduler is None:
+            break
+        scheduler.raise_if_failed()
+        if observed_complete:
+            break
+        while (
+            not scheduler.complete.is_set()
+            and scheduler.observation_revision() == revision
+        ):
+            await asyncio.to_thread(scheduler.wait_for_progress, revision, 1.0)
+        prompt = continuation_prompt(task_description, report)
     context = begin_submission_mcp_phase(agent.session_id, report)
     if report_mapper is None:
         await agent.run_submission(report, context)

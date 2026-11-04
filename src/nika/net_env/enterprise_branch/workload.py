@@ -161,12 +161,14 @@ def build_workload(
         WorkloadProcess(
             node=_lan(spec, "hq", "server").host_names[0],
             app="file_server",
+            traffic_source=False,
             command="filedist",
             args=("--port", str(SYNC_PORT), "--rate", f"{load.connection_kbps}k"),
         ),
         WorkloadProcess(
             node=PUBLIC_SERVICE_HOST,
             app="web_service",
+            traffic_source=False,
             command="webapp",
             args=("--port", "80", "--seed", "1"),
         ),

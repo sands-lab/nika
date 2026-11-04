@@ -213,7 +213,7 @@ def test_run_single_case_interrupt_closes_and_reraises(tmp_path: Path) -> None:
             "nika.workflows.benchmark.run.start_net_env",
             return_value=session_id,
         ),
-        patch("nika.workflows.benchmark.run.inject_failure"),
+        patch("nika.workflows.schedule.SessionScheduler"),
         patch(
             "nika.workflows.benchmark.run.start_agent",
             side_effect=KeyboardInterrupt(),

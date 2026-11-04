@@ -181,6 +181,27 @@ def test_remote_inject_checks_benchmark_root_causes() -> None:
     assert inject.call_args.kwargs["expected_root_causes"] == expected
 
 
+def test_remote_multi_failure_preserves_nested_injection_parameters():
+    overrides = {
+        "link_down": {"host_name": "client_0", "intf_name": "eth0"},
+        "dns_record_error": {
+            "host_name": "dns_pod0",
+            "target_domain": "pod0",
+            "target_website": "web0",
+        },
+    }
+    request = FailureInjectRequest(
+        session_id="s1", problem_names=list(overrides), param_overrides=overrides
+    )
+    request = FailureInjectRequest.model_validate_json(request.model_dump_json())
+    with (
+        patch("nika.remote.handlers.inject_failure") as inject,
+        patch("nika.remote.handlers.session_public_dict", return_value={}),
+    ):
+        handle_failure_inject(request)
+    assert inject.call_args.kwargs["param_overrides"] == overrides
+
+
 def test_remote_app_health_no_auth() -> None:
     app = create_remote_app()
     client = TestClient(app)

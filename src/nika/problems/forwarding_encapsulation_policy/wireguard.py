@@ -7,6 +7,7 @@ import time
 from ipaddress import ip_network
 from typing import Any
 
+from nika.problems.support.recovery import FileSnapshot, checked_exec
 from pydantic import BaseModel, Field
 
 from nika.problems.base import (
@@ -318,12 +319,23 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
             )
 
         if ops is not None:
+            self._original_peers = {
+                iface: ops.tunnel_peer(iface).public_key for iface in ifaces
+            }
             self._inject_native(ops, edge, ifaces, wrong_key)
             return
+        self._original_configs = {}
+        self._original_live_configs = {}
         cleared: list[str] = []
         for iface in ifaces:
             hub_tun_ip = self._resolve_hub_tunnel_ip(edge, iface)
             conf_path = f"/etc/wireguard/{iface}.conf"
+            self._original_configs[iface] = FileSnapshot.capture(
+                self.runtime, edge, conf_path
+            )
+            self._original_live_configs[iface] = checked_exec(
+                self.runtime, edge, f"wg showconf {iface}"
+            )
             self.runtime.exec(
                 edge,
                 f"sed -i 's|^PublicKey = .*|PublicKey = {wrong_key}|' {conf_path}",
@@ -353,6 +365,32 @@ class WireGuardPeerKeyMisconfiguration(ProblemBase):
                 )
             ),
             _SETTLE_SEC,
+        )
+
+    def recover_fault(self, params: WireGuardPeerKeyMisconfigParams) -> dict:
+        edge = params.host_name
+        ops = native_fault_ops(self, edge, "set_tunnel_peer_public_key")
+        if ops is not None:
+            original = getattr(self, "_original_peers", {})
+            for iface, key in original.items():
+                ops.set_tunnel_peer_public_key(iface, key)
+            ok = bool(original) and all(
+                ops.tunnel_peer(iface).public_key == key
+                for iface, key in original.items()
+            )
+        else:
+            original = getattr(self, "_original_configs", {})
+            for iface, snapshot in original.items():
+                snapshot.restore(self.runtime, edge)
+                _wg_syncconf(self.runtime, edge, iface)
+            ok = bool(original) and all(
+                snapshot.matches(self.runtime, edge)
+                and checked_exec(self.runtime, edge, f"wg showconf {iface}")
+                == self._original_live_configs[iface]
+                for iface, snapshot in original.items()
+            )
+        return build_verify_result(
+            fault_type=self.root_cause_name, verified=ok, details={"host": edge}
         )
 
     def _inject_native(
@@ -791,9 +829,14 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
             )
 
         if ops is not None:
+            self._original_allowed = ops.tunnel_peer(iface).allowed_addresses
             ops.set_tunnel_peer_allowed_addresses(iface, allowlist.split(", "))
         else:
             conf_path = f"/etc/wireguard/{iface}.conf"
+            self._original_config = FileSnapshot.capture(self.runtime, edge, conf_path)
+            self._original_live_config = checked_exec(
+                self.runtime, edge, f"wg showconf {iface}"
+            )
             self.runtime.exec(
                 edge,
                 f"sed -i 's|^AllowedIPs = .*|AllowedIPs = {allowlist}|' {conf_path}",
@@ -804,6 +847,33 @@ class WireGuardAllowedIpsMisconfiguration(ProblemBase):
             f"on {edge}/{iface} (hub tunnel {hub_tun_ip} retained; BGP untouched)."
         )
         time.sleep(_ALLOWED_IPS_SETTLE_SEC)
+
+    def recover_fault(self, params: WireGuardAllowedIpsMisconfigParams) -> dict:
+        edge, iface = params.host_name, params.intf_name
+        ops = native_fault_ops(self, edge, "set_tunnel_peer_allowed_addresses")
+        if ops is not None:
+            original = getattr(self, "_original_allowed", None)
+            if original is not None:
+                ops.set_tunnel_peer_allowed_addresses(iface, list(original))
+            ok = original is not None and tuple(
+                ops.tunnel_peer(iface).allowed_addresses
+            ) == tuple(original)
+        else:
+            snapshot = getattr(self, "_original_config", None)
+            if snapshot is not None:
+                snapshot.restore(self.runtime, edge)
+                _wg_syncconf(self.runtime, edge, iface)
+            ok = (
+                snapshot is not None
+                and snapshot.matches(self.runtime, edge)
+                and checked_exec(self.runtime, edge, f"wg showconf {iface}")
+                == self._original_live_config
+            )
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=ok,
+            details={"host": edge, "interface": iface},
+        )
 
     def verify_fault(self, params: WireGuardAllowedIpsMisconfigParams) -> dict:
         iface = params.intf_name

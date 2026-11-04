@@ -4,6 +4,8 @@ from nika.problems.base import FailureDomain, ProblemBase, build_verify_result
 from nika.problems.rca import node_resource
 from nika.problems.support.benchmark_targets import choice
 from nika.problems.forwarding_encapsulation_policy.p4runtime_helpers import (
+    capture_entity,
+    restore_entities,
     fabric_misconfig_group_id,
     fabric_table_entry_prefix,
     load_intent,
@@ -83,6 +85,14 @@ class P4TableEntryMissing(ProblemBase):
         prefix = fabric_table_entry_prefix(intent, params.host_name, self.scenario_name)
         if not prefix:
             raise RuntimeError(f"No IPv4 LPM prefix on {params.host_name}")
+        self._original_entities = [
+            (
+                "lpm",
+                capture_entity(
+                    self.runtime, params.host_name, "ipv4_lpm", "prefix", prefix
+                ),
+            )
+        ]
         written = p4runtime_write(
             self.runtime,
             params.host_name,
@@ -106,6 +116,11 @@ class P4TableEntryMissing(ProblemBase):
             prefix,
             params.host_name,
             result,
+        )
+
+    def recover_fault(self, params: P4TableEntryMissingParams) -> dict:
+        return restore_entities(
+            self, params.host_name, getattr(self, "_original_entities", [])
         )
 
     def verify_fault(self, params: P4TableEntryMissingParams) -> dict:
@@ -210,6 +225,14 @@ class P4TableEntryMisconfig(ProblemBase):
             raise RuntimeError(
                 f"No alternate ActionSelector group on {params.host_name}"
             )
+        self._original_entities = [
+            (
+                "lpm",
+                capture_entity(
+                    self.runtime, params.host_name, "ipv4_lpm", "prefix", prefix
+                ),
+            )
+        ]
         result = p4runtime_write(
             self.runtime,
             params.host_name,
@@ -233,6 +256,11 @@ class P4TableEntryMisconfig(ProblemBase):
             prefix,
             params.host_name,
             other,
+        )
+
+    def recover_fault(self, params: P4TableEntryMisconfigParams) -> dict:
+        return restore_entities(
+            self, params.host_name, getattr(self, "_original_entities", [])
         )
 
     def verify_fault(self, params: P4TableEntryMisconfigParams) -> dict:

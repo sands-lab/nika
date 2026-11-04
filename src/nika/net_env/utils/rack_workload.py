@@ -89,6 +89,7 @@ def fanout_processes(
             node=node,
             app="fanout",
             command=worker_command,
+            traffic_source=False,
             args=("worker", "--port", str(port)),
         )
         for node in workers

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 import json
+import ipaddress
 from unittest.mock import MagicMock
 from nika.runtime.base import LabRuntime, RuntimeCapabilityError
 from nika.problems.base import ProblemBase
@@ -274,7 +275,16 @@ class LabOpsTest:
         assert len(sleeps) == frr_api._BGP_ASN_ATTEMPTS - 1
         assert all(s == frr_api._BGP_ASN_RETRY_DELAY_SEC for s in sleeps)
 
-    def test_data_plane_ip_ignores_node_created_and_bridge_interfaces(self):
+    def test_data_plane_ip_ignores_node_created_and_bridge_interfaces(
+        self, monkeypatch
+    ):
+        from nika.service.lab import semantic_mixin
+
+        monkeypatch.setattr(
+            semantic_mixin,
+            "_docker_bridge_networks",
+            lambda: (ipaddress.IPv4Network("172.17.0.0/16"),),
+        )
         links = [
             {"ifname": "lo", "addr_info": [{"family": "inet", "local": "127.0.0.1"}]},
             {

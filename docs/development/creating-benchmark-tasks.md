@@ -1,20 +1,21 @@
 # Create benchmark tasks
 
-This guide is for NIKA contributors who add a network scenario, injectable failure, traffic source, or benchmark case. It follows the runtime and registry contracts used by the current implementation.
+This guide is for NIKA contributors who add a network environment, injectable failure, traffic source, or benchmark task. It follows the runtime and registry contracts used by the current implementation.
 
 Core contracts: [`NetworkEnvBase`](../../src/nika/net_env/base.py), [`ProblemBase`](../../src/nika/problems/base.py), and the [`benchmark` workflows](../../src/nika/workflows/benchmark/).
 
 ## Understand the task model
 
-A benchmark case combines:
+A benchmark task combines:
 
 - a network scenario from `src/nika/net_env/`
-- either one injectable problem from `src/nika/problems/`, a `problems` list for coordinated multi-fault cases, or the sentinel `problem: healthy` (no fault)
-- explicit injection parameters (empty for healthy cases; nested per problem for multi-fault rows)
+- a network incident defined by registered failures and their injection parameters, or a healthy baseline
 - optional traffic generated before or during troubleshooting
 - an agent run and evaluation output under `results/{session_id}/`
 
-The standard pipeline is:
+Static tasks use top-level `problem` or `problems` and `inject`; `problem: healthy` selects a healthy baseline. Scheduled tasks declare failures and their parameters inside `schedule.events` and omit top-level `problem`, `problems`, and `inject`. The two forms cannot be combined. See [Incident scheduling](../benchmarks/scheduling.md) for complete task files and timing rules.
+
+The standalone session pipeline is:
 
 ```shell
 nika env run <scenario> [-s s|m|l]
@@ -26,15 +27,15 @@ nika session close -y
 nika eval metrics
 ```
 
-For benchmark automation, `nika benchmark run` performs env deploy, fault injection, agent run, close, and eval for each case.
+For benchmark automation, `nika benchmark run` performs environment deployment, fault injection, agent run, close, and evaluation for each task.
 
 ## Add a network scenario
 
 Network environments implement `NetworkEnvBase` and bind to Kathara or Containerlab through the runtime layer. Read the [network scenario reference](../operations/network-scenarios.md) before adding another scenario ID; an existing parameterized scenario may already cover the topology.
 
 1. Add a single-backend lab under `src/nika/net_env/<scenario>/`. Only multi-backend scenarios use backend subdirectories, such as `src/nika/net_env/isp/kathara/` and `src/nika/net_env/isp/containerlab/`. Shared backend helpers belong in `src/nika/net_env/utils/kathara/` or `src/nika/net_env/utils/containerlab/`.
-2. Implement a class that sets `LAB_NAME`, initializes the backend lab/topology, sets `self.name`, `self.desc`, and declares useful host lists through `load_machines()`.
-3. If the scenario has sizes, expose `TOPO_SIZE = ["s", "m", "l"]` and accept `topo_size` in `__init__`.
+2. Implement a class that sets `LAB_NAME`, initializes the backend lab/topology, and sets `self.name` and `self.desc`. Declare each machine's role with `declare_machine()` before `load_machines()` builds the host and router lists.
+3. If the scenario has sizes, accept `topo_size` in `__init__` and declare the supported sizes in `NetEnvSpec.topo_size`.
 4. Add import-safe metadata and a lazy module/class binding to `src/nika/net_env/net_env_pool.py`.
 5. Reference images by a pinned name: `nika_image("<name>")` for local `nika/*` builds (tagged with the benchmark version), and a `repo:tag@sha256:<digest>` reference for upstream images. Never use a floating tag such as `latest` on its own.
 
@@ -46,6 +47,7 @@ from Kathara.manager.Kathara import Kathara
 
 from nika.net_env.base import NetworkEnvBase
 from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
+from nika.runtime.spec import NodeRole
 
 
 class MyScenario(NetworkEnvBase):
@@ -63,6 +65,8 @@ class MyScenario(NetworkEnvBase):
         self.lab.connect_machine_to_link(pc1.name, "A")
         self.lab.connect_machine_to_link(pc2.name, "A")
 
+        self.declare_machine(pc1.name, role=NodeRole.HOST)
+        self.declare_machine(pc2.name, role=NodeRole.HOST)
         self.load_machines()
 ```
 
@@ -71,7 +75,7 @@ Register metadata without importing the backend package:
 ```python
 "my_scenario": NetEnvSpec(
     lab_name="my_scenario",
-    module="nika.net_env.kathara.example.my_scenario.lab",
+    module="nika.net_env.my_scenario.lab",
     class_name="MyScenario",
     tags=("link", "icmp", "pc"),
     supported_backends=("kathara",),
@@ -122,7 +126,7 @@ See the [SNDlib ISP scenarios reference](../operations/network-scenarios.md#sndl
 
 Failures live under `src/nika/problems/<failure_domain>/`. The directory name must match the class `failure_domain`. Cross-domain base classes and helpers live under `src/nika/problems/support/`; support packages must not define registered failures. The registry discovers a concrete `ProblemBase` subclass when it sets `root_cause_name`, validates all taxonomy fields, and builds `META` during import. Put attacks, spoofing, and poisoning failures under `security`.
 
-Each fault is a single `ProblemBase` subclass that implements injection, verification, and unified ground truth via `get_ground_truth()`. Do not split one fault into separate Detection / Localization / RCA classes.
+Each fault is a single `ProblemBase` subclass that implements injection, verification, recovery, and unified ground truth via `get_ground_truth()`. Do not split one fault into separate Detection / Localization / RCA classes.
 
 ```python
 from pydantic import BaseModel, Field
@@ -153,6 +157,9 @@ class MyFault(ProblemBase):
         super().__init__(scenario_name, **kwargs)
 
     def inject_fault(self, params: MyFaultParams):
+        self._original_state = self.runtime.get_interface_operstate(params.host_name, params.intf_name)
+        if self._original_state != "up":
+            raise RuntimeError("The target interface must be up before injection.")
         self.runtime.set_interface_state(params.host_name, params.intf_name, "down")
 
     def root_cause_resources(self, params: MyFaultParams):
@@ -165,6 +172,14 @@ class MyFault(ProblemBase):
             verified=operstate == "down",
             details={"host": params.host_name, "intf": params.intf_name, "operstate": operstate},
         )
+
+    def recover_fault(self, params: MyFaultParams) -> dict:
+        original = getattr(self, "_original_state", None)
+        if original not in {"up", "down"}:
+            return build_verify_result(self.root_cause_name, False, {"error": "Original interface state is unavailable."})
+        self.runtime.set_interface_state(params.host_name, params.intf_name, original)
+        observed = self.runtime.get_interface_operstate(params.host_name, params.intf_name)
+        return build_verify_result(self.root_cause_name, observed == original, {"operstate": observed})
 ```
 
 Notes:
@@ -177,6 +192,8 @@ Notes:
 - Agents can compare devices, so leave no change that singles out the target beyond the root cause itself. Supporting configuration that the fault needs but that is not its root cause, such as a policy that admits a prefix flood, goes on every comparable device, as `bgp_max_prefix_exceeded` does.
 - NIKA already removes two on-disk shortcuts. When an environment starts, it deletes the `/hostlab` directory inside every Kathara node, which holds that node's original lab files, and saves every FRR router's running config. After injection, it recreates every FRR router's saved config files, keeping each router's own content, and gives them all one shared timestamp.
 - `verify_fault()` must prove the injection artifacts are present (nft/tc/config/process/quota). Failed verification marks the injection as failed and stops the run. Do not put slow network-impact probes in `verify_fault`; put those in the test-path API `nika.validation.symptom.evaluate_symptom` (contracts under `src/nika/validation/symptom/`).
+- Capture recovery state in controller memory before mutation, and call `recover_fault(params)` on the injecting instance in the same Python process. Undo only the failure's changes. Return `verified=True` only after reading back the restored state; report missing snapshots or failed restoration explicitly. Test repeated recovery, partial injection, and healthy behavior after protocol convergence.
+- `MultiFaultProblem.recover_fault()` undoes attempted injections in reverse order. It stops at a failed recovery and retains that step and the earlier steps for retry, preserving the order of dependent snapshots.
 - Implement `root_cause_resources(params)` so NIKA can derive structured RCA ground truth from injection parameters. Do not maintain a second root-cause table. Use `link_containing_endpoint` for controller-side cable faults (`link_down`, `link_flap`, `link_packet_corruption`); use `interface_on` when the mutated object is an interface. See [Root-cause ground truth and scoring](../benchmarks/root-cause-evaluation.md).
 - Implement `oracle_playbook(params)` with the reference diagnosis an operator would follow to confirm this fault through the agent's MCP tools. A contract test rejects a failure without one. See [Write a playbook for a new failure](../benchmarks/oracle-solver.md#write-a-playbook-for-a-new-failure).
 - `Params` must be a Pydantic model. `nika failure describe` and benchmark YAML validation use it as the injection schema.
@@ -210,27 +227,6 @@ For one-off load during development, use the built-in generators below.
 
 OD-matrix iperf3 traffic:
 
-```python
-import asyncio
-
-from nika.traffic.od_flows import ODFLowGenerator
-
-
-async def run_traffic(lab_name: str):
-    generator = ODFLowGenerator(lab_name=lab_name)
-    return await generator.astart_generate_traffic(
-        {"pc1": {"pc2": 20}},
-        interval=60,
-        unit="M",
-        udp=True,
-    )
-
-
-asyncio.run(run_traffic("my_scenario__instance"))
-```
-
-CLI equivalent:
-
 ```shell
 nika traffic run od --all-to-host pc2 --mbps 20 --interval 60
 nika traffic run od --mesh-mbps 5 --interval 300 --background
@@ -244,7 +240,7 @@ nika traffic run web --pages-min 2 --pages-max 5 --no-loop
 
 For faults that create traffic as the root cause, keep that logic inside the problem class. For background or validation traffic, prefer the traffic CLI or generator APIs.
 
-## Add benchmark cases
+## Add benchmark tasks
 
 Benchmark YAML rows use the same names and injection parameters as the CLI:
 
@@ -272,12 +268,12 @@ uv run python scripts/render_coverage_matrix.py --write-docs
 
 Review the YAML and docs table diffs.
 
-Run a single case:
+Run a single task:
 
 ```shell
 uv run nika benchmark run my_scenario --problem my_fault -s s \
   --set host_name=pc1 --set intf_name=eth0 \
-  -a mock -m mock-v1
+  -a mock
 ```
 
 Run a YAML file:
@@ -285,7 +281,7 @@ Run a YAML file:
 ```shell
 uv run nika benchmark run --config benchmark/my_cases.yaml \
   --result_dir results/my_cases \
-  -a mock -m mock-v1
+  -a mock
 ```
 
 ## Validate the change
@@ -294,13 +290,13 @@ uv run nika benchmark run --config benchmark/my_cases.yaml \
 - `uv run nika env run <scenario>` deploys and creates a session.
 - `uv run nika failure describe <problem>` shows the expected schema.
 - `uv run nika failure inject <problem> --set ...` verifies successfully.
-- `uv run nika benchmark run ... -a mock -m mock-v1` completes without external LLM credentials.
+- `uv run nika benchmark run ... -a mock` completes without external LLM credentials.
 - The session directory contains `ground_truth.json`, `run.json`, `events.jsonl`, and evaluation artifacts.
 - If compatibility or target enumeration changes, regenerate the candidate pool (`nika benchmark generate`) and the coverage tables in [Benchmark configuration](../benchmarks/benchmark-configuration.md).
 
 ### Validate device-profile cells
 
-Declared compatibility says a failure should work on an IOS XR or RouterOS deployment; an execution run shows that it does. `nika benchmark validate-profiles` takes one representative case per (environment, `device_profile`, failure) cell of the working pool, preferring a case that targets a native router. It deploys the case, injects it, checks `verify_fault` and the ground truth, runs `recover_fault` when the failure defines it, and closes the lab.
+Declared compatibility says a failure should work on an IOS XR or RouterOS deployment; an execution run shows that it does. `nika benchmark validate-profiles` takes one representative case per (environment, `device_profile`, failure) cell of the working pool, preferring a case that targets a native router. It deploys the case, injects it, checks `verify_fault` and the ground truth, requires `recover_fault` to confirm restoration, and closes the environment.
 
 Before running validation, prepare the vendor images locally using the [IOS XR setup](../operations/network-scenarios.md#ios-xr-simple-bgp-scenario) or [RouterOS setup](../operations/network-scenarios.md#routeros-simple-bgp-scenario). RouterOS also needs `/dev/kvm`, with nested virtualization enabled when the host is a VM. The validator skips cells whose image is missing without recording a result.
 
@@ -310,7 +306,7 @@ uv run nika benchmark validate-profiles --native-only          # cells that targ
 uv run nika benchmark validate-profiles --environment dc_clos --device-profile routeros
 ```
 
-Each result is written to `benchmark/working/validation/device_profiles.yaml` as `validated`, `failed` (with the stage and error) or `unsupported` (a `RuntimeCapabilityError`), with the NIKA commit, vendor image tag and date. Do not edit this file by hand. Cells run one at a time under `/tmp/nika-heavy-lab.lock`, and recorded cells are skipped, so an interrupted run resumes; pass `--rerun` to repeat them. Run it on demand or nightly, not for every change: a native lab takes several minutes to boot. The base ISP scenarios share one capability surface, so they form a single `isp` environment.
+Each result is written to `benchmark/working/validation/device_profiles.yaml` as `validated`, `failed` (with the stage and error) or `unsupported` (a `RuntimeCapabilityError`), with the NIKA commit, vendor image tag and date. Do not edit this file by hand. Cells run one at a time under `/tmp/nika-heavy-lab.lock`. Recorded cells are skipped so an interrupted run resumes; validated records without `recovery: restored` are rerun. Pass `--rerun` to repeat recorded cells. Run it on demand or nightly, not for every change: a native lab takes several minutes to boot. The base ISP scenarios share one capability surface, so they form a single `isp` environment.
 
 The coverage matrix shows the declared compatibility and the last result per cell. `nika benchmark generate --validated-only` keeps IOS XR and RouterOS cases only for validated cells.
 

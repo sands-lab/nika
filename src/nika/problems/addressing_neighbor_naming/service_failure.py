@@ -19,6 +19,7 @@ from nika.problems.support.oracle import (
 from nika.problems.support.benchmark_targets import (
     dhcp_server_client,
 )
+from nika.problems.support.recovery import DHCPRecovery
 from nika.utils.logger import system_logger
 
 logger = system_logger
@@ -93,7 +94,24 @@ class DNSServiceDown(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: DNSServiceDownParams):
+        self._dns_was_running = not self.runtime.process_not_running(
+            params.host_name, "named"
+        )
         self.runtime.kill_process(params.host_name, "named")
+
+    def recover_fault(self, params: DNSServiceDownParams) -> dict:
+        running = getattr(self, "_dns_was_running", None)
+        if running:
+            self.runtime.systemctl(params.host_name, params.service_name, "start")
+        verified = (
+            running is not None
+            and self.runtime.process_not_running(params.host_name, "named") != running
+        )
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=verified,
+            details={"host": params.host_name, "state_available": running is not None},
+        )
 
     def verify_fault(self, params: DNSServiceDownParams) -> dict:
         """Verify named process is not running."""
@@ -166,12 +184,24 @@ class DHCPServiceDown(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: DHCPServiceDownParams):
+        self._dhcp_recovery = DHCPRecovery.capture(self.runtime, params.host_name)
         # Stop via systemd so the unit does not respawn dhcpd after pkill.
         self.runtime.systemctl(params.host_name, params.service_name, "stop")
         self.runtime.kill_process(params.host_name, "dhcpd")
         # Renew now, as clients do when their leases run out during an outage;
         # otherwise every client keeps a valid lease and nothing breaks.
         self.runtime.renew_dhcp_leases(self.runtime.list_dhcp_client_nodes())
+
+    def recover_fault(self, params: DHCPServiceDownParams) -> dict:
+        snapshot = getattr(self, "_dhcp_recovery", None)
+        verified = snapshot is not None and snapshot.restore(
+            self.runtime, params.host_name, service=params.service_name
+        )
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=verified,
+            details={"host": params.host_name, "state_available": snapshot is not None},
+        )
 
     def verify_fault(self, params: DHCPServiceDownParams) -> dict:
         """Verify DHCP server process is not running."""

@@ -36,6 +36,8 @@ from nika.problems.support.oracle import (
     shell,
 )
 
+from nika.problems.support.recovery import DHCPRecovery
+
 
 def _probe_name(net_env) -> str:
     """A service name the clients resolve, from the scenario's web URLs."""
@@ -147,12 +149,24 @@ class DHCPSpoofedGateway(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: DHCPSpoofedGatewayParams):
+        self._dhcp_recovery = DHCPRecovery.capture(self.runtime, params.host_name)
         dhcp_server = params.host_name
         client_host = params.host_name_2
         subnet = client_subnet(self.runtime, client_host, dhcp_server)
         wrong_gw = ".".join(subnet.split(".")[:3] + ["254"])
         self.runtime.dhcp_set_option_routers(dhcp_server, subnet, wrong_gw)
         self.runtime.renew_dhcp_leases(self.runtime.list_dhcp_client_nodes())
+
+    def recover_fault(self, params: DHCPSpoofedGatewayParams) -> dict:
+        snapshot = getattr(self, "_dhcp_recovery", None)
+        verified = snapshot is not None and snapshot.restore(
+            self.runtime, params.host_name
+        )
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=verified,
+            details={"host": params.host_name, "state_available": snapshot is not None},
+        )
 
     def verify_fault(self, params: DHCPSpoofedGatewayParams) -> dict:
         """Verify dhcpd.conf has spoofed gateway ending in .254."""
@@ -287,6 +301,7 @@ class DHCPSpoofedDNS(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: DHCPSpoofedDNSParams):
+        self._dhcp_recovery = DHCPRecovery.capture(self.runtime, params.host_name)
         dhcp_server = params.host_name
         client_host = params.host_name_2
         subnet = client_subnet(self.runtime, client_host, dhcp_server)
@@ -302,6 +317,17 @@ class DHCPSpoofedDNS(ProblemBase):
         )
         real = (current or "").split(",")[0].strip() or subnet
         return unused_address_near(self.runtime, real)
+
+    def recover_fault(self, params: DHCPSpoofedDNSParams) -> dict:
+        snapshot = getattr(self, "_dhcp_recovery", None)
+        verified = snapshot is not None and snapshot.restore(
+            self.runtime, params.host_name
+        )
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=verified,
+            details={"host": params.host_name, "state_available": snapshot is not None},
+        )
 
     def verify_fault(self, params: DHCPSpoofedDNSParams) -> dict:
         """Verify dhcpd.conf has the spoofed DNS server option."""
@@ -454,6 +480,7 @@ class DHCPSpoofedSubnet(ProblemBase):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: DHCPSpoofedSubnetParams):
+        self._dhcp_recovery = DHCPRecovery.capture(self.runtime, params.host_name)
         dhcp_server = params.host_name
         subnet = params.subnet or client_subnet(
             self.runtime, params.host_name_2, dhcp_server
@@ -463,6 +490,17 @@ class DHCPSpoofedSubnet(ProblemBase):
             self.runtime, dhcp_server, subnet, "subnet-mask", params.wrong_netmask
         )
         self.runtime.renew_dhcp_leases(self.runtime.list_dhcp_client_nodes())
+
+    def recover_fault(self, params: DHCPSpoofedSubnetParams) -> dict:
+        snapshot = getattr(self, "_dhcp_recovery", None)
+        verified = snapshot is not None and snapshot.restore(
+            self.runtime, params.host_name
+        )
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=verified,
+            details={"host": params.host_name, "state_available": snapshot is not None},
+        )
 
     def verify_fault(self, params: DHCPSpoofedSubnetParams) -> dict:
         """Verify the subnet declaration remains and serves the spoofed mask."""

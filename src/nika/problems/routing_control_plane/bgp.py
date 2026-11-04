@@ -2,6 +2,7 @@ import ipaddress
 import json
 import random
 import re
+import shlex
 import time
 
 from pydantic import BaseModel, Field
@@ -23,6 +24,7 @@ from nika.problems.support.oracle import (
     vtysh,
 )
 from nika.problems.support.polling import wait_until
+from nika.problems.support.recovery import FileSnapshot
 from nika.problems.support.router_ops import RouterFaultOps, router_fault_ops
 from nika.problems.rca import node_resource
 from nika.problems.base import (
@@ -81,6 +83,17 @@ def _ensure_bgp_inventory(problem_cls, ctx) -> tuple[dict, dict]:
         inventory = dict(isp_plan.inventory)
         inventory["bgp"] = bgp_inv
     return inventory, bgp_inv
+
+
+def _srl_flat_config(runtime, host: str, path: str) -> tuple[str, ...]:
+    output = runtime.exec(host, "sr_cli " + shlex.quote(f"info flat {path}"))
+    return tuple(
+        sorted(
+            line.strip()
+            for line in output.splitlines()
+            if line.strip().startswith("set ")
+        )
+    )
 
 
 def _bgp_peers(net_env, host: str) -> list[str]:
@@ -458,6 +471,7 @@ class BGPAsnMisconfig(ProblemBase):
 
     def _inject_asn_misconfig_containerlab(self, params: BGPAsnMisconfigParams) -> None:
         as_number = self.runtime.srl_get_bgp_as(params.host_name)
+        self._orig_asn = as_number
         wrong_asn = as_number + ASN_MISCONFIG_OFFSET
         self.runtime.srl_set_bgp_as(params.host_name, wrong_asn)
         self._orig_asn = as_number
@@ -474,6 +488,11 @@ class BGPAsnMisconfig(ProblemBase):
             return
         as_number = self.runtime.frr_get_bgp_asn_number(params.host_name)
         wrong_asn = as_number + ASN_MISCONFIG_OFFSET
+        self._asn_running_config = self.runtime.exec(
+            params.host_name, "vtysh -c 'show running-config'"
+        )
+        self._asn_config_files = {}
+        self._orig_asn = as_number
         # k8s_lab uses split FRR configs (/etc/frr/bgpd.conf); campus etc. use frr.conf.
         # Patch the on-disk config so it matches what the running bgpd will use.
         # Avoid shell "$vars" inside runtime.exec wrapping (quote escaping breaks loops).
@@ -486,6 +505,9 @@ class BGPAsnMisconfig(ProblemBase):
             ).strip()
             if exists != "yes":
                 continue
+            self._asn_config_files[conf] = FileSnapshot.capture(
+                self.runtime, params.host_name, conf
+            )
             self.runtime.exec(
                 params.host_name,
                 f"sed -i -E 's/^router bgp [0-9]+/router bgp {wrong_asn}/' {conf}",
@@ -544,6 +566,7 @@ class BGPAsnMisconfig(ProblemBase):
         self, params: BGPAsnMisconfigParams, ops: RouterFaultOps
     ) -> None:
         as_number = ops.bgp_asn()
+        self._orig_asn = as_number
         wrong_asn = as_number + ASN_MISCONFIG_OFFSET
         ops.set_bgp_asn(wrong_asn)
         wait_until(lambda: ops.bgp_asn() == wrong_asn, 8)
@@ -559,6 +582,63 @@ class BGPAsnMisconfig(ProblemBase):
         self.logger.info(
             f"Injected BGP ASN misconfiguration on {params.host_name} "
             f"from ASN {as_number} to {wrong_asn} ({ops.profile})."
+        )
+
+    def recover_fault(self, params: BGPAsnMisconfigParams) -> dict:
+        original = getattr(self, "_orig_asn", None)
+        if original is None:
+            return build_verify_result(
+                self.root_cause_name, False, {"error": "no_recovery_snapshot"}
+            )
+        host = params.host_name
+        if self.lab_backend == "containerlab":
+            self.runtime.srl_set_bgp_as(host, original)
+            restored = self.runtime.srl_get_bgp_as(host) == original
+        elif (ops := router_fault_ops(self, host)) is not None:
+            ops.set_bgp_asn(original)
+            restored = wait_until(lambda: ops.bgp_asn() == original, 30)
+        else:
+            pattern = r"^router bgp .+\n(?:[ \t].*\n|!\n)*"
+            blocks = re.findall(pattern, self._asn_running_config, re.M)
+            running = self.runtime.exec(host, "vtysh -c 'show running-config'")
+            if (
+                re.findall(pattern, running, re.M) == blocks
+                and self._running_asn(host) == original
+                and all(
+                    snapshot.matches(self.runtime, host)
+                    for snapshot in self._asn_config_files.values()
+                )
+            ):
+                return build_verify_result(
+                    self.root_cause_name, True, {"host": host, "original_asn": original}
+                )
+            instances = sorted(
+                re.findall(r"^router bgp .+$", running, re.M),
+                key=lambda line: " vrf " not in line,
+            )
+            if instances:
+                self.runtime.exec(
+                    host, frr_config_command(*(f"no {line}" for line in instances))
+                )
+            # Reapply the original BGP instances, including every VRF and address family.
+            for block in blocks:
+                lines = [
+                    line.strip() for line in block.splitlines() if line.strip() != "!"
+                ]
+                self.runtime.exec(host, frr_config_command(*lines))
+            for snapshot in self._asn_config_files.values():
+                snapshot.restore(self.runtime, host)
+            restored = wait_until(lambda: self._running_asn(host) == original, 30)
+            restored = restored and all(
+                snapshot.matches(self.runtime, host)
+                for snapshot in self._asn_config_files.values()
+            )
+            running = self.runtime.exec(host, "vtysh -c 'show running-config'")
+            restored = restored and re.findall(pattern, running, re.M) == blocks
+        return build_verify_result(
+            self.root_cause_name,
+            bool(restored),
+            {"host": host, "original_asn": original},
         )
 
     def verify_fault(self, params: BGPAsnMisconfigParams) -> dict:
@@ -689,7 +769,9 @@ class BGPMissingAdvertise(ProblemBase):
         "configuration, which RouterOS routers do not have.",
     }
     supported_backends = ("kathara", "containerlab")
-    native_router_operations = frozenset({"bgp_networks", "withdraw_bgp_network"})
+    native_router_operations = frozenset(
+        {"bgp_networks", "withdraw_bgp_network", "save_config", "restore_config"}
+    )
 
     Params = BGPMissingAdvertiseParams
 
@@ -939,6 +1021,25 @@ class BGPMissingAdvertise(ProblemBase):
         return name == "enterprise_branch" or name.startswith("enterprise_branch")
 
     def inject_fault(self, params: BGPMissingAdvertiseParams):
+        host = params.host_name
+        if self.lab_backend == "kathara":
+            ops = router_fault_ops(self, host)
+            if ops is not None:
+                self._advertise_native_config = ops.save_config()
+                self._advertise_networks = ops.bgp_networks()
+            else:
+                self._advertise_running = self.runtime.exec(
+                    host, "vtysh -c 'show running-config'"
+                )
+        elif self.lab_backend == "containerlab":
+            self._advertise_srl = {
+                path: _srl_flat_config(self.runtime, host, path)
+                for path in ("routing-policy", "network-instance default protocols bgp")
+            }
+            if not self._advertise_srl["network-instance default protocols bgp"]:
+                raise RuntimeCapabilityError(
+                    f"Cannot snapshot BGP configuration on {host!r} before withdrawal."
+                )
         match self.lab_backend:
             case "containerlab":
                 self._inject_missing_adv_containerlab(params)
@@ -1135,6 +1236,129 @@ class BGPMissingAdvertise(ProblemBase):
         self.logger.info(
             f"Injected BGP missing route on {params.host_name} "
             "(disabled redistribute connected under BGP VRFs)."
+        )
+
+    def recover_fault(self, params: BGPMissingAdvertiseParams) -> dict:
+        host = params.host_name
+        if self.lab_backend == "containerlab":
+            snapshot = getattr(self, "_advertise_srl", None)
+            if snapshot is None:
+                return build_verify_result(
+                    self.root_cause_name, False, {"error": "no_recovery_snapshot"}
+                )
+            from nika.service.containerlab.srl_api import (
+                BGP_EXPORT_POLICY,
+                BGP_EXPORT_PREFIX_SET,
+            )
+
+            if all(
+                _srl_flat_config(self.runtime, host, path) == config
+                for path, config in snapshot.items()
+            ):
+                return build_verify_result(
+                    self.root_cause_name,
+                    True,
+                    {"host": host, "configuration_restored": True},
+                )
+            peers = {
+                match[1]
+                for line in snapshot["network-instance default protocols bgp"]
+                if (
+                    match := re.match(
+                        r"set /\s*network-instance default protocols bgp neighbor (\S+)",
+                        line,
+                    )
+                )
+            }
+            commands = []
+            for peer in sorted(peers):
+                af = f"/network-instance default protocols bgp neighbor {peer} afi-safi ipv4-unicast"
+                existed = any(
+                    re.match(
+                        rf"set /\s*network-instance default protocols bgp neighbor {re.escape(peer)} afi-safi ipv4-unicast(?: |$)",
+                        line,
+                    )
+                    for line in snapshot["network-instance default protocols bgp"]
+                )
+                # Remove the AF container when injection created it for an inherited policy.
+                commands.append(f"delete {af}" + (" export-policy" if existed else ""))
+            commands += [
+                f"delete /routing-policy policy {BGP_EXPORT_POLICY}",
+                f"delete /routing-policy prefix-set {BGP_EXPORT_PREFIX_SET}",
+            ]
+            for config in snapshot.values():
+                commands.extend(line.removeprefix("set ") for line in config)
+            script = (
+                "sr_cli <<'NIKA_RECOVER'\nenter candidate\n"
+                + "\n".join(commands)
+                + "\ncommit now\nNIKA_RECOVER"
+            )
+            self.runtime.exec(host, script)
+            restored = all(
+                _srl_flat_config(self.runtime, host, path) == text
+                for path, text in snapshot.items()
+            )
+        elif (ops := router_fault_ops(self, host)) is not None:
+            if not hasattr(self, "_advertise_native_config"):
+                return build_verify_result(
+                    self.root_cause_name, False, {"error": "no_recovery_snapshot"}
+                )
+            ops.restore_config(self._advertise_native_config)
+            restored = set(ops.bgp_networks()) == set(self._advertise_networks)
+        else:
+            snapshot = getattr(self, "_advertise_running", None)
+            if snapshot is None:
+                return build_verify_result(
+                    self.root_cause_name, False, {"error": "no_recovery_snapshot"}
+                )
+
+            def original_statements(config):
+                statements = []
+                router = None
+                family = None
+                for line in config.splitlines():
+                    text = line.strip()
+                    if line.startswith("router bgp "):
+                        router, family = text, None
+                    elif line and not line[0].isspace():
+                        router, family = None, None
+                    elif router and text.startswith("address-family "):
+                        family = text
+                    elif text == "exit-address-family":
+                        family = None
+                    elif router and (
+                        (
+                            self._is_enterprise_branch()
+                            and text.startswith("redistribute connected")
+                        )
+                        or (
+                            not self._is_enterprise_branch()
+                            and text.startswith("network ")
+                            and (
+                                not params.prefix
+                                or text.split()[1]
+                                == str(
+                                    ipaddress.ip_network(params.prefix, strict=False)
+                                )
+                            )
+                        )
+                    ):
+                        statements.append((router, family, text))
+                return statements
+
+            statements = original_statements(snapshot)
+            for router, family, statement in statements:
+                lines = [router, *([family] if family else []), statement]
+                self.runtime.exec(host, frr_config_command(*lines))
+            frr_save_config(self.runtime, host)
+            running = self.runtime.exec(host, "vtysh -c 'show running-config'")
+            restored = bool(statements) and set(statements).issubset(
+                original_statements(running)
+            )
+        return build_verify_result(
+            self.root_cause_name,
+            bool(restored),
+            {"host": host, "configuration_restored": bool(restored)},
         )
 
     def verify_fault(self, params: BGPMissingAdvertiseParams) -> dict:

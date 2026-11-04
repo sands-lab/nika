@@ -320,8 +320,10 @@ class CoreDNSIsolation(K8sProblemBase):
         )
         self.blocked_specs = [spec.describe() for spec in specs]
 
+        self._recovery_filters = []
         for device in devices:
             node_filter = NodeFilter(self.runtime, device)
+            self._recovery_filters.append(node_filter)
             for spec in specs:
                 node_filter.block(spec)
 
@@ -332,6 +334,16 @@ class CoreDNSIsolation(K8sProblemBase):
             f"{destinations['pod_ips'] or ['<none>']}. Name resolution fails while "
             "IP connectivity and the CoreDNS pods themselves stay healthy."
         )
+
+    def recover_fault(self, params: CoreDNSIsolationParams) -> dict:
+        filters = getattr(self, "_recovery_filters", None)
+        if filters is None:
+            return {"verified": False, "details": {"error": "injection_state_missing"}}
+        removed = [node_filter.recover() for node_filter in reversed(filters)]
+        return {
+            "verified": all(removed),
+            "details": {"owned_rules_removed": all(removed)},
+        }
 
     def verify_fault(self, params: CoreDNSIsolationParams) -> dict:
         k8s = self.runtime.lab_api

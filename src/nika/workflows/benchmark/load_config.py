@@ -27,6 +27,14 @@ _SAFE_LOADER = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
 
 
 def _row_problem_fields(row: dict[str, Any], scenario: str) -> tuple[list[str], str]:
+    if row.get("schedule") is not None:
+        from nika.schedule import normalize_schedule
+
+        plan = normalize_schedule(row["schedule"], scenario)
+        problems = list(dict.fromkeys(e.problem for e in plan.events if e.problem))
+        return problems or [HEALTHY_PROBLEM], join_problem_label(
+            problems
+        ) or HEALTHY_PROBLEM
     raw_problems = row.get("problems")
     if raw_problems is not None:
         if not isinstance(raw_problems, list) or not raw_problems:
@@ -42,6 +50,15 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
     """Validate a canonical benchmark row and normalize its failure options."""
     raw_scenario = str(row["scenario"])
     canonical = resolve_scenario_id(raw_scenario)
+    from nika.schedule import normalize_schedule
+
+    plan = (
+        normalize_schedule(row["schedule"], canonical)
+        if row.get("schedule") is not None
+        else None
+    )
+    if plan and plan.activates("background") and not row.get("traffic"):
+        raise ValueError("Scheduled background activation requires task-level traffic")
     if "workload" in row:
         raise ValueError("Benchmark cases do not accept a workload field.")
 
@@ -116,6 +133,8 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
         if isp_options is not None:
             normalized.update(isp_options)
         normalized.update(telemetry_option)
+        if plan:
+            normalized["schedule"] = plan.case_value()
         return normalized
 
     problem = problem_label
@@ -147,11 +166,13 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
                     f"got {topo_size!r}."
                 )
 
-    if not inject:
+    if not inject and plan is None:
         raise ValueError(
             f"Case {canonical}/{raw_problem} missing non-empty 'inject' map"
         )
-    if len(problems) > 1:
+    if plan is not None:
+        inject = {}
+    elif len(problems) > 1:
         nested: dict[str, dict[str, str]] = {}
         for item in problems:
             piece = inject.get(item)
@@ -184,6 +205,8 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
     if isp_options is not None:
         normalized.update(isp_options)
     normalized.update(telemetry_option)
+    if plan:
+        normalized["schedule"] = plan.case_value()
     if root_causes:
         normalized["root_causes"] = root_causes
     if row.get("root_causes_status"):
@@ -191,38 +214,87 @@ def normalize_benchmark_row(row: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+def read_benchmark_document(path: str | Path) -> dict[str, Any]:
+    """Load complete task files, retaining support for legacy inline matrices."""
+    path = Path(path).resolve()
+    data = yaml.load(path.read_text(encoding="utf-8"), Loader=_SAFE_LOADER)
+    if not isinstance(data, dict):
+        raise ValueError(f"Invalid benchmark YAML (expected a mapping): {path}")
+    if "cases" not in data:
+        if not isinstance(data.get("scenario"), str):
+            raise ValueError(
+                f"Invalid benchmark YAML (expected a task or top-level 'cases'): {path}"
+            )
+        return {"cases": [data]}
+    cases = data["cases"]
+    if not isinstance(cases, list):
+        raise ValueError(f"Invalid benchmark YAML ('cases' must be a list): {path}")
+    if all(isinstance(row, dict) for row in cases):
+        return data
+    if not all(isinstance(row, str) and row.strip() for row in cases):
+        raise ValueError(
+            f"Benchmark 'cases' must contain only task file paths or only legacy "
+            f"inline tasks; mixed entries are unsupported: {path}"
+        )
+    task_fields = {
+        "scenario",
+        "problem",
+        "problems",
+        "inject",
+        "schedule",
+        "root_causes",
+        *CASE_PROFILE_FIELDS,
+    }
+    if misplaced := task_fields.intersection(data):
+        raise ValueError(
+            f"Define task fields in each referenced task file, not the benchmark: "
+            f"{sorted(misplaced)} ({path})"
+        )
+    expanded = []
+    for idx, row in enumerate(cases):
+        task_path = path.parent / row
+        task = yaml.load(task_path.read_text(encoding="utf-8"), Loader=_SAFE_LOADER)
+        if (
+            not isinstance(task, dict)
+            or "cases" in task
+            or not isinstance(task.get("scenario"), str)
+        ):
+            raise ValueError(
+                f"Benchmark case {idx} must reference one complete task with "
+                f"'scenario' at its root: {task_path}"
+            )
+        expanded.append(task)
+    return {**data, "cases": expanded}
+
+
 def load_benchmark_yaml(path: str | Path) -> list[dict[str, Any]]:
     """Load benchmark cases from a YAML file.
 
-    Expected shape::
+    Accept one complete task or a list of complete task file paths::
 
         cases:
-          - scenario: dc_clos
-            topo_size: s
-            problem: link_down
-            inject:
-              host_name: pc_0_0
-              intf_name: eth0
+          - tasks/uplink.yaml
+
+    Legacy matrices containing only inline task mappings remain supported.
 
     ISP base cases carry ``igp`` / ``bgp_mode`` / ``rpki`` deploy options (topology
     is baked into the scenario ID). Named ISP specials omit protocol fields.
     Healthy (no-fault) cases use ``problem: healthy`` with an empty ``inject`` map.
     """
-    data = yaml.load(Path(path).read_text(encoding="utf-8"), Loader=_SAFE_LOADER)
-    if not isinstance(data, dict) or "cases" not in data:
-        raise ValueError(f"Invalid benchmark YAML (missing top-level 'cases'): {path}")
-    cases = data["cases"]
-    if not isinstance(cases, list):
-        raise ValueError(f"Invalid benchmark YAML ('cases' must be a list): {path}")
+    cases = read_benchmark_document(path)["cases"]
     normalized: list[dict[str, Any]] = []
     for idx, row in enumerate(cases):
-        if not isinstance(row, dict):
-            raise ValueError(f"Benchmark case {idx} must be a mapping")
         required = ("scenario",)
         for key in required:
             if key not in row:
                 raise ValueError(f"Benchmark case {idx} missing required field {key!r}")
-        if "problem" not in row and "problems" not in row:
+        if "schedule" in row and any(
+            key in row for key in ("problem", "problems", "inject")
+        ):
+            raise ValueError(
+                "Scheduled tasks declare failures only inside schedule.events"
+            )
+        if "problem" not in row and "problems" not in row and "schedule" not in row:
             raise ValueError(
                 f"Benchmark case {idx} missing required field 'problem' or 'problems'"
             )
