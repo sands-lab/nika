@@ -58,7 +58,7 @@ jobs:
         run: >
           uv run pytest
           tests/nika/net_env/test_scenario_e2e.py::KatharaScenarioE2ETest
-          -q
+          -q -ra
 
   failure-inject-contract:
     name: failure inject contract (${{ matrix.os }})
@@ -73,6 +73,16 @@ jobs:
       - name: Enable amd64 binfmt (ONOS foreign stage)
         if: matrix.os == 'ubuntu-24.04-arm'
         run: docker run --privileged --rm tonistiigi/binfmt --install amd64
+      - name: Load lab kernel modules
+        run: |
+          sudo modprobe wireguard || true
+          if sudo modprobe vrf 2>/dev/null || sudo ip link add nika_vrf_probe type vrf table 110 2>/dev/null; then
+            sudo ip link del nika_vrf_probe 2>/dev/null || true
+            echo "NIKA_CI_VRF=1" >> "$GITHUB_ENV"
+          else
+            echo "NIKA_CI_VRF=0" >> "$GITHUB_ENV"
+            echo "Linux VRF unavailable on this runner; enterprise_branch VRF cases will skip."
+          fi
       - uses: astral-sh/setup-uv@v10.1.0
         with:
           version: ${{ env.UV_VERSION }}
@@ -83,7 +93,7 @@ jobs:
       - name: Install (labs)
         run: uv sync --group labs --group dev
       - name: Kathara failure inject contract
-        run: uv run pytest tests/nika/problems/test_failure_inject_contract.py::test_kathara_failure_inject_contract -q
+        run: uv run pytest tests/nika/problems/test_failure_inject_contract.py::test_kathara_failure_inject_contract -q -ra
 
   clab-failure-inject-contract:
     name: clab failure inject contract (${{ matrix.os }})
@@ -120,7 +130,7 @@ jobs:
       - name: Install (labs)
         run: uv sync --group labs --group dev
       - name: Clab failure inject contract
-        run: uv run pytest tests/nika/problems/test_failure_inject_contract.py::test_clab_failure_inject_contract -q
+        run: uv run pytest tests/nika/problems/test_failure_inject_contract.py::test_clab_failure_inject_contract -q -ra
 
   failure-e2e:
     name: failure artifact e2e ${{ matrix.shard.name }} (${{ matrix.os }})
@@ -166,6 +176,19 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version-file: .python-version
+      - name: Install containerlab for min3clos cases
+        if: matrix.shard.name == 'baseline' || matrix.shard.name == 'platform-flap'
+        run: |
+          for attempt in 1 2 3; do
+            if bash -c "$(curl -fsSL https://get.containerlab.dev)"; then
+              exit 0
+            fi
+            sleep $((attempt * 5))
+          done
+          exit 1
+      - name: Install gnmic for min3clos cases
+        if: matrix.shard.name == 'baseline' || matrix.shard.name == 'platform-flap'
+        run: curl -fsSL https://get-gnmic.openconfig.net | bash -s -- --version "${GNMIC_VERSION}"
       - name: Install (labs)
         run: uv sync --group labs --group dev
       - name: Failure inject + artifact verify (${{ matrix.shard.name }})
@@ -173,7 +196,7 @@ jobs:
           PYTEST_SELECT: ${{ matrix.shard.select }}
         run: >-
           uv run pytest tests/nika/problems/test_failure_e2e.py
-          -q -k "$PYTEST_SELECT"
+          -q -ra -k "$PYTEST_SELECT"
 
   isp-integration:
     name: ISP integration (${{ matrix.os }})
@@ -221,7 +244,7 @@ jobs:
       - name: Install (labs)
         run: uv sync --group labs --group dev
       - name: ISP artifact matrix
-        run: uv run pytest tests/nika/net_env/isp/test_isp_integration.py -q
+        run: uv run pytest tests/nika/net_env/isp/test_isp_integration.py -q -ra
 
   k8s-llmd-sequential:
     name: k8s + llmd startup (amd64)
@@ -242,7 +265,46 @@ jobs:
         run: >
           uv run pytest
           tests/nika/net_env/test_scenario_e2e.py::K8sScenarioE2ETest
-          -q --maxfail=1
+          -q -ra --maxfail=1
           || uv run pytest
           tests/nika/net_env/test_scenario_e2e.py::K8sScenarioE2ETest
-          -q --maxfail=1
+          -q -ra --maxfail=1
+
+  engine-runtimes-sequential:
+    name: pinned engine k8s + llmd + SR Linux (amd64)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      # Engine trials run the oracle and verify the failure through MCP tools.
+      NIKA_CI_ENGINE_SPLIT: test
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v10.1.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+      - name: Install (labs)
+        run: uv sync --group labs --group dev
+      - name: Build engine once for all three trials
+        id: engine-build
+        run: |
+          commit=$(git rev-parse --short=12 HEAD)
+          uv run nika engine build "$commit"
+          echo "NIKA_CI_ENGINE_IMAGE=nika/benchmark-engine:$commit" >> "$GITHUB_ENV"
+      - name: k8s_lab oracle through engine
+        env:
+          NIKA_CI_ENGINE_TASK_ID: k8s_lab__k8s_networkpolicy_d__hadf9af15da3f
+        run: uv run pytest tests/benchmark/test_engine_container_e2e.py -q -ra
+      - name: llmd_lab oracle through engine
+        if: ${{ !cancelled() && steps.engine-build.outcome == 'success' }}
+        env:
+          NIKA_CI_ENGINE_TASK_ID: llmd_lab__k8s_coredns_isolat__h7de12dd02b9a
+        run: uv run pytest tests/benchmark/test_engine_container_e2e.py -q -ra
+      - name: isp_pdh SR Linux oracle through engine
+        if: ${{ !cancelled() && steps.engine-build.outcome == 'success' }}
+        env:
+          NIKA_CI_ENGINE_TASK_ID: isp_pdh__bgp_acl_block__s__i__hbe4170621772
+        run: uv run pytest tests/benchmark/test_engine_container_e2e.py -q -ra

@@ -1,0 +1,88 @@
+name: Release engine verification
+
+on:
+  workflow_dispatch:
+    inputs:
+      release:
+        description: Release manifest to verify on its pinned engine
+        required: true
+        default: "0.2.0"
+        type: string
+
+concurrency:
+  group: release-engine-verify-${{ inputs.release }}
+  cancel-in-progress: false
+
+env:
+  UV_VERSION: "0.8.22"
+  GNMIC_VERSION: "0.48.0"
+
+jobs:
+  verify:
+    name: release ${{ inputs.release }} shard ${{ matrix.shard }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+    env:
+      NIKA_CI_ENGINE_RELEASE: ${{ inputs.release }}
+      NIKA_CI_ENGINE_PINNED: "1"
+      NIKA_CI_ENGINE_TASK_ID: all
+      NIKA_CI_ENGINE_SPLIT: dev,test
+      NIKA_CI_ENGINE_COMPARE: "1"
+      NIKA_CI_ENGINE_SHARD_INDEX: ${{ matrix.shard }}
+      NIKA_CI_ENGINE_SHARD_COUNT: "8"
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          # Published engine tags and their commit provenance must resolve.
+          fetch-depth: 0
+      - name: Load lab kernel modules
+        run: |
+          for module in wireguard vrf; do
+            if ! sudo modprobe "$module"; then
+              echo "::error::Full release verification requires the $module kernel module. Use a runner with this module installed; skipping affected tasks would leave the release unverified."
+              exit 1
+            fi
+          done
+      - uses: astral-sh/setup-uv@v10.1.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - uses: actions/setup-python@v6
+        with:
+          python-version-file: .python-version
+      - name: Install containerlab for in-process comparison
+        run: |
+          for attempt in 1 2 3; do
+            if bash -c "$(curl -fsSL https://get.containerlab.dev)"; then
+              clab version
+              exit 0
+            fi
+            sleep $((attempt * 5))
+          done
+          exit 1
+      - name: Install gnmic for in-process comparison
+        run: |
+          curl -fsSL https://get-gnmic.openconfig.net | bash -s -- --version "${GNMIC_VERSION}"
+          gnmic version
+      - name: Install (labs)
+        run: uv sync --group labs --group dev
+      - name: Verify every task on its pinned engine and compare in process
+        # Each runner executes one trial at a time, including heavy labs.
+        run: >-
+          uv run pytest tests/benchmark/test_engine_container_e2e.py
+          -v -ra --basetemp "$RUNNER_TEMP/release-engine-trials"
+          --junitxml "$RUNNER_TEMP/release-engine-results.xml"
+      - name: Upload per-trial results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-engine-${{ inputs.release }}-shard-${{ matrix.shard }}
+          path: |
+            ${{ runner.temp }}/release-engine-results.xml
+            ${{ runner.temp }}/release-engine-trials
+          retention-days: 7
