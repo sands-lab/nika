@@ -13,6 +13,7 @@ import subprocess
 
 from nika.runtime.base import RuntimeCapabilityError
 from nika.runtime.shared.containers import isolated_container_pid
+from nika.runtime.shared.processes import process_command
 from nika.utils.network_change_log import log_network_change
 
 # Every host command here is a short iproute2/tc/nsenter call; a stuck sudo
@@ -62,14 +63,13 @@ class HostTcController:
         """
         pid = self._container_pid(node)
         indexes = self._run(
-            "nsenter",
-            "-t",
-            str(pid),
-            "-m",
-            "-n",
-            "cat",
-            f"/sys/class/net/{intf}/iflink",
-            f"/sys/class/net/{intf}/ifindex",
+            *process_command(
+                "netns-mount",
+                str(pid),
+                "cat",
+                f"/sys/class/net/{intf}/iflink",
+                f"/sys/class/net/{intf}/ifindex",
+            ),
         ).split()
         if len(indexes) != 2 or not all(value.isdecimal() for value in indexes):
             raise RuntimeCapabilityError(
@@ -171,31 +171,15 @@ class HostTcController:
     def set_node_link_down(self, node: str, intf: str) -> None:
         pid = self._container_pid(node)
         self._run(
-            "nsenter",
-            "-t",
-            str(pid),
-            "-n",
-            "ip",
-            "link",
-            "set",
-            "dev",
-            intf,
-            "down",
+            *process_command(
+                "netns", str(pid), "ip", "link", "set", "dev", intf, "down"
+            ),
         )
 
     def set_node_link_up(self, node: str, intf: str) -> None:
         pid = self._container_pid(node)
         self._run(
-            "nsenter",
-            "-t",
-            str(pid),
-            "-n",
-            "ip",
-            "link",
-            "set",
-            "dev",
-            intf,
-            "up",
+            *process_command("netns", str(pid), "ip", "link", "set", "dev", intf, "up"),
         )
 
     def link_peer_down(self, peer: str) -> bool:
@@ -240,23 +224,23 @@ class HostTcController:
         except RuntimeCapabilityError:
             pid = self._container_pid(node)
             self._run(
-                "nsenter",
-                "-t",
-                str(pid),
-                "-n",
-                "tc",
-                "qdisc",
-                "replace",
-                "dev",
-                intf,
-                "root",
-                "tbf",
-                "rate",
-                rate,
-                "burst",
-                burst,
-                "limit",
-                limit,
+                *process_command(
+                    "netns",
+                    str(pid),
+                    "tc",
+                    "qdisc",
+                    "replace",
+                    "dev",
+                    intf,
+                    "root",
+                    "tbf",
+                    "rate",
+                    rate,
+                    "burst",
+                    burst,
+                    "limit",
+                    limit,
+                ),
             )
             target = f"node:{node}:{intf}"
             log_network_change(
@@ -324,8 +308,9 @@ cleanup() {{
     ip link set dev {shlex.quote(peer)} up >/dev/null 2>&1 || true
     rm -f "$PID_FILE"
 }}
-trap cleanup EXIT INT TERM
-echo $$ > "$PID_FILE"
+trap cleanup EXIT
+trap 'exit 0' INT TERM
+{shlex.join(process_command("record", pid_path))} $$ || exit 1
 while true; do
     ip link set dev {shlex.quote(peer)} down
     sleep {down_time}
@@ -363,13 +348,14 @@ cleanup() {{
     {set_state} up >/dev/null 2>&1 || true
     rm -f "$PID_FILE"
 }}
-trap cleanup EXIT INT TERM
-echo $$ > "$PID_FILE"
+trap cleanup EXIT
+trap 'exit 0' INT TERM
+{shlex.join(process_command("record", pid_path))} $$ || exit 1
 while true; do
     {set_state} down
-    sleep {down_time}
+    sleep {down_time} 3<&-
     {set_state} up
-    sleep {up_time}
+    sleep {up_time} 3<&-
 done
 """
         self._run(
@@ -381,69 +367,31 @@ done
         return target
 
     def link_flap_running(self, peer: str) -> bool:
-        pid_path = self._flap_pid_path(peer)
         return (
-            self._run(
-                "sh",
-                "-c",
-                f"if [ -r {shlex.quote(pid_path)} ] && "
-                f'kill -0 "$(cat {shlex.quote(pid_path)})" 2>/dev/null; then echo running; fi',
-            ).strip()
+            self._run(*process_command("running", self._flap_pid_path(peer))).strip()
             == "running"
         )
 
     def stop_link_flap(self, peer: str) -> None:
-        pid_path = self._flap_pid_path(peer)
-        self._run(
-            "sh",
-            "-c",
-            f"if [ -r {shlex.quote(pid_path)} ]; then "
-            f'/bin/kill -KILL -- -"$(cat {shlex.quote(pid_path)})" 2>/dev/null || '
-            f'/bin/kill -KILL "$(cat {shlex.quote(pid_path)})" 2>/dev/null || true; fi; '
-            f"ip link set dev {shlex.quote(peer)} up >/dev/null 2>&1 || true; "
-            f"rm -f {shlex.quote(pid_path)}",
-        )
+        self._run(*process_command("stop", self._flap_pid_path(peer)))
+        self._run("ip", "link", "set", "dev", peer, "up")
 
     def stop_node_link_flap(self, node: str, intf: str) -> None:
-        target = f"{node}:{intf}"
-        pid_path = self._flap_pid_path(target)
-        pid = self._container_pid(node)
-        self._run(
-            "sh",
-            "-c",
-            f"if [ -r {shlex.quote(pid_path)} ]; then "
-            f'/bin/kill -KILL -- -"$(cat {shlex.quote(pid_path)})" 2>/dev/null || '
-            f'/bin/kill -KILL "$(cat {shlex.quote(pid_path)})" 2>/dev/null || true; fi; '
-            f"nsenter -t {pid} -n ip link set dev {shlex.quote(intf)} up "
-            ">/dev/null 2>&1 || true; "
-            f"rm -f {shlex.quote(pid_path)}",
-        )
+        self._run(*process_command("stop", self._flap_pid_path(f"{node}:{intf}")))
+        self.set_node_link_up(node, intf)
 
     @classmethod
     def cleanup_lab(cls, lab_name: str) -> None:
-        """Stop only host-side flap helpers belonging to a lab being torn down."""
+        """Stop only workers with verified birth identities belonging to this lab."""
         prefix = cls._flap_pid_prefix(lab_name)
-        try:
-            subprocess.run(
-                [
-                    "sudo",
-                    "-n",
-                    "sh",
-                    "-c",
-                    f"for pid_file in {prefix}*.pid; do "
-                    '[ -r "$pid_file" ] || continue; '
-                    '/bin/kill -KILL -- -"$(cat "$pid_file")" 2>/dev/null || '
-                    '/bin/kill -KILL "$(cat "$pid_file")" 2>/dev/null || true; '
-                    'rm -f "$pid_file"; '
-                    "done",
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=_HOST_CMD_TIMEOUT_SEC,
-            )
-        except subprocess.TimeoutExpired:
-            print(f"WARNING: stopping host link-flap workers for {lab_name} timed out")
+        command = shlex.join(process_command("stop"))
+        cls._run(
+            "sh",
+            "-c",
+            f"for pid_file in {shlex.quote(prefix)}*.pid; do "
+            '[ -r "$pid_file" ] || continue; '
+            f'{command} "$pid_file" || exit; done',
+        )
 
     def _flap_pid_path(self, peer: str) -> str:
         key = hashlib.blake2s(peer.encode(), digest_size=8).hexdigest()
