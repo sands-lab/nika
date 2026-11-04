@@ -1,5 +1,5 @@
 {
-  "as_of": "2026-10-29",
+  "as_of": "2026-11-02",
   "currency": "USD",
   "unit": "per_million_tokens",
   "notes": "Reference token prices used to turn a submission's token counts into a monetary cost on the leaderboard's cost-performance chart. Proprietary models use the vendor's list API price. Open-weight models have no vendor price, so they carry a public hosted-inference quote for the same weights as a reference rate; that is a market price for someone else's serving, not the submitter's own cost. Each model keeps a dated list of `quotes`, appended only when a rate changes; a submission is priced with the latest quote retrieved on or before its package date (the earliest quote if it predates them all), so published costs never move. Entries with `status: unavailable` record that no public quote exists. Prices are editable in the UI without changing this file.",
@@ -38,6 +38,14 @@
           "output": 0.09,
           "source": "https://openrouter.ai/openai/gpt-oss-20b",
           "retrieved": "2026-10-08"
+        },
+        {
+          "input": 0.03,
+          "output": 0.13,
+          "cache_read": 0.03,
+          "source": "https://openrouter.ai/openai/gpt-oss-20b",
+          "retrieved": "2026-11-02",
+          "retrieved_via": "openrouter-api"
         }
       ]
     },
@@ -58,6 +66,13 @@
           "source": "https://openrouter.ai/qwen/qwen3.5-27b",
           "retrieved": "2026-10-19",
           "retrieved_via": "openrouter-api"
+        },
+        {
+          "input": 0.26,
+          "output": 2.6,
+          "source": "https://openrouter.ai/qwen/qwen3.5-27b",
+          "retrieved": "2026-11-02",
+          "retrieved_via": "openrouter-api"
         }
       ]
     },
@@ -71,6 +86,14 @@
           "output": 1.0,
           "source": "https://openrouter.ai/qwen/qwen3.6-35b-a3b",
           "retrieved": "2026-10-08"
+        },
+        {
+          "input": 0.1,
+          "output": 0.9,
+          "cache_read": 0.025,
+          "source": "https://openrouter.ai/qwen/qwen3.6-35b-a3b",
+          "retrieved": "2026-11-02",
+          "retrieved_via": "openrouter-api"
         }
       ]
     },
@@ -90,6 +113,13 @@
           "cache_read": 0.025,
           "source": "https://openrouter.ai/qwen/qwen3.6-27b",
           "retrieved": "2026-10-19",
+          "retrieved_via": "openrouter-api"
+        },
+        {
+          "input": 0.45,
+          "output": 2.7,
+          "source": "https://openrouter.ai/qwen/qwen3.6-27b",
+          "retrieved": "2026-11-02",
           "retrieved_via": "openrouter-api"
         }
       ]
@@ -111,6 +141,14 @@
           "cache_read": 0.05,
           "source": "https://openrouter.ai/qwen/qwen3.8-27b",
           "retrieved": "2026-10-19",
+          "retrieved_via": "openrouter-api"
+        },
+        {
+          "input": 0.15,
+          "output": 1.875,
+          "cache_read": 0.0375,
+          "source": "https://openrouter.ai/qwen/qwen3.8-27b",
+          "retrieved": "2026-11-02",
           "retrieved_via": "openrouter-api"
         }
       ]
@@ -184,6 +222,14 @@
           "output": 0.6,
           "source": "https://openrouter.ai/openai/gpt-oss-120b",
           "retrieved": "2026-10-16"
+        },
+        {
+          "input": 0.023,
+          "output": 0.085,
+          "cache_read": 0.021,
+          "source": "https://openrouter.ai/openai/gpt-oss-120b",
+          "retrieved": "2026-11-02",
+          "retrieved_via": "openrouter-api"
         }
       ]
     },
