@@ -116,7 +116,7 @@ schedule:
         count: 3
 ```
 
-This fragment uses `dc_clos` endpoints. `protocol` accepts `udp` or `tcp`. The rate is per source. Receivers and resolved flows are prepared before the timeline starts. Senders receive the remaining time to the planned stop boundary, so a late start does not extend the burst. Injection and traffic commands take time; inspect the journal for actual execution times and skew.
+This fragment uses `dc_clos` endpoints. `protocol` accepts `udp` or `tcp`. Rates are bits per second per source, with decimal `K`, `M`, and `G` suffixes; `100K` means 100,000 bit/s per source. `packet_size` is in bytes. Receivers and resolved flows are prepared before the timeline starts. Senders receive the remaining time to the planned stop boundary, so a late start does not extend the burst. Injection and traffic commands take time; inspect the journal for actual execution times and skew.
 
 ## Agent completion and scoring
 

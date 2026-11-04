@@ -9,12 +9,13 @@ Core contracts: [`NetworkEnvBase`](../../src/nika/net_env/base.py), [`ProblemBas
 A benchmark task combines:
 
 - a network scenario from `src/nika/net_env/`
-- either one injectable problem from `src/nika/problems/`, a `problems` list for coordinated multi-fault tasks, or the sentinel `problem: healthy` (no fault)
-- explicit injection parameters (empty for healthy tasks; nested per problem for multi-fault rows)
+- a network incident defined by registered failures and their injection parameters, or a healthy baseline
 - optional traffic generated before or during troubleshooting
 - an agent run and evaluation output under `results/{session_id}/`
 
-The standard pipeline is:
+Static tasks use top-level `problem` or `problems` and `inject`; `problem: healthy` selects a healthy baseline. Scheduled tasks declare failures and their parameters inside `schedule.events` and omit top-level `problem`, `problems`, and `inject`. The two forms cannot be combined. See [Incident scheduling](../benchmarks/scheduling.md) for complete task files and timing rules.
+
+The standalone session pipeline is:
 
 ```shell
 nika env run <scenario> [-s s|m|l]
