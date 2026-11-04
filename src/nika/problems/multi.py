@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -146,12 +147,15 @@ class MultiFaultProblem(ProblemBase):
             raise ValueError(
                 "MultiFaultProblem requires resolved parameters before injection."
             )
-        for name, fault in self._fault_pairs():
+        pairs = self._fault_pairs()
+        for index, (name, fault) in enumerate(pairs):
             parsed = resolved.sub_params.get(name)
             if parsed is not None:
                 fault.inject_fault(parsed)
             else:
                 fault.inject_fault()
+            if index < len(pairs) - 1 and fault.MULTI_INJECT_DWELL_SEC:
+                time.sleep(fault.MULTI_INJECT_DWELL_SEC)
         self._refresh_aggregates()
 
     def verify_fault(self, params: MultiFaultParams | None = None) -> dict:

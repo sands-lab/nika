@@ -95,6 +95,8 @@ class K8sFatTreeBGP(K8sTrafficPods, NetworkEnvBase):
             "resource inventory)."
         )
         self.kubernetes_nodes = []
+        # Devices whose local PersistentVolumes back the business databases.
+        self.kubernetes_storage_nodes = ["worker1", "worker4"]
 
         # --- FRR router machines: name -> (link order, extra_metas) ---
         # Link order determines eth index: first link = eth0, second = eth1, etc.

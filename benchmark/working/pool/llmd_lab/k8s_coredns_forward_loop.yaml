@@ -1,0 +1,12 @@
+scenario:
+  name: llmd_lab
+failure:
+  fault_type: k8s_coredns_forward_loop
+  cases:
+  - inject:
+      control_node: controller
+    root_causes:
+    - resource:
+        kind: node
+        node: controller
+      fault_type: k8s_coredns_forward_loop

@@ -1,5 +1,6 @@
 """SDN controller / southbound failure implementations (ONOS)."""
 
+import re
 import time
 
 from pydantic import BaseModel, Field
@@ -11,6 +12,7 @@ from nika.net_env.sdn_l3_clos.fabric_manager import (
 from nika.problems.rca import node_resource
 from nika.problems.support.benchmark_targets import choice
 from nika.problems.support.oracle import (
+    Check,
     OraclePlaybook,
     OracleStep,
     all_of,
@@ -555,3 +557,180 @@ class SouthboundPortMismatch(ProblemBase):
                 },
             },
         )
+
+
+class SwitchDatapathIdConflictParams(BaseModel):
+    """Parameters for giving an OpenFlow switch another switch's datapath ID."""
+
+    host_name: str = Field(description="OpenFlow switch whose datapath ID is changed.")
+
+
+def _datapath_id(runtime, switch: str) -> str:
+    raw = runtime.exec(
+        switch, f"ovs-vsctl get bridge {switch} other-config:datapath-id 2>/dev/null"
+    )
+    value = raw.strip().strip('"')
+    if not re.fullmatch(r"[0-9a-fA-F]{16}", value):
+        raise RuntimeError(f"{switch!r} has no configured datapath ID: {raw!r}")
+    return value
+
+
+class SwitchDatapathIdConflict(ProblemBase):
+    """The switch takes the OpenFlow datapath ID of another switch.
+
+    The controller keeps the channel of the switch that connected first under
+    that ID and closes every new one as a duplicate, so the target switch
+    reconnects and is dropped again while flows already in its table keep
+    forwarding. A cloned switch image or a copied bridge configuration leaves
+    the same state. See the ``other-config:datapath-id`` column in Open
+    vSwitch's ovs-vswitchd.conf.db(5):
+    https://www.openvswitch.org/support/dist-docs/ovs-vswitchd.conf.db.5.html
+    """
+
+    failure_domain = FailureDomain.MANAGEMENT_ORCHESTRATION_PLANE
+    symptom_probe = "custom"
+    symptom_class = "control_plane"
+    root_cause_name = "switch_datapath_id_conflict"
+    description = "An OpenFlow switch uses the datapath ID of another switch."
+    TAGS = ["sdn"]
+    Params = SwitchDatapathIdConflictParams
+    RECORDED_ATTRS = ("duplicate_datapath_id",)
+
+    @classmethod
+    def benchmark_inject_params(cls, ctx):
+        return {"host_name": choice(ctx.rng, ctx.switches, ctx.host0)}
+
+    def root_cause_resources(self, params: SwitchDatapathIdConflictParams):
+        return [node_resource(params.host_name)]
+
+    def oracle_playbook(self, params: SwitchDatapathIdConflictParams) -> OraclePlaybook:
+        switch = params.host_name
+        twin = self._twin(switch)
+
+        def compare_args(outputs):
+            match = re.search(
+                r'^"?([0-9a-fA-F]{16})"?$', outputs["switch_dpid"].strip(), re.M
+            )
+            if match is None:
+                raise ValueError(
+                    "The switch's operational datapath ID was not observed."
+                )
+            return {
+                "host_name": twin,
+                "command": f"echo target_dpid={match[1]}; ovs-vsctl get bridge {twin} datapath_id",
+                "timeout": 15,
+            }
+
+        def duplicated(output):
+            target = re.search(r"^target_dpid=([0-9a-fA-F]{16})$", output, re.M)
+            peer = re.search(r'^"?([0-9a-fA-F]{16})"?$', output, re.M)
+            return bool(target and peer and target[1].lower() == peer[1].lower())
+
+        return OraclePlaybook(
+            finding=f"{switch} and {twin} expose the same operational OpenFlow datapath ID, so ONOS cannot maintain independent identities for both switches.",
+            steps=[
+                shell(
+                    switch,
+                    f"ovs-vsctl get bridge {switch} datapath_id; "
+                    f"ovs-vsctl get bridge {switch} other-config:datapath-id",
+                    f"Wait for {switch}'s operational datapath ID to match its configured ID.",
+                    save_as="switch_dpid",
+                    attempts=6,
+                    expect=Check(
+                        "The operational and configured datapath IDs agree.",
+                        lambda o: (
+                            len(ids := re.findall(r'^"?([0-9a-fA-F]{16})"?$', o, re.M))
+                            == 2
+                            and ids[0].lower() == ids[1].lower()
+                        ),
+                    ),
+                ),
+                OracleStep(
+                    f"Compare the operational datapath ID on the distinct switch {twin}.",
+                    "exec_shell",
+                    compare_args,
+                    Check(
+                        "Two distinct bridges have the same operational datapath ID, distinguishing identity collision from a controller outage or southbound filter.",
+                        duplicated,
+                    ),
+                    evidence=True,
+                    attempts=6,
+                ),
+                onos(
+                    "/onos/v1/devices",
+                    "Inspect the controller's device identities and availability.",
+                ),
+                _switch_channel(
+                    switch,
+                    "Inspect the affected switch's controller connection and reconnect log.",
+                    None,
+                ),
+            ],
+        )
+
+    def _twin(self, switch: str) -> str:
+        """The first other switch of the fabric, so the choice is reproducible."""
+        model = self.net_env.model
+        switches = [*model.leaves, *model.spines]
+        if switch not in switches:
+            raise ValueError(f"{switch!r} is not an OpenFlow switch of the fabric")
+        other = next((other for other in switches if other != switch), None)
+        if other is None:
+            raise ValueError("A datapath ID conflict requires at least two switches")
+        return other
+
+    def inject_fault(self, params: SwitchDatapathIdConflictParams):
+        self._original_datapath_id = _datapath_id(self.runtime, params.host_name)
+        self.duplicate_datapath_id = _datapath_id(
+            self.runtime, self._twin(params.host_name)
+        )
+        self.runtime.exec(
+            params.host_name,
+            f"ovs-vsctl set bridge {params.host_name} "
+            f"other-config:datapath-id={self.duplicate_datapath_id}",
+        )
+        logger.info(
+            f"Set datapath ID {self.duplicate_datapath_id} on {params.host_name}."
+        )
+
+    def verify_fault(self, params: SwitchDatapathIdConflictParams) -> dict:
+        expected = getattr(self, "duplicate_datapath_id", None)
+        running = _datapath_id(self.runtime, params.host_name)
+        return build_verify_result(
+            fault_type=self.root_cause_name,
+            verified=bool(expected) and running == expected,
+            details={
+                "host": params.host_name,
+                "datapath_id": running,
+                "duplicate_datapath_id": expected,
+            },
+        )
+
+    def recover_fault(self, params: SwitchDatapathIdConflictParams) -> dict:
+        original = getattr(self, "_original_datapath_id", None)
+        if original:
+            self.runtime.exec(
+                params.host_name,
+                f"ovs-vsctl set bridge {params.host_name} "
+                f"other-config:datapath-id={original}",
+            )
+        deadline = time.monotonic() + _DISCONNECT_WAIT_SEC
+        while True:
+            running = _datapath_id(self.runtime, params.host_name)
+            state = _switch_controller_state(self.runtime, self.net_env)
+            restored = (
+                bool(original)
+                and running == original
+                and bool(state)
+                and all(item["is_connected"] == "true" for item in state.values())
+            )
+            if restored or time.monotonic() >= deadline:
+                return {
+                    "verified": restored,
+                    "details": {
+                        "host": params.host_name,
+                        "datapath_id": running,
+                        "switch_connections": state,
+                    },
+                }
+            time.sleep(2.0)

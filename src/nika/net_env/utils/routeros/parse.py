@@ -35,6 +35,21 @@ def routeros_terse_rows(output: str) -> list[dict[str, str]]:
     ]
 
 
+def routeros_filter_rules(output: str) -> list[dict[str, str]]:
+    """Read filter rules whose final ``rule`` property may contain unquoted spaces."""
+    rows = []
+    for line in output.splitlines():
+        for row in routeros_terse_rows(line):
+            match = re.search(r"\brule=(.*)$", line)
+            if match:
+                rule = match[1].strip()
+                if rule.startswith('"') and rule.endswith('"'):
+                    rule = rule[1:-1]
+                row["rule"] = rule
+            rows.append(row)
+    return rows
+
+
 def routeros_established_bgp_peers(output: str) -> set[str]:
     """Return remote addresses from ``/routing/bgp/session/print terse``.
 
@@ -57,3 +72,26 @@ def routeros_count(output: str) -> int:
     """Read ``print count-only`` output; errors and timeouts count as zero."""
     value = output.strip()
     return int(value) if value.isdigit() else 0
+
+
+def routeros_bgp_received_notification(output: str) -> str | None:
+    """Decode the input session's NOTIFICATION, including optional RFC 4486 data."""
+    section = re.search(
+        r"(?:^|\s)input\.(.*?)(?=\s(?:remote|local|output)\.|\Z)",
+        output,
+        re.S,
+    )
+    if section is None:
+        return None
+    match = re.search(
+        r"(?:^|\s)(?:input\.|\.)?last-notification=([0-9a-fA-F]+)\b",
+        section[1],
+    )
+    if match is None or len(match[1]) % 2:
+        return None
+    message = bytes.fromhex(match[1])
+    if len(message) < 21 or message[:16] != b"\xff" * 16 or message[18] != 3:
+        return None
+    if message[19:21] == b"\x06\x01":
+        return "Cease/Maximum Number of Prefixes Reached"
+    return f"BGP error {message[19]}/{message[20]}"

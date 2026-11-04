@@ -264,6 +264,8 @@ class DeviceForwardingPacketCorruption(ProblemBase):
     TAGS = ["forwarding_device"]
     supported_backends = ("kathara",)
     Params = SwitchInternalPacketCorruptionParams
+    # Egress classifier that carries the fault.
+    INJECTOR = SwitchNamespaceBitflip
 
     BENCHMARK_TARGETS = "canonical"
 
@@ -279,7 +281,7 @@ class DeviceForwardingPacketCorruption(ProblemBase):
         forwarding_devices = set(net_env.routers or []) | set(net_env.switches or [])
         if target not in forwarding_devices:
             raise ValueError(
-                "device_forwarding_packet_corruption requires a router or switch target"
+                f"{cls.root_cause_name} requires a router or switch target"
             )
         if target_intf not in (ctx.ifaces_by_device.get(target) or []):
             raise ValueError(
@@ -299,16 +301,16 @@ class DeviceForwardingPacketCorruption(ProblemBase):
         identity = self.net_env.machine_identities.get(params.forwarding_device)
         if identity is None or identity.role not in {NodeRole.ROUTER, NodeRole.SWITCH}:
             raise RuntimeCapabilityError(
-                "device_forwarding_packet_corruption requires a router or switch target"
+                f"{self.root_cause_name} requires a router or switch target"
             )
-        self._bitflip_token = SwitchNamespaceBitflip(self.runtime).attach(
+        self.INJECTOR(self.runtime).attach(
             params.forwarding_device, params.intf_name, params.seed
         )
 
     def verify_fault(self, params: SwitchInternalPacketCorruptionParams) -> dict:
         return build_verify_result(
             fault_type=self.root_cause_name,
-            verified=SwitchNamespaceBitflip(self.runtime).attached(
+            verified=self.INJECTOR(self.runtime).attached(
                 params.forwarding_device, params.intf_name
             ),
             details={
@@ -364,11 +366,10 @@ class DeviceForwardingPacketCorruption(ProblemBase):
         )
 
     def recover_fault(self, params: SwitchInternalPacketCorruptionParams) -> dict:
-        injector = SwitchNamespaceBitflip(self.runtime)
+        injector = self.INJECTOR(self.runtime)
         injector.detach(
             params.forwarding_device,
             params.intf_name,
-            getattr(self, "_bitflip_token", None),
         )
         return {
             "verified": not injector.attached(

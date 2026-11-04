@@ -1,0 +1,70 @@
+scenario:
+  name: isp_brain
+failure:
+  fault_type: bgp_ttl_security_mismatch
+  cases:
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: cvk
+    root_causes:
+    - resource:
+        kind: node
+        node: cvk
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: htw
+    root_causes:
+    - resource:
+        kind: node
+        node: htw
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: hu
+    root_causes:
+    - resource:
+        kind: node
+        node: hu
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: tu
+    root_causes:
+    - resource:
+        kind: node
+        node: tu
+      fault_type: bgp_ttl_security_mismatch
+  - topo_size: l
+    igp: ospf
+    bgp_mode: ebgp
+    rpki: false
+    backend: kathara
+    device_profile: frr
+    inject:
+      host_name: wias
+    root_causes:
+    - resource:
+        kind: node
+        node: wias
+      fault_type: bgp_ttl_security_mismatch

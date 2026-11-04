@@ -38,7 +38,7 @@ def test_firecracker_settings_default_off_and_validated() -> None:
     assert FirecrackerSettings().vm_memory_overrides["dc_clos"] == "8GiB"
     assert FirecrackerSettings().vm_cpus_overrides["isp_pdh"] == 12
     set_run_config(RunConfig())
-    assert image.vm_memory_mib("dc_clos") == 8192
+    assert image.vm_memory_mib({"scenario": "dc_clos"}) == 8192
     assert image.vm_cpus("isp_pdh") == 12
     assert image.vm_cpus("campus_lan") == 4
     # User overrides merge over the built-in sizes of large labs.
@@ -50,6 +50,18 @@ def test_firecracker_settings_default_off_and_validated() -> None:
     assert overrides.vm_memory_overrides["isp_pdh"] == "20GiB"
     assert overrides.vm_cpus_overrides["isp_pdh"] == 8
     assert overrides.vm_cpus_overrides["isp_di-yuan"] == 12
+
+
+def test_vm_memory_covers_native_vendor_lab_estimate() -> None:
+    set_run_config(RunConfig())
+    env = MagicMock(native_lab_memory=MagicMock(return_value=int(9.2 * 1024**3)))
+    variant = {"scenario": "enterprise_branch", "device_profile": "routeros"}
+    image._native_lab_mib.cache_clear()
+    with patch("nika.net_env.net_env_pool.get_net_env_instance", return_value=env):
+        # 9.2 GiB estimate plus the guest's own memory, in whole GiB.
+        assert image.vm_memory_mib(variant) == 11 * 1024
+        assert image.vm_memory_mib({**variant, "device_profile": "frr"}) == 4096
+    image._native_lab_mib.cache_clear()
 
 
 def test_override_routes_lab_ops_and_maps_gateway_port() -> None:

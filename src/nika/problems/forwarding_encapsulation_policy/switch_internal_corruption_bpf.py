@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import hashlib
 import io
+import json
 import platform
 import tarfile
 from pathlib import Path
@@ -19,19 +19,21 @@ TC_BPF_IMAGE = nika_image("tc-bpf")
 BPF_TARGET_ARCH = {"x86_64": "x86", "aarch64": "arm64"}
 
 
-class SwitchNamespaceBitflip:
-    """Attach the failure's TC classifier without exposing build state to agents."""
+class SwitchEgressClassifier:
+    """Attach a failure's TC egress classifier without exposing build state to agents.
+
+    ``SOURCE`` names the eBPF C file next to this module.
+    """
+
+    SOURCE = ""
 
     def __init__(self, runtime) -> None:
         self.runtime = runtime
 
-    def attach(self, node: str, intf: str, seed: int) -> str:
-        token = hashlib.blake2s(
-            f"{self.runtime.lab_name}:{node}:{intf}:{seed}".encode(), digest_size=8
-        ).hexdigest()
+    def attach(self, node: str, intf: str, seed: int) -> None:
         # ``tc filter show`` prints the object file name.
         object_name = "tc_egress"
-        source = Path(__file__).with_name("switch_internal_corruption.bpf.c")
+        source = Path(__file__).with_name(self.SOURCE)
         archive = io.BytesIO()
         with tarfile.open(fileobj=archive, mode="w") as tar:
             tar.add(source, arcname=f"{object_name}.c")
@@ -65,21 +67,34 @@ class SwitchNamespaceBitflip:
             if status:
                 output = loader.logs().decode(errors="replace").strip()
                 raise RuntimeCapabilityError(
-                    f"could not attach switch bitflip program on {node}:{intf}: {output}"
+                    f"could not attach {self.SOURCE} on {node}:{intf}: {output}"
                 )
         finally:
             loader.remove(force=True)
-        return token
 
     def attached(self, node: str, intf: str) -> bool:
-        return (
-            "bpf"
-            in self.runtime.exec(node, f"tc filter show dev {intf} egress").lower()
+        output = self.runtime.exec(node, f"tc -j filter show dev {intf} egress")
+        try:
+            filters = json.loads(output)
+        except ValueError as exc:
+            raise RuntimeCapabilityError(
+                f"Cannot read egress filters on {node}:{intf}: {output!r}"
+            ) from exc
+        if not isinstance(filters, list):
+            raise RuntimeCapabilityError(
+                f"Invalid egress filters on {node}:{intf}: {output!r}"
+            )
+        return any(
+            item.get("kind") == "bpf" and item.get("pref") == 10 for item in filters
         )
 
-    def detach(self, node: str, intf: str, token: str | None = None) -> None:
+    def detach(self, node: str, intf: str) -> None:
         """Remove this egress classifier."""
         self.runtime.exec(
             node,
             f"tc filter del dev {intf} egress prio 10 2>/dev/null || true",
         )
+
+
+class SwitchNamespaceBitflip(SwitchEgressClassifier):
+    SOURCE = "switch_internal_corruption.bpf.c"

@@ -78,8 +78,9 @@ class FirecrackerSettings(BaseModel):
     # Most Kathara labs use under 2 GiB; with huge pages, admission reserves all of it.
     vm_memory: str = "4GiB"
     # Scenario id -> VM memory, for larger labs, merged over
-    # DEFAULT_VM_MEMORY_OVERRIDES. Image builds warn when a lab leaves too
-    # little of its VM memory free.
+    # DEFAULT_VM_MEMORY_OVERRIDES. Labs with RouterOS or IOS XR routers never
+    # get less than their routers need. Image builds warn when a
+    # lab leaves too little of its VM memory free.
     vm_memory_overrides: dict[str, str] = Field(
         default_factory=lambda: dict(DEFAULT_VM_MEMORY_OVERRIDES)
     )

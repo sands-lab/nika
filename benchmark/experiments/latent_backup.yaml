@@ -1,0 +1,56 @@
+cases:
+- scenario: enterprise_branch
+  topo_size: s
+  problem: wireguard_peer_key_misconfiguration+link_down
+  problems:
+  - wireguard_peer_key_misconfiguration
+  - link_down
+  inject:
+    wireguard_peer_key_misconfiguration:
+      host_name: br1_edge
+      intf_name: wg_hq_b
+      scope: interface
+    link_down:
+      host_name: isp1_core
+      intf_name: eth2
+  root_causes:
+  - resource:
+      kind: interface
+      node: br1_edge
+      name: wg_hq_b
+    fault_type: wireguard_peer_key_misconfiguration
+  - resource:
+      kind: link
+      name: br1_edge:eth2--isp1_core:eth2
+    fault_type: link_down
+  telemetry:
+  - prometheus
+  - syslog
+- scenario: enterprise_branch
+  topo_size: s
+  problem: wireguard_peer_key_misconfiguration+link_down
+  problems:
+  - wireguard_peer_key_misconfiguration
+  - link_down
+  inject:
+    wireguard_peer_key_misconfiguration:
+      host_name: br1_edge
+      intf_name: wg_hq_b
+      scope: interface
+    link_down:
+      host_name: isp1_core
+      intf_name: eth2
+  root_causes:
+  - resource:
+      kind: interface
+      node: br1_edge
+      name: wg_hq_b
+    fault_type: wireguard_peer_key_misconfiguration
+  - resource:
+      kind: link
+      name: br1_edge:eth2--isp1_core:eth2
+    fault_type: link_down
+  device_profile: routeros
+  telemetry:
+  - prometheus
+  - syslog

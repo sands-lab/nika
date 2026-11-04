@@ -147,6 +147,8 @@ class ProblemBase:
     # Co-injected failures whose params ``coordinate_benchmark_inject`` adjusts
     # when a multi-fault case is exactly this failure plus these.
     BENCHMARK_COORDINATES: ClassVar[frozenset[str]] = frozenset()
+    # Retain this fault before injecting the next fault, to record its history.
+    MULTI_INJECT_DWELL_SEC: ClassVar[float] = 0.0
     # Exercise kind (``nika.traffic.workload``) of scenario business traffic the
     # symptom needs. In a scenario that declares a workload, benchmark targets
     # must be ones that traffic exercises (``symptom_workload_target``).
@@ -232,6 +234,10 @@ class ProblemBase:
         ):
             return False
         if target.partition("/")[0] in cls.INCOMPATIBLE_SCENARIOS:
+            return False
+        # A base ISP column deploys one BGP mode; it must be the declared one.
+        bgp_mode = (cls.isp_protocol or {}).get("bgp_mode")
+        if bgp_mode and parse_column(target)[1] in {"ibgp_rr", "ebgp"} - {bgp_mode}:
             return False
         return frozenset(cls.TAGS).issubset(effective_tags(target))
 

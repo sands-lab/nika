@@ -1,0 +1,44 @@
+scenario:
+  name: isp_nobel-us
+failure:
+  fault_type: bgp_address_family_not_activated
+  cases:
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    inject:
+      host_name: seattle
+    root_causes:
+    - resource:
+        kind: node
+        node: seattle
+      fault_type: bgp_address_family_not_activated
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    inject:
+      host_name: urbana_champaign
+    root_causes:
+    - resource:
+        kind: node
+        node: urbana_champaign
+      fault_type: bgp_address_family_not_activated
+  - topo_size: s
+    igp: isis
+    bgp_mode: ibgp_rr
+    rpki: false
+    backend: kathara
+    device_profile: routeros
+    inject:
+      host_name: washington
+    root_causes:
+    - resource:
+        kind: node
+        node: washington
+      fault_type: bgp_address_family_not_activated

@@ -100,6 +100,15 @@ class BgpPlan:
     inventory: dict[str, Any]
     customer_site: BgpCustomerSite | None = None
 
+    def customer_interface(self, node: PlannedNode) -> str | None:
+        """The provider's next data interface for the customer attachment."""
+        if (
+            self.customer_site is None
+            or node.device_name != self.customer_site.provider
+        ):
+            return None
+        return f"eth{max(int(interface.name[3:]) for interface in node.interfaces) + 1}"
+
     def stub_interfaces(self) -> dict[str, tuple[str, ...]]:
         """Router addresses (``address/len``) on stub links outside the routing config.
 

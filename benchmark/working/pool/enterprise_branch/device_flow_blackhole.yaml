@@ -1,0 +1,67 @@
+scenario:
+  name: enterprise_branch
+failure:
+  fault_type: device_flow_blackhole
+  cases:
+  - topo_size: s
+    traffic:
+      pattern: uniform
+    inject:
+      forwarding_device: hq_edge
+      intf_name: eth0
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: hq_edge
+      fault_type: device_flow_blackhole
+  - topo_size: s
+    device_profile: iosxr
+    traffic:
+      pattern: uniform
+    inject:
+      forwarding_device: hq_edge
+      intf_name: eth0
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: hq_edge
+      fault_type: device_flow_blackhole
+  - topo_size: s
+    device_profile: routeros
+    traffic:
+      pattern: uniform
+    inject:
+      forwarding_device: hq_edge
+      intf_name: eth0
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: hq_edge
+      fault_type: device_flow_blackhole
+  - topo_size: m
+    traffic:
+      pattern: uniform
+    inject:
+      forwarding_device: hq_edge
+      intf_name: eth1
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: hq_edge
+      fault_type: device_flow_blackhole
+  - topo_size: l
+    traffic:
+      pattern: uniform
+    inject:
+      forwarding_device: hq_edge
+      intf_name: eth1
+      seed: '42'
+    root_causes:
+    - resource:
+        kind: node
+        node: hq_edge
+      fault_type: device_flow_blackhole

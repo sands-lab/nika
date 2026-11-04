@@ -76,11 +76,11 @@ def _build_mib(params: dict[str, Any]) -> int:
     """Huge pages a build holds: writing the lab image touches all VM memory."""
     if not firecracker_settings().huge_pages:
         return 0
-    return vm_memory_mib(str(params.get("scenario")))
+    return vm_memory_mib(params)
 
 
 def _disk_mib(params: dict[str, Any]) -> int:
-    return build_space_mib(str(params.get("scenario")))
+    return build_space_mib(params)
 
 
 def _build_admitted(
@@ -237,7 +237,7 @@ def hugepage_need_mib(row: dict[str, Any]) -> int:
     """
     if not firecracker_settings().huge_pages:
         return 0
-    return vm_memory_mib(str(variant_for_row(row).get("scenario")))
+    return vm_memory_mib(variant_for_row(row))
 
 
 def clean_after_run(trials: Iterable[Any]) -> None:

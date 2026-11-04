@@ -97,6 +97,8 @@ class NativeRouterPlatform:
     fault_ops: Callable[[object, str], object] | None = None
     # Most kbit/s an interface of this platform sends, when the image caps it.
     interface_rate_kbps: int | None = None
+    # Memory one router reserves in the admission estimate (bytes).
+    memory_per_router: int = 1024**3
 
 
 # Vendor modules exposing ``PLATFORM``; add a profile here to support it.
@@ -191,6 +193,19 @@ class NativeRouterEnv:
     def _eligible(self, roles) -> tuple[str, ...]:
         by_role = self.router_roles()
         return tuple(sorted({name for role in roles for name in by_role.get(role, ())}))
+
+    def native_lab_memory(self) -> int | None:
+        """Estimated bytes the lab needs; ``None`` without native routers."""
+        if not self.native_routers:
+            return None
+        from nika.net_env.utils.native_admission import native_lab_memory
+
+        routers = len(self.native_routers)
+        return native_lab_memory(
+            routers=routers,
+            per_router=native_platform(self.device_profile).memory_per_router,
+            hosts=len(self.lab.machines) - routers,
+        )
 
     def deploy(self):
         if self.native_routers:
@@ -298,11 +313,23 @@ def run_in_network_namespace(env, node: str, commands: Sequence[str]) -> None:
     from nika.net_env.utils.kathara.docker_files.docker_images import nika_image
     from nika.runtime.shared.containers import docker_client
 
+    from docker.errors import ContainerError
+
     container = env._build_runtime().get_container(node)
-    docker_client().containers.run(
-        nika_image("base"),
-        ["/bin/sh", "-ec", "\n".join(commands)],
+    image = nika_image("base")
+    command = ["/bin/sh", "-ec", "\n".join(commands)]
+    helper = docker_client().containers.create(
+        image,
+        command,
         network_mode=f"container:{container.id}",
         cap_add=["NET_ADMIN"],
-        remove=True,
     )
+    try:
+        helper.start()
+        status = helper.wait()["StatusCode"]
+        if status:
+            raise ContainerError(
+                helper, status, command, image, helper.logs(stdout=False, stderr=True)
+            )
+    finally:
+        helper.remove(force=True)

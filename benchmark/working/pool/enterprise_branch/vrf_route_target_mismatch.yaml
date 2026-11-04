@@ -1,0 +1,52 @@
+scenario:
+  name: enterprise_branch
+failure:
+  fault_type: vrf_route_target_mismatch
+  cases:
+  - topo_size: s
+    inject:
+      host_name: br1_edge
+      vrf_name: vrf_corp
+    root_causes:
+    - resource:
+        kind: node
+        node: br1_edge
+      fault_type: vrf_route_target_mismatch
+  - topo_size: s
+    device_profile: iosxr
+    inject:
+      host_name: br2_edge
+      vrf_name: vrf_corp
+    root_causes:
+    - resource:
+        kind: node
+        node: br2_edge
+      fault_type: vrf_route_target_mismatch
+  - topo_size: s
+    device_profile: routeros
+    inject:
+      host_name: br2_edge
+      vrf_name: vrf_corp
+    root_causes:
+    - resource:
+        kind: node
+        node: br2_edge
+      fault_type: vrf_route_target_mismatch
+  - topo_size: m
+    inject:
+      host_name: br4_edge
+      vrf_name: vrf_corp
+    root_causes:
+    - resource:
+        kind: node
+        node: br4_edge
+      fault_type: vrf_route_target_mismatch
+  - topo_size: l
+    inject:
+      host_name: br2_edge
+      vrf_name: vrf_corp
+    root_causes:
+    - resource:
+        kind: node
+        node: br2_edge
+      fault_type: vrf_route_target_mismatch

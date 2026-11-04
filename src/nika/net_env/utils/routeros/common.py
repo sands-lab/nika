@@ -179,19 +179,7 @@ def configure_routeros_router(
         f"ip link set {_BRIDGED_PREFIX}0 up",
     ]
     for name, index in zip(interfaces, indices):
-        veth, peer, bridge = f"{_BRIDGED_PREFIX}{index}", f"vp{index}", f"bp{index}"
-        setup.extend(
-            [
-                f"ip link add {veth} type veth peer name {peer}",
-                f"ip link add {bridge} type bridge",
-                f"ip link set {name} master {bridge}",
-                f"ip link set {peer} master {bridge}",
-                f"ip link set {name} up",
-                f"ip link set {peer} up",
-                f"ip link set {veth} up",
-                f"ip link set {bridge} up",
-            ]
-        )
+        setup.extend(_bridged_link_setup(name, index))
     set_routeros_startup(
         lab,
         machine.name,
@@ -199,6 +187,33 @@ def configure_routeros_router(
         setup=setup,
         link_commands=link_commands,
     )
+
+
+def _bridged_link_setup(name: str, index: int) -> list[str]:
+    veth, peer, bridge = f"{_BRIDGED_PREFIX}{index}", f"vp{index}", f"bp{index}"
+    return [
+        f"ip link add {veth} type veth peer name {peer}",
+        f"ip link add {bridge} type bridge",
+        f"ip link set {name} master {bridge}",
+        f"ip link set {peer} master {bridge}",
+        f"ip link set {name} up",
+        f"ip link set {peer} up",
+        f"ip link set {veth} up",
+        f"ip link set {bridge} up",
+    ]
+
+
+def append_routeros_interface(lab: Lab, machine: Machine, interface: str) -> None:
+    """Bridge an interface attached after a router's initial conversion."""
+    count = int(machine.meta["envs"]["CLAB_INTFS"])
+    if interface != f"eth{count}" or count >= MAX_DATA_INTERFACES:
+        raise ValueError(f"Cannot append RouterOS interface {machine.name}:{interface}")
+    startup = lab.fs.readtext(f"{machine.name}.startup")
+    setup = _bridged_link_setup(interface, count + 1)
+    lab.create_file_from_string(
+        startup.rstrip() + "\n" + "\n".join(setup) + "\n", f"{machine.name}.startup"
+    )
+    machine.add_meta("env", f"CLAB_INTFS={count + 1}")
 
 
 def _boot_meta(machine: Machine, data_nics: int) -> None:

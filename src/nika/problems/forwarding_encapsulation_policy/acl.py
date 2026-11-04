@@ -27,11 +27,13 @@ from nika.problems.support.oracle import (
     lacks,
     ping_works,
     process_running,
+    router_cli,
     shell,
     vtysh,
 )
+from nika.problems.support.ospf import ospf_health
 from nika.problems.support.polling import wait_until
-from nika.problems.support.router_ops import native_fault_ops
+from nika.problems.support.router_ops import native_fault_ops, native_router_profile
 from nika.runtime.base import RuntimeCapabilityError
 
 
@@ -382,13 +384,84 @@ class OSPFAclBlockParams(BaseModel):
     host_name: str = Field(description="Target router host name.")
 
 
+def _xr_ospf_drop_applied(output: str) -> bool:
+    """The running ACL drops OSPF on every configured OSPF data interface."""
+    ospf_interfaces = set(
+        re.findall(r"^  interface (GigabitEthernet\S+)$", output, re.M)
+    )
+    filters = {
+        interface: re.search(r"^ ipv4 access-group (\S+) ingress$", body, re.M)
+        for interface, body in re.findall(
+            r"^interface (\S+)\n(.*?)(?=^!|\Z)", output, re.M | re.S
+        )
+    }
+    acls = dict(
+        re.findall(r"^ipv4 access-list (\S+)\n(.*?)(?=^!|\Z)", output, re.M | re.S)
+    )
+
+    def drops_ospf(acl: str) -> bool:
+        entries = sorted(
+            (int(seq), rule)
+            for seq, rule in re.findall(r"^ (\d+) (.+)$", acl, re.M)
+            if not rule.startswith("remark ")
+        )
+        return bool(entries) and entries[0][1] in {
+            "deny ospf any any",
+            "deny 89 any any",
+        }
+
+    return bool(ospf_interfaces) and all(
+        (applied := filters.get(interface)) is not None
+        and drops_ospf(acls.get(applied[1], ""))
+        for interface in ospf_interfaces
+    )
+
+
+def _xr_ospf_no_adjacencies(output: str) -> bool:
+    counts = re.findall(r"Adjacent neighbor count is (\d+)", output, re.I)
+    return bool(counts) and all(int(count) == 0 for count in counts)
+
+
+def _routeros_ospf_drop(output: str) -> bool:
+    from nika.net_env.utils.routeros.parse import routeros_terse_rows
+
+    return any(
+        row.get("chain") == "input"
+        and row.get("protocol") in {"ospf", "89"}
+        and row.get("action") == "drop"
+        for row in routeros_terse_rows(output)
+    )
+
+
 class OSPFAclBlock(ProblemBase):
+    """An access policy discards OSPF packets (IP protocol 89).
+
+    References:
+        Cisco IOS XR, Implementing Access Lists and Prefix Lists:
+        https://www.cisco.com/c/en/us/td/docs/iosxr/ncs5500/ip-addresses/72x/b-ip-addresses-cg-ncs5500-72x/m-implementing-access-lists-prefix-lists-ncs5500.html
+        MikroTik RouterOS, Filter (input chain and protocol matching):
+        https://help.mikrotik.com/docs/spaces/ROS/pages/48660574/Filter
+        RFC 2328, Appendix A.1 (OSPF IP protocol number and multicast):
+        https://www.rfc-editor.org/rfc/rfc2328#appendix-A.1
+    """
+
     failure_domain = FailureDomain.FORWARDING_ENCAPSULATION_POLICY
     symptom_probe = "custom"
     symptom_class = "control_plane"
     root_cause_name = "ospf_acl_block"
     description = "OSPF control-plane traffic is blocked by an ACL."
     TAGS: str = ["ospf"]
+    supported_backends = ("kathara",)
+    native_router_operations = frozenset(
+        {
+            "block_ospf_transport",
+            "ospf_transport_blocked",
+            "unblock_ospf_transport",
+            "ipv4_addresses",
+            "ospf_neighbors",
+            "ospf_routes",
+        }
+    )
 
     Params = OSPFAclBlockParams
 
@@ -396,56 +469,150 @@ class OSPFAclBlock(ProblemBase):
     def benchmark_inject_params(cls, ctx):
         return {"host_name": ctx.router0}
 
+    @classmethod
+    def validate_benchmark_inject(cls, ctx, inject):
+        from nika.problems.support.benchmark_targets import require_node_capability
+
+        require_node_capability(
+            ctx, cls.root_cause_name, inject.get("host_name"), "ospf"
+        )
+
     def root_cause_resources(self, params: OSPFAclBlockParams):
         return [node_resource(params.host_name)]
 
     def inject_fault(self, params: OSPFAclBlockParams):
-        self.runtime.add_nft_drop_rule(
-            params.host_name, "ip protocol ospf drop", family="inet"
-        )
+        from nika.validation.symptom.routing_probes import facing_interfaces
+
+        host = params.host_name
+        self._healthy_routing = {
+            node: ospf_health(self, node)
+            for node in sorted({host, *facing_interfaces(self, host)})
+        }
+        if not self._healthy_routing[host]["neighbors"]:
+            raise RuntimeCapabilityError(f"No Full OSPF neighbors on {host!r}.")
+        ops = native_fault_ops(self, host, "block_ospf_transport")
+        if ops is not None:
+            self._ospf_filter_id = ops.block_ospf_transport()
+        else:
+            self.runtime.add_nft_drop_rule(host, "ip protocol ospf drop", family="inet")
 
     def verify_fault(self, params: OSPFAclBlockParams) -> dict:
-        """Verify nftables has a rule blocking OSPF protocol."""
+        """Verify the packet filter drops OSPF on the target router."""
+        ops = native_fault_ops(self, params.host_name, "ospf_transport_blocked")
+        if ops is not None:
+            return build_verify_result(
+                fault_type=self.root_cause_name,
+                verified=ops.ospf_transport_blocked(),
+                details={"host": params.host_name, "profile": ops.profile},
+            )
         return _verify_nft_drop(self, params.host_name, "ip protocol ospf drop")
+
+    def recover_fault(self, params: OSPFAclBlockParams) -> dict:
+        baseline = getattr(self, "_healthy_routing", None)
+        if not baseline:
+            return {"verified": False, "details": {"error": "no_healthy_baseline"}}
+        host = params.host_name
+        ops = native_fault_ops(self, host, "unblock_ospf_transport")
+        if ops is not None:
+            filter_id = getattr(self, "_ospf_filter_id", None)
+            if filter_id is None:
+                return {"verified": False, "details": {"error": "no_filter_identifier"}}
+            ops.unblock_ospf_transport(filter_id)
+        else:
+            self.runtime.exec(
+                host,
+                "for chain in input forward output; do "
+                "for handle in $(nft -a list chain inet filter $chain | "
+                "sed -nE 's/^[[:space:]]*ip protocol (ospf|89) drop # handle ([0-9]+)$/\\2/p'); do "
+                "nft delete rule inet filter $chain handle $handle; done; done",
+            )
+        observed = {}
+
+        def healthy():
+            observed.update({node: ospf_health(self, node) for node in baseline})
+            return all(
+                values <= observed[node][key]
+                for node, before in baseline.items()
+                for key, values in before.items()
+            )
+
+        restored = wait_until(healthy, 180, interval_s=3)
+        return {
+            "verified": restored and not self.verify_fault(params)["verified"],
+            "details": {
+                "host": host,
+                "routing": {
+                    node: {key: len(values) for key, values in state.items()}
+                    for node, state in observed.items()
+                },
+            },
+        }
 
     def oracle_playbook(self, params: OSPFAclBlockParams) -> OraclePlaybook:
         host = params.host_name
-        return OraclePlaybook(
-            finding=(
-                f"An ACL on {host} drops OSPF (IP protocol 89), so its OSPF "
-                "adjacencies time out and routes through it are withdrawn."
-            ),
-            steps=[
-                shell(
-                    host,
-                    vtysh("show ip ospf neighbor"),
-                    f"Check OSPF adjacencies on {host}.",
-                    all_of(
-                        contains(r"Neighbor ID", "OSPF answers"),
-                        lacks(r"\bFull/", "no OSPF neighbor is Full"),
-                    ),
-                    evidence=True,
-                    attempts=8,
-                    interval_sec=10,
-                    timeout=20,
-                ),
-                shell(
-                    host,
-                    vtysh("show ip ospf interface")
-                    + " | grep -E 'is up|Area|Hello|Neighbor Count' | head -40",
-                    f"Confirm OSPF is still enabled on {host}'s interfaces with its configured area and timers.",
-                    contains(r"Area \S+", "OSPF runs on the interfaces"),
-                    timeout=20,
-                ),
-                _nft_drops(
-                    host,
-                    _nft_table_rule(
-                        "inet", r"ip protocol (ospf|89) drop", "a rule drops OSPF"
-                    ),
-                    f"Inspect the packet filter on {host} for rules on OSPF.",
-                ),
-            ],
+        profile = native_router_profile(self.net_env, host)
+        finding = (
+            f"An ACL on {host} drops OSPF (IP protocol 89), so its OSPF "
+            "adjacencies time out and routes through it are withdrawn."
         )
+        if profile == "iosxr":
+            no_neighbors = Check(
+                "no OSPF interface has a Full neighbor", _xr_ospf_no_adjacencies
+            )
+        elif profile == "routeros":
+            no_neighbors = contains(r"^0\s*$", "no OSPF neighbor is Full")
+        else:
+            no_neighbors = all_of(
+                contains(r"Neighbor ID", "OSPF answers"),
+                lacks(r"\bFull", "no OSPF neighbor is Full"),
+            )
+        neighbors = router_cli(
+            self.net_env,
+            host,
+            f"Check OSPF adjacencies on {host}.",
+            no_neighbors,
+            frr=vtysh("show ip ospf neighbor"),
+            iosxr_command="show ospf interface",
+            routeros_command="/routing/ospf/neighbor/print count-only where state=Full",
+            evidence=True,
+            attempts=8,
+            interval_sec=10,
+        )
+        enabled = router_cli(
+            self.net_env,
+            host,
+            f"Confirm OSPF is still enabled on {host}'s interfaces with its configured area and timers.",
+            contains(r"Area \S+|area=\S+", "OSPF runs on the interfaces"),
+            frr=vtysh("show ip ospf interface"),
+            iosxr_command="show ospf interface",
+            routeros_command="/routing/ospf/interface/print detail",
+        )
+        if profile in {"iosxr", "routeros"}:
+            drop = router_cli(
+                self.net_env,
+                host,
+                f"Inspect the active packet filter on {host} for OSPF drops.",
+                Check(
+                    "an applied filter drops OSPF",
+                    _xr_ospf_drop_applied
+                    if profile == "iosxr"
+                    else _routeros_ospf_drop,
+                ),
+                frr="",
+                iosxr_command="show running-config",
+                routeros_command="/ip/firewall/filter/print terse where !disabled",
+                evidence=True,
+            )
+        else:
+            drop = _nft_drops(
+                host,
+                _nft_table_rule(
+                    "inet", r"ip protocol (ospf|89) drop", "a rule drops OSPF"
+                ),
+                f"Inspect the packet filter on {host} for rules on OSPF.",
+            )
+        steps = [neighbors, drop] if profile == "iosxr" else [neighbors, enabled, drop]
+        return OraclePlaybook(finding=finding, steps=steps)
 
 
 # ==================================================================

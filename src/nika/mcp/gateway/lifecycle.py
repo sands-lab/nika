@@ -249,6 +249,7 @@ def mcp_gateway_for_session(
         set_gateway_agent_url(manager, agent_host=sandbox_agent_host)
     from nika.mcp.registry import select_diagnosis_servers
     from nika.run_config.loader import get_run_config
+    from nika.runtime.meta import meta_get
     from nika.telemetry import telemetry_for_session
     from nika.utils.session_store import SessionStore
 
@@ -272,6 +273,7 @@ def mcp_gateway_for_session(
                 scenario_name,
                 backend=resolved_backend,
                 telemetry=telemetry_for_session(row),
+                device_profile=meta_get(row, "device_profile", scenario_params=True),
             )
             if scenario_name
             else None
