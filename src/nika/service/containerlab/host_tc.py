@@ -351,10 +351,14 @@ done
         """
         target = f"{node}:{intf}"
         pid = self._container_pid(node)
-        set_state = f"nsenter -t {pid} -n ip link set dev {shlex.quote(intf)}"
+        # Pin the namespace once: a lingering worker must never follow a
+        # recycled node PID into an unrelated process's network namespace.
+        set_state = f"nsenter --net=/proc/self/fd/3 ip link set dev {shlex.quote(intf)}"
         pid_path = self._flap_pid_path(target)
         self.stop_node_link_flap(node, intf)
-        script = f"""PID_FILE={shlex.quote(pid_path)}
+        script = f"""exec 3</proc/{pid}/ns/net || exit 1
+test "$(stat -Lc %i /proc/self/fd/3)" != "$(stat -Lc %i /proc/1/ns/net)" || exit 1
+PID_FILE={shlex.quote(pid_path)}
 cleanup() {{
     {set_state} up >/dev/null 2>&1 || true
     rm -f "$PID_FILE"
