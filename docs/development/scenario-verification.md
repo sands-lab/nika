@@ -223,7 +223,7 @@ Batfish parses the configuration, computes modeled protocol/route state and answ
 
 Batfish reads this example's FRR configuration directly. IOS XR and SONiC also have native parsers. Batfish cannot parse SR Linux or RouterOS and does not model IS-IS for FRR, so for those deployments netlab renders the same design as FRR, or as IOS XR when the IGP is IS-IS. Static analysis then covers the design, and only native execution checks the device's own configuration syntax. Static negative controls are written in the analyzed syntax; native runtime controls use the device's commands. `summary.json` records the rendering under `static_analysis`. The pinned Batfish build includes the [FRR next-hop correction](../../scripts/batfish/frr-next-hop-self.patch).
 
-A deliberate bad candidate tests whether the checks detect the intended mistake. Removing `washng`'s business-prefix announcement violated exactly 12 predeclared predicates in this run. A violation, tool error or required unsupported property rejects the candidate; it does not count as acceptance. So does any statement Batfish ignores, unless it is one of the routing-neutral statements listed in `ACCEPTED_PARSE_WARNINGS` of [`client.py`](../../src/nika/validation/batfish/client.py), each with its reason. Equivalent statements that Batfish's grammar lacks, such as one-line IOS XR static routes, are rewritten into a form it parses before analysis.
+A deliberate bad candidate tests whether the checks detect the intended mistake. Removing `washng`'s business-prefix announcement violated exactly 12 predeclared predicates in this run. A violation, tool error or required unsupported property rejects the candidate; it does not count as acceptance. So does any statement Batfish ignores, unless it is one of the exceptions listed with its reason in `ACCEPTED_PARSE_WARNINGS` of [`client.py`](../../src/nika/validation/batfish/client.py). Most exceptions, such as markup, timers and logging, do not affect routing. The other three, per-neighbor community-send controls, RFC 8212 eBGP policy and `no bgp network import-check`, are behaviors Batfish models differently from the router; static acceptance does not establish them, and only native execution observes their effect. Equivalent statements that Batfish's grammar lacks, such as one-line IOS XR static routes, are rewritten into a form it parses before analysis.
 
 ## 6. Deploy, observe, inject and recover
 
@@ -247,9 +247,22 @@ The ISP experiment builder derives maximum-prefix impact from the original BGP s
 
 Static analysis and execution apply these bounds independently within their own predicate scopes. Batfish predictions do not replace authored runtime expectations. Inspect `impact-model-<failure>.json` and `impact-failure-<failure>.json` for the required failures, preserved intents, unconstrained outcomes and acceptance violations. In `summary.json`, each modeled failure's runtime entry under `failure_compatibility` includes `model_comparison`: the shared static IDs and the IDs that failed only in the model or only in execution. Differences on unconstrained intents remain visible even when both stages satisfy the authored bounds. These comparisons cover declared predicate outcomes, not all possible traffic or device state.
 
-To see where these checks disagree, run an experiment with `--runtime --compare-methods`. In every runtime state of a Kathara deployment whose routers all run Linux, NIKA also reads the main IPv4 FIB of each router, checks the declared reachability and isolation intents between addressed endpoints, including a router's own traffic, on it with NetKAT, and records the three answers per intent beside each other: Batfish on the analyzed configurations of that state, NetKAT on the installed FIB, and the native probe. `summary.json` lists the disagreeing intents per state under `method_comparison`, and the `method-comparison` directory keeps the FIBs and per-intent tables. On other backends or with native vendor routers, the FIB column is `unsupported` and `summary.json` records the reason under `fib_scope`. If NIKA cannot model a state's FIB, that state's FIB column is `error`, `summary.json` records the message under `fib_error`, and the validation run continues. A disagreement still needs diagnosis: the static model may not cover the behavior (VRF tables, policy routing, packet filters, NAT and tunnels are outside the FIB model), a configuration may be translated incorrectly, routing may not have converged, or a check may be wrong.
-
 Native checks matter because a modeled route is not an installed route, and modeled forwarding is not an observed packet exchange. Runtime-only original requirements supplement shared predicates where the static model is insufficient, including installed ECMP limits and enterprise overlay isolation.
+
+### Compare verification methods
+
+When Batfish, the installed forwarding state and the native probes disagree about an intent, the cause can be a modeling gap, a translation error, incomplete convergence or a wrong check. To record all three answers per intent, run an experiment with `--runtime --compare-methods`.
+
+In every runtime state of a Kathara deployment whose routers all run Linux, NIKA reads the main IPv4 FIB of each router and checks the declared reachability and isolation intents on it with NetKAT. Intents between addressed endpoints are checked, including a router's own traffic. Each intent then has three answers: Batfish on the analyzed configurations of that state, NetKAT on the installed FIB, and the native probe.
+
+| Output | Content |
+| --- | --- |
+| `summary.json`, `method_comparison` | The disagreeing intents of each state |
+| `method-comparison/` | The FIBs and per-intent tables of each state |
+| `fib` is `unsupported` in the per-intent tables, and the state's `method_comparison` entry has `fib_scope` | The deployment is not on Kathara or has native vendor routers |
+| `fib` is `error` in the per-intent tables, and the state's `method_comparison` entry has `fib_error` | NIKA could not model that state's FIB; the validation run continues |
+
+A disagreement still needs diagnosis. The static model may not cover the behavior: VRF tables, policy routing, packet filters, NAT and tunnels are outside the FIB model. A configuration may also be translated incorrectly, routing may not have converged, or a check may be wrong.
 
 ## SDN and P4 forwarding verification
 
