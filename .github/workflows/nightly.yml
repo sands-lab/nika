@@ -292,6 +292,7 @@ jobs:
     timeout-minutes: 180
     env:
       # Engine trials run the oracle and verify the failure through MCP tools.
+      NIKA_CI_ENGINE_RELEASE: "0.2.0"
       NIKA_CI_ENGINE_SPLIT: test
     steps:
       - uses: actions/checkout@v5
@@ -323,6 +324,15 @@ jobs:
           commit=$(git rev-parse --short=12 HEAD)
           uv run nika engine build "$commit"
           echo "NIKA_CI_ENGINE_IMAGE=nika/benchmark-engine:$commit" >> "$GITHUB_ENV"
+      - name: Prepare this release's required images before disk admission
+        id: release-images
+        run: |
+          uv run python - <<'PYTHON'
+          import os
+          from nika.workflows.benchmark.release import load_release, preflight_release
+
+          preflight_release(load_release(os.environ["NIKA_CI_ENGINE_RELEASE"], split="test"))
+          PYTHON
       - name: k8s_lab oracle through engine
         env:
           NIKA_CI_ENGINE_TASK_ID: k8s_lab__k8s_networkpolicy_d__hadf9af15da3f
@@ -336,7 +346,7 @@ jobs:
           fi
           uv run pytest tests/benchmark/test_engine_container_e2e.py -q -ra
       - name: llmd_lab oracle through engine
-        if: ${{ !cancelled() && steps.engine-build.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.engine-build.outcome == 'success' && steps.release-images.outcome == 'success' }}
         env:
           NIKA_CI_ENGINE_TASK_ID: llmd_lab__k8s_coredns_isolat__h7de12dd02b9a
         run: |
@@ -349,7 +359,7 @@ jobs:
           fi
           uv run pytest tests/benchmark/test_engine_container_e2e.py -q -ra
       - name: isp_pdh SR Linux oracle through engine
-        if: ${{ !cancelled() && steps.engine-build.outcome == 'success' }}
+        if: ${{ !cancelled() && steps.engine-build.outcome == 'success' && steps.release-images.outcome == 'success' }}
         env:
           NIKA_CI_ENGINE_TASK_ID: isp_pdh__bgp_acl_block__s__i__hbe4170621772
         run: |

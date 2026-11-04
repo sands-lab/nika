@@ -156,6 +156,14 @@ jobs:
         run: |
           docker image load -i "$RUNNER_TEMP/release-engine/release-engine.tar"
           rm "$RUNNER_TEMP/release-engine/release-engine.tar"
+      - name: Prepare this release's required images before disk admission
+        run: |
+          uv run python - <<'PYTHON'
+          import os
+          from nika.workflows.benchmark.release import load_release, preflight_release
+
+          preflight_release(load_release(os.environ["NIKA_CI_ENGINE_RELEASE"], split="test"))
+          PYTHON
       - name: Require disk headroom before trial deployment
         run: |
           docker_root=$(docker info --format '{{.DockerRootDir}}')
